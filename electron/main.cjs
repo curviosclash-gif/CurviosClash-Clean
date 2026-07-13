@@ -22,6 +22,10 @@ const {
 const { createRecordingVideoExportJob } = require('./recording-video-export-job.cjs');
 const { createTuningWindowController } = require('./tuning-window.cjs');
 const { registerTuningIpc } = require('./tuning-ipc.cjs');
+const {
+    assertTrustedWindowSender,
+    isTrustedWindowSender,
+} = require('./ipc-sender-guard.cjs');
 
 let mainWindow = null;
 let tray = null;
@@ -30,6 +34,17 @@ let staticAppServer = null;
 let signalingStartPromise = null;
 let signalingStopPromise = null;
 let disposeTuningIpc = null;
+
+function isTrustedMainWindowSender(event) {
+    return isTrustedWindowSender(event, mainWindow);
+}
+
+function withTrustedMainWindowSender(handler) {
+    return (event, ...args) => {
+        assertTrustedWindowSender(event, mainWindow);
+        return handler(...args);
+    };
+}
 
 const SIGNALING_PORTS = [9090, 9091, 9093, 9094];
 const GRACEFUL_CLOSE_TIMEOUT_MS = 3000;
@@ -490,19 +505,22 @@ async function createWindow() {
         if (gracefulCloseReady) return;
         event.preventDefault();
 
+        const onGracefulCloseReady = (ipcEvent) => {
+            if (!isTrustedMainWindowSender(ipcEvent)) return;
+            clearTimeout(timeoutId);
+            finish();
+        };
         const finish = () => {
             if (gracefulCloseReady) return;
             gracefulCloseReady = true;
+            ipcMain.removeListener('graceful-close-ready', onGracefulCloseReady);
             if (mainWindow && !mainWindow.isDestroyed()) {
                 mainWindow.close();
             }
         };
 
         const timeoutId = setTimeout(finish, GRACEFUL_CLOSE_TIMEOUT_MS);
-        ipcMain.once('graceful-close-ready', () => {
-            clearTimeout(timeoutId);
-            finish();
-        });
+        ipcMain.on('graceful-close-ready', onGracefulCloseReady);
 
         try {
             mainWindow.webContents.send('request-graceful-close');
@@ -819,25 +837,33 @@ function startDiscoveryListener() {
     discoverySocket.bind(DISCOVERY_PORT, '0.0.0.0');
 }
 
-ipcMain.handle('get-lan-server-status', () => lanHostShellCapability.getStatus());
+ipcMain.handle('get-lan-server-status', withTrustedMainWindowSender(
+    () => lanHostShellCapability.getStatus()
+));
 
-ipcMain.handle('start-lan-server', () => lanHostShellCapability.start());
+ipcMain.handle('start-lan-server', withTrustedMainWindowSender(
+    () => lanHostShellCapability.start()
+));
 
-ipcMain.handle('stop-lan-server', () => lanHostShellCapability.stop());
+ipcMain.handle('stop-lan-server', withTrustedMainWindowSender(
+    () => lanHostShellCapability.stop()
+));
 
-ipcMain.handle('start-discovery', () => {
+ipcMain.handle('start-discovery', withTrustedMainWindowSender(() => {
     startDiscoveryListener();
     return { listening: true };
-});
+}));
 
-ipcMain.handle('stop-discovery', () => {
+ipcMain.handle('stop-discovery', withTrustedMainWindowSender(() => {
     stopDiscoveryListener();
     return { listening: false };
-});
+}));
 
-ipcMain.handle('get-discovered-hosts', () => listDiscoveredHosts());
+ipcMain.handle('get-discovered-hosts', withTrustedMainWindowSender(
+    () => listDiscoveredHosts()
+));
 
-ipcMain.handle('save-replay', async (_event, jsonString, defaultName) => {
+ipcMain.handle('save-replay', withTrustedMainWindowSender(async (jsonString, defaultName) => {
     try {
         const result = await dialog.showSaveDialog(desktopWindowShellCapability.getWindow(), {
             title: 'Replay speichern',
@@ -854,17 +880,17 @@ ipcMain.handle('save-replay', async (_event, jsonString, defaultName) => {
     }
 
     return false;
-});
+}));
 
-ipcMain.handle('save-recording-video-export', async (_event, payload) => (
+ipcMain.handle('save-recording-video-export', withTrustedMainWindowSender(async (payload) => (
     handleRecordingVideoExport(payload)
-));
+)));
 
-ipcMain.handle('get-recording-video-export-capability', async (_event, options = null) => (
+ipcMain.handle('get-recording-video-export-capability', withTrustedMainWindowSender(async (options = null) => (
     recordingVideoExportJob.getCapabilityStatus(options)
-));
+)));
 
-ipcMain.handle('save-video', async (_event, videoBytes, defaultName, mimeType) => (
+ipcMain.handle('save-video', withTrustedMainWindowSender(async (videoBytes, defaultName, mimeType) => (
     handleRecordingVideoExport({
         contractVersion: RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION,
         capabilityId: RECORDING_VIDEO_EXPORT_CAPABILITY_ID,
@@ -872,15 +898,19 @@ ipcMain.handle('save-video', async (_event, videoBytes, defaultName, mimeType) =
         fileName: defaultName,
         mimeType,
     })
-));
+)));
 
 ipcMain.on('settings-defaults:read-override-sync', (event) => {
+    if (!isTrustedMainWindowSender(event)) {
+        event.returnValue = null;
+        return;
+    }
     event.returnValue = readMenuDefaultsOverrideSnapshotSync();
 });
 
-ipcMain.handle('settings-defaults:read-override', async () => {
+ipcMain.handle('settings-defaults:read-override', withTrustedMainWindowSender(async () => {
     return readMenuDefaultsOverrideSnapshotSync();
-});
+}));
 
 async function shutdownRuntime() {
     stopDiscoveryListener();

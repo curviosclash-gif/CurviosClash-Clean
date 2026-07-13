@@ -16,6 +16,7 @@
       "main.cjs",
       "launch.cjs",
       "preload.cjs",
+      "ipc-sender-guard.cjs",
       "session-data-runtime.cjs",
       "tuning-window.cjs",
       "tuning-ipc.cjs",
