@@ -62,6 +62,8 @@ import {
 import { StoragePlatform } from '../src/state/storage/StoragePlatform.js';
 import { resolveRuntimeMenuFeatureFlags } from '../src/ui/menu/MenuRuntimeFeatureFlags.js';
 import { resolveSurfaceFeatureLaunchGuard } from '../src/ui/menu/MenuSurfaceFeatureAccess.js';
+import { syncMenuSurfacePolicyUi } from '../src/ui/menu/MenuSurfacePolicyUiSync.js';
+import { MenuTextRuntime } from '../src/ui/menu/MenuTextRuntime.js';
 import { createMenuMultiplayerDiscoveryPort } from '../src/ui/menu/multiplayer/MenuMultiplayerDiscoveryPort.js';
 import { createMenuMultiplayerHostIpResolver } from '../src/ui/menu/multiplayer/MenuMultiplayerHostIpResolver.js';
 
@@ -423,6 +425,74 @@ test('V77.3.3 surface entry copy cuts showcase, join-only and splitscreen access
     assert.match(browserEntryCopy.multiplayerSubtitle, /hostet aber nicht/);
     assert.equal(desktopEntryCopy.hostButtonLabel, 'Host');
     assert.equal(desktopEntryCopy.sessionSummaryLabels.single, 'Single Player');
+});
+
+test('surface UI sync remains the final owner of browser copy while honoring developer text overrides', () => {
+    const createButton = (textContent, dataset = {}) => ({
+        textContent,
+        dataset: { ...dataset },
+        classList: { toggle() {} },
+        setAttribute() {},
+        querySelector() { return null; },
+        disabled: false,
+        title: '',
+    });
+    const singleLabel = { textContent: 'Single Player' };
+    const singleButton = createButton('', { sessionType: 'single' });
+    singleButton.querySelector = () => singleLabel;
+    const startButton = createButton('Starten');
+    const editorButton = createButton('3D Map-Editor oeffnen');
+    const overrides = new Map();
+    const menuTextRuntime = new MenuTextRuntime({
+        overridePort: {
+            getOverride(textId) {
+                return overrides.get(textId) || '';
+            },
+        },
+    });
+    const settings = {
+        localSettings: {
+            sessionType: 'single',
+            modePath: 'normal',
+            developerModeEnabled: false,
+            releasePreviewEnabled: false,
+        },
+    };
+    const ui = {
+        sessionButtons: [singleButton],
+        modePathButtons: [],
+        startButton,
+        openEditorButton: editorButton,
+    };
+    const surfacePolicy = { productSurfaceId: PLATFORM_PRODUCT_SURFACE_IDS.BROWSER_DEMO };
+    const sync = (releaseState) => syncMenuSurfacePolicyUi({
+        ui,
+        settings,
+        sessionType: 'single',
+        surfacePolicy,
+        menuTextRuntime,
+        releaseState,
+    });
+
+    sync({ featureEnabled: true, releasePreviewEnabled: false, releaseCutEnabled: false });
+    assert.equal(singleLabel.textContent, 'Showcase');
+    assert.equal(startButton.textContent, 'Showcase starten');
+    assert.equal(editorButton.textContent, '3D Map-Editor oeffnen (Nur Desktop)');
+
+    settings.localSettings.developerModeEnabled = true;
+    overrides.set('menu.level1.single.label', 'Solo Lab');
+    overrides.set('menu.level3.start.label', 'Los jetzt');
+    overrides.set('menu.level4.tools.map_editor.label', 'Map Builder');
+    sync({ featureEnabled: true, releasePreviewEnabled: false, releaseCutEnabled: false });
+    assert.equal(singleLabel.textContent, 'Solo Lab');
+    assert.equal(startButton.textContent, 'Los jetzt');
+    assert.equal(editorButton.textContent, 'Map Builder (Nur Desktop)');
+
+    settings.localSettings.releasePreviewEnabled = true;
+    sync({ featureEnabled: true, releasePreviewEnabled: true, releaseCutEnabled: true });
+    assert.equal(singleLabel.textContent, 'Showcase');
+    assert.equal(startButton.textContent, 'Showcase starten');
+    assert.equal(editorButton.textContent, '3D Map-Editor oeffnen (Nur Desktop)');
 });
 
 test('V77.4.4 surface menu state resolves browser-demo fallbacks without mutating settings in the UI layer', () => {

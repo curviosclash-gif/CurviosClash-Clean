@@ -24,12 +24,17 @@ export function resolveSurfaceFeatureLaunchGuard(surfacePolicy, featureId, featu
     });
 }
 
-export function syncDesktopOnlyFeatureButton(button, surfacePolicy, featureId, featureLabel) {
+export function syncDesktopOnlyFeatureButton(button, surfacePolicy, featureId, featureLabel, options = {}) {
     if (!button) return;
     if (!button.dataset.surfaceDefaultLabel) {
         button.dataset.surfaceDefaultLabel = String(button.textContent || '').trim();
     }
-    const defaultLabel = button.dataset.surfaceDefaultLabel || String(button.textContent || '').trim();
+    const defaultLabel = String(
+        options?.label
+        || button.dataset.surfaceDefaultLabel
+        || button.textContent
+        || ''
+    ).trim();
     const featureAccess = resolveSurfaceFeatureLaunchGuard(surfacePolicy, featureId, featureLabel);
     if (!surfacePolicy?.productSurfaceId) {
         button.textContent = defaultLabel;

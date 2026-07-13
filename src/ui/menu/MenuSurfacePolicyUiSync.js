@@ -13,6 +13,8 @@ export function syncMenuSurfacePolicyUi({
     sessionType,
     surfacePolicy = null,
     huntFeatureEnabled = true,
+    menuTextRuntime = null,
+    releaseState = null,
 }) {
     const surfacePolicyPort = createSurfacePolicyPort({
         getProductSurfaceId: () => surfacePolicy?.productSurfaceId || '',
@@ -32,19 +34,37 @@ export function syncMenuSurfacePolicyUi({
             sessionType: resolvedSessionType,
         })
         : null;
+    const developerModeEnabled = !!settings?.localSettings?.developerModeEnabled
+        && !!releaseState?.featureEnabled
+        && !releaseState?.releasePreviewEnabled;
+    const resolveMenuText = (textId, defaultText) => menuTextRuntime?.resolveText?.(textId, {
+        defaultText,
+        allowOverrides: true,
+        developerFeatureEnabled: !!releaseState?.featureEnabled,
+        developerModeEnabled,
+        releasePreviewEnabled: !!releaseState?.releaseCutEnabled,
+    }) || defaultText;
 
     if (Array.isArray(ui.sessionButtons)) {
         ui.sessionButtons.forEach((button) => {
             const buttonSessionType = String(button?.dataset?.sessionType || '').trim().toLowerCase();
+            const sessionTextId = {
+                single: 'menu.level1.single.label',
+                multiplayer: 'menu.level1.multiplayer.label',
+                splitscreen: 'menu.level1.splitscreen.label',
+            }[buttonSessionType] || '';
             const surfaceAllowed = !surfacePolicy || surfacePolicyPort.isSessionTypeAllowed(buttonSessionType);
             const labelNode = button?.querySelector?.('.nav-btn-label') || button;
             if (labelNode && !button.dataset.surfaceDefaultLabel) {
                 button.dataset.surfaceDefaultLabel = String(labelNode.textContent || '').trim();
             }
             if (labelNode) {
-                labelNode.textContent = surfaceEntryCopy?.sessionLabels?.[buttonSessionType]
+                const surfaceSessionLabel = surfaceEntryCopy?.sessionLabels?.[buttonSessionType]
                     || button.dataset.surfaceDefaultLabel
                     || String(labelNode.textContent || '').trim();
+                labelNode.textContent = sessionTextId
+                    ? resolveMenuText(sessionTextId, surfaceSessionLabel)
+                    : surfaceSessionLabel;
             }
             button.classList.toggle('hidden', !surfaceAllowed);
             button.setAttribute('aria-hidden', String(!surfaceAllowed));
@@ -93,7 +113,8 @@ export function syncMenuSurfacePolicyUi({
     }
 
     if (ui.startButton) {
-        ui.startButton.textContent = surfaceEntryCopy?.startButtonLabel || 'Starten';
+        const surfaceStartButtonLabel = surfaceEntryCopy?.startButtonLabel || 'Starten';
+        ui.startButton.textContent = resolveMenuText('menu.level3.start.label', surfaceStartButtonLabel);
         ui.startButton.title = surfaceEntryCopy?.startButtonTitle || '';
     }
 
@@ -124,13 +145,25 @@ export function syncMenuSurfacePolicyUi({
         ui.openEditorButton,
         surfacePolicy,
         PLATFORM_SURFACE_FEATURE_IDS.MAP_EDITOR,
-        '3D Map-Editor'
+        '3D Map-Editor',
+        {
+            label: resolveMenuText(
+                'menu.level4.tools.map_editor.label',
+                ui.openEditorButton?.dataset?.surfaceDefaultLabel || '3D Map-Editor oeffnen'
+            ),
+        }
     );
     syncDesktopOnlyFeatureButton(
         ui.openVehicleEditorButton,
         surfacePolicy,
         PLATFORM_SURFACE_FEATURE_IDS.VEHICLE_EDITOR,
-        'Vehicle-Editor'
+        'Vehicle-Editor',
+        {
+            label: resolveMenuText(
+                'menu.level4.tools.vehicle_editor.label',
+                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Vehicle-Editor oeffnen'
+            ),
+        }
     );
 
     return {

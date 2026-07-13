@@ -21,7 +21,9 @@ export class MenuTextRuntime {
         const normalizedTextId = sanitizeTextId(textId);
         if (!normalizedTextId) return '';
 
-        const defaultText = String(this.catalog?.[normalizedTextId] || '');
+        const defaultText = Object.prototype.hasOwnProperty.call(options, 'defaultText')
+            ? String(options.defaultText || '')
+            : String(this.catalog?.[normalizedTextId] || '');
         const allowOverrides = options.allowOverrides !== false;
         const releasePreviewEnabled = options.releasePreviewEnabled === true;
         const featureFlagEnabled = options.developerFeatureEnabled !== false;

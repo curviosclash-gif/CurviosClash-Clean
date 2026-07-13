@@ -292,6 +292,7 @@ export class UIManager {
     syncAll() {
         const settings = this.settings;
         this._runSyncCycle(settings, (menuUiContext) => {
+            this.syncDeveloperState(settings, menuUiContext);
             this.syncSessionState(settings, menuUiContext);
             this.syncModes(settings, menuUiContext);
             this.syncMap(settings);
@@ -301,7 +302,6 @@ export class UIManager {
             this.syncVehicles(settings);
             this.syncPresetState(settings, menuUiContext);
             this.syncMultiplayerState(settings, menuUiContext);
-            this.syncDeveloperState(settings, menuUiContext);
         });
     }
 
@@ -346,6 +346,8 @@ export class UIManager {
             sessionType,
             surfacePolicy: menuUiContext.surfacePolicy,
             huntFeatureEnabled,
+            menuTextRuntime: this.menuTextRuntime,
+            releaseState: menuUiContext.releaseState,
         });
         const themeMode = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell'
             ? 'hell'

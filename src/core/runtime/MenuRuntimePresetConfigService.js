@@ -5,8 +5,10 @@
 import {
     exportMenuConfigAsCode,
     exportMenuConfigAsJson,
+    HANGAR_SELECTION_PLAYER_SLOTS,
     importMenuConfigFromInput,
     writeHangarMapSelection,
+    writeHangarVehicleSelection,
 } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { PLATFORM_PRODUCT_SURFACE_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
@@ -64,6 +66,12 @@ export function handleConfigImportAction({
         return;
     }
 
+    const modePath = game.settings?.localSettings?.modePath;
+    writeHangarMapSelection(game.settings, game.settings.mapKey, game.settings.mapKey, { modePath });
+    for (const playerSlot of Object.values(HANGAR_SELECTION_PLAYER_SLOTS)) {
+        const vehicleId = game.settings?.vehicles?.[playerSlot];
+        writeHangarVehicleSelection(game.settings, playerSlot, vehicleId, vehicleId, { modePath });
+    }
     onSettingsChanged?.({ changedKeys: sessionSwitchChangedKeys });
     const statusMessage = String(result.message || (result.usedLegacyFallback ? 'Import mit Legacy-Fallback' : 'Import erfolgreich'));
     const statusTone = String(result.tone || (result.usedLegacyFallback ? 'warning' : 'success'));

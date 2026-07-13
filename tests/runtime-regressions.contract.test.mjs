@@ -58,6 +58,7 @@ import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { requestArcadeReplayPlayback } from '../src/ui/MatchFlowTransitionHotspots.js';
 import { SETTINGS_CHANGE_KEYS } from '../src/ui/SettingsChangeKeys.js';
 import { UIManager } from '../src/ui/UIManager.js';
+import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
 import { UIStartSyncController } from '../src/ui/UIStartSyncController.js';
 import { renderStartSetupSummaryAndPreview, syncStartSetupMultiplayerUi } from '../src/ui/start-setup/StartSetupMultiplayerUiSync.js';
 import { resolveDeveloperReleaseState, resolveMenuUiSyncContext } from '../src/ui/menu/MenuUiSyncContext.js';
@@ -1207,6 +1208,34 @@ test('Menu UI sync context resolves access, release, and surface state via one s
     assert.equal(menuUiContext.releaseState?.releaseCutEnabled, true);
 });
 
+test('UIManager full and targeted sync keep surface copy after the developer text pass', () => {
+    const calls = [];
+    const manager = Object.create(UIManager.prototype);
+    manager.settings = {};
+    manager._runSyncCycle = (_settings, run) => run({});
+    for (const methodName of [
+        'syncDeveloperState',
+        'syncSessionState',
+        'syncModes',
+        'syncMap',
+        'syncBots',
+        'syncRules',
+        'syncGameplay',
+        'syncVehicles',
+        'syncPresetState',
+        'syncMultiplayerState',
+    ]) {
+        manager[methodName] = () => calls.push(methodName);
+    }
+
+    UIManager.prototype.syncAll.call(manager);
+    assert.deepEqual(calls.slice(0, 2), ['syncDeveloperState', 'syncSessionState']);
+    assert.deepEqual(
+        resolveSyncMethodNamesForChangeKeys([SETTINGS_CHANGE_KEYS.DEVELOPER_TEXT_OVERRIDES]),
+        ['syncDeveloperState', 'syncSessionState']
+    );
+});
+
 test('UIManager syncByChangeKeys coalesces Start-Setup sync into one snapshot per change cycle (100.5.1)', () => {
     const syncCalls = [];
     const settings = {
@@ -1294,7 +1323,7 @@ test('UIManager syncStartSetupState forced call still emits a snapshot contract 
     assert.equal(syncCalls[0]?.surfaceMenuState?.sessionType, 'single');
 });
 
-test('UIStartSyncController keeps the mode-specific map selection ahead of stale settings.mapKey during mode sync', () => {
+test('UIStartSyncController renders the mode-specific map without mutating stale settings during sync', () => {
     class FakeOption {
         constructor() {
             this.value = '';
@@ -1447,7 +1476,7 @@ test('UIStartSyncController keeps the mode-specific map selection ahead of stale
         });
 
         assert.equal(mapSelect.value, 'fight-map');
-        assert.equal(settings.mapKey, 'fight-map');
+        assert.equal(settings.mapKey, 'arcade-map');
         assert.equal(settings.localSettings.startSetup.modeSelections.fight.mapKey, 'fight-map');
         assert.equal(settings.localSettings.startSetup.modeSelections.arcade.mapKey, 'arcade-map');
     } finally {

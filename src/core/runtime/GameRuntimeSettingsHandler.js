@@ -112,6 +112,15 @@ export class GameRuntimeSettingsHandler {
                 changedKeys: surfaceChangedKeys,
             }
         );
+        surfacePolicyPort.applyMenuState(game.settings, {
+            maps: CONFIG?.MAPS,
+        });
+        writeHangarMapSelection(
+            game.settings,
+            game.settings.mapKey,
+            game.settings.mapKey,
+            { modePath: game.settings?.localSettings?.modePath }
+        );
         const changedKeys = filterKnownSettingsChangeKeys([
             ...surfaceChangedKeys,
             ...(Array.isArray(compatibilityResult?.changedKeys) ? compatibilityResult.changedKeys : []),

@@ -6,8 +6,11 @@ import { CONFIG } from '../Config.js';
 import {
     createMenuLevel3ResetDefaults,
     getNextEventPlaylistEntry,
+    HANGAR_SELECTION_PLAYER_SLOTS,
     LEVEL4_SECTION_IDS,
     SETTINGS_CHANGE_KEYS,
+    writeHangarMapSelection,
+    writeHangarVehicleSelection,
 } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import {
     isMapEligibleForModePath,
@@ -421,11 +424,24 @@ export function handleQuickStartRandomStartAction(ctx) {
 export function handleLevel3ResetAction(ctx) {
     const { game, onSettingsChanged } = ctx;
     const sessionType = String(game?.settings?.localSettings?.sessionType || 'single').toLowerCase();
+    const modePath = String(game?.settings?.localSettings?.modePath || 'normal').toLowerCase();
     const defaults = createMenuLevel3ResetDefaults();
-    game.settings.mapKey = defaults.mapKey;
-    game.settings.vehicles.PLAYER_1 = defaults.vehicles.PLAYER_1;
+    writeHangarMapSelection(game.settings, defaults.mapKey, defaults.mapKey, { modePath });
+    writeHangarVehicleSelection(
+        game.settings,
+        HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1,
+        defaults.vehicles.PLAYER_1,
+        defaults.vehicles.PLAYER_1,
+        { modePath }
+    );
     if (sessionType === 'splitscreen') {
-        game.settings.vehicles.PLAYER_2 = defaults.vehicles.PLAYER_2;
+        writeHangarVehicleSelection(
+            game.settings,
+            HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_2,
+            defaults.vehicles.PLAYER_2,
+            defaults.vehicles.PLAYER_2,
+            { modePath }
+        );
     }
     if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
         game.settings.localSettings = {};
