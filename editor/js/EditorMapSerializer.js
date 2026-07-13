@@ -226,8 +226,8 @@ export function generateJSONExport(manager, arenaSize) {
 
         payload.parcours = {
             enabled: true,
-            routeId: 'editor_route_v1',
-            rules: {
+            routeId: payload.parcours?.routeId || 'editor_route_v1',
+            rules: payload.parcours?.rules || {
                 ordered: true,
                 resetOnDeath: true,
                 resetToLastValid: false,
