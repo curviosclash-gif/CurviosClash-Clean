@@ -135,7 +135,15 @@ export class HudRuntimeSystem {
         while (container.children.length < players.length) {
             const row = document.createElement('div');
             row.className = 'mp-scoreboard-row';
-            row.innerHTML = '<span class="mp-sb-name"></span><span class="mp-sb-score"></span><span class="mp-sb-ping"></span>';
+            const name = document.createElement('span');
+            name.className = 'mp-sb-name';
+            const score = document.createElement('span');
+            score.className = 'mp-sb-score';
+            const ping = document.createElement('span');
+            ping.className = 'mp-sb-ping';
+            row.appendChild(name);
+            row.appendChild(score);
+            row.appendChild(ping);
             container.appendChild(row);
         }
         while (container.children.length > players.length) {

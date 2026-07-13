@@ -151,9 +151,12 @@ export class RuntimeDiagnosticsSystem {
                 const frameP99Ms = perfSnapshot?.frameMs?.p99 || 0;
                 const spikeRecent = perfSnapshot?.spikes?.recent || 0;
                 const spikeThreshold = perfSnapshot?.spikes?.thresholdMs || 0;
-                this._statsElement.innerHTML =
-                    `<b style="color:${fps < 30 ? '#f44' : fps < 50 ? '#fa0' : '#0f0'}">FPS: ${fps}</b>\n` +
-                    `Draw Calls: ${draws}\n` +
+                const fpsLine = document.createElement('b');
+                fpsLine.style.color = fps < 30 ? '#f44' : fps < 50 ? '#fa0' : '#0f0';
+                fpsLine.textContent = `FPS: ${fps}`;
+                const detailLines = document.createElement('span');
+                detailLines.textContent =
+                    `\nDraw Calls: ${draws}\n` +
                     `Dreiecke: ${(tris / 1000).toFixed(1)}k\n` +
                     `Geometrien: ${geos}\n` +
                     `Texturen: ${texs}\n` +
@@ -161,6 +164,7 @@ export class RuntimeDiagnosticsSystem {
                     `Qualitaet: ${quality}\n` +
                     `Frame ms avg/p95/p99: ${formatMs(frameAvgMs)} / ${formatMs(frameP95Ms)} / ${formatMs(frameP99Ms)}\n` +
                     `Spikes>${formatMs(spikeThreshold)}ms: ${spikeRecent}`;
+                this._statsElement.replaceChildren(fpsLine, detailLines);
             }
         }
 

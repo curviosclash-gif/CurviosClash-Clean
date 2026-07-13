@@ -70,7 +70,7 @@ export class ArcadeMissionHUD {
 
         // Rebuild mission elements if count changed
         if (this._missionElements.length !== missions.length) {
-            this._container.innerHTML = '';
+            this._container.replaceChildren();
             this._missionElements = [];
             for (let i = 0; i < missions.length; i += 1) {
                 const card = createElement('div', 'arcade-mission-card');

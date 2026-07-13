@@ -25,7 +25,7 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
     if (ui.presetSelect) {
         const presets = (settingsManager?.listMenuPresets?.() || []).filter((preset) => isPresetVisible(preset?.id));
         const previousValue = String(ui.presetSelect.value || '');
-        ui.presetSelect.innerHTML = '';
+        ui.presetSelect.replaceChildren();
 
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';

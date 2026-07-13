@@ -148,7 +148,7 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
 
     function ensureOverlayButtons() {
         if (!slotOverlayRoot) return;
-        slotOverlayRoot.innerHTML = '';
+        slotOverlayRoot.replaceChildren();
         for (let index = 0; index < slotStates.length; index += 1) {
             const state = slotStates[index];
             const button = document.createElement('button');
@@ -304,7 +304,7 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         }
         window.removeEventListener('resize', syncRendererSize);
         if (slotOverlayRoot) {
-            slotOverlayRoot.innerHTML = '';
+            slotOverlayRoot.replaceChildren();
         }
         removeVehicleNode(previewRoot, vehicleNode);
         vehicleNode = null;

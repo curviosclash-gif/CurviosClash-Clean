@@ -80,7 +80,7 @@ export class KeybindEditorController {
         if (!container) return;
 
         const keyCapture = this.runtimeAccess.getKeyCapture?.() || null;
-        container.innerHTML = '';
+        container.replaceChildren();
 
         for (const action of actions) {
             const row = document.createElement('div');

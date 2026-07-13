@@ -119,7 +119,7 @@ function renderReadySummary(container, sessionState) {
 export function renderLobbyView(container, options) {
     if (!container) return;
     const sessionState = options?.sessionState || {};
-    container.innerHTML = '';
+    container.replaceChildren();
 
     renderCodeDisplay(container, sessionState, options);
     renderPlayerList(container, sessionState);
@@ -130,7 +130,7 @@ export function renderLobbyView(container, options) {
 export function updateLobbyView(container, options) {
     if (!container) return;
     const sessionState = options?.sessionState || {};
-    container.innerHTML = '';
+    container.replaceChildren();
 
     renderCodeDisplay(container, sessionState, options);
     renderPlayerList(container, sessionState);
@@ -140,5 +140,5 @@ export function updateLobbyView(container, options) {
 
 export function disposeLobbyView(container) {
     if (!container) return;
-    container.innerHTML = '';
+    container.replaceChildren();
 }

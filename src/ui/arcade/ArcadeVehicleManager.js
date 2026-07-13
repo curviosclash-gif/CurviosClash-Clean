@@ -314,7 +314,7 @@ export function setupArcadeVehicleManager(ctx = {}) {
         detailTitle.textContent = selectedEntry.label;
         detailMeta.textContent = `${selectedEntry.kategorie} | ${selectedEntry.hitboxKlasse} | Levelband ${toBand(profile.level)}`;
         detailText.textContent = selectedEntry.kurzbeschreibung;
-        detailBadges.innerHTML = '';
+        detailBadges.replaceChildren();
         cardBadges(selectedEntry, profile, favorites.has(selectedVehicleId), recents.has(selectedVehicleId)).forEach((badge) => {
             detailBadges.appendChild(el('span', 'arcade-vehicle-badge', badge));
         });
@@ -337,7 +337,7 @@ export function setupArcadeVehicleManager(ctx = {}) {
             btn.classList.toggle('is-active', String(btn.dataset.filterValue || '') === selection.getLevelFilter());
         });
 
-        vehicleList.innerHTML = '';
+        vehicleList.replaceChildren();
         if (!visible.length) {
             vehicleList.appendChild(el('p', 'menu-hint', 'Kein Fahrzeug fuer die aktuelle Filterung gefunden.'));
         }
@@ -373,7 +373,7 @@ export function setupArcadeVehicleManager(ctx = {}) {
         syncQuickRow(favRow, 'Favoriten', selection.getFavorites());
         syncQuickRow(recentRow, 'Zuletzt genutzt', selection.getRecents());
 
-        compareSelect.innerHTML = '';
+        compareSelect.replaceChildren();
         const compareOptions = catalogEntries.filter((entry) => entry.vehicleId !== selectedVehicleId);
         if (!compareOptions.length) {
             compareSelect.disabled = true;
@@ -396,7 +396,7 @@ export function setupArcadeVehicleManager(ctx = {}) {
             compareSelect.value = selection.getCompareVehicleId();
         }
 
-        compareRows.innerHTML = '';
+        compareRows.replaceChildren();
         const compareEntry = entryFor(selection.getCompareVehicleId());
         statRows(selectedEntry.statsSummary, compareEntry.statsSummary).forEach((metric) => {
             const row = el('div', 'arcade-vehicle-compare-row');

@@ -40,7 +40,7 @@
     "app:classic:android:install": "node scripts/capacitor-mobile-classic.mjs install",
     "app:classic:android:update:github": "node scripts/update-mobile-classic-from-github.mjs",
     "android:update:phone": "node scripts/update-android-phone.mjs",
-    "lint": "eslint src --max-warnings 29",
+    "lint": "eslint src --max-warnings 0",
     "typecheck": "tsc -p tsconfig.architecture.json",
     "check:architecture": "node scripts/check-architecture-boundaries.mjs && node scripts/check-runtime-determinism.mjs && node scripts/check-runtime-encoding.mjs && node scripts/check-editor-path-drift.mjs",
     "test": "npm run test:contract",

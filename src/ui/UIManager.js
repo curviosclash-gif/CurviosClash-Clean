@@ -237,7 +237,7 @@ export class UIManager {
         if (!select) return;
         const entries = listMenuTextCatalogEntries().sort((left, right) => left.id.localeCompare(right.id, 'de'));
         const previousValue = String(select.value || '');
-        select.innerHTML = '';
+        select.replaceChildren();
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
         placeholderOption.textContent = 'Bitte Text-ID waehlen';

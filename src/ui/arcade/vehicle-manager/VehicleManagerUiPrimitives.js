@@ -69,7 +69,7 @@ export function calcBarWidth(value, max) {
 }
 
 export function renderVehicleQuickRow({ containerNode, label, ids, resolveLabel, bind, onSelect }) {
-    containerNode.innerHTML = '';
+    containerNode.replaceChildren();
     containerNode.appendChild(createUiNode('span', 'arcade-vehicle-quick-row-label', label));
     const list = Array.isArray(ids) ? ids : [];
     if (!list.length) {
@@ -92,7 +92,7 @@ export function refreshVehiclePresetSelect({
     presets,
     preferredPresetId = '',
 }) {
-    presetSelect.innerHTML = '';
+    presetSelect.replaceChildren();
     if (!presets.length) {
         const option = document.createElement('option');
         option.value = '';

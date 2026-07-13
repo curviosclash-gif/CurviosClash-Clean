@@ -4,8 +4,6 @@
 // Extrahiert aus UIManager.js (V38 Phase 38.3.1)
 // ============================================
 
-/* eslint-disable max-lines */
-
 import { VEHICLE_DEFINITIONS } from '../entities/vehicle-registry.js';
 import { MENU_SESSION_TYPES } from './menu/MenuStateContracts.js';
 import {
@@ -103,7 +101,7 @@ export class UIStartSyncController {
     setupVehicleSelects() {
         const populate = (select) => {
             if (!select) return;
-            select.innerHTML = '';
+            select.replaceChildren();
             VEHICLE_DEFINITIONS.forEach(v => {
                 const opt = document.createElement('option');
                 opt.value = v.id;
@@ -127,7 +125,7 @@ export class UIStartSyncController {
         }
         const currentValue = String(select.value || settings?.mapKey || 'standard');
         const fallbackMapKey = this._resolveSurfaceFallbackMapKey(maps, modePath, currentValue);
-        select.innerHTML = '';
+        select.replaceChildren();
 
         Object.entries(maps).forEach(([key, mapDef]) => {
             if (!isMapEligibleForModePath(mapDef, modePath) || !this._getSurfacePolicyPort().isMapAllowed(key, modePath)) {

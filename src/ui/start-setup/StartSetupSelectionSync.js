@@ -102,7 +102,7 @@ function syncMapSelect({
     });
     const previousValue = String(mapSelection.value || surfaceMenuState.mapKey || settings.mapKey || ui.mapSelect.value || 'standard');
     const fallbackMapKey = resolveSurfaceFallbackMapKey(runtimeMaps, modePath, previousValue);
-    ui.mapSelect.innerHTML = '';
+    ui.mapSelect.replaceChildren();
     mapPreviewEntries
         .filter((entry) => {
             const matchesSearch = !startSetupFilters.mapSearch
@@ -157,7 +157,7 @@ function syncVehicleSelect({ select, settings, slot, hangarSelectionModePath, ve
         { modePath: hangarSelectionModePath }
     );
     const currentValue = String(settings?.vehicles?.[slot] || vehicleSelection.value || select.value || '').trim().toLowerCase();
-    select.innerHTML = '';
+    select.replaceChildren();
     vehicleCandidates.forEach((entry) => {
         const option = document.createElement('option');
         option.value = entry.id;

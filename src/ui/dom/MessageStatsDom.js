@@ -1,6 +1,6 @@
 export function clearMessageStats(container) {
     if (!container) return;
-    container.innerHTML = '';
+    container.replaceChildren();
     container.classList.add('hidden');
 }
 
@@ -13,7 +13,7 @@ export function renderMessageStats(container, overlayStats) {
         return;
     }
 
-    container.innerHTML = '';
+    container.replaceChildren();
     for (const block of blocks) {
         const blockElement = document.createElement('section');
         blockElement.className = 'message-stats-card';

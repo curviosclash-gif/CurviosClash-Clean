@@ -265,7 +265,7 @@ export function createMultiplayerPanel(ctx) {
         root.appendChild(hostList);
 
         function updateHostList(hosts) {
-            hostList.innerHTML = '';
+            hostList.replaceChildren();
             if (!hosts || hosts.length === 0) {
                 const empty = createElement('div', 'mp-discovery-empty', 'Keine Spiele gefunden.');
                 hostList.appendChild(empty);
@@ -343,7 +343,7 @@ export function createMultiplayerPanel(ctx) {
 
     function render() {
         if (panelRoot) {
-            panelRoot.innerHTML = '';
+            panelRoot.replaceChildren();
         } else {
             panelRoot = createElement('div', 'mp-panel');
             container.appendChild(panelRoot);

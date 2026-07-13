@@ -25,7 +25,7 @@ function formatDecimal(value) {
 
 function clearContainer(container) {
     if (!container) return;
-    container.innerHTML = '';
+    container.replaceChildren();
 }
 
 function appendRow(list, key, labelText, valueText) {

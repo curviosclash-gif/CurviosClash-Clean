@@ -112,9 +112,8 @@ export class NetworkHud {
             this._playersEl.textContent = `Spieler: ${players}/${maxPlayers}`;
         }
         if (this._statusEl) {
-            this._statusEl.innerHTML = connected
-                ? '<span style="color:#4caf50">\u25CF Verbunden</span>'
-                : '<span style="color:#f44336">\u25CF Getrennt</span>';
+            this._statusEl.textContent = connected ? '\u25CF Verbunden' : '\u25CF Getrennt';
+            this._statusEl.style.color = connected ? '#4caf50' : '#f44336';
         }
 
         // Bandwidth display (C.2)

@@ -1,7 +1,7 @@
 export function renderProfileSelectOptions(selectElement, controlState) {
     if (!selectElement || !controlState) return;
 
-    selectElement.innerHTML = '';
+    selectElement.replaceChildren();
 
     const placeholder = document.createElement('option');
     placeholder.value = controlState.placeholderOption.value;
