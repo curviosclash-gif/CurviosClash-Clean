@@ -24,11 +24,29 @@
       "settings-studio/**/*",
       "recording-video-export-job.cjs",
       "static-server.cjs",
-      "node_modules/ffmpeg-static/**/*",
-      "../dist-app/**/*",
-      "../server/**/*.js",
-      "../src/shared/contracts/**/*.js",
-      "../src/dev/tuning/**/*.js"
+      "node_modules/ffmpeg-static/**/*"
+    ],
+    "extraResources": [
+      {
+        "from": "../dist-app",
+        "to": "dist-app"
+      },
+      {
+        "from": "../server",
+        "to": "server",
+        "filter": [
+          "lan-signaling.js",
+          "package.json"
+        ]
+      },
+      {
+        "from": "../src",
+        "to": "src"
+      },
+      {
+        "from": "runtime-resources/package.json",
+        "to": "package.json"
+      }
     ],
     "asarUnpack": [
       "node_modules/ffmpeg-static/**/*"
@@ -37,7 +55,8 @@
       "output": "../release"
     },
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "signAndEditExecutable": false
     },
     "mac": {
       "target": "dmg"

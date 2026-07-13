@@ -53,6 +53,8 @@ npm run app:package         # Windows-Paket
 
 Weitere gezielte Befehle stehen in `package.json`, unter anderem für Physik, GPU, Stress, Editor, Bots, LAN und Android.
 
+Das Windows-Paket entsteht als entpackte Anwendung unter `release/win-unpacked/` und als Installer unter `release/CurviosClash Setup 1.0.0.exe`. Lokale Pakete sind nicht signiert; Windows kann deshalb vor dem Start einen SmartScreen-Hinweis zeigen.
+
 ## Herkunft und Bereinigung
 
 - Ausgangspunkt: Original-Commit `0532a9d8aca7dccfb015c4305e19b1fa4d54cc53` vom 12. Juli 2026.
@@ -62,4 +64,3 @@ Weitere gezielte Befehle stehen in `package.json`, unter anderem für Physik, GP
 - Bewusst erhalten: Runtime-nahe Trainings-/Validierungsbausteine in `src/`, produktive Tests, der 3D-Editor, das Vehicle Lab, Settings/Tuning und Mobile Classic.
 
 Das Repository besitzt eine neue lokale Git-Historie und absichtlich keinen Remote.
-

@@ -140,7 +140,13 @@ const windowShell = createWindowShellCapability();
 
 async function startSettingsStudio() {
     if (!disposeIpc) {
-        disposeIpc = registerSettingsStudioIpc({ ipcMain, app });
+        disposeIpc = registerSettingsStudioIpc({
+            ipcMain,
+            app,
+            browserDemoProjectRootPath: app.isPackaged
+                ? app.getPath('userData')
+                : path.resolve(__dirname, '..', '..'),
+        });
     }
     await windowShell.start();
 }

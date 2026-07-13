@@ -8,6 +8,8 @@ const ROOT_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const SOURCE_HTML_PATH = path.join(ROOT_DIR, 'index.html');
 const DIST_APP_DIR = path.join(ROOT_DIR, 'dist-app');
 const DIST_HTML_PATH = path.join(DIST_APP_DIR, 'index.html');
+const ELECTRON_PACKAGE_PATH = path.join(ROOT_DIR, 'electron', 'package.json');
+const RUNTIME_RESOURCES_PACKAGE_PATH = path.join(ROOT_DIR, 'electron', 'runtime-resources', 'package.json');
 
 const CRITICAL_RENDERER_MARKERS = Object.freeze([
     'bot-policy-strategy',
@@ -31,6 +33,10 @@ const CRITICAL_RENDERER_MARKERS = Object.freeze([
 
 function readUtf8(filePath) {
     return readFileSync(filePath, 'utf8');
+}
+
+function readJson(filePath) {
+    return JSON.parse(readUtf8(filePath));
 }
 
 function extractIds(html) {
@@ -89,4 +95,20 @@ test('Electron renderer dist-app contains critical UI and settings runtime marke
             assert.equal(presentInDistHtml, true, `dist-app/index.html is missing source marker "${marker}".`);
         }
     }
+});
+
+test('Electron package copies runtime trees that live outside the Electron app directory', () => {
+    const electronPackage = readJson(ELECTRON_PACKAGE_PATH);
+    const runtimeResourcesPackage = readJson(RUNTIME_RESOURCES_PACKAGE_PATH);
+    const files = electronPackage.build?.files || [];
+    const resourcesByTarget = new Map(
+        (electronPackage.build?.extraResources || []).map((entry) => [entry.to, entry.from])
+    );
+
+    assert.deepEqual(files.filter((entry) => entry.startsWith('../')), []);
+    assert.equal(resourcesByTarget.get('dist-app'), '../dist-app');
+    assert.equal(resourcesByTarget.get('server'), '../server');
+    assert.equal(resourcesByTarget.get('src'), '../src');
+    assert.equal(resourcesByTarget.get('package.json'), 'runtime-resources/package.json');
+    assert.equal(runtimeResourcesPackage.type, 'module');
 });
