@@ -19,5 +19,5 @@ export const EDITOR_DATA_PATHS = Object.freeze({
     MAPS_DIR: 'data/maps',
     VEHICLES_DIR: 'data/vehicles',
     GENERATED_LOCAL_MAPS_MODULE: 'src/entities/GeneratedLocalMaps.js',
-    GENERATED_VEHICLE_CONFIGS_MODULE: 'js/entities/GeneratedVehicleConfigs.js',
+    GENERATED_VEHICLE_CONFIGS_MODULE: 'src/entities/GeneratedVehicleConfigs.js',
 });

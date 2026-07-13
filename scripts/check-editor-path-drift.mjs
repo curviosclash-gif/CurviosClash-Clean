@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -26,6 +26,10 @@ const EXPLICIT_SCAN_FILES = Object.freeze([
     'vite.config.js',
     'start_editor.bat',
     'start_editor_local.bat',
+]);
+const REQUIRED_GENERATED_MODULES = Object.freeze([
+    EDITOR_DATA_PATHS.GENERATED_LOCAL_MAPS_MODULE,
+    EDITOR_DATA_PATHS.GENERATED_VEHICLE_CONFIGS_MODULE,
 ]);
 
 const RULES = Object.freeze([
@@ -183,8 +187,11 @@ function collectViolations(scanFiles) {
 
 const scanFiles = resolveScanFiles();
 const violations = collectViolations(scanFiles);
+const missingGeneratedModules = REQUIRED_GENERATED_MODULES.filter(
+    (relativeFilePath) => !existsSync(path.resolve(REPO_ROOT, relativeFilePath))
+);
 
-if (violations.length === 0) {
+if (violations.length === 0 && missingGeneratedModules.length === 0) {
     console.log('Editor/game-area path drift guard passed.');
     console.log(`Scanned files: ${scanFiles.length}`);
     console.log(`Protected literals: ${RULES.length}`);
@@ -192,6 +199,9 @@ if (violations.length === 0) {
 }
 
 console.error('Editor/game-area path drift guard failed.');
+for (const relativeFilePath of missingGeneratedModules) {
+    console.error(`- generated runtime module is missing: ${relativeFilePath}`);
+}
 for (const violation of violations) {
     console.error(`- ${violation.label} leaked in ${violation.file}`);
     console.error(`  literal: ${violation.literal}`);
