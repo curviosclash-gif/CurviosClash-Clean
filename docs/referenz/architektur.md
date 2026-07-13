@@ -18,7 +18,7 @@ CurviosClash ist eine Desktop-first Three.js-Anwendung in Vanilla JavaScript mit
 - UI-Code entscheidet nicht eigenständig über Matchzustände, sondern konsumiert Projektionen und sendet Commands oder Intents.
 - Plattformzugriffe laufen über benannte Electron-Preload-Capabilities; der Renderer erhält keinen direkten Node.js-Zugriff und IPC-Capabilities akzeptieren nur das Hauptfenster und dessen Main Frame.
 - Neue Zustandsformate und IPC-Payloads behalten explizite Contract-Versionen und werden vor dem Schreiben validiert.
-- Three.js-Ressourcen werden beim Szenenwechsel über die vorhandenen Disposal- und Lifecycle-Helfer freigegeben.
+- Three.js-Ressourcen werden beim Szenenwechsel über die vorhandenen Disposal- und Lifecycle-Helfer freigegeben; `tests/three-disposal.contract.test.mjs` sichert die einmalige Freigabe gemeinsam genutzter GPU-Ressourcen ab.
 - Physik-, Bot- und Render-Schleifen bleiben allokationsarm; persistente Timer und Listener werden beim Neustart abgemeldet.
 
 ## Prüfungen
