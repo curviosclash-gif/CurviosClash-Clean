@@ -108,7 +108,8 @@ test.describe('Vehicle Lab', () => {
 
         await page.locator('#btnAddPart').click();
         await expect(page.locator('[data-metric="parts"] .compare-current')).toHaveText('9');
-        await expect(page.locator('#workshopStatusMessage')).toContainText('Bauteil');
+        await expect(page.locator('#workshopStatusMessage')).toContainText('Aenderungen lokal gespeichert.');
+        await expect(page.locator('#workshopStatusMessage')).toContainText('Auswahl: New Part');
     });
 
     test('deleting a part persists across reload', async ({ page }) => {

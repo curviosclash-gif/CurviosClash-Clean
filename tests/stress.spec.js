@@ -443,7 +443,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
                 game._onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
                 renderer.prepareRecordingCaptureFrame({
                     recordingActive: true,
-                    entityManager: game.entityManager,
+                    renderProjection: game.playingStateSystem?.getMatchRenderProjection?.() || null,
                     renderAlpha: 1,
                     renderDelta: 1 / 60,
                     splitScreen: true,

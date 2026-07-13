@@ -765,14 +765,6 @@ export async function returnToMenu(page) {
     if (await isMainNavVisible()) return;
 
     await page.keyboard.press('Escape');
-    await page.waitForFunction(() => {
-        const mainMenu = document.getElementById('main-menu');
-        const visiblePanel = document.querySelector('.submenu-panel:not(.hidden)');
-        if (!(mainMenu instanceof HTMLElement) || mainMenu.classList.contains('hidden')) return false;
-        const style = window.getComputedStyle(mainMenu);
-        return style.display !== 'none' && style.visibility !== 'hidden' && !(visiblePanel instanceof HTMLElement);
-    }, null, { timeout: 1000 }).catch(() => {});
-
     if (await isMainNavVisible()) return;
 
     await page.evaluate(() => {
@@ -803,7 +795,9 @@ export function collectErrors(page) {
         if (msg.type() === 'error') {
             const message = msg.text();
             if (isBenignErrorMessage(message)) return;
-            errors.push(`console.error: ${message}`);
+            const location = msg.location();
+            const source = location?.url ? ` source=${location.url}` : '';
+            errors.push(`console.error: ${message}${source}`);
         }
     });
     return errors;

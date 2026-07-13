@@ -853,15 +853,17 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         const result = await page.evaluate(async () => {
             const { RecordingOrbitCameraDirector } = await window.__curviosImport('/src/core/renderer/camera/RecordingOrbitCameraDirector.js');
             const game = window.GAME_INSTANCE;
-            const baseCamera = game?.renderer?.cameras?.[0] || null;
-            const Vector3 = baseCamera?.position?.constructor || null;
-            if (!baseCamera?.clone || !Vector3) {
+            const Vector3 = game?.renderer?.cameraRigSystem?._tmpVec?.constructor || null;
+            if (!Vector3) {
                 return null;
             }
 
-            const camera = baseCamera.clone();
-            camera.position.set(0, 0, 0);
-            camera.fov = 75;
+            const camera = {
+                position: new Vector3(0, 0, 0),
+                fov: 75,
+                lookAt() {},
+                updateProjectionMatrix() {},
+            };
             const director = new RecordingOrbitCameraDirector();
             const playerPosition = new Vector3(0, 0, 0);
             const playerDirection = new Vector3(0, 0, -1);
@@ -1210,7 +1212,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 const runtimeState = recorder._activeRecorderStrategy?.getRuntimeState?.() || null;
                 const strategySnapshot = {
                     started: !!started?.started,
-                    strategyName: recorder._activeRecorderStrategy?.constructor?.name || null,
+                    strategyEngine: recorder._activeRecorderEngine || null,
                     mirroredRecorder: recorder._mediaRecorder === runtimeState?.mediaRecorder,
                     mirroredTrack: recorder._mediaRecorderVideoTrack === runtimeState?.mediaRecorderVideoTrack,
                     requestFrameSupported: recorder._mediaRecorderSupportsRequestFrame,
@@ -1227,7 +1229,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         });
 
         expect(result.started).toBeTruthy();
-        expect(result.strategyName).toBe('NativeMediaRecorderEngine');
+        expect(result.strategyEngine).toBe('mediarecorder-native');
         expect(result.mirroredRecorder).toBeTruthy();
         expect(result.mirroredTrack).toBeTruthy();
         expect(result.requestFrameSupported).toBeTruthy();

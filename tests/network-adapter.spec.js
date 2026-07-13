@@ -469,7 +469,7 @@ test.describe('V67-67.3: State and server cleanup hardening', () => {
 
     test('waitForRuntimePlayersLoaded scales timeout by remote client count', async () => {
         const listeners = new Map();
-        const sentInputs = [];
+        const roundStartGates = [];
         const session = {
             isHost: true,
             localPlayerId: 'host',
@@ -487,8 +487,8 @@ test.describe('V67-67.3: State and server cleanup hardening', () => {
                     handler(payload);
                 }
             },
-            sendInput(payload) {
-                sentInputs.push(payload);
+            broadcastRoundStartGate(payload) {
+                roundStartGates.push(payload);
             },
             getPlayers() {
                 return [
@@ -507,9 +507,9 @@ test.describe('V67-67.3: State and server cleanup hardening', () => {
         };
 
         const originalSetTimeout = globalThis.setTimeout;
-        let observedTimeoutMs = null;
+        const observedTimeoutsMs = [];
         globalThis.setTimeout = (fn, ms, ...args) => {
-            observedTimeoutMs = Number(ms);
+            observedTimeoutsMs.push(Number(ms));
             return originalSetTimeout(fn, ms, ...args);
         };
 
@@ -520,8 +520,13 @@ test.describe('V67-67.3: State and server cleanup hardening', () => {
             session.emit('playerLoaded', { playerId: 'client-3' });
             await waitPromise;
 
-            expect(observedTimeoutMs).toBe(25_000);
-            expect(sentInputs[0]?.type).toBe('arena_start');
+            expect(observedTimeoutsMs).toContain(25_000);
+            expect(roundStartGates[0]?.expectedPeerIds).toEqual([
+                'host',
+                'client-1',
+                'client-2',
+                'client-3',
+            ]);
         } finally {
             globalThis.setTimeout = originalSetTimeout;
         }

@@ -888,7 +888,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game._onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
             game.renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
-                entityManager: game.entityManager,
+                renderProjection: game.playingStateSystem?.getMatchRenderProjection?.() || null,
                 renderAlpha: 1,
                 renderDelta: 1 / 60,
                 splitScreen: true,

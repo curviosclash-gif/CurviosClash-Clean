@@ -1,6 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { collectErrors } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
+import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
 
 const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
 const KNOWN_EDITOR_WARNING_PATTERNS = [
@@ -84,7 +85,7 @@ test.describe('V65: Editor Build Dock', () => {
         await loadEditorPage(page);
 
         await expect(page.locator('#buildDock')).toBeVisible();
-        await expect(page.locator('#dockCategoryTabs .dockCategoryTab')).toHaveCount(4);
+        await expect(page.locator('#dockCategoryTabs .dockCategoryTab')).toHaveCount(EDITOR_BUILD_CATEGORIES.length);
         await expect(page.locator('#dockActiveTitle')).toHaveText('Auswahl / Bewegen');
         await expect(page.locator('#dockRecentList')).toContainText('Noch nichts benutzt');
         await expect(page.locator('#dockFavoriteList')).toContainText('Keine Favoriten');

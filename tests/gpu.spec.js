@@ -341,7 +341,7 @@ test.describe('T21-40: Rendering & GPU', () => {
             g._onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
             renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
-                entityManager: g.entityManager,
+                renderProjection: g.playingStateSystem?.getMatchRenderProjection?.() || null,
                 renderAlpha: 1,
                 renderDelta: 1 / 60,
                 splitScreen: true,
@@ -435,7 +435,7 @@ test.describe('T21-40: Rendering & GPU', () => {
                 for (let i = 0; i < 18; i += 1) {
                     renderer.prepareRecordingCaptureFrame({
                         recordingActive: true,
-                        entityManager: g.entityManager,
+                        renderProjection: g.playingStateSystem?.getMatchRenderProjection?.() || null,
                         renderAlpha: 1,
                         renderDelta: 1 / 60,
                         splitScreen: true,
