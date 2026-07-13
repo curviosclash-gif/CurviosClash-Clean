@@ -18,3 +18,10 @@ android-classic/app/build/
 .env.local
 .env.*.local
 .playwright-*.lock
+/.agents/
+/Knowledge-Graph/
+/RAG/
+/Planarchive/
+/Lock-Wrapper/
+/generated-process-reports/
+/generierte-prozessberichte/

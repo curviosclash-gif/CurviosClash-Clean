@@ -65,7 +65,7 @@
     "benchmark:baseline": "node scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
-    "quality": "npm run lint && npm run typecheck && npm run test:contract"
+    "quality": "npm run lint && npm run typecheck && npm run check:architecture && npm run test:contract"
   },
   "dependencies": {
     "@capacitor/android": "8.3.4",

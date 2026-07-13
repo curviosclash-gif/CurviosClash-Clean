@@ -1,0 +1,81 @@
+name: Desktop integration
+
+on:
+  push:
+    paths:
+      - src/**
+      - electron/**
+      - server/**
+      - editor/**
+      - prototypes/vehicle-lab/**
+      - package.json
+      - package-lock.json
+      - electron/package.json
+      - electron/package-lock.json
+      - .github/workflows/desktop.yml
+  pull_request:
+    paths:
+      - src/**
+      - electron/**
+      - server/**
+      - editor/**
+      - prototypes/vehicle-lab/**
+      - package.json
+      - package-lock.json
+      - electron/package.json
+      - electron/package-lock.json
+      - .github/workflows/desktop.yml
+
+permissions:
+  contents: read
+
+concurrency:
+  group: desktop-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  smoke:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+      - run: npm ci
+      - run: npm --prefix electron ci
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+      - name: Desktop smoke
+        run: npm run test:desktop:smoke
+
+  e2e:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        cluster:
+          - core-shell
+          - core-platform
+          - core-surface
+          - core-runtime
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+      - run: npm ci
+      - run: npm --prefix electron ci
+      - name: Install Playwright browser
+        run: npx playwright install chromium
+      - name: Run ${{ matrix.cluster }} cluster
+        run: node scripts/run-playwright-targeted-clusters.mjs ${{ matrix.cluster }} --timeout=180000

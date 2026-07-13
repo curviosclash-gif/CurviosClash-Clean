@@ -1,0 +1,53 @@
+name: Dependency audit
+
+on:
+  schedule:
+    - cron: '17 5 * * 1'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  audit:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+            server/package-lock.json
+      - name: Install locked dependencies
+        run: |
+          npm ci
+          npm --prefix electron ci
+          npm --prefix server ci
+      - name: Audit root dependencies
+        id: audit_root
+        continue-on-error: true
+        run: npm audit --audit-level=high
+      - name: Audit Electron dependencies
+        id: audit_electron
+        continue-on-error: true
+        run: npm --prefix electron audit --audit-level=high
+      - name: Audit server dependencies
+        id: audit_server
+        continue-on-error: true
+        run: npm --prefix server audit --audit-level=high
+      - name: Report blocking findings
+        if: always()
+        shell: pwsh
+        run: |
+          $failed = @(
+            '${{ steps.audit_root.outcome }}',
+            '${{ steps.audit_electron.outcome }}',
+            '${{ steps.audit_server.outcome }}'
+          ) | Where-Object { $_ -eq 'failure' }
+          if ($failed.Count -gt 0) {
+            throw 'At least one dependency tree contains a high or critical audit finding.'
+          }
