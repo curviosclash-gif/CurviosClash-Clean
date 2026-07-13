@@ -1318,13 +1318,9 @@ test('UIStartSyncController keeps the mode-specific map selection ahead of stale
             return option;
         }
 
-        set innerHTML(_value) {
+        replaceChildren() {
             this._options = [];
             this._value = '';
-        }
-
-        get innerHTML() {
-            return '';
         }
 
         set value(nextValue) {
@@ -1492,13 +1488,9 @@ test('UIStartSyncController shows vehicle fallback without repairing invalid set
             return option;
         }
 
-        set innerHTML(_value) {
+        replaceChildren() {
             this._options = [];
             this._value = '';
-        }
-
-        get innerHTML() {
-            return '';
         }
 
         set value(nextValue) {
