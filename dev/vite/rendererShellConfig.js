@@ -39,6 +39,7 @@ function resolvePlaywrightWarmupClientFiles(env = process.env) {
 
 function resolveRendererManualChunk(id) {
     if (!id) return undefined;
+    const normalizedId = id.replace(/\\/g, '/');
     if (id.includes('node_modules/three/examples/jsm/loaders/OBJLoader.js') ||
         id.includes('node_modules/three/examples/jsm/loaders/MTLLoader.js')) {
         return 'three-loaders';
@@ -47,7 +48,13 @@ function resolveRendererManualChunk(id) {
         return 'three-core';
     }
 
-    const normalizedId = id.replace(/\\/g, '/');
+    if (normalizedId.includes('/node_modules/mp4-muxer/') ||
+        normalizedId.includes('/core/recording/') ||
+        normalizedId.endsWith('/core/MediaRecorderSystem.js') ||
+        normalizedId.endsWith('/core/renderer/RecordingCapturePipeline.js') ||
+        normalizedId.endsWith('/core/renderer/camera/RecordingOrbitCameraDirector.js')) {
+        return 'recording';
+    }
     if (normalizedId.includes('/entities/ai/training/') ||
         normalizedId.includes('/state/training/')) {
         return 'training';

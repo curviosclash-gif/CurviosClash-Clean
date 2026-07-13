@@ -749,6 +749,27 @@ function playwrightHealthApiPlugin() {
     };
 }
 
+function playwrightTestRuntimeBridgePlugin(env = process.env) {
+    const enabled = !!env?.PW_RUN_TAG;
+    const appInitializerPath = path.resolve(__dirname, 'src', 'core', 'AppInitializerLifecycle.js');
+    const testBridgePath = path.resolve(__dirname, 'tests', 'support', 'E2ETestRuntimeBridge.js');
+    const normalizeModuleId = (value) => String(value || '')
+        .split('?')[0]
+        .replace(/\\/g, '/')
+        .toLowerCase();
+    const normalizedInitializerPath = normalizeModuleId(appInitializerPath);
+
+    return {
+        name: 'playwright-test-runtime-bridge',
+        enforce: 'pre',
+        resolveId(source, importer) {
+            if (!enabled || source !== './E2ETestRuntimeBridge.js') return null;
+            if (normalizeModuleId(importer) !== normalizedInitializerPath) return null;
+            return testBridgePath;
+        },
+    };
+}
+
 export default defineConfig(({ mode }) => {
     const loadedEnv = loadEnv(mode, process.cwd(), '');
     const resolvedEnv = {
@@ -758,6 +779,7 @@ export default defineConfig(({ mode }) => {
 
     return {
         plugins: [
+            playwrightTestRuntimeBridgePlugin(resolvedEnv),
             playwrightHealthApiPlugin(),
             editorDiskSaveApiPlugin(),
             latestCheckpointApiPlugin(),

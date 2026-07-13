@@ -48,15 +48,21 @@ const TEST_MODULE_EXPORTS = Object.freeze({
     '/src/state/TelemetryHistoryStore.js': Object.freeze({ ...TelemetryHistoryStoreModule }),
 });
 
-export async function importCurviosTestModule(moduleSpecifier) {
+export async function importCurviosTestModule(moduleSpecifier, fallbackModuleImporter = null) {
     const normalizedSpecifier = String(moduleSpecifier || '').trim();
     if (normalizedSpecifier && Object.prototype.hasOwnProperty.call(TEST_MODULE_EXPORTS, normalizedSpecifier)) {
         return TEST_MODULE_EXPORTS[normalizedSpecifier];
     }
+    if (typeof fallbackModuleImporter === 'function') {
+        return fallbackModuleImporter(normalizedSpecifier);
+    }
     return import(normalizedSpecifier);
 }
 
-export function buildCurviosTestApi() {
+export function buildCurviosTestApi(options = {}) {
+    const fallbackModuleImporter = typeof options?.fallbackModuleImporter === 'function'
+        ? options.fallbackModuleImporter
+        : null;
     return Object.freeze({
         sanitizeBotAction,
         ItemSlotEncoder,
@@ -74,7 +80,9 @@ export function buildCurviosTestApi() {
         applyTrailDamageFromProjectile,
         updatePlayerHealthRegen,
         createRuntimeConfigSnapshot,
-        importCurviosTestModule,
+        importCurviosTestModule: (moduleSpecifier) => (
+            importCurviosTestModule(moduleSpecifier, fallbackModuleImporter)
+        ),
         testModuleExports: TEST_MODULE_EXPORTS,
     });
 }
@@ -84,10 +92,12 @@ export function buildCurviosTestApi() {
  */
 export function attachCurviosTestApi(runtimeWindow) {
     if (!runtimeWindow || typeof runtimeWindow !== 'object') return;
-    const fullApi = buildCurviosTestApi();
     const existingApi = runtimeWindow.CURVIOS_TEST_API && typeof runtimeWindow.CURVIOS_TEST_API === 'object'
         ? runtimeWindow.CURVIOS_TEST_API
         : null;
+    const fullApi = buildCurviosTestApi({
+        fallbackModuleImporter: existingApi?.importCurviosTestModule,
+    });
     if (existingApi) {
         runtimeWindow.CURVIOS_TEST_API = Object.freeze({
             ...existingApi,
