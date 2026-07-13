@@ -467,9 +467,21 @@ export function sanitizeGate(raw, options = {}) {
     if (typeInfo.sourceType && typeInfo.sourceType !== typeInfo.type) {
         result.legacyType = typeInfo.sourceType;
     }
+    const preservedLegacyType = typeof source.legacyType === 'string'
+        ? source.legacyType.trim()
+        : '';
+    const preservesLegacyWarning = preservedLegacyType
+        && source.warningCode === 'map.warning.gate-type';
+    if (!result.legacyType && preservesLegacyWarning) {
+        // Exported map documents may be sanitized again on import; keep the original warning evidence stable.
+        result.legacyType = preservedLegacyType;
+    }
     if (typeInfo.warningCode) {
         result.warningCode = typeInfo.warningCode;
         pushSanitizeWarning(warnings, `Unknown gate type "${typeInfo.sourceType}" normalized to "${typeInfo.type}".`);
+    } else if (preservesLegacyWarning) {
+        result.warningCode = 'map.warning.gate-type';
+        pushSanitizeWarning(warnings, `Unknown gate type "${preservedLegacyType}" normalized to "${typeInfo.type}".`);
     }
 
     return result;
