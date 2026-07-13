@@ -44,6 +44,7 @@
     "typecheck": "tsc -p tsconfig.architecture.json",
     "check:architecture": "node scripts/check-architecture-boundaries.mjs && node scripts/check-runtime-determinism.mjs && node scripts/check-runtime-encoding.mjs && node scripts/check-editor-path-drift.mjs",
     "test": "npm run test:contract",
+    "pretest:contract": "npm run build:app",
     "test:contract": "node --test \"tests/*.contract.test.mjs\" tests/observation-bridge-policy-runtime.test.mjs tests/trainer-v34-bridge.test.mjs tests/training-environment.contract.test.mjs tests/training-reward-survival.test.mjs tests/training-runtime-near-architecture.test.mjs",
     "test:desktop:smoke": "node scripts/run-playwright-smoke.mjs tests/core.spec.js --timeout=180000",
     "test:desktop:e2e": "node scripts/run-playwright-targeted-clusters.mjs --timeout=240000",

@@ -45,7 +45,7 @@ npm run dev                 # Vite-Entwicklung
 npm run build:app           # Desktop-Renderer
 npm run lint                # Quellcode-Lint
 npm run typecheck           # Architektur-Typprüfung
-npm run test:contract       # Produktverträge
+npm run test:contract       # App-Build und Produktverträge
 npm run test:desktop:smoke  # sichtbarer Desktop-Smoke
 npm run test:desktop:e2e    # zentrale Desktop-Flows und Modi
 npm run app:package         # Windows-Paket
