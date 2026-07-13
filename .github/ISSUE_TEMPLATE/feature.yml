@@ -1,0 +1,24 @@
+name: Feature
+description: Produktverbesserung vorschlagen
+title: "feature: "
+body:
+  - type: textarea
+    id: user-value
+    attributes:
+      label: Nutzerwert
+      description: Welches konkrete Problem wird für wen gelöst?
+    validations:
+      required: true
+  - type: input
+    id: areas
+    attributes:
+      label: Betroffene Produktbereiche
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Akzeptanzkriterien
+      description: Beobachtbare Kriterien für eine fertige Umsetzung.
+    validations:
+      required: true

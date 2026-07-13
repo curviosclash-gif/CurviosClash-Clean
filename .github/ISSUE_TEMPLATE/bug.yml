@@ -1,0 +1,29 @@
+name: Bug
+description: Reproduzierbaren Produktfehler melden
+title: "bug: "
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduktion
+      description: Kürzeste verlässliche Schrittfolge und relevante Umgebung.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Erwartetes Verhalten
+    validations:
+      required: true
+  - type: input
+    id: area
+    attributes:
+      label: Bereich
+      placeholder: Desktop, Spielmodus, Editor, Vehicle Lab, Mobile, LAN, Recording oder Persistenz
+    validations:
+      required: true
+  - type: textarea
+    id: test-idea
+    attributes:
+      label: Testidee
+      description: Wie könnte der Fehler klein und dauerhaft reproduziert werden?

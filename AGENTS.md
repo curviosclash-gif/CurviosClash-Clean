@@ -8,4 +8,5 @@
 6. Nutze vorhandene Contracts und Runtime-Grenzen, bevor du neue globale Zugriffe einführst.
 7. Halte Render- und Update-Schleifen allokationsarm und räume Ressourcen beim Neustart auf.
 8. Führe vor einem Commit mindestens die kleinsten betroffenen Tests und den passenden Build aus.
-
+9. Automatisiere prüfbare Regeln in Tests, CI oder Konfiguration; dokumentiere nur dauerhafte Produktentscheidungen.
+10. Führe keine Planarchive, Locks, Agenten-Wissensbasen, Statuskopien oder generierten Prozessberichte ein.
