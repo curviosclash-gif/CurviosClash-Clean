@@ -36,10 +36,10 @@ function loadBrowserDemoPolicyContractModule() {
 }
 
 class SettingsBrowserDemoPolicyService {
-    constructor({ app }) {
+    constructor({ app, projectRootPath = path.resolve(__dirname, '..', '..', '..') }) {
         this.app = app;
         this.fileName = BROWSER_DEMO_POLICY_OVERRIDE_FILE_NAME;
-        this.projectRootPath = path.resolve(__dirname, '..', '..', '..');
+        this.projectRootPath = path.resolve(projectRootPath);
     }
 
     getOverrideFilePath() {

@@ -30,11 +30,14 @@ function createValidationSnapshot(validationResult) {
     };
 }
 
-function registerSettingsStudioIpc({ ipcMain, app }) {
+function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath }) {
     const fileService = new SettingsOverrideFileService({ app });
     const backupService = new SettingsBackupService({ app });
     const prefsService = new SettingsPrefsService({ app });
-    const browserDemoPolicyService = new SettingsBrowserDemoPolicyService({ app });
+    const browserDemoPolicyService = new SettingsBrowserDemoPolicyService({
+        app,
+        projectRootPath: browserDemoProjectRootPath,
+    });
 
     ipcMain.handle(CHANNELS.load, async () => {
         const prefs = prefsService.loadPrefs();

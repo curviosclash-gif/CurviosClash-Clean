@@ -1,9 +1,9 @@
 {
   "contractVersion": "browser-demo-surface-policy-export.v1",
-  "generatedAt": "2026-07-13T02:25:31.302Z",
+  "generatedAt": "2026-07-13T00:00:00.000Z",
   "source": {
     "kind": "settings-studio",
-    "overrideFilePath": "C:\\Users\\GUNDAB~1\\AppData\\Local\\Temp\\curvios-settings-studio-v98-u9et5r\\browser-demo-surface-policy.override.json"
+    "overrideFilePath": "browser-demo-surface-policy.override.json"
   },
   "draft": {
     "contractVersion": "browser-demo-surface-policy.v1",

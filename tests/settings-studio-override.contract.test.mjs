@@ -67,6 +67,7 @@ async function createSettingsStudioTestHarness(t) {
     const unregister = registerSettingsStudioIpc({
         ipcMain: harness.ipcMain,
         app,
+        browserDemoProjectRootPath: userDataPath,
     });
 
     t.after(async () => {
