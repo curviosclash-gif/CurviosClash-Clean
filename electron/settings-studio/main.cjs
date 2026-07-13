@@ -91,6 +91,7 @@ function createWindowShellCapability() {
                     preload: path.resolve(__dirname, 'preload.cjs'),
                     contextIsolation: true,
                     nodeIntegration: false,
+                    sandbox: true,
                     backgroundThrottling: false,
                 },
             });

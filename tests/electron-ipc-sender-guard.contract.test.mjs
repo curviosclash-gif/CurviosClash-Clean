@@ -1,5 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
@@ -47,4 +48,35 @@ test('Electron IPC sender guard rejects other windows, subframes and destroyed w
         { sender: webContents, senderFrame: mainFrame },
         { ...windowRef, isDestroyed: () => true }
     ), false);
+});
+
+test('Electron windows keep explicit renderer isolation and scoped sandbox policy', () => {
+    const mainSource = readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
+    assert.match(mainSource, /contextIsolation:\s*true/);
+    assert.match(mainSource, /nodeIntegration:\s*false/);
+    assert.match(mainSource, /sandbox:\s*false/);
+    assert.match(mainSource, /Sandboxed preloads cannot use the ESM imports/);
+
+    const sandboxedSourcePaths = [
+        '../electron/tuning-window.cjs',
+        '../electron/settings-studio/main.cjs',
+    ];
+
+    for (const sourcePath of sandboxedSourcePaths) {
+        const source = readFileSync(new URL(sourcePath, import.meta.url), 'utf8');
+        assert.match(source, /contextIsolation:\s*true/);
+        assert.match(source, /nodeIntegration:\s*false/);
+        assert.match(source, /sandbox:\s*true/);
+    }
+});
+
+test('Windows packaging keeps executable metadata editing and environment signing available', () => {
+    const packageJson = JSON.parse(readFileSync(
+        new URL('../electron/package.json', import.meta.url),
+        'utf8'
+    ));
+
+    assert.equal(packageJson.build?.win?.signAndEditExecutable, true);
+    assert.equal(Object.hasOwn(packageJson.build?.win || {}, 'certificateFile'), false);
+    assert.equal(Object.hasOwn(packageJson.build?.win || {}, 'certificatePassword'), false);
 });

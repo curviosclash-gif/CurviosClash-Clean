@@ -70,6 +70,8 @@ test('tuning window controller creates 420x800 window and toggles close/open', a
     assert.equal(firstOpen.window.options.width, 420);
     assert.equal(firstOpen.window.options.height, 800);
     assert.equal(firstOpen.window.options.webPreferences.contextIsolation, true);
+    assert.equal(firstOpen.window.options.webPreferences.nodeIntegration, false);
+    assert.equal(firstOpen.window.options.webPreferences.sandbox, true);
     assert.match(String(firstOpen.window.loadedUrl || ''), /^data:text\/html/);
 
     const toggleClosed = await controller.toggleTuningWindow();

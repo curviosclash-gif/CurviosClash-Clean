@@ -486,6 +486,10 @@ async function createWindow() {
             preload: path.join(__dirname, 'preload.cjs'),
             contextIsolation: true,
             nodeIntegration: false,
+            // Sandboxed preloads cannot use the ESM imports required by the
+            // developer tuning runtime. Keep this scoped exception until that
+            // preload support is bundled; auxiliary windows remain sandboxed.
+            sandbox: false,
             backgroundThrottling: false,
         },
     });
