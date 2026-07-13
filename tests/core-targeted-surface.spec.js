@@ -289,6 +289,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.matchFlowUiController.onRoundEnd(players[0]);
             game.roundPause = 2.6;
             game.roundStateTickSystem.updateRoundEnd(0.3);
+            const recordedDuration = Number(game.recorder.getLastRoundMetrics?.()?.duration || 0);
 
             const statsRoot = document.getElementById('message-stats');
             const readValue = (blockId, rowKey) => statsRoot?.querySelector(
@@ -302,7 +303,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 blockIds: Array.from(statsRoot?.querySelectorAll('[data-stats-block-id]') || []).map((node) => node.getAttribute('data-stats-block-id')),
                 roundWinner: readValue('round', 'winner'),
                 roundDuration: readValue('round', 'duration'),
-                expectedDurationFloor: (Math.floor((simulatedDurationMs / 1000) * 10) / 10).toFixed(1),
+                recordedDuration,
                 matchRounds: readValue('match', 'rounds'),
                 scoreLeader: readValue('scoreboard', 'player-0'),
                 countdownText: document.getElementById('message-sub')?.textContent || '',
@@ -315,7 +316,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(overlayState.statsVisible).toBeTruthy();
         expect(overlayState.blockIds).toEqual(expect.arrayContaining(['round', 'match', 'scoreboard']));
         expect(overlayState.roundWinner).toBe('Spieler 1');
-        expect(overlayState.roundDuration).toContain(overlayState.expectedDurationFloor);
+        expect(Number.parseFloat(overlayState.roundDuration)).toBeCloseTo(overlayState.recordedDuration, 2);
         expect(overlayState.matchRounds).toBe('1');
         expect(overlayState.scoreLeader).toBe('1/5');
         expect(overlayState.countdownText).toContain('Naechste Runde in 3');
@@ -776,9 +777,20 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             const messages = [];
             const originalShowStatusToast = game._showStatusToast;
             const originalRender = game.render;
+            const originalRecorder = game.mediaRecorderSystem;
             const originalSetRecordingCaptureSettings = game.renderer?.setRecordingCaptureSettings;
             const recorder = {
                 setRecordingCaptureSettings() { },
+                getSupportState() {
+                    return { canRecord: true };
+                },
+                isRecording() {
+                    return false;
+                },
+                notifyLifecycleEvent() { },
+                async stopRecording() {
+                    return { stopped: true };
+                },
                 async startRecording() {
                     return {
                         started: true,
@@ -789,24 +801,29 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
             game._showStatusToast = (message) => messages.push(String(message || ''));
             game.render = () => { };
+            game.mediaRecorderSystem = recorder;
             if (game.renderer) {
                 game.renderer.setRecordingCaptureSettings = () => { };
             }
 
             try {
-                await game._startCinematicRecording(recorder);
+                const toggled = game.runtimeFacade?.toggleCinematicRecordingFromHotkey?.();
+                await new Promise((resolve) => setTimeout(resolve, 0));
                 return {
+                    toggled,
                     message: messages[messages.length - 1] || '',
                 };
             } finally {
                 game._showStatusToast = originalShowStatusToast;
                 game.render = originalRender;
+                game.mediaRecorderSystem = originalRecorder;
                 if (game.renderer && originalSetRecordingCaptureSettings) {
                     game.renderer.setRecordingCaptureSettings = originalSetRecordingCaptureSettings;
                 }
             }
         });
 
+        expect(result.toggled).toBeTruthy();
         expect(result.message).toContain('MP4');
         expect(result.message).not.toContain('WebM');
     });
@@ -1280,18 +1297,14 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test('T20s: Config-Export/Import stellt Setup reproduzierbar wieder her', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
-        await page.evaluate(() => {
-            const game = window.GAME_INSTANCE;
-            game.settings.mapKey = 'maze';
-            game.runtimeFacade.onSettingsChanged({ changedKeys: ['mapKey'] });
-        });
+        await page.selectOption('#map-select', 'maze');
         expect(await page.inputValue('#map-select')).toBe('maze');
 
         await openLevel4Drawer(page, { section: 'tools' });
         await page.click('#btn-config-export-json');
         const exportedJson = await page.inputValue('#config-share-input');
         expect(exportedJson.length).toBeGreaterThan(20);
-        expect(JSON.parse(exportedJson).mapKey).toBe('maze');
+        expect(JSON.parse(exportedJson).payload?.mapKey).toBe('maze');
 
         await page.click('#btn-close-level4');
         await page.waitForFunction(() => {
@@ -1300,11 +1313,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 && drawer.classList.contains('hidden')
                 && !window.GAME_INSTANCE?.settings?.localSettings?.toolsState?.level4Open;
         }, null, { timeout: 4000 });
-        await page.evaluate(() => {
-            const game = window.GAME_INSTANCE;
-            game.settings.mapKey = 'pyramid';
-            game.runtimeFacade.onSettingsChanged({ changedKeys: ['mapKey'] });
-        });
+        await page.selectOption('#map-select', 'pyramid');
         expect(await page.inputValue('#map-select')).toBe('pyramid');
 
         await openLevel4Drawer(page, { section: 'tools' });
@@ -1584,7 +1593,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(revertedState.runtimeDamage).toBeCloseTo(normalState.runtimeDamage, 2);
     });
 
-    test('T20x1: Map-Auswahl folgt Moduspfad (Arcade nur Parcours, sonst ohne Parcours)', async ({ page }) => {
+    test('T20x1: Map-Auswahl bleibt in Normal und Arcade vollstaendig verfuegbar', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
@@ -1604,7 +1613,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         });
 
         expect(normalState.modePath).toBe('normal');
-        expect(normalState.parcoursVisibleCount).toBe(0);
+        expect(normalState.parcoursVisibleCount).toBeGreaterThan(0);
         expect(normalState.regularVisibleCount).toBeGreaterThan(0);
 
         await page.click('#submenu-game:not(.hidden) [data-back]');
@@ -1628,7 +1637,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         expect(arcadeState.modePath).toBe('arcade');
         expect(arcadeState.parcoursVisibleCount).toBeGreaterThan(0);
-        expect(arcadeState.regularVisibleCount).toBe(0);
+        expect(arcadeState.regularVisibleCount).toBeGreaterThan(0);
         expect(arcadeState.selectedMapKey).toBe('parcours_rift');
     });
 
@@ -1812,12 +1821,13 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 game.matchFlowUiController?.onRoundEnd?.(players[0]);
             }
             const persistedLibrary = JSON.parse(localStorage.getItem('cuviosclash.arcade-ghost-library.v1') || '{}');
+            const persistedRoute = persistedLibrary?.routes?.[routeId] || persistedLibrary?.[routeId] || null;
             return {
                 active: ghostState?.active === true,
                 entryCount: Number(ghostState?.entryCount || 0),
                 frameCount: Number(ghostState?.frameCount || 0),
                 routeId,
-                persistedDurationMs: Number(persistedLibrary?.[routeId]?.durationMs || 0),
+                persistedDurationMs: Number(persistedRoute?.durationMs || 0),
             };
         });
         expect(normalGhostState.active).toBeTruthy();
@@ -1869,12 +1879,13 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 });
             }
             const persistedLibrary = JSON.parse(localStorage.getItem('cuviosclash.arcade-ghost-library.v1') || '{}');
+            const persistedRoute = persistedLibrary?.routes?.[routeId] || persistedLibrary?.[routeId] || null;
             return {
                 active: ghostState?.active === true,
                 entryCount: Number(ghostState?.entryCount || 0),
                 frameCount: Number(ghostState?.frameCount || 0),
                 routeId,
-                persistedDurationMs: Number(persistedLibrary?.[routeId]?.durationMs || 0),
+                persistedDurationMs: Number(persistedRoute?.durationMs || 0),
             };
         });
         expect(arcadeGhostState.active).toBeTruthy();

@@ -1566,7 +1566,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
     test('T20ae: Runtime-Dispose entfernt globale und Menue-Listener vor Reinit', async ({ page }) => {
         const errors = collectErrors(page);
         await loadGame(page);
-        const result = await page.evaluate(() => {
+        const result = await page.evaluate(async () => {
             const first = window.GAME_INSTANCE;
             if (!first?.dispose || typeof first.constructor !== 'function') {
                 return { error: 'missing-game-runtime' };
@@ -1582,7 +1582,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 firstStartCalls += 1;
                 return false;
             };
-            first.dispose();
+            await first.dispose();
 
             const second = new first.constructor();
             window.GAME_INSTANCE = second;
@@ -1625,7 +1625,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const secondInputUpdated = !!second.input?.keys?.KeyQ;
 
             document.getElementById('btn-start')?.click();
-            second.dispose();
+            await second.dispose();
 
             return {
                 error: null,
@@ -2168,7 +2168,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.runtimeTeardownCalls).toBe(0);
     });
 
-    test('T20ae3: RuntimeSessionLifecycle puffert fruehe stateUpdate-Pakete und wartet als Client auf Host-Startsignal', async ({ page }) => {
+    test('T20ae3: RuntimeSessionLifecycle puffert fruehe stateUpdate-Pakete und meldet Client-Readiness bis zum Host-Startsignal', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
             const lifecycleModule = await window.__curviosImport('/src/core/runtime/RuntimeSessionLifecycleService.js');
@@ -2179,15 +2179,19 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             const createEventBusSession = ({ isHost, localPlayerId, players }) => {
                 const listeners = new Map();
-                const sentInputs = [];
+                const arenaLoadedSignals = [];
+                const roundStartGates = [];
                 return {
                     isHost,
                     localPlayerId,
                     getPlayers() {
                         return players;
                     },
-                    sendInput(payload) {
-                        sentInputs.push(payload);
+                    notifyArenaLoaded(playerId) {
+                        arenaLoadedSignals.push(playerId);
+                    },
+                    broadcastRoundStartGate(payload) {
+                        roundStartGates.push(payload);
                     },
                     on(event, handler) {
                         const entries = listeners.get(event) || [];
@@ -2207,7 +2211,8 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                     listenerCount(event) {
                         return (listeners.get(event) || []).length;
                     },
-                    sentInputs,
+                    arenaLoadedSignals,
+                    roundStartGates,
                 };
             };
 
@@ -2234,12 +2239,12 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const clientFacade = {
                 session: clientSession,
                 _arenaLoadedPeers: new Set(),
-                _onArenaStartSignalHandler: null,
+                _onRoundStartGateHandler: null,
             };
 
             const clientWaitPromise = waitForRuntimePlayersLoaded(clientFacade);
             await new Promise((resolve) => setTimeout(resolve, 0));
-            clientSession.emit('remoteInput', { input: { type: 'arena_start' } });
+            clientSession.emit('roundStartGate', { expectedPeerIds: ['host', 'client'] });
             await clientWaitPromise;
 
             let resolveReconcilerFactory = null;
@@ -2284,10 +2289,9 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             receiverSession.emit('stateUpdate', { id: 3, state: { players: [] } });
 
             return {
-                hostStartSignalType: hostSession.sentInputs[0]?.type || null,
-                hostStartSignalPeers: hostSession.sentInputs[0]?.expectedPeerIds || [],
-                clientLoadedSignalType: clientSession.sentInputs[0]?.type || null,
-                clientRemoteInputListenersAfterResolve: clientSession.listenerCount('remoteInput'),
+                hostStartSignalPeers: hostSession.roundStartGates[0]?.expectedPeerIds || [],
+                clientLoadedSignalPlayerId: clientSession.arenaLoadedSignals[0] || null,
+                clientRoundStartGateListenersAfterSignal: clientSession.listenerCount('roundStartGate'),
                 bufferedBeforeResolve,
                 bufferedAfterResolve: receiverFacade._pendingStateUpdates.length,
                 receiveCalls,
@@ -2295,12 +2299,11 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             };
         });
 
-        expect(result.hostStartSignalType).toBe('arena_start');
         expect(Array.isArray(result.hostStartSignalPeers)).toBeTruthy();
         expect(result.hostStartSignalPeers.includes('host')).toBeTruthy();
         expect(result.hostStartSignalPeers.includes('client')).toBeTruthy();
-        expect(result.clientLoadedSignalType).toBe('arena_loaded');
-        expect(result.clientRemoteInputListenersAfterResolve).toBe(0);
+        expect(result.clientLoadedSignalPlayerId).toBe('client');
+        expect(result.clientRoundStartGateListenersAfterSignal).toBe(0);
         expect(result.bufferedBeforeResolve).toBe(2);
         expect(result.bufferedAfterResolve).toBe(0);
         expect(result.receiveCalls).toEqual([1, 2, 3]);
@@ -2426,15 +2429,31 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 modePath: game.settings.localSettings.modePath,
                 mapKey: game.settings.mapKey,
             };
-            const migration = facade.settingsHandler.applySurfacePolicyStartDefaults();
+            const previousRuntimeFeatureFlags = game.uiManager._runtimeFeatureFlags;
+            game.uiManager._runtimeFeatureFlags = {
+                ...previousRuntimeFeatureFlags,
+                surfacePolicy: {
+                    ...(previousRuntimeFeatureFlags?.surfacePolicy || {}),
+                    productSurfaceId: 'browser-demo',
+                },
+            };
 
-            return {
-                before,
-                after: {
+            let migration = null;
+            let after = null;
+            try {
+                migration = facade.settingsHandler.applySurfacePolicyStartDefaults();
+                after = {
                     sessionType: game.settings.localSettings.sessionType,
                     modePath: game.settings.localSettings.modePath,
                     mapKey: game.settings.mapKey,
-                },
+                };
+            } finally {
+                game.uiManager._runtimeFeatureFlags = previousRuntimeFeatureFlags;
+            }
+
+            return {
+                before,
+                after,
                 changedKeys: migration?.changedKeys || [],
             };
         });
@@ -2445,7 +2464,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.after.sessionType).toBe('single');
         expect(result.after.modePath).toBe('normal');
         expect(result.after.mapKey).toBe('standard');
-        expect(result.changedKeys).toEqual(expect.arrayContaining(['sessionType', 'modePath', 'mapKey']));
+        expect(result.changedKeys).toEqual(expect.arrayContaining(['session.type', 'session.modePath', 'mapKey']));
     });
 
     test('T20ae3: TelemetryHistoryStore wiederholt temporaere DB-Fehler und oeffnet Verbindung neu', async ({ page }) => {
@@ -2611,8 +2630,11 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         await page.evaluate(({ storageKey, mapJson }) => {
             localStorage.setItem(storageKey, mapJson);
             const g = window.GAME_INSTANCE;
-            if (g?.settings) {
-                g.settings.mapKey = 'custom';
+            g?.uiManager?.syncByChangeKeys?.(['mapKey']);
+            const mapSelect = document.getElementById('map-select');
+            if (mapSelect instanceof HTMLSelectElement) {
+                mapSelect.value = 'custom';
+                mapSelect.dispatchEvent(new Event('change', { bubbles: true }));
             }
             g?.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['mapKey'] });
         }, { storageKey: CUSTOM_MAP_STORAGE_KEY, mapJson: mapA });
@@ -2633,8 +2655,11 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         await page.evaluate(({ storageKey, mapJson }) => {
             localStorage.setItem(storageKey, mapJson);
             const g = window.GAME_INSTANCE;
-            if (g?.settings) {
-                g.settings.mapKey = 'custom';
+            g?.uiManager?.syncByChangeKeys?.(['mapKey']);
+            const mapSelect = document.getElementById('map-select');
+            if (mapSelect instanceof HTMLSelectElement) {
+                mapSelect.value = 'custom';
+                mapSelect.dispatchEvent(new Event('change', { bubbles: true }));
             }
             g?.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['mapKey'] });
         }, { storageKey: CUSTOM_MAP_STORAGE_KEY, mapJson: mapB });

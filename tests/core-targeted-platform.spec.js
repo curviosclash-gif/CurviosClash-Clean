@@ -838,14 +838,15 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await page.fill('#profile-name', '');
         await page.click('#btn-profile-import');
         await expect(page.locator('#profile-select')).toHaveValue('QA Import');
-        await expect(page.locator('#profile-transfer-status')).toContainText('Profil importiert: QA Import');
+        await expect(page.locator('#profile-transfer-status')).toContainText('Profil importiert.');
 
         const profileState = await page.evaluate((storageKey) => {
             return JSON.parse(localStorage.getItem(storageKey) || '[]');
         }, SETTINGS_PROFILES_STORAGE_KEY);
-        expect(profileState).toHaveLength(3);
-        expect(profileState.filter((profile) => profile?.isDefault)).toHaveLength(1);
-        expect(profileState.find((profile) => profile?.isDefault)?.name).toBe('QA Profil');
+        expect(profileState.schemaVersion).toBe('settings-profiles.v1');
+        expect(profileState.profiles).toHaveLength(3);
+        expect(profileState.profiles.filter((profile) => profile?.isDefault)).toHaveLength(1);
+        expect(profileState.profiles.find((profile) => profile?.isDefault)?.name).toBe('QA Profil');
 
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
     });
