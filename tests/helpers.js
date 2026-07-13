@@ -64,9 +64,12 @@ export async function waitForLoadedGame(page, timeoutMs = 30000) {
 
 async function ensureTestModuleImportBridge(page, timeoutMs = 5000) {
     try {
-        await page.waitForFunction(() => (
-            typeof globalThis?.CURVIOS_TEST_API?.importCurviosTestModule === 'function'
-        ), null, { timeout: timeoutMs });
+        await page.waitForFunction(() => {
+            const api = globalThis?.CURVIOS_TEST_API;
+            return typeof api?.importCurviosTestModule === 'function'
+                && api?.testModuleExports
+                && typeof api.testModuleExports === 'object';
+        }, null, { timeout: timeoutMs });
     } catch {
         // Non-e2e contexts may not provide the full test API bridge.
     }

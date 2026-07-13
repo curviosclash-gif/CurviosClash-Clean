@@ -406,6 +406,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
             return {
                 error: '',
+                mapKey: String(game.arena?.currentMapKey || game.settings?.mapKey || ''),
                 balanceRounds: Number(game.settings?.localSettings?.telemetryState?.balance?.rounds || 0),
                 telemetryBalance: game.settings?.localSettings?.telemetryState?.balance || null,
                 telemetryRecentRound: game.settings?.localSettings?.telemetryState?.recentRounds?.[0] || null,
@@ -455,12 +456,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(Number(dashboardState.telemetry?.balance?.rocketHitsPerRound || 0)).toBeGreaterThanOrEqual(1);
         expect(Number(dashboardState.telemetry?.balance?.hpDamagePerRound || 0)).toBeGreaterThan(0);
         expect(Number(dashboardState.telemetry?.balance?.shieldAbsorbPerRound || 0)).toBeGreaterThan(0);
-        expect(dashboardState.telemetry?.topMaps?.[0]?.key).toBe('standard');
+        expect(dashboardState.telemetry?.topMaps?.[0]?.key).toBe(telemetryProbe.mapKey);
         expect(dashboardState.overviewRounds).toBe('1');
         expect(dashboardState.balanceDuration).not.toBe('0.00s');
-        expect(dashboardState.topMap).toBe('standard');
+        expect(dashboardState.topMap).toBe(telemetryProbe.mapKey);
         expect(dashboardState.recentRows[0] || '').toContain('Spieler 1');
-        expect(dashboardState.recentRows[0] || '').toContain('standard / classic');
+        expect(dashboardState.recentRows[0] || '').toContain(`${telemetryProbe.mapKey} / classic`);
     });
 
     test('T20g: Runtime-Guard blockiert Developer-Events fuer non-owner', async ({ page }) => {

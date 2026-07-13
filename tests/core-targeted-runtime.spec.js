@@ -1347,7 +1347,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
     });
 
     test('T20aj5: WebCodecs-Stop finalisiert Partial-Buffer wenn flush haengt', async ({ page }) => {
-        await page.goto('/', { waitUntil: 'domcontentloaded' });
+        await loadGame(page);
         const result = await page.evaluate(async () => {
             const { WebCodecsRecorderEngine } = await window.__curviosImport('/src/core/recording/engines/WebCodecsRecorderEngine.js');
             const engine = new WebCodecsRecorderEngine({ globalScope: {} });

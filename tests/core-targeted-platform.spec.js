@@ -415,7 +415,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T41a: MenuSchema markiert multiplayer-host mit visibilityCondition canHost', async ({ page }) => {
         await loadGame(page);
         const schema = await page.evaluate(() => {
-            const registry = window.GAME_INSTANCE?.menuPanelRegistry;
+            const registry = window.GAME_INSTANCE?.uiManager?.menuPanelRegistry;
             const s = registry?.getSchema?.();
             const panel = Array.isArray(s?.panels) ? s.panels.find((p) => p.id === 'submenu-multiplayer') : null;
             const hostItem = Array.isArray(panel?.items) ? panel.items.find((i) => i.id === 'multiplayer-host') : null;
