@@ -5,6 +5,8 @@ on:
     paths:
       - src/**
       - electron/**
+      - assets/branding/**
+      - START_CURVIOSCLASH.cmd
       - server/**
       - editor/**
       - prototypes/vehicle-lab/**
@@ -22,6 +24,8 @@ on:
     paths:
       - src/**
       - electron/**
+      - assets/branding/**
+      - START_CURVIOSCLASH.cmd
       - server/**
       - editor/**
       - prototypes/vehicle-lab/**

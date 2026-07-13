@@ -18,6 +18,7 @@
     "app:start:raw": "npm --prefix electron run start",
     "app:settings:start": "npm --prefix electron run start:settings",
     "app:package": "npm run build:app && npm --prefix electron run build",
+    "app:package:verify": "node scripts/check-packaged-electron.mjs",
     "server:start": "npm --prefix server start",
     "server:lan": "npm --prefix server run start:lan",
     "app:android:build": "node scripts/build-mobile-classic-app.mjs",

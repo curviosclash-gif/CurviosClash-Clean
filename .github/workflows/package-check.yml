@@ -4,7 +4,10 @@ on:
   push:
     paths:
       - electron/**
+      - assets/branding/**
+      - START_CURVIOSCLASH.cmd
       - dev/vite/**
+      - scripts/check-packaged-electron.mjs
       - package.json
       - package-lock.json
       - vite.config.js
@@ -12,7 +15,10 @@ on:
   pull_request:
     paths:
       - electron/**
+      - assets/branding/**
+      - START_CURVIOSCLASH.cmd
       - dev/vite/**
+      - scripts/check-packaged-electron.mjs
       - package.json
       - package-lock.json
       - vite.config.js
@@ -69,27 +75,39 @@ jobs:
           $asar = Join-Path $release 'win-unpacked\resources\app.asar'
           $asarEntries = & .\electron\node_modules\.bin\asar.cmd list $asar
           if ($LASTEXITCODE -ne 0) { throw 'Unable to inspect app.asar.' }
-          foreach ($entry in @('\main.cjs', '\preload.cjs', '\recording-video-export-job.cjs')) {
+          foreach ($entry in @(
+            '\entry.cjs',
+            '\main.cjs',
+            '\preload.cjs',
+            '\recording-video-export-job.cjs',
+            '\settings-studio\main.cjs',
+            '\settings-studio\preload.cjs',
+            '\settings-studio\ui\settings-studio.html'
+          )) {
             if ($asarEntries -notcontains $entry) {
               throw "Required app.asar entry is missing: $entry"
             }
           }
 
-          $profile = Join-Path $env:RUNNER_TEMP 'curvios-package-smoke-profile'
-          New-Item -ItemType Directory -Path $profile -Force | Out-Null
-          $process = Start-Process -FilePath $exe -ArgumentList "--user-data-dir=$profile" -PassThru
-          try {
-            $deadline = [DateTime]::UtcNow.AddSeconds(45)
-            $ready = $false
-            do {
-              Start-Sleep -Seconds 2
-              $process.Refresh()
-              if ($process.HasExited) {
-                throw "Packaged application exited early with code $($process.ExitCode)."
-              }
-              $ready = $process.MainWindowHandle -ne 0 -and $process.Responding
-            } while (-not $ready -and [DateTime]::UtcNow -lt $deadline)
-            if (-not $ready) { throw 'Packaged application did not open a responsive window within 45 seconds.' }
-          } finally {
-            if (-not $process.HasExited) { Stop-Process -Id $process.Id -Force }
+          $versionInfo = (Get-Item -LiteralPath $exe).VersionInfo
+          if ($versionInfo.ProductName -ne 'CurviosClash') {
+            throw "Unexpected packaged product name: $($versionInfo.ProductName)"
           }
+
+          Add-Type -AssemblyName System.Drawing
+          foreach ($artifact in @($exe, $installer.FullName)) {
+            $icon = [System.Drawing.Icon]::ExtractAssociatedIcon($artifact)
+            if ($null -eq $icon) { throw "Windows icon is missing: $artifact" }
+            try {
+              if ($icon.Width -lt 16 -or $icon.Height -lt 16) {
+                throw "Windows icon is invalid: $artifact"
+              }
+            } finally {
+              $icon.Dispose()
+            }
+          }
+
+          $signature = Get-AuthenticodeSignature -LiteralPath $exe
+          Write-Host "Packaged executable signature status: $($signature.Status)"
+
+          node scripts/check-packaged-electron.mjs $exe
