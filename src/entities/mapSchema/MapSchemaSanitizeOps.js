@@ -470,8 +470,7 @@ export function sanitizeGate(raw, options = {}) {
     const preservedLegacyType = typeof source.legacyType === 'string'
         ? source.legacyType.trim()
         : '';
-    const preservesLegacyWarning = preservedLegacyType
-        && source.warningCode === 'map.warning.gate-type';
+    const preservesLegacyWarning = preservedLegacyType && source.warningCode === 'map.warning.gate-type';
     if (!result.legacyType && preservesLegacyWarning) {
         // Exported map documents may be sanitized again on import; keep the original warning evidence stable.
         result.legacyType = preservedLegacyType;
