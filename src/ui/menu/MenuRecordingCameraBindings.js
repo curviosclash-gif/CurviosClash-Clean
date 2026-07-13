@@ -36,7 +36,7 @@ export function bindMenuRecordingCameraControls({
     emitSettingsChangedImmediate,
     queueInputSettingsChanged,
     eventTypes,
-    keys,
+    settingsChangeKeys: keys,
 }) {
     if (ui.recordingProfileSelect) {
         bind(ui.recordingProfileSelect, 'change', () => {

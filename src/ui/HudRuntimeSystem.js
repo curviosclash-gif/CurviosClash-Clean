@@ -253,14 +253,7 @@ export class HudRuntimeSystem {
     }
 
     _updateArcadeHud(projection = null) {
-        const game = this.game;
         const hudState = projection?.arcade || null;
-        const arcadeActive = String(projection?.modeId || '').toUpperCase() === 'ARCADE';
-        if (!arcadeActive || !hudState) {
-            this._hideArcadeHud();
-            return;
-        }
-
         if (!hudState || hudState.phase === 'finished') {
             this._hideArcadeHud();
             return;

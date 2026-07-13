@@ -6,6 +6,7 @@ import {
     exportMenuConfigAsCode,
     exportMenuConfigAsJson,
     importMenuConfigFromInput,
+    writeHangarMapSelection,
 } from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { PLATFORM_PRODUCT_SURFACE_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
@@ -117,6 +118,14 @@ export function applyMenuPresetAction({
             settingsChangeKeys.PRESET_ACTIVE_KIND,
             settingsChangeKeys.PRESET_STATUS,
         ]);
+    if (changedKeys.includes(settingsChangeKeys.MAP_KEY)) {
+        writeHangarMapSelection(
+            game.settings,
+            game.settings.mapKey,
+            game.settings.mapKey,
+            { modePath: game.settings?.localSettings?.modePath }
+        );
+    }
     onSettingsChanged?.({ changedKeys });
 
     if (result.blockedPaths?.length > 0) {

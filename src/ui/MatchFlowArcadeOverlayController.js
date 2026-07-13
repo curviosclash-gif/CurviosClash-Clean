@@ -377,7 +377,7 @@ export class MatchFlowArcadeOverlayController {
     syncArcadeOverlayPanel() {
         const game = this.game;
         const runtimeProjection = this.runtimePort?.getMatchRuntimeProjection?.() || null;
-        const arcadeActive = String(runtimeProjection?.modeId || '').toUpperCase() === 'ARCADE';
+        const arcadeActive = !!runtimeProjection?.arcade;
         const overlayVisible = !!game?.ui?.messageOverlay && !game.ui.messageOverlay.classList.contains('hidden');
         if (!arcadeActive || !overlayVisible) {
             this.clearArcadeOverlayPanel();

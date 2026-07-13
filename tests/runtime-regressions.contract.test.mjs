@@ -53,6 +53,8 @@ import { MatchKernel } from '../src/state/MatchKernel.js';
 import { MATCH_KERNEL_CONSUMER_IDS, createMatchKernelConsumerRegistry } from '../src/state/MatchKernelConsumerAdapters.js';
 import { MatchFlowLifecycleController } from '../src/ui/MatchFlowLifecycleController.js';
 import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryController.js';
+import { MatchFlowArcadeOverlayController } from '../src/ui/MatchFlowArcadeOverlayController.js';
+import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { requestArcadeReplayPlayback } from '../src/ui/MatchFlowTransitionHotspots.js';
 import { SETTINGS_CHANGE_KEYS } from '../src/ui/SettingsChangeKeys.js';
 import { UIManager } from '../src/ui/UIManager.js';
@@ -2158,6 +2160,72 @@ test('GameRuntimeSessionHandler applies received LAN match-start commands locall
     assert.equal(calls.includes('requestMatchStart'), false);
     assert.equal(calls.includes('applyStart'), true);
     assert.equal(calls.includes('validation'), false);
+});
+
+test('Arcade HUD consumes the arcade projection while the wrapped game mode remains classic', () => {
+    const scoreStates = [];
+    const missionStates = [];
+    let hideCount = 0;
+    const overlay = {
+        tickXp() {},
+        tickSplitDelta() {},
+        tickPenalty() {},
+        tickMinimap() {},
+        tickStatsFlash() {},
+    };
+    const system = new HudRuntimeSystem({ game: {} });
+    system._ensureArcadeHud = () => {
+        system._arcadeScoreHud = { update: (state) => scoreStates.push(state) };
+        system._arcadeMissionHud = { update: (state) => missionStates.push(state) };
+    };
+    system._ensureArcadeFeedbackOverlays = () => {};
+    system._ensureParcoursOverlay = () => overlay;
+    system._hideArcadeHud = () => { hideCount += 1; };
+
+    const arcadeState = {
+        nowMs: 100,
+        phase: 'sector_active',
+        sectorIndex: 1,
+        missionState: { missions: [{ type: 'KILL_COUNT' }] },
+        score: { total: 1337 },
+    };
+    system._updateArcadeHud({ modeId: 'CLASSIC', arcade: arcadeState });
+
+    assert.equal(hideCount, 0);
+    assert.deepEqual(scoreStates, [arcadeState]);
+    assert.deepEqual(missionStates, [arcadeState.missionState]);
+});
+
+test('Arcade overlay consumes the arcade projection while the wrapped game mode remains classic', () => {
+    const arcadeState = { phase: 'intermission' };
+    const menuSurfaceState = { intermission: { choices: [] } };
+    const game = {
+        state: 'ROUND_END',
+        ui: {
+            messageOverlay: {
+                classList: { contains: () => false },
+            },
+        },
+    };
+    const controller = new MatchFlowArcadeOverlayController({
+        game,
+        runtimePort: {
+            getMatchRuntimeProjection: () => ({ modeId: 'CLASSIC', arcade: arcadeState }),
+            getArcadeMenuSurfaceState: () => menuSurfaceState,
+        },
+    });
+    const renderedStates = [];
+    let clearCount = 0;
+    controller._renderArcadeIntermissionPanel = (state) => {
+        renderedStates.push(state);
+        return true;
+    };
+    controller.clearArcadeOverlayPanel = () => { clearCount += 1; };
+
+    controller.syncArcadeOverlayPanel();
+
+    assert.equal(clearCount, 0);
+    assert.deepEqual(renderedStates, [menuSurfaceState]);
 });
 
 test('GameRuntimeSettingsHandler aligns mode selections before authoritative menu sync', () => {
