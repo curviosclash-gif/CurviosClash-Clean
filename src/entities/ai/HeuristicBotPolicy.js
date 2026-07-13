@@ -2,17 +2,12 @@ import * as THREE from 'three';
 import {
     INVENTORY_COUNT_RATIO,
     LOCAL_OPENNESS_RATIO,
-    PLANAR_MODE_ACTIVE,
     PRESSURE_LEVEL,
     PROJECTILE_THREAT,
     TARGET_ALIGNMENT,
     TARGET_DISTANCE_RATIO,
     TARGET_IN_FRONT,
-    WALL_DISTANCE_DOWN,
     WALL_DISTANCE_FRONT,
-    WALL_DISTANCE_LEFT,
-    WALL_DISTANCE_RIGHT,
-    WALL_DISTANCE_UP,
 } from './observation/ObservationSchemaV1.js';
 import { BOT_POLICY_TYPES } from './BotPolicyTypes.js';
 import {
@@ -37,7 +32,15 @@ import {
 import { BOT_ITEM_RULES } from './BotTuningConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
-import { HEURISTIC_PROFILES, WORLD_UP, hasYaw, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex, resolveSelectedItemIndex } from './HeuristicBotPolicyOps.js';
+import { HEURISTIC_PROFILES, WORLD_UP, hasYaw, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex, resolveSelectedItemIndex, resolveStableStrafeRight } from './HeuristicBotPolicyOps.js';
+import {
+    applyHeuristicObstacleAvoidance,
+    applyHeuristicSafetyArbiter,
+    createHeuristicSafetyState,
+    recordHeuristicBounce,
+    resetHeuristicSafetyState,
+    resolveBoostPressureCeiling,
+} from './HeuristicBotSafetyOps.js';
 
 export class HeuristicBotPolicy {
     constructor(options = {}) {
@@ -49,8 +52,10 @@ export class HeuristicBotPolicy {
         this.profileName = normalizeProfileName(
             options.heuristicProfile
             || options.profile
+            || options.difficulty
             || options.runtimeConfig?.bot?.heuristicProfile
             || options.runtimeConfig?.bot?.profile
+            || options.runtimeConfig?.bot?.activeDifficulty
         );
         this.profile = HEURISTIC_PROFILES[this.profileName];
         this._input = resetInput({});
@@ -63,7 +68,11 @@ export class HeuristicBotPolicy {
             selectedItemReason: '',
             targetDistanceRatio: 1,
             retreatReason: '',
+            safetyState: 'normal',
+            safetyReason: '',
+            frontClearance: 1,
         };
+        this._safetyState = createHeuristicSafetyState();
         this._tmpToEnemy = new THREE.Vector3();
         this._tmpForward = new THREE.Vector3();
         this._tmpRight = new THREE.Vector3();
@@ -82,6 +91,9 @@ export class HeuristicBotPolicy {
         snapshot.selectedItemReason = selectedItemReason || '';
         snapshot.targetDistanceRatio = targetDistanceRatio;
         snapshot.retreatReason = retreatReason || '';
+        snapshot.safetyState = this._safetyState.state;
+        snapshot.safetyReason = this._safetyState.reason;
+        snapshot.frontClearance = this._safetyState.frontClearance;
     }
 
     _resolveProfileFromContext(runtimeContext) {
@@ -89,50 +101,13 @@ export class HeuristicBotPolicy {
             runtimeContext?.heuristicProfile
             || runtimeContext?.runtimeConfig?.bot?.heuristicProfile
             || runtimeContext?.runtimeConfig?.bot?.profile
+            || runtimeContext?.difficulty
+            || runtimeContext?.runtimeConfig?.bot?.activeDifficulty
             || this.profileName
         );
         if (nextProfileName === this.profileName) return;
         this.profileName = nextProfileName;
         this.profile = HEURISTIC_PROFILES[nextProfileName];
-    }
-
-    _applyObstacleAvoidance(input, player, observation) {
-        const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
-        const wallLeft = clamp(readObservationValue(observation, WALL_DISTANCE_LEFT, 1), 0, 1);
-        const wallRight = clamp(readObservationValue(observation, WALL_DISTANCE_RIGHT, 1), 0, 1);
-        const wallUp = clamp(readObservationValue(observation, WALL_DISTANCE_UP, 1), 0, 1);
-        const wallDown = clamp(readObservationValue(observation, WALL_DISTANCE_DOWN, 1), 0, 1);
-        const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
-        const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
-        const openness = clamp(readObservationValue(observation, LOCAL_OPENNESS_RATIO, 0), 0, 1);
-        const planarMode = readObservationValue(observation, PLANAR_MODE_ACTIVE, 0) >= 0.5
-            || !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
-
-        const frontEmergency = wallFront < 0.2 || pressureLevel > 0.82;
-        if (frontEmergency) {
-            input.yawRight = wallRight >= wallLeft;
-            input.yawLeft = !input.yawRight;
-        } else {
-            const sideDelta = wallRight - wallLeft;
-            if (Math.abs(sideDelta) > 0.14) {
-                input.yawRight = sideDelta > 0;
-                input.yawLeft = sideDelta < 0;
-            }
-        }
-
-        if (!planarMode) {
-            const verticalDelta = wallUp - wallDown;
-            if (Math.abs(verticalDelta) > 0.16 || frontEmergency) {
-                input.pitchUp = verticalDelta > 0.02;
-                input.pitchDown = verticalDelta < -0.02;
-            }
-        }
-
-        const boostPressureCeiling = 0.64 / this.profile.boostBias;
-        input.boost = (
-            (projectileThreat || (openness > 0.58 && pressureLevel < boostPressureCeiling))
-            && wallFront > this.profile.safetyDistance
-        );
     }
 
     _applyClassicItemUse(input, player, observation) {
@@ -241,10 +216,15 @@ export class HeuristicBotPolicy {
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
         const targetInFront = !!huntTarget || readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
-        const targetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
+        const observedTargetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
+        const targetDistanceMax = Math.max(1, Number(runtimeContext?.observationContext?.targetDistanceMax) || 120);
+        const targetDistanceRatio = Number.isFinite(Number(huntTarget?.distance))
+            ? clamp(Number(huntTarget.distance) / targetDistanceMax, 0, 1)
+            : observedTargetDistanceRatio;
         const targetDistanceSq = Number.isFinite(huntTarget?.distance)
             ? huntTarget.distance * huntTarget.distance
             : nearest.distSq;
+        const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
         const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1);
         const survivalPressure = Math.max(pressureLevel, projectileThreat ? 0.84 : 0, (1 - vitalityRatio) * 0.95);
         const rocketIndex = findStrongestRocketIndex(player?.inventory || []);
@@ -267,7 +247,16 @@ export class HeuristicBotPolicy {
         if (enemy && targetInFront && survivalPressure < 0.84 && aggression >= 0.38 && targetDistanceRatio < this.profile.attackWindow) {
             input.shootMG = true;
         }
-        if (rocketIndex >= 0 && enemy && targetInFront && (targetDistanceRatio > 0.18 || pressureLevel > 0.55 || enemyVitalityRatio > 0.46)) {
+        const rocketWindow = targetDistanceRatio >= 0.16
+            && targetDistanceRatio <= Math.min(0.82, this.profile.attackWindow + 0.12);
+        if (
+            rocketIndex >= 0
+            && enemy
+            && targetInFront
+            && rocketWindow
+            && pressureLevel < 0.9
+            && (aggression >= 0.32 || enemyVitalityRatio > 0.55 || survivalPressure > 0.72)
+        ) {
             input.shootItem = true;
             input.shootItemIndex = rocketIndex;
         }
@@ -303,21 +292,20 @@ export class HeuristicBotPolicy {
             if (!hasYaw(input)) {
                 this._applyRetreatSteering(input, player, enemy);
             }
-            input.boost = true;
+            input.boost = wallFront > Math.max(this.profile.safetyDistance, 0.34);
             input.shootMG = false;
             if (rocketIndex < 0) {
                 input.shootItem = false;
                 input.shootItemIndex = -1;
             }
         } else if (enemy?.position && player?.position) {
-            const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
             clearSteeringInput(input);
             if (targetDistanceRatio > this.profile.strafeDistance && wallFront > this.profile.safetyDistance) {
                 applySteeringTowardPosition(this, input, player, enemy.position);
                 intent = aggression > 0.5 ? 'attack-approach' : 'approach';
             } else if (targetDistanceRatio > this.profile.preferredRange) {
                 applySteeringTowardPosition(this, input, player, enemy.position);
-                const strafeRight = ((Number(player?.index) || 0) + this.sensePhase) % 2 === 0;
+                const strafeRight = resolveStableStrafeRight(player);
                 input.rollRight = strafeRight;
                 input.rollLeft = !strafeRight;
                 intent = 'strafe';
@@ -418,7 +406,7 @@ export class HeuristicBotPolicy {
         const boostAllowed = (
             alignment > 0.82
             && wallFront > Math.max(this.profile.safetyDistance, 0.34)
-            && pressureLevel < (0.52 / this.profile.boostBias)
+            && pressureLevel < resolveBoostPressureCeiling(0.52, this.profile)
             && openness > 0.42
             && !turning
         );
@@ -435,12 +423,12 @@ export class HeuristicBotPolicy {
         };
     }
 
-    update(_dt, player, runtimeContext = null) {
+    update(dt, player, runtimeContext = null) {
         const input = resetInput(this._input);
         if (!player || player.alive === false) return input;
         this._resolveProfileFromContext(runtimeContext);
         const observation = runtimeContext?.observation || null;
-        this._applyObstacleAvoidance(input, player, observation);
+        applyHeuristicObstacleAvoidance(this, input, player, observation);
 
         const mode = resolveMode(runtimeContext, observation);
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
@@ -466,6 +454,7 @@ export class HeuristicBotPolicy {
             input.shootItemIndex = -1;
             input.useItem = -1;
         }
+        applyHeuristicSafetyArbiter(this, input, dt, player, runtimeContext, observation, decision);
         this._updateSnapshot(
             mode,
             decision.intent,
@@ -487,11 +476,20 @@ export class HeuristicBotPolicy {
         this.profile = HEURISTIC_PROFILES[this.profileName];
     }
 
+    setDifficulty(profileName) {
+        this.setProfile(profileName);
+    }
+
+    onBounce(type, normal = null) {
+        recordHeuristicBounce(this._safetyState, type, normal);
+    }
+
     setSensePhase(phase) {
         this.sensePhase = Number.isFinite(Number(phase)) ? Math.max(0, Math.trunc(Number(phase))) : 0;
     }
 
     reset() {
         resetInput(this._input);
+        resetHeuristicSafetyState(this._safetyState);
     }
 }

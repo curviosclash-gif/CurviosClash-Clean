@@ -1,0 +1,475 @@
+import {
+    LOCAL_OPENNESS_RATIO,
+    PLANAR_MODE_ACTIVE,
+    PRESSURE_LEVEL,
+    PROJECTILE_THREAT,
+    WALL_DISTANCE_DOWN,
+    WALL_DISTANCE_FRONT,
+    WALL_DISTANCE_LEFT,
+    WALL_DISTANCE_RIGHT,
+    WALL_DISTANCE_UP,
+} from './observation/ObservationSchemaV1.js';
+import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { clamp } from '../../utils/MathOps.js';
+import { WORLD_UP, readObservationValue } from './HeuristicBotPolicyOps.js';
+
+export const HEURISTIC_SAFETY_STATES = Object.freeze({
+    NORMAL: 'normal',
+    EVADE: 'evade',
+    RECOVER: 'recover',
+    COOLDOWN: 'cooldown',
+});
+
+export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
+    probeInterval: 0.08,
+    probeSampleCount: 3,
+    probeMinLookAhead: 6,
+    probeMaxLookAhead: 16,
+    probeSpeedSeconds: 0.34,
+    probeSideSpread: 0.82,
+    probeRadiusMultiplier: 1.6,
+    trailSkipRecentSegments: 20,
+    minimumDangerClearance: 0.34,
+    turnTieThreshold: 0.06,
+    turnSwitchMargin: 0.14,
+    turnHoldSeconds: 0.32,
+    evadeDuration: 0.38,
+    recoveryDuration: 0.92,
+    cooldownDuration: 0.58,
+    bounceWindow: 1.25,
+    wallBouncesForRecovery: 2,
+    stuckSampleInterval: 0.28,
+    stuckTriggerSeconds: 0.84,
+    stuckProgressFloor: 0.35,
+    stuckProgressSpeedScale: 0.12,
+    maximumTimerStep: 0.12,
+});
+
+function clamp01(value) {
+    return clamp(Number(value) || 0, 0, 1);
+}
+
+function sanitizeTimerStep(dt) {
+    const numeric = Number(dt);
+    if (!Number.isFinite(numeric) || numeric <= 0) return 0;
+    return Math.min(numeric, HEURISTIC_SAFETY_CONFIG.maximumTimerStep);
+}
+
+export function resolveBoostPressureCeiling(baseCeiling, profile) {
+    const bias = Number(profile?.boostBias);
+    const safeBias = Number.isFinite(bias) && bias > 0 ? bias : 1;
+    return clamp(Number(baseCeiling) * safeBias, 0, 1);
+}
+
+export function createHeuristicSafetyState() {
+    return {
+        state: HEURISTIC_SAFETY_STATES.NORMAL,
+        reason: '',
+        phaseTimer: 0,
+        probeTimer: 0,
+        probeDirty: true,
+        turnDirection: 0,
+        turnHoldTimer: 0,
+        bounceWindowTimer: 0,
+        bounceCount: 0,
+        pendingBounce: false,
+        recoveryRequested: false,
+        positionInitialized: false,
+        lastX: 0,
+        lastY: 0,
+        lastZ: 0,
+        stuckSampleTimer: 0,
+        stuckSeconds: 0,
+        collisionNormalX: 0,
+        collisionNormalY: 0,
+        collisionNormalZ: 0,
+        hasCollisionNormal: false,
+        sampleArenaClearance: 1,
+        sampleTrailClearance: 1,
+        frontArenaClearance: 1,
+        frontTrailClearance: 1,
+        leftArenaClearance: 1,
+        leftTrailClearance: 1,
+        rightArenaClearance: 1,
+        rightTrailClearance: 1,
+        frontClearance: 1,
+        leftClearance: 1,
+        rightClearance: 1,
+    };
+}
+
+export function resetHeuristicSafetyState(state) {
+    if (!state) return;
+    state.state = HEURISTIC_SAFETY_STATES.NORMAL;
+    state.reason = '';
+    state.phaseTimer = 0;
+    state.probeTimer = 0;
+    state.probeDirty = true;
+    state.turnDirection = 0;
+    state.turnHoldTimer = 0;
+    state.bounceWindowTimer = 0;
+    state.bounceCount = 0;
+    state.pendingBounce = false;
+    state.recoveryRequested = false;
+    state.positionInitialized = false;
+    state.lastX = 0;
+    state.lastY = 0;
+    state.lastZ = 0;
+    state.stuckSampleTimer = 0;
+    state.stuckSeconds = 0;
+    state.collisionNormalX = 0;
+    state.collisionNormalY = 0;
+    state.collisionNormalZ = 0;
+    state.hasCollisionNormal = false;
+    state.sampleArenaClearance = 1;
+    state.sampleTrailClearance = 1;
+    state.frontArenaClearance = 1;
+    state.frontTrailClearance = 1;
+    state.leftArenaClearance = 1;
+    state.leftTrailClearance = 1;
+    state.rightArenaClearance = 1;
+    state.rightTrailClearance = 1;
+    state.frontClearance = 1;
+    state.leftClearance = 1;
+    state.rightClearance = 1;
+}
+
+export function recordHeuristicBounce(state, type, normal = null) {
+    if (!state) return;
+    const source = String(type || '').trim().toUpperCase();
+    state.bounceCount = state.bounceWindowTimer > 0
+        ? Math.min(8, state.bounceCount + 1)
+        : 1;
+    state.bounceWindowTimer = HEURISTIC_SAFETY_CONFIG.bounceWindow;
+    state.pendingBounce = source === 'TRAIL' || source === 'WALL';
+    state.recoveryRequested = source === 'TRAIL'
+        || (source === 'WALL' && state.bounceCount >= HEURISTIC_SAFETY_CONFIG.wallBouncesForRecovery);
+    state.reason = source === 'TRAIL' ? 'trail-bounce' : 'wall-bounce';
+    state.probeDirty = true;
+
+    const nx = Number(normal?.x);
+    const ny = Number(normal?.y);
+    const nz = Number(normal?.z);
+    const lengthSq = nx * nx + ny * ny + nz * nz;
+    if (Number.isFinite(lengthSq) && lengthSq > 0.000001) {
+        const inverseLength = 1 / Math.sqrt(lengthSq);
+        state.collisionNormalX = nx * inverseLength;
+        state.collisionNormalY = ny * inverseLength;
+        state.collisionNormalZ = nz * inverseLength;
+        state.hasCollisionNormal = true;
+    }
+}
+
+export function applyHeuristicObstacleAvoidance(policy, input, player, observation) {
+    const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
+    const wallLeft = clamp(readObservationValue(observation, WALL_DISTANCE_LEFT, 1), 0, 1);
+    const wallRight = clamp(readObservationValue(observation, WALL_DISTANCE_RIGHT, 1), 0, 1);
+    const wallUp = clamp(readObservationValue(observation, WALL_DISTANCE_UP, 1), 0, 1);
+    const wallDown = clamp(readObservationValue(observation, WALL_DISTANCE_DOWN, 1), 0, 1);
+    const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
+    const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
+    const openness = clamp(readObservationValue(observation, LOCAL_OPENNESS_RATIO, 0), 0, 1);
+    const planarMode = readObservationValue(observation, PLANAR_MODE_ACTIVE, 0) >= 0.5
+        || !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
+
+    const frontEmergency = wallFront < 0.2 || pressureLevel > 0.82;
+    if (frontEmergency) {
+        input.yawRight = wallRight >= wallLeft;
+        input.yawLeft = !input.yawRight;
+    } else {
+        const sideDelta = wallRight - wallLeft;
+        if (Math.abs(sideDelta) > 0.14) {
+            input.yawRight = sideDelta > 0;
+            input.yawLeft = sideDelta < 0;
+        }
+    }
+
+    if (!planarMode) {
+        const verticalDelta = wallUp - wallDown;
+        if (Math.abs(verticalDelta) > 0.16 || frontEmergency) {
+            input.pitchUp = verticalDelta > 0.02;
+            input.pitchDown = verticalDelta < -0.02;
+        }
+    }
+
+    const boostPressureCeiling = resolveBoostPressureCeiling(0.64, policy.profile);
+    input.boost = (
+        (projectileThreat || (openness > 0.58 && pressureLevel < boostPressureCeiling))
+        && wallFront > policy.profile.safetyDistance
+    );
+}
+
+function checkArenaCollision(arena, position, radius) {
+    if (typeof arena?.checkCollisionFast === 'function') {
+        return !!arena.checkCollisionFast(position, radius);
+    }
+    if (typeof arena?.checkCollision === 'function') {
+        return !!arena.checkCollision(position, radius);
+    }
+    return false;
+}
+
+function checkTrailCollision(trailSpatialIndex, position, radius, player) {
+    if (typeof trailSpatialIndex?.checkGlobalCollision !== 'function') return false;
+    const playerIndex = Number.isInteger(player?.index) ? player.index : -1;
+    const hit = trailSpatialIndex.checkGlobalCollision(
+        position,
+        radius,
+        playerIndex,
+        HEURISTIC_SAFETY_CONFIG.trailSkipRecentSegments,
+        null
+    );
+    return !!(hit && hit.hit !== false);
+}
+
+function samplePath(policy, state, runtimeContext, player, direction, lookAhead, radius) {
+    state.sampleArenaClearance = 1;
+    state.sampleTrailClearance = 1;
+    const sampleCount = HEURISTIC_SAFETY_CONFIG.probeSampleCount;
+    for (let sampleIndex = 1; sampleIndex <= sampleCount; sampleIndex += 1) {
+        const ratio = sampleIndex / sampleCount;
+        policy._tmpTarget.copy(player.position).addScaledVector(direction, lookAhead * ratio);
+        if (
+            state.sampleArenaClearance === 1
+            && checkArenaCollision(runtimeContext?.arena, policy._tmpTarget, radius)
+        ) {
+            state.sampleArenaClearance = ratio;
+        }
+        if (
+            state.sampleTrailClearance === 1
+            && checkTrailCollision(runtimeContext?.trailSpatialIndex, policy._tmpTarget, radius, player)
+        ) {
+            state.sampleTrailClearance = ratio;
+        }
+        if (state.sampleArenaClearance < 1 && state.sampleTrailClearance < 1) break;
+    }
+}
+
+function refreshSafetyProbes(policy, state, player, runtimeContext, observation) {
+    state.probeTimer = HEURISTIC_SAFETY_CONFIG.probeInterval;
+    state.probeDirty = false;
+    const wallFront = clamp01(readObservationValue(observation, WALL_DISTANCE_FRONT, 1));
+    const wallLeft = clamp01(readObservationValue(observation, WALL_DISTANCE_LEFT, 1));
+    const wallRight = clamp01(readObservationValue(observation, WALL_DISTANCE_RIGHT, 1));
+
+    state.frontArenaClearance = 1;
+    state.frontTrailClearance = 1;
+    state.leftArenaClearance = 1;
+    state.leftTrailClearance = 1;
+    state.rightArenaClearance = 1;
+    state.rightTrailClearance = 1;
+
+    if (player?.position && typeof player?.getDirection === 'function') {
+        player.getDirection(policy._tmpForward);
+        if (policy._tmpForward.lengthSq() <= 0.000001) {
+            policy._tmpForward.set(0, 0, 1);
+        } else {
+            policy._tmpForward.normalize();
+        }
+        policy._tmpRight.crossVectors(WORLD_UP, policy._tmpForward);
+        if (policy._tmpRight.lengthSq() <= 0.000001) {
+            policy._tmpRight.set(1, 0, 0);
+        } else {
+            policy._tmpRight.normalize();
+        }
+
+        const speedLookAhead = Math.abs(Number(player.speed) || Number(player.baseSpeed) || 0)
+            * HEURISTIC_SAFETY_CONFIG.probeSpeedSeconds;
+        const lookAhead = clamp(
+            speedLookAhead,
+            HEURISTIC_SAFETY_CONFIG.probeMinLookAhead,
+            HEURISTIC_SAFETY_CONFIG.probeMaxLookAhead
+        );
+        const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
+            * HEURISTIC_SAFETY_CONFIG.probeRadiusMultiplier;
+
+        samplePath(policy, state, runtimeContext, player, policy._tmpForward, lookAhead, radius);
+        state.frontArenaClearance = state.sampleArenaClearance;
+        state.frontTrailClearance = state.sampleTrailClearance;
+
+        policy._tmpGate.copy(policy._tmpForward)
+            .addScaledVector(policy._tmpRight, HEURISTIC_SAFETY_CONFIG.probeSideSpread)
+            .normalize();
+        samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius);
+        state.leftArenaClearance = state.sampleArenaClearance;
+        state.leftTrailClearance = state.sampleTrailClearance;
+
+        policy._tmpGate.copy(policy._tmpForward)
+            .addScaledVector(policy._tmpRight, -HEURISTIC_SAFETY_CONFIG.probeSideSpread)
+            .normalize();
+        samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius);
+        state.rightArenaClearance = state.sampleArenaClearance;
+        state.rightTrailClearance = state.sampleTrailClearance;
+    }
+
+    state.frontClearance = Math.min(wallFront, state.frontArenaClearance, state.frontTrailClearance);
+    state.leftClearance = Math.min(wallLeft, state.leftArenaClearance, state.leftTrailClearance);
+    state.rightClearance = Math.min(wallRight, state.rightArenaClearance, state.rightTrailClearance);
+}
+
+function updateStuckState(state, dt, player) {
+    if (!player?.position || dt <= 0) return;
+    state.stuckSampleTimer -= dt;
+    if (state.stuckSampleTimer > 0) return;
+    state.stuckSampleTimer = HEURISTIC_SAFETY_CONFIG.stuckSampleInterval;
+
+    const x = Number(player.position.x) || 0;
+    const y = Number(player.position.y) || 0;
+    const z = Number(player.position.z) || 0;
+    if (!state.positionInitialized) {
+        state.lastX = x;
+        state.lastY = y;
+        state.lastZ = z;
+        state.positionInitialized = true;
+        return;
+    }
+
+    if (state.state === HEURISTIC_SAFETY_STATES.RECOVER) {
+        state.stuckSeconds = 0;
+    } else {
+        const dx = x - state.lastX;
+        const dy = y - state.lastY;
+        const dz = z - state.lastZ;
+        const speed = Math.abs(Number(player.speed) || Number(player.baseSpeed) || 0);
+        const minimumProgress = Math.max(
+            HEURISTIC_SAFETY_CONFIG.stuckProgressFloor,
+            speed * HEURISTIC_SAFETY_CONFIG.stuckSampleInterval * HEURISTIC_SAFETY_CONFIG.stuckProgressSpeedScale
+        );
+        if ((dx * dx + dy * dy + dz * dz) < minimumProgress * minimumProgress) {
+            state.stuckSeconds += HEURISTIC_SAFETY_CONFIG.stuckSampleInterval;
+        } else {
+            state.stuckSeconds = Math.max(0, state.stuckSeconds - HEURISTIC_SAFETY_CONFIG.stuckSampleInterval);
+        }
+        if (state.stuckSeconds >= HEURISTIC_SAFETY_CONFIG.stuckTriggerSeconds) {
+            state.recoveryRequested = true;
+            state.reason = 'stuck';
+        }
+    }
+
+    state.lastX = x;
+    state.lastY = y;
+    state.lastZ = z;
+}
+
+function enterSafetyState(state, nextState, reason) {
+    state.state = nextState;
+    state.reason = reason || state.reason || '';
+    if (nextState === HEURISTIC_SAFETY_STATES.EVADE) {
+        state.phaseTimer = HEURISTIC_SAFETY_CONFIG.evadeDuration;
+    } else if (nextState === HEURISTIC_SAFETY_STATES.RECOVER) {
+        state.phaseTimer = HEURISTIC_SAFETY_CONFIG.recoveryDuration;
+        state.stuckSeconds = 0;
+    } else if (nextState === HEURISTIC_SAFETY_STATES.COOLDOWN) {
+        state.phaseTimer = HEURISTIC_SAFETY_CONFIG.cooldownDuration;
+    } else {
+        state.phaseTimer = 0;
+        state.reason = '';
+        state.turnDirection = 0;
+    }
+}
+
+function resolveDangerReason(state, projectileThreat, dangerThreshold) {
+    if (state.frontTrailClearance <= dangerThreshold) return 'trail-ahead';
+    if (state.frontArenaClearance <= dangerThreshold || state.frontClearance <= dangerThreshold) return 'wall-ahead';
+    if (projectileThreat) return 'projectile';
+    if (state.pendingBounce) return state.reason || 'bounce';
+    return '';
+}
+
+function updateSafetyPhase(state, danger, dangerReason) {
+    if (state.recoveryRequested) {
+        enterSafetyState(state, HEURISTIC_SAFETY_STATES.RECOVER, state.reason || dangerReason || 'recovery');
+    } else if (state.state === HEURISTIC_SAFETY_STATES.NORMAL) {
+        if (danger || state.pendingBounce) {
+            enterSafetyState(state, HEURISTIC_SAFETY_STATES.EVADE, dangerReason || state.reason || 'danger');
+        }
+    } else if (state.state === HEURISTIC_SAFETY_STATES.EVADE) {
+        if (state.phaseTimer <= 0) {
+            if (danger) enterSafetyState(state, HEURISTIC_SAFETY_STATES.EVADE, dangerReason);
+            else enterSafetyState(state, HEURISTIC_SAFETY_STATES.COOLDOWN, state.reason);
+        }
+    } else if (state.state === HEURISTIC_SAFETY_STATES.RECOVER) {
+        if (state.phaseTimer <= 0) {
+            if (danger) enterSafetyState(state, HEURISTIC_SAFETY_STATES.EVADE, dangerReason);
+            else enterSafetyState(state, HEURISTIC_SAFETY_STATES.COOLDOWN, state.reason);
+        }
+    } else if (state.state === HEURISTIC_SAFETY_STATES.COOLDOWN) {
+        if (danger) enterSafetyState(state, HEURISTIC_SAFETY_STATES.EVADE, dangerReason);
+        else if (state.phaseTimer <= 0) enterSafetyState(state, HEURISTIC_SAFETY_STATES.NORMAL, '');
+    }
+    state.pendingBounce = false;
+    state.recoveryRequested = false;
+}
+
+function resolvePreferredTurn(policy, state, player, dangerThreshold) {
+    const left = state.leftClearance;
+    const right = state.rightClearance;
+    let preferred = left > right ? 1 : -1;
+    if (Math.abs(left - right) <= HEURISTIC_SAFETY_CONFIG.turnTieThreshold) {
+        if (state.hasCollisionNormal) {
+            const normalRightDot = state.collisionNormalX * policy._tmpRight.x
+                + state.collisionNormalY * policy._tmpRight.y
+                + state.collisionNormalZ * policy._tmpRight.z;
+            preferred = normalRightDot >= 0 ? 1 : -1;
+        } else {
+            preferred = ((Number(player?.index) || 0) & 1) === 0 ? 1 : -1;
+        }
+    }
+
+    const heldClearance = state.turnDirection > 0 ? left : right;
+    const alternativeClearance = state.turnDirection > 0 ? right : left;
+    const heldPathFailed = heldClearance <= dangerThreshold
+        && alternativeClearance >= heldClearance + HEURISTIC_SAFETY_CONFIG.turnSwitchMargin;
+    if (state.turnDirection === 0 || state.turnHoldTimer <= 0 || heldPathFailed) {
+        state.turnDirection = preferred;
+        state.turnHoldTimer = HEURISTIC_SAFETY_CONFIG.turnHoldSeconds;
+    }
+}
+
+export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeContext, observation, decision = null) {
+    const state = policy?._safetyState;
+    if (!state) return null;
+    const timerStep = sanitizeTimerStep(dt);
+    state.phaseTimer = Math.max(0, state.phaseTimer - timerStep);
+    state.probeTimer -= timerStep;
+    state.turnHoldTimer = Math.max(0, state.turnHoldTimer - timerStep);
+    state.bounceWindowTimer = Math.max(0, state.bounceWindowTimer - timerStep);
+    if (state.bounceWindowTimer <= 0) state.bounceCount = 0;
+
+    updateStuckState(state, timerStep, player);
+    if (state.probeDirty || state.probeTimer <= 0) {
+        refreshSafetyProbes(policy, state, player, runtimeContext, observation);
+    }
+
+    const dangerThreshold = Math.max(
+        Number(policy.profile?.safetyDistance) || 0,
+        HEURISTIC_SAFETY_CONFIG.minimumDangerClearance
+    );
+    const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
+    const frontDanger = state.frontClearance <= dangerThreshold;
+    const projectileDanger = projectileThreat;
+    const danger = frontDanger || projectileDanger;
+    const dangerReason = resolveDangerReason(state, projectileDanger, dangerThreshold);
+    updateSafetyPhase(state, danger, dangerReason);
+
+    const safetyActive = state.state === HEURISTIC_SAFETY_STATES.EVADE
+        || state.state === HEURISTIC_SAFETY_STATES.RECOVER;
+    if (!safetyActive) return state;
+
+    resolvePreferredTurn(policy, state, player, dangerThreshold);
+    input.yawLeft = state.turnDirection > 0;
+    input.yawRight = state.turnDirection < 0;
+    input.pitchUp = false;
+    input.pitchDown = false;
+    input.rollLeft = false;
+    input.rollRight = false;
+    input.boost = false;
+    input.shootMG = false;
+    input.shootItem = false;
+    input.shootItemIndex = -1;
+    if (decision) {
+        decision.intent = state.state === HEURISTIC_SAFETY_STATES.RECOVER ? 'recover' : 'evade';
+        if (!decision.retreatReason) decision.retreatReason = state.reason;
+    }
+    return state;
+}

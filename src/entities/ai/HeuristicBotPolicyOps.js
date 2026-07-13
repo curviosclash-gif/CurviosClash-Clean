@@ -9,6 +9,14 @@ const PROFILE_NAMES = Object.freeze({
     AGGRESSIVE: 'aggressive',
 });
 
+const PROFILE_ALIASES = Object.freeze({
+    easy: PROFILE_NAMES.DEFENSIVE,
+    normal: PROFILE_NAMES.BALANCED,
+    medium: PROFILE_NAMES.BALANCED,
+    hard: PROFILE_NAMES.AGGRESSIVE,
+    expert: PROFILE_NAMES.AGGRESSIVE,
+});
+
 export const HEURISTIC_PROFILES = Object.freeze({
     defensive: Object.freeze({
         retreatVitality: 0.48,
@@ -44,7 +52,12 @@ export const HEURISTIC_PROFILES = Object.freeze({
 
 export function normalizeProfileName(profileName) {
     const normalized = String(profileName || '').trim().toLowerCase();
-    return HEURISTIC_PROFILES[normalized] ? normalized : PROFILE_NAMES.BALANCED;
+    if (HEURISTIC_PROFILES[normalized]) return normalized;
+    return PROFILE_ALIASES[normalized] || PROFILE_NAMES.BALANCED;
+}
+
+export function resolveStableStrafeRight(player) {
+    return (resolveProgressPlayerIndex(player) & 1) === 0;
 }
 
 export function readObservationValue(observation, index, fallback = 0) {

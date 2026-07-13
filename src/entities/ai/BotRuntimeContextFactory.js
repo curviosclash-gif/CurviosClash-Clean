@@ -13,6 +13,9 @@ const LEGACY_CONTROL_PROFILE_VERSION = 'legacy-v1';
 const ANY_PROFILE_TOKENS = new Set(['*', 'any', 'multi', 'multi-profile', 'multi-profile-training']);
 
 function resolveRuntimeMode(entityManager) {
+    if (entityManager?.runtimeConfig?.arcade?.enabled === true) {
+        return GAME_MODE_TYPES.ARCADE;
+    }
     const entityRuntimeConfig = resolveEntityRuntimeConfig(entityManager);
     const requestedMode = entityManager?.activeGameMode
         || entityManager?.runtimeConfig?.session?.activeGameMode
@@ -140,6 +143,9 @@ function resolveControlDynamics(entityManager, player) {
 function createCachedRuntimeContext() {
     return {
         dt: 0,
+        entityManager: null,
+        runtimeConfig: null,
+        difficulty: '',
         player: null,
         arena: null,
         players: [],
@@ -243,6 +249,13 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
         : legacyControlProfileId;
 
     runtimeContext.dt = Number.isFinite(dt) ? dt : 0;
+    runtimeContext.entityManager = entityManager || null;
+    runtimeContext.runtimeConfig = entityManager?.runtimeConfig || null;
+    runtimeContext.difficulty = String(
+        entityManager?.runtimeConfig?.bot?.activeDifficulty
+        || entityManager?.botDifficulty
+        || ''
+    );
     runtimeContext.player = player || null;
     runtimeContext.arena = entityManager?.arena || null;
     runtimeContext.players = players;
