@@ -29,8 +29,8 @@ export class ArcadeRunPersistenceScheduler {
     constructor(options = {}) {
         this.saveThrottleMs = normalizeThrottleMs(options.saveThrottleMs, 0);
         this.logger = options.logger || console;
-        this._setTimeout = typeof options.setTimeout === 'function' ? options.setTimeout : setTimeout;
-        this._clearTimeout = typeof options.clearTimeout === 'function' ? options.clearTimeout : clearTimeout;
+        this._setTimeout = typeof options.setTimeout === 'function' ? options.setTimeout : setTimeout.bind(globalThis);
+        this._clearTimeout = typeof options.clearTimeout === 'function' ? options.clearTimeout : clearTimeout.bind(globalThis);
         this._pendingSaves = new Map();
         this._timers = new Map();
     }
