@@ -8,6 +8,11 @@ on:
       - server/**
       - editor/**
       - prototypes/vehicle-lab/**
+      - tests/**
+      - scripts/run-playwright-*.mjs
+      - playwright.config.js
+      - dev/vite/**
+      - vite.config.js
       - package.json
       - package-lock.json
       - electron/package.json
@@ -20,6 +25,11 @@ on:
       - server/**
       - editor/**
       - prototypes/vehicle-lab/**
+      - tests/**
+      - scripts/run-playwright-*.mjs
+      - playwright.config.js
+      - dev/vite/**
+      - vite.config.js
       - package.json
       - package-lock.json
       - electron/package.json
@@ -38,8 +48,8 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: npm
@@ -65,8 +75,8 @@ jobs:
           - core-surface
           - core-runtime
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version-file: .nvmrc
           cache: npm

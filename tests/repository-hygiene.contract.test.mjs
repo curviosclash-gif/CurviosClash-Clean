@@ -24,14 +24,18 @@ function isForbiddenTrackedPath(path) {
         'knowledge-graph',
         'rag',
         'planarchive',
+        'planarchives',
+        'plan-archive',
+        'plan-archives',
         'lock-wrapper',
+        'lock-wrappers',
     ]);
 
     if (path.toLowerCase().endsWith('.log')) return true;
     if (segments.some((segment) => forbiddenSegments.has(segment.toLowerCase()))) return true;
     if (segments.some((segment) => /^test-results(?:$|[-_])/i.test(segment))) return true;
     return segments.some((segment) => (
-        /^(?:generated[-_ ]?process[-_ ]?reports?|generierte[-_ ]?prozessberichte)$/i.test(segment)
+        /^(?:generated[-_ ]?process[-_ ]?reports?|generierte[-_ ]?prozessberichte)(?:[-_ ].*)?(?:\.[^.]+)?$/i.test(segment)
     ));
 }
 
