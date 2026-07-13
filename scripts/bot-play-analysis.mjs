@@ -140,18 +140,20 @@ function runCommand(command, args, options = {}) {
 
 async function runBotValidation(paths) {
     if (readBoolOption(['skip-run'], false)) return;
-    const scenarioCount = readIntOption(['scenario-count'], 3, 1, 32);
+    const scenarioCountRaw = readOption(['scenario-count'], '');
+    const scenarioCount = scenarioCountRaw ? readIntOption(['scenario-count'], 3, 1, 32) : null;
+    const scenarioIds = readOption(['scenario-ids', 'scenario-id'], '');
+    const policy = readOption(['policy', 'policy-type'], 'heuristic');
     const rounds = readIntOption(['rounds'], 3, 1, 20);
     const port = readIntOption(['port'], 4281, 1024, 65535);
     const headless = readBoolOption(['headless'], true);
     const forceTimeoutMs = readIntOption(['force-timeout'], 12000, 1000);
     const matchTimeoutMs = readIntOption(['match-timeout'], 50000, 5000);
-    const totalTimeoutMs = readIntOption(['total-timeout'], Math.max(180000, scenarioCount * rounds * 70000), 60000);
+    const estimatedScenarioCount = scenarioCount || 3;
+    const totalTimeoutMs = readIntOption(['total-timeout'], Math.max(180000, estimatedScenarioCount * rounds * 70000), 60000);
 
-    await runCommand(process.execPath, [
+    const runnerArgs = [
         'scripts/bot-validation-runner.mjs',
-        '--scenario-count',
-        String(scenarioCount),
         '--rounds',
         String(rounds),
         '--headless',
@@ -170,7 +172,11 @@ async function runBotValidation(paths) {
         paths.sourceMarkdown,
         '--publish-evidence',
         'false',
-    ]);
+    ];
+    if (scenarioCount) runnerArgs.push('--scenario-count', String(scenarioCount));
+    if (scenarioIds) runnerArgs.push('--scenario-ids', scenarioIds);
+    if (policy) runnerArgs.push('--policy', policy);
+    await runCommand(process.execPath, runnerArgs);
 }
 
 async function readSourceReport(filePath) {
@@ -330,6 +336,8 @@ function buildAnalysisReport(sourceReport, paths) {
             roundsPerScenario: sourceReport.roundsPerScenario || null,
             overall: sourceReport.overall || null,
             runner: sourceReport.runner || null,
+            selection: sourceReport.selection || null,
+            reproducibility: sourceReport.reproducibility || null,
         },
         thresholds,
         summary: {

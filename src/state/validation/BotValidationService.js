@@ -16,6 +16,120 @@ function computeDelta(current, baseline) {
     };
 }
 
+function uniqueNormalized(values, normalizer) {
+    const result = [];
+    const seen = new Set();
+    for (const value of values) {
+        const normalized = normalizer(value);
+        if (!normalized || seen.has(normalized)) continue;
+        seen.add(normalized);
+        result.push(normalized);
+    }
+    return result;
+}
+
+function normalizePolicyType(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function normalizeGameMode(value) {
+    return String(value || '').trim().toUpperCase();
+}
+
+function normalizeModePath(value) {
+    return String(value || '').trim().toLowerCase();
+}
+
+function expectedModePath(gameMode) {
+    if (gameMode === 'HUNT') return 'fight';
+    if (gameMode === 'ARCADE') return 'arcade';
+    return 'normal';
+}
+
+function expectedRuntimeGameMode(gameMode) {
+    return gameMode === 'ARCADE' ? 'CLASSIC' : gameMode;
+}
+
+export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamples = []) {
+    const samples = Array.isArray(runtimeSamples) ? runtimeSamples.filter(Boolean) : [];
+    const expectedPolicyType = normalizePolicyType(scenario.expectedPolicyType);
+    const expectedGameMode = normalizeGameMode(scenario.gameMode) || 'CLASSIC';
+    const requiredModePath = expectedModePath(expectedGameMode);
+    const requiredRuntimeGameMode = expectedRuntimeGameMode(expectedGameMode);
+    const runtimePolicyTypes = uniqueNormalized(samples.map((sample) => sample.runtimePolicyType), normalizePolicyType);
+    const entityPolicyTypes = uniqueNormalized(samples.map((sample) => sample.entityPolicyType), normalizePolicyType);
+    const botPolicyTypes = uniqueNormalized(
+        samples.flatMap((sample) => Array.isArray(sample.botPolicyTypes) ? sample.botPolicyTypes : []),
+        normalizePolicyType
+    );
+    const missingBotPolicySamples = samples.filter((sample) => {
+        const botCount = Math.max(0, Math.trunc(Number(sample.botCount) || 0));
+        const policyCount = Array.isArray(sample.botPolicyTypes)
+            ? sample.botPolicyTypes.filter((type) => !!normalizePolicyType(type)).length
+            : 0;
+        return botCount <= 0 || policyCount !== botCount;
+    }).length;
+    const policyMatches = samples.length > 0
+        && !!expectedPolicyType
+        && runtimePolicyTypes.length === 1
+        && runtimePolicyTypes[0] === expectedPolicyType
+        && entityPolicyTypes.length === 1
+        && entityPolicyTypes[0] === expectedPolicyType
+        && botPolicyTypes.length === 1
+        && botPolicyTypes[0] === expectedPolicyType
+        && missingBotPolicySamples === 0;
+
+    const runtimeGameModes = uniqueNormalized(samples.map((sample) => sample.runtimeGameMode), normalizeGameMode);
+    const entityGameModes = uniqueNormalized(samples.map((sample) => sample.entityGameMode), normalizeGameMode);
+    const semanticGameModes = uniqueNormalized(samples.map((sample) => sample.semanticGameMode), normalizeGameMode);
+    const modePaths = uniqueNormalized(samples.map((sample) => sample.modePath), normalizeModePath);
+    const arcadeEnabledValues = [...new Set(samples.map((sample) => sample.arcadeEnabled === true))];
+    const arcadeSeeds = uniqueNormalized(
+        samples.map((sample) => sample.arcadeEnabled === true
+            && sample.arcadeSeed != null
+            && Number.isFinite(Number(sample.arcadeSeed))
+            ? String(Math.trunc(Number(sample.arcadeSeed)))
+            : ''),
+        (value) => String(value || '')
+    ).map((value) => Number(value));
+    const expectsArcade = expectedGameMode === 'ARCADE';
+    const modeMatches = samples.length > 0
+        && runtimeGameModes.length === 1
+        && runtimeGameModes[0] === requiredRuntimeGameMode
+        && entityGameModes.length === 1
+        && entityGameModes[0] === requiredRuntimeGameMode
+        && semanticGameModes.length === 1
+        && semanticGameModes[0] === expectedGameMode
+        && modePaths.length === 1
+        && modePaths[0] === requiredModePath
+        && arcadeEnabledValues.length === 1
+        && arcadeEnabledValues[0] === expectsArcade;
+
+    return {
+        sampleCount: samples.length,
+        policy: {
+            ok: policyMatches,
+            expectedPolicyType,
+            runtimePolicyTypes,
+            entityPolicyTypes,
+            botPolicyTypes,
+            missingBotPolicySamples,
+        },
+        mode: {
+            ok: modeMatches,
+            expectedGameMode,
+            expectedRuntimeGameMode: requiredRuntimeGameMode,
+            expectedModePath: requiredModePath,
+            runtimeGameModes,
+            entityGameModes,
+            semanticGameModes,
+            modePaths,
+            arcadeEnabledValues,
+            arcadeSeeds,
+        },
+    };
+}
+
 export class BotValidationService {
     constructor({ getRecorder = null, getMatrix = null } = {}) {
         this.getRecorder = typeof getRecorder === 'function' ? getRecorder : (() => null);
@@ -87,7 +201,7 @@ export class BotValidationService {
         if (!scenario || !game?.settings) return null;
 
         const nextSessionType = scenario.mode === '2p' ? 'splitscreen' : 'single';
-        const nextModePath = scenario.gameMode === 'HUNT' ? 'fight' : 'normal';
+        const nextModePath = expectedModePath(scenario.gameMode);
 
         if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
             game.settings.localSettings = {};
@@ -102,7 +216,7 @@ export class BotValidationService {
         game.settings.mode = scenario.mode === '2p' ? '2p' : '1p';
         game.settings.numBots = scenario.bots;
         game.settings.mapKey = scenario.mapKey;
-        game.settings.gameMode = scenario.gameMode === 'HUNT' ? 'HUNT' : 'CLASSIC';
+        game.settings.gameMode = expectedRuntimeGameMode(scenario.gameMode);
         game.settings.botPolicyStrategy = String(scenario.botPolicyStrategy || 'auto');
         game.settings.gameplay.planarMode = !!scenario.planarMode;
         game.settings.gameplay.portalCount = scenario.portalCount;

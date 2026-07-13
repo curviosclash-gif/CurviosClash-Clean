@@ -4,13 +4,31 @@ import { dirname, join } from 'node:path';
 import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
+import { selectBotValidationScenarios } from '../src/state/validation/BotValidationMatrix.js';
+import { buildBotValidationRuntimeVerification } from '../src/state/validation/BotValidationService.js';
 
 const CLI_ARGS = parseArgMap(process.argv.slice(2));
 const HOST = '127.0.0.1';
 const PORT = parseIntegerOption(CLI_ARGS, ['port'], 'BOT_RUNNER_PORT', 4273, 1024);
 const BASE_URL = `http://${HOST}:${PORT}`;
+const RUNNER_VITE_ENV = {
+    ...process.env,
+    PW_RUN_TAG: process.env.PW_RUN_TAG || `bot-validation-${process.pid}`,
+    VITE_APP_MODE: process.env.VITE_APP_MODE || 'app',
+};
 const FORCE_KILL_PORT = parseBoolRunnerOption(CLI_ARGS, ['force-kill-port'], 'BOT_RUNNER_FORCE_KILL_PORT', true);
-const DEFAULT_SCENARIO_COUNT = parseIntegerOption(CLI_ARGS, ['scenario-count'], 'BOT_RUNNER_SCENARIO_COUNT', 4, 1);
+const SCENARIO_COUNT_RAW = resolveFirstValue(CLI_ARGS, ['scenario-count'], process.env.BOT_RUNNER_SCENARIO_COUNT);
+const SCENARIO_LIMIT = SCENARIO_COUNT_RAW
+    ? parseIntegerOption(CLI_ARGS, ['scenario-count'], 'BOT_RUNNER_SCENARIO_COUNT', 1, 1)
+    : null;
+const REQUESTED_SCENARIO_IDS = parseListOption(
+    CLI_ARGS,
+    ['scenario-ids', 'scenario-id'],
+    'BOT_RUNNER_SCENARIO_IDS'
+);
+const POLICY_FILTER = normalizePolicyFilter(
+    resolveFirstValue(CLI_ARGS, ['policy', 'policy-type'], process.env.BOT_RUNNER_POLICY)
+);
 const ROUNDS_PER_SCENARIO = parseIntegerOption(CLI_ARGS, ['rounds'], 'BOT_RUNNER_ROUNDS', 4, 1);
 const FAIL_ON_FORCED_ROUND = parseBoolRunnerOption(
     CLI_ARGS,
@@ -144,7 +162,7 @@ const TOTAL_TIMEOUT_MS = parseIntegerOption(
     'BOT_RUNNER_TOTAL_TIMEOUT',
     Math.max(
         180000,
-        DEFAULT_SCENARIO_COUNT * SCENARIO_TIMEOUT_MS
+        (SCENARIO_LIMIT || 8) * SCENARIO_TIMEOUT_MS
             + 60000
             + resolvePreviewBuildBudgetMs(SERVER_MODE, PREVIEW_BUILD_BEFORE_START)
     ),
@@ -188,6 +206,26 @@ function resolveFirstValue(argMap, keys = [], envValue = '') {
         return envValue.trim();
     }
     return '';
+}
+
+function parseListOption(argMap, keys = [], envKey = '') {
+    const raw = resolveFirstValue(argMap, keys, process.env[envKey]);
+    if (!raw) return [];
+    const result = [];
+    const seen = new Set();
+    for (const value of raw.split(',')) {
+        const normalized = String(value || '').trim();
+        const identity = normalized.toUpperCase();
+        if (!normalized || seen.has(identity)) continue;
+        seen.add(identity);
+        result.push(normalized);
+    }
+    return result;
+}
+
+function normalizePolicyFilter(value) {
+    const normalized = String(value || '').trim().toLowerCase();
+    return normalized === '*' || normalized === 'all' ? '' : normalized;
 }
 
 function parseBoolOption(value, fallback = false) {
@@ -308,8 +346,23 @@ function createRunnerDiagnostics() {
             wroteCanonicalMarkdown: false,
             writes: [],
         },
+        browser: {
+            consoleErrors: [],
+            pageErrors: [],
+            requestFailures: [],
+        },
         bottlenecks: [],
     };
+}
+
+function appendBrowserDiagnostic(target, value, maxEntries = 20) {
+    if (!Array.isArray(target) || target.length >= maxEntries) return;
+    const normalized = String(value || '').trim();
+    if (normalized) target.push(normalized.slice(0, 1200));
+}
+
+function countBrowserRuntimeErrors(browserDiagnostics) {
+    return (browserDiagnostics?.consoleErrors?.length || 0) + (browserDiagnostics?.pageErrors?.length || 0);
 }
 
 async function writeMeasuredTextFile(bucket, label, targetPath, content) {
@@ -375,8 +428,8 @@ function resolveGotoWaitUntil(value) {
 
 function resolveServerMode(value) {
     const raw = typeof value === 'string' ? value.trim().toLowerCase() : '';
-    if (raw === 'preview') return 'preview';
-    return 'dev';
+    if (raw === 'dev') return 'dev';
+    return 'preview';
 }
 
 function resolvePreviewBuildBudgetMs(serverMode, previewBuildBeforeStart) {
@@ -524,6 +577,7 @@ function startViteServer(mode = 'dev') {
     const command = mode === 'preview' ? 'preview' : 'dev';
     const child = spawn(process.execPath, [viteBin, command, '--host', HOST, '--port', String(PORT), '--strictPort'], {
         cwd: process.cwd(),
+        env: RUNNER_VITE_ENV,
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
         windowsHide: true,
@@ -640,6 +694,52 @@ async function waitForGameState(page, expectedStates, timeoutMs, phase) {
     }
 }
 
+async function captureBotRuntimeSample(page, phasePrefix, deadlines) {
+    return evaluatePhase(
+        page,
+        `${phasePrefix}:runtime-contract`,
+        resolveTimeout(EVAL_TIMEOUT_MS, `${phasePrefix}:runtime-contract`, deadlines),
+        () => {
+            const game = window.GAME_INSTANCE;
+            if (!game) throw new Error('GAME_INSTANCE missing');
+            const entityManager = game.entityManager;
+            const botPlayers = Array.isArray(entityManager?.players)
+                ? entityManager.players.filter((player) => !!player?.isBot)
+                : [];
+            const botPolicyTypes = botPlayers.map((player) => (
+                String(entityManager?.botByPlayer?.get?.(player)?.type || '').trim().toLowerCase()
+            ));
+            const botDecisions = botPlayers.map((player) => {
+                const policy = entityManager?.botByPlayer?.get?.(player) || null;
+                const snapshot = typeof policy?.getDecisionSnapshot === 'function'
+                    ? policy.getDecisionSnapshot()
+                    : null;
+                return {
+                    playerIndex: Number(player?.index ?? -1),
+                    policyType: String(policy?.type || '').trim().toLowerCase(),
+                    snapshot: snapshot && typeof snapshot === 'object' ? { ...snapshot } : null,
+                };
+            });
+            const arcadeSeed = Number(game.runtimeConfig?.arcade?.seed);
+            const arcadeEnabled = game.runtimeConfig?.arcade?.enabled === true;
+            const runtimeGameMode = String(game.runtimeConfig?.session?.activeGameMode || '').trim().toUpperCase();
+            return {
+                runtimePolicyType: String(game.runtimeConfig?.bot?.policyType || '').trim().toLowerCase(),
+                entityPolicyType: String(entityManager?.botPolicyType || '').trim().toLowerCase(),
+                botPolicyTypes,
+                botDecisions,
+                botCount: botPlayers.length,
+                runtimeGameMode,
+                entityGameMode: String(entityManager?.activeGameMode || '').trim().toUpperCase(),
+                semanticGameMode: arcadeEnabled ? 'ARCADE' : runtimeGameMode,
+                modePath: String(game.settings?.localSettings?.modePath || '').trim().toLowerCase(),
+                arcadeEnabled,
+                arcadeSeed: Number.isFinite(arcadeSeed) ? arcadeSeed : null,
+            };
+        }
+    );
+}
+
 async function evaluatePhase(page, phase, timeoutMs, pageFunction, arg) {
     try {
         return await withTimeout(() => page.evaluate(pageFunction, arg), timeoutMs, phase);
@@ -748,6 +848,7 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-state-after-start`, deadlines),
         () => window.GAME_INSTANCE?.state || null
     );
+    const startRuntimeSample = await captureBotRuntimeSample(page, roundLabel, deadlines);
 
     let forced = false;
     if (stateAfterStart !== 'ROUND_END' && stateAfterStart !== 'MATCH_END') {
@@ -767,6 +868,8 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     } else {
         log(`${roundLabel} finished before active wait`, { stateAfterStart });
     }
+
+    const endRuntimeSample = await captureBotRuntimeSample(page, `${roundLabel}:end`, deadlines);
 
     await evaluatePhase(
         page,
@@ -795,6 +898,10 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         forced,
         durationMs: Date.now() - roundStartedAt,
     });
+    return [
+        { ...startRuntimeSample, round: roundNumber, checkpoint: 'start' },
+        { ...endRuntimeSample, round: roundNumber, checkpoint: 'end' },
+    ];
 }
 
 function sumBy(items, selector) {
@@ -805,6 +912,16 @@ function sumBy(items, selector) {
     return total;
 }
 
+function quantile(sortedValues, ratio) {
+    if (!Array.isArray(sortedValues) || sortedValues.length === 0) return 0;
+    if (sortedValues.length === 1) return sortedValues[0];
+    const position = Math.max(0, Math.min(1, Number(ratio) || 0)) * (sortedValues.length - 1);
+    const lowerIndex = Math.floor(position);
+    const upperIndex = Math.ceil(position);
+    const weight = position - lowerIndex;
+    return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight;
+}
+
 function buildScenarioMetrics(rounds) {
     const played = rounds.length;
     const totalDuration = sumBy(rounds, (r) => r.duration);
@@ -812,7 +929,16 @@ function buildScenarioMetrics(rounds) {
     const stuckEvents = sumBy(rounds, (r) => r.stuckEvents);
     const wallHits = sumBy(rounds, (r) => r.bounceWallEvents);
     const trailHits = sumBy(rounds, (r) => r.bounceTrailEvents);
-    const avgBotSurvival = played > 0 ? sumBy(rounds, (r) => r.botSurvivalAverage) / played : 0;
+    const survivalSamples = rounds
+        .flatMap((round) => Array.isArray(round?.botSurvivalSeconds) ? round.botSurvivalSeconds : [])
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value >= 0)
+        .sort((left, right) => left - right);
+    const avgBotSurvival = survivalSamples.length > 0
+        ? sumBy(survivalSamples, (value) => value) / survivalSamples.length
+        : (played > 0 ? sumBy(rounds, (round) => round.botSurvivalAverage) / played : 0);
+    const survivalP25 = quantile(survivalSamples, 0.25);
+    const survivalP75 = quantile(survivalSamples, 0.75);
     const stuckPerMinute = totalDuration > 0 ? stuckEvents / (totalDuration / 60) : 0;
     return {
         rounds: played,
@@ -821,6 +947,10 @@ function buildScenarioMetrics(rounds) {
         wallHits,
         trailHits,
         averageBotSurvival: avgBotSurvival,
+        botSurvivalMedian: quantile(survivalSamples, 0.5),
+        botSurvivalP10: quantile(survivalSamples, 0.1),
+        botSurvivalIqr: Math.max(0, survivalP75 - survivalP25),
+        botSurvivalSampleCount: survivalSamples.length,
         stuckPerMinute,
         totalDuration,
     };
@@ -832,13 +962,21 @@ function buildFailureTaxonomy(rounds = [], runner = {}) {
         'match-loss': 0,
         'forced-round': Math.max(0, Number(runner?.forcedRounds || 0)),
         'timeout-round': Math.max(0, Number(runner?.timeoutRounds || 0)),
+        'runtime-error': Math.max(0, Number(runner?.runtimeErrors || 0)),
+        botDeathCauses: {},
     };
     for (const round of rounds) {
         if (round?.winnerIsBot === false) {
             counts['match-loss'] += 1;
         }
-        if (Number(round?.botSurvivalAverage || 0) <= 0) {
-            counts['player-dead'] += 1;
+        const deathCauseCounts = round?.botDeathCauseCounts && typeof round.botDeathCauseCounts === 'object'
+            ? round.botDeathCauseCounts
+            : {};
+        for (const [cause, value] of Object.entries(deathCauseCounts)) {
+            const amount = Math.max(0, Math.trunc(Number(value) || 0));
+            if (amount === 0) continue;
+            counts['player-dead'] += amount;
+            counts.botDeathCauses[cause] = (counts.botDeathCauses[cause] || 0) + amount;
         }
     }
     return counts;
@@ -861,6 +999,24 @@ function formatMs(value) {
     return `${Math.max(0, Math.round(Number(value) || 0))}ms`;
 }
 
+function resolveSourceRevision() {
+    try {
+        const commit = String(execSync('git rev-parse HEAD', {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }) || '').trim();
+        const dirty = String(execSync('git status --porcelain --untracked-files=no', {
+            cwd: process.cwd(),
+            encoding: 'utf8',
+            stdio: ['ignore', 'pipe', 'ignore'],
+        }) || '').trim().length > 0;
+        return { commit: commit || null, dirty };
+    } catch {
+        return { commit: null, dirty: null };
+    }
+}
+
 function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, overall, failureTaxonomy, runner = null }) {
     const lines = [];
     lines.push(`# Bot-Validation Telemetrie (${generatedAt})`);
@@ -871,10 +1027,12 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push(`- Gesamt-Stuck-Events: ${overall.stuckEvents}`);
     lines.push(`- Gesamt-Wandtreffer (Bounce Wall): ${overall.wallHits}`);
     lines.push(`- Gesamt-Durchschnitt Bot-Ueberlebenszeit: ${formatSeconds(overall.averageBotSurvival)}`);
+    lines.push(`- Survival Median/P10/IQR: ${formatSeconds(overall.botSurvivalMedian)} / ${formatSeconds(overall.botSurvivalP10)} / ${formatSeconds(overall.botSurvivalIqr)}`);
     lines.push(`- Gesamt-Stuck/Minute: ${formatNumber(overall.stuckPerMinute)}`);
-    lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}`);
+    lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}, runtime-error=${failureTaxonomy?.['runtime-error'] ?? 0}`);
     if (runner) {
         lines.push(`- Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
+        lines.push(`- Runtime-Vertrag: Policy-Mismatches=${runner.policyMismatches || 0}; Mode-Mismatches=${runner.modeMismatches || 0}`);
     }
     const diagnostics = runner?.diagnostics && typeof runner.diagnostics === 'object'
         ? runner.diagnostics
@@ -892,11 +1050,12 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
         }
     }
     lines.push('');
-    lines.push('| Szenario | Runden | Bot-Winrate | Stuck | Wandtreffer | Trailtreffer | Avg Survival | Stuck/Minute |');
-    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|');
+    lines.push('| Szenario | Runden | Vertrag | Bot-Winrate | Stuck | Wandtreffer | Trailtreffer | Avg/Median/P10 Survival | Stuck/Minute |');
+    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|');
     for (const result of scenarioResults) {
         const m = result.metrics;
-        lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits} | ${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} | ${formatNumber(m.stuckPerMinute)} |`);
+        const contractOk = result.runtimeVerification?.policy?.ok === true && result.runtimeVerification?.mode?.ok === true;
+        lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits} | ${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.stuckPerMinute)} |`);
     }
     lines.push('');
     return lines.join('\n');
@@ -954,7 +1113,10 @@ async function run() {
         if (!serverAlreadyRunning) {
             if (SERVER_MODE === 'preview' && PREVIEW_BUILD_BEFORE_START) {
                 log('Building app before preview server start');
-                const previewBuild = measureSyncOperation(() => execSync('npm run build', { stdio: 'inherit' }));
+                const previewBuild = measureSyncOperation(() => execSync('npm run build', {
+                    stdio: 'inherit',
+                    env: RUNNER_VITE_ENV,
+                }));
                 diagnostics.preview.buildPerformed = true;
                 diagnostics.preview.buildElapsedMs = previewBuild.elapsedMs;
                 diagnostics.stageTimingsMs.previewBuildMs = previewBuild.elapsedMs;
@@ -983,7 +1145,7 @@ async function run() {
 
         const browserLaunchStartedAt = Date.now();
         browser = await withTimeout(
-            () => chromium.launch({ headless: HEADLESS }),
+            () => chromium.launch({ headless: HEADLESS, args: ['--no-proxy-server'] }),
             resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:launch', [runDeadline]),
             'browser:launch'
         );
@@ -994,6 +1156,9 @@ async function run() {
             resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:new-context', [runDeadline]),
             'browser:new-context'
         );
+        await context.addInitScript(() => {
+            window.__CURVIOS_E2E__ = true;
+        });
         diagnostics.stageTimingsMs.browserContextMs = Math.max(0, Date.now() - browserContextStartedAt);
         const browserPageStartedAt = Date.now();
         page = await withTimeout(
@@ -1001,6 +1166,22 @@ async function run() {
             resolveTimeout(APP_READY_TIMEOUT_MS, 'browser:new-page', [runDeadline]),
             'browser:new-page'
         );
+        page.on('console', (message) => {
+            if (message.type() !== 'error') return;
+            const detail = message.text();
+            appendBrowserDiagnostic(diagnostics.browser.consoleErrors, detail);
+            log('Browser console error', { detail });
+        });
+        page.on('pageerror', (error) => {
+            const detail = error?.stack || error?.message || error;
+            appendBrowserDiagnostic(diagnostics.browser.pageErrors, detail);
+            log('Browser page error', { detail: String(detail || '') });
+        });
+        page.on('requestfailed', (request) => {
+            const detail = `${request.method()} ${request.url()} ${request.failure()?.errorText || 'request-failed'}`;
+            appendBrowserDiagnostic(diagnostics.browser.requestFailures, detail);
+            log('Browser request failed', { detail });
+        });
         diagnostics.stageTimingsMs.browserPageMs = Math.max(0, Date.now() - browserPageStartedAt);
         const appReadyTimeoutMs = resolveTimeout(APP_READY_TIMEOUT_MS, 'app:bootstrap', [runDeadline]);
         const navigationTimeoutMs = resolveTimeout(NAVIGATION_TIMEOUT_MS, 'page:navigation', [runDeadline]);
@@ -1051,18 +1232,29 @@ async function run() {
         if (!Array.isArray(scenarioMatrix) || scenarioMatrix.length === 0) {
             throw new Error('No bot validation scenarios available');
         }
-        const scenarioLimit = Math.max(1, DEFAULT_SCENARIO_COUNT);
-        const scenarios = scenarioMatrix.slice(0, scenarioLimit);
+        const scenarios = selectBotValidationScenarios(scenarioMatrix, {
+            ids: REQUESTED_SCENARIO_IDS,
+            policy: POLICY_FILTER,
+            limit: SCENARIO_LIMIT,
+        });
+        if (scenarios.length === 0) {
+            throw new Error('Bot validation scenario selection is empty');
+        }
         log('Loaded validation matrix', {
             availableScenarios: scenarioMatrix.length,
             selectedScenarios: scenarios.length,
-            scenarioLimit,
+            scenarioLimit: SCENARIO_LIMIT,
+            requestedScenarioIds: REQUESTED_SCENARIO_IDS,
+            policyFilter: POLICY_FILTER || null,
         });
 
         const scenarioResults = [];
         const runnerStats = {
             forcedRounds: 0,
             timeoutRounds: 0,
+            policyMismatches: 0,
+            modeMismatches: 0,
+            runtimeErrors: 0,
         };
         const scenarioEvalStartedAt = Date.now();
 
@@ -1073,6 +1265,8 @@ async function run() {
                 forcedRounds: 0,
                 timeoutRounds: 0,
             };
+            const runtimeSamples = [];
+            const browserErrorStart = countBrowserRuntimeErrors(diagnostics.browser);
             const scenarioLabel = `scenario=${scenario.id}(${i + 1}/${scenarios.length})`;
             log(`${scenarioLabel} start`, { mapKey: scenario.mapKey, mode: scenario.mode, bots: scenario.bots });
 
@@ -1091,11 +1285,14 @@ async function run() {
                 page,
                 `${scenarioLabel}:apply`,
                 resolveTimeout(EVAL_TIMEOUT_MS, `${scenarioLabel}:apply`, [runDeadline, scenarioDeadline]),
-                (index) => {
+                (scenarioId) => {
                     const g = window.GAME_INSTANCE;
                     if (!g) throw new Error('GAME_INSTANCE missing');
                     if (typeof g.applyBotValidationScenario !== 'function') throw new Error('applyBotValidationScenario missing');
-                    const applied = g.applyBotValidationScenario(index);
+                    const applied = g.applyBotValidationScenario(scenarioId);
+                    if (String(applied?.id || '').toUpperCase() !== String(scenarioId || '').toUpperCase()) {
+                        throw new Error(`scenario apply mismatch: requested=${scenarioId} applied=${applied?.id || 'none'}`);
+                    }
                     g.winsNeeded = 1;
                     if (g.settings) g.settings.winsNeeded = 1;
                     if (typeof g._onSettingsChanged === 'function') {
@@ -1106,13 +1303,13 @@ async function run() {
                         state: g.state,
                     };
                 },
-                i
+                scenario.id
             );
 
             await ensureMenuState(page, `${scenarioLabel}:post-apply`, [runDeadline, scenarioDeadline]);
 
             for (let round = 0; round < ROUNDS_PER_SCENARIO; round++) {
-                await runRound(
+                runtimeSamples.push(...await runRound(
                     page,
                     scenario,
                     i,
@@ -1120,7 +1317,7 @@ async function run() {
                     round,
                     [runDeadline, scenarioDeadline],
                     localStats
-                );
+                ));
             }
 
             const scenarioRounds = await evaluatePhase(
@@ -1138,14 +1335,30 @@ async function run() {
 
             runnerStats.forcedRounds += localStats.forcedRounds;
             runnerStats.timeoutRounds += localStats.timeoutRounds;
+            localStats.runtimeErrors = Math.max(
+                0,
+                countBrowserRuntimeErrors(diagnostics.browser) - browserErrorStart
+            );
+            runnerStats.runtimeErrors += localStats.runtimeErrors;
 
             const metrics = buildScenarioMetrics(scenarioRounds);
+            const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
+            if (!runtimeVerification.policy.ok) runnerStats.policyMismatches += 1;
+            if (!runtimeVerification.mode.ok) runnerStats.modeMismatches += 1;
             scenarioResults.push({
                 scenario,
                 metrics,
+                runtimeVerification,
+                decisionEvidence: runtimeSamples.map((sample, sampleIndex) => ({
+                    sample: sampleIndex + 1,
+                    round: sample.round,
+                    checkpoint: sample.checkpoint,
+                    bots: sample.botDecisions,
+                })),
                 runner: {
                     forcedRounds: localStats.forcedRounds,
                     timeoutRounds: localStats.timeoutRounds,
+                    runtimeErrors: localStats.runtimeErrors,
                     elapsedMs: scenarioDeadline.elapsedMs(),
                 },
                 failureTaxonomy: buildFailureTaxonomy(scenarioRounds, localStats),
@@ -1175,12 +1388,27 @@ async function run() {
         const report = {
             generatedAt,
             baseUrl: BASE_URL,
+            sourceRevision: resolveSourceRevision(),
             roundsPerScenario: ROUNDS_PER_SCENARIO,
+            selection: {
+                requestedScenarioIds: REQUESTED_SCENARIO_IDS,
+                policy: POLICY_FILTER || null,
+                limit: SCENARIO_LIMIT,
+                selectedScenarioIds: scenarios.map((scenario) => scenario.id),
+            },
+            reproducibility: {
+                seedMode: 'none',
+                seed: null,
+                note: 'No seed was injected by the validation runner; runtime-observed Arcade seeds are diagnostic only.',
+            },
             scenarios: scenarioResults,
             overall,
             runner: {
                 forcedRounds: runnerStats.forcedRounds,
                 timeoutRounds: runnerStats.timeoutRounds,
+                policyMismatches: runnerStats.policyMismatches,
+                modeMismatches: runnerStats.modeMismatches,
+                runtimeErrors: runnerStats.runtimeErrors,
                 failOnForcedRound: FAIL_ON_FORCED_ROUND,
                 maxForcedRounds: MAX_FORCED_ROUNDS,
                 serverMode: SERVER_MODE,
@@ -1285,8 +1513,17 @@ async function run() {
         if (runnerStats.forcedRounds > MAX_FORCED_ROUNDS) {
             policyErrors.push(`forced rounds ${runnerStats.forcedRounds} exceeded BOT_RUNNER_MAX_FORCED_ROUNDS=${MAX_FORCED_ROUNDS}`);
         }
+        if (runnerStats.policyMismatches > 0) {
+            policyErrors.push(`policy contract mismatched in ${runnerStats.policyMismatches} scenario(s)`);
+        }
+        if (runnerStats.modeMismatches > 0) {
+            policyErrors.push(`mode contract mismatched in ${runnerStats.modeMismatches} scenario(s)`);
+        }
+        if (runnerStats.runtimeErrors > 0) {
+            policyErrors.push(`browser runtime errors encountered (${runnerStats.runtimeErrors})`);
+        }
         if (policyErrors.length > 0) {
-            throw new Error(`[forced-round-policy] ${policyErrors.join('; ')}`);
+            throw new Error(`[bot-validation-policy] ${policyErrors.join('; ')}`);
         }
 
         console.log('\nBOT_VALIDATION_RESULT');

@@ -19,6 +19,24 @@ function cloneScenario(entry) {
     };
 }
 
+function normalizeScenarioIds(ids) {
+    const source = Array.isArray(ids) ? ids : String(ids || '').split(',');
+    const normalized = [];
+    const seen = new Set();
+    for (const value of source) {
+        const id = String(value || '').trim().toUpperCase();
+        if (!id || seen.has(id)) continue;
+        seen.add(id);
+        normalized.push(id);
+    }
+    return normalized;
+}
+
+function normalizePolicyFilter(policy) {
+    const normalized = String(policy || '').trim().toLowerCase();
+    return normalized === '*' || normalized === 'all' ? '' : normalized;
+}
+
 export function getBotValidationMatrix() {
     const heuristicScenarios = [
         {
@@ -62,6 +80,35 @@ export function getBotValidationMatrix() {
         ...getTrainingBenchmarkBotValidationMatrix(),
         ...heuristicScenarios,
     ].map((entry) => cloneScenario(entry));
+}
+
+export function selectBotValidationScenarios(matrix = null, options = {}) {
+    const source = (Array.isArray(matrix) ? matrix : getBotValidationMatrix()).map((entry) => cloneScenario(entry));
+    const requestedIds = normalizeScenarioIds(options?.ids);
+    const policyFilter = normalizePolicyFilter(options?.policy);
+
+    let selected = source;
+    if (requestedIds.length > 0) {
+        const byId = new Map(source.map((entry) => [String(entry.id || '').toUpperCase(), entry]));
+        const missingIds = requestedIds.filter((id) => !byId.has(id));
+        if (missingIds.length > 0) {
+            throw new Error(`Unknown bot-validation scenario id(s): ${missingIds.join(', ')}`);
+        }
+        selected = requestedIds.map((id) => byId.get(id));
+    }
+
+    if (policyFilter) {
+        selected = selected.filter((entry) => (
+            entry.botPolicyStrategy === policyFilter
+            || entry.expectedPolicyType === policyFilter
+        ));
+    }
+
+    const numericLimit = Number(options?.limit);
+    if (Number.isFinite(numericLimit) && numericLimit > 0) {
+        selected = selected.slice(0, Math.trunc(numericLimit));
+    }
+    return selected.map((entry) => cloneScenario(entry));
 }
 
 export function resolveBotValidationScenario(idOrIndex = 0, matrix = null) {
