@@ -119,7 +119,7 @@ Maps koennen folgende Felder verwenden:
 - `items`: feste Pickup-Anker mit optionalem `pickupType`; ungueltige Typen werden beim Schema-Export sichtbar gemeldet und fallen deterministisch auf `type`/`model` zurueck.
 - `exitPortal`: einzelnes Exit-Portal mit optionaler spaeter Aktivierung.
 
-## Editor-Authoring-Vertrag (V86)
+## Editor-Authoring-Vertrag
 
 Der `EditorAuthoringContract.js` (`src/shared/contracts/EditorAuthoringContract.js`) definiert die autoritative Grenze zwischen Content-Descriptor-Feldern und UI-Metadaten:
 

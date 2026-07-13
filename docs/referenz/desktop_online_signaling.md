@@ -2,7 +2,7 @@
 
 Stand: 2026-04-15
 
-Diese Referenz definiert den verbindlichen Desktop-Pfad fuer `online` in `V64 64.5.1`.
+Diese Referenz definiert den verbindlichen Desktop-Pfad fuer `online`.
 LAN, `single` und `splitscreen` bleiben davon fachlich getrennt; nur der Online-Transport
 benoetigt einen externen Signaling- und optional TURN-Vertrag.
 

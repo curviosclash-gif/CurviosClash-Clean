@@ -1,4 +1,4 @@
-# Developer Tuning Console (V81) - Kurzreferenz
+# Developer Tuning Console - Kurzreferenz
 
 Stand: 2026-04-27
 
@@ -36,6 +36,6 @@ Die Tuning Console ist ein Desktop-only Entwicklerwerkzeug (F7) fuer Live-Aender
 ## Checks
 
 - `npm run test:contract`
-- `npm run plan:check`
-- `npm run docs:check`
+- `npm run lint`
+- `npm run typecheck`
 - Optional fokussiert: `node --test tests/tuning-runtime-bridge.contract.test.mjs tests/tuning-ipc.contract.test.mjs tests/tuning-window.contract.test.mjs tests/tuning-preset-manager.contract.test.mjs`

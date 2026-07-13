@@ -7,7 +7,6 @@ const DRY_RUN = process.argv.includes('--dry-run');
 const IS_WINDOWS = process.platform === 'win32';
 
 const INCLUDE_PATTERNS = Object.freeze([
-    /scripts[\\/]+verify-lock\.mjs/i,
     /@playwright[\\/]+test[\\/]+cli\.js.*\btest-server\b/i,
     /@playwright[\\/]+test[\\/]+cli\.js.*\btest\b/i,
     /\bplaywright\s+test\b/i,
@@ -21,7 +20,6 @@ const EXCLUDE_PATTERNS = Object.freeze([
 ]);
 
 const LOCK_FILES = Object.freeze([
-    '.playwright-start.lock',
     '.playwright-suite.lock',
     '.playwright-suite.lock.codex',
 ]);

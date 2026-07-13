@@ -60,7 +60,7 @@ Das Windows-Paket entsteht als entpackte Anwendung unter `release/win-unpacked/`
 - Ausgangspunkt: Original-Commit `0532a9d8aca7dccfb015c4305e19b1fa4d54cc53` vom 12. Juli 2026.
 - Zusätzlich übernommen: der geprüfte Scheduler-Fix, die Heuristik-/Bot-Safety-Härtung und der zusammengehörige Bot-Validierungs-/Rundenmetrik-Slice aus dem damaligen Arbeitsbaum.
 - Nicht übernommen: der geänderte Bot-Trainingsplan und der lediglich hostabhängig neu generierte Browser-Policy-Export.
-- Entfernt: Agentenregeln, Gates, Locks, Councils, Pläne, Knowledge Graph, RAG, Agent-/Plan-/Repo-Maps, Trainingsverwaltung und -evidence, historische Archive sowie Builds, Logs, Caches und Abhängigkeiten.
+- Entfernt: Agentenregeln, Gates, Locks, Councils, Pläne, Knowledge Graph, RAG, Agent-/Plan-/Repo-Maps, Trainingsverwaltung und -evidence, historische Archive, phasenbezogene Refactor-Baselines sowie Builds, Logs, Caches und Abhängigkeiten.
 - Bewusst erhalten: Runtime-nahe Trainings-/Validierungsbausteine in `src/`, produktive Tests, der 3D-Editor, das Vehicle Lab, Settings/Tuning und Mobile Classic.
 
 Das Repository besitzt eine neue lokale Git-Historie und absichtlich keinen Remote.
