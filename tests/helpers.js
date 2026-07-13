@@ -756,6 +756,7 @@ export async function returnToMenu(page) {
             return style.display !== 'none' && style.visibility !== 'hidden';
         })();
         return {
+            gameState: String(window.GAME_INSTANCE?.state || ''),
             menuVisible,
             visiblePanelId: visiblePanel?.id || '',
         };
@@ -765,17 +766,27 @@ export async function returnToMenu(page) {
         return menuState.menuVisible && !menuState.visiblePanelId;
     };
 
-    if (await isMainNavVisible()) return;
+    const initialMenuState = await getMenuState();
+    if (initialMenuState.menuVisible && !initialMenuState.visiblePanelId) return;
 
-    await page.keyboard.press('Escape');
-    if (await isMainNavVisible()) return;
+    if (!initialMenuState.menuVisible) {
+        await page.evaluate(async () => {
+            await window.GAME_INSTANCE?._returnToMenu?.();
+        });
+    } else {
+        await page.keyboard.press('Escape');
+        if (await isMainNavVisible()) return;
 
-    await page.evaluate(() => {
-        window.GAME_INSTANCE?._returnToMenu?.();
-    });
+        await page.evaluate(async () => {
+            await window.GAME_INSTANCE?._returnToMenu?.();
+        });
+    }
     await page.waitForFunction(() => {
         const mainMenu = document.getElementById('main-menu');
         const visiblePanel = document.querySelector('.submenu-panel:not(.hidden)');
+        if (String(window.GAME_INSTANCE?.state || '') !== 'MENU') {
+            return false;
+        }
         if (!(mainMenu instanceof HTMLElement) || mainMenu.classList.contains('hidden')) {
             return false;
         }

@@ -438,7 +438,7 @@ export class Game {
 
     // Legacy compatibility hook retained for runtime/tests.
     _returnToMenu() {
-        this.runtimeCoordinator.returnToMenu();
+        return this.runtimeCoordinator.returnToMenu();
     }
 
     render(alpha = this.gameLoop?.renderAlpha ?? 1, renderDelta = this.gameLoop?.renderDelta ?? this.gameLoop?.fixedStep ?? (1 / 60)) {

@@ -1741,6 +1741,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
 test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und persistiert pro Map/Route', async ({ page }) => {
         const ghostLibraryKey = 'cuviosclash.arcade-ghost-library.v1';
+        const ghostLibrarySchemaVersion = 'arcade-ghost-library.v2';
         const ghostClip = {
             frames: [
                 {
@@ -1759,16 +1760,62 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
 
         await loadGame(page);
 
+        const seedGhostForMap = (mapKey) => page.evaluate(({
+            mapKey: selectedMapKey,
+            ghostLibraryStorageKey,
+            schemaVersion,
+            ghostClipPayload,
+        }) => {
+            const game = window.GAME_INSTANCE;
+            game?.runtimeCoordinator?.getRuntimeFacade?.()?.arcadeRunRuntime?.flushGhostLibrarySaves?.();
+            const routeId = String(
+                game?.config?.MAPS?.[selectedMapKey]?.parcours?.routeId
+                || selectedMapKey
+            ).trim();
+            const rawLibrary = JSON.parse(localStorage.getItem(ghostLibraryStorageKey) || '{}');
+            const nextLibrary = rawLibrary?.schemaVersion === schemaVersion && rawLibrary?.routes
+                ? rawLibrary
+                : {
+                    schemaVersion,
+                    lastTouchSeq: 0,
+                    aliasIndex: {},
+                    routes: {},
+                };
+            nextLibrary.aliasIndex = nextLibrary.aliasIndex && typeof nextLibrary.aliasIndex === 'object'
+                ? nextLibrary.aliasIndex
+                : {};
+            nextLibrary.routes = nextLibrary.routes && typeof nextLibrary.routes === 'object'
+                ? nextLibrary.routes
+                : {};
+            nextLibrary.lastTouchSeq = Number(nextLibrary.lastTouchSeq || 0) + 1;
+            nextLibrary.routes[routeId] = {
+                routeId,
+                canonicalRouteId: routeId,
+                routeAliases: routeId === selectedMapKey ? [] : [selectedMapKey],
+                longestGhostClip: ghostClipPayload,
+                durationMs: 4200,
+                updatedAt: new Date().toISOString(),
+                lastTouchSeq: nextLibrary.lastTouchSeq,
+            };
+            nextLibrary.aliasIndex[routeId] = routeId;
+            nextLibrary.aliasIndex[selectedMapKey] = routeId;
+            localStorage.setItem(ghostLibraryStorageKey, JSON.stringify(nextLibrary));
+            return { mapKey: selectedMapKey, routeId };
+        }, {
+            mapKey,
+            ghostLibraryStorageKey: ghostLibraryKey,
+            schemaVersion: ghostLibrarySchemaVersion,
+            ghostClipPayload: ghostClip,
+        });
+
         // --- Single + Normal (map-key based route fallback) ---
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await page.selectOption('#arcade-ghost-duel-mode-select', 'self_longest_ghost');
-        await page.evaluate(({ ghostLibraryKey, ghostClipPayload }) => {
+        const normalMapKey = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            game.settings.localSettings.modePath = 'normal';
-            game.uiManager?.syncByChangeKeys?.(['session.modePath']);
             const mapSelect = document.getElementById('map-select');
             const mapOptionValues = mapSelect instanceof HTMLSelectElement
                 ? Array.from(mapSelect.options).map((entry) => String(entry.value || ''))
@@ -1779,36 +1826,18 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 && entry !== 'custom'
                 && maps?.[entry]?.parcours?.enabled !== true
             )) || (mapOptionValues.includes('maze') ? 'maze' : (mapOptionValues[0] || 'standard'));
-            if (mapSelect instanceof HTMLSelectElement) {
-                mapSelect.value = normalMapKey;
-                mapSelect.dispatchEvent(new Event('change', { bubbles: true }));
-            }
-            const routeId = String(game?.config?.MAPS?.[normalMapKey]?.parcours?.routeId || normalMapKey);
-            const currentLibrary = JSON.parse(localStorage.getItem(ghostLibraryKey) || '{}');
-            currentLibrary[routeId] = {
-                routeId,
-                longestGhostClip: ghostClipPayload,
-                durationMs: 4200,
-                updatedAt: new Date().toISOString(),
-            };
-            localStorage.setItem(ghostLibraryKey, JSON.stringify(currentLibrary));
-            if (game?.settings) {
-                game.settings.localSettings = game.settings.localSettings || {};
-                game.settings.localSettings.sessionType = 'single';
-                game.settings.localSettings.modePath = 'normal';
-                game.settings.localSettings.startSetup = game.settings.localSettings.startSetup || {};
-                game.settings.localSettings.startSetup.arcadeGhostDuelMode = 'self_longest_ghost';
-                game.settings.mapKey = normalMapKey;
-            }
-        }, { ghostLibraryKey, ghostClipPayload: ghostClip });
+            return normalMapKey;
+        });
+        await page.selectOption('#map-select', normalMapKey);
+        const normalSeed = await seedGhostForMap(normalMapKey);
 
-        await page.click('#submenu-game:not(.hidden) #btn-start');
-        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 60000 });
+        await page.click('#submenu-game:not(.hidden) #btn-start', { force: true });
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 20000 });
         await page.waitForFunction(() => {
             const game = window.GAME_INSTANCE;
             const ghostState = game?.entityManager?.getLastRoundGhostState?.();
             return ghostState?.active === true && Number(ghostState?.entryCount || 0) > 0;
-        }, null, { timeout: 8000 });
+        }, null, { timeout: 12000 });
 
         const normalGhostState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -1833,7 +1862,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(normalGhostState.active).toBeTruthy();
         expect(normalGhostState.entryCount).toBeGreaterThan(0);
         expect(normalGhostState.frameCount).toBeGreaterThan(1);
-        expect(normalGhostState.routeId).not.toBe('');
+        expect(normalGhostState.routeId).toBe(normalSeed.routeId);
         expect(normalGhostState.persistedDurationMs).toBeGreaterThan(0);
         await returnToMenu(page);
 
@@ -1843,27 +1872,25 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
         await page.selectOption('#arcade-ghost-duel-mode-select', 'self_longest_ghost');
-        await page.evaluate(({ ghostLibraryKey, ghostClipPayload }) => {
+        const arcadeMapKey = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            const mapKey = String(game?.settings?.mapKey || 'parcours_rift');
-            const routeId = String(game?.config?.MAPS?.[mapKey]?.parcours?.routeId || mapKey);
-            const currentLibrary = JSON.parse(localStorage.getItem(ghostLibraryKey) || '{}');
-            currentLibrary[routeId] = {
-                routeId,
-                longestGhostClip: ghostClipPayload,
-                durationMs: 4200,
-                updatedAt: new Date().toISOString(),
-            };
-            localStorage.setItem(ghostLibraryKey, JSON.stringify(currentLibrary));
-        }, { ghostLibraryKey, ghostClipPayload: ghostClip });
+            const mapSelect = document.getElementById('map-select');
+            const optionValues = mapSelect instanceof HTMLSelectElement
+                ? Array.from(mapSelect.options).map((entry) => String(entry.value || ''))
+                : [];
+            return optionValues.find((mapKey) => game?.config?.MAPS?.[mapKey]?.parcours?.enabled === true)
+                || (optionValues.includes('parcours_rift') ? 'parcours_rift' : optionValues[0]);
+        });
+        await page.selectOption('#map-select', arcadeMapKey);
+        const arcadeSeed = await seedGhostForMap(arcadeMapKey);
 
-        await page.click('#submenu-game:not(.hidden) #btn-start');
-        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 60000 });
+        await page.click('#submenu-game:not(.hidden) #btn-start', { force: true });
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 20000 });
         await page.waitForFunction(() => {
             const game = window.GAME_INSTANCE;
             const ghostState = game?.entityManager?.getLastRoundGhostState?.();
             return ghostState?.active === true && Number(ghostState?.entryCount || 0) > 0;
-        }, null, { timeout: 8000 });
+        }, null, { timeout: 12000 });
 
         const arcadeGhostState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -1891,7 +1918,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(arcadeGhostState.active).toBeTruthy();
         expect(arcadeGhostState.entryCount).toBeGreaterThan(0);
         expect(arcadeGhostState.frameCount).toBeGreaterThan(1);
-        expect(arcadeGhostState.routeId).not.toBe('');
+        expect(arcadeGhostState.routeId).toBe(arcadeSeed.routeId);
         expect(arcadeGhostState.persistedDurationMs).toBeGreaterThan(0);
     });
 

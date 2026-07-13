@@ -540,11 +540,17 @@ test('Arcade mission assignment prefers map-specific mission pools when present'
     }
 });
 
-test('GameRuntimeArcadeSupport binds ghost recorder via runtime getter', () => {
+test('GameRuntimeArcadeSupport binds ghost seams outside arcade runs', () => {
     let boundGhostRecorder = null;
+    let ghostPlaybackHandler = null;
+    let playedGhostClip = null;
     const ghostRecorder = { sample() {} };
     const runtimeState = {
+        runtimeConfig: { arcade: { enabled: false } },
         entityManager: {
+            playLastRoundGhost(clip) {
+                playedGhostClip = clip;
+            },
             _parcoursProgressSystem: {
                 setXpEventCallback() {},
                 setLeaderboardCallback() {},
@@ -562,12 +568,18 @@ test('GameRuntimeArcadeSupport binds ghost recorder via runtime getter', () => {
         getGhostRecorder() {
             return ghostRecorder;
         },
-        setGhostPlaybackHandler() {},
+        setGhostPlaybackHandler(handler) {
+            ghostPlaybackHandler = handler;
+        },
     };
 
-    support._bindParcoursCallbacks(runtimeState);
+    const runState = support.startRunIfEnabled();
+    const ghostClip = { frames: [{ t: 0 }] };
+    ghostPlaybackHandler(ghostClip);
 
+    assert.equal(runState, null);
     assert.equal(boundGhostRecorder, ghostRecorder);
+    assert.equal(playedGhostClip, ghostClip);
 });
 
 test('Arcade startRun seeds mission assignment from active run seed override', () => {

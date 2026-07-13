@@ -130,11 +130,11 @@ export class GameRuntimeArcadeSupport {
     startRunIfEnabled() {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
+        this._bindParcoursCallbacks(runtimeState);
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
         this._bindGameplayCallback(runtimeState);
-        this._bindParcoursCallbacks(runtimeState);
         const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
         this.arcadeRunRuntime.setStrategy(strategy);
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
