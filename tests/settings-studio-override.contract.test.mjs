@@ -38,6 +38,13 @@ const SETTINGS_STUDIO_CHANNELS = Object.freeze({
 
 function createIpcHarness() {
     const handlers = new Map();
+    const mainFrame = { id: 'settings-main-frame' };
+    const webContents = { mainFrame };
+    const windowRef = {
+        webContents,
+        isDestroyed: () => false,
+    };
+    const trustedEvent = { sender: webContents, senderFrame: mainFrame };
     return {
         ipcMain: {
             handle(channel, handler) {
@@ -50,8 +57,15 @@ function createIpcHarness() {
         async invoke(channel, ...args) {
             const handler = handlers.get(channel);
             assert.equal(typeof handler, 'function', `missing IPC handler: ${channel}`);
-            return handler({}, ...args);
+            return handler(trustedEvent, ...args);
         },
+        invokeFrom(event, channel, ...args) {
+            const handler = handlers.get(channel);
+            assert.equal(typeof handler, 'function', `missing IPC handler: ${channel}`);
+            return handler(event, ...args);
+        },
+        windowRef,
+        webContents,
     };
 }
 
@@ -67,6 +81,7 @@ async function createSettingsStudioTestHarness(t) {
     const unregister = registerSettingsStudioIpc({
         ipcMain: harness.ipcMain,
         app,
+        getWindow: () => harness.windowRef,
         browserDemoProjectRootPath: userDataPath,
     });
 
@@ -78,8 +93,28 @@ async function createSettingsStudioTestHarness(t) {
     return {
         userDataPath,
         invoke: harness.invoke,
+        invokeFrom: harness.invokeFrom,
+        webContents: harness.webContents,
     };
 }
+
+test('Settings Studio IPC rejects foreign windows and subframes', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    assert.throws(
+        () => harness.invokeFrom(
+            { sender: {}, senderFrame: {} },
+            SETTINGS_STUDIO_CHANNELS.load
+        ),
+        (error) => error?.code === 'ERR_CURVIOS_UNTRUSTED_IPC_SENDER'
+    );
+    assert.throws(
+        () => harness.invokeFrom(
+            { sender: harness.webContents, senderFrame: { id: 'settings-subframe' } },
+            SETTINGS_STUDIO_CHANNELS.load
+        ),
+        (error) => error?.code === 'ERR_CURVIOS_UNTRUSTED_IPC_SENDER'
+    );
+});
 
 // ─── 97.1 Field registry metadata ────────────────────
 

@@ -5,7 +5,7 @@ cd /d "%ROOT%"
 
 if exist "%ROOT%release\win-unpacked\CurviosClash.exe" (
   echo Starte vorhandenes Windows-Paket...
-  start "" "%ROOT%release\win-unpacked\CurviosClash.exe"
+  start "" "%ROOT%release\win-unpacked\CurviosClash.exe" %*
   exit /b 0
 )
 
@@ -38,7 +38,7 @@ call npm run build:app
 if errorlevel 1 goto :fail
 
 echo Starte CurviosClash...
-call npm --prefix electron run start
+call npm --prefix electron run start -- %*
 if errorlevel 1 goto :fail
 exit /b 0
 
@@ -47,4 +47,3 @@ echo.
 echo CurviosClash konnte nicht gestartet werden. Die Fehlermeldung steht oben.
 pause
 exit /b 1
-

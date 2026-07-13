@@ -1,8 +1,9 @@
 {
   "name": "curviosclash-app",
   "version": "1.0.0",
+  "author": "CurviosClash Project",
   "type": "module",
-  "main": "main.cjs",
+  "main": "entry.cjs",
   "description": "CurviosClash Desktop App - Host multiplayer games",
   "scripts": {
     "start": "node launch.cjs",
@@ -13,6 +14,7 @@
     "appId": "com.curviosclash.app",
     "productName": "CurviosClash",
     "files": [
+      "entry.cjs",
       "main.cjs",
       "launch.cjs",
       "preload.cjs",
@@ -57,6 +59,7 @@
     },
     "win": {
       "target": "nsis",
+      "icon": "../assets/branding/curviosclash-icon.ico",
       "signAndEditExecutable": true
     },
     "mac": {

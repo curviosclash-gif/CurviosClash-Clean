@@ -6,10 +6,12 @@ const {
     configureStoragePaths,
     initSessionDataSelfHeal,
 } = require('../session-data-runtime.cjs');
+const { isTrustedWindowSender } = require('../ipc-sender-guard.cjs');
 
 const WINDOW_SHELL_CONTRACT_VERSION = 'settings-studio.window-shell.v1';
 const DIRTY_STATE_CHANNEL = 'settings-studio:set-dirty-state';
 const SHARED_USER_DATA_DIR_NAME = 'curviosclash-app';
+const SETTINGS_STUDIO_USER_DATA_DIR_NAME = 'profile-settings-studio';
 const SETTINGS_STUDIO_SESSION_DATA_DIR_NAME = 'session-settings-studio';
 const LEGACY_ELECTRON_USER_DATA_DIR_NAME = 'Electron';
 const SETTINGS_STUDIO_DATA_ENTRIES = Object.freeze([
@@ -34,7 +36,12 @@ function migrateLegacySettingsStudioData() {
         return;
     }
 
-    fs.mkdirSync(sharedUserDataPath, { recursive: true });
+    try {
+        fs.mkdirSync(sharedUserDataPath, { recursive: true });
+    } catch (error) {
+        console.warn('[SettingsStudio] Legacy data directory migration skipped.', error);
+        return;
+    }
 
     for (const entryName of SETTINGS_STUDIO_DATA_ENTRIES) {
         const sourcePath = path.join(legacyUserDataPath, entryName);
@@ -42,29 +49,41 @@ function migrateLegacySettingsStudioData() {
         if (!fs.existsSync(sourcePath) || fs.existsSync(targetPath)) {
             continue;
         }
-        fs.cpSync(sourcePath, targetPath, { recursive: true });
+        try {
+            fs.cpSync(sourcePath, targetPath, { recursive: true });
+        } catch (error) {
+            console.warn(`[SettingsStudio] Legacy data migration skipped for ${entryName}.`, error);
+        }
     }
 }
 
+const {
+    sharedUserDataPath: settingsDataPath,
+    sessionDataPath: settingsSessionDataPath,
+} = configureStoragePaths({
+    app,
+    sharedUserDataDirName: SHARED_USER_DATA_DIR_NAME,
+    userDataDirName: SETTINGS_STUDIO_USER_DATA_DIR_NAME,
+    sessionDataDirName: SETTINGS_STUDIO_SESSION_DATA_DIR_NAME,
+});
+const settingsDataApp = Object.freeze({
+    getPath(pathName) {
+        return pathName === 'userData' ? settingsDataPath : app.getPath(pathName);
+    },
+});
+app.setAppUserModelId('de.curviosclash.studio');
 const hasSingleInstanceLock = app.requestSingleInstanceLock();
 
 if (!hasSingleInstanceLock) {
     app.quit();
 } else {
-    const { sessionDataPath } = configureStoragePaths({
-        app,
-        sharedUserDataDirName: SHARED_USER_DATA_DIR_NAME,
-        sessionDataDirName: SETTINGS_STUDIO_SESSION_DATA_DIR_NAME,
-    });
     migrateLegacySettingsStudioData();
     const sessionSelfHealState = initSessionDataSelfHeal({
-        sessionDataPath,
+        sessionDataPath: settingsSessionDataPath,
         processLabel: 'settings-studio',
     });
     markSessionExitClean = sessionSelfHealState.markCleanExit;
 }
-
-app.setAppUserModelId('de.curviosclash.studio');
 
 let mainWindow = null;
 let disposeIpc = null;
@@ -95,6 +114,11 @@ function createWindowShellCapability() {
                     backgroundThrottling: false,
                 },
             });
+
+            mainWindow.webContents.on('will-navigate', (event) => {
+                event.preventDefault();
+            });
+            mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
 
             await mainWindow.loadFile(path.resolve(__dirname, 'ui', 'settings-studio.html'));
             let allowWindowClose = false;
@@ -143,9 +167,10 @@ async function startSettingsStudio() {
     if (!disposeIpc) {
         disposeIpc = registerSettingsStudioIpc({
             ipcMain,
-            app,
+            app: settingsDataApp,
+            getWindow: () => mainWindow,
             browserDemoProjectRootPath: app.isPackaged
-                ? app.getPath('userData')
+                ? settingsDataPath
                 : path.resolve(__dirname, '..', '..'),
         });
     }
@@ -163,7 +188,8 @@ app.whenReady().then(async () => {
     if (!hasSingleInstanceLock) {
         return;
     }
-    ipcMain.on(DIRTY_STATE_CHANNEL, (_event, dirtyState) => {
+    ipcMain.on(DIRTY_STATE_CHANNEL, (event, dirtyState) => {
+        if (!isTrustedWindowSender(event, mainWindow)) return;
         hasUnsavedChanges = dirtyState === true;
     });
     try {

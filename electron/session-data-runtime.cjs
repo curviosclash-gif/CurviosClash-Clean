@@ -42,12 +42,23 @@ function safeClearChromiumCaches(sessionDataPath) {
     return cleared;
 }
 
-function configureStoragePaths({ app, sharedUserDataDirName, sessionDataDirName }) {
+function configureStoragePaths({
+    app,
+    sharedUserDataDirName,
+    sessionDataDirName,
+    userDataDirName = '',
+}) {
     const sharedUserDataPath = path.join(app.getPath('appData'), sharedUserDataDirName);
+    const userDataPath = userDataDirName
+        ? path.join(sharedUserDataPath, userDataDirName)
+        : sharedUserDataPath;
     const sessionDataPath = path.join(sharedUserDataPath, sessionDataDirName);
-    app.setPath('userData', sharedUserDataPath);
+    for (const storagePath of new Set([sharedUserDataPath, userDataPath, sessionDataPath])) {
+        mkdirSync(storagePath, { recursive: true });
+    }
+    app.setPath('userData', userDataPath);
     app.setPath('sessionData', sessionDataPath);
-    return { sharedUserDataPath, sessionDataPath };
+    return { sharedUserDataPath, userDataPath, sessionDataPath };
 }
 
 function initSessionDataSelfHeal({ sessionDataPath, processLabel }) {

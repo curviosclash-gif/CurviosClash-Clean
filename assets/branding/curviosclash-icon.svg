@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-labelledby="title desc">
+  <title id="title">CurviosClash product icon</title>
+  <desc id="desc">Two luminous curved trails collide inside a dark rounded arena.</desc>
+  <metadata>
+    Original geometric artwork created specifically for CurviosClash on 2026-07-13.
+    No external artwork, font, logo, or model was used.
+  </metadata>
+  <defs>
+    <linearGradient id="arena" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#071526"/>
+      <stop offset="0.55" stop-color="#111a3c"/>
+      <stop offset="1" stop-color="#230f35"/>
+    </linearGradient>
+    <linearGradient id="cyanTrail" x1="190" y1="800" x2="835" y2="180" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#087caa"/>
+      <stop offset="0.55" stop-color="#19d5ec"/>
+      <stop offset="1" stop-color="#d8ffff"/>
+    </linearGradient>
+    <linearGradient id="magentaTrail" x1="190" y1="205" x2="830" y2="820" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#ffb7f2"/>
+      <stop offset="0.5" stop-color="#f23fbd"/>
+      <stop offset="1" stop-color="#8a237e"/>
+    </linearGradient>
+    <radialGradient id="impact" cx="50%" cy="50%" r="50%">
+      <stop offset="0" stop-color="#ffffff"/>
+      <stop offset="0.3" stop-color="#c9ffff"/>
+      <stop offset="0.62" stop-color="#7de8ff" stop-opacity="0.75"/>
+      <stop offset="1" stop-color="#7de8ff" stop-opacity="0"/>
+    </radialGradient>
+    <filter id="glow" x="-40%" y="-40%" width="180%" height="180%">
+      <feGaussianBlur stdDeviation="18" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <rect x="54" y="54" width="916" height="916" rx="214" fill="url(#arena)"/>
+  <rect x="67" y="67" width="890" height="890" rx="201" fill="none" stroke="#80efff" stroke-opacity="0.28" stroke-width="8"/>
+  <circle cx="512" cy="512" r="334" fill="none" stroke="#b7f7ff" stroke-opacity="0.08" stroke-width="5"/>
+  <circle cx="512" cy="512" r="244" fill="none" stroke="#ff8cde" stroke-opacity="0.06" stroke-width="4"/>
+
+  <path d="M190 806 C250 604 352 423 492 334 C608 260 713 224 833 176"
+        fill="none" stroke="#20d9f1" stroke-opacity="0.22" stroke-width="104" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M190 806 C250 604 352 423 492 334 C608 260 713 224 833 176"
+        fill="none" stroke="url(#cyanTrail)" stroke-width="62" stroke-linecap="round"/>
+  <path d="M193 207 C344 296 403 388 493 512 C591 647 689 738 831 821"
+        fill="none" stroke="#f44bc4" stroke-opacity="0.22" stroke-width="104" stroke-linecap="round" filter="url(#glow)"/>
+  <path d="M193 207 C344 296 403 388 493 512 C591 647 689 738 831 821"
+        fill="none" stroke="url(#magentaTrail)" stroke-width="62" stroke-linecap="round"/>
+
+  <path d="M833 142 L897 174 L841 219 L814 178 Z" fill="#e9ffff"/>
+  <path d="M831 785 L894 832 L823 865 L810 817 Z" fill="#ffd7f6"/>
+
+  <circle cx="512" cy="512" r="126" fill="url(#impact)" filter="url(#glow)"/>
+  <path d="M512 390 L541 470 L624 430 L562 492 L642 522 L557 541 L598 624 L531 564 L493 646 L484 557 L397 594 L462 530 L381 493 L470 483 Z"
+        fill="#f7ffff" stroke="#8defff" stroke-width="9" stroke-linejoin="round"/>
+  <circle cx="512" cy="512" r="39" fill="#10223d" stroke="#ffffff" stroke-width="12"/>
+</svg>

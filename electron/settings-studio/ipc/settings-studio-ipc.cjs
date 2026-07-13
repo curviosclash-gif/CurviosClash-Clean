@@ -3,6 +3,7 @@ const { SettingsOverrideFileService } = require('../services/SettingsOverrideFil
 const { SettingsBackupService } = require('../services/SettingsBackupService.cjs');
 const { SettingsPrefsService } = require('../services/SettingsPrefsService.cjs');
 const { SettingsBrowserDemoPolicyService } = require('../services/SettingsBrowserDemoPolicyService.cjs');
+const { assertTrustedWindowSender } = require('../../ipc-sender-guard.cjs');
 
 const CHANNELS = Object.freeze({
     load: 'settings-studio:load',
@@ -30,7 +31,7 @@ function createValidationSnapshot(validationResult) {
     };
 }
 
-function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath }) {
+function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, getWindow }) {
     const fileService = new SettingsOverrideFileService({ app });
     const backupService = new SettingsBackupService({ app });
     const prefsService = new SettingsPrefsService({ app });
@@ -38,8 +39,14 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         app,
         projectRootPath: browserDemoProjectRootPath,
     });
+    const registerTrustedHandler = (channel, handler) => {
+        ipcMain.handle(channel, (event, ...args) => {
+            assertTrustedWindowSender(event, getWindow?.());
+            return handler(...args);
+        });
+    };
 
-    ipcMain.handle(CHANNELS.load, async () => {
+    registerTrustedHandler(CHANNELS.load, async () => {
         const prefs = prefsService.loadPrefs();
         const schema = await schemaService.getSchemaDescriptor();
         const fallbackDraft = await schemaService.createDraft();
@@ -99,7 +106,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         };
     });
 
-    ipcMain.handle(CHANNELS.validate, async (_event, draft) => {
+    registerTrustedHandler(CHANNELS.validate, async (draft) => {
         const validation = await schemaService.validateDraft(draft);
         return {
             ok: true,
@@ -108,7 +115,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         };
     });
 
-    ipcMain.handle(CHANNELS.save, async (_event, draft, browserDemoPolicyDraft = null) => {
+    registerTrustedHandler(CHANNELS.save, async (draft, browserDemoPolicyDraft = null) => {
         const validation = await schemaService.validateDraft(draft);
         const validationSnapshot = createValidationSnapshot(validation);
         const browserDemoFallbackDraft = await browserDemoPolicyService.createDraft();
@@ -189,7 +196,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         };
     });
 
-    ipcMain.handle(CHANNELS.listBackups, async (_event, options = {}) => {
+    registerTrustedHandler(CHANNELS.listBackups, async (options = {}) => {
         const result = await backupService.listBackups({
             limit: Number(options?.limit || 20),
         });
@@ -202,7 +209,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         };
     });
 
-    ipcMain.handle(CHANNELS.restoreBackup, async (_event, backupFileName) => {
+    registerTrustedHandler(CHANNELS.restoreBackup, async (backupFileName) => {
         const backupContent = await backupService.readBackupFile(backupFileName);
         const parsed = JSON.parse(backupContent);
         const validation = await schemaService.validateDraft(parsed);
@@ -232,7 +239,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         };
     });
 
-    ipcMain.handle(CHANNELS.getSchema, async () => {
+    registerTrustedHandler(CHANNELS.getSchema, async () => {
         const schema = await schemaService.getSchemaDescriptor();
         return {
             ok: true,
@@ -240,7 +247,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath })
         };
     });
 
-    ipcMain.handle(CHANNELS.setLanguage, async (_event, language) => {
+    registerTrustedHandler(CHANNELS.setLanguage, async (language) => {
         const normalized = normalizeLanguage(language);
         prefsService.savePrefs({ language: normalized });
         return {

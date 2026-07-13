@@ -19,6 +19,18 @@ npm --prefix server ci
 npm run server:start
 ```
 
+Das Settings Studio bleibt im Entwicklungsbetrieb separat startbar:
+
+```powershell
+npm run app:settings:start
+```
+
+Im fertigen Paket startet derselbe Programmeinstieg das Studio mit
+`release\win-unpacked\CurviosClash.exe --settings-studio`. Alternativ kann
+`START_CURVIOSCLASH.cmd --settings-studio` verwendet werden. Spiel und Studio
+verwenden getrennte Chromium-Profile, Sessions und Single-Instance-Locks, teilen
+aber bewusst die beschreibbaren Settings-Dateien unter dem Benutzerprofil.
+
 ## Entwicklung und Qualität
 
 ```powershell
@@ -46,7 +58,11 @@ npm run app:package
 
 Das Paket entsteht unter `release/`: als Installer und als `win-unpacked/CurviosClash.exe`. Die CI prüft Renderer, LAN-Signaling, Runtime-Module, Preload, Recording-FFmpeg sowie den Start mit einem isolierten Benutzerprofil. `release/`, `dist-app/`, Testausgaben, Logs und Abhängigkeiten werden nie committet.
 
-Signaturzertifikate und Passwörter werden ausschließlich außerhalb des Repositories bereitgestellt. Ohne Zertifikat bleibt ein lokales Paket unsigniert.
+Signaturzertifikate und Passwörter werden ausschließlich außerhalb des Repositories bereitgestellt. electron-builder verwendet dafür `WIN_CSC_LINK` und `WIN_CSC_KEY_PASSWORD` (alternativ `CSC_LINK` und `CSC_KEY_PASSWORD`). Es gibt keine Zertifikatspfade oder Secrets in der Paketkonfiguration. Ohne diese Variablen entsteht weiterhin ein funktionierender, aber bewusst unsignierter Installer.
+
+Das Windows-Icon unter `assets/branding/` wurde eigens aus geometrischen Formen
+erstellt. Die editierbare SVG-Quelle und der Herkunftsnachweis liegen direkt bei
+den abgeleiteten PNG- und ICO-Dateien; kein Asset aus Next wurde übernommen.
 
 ## Produktbereiche
 
