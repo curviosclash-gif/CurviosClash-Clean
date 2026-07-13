@@ -248,6 +248,10 @@ export class GameRuntimeSessionHandler {
 
     startMatch(options = undefined) {
         if (this._pendingStartMatch) {
+            if (options?.source === MATCH_START_COMMAND_SOURCE) {
+                const pendingStartMatch = this._pendingStartMatch;
+                return Promise.resolve(pendingStartMatch).then(() => this.startMatch(options));
+            }
             return this._pendingStartMatch;
         }
         const deferred = createDeferred();

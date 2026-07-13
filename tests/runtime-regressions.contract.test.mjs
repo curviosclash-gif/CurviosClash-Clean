@@ -11,6 +11,7 @@ import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { GameRuntimeCoordinator } from '../src/core/runtime/GameRuntimeCoordinator.js';
 import { toggleCinematicRecordingFromHotkey } from '../src/core/runtime/GameRuntimeRecordingSupport.js';
 import { GameRuntimeSessionHandler } from '../src/core/runtime/GameRuntimeSessionHandler.js';
+import { GameRuntimeSettingsHandler } from '../src/core/runtime/GameRuntimeSettingsHandler.js';
 import {
     clearActiveRuntimeConfig,
     createActiveRuntimeConfigReadPort,
@@ -2165,4 +2166,155 @@ test('GameRuntimeSessionHandler applies received LAN match-start commands locall
     assert.equal(calls.includes('requestMatchStart'), false);
     assert.equal(calls.includes('applyStart'), true);
     assert.equal(calls.includes('validation'), false);
+});
+
+test('GameRuntimeSettingsHandler aligns mode selections before authoritative menu sync', () => {
+    const uiCalls = [];
+    const game = {
+        settings: {
+            mapKey: 'mega_maze',
+            gameMode: 'HUNT',
+            localSettings: {
+                sessionType: 'multiplayer',
+                multiplayerTransport: 'storage-bridge',
+                modePath: 'fight',
+                startSetup: {
+                    modeSelections: {
+                        fight: {
+                            mapKey: 'mega_maze',
+                            vehicles: {
+                                PLAYER_1: 'ship5',
+                                PLAYER_2: 'ship5',
+                            },
+                        },
+                    },
+                },
+            },
+        },
+        settingsManager: {
+            applyMenuCompatibilityRules() {
+                return { changedKeys: [] };
+            },
+        },
+        uiManager: {
+            syncAll() {
+                uiCalls.push('syncAll');
+                game.settings.mapKey = game.settings.localSettings.startSetup.modeSelections.fight.mapKey;
+            },
+            updateContext() {
+                uiCalls.push('updateContext');
+            },
+        },
+        ui: {},
+    };
+    const handler = new GameRuntimeSettingsHandler({
+        facade: {
+            game,
+            _resolveMenuAccessContext: () => ({ isOwner: true }),
+        },
+    });
+
+    handler.applyAuthoritativeMultiplayerMatchSettings({
+        mapKey: 'maze',
+        localSettings: {
+            sessionType: 'multiplayer',
+            multiplayerTransport: 'storage-bridge',
+            modePath: 'fight',
+        },
+    });
+
+    assert.equal(game.settings.mapKey, 'maze');
+    assert.equal(game.settings.localSettings.startSetup.modeSelections.fight.mapKey, 'maze');
+    assert.deepEqual(uiCalls, ['syncAll', 'updateContext']);
+    assert.equal(game.settingsDirty, false);
+});
+
+test('GameRuntimeSessionHandler queues a synchronous authoritative lobby start behind the host request', async () => {
+    const calls = [];
+    let handler = null;
+    let authoritativeStartPromise = null;
+    const game = {
+        state: null,
+        settings: {
+            localSettings: {
+                sessionType: 'multiplayer',
+                multiplayerTransport: 'storage-bridge',
+            },
+        },
+        uiManager: {
+            clearStartValidationError() {},
+        },
+    };
+    const facade = {
+        game,
+        menuMultiplayerBridge: {
+            requestMatchStart() {
+                calls.push('requestMatchStart');
+                authoritativeStartPromise = handler.startMatch({
+                    source: 'menu_multiplayer_bridge',
+                    commandId: 'match-sync',
+                    settingsSnapshot: {
+                        mapKey: 'maze',
+                        localSettings: {
+                            sessionType: 'multiplayer',
+                            multiplayerTransport: 'storage-bridge',
+                        },
+                    },
+                });
+                return { ok: true };
+            },
+        },
+        _clearMatchPrewarmTimer() {},
+        _applyAuthoritativeMultiplayerMatchSettings(snapshot = {}) {
+            game.settings = {
+                ...game.settings,
+                ...snapshot,
+                localSettings: {
+                    ...(game.settings.localSettings || {}),
+                    ...(snapshot.localSettings || {}),
+                },
+            };
+        },
+        _applySettingsToRuntimeInternal() {
+            return true;
+        },
+        settingsHandler: {
+            applySurfacePolicyStartDefaults() {},
+        },
+        _recordMenuTelemetry() {},
+        _resolveStartValidationIssue() {
+            return null;
+        },
+        getUiManager() {
+            return game.uiManager;
+        },
+        getPorts() {
+            return {
+                runtimeProjectionPort: {
+                    getSessionRuntimeSnapshot: () => ({
+                        lifecycleState: 'menu',
+                        finalizeState: 'idle',
+                        pendingFinalizeTrigger: '',
+                    }),
+                },
+                matchUiPort: {
+                    applyStartMatchProjection() {
+                        calls.push('applyStart');
+                        game.state = 'PLAYING';
+                        return true;
+                    },
+                },
+            };
+        },
+    };
+    handler = new GameRuntimeSessionHandler({ facade, logger: console });
+
+    const hostRequestResult = await handler.startMatch();
+    const authoritativeResult = await authoritativeStartPromise;
+
+    assert.equal(hostRequestResult, true);
+    assert.equal(authoritativeResult, true);
+    assert.equal(game.state, 'PLAYING');
+    assert.equal(game.settings.mapKey, 'maze');
+    assert.deepEqual(calls, ['requestMatchStart', 'applyStart']);
 });

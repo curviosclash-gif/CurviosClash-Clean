@@ -243,6 +243,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T20d: Multiplayer-Bridge emittiert lifecycle.v1 Event-Contract', async ({ page }) => {
         await page.context().addInitScript(() => {
             globalThis.__CURVIOS_APP__ = true;
+            globalThis.__CURVIOS_E2E_LOBBY_TRANSPORT__ = 'storage-bridge';
         });
         await loadGame(page);
         const multiplayerActive = await openMultiplayerSubmenu(page);
@@ -289,6 +290,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T20d1: Multiplayer-Lobby synchronisiert Join, Ready und Host-Invalidation ueber zwei Tabs', async ({ page }) => {
         await page.context().addInitScript(() => {
             globalThis.__CURVIOS_APP__ = true;
+            globalThis.__CURVIOS_E2E_LOBBY_TRANSPORT__ = 'storage-bridge';
         });
         const secondPage = await page.context().newPage();
         try {
@@ -348,6 +350,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         test.setTimeout(120000);
         await page.context().addInitScript(() => {
             globalThis.__CURVIOS_APP__ = true;
+            globalThis.__CURVIOS_E2E_LOBBY_TRANSPORT__ = 'storage-bridge';
         });
         const secondPage = await page.context().newPage();
         try {

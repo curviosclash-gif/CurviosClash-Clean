@@ -1,5 +1,10 @@
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
-import { SETTINGS_CHANGE_KEYS } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import {
+    HANGAR_SELECTION_PLAYER_SLOTS,
+    SETTINGS_CHANGE_KEYS,
+    writeHangarMapSelection,
+    writeHangarVehicleSelection,
+} from '../../composition/core-ui/CoreUiMenuPorts.js';
 import { CONFIG } from '../Config.js';
 import { MATCH_SETTING_CHANGE_KEY_SET, START_VALIDATION_RELEVANT_KEY_SET } from './GameRuntimeSettingsKeySets.js';
 import { resolveMatchStartValidationIssue } from './MatchStartValidationService.js';
@@ -30,6 +35,23 @@ export class GameRuntimeSettingsHandler {
             game.settings,
             { accessContext: this._facade?._resolveMenuAccessContext?.() }
         );
+        const modePath = game.settings?.localSettings?.modePath;
+        writeHangarMapSelection(
+            game.settings,
+            game.settings.mapKey,
+            game.settings.mapKey,
+            { modePath }
+        );
+        for (const playerSlot of Object.values(HANGAR_SELECTION_PLAYER_SLOTS)) {
+            const vehicleId = game.settings?.vehicles?.[playerSlot];
+            writeHangarVehicleSelection(
+                game.settings,
+                playerSlot,
+                vehicleId,
+                vehicleId,
+                { modePath }
+            );
+        }
         this.markSettingsDirty(false);
         game.uiManager?.syncAll?.();
         game.uiManager?.updateContext?.();

@@ -10,6 +10,11 @@ export { guardMenuRuntimeEvent, resolveMenuAccessContext } from '../../ui/menu/M
 export { getNextEventPlaylistEntry } from '../../ui/menu/EventPlaylistCatalog.js';
 export { LEVEL4_SECTION_IDS } from '../../ui/menu/MenuStateContracts.js';
 export { createMenuLevel3ResetDefaults } from '../../ui/menu/MenuDefaultsEditorConfig.js';
+export {
+    HANGAR_SELECTION_PLAYER_SLOTS,
+    writeHangarMapSelection,
+    writeHangarVehicleSelection,
+} from '../../ui/hangar/HangarSelectionWritebackContract.js';
 export { MenuMultiplayerBridge } from '../../ui/menu/MenuMultiplayerBridge.js';
 export { LanMenuMultiplayerBridge } from './LanMenuMultiplayerBridge.js';
 export {

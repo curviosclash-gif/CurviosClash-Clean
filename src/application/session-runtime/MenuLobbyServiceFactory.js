@@ -18,6 +18,12 @@ function resolveRuntimeGlobal(runtime = null) {
 
 function resolveDefaultTransport(runtime = null) {
     const runtimeGlobal = resolveRuntimeGlobal(runtime);
+    const e2eTransport = typeof __CURVIOS_E2E__ !== 'undefined' && __CURVIOS_E2E__ === true
+        ? normalizeLobbyServiceTransport(runtimeGlobal?.__CURVIOS_E2E_LOBBY_TRANSPORT__, '')
+        : '';
+    if (e2eTransport) {
+        return e2eTransport;
+    }
     return resolveDefaultLobbyTransport({
         runtimeGlobal,
         // Adapter-Snapshot statt Raw-Globals: sonst faellt die Desktop-App auf Browser-Demo-Defaults zurueck.
