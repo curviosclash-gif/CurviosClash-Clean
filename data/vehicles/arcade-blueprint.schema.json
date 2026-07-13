@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "arcade-blueprint-v1",
+  "requiredSlots": [
+    "core",
+    "nose",
+    "wing_left",
+    "wing_right",
+    "engine_left",
+    "engine_right"
+  ],
+  "hitboxClasses": {
+    "compact": {
+      "maxWidth": 4.8,
+      "maxHeight": 2.4,
+      "maxLength": 7.2,
+      "maxRadius": 1.25
+    },
+    "standard": {
+      "maxWidth": 6.0,
+      "maxHeight": 3.0,
+      "maxLength": 8.5,
+      "maxRadius": 1.55
+    },
+    "heavy": {
+      "maxWidth": 7.0,
+      "maxHeight": 3.8,
+      "maxLength": 10.0,
+      "maxRadius": 1.85
+    }
+  },
+  "defaultBudgets": {
+    "editorBudget": 100,
+    "massBudget": 90,
+    "powerBudget": 96,
+    "heatBudget": 88
+  }
+}

@@ -1,0 +1,35 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "types": ["node"]
+  },
+  "files": [
+    "src/core/AppInitializer.js",
+    "src/core/PlaytestLaunchParams.js",
+    "src/core/RuntimeErrorOverlay.js",
+    "src/core/runtime/ActiveRuntimeConfigStore.js",
+    "src/core/runtime/menu-handlers/CreateMenuEventHandlerRegistry.js",
+    "src/core/runtime/menu-handlers/DeveloperMenuEventHandlers.js",
+    "src/core/runtime/menu-handlers/MultiplayerMenuEventHandlers.js",
+    "src/core/runtime/menu-handlers/PresetMenuEventHandlers.js",
+    "src/core/runtime/menu-handlers/ProfileMenuEventHandlers.js",
+    "src/core/runtime/menu-handlers/SessionMenuEventHandlers.js",
+    "src/shared/contracts/GameStateIds.js",
+    "src/shared/contracts/MenuControllerContract.js",
+    "src/shared/contracts/ShadowQualityContract.js",
+    "src/shared/runtime/GameRuntimePorts.js",
+    "src/ui/dom/GameUiDomRefs.js",
+    "src/ui/dom/MessageStatsDom.js",
+    "src/ui/dom/ProfileSelectDom.js",
+    "scripts/architecture/ArchitectureConfig.mjs",
+    "scripts/architecture/ArchitectureAnalysis.mjs",
+    "scripts/architecture-report.mjs",
+    "scripts/check-architecture-boundaries.mjs",
+    "scripts/check-architecture-metrics.mjs"
+  ],
+  "exclude": [
+    "dist",
+    "node_modules",
+    "tests"
+  ]
+}

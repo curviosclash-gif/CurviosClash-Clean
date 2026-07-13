@@ -1,0 +1,13 @@
+{
+  "name": "curviosclash-signaling",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Signaling server for CurviosClash multiplayer",
+  "scripts": {
+    "start": "node signaling-server.js",
+    "start:lan": "node lan-signaling.js"
+  },
+  "dependencies": {
+    "ws": "^8.16.0"
+  }
+}

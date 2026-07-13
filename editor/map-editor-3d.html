@@ -1,0 +1,996 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Curvios Clash 3D Map Editor</title>
+    <style>
+        :root {
+            --bg-0: #020617;
+            --bg-1: #030712;
+            --panel: rgba(11, 19, 36, 0.86);
+            --panel-solid: #08111f;
+            --border: #1f2937;
+            --text: #e5e7eb;
+            --muted: #9ca3af;
+            --accent: #60a5fa;
+            --danger: #f97373;
+            --safe: #34d399;
+            --dock-bg: rgba(3, 7, 18, 0.9);
+            --card-bg: rgba(12, 18, 32, 0.88);
+            --card-muted: rgba(148, 163, 184, 0.14);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html,
+        body {
+            height: 100%;
+        }
+
+        body {
+            margin: 0;
+            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            color: var(--text);
+            background:
+                radial-gradient(circle at top, rgba(96, 165, 250, 0.14), transparent 34%),
+                linear-gradient(180deg, var(--bg-0) 0%, var(--bg-1) 100%);
+            overflow: hidden;
+        }
+
+        button,
+        input,
+        select,
+        textarea {
+            font: inherit;
+        }
+
+        .wrap {
+            display: grid;
+            grid-template-columns: 340px minmax(0, 1fr);
+            gap: 14px;
+            padding: 12px;
+            height: 100%;
+        }
+
+        .panel {
+            background: linear-gradient(180deg, var(--panel), rgba(2, 6, 23, 0.96));
+            border: 1px solid var(--border);
+            border-radius: 22px;
+            padding: 14px;
+            box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
+            backdrop-filter: blur(12px);
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+            min-height: 0;
+            overflow-y: auto;
+            z-index: 10;
+        }
+
+        h1 {
+            font-size: 18px;
+            margin: 0 0 4px 0;
+            letter-spacing: 0.02em;
+        }
+
+        strong.sectionTitle {
+            font-size: 12px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+        }
+
+        .sub {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.45;
+            margin: 0;
+        }
+
+        button {
+            appearance: none;
+            border: 1px solid #25324a;
+            background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
+            color: var(--text);
+            padding: 7px 10px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 12px;
+            cursor: pointer;
+            transition: transform .08s ease, border-color .15s ease, background .15s ease, box-shadow .15s ease;
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+            border-color: #3b82f6;
+        }
+
+        button:active {
+            transform: translateY(0) scale(.99);
+        }
+
+        button.small {
+            font-size: 11px;
+            padding: 5px 8px;
+        }
+
+        button.active {
+            border-color: var(--accent);
+            background: linear-gradient(180deg, rgba(30, 64, 175, 0.52), rgba(2, 6, 23, 0.94));
+            box-shadow: 0 0 0 1px rgba(96, 165, 250, 0.24);
+        }
+
+        .panelSection {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-height: 0;
+        }
+
+        .inspectorHero {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .toolStatusCard {
+            border: 1px solid rgba(96, 165, 250, 0.2);
+            border-radius: 18px;
+            padding: 12px;
+            background:
+                linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(9, 17, 31, 0.94));
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            padding: 3px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.24);
+            background: rgba(2, 6, 23, 0.82);
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: #cbd5e1;
+            width: fit-content;
+        }
+
+        .toolStatusTitle {
+            font-size: 18px;
+            font-weight: 700;
+            line-height: 1.15;
+        }
+
+        .row {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px;
+            align-items: center;
+            padding: 5px 0;
+            border-top: 1px dashed rgba(31, 41, 55, 0.9);
+        }
+
+        .row:first-of-type {
+            border-top: none;
+        }
+
+        label {
+            font-size: 12px;
+            color: var(--muted);
+        }
+
+        input[type="range"] {
+            width: 120px;
+        }
+
+        input[type="number"],
+        select {
+            width: auto;
+            min-width: 82px;
+            background: rgba(2, 6, 23, 0.9);
+            border: 1px solid var(--border);
+            color: var(--text);
+            border-radius: 9px;
+            padding: 5px 8px;
+            font-size: 12px;
+        }
+
+        textarea {
+            width: 100%;
+            min-height: 92px;
+            resize: vertical;
+            background: rgba(2, 6, 23, 0.92);
+            border-radius: 12px;
+            border: 1px solid #1f2937;
+            color: var(--text);
+            font-size: 11px;
+            padding: 8px 10px;
+            font-family: ui-monospace, monospace;
+        }
+
+        .canvasShell {
+            position: relative;
+            border-radius: 22px;
+            border: 1px solid #111827;
+            overflow: hidden;
+            background:
+                radial-gradient(circle at top, rgba(59, 130, 246, 0.08), transparent 28%),
+                #020617;
+            box-shadow: 0 24px 48px rgba(0, 0, 0, 0.55);
+            min-height: 0;
+        }
+
+        #threeCanvas {
+            width: 100%;
+            height: 100%;
+            display: block;
+        }
+
+        .hud {
+            position: absolute;
+            left: 14px;
+            bottom: 236px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            pointer-events: none;
+        }
+
+        .help {
+            position: absolute;
+            right: 14px;
+            top: 14px;
+            max-width: 340px;
+            background: rgba(2, 6, 23, 0.78);
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            padding: 10px 12px;
+            border-radius: 14px;
+            font-size: 11px;
+            color: #9ca3af;
+            pointer-events: none;
+            line-height: 1.45;
+            backdrop-filter: blur(4px);
+        }
+
+        .kbd {
+            font-family: ui-monospace, monospace;
+            font-size: 10px;
+            padding: 1px 4px;
+            border-radius: 4px;
+            background: #111827;
+            border: 1px solid #374151;
+            color: #e5e7eb;
+        }
+
+        #propPanel {
+            display: none;
+            background: rgba(11, 19, 36, 0.95);
+            border: 1px solid rgba(96, 165, 250, 0.34);
+            border-radius: 14px;
+            padding: 10px;
+            margin-top: 4px;
+        }
+
+        .splitActions {
+            display: flex;
+            gap: 6px;
+            flex-wrap: wrap;
+        }
+
+        .jsonSection {
+            flex: 1 1 auto;
+            min-height: 210px;
+        }
+
+        #legacyBuildInputs {
+            display: none;
+        }
+
+        #buildDock {
+            position: absolute;
+            left: 12px;
+            right: 12px;
+            bottom: 12px;
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 14px;
+            border-radius: 20px;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            background:
+                linear-gradient(180deg, rgba(15, 23, 42, 0.92), var(--dock-bg));
+            box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
+            backdrop-filter: blur(18px);
+        }
+
+        .dockHeader {
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: flex-start;
+        }
+
+        .dockHeading {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            min-width: 0;
+        }
+
+        .dockHeadingTitle {
+            font-size: 19px;
+            font-weight: 700;
+            line-height: 1.1;
+        }
+
+        .dockHeadingDescription {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.45;
+            max-width: 560px;
+        }
+
+        .dockActions {
+            display: flex;
+            gap: 8px;
+            flex-wrap: wrap;
+            justify-content: flex-end;
+        }
+
+        .dockShortcutGrid {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 10px;
+        }
+
+        .dockShortcutPanel {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            min-width: 0;
+        }
+
+        .dockShortcutLabel {
+            font-size: 10px;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+        }
+
+        .dockMiniList {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .dockMiniList::-webkit-scrollbar,
+        .dockCards::-webkit-scrollbar,
+        .dockCategoryTabs::-webkit-scrollbar {
+            height: 7px;
+        }
+
+        .dockMiniList::-webkit-scrollbar-thumb,
+        .dockCards::-webkit-scrollbar-thumb,
+        .dockCategoryTabs::-webkit-scrollbar-thumb {
+            background: rgba(96, 165, 250, 0.24);
+            border-radius: 999px;
+        }
+
+        .dockShortcutEmpty {
+            display: inline-flex;
+            align-items: center;
+            min-height: 42px;
+            padding: 0 12px;
+            color: var(--muted);
+            border: 1px dashed rgba(148, 163, 184, 0.2);
+            border-radius: 12px;
+            font-size: 12px;
+        }
+
+        .dockMiniCard {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            min-width: max-content;
+            padding: 7px 10px;
+            background: rgba(12, 18, 32, 0.88);
+            border-color: rgba(148, 163, 184, 0.18);
+        }
+
+        .dockMiniCard.is-active,
+        .dockMiniCard.is-selected {
+            border-color: var(--entry-accent);
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.05), 0 0 0 2px rgba(96, 165, 250, 0.14);
+        }
+
+        .dockMiniGlyph {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 28px;
+            height: 28px;
+            border-radius: 10px;
+            background: rgba(15, 23, 42, 0.96);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            font-size: 11px;
+            letter-spacing: 0.04em;
+        }
+
+        .dockMiniLabelGroup {
+            display: inline-flex;
+            flex-direction: column;
+            gap: 3px;
+            align-items: flex-start;
+        }
+
+        .dockMiniLabel {
+            font-size: 12px;
+            color: #e2e8f0;
+        }
+
+        .dockMiniState {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 18px;
+            padding: 1px 6px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            font-size: 9px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.72);
+        }
+
+        .dockCategoryTabs {
+            display: flex;
+            gap: 8px;
+            overflow-x: auto;
+            padding-bottom: 2px;
+        }
+
+        .dockCategoryTab {
+            min-width: 140px;
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+            align-items: center;
+            background: rgba(12, 18, 32, 0.82);
+            border-color: rgba(148, 163, 184, 0.18);
+        }
+
+        .dockCategoryTab.active {
+            border-color: var(--entry-accent);
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 0 2px rgba(96, 165, 250, 0.12);
+        }
+
+        .dockCategoryLabel {
+            font-size: 12px;
+            font-weight: 700;
+        }
+
+        .dockCategoryCount {
+            font-size: 11px;
+            color: #bfdbfe;
+        }
+
+        .dockCards {
+            display: grid;
+            grid-auto-flow: column;
+            grid-auto-columns: minmax(180px, 180px);
+            gap: 10px;
+            overflow-x: auto;
+            padding-bottom: 4px;
+        }
+
+        .buildCard {
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            min-height: 176px;
+            padding: 12px;
+            background: var(--card-bg);
+            border-color: rgba(148, 163, 184, 0.18);
+            text-align: left;
+        }
+
+        .buildCard.is-active {
+            border-color: var(--entry-accent);
+            box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 0 2px rgba(96, 165, 250, 0.14);
+            transform: translateY(-2px);
+        }
+
+        .buildCard.is-selected {
+            border-color: rgba(191, 219, 254, 0.42);
+        }
+
+        .buildCardPreview {
+            position: relative;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 68px;
+            border-radius: 16px;
+            background:
+                radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.14), transparent 46%),
+                linear-gradient(135deg, rgba(15, 23, 42, 0.98), rgba(17, 24, 39, 0.88));
+            border: 1px solid rgba(148, 163, 184, 0.12);
+            overflow: hidden;
+        }
+
+        .buildCardPreview::after {
+            content: "";
+            position: absolute;
+            inset: 10px;
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .buildCardPreviewGlyph {
+            position: relative;
+            z-index: 1;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 52px;
+            min-height: 52px;
+            padding: 8px 12px;
+            border-radius: 16px;
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.75), rgba(2, 6, 23, 0.82));
+            color: #e2e8f0;
+            font-size: 18px;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+        }
+
+        .buildCardBody {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        .buildCardTitleRow {
+            display: flex;
+            justify-content: space-between;
+            gap: 8px;
+            align-items: flex-start;
+        }
+
+        .buildCardTitle {
+            font-size: 13px;
+            font-weight: 700;
+            line-height: 1.2;
+        }
+
+        .buildCardBadge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            padding: 2px 6px;
+            border-radius: 999px;
+            background: var(--card-muted);
+            color: #cbd5e1;
+            font-size: 10px;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            white-space: nowrap;
+        }
+
+        .buildCardDescription {
+            font-size: 12px;
+            color: var(--muted);
+            line-height: 1.45;
+        }
+
+        .buildCardFooter {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            margin-top: auto;
+            padding-top: 4px;
+        }
+
+        .buildCardState {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: fit-content;
+            min-height: 20px;
+            padding: 2px 8px;
+            border-radius: 999px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            font-size: 10px;
+            letter-spacing: 0.08em;
+            text-transform: uppercase;
+            color: #cbd5e1;
+            background: rgba(15, 23, 42, 0.78);
+        }
+
+        .buildCardStateDetail {
+            font-size: 11px;
+            line-height: 1.4;
+            color: #94a3b8;
+        }
+
+        .state-loaded {
+            border-color: rgba(52, 211, 153, 0.35);
+            color: #bbf7d0;
+            background: rgba(5, 46, 22, 0.48);
+        }
+
+        .state-loading {
+            border-color: rgba(96, 165, 250, 0.35);
+            color: #bfdbfe;
+            background: rgba(30, 41, 59, 0.58);
+        }
+
+        .state-placeholder {
+            border-color: rgba(251, 191, 36, 0.32);
+            color: #fde68a;
+            background: rgba(69, 26, 3, 0.52);
+        }
+
+        .state-timeout,
+        .state-error {
+            border-color: rgba(249, 115, 115, 0.35);
+            color: #fecaca;
+            background: rgba(69, 10, 10, 0.55);
+        }
+
+        .state-builtin {
+            border-color: rgba(148, 163, 184, 0.22);
+            color: #e2e8f0;
+            background: rgba(30, 41, 59, 0.52);
+        }
+
+        .buildCard[data-asset-state="timeout"],
+        .buildCard[data-asset-state="error"] {
+            box-shadow: inset 0 0 0 1px rgba(248, 113, 113, 0.14);
+        }
+
+        @media (max-width: 1200px) {
+            .wrap {
+                grid-template-columns: 300px minmax(0, 1fr);
+            }
+
+            .dockCards {
+                grid-auto-columns: minmax(170px, 170px);
+            }
+        }
+
+        @media (max-width: 960px) {
+            body {
+                overflow: auto;
+            }
+
+            .wrap {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto minmax(720px, 1fr);
+                height: auto;
+                min-height: 100%;
+            }
+
+            .panel {
+                max-height: none;
+            }
+
+            .dockShortcutGrid {
+                grid-template-columns: 1fr;
+            }
+
+            .hud {
+                bottom: 260px;
+            }
+
+            .help {
+                max-width: 280px;
+            }
+        }
+
+        @media (max-width: 720px) {
+            .wrap {
+                padding: 8px;
+                gap: 8px;
+            }
+
+            .panel,
+            .canvasShell {
+                border-radius: 18px;
+            }
+
+            #buildDock {
+                left: 8px;
+                right: 8px;
+                bottom: 8px;
+                padding: 12px;
+            }
+
+            .dockHeader {
+                flex-direction: column;
+            }
+
+            .dockActions {
+                justify-content: flex-start;
+            }
+
+            .dockCards {
+                grid-auto-columns: minmax(156px, 156px);
+            }
+        }
+    </style>
+
+    <!-- Three.js wird ueber Vite aus node_modules aufgeloest -->
+</head>
+
+<body>
+    <div class="wrap">
+        <div class="panel">
+            <div class="panelSection">
+                <div class="inspectorHero">
+                    <div>
+                        <h1>Curvios Clash 3D Editor</h1>
+                        <p class="sub">
+                            Nutze das Build-Dock unten fuer Kategorien und Karten. Die Szene bleibt frei fuer Platzierung,
+                            Auswahl und Playtest.
+                        </p>
+                    </div>
+                    <button id="btnDelSelected" class="small" style="color: var(--danger);">Ausgewaehltes loeschen</button>
+                </div>
+                <div class="row" style="padding-top: 0;">
+                    <label>Asset-Status</label>
+                    <span id="assetStatusText" style="font-size: 12px; color: var(--muted);">Nicht geladen</span>
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Aktiver Modus</strong>
+                <div class="toolStatusCard">
+                    <span class="badge" id="inspectorToolModeBadge">Auswahl</span>
+                    <div class="toolStatusTitle" id="inspectorToolTitle">Auswahl / Bewegen</div>
+                    <p class="sub" id="inspectorToolDescription">
+                        Unten eine Karte anklicken und dann in die Szene klicken, um Objekte zu platzieren.
+                    </p>
+                </div>
+            </div>
+
+            <div id="legacyBuildInputs" aria-hidden="true">
+                <div id="subSpawn" class="sub-menu">
+                    <select id="selSpawnType">
+                        <option value="player">Player Spawn</option>
+                        <option value="bot">Bot Spawn</option>
+                    </select>
+                </div>
+
+                <div id="subTunnel" class="sub-menu">
+                    <select id="selTunnelType">
+                        <option value="trail_segment" selected>Trail Segment</option>
+                        <option value="trail_arrow">Trail Arrow</option>
+                        <option value="">Primitive Zylinder</option>
+                    </select>
+                </div>
+
+                <div id="subPortal" class="sub-menu">
+                    <select id="selPortalType">
+                        <option value="portal_ring" selected>Ring</option>
+                        <option value="portal_cross">Cross</option>
+                        <option value="portal_diamond">Diamond</option>
+                        <option value="portal_hex">Hex</option>
+                        <option value="portal_octagon">Octagon</option>
+                        <option value="portal_square">Square</option>
+                        <option value="portal_star">Star</option>
+                        <option value="portal_triangle">Triangle</option>
+                        <option value="">Primitive Torus</option>
+                    </select>
+                </div>
+
+                <div id="subItem" class="sub-menu">
+                    <select id="selItemType">
+                        <option value="item_crystal">Kristall</option>
+                        <option value="item_star">Stern</option>
+                        <option value="item_battery">Batterie</option>
+                        <option value="item_shield">Schild</option>
+                        <option value="item_box">Item-Box</option>
+                        <option value="item_pyramid">Pyramide</option>
+                        <option value="item_arrow">Pfeil</option>
+                        <option value="item_capsule">Kapsel</option>
+                        <option value="item_coin">Muenze</option>
+                        <option value="item_crate">Kiste</option>
+                        <option value="item_gem">Edelstein</option>
+                        <option value="item_health">Medipack</option>
+                        <option value="item_orb">Kugel</option>
+                        <option value="item_ring">Ring</option>
+                        <option value="item_rocket">Rakete</option>
+                        <option value="item_sphere">Sphaere</option>
+                        <option value="item_torus">Torus</option>
+                    </select>
+                </div>
+
+                <div id="subAircraft" class="sub-menu">
+                    <select id="selAircraftType">
+                        <option value="jet_wwi">WWI Airplane</option>
+                        <option value="jet_funky_low">Funky Aircraft Low</option>
+                        <option value="jet_funky_high">Funky Aircraft High</option>
+                        <option value="jet_funky_control">Funky Aircraft Control</option>
+                        <option value="jet_pinnace_lo">Pinnace Lo</option>
+                        <option value="jet_ship1">Ship 1</option>
+                        <option value="jet_ship2">Ship 2</option>
+                        <option value="jet_ship3">Ship 3</option>
+                        <option value="jet_ship4">Ship 4</option>
+                        <option value="jet_ship5" selected>Ship 5</option>
+                        <option value="jet_ship6">Ship 6</option>
+                        <option value="jet_ship7">Ship 7</option>
+                        <option value="jet_ship8">Ship 8</option>
+                        <option value="jet_ship9">Ship 9</option>
+                    </select>
+                </div>
+            </div>
+
+            <div id="propPanel">
+                <strong class="sectionTitle" style="color: #bfdbfe;">Eigenschaften</strong>
+                <div class="row" id="propSizeRow" style="display: none;">
+                    <label>Groesse / Radius</label>
+                    <input id="propSize" type="number" step="10" />
+                </div>
+                <div class="row" id="propWidthRow" style="display: none;">
+                    <label>Breite (X)</label>
+                    <input id="propWidth" type="number" step="10" />
+                </div>
+                <div class="row" id="propDepthRow" style="display: none;">
+                    <label>Tiefe (Z)</label>
+                    <input id="propDepth" type="number" step="10" />
+                </div>
+                <div class="row" id="propHeightRow" style="display: none;">
+                    <label>Hoehe (Y-Scale)</label>
+                    <input id="propHeight" type="number" step="10" />
+                </div>
+                <div class="row" id="propScaleRow" style="display: none;">
+                    <label>Skalierung</label>
+                    <input id="propScale" type="number" step="0.1" min="0.1" />
+                </div>
+                <div class="row">
+                    <label>Y-Position</label>
+                    <input id="propY" type="number" step="10" />
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Ansicht und Raster</strong>
+                <div class="row">
+                    <label>Snap to Grid</label>
+                    <input id="chkSnap" type="checkbox" />
+                </div>
+                <div class="row">
+                    <label>Grid-Groesse</label>
+                    <input id="numGrid" type="number" value="50" step="10" />
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Arena Rahmen</strong>
+                <div class="row">
+                    <label>Breite (X)</label>
+                    <input id="numArenaW" type="number" value="2800" step="100" />
+                </div>
+                <div class="row">
+                    <label>Tiefe (Z)</label>
+                    <input id="numArenaD" type="number" value="2400" step="100" />
+                </div>
+                <div class="row">
+                    <label>Hoehe (Y)</label>
+                    <input id="numArenaH" type="number" value="950" step="50" />
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Hoehen-Ebene</strong>
+                <div class="row">
+                    <label>Bauen auf dieser Ebene</label>
+                    <input id="chkYLayer" type="checkbox" />
+                </div>
+                <div class="row">
+                    <label>Y-Hoehe</label>
+                    <input id="numYLayer" type="number" value="0" step="10" />
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Kamera</strong>
+                <div class="row">
+                    <label>Fly Mode (WASD)</label>
+                    <input id="chkFly" type="checkbox" />
+                </div>
+            </div>
+
+            <div class="panelSection jsonSection">
+                <strong class="sectionTitle">Speichern und Export</strong>
+                <button id="btnSaveToGame"
+                    style="margin: 2px 0; background-color: #10b981; color: white; border: none;">
+                    Im Spieleordner speichern
+                </button>
+                <button id="btnPlaytest"
+                    style="margin: 2px 0; background-color: #2563eb; color: white; border: none;">
+                    Map im Browser spielen
+                </button>
+                <div class="row" style="margin-top: 2px;">
+                    <label>Playtest-Modus</label>
+                    <select id="selPlaytestMode">
+                        <option value="3d" selected>3D</option>
+                        <option value="planar">Planar</option>
+                    </select>
+                </div>
+                <div class="splitActions">
+                    <button id="btnUndo" class="small" title="Undo (Strg+Z)" disabled>Undo</button>
+                    <button id="btnRedo" class="small" title="Redo (Strg+Y / Strg+Shift+Z)" disabled>Redo</button>
+                    <button id="btnExport" class="small">Export JSON</button>
+                    <button id="btnImport" class="small">Import JSON</button>
+                    <button id="btnNew" class="small">Neu</button>
+                </div>
+                <textarea id="jsonOutput" spellcheck="false"></textarea>
+            </div>
+        </div>
+
+        <div class="canvasShell">
+            <div id="threeCanvas"></div>
+
+            <div class="help">
+                <span class="kbd">Maus links</span> = Auswaehlen / Platzieren<br>
+                <span class="kbd">Maus rechts</span> = Kamera drehen<br>
+                <span class="kbd">Mausrad</span> = Zoom<br>
+                <span class="kbd">T</span> = Bewegen | <span class="kbd">R</span> = Rotieren<br>
+                <span class="kbd">Strg+C / Strg+V</span> = Duplizieren<br>
+                <span class="kbd">Strg+Z / Strg+Y</span> = Undo / Redo<br>
+                <span class="kbd">Entf</span> = Loeschen<br><br>
+                <em>Bei Tunneln wird jeder Punkt einzeln gesetzt und im Export als Start-End-Paar verknuepft.</em>
+            </div>
+
+            <div class="hud" id="hud">
+                <span class="badge" id="hudObjCount">Objekte: 0</span>
+            </div>
+
+            <div id="buildDock">
+                <div class="dockHeader">
+                    <div class="dockHeading">
+                        <span class="badge" id="dockModeBadge">Auswahl</span>
+                        <div class="dockHeadingTitle" id="dockActiveTitle">Auswahl / Bewegen</div>
+                        <div class="dockHeadingDescription" id="dockActiveDescription">
+                            Nutze Kategorien, Schnellzugriff und Karten, um sofort in den Platzierungsfluss zu gehen.
+                        </div>
+                    </div>
+                    <div class="dockActions">
+                        <button id="btnDockSelectMode" class="small active">Auswahl</button>
+                        <button id="btnDockFavoriteToggle" class="small">Favorit merken</button>
+                    </div>
+                </div>
+
+                <div class="dockShortcutGrid">
+                    <div class="dockShortcutPanel">
+                        <div class="dockShortcutLabel">Zuletzt benutzt</div>
+                        <div class="dockMiniList" id="dockRecentList"></div>
+                    </div>
+                    <div class="dockShortcutPanel">
+                        <div class="dockShortcutLabel">Favoriten</div>
+                        <div class="dockMiniList" id="dockFavoriteList"></div>
+                    </div>
+                </div>
+
+                <div class="dockCategoryTabs" id="dockCategoryTabs"></div>
+                <div class="dockCards" id="dockCards"></div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./js/main.js"></script>
+</body>
+
+</html>

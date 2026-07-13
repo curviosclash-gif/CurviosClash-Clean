@@ -1,0 +1,1312 @@
+﻿<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Curvios Clash</title>
+    <link rel="stylesheet" href="style.css">
+    <script type="importmap">
+    {
+        "imports": {
+            "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js",
+            "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/",
+            "mp4-muxer": "./node_modules/mp4-muxer/build/mp4-muxer.mjs"
+        }
+    }
+    </script>
+</head>
+
+<body>
+    <div id="game-container">
+        <canvas id="game-canvas" aria-label="3D Spielansicht"></canvas>
+        <div id="crosshair-container" aria-hidden="true">
+            <div id="crosshair-p1" class="crosshair">
+                <div class="circle"></div>
+                <div class="dot"></div>
+            </div>
+            <div id="crosshair-p2" class="crosshair">
+                <div class="circle"></div>
+                <div class="dot"></div>
+            </div>
+        </div>
+    </div>
+
+    <div id="ui-layer">
+        <div id="main-menu" role="dialog" aria-modal="true" aria-labelledby="main-menu-title"
+            data-shell-ready="false" data-menu-depth="1" data-menu-panel="main" data-level4-open="false">
+            <div class="menu-content" role="document">
+                <div class="menu-shell">
+                    <div class="menu-hero-shell">
+                        <div class="menu-brand-copy">
+                            <h1 id="main-menu-title">Curvios Clash</h1>
+                        </div>
+                        <div class="menu-utility-shell" aria-label="Expertenbereich">
+                            <button type="button" id="btn-open-expert" class="secondary-btn expert-entry-btn"
+                                data-menu-step-target="submenu-expert">Expert</button>
+                            <button type="button" id="btn-expert-lock-quick"
+                                class="secondary-btn secondary-btn-spaced hidden">Sperren</button>
+                        </div>
+                    </div>
+
+                    <!-- ======= HAUPTNAVIGATION ======= -->
+                    <div id="menu-nav" class="menu-nav-grid" role="navigation" aria-label="Hauptmenue">
+                        <button type="button" class="nav-btn" data-session-type="single" data-submenu="submenu-custom"
+                            aria-controls="submenu-custom" aria-expanded="false" data-menu-action="session-select">
+                            <span class="nav-btn-label" data-menu-text-id="menu.level1.single.label">Single Player</span>
+                        </button>
+                        <button type="button" class="nav-btn" data-session-type="multiplayer" data-submenu="submenu-custom"
+                            aria-controls="submenu-custom" aria-expanded="false" data-menu-action="session-select">
+                            <span class="nav-btn-label" data-menu-text-id="menu.level1.multiplayer.label">Multiplayer</span>
+                        </button>
+                        <button type="button" class="nav-btn" data-session-type="splitscreen" data-submenu="submenu-custom"
+                            aria-controls="submenu-custom" aria-expanded="false" data-menu-action="session-select">
+                            <span class="nav-btn-label" data-menu-text-id="menu.level1.splitscreen.label">Splitscreen</span>
+                        </button>
+                    </div>
+
+                    <p id="menu-context" class="menu-context sr-only" role="status" aria-live="polite" aria-atomic="true">
+                        Hauptmenue · Profil: kein Profil · alles gespeichert
+                    </p>
+                    <div id="keybind-warning" class="keybind-warning hidden" role="status" aria-live="polite"
+                        aria-atomic="true"></div>
+                </div>
+
+                <!-- ======= SUBMENU: SPIEL STARTEN ======= -->
+                <div id="submenu-game" class="submenu-panel hidden" role="region" aria-labelledby="submenu-game-title"
+                    aria-hidden="true" data-menu-panel="quickstart">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-back-target="submenu-custom"
+                            data-menu-action="back" aria-label="Zur Moduswahl">←
+                            Zurück</button>
+                        <h2 id="submenu-game-title" class="submenu-title" data-menu-text-id="menu.level3.title">Ebene 3: Start-Setup</h2>
+                    </div>
+
+                    <div class="submenu-body level3-body">
+                        <div class="menu-section setup-summary-section start-rail">
+                            <div class="start-rail-copy">
+                                <h2 class="section-title" data-menu-text-id="menu.level3.summary.title">Aktuelle Auswahl</h2>
+                                <div id="menu-selection-summary" class="menu-summary start-summary-grid" role="status" aria-live="polite">
+                                    Single Player | Normal | Standard Arena | ship5 | Dunkel
+                                </div>
+                            </div>
+                            <p id="start-validation-status" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                            <div class="start-rail-actions">
+                                <button type="button" id="btn-level3-reset" class="secondary-btn"
+                                    data-menu-text-id="menu.level3.reset.label">Ebene 3 reset</button>
+                                <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="gameplay"
+                                    data-menu-text-id="menu.level3.open_level4.label">Ebene 4 oeffnen</button>
+                                <button type="button" id="btn-start" class="start-btn" data-menu-action="start-match"
+                                    data-menu-text-id="menu.level3.start.label">Starten</button>
+                            </div>
+                        </div>
+
+                        <details class="menu-section menu-accordion start-section-card" data-start-section="map" open>
+                            <summary class="menu-accordion-summary">
+                                <span class="section-title" data-menu-text-id="menu.level3.map.title">Map</span>
+                                <span class="menu-accordion-copy">Groesse, Favoriten und Vorschau fuer den Start</span>
+                            </summary>
+                            <div class="menu-accordion-body">
+                                <div class="setup-search-grid">
+                                    <input type="text" id="map-search-input" placeholder="Map suchen">
+                                    <select id="map-filter-select">
+                                        <option value="all">Alle Groessen</option>
+                                        <option value="small">Small</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="large">Large</option>
+                                    </select>
+                                </div>
+                                <select id="map-select">
+                                    <option value="standard">Standard Arena</option>
+                                    <option value="custom">Custom (Editor gespeichert)</option>
+                                    <option value="empty">Leer</option>
+                                    <option value="maze">Labyrinth</option>
+                                    <option value="complex">Komplex</option>
+                                    <option value="pyramid">Pyramide</option>
+                                </select>
+                                <p id="map-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                <div id="map-preview" class="menu-preview menu-preview-card">Map-Vorschau</div>
+                                <button type="button" id="btn-map-favorite-toggle" class="secondary-btn secondary-btn-spaced">
+                                    Map Favorit umschalten
+                                </button>
+                                <div class="setup-chip-grid">
+                                    <div>
+                                        <label class="setup-chip-label">Favoriten</label>
+                                        <div id="map-favorites-list" class="quick-pill-list"></div>
+                                    </div>
+                                    <div>
+                                        <label class="setup-chip-label">Zuletzt benutzt</label>
+                                        <div id="map-recent-list" class="quick-pill-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="menu-section menu-accordion start-section-card" data-start-section="vehicle">
+                            <summary class="menu-accordion-summary">
+                                <span class="section-title" data-menu-text-id="menu.level3.vehicle.title">Flugzeug</span>
+                                <span class="menu-accordion-copy">Lieblingsmaschinen und aktuelle Rollen schnell wechseln</span>
+                            </summary>
+                            <div class="menu-accordion-body">
+                                <div class="setup-search-grid">
+                                    <input type="text" id="vehicle-search-input" placeholder="Flugzeug suchen">
+                                    <select id="vehicle-filter-select">
+                                        <option value="all">Alle Klassen</option>
+                                        <option value="light">Light</option>
+                                        <option value="medium">Medium</option>
+                                        <option value="heavy">Heavy</option>
+                                    </select>
+                                </div>
+                                <label for="vehicle-select-p1">Flugzeug P1</label>
+                                <select id="vehicle-select-p1"></select>
+                                <p id="vehicle-p1-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                <div id="vehicle-preview-p1" class="menu-preview menu-preview-card">P1 Vorschau</div>
+                                <div id="vehicle-p2-container" class="menu-section hidden">
+                                    <label for="vehicle-select-p2">Flugzeug P2</label>
+                                    <select id="vehicle-select-p2"></select>
+                                    <p id="vehicle-p2-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                    <div id="vehicle-preview-p2" class="menu-preview menu-preview-card">P2 Vorschau</div>
+                                </div>
+                                <button type="button" id="btn-vehicle-favorite-toggle" class="secondary-btn secondary-btn-spaced">
+                                    Flugzeug Favorit umschalten
+                                </button>
+                                <div class="setup-chip-grid">
+                                    <div>
+                                        <label class="setup-chip-label">Favoriten</label>
+                                        <div id="vehicle-favorites-list" class="quick-pill-list"></div>
+                                    </div>
+                                    <div>
+                                        <label class="setup-chip-label">Zuletzt benutzt</label>
+                                        <div id="vehicle-recent-list" class="quick-pill-list"></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="menu-section menu-accordion start-section-card" data-start-section="match">
+                            <summary class="menu-accordion-summary">
+                                <span class="section-title" data-menu-text-id="menu.level3.matchfields.title">Ebenen-Modus</span>
+                                <span class="menu-accordion-copy">Match-Regeln, Ansicht und Teamtempo festziehen</span>
+                            </summary>
+                            <div class="menu-accordion-body">
+                                <div class="match-settings-grid">
+                                    <div class="menu-section">
+                                        <h3 class="section-title" data-menu-text-id="menu.level3.theme.title">Hell / Dunkel (lokal)</h3>
+                                        <label for="theme-mode-select">Theme (nur lokal, nicht match-relevant)</label>
+                                        <select id="theme-mode-select">
+                                            <option value="dunkel">Dunkel</option>
+                                            <option value="hell">Hell</option>
+                                        </select>
+                                        <p id="theme-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                    </div>
+                                    <div class="menu-section">
+                                        <h3 class="section-title">Arcade Selbstduell</h3>
+                                        <label for="arcade-ghost-duel-mode-select">Ghost-Wiedergabe</label>
+                                        <select id="arcade-ghost-duel-mode-select">
+                                            <option value="off">Aus</option>
+                                            <option value="self_longest_ghost">Selbstduell (laengste Spur)</option>
+                                        </select>
+                                        <label class="toggle-row secondary-btn-spaced" for="arcade-ghost-trail-collision-toggle">
+                                            <input type="checkbox" id="arcade-ghost-trail-collision-toggle">
+                                            <span>Ghost-Spur-Kollision</span>
+                                        </label>
+                                        <small id="arcade-ghost-duel-mode-hint" class="menu-hint menu-copy-secondary">Nur im Einzelspieler aktiv.</small>
+                                    </div>
+                                    <div class="menu-section">
+                                        <h3 class="section-title">Flugstil</h3>
+                                        <div class="btn-group">
+                                            <button id="btn-dimension-classic-3d" class="mode-btn dimension-mode-btn active"
+                                                data-planar-mode="false">Freier Flug</button>
+                                            <button id="btn-dimension-planar" class="mode-btn dimension-mode-btn"
+                                                data-planar-mode="true">Ebenenflug</button>
+                                        </div>
+                                        <small id="hunt-mode-hint" class="menu-hint menu-copy-secondary" data-menu-text-id="menu.level3.matchfields.hint">Spielweg (Fight/Normal) kommt aus Ebene 2.
+                                            Hier nur Classic 3D oder Planar waehlen.</small>
+                                        <p id="match-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
+                                    </div>
+                                </div>
+
+                                <div id="hunt-respawn-row" class="menu-section hidden">
+                                    <label class="toggle-row" for="hunt-respawn-toggle">
+                                        <input type="checkbox" id="hunt-respawn-toggle">
+                                        Respawn aktivieren
+                                    </label>
+                                </div>
+
+                                <div class="match-settings-grid">
+                                    <div class="menu-section">
+                                        <label for="bot-count">Bots: <span id="bot-count-label">5</span></label>
+                                        <input type="range" id="bot-count" min="0" max="8" value="5">
+                                    </div>
+                                    <div class="menu-section">
+                                        <label for="bot-difficulty">Bot-Schwierigkeit</label>
+                                        <select id="bot-difficulty">
+                                            <option value="EASY">Easy</option>
+                                            <option value="NORMAL">Normal</option>
+                                            <option value="HARD" selected>Hard</option>
+                                        </select>
+                                    </div>
+                                    <div class="menu-section">
+                                        <label for="bot-policy-strategy">Bot-Typ</label>
+                                        <select id="bot-policy-strategy">
+                                            <option value="auto" selected>Auto</option>
+                                            <option value="heuristic">Heuristik</option>
+                                            <option value="rule-based">Regelbasis</option>
+                                            <option value="bridge">Bridge</option>
+                                        </select>
+                                    </div>
+                                    <div class="menu-section">
+                                        <label for="win-count">Siege zum Gewinn: <span id="win-count-label">5</span></label>
+                                        <input type="range" id="win-count" min="1" max="15" value="5">
+                                    </div>
+                                </div>
+                            </div>
+                        </details>
+
+                        <details class="menu-section menu-accordion start-section-card" data-start-section="presets">
+                            <summary class="menu-accordion-summary">
+                                <span class="section-title">Preset-Standardkombinationen</span>
+                                <span class="menu-accordion-copy">Vorgefertigte Starts fuer Training, Arcade und Kampf</span>
+                            </summary>
+                            <div class="menu-accordion-body" data-menu-panel="quickstart-presets">
+                                <div class="preset-chip-grid">
+                                    <button type="button" class="secondary-btn" data-preset-id="arcade">Arcade</button>
+                                    <button type="button" class="secondary-btn" data-preset-id="competitive">Competitive</button>
+                                    <button type="button" class="secondary-btn" data-preset-id="chaos">Chaos</button>
+                                    <button type="button" class="secondary-btn" data-preset-id="fight-standard">Fight Standard</button>
+                                    <button type="button" class="secondary-btn" data-preset-id="normal-standard">Normal Standard</button>
+                                </div>
+                                <small id="preset-status" class="menu-hint">Preset: custom</small>
+                            </div>
+                        </details>
+
+                        <details id="multiplayer-inline-stub" class="menu-section menu-accordion start-section-card hidden"
+                            data-start-section="multiplayer">
+                            <summary class="menu-accordion-summary">
+                                <span class="section-title">Lobby & Bereitschaft</span>
+                                <span class="menu-accordion-copy">Session-Code, echte Lobby-Verbindung und Ready-Status</span>
+                            </summary>
+                            <div class="menu-accordion-body">
+                                <p id="multiplayer-lobby-state" class="menu-hint">Lobbystatus: nicht verbunden</p>
+                                <p id="multiplayer-transport-hint" class="menu-hint">Produktiver Transport: LAN</p>
+                                <div class="btn-group secondary-btn-spaced" role="group" aria-label="Multiplayer-Transport">
+                                    <button type="button" id="btn-multiplayer-transport-lan" class="secondary-btn active"
+                                        data-multiplayer-transport="lan" aria-pressed="true">LAN</button>
+                                    <button type="button" id="btn-multiplayer-transport-online" class="secondary-btn"
+                                        data-multiplayer-transport="online" aria-pressed="false">Online</button>
+                                </div>
+                                <label for="multiplayer-lobby-code">Lobby Code</label>
+                                <input type="text" id="multiplayer-lobby-code" maxlength="32" placeholder="z. B. TEST-1234">
+                                <label for="multiplayer-host-address">Host-Adresse</label>
+                                <input type="text" id="multiplayer-host-address" maxlength="96" placeholder="localhost:9090" autocomplete="off" spellcheck="false">
+                                <div class="btn-group secondary-btn-spaced">
+                                    <button type="button" id="btn-multiplayer-host" class="secondary-btn" data-menu-action="multiplayer-host" data-requires-cap="host">Host</button>
+                                    <button type="button" id="btn-multiplayer-join" class="secondary-btn" data-menu-action="multiplayer-join">Join</button>
+                                    <button type="button" id="btn-multiplayer-leave" class="secondary-btn" data-menu-action="multiplayer-leave" disabled>Verlassen</button>
+                                </div>
+                                <label class="toggle-row secondary-btn-spaced" for="multiplayer-ready-toggle">
+                                    <input type="checkbox" id="multiplayer-ready-toggle">
+                                    Ready setzen
+                                </label>
+                                <p id="multiplayer-status" class="menu-hint" role="status" aria-live="polite">
+                                    Lobby inaktiv | Rolle: nicht verbunden
+                                </p>
+                            </div>
+                        </details>
+                    </div>
+                </div>
+
+                <div id="submenu-level4" class="level4-drawer hidden" aria-hidden="true">
+                    <div class="level4-header">
+                        <div>
+                            <h3 class="submenu-title" data-menu-text-id="menu.level4.title">Ebene 4: Feineinstellungen & Tools</h3>
+                            <p class="menu-hint menu-copy-secondary">Detailbereiche bleiben lokal erhalten und oeffnen ohne horizontalen Scroll.</p>
+                        </div>
+                        <div class="btn-group">
+                            <button type="button" id="btn-level4-reset" class="secondary-btn"
+                                data-menu-text-id="menu.level4.reset.label">Ebene 4 reset</button>
+                            <button type="button" id="btn-close-level4" class="secondary-btn" data-back
+                                data-back-target="submenu-game" data-menu-action="back"
+                                data-menu-text-id="menu.level4.close.label">Schliessen</button>
+                        </div>
+                    </div>
+                    <div class="submenu-body level4-body">
+                        <div class="level4-layout">
+                            <div class="level4-section-nav" role="tablist" aria-label="Ebene 4 Bereiche">
+                                <button type="button" id="level4-tab-controls" class="level4-section-tab"
+                                    data-level4-section-target="controls" role="tab" aria-controls="level4-section-controls"
+                                    aria-selected="true">Steuerung</button>
+                                <button type="button" id="level4-tab-mobile-controls" class="level4-section-tab"
+                                    data-level4-section-target="mobile_controls" role="tab" aria-controls="level4-section-mobile-controls"
+                                    aria-selected="false">Mobile</button>
+                                <button type="button" id="level4-tab-gameplay" class="level4-section-tab"
+                                    data-level4-section-target="gameplay" role="tab" aria-controls="level4-section-gameplay"
+                                    aria-selected="false">Gameplay</button>
+                                <button type="button" id="level4-tab-advanced-map" class="level4-section-tab"
+                                    data-level4-section-target="advanced_map" role="tab" aria-controls="level4-section-advanced-map"
+                                    aria-selected="false">Erweiterte Map</button>
+                                <button type="button" id="level4-tab-tools" class="level4-section-tab"
+                                    data-level4-section-target="tools" role="tab" aria-controls="level4-section-tools"
+                                    aria-selected="false">Profile</button>
+                            </div>
+                            <div class="level4-section-stack">
+                        <section id="level4-section-controls" class="level4-section-panel" data-level4-section="controls"
+                            role="tabpanel" aria-labelledby="level4-tab-controls">
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.level4.controls.title">Steuerung</h2>
+                            <div class="submenu-columns level4-keybind-columns">
+                                <div>
+                                    <label>Tasten Spieler 1</label>
+                                    <div id="keybind-p1" class="keybind-grid"></div>
+                                </div>
+                                <div>
+                                    <label>Tasten Spieler 2</label>
+                                    <div id="keybind-p2" class="keybind-grid"></div>
+                                </div>
+                            </div>
+                            <label class="secondary-btn-spaced">Globale Taste</label>
+                            <div id="keybind-global" class="keybind-grid"></div>
+                            <button type="button" id="btn-reset-keys" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="reset-keys" data-menu-text-id="menu.level4.controls.reset_keys.label">
+                                Standard-Tasten wiederherstellen
+                            </button>
+                        </div>
+                        </section>
+
+                        <section id="level4-section-mobile-controls" class="level4-section-panel" data-level4-section="mobile_controls"
+                            role="tabpanel" aria-labelledby="level4-tab-mobile-controls" aria-hidden="true">
+                        <div class="menu-section">
+                            <h2 class="section-title">Mobile-Feineinstellung</h2>
+                            <label for="mobile-tilt-sensitivity-slider">Neigungs-Empfindlichkeit: <span id="mobile-tilt-sensitivity-label">100%</span></label>
+                            <input type="range" id="mobile-tilt-sensitivity-slider" min="60" max="180" step="5" value="100">
+                            <label for="mobile-tilt-assist-select">Arcade Assist</label>
+                            <select id="mobile-tilt-assist-select">
+                                <option value="off">Aus</option>
+                                <option value="soft" selected>Sanft</option>
+                                <option value="arcade">Direkt</option>
+                            </select>
+                            <label for="mobile-tilt-pitch-mode-select">Hoehensteuerung</label>
+                            <select id="mobile-tilt-pitch-mode-select">
+                                <option value="tilt" selected>Neigung</option>
+                                <option value="touch">Touch-Regler</option>
+                            </select>
+                            <label class="toggle-row secondary-btn-spaced">
+                                <input type="checkbox" id="mobile-tilt-debug-toggle">
+                                <span>Live-Neigungsanzeige</span>
+                            </label>
+                            <label class="toggle-row secondary-btn-spaced">
+                                <input type="checkbox" id="mobile-tilt-sensor-hz-toggle">
+                                <span>Sensor-Hz anzeigen</span>
+                            </label>
+                        </div>
+                        </section>
+
+                        <section id="level4-section-gameplay" class="level4-section-panel" data-level4-section="gameplay"
+                            role="tabpanel" aria-labelledby="level4-tab-gameplay" aria-hidden="true">
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.level4.gameplay.title">Gameplay-Feineinstellungen</h2>
+                            <label for="speed-slider">Geschwindigkeit: <span id="speed-label">35.0</span></label>
+                            <input type="range" id="speed-slider" min="8" max="40" step="0.5" value="35">
+                            <label for="turn-slider">Lenk-Empfindlichkeit: <span id="turn-label">3.4</span></label>
+                            <input type="range" id="turn-slider" min="0.8" max="5.0" step="0.1" value="3.4">
+                            <label for="plane-size-slider">Flugzeug-Groesse: <span id="plane-size-label">1.0</span></label>
+                            <input type="range" id="plane-size-slider" min="0.6" max="2.0" step="0.1" value="1.0">
+                            <label for="trail-width-slider">Strahldicke: <span id="trail-width-label">0.60</span></label>
+                            <input type="range" id="trail-width-slider" min="0.2" max="2.5" step="0.05" value="0.6">
+                            <label for="gap-size-slider">Luecken-Groesse: <span id="gap-size-label">0.30</span></label>
+                            <input type="range" id="gap-size-slider" min="0.05" max="1.5" step="0.05" value="0.3">
+                            <label for="gap-frequency-slider">Luecken-Haeufigkeit: <span id="gap-frequency-label">0.020</span></label>
+                            <input type="range" id="gap-frequency-slider" min="0" max="0.25" step="0.005" value="0.02">
+                            <label for="item-amount-slider">Item-Menge: <span id="item-amount-label">10</span></label>
+                            <input type="range" id="item-amount-slider" min="1" max="20" step="1" value="10">
+                            <label for="fire-rate-slider">Schussgeschwindigkeit: <span id="fire-rate-label">1.25</span>s</label>
+                            <input type="range" id="fire-rate-slider" min="0.1" max="2.0" step="0.05" value="1.25">
+                            <label for="lockon-slider">Lock-On Radius: <span id="lockon-label">11</span>°</label>
+                            <input type="range" id="lockon-slider" min="5" max="45" step="1" value="11">
+                            <label for="next-checkpoint-glow-slider">Naechster Checkpoint Leuchten: <span id="next-checkpoint-glow-label">1.35</span></label>
+                            <input type="range" id="next-checkpoint-glow-slider" min="0" max="3.0" step="0.05" value="1.35">
+                            <label for="mg-trail-aim-slider">MG Trail-Zielsuchradius: <span id="mg-trail-aim-label">0.78</span></label>
+                            <input type="range" id="mg-trail-aim-slider" min="0.2" max="6.0" step="0.05" value="0.78">
+                            <div id="fight-player-hp-setting" class="fight-only-setting hidden">
+                                <label for="fight-player-hp-slider">Fight Spieler-HP: <span id="fight-player-hp-label">100</span></label>
+                                <input type="range" id="fight-player-hp-slider" min="80" max="250" step="5" value="100">
+                            </div>
+                            <div id="fight-mg-damage-setting" class="fight-only-setting hidden">
+                                <label for="fight-mg-damage-slider">Fight MG Schaden: <span id="fight-mg-damage-label">7.75</span></label>
+                                <input type="range" id="fight-mg-damage-slider" min="4" max="20" step="0.25" value="7.75">
+                            </div>
+                            <p id="fight-tuning-hint" class="field-hint hidden">Nur im Fight-Spielweg aktiv (Ebene 2 -> Fight).</p>
+                            <label for="shadow-quality-slider">Schattenqualitaet: <span id="shadow-quality-label">Hoch</span></label>
+                            <input type="range" id="shadow-quality-slider" min="0" max="3" step="1" value="3">
+                            <label for="recording-profile-select">Recording-Profil</label>
+                            <select id="recording-profile-select">
+                                <option value="standard" selected>Standard</option>
+                                <option value="youtube_short">YouTube Shorts (vertikal)</option>
+                            </select>
+                            <label for="recording-hud-mode-select">Recording HUD</label>
+                            <select id="recording-hud-mode-select">
+                                <option value="clean" selected>Clean (ohne HUD)</option>
+                                <option value="with_hud">Mit HUD</option>
+                            </select>
+                            <p id="recording-profile-hint" class="field-hint">Aufnahmeprofil: Standard - HUD: clean</p>
+                            <label for="normal-camera-perspective-select">Video-Perspektive</label>
+                            <select id="normal-camera-perspective-select">
+                                <option value="classic" selected>Klassisch (stabil)</option>
+                                <option value="cinematic_soft">Cinematic Soft</option>
+                                <option value="cinematic_action">Cinematic Action</option>
+                            </select>
+                            <label class="toggle-row secondary-btn-spaced">
+                                <input type="checkbox" id="normal-camera-reduce-motion-toggle" checked>
+                                <span>Video-Perspektive beruhigen (weniger hektisch)</span>
+                            </label>
+                            <label class="toggle-row secondary-btn-spaced">
+                                <input type="checkbox" id="normal-camera-speed-fov-toggle" checked>
+                                <span>Geschwindigkeits-FOV aktiv</span>
+                            </label>
+                            <label for="normal-camera-speed-fov-intensity-slider">Geschwindigkeits-FOV: <span id="normal-camera-speed-fov-intensity-label">100%</span></label>
+                            <input type="range" id="normal-camera-speed-fov-intensity-slider" min="0" max="150" step="5" value="100">
+                            <label class="toggle-row secondary-btn-spaced">
+                                <input type="checkbox" id="normal-camera-thruster-exhaust-toggle" checked>
+                                <span>Triebwerks-Partikel aktiv</span>
+                            </label>
+                            <label for="normal-camera-thruster-exhaust-intensity-slider">Triebwerks-Partikel: <span id="normal-camera-thruster-exhaust-intensity-label">100%</span></label>
+                            <input type="range" id="normal-camera-thruster-exhaust-intensity-slider" min="0" max="150" step="5" value="100">
+                            <p id="normal-camera-perspective-hint" class="field-hint">Video-Perspektive: Klassisch - beruhigt: an</p>
+
+                            <label class="toggle-row secondary-btn-spaced">
+                                <input type="checkbox" id="auto-roll-toggle" checked>
+                                <span>Auto-Roll aktiv</span>
+                            </label>
+                            <div class="toggle-grid secondary-btn-spaced">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="invert-p1" checked>
+                                    <span>Invert Pitch P1</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="invert-p2" checked>
+                                    <span>Invert Pitch P2</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="cockpit-cam-p1">
+                                    <span>Cockpit P1 (immer aktiv)</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="cockpit-cam-p2">
+                                    <span>Cockpit P2 (immer aktiv)</span>
+                                </label>
+                            </div>
+                        </div>
+                        </section>
+
+                        <section id="level4-section-advanced-map" class="level4-section-panel" data-level4-section="advanced_map"
+                            role="tabpanel" aria-labelledby="level4-tab-advanced-map" aria-hidden="true">
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.level4.advanced_map.title">Erweiterte Map-Einstellungen</h2>
+                            <label class="toggle-row">
+                                <input type="checkbox" id="portals-toggle" checked>
+                                <span>Portale aktiviert</span>
+                            </label>
+                            <label for="portal-count-slider">Anzahl Portale: <span id="portal-count-label">8</span></label>
+                            <input type="range" id="portal-count-slider" min="0" max="20" step="2" value="8">
+                            <label for="planar-level-count-slider">Anzahl Ebenen: <span id="planar-level-count-label">5</span></label>
+                            <input type="range" id="planar-level-count-slider" min="2" max="10" step="1" value="5">
+                            <label class="toggle-row">
+                                <input type="checkbox" id="planar-mode-toggle">
+                                <span>Planar Modus (kein Pitch)</span>
+                            </label>
+                        </div>
+                        </section>
+
+                        <section id="level4-section-tools" class="level4-section-panel" data-level4-section="tools"
+                            role="tabpanel" aria-labelledby="level4-tab-tools" aria-hidden="true">
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.level4.tools.title">Profile & Presets</h2>
+                            <label for="profile-name" data-menu-text-id="menu.level4.tools.profile_name.label">Profilname</label>
+                            <input type="text" id="profile-name" maxlength="32" placeholder="z. B. Turnier">
+                            <button type="button" id="btn-profile-save" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="profile-save" data-menu-text-id="menu.level4.tools.profile_save.label">
+                                Profil speichern
+                            </button>
+                            <label for="profile-select" data-menu-text-id="menu.level4.tools.profile_list.label">Gespeicherte Profile</label>
+                            <select id="profile-select">
+                                <option value="">Kein Profil gewaehlt</option>
+                            </select>
+                            <button type="button" id="btn-profile-load" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="profile-load" data-menu-text-id="menu.level4.tools.profile_load.label">
+                                Profil laden
+                            </button>
+                            <button type="button" id="btn-profile-delete" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="profile-delete" data-menu-text-id="menu.level4.tools.profile_delete.label">
+                                Profil loeschen
+                            </button>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-profile-duplicate" class="secondary-btn"
+                                    data-menu-action="profile-duplicate" data-menu-text-id="menu.level4.tools.profile_duplicate.label">
+                                    Profil duplizieren
+                                </button>
+                                <button type="button" id="btn-profile-set-default" class="secondary-btn"
+                                    data-menu-action="profile-default" data-menu-text-id="menu.level4.tools.profile_default.label">
+                                    Als Standard markieren
+                                </button>
+                            </div>
+                            <label for="profile-transfer-input" class="secondary-btn-spaced"
+                                data-menu-text-id="menu.level4.tools.profile_transfer.label">Profil-Transfer</label>
+                            <textarea id="profile-transfer-input" rows="4" placeholder="Profil-JSON exportieren oder einfuegen"></textarea>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-profile-export" class="secondary-btn"
+                                    data-menu-action="profile-export" data-menu-text-id="menu.level4.tools.profile_export.label">
+                                    Profil exportieren
+                                </button>
+                                <button type="button" id="btn-profile-import" class="secondary-btn"
+                                    data-menu-action="profile-import" data-menu-text-id="menu.level4.tools.profile_import.label">
+                                    Profil importieren
+                                </button>
+                            </div>
+                            <p id="profile-transfer-status" class="menu-hint" role="status" aria-live="polite">Kein Profil-Import/Export ausgefuehrt.</p>
+
+                            <label for="preset-select" class="secondary-btn-spaced"
+                                data-menu-text-id="menu.level4.tools.preset_catalog.label">Preset Katalog</label>
+                            <select id="preset-select">
+                                <option value="">Preset waehlen</option>
+                            </select>
+                            <button type="button" id="btn-preset-apply" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="preset-apply" data-menu-text-id="menu.level4.tools.preset_apply.label">
+                                Preset anwenden
+                            </button>
+                            <label for="preset-name" data-menu-text-id="menu.level4.tools.preset_name.label">Neuer Preset-Name</label>
+                            <input type="text" id="preset-name" maxlength="40" placeholder="z. B. Team Scrim">
+                            <button type="button" id="btn-preset-save-open" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="preset-save-open" data-menu-text-id="menu.level4.tools.preset_save_open.label">
+                                Als open preset speichern
+                            </button>
+                            <button type="button" id="btn-preset-save-fixed" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="preset-save-fixed" data-menu-text-id="menu.level4.tools.preset_save_fixed.label">
+                                Als fixed preset speichern (owner)
+                            </button>
+                            <button type="button" id="btn-preset-delete" class="secondary-btn secondary-btn-spaced"
+                                data-menu-action="preset-delete" data-menu-text-id="menu.level4.tools.preset_delete.label">
+                                Preset loeschen
+                            </button>
+                        </div>
+
+                        <div class="menu-section">
+                            <h2 class="section-title">Utilities</h2>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-open-editor" class="secondary-btn"
+                                    data-menu-action="open-map-editor" data-menu-text-id="menu.level4.tools.map_editor.label">
+                                    3D Map-Editor oeffnen
+                                </button>
+                                <button type="button" id="btn-open-vehicle-editor" class="secondary-btn"
+                                    data-menu-action="open-vehicle-editor" data-menu-text-id="menu.level4.tools.vehicle_editor.label">
+                                    Vehicle-Editor oeffnen
+                                </button>
+                            </div>
+                            <textarea id="config-share-input" rows="6" placeholder="Config-Code oder JSON"></textarea>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-config-export-code" class="secondary-btn"
+                                    data-menu-text-id="menu.tools.export_code.label">Code exportieren</button>
+                                <button type="button" id="btn-config-export-json" class="secondary-btn"
+                                    data-menu-text-id="menu.tools.export_json.label">JSON exportieren</button>
+                            </div>
+                            <button type="button" id="btn-config-import" class="secondary-btn secondary-btn-spaced"
+                                data-menu-text-id="menu.tools.import.label">Importieren</button>
+                            <p id="config-share-status" class="menu-hint">Kein Import/Export ausgefuehrt.</p>
+                            <button type="button" id="btn-save-keys" class="secondary-btn secondary-btn-spaced" data-menu-action="save-settings">
+                                💾 Einstellungen explizit speichern
+                            </button>
+                        </div>
+                        </section>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: EXPERT ======= -->
+                <div id="submenu-expert" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-expert-title" aria-hidden="true" data-menu-panel="expert">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-expert-title" class="submenu-title">Expert</h2>
+                    </div>
+                    <div class="submenu-body">
+                        <p id="expert-login-status" class="menu-field-hint" role="status" aria-live="polite">
+                            Developer, Debug und Training sind lokal gesperrt.
+                        </p>
+                        <div id="expert-locked-state">
+                            <div class="menu-section expert-auth-card">
+                                <label for="expert-password-input">Passwort</label>
+                                <input type="password" id="expert-password-input" inputmode="numeric" maxlength="4" autocomplete="off"
+                                    placeholder="1307">
+                                <div class="btn-group secondary-btn-spaced">
+                                    <button type="button" id="btn-expert-unlock" class="secondary-btn">Freischalten</button>
+                                    <button type="button" id="btn-expert-cancel" class="secondary-btn">Abbrechen</button>
+                                </div>
+                            </div>
+                        </div>
+                        <div id="expert-unlocked-state" class="hidden">
+                            <div class="menu-section expert-panel-card">
+                                <div class="expert-panel-header">
+                                    <h2 class="section-title">Expertenbereich</h2>
+                                    <button type="button" id="btn-expert-lock" class="secondary-btn">Sperren</button>
+                                </div>
+                                <div id="build-info" class="build-info build-info--expert"></div>
+                                <div class="expert-panel-actions">
+                                    <button type="button" id="btn-open-developer" class="secondary-btn secondary-btn-spaced"
+                                        data-menu-step-target="submenu-developer" data-menu-text-id="menu.level4.tools.open_developer.label">
+                                        Developer oeffnen
+                                    </button>
+                                    <button type="button" id="btn-open-debug" class="secondary-btn secondary-btn-spaced"
+                                        data-menu-step-target="submenu-debug" data-menu-text-id="menu.developer.open_debug.label">
+                                        Debug / Info oeffnen
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: BENUTZERDEFINIERT ======= -->
+                <div id="submenu-custom" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-custom-title" aria-hidden="true" data-menu-panel="custom">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-custom-title" class="submenu-title" data-menu-text-id="menu.level2.title">Ebene 2: Spielweg</h2>
+                    </div>
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.level2.quick.title">Schnellaktionen</h2>
+                            <p class="menu-hint menu-copy-secondary" data-menu-text-id="menu.level2.quick.hint">Diese Aktionen starten direkt ohne weiteren Menueschritt.</p>
+                            <div class="level2-action-grid">
+                                <button type="button" id="btn-quick-last-settings" class="secondary-btn menu-choice-card"
+                                    data-menu-action="quickstart-last">
+                                    <span class="menu-choice-eyebrow">Direkt</span>
+                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.quick_last.label">Letzte Einstellungen starten</span>
+                                    <span class="menu-choice-copy">Nimmt Session, Map und Flugzeug aus deinem letzten Start.</span>
+                                </button>
+                                <button type="button" id="btn-quick-event-playlist" class="secondary-btn menu-choice-card"
+                                    data-menu-action="quickstart-event-playlist">
+                                    <span class="menu-choice-eyebrow">Direkt</span>
+                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.quick_event.label">Event-Playlist starten</span>
+                                    <span class="menu-choice-copy">Rotiert ueber vorbereitete Fun-Presets und startet sofort die naechste Runde.</span>
+                                </button>
+                                <button type="button" id="btn-quick-random-map" class="secondary-btn menu-choice-card"
+                                    data-menu-action="quickstart-random">
+                                    <span class="menu-choice-eyebrow">Direkt</span>
+                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.quick_random.label">Random Map starten</span>
+                                    <span class="menu-choice-copy">Waehlt sofort eine Karte und springt direkt in die Runde.</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.level2.mode.title">Modi</h2>
+                            <p class="menu-hint menu-copy-secondary" data-menu-text-id="menu.level2.mode.hint">Moduswahl befuellt Ebene 3 direkt mit sinnvollen Defaults.</p>
+                            <div class="level2-mode-grid">
+                                <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="arcade">
+                                    <span class="menu-choice-eyebrow">Setup mit Vorgabe</span>
+                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.arcade.label">Arcade</span>
+                                    <span class="menu-choice-copy">Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.</span>
+                                </button>
+                                <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="fight">
+                                    <span class="menu-choice-eyebrow">Setup mit Vorgabe</span>
+                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.fight.label">Fight</span>
+                                    <span class="menu-choice-copy">Direkter Schlagabtausch mit Jagdmodus-Defaults und engerem Tempo.</span>
+                                </button>
+                                <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="normal">
+                                    <span class="menu-choice-eyebrow">Setup mit Vorgabe</span>
+                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.normal.label">Normal</span>
+                                    <span class="menu-choice-copy">Klassischer Startpfad mit vollem Zugriff auf Map, Flugzeug und Regeln.</span>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="menu-section">
+                            <button type="button" class="secondary-btn" data-menu-step-target="submenu-game"
+                                data-menu-text-id="menu.level2.next_to_start.label">
+                                Weiter zu Ebene 3 (Start-Setup)
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: MULTIPLAYER ======= -->
+                <div id="submenu-multiplayer" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-multiplayer-title" aria-hidden="true" data-menu-panel="multiplayer">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-multiplayer-title" class="submenu-title">🌐 Multiplayer</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <h2 class="section-title">Weiterleitung</h2>
+                            <p class="menu-hint menu-copy-secondary">
+                                Multiplayer liegt im 4-Ebenen-Flow in Ebene 3 (Start-Setup) als echte Lobby-Steuerung.
+                            </p>
+                            <p class="menu-hint menu-copy-secondary">Bitte Session-Typ `Multiplayer` waehlen und in Ebene 3 fortfahren.</p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: EINSTELLUNGEN ======= -->
+                <div id="submenu-settings" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-settings-title" aria-hidden="true" data-menu-panel="settings">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-settings-title" class="submenu-title">⚙️ Einstellungen</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <p class="menu-hint menu-copy-secondary">
+                                Einstellungen wurden in Ebene 4 als Slide-in unter `Gameplay-Feineinstellungen` konsolidiert.
+                            </p>
+                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
+                                data-level4-section="gameplay">Ebene 4 oeffnen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: STEUERUNG ======= -->
+                <div id="submenu-controls" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-controls-title" aria-hidden="true" data-menu-panel="controls">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-controls-title" class="submenu-title">🎯 Steuerung</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <p class="menu-hint menu-copy-secondary">
+                                Steuerung liegt jetzt in Ebene 4 im Bereich `Steuerung`.
+                            </p>
+                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
+                                data-level4-section="controls">Ebene 4 oeffnen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: PROFILE ======= -->
+                <div id="submenu-profiles" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-profiles-title" aria-hidden="true" data-menu-panel="profiles">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-profiles-title" class="submenu-title">👤 Profile</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <p class="menu-hint menu-copy-secondary">
+                                Profile liegen jetzt in Ebene 4 im Bereich `Tools`.
+                            </p>
+                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
+                                data-level4-section="tools">Ebene 4 oeffnen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: PORTALE / MAP ======= -->
+                <div id="submenu-portals" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-portals-title" aria-hidden="true" data-menu-panel="portals">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
+                            Zurück</button>
+                        <h2 id="submenu-portals-title" class="submenu-title">🌀 Portale / Map</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <p class="menu-hint menu-copy-secondary">
+                                Erweiterte Map-Optionen liegen jetzt in Ebene 4 im Bereich `Erweiterte Map-Einstellungen`.
+                            </p>
+                            <button type="button" class="secondary-btn" data-menu-action="level4-open"
+                                data-level4-section="advanced_map">Ebene 4 oeffnen</button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: DEVELOPER ======= -->
+                <div id="submenu-developer" class="submenu-panel hidden" role="region"
+                    aria-labelledby="submenu-developer-title" aria-hidden="true" data-menu-panel="developer">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-back-target="submenu-expert"
+                            data-menu-action="back" aria-label="Zurueck zum Expertenbereich">←
+                            Zurück</button>
+                        <h2 id="submenu-developer-title" class="submenu-title" data-menu-text-id="menu.developer.title">🛠️ Developer</h2>
+                    </div>
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <label class="toggle-row" for="developer-mode-toggle">
+                                <input type="checkbox" id="developer-mode-toggle">
+                                Developer-Modus aktiv
+                            </label>
+                        </div>
+                        <div class="menu-section">
+                            <label for="developer-theme-select">Developer Theme</label>
+                            <select id="developer-theme-select">
+                                <option value="classic-console">Classic Console</option>
+                                <option value="sandstorm-lab">Sandstorm Lab</option>
+                                <option value="arctic-grid">Arctic Grid</option>
+                            </select>
+                        </div>
+                        <div class="menu-section">
+                            <label for="developer-visibility-select">Developer Zugriff</label>
+                            <select id="developer-visibility-select">
+                                <option value="hidden_for_players">hidden_for_players</option>
+                                <option value="owner_only" selected>owner_only</option>
+                                <option value="open">open</option>
+                            </select>
+                        </div>
+                        <div class="menu-section">
+                            <label class="toggle-row" for="developer-fixed-preset-lock-toggle">
+                                <input type="checkbox" id="developer-fixed-preset-lock-toggle">
+                                Fixed-Preset-Lock fuer Spieler erzwingen
+                            </label>
+                        </div>
+                        <div class="menu-section">
+                            <label for="developer-actor-select">Session Actor</label>
+                            <select id="developer-actor-select">
+                                <option value="owner" selected>owner</option>
+                                <option value="player">player</option>
+                            </select>
+                        </div>
+                        <div class="menu-section">
+                            <label class="toggle-row" for="developer-release-preview-toggle">
+                                <input type="checkbox" id="developer-release-preview-toggle">
+                                Release-Vorschau aktivieren (Developer-Off simulieren)
+                            </label>
+                        </div>
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.developer.text_override.title">Textkatalog-Override</h2>
+                            <label for="developer-text-id-select">Text-ID</label>
+                            <select id="developer-text-id-select">
+                                <option value="">Bitte Text-ID waehlen</option>
+                            </select>
+                            <label for="developer-text-override-input">Override-Text</label>
+                            <input type="text" id="developer-text-override-input" maxlength="120" placeholder="Neuer Label-Text">
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-developer-text-apply" class="secondary-btn"
+                                    data-menu-text-id="menu.developer.text_override.apply.label">
+                                    Override setzen
+                                </button>
+                                <button type="button" id="btn-developer-text-clear" class="secondary-btn"
+                                    data-menu-text-id="menu.developer.text_override.clear.label">
+                                    Override loeschen
+                                </button>
+                            </div>
+                        </div>
+                        <div class="menu-section">
+                            <h2 class="section-title">Training-Interface</h2>
+                            <div class="match-settings-grid">
+                                <div class="menu-section">
+                                    <label for="developer-training-mode-select">Mode</label>
+                                    <select id="developer-training-mode-select">
+                                        <option value="classic" selected>classic</option>
+                                        <option value="hunt">hunt</option>
+                                    </select>
+                                </div>
+                                <div class="menu-section">
+                                    <label class="toggle-row" for="developer-training-planar-toggle">
+                                        <input type="checkbox" id="developer-training-planar-toggle">
+                                        Planar Mode
+                                    </label>
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-max-steps-input">Max Steps</label>
+                                    <input type="number" id="developer-training-max-steps-input" min="1" max="10000" step="1" value="180">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-seed-input">Seed</label>
+                                    <input type="number" id="developer-training-seed-input" min="0" max="1000000" step="1" value="0">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-inventory-input">Inventory Length</label>
+                                    <input type="number" id="developer-training-inventory-input" min="0" max="20" step="1" value="2">
+                                </div>
+                            </div>
+                            <div class="match-settings-grid">
+                                <div class="menu-section">
+                                    <label for="developer-training-yaw-select">Yaw</label>
+                                    <select id="developer-training-yaw-select">
+                                        <option value="-1">left</option>
+                                        <option value="0" selected>none</option>
+                                        <option value="1">right</option>
+                                    </select>
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-pitch-select">Pitch</label>
+                                    <select id="developer-training-pitch-select">
+                                        <option value="-1">down</option>
+                                        <option value="0" selected>none</option>
+                                        <option value="1">up</option>
+                                    </select>
+                                </div>
+                                <div class="menu-section">
+                                    <label class="toggle-row" for="developer-training-boost-toggle">
+                                        <input type="checkbox" id="developer-training-boost-toggle">
+                                        Boost
+                                    </label>
+                                    <label class="toggle-row" for="developer-training-shoot-mg-toggle">
+                                        <input type="checkbox" id="developer-training-shoot-mg-toggle">
+                                        Shoot MG
+                                    </label>
+                                    <label class="toggle-row" for="developer-training-shoot-item-toggle">
+                                        <input type="checkbox" id="developer-training-shoot-item-toggle">
+                                        Shoot Item
+                                    </label>
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-shoot-item-index-input">Shoot Item Index</label>
+                                    <input type="number" id="developer-training-shoot-item-index-input" min="-1" max="20" step="1" value="0">
+                                </div>
+                            </div>
+                            <div class="match-settings-grid">
+                                <div class="menu-section">
+                                    <label for="developer-training-kills-input">Kills</label>
+                                    <input type="number" id="developer-training-kills-input" min="0" max="100" step="1" value="0">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-damage-dealt-input">Damage Dealt</label>
+                                    <input type="number" id="developer-training-damage-dealt-input" min="0" max="10000" step="1" value="0">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-damage-taken-input">Damage Taken</label>
+                                    <input type="number" id="developer-training-damage-taken-input" min="0" max="10000" step="1" value="0">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-item-uses-input">Item Uses</label>
+                                    <input type="number" id="developer-training-item-uses-input" min="0" max="100" step="1" value="0">
+                                </div>
+                            </div>
+                            <div class="toggle-grid secondary-btn-spaced">
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="developer-training-crashed-toggle">
+                                    <span>Crashed</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="developer-training-stuck-toggle">
+                                    <span>Stuck</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="developer-training-won-toggle">
+                                    <span>Won</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="developer-training-lost-toggle">
+                                    <span>Lost</span>
+                                </label>
+                                <label class="toggle-row">
+                                    <input type="checkbox" id="developer-training-done-toggle">
+                                    <span>Done (terminal)</span>
+                                </label>
+                            </div>
+                            <label for="developer-training-terminal-reason-input">Terminal Reason</label>
+                            <input type="text" id="developer-training-terminal-reason-input" maxlength="64" value="match-ended">
+                            <label for="developer-training-auto-steps-input">Auto Steps (N)</label>
+                            <input type="number" id="developer-training-auto-steps-input" min="1" max="5000" step="1" value="20">
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-developer-training-reset" class="secondary-btn">Training Reset</button>
+                                <button type="button" id="btn-developer-training-step" class="secondary-btn">Training Step</button>
+                                <button type="button" id="btn-developer-training-auto-step" class="secondary-btn">Auto Step</button>
+                            </div>
+                            <h3 class="section-title secondary-btn-spaced">Automation (V33)</h3>
+                            <div class="match-settings-grid">
+                                <div class="menu-section">
+                                    <label for="developer-training-batch-episodes-input">Batch Episodes</label>
+                                    <input type="number" id="developer-training-batch-episodes-input" min="1" max="500" step="1" value="3">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-batch-seeds-input">Seeds (CSV)</label>
+                                    <input type="text" id="developer-training-batch-seeds-input" maxlength="120" value="3,7,11">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-batch-modes-input">Modes (CSV)</label>
+                                    <input type="text" id="developer-training-batch-modes-input" maxlength="120" value="classic-3d,hunt-3d">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-bridge-mode-select">Bridge Mode</label>
+                                    <select id="developer-training-bridge-mode-select">
+                                        <option value="local" selected>local</option>
+                                        <option value="mock-bridge">mock-bridge</option>
+                                    </select>
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-timeout-ms-input">Timeout (ms)</label>
+                                    <input type="number" id="developer-training-timeout-ms-input" min="10" max="120000" step="10" value="800">
+                                </div>
+                            </div>
+                            <div class="match-settings-grid">
+                                <div class="menu-section">
+                                    <label for="developer-training-gate-min-return-input">Gate min ReturnMean</label>
+                                    <input type="number" id="developer-training-gate-min-return-input" min="-1000" max="1000" step="0.01" value="0.1">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-gate-min-terminal-rate-input">Gate min TerminalRate</label>
+                                    <input type="number" id="developer-training-gate-min-terminal-rate-input" min="0" max="1" step="0.01" value="0.5">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-gate-max-truncation-rate-input">Gate max TruncationRate</label>
+                                    <input type="number" id="developer-training-gate-max-truncation-rate-input" min="0" max="1" step="0.01" value="0.75">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-gate-max-invalid-rate-input">Gate max InvalidActionRate</label>
+                                    <input type="number" id="developer-training-gate-max-invalid-rate-input" min="0" max="1" step="0.01" value="0.05">
+                                </div>
+                                <div class="menu-section">
+                                    <label for="developer-training-gate-max-runtime-errors-input">Gate max RuntimeErrors</label>
+                                    <input type="number" id="developer-training-gate-max-runtime-errors-input" min="0" max="1000" step="1" value="0">
+                                </div>
+                            </div>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-developer-training-run-batch" class="secondary-btn">Run Batch</button>
+                                <button type="button" id="btn-developer-training-run-eval" class="secondary-btn">Run Eval</button>
+                                <button type="button" id="btn-developer-training-run-gate" class="secondary-btn">Run Gate</button>
+                            </div>
+                            <pre id="developer-training-output" class="build-info-detail">Kein Training ausgefuehrt.</pre>
+                        </div>
+                        <div class="menu-section">
+                            <h2 class="section-title" data-menu-text-id="menu.developer.telemetry.title">Entwicklungs-Telemetrie</h2>
+                            <div id="developer-telemetry-dashboard" class="developer-telemetry-dashboard" aria-live="polite"></div>
+                            <pre id="developer-telemetry-output" class="build-info-detail">Keine Telemetrie vorhanden.</pre>
+                        </div>
+                        <div class="menu-section">
+                            <p id="developer-hint" class="menu-hint" role="status" aria-live="polite">
+                                Developer Scope: owner_only | Session: owner
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ======= SUBMENU: DEBUG / INFO ======= -->
+                <div id="submenu-debug" class="submenu-panel hidden" role="region" aria-labelledby="submenu-debug-title"
+                    aria-hidden="true" data-menu-panel="debug">
+                    <div class="submenu-header">
+                        <button type="button" class="back-btn" data-back data-back-target="submenu-expert" data-menu-action="back" aria-label="Zurueck zum Expertenbereich">←
+                            Zurück</button>
+                        <h2 id="submenu-debug-title" class="submenu-title" data-menu-text-id="menu.debug.title">ℹ️ Debug / Info</h2>
+                    </div>
+
+                    <div class="submenu-body">
+                        <div class="menu-section">
+                            <h2 class="section-title">Build-Information</h2>
+                            <div id="build-info-detail" class="build-info-detail"></div>
+                            <button type="button" id="btn-copy-build" class="secondary-btn secondary-btn-spaced" data-menu-action="copy-build-info">
+                                Build-Info kopieren
+                            </button>
+                        </div>
+                        <div class="menu-section">
+                            <p class="debug-hint">Drücke <kbd>O</kbd> im Spiel für FPS-Overlay</p>
+                            <p class="debug-hint">Drücke <kbd>P</kbd> im Spiel für Grafik-Toggle</p>
+                        </div>
+                    </div>
+                </div>
+
+            </div>
+        </div>
+
+        <div id="hud" class="hidden">
+            <!-- P1 Fighter HUD -->
+            <div id="p1-fighter-hud" class="fighter-hud hidden">
+                <div class="hud-center-crosshair">+</div>
+                <div class="hud-bank-line"></div>
+                <div class="hud-bank-angle">0°</div>
+                <div class="hud-horizon">
+                    <div class="horizon-line"></div>
+                </div>
+                <div class="hud-pitch-ladder">
+                    <!-- Lines generated by JS -->
+                </div>
+                <div class="hud-tape left">
+                    <div class="tape-label">SPD</div>
+                    <div class="tape-value" id="p1-hud-speed">0</div>
+                    <div class="tape-scale" id="p1-hud-speed-scale"></div>
+                    <div class="tape-marker">►</div>
+                </div>
+                <div class="hud-tape right">
+                    <div class="tape-label">ALT</div>
+                    <div class="tape-value" id="p1-hud-alt">0</div>
+                    <div class="tape-scale" id="p1-hud-alt-scale"></div>
+                    <div class="tape-marker">◄</div>
+                </div>
+                <div class="hud-tape top">
+                    <div class="tape-value" id="p1-hud-heading">N</div>
+                    <div class="tape-scale horizontal" id="p1-hud-heading-scale"></div>
+                    <div class="tape-marker">▼</div>
+                </div>
+                <div id="p1-lock-reticle" class="hud-lock-reticle hidden">
+                    <div class="lock-box"></div>
+                    <div class="lock-dist"></div>
+                </div>
+            </div>
+
+            <!-- P2 Fighter HUD -->
+            <div id="p2-fighter-hud" class="fighter-hud p2 hidden">
+                <div class="hud-center-crosshair">+</div>
+                <div class="hud-bank-line"></div>
+                <div class="hud-bank-angle">0°</div>
+                <div class="hud-horizon">
+                    <div class="horizon-line"></div>
+                </div>
+                <div class="hud-pitch-ladder"></div>
+                <div class="hud-tape left">
+                    <div class="tape-label">SPD</div>
+                    <div class="tape-value" id="p2-hud-speed">0</div>
+                    <div class="tape-scale" id="p2-hud-speed-scale"></div>
+                    <div class="tape-marker">►</div>
+                </div>
+                <div class="hud-tape right">
+                    <div class="tape-label">ALT</div>
+                    <div class="tape-value" id="p2-hud-alt">0</div>
+                    <div class="tape-scale" id="p2-hud-alt-scale"></div>
+                    <div class="tape-marker">◄</div>
+                </div>
+                <div class="hud-tape top">
+                    <div class="tape-value" id="p2-hud-heading">N</div>
+                    <div class="tape-scale horizontal" id="p2-hud-heading-scale"></div>
+                    <div class="tape-marker">▼</div>
+                </div>
+                <div id="p2-lock-reticle" class="hud-lock-reticle hidden">
+                    <div class="lock-box"></div>
+                    <div class="lock-dist"></div>
+                </div>
+            </div>
+
+            <div id="p1-hud" class="player-hud left">
+                <div class="player-name">Spieler 1</div>
+                <div class="player-score">0</div>
+                <div id="p1-hud-life-bar" class="hud-boost-bar hud-life-bar hidden">
+                    <div class="boost-label">LEBEN</div>
+                    <div id="p1-hud-life-fill" class="boost-fill"></div>
+                </div>
+                <div class="hud-boost-bar">
+                    <div class="boost-label">BOOST</div>
+                    <div id="p1-hud-boost-fill" class="boost-fill"></div>
+                </div>
+                <div id="p1-items" class="item-bar"></div>
+            </div>
+            <div id="p2-hud" class="player-hud right hidden">
+                <div class="player-name">Spieler 2</div>
+                <div class="player-score">0</div>
+                <div id="p2-hud-life-bar" class="hud-boost-bar hud-life-bar hidden">
+                    <div class="boost-label">LEBEN</div>
+                    <div id="p2-hud-life-fill" class="boost-fill"></div>
+                </div>
+                <div class="hud-boost-bar">
+                    <div class="boost-label">BOOST</div>
+                    <div id="p2-hud-boost-fill" class="boost-fill"></div>
+                </div>
+                <div id="p2-items" class="item-bar"></div>
+            </div>
+
+            <div id="parcours-hud" class="parcours-hud hidden" aria-live="polite">
+                <div id="parcours-route" class="parcours-route">Parcours</div>
+                <div id="parcours-progress" class="parcours-progress">CP 0/0</div>
+                <div id="parcours-timer" class="parcours-timer">0.00s</div>
+                <div id="parcours-status" class="parcours-status"></div>
+            </div>
+
+            <div id="hunt-hud" class="hunt-hud hidden" aria-hidden="true">
+                <div id="hunt-p1-panel" class="hunt-player-panel">
+                    <div class="hunt-label">Schild</div>
+                    <div class="hunt-bar hunt-bar-shield">
+                        <div id="hunt-p1-shield-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p1-shield-text" class="hunt-value">0 / 0</div>
+
+                    <div class="hunt-label">Boost</div>
+                    <div class="hunt-bar hunt-bar-boost">
+                        <div id="hunt-p1-boost-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p1-boost-text" class="hunt-value">100%</div>
+
+                    <div class="hunt-label">Overheat</div>
+                    <div class="hunt-bar hunt-bar-overheat">
+                        <div id="hunt-p1-overheat-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p1-overheat-text" class="hunt-value">0%</div>
+                </div>
+                <div id="hunt-p2-panel" class="hunt-player-panel hidden">
+                    <div class="hunt-label">Schild</div>
+                    <div class="hunt-bar hunt-bar-shield">
+                        <div id="hunt-p2-shield-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p2-shield-text" class="hunt-value">0 / 0</div>
+
+                    <div class="hunt-label">Boost</div>
+                    <div class="hunt-bar hunt-bar-boost">
+                        <div id="hunt-p2-boost-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p2-boost-text" class="hunt-value">100%</div>
+
+                    <div class="hunt-label">Overheat</div>
+                    <div class="hunt-bar hunt-bar-overheat">
+                        <div id="hunt-p2-overheat-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p2-overheat-text" class="hunt-value">0%</div>
+                </div>
+                <div class="hunt-kill-feed">
+                    <div class="hunt-label">Kill Feed</div>
+                    <ul id="hunt-kill-feed-list"></ul>
+                </div>
+                <div id="hunt-damage-indicator" class="hunt-damage-indicator p1 hidden">▲</div>
+                <div id="hunt-damage-indicator-p2" class="hunt-damage-indicator p2 hidden">▲</div>
+            </div>
+
+            <div id="message-overlay" class="hidden" role="alert" aria-live="assertive" aria-atomic="true">
+                <div id="message-text"></div>
+                <div id="message-sub"></div>
+                <div id="message-stats" class="hidden" aria-live="polite"></div>
+            </div>
+            <div id="pause-overlay" class="hidden" role="dialog" aria-modal="true" aria-label="Spiel pausiert">
+                <div id="pause-title">PAUSE</div>
+                <div id="pause-actions">
+                    <button type="button" id="btn-pause-resume" class="start-btn">Fortsetzen</button>
+                    <button type="button" id="btn-pause-settings" class="secondary-btn">Einstellungen</button>
+                    <button type="button" id="btn-pause-menu" class="secondary-btn">Men&uuml;</button>
+                </div>
+                <div id="pause-settings" class="hidden">
+                    <h3 class="pause-settings-title">Einstellungen</h3>
+                    <label class="toggle-row pause-toggle">
+                        <input type="checkbox" id="pause-auto-roll-toggle" checked>
+                        <span>Auto-Roll aktiv</span>
+                    </label>
+                    <label class="toggle-row pause-toggle">
+                        <input type="checkbox" id="pause-invert-p1" checked>
+                        <span>Invert Pitch P1</span>
+                    </label>
+                    <label class="toggle-row pause-toggle">
+                        <input type="checkbox" id="pause-invert-p2" checked>
+                        <span>Invert Pitch P2</span>
+                    </label>
+                    <div class="pause-keybinds-section">
+                        <h4 class="pause-settings-subtitle">Tastenbelegung</h4>
+                        <div class="pause-keybind-columns">
+                            <div class="pause-keybind-column">
+                                <h5 class="pause-keybind-header">Spieler 1</h5>
+                                <div id="pause-keybind-p1" class="keybind-grid"></div>
+                            </div>
+                            <div class="pause-keybind-column">
+                                <h5 class="pause-keybind-header">Spieler 2</h5>
+                                <div id="pause-keybind-p2" class="keybind-grid"></div>
+                            </div>
+                        </div>
+                        <div id="pause-keybind-warning" class="keybind-warning hidden" role="status" aria-live="polite"></div>
+                    </div>
+                    <button type="button" id="btn-pause-settings-back" class="secondary-btn">Zur&uuml;ck</button>
+                </div>
+            </div>
+            <div id="status-toast" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>
+        </div>
+    </div>
+
+    <!-- Touch-Controls Container (C.4) — populated by TouchInputSource.js -->
+    <div id="touch-controls" class="shell-touch-controls" aria-hidden="true"></div>
+
+    <script type="module" src="src/core/main.js"></script>
+</body>
+
+</html>

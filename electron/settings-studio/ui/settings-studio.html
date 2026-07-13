@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CurviosClash Settings Studio</title>
+    <link rel="stylesheet" href="./settings-studio.css" />
+</head>
+<body>
+    <div class="layout">
+        <header class="header">
+            <span class="header__title" data-bind="title"></span>
+            <div class="header__controls">
+                <label data-bind="language-label" for="language-select"></label>
+                <select id="language-select" data-bind="language-select">
+                    <option value="de">Deutsch</option>
+                    <option value="en">English</option>
+                </select>
+            </div>
+        </header>
+
+        <div class="body" data-bind="body">
+            <nav class="sidebar">
+                <ul class="nav-list" data-bind="sidebar-nav" role="tablist"></ul>
+            </nav>
+
+            <main class="form-area" id="main-form-area">
+                <div class="section-header">
+                    <div class="section-heading">
+                        <h2 class="section-title" data-bind="section-title" id="section-heading"></h2>
+                        <p class="section-hint" data-bind="section-hint" hidden></p>
+                    </div>
+                    <div class="section-actions">
+                        <span class="change-badge" data-bind="change-count" hidden aria-live="polite"></span>
+                        <button class="btn btn--ghost" data-action="reset-section" type="button" data-bind="reset-section-label"></button>
+                    </div>
+                </div>
+                <div class="form-content" data-bind="form-content" role="region" aria-labelledby="section-heading"></div>
+            </main>
+
+            <aside class="info-panel" data-bind="info-panel" hidden aria-label="Feldinformation" aria-live="polite">
+                <div class="info-panel__header">
+                    <span class="info-panel__title" data-bind="info-panel-title"></span>
+                    <button class="btn btn--ghost info-panel__close" data-action="close-info" aria-label="Feldinformation schliessen" type="button">&#x2715;</button>
+                </div>
+                <div class="info-panel__body" data-bind="info-panel-body"></div>
+            </aside>
+        </div>
+
+        <footer class="toolbar">
+            <div class="status" data-bind="status" role="status" aria-live="polite"></div>
+            <div class="toolbar__actions">
+                <button class="btn btn--ghost" data-action="reset-all" type="button" data-bind="reset-all-label"></button>
+                <button class="btn" data-action="validate" type="button" data-bind="validate-label"></button>
+                <button class="btn btn--primary" data-action="save" type="button" data-bind="save-label"></button>
+            </div>
+        </footer>
+    </div>
+
+    <div class="modal-overlay" data-bind="save-preview-modal" hidden role="dialog" aria-modal="true" aria-labelledby="save-preview-heading">
+        <div class="modal">
+            <div class="modal__header">
+                <h2 class="modal__title" id="save-preview-heading" data-bind="save-preview-title"></h2>
+            </div>
+            <div class="modal__body" data-bind="save-preview-body"></div>
+            <div class="modal__footer">
+                <button class="btn btn--ghost" data-action="cancel-save" type="button" data-bind="save-preview-cancel"></button>
+                <button class="btn btn--primary" data-action="confirm-save" type="button" data-bind="save-preview-confirm"></button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module" src="./settings-studio-app.js"></script>
+</body>
+</html>

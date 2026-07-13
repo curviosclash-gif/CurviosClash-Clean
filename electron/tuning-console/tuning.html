@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="de">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>CurviosClash Tuning Console</title>
+  <link rel="stylesheet" href="./tuning-style.css" />
+</head>
+<body>
+  <div class="tuning-shell">
+    <header class="shell-header">
+      <div>
+        <h1>Tuning Console</h1>
+        <p id="capability-message" class="muted">Verbinde Runtime ...</p>
+      </div>
+      <div class="header-actions">
+        <span id="changed-count" class="badge">0 geaendert</span>
+      </div>
+    </header>
+
+    <section class="toolbar">
+      <input id="search-input" type="search" placeholder="Suche nach Pfad oder Label ..." autocomplete="off" />
+      <label id="bot-profile-wrap" class="bot-profile hidden" for="bot-profile-select">
+        Bot-Profil
+        <select id="bot-profile-select">
+          <option value="EASY">EASY</option>
+          <option value="NORMAL" selected>NORMAL</option>
+          <option value="HARD">HARD</option>
+        </select>
+      </label>
+    </section>
+
+    <nav id="tabs" class="tabs" aria-label="Tuning Sektionen"></nav>
+
+    <main id="parameter-list" class="parameter-list" aria-live="polite"></main>
+
+    <footer class="footer">
+      <div class="preset-row">
+        <select id="preset-select">
+          <option value="">Preset waehlen</option>
+        </select>
+        <input id="preset-name-input" type="text" placeholder="Neuer Preset-Name" maxlength="64" />
+      </div>
+      <div class="preset-actions">
+        <button id="preset-save-btn" type="button">Save</button>
+        <button id="preset-load-btn" type="button">Load</button>
+        <button id="preset-export-btn" type="button">Export</button>
+        <button id="preset-import-btn" type="button">Import</button>
+        <button id="reset-all-btn" type="button" class="danger">Reset All</button>
+      </div>
+      <p id="status-line" class="status-line muted">Bereit.</p>
+    </footer>
+  </div>
+
+  <script type="module" src="./tuning-app.js"></script>
+</body>
+</html>

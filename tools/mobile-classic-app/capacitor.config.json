@@ -1,0 +1,12 @@
+{
+  "appId": "de.curviosclash.classic",
+  "appName": "Curvios Clash",
+  "webDir": "../../dist/mobile-classic",
+  "backgroundColor": "#04070b",
+  "zoomEnabled": false,
+  "android": {
+    "path": "../../android-classic",
+    "zoomEnabled": false,
+    "allowMixedContent": false
+  }
+}

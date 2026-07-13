@@ -1,0 +1,27 @@
+{
+  "contractVersion": "browser-demo-surface-policy-export.v1",
+  "generatedAt": "2026-07-13T02:25:31.302Z",
+  "source": {
+    "kind": "settings-studio",
+    "overrideFilePath": "C:\\Users\\GUNDAB~1\\AppData\\Local\\Temp\\curvios-settings-studio-v98-u9et5r\\browser-demo-surface-policy.override.json"
+  },
+  "draft": {
+    "contractVersion": "browser-demo-surface-policy.v1",
+    "policy": {
+      "allowedSessionTypes": [
+        "single"
+      ],
+      "allowedModePaths": [
+        "arcade"
+      ]
+    },
+    "capabilityFlags": {
+      "save": {
+        "enabled": false
+      },
+      "recording": {
+        "enabled": false
+      }
+    }
+  }
+}

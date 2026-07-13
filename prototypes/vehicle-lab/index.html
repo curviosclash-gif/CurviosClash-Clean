@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vehicle Lab - 3D Fahrzeug Generator</title>
+    <link rel="stylesheet" href="./style.css">
+</head>
+
+<body>
+    <div class="app-layout">
+        <aside class="sidebar">
+            <header class="sidebar__header">
+                <p class="sidebar__eyebrow">Prototype</p>
+                <h1>Vehicle Lab</h1>
+                <p class="sidebar__sub">Modularer Schiffsbau & Generator</p>
+            </header>
+
+            <section class="sidebar__panel">
+                <h2>Ship Settings</h2>
+                <div class="sidebar__grid">
+                    <label>Label</label>
+                    <input type="text" id="shipLabel" placeholder="My Ship">
+                    <label>Primary Color</label>
+                    <input type="color" id="shipPrimaryColor" value="#60a5fa" style="height: 38px; padding: 2px;">
+                </div>
+            </section>
+
+            <section class="sidebar__panel">
+                <h2>Presets</h2>
+                <div class="sidebar__row">
+                    <select id="presetSelect"></select>
+                </div>
+                <div class="sidebar__row">
+                    <button id="btnLoadPreset" class="btn--primary">Laden</button>
+                    <button id="btnImportJson">Import</button>
+                    <button id="btnExportJson">JSON Export</button>
+                </div>
+                <div class="sidebar__row">
+                    <button id="btnSaveToGameVehicle" class="btn--primary">Im Spiel speichern</button>
+                </div>
+            </section>
+
+            <section class="sidebar__panel">
+                <div class="sidebar__header-row">
+                    <h2>Spiel-Fahrzeuge</h2>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="btnRefreshSavedVehicles" class="btn--small" title="Liste aktualisieren">Refresh</button>
+                    </div>
+                </div>
+                <p style="margin: 0 0 8px; color: var(--muted); font-size: 0.78rem;">
+                    Standardfahrzeuge sind schreibgeschuetzt. Nur custom Fahrzeuge koennen umbenannt oder geloescht werden.
+                </p>
+                <div class="sidebar__header-row" style="margin-top: 4px;">
+                    <h2 style="font-size:0.75rem;">Standard (read-only)</h2>
+                </div>
+                <div id="standardVehiclesList" class="sidebar__list"></div>
+                <div class="sidebar__header-row" style="margin-top: 8px;">
+                    <h2 style="font-size:0.75rem;">Custom (gespeichert)</h2>
+                </div>
+                <div id="savedVehiclesList" class="sidebar__list"></div>
+            </section>
+
+            <section class="sidebar__panel">
+                <div class="sidebar__header-row">
+                    <h1>Aero Editor</h1>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="btnUndo" class="btn--small" title="Rückgängig (Strg+Z)">⟲</button>
+                        <button id="btnRedo" class="btn--small" title="Wiederholen (Strg+Y)">⟳</button>
+                    </div>
+                </div>
+                <div class="sidebar__header-row">
+                    <h2>Bauteile (Parts)</h2>
+                    <div style="display: flex; gap: 4px;">
+                        <button id="btnAddPart" class="btn--small">+ Neu</button>
+                        <button id="btnAddChild" class="btn--small">+ Kind</button>
+                    </div>
+                </div>
+                <div id="partsList" class="sidebar__list">
+                    <!-- Dynamic part entries -->
+                </div>
+            </section>
+
+            <section class="sidebar__panel">
+                <h2>Vergleich</h2>
+                <div class="sidebar__row">
+                    <select id="compareVehicleSelect" aria-label="Vergleichsfahrzeug"></select>
+                </div>
+                <div id="compareRows" class="compare-rows"></div>
+            </section>
+
+            <section id="propertyPanel" class="sidebar__panel is-hidden">
+                <h2 id="partTitle">Bauteil Edit</h2>
+                <div id="propertiesContainer" class="sidebar__grid">
+                    <!-- Dynamic properties -->
+                </div>
+                <div class="sidebar__row">
+                    <button id="btnDeletePart" class="btn--danger">Löschen</button>
+                </div>
+            </section>
+
+            <section class="sidebar__panel">
+                <h2>Viewport</h2>
+                <div class="sidebar__row">
+                    <label><input type="checkbox" id="chkAutoRotate"> Auto-Rotate</label>
+                </div>
+                <div class="sidebar__row">
+                    <label><input type="checkbox" id="chkFlyMode"> Flug-Modus (WASD/QE)</label>
+                </div>
+                <div class="sidebar__row">
+                    <label><input type="checkbox" id="chkWireframe"> Wireframe-Modus</label>
+                </div>
+                <div class="sidebar__row">
+                    <label><input type="checkbox" id="chkHitbox"> Hitbox-Vorschau</label>
+                </div>
+            </section>
+
+            <section class="sidebar__panel sidebar--shortcuts">
+                <h2>Controls</h2>
+                <div class="shortcut-list">
+                    <div class="shortcut"><span>T, R, S</span> <span>Gizmo Mode</span></div>
+                    <div class="shortcut"><span>WASD / Arrows</span> <span>Move Part</span></div>
+                    <div class="shortcut"><span>Y, X</span> <span>Up / Down</span></div>
+                    <div class="shortcut"><span>I, K</span> <span>Pitch</span></div>
+                    <div class="shortcut"><span>J, L</span> <span>Yaw</span></div>
+                    <div class="shortcut"><span>U, O</span> <span>Roll</span></div>
+                    <div class="shortcut"><span>N, M</span> <span>Scale</span></div>
+                    <div class="shortcut"><span>Shift</span> <span>Faster</span></div>
+                    <div class="shortcut"><span>Ctrl + Z/Y</span> <span>Undo/Redo</span></div>
+                </div>
+            </section>
+        </aside>
+
+        <main class="viewport">
+            <canvas id="vehicleCanvas"></canvas>
+            <div id="viewportHud" class="viewport__hud">
+                <span id="partCountBadge" class="badge">Parts: 0</span>
+                <span id="polyCountBadge" class="badge">Polys: 0</span>
+            </div>
+            <div id="workshopStatusBar" class="workshop-status-bar" role="status" aria-live="polite">
+                <span id="workshopStatusMessage">Bereit</span>
+                <span id="workshopHistoryState">History 1/1</span>
+                <span id="workshopBlueprintState">Blueprint n/a</span>
+            </div>
+        </main>
+    </div>
+
+    <script type="module" src="./main.js"></script>
+</body>
+
+</html>

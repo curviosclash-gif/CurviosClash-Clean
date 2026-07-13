@@ -1,0 +1,278 @@
+import assert from 'node:assert/strict';
+import test from 'node:test';
+
+import { createSignalingServer } from '../server/signaling-server.js';
+import { OnlineMatchLobby } from '../src/network/OnlineMatchLobby.js';
+import { OnlineSessionAdapter } from '../src/network/OnlineSessionAdapter.js';
+import { DataChannelManager } from '../src/network/DataChannelManager.js';
+import { PeerConnectionManager } from '../src/network/PeerConnectionManager.js';
+import { SessionAdapterBase } from '../src/network/SessionAdapterBase.js';
+import { attachMultiplayerLifecycleKernel, detachMultiplayerLifecycleKernel } from '../src/core/runtime/MultiplayerMatchLifecycleKernel.js';
+import { GAME_STATE_IDS } from '../src/shared/contracts/GameStateIds.js';
+
+function waitForEvent(emitter, event, timeoutMs = 5000) {
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(
+            () => reject(new Error(`Timed out waiting for '${event}'`)),
+            timeoutMs
+        );
+        emitter.on(event, (payload) => {
+            clearTimeout(timer);
+            resolve(payload);
+        });
+    });
+}
+
+function stubPeerManager(log = []) {
+    return {
+        createOffer: async (peerId) => {
+            log.push({ op: 'createOffer', peerId });
+            return { type: 'offer', sdp: `offer-for-${peerId}` };
+        },
+        handleOffer: async (peerId, offer) => {
+            log.push({ op: 'handleOffer', peerId, offer });
+            return { type: 'answer', sdp: `answer-from-${peerId}` };
+        },
+        handleAnswer: async (peerId, answer) => {
+            log.push({ op: 'handleAnswer', peerId, answer });
+        },
+        addIceCandidate: async () => {},
+        closePeer: () => {},
+        dispose: () => {},
+        getAllPeerIds: () => [],
+        recordPeerActivity: () => {},
+        recordHeartbeatAck: () => {},
+    };
+}
+
+function createEventHarness() {
+    const listeners = new Map();
+    return {
+        on(event, handler) {
+            if (!listeners.has(event)) listeners.set(event, []);
+            listeners.get(event).push(handler);
+        },
+        off(event, handler) {
+            const entries = listeners.get(event) || [];
+            const index = entries.indexOf(handler);
+            if (index >= 0) entries.splice(index, 1);
+        },
+        emit(event, payload) {
+            for (const handler of listeners.get(event) || []) {
+                handler(payload);
+            }
+        },
+    };
+}
+
+test('OnlineMatchLobby classifies invalid signaling payloads', () => {
+    const lobby = new OnlineMatchLobby({ signalingUrl: 'ws://localhost:1234' });
+
+    let parseError = null;
+    try {
+        lobby._parseSocketMessage('{broken');
+    } catch (error) {
+        parseError = error;
+    }
+    assert.equal(parseError?.code, 'signaling_payload_invalid');
+
+    let missingTypeError = null;
+    try {
+        lobby._parseSocketMessage(JSON.stringify({ foo: 'bar' }));
+    } catch (error) {
+        missingTypeError = error;
+    }
+    assert.equal(missingTypeError?.code, 'signaling_payload_invalid');
+});
+
+test('OnlineSessionAdapter rejects missing signaling message type', async () => {
+    const adapter = new OnlineSessionAdapter({ isHost: true, signalingUrl: 'ws://localhost:1234' });
+    const result = await new Promise((resolve) => {
+        adapter._handleSignalingMessage(
+            { invalid: true },
+            () => resolve({ resolved: true }),
+            (error) => resolve({ rejected: true, code: error?.code })
+        );
+    });
+
+    adapter.dispose();
+    assert.equal(result?.rejected, true);
+    assert.equal(result?.code, 'signaling_payload_invalid');
+});
+
+test('online match handoff attaches transports to the SAME lobby and completes the offer/answer round-trip', async () => {
+    const wss = createSignalingServer(0);
+    const port = wss.address().port;
+    const signalingUrl = `ws://127.0.0.1:${port}`;
+
+    const hostLobby = new OnlineMatchLobby({ signalingUrl });
+    const clientLobby = new OnlineMatchLobby({ signalingUrl });
+    let hostAdapter = null;
+    let clientAdapter = null;
+    try {
+        await hostLobby.create({ maxPlayers: 4 });
+        const lobbyCode = hostLobby.lobbyCode;
+        assert.ok(lobbyCode, 'host lobby code missing');
+        await clientLobby.join(lobbyCode);
+
+        const hostPeerId = hostLobby.getLocalPeerId();
+        const clientPeerId = clientLobby.getLocalPeerId();
+        assert.ok(hostPeerId && clientPeerId);
+        // PLAYER_JOINED reaches the host asynchronously via broadcast.
+        for (let i = 0; i < 100 && hostLobby.sessionState.members.length < 2; i += 1) {
+            await new Promise((resolve) => setTimeout(resolve, 10));
+        }
+        const membersBefore = hostLobby.sessionState.members.length;
+        assert.equal(membersBefore, 2);
+
+        const hostLog = [];
+        const clientLog = [];
+        hostAdapter = new OnlineSessionAdapter({ isHost: true, signalingUrl });
+        clientAdapter = new OnlineSessionAdapter({ isHost: false, signalingUrl });
+        hostAdapter._peerManager = stubPeerManager(hostLog);
+        clientAdapter._peerManager = stubPeerManager(clientLog);
+
+        const hostPlayerConnected = waitForEvent(hostAdapter, 'playerConnected');
+        await hostAdapter.connect({ playerId: hostPeerId, lobbyCode });
+        await clientAdapter.connect({ playerId: clientPeerId, lobbyCode });
+
+        // Same lobby: the host adapter must offer to the attaching client and
+        // receive the answer back through the relay.
+        const connectedPayload = await hostPlayerConnected;
+        assert.equal(connectedPayload.peerId, clientPeerId);
+        assert.deepEqual(hostLog.map((entry) => entry.op), ['createOffer', 'handleAnswer']);
+        assert.equal(hostLog[0].peerId, clientPeerId);
+        assert.equal(clientLog[0]?.op, 'handleOffer');
+        assert.equal(clientLog[0]?.peerId, hostPeerId);
+        assert.equal(clientAdapter._hostPeerId, hostPeerId);
+
+        // No double slot usage: attaching transports must not add lobby members.
+        await new Promise((resolve) => setTimeout(resolve, 50));
+        assert.equal(hostLobby.sessionState.members.length, membersBefore);
+    } finally {
+        try { clientAdapter?.disconnect(); } catch { /* cleanup */ }
+        try { hostAdapter?.disconnect(); } catch { /* cleanup */ }
+        try { clientLobby.leave(); } catch { /* cleanup */ }
+        try { hostLobby.leave(); } catch { /* cleanup */ }
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        for (const socket of wss.clients) {
+            socket.terminate();
+        }
+        await new Promise((resolve) => wss.close(() => resolve()));
+    }
+});
+
+test('PeerConnectionManager buffers remote ICE candidates until the remote description is set', async () => {
+    const applied = [];
+    class FakeRTCIceCandidate {
+        constructor(candidate) { this.candidate = candidate; }
+    }
+    class FakeRTCSessionDescription {
+        constructor(description) { Object.assign(this, description); }
+    }
+    const fakePc = {
+        remoteDescription: null,
+        async setRemoteDescription(description) { this.remoteDescription = description; },
+        async addIceCandidate(candidate) { applied.push(candidate.candidate); },
+        close() {},
+    };
+    const originalIce = globalThis.RTCIceCandidate;
+    const originalSdp = globalThis.RTCSessionDescription;
+    globalThis.RTCIceCandidate = FakeRTCIceCandidate;
+    globalThis.RTCSessionDescription = FakeRTCSessionDescription;
+    try {
+        const manager = new PeerConnectionManager({});
+        manager._peers.set('peer-1', fakePc);
+
+        // Candidates arriving before the answer must not be dropped.
+        await manager.addIceCandidate('peer-1', { candidate: 'early-1' });
+        await manager.addIceCandidate('unknown-peer', { candidate: 'early-2' });
+        assert.deepEqual(applied, []);
+
+        await manager.handleAnswer('peer-1', { type: 'answer', sdp: 'a' });
+        assert.deepEqual(applied, [{ candidate: 'early-1' }]);
+
+        await manager.addIceCandidate('peer-1', { candidate: 'late-1' });
+        assert.deepEqual(applied, [{ candidate: 'early-1' }, { candidate: 'late-1' }]);
+        manager.dispose();
+    } finally {
+        globalThis.RTCIceCandidate = originalIce;
+        globalThis.RTCSessionDescription = originalSdp;
+    }
+});
+
+test('DataChannelManager creates a fully reliable state channel', () => {
+    const created = [];
+    const fakePc = {
+        createDataChannel(label, options) {
+            created.push({ label, options });
+            return { label, onopen: null, onclose: null, onerror: null, onmessage: null };
+        },
+    };
+    const manager = new DataChannelManager();
+    manager.createChannels('peer-1', fakePc);
+
+    const stateChannel = created.find((entry) => entry.label === 'state');
+    const inputChannel = created.find((entry) => entry.label === 'inputs');
+    assert.equal(stateChannel.options.ordered, true);
+    assert.equal('maxRetransmits' in stateChannel.options, false, 'state channel must be fully reliable');
+    assert.equal(inputChannel.options.maxRetransmits, 0);
+});
+
+test('client-side adapters deduplicate disconnect events per peer', () => {
+    class TestAdapter extends SessionAdapterBase {
+        constructor() {
+            super({ isHost: false });
+            this.sent = [];
+        }
+        _sendStateToAll() {}
+        _sendStateToPeer() {}
+        _closePeerConnection() {}
+        _removePeerLatency() {}
+    }
+    const adapter = new TestAdapter();
+    const events = [];
+    adapter.on('playerDisconnected', (payload) => events.push(payload));
+
+    // channel-close fires once per data channel (inputs + state).
+    adapter._registerPeerDisconnect('host', 'channel-close');
+    adapter._registerPeerDisconnect('host', 'channel-close');
+    assert.equal(events.length, 1);
+
+    // After a successful reconnect the next disconnect is reported again.
+    adapter._clearClientPeerDisconnect('host');
+    adapter._registerPeerDisconnect('host', 'heartbeat-timeout');
+    assert.equal(events.length, 2);
+});
+
+test('multiplayer lifecycle kernel observes async returnToMenu and suppresses duplicate triggers', async () => {
+    const session = createEventHarness();
+    let callCount = 0;
+    let rejectCall = true;
+    const facade = {
+        _pendingMatchFinalize: false,
+        game: {
+            state: GAME_STATE_IDS.PLAYING,
+        },
+        returnToMenu() {
+            callCount += 1;
+            if (rejectCall) {
+                rejectCall = false;
+                return Promise.reject(new Error('simulated-finalize-failure'));
+            }
+            return Promise.resolve();
+        },
+    };
+
+    const handlers = attachMultiplayerLifecycleKernel(facade, session);
+    session.emit('hostDisconnected', {});
+    session.emit('hostDisconnected', {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(callCount, 1);
+
+    session.emit('hostDisconnected', {});
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(callCount, 2);
+
+    detachMultiplayerLifecycleKernel(session, handlers);
+});

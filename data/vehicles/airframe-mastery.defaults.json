@@ -1,0 +1,65 @@
+{
+  "schemaVersion": 1,
+  "baseBudgets": {
+    "editorBudget": 100,
+    "massBudget": 90,
+    "powerBudget": 96,
+    "heatBudget": 88
+  },
+  "levels": [
+    {
+      "level": 1,
+      "xpRequired": 0,
+      "editorBudgetBonus": 0,
+      "unlockedPartFamilies": [],
+      "passiveSocketCount": 0,
+      "maxOverclockTier": 0
+    },
+    {
+      "level": 2,
+      "xpRequired": 120,
+      "editorBudgetBonus": 6,
+      "unlockedPartFamilies": [
+        "wing"
+      ],
+      "passiveSocketCount": 0,
+      "maxOverclockTier": 1
+    },
+    {
+      "level": 3,
+      "xpRequired": 300,
+      "editorBudgetBonus": 12,
+      "unlockedPartFamilies": [
+        "wing",
+        "utility"
+      ],
+      "passiveSocketCount": 1,
+      "maxOverclockTier": 1
+    },
+    {
+      "level": 4,
+      "xpRequired": 560,
+      "editorBudgetBonus": 20,
+      "unlockedPartFamilies": [
+        "wing",
+        "utility",
+        "engine"
+      ],
+      "passiveSocketCount": 1,
+      "maxOverclockTier": 2
+    },
+    {
+      "level": 5,
+      "xpRequired": 920,
+      "editorBudgetBonus": 30,
+      "unlockedPartFamilies": [
+        "wing",
+        "utility",
+        "engine",
+        "nose"
+      ],
+      "passiveSocketCount": 2,
+      "maxOverclockTier": 2
+    }
+  ]
+}

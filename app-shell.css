@@ -1,0 +1,152 @@
+#main-menu[data-shell-ready="false"] {
+    visibility: hidden;
+}
+
+#touch-controls.shell-touch-controls {
+    display: none;
+}
+
+body {
+    overflow: hidden;
+    background: #0a0a0f;
+    font-family: var(--menu-theme-ui-font);
+    color: #eee;
+    user-select: none;
+}
+
+#game-container {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 0;
+}
+
+#game-canvas {
+    display: block;
+    width: 100%;
+    height: 100%;
+}
+
+#ui-layer {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    z-index: 10;
+    pointer-events: none;
+}
+
+.hidden {
+    display: none !important;
+}
+
+[data-requires-cap].cap-unavailable {
+    display: none !important;
+}
+
+#main-menu {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+    height: 100%;
+    background: #050510;
+    background-image: url('./assets/ui/menu_bg.png');
+    background-position: center;
+    background-size: cover;
+    background-repeat: no-repeat;
+    pointer-events: auto;
+    animation: fadeIn 0.35s ease;
+    padding: 14px;
+}
+
+@keyframes fadeIn {
+    from {
+        opacity: 0;
+    }
+
+    to {
+        opacity: 1;
+    }
+}
+
+.menu-shell {
+    position: sticky;
+    top: 0;
+    z-index: 8;
+    display: grid;
+    gap: 12px;
+    margin: -2px -4px 18px;
+    padding: 4px 4px 12px;
+    background: linear-gradient(180deg, rgba(12, 18, 34, 0.95), rgba(12, 18, 34, 0.8) 72%, rgba(12, 18, 34, 0));
+    backdrop-filter: blur(10px);
+}
+
+.sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+}
+
+.menu-hero-shell {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 18px;
+}
+
+.menu-brand-copy {
+    min-width: 0;
+}
+
+.menu-utility-shell {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+#main-menu[data-menu-depth="2"] .menu-shell,
+#main-menu[data-menu-depth="3"] .menu-shell,
+#main-menu[data-menu-depth="4"] .menu-shell,
+#main-menu[data-menu-depth="5"] .menu-shell {
+    gap: 8px;
+    margin-bottom: 10px;
+}
+
+#main-menu[data-menu-depth="2"] .menu-hero-shell,
+#main-menu[data-menu-depth="3"] .menu-hero-shell,
+#main-menu[data-menu-depth="4"] .menu-hero-shell,
+#main-menu[data-menu-depth="5"] .menu-hero-shell {
+    align-items: center;
+}
+
+#main-menu[data-menu-local-theme="hell"] .menu-shell {
+    background: linear-gradient(180deg, rgba(239, 247, 255, 0.95), rgba(239, 247, 255, 0.82) 72%, rgba(239, 247, 255, 0));
+}
+
+@media (max-width: 980px) {
+    .menu-shell {
+        margin-bottom: 12px;
+    }
+
+    .menu-hero-shell,
+    .menu-footer {
+        flex-direction: column;
+        align-items: flex-start;
+    }
+
+    .menu-utility-shell {
+        width: 100%;
+        justify-content: flex-start;
+    }
+}
