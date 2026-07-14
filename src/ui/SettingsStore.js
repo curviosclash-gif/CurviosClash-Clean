@@ -177,13 +177,14 @@ export class SettingsStore {
     }
 
     _createCanonicalSettingsPersistenceState(settings) {
+        const hasInput = settings !== null && settings !== undefined;
         const hasObjectInput = !!settings && typeof settings === 'object';
         const seedSettings = hasObjectInput ? settings : this.createDefaultSettings();
         const canonicalSettings = this.sanitizeSettings(seedSettings);
         return {
             hasObjectInput,
             canonicalSettings,
-            didNormalize: hasObjectInput
+            didNormalize: hasInput
                 ? !areCanonicalSettingsEqual(settings, canonicalSettings)
                 : false,
         };

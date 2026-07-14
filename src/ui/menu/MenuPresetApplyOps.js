@@ -42,7 +42,7 @@ const PRESET_VALUE_PATH_TO_CHANGE_KEY = Object.freeze({
     'cameraPerspective.thrusterExhaustIntensity': SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_INTENSITY,
 });
 
-const SNAPSHOT_PATHS = Object.freeze([
+export const MENU_PRESET_VALUE_PATHS = Object.freeze([
     'mode',
     'gameMode',
     'mapKey',
@@ -84,6 +84,8 @@ const SNAPSHOT_PATHS = Object.freeze([
     'cameraPerspective.thrusterExhaustIntensity',
 ]);
 
+const MENU_PRESET_VALUE_PATH_SET = new Set(MENU_PRESET_VALUE_PATHS);
+
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
@@ -101,6 +103,10 @@ function toPathSegments(path) {
         .filter(Boolean);
 }
 
+export function isMenuPresetValuePathAllowed(path) {
+    return MENU_PRESET_VALUE_PATH_SET.has(normalizeString(path));
+}
+
 function getValueAtPath(source, path) {
     if (!source || typeof source !== 'object') return undefined;
     const segments = toPathSegments(path);
@@ -114,19 +120,22 @@ function getValueAtPath(source, path) {
 }
 
 function setValueAtPath(target, path, value) {
-    if (!target || typeof target !== 'object') return;
+    if (!target || typeof target !== 'object' || !isMenuPresetValuePathAllowed(path)) return false;
     const segments = toPathSegments(path);
-    if (segments.length === 0) return;
+    if (segments.length === 0) return false;
 
     let current = target;
     for (let index = 0; index < segments.length - 1; index += 1) {
         const segment = segments[index];
-        if (!current[segment] || typeof current[segment] !== 'object') {
+        if (!Object.prototype.hasOwnProperty.call(current, segment)
+            || !current[segment]
+            || typeof current[segment] !== 'object') {
             current[segment] = {};
         }
         current = current[segment];
     }
     current[segments[segments.length - 1]] = value;
+    return true;
 }
 
 function cloneValue(value) {
@@ -135,15 +144,24 @@ function cloneValue(value) {
     return value;
 }
 
-function normalizePresetValues(preset) {
+export function normalizePresetValues(preset) {
     const sourceValues = preset?.values && typeof preset.values === 'object' ? preset.values : {};
     const out = {};
     for (const [path, value] of Object.entries(sourceValues)) {
         const normalizedPath = normalizeString(path);
-        if (!normalizedPath) continue;
+        if (!isMenuPresetValuePathAllowed(normalizedPath)) continue;
         out[normalizedPath] = cloneValue(value);
     }
     return out;
+}
+
+function normalizePresetPathList(paths) {
+    if (!Array.isArray(paths)) return [];
+    return Array.from(new Set(
+        paths
+            .map((path) => normalizeString(path))
+            .filter((path) => isMenuPresetValuePathAllowed(path))
+    ));
 }
 
 export function applyPresetToSettings(options = {}) {
@@ -176,7 +194,7 @@ export function applyPresetToSettings(options = {}) {
         const previousValue = getValueAtPath(settings, path);
         if (isPrimitiveEqual(previousValue, nextValue)) continue;
 
-        setValueAtPath(settings, path, cloneValue(nextValue));
+        if (!setValueAtPath(settings, path, cloneValue(nextValue))) continue;
         appliedPaths.push(path);
 
         const changedKey = PRESET_VALUE_PATH_TO_CHANGE_KEY[path];
@@ -202,7 +220,7 @@ export function applyPresetToSettings(options = {}) {
 export function capturePresetValuesFromSettings(settings) {
     const source = settings && typeof settings === 'object' ? settings : {};
     const values = {};
-    for (const path of SNAPSHOT_PATHS) {
+    for (const path of MENU_PRESET_VALUE_PATHS) {
         const value = getValueAtPath(source, path);
         if (typeof value === 'undefined') continue;
         values[path] = cloneValue(value);
@@ -222,7 +240,7 @@ export function createPresetMetadata(options = {}) {
         id: presetId,
         kind,
         ownerId,
-        lockedFields: Array.isArray(options.lockedFields) ? options.lockedFields.slice() : [],
+        lockedFields: normalizePresetPathList(options.lockedFields),
         sourcePresetId,
         createdAt,
         updatedAt,

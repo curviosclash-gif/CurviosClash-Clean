@@ -36,7 +36,8 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     merged.gameMode = resolveActiveGameMode(src.gameMode, huntFeatureEnabled);
 
     const requestedMapKey = String(src.mapKey || '');
-    merged.mapKey = (requestedMapKey === CUSTOM_MAP_KEY || CONFIG.MAPS[requestedMapKey])
+    const hasConfiguredMap = Object.prototype.hasOwnProperty.call(CONFIG.MAPS || {}, requestedMapKey);
+    merged.mapKey = (requestedMapKey === CUSTOM_MAP_KEY || hasConfiguredMap)
         ? requestedMapKey
         : defaults.mapKey;
 
@@ -56,14 +57,14 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     );
     merged.autoRoll = typeof src.autoRoll === 'boolean' ? src.autoRoll : defaults.autoRoll;
 
-    merged.invertPitch.PLAYER_1 = !!src?.invertPitch?.PLAYER_1;
-    merged.invertPitch.PLAYER_2 = !!src?.invertPitch?.PLAYER_2;
+    merged.invertPitch.PLAYER_1 = !!(src?.invertPitch?.PLAYER_1 ?? defaults.invertPitch.PLAYER_1);
+    merged.invertPitch.PLAYER_2 = !!(src?.invertPitch?.PLAYER_2 ?? defaults.invertPitch.PLAYER_2);
     merged.cockpitCamera.PLAYER_1 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
     merged.cockpitCamera.PLAYER_2 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
 
     if (!merged.vehicles) merged.vehicles = { PLAYER_1: 'ship5', PLAYER_2: 'ship5' };
-    merged.vehicles.PLAYER_1 = src?.vehicles?.PLAYER_1 || 'ship5';
-    merged.vehicles.PLAYER_2 = src?.vehicles?.PLAYER_2 || 'ship5';
+    merged.vehicles.PLAYER_1 = src?.vehicles?.PLAYER_1 || defaults?.vehicles?.PLAYER_1 || 'ship5';
+    merged.vehicles.PLAYER_2 = src?.vehicles?.PLAYER_2 || defaults?.vehicles?.PLAYER_2 || 'ship5';
 
     merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;
     merged.hunt.respawnEnabled = !!(src?.hunt?.respawnEnabled ?? defaults.hunt.respawnEnabled);

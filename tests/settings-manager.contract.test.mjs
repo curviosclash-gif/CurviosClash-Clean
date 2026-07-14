@@ -132,6 +132,39 @@ test('V103 SettingsManager loadSettings rewrites persisted snapshots to canonica
     assert.deepEqual(persistedSettings, manager.sanitizeSettings(persistedSettings));
 });
 
+test('SettingsManager repairs primitive persisted settings with the canonical default snapshot', () => {
+    const storagePlatform = createMemoryStoragePlatform({
+        [STORAGE_KEYS.settings]: 'corrupt-settings-record',
+    });
+    const manager = new SettingsManager({ storagePlatform });
+
+    const loadedSettings = manager.loadSettings();
+
+    assert.deepEqual(loadedSettings, manager.createDefaultSettings());
+    assert.deepEqual(storagePlatform.getRecord(STORAGE_KEYS.settings), loadedSettings);
+});
+
+test('SettingsManager partial snapshots preserve current invert-pitch and vehicle defaults', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+    const defaults = manager.createDefaultSettings();
+
+    const sanitized = manager.sanitizeSettings({
+        settingsVersion: defaults.settingsVersion,
+    });
+
+    assert.deepEqual(sanitized.invertPitch, defaults.invertPitch);
+    assert.deepEqual(sanitized.vehicles, defaults.vehicles);
+});
+
+test('SettingsManager rejects inherited object property names as map keys', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+    const defaults = manager.createDefaultSettings();
+
+    const sanitized = manager.sanitizeSettings({ mapKey: '__proto__' });
+
+    assert.equal(sanitized.mapKey, defaults.mapKey);
+});
+
 test('V103 SettingsManager saveSettings persists the same canonical snapshot returned by loadSettings', () => {
     const storagePlatform = createMemoryStoragePlatform();
     const manager = new SettingsManager({ storagePlatform });
@@ -807,6 +840,48 @@ test('Menu presets capture and apply local, recording and camera runtime fields'
         assert.equal(settings.cameraPerspective.reduceMotion, false);
         assert.equal(settings.cameraPerspective.speedFovIntensity, 0.45);
     });
+});
+
+test('Menu presets discard unknown setting paths before storage and application', () => {
+    const pollutedProperty = '__settingsManagerPresetPolluted';
+    const maliciousStoreRecord = JSON.parse(`{
+        "schemaVersion": "menu-preset-store.v1",
+        "presets": [{
+            "id": "tampered-preset",
+            "name": "Tampered Preset",
+            "metadata": {
+                "id": "tampered-preset",
+                "kind": "open",
+                "ownerId": "owner"
+            },
+            "values": {
+                "gameplay.speed": 20,
+                "localSettings.ownerId": "attacker",
+                "__proto__.${pollutedProperty}": true
+            }
+        }]
+    }`);
+    const storagePlatform = createMemoryStoragePlatform({
+        [STORAGE_KEYS.menuPresets]: maliciousStoreRecord,
+    });
+    const manager = new SettingsManager({ storagePlatform });
+    const settings = manager.createDefaultSettings();
+    const originalOwnerId = settings.localSettings.ownerId;
+
+    delete Object.prototype[pollutedProperty];
+    try {
+        const result = manager.applyMenuPreset(settings, 'tampered-preset');
+        const persistedPreset = manager.listMenuPresets()
+            .find((preset) => preset.id === 'tampered-preset');
+
+        assert.equal(result.success, true);
+        assert.deepEqual(result.appliedPaths, ['gameplay.speed']);
+        assert.equal(settings.localSettings.ownerId, originalOwnerId);
+        assert.equal(Object.prototype[pollutedProperty], undefined);
+        assert.deepEqual(persistedPreset?.values, { 'gameplay.speed': 20 });
+    } finally {
+        delete Object.prototype[pollutedProperty];
+    }
 });
 
 test('Settings diff maps uppercase player slot paths to UI change keys', () => {

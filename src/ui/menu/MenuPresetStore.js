@@ -1,5 +1,5 @@
 import { findFixedMenuPresetById, getFixedMenuPresetCatalog } from './MenuPresetCatalog.js';
-import { createPresetMetadata } from './MenuPresetApplyOps.js';
+import { createPresetMetadata, normalizePresetValues } from './MenuPresetApplyOps.js';
 import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
@@ -31,9 +31,7 @@ function clonePreset(preset) {
             createdAt: normalizeString(preset?.metadata?.createdAt),
             updatedAt: normalizeString(preset?.metadata?.updatedAt),
         },
-        values: preset.values && typeof preset.values === 'object'
-            ? { ...preset.values }
-            : {},
+        values: normalizePresetValues(preset),
     };
 }
 
