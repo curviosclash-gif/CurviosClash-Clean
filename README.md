@@ -74,3 +74,5 @@ den abgeleiteten PNG- und ICO-Dateien; kein Asset aus Next wurde übernommen.
 - `tests/` – Contract-, Integrations- und Desktop-Tests
 
 Dauerhafte Produktziele stehen in `ROADMAP.md`; langfristige Architekturentscheidungen liegen knapp dokumentiert unter `docs/adr/`.
+
+Herkunft, übernommene Arbeitsverzeichnis-Änderungen, entfernte Entwicklungsstrukturen, Produktentscheidungen, Abhängigkeiten und die Abschlussprüfungen sind im [Migrationsbericht](docs/migration-report.md) dokumentiert.
