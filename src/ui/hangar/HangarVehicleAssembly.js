@@ -5,6 +5,7 @@ import { resolveHangarPart, resolveVehicleHardpoints } from './HangarPartCatalog
 const _bounds = new THREE.Box3();
 const _size = new THREE.Vector3();
 const _center = new THREE.Vector3();
+const HANGAR_VEHICLE_TARGET_SIZE = 4.1;
 
 function disposeExternalVehicle(node) {
     if (!node) return;
@@ -33,6 +34,7 @@ export class HangarVehicleAssembly {
         this.partNodes = new Map();
         this.hardpoints = new Map();
         this.vehicleNode = null;
+        this.vehicleLoadedHandler = null;
         this.vehicleId = '';
         this.selectedSlotId = '';
     }
@@ -143,10 +145,35 @@ export class HangarVehicleAssembly {
         });
     }
 
+    _detachVehicleLoadedHandler() {
+        if (!this.vehicleNode || !this.vehicleLoadedHandler) return;
+        this.vehicleNode.removeEventListener?.('loaded', this.vehicleLoadedHandler);
+        this.vehicleLoadedHandler = null;
+    }
+
+    _normalizeVehicleNode(vehicleNode) {
+        if (!vehicleNode || vehicleNode !== this.vehicleNode) return false;
+        this.baseVehicleRoot.scale.setScalar(1);
+        this.baseVehicleRoot.position.set(0, 0, 0);
+        vehicleNode.position.set(0, 0, 0);
+        vehicleNode.updateWorldMatrix?.(true, true);
+        _bounds.setFromObject(vehicleNode);
+        if (_bounds.isEmpty()) return false;
+        _bounds.getSize(_size);
+        _bounds.getCenter(_center);
+        const longest = Math.max(0.001, _size.x, _size.y, _size.z);
+        const scale = Math.min(1.45, Math.max(0.55, HANGAR_VEHICLE_TARGET_SIZE / longest));
+        vehicleNode.position.copy(_center).multiplyScalar(-1);
+        this.baseVehicleRoot.scale.setScalar(scale);
+        this.baseVehicleRoot.position.y = -0.05;
+        return true;
+    }
+
     setVehicle(vehicleId, color = '#66b6ff') {
         const normalizedVehicleId = String(vehicleId || '').trim().toLowerCase() || 'ship5';
         if (normalizedVehicleId === this.vehicleId && this.vehicleNode) return;
         if (this.vehicleNode) {
+            this._detachVehicleLoadedHandler();
             this.baseVehicleRoot.remove(this.vehicleNode);
             disposeExternalVehicle(this.vehicleNode);
         }
@@ -154,14 +181,16 @@ export class HangarVehicleAssembly {
         this.hardpoints = new Map(resolveVehicleHardpoints(normalizedVehicleId).map((point) => [point.id, point]));
         this.vehicleNode = createVehicleMesh(normalizedVehicleId, color);
         this.baseVehicleRoot.add(this.vehicleNode);
-        _bounds.setFromObject(this.vehicleNode);
-        _bounds.getSize(_size);
-        _bounds.getCenter(_center);
-        const longest = Math.max(0.001, _size.x, _size.y, _size.z);
-        const scale = Math.min(1.45, Math.max(0.55, 3 / longest));
-        this.vehicleNode.position.copy(_center).multiplyScalar(-1);
-        this.baseVehicleRoot.scale.setScalar(scale);
-        this.baseVehicleRoot.position.y = -0.05;
+        this._normalizeVehicleNode(this.vehicleNode);
+        if (this.vehicleNode._loadingPromise && this.vehicleNode._loaded !== true) {
+            const pendingVehicle = this.vehicleNode;
+            this.vehicleLoadedHandler = () => {
+                pendingVehicle.removeEventListener?.('loaded', this.vehicleLoadedHandler);
+                this.vehicleLoadedHandler = null;
+                this._normalizeVehicleNode(pendingVehicle);
+            };
+            pendingVehicle.addEventListener?.('loaded', this.vehicleLoadedHandler);
+        }
     }
 
     setBuild(build, options = {}) {
@@ -256,6 +285,7 @@ export class HangarVehicleAssembly {
 
     dispose() {
         this.clearGhost();
+        this._detachVehicleLoadedHandler();
         if (this.vehicleNode) disposeExternalVehicle(this.vehicleNode);
         this.vehicleNode = null;
         this.geometryCache.forEach((geometry) => geometry.dispose());

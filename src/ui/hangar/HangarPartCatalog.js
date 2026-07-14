@@ -210,13 +210,13 @@ export function registerPublishedHangarParts(record) {
 }
 
 const DEFAULT_LAYOUT = Object.freeze({
-    core: Object.freeze({ position: [0, 0.15, 0], rotation: [0, 0, 0], scale: 0.72 }),
-    nose: Object.freeze({ position: [0, 0.05, -1.25], rotation: [-Math.PI / 2, 0, 0], scale: 0.64 }),
-    wing_left: Object.freeze({ position: [-1.05, 0, -0.05], rotation: [0, 0, 0.08], scale: 0.72 }),
-    wing_right: Object.freeze({ position: [1.05, 0, -0.05], rotation: [0, 0, -0.08], scale: 0.72 }),
-    engine_left: Object.freeze({ position: [-0.72, 0, 0.95], rotation: [Math.PI / 2, 0, 0], scale: 0.68 }),
-    engine_right: Object.freeze({ position: [0.72, 0, 0.95], rotation: [Math.PI / 2, 0, 0], scale: 0.68 }),
-    utility: Object.freeze({ position: [0, 0.72, 0.25], rotation: [0, 0, 0], scale: 0.58 }),
+    core: Object.freeze({ position: [0, 0.28, 0], rotation: [0, 0, 0], scale: 0.9 }),
+    nose: Object.freeze({ position: [0, 0.06, -1.48], rotation: [-Math.PI / 2, 0, 0], scale: 0.82 }),
+    wing_left: Object.freeze({ position: [-1.1, 0.04, -0.05], rotation: [0, 0, 0.08], scale: 0.88 }),
+    wing_right: Object.freeze({ position: [1.1, 0.04, -0.05], rotation: [0, 0, -0.08], scale: 0.88 }),
+    engine_left: Object.freeze({ position: [-0.78, 0, 1.05], rotation: [Math.PI / 2, 0, 0], scale: 0.82 }),
+    engine_right: Object.freeze({ position: [0.78, 0, 1.05], rotation: [Math.PI / 2, 0, 0], scale: 0.82 }),
+    utility: Object.freeze({ position: [0, 0.72, 0.25], rotation: [0, 0, 0], scale: 0.72 }),
 });
 
 const VEHICLE_LAYOUT_SPECS = Object.freeze({

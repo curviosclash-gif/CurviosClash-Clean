@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import {
     HangarBuildHistory,
     createDefaultHangarBuild,
@@ -33,6 +34,7 @@ import {
     resolvePartLockReason,
 } from '../src/ui/hangar/HangarPartCatalog.js';
 import { HANGAR_STARTER_BUILDS, createHangarStarterBuild } from '../src/ui/hangar/HangarStarterBuildCatalog.js';
+import { HangarVehicleAssembly } from '../src/ui/hangar/HangarVehicleAssembly.js';
 import {
     createVehicleLabHangarPublication,
     upsertVehicleLabHangarPublication,
@@ -106,6 +108,35 @@ test('role filters, silhouettes and unlock levels stay explicit', () => {
     assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('core_t2')), 20);
     assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('utility_t1')), 5);
     assert.equal(resolvePartLockReason(resolveHangarPart('core_t2'), 1).unlockLevel, 20);
+});
+
+test('loaded vehicle models are normalized and mounted parts change the visible silhouette', async () => {
+    const scene = new THREE.Group();
+    const assembly = new HangarVehicleAssembly(scene);
+    assembly.setVehicle('ship5');
+    await assembly.vehicleNode._loadingPromise;
+    assembly.setBuild({ slots: createDefaultHangarBuild('ship5', { nowMs: 2 }).slots });
+
+    const vehicleBounds = new THREE.Box3().setFromObject(assembly.baseVehicleRoot);
+    const vehicleSize = vehicleBounds.getSize(new THREE.Vector3());
+    assert.ok(Math.abs(Math.max(vehicleSize.x, vehicleSize.y, vehicleSize.z) - 4.1) < 0.01);
+
+    const partsBounds = new THREE.Box3().setFromObject(assembly.partsRoot);
+    assert.ok(partsBounds.max.x > vehicleBounds.max.x + 0.1);
+
+    const defaultCoreColors = new Set();
+    assembly.partNodes.get('core').traverse((node) => {
+        if (node.material?.color) defaultCoreColors.add(node.material.color.getHex());
+    });
+    const swiftBuild = createDefaultHangarBuild('ship5', { nowMs: 3 });
+    swiftBuild.slots.core = 'core_swift_t1';
+    assembly.setBuild(swiftBuild);
+    const swiftCoreColors = new Set();
+    assembly.partNodes.get('core').traverse((node) => {
+        if (node.material?.color) swiftCoreColors.add(node.material.color.getHex());
+    });
+    assert.notDeepEqual([...swiftCoreColors], [...defaultCoreColors]);
+    assembly.dispose();
 });
 
 test('starter builds provide four valid one-click loadouts', () => {
