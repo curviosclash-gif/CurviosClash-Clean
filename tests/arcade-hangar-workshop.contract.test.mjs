@@ -109,9 +109,13 @@ test('every selectable option and tier has a distinct 3D shape', () => {
     const assembly = new HangarVehicleAssembly(new THREE.Group());
     for (const family of PART_FAMILIES) {
         for (const [tier, expectedCount] of Object.entries(EXPECTED_OPTIONS_BY_TIER)) {
-            const signatures = listHangarParts({ family, tier })
-                .map((part) => partShapeSignature(assembly._createPartNode(part)));
+            const nodes = listHangarParts({ family, tier }).map((part) => assembly._createPartNode(part));
+            const signatures = nodes.map(partShapeSignature);
             assert.equal(new Set(signatures).size, expectedCount, `${family} ${tier} shapes`);
+            nodes.forEach((node) => {
+                const materialColors = new Set(node.children.map((child) => child.material?.color?.getHex()));
+                assert.ok(materialColors.size >= 2, `${family} ${tier} uses body and structure materials`);
+            });
         }
     }
     for (const family of PART_FAMILIES) {
@@ -162,6 +166,14 @@ test('loaded vehicle models are normalized and mounted parts change the visible 
         if (node.material?.color) swiftCoreColors.add(node.material.color.getHex());
     });
     assert.notDeepEqual([...swiftCoreColors], [...defaultCoreColors]);
+    const swiftCoreMaterials = [];
+    assembly.partNodes.get('core').traverse((node) => {
+        if (node.material?.emissive) swiftCoreMaterials.push(node.material);
+    });
+    assembly.setSelectedSlot('core');
+    assert.ok(swiftCoreMaterials.every((material) => material.emissiveIntensity === 0.85));
+    assembly.setSelectedSlot('');
+    assert.ok(swiftCoreMaterials.every((material) => material.emissiveIntensity === material.userData.hangarBaseEmissiveIntensity));
     assembly.dispose();
 });
 

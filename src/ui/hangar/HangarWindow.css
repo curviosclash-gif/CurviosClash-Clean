@@ -79,6 +79,24 @@
     min-height: 360px;
 }
 
+.hangar-window-mount .hangar-slot-hardpoint.is-installed {
+    width: 22px;
+    height: 22px;
+    border-color: rgba(106, 184, 255, 0.56);
+    background: rgba(10, 22, 38, 0.62);
+    color: rgba(222, 241, 255, 0.82);
+    font-size: 0.5rem;
+    opacity: 0.68;
+    transition: width 120ms ease, height 120ms ease, opacity 120ms ease, box-shadow 120ms ease;
+}
+
+.hangar-window-mount .hangar-slot-hardpoint:is(:hover, :focus-visible, .is-hovered, .is-selected, .is-compatible, .is-drop-target, .is-drop-invalid) {
+    width: 32px;
+    height: 32px;
+    opacity: 1;
+    box-shadow: 0 0 16px rgba(84, 174, 244, 0.62);
+}
+
 .hangar-window-mount .hangar-catalog-list,
 .hangar-window-mount .hangar-build-panel {
     max-height: none;

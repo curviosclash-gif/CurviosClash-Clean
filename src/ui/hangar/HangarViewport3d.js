@@ -124,6 +124,9 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             marker.material.color.setHex(markerTone(slotId));
             const emphasized = slotId === selectedSlotId || slotId === hoveredSlotId;
             marker.scale.setScalar(emphasized ? 1.55 : 1);
+            const button = overlay?.querySelector?.(`[data-hangar-slot="${slotId}"]`);
+            button?.classList.toggle('is-selected', slotId === selectedSlotId);
+            button?.classList.toggle('is-hovered', slotId === hoveredSlotId);
         }
     }
 
@@ -175,8 +178,10 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             button.dataset.hangarSlot = slot.id;
             button.textContent = String(state.badge || slot.label.slice(0, 1));
             button.title = String(state.tooltip || slot.label);
+            button.setAttribute('aria-label', button.title);
             button.disabled = state.disabled === true;
             button.classList.toggle('is-disabled', state.disabled === true);
+            button.classList.toggle('is-installed', Boolean(activeBuild?.slots?.[slot.id]));
             button.addEventListener('pointerenter', () => setHoveredSlot(slot.id));
             button.addEventListener('pointerleave', () => setHoveredSlot(''));
             button.addEventListener('click', () => {
