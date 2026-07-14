@@ -21,8 +21,8 @@ export default defineConfig({
         },
     ],
     webServer: {
-        command: `npm run build && npx vite preview --host ${TEST_HOST} --port ${TEST_PORT} --strictPort`,
-        url: `http://${TEST_HOST}:${TEST_PORT}/editor/map-editor-3d.html`,
+        command: `npx vite --host ${TEST_HOST} --port ${TEST_PORT} --strictPort --clearScreen false --logLevel error`,
+        url: `http://${TEST_HOST}:${TEST_PORT}/prototypes/vehicle-lab/index.html`,
         timeout: 180_000,
         reuseExistingServer: process.env.PW_REUSE_SERVER === '1',
     },

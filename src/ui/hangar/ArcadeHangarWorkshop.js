@@ -18,7 +18,8 @@ import {
     normalizeVehicleValue as norm,
     resolvePlayerColor,
 } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
-import { resolveHangarPart } from './HangarPartCatalog.js';
+import { registerPublishedHangarParts, resolveHangarPart } from './HangarPartCatalog.js';
+import { VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY } from '../../shared/contracts/VehicleLabHangarPublishContract.js';
 import {
     HangarBuildHistory,
     areHangarBuildsEqual,
@@ -33,6 +34,8 @@ import { createHangarViewport3d } from './HangarViewport3d.js';
 import { createHangarDragDropController } from './HangarDragDropController.js';
 import { createArcadeHangarWorkshopShell } from './ArcadeHangarWorkshopShell.js';
 import { createArcadeHangarWorkshopRenderer } from './ArcadeHangarWorkshopRenderer.js';
+import { createHangarDraftPersistence } from './HangarDraftPersistence.js';
+import { createHangarWorkshopAudio } from './HangarWorkshopAudio.js';
 
 const HITBOX_TO_CONTRACT = Object.freeze({ kompakt: 'compact', standard: 'standard', schwer: 'heavy' });
 
@@ -95,6 +98,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const eventTypes = ctx.eventTypes || {};
     if (!bind) return null;
     const store = runtimeAccess?.getSettingsStore?.() || ctx.settingsManager?.getSettingsRecordStorePort?.() || null;
+    registerPublishedHangarParts(store?.loadJsonRecord?.(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY, null));
     const profilePort = runtimeAccess?.arcadeVehicleProfileWorkshop || createFallbackProfilePort(store);
     const rules = getVehicleManagerInteractionRules();
     const catalogEntries = listVehicleManagerCatalogEntries();
@@ -102,6 +106,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const byVehicleId = new Map(catalogEntries.map((entry) => [entry.vehicleId, entry]));
     const selection = createVehicleManagerSelectionState({ settings, catalogEntries });
     const persistence = createHangarBuildPersistenceAdapter({ mode: 'arcade', store, invokeCapability: runtimeAccess?.invokeHangarCapability });
+    const draftPersistence = createHangarDraftPersistence({ mode: 'arcade', store });
+    const audio = createHangarWorkshopAudio();
     let profiles = profilePort.load();
     let catalogView = 'vehicles';
     let partFamily = 'all';
@@ -112,6 +118,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     let history = null;
     let hydrated = false;
     let disposed = false;
+    let draftSaveTimer = 0;
+    let persistDraftChanges = false;
 
     const shell = createArcadeHangarWorkshopShell(rules);
     const {
@@ -119,7 +127,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         familySelect, tierSelect, quickRows, catalogList, cameraToolbar, cameraReset, previewStage,
         previewOverlay, pairToggle, favoriteBtn, compareSelect, slotGrid, undoButton, redoButton,
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
-        presetRename, presetDuplicate, presetDelete, activateButton, statusMessage,
+        presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
+        presetExport, presetImport, buildCompareSelect, activateButton, statusMessage,
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
@@ -180,14 +189,22 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         if (!history || options.resetHistory) history = new HangarBuildHistory(draft);
         else if (options.recordHistory !== false) history.push(draft);
         if (options.saved) savedBuild = normalizeHangarBuild(draft);
-        syncDisplay();
+        if (persistDraftChanges && options.persist !== false) {
+            if (draftSaveTimer) window.clearTimeout(draftSaveTimer);
+            draftSaveTimer = window.setTimeout(() => {
+                draftSaveTimer = 0;
+                if (savedBuild && areHangarBuildsEqual(draft, savedBuild)) draftPersistence.clear(draft.vehicleId);
+                else draftPersistence.save(draft);
+            }, 180);
+        }
+        syncDisplay(options);
     }
 
     function selectVehicle(vehicleId, options = {}) {
         const id = syncVehicleWriteback(vehicleId);
         selection.setSelectedVehicleId(id, options);
         savedBuild = persistence.getActiveBuild(id) || persistence.listBuilds(id)[0] || null;
-        setDraft(savedBuild || initialBuild(id), { resetHistory: true, recordHistory: false });
+        setDraft(draftPersistence.load(id) || savedBuild || initialBuild(id), { resetHistory: true, recordHistory: false, persist: false });
     }
 
     function installWithPair(build, partId, slotId) {
@@ -206,7 +223,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             return false;
         }
         selectedSlotId = slotId;
-        setDraft(result.build);
+        setDraft(result.build, { changedSlots: result.changedSlots });
+        audio.play('drop');
         toast(`${resolveHangarPart(partId)?.label || partId} montiert`, 'success');
         return true;
     }
@@ -226,7 +244,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             toast(describeDropFailure(result), 'warning');
             return false;
         }
-        setDraft(result.build);
+        setDraft(result.build, { changedSlots: result.changedSlots });
+        audio.play('drop');
         toast('Bauteil entfernt');
         return true;
     }
@@ -249,7 +268,13 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             return { ok: false, validation };
         }
         const name = norm(presetName.value, savedBuild?.name || `${entryFor(draft.vehicleId).label} Build`);
-        const result = await persistence.saveBuild(draft, {
+        const selectedPreset = persistence.getBuild(presetSelect.value);
+        const buildToSave = normalizeHangarBuild({
+            ...draft,
+            favorite: selectedPreset?.buildId === draft.buildId ? selectedPreset.favorite : draft.favorite,
+            tags: presetTags.value.split(','),
+        });
+        const result = await persistence.saveBuild(buildToSave, {
             asNew: options.asNew === true || !savedBuild,
             activate: options.activate === true,
             name,
@@ -263,6 +288,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         history = new HangarBuildHistory(draft);
         presetName.value = '';
         if (options.activate) commitProfileForRun(draft);
+        draftPersistence.clear(draft.vehicleId);
         toast(options.activate ? 'Build gespeichert und für den nächsten Run aktiviert.' : `Build gespeichert: ${draft.name}`, 'success');
         syncDisplay();
         return result;
@@ -294,16 +320,16 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         shell, settings, catalogEntries, selection, persistence, viewport, getState: state,
         entryFor, profileFor, evaluateInstall, describeFailure: describeDropFailure,
         onQuickUpgrade: quickUpgrade,
-        onSelectSlot(slotId) { selectedSlotId = slotId; viewport.setSelectedSlot(slotId); },
+        onSelectSlot(slotId) { selectedSlotId = slotId; viewport.setSelectedSlot(slotId); syncDisplay(); },
         isDirty,
     });
 
     const dragController = createHangarDragDropController({
         viewport,
-        onStart(payload) { syncDisplay({ dragPartId: payload.partId, preserveCatalog: true }); toast(`${payload.label} aufgenommen · Esc zum Abbrechen`); },
+        onStart(payload) { audio.play('pickup'); syncDisplay({ dragPartId: payload.partId, preserveCatalog: true }); toast(`${payload.label} aufgenommen · Esc zum Abbrechen`); },
         evaluateTarget(payload, target) { return target.type === 'remove' ? evaluateRemoval(payload.sourceSlotId) : evaluateInstall(payload.partId, target.slotId); },
         onDrop(payload, target) { if (target.type === 'remove') applyRemoval(payload.sourceSlotId); else applyInstall(payload.partId, target.slotId); },
-        onReject(result) { toast(describeDropFailure(result), 'warning'); syncDisplay(); },
+        onReject(result) { audio.play('reject'); toast(describeDropFailure(result), 'warning'); syncDisplay(); },
         onCancel(reason) { if (reason === 'escape') toast('Drag abgebrochen'); syncDisplay(); },
     });
 
@@ -355,39 +381,90 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     });
     bind(favoriteBtn, 'click', () => { selection.toggleFavorite(draft.vehicleId); syncDisplay(); });
     bind(compareSelect, 'change', () => { selection.setCompareVehicleId(compareSelect.value); syncDisplay(); });
+    bind(buildCompareSelect, 'change', () => syncDisplay());
     bind(cameraToolbar, 'click', (event) => { const preset = event.target?.closest?.('[data-camera-preset]')?.dataset.cameraPreset; if (preset) viewport.setCameraPreset(preset); });
     bind(cameraReset, 'click', () => viewport.resetCamera());
-    bind(undoButton, 'click', () => { const value = history.undo(); if (value) { draft = value; syncDisplay(); } });
-    bind(redoButton, 'click', () => { const value = history.redo(); if (value) { draft = value; syncDisplay(); } });
+    bind(undoButton, 'click', () => { const value = history.undo(); if (value) setDraft(value, { recordHistory: false }); });
+    bind(redoButton, 'click', () => { const value = history.redo(); if (value) setDraft(value, { recordHistory: false }); });
     bind(revertButton, 'click', () => { if (savedBuild) setDraft(savedBuild, { resetHistory: true, recordHistory: false }); });
     bind(defaultButton, 'click', () => setDraft(createDefaultHangarBuild(draft.vehicleId, { hitboxClass: mapHitboxClass(entryFor(draft.vehicleId)) }), { resetHistory: true }));
     bind(presetSave, 'click', () => { void saveCurrent(); });
     bind(presetSaveAs, 'click', () => { void saveCurrent({ asNew: true }); });
-    bind(presetLoad, 'click', () => { const value = persistence.getBuild(presetSelect.value); if (value) { savedBuild = value; setDraft(value, { resetHistory: true, recordHistory: false }); } });
+    bind(presetSelect, 'change', () => syncDisplay());
+    bind(presetLoad, 'click', () => {
+        const value = persistence.getBuild(presetSelect.value);
+        if (!value) return;
+        const validation = validateHangarBuild(value, profileFor(value.vehicleId).level);
+        savedBuild = value;
+        setDraft(value, { resetHistory: true, recordHistory: false, persist: false });
+        if (!validation.ok) toast(`Preset ist mit dem aktuellen Fortschritt ungültig: ${validation.errors[0]?.message}`, 'warning');
+    });
     bind(presetRename, 'click', async () => { const name = norm(presetName.value); if (!name) return; const result = await persistence.renameBuild(presetSelect.value, name); if (result.ok && savedBuild?.buildId === result.build.buildId) savedBuild = result.build; presetName.value = ''; syncDisplay(); });
     bind(presetDuplicate, 'click', async () => { const value = persistence.getBuild(presetSelect.value); if (value) await persistence.duplicateBuild(value, norm(presetName.value, `${value.name} Kopie`)); presetName.value = ''; syncDisplay(); });
+    bind(presetSort, 'change', () => syncDisplay());
+    bind(presetFavorite, 'click', async () => {
+        const value = persistence.getBuild(presetSelect.value);
+        if (!value) return;
+        await persistence.updateMetadata(value.buildId, { favorite: !value.favorite, tags: value.tags });
+        syncDisplay();
+    });
+    bind(presetTags, 'change', async () => {
+        const value = persistence.getBuild(presetSelect.value);
+        if (!value) return;
+        await persistence.updateMetadata(value.buildId, { favorite: value.favorite, tags: presetTags.value.split(',') });
+        syncDisplay();
+    });
+    bind(presetExport, 'click', () => {
+        const selected = persistence.getBuild(presetSelect.value);
+        if (!selected) return;
+        const blob = new Blob([JSON.stringify({ schemaVersion: persistence.version, builds: [selected] }, null, 2)], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = `${selected.name.replace(/[^a-z0-9_-]+/gi, '-')}.hangar.json`;
+        anchor.click();
+        URL.revokeObjectURL(url);
+    });
+    bind(presetImport, 'click', () => {
+        const input = document.createElement('input');
+        input.type = 'file';
+        input.accept = 'application/json,.json';
+        input.onchange = async () => {
+            const file = input.files?.[0];
+            if (!file) return;
+            try {
+                const result = await persistence.importBuilds(JSON.parse(await file.text()));
+                toast(`${result.builds.length} Build(s) importiert`, result.ok ? 'success' : 'warning');
+                syncDisplay();
+            } catch { toast('Build-Import ist ungültig.', 'warning'); }
+        };
+        input.click();
+    });
     bind(presetDelete, 'click', async () => { if (!presetSelect.value || (window.confirm && !window.confirm('Diesen Build wirklich löschen?'))) return; const id = presetSelect.value; await persistence.deleteBuild(id); if (savedBuild?.buildId === id) savedBuild = null; syncDisplay(); });
     bind(activateButton, 'click', () => { void saveCurrent({ activate: true }); });
     bind(container, 'keydown', (event) => {
         const editing = ['input', 'select', 'textarea'].includes(String(event.target?.tagName || '').toLowerCase());
         if (event.key === 'Delete' && !editing) { event.preventDefault(); applyRemoval(selectedSlotId); }
-        else if (event.ctrlKey && event.key.toLowerCase() === 'z' && !editing) { event.preventDefault(); const value = history.undo(); if (value) { draft = value; syncDisplay(); } }
-        else if (event.ctrlKey && event.key.toLowerCase() === 'y' && !editing) { event.preventDefault(); const value = history.redo(); if (value) { draft = value; syncDisplay(); } }
+        else if (event.ctrlKey && event.key.toLowerCase() === 'z' && !editing) { event.preventDefault(); const value = history.undo(); if (value) setDraft(value, { recordHistory: false }); }
+        else if (event.ctrlKey && event.key.toLowerCase() === 'y' && !editing) { event.preventDefault(); const value = history.redo(); if (value) setDraft(value, { recordHistory: false }); }
         else if (!editing && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); selectVehicle(selection.getNextVisibleVehicleId(event.key === 'ArrowRight' ? 1 : -1, profiles)); }
     });
     if (ui.vehicleSelectP1) bind(ui.vehicleSelectP1, 'change', () => { const id = norm(ui.vehicleSelectP1.value).toLowerCase(); if (id && draft && id !== draft.vehicleId) selectVehicle(id, { skipRecent: true }); });
 
     const initialVehicleId = syncVehicleWriteback(selection.getSelectedVehicleId());
-    draft = initialBuild(initialVehicleId);
+    const recoveredDraft = draftPersistence.load(initialVehicleId);
+    draft = recoveredDraft || initialBuild(initialVehicleId);
     savedBuild = persistence.getActiveBuild(initialVehicleId) || persistence.listBuilds(initialVehicleId)[0] || null;
     history = new HangarBuildHistory(draft);
-    toast('Gespeicherte Builds werden geladen …');
+    persistDraftChanges = true;
+    toast(recoveredDraft ? 'Ungespeicherten Entwurf wiederhergestellt.' : 'Gespeicherte Builds werden geladen …', recoveredDraft ? 'success' : 'info');
     syncDisplay();
     void persistence.hydrate().then(() => {
         if (disposed) return;
         hydrated = true;
-        if (!isDirty()) {
-            const loaded = persistence.getActiveBuild(draft.vehicleId) || persistence.listBuilds(draft.vehicleId)[0];
+        const loaded = persistence.getActiveBuild(draft.vehicleId) || persistence.listBuilds(draft.vehicleId)[0];
+        if (recoveredDraft) savedBuild = loaded || null;
+        else if (!isDirty()) {
             if (loaded) { savedBuild = loaded; draft = loaded; history = new HangarBuildHistory(draft); }
         }
         toast('Hangar bereit', 'success');
@@ -406,6 +483,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             disposed = true;
             dragController.dispose();
             viewport.dispose();
+            if (draftSaveTimer) window.clearTimeout(draftSaveTimer);
+            audio.dispose();
             container.dataset.lifecycle = 'disposed';
         },
     });

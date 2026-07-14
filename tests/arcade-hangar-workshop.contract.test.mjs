@@ -23,6 +23,12 @@ import {
 } from '../src/ui/hangar/HangarSelectionWritebackContract.js';
 import { getSlotStatBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+import { createHangarDraftPersistence } from '../src/ui/hangar/HangarDraftPersistence.js';
+import { listHangarParts, registerPublishedHangarParts, resolveHangarPart } from '../src/ui/hangar/HangarPartCatalog.js';
+import {
+    createVehicleLabHangarPublication,
+    upsertVehicleLabHangarPublication,
+} from '../src/shared/contracts/VehicleLabHangarPublishContract.js';
 
 function install(build, partId, slotId, pair = false) {
     return installHangarPart(build, partId, slotId, { pair });
@@ -137,4 +143,48 @@ test('arcade and fight builds stay isolated while selection and bonuses reach th
     strategy.applyVehicleUpgrades(bonuses);
     assert.equal(strategy.getTurnRateMultiplier(), 1.1);
     assert.equal(strategy.getSpeedMultiplier(), 1.08);
+});
+
+test('unsaved hangar drafts recover through the settings record port', () => {
+    const store = createStore();
+    const drafts = createHangarDraftPersistence({ store, mode: 'arcade' });
+    const changed = install(createDefaultHangarBuild('ship5', { nowMs: 80 }), 'nose_t2', 'nose').build;
+    drafts.save(changed);
+    assert.equal(drafts.load('ship5').slots.nose, 'nose_t2');
+    assert.equal(drafts.load('aircraft'), null);
+    drafts.clear('ship5');
+    assert.equal(drafts.load('ship5'), null);
+});
+
+test('preset metadata, sorting and capability-backed import/export stay versioned', async () => {
+    const store = createStore();
+    const adapter = createHangarBuildPersistenceAdapter({ store, mode: 'arcade' });
+    const first = await adapter.saveBuild(createDefaultHangarBuild('ship5', { nowMs: 90, name: 'Zulu' }), { asNew: true, name: 'Zulu' });
+    await adapter.updateMetadata(first.build.buildId, { favorite: true, tags: ['boss', 'fast', 'boss'] });
+    const exported = adapter.exportBuilds('ship5');
+    assert.equal(exported.builds[0].favorite, true);
+    assert.deepEqual(exported.builds[0].tags, ['boss', 'fast']);
+    assert.equal(adapter.listBuildsSorted('ship5', 'favorite')[0].buildId, first.build.buildId);
+
+    const target = createHangarBuildPersistenceAdapter({ store: createStore(), mode: 'arcade' });
+    const imported = await target.importBuilds(exported);
+    assert.equal(imported.ok, true);
+    assert.equal(imported.builds[0].tags[0], 'boss');
+});
+
+test('Vehicle Lab publications become validated Hangar catalog parts', () => {
+    const publication = createVehicleLabHangarPublication({
+        label: 'Test Ship',
+        primaryColor: 0x55aaff,
+        parts: [
+            { name: 'Main Engine', geo: 'cylinder', size: [1, 1, 2] },
+            { name: 'Left Wing', geo: 'box', size: [2, 0.2, 1] },
+        ],
+    }, { vehicleId: 'test_ship', publishedAtMs: 100 });
+    const record = upsertVehicleLabHangarPublication(null, publication);
+    assert.equal(registerPublishedHangarParts(record), 2);
+    const published = listHangarParts({ search: 'lab' });
+    assert.equal(published.length, 2);
+    assert.equal(resolveHangarPart(publication.parts[0].id).family, 'engine');
+    registerPublishedHangarParts(null);
 });

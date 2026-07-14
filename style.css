@@ -3858,7 +3858,8 @@ input[type="range"]::-webkit-slider-thumb {
     transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
 }
 
-.hangar-slot-hardpoint.is-drop-target {
+.hangar-slot-hardpoint.is-drop-target,
+.hangar-slot-hardpoint.is-compatible {
     border-color: #8ff0bb;
     background: rgba(29, 137, 85, 0.92);
     box-shadow: 0 0 0 5px rgba(54, 212, 133, 0.18), 0 0 22px rgba(54, 212, 133, 0.72);
@@ -3907,6 +3908,45 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 10px 28px rgba(0, 0, 0, 0.45);
     font-size: 0.72rem;
     will-change: transform;
+}
+
+.hangar-build-compare-select,
+.hangar-preset-sort,
+.hangar-preset-tags {
+    min-width: 0;
+    border: 1px solid rgba(111, 170, 225, 0.28);
+    border-radius: 7px;
+    background: rgba(6, 13, 24, 0.82);
+    color: var(--text-primary, #eef7ff);
+    padding: 0.42rem 0.5rem;
+}
+
+.hangar-preset-panel > .hangar-preset-tags,
+.hangar-preset-panel > .hangar-preset-sort {
+    width: 100%;
+    margin-top: 0.35rem;
+}
+
+.hangar-stat-panel .hangar-panel-heading {
+    flex-wrap: wrap;
+}
+
+.hangar-slot-hardpoint:not(.is-disabled) {
+    transition: transform 120ms ease, filter 120ms ease, opacity 120ms ease;
+}
+
+.hangar-slot-hardpoint.is-disabled {
+    opacity: 0.38;
+    transform: translate(-50%, -50%) scale(0.78);
+}
+
+.hangar-slot-hardpoint.is-drop-target {
+    animation: hangar-compatible-pulse 650ms ease-in-out infinite alternate;
+}
+
+@keyframes hangar-compatible-pulse {
+    from { filter: drop-shadow(0 0 3px rgba(52, 211, 153, 0.5)); }
+    to { filter: drop-shadow(0 0 12px rgba(52, 211, 153, 1)); }
 }
 
 .hangar-detail-copy {

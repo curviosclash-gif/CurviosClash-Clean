@@ -130,6 +130,10 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     compareSelect.className = 'arcade-vehicle-compare-select';
     compareSelect.setAttribute('aria-label', 'Vergleichsfahrzeug');
     compareHeader.appendChild(compareSelect);
+    const buildCompareSelect = document.createElement('select');
+    buildCompareSelect.className = 'hangar-build-compare-select';
+    buildCompareSelect.setAttribute('aria-label', 'Gespeicherten Build vergleichen');
+    compareHeader.appendChild(buildCompareSelect);
     const statRows = el('div', 'arcade-vehicle-compare-rows hangar-stat-rows');
     const budgetRows = el('div', 'hangar-budget-rows');
     comparePanel.append(compareHeader, statRows, budgetRows);
@@ -153,6 +157,18 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     presetName.placeholder = 'Build-Name';
     const presetSelect = document.createElement('select');
     presetSelect.className = 'arcade-vehicle-preset-select';
+    const presetSort = document.createElement('select');
+    presetSort.className = 'hangar-preset-sort';
+    [['updated', 'Zuletzt bearbeitet'], ['favorite', 'Favoriten zuerst'], ['name', 'Name A-Z']].forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        presetSort.appendChild(option);
+    });
+    const presetTags = document.createElement('input');
+    presetTags.type = 'text';
+    presetTags.className = 'hangar-preset-tags';
+    presetTags.placeholder = 'Tags, kommagetrennt';
     const presetActions = el('div', 'arcade-vehicle-loadout-controls hangar-preset-actions');
     const presetSave = button('secondary-btn arcade-vehicle-preset-save', 'Speichern');
     const presetSaveAs = button('secondary-btn hangar-preset-save-as', 'Speichern als');
@@ -160,9 +176,12 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     const presetRename = button('secondary-btn hangar-preset-rename', 'Umbenennen');
     const presetDuplicate = button('secondary-btn hangar-preset-duplicate', 'Duplizieren');
     const presetDelete = button('secondary-btn arcade-vehicle-preset-delete', 'Löschen');
-    presetActions.append(presetSave, presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete);
+    const presetFavorite = button('secondary-btn hangar-preset-favorite', '☆ Favorit');
+    const presetExport = button('secondary-btn hangar-preset-export', 'Export');
+    const presetImport = button('secondary-btn hangar-preset-import', 'Import');
+    presetActions.append(presetSave, presetSaveAs, presetLoad, presetRename, presetDuplicate, presetFavorite, presetExport, presetImport, presetDelete);
     const activateButton = button('start-btn hangar-activate-build', 'Für nächsten Run aktivieren');
-    loadoutPanel.append(presetName, presetSelect, presetActions, activateButton);
+    loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions, activateButton);
     rightPanel.append(
         detailHead, profileBox, comparePanel, slotsPanel, validationBox, historyBar, loadoutPanel,
         el('p', 'menu-hint arcade-vehicle-shortcuts', 'Entf: Teil entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln')
@@ -179,9 +198,10 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
         categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, quickRows,
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, favoriteBtn, levelLine,
-        xpFill, compareSelect, statRows, budgetRows, slotGrid, validationBox, undoButton,
+        xpFill, compareSelect, buildCompareSelect, statRows, budgetRows, slotGrid, validationBox, undoButton,
         redoButton, revertButton, defaultButton, presetName, presetSelect, presetSave,
-        presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, activateButton,
+        presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
+        presetFavorite, presetExport, presetImport, activateButton,
         statusMessage, activeBuildLabel,
     };
 }

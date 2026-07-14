@@ -5,6 +5,8 @@ import { HangarCameraController } from './HangarCameraController.js';
 
 const _projected = new THREE.Vector3();
 const _worldPoint = new THREE.Vector3();
+const _pointer = new THREE.Vector2();
+const _raycaster = new THREE.Raycaster();
 
 function renderSize(element) {
     return {
@@ -17,7 +19,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     if (!mount) {
         return Object.freeze({
             getStatus: () => 'unavailable', setBuild() {}, setSlotStates() {}, setDragPreview() {},
-            clearDragPreview() {}, setSelectedSlot() {}, setCameraPreset() {}, resetCamera() {}, dispose() {},
+            clearDragPreview() {}, setSelectedSlot() {}, setCameraPreset() {}, resetCamera() {}, hitTestHardpoint() { return ''; }, setComparison() {}, dispose() {},
         });
     }
 
@@ -80,6 +82,8 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
     let selectedSlotId = '';
     let hoveredSlotId = '';
     let cameraRevision = 0;
+    let dragActive = false;
+    let comparisonBuild = null;
 
     function setStatus(nextStatus, message) {
         status = nextStatus;
@@ -105,6 +109,7 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         if (state.dropState === 'invalid') return 0xff4d63;
         if (slotId === selectedSlotId) return 0xf8c25e;
         if (slotId === hoveredSlotId) return 0xa8dbff;
+        if (comparisonBuild && comparisonBuild.slots?.[slotId] !== activeBuild?.slots?.[slotId]) return 0xf59e0b;
         if (state.disabled) return 0x576070;
         return 0x55aef4;
     }
@@ -120,6 +125,37 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             const emphasized = slotId === selectedSlotId || slotId === hoveredSlotId;
             marker.scale.setScalar(emphasized ? 1.55 : 1);
         }
+    }
+
+    function hitTestHardpoint(clientX, clientY) {
+        const canvas = renderer?.domElement;
+        if (!canvas) return '';
+        const rect = canvas.getBoundingClientRect();
+        if (clientX < rect.left || clientX > rect.right || clientY < rect.top || clientY > rect.bottom) return '';
+        _pointer.set(((clientX - rect.left) / rect.width) * 2 - 1, -((clientY - rect.top) / rect.height) * 2 + 1);
+        _raycaster.setFromCamera(_pointer, camera);
+        const hits = _raycaster.intersectObjects([...markers.values(), ...assembly.getRaycastObjects()], true);
+        for (const hit of hits) {
+            let node = hit.object;
+            while (node) {
+                const slotId = String(node.userData?.hangarSlotId || '');
+                if (slotId) return slotId;
+                node = node.parent;
+            }
+        }
+        return '';
+    }
+
+    function onCanvasMove(event) {
+        const slotId = hitTestHardpoint(event.clientX, event.clientY);
+        setHoveredSlot(slotId);
+        if (renderer?.domElement) renderer.domElement.style.cursor = slotId ? 'pointer' : 'grab';
+    }
+
+    function onCanvasClick(event) {
+        const slotId = hitTestHardpoint(event.clientX, event.clientY);
+        const state = slotStates.find((entry) => entry.slotKey === slotId);
+        if (slotId && !state?.disabled) onSlotClick?.(slotId);
     }
 
     function setHoveredSlot(slotId) {
@@ -184,6 +220,14 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         const dt = lastFrameMs ? Math.min(0.05, Math.max(0, (nowMs - lastFrameMs) / 1000)) : 0;
         lastFrameMs = nowMs;
         assembly.vehicleNode?.tick?.(dt, nowMs / 1000);
+        assembly.updateAnimations(nowMs);
+        if (dragActive) {
+            const pulse = 1 + Math.sin(nowMs * 0.009) * 0.22;
+            for (const [slotId, marker] of markers) {
+                const state = slotStates.find((entry) => entry.slotKey === slotId);
+                if (!state?.disabled && slotId !== selectedSlotId && slotId !== hoveredSlotId) marker.scale.setScalar(pulse);
+            }
+        }
         cameraController?.update();
         renderer.render(scene, camera);
         projectOverlay();
@@ -199,6 +243,8 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             renderer.domElement.setAttribute('aria-label', 'Interaktive 3D-Fahrzeugansicht');
             canvasHost.appendChild(renderer.domElement);
             cameraController = new HangarCameraController(camera, renderer.domElement);
+            renderer.domElement.addEventListener('pointermove', onCanvasMove);
+            renderer.domElement.addEventListener('click', onCanvasClick);
             const cameraChange = () => {
                 cameraRevision += 1;
                 mount.dataset.cameraRevision = String(cameraRevision);
@@ -225,7 +271,8 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         const signature = `${vehicleId}|${HANGAR_SLOT_DEFINITIONS.map((slot) => slots[slot.id] || '').join('|')}`;
         if (signature !== activeBuildSignature) {
             activeBuildSignature = signature;
-            assembly.setBuild(build);
+            assembly.setBuild(build, options);
+            assembly.setComparison(comparisonBuild);
         }
         syncMarkerVisuals();
         setStatus(renderer ? 'ready' : 'fallback', renderer ? `3D-Workshop: ${vehicleId}` : `Preview-Fallback: ${vehicleId}`);
@@ -262,11 +309,21 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
         getBuild: () => activeBuild,
         setBuild,
         setSlotStates,
+        hitTestHardpoint,
+        setDragActive(value) {
+            dragActive = value === true;
+            overlay?.querySelectorAll?.('[data-hangar-slot]').forEach((button) => {
+                const state = slotStates.find((entry) => entry.slotKey === button.dataset.hangarSlot);
+                button.classList.toggle('is-compatible', dragActive && !state?.disabled);
+            });
+        },
+        setComparison(build) { comparisonBuild = build || null; assembly.setComparison(comparisonBuild); syncMarkerVisuals(); },
         setDragPreview,
         clearDragPreview,
         setSelectedSlot(slotId) {
             selectedSlotId = String(slotId || '');
             assembly.setSelectedSlot(selectedSlotId);
+            assembly.setComparison(comparisonBuild);
             syncMarkerVisuals();
         },
         setCameraPreset: (presetId) => cameraController?.setPreset(presetId),
@@ -288,6 +345,8 @@ export function createHangarViewport3d({ mount, overlay, color = '#66b6ff' } = {
             if (Array.isArray(grid.material)) grid.material.forEach((material) => material.dispose());
             else grid.material.dispose();
             renderer?.dispose();
+            renderer?.domElement?.removeEventListener('pointermove', onCanvasMove);
+            renderer?.domElement?.removeEventListener('click', onCanvasClick);
             renderer?.domElement?.remove();
             renderer = null;
             overlay?.replaceChildren();

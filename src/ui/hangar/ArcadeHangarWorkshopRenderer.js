@@ -18,15 +18,15 @@ export function createArcadeHangarWorkshopRenderer(options) {
     const {
         shell, settings, catalogEntries, selection, persistence, viewport,
         getState, entryFor, profileFor, evaluateInstall, describeFailure,
-        onQuickUpgrade, onSelectSlot, isDirty,
+        onSelectSlot, isDirty,
     } = options;
     const {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
         resultLine, catalogList, detailTitle, detailMeta, favoriteBtn, levelLine, xpFill,
-        compareSelect, statRows, budgetRows, slotGrid, validationBox, undoButton, redoButton,
+        compareSelect, buildCompareSelect, statRows, budgetRows, slotGrid, validationBox, undoButton, redoButton,
         revertButton, activateButton, presetSelect, presetLoad, presetRename, presetDuplicate,
-        presetDelete, activeBuildLabel,
+        presetDelete, presetSort, presetTags, presetFavorite, presetExport, activeBuildLabel,
     } = shell;
 
     function renderQuickRow(node, label, ids) {
@@ -105,8 +105,9 @@ export function createArcadeHangarWorkshopRenderer(options) {
     function renderStatistics(state, validation) {
         const current = projectHangarStats(state.draft);
         const saved = projectHangarStats(state.savedBuild || state.draft);
+        const savedComparison = persistence.getBuild(buildCompareSelect.value);
         const compareEntry = entryFor(selection.getCompareVehicleId());
-        const compareBuild = state.buildFromProfile(compareEntry.vehicleId, compareEntry, profileFor(compareEntry.vehicleId));
+        const compareBuild = savedComparison || state.buildFromProfile(compareEntry.vehicleId, compareEntry, profileFor(compareEntry.vehicleId));
         const savedMetrics = compareHangarStats(current, saved);
         const compareMetrics = compareHangarStats(current, projectHangarStats(compareBuild));
         statRows.replaceChildren();
@@ -118,7 +119,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
                 el('span', 'arcade-vehicle-compare-label', metric.label),
                 el('strong', 'hangar-stat-value', String(metric.value)),
                 el('span', `hangar-stat-delta is-${metric.tone}`, `Build ${deltaText(metric.delta)}`),
-                el('span', `hangar-stat-delta is-${versus.tone}`, `Vergleich ${deltaText(versus.delta)}`)
+                el('span', `hangar-stat-delta is-${versus.tone}`, `${savedComparison ? 'Preset' : 'Vergleich'} ${deltaText(versus.delta)}`)
             );
             statRows.appendChild(row);
         });
@@ -180,7 +181,6 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
         viewport.setSlotStates(viewportStates, (slotId) => {
             onSelectSlot(slotId);
-            onQuickUpgrade(slotId);
         });
         viewport.setSelectedSlot(state.selectedSlotId);
         validationBox.replaceChildren();
@@ -195,7 +195,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
     }
 
     function renderPresets(state) {
-        const builds = persistence.listBuilds(state.draft.vehicleId);
+        const builds = persistence.listBuildsSorted(state.draft.vehicleId, presetSort.value);
         const selectedId = presetSelect.value;
         presetSelect.replaceChildren();
         if (!builds.length) {
@@ -207,7 +207,8 @@ export function createArcadeHangarWorkshopRenderer(options) {
             builds.forEach((build) => {
                 const option = document.createElement('option');
                 option.value = build.buildId;
-                option.textContent = build.name;
+                const validity = validateHangarBuild(build, profileFor(build.vehicleId).level);
+                option.textContent = `${build.favorite ? '★ ' : ''}${build.name}${validity.ok ? '' : ' ⚠'}`;
                 presetSelect.appendChild(option);
             });
             presetSelect.value = builds.some((build) => build.buildId === selectedId) ? selectedId : (state.savedBuild?.buildId || builds[0].buildId);
@@ -217,6 +218,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
         presetRename.disabled = !selected;
         presetDuplicate.disabled = !selected;
         presetDelete.disabled = !selected;
+        presetFavorite.disabled = !selected;
+        presetExport.disabled = !selected;
+        const selectedBuild = persistence.getBuild(presetSelect.value);
+        presetFavorite.textContent = selectedBuild?.favorite ? '★ Favorit' : '☆ Favorit';
+        presetTags.value = selectedBuild?.tags?.join(', ') || '';
     }
 
     function sync(syncOptions = {}) {
@@ -258,10 +264,25 @@ export function createArcadeHangarWorkshopRenderer(options) {
             selection.setCompareVehicleId(compareSelect.options[0]?.value || state.draft.vehicleId);
         }
         compareSelect.value = selection.getCompareVehicleId();
+        const previousBuildComparison = buildCompareSelect.value;
+        buildCompareSelect.replaceChildren();
+        const noBuild = document.createElement('option');
+        noBuild.value = '';
+        noBuild.textContent = 'Mit Fahrzeug vergleichen';
+        buildCompareSelect.appendChild(noBuild);
+        persistence.listBuilds(state.draft.vehicleId).forEach((build) => {
+            const option = document.createElement('option');
+            option.value = build.buildId;
+            option.textContent = `Preset: ${build.name}`;
+            buildCompareSelect.appendChild(option);
+        });
+        buildCompareSelect.value = Array.from(buildCompareSelect.options).some((option) => option.value === previousBuildComparison) ? previousBuildComparison : '';
         renderStatistics(state, validation);
         renderSlots(state, validation, syncOptions.dragPartId || '');
         renderPresets(state);
-        viewport.setBuild(state.draft, { color: resolvePlayerColor(settings) });
+        viewport.setBuild(state.draft, { color: resolvePlayerColor(settings), changedSlots: syncOptions.changedSlots || [] });
+        viewport.setComparison(persistence.getBuild(buildCompareSelect.value));
+        viewport.setDragActive(Boolean(syncOptions.dragPartId));
         container.dataset.previewStatus = viewport.getStatus();
         const dirty = isDirty();
         saveState.textContent = dirty ? 'Ungespeicherte Änderungen' : (state.savedBuild ? 'Gespeichert' : 'Standard · noch nicht als Preset gespeichert');

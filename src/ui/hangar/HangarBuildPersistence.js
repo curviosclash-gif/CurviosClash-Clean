@@ -148,6 +148,13 @@ export function createHangarBuildPersistenceAdapter(options = {}) {
             .map(cloneHangarBuild);
     }
 
+    function listBuildsSorted(vehicleId = '', sort = 'updated') {
+        const builds = listBuilds(vehicleId);
+        if (sort === 'name') return builds.sort((a, b) => a.name.localeCompare(b.name, 'de'));
+        if (sort === 'favorite') return builds.sort((a, b) => Number(b.favorite) - Number(a.favorite) || b.updatedAtMs - a.updatedAtMs);
+        return builds;
+    }
+
     function getBuild(buildId) {
         return cloneHangarBuild(record.builds.find((build) => build.buildId === buildId));
     }
@@ -204,18 +211,40 @@ export function createHangarBuildPersistenceAdapter(options = {}) {
         return { ok: result.ok === true, result };
     }
 
+    async function updateMetadata(buildId, metadata = {}) {
+        const build = record.builds.find((entry) => entry.buildId === buildId);
+        if (!build) return { ok: false, code: 'build_not_found' };
+        const next = normalizeHangarBuild({ ...build, favorite: metadata.favorite ?? build.favorite, tags: metadata.tags ?? build.tags, updatedAtMs: Date.now() });
+        return saveBuild(next, { name: next.name });
+    }
+
+    async function importBuilds(payload) {
+        const candidates = Array.isArray(payload?.builds) ? payload.builds : (Array.isArray(payload) ? payload : []);
+        const imported = [];
+        for (const candidate of candidates.slice(0, 120)) {
+            const normalized = normalizeHangarBuild(candidate);
+            const result = await saveBuild(normalized, { asNew: true, name: normalized.name });
+            if (result.ok) imported.push(result.build);
+        }
+        return { ok: imported.length > 0, builds: imported };
+    }
+
     return Object.freeze({
         version: HANGAR_BUILD_STORE_SCHEMA_VERSION,
         mode,
         facade,
         hydrate,
         listBuilds,
+        listBuildsSorted,
         getBuild,
         getActiveBuild,
         saveBuild,
         duplicateBuild: (build, name) => saveBuild(build, { asNew: true, name }),
         renameBuild,
         deleteBuild,
+        updateMetadata,
+        importBuilds,
+        exportBuilds: (vehicleId = '') => ({ schemaVersion: HANGAR_BUILD_STORE_SCHEMA_VERSION, mode, builds: listBuilds(vehicleId) }),
         getSnapshot: () => cloneRecord(record),
     });
 }

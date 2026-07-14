@@ -28,7 +28,9 @@ export function createHangarDragDropController(options = {}) {
         const removeZone = element?.closest?.('[data-hangar-remove-zone]');
         if (removeZone && drag?.payload?.sourceSlotId) return { type: 'remove', element: removeZone, slotId: drag.payload.sourceSlotId };
         const slot = element?.closest?.('[data-hangar-slot]');
-        return slot ? { type: 'slot', element: slot, slotId: String(slot.dataset.hangarSlot || '') } : null;
+        if (slot) return { type: 'slot', element: slot, slotId: String(slot.dataset.hangarSlot || '') };
+        const raycastSlotId = viewport?.hitTestHardpoint?.(clientX, clientY);
+        return raycastSlotId ? { type: 'slot', element: null, slotId: raycastSlotId } : null;
     }
 
     function move(event) {
@@ -42,7 +44,7 @@ export function createHangarDragDropController(options = {}) {
             viewport?.clearDragPreview?.();
             return;
         }
-        target.element.classList.add(drag.evaluation.ok ? 'is-drop-target' : 'is-drop-invalid');
+        target.element?.classList.add(drag.evaluation.ok ? 'is-drop-target' : 'is-drop-invalid');
         if (target.type === 'slot') viewport?.setDragPreview?.(drag.payload.partId, target.slotId, drag.evaluation.ok);
         else viewport?.clearDragPreview?.();
     }

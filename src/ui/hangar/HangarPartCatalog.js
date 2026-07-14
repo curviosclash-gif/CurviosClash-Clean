@@ -109,6 +109,38 @@ export const HANGAR_PART_CATALOG = Object.freeze(
 );
 
 const PART_BY_ID = new Map(HANGAR_PART_CATALOG.map((part) => [part.id, part]));
+let publishedParts = [];
+
+function normalizePublishedPart(part) {
+    const family = String(part?.family || '').toLowerCase();
+    const compatibleSlots = (Array.isArray(part?.compatibleSlots) ? part.compatibleSlots : [])
+        .filter((slotId) => SLOT_BY_ID.get(slotId)?.family === family);
+    const id = String(part?.id || '').trim().toLowerCase();
+    if (!id || !FAMILY_TEMPLATES[family] || !compatibleSlots.length) return null;
+    return Object.freeze({
+        id,
+        label: String(part.label || id).trim(),
+        family,
+        tier: ['T1', 'T2', 'T3'].includes(part.tier) ? part.tier : 'T1',
+        minLevel: Math.max(1, Number(part.minLevel) || 1),
+        compatibleSlots: Object.freeze(compatibleSlots),
+        symmetric: part.symmetric === true,
+        visual: 'lab',
+        appearance: Object.freeze({ ...(part.appearance || {}) }),
+        costs: Object.freeze({ budget: 7, mass: 5, energy: 4, heat: 3, ...(part.costs || {}) }),
+        stats: Object.freeze({ speed: 0, agility: 0, maxHp: 0, ...(part.stats || {}) }),
+        searchTokens: Object.freeze(`${part.label || id} ${family} vehicle lab`.toLowerCase().split(/\s+/)),
+        published: true,
+    });
+}
+
+export function registerPublishedHangarParts(record) {
+    const source = Array.isArray(record?.publications) ? record.publications.flatMap((entry) => entry?.parts || []) : [];
+    publishedParts = source.map(normalizePublishedPart).filter(Boolean).slice(0, 120);
+    for (const [id, part] of [...PART_BY_ID.entries()]) if (part?.published) PART_BY_ID.delete(id);
+    publishedParts.forEach((part) => PART_BY_ID.set(part.id, part));
+    return publishedParts.length;
+}
 
 const DEFAULT_LAYOUT = Object.freeze({
     core: Object.freeze({ position: [0, 0.15, 0], rotation: [0, 0, 0], scale: 0.72 }),
@@ -145,6 +177,7 @@ function clonePart(part) {
         costs: { ...part.costs },
         stats: { ...part.stats },
         searchTokens: [...part.searchTokens],
+        appearance: part.appearance ? { ...part.appearance, size: [...(part.appearance.size || [])] } : undefined,
     } : null;
 }
 
@@ -161,7 +194,7 @@ export function listHangarParts(filters = {}) {
     const search = String(filters.search || '').trim().toLowerCase();
     const family = String(filters.family || 'all').trim().toLowerCase();
     const tier = String(filters.tier || 'all').trim().toUpperCase();
-    return HANGAR_PART_CATALOG.filter((part) => {
+    return [...HANGAR_PART_CATALOG, ...publishedParts].filter((part) => {
         if (family !== 'all' && part.family !== family) return false;
         if (tier !== 'ALL' && part.tier !== tier) return false;
         if (!search) return true;

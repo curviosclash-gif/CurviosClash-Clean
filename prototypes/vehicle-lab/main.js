@@ -11,6 +11,12 @@ import {
     formatArcadeBlueprintValidationMessage,
 } from './src/ArcadeBlueprintValidation.js';
 import { EDITOR_API_ROUTES } from '../../src/shared/contracts/EditorPathContract.js';
+import {
+    VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
+    createVehicleLabHangarPublication,
+    normalizeVehicleLabHangarPublicationRecord,
+    upsertVehicleLabHangarPublication,
+} from '../../src/shared/contracts/VehicleLabHangarPublishContract.js';
 
 function toBlueprintId(value) {
     return String(value || 'custom_blueprint')
@@ -546,6 +552,7 @@ class VehicleLabApp {
         a.href = url;
         a.download = `${this.vehicle.config.label || 'ship'}.json`;
         a.click();
+        URL.revokeObjectURL(url);
     }
 
     async saveToGame() {
@@ -596,6 +603,16 @@ class VehicleLabApp {
             }
 
             const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
+            const publication = createVehicleLabHangarPublication(this.vehicle.config, { vehicleId: payload.vehicleId });
+            let currentPublicationRecord = null;
+            try {
+                currentPublicationRecord = JSON.parse(localStorage.getItem(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY) || 'null');
+            } catch { currentPublicationRecord = null; }
+            currentPublicationRecord = normalizeVehicleLabHangarPublicationRecord(currentPublicationRecord);
+            localStorage.setItem(
+                VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
+                JSON.stringify(upsertVehicleLabHangarPublication(currentPublicationRecord, publication))
+            );
             alert(
                 `Fahrzeug ${saveMode}.\n` +
                 `Fahrzeug-ID: ${payload.vehicleId}\n` +
@@ -603,7 +620,8 @@ class VehicleLabApp {
                 `Config-Datei: ${payload.vehicleConfigPath}\n` +
                 `Registry: ${payload.generatedModulePath}\n` +
                 `${this.arcadeBlueprintStatus}\n` +
-                `Spielseite neu laden, damit das Fahrzeug in der Auswahl erscheint.`
+                `${publication.parts.length} Bauteil(e) im Hangar-Katalog veröffentlicht.\n` +
+                `Spielseite neu laden, damit Fahrzeug und Bauteile erscheinen.`
             );
             this.refreshSavedVehiclesList();
         } catch (error) {

@@ -14,7 +14,7 @@ function normalizeId(value, fallback) {
 
 export function cloneHangarBuild(build) {
     if (!build || typeof build !== 'object') return null;
-    return { ...build, slots: { ...(build.slots || {}) } };
+    return { ...build, slots: { ...(build.slots || {}) }, tags: [...(build.tags || [])] };
 }
 
 export function createDefaultHangarBuild(vehicleId = 'ship5', options = {}) {
@@ -26,6 +26,8 @@ export function createDefaultHangarBuild(vehicleId = 'ship5', options = {}) {
         mode: 'arcade',
         vehicleId: normalizedVehicleId,
         name: String(options.name || 'Standardkonfiguration').trim() || 'Standardkonfiguration',
+        favorite: options.favorite === true,
+        tags: [],
         hitboxClass: String(options.hitboxClass || 'standard').trim().toLowerCase(),
         slots: createDefaultHangarSlots(),
         createdAtMs: nowMs,
@@ -74,6 +76,8 @@ export function normalizeHangarBuild(source, fallback = {}) {
         ...base,
         schemaVersion: HANGAR_BUILD_SCHEMA_VERSION,
         mode: record.mode === 'fight' ? 'fight' : 'arcade',
+        favorite: record.favorite === true,
+        tags: [...new Set((Array.isArray(record.tags) ? record.tags : []).map((tag) => String(tag).trim().slice(0, 24)).filter(Boolean))].slice(0, 8),
         slots,
         createdAtMs: Math.max(0, Number(record.createdAtMs) || base.createdAtMs),
         updatedAtMs: Math.max(0, Number(record.updatedAtMs) || base.updatedAtMs),

@@ -57,23 +57,55 @@ export class HangarVehicleAssembly {
     }
 
     _createPartNode(part, { ghost = false, valid = true } = {}) {
-        const color = ghost ? (valid ? 0x34d399 : 0xfb4558) : ({ T1: 0x6aaeea, T2: 0x9b7cff, T3: 0xf4b942 }[part.tier] || 0x6aaeea);
+        const color = ghost
+            ? (valid ? 0x34d399 : 0xfb4558)
+            : (Number(part.appearance?.color) || ({ T1: 0x6aaeea, T2: 0x9b7cff, T3: 0xf4b942 }[part.tier] || 0x6aaeea));
         const material = this._material(color, {
             transparent: ghost,
             opacity: ghost ? 0.48 : 0.92,
             emissive: ghost ? color : 0x07111c,
             emissiveIntensity: ghost ? 0.65 : 0.18,
         });
-        let geometry;
-        if (part.visual === 'core') geometry = this._geometry('part-core', () => new THREE.OctahedronGeometry(0.34, 1));
-        else if (part.visual === 'nose') geometry = this._geometry('part-nose', () => new THREE.ConeGeometry(0.22, 0.58, 16));
-        else if (part.visual === 'wing') geometry = this._geometry('part-wing', () => new THREE.BoxGeometry(0.78, 0.08, 0.38));
-        else if (part.visual === 'engine') geometry = this._geometry('part-engine', () => new THREE.CylinderGeometry(0.2, 0.25, 0.54, 16));
-        else geometry = this._geometry('part-utility', () => new THREE.TorusGeometry(0.25, 0.07, 8, 20));
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.userData.hangarPartId = part.id;
-        mesh.userData.hangarGhost = ghost;
-        return mesh;
+        const root = new THREE.Group();
+        const add = (geometry, position = [0, 0, 0], scale = [1, 1, 1], rotation = [0, 0, 0]) => {
+            const mesh = new THREE.Mesh(geometry, material);
+            mesh.position.fromArray(position);
+            mesh.scale.fromArray(scale);
+            mesh.rotation.fromArray(rotation);
+            mesh.userData.hangarPartId = part.id;
+            mesh.userData.hangarGhost = ghost;
+            root.add(mesh);
+            return mesh;
+        };
+        const tierScale = part.tier === 'T3' ? 1.18 : (part.tier === 'T2' ? 1.08 : 1);
+        if (part.visual === 'core') {
+            add(this._geometry('part-core', () => new THREE.OctahedronGeometry(0.34, 1)), [0, 0, 0], [tierScale, tierScale, tierScale]);
+            add(this._geometry('part-core-ring', () => new THREE.TorusGeometry(0.38, 0.035, 8, 24)), [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+        } else if (part.visual === 'nose') {
+            add(this._geometry('part-nose', () => new THREE.ConeGeometry(0.22, 0.58, 16)), [0, 0, 0], [tierScale, tierScale, tierScale]);
+            add(this._geometry('part-nose-fin', () => new THREE.BoxGeometry(0.07, 0.22, 0.34)), [0, -0.05, 0.08]);
+        } else if (part.visual === 'wing') {
+            add(this._geometry('part-wing', () => new THREE.BoxGeometry(0.78, 0.08, 0.38)), [0, 0, 0], [tierScale, 1, tierScale]);
+            add(this._geometry('part-wing-tip', () => new THREE.ConeGeometry(0.09, 0.34, 8)), [0.36, 0.07, 0], [1, 1, 1], [0, 0, -Math.PI / 2]);
+        } else if (part.visual === 'engine') {
+            add(this._geometry('part-engine', () => new THREE.CylinderGeometry(0.2, 0.25, 0.54, 16)), [0, 0, 0], [tierScale, tierScale, tierScale]);
+            add(this._geometry('part-engine-nozzle', () => new THREE.TorusGeometry(0.21, 0.045, 8, 18)), [0, -0.28, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+        } else if (part.visual === 'lab') {
+            const size = part.appearance?.size || [1, 1, 1];
+            const shape = part.appearance?.geometry;
+            const geometry = shape === 'sphere'
+                ? this._geometry('lab-sphere', () => new THREE.SphereGeometry(0.28, 16, 10))
+                : shape === 'cylinder'
+                    ? this._geometry('lab-cylinder', () => new THREE.CylinderGeometry(0.22, 0.22, 0.5, 14))
+                    : this._geometry('lab-box', () => new THREE.BoxGeometry(0.52, 0.24, 0.42));
+            add(geometry, [0, 0, 0], size.map((value) => Math.max(0.35, Math.min(1.4, Number(value) || 1))));
+        } else {
+            add(this._geometry('part-utility', () => new THREE.TorusGeometry(0.25, 0.07, 8, 20)));
+            add(this._geometry('part-utility-orb', () => new THREE.SphereGeometry(0.11, 12, 8)));
+        }
+        root.userData.hangarPartId = part.id;
+        root.userData.hangarGhost = ghost;
+        return root;
     }
 
     _applyHardpointTransform(node, hardpoint) {
@@ -113,7 +145,7 @@ export class HangarVehicleAssembly {
         this.baseVehicleRoot.position.y = -0.05;
     }
 
-    setBuild(build) {
+    setBuild(build, options = {}) {
         this._disposeNodeMaterials(this.partsRoot);
         this.partsRoot.clear();
         this.partNodes.clear();
@@ -124,7 +156,13 @@ export class HangarVehicleAssembly {
             if (!part || !hardpoint) continue;
             const node = this._createPartNode(part);
             node.userData.hangarSlotId = slotId;
+            node.traverse((child) => { child.userData.hangarSlotId = slotId; });
             this._applyHardpointTransform(node, hardpoint);
+            if (options.changedSlots?.includes(slotId)) {
+                node.userData.snapStartedAtMs = performance.now();
+                node.userData.targetScale = hardpoint.scale;
+                node.scale.setScalar(hardpoint.scale * 0.55);
+            }
             this.partsRoot.add(node);
             this.partNodes.set(slotId, node);
         }
@@ -135,11 +173,39 @@ export class HangarVehicleAssembly {
         this.selectedSlotId = String(slotId || '');
         for (const [id, node] of this.partNodes.entries()) {
             const selected = id === this.selectedSlotId;
-            if (node.material?.emissive) {
-                node.material.emissive.setHex(selected ? 0x36a9ff : 0x07111c);
-                node.material.emissiveIntensity = selected ? 0.85 : 0.18;
-            }
+            node.traverse((child) => {
+                if (!child.material?.emissive) return;
+                child.material.emissive.setHex(selected ? 0x36a9ff : 0x07111c);
+                child.material.emissiveIntensity = selected ? 0.85 : 0.18;
+            });
         }
+    }
+
+    setComparison(compareBuild) {
+        const compareSlots = compareBuild?.slots || {};
+        for (const [slotId, node] of this.partNodes) {
+            const changed = compareBuild && compareSlots[slotId] !== node.userData.hangarPartId;
+            node.traverse((child) => {
+                if (!child.material?.emissive || slotId === this.selectedSlotId) return;
+                child.material.emissive.setHex(changed ? 0xf59e0b : 0x07111c);
+                child.material.emissiveIntensity = changed ? 0.72 : 0.18;
+            });
+        }
+    }
+
+    updateAnimations(nowMs) {
+        for (const node of this.partNodes.values()) {
+            const started = Number(node.userData.snapStartedAtMs);
+            if (!started) continue;
+            const progress = Math.min(1, (nowMs - started) / 180);
+            const eased = 1 - Math.pow(1 - progress, 3);
+            node.scale.setScalar(node.userData.targetScale * (0.55 + 0.45 * eased));
+            if (progress >= 1) delete node.userData.snapStartedAtMs;
+        }
+    }
+
+    getRaycastObjects() {
+        return [...this.partNodes.values()];
     }
 
     showGhost(partId, slotId, valid = true) {

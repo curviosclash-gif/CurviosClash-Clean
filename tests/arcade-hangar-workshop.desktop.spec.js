@@ -100,6 +100,15 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('.hangar-camera-reset').click({ force: true });
     await page.waitForTimeout(1200);
 
+    const raycastPoint = await page.locator('[data-hangar-slot="wing_left"]').evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        document.querySelector('.hangar-hardpoint-overlay').style.pointerEvents = 'none';
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+    await page.mouse.click(raycastPoint.x, raycastPoint.y);
+    await expect(page.locator('[data-hangar-slot-row="wing_left"]')).toHaveClass(/is-selected/);
+    await page.locator('.hangar-hardpoint-overlay').evaluate((node) => { node.style.pointerEvents = ''; });
+
     const agilityBefore = await readMetric(page, 'agility');
     await page.locator('[data-catalog-view="parts"]').click();
     const wingPart = page.locator('.hangar-part-card[data-part-id="wing_t2"]');
