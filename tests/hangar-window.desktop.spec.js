@@ -21,6 +21,16 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     expect(layout.shellWidth).toBeGreaterThan(layout.innerWidth * 0.95);
     expect(layout.shellHeight).toBeGreaterThan((layout.innerHeight - 54) * 0.95);
 
+    await hangarPage.locator('[data-catalog-view="parts"]').click();
+    await expect(hangarPage.locator('.hangar-part-card[data-part-id="core_t2"] .hangar-part-lock-reason')).toContainText('Freischaltung auf Level 20');
+    await expect(hangarPage.locator('.hangar-part-card[data-part-id="core_t2"] .hangar-part-lock-reason')).toContainText('noch');
+    await hangarPage.locator('.hangar-part-trait-filter').selectOption('speed');
+    await expect(hangarPage.locator('.hangar-part-card')).not.toHaveCount(0);
+    expect(await hangarPage.locator('.hangar-part-card').evaluateAll((cards) => cards.every((card) => card.dataset.partTrait === 'speed'))).toBe(true);
+    await hangarPage.locator('.hangar-part-trait-filter').selectOption('all');
+    await hangarPage.locator('.hangar-part-availability-filter').selectOption('available');
+    await expect(hangarPage.locator('.hangar-part-card')).toHaveCount(8);
+
     await hangarPage.locator('#hangar-window-close').click();
     await expect.poll(() => electronApp.windows().length).toBe(1);
 });

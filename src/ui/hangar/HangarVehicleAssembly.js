@@ -57,6 +57,7 @@ export class HangarVehicleAssembly {
     }
 
     _createPartNode(part, { ghost = false, valid = true } = {}) {
+        const style = String(part.appearance?.style || 'standard');
         const color = ghost
             ? (valid ? 0x34d399 : 0xfb4558)
             : (Number(part.appearance?.color) || ({ T1: 0x6aaeea, T2: 0x9b7cff, T3: 0xf4b942 }[part.tier] || 0x6aaeea));
@@ -64,9 +65,12 @@ export class HangarVehicleAssembly {
             transparent: ghost,
             opacity: ghost ? 0.48 : 0.92,
             emissive: ghost ? color : 0x07111c,
-            emissiveIntensity: ghost ? 0.65 : 0.18,
+            emissiveIntensity: ghost ? 0.65 : (style === 'experimental' ? 0.42 : 0.18),
         });
         const root = new THREE.Group();
+        const light = style === 'light';
+        const reinforced = style === 'reinforced';
+        const experimental = style === 'experimental';
         const add = (geometry, position = [0, 0, 0], scale = [1, 1, 1], rotation = [0, 0, 0]) => {
             const mesh = new THREE.Mesh(geometry, material);
             mesh.position.fromArray(position);
@@ -79,17 +83,29 @@ export class HangarVehicleAssembly {
         };
         const tierScale = part.tier === 'T3' ? 1.18 : (part.tier === 'T2' ? 1.08 : 1);
         if (part.visual === 'core') {
-            add(this._geometry('part-core', () => new THREE.OctahedronGeometry(0.34, 1)), [0, 0, 0], [tierScale, tierScale, tierScale]);
+            const bodyScale = light ? [0.78, 1.12, 0.78] : (reinforced ? [1.2, 1, 1.2] : [1, 1, 1]);
+            add(this._geometry('part-core', () => new THREE.OctahedronGeometry(0.34, 1)), [0, 0, 0], bodyScale.map((value) => value * tierScale));
             add(this._geometry('part-core-ring', () => new THREE.TorusGeometry(0.38, 0.035, 8, 24)), [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+            if (reinforced) add(this._geometry('part-core-armor', () => new THREE.BoxGeometry(0.62, 0.18, 0.62)), [0, -0.16, 0]);
+            if (experimental) add(this._geometry('part-core-reactor-ring', () => new THREE.TorusGeometry(0.48, 0.045, 8, 24)), [0, 0, 0], [1, 1, 1], [0, Math.PI / 2, 0]);
         } else if (part.visual === 'nose') {
-            add(this._geometry('part-nose', () => new THREE.ConeGeometry(0.22, 0.58, 16)), [0, 0, 0], [tierScale, tierScale, tierScale]);
+            const noseScale = light ? [0.72, 1.28, 0.72] : (reinforced ? [1.28, 0.9, 1.28] : (experimental ? [0.82, 1.5, 0.82] : [1, 1, 1]));
+            add(this._geometry('part-nose', () => new THREE.ConeGeometry(0.22, 0.58, 16)), [0, 0, 0], noseScale.map((value) => value * tierScale));
             add(this._geometry('part-nose-fin', () => new THREE.BoxGeometry(0.07, 0.22, 0.34)), [0, -0.05, 0.08]);
+            if (reinforced) add(this._geometry('part-nose-armor', () => new THREE.BoxGeometry(0.5, 0.16, 0.34)), [0, 0.18, 0]);
+            if (experimental) add(this._geometry('part-nose-blade', () => new THREE.BoxGeometry(0.46, 0.05, 0.28)), [0, -0.1, 0.08]);
         } else if (part.visual === 'wing') {
-            add(this._geometry('part-wing', () => new THREE.BoxGeometry(0.78, 0.08, 0.38)), [0, 0, 0], [tierScale, 1, tierScale]);
+            const wingScale = light ? [1.12, 0.7, 0.72] : (reinforced ? [1.1, 1.6, 1.18] : (experimental ? [1.28, 0.72, 0.88] : [1, 1, 1]));
+            add(this._geometry('part-wing', () => new THREE.BoxGeometry(0.78, 0.08, 0.38)), [0, 0, 0], [wingScale[0] * tierScale, wingScale[1], wingScale[2] * tierScale]);
             add(this._geometry('part-wing-tip', () => new THREE.ConeGeometry(0.09, 0.34, 8)), [0.36, 0.07, 0], [1, 1, 1], [0, 0, -Math.PI / 2]);
+            if (reinforced) add(this._geometry('part-wing-armor', () => new THREE.BoxGeometry(0.48, 0.12, 0.5)), [-0.08, 0.08, 0]);
+            if (experimental) add(this._geometry('part-wing-rear-fin', () => new THREE.ConeGeometry(0.08, 0.3, 8)), [-0.3, 0.08, 0.12], [1, 1, 1], [Math.PI / 2, 0, 0]);
         } else if (part.visual === 'engine') {
-            add(this._geometry('part-engine', () => new THREE.CylinderGeometry(0.2, 0.25, 0.54, 16)), [0, 0, 0], [tierScale, tierScale, tierScale]);
+            const engineScale = light ? [0.82, 1.08, 0.82] : (reinforced ? [1.14, 1.12, 1.14] : (experimental ? [1.18, 1.38, 1.18] : [1, 1, 1]));
+            add(this._geometry('part-engine', () => new THREE.CylinderGeometry(0.2, 0.25, 0.54, 16)), [0, 0, 0], engineScale.map((value) => value * tierScale));
             add(this._geometry('part-engine-nozzle', () => new THREE.TorusGeometry(0.21, 0.045, 8, 18)), [0, -0.28, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+            if (reinforced) add(this._geometry('part-engine-vector-ring', () => new THREE.TorusGeometry(0.29, 0.035, 8, 18)), [0, 0.1, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+            if (experimental) add(this._geometry('part-engine-nova-ring', () => new THREE.TorusGeometry(0.31, 0.055, 8, 18)), [0, -0.34, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
         } else if (part.visual === 'lab') {
             const size = part.appearance?.size || [1, 1, 1];
             const shape = part.appearance?.geometry;
@@ -102,6 +118,9 @@ export class HangarVehicleAssembly {
         } else {
             add(this._geometry('part-utility', () => new THREE.TorusGeometry(0.25, 0.07, 8, 20)));
             add(this._geometry('part-utility-orb', () => new THREE.SphereGeometry(0.11, 12, 8)));
+            if (light) add(this._geometry('part-utility-light-ring', () => new THREE.TorusGeometry(0.34, 0.025, 8, 20)), [0, 0, 0], [1, 1, 1], [Math.PI / 2, 0, 0]);
+            if (reinforced) add(this._geometry('part-utility-shield', () => new THREE.SphereGeometry(0.22, 12, 8)), [0, 0, 0], [1.2, 0.45, 1.2]);
+            if (experimental) add(this._geometry('part-utility-overclock', () => new THREE.TorusGeometry(0.37, 0.04, 8, 20)), [0, 0, 0], [1, 1, 1], [0, Math.PI / 2, 0]);
         }
         root.userData.hangarPartId = part.id;
         root.userData.hangarGhost = ghost;

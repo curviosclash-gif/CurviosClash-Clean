@@ -17,10 +17,24 @@ export function createHangarDragDropController(options = {}) {
         if (!drag) return;
         clearTarget();
         viewport?.clearDragPreview?.();
-        drag.avatar.remove();
-        try { drag.source.releasePointerCapture?.(drag.pointerId); } catch { /* pointer may already be released */ }
+        drag.avatar?.remove();
+        if (drag.active) {
+            try { drag.source.releasePointerCapture?.(drag.pointerId); } catch { /* pointer may already be released */ }
+        }
         drag = null;
         options.onCancel?.(reason);
+    }
+
+    function activate(event) {
+        if (!drag || drag.active) return;
+        drag.active = true;
+        drag.avatar = document.createElement('div');
+        drag.avatar.className = 'hangar-drag-avatar';
+        drag.avatar.textContent = String(drag.payload.label || drag.payload.partId);
+        document.body.appendChild(drag.avatar);
+        drag.source.setPointerCapture?.(drag.pointerId);
+        event.preventDefault();
+        options.onStart?.(drag.payload);
     }
 
     function targetAt(clientX, clientY) {
@@ -35,6 +49,11 @@ export function createHangarDragDropController(options = {}) {
 
     function move(event) {
         if (!drag || event.pointerId !== drag.pointerId) return;
+        if (!drag.active) {
+            const distance = Math.hypot(event.clientX - drag.startX, event.clientY - drag.startY);
+            if (distance < 6) return;
+            activate(event);
+        }
         drag.avatar.style.transform = `translate3d(${event.clientX + 14}px, ${event.clientY + 14}px, 0)`;
         clearTarget();
         const target = targetAt(event.clientX, event.clientY);
@@ -51,9 +70,17 @@ export function createHangarDragDropController(options = {}) {
 
     function end(event) {
         if (!drag || event.pointerId !== drag.pointerId) return;
+        if (!drag.active) {
+            drag = null;
+            return;
+        }
         const result = drag.evaluation;
         const payload = drag.payload;
         const target = drag.target;
+        const source = drag.source;
+        event.preventDefault();
+        source.dataset.hangarSuppressClick = 'true';
+        window.setTimeout(() => { delete source.dataset.hangarSuppressClick; }, 0);
         cancel('drop');
         if (target && result?.ok) onDrop(payload, target, result);
         else onReject(result || { ok: false, code: 'no_target', message: 'Kein kompatibler Slot gewählt' });
@@ -77,15 +104,17 @@ export function createHangarDragDropController(options = {}) {
             if (payload?.lockedReason) onReject({ ok: false, code: 'part_locked', message: payload.lockedReason });
             return false;
         }
-        event.preventDefault();
-        const avatar = document.createElement('div');
-        avatar.className = 'hangar-drag-avatar';
-        avatar.textContent = String(payload.label || payload.partId);
-        document.body.appendChild(avatar);
-        drag = { pointerId: event.pointerId, source, payload, avatar, target: null, evaluation: null };
-        source.setPointerCapture?.(event.pointerId);
-        move(event);
-        options.onStart?.(payload);
+        drag = {
+            pointerId: event.pointerId,
+            source,
+            payload,
+            avatar: null,
+            target: null,
+            evaluation: null,
+            active: false,
+            startX: event.clientX,
+            startY: event.clientY,
+        };
         return true;
     }
 
@@ -102,7 +131,7 @@ export function createHangarDragDropController(options = {}) {
         begin,
         attachSource,
         cancel,
-        isDragging: () => Boolean(drag),
+        isDragging: () => Boolean(drag?.active),
         dispose() {
             cancel('dispose');
             sourceCleanups.splice(0).forEach((cleanup) => cleanup());

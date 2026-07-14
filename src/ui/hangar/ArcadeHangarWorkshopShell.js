@@ -2,6 +2,10 @@ import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPr
 
 const PART_FAMILIES = Object.freeze(['all', 'core', 'nose', 'wing', 'engine', 'utility']);
 const PART_TIERS = Object.freeze(['ALL', 'T1', 'T2', 'T3']);
+const PART_TRAITS = Object.freeze([
+    ['all', 'Alle Rollen'], ['speed', 'Tempo'], ['agility', 'Wendig'],
+    ['armor', 'Panzerung'], ['efficiency', 'Effizient'], ['balanced', 'Ausgewogen'],
+]);
 
 function button(className, text, title = '') {
     const node = el('button', className, text);
@@ -69,7 +73,25 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
         option.textContent = tier === 'ALL' ? 'Alle Tiers' : tier;
         tierSelect.appendChild(option);
     });
-    partFilters.append(familySelect, tierSelect);
+    const traitSelect = document.createElement('select');
+    traitSelect.className = 'hangar-part-trait-filter';
+    traitSelect.setAttribute('aria-label', 'Teilerolle');
+    PART_TRAITS.forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        traitSelect.appendChild(option);
+    });
+    const availabilitySelect = document.createElement('select');
+    availabilitySelect.className = 'hangar-part-availability-filter';
+    availabilitySelect.setAttribute('aria-label', 'Teileverfügbarkeit');
+    [['all', 'Alle Teile'], ['available', 'Nur verfügbar'], ['locked', 'Nur gesperrt']].forEach(([value, label]) => {
+        const option = document.createElement('option');
+        option.value = value;
+        option.textContent = label;
+        availabilitySelect.appendChild(option);
+    });
+    partFilters.append(familySelect, tierSelect, traitSelect, availabilitySelect);
     const quickRows = el('div', 'arcade-vehicle-quick-rows');
     const favRow = el('div', 'arcade-vehicle-quick-row');
     const recentRow = el('div', 'arcade-vehicle-quick-row');
@@ -136,7 +158,9 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     compareHeader.appendChild(buildCompareSelect);
     const statRows = el('div', 'arcade-vehicle-compare-rows hangar-stat-rows');
     const budgetRows = el('div', 'hangar-budget-rows');
-    comparePanel.append(compareHeader, statRows, budgetRows);
+    const partPreviewBox = el('div', 'hangar-part-preview hidden');
+    partPreviewBox.setAttribute('aria-live', 'polite');
+    comparePanel.append(compareHeader, statRows, budgetRows, partPreviewBox);
     const slotsPanel = el('section', 'hangar-slot-panel');
     slotsPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Hardpoints'));
     const slotGrid = el('div', 'arcade-vehicle-slots hangar-slot-grid');
@@ -149,6 +173,18 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     const revertButton = button('secondary-btn hangar-revert', 'Zurücksetzen', 'Letzten gespeicherten Stand laden');
     const defaultButton = button('secondary-btn hangar-default', 'Standard', 'Standardkonfiguration wiederherstellen');
     historyBar.append(undoButton, redoButton, revertButton, defaultButton);
+    const starterPanel = el('section', 'hangar-starter-panel');
+    starterPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Starter-Builds'));
+    const starterBuilds = el('div', 'hangar-starter-builds');
+    [
+        ['sprinter', 'Sprinter'], ['turn_fighter', 'Kurvenjäger'],
+        ['tank', 'Tank'], ['efficient', 'Energiesparer'],
+    ].forEach(([id, label]) => {
+        const node = button('secondary-btn hangar-starter-build', label);
+        node.dataset.starterBuild = id;
+        starterBuilds.appendChild(node);
+    });
+    starterPanel.appendChild(starterBuilds);
     const loadoutPanel = el('section', 'arcade-vehicle-loadout hangar-preset-panel');
     loadoutPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Build-Presets'));
     const presetName = document.createElement('input');
@@ -183,7 +219,7 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     const activateButton = button('start-btn hangar-activate-build', 'Für nächsten Run aktivieren');
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions, activateButton);
     rightPanel.append(
-        detailHead, profileBox, comparePanel, slotsPanel, validationBox, historyBar, loadoutPanel,
+        detailHead, profileBox, comparePanel, slotsPanel, validationBox, historyBar, starterPanel, loadoutPanel,
         el('p', 'menu-hint arcade-vehicle-shortcuts', 'Entf: Teil entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln')
     );
     layout.appendChild(rightPanel);
@@ -195,11 +231,11 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
 
     return {
         container, saveState, viewSwitch, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
-        categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, quickRows,
+        categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, traitSelect, availabilitySelect, quickRows,
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, favoriteBtn, levelLine,
-        xpFill, compareSelect, buildCompareSelect, statRows, budgetRows, slotGrid, validationBox, undoButton,
-        redoButton, revertButton, defaultButton, presetName, presetSelect, presetSave,
+        xpFill, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
+        redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, activateButton,
         statusMessage, activeBuildLabel,

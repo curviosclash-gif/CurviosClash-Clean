@@ -22,6 +22,26 @@ function partStatsText(part) {
     ].filter(Boolean).join(' · ');
 }
 
+function signed(value, suffix = '') {
+    const number = Number(value) || 0;
+    return `${number > 0 ? '+' : ''}${number}${suffix}`;
+}
+
+function partRunBonusesText(part, multiplier = 1) {
+    const bonuses = part.bonuses || {};
+    return [
+        Number(bonuses.speedBonusPct) ? `Tempo ${signed(bonuses.speedBonusPct * multiplier, '%')}` : '',
+        Number(bonuses.turningBonusPct) ? `Wende ${signed(bonuses.turningBonusPct * multiplier, '%')}` : '',
+        Number(bonuses.maxHpBonus) ? `HP ${signed(bonuses.maxHpBonus * multiplier)}` : '',
+    ].filter(Boolean).join(' · ') || 'keine direkten Run-Boni';
+}
+
+function partCostsText(part, paired) {
+    const multiplier = paired ? 2 : 1;
+    const costs = part.costs;
+    return `${paired ? 'Paarpreis' : 'Kosten'}: B ${costs.budget * multiplier} · M ${costs.mass * multiplier} · E ${costs.energy * multiplier} · H ${costs.heat * multiplier}`;
+}
+
 export function createArcadeHangarWorkshopRenderer(options) {
     const {
         shell, settings, catalogEntries, selection, persistence, viewport,
@@ -32,7 +52,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
         resultLine, catalogList, detailTitle, detailMeta, favoriteBtn, levelLine, xpFill,
-        compareSelect, buildCompareSelect, statRows, budgetRows, slotGrid, validationBox, undoButton, redoButton,
+        compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
         revertButton, activateButton, presetSelect, presetLoad, presetRename, presetDuplicate,
         presetDelete, presetSort, presetTags, presetFavorite, presetExport, activeBuildLabel,
     } = shell;
@@ -79,36 +99,76 @@ export function createArcadeHangarWorkshopRenderer(options) {
 
     function renderParts(state) {
         const profile = profileFor(state.draft.vehicleId);
-        const parts = listHangarParts({ search: search.value, family: state.partFamily, tier: state.partTier });
-        resultLine.textContent = `${parts.length} Bauteile · gesperrte Teile bleiben sichtbar`;
+        const records = listHangarParts({ search: search.value, family: state.partFamily, tier: state.partTier, trait: state.partTrait })
+            .map((part) => {
+                const target = part.compatibleSlots.find((slotId) => state.draft.slots[slotId] !== part.id) || part.compatibleSlots[0];
+                const projected = target ? evaluateInstall(part.id, target) : null;
+                return { part, lock: resolvePartLockReason(part, profile.level, projected) };
+            })
+            .filter(({ lock }) => state.partAvailability === 'available' ? !lock : (state.partAvailability === 'locked' ? Boolean(lock) : true));
+        resultLine.textContent = `${records.length} Bauteile · Klick wählt aus, Ziehen montiert direkt`;
         catalogList.replaceChildren();
-        if (!parts.length) catalogList.appendChild(el('p', 'menu-hint hangar-empty-state', 'Keine Bauteile für diese Filterung gefunden.'));
-        parts.forEach((part) => {
-            const target = part.compatibleSlots.find((slotId) => state.draft.slots[slotId] !== part.id) || part.compatibleSlots[0];
-            const projected = target ? evaluateInstall(part.id, target) : null;
-            const lock = resolvePartLockReason(part, profile.level, projected);
-            const card = el('article', 'hangar-part-card');
+        if (!records.length) catalogList.appendChild(el('p', 'menu-hint hangar-empty-state', 'Keine Bauteile für diese Filterung gefunden.'));
+        records.forEach(({ part, lock }) => {
+            const card = button('hangar-part-card', '');
             card.dataset.partId = part.id;
             card.dataset.partLabel = part.label;
-            card.tabIndex = lock ? -1 : 0;
+            card.dataset.partTrait = part.trait;
+            card.setAttribute('aria-pressed', String(state.selectedPartId === part.id));
+            card.setAttribute('aria-disabled', String(Boolean(lock)));
             card.classList.toggle('is-locked', Boolean(lock));
+            card.classList.toggle('is-selected', state.selectedPartId === part.id);
             if (lock) {
                 card.dataset.locked = 'true';
-                card.dataset.lockedReason = lock.message;
+                const targetXp = lock.unlockLevel ? Number(state.xpForLevel?.(lock.unlockLevel)) || 0 : 0;
+                const remainingXp = Math.max(0, targetXp - (Number(profile.xp) || 0));
+                card.dataset.lockedReason = `${lock.message}${remainingXp ? ` · noch ${remainingXp} XP` : ''}`;
             }
+            const paired = part.symmetric && shell.pairToggle.checked;
             const head = el('div', 'hangar-part-card-head');
             head.append(el('strong', 'hangar-part-name', part.label), el('span', `hangar-tier hangar-tier-${part.tier.toLowerCase()}`, part.tier));
             card.append(
                 head,
                 el('span', 'hangar-part-family', `${part.family} · ${part.role}`),
                 el('span', 'hangar-part-stats', partStatsText(part)),
-                el('span', 'hangar-part-costs', `B ${part.costs.budget} · M ${part.costs.mass} · E ${part.costs.energy} · H ${part.costs.heat}`),
-                el('span', lock ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', lock?.message || 'Auf einen leuchtenden Hardpoint ziehen')
+                el('span', 'hangar-part-run-bonuses', `Run: ${partRunBonusesText(part, paired ? 2 : 1)}`),
+                el('span', 'hangar-part-costs', partCostsText(part, paired)),
+                el('span', lock ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', lock ? card.dataset.lockedReason : 'Anklicken oder auf einen Hardpoint ziehen')
             );
             catalogList.appendChild(card);
         });
         favRow.replaceChildren();
         recentRow.replaceChildren();
+    }
+
+    function resolvePreview(state) {
+        const partId = state.selectedPartId || state.previewPartId;
+        const part = resolveHangarPart(partId);
+        if (!part) return null;
+        const slotId = part.compatibleSlots.includes(state.selectedSlotId) ? state.selectedSlotId : part.compatibleSlots[0];
+        return { part, slotId, result: evaluateInstall(part.id, slotId) };
+    }
+
+    function renderPartPreview(state) {
+        const preview = resolvePreview(state);
+        partPreviewBox.replaceChildren();
+        partPreviewBox.classList.toggle('hidden', !preview);
+        if (!preview) return;
+        const slot = HANGAR_SLOT_DEFINITIONS.find((entry) => entry.id === preview.slotId);
+        partPreviewBox.appendChild(el('strong', 'hangar-part-preview-title', `${preview.part.label} → ${slot?.label || preview.slotId}`));
+        if (!preview.result?.ok) {
+            partPreviewBox.appendChild(el('span', 'hangar-part-lock-reason', describeFailure(preview.result)));
+            return;
+        }
+        const current = projectHangarStats(state.draft);
+        const projected = projectHangarStats(preview.result.build);
+        const deltas = compareHangarStats(projected, current)
+            .filter((metric) => metric.delta !== 0)
+            .map((metric) => `${metric.label} ${signed(metric.delta)}`);
+        partPreviewBox.append(
+            el('span', 'hangar-part-preview-deltas', deltas.join(' · ') || 'Keine Wertänderung'),
+            el('span', 'hangar-part-preview-help', state.selectedPartId ? 'Hardpoint anklicken, um zu montieren' : 'Anklicken, um das Teil auszuwählen')
+        );
     }
 
     function renderStatistics(state, validation) {
@@ -151,7 +211,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
     }
 
-    function renderSlots(state, validation, dragPartId) {
+    function renderSlots(state, validation, activePartId) {
         slotGrid.replaceChildren();
         const viewportStates = [];
         HANGAR_SLOT_DEFINITIONS.forEach((slot) => {
@@ -179,12 +239,12 @@ export function createArcadeHangarWorkshopRenderer(options) {
             remove.disabled = !part || slot.required;
             row.append(label, installed, tier, quick, remove);
             slotGrid.appendChild(row);
-            const dragValidation = dragPartId ? evaluateInstall(dragPartId, slot.id) : null;
+            const dragValidation = activePartId ? evaluateInstall(activePartId, slot.id) : null;
             viewportStates.push({
                 slotKey: slot.id,
                 badge: part?.tier || '+',
-                disabled: dragPartId ? !dragValidation?.ok : false,
-                tooltip: dragPartId ? (dragValidation?.ok ? `${slot.label}: kompatibel` : describeFailure(dragValidation)) : `${slot.label}: ${part?.label || 'leer'}`,
+                disabled: activePartId ? !dragValidation?.ok : false,
+                tooltip: activePartId ? (dragValidation?.ok ? `${slot.label}: kompatibel` : describeFailure(dragValidation)) : `${slot.label}: ${part?.label || 'leer'}`,
                 dropState: '',
             });
         });
@@ -286,12 +346,19 @@ export function createArcadeHangarWorkshopRenderer(options) {
             buildCompareSelect.appendChild(option);
         });
         buildCompareSelect.value = Array.from(buildCompareSelect.options).some((option) => option.value === previousBuildComparison) ? previousBuildComparison : '';
+        const activePartId = syncOptions.dragPartId || state.selectedPartId || state.previewPartId;
         renderStatistics(state, validation);
-        renderSlots(state, validation, syncOptions.dragPartId || '');
+        renderPartPreview(state);
+        renderSlots(state, validation, activePartId);
         renderPresets(state);
         viewport.setBuild(state.draft, { color: resolvePlayerColor(settings), changedSlots: syncOptions.changedSlots || [] });
         viewport.setComparison(persistence.getBuild(buildCompareSelect.value));
-        viewport.setDragActive(Boolean(syncOptions.dragPartId));
+        viewport.setDragActive(Boolean(activePartId));
+        if (!syncOptions.dragPartId) {
+            const preview = resolvePreview(state);
+            if (preview) viewport.setDragPreview(preview.part.id, preview.slotId, preview.result?.ok === true);
+            else viewport.clearDragPreview();
+        }
         container.dataset.previewStatus = viewport.getStatus();
         const dirty = isDirty();
         saveState.textContent = dirty ? 'Ungespeicherte Änderungen' : (state.savedBuild ? 'Gespeichert' : 'Standard · noch nicht als Preset gespeichert');

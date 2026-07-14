@@ -3,6 +3,7 @@ import {
     getSpendableUpgradeXp,
     loadVehicleProfiles,
     saveVehicleProfiles,
+    xpForLevel,
     xpToNextLevel,
 } from './ArcadeVehicleProfile.js';
 
@@ -15,6 +16,7 @@ export function createArcadeVehicleProfileWorkshopPort(store) {
         },
         getOrCreate: (profiles, vehicleId) => getOrCreateProfile(profiles, vehicleId),
         getSpendableUpgradeXp,
+        xpForLevel,
         xpToNextLevel,
     });
 }

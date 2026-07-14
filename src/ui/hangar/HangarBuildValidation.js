@@ -52,6 +52,18 @@ function mapContractMessage(message) {
     return { code: 'contract_rejected', message: text };
 }
 
+export function describeHangarDropFailure(result) {
+    if (result?.message) return result.message;
+    return {
+        incompatible_slot: 'Dieses Bauteil passt nicht auf den gewählten Slot.',
+        required_slot: 'Ein Pflichtslot kann nur durch ein anderes Teil ersetzt werden.',
+        slot_locked: 'Dieser Slot ist noch gesperrt.',
+        tier_locked: 'Dieses Teile-Tier ist noch gesperrt.',
+        part_family_locked: 'Diese Teilefamilie ist noch gesperrt.',
+        level_locked: 'Dein Fahrzeuglevel ist für dieses Bauteil zu niedrig.',
+    }[String(result?.code || '')] || 'Der Umbau wurde abgelehnt; der Entwurf blieb unverändert.';
+}
+
 export function validateHangarBuild(build, level = 1) {
     const normalized = normalizeHangarBuild(build);
     const blueprint = projectHangarBuildBlueprint(normalized);

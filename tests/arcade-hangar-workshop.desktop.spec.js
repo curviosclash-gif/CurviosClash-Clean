@@ -113,6 +113,20 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('[data-catalog-view="parts"]').click();
     await expect(page.locator('.hangar-part-card')).toHaveCount(45);
     await expect(page.locator('.hangar-part-card[data-part-id="core_swift_t1"] .hangar-part-stats')).toContainText('Wende +3');
+    await expect(page.locator('.hangar-part-card[data-part-id="wing_kestrel_t1"] .hangar-part-costs')).toContainText('Paarpreis');
+    await expect(page.locator('.hangar-part-card[data-part-id="wing_kestrel_t1"] .hangar-part-run-bonuses')).toContainText('Tempo +3%');
+
+    const swiftCore = page.locator('.hangar-part-card[data-part-id="core_swift_t1"]');
+    await swiftCore.click();
+    await expect(swiftCore).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.hangar-part-preview')).toContainText('Hardpoint anklicken');
+    await page.locator('[data-hangar-slot="core"]').click();
+    await expect(page.locator('[data-hangar-slot-row="core"] .hangar-installed-part')).toContainText('Swift Core T1');
+    await expect(page.locator('.hangar-status-message')).toContainText('montiert');
+
+    await page.locator('[data-starter-build="sprinter"]').click();
+    await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toContainText('Kestrel Wing T1');
+    await expect(page.locator('.hangar-status-message')).toContainText('Sprinter Build geladen');
     const wingPart = page.locator('.hangar-part-card[data-part-id="wing_t2"]');
     await wingPart.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
     await page.waitForTimeout(100);
@@ -120,6 +134,11 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(wingPart).not.toHaveAttribute('data-locked', 'true');
     await wingPart.hover();
     await page.mouse.down();
+    const wingPartPoint = await wingPart.evaluate((node) => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
+    });
+    await page.mouse.move(wingPartPoint.x + 8, wingPartPoint.y, { steps: 2 });
     await expect(page.locator('.hangar-status-message')).toContainText('aufgenommen');
     await stage.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'center' }));
     await page.waitForTimeout(100);

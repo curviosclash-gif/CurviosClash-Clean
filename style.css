@@ -3784,6 +3784,17 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: grab;
     touch-action: none;
     user-select: none;
+    text-align: left;
+    width: 100%;
+}
+
+.hangar-part-card.is-selected {
+    border-color: #f8c25e;
+    box-shadow: 0 0 0 2px rgba(248, 194, 94, 0.18), 0 0 20px rgba(248, 194, 94, 0.12);
+}
+
+.hangar-part-card.is-locked {
+    cursor: not-allowed;
 }
 
 .hangar-part-card:active,
@@ -3815,6 +3826,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-part-family,
 .hangar-part-stats,
+.hangar-part-run-bonuses,
 .hangar-part-costs,
 .hangar-part-drag-hint,
 .hangar-part-lock-reason {
@@ -3830,6 +3842,49 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-part-stats {
     color: #d5e9fb;
     font-weight: 700;
+}
+
+.hangar-part-run-bonuses {
+    color: #79e3bd;
+    font-weight: 700;
+}
+
+.hangar-part-preview {
+    display: grid;
+    gap: 4px;
+    margin-top: 8px;
+    padding: 8px;
+    border: 1px solid rgba(248, 194, 94, 0.38);
+    border-radius: 8px;
+    background: rgba(66, 48, 18, 0.32);
+    font-size: 0.7rem;
+}
+
+.hangar-part-preview.hidden {
+    display: none;
+}
+
+.hangar-part-preview-deltas {
+    color: #f8d99b;
+}
+
+.hangar-part-preview-help {
+    color: #a9bfd3;
+}
+
+.hangar-starter-panel {
+    display: grid;
+    gap: 6px;
+}
+
+.hangar-starter-builds {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.hangar-starter-builds .secondary-btn {
+    min-height: 32px;
 }
 
 .hangar-part-lock-reason {

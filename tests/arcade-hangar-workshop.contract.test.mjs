@@ -25,7 +25,14 @@ import {
 import { getSlotStatBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createHangarDraftPersistence } from '../src/ui/hangar/HangarDraftPersistence.js';
-import { listHangarParts, registerPublishedHangarParts, resolveHangarPart } from '../src/ui/hangar/HangarPartCatalog.js';
+import {
+    listHangarParts,
+    registerPublishedHangarParts,
+    resolveHangarPart,
+    resolveHangarPartUnlockLevel,
+    resolvePartLockReason,
+} from '../src/ui/hangar/HangarPartCatalog.js';
+import { HANGAR_STARTER_BUILDS, createHangarStarterBuild } from '../src/ui/hangar/HangarStarterBuildCatalog.js';
 import {
     createVehicleLabHangarPublication,
     upsertVehicleLabHangarPublication,
@@ -84,6 +91,32 @@ test('each part family offers two T1, three T2 and four T3 choices with distinct
             }))).size, expectedCount, `${family} ${tier} properties`);
         }
     }
+});
+
+test('role filters, silhouettes and unlock levels stay explicit', () => {
+    const speedParts = listHangarParts({ trait: 'speed' });
+    assert.ok(speedParts.length > 0);
+    assert.ok(speedParts.every((part) => part.trait === 'speed'));
+    assert.equal(resolveHangarPart('core_t1').appearance.style, 'standard');
+    assert.equal(resolveHangarPart('core_swift_t1').appearance.style, 'light');
+    assert.equal(resolveHangarPart('core_reactor_t2').appearance.style, 'experimental');
+    assert.equal(resolveHangarPart('core_bastion_t3').appearance.style, 'reinforced');
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('wing_t2')), 10);
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('engine_t2')), 15);
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('core_t2')), 20);
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('utility_t1')), 5);
+    assert.equal(resolvePartLockReason(resolveHangarPart('core_t2'), 1).unlockLevel, 20);
+});
+
+test('starter builds provide four valid one-click loadouts', () => {
+    const base = createDefaultHangarBuild('ship5', { nowMs: 4 });
+    const builds = HANGAR_STARTER_BUILDS.map((preset) => createHangarStarterBuild(base, preset.id, 1));
+    assert.equal(builds.length, 4);
+    assert.equal(new Set(builds.map((build) => JSON.stringify(build.slots))).size, 4);
+    builds.forEach((build) => assert.equal(validateHangarBuild(build, 1).ok, true, build.name));
+    const levelFiveTank = createHangarStarterBuild(base, 'tank', 5);
+    assert.equal(levelFiveTank.slots.utility, 'utility_t1');
+    assert.equal(validateHangarBuild(levelFiveTank, 5).ok, true);
 });
 
 test('level-one alternatives visibly change the build and reach runtime bonuses', () => {

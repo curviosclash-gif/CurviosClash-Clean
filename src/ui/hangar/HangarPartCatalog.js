@@ -30,8 +30,8 @@ const FAMILY_TEMPLATES = Object.freeze({
         variants: [
             { key: 'aegis', legacy: true, label: 'Aegis Core', role: 'Panzerung', color: 0x6aaeea, startTier: 0, costDelta: {}, statDelta: {}, bonuses: [{}, { maxHpBonus: 15 }, { maxHpBonus: 30 }] },
             { key: 'swift', label: 'Swift Core', role: 'Leicht & wendig', color: 0x3dd6b5, startTier: 0, costDelta: { budget: -1, mass: -2, energy: 1, heat: 1 }, statDelta: { maxHp: -4, agility: 3, speed: 1 }, bonuses: [{ turningBonusPct: 2 }, { turningBonusPct: 4, maxHpBonus: 8 }, { turningBonusPct: 6, maxHpBonus: 18 }] },
-            { key: 'reactor', label: 'Reactor Core', role: 'Tempo & Energie', color: 0xb78cff, startTier: 1, costDelta: { budget: 1, mass: -1, energy: 3, heat: 2 }, statDelta: { maxHp: -8, agility: 1, speed: 4 }, bonuses: [null, { speedBonusPct: 4, maxHpBonus: 6 }, { speedBonusPct: 8, maxHpBonus: 16 }] },
-            { key: 'bastion', label: 'Bastion Core', role: 'Maximale Struktur', color: 0xf3a85b, startTier: 2, costDelta: { budget: 4, mass: 4, energy: -1, heat: -1 }, statDelta: { maxHp: 16, agility: -1 }, bonuses: [null, null, { maxHpBonus: 45 }] },
+            { key: 'reactor', label: 'Reactor Core', role: 'Tempo & Energie', style: 'experimental', color: 0xb78cff, startTier: 1, costDelta: { budget: 1, mass: -1, energy: 3, heat: 2 }, statDelta: { maxHp: -8, agility: 1, speed: 4 }, bonuses: [null, { speedBonusPct: 4, maxHpBonus: 6 }, { speedBonusPct: 8, maxHpBonus: 16 }] },
+            { key: 'bastion', label: 'Bastion Core', role: 'Maximale Struktur', style: 'reinforced', color: 0xf3a85b, startTier: 2, costDelta: { budget: 4, mass: 4, energy: -1, heat: -1 }, statDelta: { maxHp: 16, agility: -1 }, bonuses: [null, null, { maxHpBonus: 45 }] },
         ],
     }),
     nose: Object.freeze({
@@ -113,6 +113,7 @@ const FAMILY_TEMPLATES = Object.freeze({
 });
 
 const TIER_LEVELS = Object.freeze({ T1: 1, T2: 10, T3: 20 });
+const ARCADE_HANGAR_MAX_LEVEL = 30;
 
 function round1(value) {
     return Math.round((Number(value) || 0) * 10) / 10;
@@ -126,6 +127,15 @@ function createPartId(family, variant, tier) {
     return variant.legacy ? `${family}_${tier.toLowerCase()}` : `${family}_${variant.key}_${tier.toLowerCase()}`;
 }
 
+function resolveTrait(role) {
+    const value = String(role || '').toLowerCase();
+    if (/effizient|kühl/.test(value)) return 'efficiency';
+    if (/panzer|schutz|struktur|schild/.test(value)) return 'armor';
+    if (/tempo|geschwindigkeit|schub|schnell/.test(value)) return 'speed';
+    if (/wendig|steuer|agil|manövrier/.test(value)) return 'agility';
+    return 'balanced';
+}
+
 function createPartDefinition(family, template, variant, tierIndex) {
     const tier = `T${tierIndex + 1}`;
     const nextTier = tierIndex < 2 ? `T${tierIndex + 2}` : null;
@@ -133,13 +143,18 @@ function createPartDefinition(family, template, variant, tierIndex) {
         id: createPartId(family, variant, tier),
         label: `${variant.label} ${tier}`,
         role: variant.role,
+        trait: resolveTrait(variant.role),
         family,
         tier,
         minLevel: Math.max(family === 'utility' ? 5 : 1, TIER_LEVELS[tier]),
         compatibleSlots: Object.freeze([...template.slots]),
         symmetric: family === 'wing' || family === 'engine',
         visual: template.visual,
-        appearance: Object.freeze({ color: variant.color }),
+        appearance: Object.freeze({
+            color: variant.color,
+            variant: variant.key,
+            style: variant.style || (variant.legacy ? 'standard' : (variant.startTier === 0 ? 'light' : (variant.startTier === 1 ? 'reinforced' : 'experimental'))),
+        }),
         costs: Object.freeze(mergeNumbers(template.costs[tierIndex], variant.costDelta, ['budget', 'mass', 'energy', 'heat'])),
         stats: Object.freeze(mergeNumbers(template.stats[tierIndex], variant.statDelta, ['speed', 'agility', 'maxHp'])),
         bonuses: Object.freeze({ speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0, ...(variant.bonuses[tierIndex] || {}) }),
@@ -169,6 +184,7 @@ function normalizePublishedPart(part) {
         id,
         label: String(part.label || id).trim(),
         role: String(part.role || 'Vehicle Lab').trim(),
+        trait: resolveTrait(part.role || 'Vehicle Lab'),
         family,
         tier: ['T1', 'T2', 'T3'].includes(part.tier) ? part.tier : 'T1',
         minLevel: Math.max(1, Number(part.minLevel) || 1),
@@ -246,12 +262,29 @@ export function listHangarParts(filters = {}) {
     const search = String(filters.search || '').trim().toLowerCase();
     const family = String(filters.family || 'all').trim().toLowerCase();
     const tier = String(filters.tier || 'all').trim().toUpperCase();
+    const trait = String(filters.trait || 'all').trim().toLowerCase();
     return [...HANGAR_PART_CATALOG, ...publishedParts].filter((part) => {
         if (family !== 'all' && part.family !== family) return false;
         if (tier !== 'ALL' && part.tier !== tier) return false;
+        if (trait !== 'all' && part.trait !== trait) return false;
         if (!search) return true;
         return part.label.toLowerCase().includes(search) || part.searchTokens.some((token) => token.includes(search));
     }).map(clonePart);
+}
+
+export function resolveHangarPartUnlockLevel(part) {
+    if (!part) return ARCADE_HANGAR_MAX_LEVEL;
+    for (let level = 1; level <= ARCADE_HANGAR_MAX_LEVEL; level += 1) {
+        const rules = resolveArcadeHangarRulesForLevel(level);
+        if (level < part.minLevel || !rules.allowedPartFamilies.includes(part.family) || !rules.allowedTiers.includes(part.tier)) continue;
+        const unlocked = new Set(rules.unlockedSlots);
+        const compatible = part.compatibleSlots.some((slotId) => {
+            if (!unlocked.has(slotId)) return false;
+            return part.tier === 'T1' || unlocked.has(`${slotId}_t2`);
+        });
+        if (compatible) return level;
+    }
+    return ARCADE_HANGAR_MAX_LEVEL;
 }
 
 export function resolveVehicleHardpoints(vehicleId) {
@@ -286,9 +319,10 @@ export function createDefaultHangarSlots() {
 
 export function resolvePartLockReason(part, level, buildValidation = null) {
     if (!part) return { code: 'unknown_part', message: 'Unbekanntes Bauteil' };
+    const unlockLevel = resolveHangarPartUnlockLevel(part);
     const rules = resolveArcadeHangarRulesForLevel(level);
-    if (level < part.minLevel) {
-        return { code: 'level_locked', message: `Benötigtes Level: ${part.minLevel}` };
+    if (level < unlockLevel) {
+        return { code: 'level_locked', unlockLevel, message: `Freischaltung auf Level ${unlockLevel}` };
     }
     if (!rules.allowedPartFamilies.includes(part.family)) {
         return { code: 'part_family_locked', message: `Teilefamilie ${part.family} ist gesperrt` };
