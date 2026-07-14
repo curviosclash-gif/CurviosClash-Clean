@@ -5,7 +5,7 @@ export const LEGACY_MAX_LINES = Object.freeze({
     'src/core/SettingsManager.js': 585,
     'src/core/config/maps/presets/parcours_pack_v130.js': 620,
     'src/core/main.js': 560,
-    'src/entities/ai/training/WebSocketTrainerBridge.js': 700,
+    'dev/training/src/entities/ai/training/WebSocketTrainerBridge.js': 700,
     'src/shared/runtime/GameRuntimePorts.js': 420,
     'src/ui/MatchFlowUiController.js': 790,
     'src/ui/PauseOverlayController.js': 300,

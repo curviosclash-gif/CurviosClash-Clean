@@ -2,6 +2,7 @@ import * as MenuControllerModule from '../../src/ui/MenuController.js';
 import * as MenuMultiplayerPanelModule from '../../src/ui/menu/testing/MenuMultiplayerPanel.js';
 import * as MenuDefaultsEditorConfigModule from '../../src/ui/menu/MenuDefaultsEditorConfig.js';
 import * as PauseOverlayControllerModule from '../../src/ui/PauseOverlayController.js';
+import { BotValidationService } from '../../dev/training/src/state/validation/BotValidationService.js';
 
 export const E2E_TEST_RUNTIME_ENABLED = true;
 
@@ -30,4 +31,19 @@ export async function attachFullCurviosTestApi(runtimeWindow) {
         importCurviosTestModule: importE2EUiTestModule,
     };
     module?.attachCurviosTestApi?.(runtimeWindow);
+
+    const game = runtimeWindow?.GAME_INSTANCE || null;
+    if (game) {
+        const validationService = new BotValidationService({
+            getRecorder: () => game.recorder || null,
+        });
+        const getMatrix = () => validationService.getValidationMatrix();
+        const applyScenario = (idOrIndex = 0) => validationService.applyScenario(game, idOrIndex);
+        game.getBotValidationMatrix = getMatrix;
+        game.applyBotValidationScenario = applyScenario;
+        if (game.debugApi && typeof game.debugApi === 'object') {
+            game.debugApi.getBotValidationMatrix = getMatrix;
+            game.debugApi.applyBotValidationScenario = applyScenario;
+        }
+    }
 }

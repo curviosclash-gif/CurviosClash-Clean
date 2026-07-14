@@ -103,7 +103,6 @@ const MODULE_WARMUP_REQUEST_PATHS = [
     '/src/core/runtime/MenuRuntimePresetConfigService.js',
     '/src/core/runtime/MenuRuntimeMultiplayerService.js',
     '/src/core/runtime/RuntimeSettingsChangeOrchestrator.js',
-    '/src/core/runtime/MenuRuntimeDeveloperTrainingService.js',
     '/src/core/runtime/MenuRuntimeDeveloperModeService.js',
     '/src/core/runtime/MenuRuntimeSessionService.js',
     '/src/core/runtime/menu-handlers/CreateMenuEventHandlerRegistry.js',

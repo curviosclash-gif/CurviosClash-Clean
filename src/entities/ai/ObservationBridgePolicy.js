@@ -7,33 +7,21 @@ import { createNeutralBotAction, sanitizeBotAction } from './actions/BotActionCo
 
 const logger = createLogger('ObservationBridgePolicy');
 import { BOT_POLICY_TYPES, normalizeBotPolicyType } from './BotPolicyTypes.js';
-import { buildTrainerRuntimeObservationPayload } from './training/TrainerPayloadAdapter.js';
-import { WebSocketTrainerBridge } from './training/WebSocketTrainerBridge.js';
 import { LocalDqnInference } from './inference/LocalDqnInference.js';
 import { createCheckpointActionVocabulary } from './inference/CheckpointActionVocabulary.js';
+import { buildRuntimeInferenceObservationPayload } from './inference/RuntimeInferencePayloadAdapter.js';
+import { WebSocketInferenceBridge } from './inference/WebSocketInferenceBridge.js';
 import { RuntimeNearObservationTracker } from './observation/RuntimeNearObservationAdapter.js';
 import {
     createRuntimeContextFromLegacyArgs,
     hasSteeringIntent,
-    initializeTrainerCheckpointResume,
     isRuntimeContextPayload,
     resolveLocalInferenceAction,
-    resolveTrainerBridgeOptions,
+    resolveInferenceBridgeOptions,
 } from './ObservationBridgePolicyHelpers.js';
 
 const WARNING_COOLDOWN_BASE_MS = 2000;
 const WARNING_COOLDOWN_MAX_MS = 30000;
-
-/**
- * @typedef {{
- *   status: string,
- *   resumeRequested: boolean,
- *   resumeToken: string | null,
- *   loaded: boolean,
- *   error: string | null,
- *   resumeSource: string | null,
- * }} TrainerBridgeInitState
- */
 
 function resolveDesktopRuntimeProbe(options = {}) {
     if (options.isDesktopRuntime === true) {
@@ -71,71 +59,19 @@ export class ObservationBridgePolicy {
         this._localInference = null;
         this._localInferenceVocabulary = null;
         this._observationTracker = new RuntimeNearObservationTracker();
-        this._trainerBridge = null;
-        this._trainerBridgeOptions = null;
-        this._trainerBridgeInitPromise = null;
-        this._trainerBridgeInitState = /** @type {Readonly<TrainerBridgeInitState>} */ (Object.freeze({
-            status: 'disabled',
-            resumeRequested: false,
-            resumeToken: null,
-            loaded: false,
-            error: null,
-            resumeSource: null,
-        }));
+        this._inferenceBridge = null;
+        this._inferenceBridgeOptions = null;
 
-        const trainerBridgeOptions = resolveTrainerBridgeOptions(options);
-        if (trainerBridgeOptions.enabled) {
-            this._trainerBridgeOptions = trainerBridgeOptions;
-            this._trainerBridge = new WebSocketTrainerBridge(trainerBridgeOptions);
-            this._primeTrainerBridge(trainerBridgeOptions);
+        const inferenceBridgeOptions = resolveInferenceBridgeOptions(options);
+        if (inferenceBridgeOptions.enabled) {
+            this._inferenceBridgeOptions = inferenceBridgeOptions;
+            this._inferenceBridge = new WebSocketInferenceBridge(inferenceBridgeOptions);
         }
 
         const autoLoad = options.autoLoadCheckpoint !== false;
-        if (autoLoad && !this._localInference && !this._trainerBridge) {
+        if (autoLoad && !this._localInference && !this._inferenceBridge) {
             this._autoLoadLatestCheckpoint();
         }
-    }
-
-    _setTrainerBridgeInitState(nextState = {}) {
-        const source = /** @type {Record<string, any>} */ (
-            nextState && typeof nextState === 'object' ? nextState : {}
-        );
-        this._trainerBridgeInitState = /** @type {Readonly<TrainerBridgeInitState>} */ (Object.freeze({
-            status: typeof source.status === 'string' ? source.status : 'disabled',
-            resumeRequested: source.resumeRequested === true,
-            resumeToken: typeof source.resumeToken === 'string' ? source.resumeToken : null,
-            loaded: source.loaded === true,
-            error: typeof source.error === 'string' ? source.error : null,
-            resumeSource: typeof source.resumeSource === 'string' ? source.resumeSource : null,
-        }));
-    }
-
-    _primeTrainerBridge(trainerBridgeOptions = {}) {
-        const resumeToken = typeof trainerBridgeOptions.resumeCheckpoint === 'string'
-            ? trainerBridgeOptions.resumeCheckpoint.trim()
-            : '';
-        if (!resumeToken) {
-            this._setTrainerBridgeInitState({
-                status: 'ready',
-                resumeRequested: false,
-                loaded: true,
-            });
-            return;
-        }
-        this._setTrainerBridgeInitState({
-            status: 'pending',
-            resumeRequested: true,
-            resumeToken,
-            loaded: false,
-            error: null,
-            resumeSource: null,
-        });
-
-        this._trainerBridgeInitPromise = this._initializeTrainerCheckpointResume(resumeToken, trainerBridgeOptions);
-    }
-
-    async _initializeTrainerCheckpointResume(resumeToken, trainerBridgeOptions) {
-        return initializeTrainerCheckpointResume(this, resumeToken, trainerBridgeOptions);
     }
 
     _warn(message, error = null, key = null) {
@@ -180,7 +116,7 @@ export class ObservationBridgePolicy {
         this._bridgeFailureState.reason = normalizedReason;
         this._bridgeFailureState.updatedAt = Date.now();
         this._warn(
-            `trainer bridge ${normalizedReason}; fallback local policy`,
+            `inference bridge ${normalizedReason}; fallback local policy`,
             null,
             `bridge-failure:${normalizedReason}`
         );
@@ -262,8 +198,8 @@ export class ObservationBridgePolicy {
         return action;
     }
 
-    _buildTrainerPayload(runtimeContext, player) {
-        return buildTrainerRuntimeObservationPayload(runtimeContext, player);
+    _buildInferencePayload(runtimeContext, player) {
+        return buildRuntimeInferenceObservationPayload(runtimeContext, player);
     }
 
     _autoLoadLatestCheckpoint() {
@@ -313,36 +249,25 @@ export class ObservationBridgePolicy {
         return resolveLocalInferenceAction(this, runtimeContext);
     }
 
-    _resolveTrainerBridgeAction(runtimeContext, player) {
+    _resolveInferenceBridgeAction(runtimeContext, player) {
         // Local inference has priority (no latency)
         const localAction = this._resolveLocalInferenceAction(runtimeContext);
         if (localAction) {
             return { action: localAction, failure: null, usedBridge: false };
         }
-        if (!this._trainerBridge) {
+        if (!this._inferenceBridge) {
             return { action: null, failure: null, usedBridge: false };
         }
-        const initStatus = this._trainerBridgeInitState?.status;
-        if (initStatus === 'pending') {
-            return { action: null, failure: 'checkpoint-resume-pending', usedBridge: true };
-        }
-        if (initStatus === 'failed') {
-            return {
-                action: null,
-                failure: this._trainerBridgeInitState?.error || 'checkpoint-resume-failed',
-                usedBridge: true,
-            };
-        }
 
-        this._trainerBridge.submitObservation(this._buildTrainerPayload(runtimeContext, player));
-        const action = this._trainerBridge.consumeLatestAction();
-        const failure = this._trainerBridge.consumeFailure();
+        this._inferenceBridge.submitObservation(this._buildInferencePayload(runtimeContext, player));
+        const action = this._inferenceBridge.consumeLatestAction();
+        const failure = this._inferenceBridge.consumeFailure();
         return { action, failure, usedBridge: true };
     }
 
-    _recordTrainerFallback(reason = 'bridge-fallback') {
-        if (this._trainerBridge && typeof this._trainerBridge.recordFallback === 'function') {
-            this._trainerBridge.recordFallback(reason);
+    _recordInferenceFallback(reason = 'bridge-fallback') {
+        if (this._inferenceBridge && typeof this._inferenceBridge.recordFallback === 'function') {
+            this._inferenceBridge.recordFallback(reason);
         }
     }
 
@@ -370,24 +295,24 @@ export class ObservationBridgePolicy {
             runtimeContext.observation = this.getObservation(player, runtimeContext);
         }
 
-        const trainerResult = this._resolveTrainerBridgeAction(runtimeContext, player);
-        if (trainerResult.failure) {
-            this._recordBridgeFailure(trainerResult.failure);
+        const inferenceResult = this._resolveInferenceBridgeAction(runtimeContext, player);
+        if (inferenceResult.failure) {
+            this._recordBridgeFailure(inferenceResult.failure);
         } else {
             this._bridgeFailureState.reason = null;
             this._bridgeFailureState.updatedAt = Date.now();
         }
-        if (trainerResult.action && typeof trainerResult.action === 'object') {
-            let action = this._sanitizeAction(trainerResult.action, player, {});
-            if (!trainerResult.usedBridge) {
+        if (inferenceResult.action && typeof inferenceResult.action === 'object') {
+            let action = this._sanitizeAction(inferenceResult.action, player, {});
+            if (!inferenceResult.usedBridge) {
                 action = this._injectFallbackSteeringIfNeeded(action, dt, player, runtimeContext);
             }
             return action;
         }
-        if (trainerResult.usedBridge) {
-            this._recordTrainerFallback(
-                trainerResult.failure
-                    ? `bridge-${trainerResult.failure}`
+        if (inferenceResult.usedBridge) {
+            this._recordInferenceFallback(
+                inferenceResult.failure
+                    ? `bridge-${inferenceResult.failure}`
                     : 'bridge-no-action'
             );
         }
@@ -408,45 +333,40 @@ export class ObservationBridgePolicy {
         return this._sanitizeAction(fallbackAction, player);
     }
 
-    getTrainerBridgeTelemetry() {
-        if (!this._trainerBridge || typeof this._trainerBridge.getTelemetrySnapshot !== 'function') {
+    getInferenceBridgeTelemetry() {
+        if (!this._inferenceBridge || typeof this._inferenceBridge.getTelemetrySnapshot !== 'function') {
             return null;
         }
-        return this._trainerBridge.getTelemetrySnapshot();
+        return this._inferenceBridge.getTelemetrySnapshot();
     }
 
-    getTrainerBridgeStatus() {
+    getInferenceBridgeStatus() {
         return {
-            enabled: !!this._trainerBridge,
-            resume: {
-                ...this._trainerBridgeInitState,
-            },
+            enabled: !!this._inferenceBridge,
             failure: {
                 reason: this._bridgeFailureState.reason,
                 updatedAt: this._bridgeFailureState.updatedAt,
             },
-            telemetry: this.getTrainerBridgeTelemetry(),
+            telemetry: this.getInferenceBridgeTelemetry(),
         };
+    }
+
+    // Compatibility aliases for existing settings/runtime integrations. They expose inference only.
+    getTrainerBridgeTelemetry() {
+        return this.getInferenceBridgeTelemetry();
+    }
+
+    getTrainerBridgeStatus() {
+        return this.getInferenceBridgeStatus();
     }
 
     reset() {
         this._warningStateByKey.clear();
         this._bridgeFailureState.reason = null;
         this._bridgeFailureState.updatedAt = Date.now();
-        if (this._trainerBridge) {
-            this._trainerBridge.close();
-        }
-        this._trainerBridgeInitPromise = null;
-        if (this._trainerBridge && this._trainerBridgeOptions) {
-            this._primeTrainerBridge(this._trainerBridgeOptions);
-        } else {
-            this._setTrainerBridgeInitState({
-                status: this._trainerBridge ? 'ready' : 'disabled',
-                resumeRequested: false,
-                loaded: true,
-                error: null,
-                resumeSource: null,
-            });
+        if (this._inferenceBridge) {
+            this._inferenceBridge.close();
+            this._inferenceBridge = new WebSocketInferenceBridge(this._inferenceBridgeOptions || {});
         }
         if (typeof this._fallbackPolicy?.reset === 'function') {
             this._fallbackPolicy.reset();

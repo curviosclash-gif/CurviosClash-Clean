@@ -19,7 +19,6 @@ export const MATCH_KERNEL_CONSUMER_REGISTRY_CONTRACT_VERSION = 'match-kernel-con
 export const MATCH_KERNEL_CONSUMER_IDS = Object.freeze({
     INTERACTIVE: 'interactive',
     REPLAY: 'replay',
-    TRAINING: 'training',
     NETWORK: 'network',
 });
 
@@ -33,9 +32,9 @@ function toProvider(value) {
 function resolveConsumerId(value) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
     if (normalized === MATCH_KERNEL_CONSUMER_IDS.REPLAY) return MATCH_KERNEL_CONSUMER_IDS.REPLAY;
-    if (normalized === MATCH_KERNEL_CONSUMER_IDS.TRAINING) return MATCH_KERNEL_CONSUMER_IDS.TRAINING;
     if (normalized === MATCH_KERNEL_CONSUMER_IDS.NETWORK) return MATCH_KERNEL_CONSUMER_IDS.NETWORK;
-    return MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE;
+    if (normalized === MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE) return MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE;
+    return normalized || MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE;
 }
 
 function resolveSessionSimPorts(session = null) {
@@ -45,23 +44,6 @@ function resolveSessionSimPorts(session = null) {
         particles: session?.particles || null,
         arena: session?.arena || null,
     };
-}
-
-function resolveSerializableClone(value) {
-    if (!value || typeof value !== 'object') {
-        return value ?? null;
-    }
-    if (Array.isArray(value)) {
-        return value.map((entry) => resolveSerializableClone(entry));
-    }
-    const clone = {};
-    for (const [key, entry] of Object.entries(value)) {
-        if (entry === undefined || typeof entry === 'function') {
-            continue;
-        }
-        clone[key] = resolveSerializableClone(entry);
-    }
-    return clone;
 }
 
 function resolveProfileFactory(consumerId) {
@@ -86,18 +68,6 @@ function createProfileByConsumerId(consumerId, payload = {}) {
             deterministic: source.deterministic !== false,
         });
     }
-    if (consumerId === MATCH_KERNEL_CONSUMER_IDS.TRAINING) {
-        return profileFactory({
-            ...source,
-            surface: MATCH_KERNEL_SURFACES.HEADLESS,
-            tickDriver: MATCH_KERNEL_TICK_DRIVERS.MANUAL,
-            clockMode: MATCH_KERNEL_CLOCK_MODES.SYNTHETIC,
-            inputSource: MATCH_KERNEL_INPUT_SOURCES.TRAINING,
-            snapshotTarget: MATCH_KERNEL_SNAPSHOT_TARGETS.OBSERVABILITY,
-            supportsRenderInterpolation: false,
-            deterministic: source.deterministic !== false,
-        });
-    }
     if (consumerId === MATCH_KERNEL_CONSUMER_IDS.NETWORK) {
         return profileFactory({
             ...source,
@@ -106,6 +76,16 @@ function createProfileByConsumerId(consumerId, payload = {}) {
             clockMode: MATCH_KERNEL_CLOCK_MODES.SYNTHETIC,
             inputSource: MATCH_KERNEL_INPUT_SOURCES.NETWORK,
             snapshotTarget: MATCH_KERNEL_SNAPSHOT_TARGETS.TRANSPORT,
+            supportsRenderInterpolation: false,
+            deterministic: source.deterministic !== false,
+        });
+    }
+    if (consumerId !== MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE) {
+        return profileFactory({
+            ...source,
+            surface: MATCH_KERNEL_SURFACES.HEADLESS,
+            tickDriver: MATCH_KERNEL_TICK_DRIVERS.MANUAL,
+            clockMode: MATCH_KERNEL_CLOCK_MODES.SYNTHETIC,
             supportsRenderInterpolation: false,
             deterministic: source.deterministic !== false,
         });
@@ -294,13 +274,11 @@ export function createMatchKernelConsumerRegistry(options = {}) {
         contractVersion: MATCH_KERNEL_CONSUMER_REGISTRY_CONTRACT_VERSION,
         interactive: buildAdapter(MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE),
         replay: buildAdapter(MATCH_KERNEL_CONSUMER_IDS.REPLAY),
-        training: buildAdapter(MATCH_KERNEL_CONSUMER_IDS.TRAINING),
         network: buildAdapter(MATCH_KERNEL_CONSUMER_IDS.NETWORK),
         getAdapter(consumerId) {
             const normalized = resolveConsumerId(consumerId);
             if (normalized === MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE) return this.interactive;
             if (normalized === MATCH_KERNEL_CONSUMER_IDS.REPLAY) return this.replay;
-            if (normalized === MATCH_KERNEL_CONSUMER_IDS.TRAINING) return this.training;
             if (normalized === MATCH_KERNEL_CONSUMER_IDS.NETWORK) return this.network;
             return null;
         },
@@ -311,65 +289,14 @@ export function createMatchKernelConsumerRegistry(options = {}) {
             return {
                 interactive: this.interactive?.getDescriptor?.() || null,
                 replay: this.replay?.getDescriptor?.() || null,
-                training: this.training?.getDescriptor?.() || null,
                 network: this.network?.getDescriptor?.() || null,
             };
         },
         dispose() {
             this.interactive?.dispose?.();
             this.replay?.dispose?.();
-            this.training?.dispose?.();
             this.network?.dispose?.();
         },
     };
     return registry;
-}
-
-export function createMatchKernelTrainingPayload({
-    type = 'training-step',
-    transition = null,
-    input = {},
-    profile = null,
-} = {}) {
-    const source = input && typeof input === 'object' ? input : {};
-    const descriptorAdapter = createMatchKernelConsumerAdapter({
-        consumerId: MATCH_KERNEL_CONSUMER_IDS.TRAINING,
-        profile: {
-            ...(profile && typeof profile === 'object' ? profile : {}),
-            matchId: profile?.matchId ?? source.matchId ?? transition?.info?.match?.matchId ?? null,
-            modeId: profile?.modeId ?? transition?.info?.domain?.mode ?? source.mode ?? null,
-        },
-    });
-    const transitionStepIndex = Number.isInteger(transition?.stepIndex) ? transition.stepIndex : 0;
-    const seedBase = Number.isFinite(Number(source.seed)) ? Math.max(0, Math.trunc(Number(source.seed))) : 0;
-    const actionSource = transition?.action && typeof transition.action === 'object'
-        ? transition.action
-        : (source.action && typeof source.action === 'object' ? source.action : null);
-    const playerPayload = actionSource
-        ? [{
-            playerIndex: 0,
-            playerId: 'training-agent',
-            sourceType: type,
-            actions: actionSource,
-        }]
-        : [];
-    const kernelRuntime = {
-        consumer: descriptorAdapter.getDescriptor(),
-        seedEnvelope: descriptorAdapter.createSeedEnvelope({
-            matchSeed: seedBase,
-            roundSeed: seedBase,
-            tickSeed: seedBase + transitionStepIndex,
-            streamId: 'training',
-            tags: [type],
-        }),
-        inputFrame: descriptorAdapter.createInputFrame({
-            tickIndex: transitionStepIndex,
-            sequence: transitionStepIndex,
-            capturedAtMs: transitionStepIndex,
-            players: playerPayload,
-            tags: [type],
-        }),
-    };
-    descriptorAdapter.dispose();
-    return resolveSerializableClone(kernelRuntime);
 }

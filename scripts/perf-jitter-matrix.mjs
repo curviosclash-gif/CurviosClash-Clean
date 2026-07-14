@@ -5,7 +5,7 @@ import process from 'node:process';
 import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
-import { getBotValidationMatrix } from '../src/state/validation/BotValidationMatrix.js';
+import { getBotValidationMatrix } from '../dev/training/src/state/validation/BotValidationMatrix.js';
 
 const HOST = '127.0.0.1';
 const PORT = parsePositiveInt(process.env.PERF_RUCKLER_PORT, 4286, 1024, 65_535);

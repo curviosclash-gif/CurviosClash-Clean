@@ -12,14 +12,6 @@ import {
     handleMultiplayerReadyToggleAction,
 } from './MenuRuntimeMultiplayerService.js';
 import {
-    handleDeveloperTrainingAutoStepAction,
-    handleDeveloperTrainingRunBatchAction,
-    handleDeveloperTrainingRunEvalAction,
-    handleDeveloperTrainingRunGateAction,
-    handleDeveloperTrainingResetAction,
-    handleDeveloperTrainingStepAction,
-} from './MenuRuntimeDeveloperTrainingService.js';
-import {
     handleDeveloperActorChangeAction,
     handleDeveloperFixedPresetLockToggleAction,
     handleDeveloperModeToggleAction,
@@ -215,48 +207,6 @@ export class GameRuntimeMenuActionHandler {
 
     handleDeveloperTextOverrideClear(event) {
         handleDeveloperTextOverrideClearAction(this._createDeveloperModeContext(event));
-    }
-
-    handleDeveloperTrainingReset(event) {
-        handleDeveloperTrainingResetAction({
-            game: this._facade?.game,
-            event,
-        });
-    }
-
-    handleDeveloperTrainingStep(event) {
-        handleDeveloperTrainingStepAction({
-            game: this._facade?.game,
-            event,
-        });
-    }
-
-    handleDeveloperTrainingAutoStep(event) {
-        handleDeveloperTrainingAutoStepAction({
-            game: this._facade?.game,
-            event,
-        });
-    }
-
-    handleDeveloperTrainingRunBatch(event) {
-        handleDeveloperTrainingRunBatchAction({
-            game: this._facade?.game,
-            event,
-        });
-    }
-
-    handleDeveloperTrainingRunEval(event) {
-        handleDeveloperTrainingRunEvalAction({
-            game: this._facade?.game,
-            event,
-        });
-    }
-
-    handleDeveloperTrainingRunGate(event) {
-        handleDeveloperTrainingRunGateAction({
-            game: this._facade?.game,
-            event,
-        });
     }
 
     startKeyCapture(event) {

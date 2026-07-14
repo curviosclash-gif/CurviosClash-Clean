@@ -9,10 +9,4 @@ export function registerDeveloperMenuEventHandlers(facade, registry) {
     registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_RELEASE_PREVIEW_TOGGLE, (event) => facade.handleDeveloperReleasePreviewToggle(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TEXT_OVERRIDE_SET, (event) => facade.handleDeveloperTextOverrideSet(event));
     registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TEXT_OVERRIDE_CLEAR, (event) => facade.handleDeveloperTextOverrideClear(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TRAINING_RESET, (event) => facade.handleDeveloperTrainingReset(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TRAINING_STEP, (event) => facade.handleDeveloperTrainingStep(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TRAINING_AUTO_STEP, (event) => facade.handleDeveloperTrainingAutoStep(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TRAINING_RUN_BATCH, (event) => facade.handleDeveloperTrainingRunBatch(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TRAINING_RUN_EVAL, (event) => facade.handleDeveloperTrainingRunEval(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.DEVELOPER_TRAINING_RUN_GATE, (event) => facade.handleDeveloperTrainingRunGate(event));
 }

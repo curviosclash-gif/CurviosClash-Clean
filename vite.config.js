@@ -657,7 +657,7 @@ function editorDiskSaveApiPlugin() {
     };
 }
 
-function latestCheckpointApiPlugin() {
+function developmentCheckpointApiPlugin() {
     const CHECKPOINT_API_PATH = '/api/bot/latest-checkpoint';
     const LATEST_INDEX_PATH = path.resolve(__dirname, 'data', 'training', 'runs', 'latest.json');
 
@@ -676,14 +676,11 @@ function latestCheckpointApiPlugin() {
         return null;
     }
 
-    const registerMiddleware = (middlewares, { isPreviewServer = false } = {}) => {
+    const registerMiddleware = (middlewares) => {
         middlewares.use((req, res, next) => {
             const reqPath = String(req.url || '').split('?')[0];
             if (req.method !== 'GET' || reqPath !== CHECKPOINT_API_PATH) {
                 next();
-                return;
-            }
-            if (maybeBlockPreviewLocalArtifactRead({ isPreviewServer, method: req.method, reqPath, res })) {
                 return;
             }
             const checkpoint = resolveCheckpointFromIndex();
@@ -696,12 +693,9 @@ function latestCheckpointApiPlugin() {
     };
 
     return {
-        name: 'latest-checkpoint-api',
+        name: 'development-checkpoint-api',
         configureServer(server) {
             registerMiddleware(server.middlewares);
-        },
-        configurePreviewServer(server) {
-            registerMiddleware(server.middlewares, { isPreviewServer: true });
         },
     };
 }
@@ -782,7 +776,7 @@ export default defineConfig(({ mode }) => {
             playwrightTestRuntimeBridgePlugin(resolvedEnv),
             playwrightHealthApiPlugin(),
             editorDiskSaveApiPlugin(),
-            latestCheckpointApiPlugin(),
+            developmentCheckpointApiPlugin(),
             copyObjVehicleAssetsPlugin(),
         ],
         server: createRendererShellServerConfig(resolvedEnv),

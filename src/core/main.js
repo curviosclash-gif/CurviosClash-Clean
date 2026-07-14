@@ -95,7 +95,6 @@ export class Game {
         this.recorder = new RoundRecorder();
         this._recorderFrameCaptureEnabled = this.debugApi.resolveRecorderFrameCaptureEnabledDefault();
         this.recorder.setFrameCaptureEnabled(this._recorderFrameCaptureEnabled);
-        this.debugApi.bindBotPlayAnalysisRecorder(this.recorder);
 
         this.profileUiController = new ProfileUiController({
             profileManager: this.profileManager,
@@ -366,14 +365,6 @@ export class Game {
             applyMobileClassicUiLocks(this);
         }
         this.runtimeCoordinator.startMatch();
-    }
-
-    getBotValidationMatrix() {
-        return this.debugApi?.getBotValidationMatrix?.() || [];
-    }
-
-    applyBotValidationScenario(idOrIndex = 0) {
-        return this.debugApi?.applyBotValidationScenario?.(idOrIndex) || null;
     }
 
     _onRoundEnd(winner = null, outcome = null) {

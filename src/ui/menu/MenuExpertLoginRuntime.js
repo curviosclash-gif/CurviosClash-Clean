@@ -194,10 +194,10 @@ export class MenuExpertLoginRuntime {
         const unlocked = this.isUnlocked();
         const available = this.state.available === true;
         const statusText = !available
-            ? String(this.state.message || 'Developer-, Debug- und Trainingspfade sind fuer diese Surface nicht verfuegbar.')
+            ? String(this.state.message || 'Developer- und Debugpfade sind fuer diese Surface nicht verfuegbar.')
             : (unlocked
                 ? 'Lokaler Dev-/Diagnosebereich fuer diese Sitzung freigeschaltet.'
-                : (this.state.error || String(this.state.message || 'Developer, Debug und Training sind lokal gesperrt.')));
+                : (this.state.error || String(this.state.message || 'Developer- und Debugfunktionen sind lokal gesperrt.')));
 
         if (this.ui.openExpertButton) {
             this.ui.openExpertButton.textContent = unlocked ? 'Expert offen' : 'Expert';

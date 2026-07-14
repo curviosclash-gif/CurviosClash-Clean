@@ -199,8 +199,8 @@ export function resolveSurfaceDeveloperAccess(options = {}) {
     const message = normalizeString(
         developerPolicy?.message,
         available
-            ? 'Developer-, Debug- und Training-Schalter bleiben lokale Diagnosepfade.'
-            : 'Developer-, Debug- und Training-Schalter sind fuer diese Surface nicht verfuegbar.'
+            ? 'Developer- und Debug-Schalter bleiben lokale Diagnosepfade.'
+            : 'Developer- und Debug-Schalter sind fuer diese Surface nicht verfuegbar.'
     );
 
     return Object.freeze({

@@ -20,7 +20,7 @@ export function createRuntimeContextFromLegacyArgs(player, arena, allPlayers, pr
     };
 }
 
-export function resolveTrainerBridgeOptions(options = {}) {
+export function resolveInferenceBridgeOptions(options = {}) {
     const runtimeBotConfig = options?.runtimeConfig?.bot || null;
     const trainerConfig = options?.trainerBridge && typeof options.trainerBridge === 'object'
         ? options.trainerBridge
@@ -43,14 +43,6 @@ export function resolveTrainerBridgeOptions(options = {}) {
             ?? options?.trainerBridgeRetryDelayMs
             ?? runtimeBotConfig?.trainerBridgeRetryDelayMs
             ?? 0,
-        resumeCheckpoint: trainerConfig?.resumeCheckpoint
-            ?? options?.trainerCheckpointResumeToken
-            ?? runtimeBotConfig?.trainerCheckpointResumeToken
-            ?? '',
-        resumeStrict: trainerConfig?.resumeStrict
-            ?? options?.trainerCheckpointResumeStrict
-            ?? runtimeBotConfig?.trainerCheckpointResumeStrict
-            ?? false,
     };
 }
 
@@ -75,78 +67,6 @@ function isPassiveForwardIntent(action = null) {
         || action.nextItem === true
         || (Number.isInteger(action.useItem) && action.useItem >= 0);
     return !hasCombatIntent;
-}
-
-export async function initializeTrainerCheckpointResume(policy, resumeToken, trainerBridgeOptions) {
-    if (!policy?._trainerBridge) return;
-    const resumeStrict = trainerBridgeOptions?.resumeStrict === true;
-    const commandTimeoutMs = Math.max(
-        40,
-        Number(trainerBridgeOptions?.timeoutMs || 80) * 4
-    );
-    try {
-        if (typeof policy._trainerBridge.waitForReady === 'function') {
-            const ready = await policy._trainerBridge.waitForReady(commandTimeoutMs);
-            if (!ready) {
-                if (resumeStrict) {
-                    policy._setTrainerBridgeInitState({
-                        status: 'failed',
-                        resumeRequested: true,
-                        resumeToken,
-                        loaded: false,
-                        error: 'ready-timeout',
-                    });
-                    return;
-                }
-                policy._setTrainerBridgeInitState({
-                    status: 'ready',
-                    resumeRequested: true,
-                    resumeToken,
-                    loaded: false,
-                    error: 'ready-timeout',
-                });
-                return;
-            }
-        }
-
-        const payload = {
-            strict: resumeStrict,
-        };
-        if (resumeToken.toLowerCase() !== 'latest') {
-            payload.checkpointPath = resumeToken;
-        }
-        const response = await policy._trainerBridge.submitCommand('trainer-checkpoint-load-latest', payload, {
-            timeoutMs: commandTimeoutMs,
-        });
-        const loaded = response?.ok === true && response?.loaded === true;
-        if (!loaded && resumeStrict) {
-            policy._setTrainerBridgeInitState({
-                status: 'failed',
-                resumeRequested: true,
-                resumeToken,
-                loaded: false,
-                error: response?.error || 'checkpoint-load-failed',
-                resumeSource: response?.resumeSource || null,
-            });
-            return;
-        }
-        policy._setTrainerBridgeInitState({
-            status: 'ready',
-            resumeRequested: true,
-            resumeToken,
-            loaded,
-            error: loaded ? null : (response?.error || 'checkpoint-load-failed'),
-            resumeSource: response?.resumeSource || null,
-        });
-    } catch (error) {
-        policy._setTrainerBridgeInitState({
-            status: resumeStrict ? 'failed' : 'ready',
-            resumeRequested: true,
-            resumeToken,
-            loaded: false,
-            error: error?.message || 'checkpoint-load-exception',
-        });
-    }
 }
 
 export function resolveLocalInferenceAction(policy, runtimeContext) {

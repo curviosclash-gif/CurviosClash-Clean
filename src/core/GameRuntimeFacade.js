@@ -418,12 +418,6 @@ export class GameRuntimeFacade {
     handleDeveloperReleasePreviewToggle(event) { return this.menuActionHandler.handleDeveloperReleasePreviewToggle(event); }
     handleDeveloperTextOverrideSet(event) { return this.menuActionHandler.handleDeveloperTextOverrideSet(event); }
     handleDeveloperTextOverrideClear(event) { return this.menuActionHandler.handleDeveloperTextOverrideClear(event); }
-    handleDeveloperTrainingReset(event) { return this.menuActionHandler.handleDeveloperTrainingReset(event); }
-    handleDeveloperTrainingStep(event) { return this.menuActionHandler.handleDeveloperTrainingStep(event); }
-    handleDeveloperTrainingAutoStep(event) { return this.menuActionHandler.handleDeveloperTrainingAutoStep(event); }
-    handleDeveloperTrainingRunBatch(event) { return this.menuActionHandler.handleDeveloperTrainingRunBatch(event); }
-    handleDeveloperTrainingRunEval(event) { return this.menuActionHandler.handleDeveloperTrainingRunEval(event); }
-    handleDeveloperTrainingRunGate(event) { return this.menuActionHandler.handleDeveloperTrainingRunGate(event); }
     startKeyCapture(event) { return this.menuActionHandler.startKeyCapture(event); }
     resetKeys() { return this.menuActionHandler.resetKeys(); }
     saveKeys() { return this.menuActionHandler.saveKeys(); }

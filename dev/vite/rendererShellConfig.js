@@ -55,15 +55,8 @@ function resolveRendererManualChunk(id) {
         normalizedId.endsWith('/core/renderer/camera/RecordingOrbitCameraDirector.js')) {
         return 'recording';
     }
-    if (normalizedId.includes('/entities/ai/training/') ||
-        normalizedId.includes('/state/training/')) {
-        return 'training';
-    }
-    if (normalizedId.includes('/state/validation/')) {
-        return 'validation';
-    }
-    if (normalizedId.includes('/trainer/') && !normalizedId.includes('node_modules')) {
-        return 'trainer';
+    if (normalizedId.includes('/entities/ai/inference/')) {
+        return 'ai-inference';
     }
     if (normalizedId.includes('/state/recorder/')) {
         return 'recorder';

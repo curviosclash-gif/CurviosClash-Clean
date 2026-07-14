@@ -40,7 +40,6 @@ export const PLATFORM_PROVIDER_KINDS = Object.freeze({
 
 export const PLATFORM_TOOLING_IDS = Object.freeze({
     DEFAULT: 'default',
-    TRAINING_BENCHMARK: 'training-benchmark',
 });
 
 export const PLATFORM_SURFACE_POLICY_MODES = Object.freeze({
@@ -102,7 +101,7 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
                     available: true,
                     accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.LOCAL_UNLOCK,
                     reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.LOCAL_DEVTOOLS,
-                    message: 'Developer-, Debug- und Training-Schalter bleiben lokale Diagnosepfade und zaehlen nicht zum Produktversprechen der Vollversion.',
+                    message: 'Developer- und Debug-Schalter bleiben lokale Diagnosepfade und zaehlen nicht zum Produktversprechen der Vollversion.',
                 }),
             }),
             capabilities: Object.freeze({
@@ -154,7 +153,7 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
                     available: true,
                     accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.LOCAL_UNLOCK,
                     reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.DEMO_LOCAL_DEVTOOLS,
-                    message: 'Developer-, Debug- und Training-Schalter sind lokale Diagnosepfade und kein Demo-Unlock, keine Lizenzgrenze und keine Sicherheitsbarriere.',
+                    message: 'Developer- und Debug-Schalter sind lokale Diagnosepfade und kein Demo-Unlock, keine Lizenzgrenze und keine Sicherheitsbarriere.',
                 }),
             }),
             capabilities: Object.freeze({
@@ -182,9 +181,6 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
     }),
     tooling: Object.freeze({
         [PLATFORM_TOOLING_IDS.DEFAULT]: Object.freeze({
-            surfaceId: PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP,
-        }),
-        [PLATFORM_TOOLING_IDS.TRAINING_BENCHMARK]: Object.freeze({
             surfaceId: PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP,
         }),
     }),
