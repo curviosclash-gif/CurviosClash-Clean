@@ -56,6 +56,16 @@ function createStore(seed = {}) {
     };
 }
 
+function partShapeSignature(node) {
+    return JSON.stringify(node.children.map((child) => ({
+        geometry: child.geometry?.type,
+        parameters: child.geometry?.parameters,
+        position: child.position.toArray().map((value) => Number(value.toFixed(3))),
+        rotation: child.rotation.toArray().slice(0, 3).map((value) => Number(value.toFixed(3))),
+        scale: child.scale.toArray().map((value) => Number(value.toFixed(3))),
+    })));
+}
+
 test('hangar drops accept compatible parts and reject incompatible, locked and over-budget drafts', () => {
     const base = createDefaultHangarBuild('ship5', { nowMs: 1 });
     const valid = validateHangarDrop(base, 'wing_t2', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
@@ -93,6 +103,22 @@ test('each part family offers two T1, three T2 and four T3 choices with distinct
             }))).size, expectedCount, `${family} ${tier} properties`);
         }
     }
+});
+
+test('every selectable option and tier has a distinct 3D shape', () => {
+    const assembly = new HangarVehicleAssembly(new THREE.Group());
+    for (const family of PART_FAMILIES) {
+        for (const [tier, expectedCount] of Object.entries(EXPECTED_OPTIONS_BY_TIER)) {
+            const signatures = listHangarParts({ family, tier })
+                .map((part) => partShapeSignature(assembly._createPartNode(part)));
+            assert.equal(new Set(signatures).size, expectedCount, `${family} ${tier} shapes`);
+        }
+    }
+    for (const family of PART_FAMILIES) {
+        const legacyParts = ['T1', 'T2', 'T3'].map((tier) => listHangarParts({ family, tier })[0]);
+        assert.equal(new Set(legacyParts.map((part) => partShapeSignature(assembly._createPartNode(part)))).size, 3, `${family} tier shapes`);
+    }
+    assembly.dispose();
 });
 
 test('role filters, silhouettes and unlock levels stay explicit', () => {
