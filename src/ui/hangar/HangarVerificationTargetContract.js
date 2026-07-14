@@ -1,10 +1,10 @@
 export const HANGAR_VERIFICATION_TARGET_CONTRACT_VERSION = 'hangar-verification-targets.v1';
 
 export const HANGAR_VERIFICATION_SURFACE_STATUS = Object.freeze({
-    runtimeStatus: 'contract-only',
-    productivity: 'not-fully-productive',
-    activeProductSurface: 'src/ui/arcade/ArcadeMenuSurface.js',
-    note: 'Verification targets describe the intended hangar shell and workshop split; the current productive UI path still runs through ArcadeMenuSurface plus desktop workshop adapters.',
+    runtimeStatus: 'productively-wired',
+    productivity: 'desktop-workshop',
+    activeProductSurface: 'src/ui/hangar/ArcadeHangarWorkshop.js',
+    note: 'Verification targets cover the dedicated workshop plus its ArcadeMenuSurface lifecycle adapter.',
 });
 
 export const HANGAR_VERIFICATION_TARGETS = Object.freeze({

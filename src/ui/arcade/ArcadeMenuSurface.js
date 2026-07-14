@@ -291,7 +291,7 @@ function shouldShowArcade(settings) {
     return modePath === 'arcade';
 }
 
-function createArcadeRunSnapshot(settings, seed) {
+function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
     return {
         at: new Date().toISOString(),
         mapKey: normalizeString(settings?.mapKey, 'standard'),
@@ -300,6 +300,8 @@ function createArcadeRunSnapshot(settings, seed) {
         botDifficulty: normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase(),
         seed: toInt(seed, 0),
         dailyChallenge: settings?.arcade?.dailyChallenge === true,
+        buildId: normalizeString(hangarBuild?.buildId, ''),
+        buildSchemaVersion: normalizeString(hangarBuild?.schemaVersion, ''),
     };
 }
 
@@ -412,9 +414,15 @@ export function setupArcadeMenuSurface(ctx = {}) {
         refs.masteryLine.textContent = `${t('menu.arcade.mastery.current.label', 'Aktives Airframe')}: ${vehicleId} | ${masteryLabel}`;
     };
 
-    const recordRunStart = () => {
+    const prepareHangarRunStart = () => {
+        const manager = ensureArcadeVehicleManager(vehicleManagerContext, refs);
+        if (!manager || typeof manager.prepareRunStart !== 'function') return { ok: true, build: null };
+        return manager.prepareRunStart();
+    };
+
+    const recordRunStart = (hangarBuild = null) => {
         if (!shouldShowArcade(settings)) return;
-        const snapshot = createArcadeRunSnapshot(settings, activeSeed);
+        const snapshot = createArcadeRunSnapshot(settings, activeSeed, hangarBuild);
         lastRunSnapshot = snapshot;
         saveLastRunSnapshot(snapshot);
         sync();
@@ -422,7 +430,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     bind(refs.startRunButton, 'click', () => {
         applySeedToSettings(activeSeed, { dailyChallenge: false });
-        recordRunStart();
+        const prepared = prepareHangarRunStart();
+        if (prepared?.ok === false) return;
+        recordRunStart(prepared?.build);
         emit(eventTypes.START_MATCH);
     });
 
@@ -481,7 +491,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         saveSeed(activeSeed);
         applySeedToSettings(activeSeed, { dailyChallenge: true });
         sync();
-        recordRunStart();
+        const prepared = prepareHangarRunStart();
+        if (prepared?.ok === false) return;
+        recordRunStart(prepared?.build);
         emit(eventTypes.SHOW_STATUS_TOAST, {
             message: `${t('menu.arcade.postrun.daily.toast', 'Daily-Challenge startet mit Seed')}: ${activeSeed}`,
             tone: 'info',
@@ -491,10 +503,17 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     if (ui.startButton) {
-        bind(ui.startButton, 'click', () => {
+        bind(ui.startButton, 'click', (event) => {
+            if (!shouldShowArcade(settings)) return;
             applySeedToSettings(activeSeed, { dailyChallenge: false });
-            recordRunStart();
-        });
+            const prepared = prepareHangarRunStart();
+            if (prepared?.ok === false) {
+                event.preventDefault();
+                event.stopImmediatePropagation();
+                return;
+            }
+            recordRunStart(prepared?.build);
+        }, true);
     }
 
     const syncOnInteraction = () => {

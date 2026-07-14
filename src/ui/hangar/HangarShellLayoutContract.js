@@ -123,10 +123,10 @@ export const HANGAR_SHELL_MODE_REGION_EXTENSIONS = Object.freeze({
 });
 
 export const HANGAR_SHELL_SURFACE_STATUS = Object.freeze({
-    runtimeStatus: 'contract-only',
-    productivity: 'not-fully-productive',
-    activeProductSurface: 'src/ui/arcade/ArcadeMenuSurface.js',
-    note: 'The shell layout is still a target contract; real desktop wiring continues through ArcadeMenuSurface plus workshop entry adapters until a dedicated hangar shell is shipped.',
+    runtimeStatus: 'productively-wired',
+    productivity: 'desktop-workshop',
+    activeProductSurface: 'src/ui/hangar/ArcadeHangarWorkshop.js',
+    note: 'The dedicated Arcade desktop workshop is mounted through ArcadeMenuSurface while preserving the established menu lifecycle and selection ports.',
 });
 
 function cloneCommonRegion(region) {

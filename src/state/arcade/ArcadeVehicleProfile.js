@@ -120,13 +120,17 @@ export function xpToNextLevel(profile) {
 
 export function getSlotStatBonuses(upgrades) {
     const u = upgrades && typeof upgrades === 'object' ? upgrades : {};
-    const hasWingT2 = u.wing_left_t2 === 'T2' || u.wing_right_t2 === 'T2';
-    const hasEngineT2 = u.engine_left_t2 === 'T2' || u.engine_right_t2 === 'T2';
-    const hasCoreT2 = u.core_t2 === 'T2';
+    const tierRank = (value) => ({ T1: 1, T2: 2, T3: 3 }[String(value || '').toUpperCase()] || 1);
+    const highestTier = (...slotNames) => slotNames.reduce((highest, slotName) => {
+        return Math.max(highest, tierRank(u[slotName]), tierRank(u[`${slotName}_t2`]));
+    }, 1);
+    const wingTier = highestTier('wing_left', 'wing_right');
+    const engineTier = highestTier('engine_left', 'engine_right');
+    const coreTier = highestTier('core');
     return {
-        turningBonusPct: hasWingT2 ? 10 : 0,
-        speedBonusPct: hasEngineT2 ? 8 : 0,
-        maxHpBonus: hasCoreT2 ? 15 : 0,
+        turningBonusPct: wingTier >= 3 ? 18 : (wingTier >= 2 ? 10 : 0),
+        speedBonusPct: engineTier >= 3 ? 16 : (engineTier >= 2 ? 8 : 0),
+        maxHpBonus: coreTier >= 3 ? 30 : (coreTier >= 2 ? 15 : 0),
     };
 }
 

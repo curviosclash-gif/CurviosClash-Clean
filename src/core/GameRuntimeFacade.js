@@ -1,6 +1,7 @@
 import { createLogger } from '../shared/logging/Logger.js';
 import { SessionRuntimeCommandExecutor } from '../application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { prewarmMatchArenaSession } from '../state/MatchSessionFactory.js';
+import { createArcadeVehicleProfileWorkshopPort } from '../state/arcade/ArcadeVehicleProfileWorkshopPort.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../shared/contracts/MatchLifecycleContract.js';
 import { MENU_CONTROLLER_EVENT_CONTRACT_VERSION } from '../shared/contracts/MenuControllerContract.js';
@@ -244,11 +245,13 @@ export class GameRuntimeFacade {
     requestArcadeReplayPlayback() { return this._arcadeSupport.requestReplayPlayback(); }
     _createMenuRuntimeAccess() {
         const game = this.game;
+        const settingsStore = game?.settingsManager?.getSettingsRecordStorePort?.() || null;
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
             requestArcadeReplayPlayback: () => this.requestArcadeReplayPlayback(),
             showStatusToast: (message, duration, tone) => game?._showStatusToast?.(message, duration, tone),
-            getSettingsStore: () => game?.settingsManager?.getSettingsRecordStorePort?.() || null,
+            getSettingsStore: () => settingsStore,
+            arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(settingsStore),
         });
     }
 

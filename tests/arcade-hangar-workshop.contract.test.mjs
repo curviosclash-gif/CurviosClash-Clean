@@ -1,0 +1,140 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {
+    HangarBuildHistory,
+    createDefaultHangarBuild,
+    installHangarPart,
+    removeHangarPart,
+} from '../src/ui/hangar/HangarBuildDraftState.js';
+import {
+    hangarBuildToProfileUpgrades,
+    validateHangarBuild,
+    validateHangarDrop,
+} from '../src/ui/hangar/HangarBuildValidation.js';
+import {
+    HANGAR_BUILD_STORAGE_KEYS,
+    LEGACY_ARCADE_LOADOUT_STORAGE_KEY,
+    createHangarBuildPersistenceAdapter,
+} from '../src/ui/hangar/HangarBuildPersistence.js';
+import {
+    HANGAR_SELECTION_PLAYER_SLOTS,
+    readHangarVehicleSelection,
+    writeHangarVehicleSelection,
+} from '../src/ui/hangar/HangarSelectionWritebackContract.js';
+import { getSlotStatBonuses } from '../src/state/arcade/ArcadeVehicleProfile.js';
+import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+
+function install(build, partId, slotId, pair = false) {
+    return installHangarPart(build, partId, slotId, { pair });
+}
+
+function createStore(seed = {}) {
+    const records = new Map(Object.entries(seed));
+    return {
+        records,
+        loadJsonRecord(key, fallback) { return records.has(key) ? structuredClone(records.get(key)) : fallback; },
+        saveJsonRecord(key, value) { records.set(key, structuredClone(value)); return { success: true }; },
+    };
+}
+
+test('hangar drops accept compatible parts and reject incompatible, locked and over-budget drafts', () => {
+    const base = createDefaultHangarBuild('ship5', { nowMs: 1 });
+    const valid = validateHangarDrop(base, 'wing_t2', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
+    assert.equal(valid.ok, true);
+    assert.equal(valid.build.slots.wing_left, 'wing_t2');
+
+    const incompatible = validateHangarDrop(base, 'core_t2', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
+    assert.equal(incompatible.ok, false);
+    assert.equal(incompatible.code, 'incompatible_slot');
+    assert.deepEqual(incompatible.build.slots, base.slots);
+
+    const lockedUtility = validateHangarDrop(base, 'utility_t1', 'utility', 1, (build, partId, slotId) => install(build, partId, slotId));
+    assert.equal(lockedUtility.ok, false);
+    assert.ok(lockedUtility.errors.some((error) => ['level_locked', 'slot_locked', 'part_family_locked'].includes(error.code)));
+
+    let expensive = base;
+    for (const [partId, slotId] of [
+        ['core_t3', 'core'], ['nose_t3', 'nose'], ['wing_t3', 'wing_left'],
+        ['wing_t3', 'wing_right'], ['engine_t3', 'engine_left'], ['engine_t3', 'engine_right'],
+    ]) expensive = install(expensive, partId, slotId).build;
+    const budgetValidation = validateHangarBuild(expensive, 1);
+    assert.ok(budgetValidation.errors.some((error) => error.code === 'editor_budget'));
+    assert.ok(budgetValidation.errors.some((error) => ['level_locked', 'tier_locked'].includes(error.code)));
+});
+
+test('hangar draft supports replacement, optional removal, required slots, symmetry and undo/redo', () => {
+    const base = createDefaultHangarBuild('ship5', { nowMs: 10 });
+    const paired = install(base, 'engine_t2', 'engine_left', true);
+    assert.equal(paired.ok, true);
+    assert.equal(paired.build.slots.engine_left, 'engine_t2');
+    assert.equal(paired.build.slots.engine_right, 'engine_t2');
+
+    const utility = install(paired.build, 'utility_t1', 'utility');
+    const removedUtility = removeHangarPart(utility.build, 'utility');
+    assert.equal(removedUtility.ok, true);
+    assert.equal(removedUtility.build.slots.utility, null);
+    assert.equal(removeHangarPart(base, 'core').code, 'required_slot');
+
+    const missingCore = removeHangarPart(base, 'core', { allowRequired: true }).build;
+    assert.ok(validateHangarBuild(missingCore, 30).errors.some((error) => error.code === 'required_slot'));
+
+    const history = new HangarBuildHistory(base);
+    history.push(paired.build);
+    assert.equal(history.undo().slots.engine_left, 'engine_t1');
+    assert.equal(history.redo().slots.engine_left, 'engine_t2');
+});
+
+test('hangar persistence saves, loads, activates, renames, duplicates, deletes and migrates legacy presets', async () => {
+    const store = createStore();
+    const adapter = createHangarBuildPersistenceAdapter({ store, mode: 'arcade' });
+    const build = install(createDefaultHangarBuild('ship5', { nowMs: 20 }), 'wing_t2', 'wing_left', true).build;
+    const saved = await adapter.saveBuild(build, { asNew: true, activate: true, name: 'Interceptor' });
+    assert.equal(saved.ok, true);
+    assert.equal(adapter.getActiveBuild('ship5').name, 'Interceptor');
+    assert.equal(adapter.getBuild(saved.build.buildId).slots.wing_right, 'wing_t2');
+
+    const renamed = await adapter.renameBuild(saved.build.buildId, 'Interceptor Mk II');
+    assert.equal(renamed.build.name, 'Interceptor Mk II');
+    const duplicate = await adapter.duplicateBuild(renamed.build, 'Interceptor Copy');
+    assert.equal(duplicate.ok, true);
+    assert.equal(adapter.listBuilds('ship5').length, 2);
+    assert.equal((await adapter.deleteBuild(saved.build.buildId)).ok, true);
+    assert.equal(adapter.getBuild(saved.build.buildId), null);
+
+    const legacyStore = createStore({
+        [LEGACY_ARCADE_LOADOUT_STORAGE_KEY]: {
+            schemaVersion: 'arcade-vehicle-loadouts.v1',
+            presets: [{ presetId: 'legacy-one', vehicleId: 'aircraft', name: 'Legacy', upgrades: { wing_left: 'T2' }, updatedAtMs: 50 }],
+        },
+    });
+    const migrated = createHangarBuildPersistenceAdapter({ store: legacyStore, mode: 'arcade' });
+    await migrated.hydrate();
+    assert.equal(migrated.getBuild('legacy-one').slots.wing_left, 'wing_t2');
+    assert.equal(legacyStore.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade).schemaVersion, 'hangar-build-store.v2');
+});
+
+test('arcade and fight builds stay isolated while selection and bonuses reach the run contracts', async () => {
+    const store = createStore();
+    const arcade = createHangarBuildPersistenceAdapter({ store, mode: 'arcade' });
+    const fight = createHangarBuildPersistenceAdapter({ store, mode: 'fight' });
+    await arcade.saveBuild(createDefaultHangarBuild('ship5', { buildId: 'arcade-build', nowMs: 60 }), { activate: true });
+    await fight.saveBuild({ ...createDefaultHangarBuild('ship5', { buildId: 'fight-build', nowMs: 61 }), mode: 'fight' }, { activate: true });
+    assert.deepEqual(arcade.listBuilds().map((build) => build.buildId), ['arcade-build']);
+    assert.deepEqual(fight.listBuilds().map((build) => build.buildId), ['fight-build']);
+    assert.notDeepEqual(store.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade), store.records.get(HANGAR_BUILD_STORAGE_KEYS.fight));
+
+    const settings = { localSettings: { modePath: 'arcade' }, vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship5' } };
+    writeHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, 'aircraft', 'ship5', { modePath: 'arcade' });
+    assert.equal(readHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, 'ship5', { modePath: 'arcade' }).value, 'aircraft');
+
+    let runBuild = createDefaultHangarBuild('aircraft', { nowMs: 70 });
+    for (const [partId, slotId] of [['core_t2', 'core'], ['wing_t2', 'wing_left'], ['engine_t2', 'engine_left']]) {
+        runBuild = install(runBuild, partId, slotId).build;
+    }
+    const bonuses = getSlotStatBonuses(hangarBuildToProfileUpgrades(runBuild));
+    assert.deepEqual(bonuses, { turningBonusPct: 10, speedBonusPct: 8, maxHpBonus: 15 });
+    const strategy = new ArcadeModeStrategy();
+    strategy.applyVehicleUpgrades(bonuses);
+    assert.equal(strategy.getTurnRateMultiplier(), 1.1);
+    assert.equal(strategy.getSpeedMultiplier(), 1.08);
+});

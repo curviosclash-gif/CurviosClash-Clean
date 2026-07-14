@@ -232,24 +232,26 @@ test('V76.99.2 workshop persistence facade propagates backend-level rejection', 
     assert.equal(result.message, 'refused by backend');
 });
 
-test('V104.4.4 legacy arcade manager stays wired to ArcadeMenuSurface while hangar shell contracts remain contract-only', () => {
+test('desktop arcade hangar exposes the dedicated workshop through the compatibility entry', () => {
     const legacyStatus = resolveArcadeVehicleManagerLegacyStatus();
     const arcadeShellLayout = resolveHangarShellLayout(HANGAR_MODES.ARCADE);
     const verificationTargets = listHangarVerificationTargets();
 
     assert.equal(legacyStatus.runtimeStatus, 'productively-wired');
+    assert.equal(legacyStatus.status, 'compatibility-entry');
+    assert.equal(legacyStatus.productivity, 'dedicated-workshop-active');
     assert.equal(legacyStatus.activeProductSurface?.entryPath, 'src/ui/arcade/ArcadeMenuSurface.js');
     assert.equal(legacyStatus.activeProductSurface?.entryAdapter, 'setupArcadeMenuSurface');
     assert.equal(legacyStatus.activeProductSurface?.mountId, 'arcade-vehicle-manager-mount');
 
-    assert.equal(arcadeShellLayout.surfaceStatus?.runtimeStatus, 'contract-only');
-    assert.equal(arcadeShellLayout.surfaceStatus?.productivity, 'not-fully-productive');
-    assert.equal(arcadeShellLayout.surfaceStatus?.activeProductSurface, 'src/ui/arcade/ArcadeMenuSurface.js');
+    assert.equal(arcadeShellLayout.surfaceStatus?.runtimeStatus, 'productively-wired');
+    assert.equal(arcadeShellLayout.surfaceStatus?.productivity, 'desktop-workshop');
+    assert.equal(arcadeShellLayout.surfaceStatus?.activeProductSurface, 'src/ui/hangar/ArcadeHangarWorkshop.js');
 
     assert.ok(verificationTargets.length > 0);
     verificationTargets.forEach((target) => {
-        assert.equal(target.surfaceStatus?.runtimeStatus, 'contract-only');
-        assert.equal(target.surfaceStatus?.productivity, 'not-fully-productive');
-        assert.equal(target.surfaceStatus?.activeProductSurface, 'src/ui/arcade/ArcadeMenuSurface.js');
+        assert.equal(target.surfaceStatus?.runtimeStatus, 'productively-wired');
+        assert.equal(target.surfaceStatus?.productivity, 'desktop-workshop');
+        assert.equal(target.surfaceStatus?.activeProductSurface, 'src/ui/hangar/ArcadeHangarWorkshop.js');
     });
 });
