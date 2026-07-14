@@ -2,10 +2,6 @@ import { createLogger } from '../shared/logging/Logger.js';
 import { MatchFeedbackAdapter } from './MatchFeedbackAdapter.js';
 
 const logger = createLogger('MatchFlowUiController');
-import {
-    createMatchSessionPort,
-    MatchLifecycleSessionOrchestrator,
-} from '../state/MatchLifecycleSessionOrchestrator.js';
 import { PauseOverlayController } from './PauseOverlayController.js';
 import { MatchFlowArcadeOverlayController } from './MatchFlowArcadeOverlayController.js';
 import { MatchFlowLifecycleController } from './MatchFlowLifecycleController.js';
@@ -51,8 +47,10 @@ export class MatchFlowUiController {
     constructor(deps = {}) {
         this.runtime = deps.runtime || deps.game || null;
         this.runtimePort = deps.runtimePort || createMatchFlowUiControllerPort(deps.ports || null);
-        this.sessionOrchestrator = deps.sessionOrchestrator
-            || new MatchLifecycleSessionOrchestrator(createMatchSessionPort(this.game));
+        if (!deps.sessionOrchestrator) {
+            throw new TypeError('MatchFlowUiController requires sessionOrchestrator');
+        }
+        this.sessionOrchestrator = deps.sessionOrchestrator;
         this.feedbackAdapter = new MatchFeedbackAdapter({
             showToast: (message, durationMs, tone) => {
                 if (this.runtimePort?.showStatusToast) {

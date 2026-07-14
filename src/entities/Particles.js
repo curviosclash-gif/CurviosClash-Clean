@@ -3,7 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
-import { disposeObject3DResources } from '../core/three-disposal.js';
+import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 
 const MAX_PARTICLES = 1000;

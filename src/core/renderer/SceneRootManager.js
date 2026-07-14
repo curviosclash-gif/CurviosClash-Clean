@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { disposeObject3DResources } from '../three-disposal.js';
+import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.js';
 
 export class SceneRootManager {
     constructor(scene) {

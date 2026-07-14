@@ -78,7 +78,6 @@ export class ArenaGeometryCompilePipeline {
     }
 
     compileObstacleStage({ obstacleDefs, scale }) {
-        const arena = this.arena;
         for (const obs of obstacleDefs) {
             const obstacleKind = String(obs.kind || 'hard').toLowerCase();
             const isFoamObstacle = obstacleKind === 'foam';

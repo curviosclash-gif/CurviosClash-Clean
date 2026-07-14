@@ -1,10 +1,5 @@
-// ============================================
-// three-disposal.js - Helper fuer robustes Three.js Resource-Cleanup
-// ============================================
-
-function _disposeTexture(texture, seenTextures) {
-    if (!texture || !texture.isTexture) return;
-    if (seenTextures.has(texture)) return;
+function disposeTexture(texture, seenTextures) {
+    if (!texture || !texture.isTexture || seenTextures.has(texture)) return;
     seenTextures.add(texture);
     texture.dispose();
 }
@@ -24,39 +19,30 @@ export function disposeMaterialResources(material, state = {}) {
         return;
     }
 
-    if (skipMaterial(material) || seenMaterials.has(material)) {
-        return;
-    }
+    if (skipMaterial(material) || seenMaterials.has(material)) return;
     seenMaterials.add(material);
 
-    // Standard-Materialien halten Texturen als direkte Properties (map, normalMap, ...).
-    for (const key of Object.keys(material)) {
-        const value = material[key];
+    for (const value of Object.values(material)) {
         if (!value) continue;
         if (value.isTexture) {
-            _disposeTexture(value, seenTextures);
+            disposeTexture(value, seenTextures);
             continue;
         }
         if (Array.isArray(value)) {
-            for (const item of value) {
-                _disposeTexture(item, seenTextures);
-            }
+            for (const item of value) disposeTexture(item, seenTextures);
         }
     }
 
-    // ShaderMaterial-Uniforms koennen ebenfalls Texturen enthalten.
     if (material.uniforms && typeof material.uniforms === 'object') {
         for (const uniform of Object.values(material.uniforms)) {
             const value = uniform?.value;
             if (!value) continue;
             if (value.isTexture) {
-                _disposeTexture(value, seenTextures);
+                disposeTexture(value, seenTextures);
                 continue;
             }
             if (Array.isArray(value)) {
-                for (const item of value) {
-                    _disposeTexture(item, seenTextures);
-                }
+                for (const item of value) disposeTexture(item, seenTextures);
             }
         }
     }
@@ -78,16 +64,14 @@ export function disposeObject3DResources(root, options = {}) {
         : (material) => material?.userData?.__sharedNoDispose === true;
 
     root.traverse((child) => {
-        if (child?.isInstancedMesh && typeof child.dispose === 'function') {
-            child.dispose();
-        }
+        if (child?.isInstancedMesh && typeof child.dispose === 'function') child.dispose();
 
         const geometry = child?.geometry;
         if (
-            geometry &&
-            typeof geometry.dispose === 'function' &&
-            !skipGeometry(geometry) &&
-            !seenGeometries.has(geometry)
+            geometry
+            && typeof geometry.dispose === 'function'
+            && !skipGeometry(geometry)
+            && !seenGeometries.has(geometry)
         ) {
             seenGeometries.add(geometry);
             geometry.dispose();

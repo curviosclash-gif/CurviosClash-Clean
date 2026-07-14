@@ -1,5 +1,4 @@
 // @ts-nocheck
-/* eslint-disable max-lines -- central surface-policy contract is intentionally co-located */
 import {
     PLATFORM_CAPABILITY_IDS,
 } from './PlatformCapabilityContract.js';

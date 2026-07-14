@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 // ============================================
 // PlayerInputSystem.js - resolves human and bot player input
 // ============================================

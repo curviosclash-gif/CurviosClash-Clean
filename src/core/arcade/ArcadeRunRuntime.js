@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 import {
     ARCADE_RUN_PHASES,
     beginArcadeSector,

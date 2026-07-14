@@ -7,7 +7,6 @@ import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import {
     getPickupDefinition,
-    normalizePickupType,
 } from '../entities/PickupRegistry.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';

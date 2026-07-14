@@ -137,17 +137,12 @@ export function normalizeBotPolicyStrategy(strategy, fallback = BOT_POLICY_STRAT
     return BOT_POLICY_STRATEGY_SET.has(aliasedCandidate) ? aliasedCandidate : normalizedFallback;
 }
 
-function resolveLocalBotPolicyType(huntModeActive) {
-    return huntModeActive ? BOT_POLICY_TYPES.HUNT : BOT_POLICY_TYPES.RULE_BASED;
-}
-
 export function resolveBotPolicyType(
     strategy,
     activeGameMode,
     {
         huntFeatureEnabled = true,
         planarMode = false,
-        trainerBridgeEnabled = false,
     } = {}
 ) {
     const normalizedStrategy = normalizeBotPolicyStrategy(strategy, BOT_POLICY_STRATEGIES.AUTO);
@@ -227,7 +222,6 @@ export function createRuntimeConfigSnapshot(settings, {
     const botPolicyType = resolveBotPolicyType(botPolicyStrategy, activeGameMode, {
         huntFeatureEnabled,
         planarMode,
-        trainerBridgeEnabled,
     });
     const arcadeGhostDuelMode = resolveArcadeGhostDuelMode(source, { sessionType });
     const arcadeGhostTrailCollisionEnabled = resolveArcadeGhostTrailCollisionEnabled(source, {

@@ -53,10 +53,17 @@ function resolveRendererManualChunk(id) {
         normalizedId.endsWith('/core/MediaRecorderSystem.js') ||
         normalizedId.endsWith('/core/renderer/RecordingCapturePipeline.js') ||
         normalizedId.endsWith('/core/renderer/camera/RecordingOrbitCameraDirector.js')) {
-        return 'recording';
+        return 'game-runtime';
     }
     if (normalizedId.includes('/entities/ai/inference/')) {
         return 'ai-inference';
+    }
+    if (normalizedId.includes('/arcade/') ||
+        normalizedId.includes('/hunt/') ||
+        normalizedId.includes('/modes/') ||
+        normalizedId.includes('/mobile-arcade/') ||
+        normalizedId.includes('Arcade')) {
+        return 'game-runtime';
     }
     if (normalizedId.includes('/state/recorder/')) {
         return 'recorder';

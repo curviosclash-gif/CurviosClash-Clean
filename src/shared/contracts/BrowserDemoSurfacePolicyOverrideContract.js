@@ -1,4 +1,3 @@
-/* eslint-disable max-lines -- browser demo policy override contract is intentionally co-located */
 import { normalizeString } from './ContractNormalizeUtils.js';
 import {
     PLATFORM_PROVIDER_KINDS,

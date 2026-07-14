@@ -19,7 +19,6 @@ import {
 import { RuntimePerfProfiler } from './perf/RuntimePerfProfiler.js';
 import { initializeGameApp } from './AppInitializer.js';
 import { isPlaytestLaunchRequested, readPlaytestLaunchBoolParam } from './PlaytestLaunchParams.js';
-import { RECORDING_HUD_MODE } from '../shared/contracts/RecordingCaptureContract.js';
 import { ensureInteractiveMatchRuntime } from './InteractiveMatchRuntimeGuard.js';
 import { GameRuntimeCoordinator } from './runtime/GameRuntimeCoordinator.js';
 import { isPersistenceSuccess } from './settings/SettingsDomainUtils.js';
@@ -445,14 +444,16 @@ export class Game {
         }
         const renderStart = this.runtimePerfProfiler?.startSample?.();
         this.renderer.render();
-        this.renderer.prepareRecordingCaptureFrame({
-            recordingActive: this.mediaRecorderSystem?.isRecording?.() === true,
-            renderProjection: matchRenderProjection,
-            arena: this.arena,
-            renderAlpha: this._renderAlpha,
-            renderDelta: this._renderDelta,
-            splitScreen: this.renderer?.splitScreen === true,
-        });
+        if (this.mediaRecorderSystem?.isRecording?.() === true) {
+            this.renderer.prepareRecordingCaptureFrame({
+                recordingActive: true,
+                renderProjection: matchRenderProjection,
+                arena: this.arena,
+                renderAlpha: this._renderAlpha,
+                renderDelta: this._renderDelta,
+                splitScreen: this.renderer?.splitScreen === true,
+            });
+        }
         this.runtimePerfProfiler?.endSample?.('render', renderStart);
         this.mediaRecorderSystem?.captureRenderedFrame?.(this._renderDelta);
     }

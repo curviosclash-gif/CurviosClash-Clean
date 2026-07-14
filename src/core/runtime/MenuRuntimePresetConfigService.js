@@ -108,7 +108,6 @@ export function applyMenuPresetAction({
         game._showStatusToast('Preset fehlt.', 1500, 'error');
         return;
     }
-    const productSurfaceId = resolveProductSurfaceId(game);
     if (!getSurfacePort(game).isPresetAllowed(presetId)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Dieses Preset');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);

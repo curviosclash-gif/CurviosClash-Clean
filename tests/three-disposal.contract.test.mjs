@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {
     disposeMaterialResources,
     disposeObject3DResources,
-} from '../src/core/three-disposal.js';
+} from '../src/shared/rendering/ThreeDisposal.js';
 
 function createDisposable(overrides = {}) {
     return {

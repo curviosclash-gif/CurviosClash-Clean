@@ -116,6 +116,37 @@ test('MatchFlow UI controller port forwards runtime projections when provided', 
     assert.equal(port.getMatchRuntimeProjection(), runtimeProjection);
 });
 
+test('MatchFlowUiController assigns the start inflight guard before reentrant work', async () => {
+    const controller = new MatchFlowUiController({
+        game: {
+            state: 'MENU',
+            ui: {},
+            input: null,
+            runtimeConfig: { session: { numHumans: 1 } },
+        },
+        ports: {},
+        sessionOrchestrator: {},
+    });
+    let startCalls = 0;
+    let nestedPromise = null;
+    let resolveStart = null;
+    controller._handleStartMatchFailure = () => false;
+    controller._startMatchInternal = () => {
+        startCalls += 1;
+        if (!nestedPromise) nestedPromise = controller.applyStartMatchProjection();
+        return new Promise((resolve) => {
+            resolveStart = () => resolve('started');
+        });
+    };
+
+    const firstPromise = controller.applyStartMatchProjection();
+    assert.equal(firstPromise, nestedPromise);
+    assert.equal(startCalls, 1);
+    resolveStart();
+    assert.deepEqual(await Promise.all([firstPromise, nestedPromise]), ['started', 'started']);
+    assert.equal(controller._startMatchPromise, null);
+});
+
 test('V115.4.2 match runtime traversal fields stay additive within projection v1', () => {
     const projection = createMatchRuntimeProjection({
         players: [{

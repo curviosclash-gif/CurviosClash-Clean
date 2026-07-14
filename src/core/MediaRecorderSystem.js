@@ -1,5 +1,4 @@
 // @ts-nocheck
-/* eslint-disable max-lines */
 import { WebCodecsRecorderEngine } from './recording/engines/WebCodecsRecorderEngine.js';
 import { NativeMediaRecorderEngine } from './recording/engines/NativeMediaRecorderEngine.js';
 import {

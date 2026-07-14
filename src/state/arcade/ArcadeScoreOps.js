@@ -1,5 +1,5 @@
 import { ARCADE_RUN_PHASES, createArcadeRunRecords, createArcadeRunState } from './ArcadeRunState.js';
-import { toSafeNumber, clampNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
+import { toSafeNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 
 /** Base score per sector template — harder templates reward more. */
 const SECTOR_BASE_SCORES = Object.freeze({

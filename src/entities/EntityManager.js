@@ -22,6 +22,17 @@ function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
 }
 
+function updateCameraContext(context, player, otherPlayerPosition) {
+    const playerState = context.playerState;
+    playerState.hp = Number(player?.hp) || 0;
+    playerState.maxHp = Number(player?.maxHp) || 1;
+    playerState.score = Number(player?.score) || 0;
+    playerState.speed = Number(player?.speed) || 0;
+    playerState.isBoosting = player?.isBoosting === true;
+    context.otherPlayerPosition = otherPlayerPosition;
+    return context;
+}
+
 function bindRuntimePorts(owner, runtime) {
     owner.runtimePorts = runtime?.ports || null;
     owner._projectileSystem = runtime?.systems?.projectileSystem || null;
@@ -91,6 +102,11 @@ export class EntityManager {
         this.humanPlayers = [];
         this.bots = [];
         this.botByPlayer = new Map();
+        // ponytail: camera updates are synchronous, so one mutable context avoids per-frame garbage.
+        this._cameraContext = {
+            playerState: { hp: 0, maxHp: 1, score: 0, speed: 0, isBoosting: false },
+            otherPlayerPosition: null,
+        };
         this.onPlayerDied = null;
         this.onRoundEnd = null;
         this.onPlayerFeedback = null;
@@ -353,12 +369,17 @@ export class EntityManager {
     }
 
     updateCameras(dt, renderAlpha = 1, useRenderedTransforms = false, renderProjection = null) {
-        const projectedPlayers = Array.isArray(renderProjection?.players)
-            ? renderProjection.players.filter((player) => player && player.isBot !== true)
-            : null;
-        if (projectedPlayers && projectedPlayers.length > 0) {
-            const hasMultipleHumans = projectedPlayers.length > 1;
+        const projectedPlayers = Array.isArray(renderProjection?.players) ? renderProjection.players : null;
+        let projectedHumanCount = 0;
+        if (projectedPlayers) {
+            for (const player of projectedPlayers) {
+                if (player && player.isBot !== true) projectedHumanCount += 1;
+            }
+        }
+        if (projectedHumanCount > 0) {
+            const hasMultipleHumans = projectedHumanCount > 1;
             for (const projectedPlayer of projectedPlayers) {
+                if (!projectedPlayer || projectedPlayer.isBot === true) continue;
                 const playerIndex = Number.isInteger(projectedPlayer?.playerIndex)
                     ? projectedPlayer.playerIndex
                     : -1;
@@ -401,7 +422,13 @@ export class EntityManager {
                     : null;
                 let otherPlayerPosition = null;
                 if (hasMultipleHumans) {
-                    const otherPlayer = projectedPlayers.find((entry) => entry && entry.playerIndex !== playerIndex) || null;
+                    let otherPlayer = null;
+                    for (const entry of projectedPlayers) {
+                        if (entry && entry.isBot !== true && entry.playerIndex !== playerIndex) {
+                            otherPlayer = entry;
+                            break;
+                        }
+                    }
                     if (otherPlayer?.position) {
                         otherPlayerPosition = this._tmpVec2.set(
                             Number(otherPlayer.position.x) || 0,
@@ -421,16 +448,7 @@ export class EntityManager {
                     projectedPlayer?.isBoosting === true,
                     this.arena,
                     firstPersonAnchor,
-                    {
-                        playerState: {
-                            hp: Number(projectedPlayer?.hp) || 0,
-                            maxHp: Number(projectedPlayer?.maxHp) || 1,
-                            score: Number(projectedPlayer?.score) || 0,
-                            speed: Number(projectedPlayer?.speed) || 0,
-                            isBoosting: projectedPlayer?.isBoosting === true,
-                        },
-                        otherPlayerPosition,
-                    }
+                    updateCameraContext(this._cameraContext, projectedPlayer, otherPlayerPosition)
                 );
             }
             return;
@@ -468,16 +486,7 @@ export class EntityManager {
                     player.isBoosting,
                     this.arena,
                     firstPersonAnchor,
-                    {
-                        playerState: {
-                            hp: Number(player.hp) || 0,
-                            maxHp: Number(player.maxHp) || 1,
-                            score: Number(player.score) || 0,
-                            speed: Number(player.speed) || 0,
-                            isBoosting: player.isBoosting === true,
-                        },
-                        otherPlayerPosition,
-                    }
+                    updateCameraContext(this._cameraContext, player, otherPlayerPosition)
                 );
             }
         }

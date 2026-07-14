@@ -182,7 +182,6 @@ export function handleSessionTypeChangeAction(ctx) {
     const { game, event, onSettingsChanged } = ctx;
     const requestedSessionType = String(event?.sessionType || '').trim().toLowerCase();
     if (!requestedSessionType) return;
-    const productSurfaceId = resolveProductSurfaceId(game);
     const requestedAllowed = getSurfacePort(game).isSessionTypeAllowed(requestedSessionType);
     const targetSessionType = requestedAllowed
         ? requestedSessionType
@@ -233,7 +232,6 @@ export function handleSessionTypeChangeAction(ctx) {
 export function handleModePathChangeAction(ctx) {
     const { game, event, onSettingsChanged, resolveMenuAccessContext } = ctx;
     const huntFeatureEnabled = CONFIG.HUNT?.ENABLED !== false;
-    const productSurfaceId = resolveProductSurfaceId(game);
     const requestedModePath = String(event?.modePath || '').trim().toLowerCase();
     let modePath = requestedModePath === 'arcade' || requestedModePath === 'fight' || requestedModePath === 'normal'
         ? requestedModePath
@@ -308,7 +306,6 @@ export function handleModePathChangeAction(ctx) {
 
 export function handleQuickStartLastStartAction(ctx) {
     const { game, onSettingsChanged, recordMenuTelemetry, startMatch } = ctx;
-    const productSurfaceId = resolveProductSurfaceId(game);
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Direktstart');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
@@ -326,7 +323,6 @@ export function handleQuickStartLastStartAction(ctx) {
 
 export async function handleQuickStartEventPlaylistStartAction(ctx) {
     const { game, onSettingsChanged, resolveMenuAccessContext, recordMenuTelemetry, startMatch } = ctx;
-    const productSurfaceId = resolveProductSurfaceId(game);
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Event-Playlist');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
@@ -393,7 +389,6 @@ export async function handleQuickStartEventPlaylistStartAction(ctx) {
 
 export function handleQuickStartRandomStartAction(ctx) {
     const { game, event, onSettingsChanged, recordMenuTelemetry, startMatch } = ctx;
-    const productSurfaceId = resolveProductSurfaceId(game);
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.RANDOM_MAP)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Random-Start');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);

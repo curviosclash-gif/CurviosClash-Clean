@@ -1,4 +1,3 @@
-/* eslint-disable max-lines */
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
     loadVehicleProfiles,

@@ -19,14 +19,11 @@ function resolvePolicyFallbackByMode(activeMode, planarMode = false) {
     });
 }
 
-function resolveConfiguredBotPolicyType({ requestedPolicyType, runtimeConfig, activeGameMode, planarMode, bridgeEnabled } = {}) {
+function resolveConfiguredBotPolicyType({ requestedPolicyType, runtimeConfig, activeGameMode, planarMode } = {}) {
     const runtimePolicyType = runtimeConfig?.bot?.policyType || null;
     const effectivePlanarMode = typeof planarMode === 'boolean'
         ? planarMode
         : !!runtimeConfig?.gameplay?.planarMode;
-    const effectiveBridgeEnabled = typeof bridgeEnabled === 'boolean'
-        ? bridgeEnabled
-        : !!runtimeConfig?.bot?.trainerBridgeEnabled;
     const fallbackPolicyType = resolvePolicyFallbackByMode(activeGameMode, effectivePlanarMode);
     const resolvedPolicyType = normalizeBotPolicyType(requestedPolicyType || runtimePolicyType || fallbackPolicyType);
     return resolvedPolicyType;
@@ -105,7 +102,6 @@ export class EntitySetupOps {
             runtimeConfig: owner.runtimeConfig,
             activeGameMode: owner.activeGameMode,
             planarMode: setupPlanarMode,
-            bridgeEnabled: setupBridgeEnabled,
         });
     }
 

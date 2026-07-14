@@ -4,7 +4,7 @@
 
 /**
  * Abstract interface for match lobby management.
- * Implementations: LocalMatchLobby, LANMatchLobby, OnlineMatchLobby
+ * Implementations: LANMatchLobby, OnlineMatchLobby
  *
  * The lobby manages pre-match coordination:
  * - Creating/joining a game session

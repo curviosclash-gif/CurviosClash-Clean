@@ -1,8 +1,6 @@
 import { CUSTOM_MAP_KEY } from '../../entities/MapSchema.js';
 import { GAME_MODE_TYPES, resolveActiveGameMode } from '../../hunt/HuntMode.js';
-import { EDITOR_VIEW_PATHS } from '../../shared/contracts/EditorPathContract.js';
 import { normalizeShadowQuality } from '../../shared/contracts/ShadowQualityContract.js';
-import { PLATFORM_SURFACE_FEATURE_IDS } from '../../shared/contracts/PlatformSurfacePolicyOps.js';
 import { GAMEPLAY_COCKPIT_CAMERA_ENABLED } from '../../shared/contracts/CameraModeContract.js';
 import { clamp } from '../../utils/MathOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';

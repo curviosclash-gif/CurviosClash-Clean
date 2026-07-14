@@ -9,7 +9,7 @@
  *
  * --- C.7 Test-Checkliste ---
  * [ ] Disconnect-Simulation: Trenne ein Peer manuell (Browser-Tab schließen, Netzwerk aus) →
- *     peerDisconnected wird innerhalb von 5s emittiert, NetworkHud zeigt Warning.
+ *     peerDisconnected wird innerhalb von 5s emittiert, die UI zeigt eine Warnung.
  * [ ] Heartbeat-Timeout: Stoppe Pong-Antworten eines Peers → nach HEARTBEAT_TIMEOUT (5s)
  *     wird der Peer automatisch als disconnected markiert.
  * [ ] Reconnect innerhalb 30s: Trenne einen Client, verbinde innerhalb 30s erneut →

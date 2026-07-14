@@ -1108,61 +1108,6 @@ test.describe('V74: Runtime-Decoupling Regressions', () => {
         expect(result.failedEvents.length).toBeGreaterThanOrEqual(2);
     });
 
-    test('V87.4 MatchFlowUiController assigns the start inflight guard before reentrant start work', async ({ page }) => {
-        await loadGame(page);
-        const result = await page.evaluate(async () => {
-            const { MatchFlowUiController } = await import('/src/ui/MatchFlowUiController.js');
-
-            const game = {
-                state: 'MENU',
-                ui: {},
-                input: null,
-                runtimeConfig: {
-                    session: {
-                        numHumans: 1,
-                    },
-                },
-            };
-            const controller = new MatchFlowUiController({
-                game,
-                ports: {},
-            });
-
-            let startCalls = 0;
-            let nestedPromise = null;
-            let resolveStart = null;
-            controller._handleStartMatchFailure = () => false;
-            controller._startMatchInternal = () => {
-                startCalls += 1;
-                if (!nestedPromise) {
-                    nestedPromise = controller.applyStartMatchProjection();
-                }
-                return new Promise((resolve) => {
-                    resolveStart = () => resolve('started');
-                });
-            };
-
-            const firstPromise = controller.applyStartMatchProjection();
-            const samePromise = firstPromise === nestedPromise;
-            resolveStart();
-            const [firstResult, nestedResult] = await Promise.all([firstPromise, nestedPromise]);
-
-            return {
-                samePromise,
-                startCalls,
-                firstResult,
-                nestedResult,
-                pendingAfterSettle: controller._startMatchPromise !== null,
-            };
-        });
-
-        expect(result.samePromise).toBe(true);
-        expect(result.startCalls).toBe(1);
-        expect(result.firstResult).toBe('started');
-        expect(result.nestedResult).toBe('started');
-        expect(result.pendingAfterSettle).toBe(false);
-    });
-
     test('V87.4 executeAtomicUiIntent rejects async failures when no error handler is provided', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {

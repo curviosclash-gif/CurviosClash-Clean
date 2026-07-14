@@ -3,7 +3,7 @@ import { ArenaBuilder } from './arena/ArenaBuilder.js';
 import { ArenaCollision } from './arena/ArenaCollision.js';
 import { PortalGateSystem } from './arena/PortalGateSystem.js';
 import { loadGLBMap, resolveGLBFootprint } from './GLBMapLoader.js';
-import { disposeObject3DResources } from '../core/three-disposal.js';
+import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
 
 const AIRCRAFT_DECORATION_PALETTE = Object.freeze([

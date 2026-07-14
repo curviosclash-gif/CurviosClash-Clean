@@ -1,5 +1,4 @@
 import {
-    PLATFORM_CAPABILITY_REGISTRY,
     PLATFORM_PRODUCT_SURFACE_IDS,
 } from './PlatformCapabilityData.js';
 import { mergeBrowserDemoSurfacePolicyWithOverride } from './BrowserDemoSurfacePolicyOverrideContract.js';
