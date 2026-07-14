@@ -111,6 +111,14 @@ function showToast(runtimeAccess, message, tone = 'info', duration = 1300) {
     runtimeAccess?.showStatusToast?.(message, duration, tone);
 }
 
+function copyReplayJsonToClipboard(result) {
+    const replayJson = typeof result?.replayJson === 'string' ? result.replayJson : '';
+    if (!replayJson || typeof navigator === 'undefined' || typeof navigator.clipboard?.writeText !== 'function') {
+        return Promise.resolve(false);
+    }
+    return Promise.resolve(navigator.clipboard.writeText(replayJson)).then(() => true).catch(() => false);
+}
+
 function resolveVehicleProfileReader(runtimeAccess) {
     return runtimeAccess?.getSettingsStore?.() || null;
 }
@@ -291,6 +299,7 @@ function createArcadeRunSnapshot(settings, seed) {
         botCount: toInt(settings?.numBots, 0),
         botDifficulty: normalizeString(settings?.botDifficulty, 'NORMAL').toUpperCase(),
         seed: toInt(seed, 0),
+        dailyChallenge: settings?.arcade?.dailyChallenge === true,
     };
 }
 
@@ -329,11 +338,12 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const refs = buildArcadeSurface(level3Body, ui);
     let activeSeed = loadSeed();
     let lastRunSnapshot = loadLastRunSnapshot();
-    const applySeedToSettings = (seedValue) => {
+    const applySeedToSettings = (seedValue, { dailyChallenge = false } = {}) => {
         if (!settings.arcade || typeof settings.arcade !== 'object') {
             settings.arcade = {};
         }
         settings.arcade.seed = toInt(seedValue, 0);
+        settings.arcade.dailyChallenge = dailyChallenge === true;
     };
 
     const sync = () => {
@@ -360,7 +370,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
             : null;
 
         const phaseLabel = runtimeState?.phase ? ` | ${String(runtimeState.phase).toUpperCase()}` : '';
-        refs.runLine.textContent = `${t('menu.arcade.runline.label', 'Aktueller Arcade-Layer')}: ${mapKey} | Bots ${botCount} | ${difficulty}${phaseLabel}`;
+        const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
+        refs.runLine.textContent = `${t('menu.arcade.runline.label', 'Aktueller Arcade-Layer')}: ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
 
         refs.metricScore.textContent = records ? String(Math.max(0, Math.round(Number(records.lastScore) || 0))) : '0';
@@ -410,7 +421,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     bind(refs.startRunButton, 'click', () => {
-        applySeedToSettings(activeSeed);
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
         recordRunStart();
         emit(eventTypes.START_MATCH);
     });
@@ -418,6 +429,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     bind(refs.rerollSeedButton, 'click', () => {
         activeSeed = Math.floor(Math.random() * 1_000_000) + 1;
         saveSeed(activeSeed);
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
         sync();
         emit(eventTypes.SHOW_STATUS_TOAST, {
             message: t('menu.arcade.seed.rerolled.toast', 'Arcade-Seed aktualisiert.'),
@@ -427,7 +439,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     bind(refs.copySeedButton, 'click', () => {
-        applySeedToSettings(activeSeed);
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
         emit(eventTypes.SHOW_STATUS_TOAST, {
             message: `${t('menu.arcade.seed.challenge.toast', 'Challenge-Seed bereit')}: ${activeSeed}`,
             tone: 'info',
@@ -440,6 +452,17 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const code = String(result?.code || 'replay_unavailable');
         if (code === 'ghost_fallback_started') {
             showToast(runtimeAccess, t('menu.arcade.postrun.replay.toast.started', 'Ghost-Fallback wird abgespielt.'), 'info', 1300);
+            return;
+        }
+        if (code === 'replay_export_ready') {
+            copyReplayJsonToClipboard(result).then((copied) => {
+                showToast(
+                    runtimeAccess,
+                    copied ? 'Replay-JSON wurde in die Zwischenablage kopiert.' : 'Replay-JSON konnte nicht kopiert werden.',
+                    copied ? 'info' : 'warning',
+                    1600
+                );
+            });
             return;
         }
         if (code === 'replay_player_unavailable') {
@@ -456,7 +479,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     bind(refs.dailyButton, 'click', () => {
         activeSeed = computeDailySeed();
         saveSeed(activeSeed);
-        applySeedToSettings(activeSeed);
+        applySeedToSettings(activeSeed, { dailyChallenge: true });
         sync();
         recordRunStart();
         emit(eventTypes.SHOW_STATUS_TOAST, {
@@ -469,7 +492,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     if (ui.startButton) {
         bind(ui.startButton, 'click', () => {
-            applySeedToSettings(activeSeed);
+            applySeedToSettings(activeSeed, { dailyChallenge: false });
             recordRunStart();
         });
     }

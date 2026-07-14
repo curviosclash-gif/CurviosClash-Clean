@@ -633,6 +633,7 @@ test('Arcade resetRunState resets strategy transient state hooks', () => {
             calls.push(['upgrades', value]);
         },
     });
+    calls.length = 0;
 
     runtime.resetRunState();
 

@@ -5,16 +5,19 @@ import * as THREE from 'three';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
+import { resolveArcadeSectorRuntimeProfile } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 import { Arena } from '../src/entities/Arena.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { Trail } from '../src/entities/Trail.js';
 import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/PlayerInteractionPhase.js';
+import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
 import { GAMEPLAY_CAMERA_MODE_ID } from '../src/shared/contracts/CameraModeContract.js';
 import {
     beginArcadeSector,
     createArcadeRunState,
 } from '../src/state/arcade/ArcadeRunState.js';
+import { mergeArcadeRunRecords } from '../src/state/arcade/ArcadeScoreOps.js';
 import {
     checkMissionComplete,
     createMissionInstance,
@@ -213,6 +216,209 @@ test('Arcade runtime advances survival missions and finalizes sector-bound missi
     });
     assert.equal(runtime._missionState.missions[1].completed, true);
     assert.equal(runtime._missionState.allCompleted, true);
+});
+
+test('Arcade runtime decays an idle combo during gameplay but respects combo freeze', () => {
+    let nowMs = 1000;
+    const runtime = new ArcadeRunRuntime({ now: () => nowMs });
+    runtime._enabled = true;
+    runtime._state = beginArcadeSector(createArcadeRunState({
+        config: {
+            enabled: true,
+            comboWindowMs: 1000,
+            comboDecayPerSecond: 2,
+        },
+        nowMs: 0,
+        runId: 'combo-decay-test',
+    }), 0);
+    runtime._state.score = {
+        ...runtime._state.score,
+        combo: 6,
+        multiplier: 4,
+        lastComboAtMs: 1000,
+    };
+
+    nowMs = 6000;
+    runtime.applyGameplayEvent({ type: 'tick' });
+    assert.ok(runtime._state.score.combo < 6);
+    assert.ok(runtime._state.score.multiplier < 4);
+
+    runtime._state.score = {
+        ...runtime._state.score,
+        combo: 6,
+        multiplier: 4,
+        lastComboAtMs: 1000,
+    };
+    runtime._state.comboFreezeUntilMs = 7000;
+    runtime.applyGameplayEvent({ type: 'tick' });
+    assert.equal(runtime._state.score.combo, 6);
+    assert.equal(runtime._state.score.multiplier, 4);
+});
+
+test('Arcade intermission restores carried vitals before healing and grants combo buffer', () => {
+    const runtime = new ArcadeRunRuntime({ now: () => 5000 });
+    runtime._enabled = true;
+    runtime._state = createArcadeRunState({
+        config: { enabled: true },
+        nowMs: 0,
+        runId: 'intermission-effects-test',
+    });
+    runtime._pendingIntermissionEffects = {
+        selectedRewardId: 'run_combo_t1',
+        selectedChoiceId: 'choice-1',
+        missionsCompleted: 1,
+        missionsTotal: 2,
+        humanVitals: [{
+            playerIndex: 0,
+            hp: 40,
+            maxHp: 100,
+            shieldHP: 5,
+            maxShieldHp: 40,
+            hasShield: true,
+        }],
+    };
+    runtime.setStrategy({
+        applyIntermissionHealing(player) {
+            player.hp += 10;
+            return { healed: 10, shieldGranted: 0 };
+        },
+    });
+    const player = {
+        index: 0,
+        isBot: false,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
+    };
+
+    const result = runtime.applyPendingIntermissionEffects({ players: [player] });
+
+    assert.equal(player.hp, 50);
+    assert.equal(player.shieldHP, 5);
+    assert.equal(player.hasShield, true);
+    assert.equal(result.playersRestored, 1);
+    assert.equal(result.healedTotal, 10);
+    assert.equal(result.comboFreezeGrantedMs, 1200);
+    assert.equal(runtime._state.comboFreezeUntilMs, 6200);
+});
+
+test('Arcade sector profiles apply authored squad pressure and request session rebuilds', () => {
+    const profile = resolveArcadeSectorRuntimeProfile({
+        sectorNumber: 6,
+        templateId: 'sector_hazard',
+        squadId: 'elite_lance',
+        pressure: 0.9,
+        isBoss: true,
+    }, {
+        mapKey: 'complex',
+        fallbackBotCount: 1,
+        fallbackDifficulty: 'EASY',
+    });
+    assert.deepEqual(profile, {
+        sectorIndex: 6,
+        mapKey: 'complex',
+        templateId: 'sector_hazard',
+        squadId: 'elite_lance',
+        botCount: 5,
+        botDifficulty: 'HARD',
+        pressure: 0.9,
+        aggressiveness: 0.85,
+        parcoursEnabled: false,
+        isBoss: true,
+    });
+
+    const appliedProfiles = [];
+    const runtimeState = {
+        runtimeConfig: {
+            arcade: { enabled: true, seed: 12, sectorCount: 6 },
+            bot: { activeDifficulty: 'EASY' },
+            session: { mapKey: 'standard', numBots: 1 },
+            player: { vehicles: { PLAYER_1: 'ship2' } },
+        },
+    };
+    const support = new GameRuntimeArcadeSupport({
+        getRuntimeState: () => runtimeState,
+        applySectorRuntimeProfile: (value) => appliedProfiles.push(value),
+    });
+    const initialProfile = support.prepareMatchStartRuntime();
+    assert.equal(appliedProfiles[0], initialProfile);
+    assert.equal(support.arcadeRunRuntime._activeVehicleId, 'ship2');
+    assert.ok(initialProfile.mapKey);
+    assert.ok(initialProfile.botCount >= 2);
+
+    support._pendingSectorTransition = profile;
+    const transition = support.consumePendingSectorTransition();
+    assert.equal(transition.requiresSessionRebuild, true);
+    assert.equal(transition.mapKey, 'complex');
+    assert.equal(transition.botCount, 5);
+    assert.equal(appliedProfiles.at(-1).botDifficulty, 'HARD');
+});
+
+test('Arcade replay fallback exports the captured run instead of reporting no player', () => {
+    const runtime = new ArcadeRunRuntime();
+    runtime._state = createArcadeRunState({ config: { enabled: true } });
+    runtime._state.replay.playbackEnabled = true;
+    runtime._latestReplaySnapshot = {
+        initialState: { mapKey: 'standard' },
+        actions: [{ type: 'boost', timestamp: 12 }],
+    };
+
+    const result = runtime.requestReplayPlayback();
+
+    assert.equal(result.ok, true);
+    assert.equal(result.code, 'replay_export_ready');
+    assert.deepEqual(JSON.parse(result.replayJson), runtime._latestReplaySnapshot);
+});
+
+test('Arcade records retain kill score totals and isolate each daily seed', () => {
+    const first = mergeArcadeRunRecords(null, {
+        score: 900,
+        peakMultiplier: 3,
+        peakCombo: 5,
+        completedSectors: 4,
+        finishedAtIso: '2026-07-14T10:00:00.000Z',
+        isDailyChallenge: true,
+        seed: 20260714,
+        breakdown: { kills: 70, total: 900 },
+    });
+    assert.equal(first.breakdownTotals.kills, 70);
+    assert.equal(first.daily.seed, 20260714);
+    assert.equal(first.daily.runsPlayed, 1);
+    assert.equal(first.daily.bestScore, 900);
+
+    const second = mergeArcadeRunRecords(first, {
+        score: 400,
+        finishedAtIso: '2026-07-15T10:00:00.000Z',
+        isDailyChallenge: true,
+        seed: 20260715,
+        breakdown: { kills: 35, total: 400 },
+    });
+    assert.equal(second.breakdownTotals.kills, 105);
+    assert.equal(second.daily.seed, 20260715);
+    assert.equal(second.daily.runsPlayed, 1);
+    assert.equal(second.daily.bestScore, 400);
+});
+
+test('Portal Line adds ten percentage points to intermission shield conversion', () => {
+    const strategy = new ArcadeModeStrategy();
+    const basePlayer = {
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
+    };
+    const portalPlayer = { ...basePlayer };
+
+    const base = strategy.applyIntermissionHealing(basePlayer, {});
+    const portal = strategy.applyIntermissionHealing(portalPlayer, {
+        selectedRewardId: 'run_portal_t1',
+    });
+
+    assert.equal(base.shieldGranted, 6);
+    assert.equal(portal.shieldGranted, 7);
 });
 
 test('Arcade support binds the productive entity gameplay-event seam', () => {

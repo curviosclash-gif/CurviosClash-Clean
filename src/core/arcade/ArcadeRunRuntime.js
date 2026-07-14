@@ -8,6 +8,7 @@ import {
     createArcadeRunState,
 } from '../../state/arcade/ArcadeRunState.js';
 import {
+    applyArcadeComboDecay,
     applyArcadeSectorScore,
     applyComboAction,
     buildArcadeRunSummary,
@@ -16,7 +17,6 @@ import {
 import {
     resolveMapSequence,
     getMapKeyForSector,
-    needsMapTransition,
 } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
@@ -49,6 +49,7 @@ import {
 import {
     ARCADE_RUN_LEVELUP_REWARDS,
     ARCADE_SECTOR_MODIFIERS,
+    resolveArcadeSectorRuntimeProfile,
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import {
     getArcadeModifierRegistryDescriptor,
@@ -66,6 +67,10 @@ import {
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { isArcadeGhostDuelPlaybackEnabled } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
+import {
+    applyArcadeIntermissionEffects,
+    captureArcadeHumanVitals,
+} from './ArcadeIntermissionEffects.js';
 
 const ARCADE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
 const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
@@ -163,6 +168,7 @@ export class ArcadeRunRuntime {
         this._onVehicleUpgradesChanged = null;
         this._onSuddenDeathEntered = null;
         this._pendingIntermissionEffects = null;
+        this._pendingHumanVitals = null;
         this._latestReplaySnapshot = null;
         this._strategy = options.strategy || null;
         // 82.1.1: Current sector type ('sector_parcours' | null)
@@ -414,6 +420,14 @@ export class ArcadeRunRuntime {
 
     setStrategy(strategy) {
         this._strategy = strategy || null;
+        if (!this._strategy) return;
+        try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
+        try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
+        const profile = this.getVehicleProfile();
+        try { this._strategy.applyVehicleUpgrades?.(getSlotStatBonuses(profile?.upgrades)); } catch { /* no-op */ }
+        if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
+            try { this._strategy.enterSuddenDeath?.(); } catch { /* no-op */ }
+        }
     }
 
     _resetStrategyRuntimeState() {
@@ -486,6 +500,19 @@ export class ArcadeRunRuntime {
         return entry && typeof entry === 'object' ? entry : null;
     }
 
+    getSectorRuntimeProfile(sectorIndex = this._state?.sectorIndex || 1, options = {}) {
+        const normalizedSectorIndex = Math.max(1, toSafeInt(sectorIndex, 1));
+        const sequenceIndex = Math.max(0, normalizedSectorIndex - 1);
+        const encounterEntry = this._getEncounterSectorEntry(normalizedSectorIndex);
+        const mapKey = getMapKeyForSector(this._state?.mapSequence, sequenceIndex);
+        return resolveArcadeSectorRuntimeProfile(encounterEntry, {
+            sectorIndex: normalizedSectorIndex,
+            mapKey,
+            fallbackBotCount: options.fallbackBotCount,
+            fallbackDifficulty: options.fallbackDifficulty,
+        });
+    }
+
     _resolveRewardChoicesForSector(sectorIndex) {
         const sectorEntry = this._getEncounterSectorEntry(sectorIndex);
         const rewardRegistryIds = getArcadeRewardRegistryDescriptor().entries
@@ -554,7 +581,13 @@ export class ArcadeRunRuntime {
 
         pushChoice(baseMapKey, baseModifierId, 'plan');
 
-        const candidateMaps = mapCatalogKeys.filter((mapKey) => mapKey !== baseMapKey);
+        const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
+        const candidateMaps = mapCatalogKeys.filter((mapKey) => {
+            if (mapKey === baseMapKey) return false;
+            const definition = getRuntimeMapDefinition(mapKey, runtimeMapCatalog);
+            const mapIsParcours = definition?.parcours?.enabled === true;
+            return mapIsParcours === nextSectorIsParcours;
+        });
         const modifierIds = getArcadeModifierRegistryDescriptor().entries
             .map((entry) => String(entry.id || '').trim())
             .filter(Boolean);
@@ -649,6 +682,7 @@ export class ArcadeRunRuntime {
     getMenuSurfaceState() {
         return {
             phase: String(this._state?.phase || ''),
+            isDailyChallenge: this._state?.isDailyChallenge === true,
             records: this.getRecordsSnapshot(),
             intermission: this.getIntermissionState(),
             postRunSummary: this.getPostRunSummary(),
@@ -728,35 +762,15 @@ export class ArcadeRunRuntime {
 
     applyPendingIntermissionEffects({ players = null } = {}) {
         if (!this._pendingIntermissionEffects) return null;
-        const strategy = this._strategy;
-        const playerList = Array.isArray(players) ? players : [];
-        const humans = playerList.filter((entry) => entry && entry.isBot !== true && entry.alive !== false);
         const context = this._pendingIntermissionEffects;
-
-        const result = {
-            healedTotal: 0,
-            shieldTotal: 0,
-            playersAffected: 0,
-            selectedRewardId: context.selectedRewardId || null,
-            selectedChoiceId: context.selectedChoiceId || null,
-        };
-        for (let i = 0; i < humans.length; i += 1) {
-            const player = humans[i];
-            if (!strategy || typeof strategy.applyIntermissionHealing !== 'function') continue;
-            const healResult = strategy.applyIntermissionHealing(player, {
-                selectedRewardId: context.selectedRewardId,
-                completedMissions: context.missionsCompleted,
-                totalMissions: context.missionsTotal,
-            });
-            result.healedTotal += Math.max(0, toSafeNumber(healResult?.healed, 0));
-            result.shieldTotal += Math.max(0, toSafeNumber(healResult?.shieldGranted, 0));
-            result.playersAffected += 1;
-        }
-
+        const result = applyArcadeIntermissionEffects({
+            players,
+            strategy: this._strategy,
+            context,
+            state: this._state,
+            nowMs: this.now(),
+        });
         this._pendingIntermissionEffects = null;
-        if (this._state) {
-            this._state.lastIntermissionHeal = result;
-        }
         return result;
     }
 
@@ -773,8 +787,8 @@ export class ArcadeRunRuntime {
             : null;
         const replayJson = replaySnapshot ? JSON.stringify(replaySnapshot) : '';
         return {
-            ok: false,
-            code: 'replay_player_unavailable',
+            ok: true,
+            code: 'replay_export_ready',
             replayState,
             replaySnapshot,
             replayJson,
@@ -854,6 +868,16 @@ export class ArcadeRunRuntime {
         }
     }
 
+    _applyComboDecayAt(nowMs) {
+        if (!this._state?.score) return;
+        const frozenUntil = Math.max(0, toSafeNumber(this._state.comboFreezeUntilMs, 0));
+        if (nowMs <= frozenUntil) return;
+        const decayedScore = applyArcadeComboDecay(this._state.score, this._state.config, nowMs);
+        if (decayedScore !== this._state.score) {
+            this._state = { ...this._state, score: decayedScore };
+        }
+    }
+
     tickGameplay(dt = 0) {
         if (!this._enabled || !this._state) return null;
         const phase = String(this._state.phase || '');
@@ -876,6 +900,8 @@ export class ArcadeRunRuntime {
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
         const eventWithTime = { ...event, nowMs };
 
+        this._applyComboDecayAt(nowMs);
+
         // Update missions first so allCompleted flag reflects current action
         const wasAllCompleted = this._missionState?.allCompleted === true;
         this.updateMissions(eventWithTime);
@@ -894,17 +920,15 @@ export class ArcadeRunRuntime {
                     ...this._state.score,
                     total: Math.max(0, toSafeNumber(this._state.score.total, 0) + bonus),
                     lastMissionBonus: bonus,
+                    lastComboAtMs: Math.max(toSafeNumber(this._state.score.lastComboAtMs, 0), nowMs),
                 },
             };
         }
 
-        // Apply combo increment (skip if frozen)
-        const frozenUntil = toSafeNumber(this._state.comboFreezeUntilMs, 0);
-        if (frozenUntil <= 0 || nowMs > frozenUntil) {
-            const newScore = applyComboAction(this._state.score, eventWithTime, this._state.config);
-            if (newScore !== this._state.score) {
-                this._state = { ...this._state, score: newScore };
-            }
+        // Combo freeze protects against decay; scoring actions still extend the chain.
+        const newScore = applyComboAction(this._state.score, eventWithTime, this._state.config);
+        if (newScore !== this._state.score) {
+            this._state = { ...this._state, score: newScore };
         }
 
         return this.getStateSnapshot();
@@ -915,6 +939,7 @@ export class ArcadeRunRuntime {
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
         const runId = this._nextRunId(nowMs);
         this._pendingIntermissionEffects = null;
+        this._pendingHumanVitals = null;
         this._latestReplaySnapshot = null;
         this._strategy = options.strategy || this._strategy || null;
         this._resetStrategyRuntimeState();
@@ -929,7 +954,7 @@ export class ArcadeRunRuntime {
             nowMs,
             runId,
         });
-        if (options.dailyChallenge) {
+        if (options.dailyChallenge || runConfig.dailyChallenge === true) {
             this._state.isDailyChallenge = true;
         }
         this._state.intermission = null;
@@ -1025,31 +1050,22 @@ export class ArcadeRunRuntime {
                 selectedChoiceId,
                 missionsCompleted: Math.max(0, toSafeInt(previousIntermission.missionsCompleted, 0)),
                 missionsTotal: Math.max(0, toSafeInt(previousIntermission.missionsTotal, 0)),
+                humanVitals: Array.isArray(this._pendingHumanVitals)
+                    ? this._pendingHumanVitals.map((entry) => ({ ...entry }))
+                    : [],
             };
+            this._pendingHumanVitals = null;
         } else {
             this._pendingIntermissionEffects = null;
+            this._pendingHumanVitals = null;
         }
         this._state.intermission = null;
 
-        // Check if map transition is needed
+        // Resolve the next sector's authored map before the round/session restarts.
         const prevMapKey = this._state.currentMapKey;
-        const nextSectorIdx = this._state.completedSectors;
-        if (needsMapTransition(this._state.mapSequence, nextSectorIdx - 1)) {
-            const nextMapKey = getMapKeyForSector(this._state.mapSequence, nextSectorIdx);
-            this._state.currentMapKey = nextMapKey;
-
-            if (this._onMapTransition && prevMapKey !== nextMapKey) {
-                try {
-                    this._onMapTransition({
-                        fromMap: prevMapKey,
-                        toMap: nextMapKey,
-                        sectorIndex: nextSectorIdx,
-                    });
-                } catch (err) {
-                    this.logger?.warn?.('[ArcadeRunRuntime] Map transition handler error:', err);
-                }
-            }
-        }
+        const nextSequenceIndex = Math.max(0, toSafeInt(this._state.completedSectors, 0));
+        const nextMapKey = getMapKeyForSector(this._state.mapSequence, nextSequenceIndex);
+        this._state.currentMapKey = nextMapKey;
 
         this._state = beginArcadeSector(this._state, nowMs);
         this._sectorElapsedSeconds = 0;
@@ -1072,6 +1088,23 @@ export class ArcadeRunRuntime {
 
         // Assign new missions for the sector
         this._assignMissionsForCurrentSector();
+
+        if (this._onMapTransition) {
+            try {
+                const runtimeProfile = this.getSectorRuntimeProfile(this._state.sectorIndex, {
+                    fallbackBotCount: 0,
+                    fallbackDifficulty: 'NORMAL',
+                });
+                this._onMapTransition({
+                    ...runtimeProfile,
+                    fromMap: prevMapKey,
+                    toMap: nextMapKey,
+                    mapChanged: prevMapKey !== nextMapKey,
+                });
+            } catch (err) {
+                this.logger?.warn?.('[ArcadeRunRuntime] Sector transition handler error:', err);
+            }
+        }
 
         return this.getStateSnapshot();
     }
@@ -1147,7 +1180,7 @@ export class ArcadeRunRuntime {
                 },
             },
             transition: {
-                roundPause: Number(this._config.intermissionSeconds) || 3,
+                roundPause: Number(this._config.intermissionSeconds) || 10,
                 nextState: 'ROUND_END',
                 overlayMessageText: messageText,
                 overlayMessageSub: messageSub,
@@ -1159,6 +1192,8 @@ export class ArcadeRunRuntime {
         if (!this._enabled || !this._state || !baseController) {
             return baseController?.deriveOnRoundEndPlan?.(players, inputs) || null;
         }
+
+        this._pendingHumanVitals = captureArcadeHumanVitals(players);
 
         const outcomeReason = String(inputs?.reason || '').trim().toUpperCase();
         const parcoursInput = inputs?.parcours && typeof inputs.parcours === 'object'
@@ -1187,6 +1222,7 @@ export class ArcadeRunRuntime {
         const hasAliveHuman = humans.some((entry) => entry.alive !== false && toSafeNumber(entry.hp, 1) > 0);
         const finished = !hasAliveHuman;
         if (finished) {
+            this._pendingHumanVitals = null;
             this._state.phase = ARCADE_RUN_PHASES.FINISHED;
             this._state.intermission = null;
         } else {
@@ -1222,7 +1258,7 @@ export class ArcadeRunRuntime {
                 },
             },
             transition: {
-                roundPause: Number(baseController.defaultRoundPause) || 3,
+                roundPause: Number(this._config.intermissionSeconds) || 10,
                 nextState: finished ? 'MATCH_END' : 'ROUND_END',
                 overlayMessageText: messageText,
                 overlayMessageSub: messageSub,
@@ -1596,6 +1632,8 @@ export class ArcadeRunRuntime {
         const postRunSummary = {
             generatedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),
             runId: String(summary.runId || ''),
+            isDailyChallenge: summary.isDailyChallenge === true,
+            seed: Math.max(0, toSafeInt(summary.seed, 0)),
             score: Math.max(0, toSafeNumber(summary.score, 0)),
             peakMultiplier: Math.max(1, toSafeNumber(summary.peakMultiplier, 1)),
             bestCombo: Math.max(0, toSafeInt(summary.peakCombo, 0)),
@@ -1649,6 +1687,7 @@ export class ArcadeRunRuntime {
             }
         }
         this._pendingIntermissionEffects = null;
+        this._pendingHumanVitals = null;
         this._latestReplaySnapshot = null;
         this._activeModifierId = null;
         this._lastGhostPlaybackRouteId = '';

@@ -89,6 +89,7 @@ export class GameRuntimeFacade {
             getRuntimeState: () => this.getRuntimeState(),
             nowMs: this.runtimeClock.nowMs,
             logger: console,
+            applySectorRuntimeProfile: (profile) => this._applyArcadeSectorRuntimeProfile(profile),
         });
         this._recordingSupport = createGameRuntimeRecordingFacadeSupport({
             getGame: () => this.game,
@@ -192,7 +193,46 @@ export class GameRuntimeFacade {
         this._arcadeSupport.syncRuntimeConfig();
     }
 
+    _applyArcadeSectorRuntimeProfile(profile = null) {
+        if (!profile || typeof profile !== 'object') return null;
+        const runtimeState = this.getRuntimeState();
+        const currentRuntimeConfig = runtimeState?.runtimeConfig;
+        if (!runtimeState || !currentRuntimeConfig) return null;
+        const fallbackMapKey = currentRuntimeConfig?.session?.mapKey || 'standard';
+        const mapKey = String(profile.mapKey || profile.toMap || fallbackMapKey).trim() || 'standard';
+        const numBots = Math.max(0, Math.trunc(Number(profile.botCount) || 0));
+        const activeDifficulty = String(profile.botDifficulty
+            || currentRuntimeConfig?.bot?.activeDifficulty
+            || 'NORMAL').trim().toUpperCase() || 'NORMAL';
+        const nextRuntimeConfig = {
+            ...currentRuntimeConfig,
+            session: { ...currentRuntimeConfig.session, mapKey, numBots },
+            bot: { ...currentRuntimeConfig.bot, activeDifficulty },
+        };
+        const nextCompatibilityConfig = applyRuntimeConfigCompatibility(nextRuntimeConfig, CONFIG_BASE);
+        applyRuntimeSettingsState(this.getRuntimeBundle(), {
+            runtimeConfig: nextRuntimeConfig,
+            config: nextCompatibilityConfig,
+            session: {
+                mapKey,
+                numBots,
+                numHumans: currentRuntimeConfig?.session?.numHumans,
+                winsNeeded: currentRuntimeConfig?.session?.winsNeeded,
+                activeGameMode: currentRuntimeConfig?.session?.activeGameMode,
+            },
+        });
+        const entityManager = runtimeState.entityManager;
+        entityManager?.applyLiveRuntimeConfig?.(
+            createEntityRuntimeConfig(nextRuntimeConfig, nextCompatibilityConfig),
+            nextRuntimeConfig
+        );
+        entityManager?.setBotDifficulty?.(activeDifficulty);
+        return nextRuntimeConfig;
+    }
+
     startArcadeRunIfEnabled() { return this._arcadeSupport.startRunIfEnabled(); }
+    prepareArcadeMatchStartRuntime() { return this._arcadeSupport.prepareMatchStartRuntime(); }
+    consumePendingArcadeSectorTransition() { return this._arcadeSupport.consumePendingSectorTransition(); }
     applyArcadeParcoursEvent(data = null) { return this._arcadeSupport.applyParcoursEvent(data); }
 
     _resetArcadeRunState() { this._arcadeSupport.resetRunState({ preserveRecords: true }); }

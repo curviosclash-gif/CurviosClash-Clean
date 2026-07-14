@@ -1,5 +1,10 @@
 import { createArcadeRoundStateController } from '../../state/arcade/ArcadeRoundStateController.js';
-import { buildArcadeSectorPlan } from '../../entities/directors/ArcadeEncounterCatalog.js';
+import {
+    buildArcadeSectorPlan,
+    resolveArcadeSectorRuntimeProfile,
+} from '../../entities/directors/ArcadeEncounterCatalog.js';
+import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
+import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 
@@ -9,6 +14,7 @@ export class GameRuntimeArcadeSupport {
         getRuntimeState = null,
         nowMs = undefined,
         logger = console,
+        applySectorRuntimeProfile = null,
     } = {}) {
         this._getGame = typeof getGame === 'function' ? getGame : () => null;
         this._getRuntimeState = typeof getRuntimeState === 'function' ? getRuntimeState : () => null;
@@ -18,6 +24,11 @@ export class GameRuntimeArcadeSupport {
         this._arcadeRoundStateController = null;
         this._boundGameplayEntityManager = null;
         this._arcadeReplayRecorder = new ReplayRecorder();
+        this._applySectorRuntimeProfile = typeof applySectorRuntimeProfile === 'function'
+            ? applySectorRuntimeProfile
+            : null;
+        this._preparedEncounterPlan = null;
+        this._pendingSectorTransition = null;
         this.arcadeRunRuntime = new ArcadeRunRuntime({
             settingsManager: this.game?.settingsManager || null,
             replayRecorder: this._arcadeReplayRecorder,
@@ -38,6 +49,11 @@ export class GameRuntimeArcadeSupport {
         this.arcadeRunRuntime.setModifierChangedHandler((modifierId) => withArcadeStrategy((strategy) => strategy.setActiveModifier?.(modifierId)));
         this.arcadeRunRuntime.setVehicleUpgradesHandler((bonuses) => withArcadeStrategy((strategy) => strategy.applyVehicleUpgrades?.(bonuses)));
         this.arcadeRunRuntime.setSuddenDeathEnteredHandler(() => withArcadeStrategy((strategy) => strategy.enterSuddenDeath?.()));
+        this.arcadeRunRuntime.setMapTransitionHandler((transition) => {
+            this._pendingSectorTransition = transition && typeof transition === 'object'
+                ? { ...transition }
+                : null;
+        });
     }
 
     get game() {
@@ -127,6 +143,84 @@ export class GameRuntimeArcadeSupport {
         }
     }
 
+    _resolveActiveVehicleId(runtimeConfig = null) {
+        return String(
+            runtimeConfig?.player?.vehicles?.PLAYER_1
+            || this.game?.settings?.vehicles?.PLAYER_1
+            || 'ship5'
+        ).trim() || 'ship5';
+    }
+
+    _buildEncounterPlan(runtimeConfig) {
+        return buildArcadeSectorPlan({
+            seed: runtimeConfig?.arcade?.seed,
+            sectorCount: runtimeConfig?.arcade?.sectorCount,
+            difficulty: runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal',
+        });
+    }
+
+    prepareMatchStartRuntime() {
+        const runtimeState = this.getRuntimeState();
+        const runtimeConfig = runtimeState?.runtimeConfig || null;
+        if (!runtimeConfig?.arcade?.enabled) {
+            this._preparedEncounterPlan = null;
+            this._pendingSectorTransition = null;
+            return null;
+        }
+
+        this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
+        const existing = this.arcadeRunRuntime.getStateSnapshot?.();
+        let profile = null;
+        if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
+            profile = this.arcadeRunRuntime.getSectorRuntimeProfile?.(existing.sectorIndex, {
+                fallbackBotCount: runtimeConfig?.session?.numBots,
+                fallbackDifficulty: runtimeConfig?.bot?.activeDifficulty,
+            }) || null;
+        } else {
+            const encounterPlan = this._buildEncounterPlan(runtimeConfig);
+            this._preparedEncounterPlan = encounterPlan;
+            const mapSequence = resolveMapSequence(
+                encounterPlan,
+                runtimeConfig?.arcade?.seed,
+                getRuntimeMapCatalog()
+            );
+            profile = resolveArcadeSectorRuntimeProfile(encounterPlan.sequence?.[0], {
+                sectorIndex: 1,
+                mapKey: mapSequence[0],
+                fallbackBotCount: runtimeConfig?.session?.numBots,
+                fallbackDifficulty: runtimeConfig?.bot?.activeDifficulty,
+            });
+        }
+
+        if (profile) {
+            this._applySectorRuntimeProfile?.(profile);
+        }
+        return profile;
+    }
+
+    consumePendingSectorTransition() {
+        const transition = this._pendingSectorTransition;
+        this._pendingSectorTransition = null;
+        if (!transition) return null;
+
+        const runtimeState = this.getRuntimeState();
+        const runtimeConfig = runtimeState?.runtimeConfig || null;
+        const currentMapKey = String(runtimeConfig?.session?.mapKey || runtimeState?.mapKey || '').trim();
+        const currentBotCount = Math.max(0, Math.trunc(Number(runtimeConfig?.session?.numBots) || 0));
+        const nextMapKey = String(transition.toMap || transition.mapKey || currentMapKey).trim() || currentMapKey;
+        const nextBotCount = Math.max(0, Math.trunc(Number(transition.botCount) || 0));
+        const requiresSessionRebuild = currentMapKey !== nextMapKey || currentBotCount !== nextBotCount;
+        const resolvedTransition = {
+            ...transition,
+            mapKey: nextMapKey,
+            toMap: nextMapKey,
+            botCount: nextBotCount,
+            requiresSessionRebuild,
+        };
+        this._applySectorRuntimeProfile?.(resolvedTransition);
+        return resolvedTransition;
+    }
+
     startRunIfEnabled() {
         const runtimeState = this.getRuntimeState();
         const runtimeConfig = runtimeState?.runtimeConfig || null;
@@ -135,28 +229,31 @@ export class GameRuntimeArcadeSupport {
             return null;
         }
         this._bindGameplayCallback(runtimeState);
+        this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
         const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
         this.arcadeRunRuntime.setStrategy(strategy);
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
         if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
             return existing;
         }
-        const encounterPlan = buildArcadeSectorPlan({
-            seed: runtimeConfig?.arcade?.seed,
-            sectorCount: runtimeConfig?.arcade?.sectorCount,
-            difficulty: runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal',
-        });
+        const encounterPlan = this._preparedEncounterPlan || this._buildEncounterPlan(runtimeConfig);
+        this._preparedEncounterPlan = null;
 
-        return this.arcadeRunRuntime.startRun({
+        const startOptions = {
             entityManager: runtimeState?.entityManager || null,
             roundStateController: runtimeState?.roundStateController || null,
             playerCount: Math.max(1, Number(runtimeState?.numHumans) || 1),
             encounterPlan,
             strategy,
-        });
+        };
+        return runtimeConfig?.arcade?.dailyChallenge === true
+            ? this.arcadeRunRuntime.startDailyChallenge(startOptions)
+            : this.arcadeRunRuntime.startRun(startOptions);
     }
 
     resetRunState(options = undefined) {
+        this._preparedEncounterPlan = null;
+        this._pendingSectorTransition = null;
         return this.arcadeRunRuntime.resetRunState({
             preserveRecords: true,
             ...(options && typeof options === 'object' ? options : {}),

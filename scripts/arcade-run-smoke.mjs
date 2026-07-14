@@ -117,7 +117,9 @@ function runArcadeRuntimeFlowCase() {
     });
 
     nowMs += 2000;
-    const firstPlan = roundController.deriveOnRoundEndPlan([], { winsNeeded: 2 });
+    const firstPlan = roundController.deriveOnRoundEndPlan([
+        { index: 0, isBot: false, alive: true, hp: 72, maxHp: 100, shieldHP: 0, maxShieldHp: 40 },
+    ], { winsNeeded: 2 });
     assert(firstPlan?.transition?.nextState === 'ROUND_END', 'First sector should transition to ROUND_END');
     runtime.handleRoundEndTelemetry({
         state: 'ROUND_END',
@@ -139,7 +141,9 @@ function runArcadeRuntimeFlowCase() {
     assert(secondSector?.sectorIndex === 2, `Expected sectorIndex=2, got ${secondSector?.sectorIndex}`);
 
     nowMs += 2000;
-    const secondPlan = roundController.deriveOnRoundEndPlan([], { winsNeeded: 2 });
+    const secondPlan = roundController.deriveOnRoundEndPlan([
+        { index: 0, isBot: false, alive: false, hp: 0, maxHp: 100, shieldHP: 0, maxShieldHp: 40 },
+    ], { winsNeeded: 2 });
     assert(secondPlan?.transition?.nextState === 'MATCH_END', 'Second sector should end run with MATCH_END');
     runtime.handleRoundEndTelemetry({
         state: 'MATCH_END',

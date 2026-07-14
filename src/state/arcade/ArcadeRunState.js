@@ -5,11 +5,12 @@ const DEFAULT_ARCADE_RUN_CONFIG = Object.freeze({
     seed: 0,
     scoreModel: 'arcade-score.v1',
     sectorCount: 8,
-    intermissionSeconds: 3,
+    intermissionSeconds: 10,
     comboWindowMs: 5000,
     comboDecayPerSecond: 1,
     maxMultiplier: 8,
     replayHooksEnabled: true,
+    dailyChallenge: false,
     ghostDuelMode: 'off',
     ghostLibraryMaxRoutes: 64,
     ghostLibraryMaxFramesPerRoute: 0,
@@ -78,11 +79,12 @@ export function createArcadeRunConfig(source = null) {
         seed: clampInteger(input.seed, 0, 2_147_483_647, DEFAULT_ARCADE_RUN_CONFIG.seed),
         scoreModel: normalizeText(input.scoreModel, DEFAULT_ARCADE_RUN_CONFIG.scoreModel),
         sectorCount: clampInteger(input.sectorCount, 1, 20, DEFAULT_ARCADE_RUN_CONFIG.sectorCount),
-        intermissionSeconds: clampNumber(input.intermissionSeconds, 0.5, 10, DEFAULT_ARCADE_RUN_CONFIG.intermissionSeconds),
+        intermissionSeconds: clampNumber(input.intermissionSeconds, 0.5, 20, DEFAULT_ARCADE_RUN_CONFIG.intermissionSeconds),
         comboWindowMs: clampInteger(input.comboWindowMs, 800, 20_000, DEFAULT_ARCADE_RUN_CONFIG.comboWindowMs),
         comboDecayPerSecond: clampNumber(input.comboDecayPerSecond, 0, 10, DEFAULT_ARCADE_RUN_CONFIG.comboDecayPerSecond),
         maxMultiplier: clampInteger(input.maxMultiplier, 1, 25, DEFAULT_ARCADE_RUN_CONFIG.maxMultiplier),
         replayHooksEnabled: input.replayHooksEnabled !== false,
+        dailyChallenge: input.dailyChallenge === true,
         ghostDuelMode: normalizeArcadeGhostDuelMode(input.ghostDuelMode, DEFAULT_ARCADE_RUN_CONFIG.ghostDuelMode),
         ghostLibraryMaxRoutes: clampInteger(
             input.ghostLibraryMaxRoutes,
@@ -126,6 +128,14 @@ export function createArcadeRunRecords(source = null) {
             bestRunId: normalizeText(input?.replay?.bestRunId, ''),
         },
         breakdownTotals: createEmptyBreakdown(input.breakdownTotals),
+        daily: {
+            seed: Math.max(0, clampInteger(input?.daily?.seed, 0, 2_147_483_647, 0)),
+            runsPlayed: Math.max(0, clampInteger(input?.daily?.runsPlayed, 0, 999_999, 0)),
+            bestScore: Math.max(0, toSafeNumber(input?.daily?.bestScore, 0)),
+            bestRunAt: normalizeText(input?.daily?.bestRunAt, ''),
+            lastScore: Math.max(0, toSafeNumber(input?.daily?.lastScore, 0)),
+            lastRunAt: normalizeText(input?.daily?.lastRunAt, ''),
+        },
     };
 }
 

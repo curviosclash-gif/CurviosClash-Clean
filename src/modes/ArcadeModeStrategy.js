@@ -342,7 +342,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         let shieldGranted = 0;
         const spill = Math.max(0, requestedHeal - healed);
         if (spill > 0) {
-            const shieldTopupFactor = rewardId === 'run_portal_t1' ? 1.0 : 0.5;
+            const shieldTopupFactor = rewardId === 'run_portal_t1' ? 0.6 : 0.5;
             const maxShield = Math.max(0, toSafe(player.maxShieldHp, DEFAULT_SHIELD_HP));
             const targetShield = Math.min(maxShield, Math.max(0, toSafe(player.shieldHP, 0)) + Math.round(spill * shieldTopupFactor));
             shieldGranted = Math.max(0, targetShield - Math.max(0, toSafe(player.shieldHP, 0)));

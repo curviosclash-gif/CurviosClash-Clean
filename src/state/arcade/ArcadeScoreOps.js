@@ -266,6 +266,8 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
         replayId: String(replayId || ''),
         breakdown: createScoreBreakdown(safeScore.breakdown),
         suddenDeathScore: Math.max(0, toSafeNumber(safeScore.suddenDeathScore, 0)),
+        isDailyChallenge: runState.isDailyChallenge === true || runState?.config?.dailyChallenge === true,
+        seed: Math.max(0, clampInteger(runState?.config?.seed, 0, 2_147_483_647, 0)),
     };
     return summary;
 }
@@ -316,11 +318,26 @@ export function mergeArcadeRunRecords(records, summary) {
     next.breakdownTotals = createScoreBreakdown({
         base: next.breakdownTotals.base + summaryBreakdown.base,
         survival: next.breakdownTotals.survival + summaryBreakdown.survival,
+        kills: next.breakdownTotals.kills + summaryBreakdown.kills,
         cleanSector: next.breakdownTotals.cleanSector + summaryBreakdown.cleanSector,
         risk: next.breakdownTotals.risk + summaryBreakdown.risk,
         penalty: next.breakdownTotals.penalty + summaryBreakdown.penalty,
         total: next.breakdownTotals.total + summaryBreakdown.total,
     });
+
+    if (summary.isDailyChallenge === true) {
+        const dailySeed = Math.max(0, clampInteger(summary.seed, 0, 2_147_483_647, 0));
+        const sameDailySeed = next.daily.seed === dailySeed;
+        const previousBestScore = sameDailySeed ? next.daily.bestScore : 0;
+        next.daily = {
+            seed: dailySeed,
+            runsPlayed: sameDailySeed ? next.daily.runsPlayed + 1 : 1,
+            bestScore: Math.max(previousBestScore, score),
+            bestRunAt: score >= previousBestScore ? finishedAtIso : (sameDailySeed ? next.daily.bestRunAt : finishedAtIso),
+            lastScore: score,
+            lastRunAt: finishedAtIso,
+        };
+    }
 
     return next;
 }

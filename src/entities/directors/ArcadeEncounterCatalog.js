@@ -148,6 +148,50 @@ function getSectorTemplate(sectorNumber) {
 // The final sector is always a boss sector regardless of interval alignment.
 const PARCOURS_SECTOR_INTERVAL = 4;
 
+const ARCADE_DIFFICULTY_RANK = Object.freeze({
+    EASY: 0,
+    NORMAL: 1,
+    HARD: 2,
+});
+
+function normalizeArcadeDifficulty(value, fallback = 'NORMAL') {
+    const normalized = String(value || '').trim().toUpperCase();
+    if (Object.prototype.hasOwnProperty.call(ARCADE_DIFFICULTY_RANK, normalized)) {
+        return normalized;
+    }
+    const normalizedFallback = String(fallback || '').trim().toUpperCase();
+    return Object.prototype.hasOwnProperty.call(ARCADE_DIFFICULTY_RANK, normalizedFallback)
+        ? normalizedFallback
+        : 'NORMAL';
+}
+
+export function resolveArcadeSectorRuntimeProfile(sectorEntry = null, options = {}) {
+    const entry = sectorEntry && typeof sectorEntry === 'object' ? sectorEntry : {};
+    const squadId = String(entry.squadId || '').trim();
+    const squad = ARCADE_SQUAD_PROFILES[squadId] || null;
+    const fallbackBotCount = Math.max(0, Math.trunc(Number(options.fallbackBotCount) || 0));
+    const pressure = Math.max(0, Math.min(1, Number(entry.pressure) || 0));
+    const baseDifficulty = normalizeArcadeDifficulty(options.fallbackDifficulty, 'NORMAL');
+    const pressureDifficulty = pressure > 0.72 ? 'HARD' : (pressure > 0.42 ? 'NORMAL' : 'EASY');
+    const botDifficulty = ARCADE_DIFFICULTY_RANK[pressureDifficulty] > ARCADE_DIFFICULTY_RANK[baseDifficulty]
+        ? pressureDifficulty
+        : baseDifficulty;
+    const parcoursEnabled = entry.parcoursEnabled === true;
+
+    return {
+        sectorIndex: Math.max(1, Math.trunc(Number(entry.sectorNumber) || Number(options.sectorIndex) || 1)),
+        mapKey: String(options.mapKey || entry.mapKey || 'standard').trim() || 'standard',
+        templateId: String(entry.templateId || 'sector_intro').trim() || 'sector_intro',
+        squadId: parcoursEnabled ? null : (squadId || null),
+        botCount: parcoursEnabled ? 0 : (squad?.botCount ?? fallbackBotCount),
+        botDifficulty,
+        pressure,
+        aggressiveness: parcoursEnabled ? 0 : Math.max(0, Math.min(1, Number(squad?.aggressiveness) || 0)),
+        parcoursEnabled,
+        isBoss: entry.isBoss === true,
+    };
+}
+
 function resolveDifficultyScale(difficulty) {
     const key = String(difficulty || 'normal').toLowerCase();
     if (key === 'easy') return 0.9;
@@ -240,4 +284,5 @@ export default {
     ARCADE_RUN_LEVELUP_REWARDS,
     ARCADE_SECTOR_CATALOG,
     buildArcadeSectorPlan,
+    resolveArcadeSectorRuntimeProfile,
 };

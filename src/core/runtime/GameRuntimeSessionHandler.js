@@ -210,6 +210,7 @@ export class GameRuntimeSessionHandler {
                 schedulePrewarm: false,
             });
             facade?.settingsHandler?.applySurfacePolicyStartDefaults?.();
+            facade?.prepareArcadeMatchStartRuntime?.();
             const sessionContract = resolveRuntimeSessionContract(game?.settings?.localSettings);
             const telemetryPayload = buildTelemetryPayload();
             const isReceivedMultiplayerStartCommand = sessionContract.sessionType === RUNTIME_SESSION_TYPES.MULTIPLAYER
@@ -300,7 +301,15 @@ export class GameRuntimeSessionHandler {
     }
 
     restartRound() {
+        const sectorTransition = this._facade?.consumePendingArcadeSectorTransition?.() || null;
+        if (sectorTransition?.requiresSessionRebuild === true) {
+            return this.startMatch({
+                source: 'arcade_sector_transition',
+                arcadeSectorTransition: sectorTransition,
+            });
+        }
         this._facade?.ports?.matchUiPort?.startRound?.();
+        return true;
     }
 
     returnToMenu(options = {}) {

@@ -242,6 +242,25 @@ export class MatchFlowArcadeOverlayController {
         sect3.appendChild(rewardGrid);
         bodyDiv.appendChild(sect3);
 
+        const continueSection = document.createElement('section');
+        continueSection.className = 'arcade-overlay-section arcade-overlay-continue';
+        const continueHint = document.createElement('p');
+        continueHint.textContent = `Automatischer Start in ${Math.max(0, Math.ceil(toSafeNumber(this.game?.roundPause, 10)))}s.`;
+        continueSection.appendChild(continueHint);
+        const continueButton = document.createElement('button');
+        continueButton.type = 'button';
+        continueButton.id = 'btn-arcade-intermission-continue';
+        continueButton.className = 'arcade-overlay-action-btn';
+        continueButton.textContent = 'Auswahl bestaetigen';
+        continueButton.addEventListener('click', () => {
+            continueButton.disabled = true;
+            if (this.game) {
+                this.game.roundPause = 0;
+            }
+        });
+        continueSection.appendChild(continueButton);
+        bodyDiv.appendChild(continueSection);
+
         panel.appendChild(bodyDiv);
         panel.classList.remove('hidden');
         return true;
@@ -345,6 +364,22 @@ export class MatchFlowArcadeOverlayController {
         replayBtn.addEventListener('click', () => {
             const result = requestArcadeReplayPlayback(this.runtimePort, this.game);
             const code = String(result?.code || 'replay_unknown');
+            if (code === 'replay_export_ready') {
+                const replayJson = typeof result?.replayJson === 'string' ? result.replayJson : '';
+                const copyPromise = replayJson
+                    && typeof navigator !== 'undefined'
+                    && typeof navigator.clipboard?.writeText === 'function'
+                    ? Promise.resolve(navigator.clipboard.writeText(replayJson)).then(() => true).catch(() => false)
+                    : Promise.resolve(false);
+                copyPromise.then((copied) => {
+                    this.game?._showStatusToast?.(
+                        copied ? 'Replay-JSON wurde in die Zwischenablage kopiert.' : 'Replay-JSON konnte nicht kopiert werden.',
+                        1800,
+                        copied ? 'info' : 'warning'
+                    );
+                });
+                return;
+            }
             const tone = code === 'replay_player_unavailable' ? 'warning' : 'info';
             const message = code === 'ghost_fallback_started'
                 ? 'Ghost-Fallback wird abgespielt.'

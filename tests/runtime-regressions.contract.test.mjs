@@ -1933,6 +1933,14 @@ test('GameRuntimeFacade arcade helpers delegate to arcade support seam (92.4.2)'
                 calls.push(['start']);
                 return 'start-result';
             },
+            prepareMatchStartRuntime() {
+                calls.push(['prepare']);
+                return 'prepare-result';
+            },
+            consumePendingSectorTransition() {
+                calls.push(['transition']);
+                return { requiresSessionRebuild: true };
+            },
             applyParcoursEvent(data = null) {
                 calls.push(['parcours', data]);
                 return { ok: true };
@@ -1949,6 +1957,8 @@ test('GameRuntimeFacade arcade helpers delegate to arcade support seam (92.4.2)'
     };
 
     const startResult = GameRuntimeFacade.prototype.startArcadeRunIfEnabled.call(runtimeFacadeContext);
+    const prepareResult = GameRuntimeFacade.prototype.prepareArcadeMatchStartRuntime.call(runtimeFacadeContext);
+    const transitionResult = GameRuntimeFacade.prototype.consumePendingArcadeSectorTransition.call(runtimeFacadeContext);
     const parcoursResult = GameRuntimeFacade.prototype.applyArcadeParcoursEvent.call(
         runtimeFacadeContext,
         { type: 'ghost_start', routeId: 'route_1' }
@@ -1957,15 +1967,53 @@ test('GameRuntimeFacade arcade helpers delegate to arcade support seam (92.4.2)'
     const replayResult = GameRuntimeFacade.prototype.requestArcadeReplayPlayback.call(runtimeFacadeContext);
 
     assert.equal(startResult, 'start-result');
+    assert.equal(prepareResult, 'prepare-result');
+    assert.deepEqual(transitionResult, { requiresSessionRebuild: true });
     assert.deepEqual(parcoursResult, { ok: true });
     assert.deepEqual(menuStateResult, { phase: 'intermission' });
     assert.deepEqual(replayResult, { code: 'ok' });
     assert.deepEqual(calls, [
         ['start'],
+        ['prepare'],
+        ['transition'],
         ['parcours', { type: 'ghost_start', routeId: 'route_1' }],
         ['menu-state'],
         ['replay'],
     ]);
+});
+
+test('GameRuntimeSessionHandler rebuilds the session for an Arcade sector profile change', () => {
+    const calls = [];
+    const handler = new GameRuntimeSessionHandler({
+        facade: {
+            consumePendingArcadeSectorTransition() {
+                return { requiresSessionRebuild: true, toMap: 'complex', botCount: 5 };
+            },
+            ports: {
+                matchUiPort: {
+                    startRound() {
+                        calls.push('start-round');
+                    },
+                },
+            },
+        },
+        logger: console,
+    });
+    handler.startMatch = (options) => {
+        calls.push(['start-match', options]);
+        return 'rebuild-result';
+    };
+
+    const result = handler.restartRound();
+
+    assert.equal(result, 'rebuild-result');
+    assert.deepEqual(calls, [[
+        'start-match',
+        {
+            source: 'arcade_sector_transition',
+            arcadeSectorTransition: { requiresSessionRebuild: true, toMap: 'complex', botCount: 5 },
+        },
+    ]]);
 });
 
 test('LAN runtime player slots use lobby membership before WebRTC peers connect', () => {
