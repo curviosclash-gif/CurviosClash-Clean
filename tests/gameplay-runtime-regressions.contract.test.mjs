@@ -27,6 +27,7 @@ import {
 import { RoundSnapshotStore } from '../src/state/recorder/RoundSnapshotStore.js';
 import { CrosshairSystem } from '../src/ui/CrosshairSystem.js';
 import { HUD } from '../src/ui/HUD.js';
+import { HuntHUD } from '../src/ui/HuntHUD.js';
 
 function createVector(x = 0, y = 0, z = 0) {
     return { x, y, z };
@@ -216,6 +217,45 @@ test('Arcade runtime advances survival missions and finalizes sector-bound missi
     });
     assert.equal(runtime._missionState.missions[1].completed, true);
     assert.equal(runtime._missionState.allCompleted, true);
+});
+
+test('HuntHUD skips projection work outside Hunt and reuses a provided projection', () => {
+    let projectionReads = 0;
+    let hidden = false;
+    const runtime = { activeGameMode: 'CLASSIC', state: 'MENU' };
+    const hud = new HuntHUD({
+        runtime,
+        ports: {
+            runtimeProjectionPort: {
+                getMatchRuntimeProjection() {
+                    projectionReads += 1;
+                    return null;
+                },
+            },
+        },
+        refs: {
+            root: {
+                classList: {
+                    add() {},
+                    toggle(_name, value) {
+                        hidden = value === true;
+                    },
+                },
+            },
+        },
+    });
+
+    hud.update(1 / 60);
+    assert.equal(projectionReads, 0);
+    assert.equal(hidden, true);
+
+    runtime.activeGameMode = 'HUNT';
+    runtime.state = 'PLAYING';
+    hud.update(1 / 60, {
+        hunt: { active: true, killFeed: [], overheatByPlayer: {}, damageIndicatorsByPlayer: {} },
+        players: [],
+    });
+    assert.equal(projectionReads, 0);
 });
 
 test('Arcade runtime decays an idle combo during gameplay but respects combo freeze', () => {

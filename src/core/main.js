@@ -422,7 +422,10 @@ export class Game {
         }
 
         if (this.huntHud) {
-            this.huntHud.update(dt);
+            const runtimeProjection = this.state === GAME_STATE_IDS.PLAYING || this.state === GAME_STATE_IDS.PAUSED
+                ? this.playingStateSystem.getMatchRuntimeProjection()
+                : null;
+            this.huntHud.update(dt, runtimeProjection);
         }
     }
 

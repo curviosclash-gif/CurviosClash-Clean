@@ -4,16 +4,13 @@
 //
 // Contract (match-kernel-interactive-adapter.v1):
 // - Inputs: game (interactive runtime handle), kernel (MatchKernel instance)
-// - Outputs: kernel tick result via adapter.tick(dt, renderFrameId)
+// - Outputs: advances the interactive kernel without allocating a tick result
 // - Invariants:
 //   - This adapter bridges PlayingStateSystem and the MatchKernel.
 //   - It reads game.input (live interactive source) and passes it to the kernel.
 //   - It can drive running, round-end and match-end kernel ticks.
 //   - Pause/Escape intent is handled by PlayingStateSystem before calling this adapter.
 
-import {
-    MATCH_KERNEL_SURFACES,
-} from '../shared/contracts/MatchKernelRuntimeContract.js';
 import {
     MATCH_KERNEL_CONSUMER_IDS,
     createMatchKernelConsumerAdapter,
@@ -37,6 +34,10 @@ export class MatchKernelInteractiveAdapter {
     constructor({ game = null, kernel = null } = {}) {
         this._game = game;
         this._kernel = kernel;
+        this._tickEnvelope = {
+            fixedStepSeconds: 1 / 60,
+            frameId: 0,
+        };
         this._runtimeAdapter = createMatchKernelConsumerAdapter({
             consumerId: MATCH_KERNEL_CONSUMER_IDS.INTERACTIVE,
             kernel,
@@ -63,7 +64,7 @@ export class MatchKernelInteractiveAdapter {
      *
      * @param {number} dt            Fixed simulation step in seconds.
      * @param {number} renderFrameId Current render frame counter from GameLoop.
-     * @returns {object|null} MatchKernel tick result or null if not running.
+     * @returns {null} Interactive callers do not consume tick result envelopes.
      */
     tick(dt, renderFrameId = 0) {
         if (!this._kernel) return null;
@@ -71,18 +72,13 @@ export class MatchKernelInteractiveAdapter {
             return null;
         }
 
-        const tickEnvelope = this._runtimeAdapter.createTickEnvelope({
-            fixedStepSeconds: dt,
-            frameId: renderFrameId,
-            surface: MATCH_KERNEL_SURFACES.INTERACTIVE,
-            wallClockMs: (typeof Date !== 'undefined') ? Date.now() : 0,
-            highResTimestampMs: (typeof performance !== 'undefined') ? performance.now() : 0,
-            timeScale: this._game?.gameLoop?.timeScale ?? 1,
-        });
+        const tickEnvelope = this._tickEnvelope;
+        tickEnvelope.fixedStepSeconds = dt;
+        tickEnvelope.frameId = renderFrameId;
 
         // Pass game.input directly: it provides getPlayerInput(playerIndex, options).
         // EntityManager.update(dt, inputManager, frameId) uses this interface.
-        return this._kernel.tick(tickEnvelope, this._game?.input ?? null);
+        return this._kernel.tick(tickEnvelope, this._game?.input ?? null, false);
     }
 
     /**
@@ -91,6 +87,7 @@ export class MatchKernelInteractiveAdapter {
     dispose() {
         this._runtimeAdapter?.dispose?.();
         this._runtimeAdapter = null;
+        this._tickEnvelope = null;
         this._game = null;
         this._kernel = null;
     }

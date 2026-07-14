@@ -220,6 +220,50 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.accumulator).toBeLessThan(0.000001);
     });
 
+    test('T20ag1: GameLoop stoppt nach einem fatalen Update-Fehler ohne weiteren Frame', async ({ page }) => {
+        await loadGame(page);
+        const result = await page.evaluate(async () => {
+            const { GameLoop } = await window.__curviosImport('/src/core/GameLoop.js');
+            const originalRaf = window.requestAnimationFrame;
+            const originalCancel = window.cancelAnimationFrame;
+            const originalConsoleError = console.error;
+            let scheduledFrames = 0;
+            let cancelledFrames = 0;
+            try {
+                window.requestAnimationFrame = () => {
+                    scheduledFrames += 1;
+                    return scheduledFrames + 10;
+                };
+                window.cancelAnimationFrame = () => {
+                    cancelledFrames += 1;
+                };
+                console.error = () => {};
+                const loop = new GameLoop(() => {
+                    throw new Error('fatal-loop-test');
+                }, () => {});
+                loop.running = true;
+                loop.frameId = 1;
+                loop.lastTime = 0;
+                loop._loop(20);
+                return {
+                    running: loop.running,
+                    frameId: loop.frameId,
+                    scheduledFrames,
+                    cancelledFrames,
+                };
+            } finally {
+                window.requestAnimationFrame = originalRaf;
+                window.cancelAnimationFrame = originalCancel;
+                console.error = originalConsoleError;
+            }
+        });
+
+        expect(result.running).toBeFalsy();
+        expect(result.frameId).toBeNull();
+        expect(result.scheduledFrames).toBe(0);
+        expect(result.cancelledFrames).toBe(1);
+    });
+
     test('T20ah: Debug-API liefert Runtime-Perf-Snapshot inkl. Subsystem-Werten', async ({ page }) => {
         await loadGame(page);
         const probe = await page.evaluate(() => {

@@ -124,10 +124,19 @@ export class HuntHUD {
         this._indicatorP2Visible = null;
     }
 
-    update(dt) {
+    update(dt, runtimeProjection = null) {
         if (!this.root || !this.runtime) return;
 
-        const projection = this._getMatchRuntimeProjection();
+        if (!this._isHuntActive(this.runtime)) {
+            this.root.classList.toggle('hidden', true);
+            if (this._wasHuntActive) {
+                this._resetTickState();
+            }
+            this._wasHuntActive = false;
+            return;
+        }
+
+        const projection = runtimeProjection || this._getMatchRuntimeProjection();
         const huntProjection = projection?.hunt || null;
         const projectedHumans = Array.isArray(projection?.players)
             ? projection.players.filter((player) => player?.isBot !== true)

@@ -181,9 +181,9 @@ export class CrosshairSystem {
         }
     }
 
-    updateCrosshairs() {
+    updateCrosshairs(runtimeProjection = null) {
         const game = this.game;
-        const projection = this._getMatchRuntimeProjection();
+        const projection = runtimeProjection || this._getMatchRuntimeProjection();
         if (!projection && !game?.entityManager) return;
 
         const fallbackGameplayConfig = resolveGameplayConfig(game);

@@ -49,6 +49,7 @@ import {
 } from '../src/shared/runtime/GameRuntimePorts.js';
 import { createFallbackSessionRuntimeState } from '../src/state/MatchLifecycleSessionRuntimeState.js';
 import { createMatchFlowUiControllerPort } from '../src/shared/runtime/UiControllerRuntimePorts.js';
+import { MatchKernelInteractiveAdapter } from '../src/core/MatchKernelInteractiveAdapter.js';
 import { MatchKernel } from '../src/state/MatchKernel.js';
 import { MATCH_KERNEL_CONSUMER_IDS, createMatchKernelConsumerRegistry } from '../src/state/MatchKernelConsumerAdapters.js';
 import { MatchFlowLifecycleController } from '../src/ui/MatchFlowLifecycleController.js';
@@ -1112,6 +1113,38 @@ test('MatchKernel signalRoundEnd stays idempotent during round-end lifecycle', (
 
     assert.equal(kernel.lifecycle, 'round_end');
     assert.equal(kernel.roundPause, 1);
+});
+
+test('interactive MatchKernel adapter reuses a minimal envelope and skips unused tick results', () => {
+    const updates = [];
+    const input = {};
+    const kernel = new MatchKernel({
+        simPorts: {
+            entityManager: {
+                update(dt, receivedInput, frameId) {
+                    updates.push({ dt, receivedInput, frameId });
+                },
+            },
+        },
+    });
+    kernel.boot();
+    const adapter = new MatchKernelInteractiveAdapter({ game: { input }, kernel });
+    const tickEnvelope = adapter._tickEnvelope;
+
+    assert.equal(adapter.tick(1 / 60, 7), null);
+    assert.equal(adapter.tick(1 / 30, 8), null);
+    assert.equal(adapter._tickEnvelope, tickEnvelope);
+    assert.deepEqual(Object.keys(tickEnvelope).sort(), ['fixedStepSeconds', 'frameId']);
+    assert.equal(kernel.tickIndex, 2);
+    assert.deepEqual(updates, [
+        { dt: 1 / 60, receivedInput: input, frameId: 7 },
+        { dt: 1 / 30, receivedInput: input, frameId: 8 },
+    ]);
+
+    const contractResult = kernel.tick({ fixedStepSeconds: 1 / 60, frameId: 9 }, input);
+    assert.equal(contractResult?.tickIndex, 3);
+    assert.equal(contractResult?.fixedStepSeconds, 1 / 60);
+    adapter.dispose();
 });
 
 test('MatchKernel consumer registry exposes interactive adapter and descriptor', () => {

@@ -478,10 +478,10 @@ export class HudRuntimeSystem {
         return elapsed;
     }
 
-    updatePlayingHudTick(dt) {
+    updatePlayingHudTick(dt, runtimeProjection = null) {
         const game = this.game;
         if (!game.entityManager) return;
-        const projection = this._getMatchRuntimeProjection();
+        const projection = runtimeProjection || this._getMatchRuntimeProjection();
         this._updateParcoursHud(projection);
 
         // Score/Inventory laufen auf eigener, konservativer Tick-Frequenz.

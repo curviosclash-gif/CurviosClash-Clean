@@ -124,8 +124,9 @@ export class MatchKernel {
         this._roundPause = normalizeRoundPause(roundPause, 0);
     }
 
-    _createTickResult(dt, extra = null) {
+    _createTickResult(dt, extra = null, emitResult = true) {
         this._tickIndex += 1;
+        if (!emitResult) return null;
         return {
             contractVersion: MATCH_KERNEL_LIFECYCLE_CONTRACT_VERSION,
             tickIndex: this._tickIndex,
@@ -136,7 +137,7 @@ export class MatchKernel {
         };
     }
 
-    _tickRunning(dt, inputAdapter, frameId) {
+    _tickRunning(dt, inputAdapter, frameId, emitResult = true) {
         const { entityManager, powerupManager, particles, arena } = this._simPorts;
 
         if (entityManager) entityManager.update(dt, inputAdapter, frameId);
@@ -144,10 +145,10 @@ export class MatchKernel {
         if (particles) particles.update(dt);
         if (arena) arena.update(dt);
 
-        return this._createTickResult(dt);
+        return this._createTickResult(dt, null, emitResult);
     }
 
-    _tickRoundEnd(dt, inputAdapter) {
+    _tickRoundEnd(dt, inputAdapter, emitResult = true) {
         const tickStep = deriveRoundEndTickStep({
             dt,
             roundPause: this._roundPause,
@@ -155,6 +156,7 @@ export class MatchKernel {
             escapePressed: readPressedInput(inputAdapter, 'Escape'),
         });
         this._roundPause = normalizeRoundPause(tickStep?.nextRoundPause, this._roundPause);
+        if (!emitResult) return this._createTickResult(dt, null, false);
         return this._createTickResult(dt, {
             action: tickStep?.action || 'WAIT',
             nextRoundPause: this._roundPause,
@@ -163,11 +165,12 @@ export class MatchKernel {
         });
     }
 
-    _tickMatchEnd(dt, inputAdapter) {
+    _tickMatchEnd(dt, inputAdapter, emitResult = true) {
         const tickStep = deriveMatchEndTickStep({
             enterPressed: readPressedInput(inputAdapter, 'Enter'),
             escapePressed: readPressedInput(inputAdapter, 'Escape'),
         });
+        if (!emitResult) return this._createTickResult(dt, null, false);
         return this._createTickResult(dt, {
             action: tickStep?.action || 'WAIT',
             shouldUpdateCameras: tickStep?.shouldUpdateCameras === true,
@@ -179,9 +182,10 @@ export class MatchKernel {
      *
      * @param {object} tickEnvelope  createMatchKernelTickEnvelope result
      * @param {object} inputAdapter  game.input (interactive) or createHeadlessInputAdapter result
+     * @param {boolean} emitResult   false for the interactive hotpath, which ignores tick results
      * @returns {{ contractVersion, tickIndex, lifecycle, surface, fixedStepSeconds } | null}
      */
-    tick(tickEnvelope, inputAdapter) {
+    tick(tickEnvelope, inputAdapter, emitResult = true) {
         if (!VALID_TICK_LIFECYCLES.has(this._lifecycle)) return null;
 
         const dt = (tickEnvelope && Number.isFinite(tickEnvelope.fixedStepSeconds))
@@ -191,12 +195,12 @@ export class MatchKernel {
             ? tickEnvelope.frameId
             : this._tickIndex;
         if (this._lifecycle === 'round_end') {
-            return this._tickRoundEnd(dt, inputAdapter);
+            return this._tickRoundEnd(dt, inputAdapter, emitResult);
         }
         if (this._lifecycle === 'match_end') {
-            return this._tickMatchEnd(dt, inputAdapter);
+            return this._tickMatchEnd(dt, inputAdapter, emitResult);
         }
-        return this._tickRunning(dt, inputAdapter, frameId);
+        return this._tickRunning(dt, inputAdapter, frameId, emitResult);
     }
 
     /**

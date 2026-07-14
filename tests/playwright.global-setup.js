@@ -75,7 +75,6 @@ const MODULE_WARMUP_REQUEST_PATHS = [
     '/src/core/settings/SettingsTextOverrideFacade.js',
     '/src/core/settings/SettingsTelemetryFacade.js',
     '/src/composition/core-ui/CoreProfilePorts.js',
-    '/src/core/SimStateSnapshot.js',
     '/src/ui/MatchUiStateOps.js',
     '/src/core/Renderer.js',
     '/src/core/GameLoop.js',

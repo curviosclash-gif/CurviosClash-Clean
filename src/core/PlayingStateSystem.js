@@ -2,7 +2,6 @@
 // PlayingStateSystem.js - playing state update orchestration
 // ============================================
 
-import { SimStateSnapshot } from './SimStateSnapshot.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
 export function createPlayingStateRuntimeAccess(runtime) {
@@ -19,8 +18,8 @@ export function createPlayingStateRuntimeAccess(runtime) {
         const actionTickSuddenDeath = (dt) => {
             game?.runtimePorts?.arcadePort?.tickSuddenDeath?.(dt);
         };
-        const actionUpdatePlayingHudTick = (dt) => {
-            game?.hudRuntimeSystem?.updatePlayingHudTick?.(dt);
+        const actionUpdatePlayingHudTick = (dt, projection = null) => {
+            game?.hudRuntimeSystem?.updatePlayingHudTick?.(dt, projection);
         };
         const actionApplyPlayingTimeScaleFromEffects = () => {
             game?._applyPlayingTimeScaleFromEffects?.();
@@ -47,7 +46,6 @@ export function createPlayingStateRuntimeAccess(runtime) {
         tickSuddenDeath: actionTickSuddenDeath,
         updatePlayingHudTick: actionUpdatePlayingHudTick,
         applyPlayingTimeScaleFromEffects: actionApplyPlayingTimeScaleFromEffects,
-        getElapsedTime: () => game?.gameLoop?.elapsedTime || 0,
         getHuntState: () => game?.huntState || null,
         getRenderer: () => game?.renderer || null,
         getRenderTiming: () => game?.gameLoop?.getRenderTiming?.() || null,
@@ -65,8 +63,7 @@ export class PlayingStateSystem {
             ? runtimeAccess
             : {};
         this._lastOverheatSnapshotVersion = -1;
-        this._simSnapshot = null;
-        this._simSnapshotTick = 0;
+        this._matchRuntimeProjection = null;
         this._matchRenderProjection = null;
         // V84: optional MatchKernelInteractiveAdapter; when set, simulation tick
         // is driven through the kernel instead of direct game.* calls.
@@ -143,36 +140,14 @@ export class PlayingStateSystem {
         const updateLastRoundGhostPlayback = this.runtimeAccess.actionUpdateLastRoundGhostPlayback
             || this.runtimeAccess.updateLastRoundGhostPlayback;
         updateLastRoundGhostPlayback?.(dt);
-        this.runtimeAccess.actionUpdatePlayingHudTick?.(dt);
+        this._matchRuntimeProjection = this.runtimeAccess.getRuntimeProjectionPort?.()
+            ?.getMatchRuntimeProjection?.() || null;
+        this.runtimeAccess.actionUpdatePlayingHudTick?.(dt, this._matchRuntimeProjection);
         this.runtimeAccess.actionApplyPlayingTimeScaleFromEffects?.();
-
-        // N6: opt-in sim state snapshot capture (zero-alloc when enabled)
-        if (this._simSnapshot?.enabled) {
-            this._simSnapshot.capture(
-                this._simSnapshotTick++,
-                this.runtimeAccess.getElapsedTime?.() || 0,
-                entityManager
-            );
-        }
     }
 
-    enableSimSnapshots() {
-        if (!this._simSnapshot) {
-            this._simSnapshot = new SimStateSnapshot();
-        }
-        this._simSnapshot.enable();
-        this._simSnapshotTick = 0;
-        return this._simSnapshot;
-    }
-
-    disableSimSnapshots() {
-        if (this._simSnapshot) {
-            this._simSnapshot.disable();
-        }
-    }
-
-    getSimSnapshot() {
-        return this._simSnapshot;
+    getMatchRuntimeProjection() {
+        return this._matchRuntimeProjection;
     }
 
     getMatchRenderProjection() {
@@ -182,6 +157,7 @@ export class PlayingStateSystem {
     render(alpha = 1, renderDelta = null) {
         const entityManager = this.runtimeAccess.getEntityManager?.() || null;
         if (!entityManager) {
+            this._matchRuntimeProjection = null;
             this._matchRenderProjection = null;
             return;
         }
@@ -209,6 +185,6 @@ export class PlayingStateSystem {
         const cameraStart = runtimePerfProfiler?.startSample?.();
         entityManager.updateCameras(cameraDt, renderAlpha, true, this._matchRenderProjection);
         runtimePerfProfiler?.endSample?.('camera', cameraStart);
-        this.runtimeAccess.getCrosshairSystem?.()?.updateCrosshairs?.();
+        this.runtimeAccess.getCrosshairSystem?.()?.updateCrosshairs?.(this._matchRuntimeProjection);
     }
 }

@@ -206,9 +206,12 @@ export class GameLoop {
                     stack: err?.stack || 'No stack trace',
                 });
             }
+            this.stop();
         }
         runtimePerfProfiler?.endFrame(rawDt * 1000, now);
 
-        this.frameId = requestAnimationFrame(this._boundLoop);
+        if (this.running) {
+            this.frameId = requestAnimationFrame(this._boundLoop);
+        }
     }
 }
