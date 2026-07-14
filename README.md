@@ -4,32 +4,22 @@ CurviosClash Clean ist die eigenständige Produktbasis für Spiel, Desktop-App, 
 
 ## Start unter Windows
 
-Voraussetzung ist Node.js gemäß `.nvmrc`.
+Voraussetzung für Installation und Entwicklung ist Node.js gemäß `.nvmrc`.
 
-```powershell
-npm ci
-npm --prefix electron ci
-npm run app:start
-```
+| Zweck | Startdatei | Bedeutung |
+| --- | --- | --- |
+| Fertiges Spiel | `START_CURVIOSCLASH.cmd` | Startet deutlich gekennzeichnet das gültige Windows-Paket. Fehlt es, werden fehlende Abhängigkeiten aus den Lockfiles installiert und das Paket gebaut. |
+| Aktuelle Entwicklungsversion | `start_development.bat` | Baut den Renderer immer neu, startet Electron aus dem aktuellen Quellcode und ignoriert ein vorhandenes Paket. |
+| Settings Studio | `start_settings.bat` | Startet standardmäßig das Studio aus dem Paket. `start_settings.bat --development` baut zuerst den aktuellen Renderer und startet den Entwicklungsweg. |
+| Editor | `start_editor.bat` | Startet genau einen Vite-Server unter `http://127.0.0.1:5173/editor/map-editor-3d.html` und öffnet den Editor erst nach dessen Bereitschaft. |
+| Browser-Version | `start_game.bat` | Startet den einfachen lokalen Browser-Server aus `server.ps1`; dies ist weder das Windows-Paket noch Electron. |
+| Installation | `install.bat` | Installiert Root-, Electron- und Server-Abhängigkeiten reproduzierbar mit `npm ci` aus allen drei Lockfiles. |
 
-Alternativ startet `START_CURVIOSCLASH.cmd` ein vorhandenes Windows-Paket oder baut und öffnet die Desktop-App. Für den Signaling-Server werden dessen gesperrte Abhängigkeiten separat installiert:
-
-```powershell
-npm --prefix server ci
-npm run server:start
-```
-
-Das Settings Studio bleibt im Entwicklungsbetrieb separat startbar:
-
-```powershell
-npm run app:settings:start
-```
-
-Im fertigen Paket startet derselbe Programmeinstieg das Studio mit
-`release\win-unpacked\CurviosClash.exe --settings-studio`. Alternativ kann
-`START_CURVIOSCLASH.cmd --settings-studio` verwendet werden. Spiel und Studio
-verwenden getrennte Chromium-Profile, Sessions und Single-Instance-Locks, teilen
-aber bewusst die beschreibbaren Settings-Dateien unter dem Benutzerprofil.
+`start_desktop.bat` und `start_electron.bat` sind Kompatibilitätsnamen für
+`start_development.bat`; `start_editor_local.bat` leitet nur auf
+`start_editor.bat` weiter. Spiel und Settings Studio verwenden getrennte
+Chromium-Profile, Sessions und Single-Instance-Locks, teilen aber bewusst die
+beschreibbaren Settings-Dateien unter dem Benutzerprofil.
 
 ## Entwicklung und Qualität
 
