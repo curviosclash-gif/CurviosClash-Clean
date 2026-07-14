@@ -1,55 +1,113 @@
 @echo off
+setlocal
+
+set "ROOT=%~dp0"
+set "NO_PAUSE="
+if /i "%~1"=="--no-pause" set "NO_PAUSE=1"
+
+cd /d "%ROOT%"
+if errorlevel 1 (
+    echo FEHLER: Das Repository konnte nicht geoeffnet werden: "%ROOT%"
+    exit /b 1
+)
+
 echo ====================================
 echo   CurviosClash - Installation
 echo ====================================
 echo.
 
-:: Pruefen ob Node.js installiert ist
 where node >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [FEHLER] Node.js ist nicht installiert!
-    echo.
-    echo Bitte Node.js herunterladen und installieren:
-    echo https://nodejs.org/
-    echo.
-    pause
-    exit /b 1
+if errorlevel 1 (
+    echo FEHLER: Node.js wurde nicht gefunden. Benoetigt wird Node.js gemaess .nvmrc.
+    goto :fail
 )
 
-:: Node.js Version anzeigen
-echo Node.js gefunden:
+where npm >nul 2>nul
+if errorlevel 1 (
+    echo FEHLER: npm wurde nicht gefunden. Bitte Node.js inklusive npm installieren.
+    goto :fail
+)
+
+echo Node.js:
 node --version
 echo.
 
-:: Pruefen ob npm verfuegbar ist
-where npm >nul 2>nul
-if %errorlevel% neq 0 (
-    echo [FEHLER] npm ist nicht verfuegbar!
-    echo Bitte Node.js neu installieren: https://nodejs.org/
-    pause
-    exit /b 1
-)
-
-:: In das Projektverzeichnis wechseln
-cd /d "%~dp0"
-
-:: Abhaengigkeiten installieren
-echo Installiere Abhaengigkeiten...
-echo.
-call npm install
-if %errorlevel% neq 0 (
-    echo.
-    echo [FEHLER] Installation fehlgeschlagen!
-    pause
-    exit /b 1
+echo Installiere Root-Abhaengigkeiten aus package-lock.json...
+call npm ci
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" goto :fail_root
+if not exist "%ROOT%node_modules\vite\bin\vite.js" (
+    set "EXIT_CODE=1"
+    goto :fail_root
 )
 
 echo.
-echo ====================================
-echo   Installation erfolgreich!
-echo ====================================
+echo Installiere Electron-Abhaengigkeiten aus electron\package-lock.json...
+call npm --prefix electron ci
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" goto :fail_electron
+
+if exist "%ROOT%electron\node_modules\electron\dist\electron.exe" goto :electron_runtime_ready
+echo Lade die gesperrte Electron-Laufzeit...
+call node "%ROOT%electron\node_modules\electron\install.js"
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" goto :fail_electron
+
+:electron_runtime_ready
+if exist "%ROOT%electron\node_modules\ffmpeg-static\ffmpeg.exe" goto :ffmpeg_runtime_ready
+echo Lade die gesperrte FFmpeg-Laufzeit...
+call node "%ROOT%electron\node_modules\ffmpeg-static\install.js"
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" goto :fail_electron
+
+:ffmpeg_runtime_ready
+if not exist "%ROOT%electron\node_modules\electron\dist\electron.exe" (
+    set "EXIT_CODE=1"
+    goto :fail_electron
+)
+if not exist "%ROOT%electron\node_modules\electron-builder\package.json" (
+    set "EXIT_CODE=1"
+    goto :fail_electron
+)
+if not exist "%ROOT%electron\node_modules\ffmpeg-static\ffmpeg.exe" (
+    set "EXIT_CODE=1"
+    goto :fail_electron
+)
+
 echo.
-echo Starte das Spiel mit: npm run dev
-echo Oder doppelklicke auf start_game.bat
+echo Installiere Server-Abhaengigkeiten aus server\package-lock.json...
+call npm --prefix server ci
+set "EXIT_CODE=%errorlevel%"
+if not "%EXIT_CODE%"=="0" goto :fail_server
+if not exist "%ROOT%server\node_modules\ws\package.json" (
+    set "EXIT_CODE=1"
+    goto :fail_server
+)
+
 echo.
+echo Installation erfolgreich.
+echo Naechster Schritt: START_CURVIOSCLASH.cmd oder start_development.bat
+if defined NO_PAUSE exit /b 0
 pause
+exit /b 0
+
+:fail_root
+set "FAILURE=Root-Abhaengigkeiten"
+goto :fail_end
+
+:fail_electron
+set "FAILURE=Electron-Abhaengigkeiten"
+goto :fail_end
+
+:fail_server
+set "FAILURE=Server-Abhaengigkeiten"
+goto :fail_end
+
+:fail
+set "EXIT_CODE=1"
+
+:fail_end
+if defined FAILURE echo FEHLER: %FAILURE% konnten nicht installiert werden.
+echo Die Installation wurde abgebrochen.
+if not defined NO_PAUSE pause
+exit /b %EXIT_CODE%

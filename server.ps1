@@ -113,6 +113,7 @@ function Start-ListenerOnFirstFreePort {
 
 $listener = $null
 $activePort = $null
+$exitCode = 0
 
 try {
     $startup = Start-ListenerOnFirstFreePort -StartPort $Port -TryCount $MaxPortTries
@@ -120,7 +121,7 @@ try {
     $activePort = $startup.Port
 
     Write-Host ""
-    Write-Host "  === Curvios Clash ===" -ForegroundColor Cyan
+    Write-Host "  === Curvios Clash - Browser-Version ===" -ForegroundColor Cyan
     Write-Host "  Server laeuft auf: http://localhost:$activePort" -ForegroundColor Green
     Write-Host "  Druecke Ctrl+C zum Beenden." -ForegroundColor DarkGray
     Write-Host ""
@@ -179,6 +180,7 @@ try {
 }
 catch {
     Write-Host "Fehler: $($_.Exception.Message)" -ForegroundColor Red
+    $exitCode = 1
 }
 finally {
     if ($listener) {
@@ -193,3 +195,5 @@ finally {
         } catch {}
     }
 }
+
+exit $exitCode

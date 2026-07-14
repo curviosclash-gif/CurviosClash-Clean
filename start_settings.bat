@@ -1,27 +1,17 @@
 @echo off
-echo ====================================
-echo   Curvios Clash - Settings Studio
-echo ====================================
+setlocal
+
+if /i "%~1"=="--development" goto :development
+
+echo Starte das Settings Studio aus der fertigen Paketversion.
+echo Fuer den aktuellen Quellcode: start_settings.bat --development
 echo.
-echo Projektpfad: %~dp0
+call "%~dp0START_CURVIOSCLASH.cmd" --settings-studio %*
+exit /b %errorlevel%
+
+:development
+echo Starte das Settings Studio als aktuelle Entwicklungsversion.
+echo Der aktuelle Renderer wird vor dem Start neu gebaut.
 echo.
-
-set "ELECTRON_RUN_AS_NODE="
-
-if not exist "%~dp0electron\node_modules\electron" (
-    echo Electron-Abhaengigkeiten fehlen. Fuehre Setup aus...
-    call npm run app:setup
-    if errorlevel 1 goto :fail
-    echo.
-)
-
-call npm run app:settings:start
-if errorlevel 1 goto :fail
-goto :end
-
-:fail
-echo.
-echo Settings-Studio-Start fehlgeschlagen.
-
-:end
-pause
+call "%~dp0start_development.bat" --settings-studio
+exit /b %errorlevel%

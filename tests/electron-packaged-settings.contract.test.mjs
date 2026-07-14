@@ -135,8 +135,9 @@ test('Windows package uses the original project icon and keeps env-only signing'
 
 test('Windows start paths forward CLI switches to packaged and development entries', () => {
     const startScript = readFileSync(new URL('../START_CURVIOSCLASH.cmd', import.meta.url), 'utf8');
+    const developmentScript = readFileSync(new URL('../start_development.bat', import.meta.url), 'utf8');
     const launcher = readFileSync(new URL('../electron/launch.cjs', import.meta.url), 'utf8');
-    assert.match(startScript, /CurviosClash\.exe" %\*/);
-    assert.match(startScript, /npm --prefix electron run start -- %\*/);
+    assert.match(startScript, /"%PACKAGE_EXE%" %\*/);
+    assert.match(developmentScript, /npm --prefix electron run start -- %\*/);
     assert.match(launcher, /process\.argv\.slice\(2\)/);
 });
