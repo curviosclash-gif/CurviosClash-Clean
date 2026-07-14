@@ -18,6 +18,7 @@ const PRELOAD_CONTRACT_VERSIONS = Object.freeze({
     save: 'preload.save.v2',
     recording: 'preload.recording.v1',
     lifecycle: 'preload.lifecycle.v1',
+    hangar: 'preload.hangar-window.v1',
 });
 
 function resolveRuntimeGlobal(runtimeGlobal = globalThis) {
@@ -330,6 +331,24 @@ export function createElectronPreloadLifecycleAdapter(runtimeGlobal = globalThis
         confirmGracefulClose: available
             ? () => rawConfirmGracefulClose()
             : () => {},
+    });
+}
+
+export function createElectronPreloadHangarAdapter(runtimeGlobal = globalThis) {
+    const { globalRef, appRuntime } = resolveAppRuntime(runtimeGlobal);
+    const dedicatedContract = globalRef?.__CURVIOS_HANGAR_WINDOW__;
+    const contract = dedicatedContract && typeof dedicatedContract === 'object'
+        ? dedicatedContract
+        : resolveNamedContract(appRuntime, 'hangar');
+    const openWindow = createCapabilityIntent(contract, contract?.openWindow, appRuntime, null);
+    const closeWindow = createCapabilityIntent(contract, contract?.closeWindow, appRuntime, null);
+    const available = typeof openWindow === 'function';
+    return Object.freeze({
+        adapterName: 'electron.preload.hangar-window.v1',
+        contractVersion: contract?.contractVersion || PRELOAD_CONTRACT_VERSIONS.hangar,
+        isAvailable: () => available,
+        openWindow,
+        closeWindow,
     });
 }
 

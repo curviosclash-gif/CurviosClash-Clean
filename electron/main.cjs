@@ -22,6 +22,7 @@ const {
 const { createRecordingVideoExportJob } = require('./recording-video-export-job.cjs');
 const { createTuningWindowController } = require('./tuning-window.cjs');
 const { registerTuningIpc } = require('./tuning-ipc.cjs');
+const { createHangarWindowController } = require('./hangar-window.cjs');
 const {
     assertTrustedWindowSender,
     isTrustedWindowSender,
@@ -42,6 +43,13 @@ function isTrustedMainWindowSender(event) {
 function withTrustedMainWindowSender(handler) {
     return (event, ...args) => {
         assertTrustedWindowSender(event, mainWindow);
+        return handler(...args);
+    };
+}
+
+function withTrustedHangarWindowSender(handler) {
+    return (event, ...args) => {
+        assertTrustedWindowSender(event, hangarWindowShellCapability.getWindow());
         return handler(...args);
     };
 }
@@ -77,7 +85,7 @@ const { sessionDataPath: mainSessionDataPath } = configureStoragePaths({
     sessionDataDirName: MAIN_SESSION_DATA_DIR_NAME,
 });
 app.setAppUserModelId('de.curviosclash.main');
-const hasSingleInstanceLock = app.requestSingleInstanceLock();
+const hasSingleInstanceLock = process.env.PW_RUN_TAG ? true : app.requestSingleInstanceLock();
 const WINDOW_SHELL_CONTRACT_VERSION = 'electron.window-shell.v1';
 const HOST_SHELL_CONTRACT_VERSION = 'electron.lan-host-shell.v1';
 const SETTINGS_DEFAULTS_CONTRACT_VERSION = 'preload.settings-defaults.v1';
@@ -677,6 +685,14 @@ function readMenuDefaultsOverrideSnapshotSync() {
 }
 
 const desktopWindowShellCapability = createDesktopWindowShellCapability();
+const hangarWindowShellCapability = createHangarWindowController({
+    BrowserWindow,
+    resolveParentWindow: () => desktopWindowShellCapability.getWindow(),
+    resolveWindowUrl: async () => {
+        const appServer = await startAppServer();
+        return new URL('hangar.html?mode=arcade', appServer.url).href;
+    },
+});
 const lanHostShellCapability = createLanHostShellCapability();
 const tuningWindowShellCapability = createTuningWindowController({
     BrowserWindow,
@@ -845,6 +861,15 @@ ipcMain.handle('get-lan-server-status', withTrustedMainWindowSender(
     () => lanHostShellCapability.getStatus()
 ));
 
+ipcMain.handle('hangar-window:open', withTrustedMainWindowSender(async (options = {}) => {
+    const result = await hangarWindowShellCapability.openHangarWindow({ focus: options?.focus !== false });
+    return { ok: result.ok === true, reused: result.reused === true };
+}));
+
+ipcMain.handle('hangar-window:close', withTrustedHangarWindowSender(() => ({
+    ok: hangarWindowShellCapability.closeHangarWindow(),
+})));
+
 ipcMain.handle('start-lan-server', withTrustedMainWindowSender(
     () => lanHostShellCapability.start()
 ));
@@ -920,6 +945,7 @@ async function shutdownRuntime() {
     stopDiscoveryListener();
     unregisterTuningShortcut();
     tuningWindowShellCapability.closeTuningWindow();
+    hangarWindowShellCapability.closeHangarWindow();
     disposeTuningBridgeIpc();
     await Promise.allSettled([
         lanHostShellCapability.stop(),
@@ -962,5 +988,6 @@ app.on('before-quit', () => {
     stopBroadcast();
     unregisterTuningShortcut();
     tuningWindowShellCapability.closeTuningWindow();
+    hangarWindowShellCapability.closeHangarWindow();
     disposeTuningBridgeIpc();
 });

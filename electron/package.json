@@ -23,6 +23,8 @@
       "tuning-window.cjs",
       "tuning-ipc.cjs",
       "tuning-preload.cjs",
+      "hangar-window.cjs",
+      "hangar-preload.cjs",
       "tuning-console/**/*",
       "settings-studio/**/*",
       "recording-video-export-job.cjs",

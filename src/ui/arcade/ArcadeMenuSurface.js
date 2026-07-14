@@ -6,6 +6,7 @@ import {
     readArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { setupArcadeVehicleManager } from './ArcadeVehicleManager.js';
+import { applyHangarWindowStorageEvent, createHangarWindowLauncher, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 const ARCADE_SEED_STORAGE_KEY = 'cuviosclash.arcade.seed.v1';
 const ARCADE_LAST_RUN_STORAGE_KEY = 'cuviosclash.arcade.last_run.v1';
 
@@ -239,6 +240,9 @@ function buildArcadeSurface(level3Body, ui) {
 
     body.appendChild(cardGrid);
 
+    const { card: hangarLaunchCard, button: openHangarButton } = createHangarWindowLauncher(createElement);
+    body.appendChild(hangarLaunchCard);
+
     const vehicleManagerMount = createElement('div', 'arcade-vehicle-manager-mount');
     vehicleManagerMount.id = 'arcade-vehicle-manager-mount';
     body.appendChild(vehicleManagerMount);
@@ -282,6 +286,8 @@ function buildArcadeSurface(level3Body, ui) {
         copySeedButton,
         replayButton,
         dailyButton,
+        hangarLaunchCard,
+        openHangarButton,
         vehicleManagerMount,
     };
 }
@@ -312,6 +318,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const eventTypes = ctx.eventTypes && typeof ctx.eventTypes === 'object' ? ctx.eventTypes : {};
     const bind = typeof ctx.bind === 'function' ? ctx.bind : null;
     const runtimeAccess = normalizeRuntimeAccess(ctx.runtimeAccess);
+    const hangarWindow = createHangarWindowMenuPort(globalThis);
     const vehicleManagerContext = {
         ...ctx,
         ui,
@@ -338,6 +345,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     }
 
     const refs = buildArcadeSurface(level3Body, ui);
+    refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
     let activeSeed = loadSeed();
     let lastRunSnapshot = loadLastRunSnapshot();
     const applySeedToSettings = (seedValue, { dailyChallenge = false } = {}) => {
@@ -435,6 +443,13 @@ export function setupArcadeMenuSurface(ctx = {}) {
         recordRunStart(prepared?.build);
         emit(eventTypes.START_MATCH);
     });
+
+    bind(refs.openHangarButton, 'click', async () => {
+        const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
+        if (result?.ok !== true) showToast(runtimeAccess, 'Hangar-Fenster konnte nicht geöffnet werden.', 'warning', 1600);
+    });
+
+    bind(globalThis, 'storage', (event) => { if (applyHangarWindowStorageEvent(event, settings, ui)) sync(); });
 
     bind(refs.rerollSeedButton, 'click', () => {
         activeSeed = Math.floor(Math.random() * 1_000_000) + 1;

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="de">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; object-src 'none'; base-uri 'self'; frame-ancestors 'none'">
+    <title>CurviosClash Hangar</title>
+    <link rel="stylesheet" href="/style.css">
+    <link rel="stylesheet" href="/src/ui/hangar/HangarWindow.css">
+</head>
+<body class="hangar-window-body">
+    <div class="hangar-window-app">
+        <header class="hangar-window-titlebar">
+            <div>
+                <span class="hangar-window-kicker">CURVIOSCLASH</span>
+                <strong>Hangar</strong>
+            </div>
+            <button id="hangar-window-close" class="secondary-btn" type="button">Zurück zum Menü</button>
+        </header>
+        <main id="hangar-window-mount" class="hangar-window-mount"></main>
+    </div>
+    <script type="module" src="/src/ui/hangar/HangarWindowApp.js"></script>
+</body>
+</html>

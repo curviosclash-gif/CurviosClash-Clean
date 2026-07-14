@@ -1,0 +1,37 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { createHangarWindowController } = require('../electron/hangar-window.cjs');
+
+class FakeBrowserWindow {
+    constructor(options) { this.options = options; this.events = new Map(); this.destroyed = false; this.focused = false; }
+    isDestroyed() { return this.destroyed; }
+    isMinimized() { return false; }
+    on(name, handler) { this.events.set(name, handler); }
+    once(name, handler) { this.events.set(name, handler); }
+    async loadURL(url) { this.url = url; this.events.get('ready-to-show')?.(); }
+    maximize() { this.maximized = true; }
+    show() { this.shown = true; }
+    focus() { this.focused = true; }
+    close() { this.destroyed = true; this.events.get('closed')?.(); }
+}
+
+test('desktop hangar opens once in a maximized secure window', async () => {
+    const controller = createHangarWindowController({
+        BrowserWindow: FakeBrowserWindow,
+        resolveWindowUrl: () => 'http://127.0.0.1/hangar.html?mode=arcade',
+    });
+    const opened = await controller.openHangarWindow({ focus: true });
+    assert.equal(opened.ok, true);
+    assert.equal(opened.window.maximized, true);
+    assert.equal(opened.window.shown, true);
+    assert.equal(opened.window.options.minWidth, 1100);
+    assert.equal(opened.window.options.webPreferences.contextIsolation, true);
+    assert.equal(opened.window.options.webPreferences.nodeIntegration, false);
+    assert.equal(opened.window.options.webPreferences.sandbox, true);
+    assert.match(opened.window.url, /hangar\.html/);
+    assert.equal((await controller.openHangarWindow()).reused, true);
+    assert.equal(controller.closeHangarWindow(), true);
+});

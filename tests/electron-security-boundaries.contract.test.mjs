@@ -10,6 +10,7 @@ test('every Electron window explicitly isolates its renderer from Node.js', () =
     for (const relativePath of [
         '../electron/main.cjs',
         '../electron/tuning-window.cjs',
+        '../electron/hangar-window.cjs',
         '../electron/settings-studio/main.cjs',
     ]) {
         const source = readSource(relativePath);

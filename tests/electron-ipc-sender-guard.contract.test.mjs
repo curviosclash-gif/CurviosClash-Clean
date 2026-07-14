@@ -59,6 +59,7 @@ test('Electron windows keep explicit renderer isolation and scoped sandbox polic
 
     const sandboxedSourcePaths = [
         '../electron/tuning-window.cjs',
+        '../electron/hangar-window.cjs',
         '../electron/settings-studio/main.cjs',
     ];
 

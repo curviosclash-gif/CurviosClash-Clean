@@ -9,6 +9,7 @@ const PLAYWRIGHT_WARMUP_CLIENT_FILES = [
 
 const RENDERER_INPUT_FILES = {
     app: 'index.html',
+    hangar: 'hangar.html',
     editorMap3d: 'editor/map-editor-3d.html',
 };
 

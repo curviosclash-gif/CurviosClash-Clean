@@ -12,6 +12,7 @@ const PRELOAD_CONTRACT_VERSIONS = Object.freeze({
     lifecycle: 'preload.lifecycle.v1',
     settingsDefaults: 'preload.settings-defaults.v1',
     tuningRuntime: 'preload.tuning-runtime.v1',
+    hangar: 'preload.hangar-window.v1',
 });
 const PLATFORM_CAPABILITY_SNAPSHOT_CONTRACT_VERSION = 'platform-capability-snapshot.v1';
 const RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION = 'recording-video-export-request.v1';
@@ -97,6 +98,12 @@ function createSaveContract() {
 function createRecordingContract() {
     return createNamedContract('recording', PRELOAD_CONTRACT_VERSIONS.recording, {
         supportsCapture: true,
+    });
+}
+
+function createHangarContract() {
+    return createNamedContract('hangar', PRELOAD_CONTRACT_VERSIONS.hangar, {
+        openWindow: createInvokeBridge('hangar-window:open'),
     });
 }
 
@@ -380,6 +387,7 @@ const recordingContract = createRecordingContract();
 const lifecycleContract = createLifecycleContract();
 const settingsDefaultsContract = createSettingsDefaultsContract();
 const tuningRuntimeContract = createTuningRuntimeContract();
+const hangarContract = createHangarContract();
 const platformContracts = Object.freeze({
     discovery: discoveryContract,
     host: hostContract,
@@ -388,6 +396,7 @@ const platformContracts = Object.freeze({
     lifecycle: lifecycleContract,
     settingsDefaults: settingsDefaultsContract,
     tuningRuntime: tuningRuntimeContract,
+    hangar: hangarContract,
 });
 const platformCapabilities = Object.freeze({
     contractVersion: PLATFORM_CAPABILITY_SNAPSHOT_CONTRACT_VERSION,
@@ -416,6 +425,7 @@ const curviosApp = Object.freeze({
     lifecycle: lifecycleContract,
     settingsDefaults: settingsDefaultsContract,
     tuningRuntime: tuningRuntimeContract,
+    hangar: hangarContract,
     getLanServerStatus: hostContract.getStatus,
     startLanServer: hostContract.start,
     stopLanServer: hostContract.stop,

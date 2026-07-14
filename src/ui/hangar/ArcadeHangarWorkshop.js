@@ -153,6 +153,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     function syncVehicleWriteback(vehicleId) {
         const id = norm(vehicleId, 'ship5').toLowerCase();
         writeHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, id, 'ship5', { modePath: 'arcade' });
+        runtimeAccess?.saveSettings?.(settings);
         const hasOption = Array.from(ui.vehicleSelectP1?.options || []).some((option) => option.value === id);
         if (hasOption && ui.vehicleSelectP1.value !== id) {
             ui.vehicleSelectP1.value = id;
