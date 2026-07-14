@@ -118,7 +118,15 @@ export function xpToNextLevel(profile) {
 
 // Slot stat bonuses
 
-export function getSlotStatBonuses(upgrades) {
+export function getSlotStatBonuses(upgrades, hangarBonuses = null) {
+    if (hangarBonuses && typeof hangarBonuses === 'object') {
+        const clampBonus = (value) => Math.max(0, Math.min(50, Number(value) || 0));
+        return {
+            turningBonusPct: clampBonus(hangarBonuses.turningBonusPct),
+            speedBonusPct: clampBonus(hangarBonuses.speedBonusPct),
+            maxHpBonus: clampBonus(hangarBonuses.maxHpBonus),
+        };
+    }
     const u = upgrades && typeof upgrades === 'object' ? upgrades : {};
     const tierRank = (value) => ({ T1: 1, T2: 2, T3: 3 }[String(value || '').toUpperCase()] || 1);
     const highestTier = (...slotNames) => slotNames.reduce((highest, slotName) => {

@@ -14,6 +14,14 @@ function deltaText(value) {
     return number > 0 ? `+${number}` : String(number);
 }
 
+function partStatsText(part) {
+    return [
+        Number(part.stats.speed) ? `Tempo +${part.stats.speed}` : '',
+        Number(part.stats.agility) ? `Wende +${part.stats.agility}` : '',
+        Number(part.stats.maxHp) ? `HP +${part.stats.maxHp}` : '',
+    ].filter(Boolean).join(' · ');
+}
+
 export function createArcadeHangarWorkshopRenderer(options) {
     const {
         shell, settings, catalogEntries, selection, persistence, viewport,
@@ -92,7 +100,8 @@ export function createArcadeHangarWorkshopRenderer(options) {
             head.append(el('strong', 'hangar-part-name', part.label), el('span', `hangar-tier hangar-tier-${part.tier.toLowerCase()}`, part.tier));
             card.append(
                 head,
-                el('span', 'hangar-part-family', part.family),
+                el('span', 'hangar-part-family', `${part.family} · ${part.role}`),
+                el('span', 'hangar-part-stats', partStatsText(part)),
                 el('span', 'hangar-part-costs', `B ${part.costs.budget} · M ${part.costs.mass} · E ${part.costs.energy} · H ${part.costs.heat}`),
                 el('span', lock ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', lock?.message || 'Auf einen leuchtenden Hardpoint ziehen')
             );
@@ -161,7 +170,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             const tier = el('span', 'arcade-vehicle-slot-tier', part?.tier || '—');
             const quick = button('secondary-btn arcade-vehicle-upgrade-btn', part?.tier === 'T3' ? 'MAX' : 'Tier +');
             quick.dataset.quickUpgrade = slot.id;
-            const nextId = part && part.tier !== 'T3' ? `${part.family}_${part.tier === 'T1' ? 't2' : 't3'}` : '';
+            const nextId = part?.upgradeTo || '';
             const nextValidation = nextId ? evaluateInstall(nextId, slot.id) : null;
             quick.disabled = !nextValidation?.ok;
             quick.title = nextValidation?.ok ? 'Nächstes Tier als Entwurf montieren' : describeFailure(nextValidation);

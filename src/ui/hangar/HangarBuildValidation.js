@@ -133,3 +133,16 @@ export function hangarBuildToProfileUpgrades(build) {
     }
     return upgrades;
 }
+
+export function hangarBuildToProfileBonuses(build) {
+    const normalized = normalizeHangarBuild(build);
+    const bonuses = { speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 };
+    for (const slot of HANGAR_SLOT_DEFINITIONS) {
+        const part = resolveHangarPart(normalized.slots[slot.id]);
+        if (!part) continue;
+        bonuses.speedBonusPct += Number(part.bonuses?.speedBonusPct) || 0;
+        bonuses.turningBonusPct += Number(part.bonuses?.turningBonusPct) || 0;
+        bonuses.maxHpBonus += Number(part.bonuses?.maxHpBonus) || 0;
+    }
+    return Object.fromEntries(Object.entries(bonuses).map(([key, value]) => [key, round1(value)]));
+}

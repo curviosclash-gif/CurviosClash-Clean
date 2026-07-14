@@ -111,6 +111,8 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
 
     const agilityBefore = await readMetric(page, 'agility');
     await page.locator('[data-catalog-view="parts"]').click();
+    await expect(page.locator('.hangar-part-card')).toHaveCount(45);
+    await expect(page.locator('.hangar-part-card[data-part-id="core_swift_t1"] .hangar-part-stats')).toContainText('Wende +3');
     const wingPart = page.locator('.hangar-part-card[data-part-id="wing_t2"]');
     await wingPart.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
     await page.waitForTimeout(100);

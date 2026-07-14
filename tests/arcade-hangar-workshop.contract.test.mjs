@@ -7,6 +7,7 @@ import {
     removeHangarPart,
 } from '../src/ui/hangar/HangarBuildDraftState.js';
 import {
+    hangarBuildToProfileBonuses,
     hangarBuildToProfileUpgrades,
     validateHangarBuild,
     validateHangarDrop,
@@ -29,6 +30,9 @@ import {
     createVehicleLabHangarPublication,
     upsertVehicleLabHangarPublication,
 } from '../src/shared/contracts/VehicleLabHangarPublishContract.js';
+
+const PART_FAMILIES = ['core', 'nose', 'wing', 'engine', 'utility'];
+const EXPECTED_OPTIONS_BY_TIER = { T1: 2, T2: 3, T3: 4 };
 
 function install(build, partId, slotId, pair = false) {
     return installHangarPart(build, partId, slotId, { pair });
@@ -66,6 +70,38 @@ test('hangar drops accept compatible parts and reject incompatible, locked and o
     const budgetValidation = validateHangarBuild(expensive, 1);
     assert.ok(budgetValidation.errors.some((error) => error.code === 'editor_budget'));
     assert.ok(budgetValidation.errors.some((error) => ['level_locked', 'tier_locked'].includes(error.code)));
+});
+
+test('each part family offers two T1, three T2 and four T3 choices with distinct properties', () => {
+    for (const family of PART_FAMILIES) {
+        for (const [tier, expectedCount] of Object.entries(EXPECTED_OPTIONS_BY_TIER)) {
+            const parts = listHangarParts({ family, tier });
+            assert.equal(parts.length, expectedCount, `${family} ${tier}`);
+            assert.equal(new Set(parts.map((part) => JSON.stringify({
+                costs: part.costs,
+                stats: part.stats,
+                bonuses: part.bonuses,
+            }))).size, expectedCount, `${family} ${tier} properties`);
+        }
+    }
+});
+
+test('level-one alternatives visibly change the build and reach runtime bonuses', () => {
+    const base = createDefaultHangarBuild('ship5', { nowMs: 5 });
+    const swiftCore = validateHangarDrop(base, 'core_swift_t1', 'core', 1, (build, partId, slotId) => install(build, partId, slotId));
+    assert.equal(swiftCore.ok, true);
+    assert.equal(swiftCore.build.slots.core, 'core_swift_t1');
+
+    let variant = install(swiftCore.build, 'wing_kestrel_t1', 'wing_left', true).build;
+    variant = install(variant, 'engine_eco_t1', 'engine_left', true).build;
+    const bonuses = hangarBuildToProfileBonuses(variant);
+    assert.deepEqual(bonuses, { speedBonusPct: 3, turningBonusPct: 4, maxHpBonus: 0 });
+    assert.deepEqual(getSlotStatBonuses({}, bonuses), bonuses);
+
+    const strategy = new ArcadeModeStrategy();
+    strategy.applyVehicleUpgrades(bonuses);
+    assert.equal(strategy.getTurnRateMultiplier(), 1.04);
+    assert.equal(strategy.getSpeedMultiplier(), 1.03);
 });
 
 test('hangar draft supports replacement, optional removal, required slots, symmetry and undo/redo', () => {

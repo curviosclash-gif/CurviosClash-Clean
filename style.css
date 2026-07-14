@@ -3814,6 +3814,7 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-tier-t3 { background: rgba(243, 189, 97, 0.18); color: #ffd98e; }
 
 .hangar-part-family,
+.hangar-part-stats,
 .hangar-part-costs,
 .hangar-part-drag-hint,
 .hangar-part-lock-reason {
@@ -3824,6 +3825,11 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-part-family {
     text-transform: uppercase;
     letter-spacing: 0.08em;
+}
+
+.hangar-part-stats {
+    color: #d5e9fb;
+    font-weight: 700;
 }
 
 .hangar-part-lock-reason {

@@ -28,7 +28,7 @@ import {
     normalizeHangarBuild,
     removeHangarPart,
 } from './HangarBuildDraftState.js';
-import { hangarBuildToProfileUpgrades, validateHangarBuild, validateHangarDrop } from './HangarBuildValidation.js';
+import { hangarBuildToProfileBonuses, hangarBuildToProfileUpgrades, validateHangarBuild, validateHangarDrop } from './HangarBuildValidation.js';
 import { createHangarBuildPersistenceAdapter } from './HangarBuildPersistence.js';
 import { createHangarViewport3d } from './HangarViewport3d.js';
 import { createHangarDragDropController } from './HangarDragDropController.js';
@@ -253,12 +253,17 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
 
     function quickUpgrade(slotId) {
         const part = resolveHangarPart(draft.slots[slotId]);
-        if (part && part.tier !== 'T3') applyInstall(`${part.family}_${part.tier === 'T1' ? 't2' : 't3'}`, slotId);
+        if (part?.upgradeTo) applyInstall(part.upgradeTo, slotId);
     }
 
     function commitProfileForRun(build) {
         const profile = profileFor(build.vehicleId);
-        profiles[build.vehicleId] = { ...profile, upgrades: hangarBuildToProfileUpgrades(build), updatedAt: new Date().toISOString() };
+        profiles[build.vehicleId] = {
+            ...profile,
+            upgrades: hangarBuildToProfileUpgrades(build),
+            hangarBonuses: hangarBuildToProfileBonuses(build),
+            updatedAt: new Date().toISOString(),
+        };
         profilePort.save(profiles);
     }
 

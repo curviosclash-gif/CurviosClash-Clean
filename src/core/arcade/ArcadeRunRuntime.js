@@ -424,7 +424,7 @@ export class ArcadeRunRuntime {
         try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
-        try { this._strategy.applyVehicleUpgrades?.(getSlotStatBonuses(profile?.upgrades)); } catch { /* no-op */ }
+        try { this._strategy.applyVehicleUpgrades?.(getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses)); } catch { /* no-op */ }
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             try { this._strategy.enterSuddenDeath?.(); } catch { /* no-op */ }
         }
@@ -818,7 +818,7 @@ export class ArcadeRunRuntime {
         }
         // 82.8.3: Vehicle stats for sector-start HUD flash
         const profile = this.getVehicleProfile();
-        const profileBonuses = profile ? getSlotStatBonuses(profile.upgrades) : null;
+        const profileBonuses = profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null;
         const vehicleStats = {
             level: profile?.level ?? 1,
             speedBonusPct: Math.min(50, profileBonuses?.speedBonusPct || 0),
@@ -973,7 +973,7 @@ export class ArcadeRunRuntime {
         const store = this._resolveSettingsRecordStore();
         this._vehicleProfiles = loadVehicleProfiles(store);
         const activeProfile = this.getVehicleProfile();
-        this._notifyVehicleUpgradesChanged(getSlotStatBonuses(activeProfile?.upgrades));
+        this._notifyVehicleUpgradesChanged(getSlotStatBonuses(activeProfile?.upgrades, activeProfile?.hangarBonuses));
 
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {
