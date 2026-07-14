@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync } from 'node:fs';
-import { mkdir, mkdtemp, rm } from 'node:fs/promises';
+import { mkdir, mkdtemp, readdir, readFile, rm, stat } from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
@@ -13,6 +13,35 @@ const DEFAULT_EXECUTABLE_PATH = path.resolve(
     'CurviosClash.exe'
 );
 const executablePath = path.resolve(process.argv[2] || DEFAULT_EXECUTABLE_PATH);
+
+async function listFiles(directoryPath) {
+    if (!existsSync(directoryPath)) return [];
+    const files = [];
+    for (const entry of await readdir(directoryPath)) {
+        const entryPath = path.join(directoryPath, entry);
+        if ((await stat(entryPath)).isDirectory()) files.push(...await listFiles(entryPath));
+        else files.push(entryPath);
+    }
+    return files;
+}
+
+async function assertNoPackagedDeveloperTraining() {
+    const resourcesDirectory = path.join(path.dirname(executablePath), 'resources');
+    const rendererIndexPath = path.join(resourcesDirectory, 'dist-app', 'index.html');
+    assert.equal(existsSync(rendererIndexPath), true, `Packaged renderer is missing: ${rendererIndexPath}`);
+    const rendererHtml = await readFile(rendererIndexPath, 'utf8');
+    assert.doesNotMatch(rendererHtml, /developer-training-|Training-Interface|Training Reset|Run Batch|Run Eval|Run Gate/i);
+
+    const resourceFiles = await listFiles(resourcesDirectory);
+    const relativePaths = resourceFiles.map((filePath) => path.relative(resourcesDirectory, filePath).replace(/\\/g, '/'));
+    const forbiddenPath = relativePaths.find((relativePath) => (
+        /dist-app\/assets\/(?:training|trainer|validation)-[^/]+\.js$/i.test(relativePath)
+        || /^(?:src\/(?:entities\/ai\/training|state\/(?:training|validation))|dev\/training)(?:\/|$)/i.test(relativePath)
+        || /(?:DeveloperTraining|GameDebugTraining|MenuDeveloperTraining|MenuRuntimeDeveloperTraining)/i.test(relativePath)
+        || /(?:HeadlessMatchKernelRuntime|MatchKernelTrainingPayload)/i.test(relativePath)
+    ));
+    assert.equal(forbiddenPath, undefined, `Developer training resource reached package: ${forbiddenPath}`);
+}
 
 function isPathInside(parentPath, candidatePath) {
     const relativePath = path.relative(parentPath, candidatePath);
@@ -27,6 +56,7 @@ async function closeElectronApp(electronApp) {
 
 assert.equal(process.platform, 'win32', 'Packaged Electron verification requires Windows.');
 assert.equal(existsSync(executablePath), true, `Packaged executable is missing: ${executablePath}`);
+await assertNoPackagedDeveloperTraining();
 
 const isolatedProfilePath = await mkdtemp(path.join(os.tmpdir(), 'curvios-package-runtime-'));
 const appDataPath = path.join(isolatedProfilePath, 'AppData', 'Roaming');
@@ -119,6 +149,7 @@ try {
         executablePath,
         gameMainFrameIpc: 'ok',
         settingsStudioMainFrameIpc: 'ok',
+        developerTrainingBoundary: 'ok',
         concurrentWindows: 'ok',
         writableSettingsRoot: sharedSettingsPath,
     }));

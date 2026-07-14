@@ -44,7 +44,33 @@
       },
       {
         "from": "../src",
-        "to": "src"
+        "to": "src",
+        "filter": [
+          "composition/core-ui/CoreSettingsPorts.js",
+          "core/Config.js",
+          "core/config/**/*.js",
+          "core/runtime/ActiveRuntimeConfigStore.js",
+          "core/settings/SettingsOverrideContract.js",
+          "core/settings/SettingsOverrideMergeOps.js",
+          "dev/tuning/*.js",
+          "entities/GeneratedLocalMaps.js",
+          "entities/PickupRegistry.js",
+          "hunt/HuntConfig.js",
+          "hunt/HuntMode.js",
+          "platform/PlatformCapabilityAdapterSupport.js",
+          "platform/electron/ElectronPlatformBridge.js",
+          "shared/contracts/*.js",
+          "shared/logging/Logger.js",
+          "shared/runtime/BrowserStoragePorts.js",
+          "shared/utils/JsonClone.js",
+          "state/storage/*.js",
+          "ui/base/*.js",
+          "ui/menu/*.js",
+          "ui/SettingsChangeKeys.js",
+          "ui/SettingsStore.js",
+          "ui/StorageKeys.js",
+          "utils/MathOps.js"
+        ]
       },
       {
         "from": "runtime-resources/package.json",
