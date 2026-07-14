@@ -1,5 +1,11 @@
 # Roadmap
 
+Diese Datei ist das schlanke Produktgedächtnis für zukünftige Ideen. Neue Gedanken zuerst unter **Ideen-Eingang** notieren. Bei einer späteren Sichtung werden sie nach **Jetzt**, **Danach** oder **Später** verschoben. Pro Punkt genügen Titel, Ziel, Nutzen und ein überprüfbares Ergebnis.
+
+## Ideen-Eingang
+
+- Neue Ideen hier kurz und ungeordnet ergänzen.
+
 ## Jetzt
 
 - **Electron-Audit** – Ziel: Shell, Fenster, IPC und Paketinhalt vollständig prüfen. Nutzen: weniger Sicherheits- und Release-Regressionsrisiko. Erfolg: alle Desktop-Grenzen sind durch Contracts oder reproduzierbare Checks abgedeckt.
@@ -15,3 +21,5 @@
 ## Später
 
 - **Performance und Chunks** – Ziel: Startzeit, Laufzeitspitzen und Renderer-Chunking messen und optimieren. Nutzen: schnellerer Start und gleichmäßigeres Spielgefühl. Erfolg: belastbare Budgets werden ohne Funktionsverlust eingehalten.
+- **Recording-Bibliothek modernisieren** – Ziel: `mp4-muxer` kontrolliert durch eine gepflegte Alternative ersetzen. Nutzen: langfristig wartbare Videoaufnahmen. Erfolg: Recording-, Lifecycle- und Desktop-Exporttests bestehen mit der neuen Implementierung.
+- **Android-Gerätetests** – Ziel: die mobile Variante auf echten Geräten unterschiedlicher Leistung und Bildschirmgröße prüfen. Nutzen: verlässliche Touch-Steuerung, Darstellung, Audio und App-Lifecycle. Erfolg: dokumentierte Testläufe auf repräsentativen Geräten ohne kritische Fehler.
