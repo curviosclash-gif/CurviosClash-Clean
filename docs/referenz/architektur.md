@@ -24,7 +24,7 @@ CurviosClash ist eine Desktop-first Three.js-Anwendung in Vanilla JavaScript mit
 ## Prüfungen
 
 - `npm run lint`
-- `npm run typecheck`
+- `npm run typecheck:architecture`
 - `npm run check:architecture`
 - `npm run test:contract`
 - `npm run test:desktop:smoke`

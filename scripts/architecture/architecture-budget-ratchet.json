@@ -1,13 +1,13 @@
 {
-  "updatedAt": "2026-07-10",
+  "updatedAt": "2026-07-14",
   "budgets": {
     "constructorGameFiles": 0,
     "domAccessFiles": 8,
     "coreToUiImportEdges": 0,
     "uiToCoreImportEdges": 0,
-    "uiToStateImportEdges": 4,
+    "uiToStateImportEdges": 3,
     "stateToUiImportEdges": 0,
-    "entitiesToCoreImportEdges": 3,
+    "entitiesToCoreImportEdges": 0,
     "stateToCoreImportEdges": 0,
     "sharedContractsToCoreImportEdges": 0,
     "applicationToUiImportEdges": 0,

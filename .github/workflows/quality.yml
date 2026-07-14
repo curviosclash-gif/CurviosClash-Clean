@@ -28,11 +28,5 @@ jobs:
         run: npm ci
       - name: Install Electron dependencies
         run: npm --prefix electron ci
-      - name: Lint
-        run: npm run lint
-      - name: Typecheck
-        run: npm run typecheck
-      - name: Architecture contracts
-        run: npm run check:architecture
-      - name: Product contracts
-        run: npm run test:contract
+      - name: Quality
+        run: npm run quality

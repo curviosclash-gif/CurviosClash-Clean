@@ -37,5 +37,5 @@ Die Tuning Console ist ein Desktop-only Entwicklerwerkzeug (F7) fuer Live-Aender
 
 - `npm run test:contract`
 - `npm run lint`
-- `npm run typecheck`
+- `npm run typecheck:architecture`
 - Optional fokussiert: `node --test tests/tuning-runtime-bridge.contract.test.mjs tests/tuning-ipc.contract.test.mjs tests/tuning-window.contract.test.mjs tests/tuning-preset-manager.contract.test.mjs`

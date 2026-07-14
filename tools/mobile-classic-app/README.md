@@ -8,14 +8,12 @@ Build the web bundle from the repository root:
 
 ```bash
 npm run app:android:build
-npm run app:classic:android:build
 ```
 
 Create the Android project once:
 
 ```bash
 npm run app:android:add
-npm run app:classic:android:add
 ```
 
 After that, sync or open the native project:
@@ -23,8 +21,6 @@ After that, sync or open the native project:
 ```bash
 npm run app:android:sync
 npm run app:android:open
-npm run app:classic:android:sync
-npm run app:classic:android:open
 ```
 
 Refresh and check that the Android public assets match the latest
@@ -32,20 +28,18 @@ Refresh and check that the Android public assets match the latest
 
 ```bash
 npm run app:android:assets:check
-npm run app:classic:android:assets:check
 ```
 
 Build and install a debug APK on the connected Android device:
 
 ```bash
 npm run app:android:install
-npm run app:classic:android:install
 ```
 
 Update the connected phone from the configured GitHub remote:
 
 ```bash
-npm run app:classic:android:update:github
+npm run app:android:update:github
 ```
 
 The updater accepts `--remote <name>` and `--branch <name>`. It only fast-forwards

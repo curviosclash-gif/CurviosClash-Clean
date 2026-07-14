@@ -40,6 +40,26 @@ export default [
         }
     },
     {
+        files: [
+            'src/**/*.js',
+            'electron/**/*.{js,cjs,mjs}',
+            'server/**/*.{js,cjs,mjs}',
+            'editor/**/*.{js,cjs,mjs}',
+            'scripts/**/*.{js,cjs,mjs}',
+            'prototypes/vehicle-lab/**/*.{js,cjs,mjs}',
+            'dev/vite/**/*.{js,cjs,mjs}',
+        ],
+        rules: {
+            'no-unused-vars': [
+                'error',
+                {
+                    args: 'none',
+                    caughtErrors: 'none',
+                },
+            ],
+        },
+    },
+    {
         files: ['src/**/*.js'],
         rules: {
             'max-lines': createMaxLinesRule(500),

@@ -1088,12 +1088,9 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.equal(packageJson.scripts['app:android:sync'], 'node scripts/capacitor-mobile-classic.mjs sync');
   assert.equal(packageJson.scripts['app:android:assets:check'], 'node scripts/capacitor-mobile-classic.mjs check-assets');
   assert.equal(packageJson.scripts['app:android:install'], 'node scripts/capacitor-mobile-classic.mjs install');
-  assert.equal(packageJson.scripts['app:classic:android:build'], 'node scripts/build-mobile-classic-app.mjs');
-  assert.equal(packageJson.scripts['app:classic:android:check'], 'node --test tests/mobile-classic-app.contract.test.mjs');
-  assert.equal(packageJson.scripts['app:classic:android:sync'], 'node scripts/capacitor-mobile-classic.mjs sync');
-  assert.equal(packageJson.scripts['app:classic:android:assets:check'], 'node scripts/capacitor-mobile-classic.mjs check-assets');
-  assert.equal(packageJson.scripts['app:classic:android:install'], 'node scripts/capacitor-mobile-classic.mjs install');
-  assert.equal(packageJson.scripts['app:classic:android:update:github'], 'node scripts/update-mobile-classic-from-github.mjs');
+  assert.equal(packageJson.scripts['app:android:update:github'], 'node scripts/update-mobile-classic-from-github.mjs');
+  assert.equal(packageJson.scripts['app:classic:android:build'], undefined);
+  assert.equal(packageJson.scripts['app:classic:android:update:github'], undefined);
   assert.match(buildScript, /VITE_APP_TARGET = 'mobile-classic'/);
   assert.match(buildScript, /mobile-classic\.manifest\.json/);
   assert.match(buildScript, /curvios\.mobile-android-app\.v1/);
@@ -1155,8 +1152,8 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.match(touchInputSource, /aria-hidden/);
   assert.match(readme, /Classic and\s+Arcade-Parcours/);
   assert.match(readme, /app:android:assets:check/);
-  assert.match(readme, /app:classic:android:assets:check/);
-  assert.match(readme, /app:classic:android:update:github/);
+  assert.match(readme, /app:android:update:github/);
+  assert.doesNotMatch(readme, /app:classic:android:/);
   assert.equal(TOUCH_CONTROL_MODES.TILT, 'tilt');
   assert.match(matchInputResolver, /pitchAxis/);
   assert.match(matchInputResolver, /TOUCH_CONTROL_MODES\.TILT/);

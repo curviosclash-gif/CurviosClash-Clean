@@ -1,5 +1,6 @@
 import { spawn } from 'node:child_process';
 import { createWriteStream } from 'node:fs';
+import { mkdir } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 
@@ -77,13 +78,17 @@ if (!hasExplicitAppMode) {
 const appMode = String(process.env.VITE_APP_MODE || 'web').trim() || 'web';
 const outLogPath = path.resolve(
     process.cwd(),
-    readArg('--out-log', String(process.env.PW_SERVER_LOG_OUT || `tmp-vite-${runTag}.out.log`).trim())
+    readArg('--out-log', String(process.env.PW_SERVER_LOG_OUT || `tmp/playwright/${runTag}/server.out.log`).trim())
 );
 const errLogPath = path.resolve(
     process.cwd(),
-    readArg('--err-log', String(process.env.PW_SERVER_LOG_ERR || `tmp-vite-${runTag}.err.log`).trim())
+    readArg('--err-log', String(process.env.PW_SERVER_LOG_ERR || `tmp/playwright/${runTag}/server.err.log`).trim())
 );
 const viteCliPath = path.resolve('node_modules', 'vite', 'bin', 'vite.js');
+await Promise.all([
+    mkdir(path.dirname(outLogPath), { recursive: true }),
+    mkdir(path.dirname(errLogPath), { recursive: true }),
+]);
 const outLogStream = createWriteStream(outLogPath, { flags: 'w' });
 const errLogStream = createWriteStream(errLogPath, { flags: 'w' });
 

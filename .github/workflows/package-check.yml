@@ -62,7 +62,6 @@ jobs:
             $exe,
             (Join-Path $release 'win-unpacked\resources\dist-app\index.html'),
             (Join-Path $release 'win-unpacked\resources\server\lan-signaling.js'),
-            (Join-Path $release 'win-unpacked\resources\src\core\main.js'),
             (Join-Path $release 'win-unpacked\resources\app.asar'),
             (Join-Path $release 'win-unpacked\resources\app.asar.unpacked\node_modules\ffmpeg-static\ffmpeg.exe')
           )
@@ -110,4 +109,4 @@ jobs:
           $signature = Get-AuthenticodeSignature -LiteralPath $exe
           Write-Host "Packaged executable signature status: $($signature.Status)"
 
-          node scripts/check-packaged-electron.mjs $exe
+          npm run app:package:verify -- $exe

@@ -13,12 +13,17 @@ test('push and pull requests run the complete quality command set', () => {
     for (const command of [
         'npm ci',
         'npm --prefix electron ci',
+        'npm run quality',
+    ]) {
+        assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+    }
+    for (const duplicatedCommand of [
         'npm run lint',
-        'npm run typecheck',
+        'npm run typecheck:architecture',
         'npm run check:architecture',
         'npm run test:contract',
     ]) {
-        assert.match(workflow, new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
+        assert.doesNotMatch(workflow, new RegExp(duplicatedCommand.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
 });
 
@@ -47,7 +52,8 @@ test('package changes build and exercise both packaged Electron entries', () => 
     assert.match(workflow, /npm run app:package/);
     assert.match(workflow, /\\entry\.cjs/);
     assert.match(workflow, /\\settings-studio\\main\.cjs/);
-    assert.match(workflow, /scripts\/check-packaged-electron\.mjs/);
+    assert.match(workflow, /npm run app:package:verify/);
+    assert.doesNotMatch(workflow, /resources\\src\\core\\main\.js/);
     assert.match(workflow, /ExtractAssociatedIcon/);
 });
 

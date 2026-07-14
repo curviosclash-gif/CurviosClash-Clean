@@ -120,7 +120,7 @@ async function ensureCleanWorkingTree() {
 
 function printHelp() {
   process.stdout.write([
-    'Usage: npm run app:classic:android:update:github -- [options]',
+    'Usage: npm run app:android:update:github -- [options]',
     '',
     'Options:',
     '  --remote <name>       Git remote to fetch from (default: origin)',
