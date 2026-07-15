@@ -55,7 +55,193 @@ const RIFT_ITEMS = Object.freeze([
     { id: 'rift_item_rocket', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 78, y: 28, z: 24, weight: 0.9 },
 ]);
 
+const ASSAULT_OBSTACLES = Object.freeze([
+    // MG approach: alternating cover forces short, readable firing windows.
+    { pos: [-108, 18, -30], size: [12, 36, 34] },
+    { pos: [-88, 18, 30], size: [12, 36, 34], kind: 'foam' },
+    { pos: [-66, 20, -28], size: [12, 40, 36] },
+    // Armoured tunnel between the MG and rocket sections.
+    { pos: [-38, 24, 0], size: [30, 44, 24], tunnel: { radius: 5.4, axis: 'x' } },
+    // Rocket depot and blast cover.
+    { pos: [-2, 18, -34], size: [18, 36, 24], kind: 'foam' },
+    { pos: [-2, 18, 34], size: [18, 36, 24], kind: 'foam' },
+    { pos: [24, 22, 0], size: [10, 44, 34] },
+    // Crossfire arena with destructible and solid cover.
+    { pos: [50, 18, -34], size: [12, 36, 22] },
+    { pos: [50, 18, 34], size: [12, 36, 22], kind: 'foam' },
+    { pos: [76, 22, -18], size: [10, 44, 20], kind: 'foam' },
+    { pos: [76, 22, 18], size: [10, 44, 20] },
+    // Final choke point: the centre remains open for a rocket shot.
+    { pos: [108, 24, -34], size: [14, 48, 30] },
+    { pos: [108, 24, 34], size: [14, 48, 30] },
+    { shape: 'tube', kind: 'hard', start: [92, 38, -48], end: [132, 30, -48], radius: 4.2 },
+    { shape: 'tube', kind: 'hard', start: [92, 38, 48], end: [132, 30, 48], radius: 4.2 },
+]);
+
+const ASSAULT_GATES = Object.freeze([
+    {
+        id: 'assault_entry_boost',
+        type: 'boost',
+        pos: [-126, 18, 0],
+        forward: [1, 0, 0],
+        params: { duration: 0.9, forwardImpulse: 28, bonusSpeed: 34, cooldown: 1.0 },
+    },
+    {
+        id: 'assault_tunnel_boost',
+        type: 'boost',
+        pos: [-38, 24, 0],
+        forward: [1, 0, 0],
+        params: { duration: 1.0, forwardImpulse: 30, bonusSpeed: 38, cooldown: 1.0 },
+    },
+    {
+        id: 'assault_escape_boost',
+        type: 'boost',
+        pos: [132, 26, 0],
+        forward: [1, 0, 0],
+        params: { duration: 1.1, forwardImpulse: 38, bonusSpeed: 44, cooldown: 0.9 },
+    },
+]);
+
+const ASSAULT_BOT_SPAWNS = Object.freeze([
+    // Bots are assigned in this order as the configured bot count increases.
+    { x: -72, y: 20, z: 24 },
+    { x: -12, y: 18, z: -30 },
+    { x: 44, y: 18, z: 30 },
+    { x: 68, y: 22, z: -26 },
+    { x: 102, y: 24, z: 24 },
+    { x: 124, y: 26, z: -22 },
+]);
+
+const ASSAULT_ITEMS = Object.freeze([
+    { id: 'assault_shield', type: 'item_shield', pickupType: 'SHIELD', x: -116, y: 18, z: 0, weight: 1.0 },
+    { id: 'assault_rocket_medium', type: 'item_rocket', pickupType: 'ROCKET_MEDIUM', x: -18, y: 18, z: 0, weight: 1.0 },
+    { id: 'assault_speed', type: 'item_battery', pickupType: 'SPEED_UP', x: 30, y: 20, z: 0, weight: 0.8 },
+    { id: 'assault_rocket_heavy', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 60, y: 20, z: 0, weight: 1.0 },
+    { id: 'assault_rocket_mega', type: 'item_rocket', pickupType: 'ROCKET_MEGA', x: 96, y: 24, z: 0, weight: 0.7 },
+]);
+
 export const PARCOURS_MAPS = Object.freeze({
+    tutorial_classic: {
+        name: 'Classic Tutorial-Parcours',
+        size: [230, 70, 150],
+        singlePlayerScenario: {
+            enabled: true,
+            id: 'classic_tutorial',
+            modePath: 'normal',
+            gameMode: 'CLASSIC',
+            minBots: 0,
+            botCount: 0,
+            botRoles: [],
+        },
+        obstacles: [
+            { pos: [-42, 14, -26], size: [10, 28, 28], kind: 'foam' },
+            { pos: [-10, 18, 24], size: [12, 36, 34], kind: 'foam' },
+            { pos: [24, 22, -22], size: [10, 42, 30] },
+            { pos: [58, 18, 22], size: [10, 34, 28], kind: 'foam' },
+        ],
+        portals: [],
+        gates: [
+            {
+                id: 'tutorial_boost',
+                type: 'boost',
+                pos: [4, 18, 0],
+                forward: [1, 0, 0],
+                params: { duration: 1.0, forwardImpulse: 24, bonusSpeed: 34, cooldown: 0.8 },
+            },
+        ],
+        playerSpawn: { x: -96, y: 14, z: 0 },
+        botSpawns: [],
+        items: [
+            { id: 'tutorial_speed', type: 'item_battery', pickupType: 'SPEED_UP', x: 54, y: 18, z: 0, weight: 1 },
+        ],
+        tutorial: { enabled: true, contractVersion: 'classic-tutorial.v1' },
+        parcours: {
+            enabled: true,
+            routeId: 'classic_tutorial_v1',
+            rules: {
+                ordered: true,
+                resetOnDeath: true,
+                resetToLastValid: true,
+                maxSegmentTimeMs: 0,
+                cooldownMs: 400,
+                wrongOrderCooldownMs: 650,
+                wrongOrderPenaltyMs: 0,
+                errorIndicatorMs: 1400,
+                allowLaneAliases: false,
+                winnerByParcoursComplete: true,
+                showGhost: false,
+            },
+            checkpoints: [
+                { id: 'TUTORIAL_START', type: 'tutorial_start', pos: [-84, 14, 0], radius: 7, forward: [1, 0, 0] },
+                { id: 'TUTORIAL_STEER', type: 'tutorial_steer', pos: [-56, 14, -12], radius: 7, forward: [1, 0, -0.2] },
+                { id: 'TUTORIAL_SPEED', type: 'tutorial_speed', pos: [-28, 16, 12], radius: 7, forward: [1, 0, 0.3] },
+                { id: 'TUTORIAL_BOOST', type: 'tutorial_boost', pos: [4, 18, 0], radius: 7, forward: [1, 0, 0] },
+                { id: 'TUTORIAL_AVOID', type: 'tutorial_avoid', pos: [34, 20, -10], radius: 7, forward: [1, 0, -0.2] },
+                { id: 'TUTORIAL_ITEM', type: 'tutorial_item', pos: [62, 18, 6], radius: 7, forward: [1, 0, 0.2] },
+            ],
+            finish: { id: 'TUTORIAL_FINISH', type: 'finish', pos: [92, 16, 0], radius: 8, forward: [1, 0, 0] },
+        },
+    },
+    parcours_assault: {
+        name: 'Angriffsparcours: MG & Raketen',
+        size: [340, 90, 190],
+        scaleAuthoredAnchors: true,
+        singlePlayerScenario: {
+            enabled: true,
+            id: 'assault_mg_rockets',
+            modePath: 'fight',
+            gameMode: 'HUNT',
+            minBots: 4,
+            botRoles: ['guard', 'flanker', 'pursuer', 'interceptor'],
+        },
+        obstacles: ASSAULT_OBSTACLES,
+        portals: [],
+        gates: ASSAULT_GATES,
+        playerSpawn: { x: -154, y: 18, z: 0 },
+        botSpawns: ASSAULT_BOT_SPAWNS,
+        staticTurrets: [
+            { id: 'turret_mg_approach', weapon: 'mg', pos: [-116, 22, -48], range: 76, cooldown: 0.85, damage: 4, phase: 0.8 },
+            { id: 'turret_mg_crossfire', weapon: 'mg', pos: [38, 24, -52], range: 68, cooldown: 0.72, damage: 4, phase: 0.55 },
+            { id: 'turret_rocket_heavy', weapon: 'rocket', pos: [82, 30, 50], range: 92, cooldown: 3.6, rocketType: 'ROCKET_MEDIUM', phase: 1.2 },
+            { id: 'turret_mg_final', weapon: 'mg', pos: [120, 30, -50], range: 64, cooldown: 0.68, damage: 5, phase: 0.8 },
+        ],
+        items: ASSAULT_ITEMS,
+        missions: [
+            { type: 'KILL_COUNT', params: { target: 4 }, weight: 1.5 },
+            { type: 'MULTI_KILL', params: { target: 2, windowSec: 12 }, weight: 1.0 },
+            { type: 'TIME_TRIAL', params: { target: 70 }, weight: 0.8 },
+        ],
+        parcours: {
+            enabled: true,
+            routeId: 'assault_mg_rockets_v2',
+            rules: {
+                ordered: true,
+                bidirectionalCheckpoints: true,
+                resetOnDeath: false,
+                resetToLastValid: true,
+                maxSegmentTimeMs: 22000,
+                cooldownMs: 450,
+                wrongOrderCooldownMs: 650,
+                wrongOrderPenaltyMs: 2000,
+                errorIndicatorMs: 1400,
+                allowLaneAliases: true,
+                winnerByParcoursComplete: true,
+                showGhost: false,
+            },
+            checkpoints: [
+                { id: 'CP01_START', type: 'entry', pos: [-142, 18, 0], radius: 7.2 },
+                { id: 'CP02_MG', type: 'combat_mg', pos: [-116, 18, 0], radius: 6.4, forward: [1, 0, 0] },
+                { id: 'CP03_MG', type: 'combat_mg', pos: [-80, 20, -4], radius: 6.0, forward: [1, 0, -0.1] },
+                { id: 'CP04_TUNNEL', type: 'tunnel', pos: [-38, 24, 0], radius: 5.0, forward: [1, 0, 0.1] },
+                { id: 'CP05_ROCKET', type: 'rocket_depot', pos: [-14, 18, 0], radius: 6.2, forward: [1, 0, 0] },
+                { id: 'CP06_CROSSFIRE', type: 'combat_crossfire', pos: [24, 22, 28], radius: 5.6, forward: [0.8, 0, 0.6] },
+                { id: 'CP07_HEAVY', type: 'rocket_heavy', pos: [62, 22, 4], radius: 5.8, forward: [0.85, 0, -0.53] },
+                { id: 'CP08_FINAL', type: 'final_assault', pos: [94, 24, 0], radius: 6.2, forward: [1, 0, -0.12] },
+                { id: 'CP09_ESCAPE', type: 'finish_pre', pos: [132, 26, 0], radius: 6.8, forward: [1, 0, 0] },
+            ],
+            finish: { id: 'FINISH', type: 'finish', pos: [150, 24, 0], radius: 7.0, forward: [1, 0, 0] },
+        },
+    },
     parcours_rift: {
         name: 'Parcours Rift',
         size: [260, 84, 180],

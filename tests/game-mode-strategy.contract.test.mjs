@@ -114,6 +114,22 @@ test('Rocket pickup normalization, weighted selection and allowlists stay determ
     assert.equal(weighted, 'ROCKET_MEGA');
 });
 
+test('Rocket tier selection samples the supplied RNG exactly once', () => {
+    let calls = 0;
+    const values = [0.1, 0.9];
+    const picked = pickWeightedRocketTierType({
+        allowedTypes: ['ROCKET_WEAK', 'ROCKET_MEGA'],
+        tiersConfig: {
+            WEAK: { spawnChance: 0.5 },
+            MEGA: { spawnChance: 0.5 },
+        },
+        random: () => values[calls++],
+    });
+
+    assert.equal(picked, 'ROCKET_WEAK');
+    assert.equal(calls, 1);
+});
+
 test('HuntModeStrategy keeps spawn fallback and shield-hit regen delay robust', () => {
     const strategy = new HuntModeStrategy();
     const nonRocketFallback = strategy.resolveSpawnType(

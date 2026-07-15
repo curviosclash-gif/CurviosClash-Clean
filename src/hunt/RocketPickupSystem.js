@@ -103,7 +103,8 @@ export function pickWeightedRocketTierType(options = {}) {
     });
     if (weighted.length === 0) return null;
 
-    const randomValue = Number.isFinite(Number(random())) ? Number(random()) : 0;
+    const sampledRandomValue = Number(random());
+    const randomValue = Number.isFinite(sampledRandomValue) ? sampledRandomValue : 0;
     const roll = Math.max(0, Math.min(0.999999, randomValue));
     let acc = 0;
     for (const entry of weighted) {

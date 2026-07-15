@@ -62,6 +62,7 @@ export class PowerupModelFactory {
             if (visualKind === 'thick') return this._createThickTrailModel(color);
             if (visualKind === 'thin') return this._createThinTrailModel(color);
             if (visualKind === 'shield') return this._createShieldModel(color);
+            if (visualKind === 'health') return this._createHealthModel(color);
             if (visualKind === 'slow-time') return this._createSlowTimeModel(color);
             if (visualKind === 'ghost') return this._createGhostModel(color);
             if (visualKind === 'invert') return this._createInvertModel(color);
@@ -90,6 +91,19 @@ export class PowerupModelFactory {
         wire.rotation.x = Math.PI * 0.5;
         group.add(base);
         group.add(wire);
+        return group;
+    }
+
+    _createHealthModel(color) {
+        const group = new THREE.Group();
+        const horizontal = new THREE.Mesh(this._geometries.thickRod, createStandardMaterial(color, {
+            emissiveIntensity: 0.55,
+            roughness: 0.24,
+            metalness: 0.45,
+        }));
+        const vertical = horizontal.clone();
+        horizontal.rotation.z = Math.PI * 0.5;
+        group.add(horizontal, vertical);
         return group;
     }
 

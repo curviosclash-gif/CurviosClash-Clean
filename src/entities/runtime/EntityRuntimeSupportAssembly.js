@@ -24,6 +24,13 @@ function formatFeedDamageSuffix(damageResult = {}) {
     return 'TREFFER';
 }
 
+function formatCombatantLabel(player) {
+    const explicitLabel = typeof player?.combatLabel === 'string' ? player.combatLabel.trim() : '';
+    if (explicitLabel) return explicitLabel;
+    if (!player) return 'Umgebung';
+    return player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+}
+
 export function createEntityRuntimeSupport(owner) {
     let eventBus = null;
     const projectileSystem = new ProjectileSystem({
@@ -89,13 +96,13 @@ export function createEntityRuntimeSupport(owner) {
                 owner._killPlayer(target, 'PROJECTILE', { killer: projectileOwner || null });
             }
             if (damageResult?.isDead && projectileOwner) {
-                const attackerLabel = projectileOwner.isBot ? `Bot ${projectileOwner.index + 1}` : `P${projectileOwner.index + 1}`;
-                const targetLabel = target.isBot ? `Bot ${target.index + 1}` : `P${target.index + 1}`;
+                const attackerLabel = formatCombatantLabel(projectileOwner);
+                const targetLabel = formatCombatantLabel(target);
                 eventBus?.emitHuntFeed(`${attackerLabel} -> ${targetLabel}: ELIMINATED`);
             }
             if (!damageResult?.isDead && projectileOwner) {
-                const attackerLabel = projectileOwner.isBot ? `Bot ${projectileOwner.index + 1}` : `P${projectileOwner.index + 1}`;
-                const targetLabel = target.isBot ? `Bot ${target.index + 1}` : `P${target.index + 1}`;
+                const attackerLabel = formatCombatantLabel(projectileOwner);
+                const targetLabel = formatCombatantLabel(target);
                 eventBus?.emitHuntFeed(`${attackerLabel} -> ${targetLabel}: ${formatFeedDamageSuffix(damageResult)}`);
             }
         },

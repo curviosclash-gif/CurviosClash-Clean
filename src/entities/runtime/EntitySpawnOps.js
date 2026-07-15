@@ -17,6 +17,7 @@ export class EntitySpawnOps {
         for (const player of owner.players) {
             this.spawnPlayer(player, spawnContext);
         }
+        owner._staticTurretSystem?.startRound?.();
     }
 
     createSpawnContext() {
@@ -37,6 +38,9 @@ export class EntitySpawnOps {
         });
         const dir = owner._findSafeSpawnDirection(pos, player.hitboxRadius);
         player.spawn(pos, dir);
+        if (player.isBot && player.scenarioRole) {
+            player.scenarioAnchor = { x: pos.x, y: pos.y, z: pos.z };
+        }
         // 82.8.1: Apply strategy stat bonuses (HP bonus, speed upgrade) after base spawn
         const strategy = owner.gameModeStrategy;
         if (strategy) {

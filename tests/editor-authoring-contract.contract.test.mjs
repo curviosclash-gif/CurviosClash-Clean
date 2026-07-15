@@ -3,12 +3,16 @@ import test from 'node:test';
 
 import {
     EDITOR_AUTHORING_CONTRACT_VERSION,
+    EDITOR_ITEM_PICKUP_TYPE_BY_SUBTYPE,
     EDITOR_OBJECT_TYPES,
     EDITOR_CONTENT_DESCRIPTOR_FIELDS,
     EDITOR_UI_METADATA_FIELDS,
     isKnownEditorObjectType,
     getEditorAuthoringDescriptor,
+    getDefaultEditorItemPickupType,
 } from '../src/shared/contracts/EditorAuthoringContract.js';
+import * as THREE from 'three';
+import { createEditorMesh } from '../editor/js/EditorMeshFactory.js';
 
 test('EDITOR_AUTHORING_CONTRACT_VERSION is a non-empty string', () => {
     assert.equal(typeof EDITOR_AUTHORING_CONTRACT_VERSION, 'string');
@@ -66,4 +70,30 @@ test('getEditorAuthoringDescriptor returns frozen descriptor with all fields', (
     assert.ok(Array.isArray(descriptor.uiMetadataFields));
     assert.equal(descriptor.objectTypes.length, Object.values(EDITOR_OBJECT_TYPES).length);
     assert.ok(Object.isFrozen(descriptor));
+});
+
+test('editor item models have deterministic pickup defaults except the random item box', () => {
+    assert.equal(getDefaultEditorItemPickupType('item_health'), 'HEALTH');
+    assert.equal(getDefaultEditorItemPickupType('item_battery'), 'SPEED_UP');
+    assert.equal(getDefaultEditorItemPickupType('item_rocket'), 'ROCKET_WEAK');
+    assert.equal(getDefaultEditorItemPickupType('item_box'), null);
+    assert.ok(Object.keys(EDITOR_ITEM_PICKUP_TYPE_BY_SUBTYPE).length >= 16);
+});
+
+test('placing an editor item persists its default pickupType without overriding authored values', () => {
+    const manager = {
+        assetLoader: { getClone: () => new THREE.Group() },
+        sphereGeo: new THREE.SphereGeometry(1),
+        mats: { item_fallback: new THREE.MeshBasicMaterial() },
+        attachSelectionOutlines() {},
+        registerObject(mesh) { return mesh; },
+    };
+
+    const medipack = createEditorMesh(manager, 'item', 'item_health', 1, 2, 3, 0);
+    const override = createEditorMesh(manager, 'item', 'item_health', 1, 2, 3, 0, { pickupType: 'SHIELD' });
+    const randomBox = createEditorMesh(manager, 'item', 'item_box', 1, 2, 3, 0);
+
+    assert.equal(medipack.userData.pickupType, 'HEALTH');
+    assert.equal(override.userData.pickupType, 'SHIELD');
+    assert.equal(randomBox.userData.pickupType, undefined);
 });

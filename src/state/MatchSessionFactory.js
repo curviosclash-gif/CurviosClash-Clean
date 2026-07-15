@@ -31,6 +31,17 @@ function isPromiseLike(value) {
     return !!value && typeof value.then === 'function';
 }
 
+function waitForPlayerViewsReady(entityManager) {
+    let pending = null;
+    for (const player of entityManager?.players || []) {
+        const view = player?.view;
+        if (!view?.whenReady || view.isReady?.() !== false) continue;
+        if (!pending) pending = [];
+        pending.push(view.whenReady());
+    }
+    return pending ? Promise.all(pending) : null;
+}
+
 function bindArenaRuntimeMap(arena, mapResolution, effectiveMapKey) {
     if (!arena) return;
     const useRuntimeMap = !!mapResolution?.isCustom
@@ -218,13 +229,23 @@ export function createMatchSession({
                 })
             );
 
+            const playerViewsReady = waitForPlayerViewsReady(createdSession.entityManager);
+            if (isPromiseLike(playerViewsReady)) {
+                return Promise.resolve(playerViewsReady).then(() => createdSession);
+            }
             return createdSession;
         };
 
         try {
             if (reusablePrewarmedArenaSession) {
                 arena.syncAuthoredAircraftDecorations?.();
-                return buildSessionPayload();
+                const builtSession = buildSessionPayload();
+                return isPromiseLike(builtSession)
+                    ? Promise.resolve(builtSession).catch((error) => {
+                        disposeFailedSession(createdSession);
+                        throw error;
+                    })
+                    : builtSession;
             }
 
             const arenaBuildResult = arena.build(effectiveMapKey);
@@ -236,7 +257,13 @@ export function createMatchSession({
                         throw error;
                     });
             }
-            return buildSessionPayload(arenaBuildResult);
+            const builtSession = buildSessionPayload(arenaBuildResult);
+            return isPromiseLike(builtSession)
+                ? Promise.resolve(builtSession).catch((error) => {
+                    disposeFailedSession(createdSession);
+                    throw error;
+                })
+                : builtSession;
         } catch (error) {
             disposeFailedSession(createdSession);
             throw error;

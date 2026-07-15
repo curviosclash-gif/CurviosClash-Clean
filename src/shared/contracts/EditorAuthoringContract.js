@@ -14,6 +14,32 @@ export const EDITOR_OBJECT_TYPES = Object.freeze({
     CHECKPOINT: 'checkpoint',
 });
 
+// Default gameplay behavior for authored item models. `item_box` intentionally
+// stays unmapped so it continues to represent a random pickup anchor.
+export const EDITOR_ITEM_PICKUP_TYPE_BY_SUBTYPE = Object.freeze({
+    item_arrow: 'SPEED_UP',
+    item_battery: 'SPEED_UP',
+    item_capsule: 'HEALTH',
+    item_coin: 'GHOST',
+    item_crate: 'SLOW_DOWN',
+    item_crystal: 'SLOW_TIME',
+    item_gem: 'SHIELD',
+    item_health: 'HEALTH',
+    item_orb: 'SLOW_TIME',
+    item_pyramid: 'THICK',
+    item_ring: 'GHOST',
+    item_rocket: 'ROCKET_WEAK',
+    item_shield: 'SHIELD',
+    item_sphere: 'THIN',
+    item_star: 'SPEED_UP',
+    item_torus: 'INVERT',
+});
+
+export function getDefaultEditorItemPickupType(subType) {
+    const normalized = String(subType || '').trim().toLowerCase();
+    return EDITOR_ITEM_PICKUP_TYPE_BY_SUBTYPE[normalized] || null;
+}
+
 // Content-descriptor fields in EditorBuildCatalog entries that EditorMapSerializer
 // and runtime map loading consume. These must stay stable across editor/serializer/runtime.
 export const EDITOR_CONTENT_DESCRIPTOR_FIELDS = Object.freeze([

@@ -7,7 +7,7 @@ import { MatchFlowArcadeOverlayController } from './MatchFlowArcadeOverlayContro
 import { MatchFlowLifecycleController } from './MatchFlowLifecycleController.js';
 import { MatchFlowTelemetryController } from './MatchFlowTelemetryController.js';
 import { resolveArenaMapSelection } from '../entities/CustomMapLoader.js';
-import { resolveGLBFootprint } from '../entities/GLBMapLoader.js';
+import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../entities/GLBMapLoader.js';
 import { deriveMatchLoadingUiState } from '../shared/contracts/MatchUiStateContract.js';
 import { createPreferredMatchInputSource } from './MatchInputSourceResolver.js';
 import {
@@ -216,12 +216,12 @@ export class MatchFlowUiController {
         const requestedMapKey = this.game?.runtimeConfig?.session?.mapKey || this.game?.mapKey || 'standard';
         const mapSelection = resolveArenaMapSelection(requestedMapKey);
         const mapDefinition = mapSelection?.mapDefinition || null;
-        if (!mapDefinition?.glbModel) return null;
-        const footprint = resolveGLBFootprint(mapDefinition.glbModel, {
-            colliderMode: mapDefinition?.glbColliderMode || 'scene',
-        });
+        if (!hasGLBMapSource(mapDefinition)) return null;
+        const footprint = resolveGLBMapSourceFootprint(mapDefinition);
         const colliderLabel = footprint.colliderMode === 'fallbackOnly' ? 'Box-Collider' : 'Szenen-Collider';
-        const sourceLabel = footprint.sourceKind === 'embedded' ? 'eingebettet' : footprint.sourceKind;
+        const sourceLabel = footprint.sourceKind === 'embedded'
+            ? 'eingebettet'
+            : (footprint.sourceKind === 'collection' ? `${footprint.modelCount} Modelle` : footprint.sourceKind);
         return deriveMatchLoadingUiState({
             messageText: `Lade ${String(mapDefinition?.name || requestedMapKey)}...`,
             messageSub: `GLB-Umgebung wird vorbereitet (${sourceLabel}, ${colliderLabel})`,

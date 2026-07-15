@@ -2,7 +2,13 @@ import * as THREE from 'three';
 import { ArenaBuilder } from './arena/ArenaBuilder.js';
 import { ArenaCollision } from './arena/ArenaCollision.js';
 import { PortalGateSystem } from './arena/PortalGateSystem.js';
-import { loadGLBMap, resolveGLBFootprint } from './GLBMapLoader.js';
+import {
+    loadGLBMap,
+    loadGLBMapCollection,
+    normalizeGLBModelCollection,
+    resolveGLBCollectionFootprint,
+    resolveGLBFootprint,
+} from './GLBMapLoader.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
 
@@ -61,6 +67,9 @@ export class Arena {
         this._glbFootprint = null;
         this._lastBuildSignature = null;
         this._aircraftDecorations = [];
+        this._authoredPlayerSpawn = null;
+        this._authoredBotSpawns = [];
+        this._authoredItemAnchors = [];
 
         this._builder = new ArenaBuilder(this);
         this._collision = new ArenaCollision(this);
@@ -123,16 +132,40 @@ export class Arena {
         }
     }
 
+    _cacheAuthoredMapAnchors(map, mapScale = 1) {
+        const source = map && typeof map === 'object' ? map : {};
+        const scale = source.scaleAuthoredAnchors === true
+            ? Math.max(0.001, Number(mapScale) || 1)
+            : 1;
+        const scaleAnchor = (entry) => {
+            if (!entry || typeof entry !== 'object') return null;
+            return {
+                ...entry,
+                x: (Number(entry.x) || 0) * scale,
+                y: (Number(entry.y) || 0) * scale,
+                z: (Number(entry.z) || 0) * scale,
+            };
+        };
+
+        this._authoredPlayerSpawn = scaleAnchor(source.playerSpawn);
+        this._authoredBotSpawns = Array.isArray(source.botSpawns)
+            ? source.botSpawns.map(scaleAnchor).filter(Boolean)
+            : [];
+        this._authoredItemAnchors = Array.isArray(source.items)
+            ? source.items.map(scaleAnchor).filter(Boolean)
+            : [];
+    }
+
     getAuthoredPlayerSpawn() {
-        return this.currentMapDefinition?.playerSpawn || null;
+        return this._authoredPlayerSpawn;
     }
 
     getAuthoredBotSpawns() {
-        return Array.isArray(this.currentMapDefinition?.botSpawns) ? this.currentMapDefinition.botSpawns : [];
+        return this._authoredBotSpawns;
     }
 
     getAuthoredItemAnchors() {
-        return Array.isArray(this.currentMapDefinition?.items) ? this.currentMapDefinition.items : [];
+        return this._authoredItemAnchors;
     }
 
     syncAuthoredAircraftDecorations() {
@@ -145,6 +178,7 @@ export class Arena {
             previousBuildSignature: this._lastBuildSignature,
         });
         this.currentMapDefinition = buildContext.map || null;
+        this._cacheAuthoredMapAnchors(buildContext.map, buildContext.scale);
 
         if (buildContext.rebuildPolicy === 'reuse') {
             if (includeAuthoredAircraft) {
@@ -157,9 +191,13 @@ export class Arena {
 
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
-        this._glbFootprint = buildContext.glbModel
-            ? resolveGLBFootprint(buildContext.glbModel, { colliderMode: buildContext.glbColliderMode })
-            : null;
+        const glbModels = normalizeGLBModelCollection(buildContext.glbModels);
+        const hasGlbCollection = glbModels.length > 0;
+        this._glbFootprint = hasGlbCollection
+            ? resolveGLBCollectionFootprint(glbModels, { colliderMode: buildContext.glbColliderMode })
+            : (buildContext.glbModel
+                ? resolveGLBFootprint(buildContext.glbModel, { colliderMode: buildContext.glbColliderMode })
+                : null);
         this._clearLoadedGlbScene();
 
         let usedGlbModel = false;
@@ -189,17 +227,28 @@ export class Arena {
             };
         };
 
-        if (!buildContext.glbModel) {
+        if (!buildContext.glbModel && !hasGlbCollection) {
             return finalizeBuild();
         }
 
-        return loadGLBMap(buildContext.glbModel, {
-            loadDelayMs: buildContext.glbLoadDelayMs,
-            sceneName: `glbMap-${this.currentMapKey}`,
-            collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
-        }).then((glbResult) => {
+        const glbLoad = hasGlbCollection
+            ? loadGLBMapCollection(glbModels, {
+                loadDelayMs: buildContext.glbLoadDelayMs,
+                concurrency: buildContext.glbLoadConcurrency,
+                placementScale: buildContext.scale,
+                sceneName: `glbMap-${this.currentMapKey}`,
+                collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
+            })
+            : loadGLBMap(buildContext.glbModel, {
+                loadDelayMs: buildContext.glbLoadDelayMs,
+                sceneName: `glbMap-${this.currentMapKey}`,
+                collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
+            });
+
+        return glbLoad.then((glbResult) => {
             this._glbScene = glbResult.scene;
             this._glbFootprint = glbResult.footprint || this._glbFootprint;
+            this._glbLoadWarnings = Array.isArray(glbResult.warnings) ? [...glbResult.warnings] : [];
             this.renderer.addToScene(this._glbScene);
             if (Array.isArray(glbResult.colliders) && glbResult.colliders.length > 0) {
                 this.obstacles.push(...glbResult.colliders);

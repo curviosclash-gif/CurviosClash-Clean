@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { getDefaultEditorItemPickupType } from '../../src/shared/contracts/EditorAuthoringContract.js';
 
 function isFiniteNumber(value) {
     return Number.isFinite(Number(value));
@@ -79,6 +80,10 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         if (subType === 'item_shield' || subType === 'item_coin' || subType === 'item_ring') mesh.scale.set(50, 10, 50);
         if (subType === 'item_capsule' || subType === 'item_rocket') mesh.scale.set(30, 80, 30);
         userData.subType = subType;
+        const defaultPickupType = getDefaultEditorItemPickupType(subType);
+        if (!userData.pickupType && defaultPickupType) {
+            userData.pickupType = defaultPickupType;
+        }
     }
     else if (type === 'aircraft') {
         mesh = manager.assetLoader.getClone(subType) || new THREE.Mesh(manager.coneGeo, manager.mats.aircraft_fallback);

@@ -5,6 +5,8 @@ import { SHOWCASE_MAPS } from './presets/showcase_maps.js';
 import { PARCOURS_MAPS } from './presets/parcours_maps.js';
 import { PARCOURS_PACK_V130_MAPS } from './presets/parcours_pack_v130.js';
 import { EXPERT_MAPS } from './presets/expert_maps.js';
+import { GLB_GALLERY_MAPS } from './presets/glb_gallery.js';
+import { GLB_ADVENTURE_MAPS } from './presets/glb_adventure_maps.js';
 import { NEON_ABYSS_MAP } from './presets/neon_abyss.js';
 import { CRYSTAL_RUINS_MAP } from './presets/crystal_ruins.js';
 import { VULKAN_ODYSSEY_MAP } from './presets/vulkan_odyssey.js';
@@ -22,6 +24,8 @@ export const MAP_PRESET_CATALOG = {
     ...(PARCOURS_MAPS || {}),
     ...(PARCOURS_PACK_V130_MAPS || {}),
     ...(EXPERT_MAPS || {}),
+    ...(GLB_GALLERY_MAPS || {}),
+    ...(GLB_ADVENTURE_MAPS || {}),
     ...(NEON_ABYSS_MAP || {}),
     ...(CRYSTAL_RUINS_MAP || {}),
     ...(VULKAN_ODYSSEY_MAP || {}),

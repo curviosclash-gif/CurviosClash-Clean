@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { PowerupModelFactory } from './PowerupModelFactory.js';
+import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import {
     isPickupTypeAllowedForMode,
     normalizePickupType,
@@ -86,6 +87,7 @@ export class PowerupManager {
         // Shared Geometries (einmal erstellen, wiederverwenden)
         const size = config.POWERUP.SIZE;
         this._modelFactory = new PowerupModelFactory(size);
+        this._authoredModelCache = new PowerupAuthoredModelCache(size);
         this._sharedGeo = new THREE.BoxGeometry(size, size, size);
         this._sharedWireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
         this._occupiedAnchorKeys = new Set();
@@ -196,14 +198,16 @@ export class PowerupManager {
             new THREE.Vector3(config.POWERUP.PICKUP_RADIUS * 2, config.POWERUP.PICKUP_RADIUS * 2, config.POWERUP.PICKUP_RADIUS * 2)
         );
 
-        this.items.push({
+        const spawnedItem = {
             mesh,
             type,
             box,
             baseY: pos.y,
             phase: Math.random() * Math.PI * 2,
             anchorKey: authoredAnchor?.key || null,
-        });
+        };
+        this.items.push(spawnedItem);
+        this._applyAuthoredItemModel(spawnedItem, authoredAnchor?.anchor, powerupConfig);
         if (authoredAnchor?.key) {
             this._occupiedAnchorKeys.add(authoredAnchor.key);
         }
@@ -268,6 +272,10 @@ export class PowerupManager {
 
     dispose() {
         this.clear();
+        if (this._authoredModelCache) {
+            this._authoredModelCache.dispose();
+            this._authoredModelCache = null;
+        }
         if (this._modelFactory) {
             this._modelFactory.dispose();
             this._modelFactory = null;
@@ -329,6 +337,32 @@ export class PowerupManager {
                     node.material.dispose();
                 }
             }
+        });
+    }
+
+    _applyAuthoredItemModel(item, anchor, config) {
+        if (!item || !anchor || !this._authoredModelCache) return;
+        const modelType = [anchor.model, anchor.type]
+            .map((candidate) => String(candidate || '').trim().toLowerCase())
+            .find((candidate) => resolveAuthoredItemModelUrl(candidate));
+        if (!modelType) return;
+
+        const cache = this._authoredModelCache;
+        cache.createModel(modelType, config?.color).then((authoredMesh) => {
+            if (!authoredMesh || this._authoredModelCache !== cache || !this.items.includes(item)) return;
+            const previousMesh = item.mesh;
+            authoredMesh.position.copy(previousMesh.position);
+            authoredMesh.rotation.copy(previousMesh.rotation);
+            this.renderer.removeFromScene(previousMesh);
+            previousMesh.traverse((node) => {
+                if (Array.isArray(node.material)) {
+                    node.material.forEach((material) => material?.dispose?.());
+                } else {
+                    node.material?.dispose?.();
+                }
+            });
+            item.mesh = authoredMesh;
+            this.renderer.addToScene(authoredMesh);
         });
     }
 }

@@ -7,6 +7,7 @@ import { getVehicleIds, isValidVehicleId } from '../vehicle-registry.js';
 import { createGameModeStrategy } from '../../modes/GameModeRegistry.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
+import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 
 function normalizeActiveMode(mode) {
     return String(mode || '').trim().toLowerCase();
@@ -152,6 +153,7 @@ export class EntitySetupOps {
                 entityManager: owner,
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
+            player.fightLoadout = setupContext.humanConfigs[i]?.fightLoadout || null;
             player.setControlOptions({
                 invertPitch: !!setupContext.humanConfigs[i]?.invertPitch,
                 cockpitCamera: !!setupContext.humanConfigs[i]?.cockpitCamera,
@@ -168,6 +170,8 @@ export class EntitySetupOps {
         const botColors = Array.isArray(owner.entityRuntimeConfig?.COLORS?.BOT_COLORS)
             ? owner.entityRuntimeConfig.COLORS.BOT_COLORS
             : [0xff8a65];
+        const scenario = resolveMapSinglePlayerScenario(owner.arena?.currentMapDefinition);
+        const scenarioRoles = Array.isArray(scenario?.botRoles) ? scenario.botRoles : [];
         for (let i = 0; i < numBots; i++) {
             const color = botColors[i % botColors.length];
             const botVehicleId = setupContext.botVehicleIds.length > 0
@@ -179,6 +183,10 @@ export class EntitySetupOps {
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
             player.setControlOptions({ modelScale: setupContext.modelScale, invertPitch: false });
+            player.scenarioRole = scenarioRoles.length > 0
+                ? scenarioRoles[i % scenarioRoles.length]
+                : '';
+            player.scenarioAnchor = null;
             const ai = owner.botPolicyRegistry.create(owner.botPolicyType, {
                 difficulty: owner.botDifficulty,
                 recorder: owner.recorder,

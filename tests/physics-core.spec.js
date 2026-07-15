@@ -211,9 +211,13 @@ test.describe('Physics Core (Tests 41-60)', () => {
             powerupManager.clear();
             powerupManager._spawnRandom();
             const spawnedItem = powerupManager.items[0] || null;
+            for (let attempt = 0; spawnedItem && attempt < 50 && !spawnedItem.mesh?.userData?.authoredItemModel; attempt += 1) {
+                await new Promise((resolve) => setTimeout(resolve, 20));
+            }
             const spawnedAnchorDistance = spawnedItem
                 ? authoredItemAnchors.reduce((best, anchor) => Math.min(best, distanceTo(spawnedItem.mesh.position, anchor)), Number.POSITIVE_INFINITY)
                 : null;
+            const spawnedAuthoredModel = spawnedItem?.mesh?.userData?.authoredItemModel || null;
             powerupManager.clear();
 
             return {
@@ -236,6 +240,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
                         .map((bot) => authoredBotSpawns.reduce((best, spawn) => Math.min(best, distanceTo(bot.position, spawn)), Number.POSITIVE_INFINITY))
                     : [],
                 spawnedItemType: spawnedItem?.type || null,
+                spawnedAuthoredModel,
                 spawnedAnchorDistance,
             };
         });
@@ -257,6 +262,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
         expect(probe.botSpawnDistances).toHaveLength(3);
         expect(probe.botSpawnDistances.every((distance) => distance < 8)).toBeTruthy();
         expect(probe.spawnedItemType).not.toBeNull();
+        expect(probe.spawnedAuthoredModel).toMatch(/^item_/);
         expect(probe.spawnedAnchorDistance).not.toBeNull();
         expect(probe.spawnedAnchorDistance).toBeLessThan(0.5);
     });

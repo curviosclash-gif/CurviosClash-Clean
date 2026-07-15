@@ -18,6 +18,7 @@ export const SECTOR_MAP_POOLS = Object.freeze({
         'storm_switchyard',
         'wind_cathedral',
         'chrono_spillway',
+        'aether_relay',
     ]),
 });
 
@@ -35,6 +36,12 @@ function pickValidMap(pool, randomFn, mapCatalog) {
     if (validPool.length === 0) return DEFAULT_MAP;
     const index = Math.floor(randomFn() * validPool.length);
     return validPool[Math.max(0, Math.min(validPool.length - 1, index))];
+}
+
+function resolveLockedMapKey(entry, mapCatalog) {
+    if (entry?.mapKeyLocked !== true) return '';
+    const mapKey = String(entry?.mapKey || '').trim();
+    return isValidMapKey(mapKey, mapCatalog) ? mapKey : '';
 }
 
 /**
@@ -55,10 +62,11 @@ export function resolveMapSequence(sectorPlan, seed, mapCatalog) {
         const templateId = String(entry?.templateId || 'sector_intro');
         const pool = SECTOR_MAP_POOLS[templateId] || SECTOR_MAP_POOLS.sector_intro;
 
-        let mapKey = pickValidMap(pool, randomFn, mapCatalog);
+        const lockedMapKey = resolveLockedMapKey(entry, mapCatalog);
+        let mapKey = lockedMapKey || pickValidMap(pool, randomFn, mapCatalog);
 
         // Avoid consecutive duplicate maps when pool has alternatives
-        if (i > 0 && mapKey === sequence[i - 1] && pool.length > 1) {
+        if (!lockedMapKey && i > 0 && mapKey === sequence[i - 1] && pool.length > 1) {
             const alternatives = pool.filter((k) => k !== mapKey && isValidMapKey(k, mapCatalog));
             if (alternatives.length > 0) {
                 mapKey = alternatives[Math.floor(randomFn() * alternatives.length)];

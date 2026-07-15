@@ -8,6 +8,45 @@ import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogCo
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 
+function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
+    if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
+    if (runtimeConfig?.arcade?.dailyChallenge === true) return plan;
+
+    const selectedMapKey = String(runtimeConfig?.session?.mapKey || '').trim();
+    const selectedMap = selectedMapKey ? mapCatalog?.[selectedMapKey] : null;
+    if (!selectedMap) return plan;
+
+    const firstSector = plan.sequence[0] && typeof plan.sequence[0] === 'object'
+        ? plan.sequence[0]
+        : {};
+    const isParcours = selectedMap?.parcours?.enabled === true;
+    const selectedFirstSector = isParcours
+        ? {
+            ...firstSector,
+            templateId: 'sector_parcours',
+            squadId: null,
+            objectiveId: 'parcours_run',
+            modifierId: null,
+            scoreBonus: 0,
+            pressure: 0,
+            mapKey: selectedMapKey,
+            mapKeyLocked: true,
+            isBoss: false,
+            bossMultiplier: 1,
+            parcoursEnabled: true,
+        }
+        : {
+            ...firstSector,
+            mapKey: selectedMapKey,
+            mapKeyLocked: true,
+        };
+
+    return {
+        ...plan,
+        sequence: [selectedFirstSector, ...plan.sequence.slice(1)],
+    };
+}
+
 export class GameRuntimeArcadeSupport {
     constructor({
         getGame = null,
@@ -152,11 +191,12 @@ export class GameRuntimeArcadeSupport {
     }
 
     _buildEncounterPlan(runtimeConfig) {
-        return buildArcadeSectorPlan({
+        const plan = buildArcadeSectorPlan({
             seed: runtimeConfig?.arcade?.seed,
             sectorCount: runtimeConfig?.arcade?.sectorCount,
             difficulty: runtimeConfig?.bot?.activeDifficulty || runtimeConfig?.bot?.difficulty || 'normal',
         });
+        return lockSelectedMapToFirstSector(plan, runtimeConfig, getRuntimeMapCatalog());
     }
 
     prepareMatchStartRuntime() {

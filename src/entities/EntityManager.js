@@ -17,20 +17,10 @@ import {
     emitArcadeEliminationEvents,
     emitArcadeGameplayEvent,
 } from './runtime/EntityArcadeGameplayEvents.js';
+import { updateEntityCameraContext } from './runtime/EntityCameraContext.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
-}
-
-function updateCameraContext(context, player, otherPlayerPosition) {
-    const playerState = context.playerState;
-    playerState.hp = Number(player?.hp) || 0;
-    playerState.maxHp = Number(player?.maxHp) || 1;
-    playerState.score = Number(player?.score) || 0;
-    playerState.speed = Number(player?.speed) || 0;
-    playerState.isBoosting = player?.isBoosting === true;
-    context.otherPlayerPosition = otherPlayerPosition;
-    return context;
 }
 
 function bindRuntimePorts(owner, runtime) {
@@ -59,6 +49,7 @@ function bindRuntimePorts(owner, runtime) {
     owner._overheatGunSystem = runtime?.systems?.overheatGunSystem || null;
     owner._respawnSystem = runtime?.systems?.respawnSystem || null;
     owner._huntCombatSystem = runtime?.systems?.huntCombatSystem || null;
+    owner._staticTurretSystem = runtime?.systems?.staticTurretSystem || null;
     owner._roundOutcomeSystem = runtime?.systems?.roundOutcomeSystem || null;
     owner._setupOps = runtime?.systems?.setupOps || null;
     owner._spawnOps = runtime?.systems?.spawnOps || null;
@@ -362,9 +353,11 @@ export class EntityManager {
         player?.markRenderDiscontinuity?.('bounce-foam');
     }
 
-    renderInterpolatedTransforms(renderAlpha = 1) {
+    renderInterpolatedTransforms(renderAlpha = 1, visualDelta = 0) {
+        const visualDt = Math.max(0, Math.min(0.05, Number(visualDelta) || 0));
         for (const player of this.players) {
             player?.view?.applyRenderTransform?.(renderAlpha);
+            player?.view?.updateVisuals?.(player?.alive ? visualDt : 0);
         }
     }
 
@@ -448,7 +441,7 @@ export class EntityManager {
                     projectedPlayer?.isBoosting === true,
                     this.arena,
                     firstPersonAnchor,
-                    updateCameraContext(this._cameraContext, projectedPlayer, otherPlayerPosition)
+                    updateEntityCameraContext(this._cameraContext, projectedPlayer, otherPlayerPosition)
                 );
             }
             return;
@@ -486,7 +479,7 @@ export class EntityManager {
                     player.isBoosting,
                     this.arena,
                     firstPersonAnchor,
-                    updateCameraContext(this._cameraContext, player, otherPlayerPosition)
+                    updateEntityCameraContext(this._cameraContext, player, otherPlayerPosition)
                 );
             }
         }
@@ -554,6 +547,11 @@ export class EntityManager {
         this._overheatGunSystem.reset();
         this._respawnSystem.reset();
         this._parcoursProgressSystem?.reset?.();
+        if (disposeProjectileSystem) {
+            this._staticTurretSystem?.dispose?.();
+        } else {
+            this._staticTurretSystem?.clear?.();
+        }
         this._huntScoring.reset();
         this._simulationClockMs = 0;
 

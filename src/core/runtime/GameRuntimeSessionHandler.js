@@ -210,6 +210,7 @@ export class GameRuntimeSessionHandler {
                 schedulePrewarm: false,
             });
             facade?.settingsHandler?.applySurfacePolicyStartDefaults?.();
+            facade?.settingsHandler?.applyMapScenarioStartDefaults?.();
             facade?.prepareArcadeMatchStartRuntime?.();
             const sessionContract = resolveRuntimeSessionContract(game?.settings?.localSettings);
             const telemetryPayload = buildTelemetryPayload();

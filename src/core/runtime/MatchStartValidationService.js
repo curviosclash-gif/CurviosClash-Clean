@@ -77,9 +77,9 @@ export function resolveMatchStartValidationIssue({
         if (!lobbyCode || sessionState?.joined !== true) {
             if (!hostGate.allowed) {
                 return {
-                    message: 'Start nicht moeglich: Diese Demo kann nur einer Desktop-Lobby beitreten.',
+                    message: 'Start nicht möglich: Diese Demo kann nur einer Desktop-Lobby beitreten.',
                     fieldKey: 'multiplayer',
-                    fieldMessage: 'Lobby-Code eines Desktop-Hosts eingeben und Join only verwenden.',
+                    fieldMessage: 'Lobby-Code eines Desktop-Hosts eingeben und beitreten.',
                 };
             }
             if (legacyTransportActive) {

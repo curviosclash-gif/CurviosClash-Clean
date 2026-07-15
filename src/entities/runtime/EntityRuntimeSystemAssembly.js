@@ -8,6 +8,7 @@ import { RespawnSystem } from '../../hunt/RespawnSystem.js';
 import { EntitySetupOps } from './EntitySetupOps.js';
 import { EntitySpawnOps } from './EntitySpawnOps.js';
 import { EntityTickPipeline } from './EntityTickPipeline.js';
+import { StaticTurretSystem } from '../systems/StaticTurretSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     return {
@@ -18,6 +19,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         overheatGunSystem: new OverheatGunSystem(owner, runtimeContext),
         respawnSystem: new RespawnSystem(runtimeContext),
         huntCombatSystem: new HuntCombatSystem(runtimeContext),
+        staticTurretSystem: new StaticTurretSystem(owner),
         roundOutcomeSystem: new RoundOutcomeSystem({
             getHumanPlayers: () => owner.humanPlayers,
             getBots: () => owner.bots,

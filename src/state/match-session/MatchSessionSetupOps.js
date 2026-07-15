@@ -18,16 +18,21 @@ export function disposeMatchSessionSystems(renderer, currentSession, options = {
 
 export function buildHumanConfigs(settings, runtimeConfig = null) {
     const runtimeVehicles = runtimeConfig?.player?.vehicles || null;
+    const fightLoadouts = runtimeConfig?.session?.modePath === 'fight'
+        ? runtimeConfig?.player?.fightLoadouts || null
+        : null;
     return [
         {
             invertPitch: !!settings?.invertPitch?.PLAYER_1,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1,
+            fightLoadout: fightLoadouts?.PLAYER_1 || null,
         },
         {
             invertPitch: !!settings?.invertPitch?.PLAYER_2,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.PLAYER_2 || settings?.vehicles?.PLAYER_2,
+            fightLoadout: fightLoadouts?.PLAYER_2 || null,
         },
     ];
 }

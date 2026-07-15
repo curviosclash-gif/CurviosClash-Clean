@@ -97,8 +97,24 @@ export const PICKUP_REGISTRY = Object.freeze({
         allowedModes: ALL_GAME_MODES,
         observationSlot: 4,
         visualKind: 'shield',
-        aliases: ['ITEM_HEALTH', 'ITEM_SHIELD'],
+        aliases: ['ITEM_SHIELD'],
         botRule: { self: 0.5, offense: 0.0, defensiveScale: 1.2, emergencyScale: 2.5, combatSelf: 0.8 },
+    }),
+    HEALTH: createPickupDefinition({
+        name: 'Medipack',
+        color: 0x44ff88,
+        icon: '+',
+        duration: 0,
+        healing: 35,
+        selfUsable: true,
+        shootable: true,
+        offensive: false,
+        projectileOnly: false,
+        allowedModes: ALL_GAME_MODES,
+        observationSlot: 12,
+        visualKind: 'health',
+        aliases: ['ITEM_HEALTH'],
+        botRule: { self: 0.8, offense: -0.2, defensiveScale: 1.1, emergencyScale: 2.2, combatSelf: 0.6 },
     }),
     SLOW_TIME: createPickupDefinition({
         name: 'Zeitlupe',
@@ -332,6 +348,9 @@ function createPickupTypeConfigEntry(definition) {
     }
     if (Number.isFinite(Number(definition.damage))) {
         entry.damage = Number(definition.damage);
+    }
+    if (Number.isFinite(Number(definition.healing))) {
+        entry.healing = Number(definition.healing);
     }
     if (definition.allowedModes.length === 1 && definition.allowedModes[0] === 'HUNT') {
         entry.huntOnly = true;

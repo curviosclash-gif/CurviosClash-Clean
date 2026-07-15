@@ -33,6 +33,15 @@ function setConfigShareStatus(ui, message, tone = 'info') {
     ui.configShareStatus.setAttribute('data-tone', tone);
 }
 
+export function syncMenuSelectionWriteback(settings, modePath = settings?.localSettings?.modePath) {
+    if (!settings) return;
+    writeHangarMapSelection(settings, settings.mapKey, settings.mapKey, { modePath });
+    for (const playerSlot of Object.values(HANGAR_SELECTION_PLAYER_SLOTS)) {
+        const vehicleId = settings?.vehicles?.[playerSlot];
+        writeHangarVehicleSelection(settings, playerSlot, vehicleId, vehicleId, { modePath });
+    }
+}
+
 export function handleConfigExportCodeAction(game) {
     if (!game) return;
     const code = exportMenuConfigAsCode(game.settings);
@@ -66,12 +75,7 @@ export function handleConfigImportAction({
         return;
     }
 
-    const modePath = game.settings?.localSettings?.modePath;
-    writeHangarMapSelection(game.settings, game.settings.mapKey, game.settings.mapKey, { modePath });
-    for (const playerSlot of Object.values(HANGAR_SELECTION_PLAYER_SLOTS)) {
-        const vehicleId = game.settings?.vehicles?.[playerSlot];
-        writeHangarVehicleSelection(game.settings, playerSlot, vehicleId, vehicleId, { modePath });
-    }
+    syncMenuSelectionWriteback(game.settings);
     onSettingsChanged?.({ changedKeys: sessionSwitchChangedKeys });
     const statusMessage = String(result.message || (result.usedLegacyFallback ? 'Import mit Legacy-Fallback' : 'Import erfolgreich'));
     const statusTone = String(result.tone || (result.usedLegacyFallback ? 'warning' : 'success'));

@@ -17,6 +17,8 @@ import {
 } from './MenuRuntimeMultiplayerService.js';
 import { orchestrateRuntimeSettingsChanged } from './RuntimeSettingsChangeOrchestrator.js';
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
+import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
+import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
 
 export class GameRuntimeSettingsHandler {
     constructor({ facade = null } = {}) {
@@ -136,6 +138,72 @@ export class GameRuntimeSettingsHandler {
         return {
             ...migration,
             changedKeys,
+        };
+    }
+
+    applyMapScenarioStartDefaults() {
+        const facade = this._facade;
+        const game = facade?.game;
+        const settings = game?.settings;
+        if (!settings) return null;
+
+        const session = resolveRuntimeSessionContract(settings.localSettings);
+        if (session.sessionType !== RUNTIME_SESSION_TYPES.SINGLE) {
+            return { changed: false, changedKeys: [] };
+        }
+
+        const mapDefinition = CONFIG?.MAPS?.[settings.mapKey];
+        const scenario = resolveMapSinglePlayerScenario(mapDefinition);
+        if (!scenario) {
+            return { changed: false, changedKeys: [] };
+        }
+
+        const changedKeys = [];
+        if (settings.localSettings.modePath !== scenario.modePath) {
+            settings.localSettings.modePath = scenario.modePath;
+            changedKeys.push(SETTINGS_CHANGE_KEYS.MODE_PATH);
+        }
+        if (settings.gameMode !== scenario.gameMode) {
+            settings.gameMode = scenario.gameMode;
+            changedKeys.push(SETTINGS_CHANGE_KEYS.GAME_MODE);
+        }
+        if (Number.isInteger(scenario.botCount) && Number(settings.numBots) !== scenario.botCount) {
+            settings.numBots = scenario.botCount;
+            changedKeys.push(SETTINGS_CHANGE_KEYS.BOTS_COUNT);
+        } else if (Number(settings.numBots) < scenario.minBots) {
+            settings.numBots = scenario.minBots;
+            changedKeys.push(SETTINGS_CHANGE_KEYS.BOTS_COUNT);
+        }
+        if (changedKeys.length === 0) {
+            return { changed: false, changedKeys: [] };
+        }
+
+        const compatibilityResult = game.settingsManager?.applyMenuCompatibilityRules?.(
+            settings,
+            {
+                accessContext: facade?._resolveMenuAccessContext?.(),
+                changedKeys,
+            }
+        );
+        const resolvedChangedKeys = filterKnownSettingsChangeKeys([
+            ...changedKeys,
+            ...(Array.isArray(compatibilityResult?.changedKeys) ? compatibilityResult.changedKeys : []),
+        ]);
+
+        writeHangarMapSelection(
+            settings,
+            settings.mapKey,
+            settings.mapKey,
+            { modePath: settings.localSettings.modePath }
+        );
+        facade?._applySettingsToRuntimeInternal?.({ schedulePrewarm: false });
+        game.uiManager?.syncByChangeKeys?.(resolvedChangedKeys);
+        game.uiManager?.updateContext?.();
+
+        return {
+            changed: true,
+            scenarioId: scenario.id,
+            changedKeys: resolvedChangedKeys,
         };
     }
 

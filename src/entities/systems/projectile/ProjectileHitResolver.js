@@ -73,6 +73,7 @@ export class ProjectileHitResolver {
 
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
+            if (projectile.owner?.staticTurret === true && target.isBot === true) continue;
 
             const distanceToTarget = target.position.distanceTo(projectile.position);
             if (distanceToTarget > explosionRadius) continue;
@@ -139,6 +140,7 @@ export class ProjectileHitResolver {
         let hit = false;
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner) continue;
+            if (projectile.owner?.staticTurret === true && target.isBot === true) continue;
 
             hit = this._isProjectileSweepTouchingTarget(projectile, target);
 

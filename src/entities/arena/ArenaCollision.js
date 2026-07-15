@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { sphereIntersectsStaticMeshCollider } from './StaticMeshCollider.js';
 
 // Static normals for arena wall collisions (single allocation).
 const NORMAL_PX = Object.freeze(new THREE.Vector3(1, 0, 0));
@@ -165,6 +166,19 @@ export class ArenaCollision {
         this._tmpSphere.radius = radius;
         for (const obs of this.arena.obstacles) {
             if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
+            if (obs.meshCollider && !sphereIntersectsStaticMeshCollider(
+                obs.meshCollider,
+                position,
+                radius,
+                this._tmpNormal,
+            )) continue;
+            if (obs.meshCollider) {
+                this._collisionResult.hit = true;
+                this._collisionResult.kind = obs.kind || 'hard';
+                this._collisionResult.isWall = !!obs.isWall;
+                this._collisionResult.normal.copy(this._tmpNormal);
+                return this._collisionResult;
+            }
             if (obs.tube && !getTubeCollisionInfo(position, obs.tube, radius, this._tmpNormal)) continue;
             if (obs.tube) {
                 this._collisionResult.hit = true;
@@ -198,6 +212,8 @@ export class ArenaCollision {
         this._tmpSphere.radius = radius;
         for (const obs of this.arena.obstacles) {
             if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
+            if (obs.meshCollider && sphereIntersectsStaticMeshCollider(obs.meshCollider, position, radius)) return true;
+            if (obs.meshCollider) continue;
             if (obs.tube && getTubeCollisionInfo(position, obs.tube, radius)) return true;
             if (obs.tube) continue;
             if (obs.tunnel && isInsideTunnel(position, obs.tunnel, radius)) continue;

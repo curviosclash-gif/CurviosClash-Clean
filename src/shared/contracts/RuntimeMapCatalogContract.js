@@ -96,7 +96,8 @@ export function listRuntimeMapPresetDescriptors(overrideMaps = null) {
                 hasItems: toCount(source.items) > 0,
                 hasAircraft: toCount(source.aircraft) > 0,
                 hasParcours: toBoolean(source.parcours?.enabled),
-                hasGlbModel: typeof source.glbModel === 'string' && source.glbModel.length > 0,
+                hasGlbModel: (typeof source.glbModel === 'string' && source.glbModel.length > 0)
+                    || (Array.isArray(source.glbModels) && source.glbModels.length > 0),
             };
         })
         .sort((left, right) => left.id.localeCompare(right.id, 'en', { sensitivity: 'base' }));

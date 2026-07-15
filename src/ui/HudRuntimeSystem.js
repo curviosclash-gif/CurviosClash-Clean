@@ -10,6 +10,11 @@ import {
 } from '../entities/PickupRegistry.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import {
+    createCompletedClassicTutorialState,
+    isClassicTutorialRoute,
+    resolveClassicTutorialHint,
+} from '../shared/contracts/ClassicTutorialContract.js';
 
 function formatParcoursDurationMs(value) {
     const ms = Math.max(0, Number(value) || 0);
@@ -32,6 +37,7 @@ export class HudRuntimeSystem {
         this._arcadeTransitionVisibleUntilMs = 0;
         this._lastArcadeSectorIndex = 0;
         this._parcoursOverlay = null;
+        this._tutorialCompletionPersisted = false;
     }
 
     _getMatchRuntimeProjection() {
@@ -360,6 +366,21 @@ export class HudRuntimeSystem {
                 isSuccess = true;
             } else if (hudState.hasError && hudState.errorMessage) {
                 statusText = hudState.errorMessage;
+            }
+            if (isClassicTutorialRoute(hudState.routeId)) {
+                statusText = resolveClassicTutorialHint(current, hudState.completed);
+                isSuccess = hudState.completed === true;
+                if (hudState.completed && !this._tutorialCompletionPersisted) {
+                    this._tutorialCompletionPersisted = true;
+                    const settings = game?.settings;
+                    if (settings) {
+                        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
+                        settings.localSettings.classicTutorial = createCompletedClassicTutorialState(
+                            settings.localSettings.classicTutorial
+                        );
+                        game.settingsManager?.saveSettings?.(settings);
+                    }
+                }
             }
             ui.parcoursStatus.textContent = statusText;
             ui.parcoursStatus.classList.toggle('success', isSuccess);

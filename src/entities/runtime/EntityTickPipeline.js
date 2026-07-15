@@ -11,6 +11,7 @@ export class EntityTickPipeline {
         const simulationNowMs = owner._simulationClockMs;
 
         owner._lockOnCache.clear();
+        owner._staticTurretSystem?.update?.(safeDt);
         owner._projectileSystem.update(dt);
         owner._overheatGunSystem.update(dt);
         owner._respawnSystem.update(dt);

@@ -34,6 +34,8 @@ import {
 import { GAMEPLAY_ACTION_RESULT_CODES } from '../src/shared/contracts/GameplayActionResultContract.js';
 import { RoundMetricsStore } from '../src/state/recorder/RoundMetricsStore.js';
 import { deriveMapResolutionFeedbackPlan } from '../src/state/match-session/MatchSessionFeedbackPlan.js';
+import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
 
 test('Pickup capability matrix keeps rocket and utility contracts mode-safe', () => {
     const rocketTypes = getRocketPickupTypes();
@@ -47,10 +49,36 @@ test('Pickup capability matrix keeps rocket and utility contracts mode-safe', ()
     }
 
     assert.equal(normalizePickupType('item_rocket'), 'ROCKET_WEAK');
+    assert.equal(normalizePickupType('item_health'), 'HEALTH');
     assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'CLASSIC'), true);
     assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'HUNT'), false);
     assert.equal(isPickupTypeSelfUsable('SHIELD', 'HUNT'), true);
     assert.equal(isPickupTypeShootable('SHIELD', 'HUNT'), true);
+});
+
+test('Medipack restores hunt health instead of granting a shield', () => {
+    const player = {
+        entityRuntimeConfig: {
+            ...CONFIG_BASE,
+            HUNT: {
+                ...CONFIG_BASE.HUNT,
+                ENABLED: true,
+                ACTIVE_MODE: 'HUNT',
+                DEFAULT_MODE: 'HUNT',
+            },
+        },
+        hp: 40,
+        maxHp: 100,
+        hasShield: false,
+        shieldHP: 0,
+        activeEffects: [],
+    };
+
+    applyPlayerPowerup(player, 'HEALTH');
+
+    assert.equal(player.hp, 75);
+    assert.equal(player.hasShield, false);
+    assert.equal(player.activeEffects.length, 0);
 });
 
 test('Map schema validation keeps portal and gate fallback behavior explicit', () => {

@@ -154,6 +154,21 @@ export class HuntModeStrategy extends GameModeContract {
         return player;
     }
 
+    applySpawnStatBonuses(player) {
+        if (!player?.fightLoadout || typeof player.fightLoadout !== 'object') return;
+        const bonuses = player.fightLoadout;
+        const speedPct = Math.max(-30, Math.min(30, Number(bonuses.speedBonusPct) || 0));
+        const turningPct = Math.max(-30, Math.min(30, Number(bonuses.turningBonusPct) || 0));
+        const hpBonus = Math.max(-60, Math.min(60, Number(bonuses.maxHpBonus) || 0));
+        if (!Number.isFinite(player._fightBaseSpeed)) player._fightBaseSpeed = player.baseSpeed;
+        if (!Number.isFinite(player._fightBaseTurnSpeed)) player._fightBaseTurnSpeed = player.turnSpeed;
+        player.baseSpeed = player._fightBaseSpeed * (1 + (speedPct / 100));
+        player.speed = player.baseSpeed;
+        player.turnSpeed = player._fightBaseTurnSpeed * (1 + (turningPct / 100));
+        player.maxHp = Math.max(1, player.maxHp + hpBonus);
+        player.hp = player.maxHp;
+    }
+
     applyDamage(player, amount, options, config) {
         if (!player) return { applied: 0, absorbedByShield: 0, remainingHp: 0, isDead: true };
         const activeConfig = resolveConfig(config || player, this.entityRuntimeConfig);

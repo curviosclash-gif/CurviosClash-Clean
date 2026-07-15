@@ -10,6 +10,10 @@ import {
     normalizePickupType,
 } from '../entities/PickupRegistry.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import {
+    applyScenarioRoleMovement,
+    resolveScenarioBotTuning,
+} from './HuntScenarioBotRoles.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -351,6 +355,8 @@ export class HuntBotPolicy {
         this._tmpRight = new THREE.Vector3();
         this._tmpUp = new THREE.Vector3();
         this._tmpGate = new THREE.Vector3();
+        this._tmpRoleTarget = new THREE.Vector3();
+        this._tmpRoleForward = new THREE.Vector3();
     }
 
     update(dt, player, runtimeContext = null) {
@@ -372,6 +378,7 @@ export class HuntBotPolicy {
         const projectileThreat = !!snapshot?.projectileThreat;
         const hasSharedTarget = !!huntTarget;
         const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];
+        const scenarioTuning = resolveScenarioBotTuning(player);
 
         const healthRatio = resolveHealthRatio(player);
         const shieldRatio = resolveShieldRatio(player);
@@ -379,7 +386,11 @@ export class HuntBotPolicy {
         const enemyShieldRatio = resolveShieldRatio(enemy);
         const vitalityRatio = clamp(healthRatio * 0.72 + shieldRatio * 0.28, 0, 1);
         const enemyVitalityRatio = clamp(enemyHealthRatio * 0.72 + enemyShieldRatio * 0.28, 0, 1);
-        const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1.0);
+        const aggression = clamp(
+            0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9 + scenarioTuning.aggressionBonus,
+            0.12,
+            1.0
+        );
         const survivalPressure = Math.max(
             pressure,
             projectileThreat ? 0.82 : 0,
@@ -414,7 +425,8 @@ export class HuntBotPolicy {
 
         const rocketIndex = findStrongestRocketIndex(player.inventory);
         if (rocketIndex >= 0 && (hasSharedTarget || enemy)) {
-            const shouldUseRocket =
+            const shouldUseRocket = scenarioTuning.prefersRocket
+                ||
                 enemyShieldRatio > 0.18
                 || enemyHealthRatio > 0.45
                 || distSq > 22 * 22
@@ -440,7 +452,10 @@ export class HuntBotPolicy {
             input.shootItemIndex = fallbackItemAction.shootItemIndex;
         }
 
-        const shouldRetreat = !!enemy && (vitalityRatio <= 0.34 || (vitalityRatio < 0.52 && survivalPressure > 0.76));
+        const shouldRetreat = !!enemy && (
+            vitalityRatio <= scenarioTuning.retreatVitality
+            || (vitalityRatio < 0.52 && survivalPressure > 0.76)
+        );
         if (shouldRetreat) {
             const gateAssistRange = Math.max(24, Number(huntConfig?.RETREAT_GATE_RANGE || 54));
             const readyGate = (survivalPressure > 0.8 || vitalityRatio < 0.3)
@@ -468,6 +483,19 @@ export class HuntBotPolicy {
                 input.shootItemIndex = -1;
             }
         }
+
+
+        applyScenarioRoleMovement({
+            policy: this,
+            input,
+            player,
+            enemy,
+            distSq,
+            tuning: scenarioTuning,
+            shouldRetreat,
+            clearSteering: clearSteeringInput,
+            steerToward: applySteeringTowardPosition,
+        });
 
         return input;
     }

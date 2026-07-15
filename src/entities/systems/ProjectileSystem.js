@@ -206,6 +206,75 @@ export class ProjectileSystem {
         });
     }
 
+    spawnExternalProjectile(options = {}) {
+        const owner = options.owner || null;
+        const type = String(options.type || '').trim().toUpperCase();
+        const position = options.position || null;
+        const direction = options.direction || null;
+        if (!owner || !position || !direction || !isPickupTypeShootable(type, 'HUNT')) return null;
+
+        const config = this.entityRuntimeConfig;
+        const power = config?.POWERUP?.TYPES?.[type];
+        const strategy = this.getStrategy();
+        const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
+        if (!power || !rocketParams) return null;
+
+        this._tmpDir.set(
+            Number(direction.x) || 0,
+            Number(direction.y) || 0,
+            Number(direction.z) || 0
+        );
+        if (this._tmpDir.lengthSq() <= 0.000001) return null;
+        this._tmpDir.normalize();
+        this._tmpVec.set(
+            Number(position.x) || 0,
+            Number(position.y) || 0,
+            Number(position.z) || 0
+        );
+
+        const rocketConfig = config?.HUNT?.ROCKET || {};
+        const speedMultiplier = Math.max(0.2, Math.min(3, Number(options.speedMultiplier) || 1));
+        const visualScale = Math.max(1, Number(rocketParams.visualScale) || 1);
+        const collisionRadiusMultiplier = Math.max(1, Number(rocketParams.collisionRadiusMultiplier) || 1);
+        const rocketGroup = this._acquireProjectileMesh(type, power.color);
+        rocketGroup.scale.setScalar(visualScale);
+        rocketGroup.position.copy(this._tmpVec);
+        this._tmpVec2.copy(this._tmpVec).add(this._tmpDir);
+        rocketGroup.lookAt(this._tmpVec2);
+
+        const projectile = this._acquireProjectileState();
+        projectile.mesh = rocketGroup;
+        projectile.flame = rocketGroup.userData.flame || null;
+        projectile.poolKey = type;
+        projectile.owner = owner;
+        projectile.type = type;
+        projectile.huntRocket = true;
+        projectile.visualScale = visualScale;
+        projectile.position.copy(this._tmpVec);
+        projectile.velocity.copy(this._tmpDir).multiplyScalar(
+            Math.max(1, Number(config?.PROJECTILE?.SPEED) || 45) * speedMultiplier
+        );
+        projectile.radius = Math.max(0.05, Number(config?.PROJECTILE?.RADIUS) || 0.5) * collisionRadiusMultiplier;
+        projectile.ttl = Math.max(0.1, Number(config?.PROJECTILE?.LIFE_TIME) || 5);
+        projectile.traveled = 0;
+        projectile.homingTurnRate = Math.max(0.1, Number(rocketParams.homingTurnRate) || 6.2);
+        projectile.homingLockOnAngle = Math.max(5, Number(rocketParams.homingLockOnAngle) || 32);
+        projectile.homingRange = Math.max(10, Number(rocketParams.homingRange) || 130);
+        projectile.homingReacquireInterval = Math.max(
+            0.04,
+            Number(rocketParams.homingReacquireInterval)
+            || Number(rocketConfig.HOMING_FALLBACK_REACQUIRE_INTERVAL)
+            || 0.2
+        );
+        projectile.homingReacquireTimer = 0;
+        projectile.target = options.target?.alive ? options.target : null;
+        projectile.foamBounces = 0;
+        projectile.foamBounceCooldown = 0;
+        this.projectiles.push(projectile);
+        this.onShoot(owner, type, projectile);
+        return projectile;
+    }
+
     _acquireProjectileState() {
         return this._statePool.acquire();
     }
