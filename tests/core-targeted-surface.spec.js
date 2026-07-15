@@ -1449,6 +1449,22 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(compactState.breadcrumbText).toContain('Spielstil');
     });
 
+    test('T20w1: Modusbeschreibungen liegen nur als Hover-Info am I', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+
+        const modeInfos = page.locator('#submenu-custom .level2-mode-grid .menu-choice-copy');
+        await expect(modeInfos).toHaveCount(3);
+        await expect(modeInfos).toHaveText(['i', 'i', 'i']);
+        await expect(modeInfos.first()).toHaveAttribute(
+            'title',
+            'Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.'
+        );
+        await expect(page.locator('#submenu-custom .level2-mode-grid')).not.toContainText(
+            'Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.'
+        );
+    });
+
     test('T20x: Moduskarte fuehrt direkt in Ebene 3', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);

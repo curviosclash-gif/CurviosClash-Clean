@@ -4555,15 +4555,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 #submenu-custom .level2-mode-grid .menu-choice-card {
+    position: relative;
     align-items: flex-start;
     justify-content: flex-start;
     gap: 8px;
     min-height: 126px;
-    padding: 18px;
+    padding: 18px 54px 18px 18px;
     text-align: left;
 }
 
-#submenu-custom .level2-mode-grid .menu-choice-copy,
 #submenu-custom .level2-config-section > .menu-copy-secondary {
     display: block !important;
 }
@@ -4572,6 +4572,28 @@ input[type="range"]::-webkit-slider-thumb {
     color: #9fb0ca;
     font-size: 0.82rem;
     line-height: 1.45;
+}
+
+#submenu-custom .level2-mode-grid .menu-choice-copy {
+    position: absolute;
+    top: 14px;
+    right: 14px;
+    z-index: 2;
+    display: grid !important;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(145, 205, 255, 0.5);
+    border-radius: 50%;
+    background: rgba(8, 20, 38, 0.94);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.25);
+    color: #b8d8ff;
+    font-size: 0.85rem;
+    font-weight: 800;
+    line-height: 1;
+    cursor: help;
 }
 
 .level2-alternative-section {
