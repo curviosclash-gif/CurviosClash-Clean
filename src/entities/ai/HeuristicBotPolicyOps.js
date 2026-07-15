@@ -10,11 +10,14 @@ const PROFILE_NAMES = Object.freeze({
 });
 
 const PROFILE_ALIASES = Object.freeze({
-    easy: PROFILE_NAMES.DEFENSIVE,
-    normal: PROFILE_NAMES.BALANCED,
-    medium: PROFILE_NAMES.BALANCED,
-    hard: PROFILE_NAMES.AGGRESSIVE,
-    expert: PROFILE_NAMES.AGGRESSIVE,
+    cautious: PROFILE_NAMES.DEFENSIVE,
+    neutral: PROFILE_NAMES.BALANCED,
+    bold: PROFILE_NAMES.AGGRESSIVE,
+});
+
+const DIFFICULTY_ALIASES = Object.freeze({
+    medium: 'normal',
+    expert: 'hard',
 });
 
 export const HEURISTIC_PROFILES = Object.freeze({
@@ -22,8 +25,9 @@ export const HEURISTIC_PROFILES = Object.freeze({
         retreatVitality: 0.48,
         retreatPressure: 0.64,
         boostBias: 0.82,
-        itemThresholdScale: 0.82,
-        attackWindow: 0.82,
+        defensiveItemThresholdScale: 0.82,
+        offensiveItemThresholdScale: 1.12,
+        attackWindow: 0.62,
         safetyDistance: 0.38,
         preferredRange: 0.42,
         strafeDistance: 0.56,
@@ -32,7 +36,8 @@ export const HEURISTIC_PROFILES = Object.freeze({
         retreatVitality: 0.38,
         retreatPressure: 0.74,
         boostBias: 1,
-        itemThresholdScale: 1,
+        defensiveItemThresholdScale: 1,
+        offensiveItemThresholdScale: 1,
         attackWindow: 0.72,
         safetyDistance: 0.3,
         preferredRange: 0.34,
@@ -42,11 +47,36 @@ export const HEURISTIC_PROFILES = Object.freeze({
         retreatVitality: 0.28,
         retreatPressure: 0.84,
         boostBias: 1.18,
-        itemThresholdScale: 1.16,
-        attackWindow: 0.6,
+        defensiveItemThresholdScale: 1.08,
+        offensiveItemThresholdScale: 0.88,
+        attackWindow: 0.82,
         safetyDistance: 0.24,
         preferredRange: 0.26,
         strafeDistance: 0.44,
+    }),
+});
+
+export const HEURISTIC_DIFFICULTIES = Object.freeze({
+    easy: Object.freeze({
+        attackWindowScale: 0.86,
+        aimDot: 0.7,
+        itemThresholdScale: 1.1,
+        tacticalLeadScale: 0.72,
+        tacticalCommitSeconds: 0.48,
+    }),
+    normal: Object.freeze({
+        attackWindowScale: 1,
+        aimDot: 0.6,
+        itemThresholdScale: 1,
+        tacticalLeadScale: 1,
+        tacticalCommitSeconds: 0.64,
+    }),
+    hard: Object.freeze({
+        attackWindowScale: 1.12,
+        aimDot: 0.52,
+        itemThresholdScale: 0.9,
+        tacticalLeadScale: 1.24,
+        tacticalCommitSeconds: 0.82,
     }),
 });
 
@@ -54,6 +84,12 @@ export function normalizeProfileName(profileName) {
     const normalized = String(profileName || '').trim().toLowerCase();
     if (HEURISTIC_PROFILES[normalized]) return normalized;
     return PROFILE_ALIASES[normalized] || PROFILE_NAMES.BALANCED;
+}
+
+export function normalizeDifficultyName(difficultyName) {
+    const normalized = String(difficultyName || '').trim().toLowerCase();
+    if (HEURISTIC_DIFFICULTIES[normalized]) return normalized;
+    return DIFFICULTY_ALIASES[normalized] || 'normal';
 }
 
 export function resolveStableStrafeRight(player) {

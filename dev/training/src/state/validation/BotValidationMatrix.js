@@ -16,6 +16,15 @@ function cloneScenario(entry) {
         portalCount: Math.max(0, Math.trunc(Number(entry.portalCount) || 0)),
         rounds: Math.max(1, Math.trunc(Number(entry.rounds) || 1)),
         expectedPolicyType: String(entry.expectedPolicyType || '').trim().toLowerCase(),
+        botDifficulty: ['EASY', 'NORMAL', 'HARD'].includes(String(entry.botDifficulty || '').trim().toUpperCase())
+            ? String(entry.botDifficulty).trim().toUpperCase()
+            : 'NORMAL',
+        heuristicProfile: ['defensive', 'balanced', 'aggressive'].includes(String(entry.heuristicProfile || '').trim().toLowerCase())
+            ? String(entry.heuristicProfile).trim().toLowerCase()
+            : 'balanced',
+        seedBase: Number.isFinite(Number(entry.seedBase))
+            ? Math.max(0, Math.trunc(Number(entry.seedBase)))
+            : 1337,
     };
 }
 
@@ -50,6 +59,8 @@ export function getBotValidationMatrix() {
             portalCount: 0,
             rounds: 4,
             expectedPolicyType: 'heuristic',
+            botDifficulty: 'NORMAL',
+            heuristicProfile: 'balanced',
         },
         {
             id: 'H-FIGHT',
@@ -62,6 +73,8 @@ export function getBotValidationMatrix() {
             portalCount: 4,
             rounds: 4,
             expectedPolicyType: 'heuristic',
+            botDifficulty: 'NORMAL',
+            heuristicProfile: 'aggressive',
         },
         {
             id: 'H-ARCADE',
@@ -74,6 +87,64 @@ export function getBotValidationMatrix() {
             portalCount: 0,
             rounds: 4,
             expectedPolicyType: 'heuristic',
+            botDifficulty: 'NORMAL',
+            heuristicProfile: 'balanced',
+        },
+        {
+            id: 'H-CLASSIC-2D-EASY',
+            mode: '1p',
+            bots: 2,
+            mapKey: 'complex',
+            gameMode: 'CLASSIC',
+            botPolicyStrategy: 'heuristic',
+            planarMode: true,
+            portalCount: 0,
+            rounds: 4,
+            expectedPolicyType: 'heuristic',
+            botDifficulty: 'EASY',
+            heuristicProfile: 'defensive',
+        },
+        {
+            id: 'H-CLASSIC-3D-HARD',
+            mode: '1p',
+            bots: 3,
+            mapKey: 'vertical_maze',
+            gameMode: 'CLASSIC',
+            botPolicyStrategy: 'heuristic',
+            planarMode: false,
+            portalCount: 0,
+            rounds: 4,
+            expectedPolicyType: 'heuristic',
+            botDifficulty: 'HARD',
+            heuristicProfile: 'aggressive',
+        },
+        {
+            id: 'H-FIGHT-2D-HARD',
+            mode: '1p',
+            bots: 3,
+            mapKey: 'crossfire',
+            gameMode: 'HUNT',
+            botPolicyStrategy: 'heuristic',
+            planarMode: true,
+            portalCount: 2,
+            rounds: 4,
+            expectedPolicyType: 'heuristic',
+            botDifficulty: 'HARD',
+            heuristicProfile: 'aggressive',
+        },
+        {
+            id: 'H-ARCADE-VERTICAL',
+            mode: '1p',
+            bots: 1,
+            mapKey: 'frozen_helix',
+            gameMode: 'ARCADE',
+            botPolicyStrategy: 'heuristic',
+            planarMode: false,
+            portalCount: 0,
+            rounds: 4,
+            expectedPolicyType: 'heuristic',
+            botDifficulty: 'HARD',
+            heuristicProfile: 'balanced',
         },
     ];
     return [

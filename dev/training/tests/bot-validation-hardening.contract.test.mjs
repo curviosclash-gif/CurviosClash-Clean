@@ -47,6 +47,9 @@ test('Arcade validation preserves the CLASSIC runtime contract and the Arcade se
     assert.equal(game.settings.localSettings.modePath, 'arcade');
     assert.equal(game.settings.gameMode, 'CLASSIC');
     assert.equal(game.settings.botPolicyStrategy, 'heuristic');
+    assert.equal(game.settings.botDifficulty, 'NORMAL');
+    assert.equal(game.settings.botHeuristicProfile, 'balanced');
+    assert.equal(game.settings.arcade.seed, 1337);
     assert.equal(game.settings.hunt.respawnEnabled, false);
     assert.equal(settingsChanged, 1);
 });
@@ -58,6 +61,10 @@ test('runtime verification checks policy instances and separates semantic from i
         entityPolicyType: 'heuristic',
         botPolicyTypes: ['heuristic'],
         botCount: 1,
+        botDecisions: [{
+            policyType: 'heuristic',
+            snapshot: { profile: 'balanced', difficulty: 'normal' },
+        }],
         runtimeGameMode: 'CLASSIC',
         entityGameMode: 'CLASSIC',
         semanticGameMode: 'ARCADE',
@@ -84,6 +91,7 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         readFile(new URL('../scripts/bot-play-analysis.mjs', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
+    assert.match(runnerSource, /scenario-base-plus-round-index/);
     assert.match(runnerSource, /round\?\.botDeathCauseCounts/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);

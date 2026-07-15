@@ -78,6 +78,20 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
         && botPolicyTypes.length === 1
         && botPolicyTypes[0] === expectedPolicyType
         && missingBotPolicySamples === 0;
+    const decisionSnapshots = samples.flatMap((sample) => (
+        Array.isArray(sample.botDecisions) ? sample.botDecisions.map((entry) => entry?.snapshot).filter(Boolean) : []
+    ));
+    const heuristicProfiles = uniqueNormalized(decisionSnapshots.map((snapshot) => snapshot.profile), normalizePolicyType);
+    const difficultyNames = uniqueNormalized(decisionSnapshots.map((snapshot) => snapshot.difficulty), normalizePolicyType);
+    const expectedHeuristicProfile = normalizePolicyType(scenario.heuristicProfile || 'balanced');
+    const expectedDifficulty = normalizePolicyType(scenario.botDifficulty || 'NORMAL');
+    const heuristicConfigMatches = expectedPolicyType !== 'heuristic' || (
+        decisionSnapshots.length > 0
+        && heuristicProfiles.length === 1
+        && heuristicProfiles[0] === expectedHeuristicProfile
+        && difficultyNames.length === 1
+        && difficultyNames[0] === expectedDifficulty
+    );
 
     const runtimeGameModes = uniqueNormalized(samples.map((sample) => sample.runtimeGameMode), normalizeGameMode);
     const entityGameModes = uniqueNormalized(samples.map((sample) => sample.entityGameMode), normalizeGameMode);
@@ -108,12 +122,17 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
     return {
         sampleCount: samples.length,
         policy: {
-            ok: policyMatches,
+            ok: policyMatches && heuristicConfigMatches,
             expectedPolicyType,
             runtimePolicyTypes,
             entityPolicyTypes,
             botPolicyTypes,
             missingBotPolicySamples,
+            heuristicConfigMatches,
+            expectedHeuristicProfile,
+            expectedDifficulty,
+            heuristicProfiles,
+            difficultyNames,
         },
         mode: {
             ok: modeMatches,
@@ -210,6 +229,9 @@ export class BotValidationService {
         if (!game.settings.hunt || typeof game.settings.hunt !== 'object') {
             game.settings.hunt = {};
         }
+        if (!game.settings.arcade || typeof game.settings.arcade !== 'object') {
+            game.settings.arcade = {};
+        }
 
         game.settings.localSettings.sessionType = nextSessionType;
         game.settings.localSettings.modePath = nextModePath;
@@ -218,6 +240,9 @@ export class BotValidationService {
         game.settings.mapKey = scenario.mapKey;
         game.settings.gameMode = expectedRuntimeGameMode(scenario.gameMode);
         game.settings.botPolicyStrategy = String(scenario.botPolicyStrategy || 'auto');
+        game.settings.botDifficulty = scenario.botDifficulty || 'NORMAL';
+        game.settings.botHeuristicProfile = scenario.heuristicProfile || 'balanced';
+        game.settings.arcade.seed = scenario.seedBase;
         game.settings.gameplay.planarMode = !!scenario.planarMode;
         game.settings.gameplay.portalCount = scenario.portalCount;
         game.settings.portalsEnabled = scenario.portalCount > 0;

@@ -1,7 +1,5 @@
 import {
-    LOCAL_OPENNESS_RATIO,
     PLANAR_MODE_ACTIVE,
-    PRESSURE_LEVEL,
     PROJECTILE_THREAT,
     WALL_DISTANCE_DOWN,
     WALL_DISTANCE_FRONT,
@@ -12,6 +10,11 @@ import {
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
 import { WORLD_UP, readObservationValue } from './HeuristicBotPolicyOps.js';
+import { resolveDirectionalProjectileThreat } from './HeuristicProjectileSafetyOps.js';
+export {
+    applyHeuristicObstacleAvoidance,
+    resolveBoostPressureCeiling,
+} from './HeuristicObstacleAvoidanceOps.js';
 
 export const HEURISTIC_SAFETY_STATES = Object.freeze({
     NORMAL: 'normal',
@@ -32,6 +35,7 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     minimumDangerClearance: 0.34,
     turnTieThreshold: 0.06,
     turnSwitchMargin: 0.14,
+    verticalPreferenceMargin: 0.05,
     turnHoldSeconds: 0.32,
     evadeDuration: 0.38,
     recoveryDuration: 0.92,
@@ -43,6 +47,9 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     stuckProgressFloor: 0.35,
     stuckProgressSpeedScale: 0.12,
     maximumTimerStep: 0.12,
+    projectileThreatRange: 32,
+    projectileImpactHorizon: 1.25,
+    projectileSafetyRadius: 3.2,
 });
 
 function clamp01(value) {
@@ -55,12 +62,6 @@ function sanitizeTimerStep(dt) {
     return Math.min(numeric, HEURISTIC_SAFETY_CONFIG.maximumTimerStep);
 }
 
-export function resolveBoostPressureCeiling(baseCeiling, profile) {
-    const bias = Number(profile?.boostBias);
-    const safeBias = Number.isFinite(bias) && bias > 0 ? bias : 1;
-    return clamp(Number(baseCeiling) * safeBias, 0, 1);
-}
-
 export function createHeuristicSafetyState() {
     return {
         state: HEURISTIC_SAFETY_STATES.NORMAL,
@@ -69,6 +70,7 @@ export function createHeuristicSafetyState() {
         probeTimer: 0,
         probeDirty: true,
         turnDirection: 0,
+        turnAxis: 'yaw',
         turnHoldTimer: 0,
         bounceWindowTimer: 0,
         bounceCount: 0,
@@ -92,9 +94,19 @@ export function createHeuristicSafetyState() {
         leftTrailClearance: 1,
         rightArenaClearance: 1,
         rightTrailClearance: 1,
+        upArenaClearance: 1,
+        upTrailClearance: 1,
+        downArenaClearance: 1,
+        downTrailClearance: 1,
         frontClearance: 1,
         leftClearance: 1,
         rightClearance: 1,
+        upClearance: 1,
+        downClearance: 1,
+        planarMode: false,
+        projectileYaw: 0,
+        projectilePitch: 0,
+        projectileTimeToImpact: Infinity,
     };
 }
 
@@ -106,6 +118,7 @@ export function resetHeuristicSafetyState(state) {
     state.probeTimer = 0;
     state.probeDirty = true;
     state.turnDirection = 0;
+    state.turnAxis = 'yaw';
     state.turnHoldTimer = 0;
     state.bounceWindowTimer = 0;
     state.bounceCount = 0;
@@ -129,9 +142,19 @@ export function resetHeuristicSafetyState(state) {
     state.leftTrailClearance = 1;
     state.rightArenaClearance = 1;
     state.rightTrailClearance = 1;
+    state.upArenaClearance = 1;
+    state.upTrailClearance = 1;
+    state.downArenaClearance = 1;
+    state.downTrailClearance = 1;
     state.frontClearance = 1;
     state.leftClearance = 1;
     state.rightClearance = 1;
+    state.upClearance = 1;
+    state.downClearance = 1;
+    state.planarMode = false;
+    state.projectileYaw = 0;
+    state.projectilePitch = 0;
+    state.projectileTimeToImpact = Infinity;
 }
 
 export function recordHeuristicBounce(state, type, normal = null) {
@@ -158,45 +181,6 @@ export function recordHeuristicBounce(state, type, normal = null) {
         state.collisionNormalZ = nz * inverseLength;
         state.hasCollisionNormal = true;
     }
-}
-
-export function applyHeuristicObstacleAvoidance(policy, input, player, observation) {
-    const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
-    const wallLeft = clamp(readObservationValue(observation, WALL_DISTANCE_LEFT, 1), 0, 1);
-    const wallRight = clamp(readObservationValue(observation, WALL_DISTANCE_RIGHT, 1), 0, 1);
-    const wallUp = clamp(readObservationValue(observation, WALL_DISTANCE_UP, 1), 0, 1);
-    const wallDown = clamp(readObservationValue(observation, WALL_DISTANCE_DOWN, 1), 0, 1);
-    const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
-    const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
-    const openness = clamp(readObservationValue(observation, LOCAL_OPENNESS_RATIO, 0), 0, 1);
-    const planarMode = readObservationValue(observation, PLANAR_MODE_ACTIVE, 0) >= 0.5
-        || !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
-
-    const frontEmergency = wallFront < 0.2 || pressureLevel > 0.82;
-    if (frontEmergency) {
-        input.yawRight = wallRight >= wallLeft;
-        input.yawLeft = !input.yawRight;
-    } else {
-        const sideDelta = wallRight - wallLeft;
-        if (Math.abs(sideDelta) > 0.14) {
-            input.yawRight = sideDelta > 0;
-            input.yawLeft = sideDelta < 0;
-        }
-    }
-
-    if (!planarMode) {
-        const verticalDelta = wallUp - wallDown;
-        if (Math.abs(verticalDelta) > 0.16 || frontEmergency) {
-            input.pitchUp = verticalDelta > 0.02;
-            input.pitchDown = verticalDelta < -0.02;
-        }
-    }
-
-    const boostPressureCeiling = resolveBoostPressureCeiling(0.64, policy.profile);
-    input.boost = (
-        (projectileThreat || (openness > 0.58 && pressureLevel < boostPressureCeiling))
-        && wallFront > policy.profile.safetyDistance
-    );
 }
 
 function checkArenaCollision(arena, position, radius) {
@@ -251,6 +235,10 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
     const wallFront = clamp01(readObservationValue(observation, WALL_DISTANCE_FRONT, 1));
     const wallLeft = clamp01(readObservationValue(observation, WALL_DISTANCE_LEFT, 1));
     const wallRight = clamp01(readObservationValue(observation, WALL_DISTANCE_RIGHT, 1));
+    const wallUp = clamp01(readObservationValue(observation, WALL_DISTANCE_UP, 1));
+    const wallDown = clamp01(readObservationValue(observation, WALL_DISTANCE_DOWN, 1));
+    state.planarMode = readObservationValue(observation, PLANAR_MODE_ACTIVE, 0) >= 0.5
+        || !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
 
     state.frontArenaClearance = 1;
     state.frontTrailClearance = 1;
@@ -258,6 +246,10 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
     state.leftTrailClearance = 1;
     state.rightArenaClearance = 1;
     state.rightTrailClearance = 1;
+    state.upArenaClearance = 1;
+    state.upTrailClearance = 1;
+    state.downArenaClearance = 1;
+    state.downTrailClearance = 1;
 
     if (player?.position && typeof player?.getDirection === 'function') {
         player.getDirection(policy._tmpForward);
@@ -271,6 +263,12 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
             policy._tmpRight.set(1, 0, 0);
         } else {
             policy._tmpRight.normalize();
+        }
+        policy._tmpUp.crossVectors(policy._tmpForward, policy._tmpRight);
+        if (policy._tmpUp.lengthSq() <= 0.000001) {
+            policy._tmpUp.copy(WORLD_UP);
+        } else {
+            policy._tmpUp.normalize();
         }
 
         const speedLookAhead = Math.abs(Number(player.speed) || Number(player.baseSpeed) || 0)
@@ -300,11 +298,29 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
         samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius);
         state.rightArenaClearance = state.sampleArenaClearance;
         state.rightTrailClearance = state.sampleTrailClearance;
+
+        if (!state.planarMode) {
+            policy._tmpGate.copy(policy._tmpForward)
+                .addScaledVector(policy._tmpUp, HEURISTIC_SAFETY_CONFIG.probeSideSpread)
+                .normalize();
+            samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius);
+            state.upArenaClearance = state.sampleArenaClearance;
+            state.upTrailClearance = state.sampleTrailClearance;
+
+            policy._tmpGate.copy(policy._tmpForward)
+                .addScaledVector(policy._tmpUp, -HEURISTIC_SAFETY_CONFIG.probeSideSpread)
+                .normalize();
+            samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius);
+            state.downArenaClearance = state.sampleArenaClearance;
+            state.downTrailClearance = state.sampleTrailClearance;
+        }
     }
 
     state.frontClearance = Math.min(wallFront, state.frontArenaClearance, state.frontTrailClearance);
     state.leftClearance = Math.min(wallLeft, state.leftArenaClearance, state.leftTrailClearance);
     state.rightClearance = Math.min(wallRight, state.rightArenaClearance, state.rightTrailClearance);
+    state.upClearance = state.planarMode ? 0 : Math.min(wallUp, state.upArenaClearance, state.upTrailClearance);
+    state.downClearance = state.planarMode ? 0 : Math.min(wallDown, state.downArenaClearance, state.downTrailClearance);
 }
 
 function updateStuckState(state, dt, player) {
@@ -365,6 +381,7 @@ function enterSafetyState(state, nextState, reason) {
         state.phaseTimer = 0;
         state.reason = '';
         state.turnDirection = 0;
+        state.turnAxis = 'yaw';
     }
 }
 
@@ -404,8 +421,22 @@ function updateSafetyPhase(state, danger, dangerReason) {
 function resolvePreferredTurn(policy, state, player, dangerThreshold) {
     const left = state.leftClearance;
     const right = state.rightClearance;
-    let preferred = left > right ? 1 : -1;
-    if (Math.abs(left - right) <= HEURISTIC_SAFETY_CONFIG.turnTieThreshold) {
+    const up = state.upClearance;
+    const down = state.downClearance;
+    const leftScore = left + (state.projectileYaw > 0 ? 0.18 : 0);
+    const rightScore = right + (state.projectileYaw < 0 ? 0.18 : 0);
+    const upScore = up + (state.projectilePitch > 0 ? 0.18 : 0);
+    const downScore = down + (state.projectilePitch < 0 ? 0.18 : 0);
+    let preferredAxis = 'yaw';
+    let preferred = leftScore > rightScore ? 1 : -1;
+    let preferredScore = Math.max(leftScore, rightScore);
+    const bestVerticalScore = Math.max(upScore, downScore);
+    if (!state.planarMode && bestVerticalScore > preferredScore + HEURISTIC_SAFETY_CONFIG.verticalPreferenceMargin) {
+        preferredAxis = 'pitch';
+        preferred = upScore > downScore ? 1 : -1;
+        preferredScore = bestVerticalScore;
+    }
+    if (preferredAxis === 'yaw' && Math.abs(leftScore - rightScore) <= HEURISTIC_SAFETY_CONFIG.turnTieThreshold) {
         if (state.hasCollisionNormal) {
             const normalRightDot = state.collisionNormalX * policy._tmpRight.x
                 + state.collisionNormalY * policy._tmpRight.y
@@ -416,11 +447,13 @@ function resolvePreferredTurn(policy, state, player, dangerThreshold) {
         }
     }
 
-    const heldClearance = state.turnDirection > 0 ? left : right;
-    const alternativeClearance = state.turnDirection > 0 ? right : left;
+    const heldClearance = state.turnAxis === 'pitch'
+        ? (state.turnDirection > 0 ? up : down)
+        : (state.turnDirection > 0 ? left : right);
     const heldPathFailed = heldClearance <= dangerThreshold
-        && alternativeClearance >= heldClearance + HEURISTIC_SAFETY_CONFIG.turnSwitchMargin;
+        && preferredScore >= heldClearance + HEURISTIC_SAFETY_CONFIG.turnSwitchMargin;
     if (state.turnDirection === 0 || state.turnHoldTimer <= 0 || heldPathFailed) {
+        state.turnAxis = preferredAxis;
         state.turnDirection = preferred;
         state.turnHoldTimer = HEURISTIC_SAFETY_CONFIG.turnHoldSeconds;
     }
@@ -445,7 +478,18 @@ export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeCo
         Number(policy.profile?.safetyDistance) || 0,
         HEURISTIC_SAFETY_CONFIG.minimumDangerClearance
     );
-    const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
+    const observedProjectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
+    const hasProjectileRuntimeSource = Array.isArray(runtimeContext?.projectiles);
+    const directionalProjectileThreat = resolveDirectionalProjectileThreat(
+        policy,
+        state,
+        player,
+        runtimeContext,
+        HEURISTIC_SAFETY_CONFIG
+    );
+    const projectileThreat = hasProjectileRuntimeSource
+        ? directionalProjectileThreat
+        : observedProjectileThreat;
     const frontDanger = state.frontClearance <= dangerThreshold;
     const projectileDanger = projectileThreat;
     const danger = frontDanger || projectileDanger;
@@ -457,10 +501,10 @@ export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeCo
     if (!safetyActive) return state;
 
     resolvePreferredTurn(policy, state, player, dangerThreshold);
-    input.yawLeft = state.turnDirection > 0;
-    input.yawRight = state.turnDirection < 0;
-    input.pitchUp = false;
-    input.pitchDown = false;
+    input.yawLeft = state.turnAxis === 'yaw' && state.turnDirection > 0;
+    input.yawRight = state.turnAxis === 'yaw' && state.turnDirection < 0;
+    input.pitchUp = state.turnAxis === 'pitch' && state.turnDirection > 0;
+    input.pitchDown = state.turnAxis === 'pitch' && state.turnDirection < 0;
     input.rollLeft = false;
     input.rollRight = false;
     input.boost = false;

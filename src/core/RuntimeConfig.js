@@ -1,4 +1,4 @@
-import { CONFIG, CONFIG_BASE } from './Config.js';
+﻿import { CONFIG, CONFIG_BASE } from './Config.js';
 import { GAME_MODE_TYPES, isHuntMode, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotPolicyTypes.js';
 import {
@@ -217,6 +217,10 @@ export function createRuntimeConfigSnapshot(settings, {
     const planarMode = !!gameplaySource.planarMode;
 
     const botDifficulty = resolveBotDifficulty(source.botDifficulty, botDefaults);
+    const requestedHeuristicProfile = String(source.botHeuristicProfile || 'balanced').trim().toLowerCase();
+    const botHeuristicProfile = ['defensive', 'balanced', 'aggressive'].includes(requestedHeuristicProfile)
+        ? requestedHeuristicProfile
+        : 'balanced';
     const botPolicyStrategy = normalizeBotPolicyStrategy(source.botPolicyStrategy, BOT_POLICY_STRATEGIES.AUTO);
     const trainerBridgeEnabled = !!botBridgeSource.enabled;
     const botPolicyType = resolveBotPolicyType(botPolicyStrategy, activeGameMode, {
@@ -281,6 +285,7 @@ export function createRuntimeConfigSnapshot(settings, {
         },
         bot: {
             activeDifficulty: botDifficulty,
+            heuristicProfile: botHeuristicProfile,
             policyStrategy: botPolicyStrategy,
             policyType: botPolicyType,
             trainerBridgeEnabled,

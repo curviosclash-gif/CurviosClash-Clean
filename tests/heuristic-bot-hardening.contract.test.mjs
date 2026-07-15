@@ -8,6 +8,7 @@ import {
     resolveBoostPressureCeiling,
 } from '../src/entities/ai/HeuristicBotSafetyOps.js';
 import {
+    HEURISTIC_DIFFICULTIES,
     HEURISTIC_PROFILES,
     resolveStableStrafeRight,
 } from '../src/entities/ai/HeuristicBotPolicyOps.js';
@@ -61,18 +62,23 @@ function createSafeObservation() {
     return observation;
 }
 
-test('difficulty aliases select distinct heuristic profiles and preserve strafe diversity', () => {
-    const easy = new HeuristicBotPolicy({ difficulty: 'EASY' });
-    const hard = new HeuristicBotPolicy({ difficulty: 'HARD' });
-    assert.equal(easy.profileName, 'defensive');
-    assert.equal(hard.profileName, 'aggressive');
+test('difficulty and personality are independent and preserve strafe diversity', () => {
+    const easy = new HeuristicBotPolicy({ difficulty: 'EASY', profile: 'aggressive' });
+    const hard = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
+    assert.equal(easy.profileName, 'aggressive');
+    assert.equal(easy.difficultyName, 'easy');
+    assert.equal(hard.profileName, 'defensive');
+    assert.equal(hard.difficultyName, 'hard');
     easy.setDifficulty('HARD');
     assert.equal(easy.profileName, 'aggressive');
+    assert.equal(easy.difficultyName, 'hard');
     assert.notEqual(resolveStableStrafeRight({ index: 1 }), resolveStableStrafeRight({ index: 2 }));
     assert.ok(
         resolveBoostPressureCeiling(0.64, HEURISTIC_PROFILES.aggressive)
         > resolveBoostPressureCeiling(0.64, HEURISTIC_PROFILES.defensive)
     );
+    assert.ok(HEURISTIC_PROFILES.aggressive.attackWindow > HEURISTIC_PROFILES.defensive.attackWindow);
+    assert.ok(HEURISTIC_DIFFICULTIES.hard.attackWindowScale > HEURISTIC_DIFFICULTIES.easy.attackWindowScale);
 });
 
 test('runtime context exposes Arcade semantics while retaining the internal CLASSIC session', () => {
@@ -206,4 +212,97 @@ test('trail bounces enter bounded recovery and reset clears safety state', () =>
     policy.reset();
     assert.equal(policy._safetyState.state, 'normal');
     assert.equal(policy._safetyState.reason, '');
+});
+
+test('Hunt bot does not fire at a selected target behind it', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, 30);
+    player.inventory = ['ROCKET_HEAVY'];
+    const observation = createSafeObservation();
+    observation[TARGET_IN_FRONT] = 1;
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'aggressive' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation,
+        huntTarget: { playerIndex: enemy.index, distance: 30 },
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(action.shootMG, false);
+    assert.equal(action.shootItem, false);
+});
+
+test('3D safety chooses the open vertical escape when both sides are blocked', () => {
+    const player = createPlayer(1);
+    const observation = createSafeObservation();
+    observation[WALL_DISTANCE_FRONT] = 0.1;
+    observation[WALL_DISTANCE_LEFT] = 0.1;
+    observation[WALL_DISTANCE_RIGHT] = 0.1;
+    observation[WALL_DISTANCE_UP] = 1;
+    observation[WALL_DISTANCE_DOWN] = 0.1;
+    const policy = new HeuristicBotPolicy();
+    const action = policy.update(1 / 60, player, {
+        mode: 'CLASSIC',
+        players: [player],
+        projectiles: [],
+        arena: {},
+        observation,
+    });
+
+    assert.equal(action.pitchUp, true);
+    assert.equal(action.pitchDown, false);
+    assert.equal(action.yawLeft, false);
+    assert.equal(action.yawRight, false);
+});
+
+test('directional projectile sensing ignores fly-bys and evades an actual collision course', () => {
+    const player = createPlayer(1);
+    player.speed = 0;
+    player.baseSpeed = 0;
+    const observation = createSafeObservation();
+    observation[PROJECTILE_THREAT] = 1;
+    const flyByPolicy = new HeuristicBotPolicy();
+    const flyBy = flyByPolicy.update(1 / 60, player, {
+        mode: 'CLASSIC',
+        players: [player],
+        projectiles: [{ position: new THREE.Vector3(2, 0, 10), velocity: new THREE.Vector3(0, 0, 20), owner: null }],
+        arena: {},
+        observation,
+    });
+    assert.equal(flyByPolicy.getDecisionSnapshot().safetyState, 'normal');
+    assert.equal(flyBy.yawLeft || flyBy.yawRight || flyBy.pitchUp || flyBy.pitchDown, false);
+
+    const collisionPolicy = new HeuristicBotPolicy();
+    const collision = collisionPolicy.update(1 / 60, player, {
+        mode: 'CLASSIC',
+        players: [player],
+        projectiles: [{ position: new THREE.Vector3(2, 0, 10), velocity: new THREE.Vector3(0, 0, -20), owner: null }],
+        arena: {},
+        observation,
+    });
+    assert.equal(collisionPolicy.getDecisionSnapshot().safetyReason, 'projectile');
+    assert.equal(collision.yawLeft, true);
+    assert.equal(collision.yawRight, false);
+});
+
+test('Classic bot commits to an interception target in safe open space', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(-20, 0, -36);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'CLASSIC',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+    });
+
+    assert.equal(policy.getDecisionSnapshot().intent, 'intercept');
+    assert.equal(action.yawLeft || action.yawRight, true);
+    assert.ok(policy._classicState.commitTimer > 0);
 });

@@ -1,6 +1,5 @@
 import * as THREE from 'three';
 import {
-    INVENTORY_COUNT_RATIO,
     LOCAL_OPENNESS_RATIO,
     PRESSURE_LEVEL,
     PROJECTILE_THREAT,
@@ -22,17 +21,10 @@ import {
     resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
-import {
-    isPickupTypeOffensive,
-    isPickupTypeSelfUsable,
-    isPickupTypeShootable,
-    isRocketPickupType,
-    normalizePickupType,
-} from '../PickupRegistry.js';
-import { BOT_ITEM_RULES } from './BotTuningConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
-import { HEURISTIC_PROFILES, WORLD_UP, hasYaw, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex, resolveSelectedItemIndex, resolveStableStrafeRight } from './HeuristicBotPolicyOps.js';
+import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
+import { HEURISTIC_DIFFICULTIES, HEURISTIC_PROFILES, WORLD_UP, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex, resolveStableStrafeRight } from './HeuristicBotPolicyOps.js';
 import {
     applyHeuristicObstacleAvoidance,
     applyHeuristicSafetyArbiter,
@@ -52,16 +44,20 @@ export class HeuristicBotPolicy {
         this.profileName = normalizeProfileName(
             options.heuristicProfile
             || options.profile
-            || options.difficulty
             || options.runtimeConfig?.bot?.heuristicProfile
             || options.runtimeConfig?.bot?.profile
-            || options.runtimeConfig?.bot?.activeDifficulty
         );
         this.profile = HEURISTIC_PROFILES[this.profileName];
+        this.difficultyName = normalizeDifficultyName(
+            options.difficulty
+            || options.runtimeConfig?.bot?.activeDifficulty
+        );
+        this.difficulty = HEURISTIC_DIFFICULTIES[this.difficultyName];
         this._input = resetInput({});
         this._decisionSnapshot = {
             mode: 'CLASSIC',
             profile: this.profileName,
+            difficulty: this.difficultyName,
             intent: 'avoid',
             pressure: 0,
             boostAllowed: false,
@@ -71,20 +67,56 @@ export class HeuristicBotPolicy {
             safetyState: 'normal',
             safetyReason: '',
             frontClearance: 1,
+            intentChanges: 0,
+            safetyTransitions: 0,
+            steeringChanges: 0,
+            safetyActiveRatio: 0,
         };
         this._safetyState = createHeuristicSafetyState();
+        this._classicState = {
+            intent: 'space-seek',
+            commitTimer: 0,
+            targetIndex: -1,
+        };
+        this._decisionCounters = {
+            updates: 0,
+            intentChanges: 0,
+            safetyTransitions: 0,
+            steeringChanges: 0,
+            safetyActiveUpdates: 0,
+            lastSteeringSignature: 0,
+        };
         this._tmpToEnemy = new THREE.Vector3();
         this._tmpForward = new THREE.Vector3();
         this._tmpRight = new THREE.Vector3();
         this._tmpUp = new THREE.Vector3();
         this._tmpGate = new THREE.Vector3();
         this._tmpTarget = new THREE.Vector3();
+        this._tmpProjectileRelative = new THREE.Vector3();
+        this._tmpProjectileVelocity = new THREE.Vector3();
+        this._tmpEvade = new THREE.Vector3();
     }
 
-    _updateSnapshot(mode, intent, pressure, boostAllowed, selectedItemReason, targetDistanceRatio, retreatReason = '') {
+    _updateSnapshot(mode, intent, pressure, boostAllowed, selectedItemReason, targetDistanceRatio, retreatReason, input) {
         const snapshot = this._decisionSnapshot;
+        const counters = this._decisionCounters;
+        if (counters.updates > 0 && snapshot.intent !== intent) counters.intentChanges += 1;
+        if (counters.updates > 0 && snapshot.safetyState !== this._safetyState.state) counters.safetyTransitions += 1;
+        const steeringSignature = (input?.yawLeft ? 1 : 0)
+            | (input?.yawRight ? 2 : 0)
+            | (input?.pitchUp ? 4 : 0)
+            | (input?.pitchDown ? 8 : 0);
+        if (counters.updates > 0 && counters.lastSteeringSignature !== steeringSignature) {
+            counters.steeringChanges += 1;
+        }
+        counters.lastSteeringSignature = steeringSignature;
+        counters.updates += 1;
+        if (this._safetyState.state === 'evade' || this._safetyState.state === 'recover') {
+            counters.safetyActiveUpdates += 1;
+        }
         snapshot.mode = mode;
         snapshot.profile = this.profileName;
+        snapshot.difficulty = this.difficultyName;
         snapshot.intent = intent;
         snapshot.pressure = pressure;
         snapshot.boostAllowed = boostAllowed === true;
@@ -94,6 +126,10 @@ export class HeuristicBotPolicy {
         snapshot.safetyState = this._safetyState.state;
         snapshot.safetyReason = this._safetyState.reason;
         snapshot.frontClearance = this._safetyState.frontClearance;
+        snapshot.intentChanges = counters.intentChanges;
+        snapshot.safetyTransitions = counters.safetyTransitions;
+        snapshot.steeringChanges = counters.steeringChanges;
+        snapshot.safetyActiveRatio = counters.updates > 0 ? counters.safetyActiveUpdates / counters.updates : 0;
     }
 
     _resolveProfileFromContext(runtimeContext) {
@@ -101,75 +137,21 @@ export class HeuristicBotPolicy {
             runtimeContext?.heuristicProfile
             || runtimeContext?.runtimeConfig?.bot?.heuristicProfile
             || runtimeContext?.runtimeConfig?.bot?.profile
-            || runtimeContext?.difficulty
-            || runtimeContext?.runtimeConfig?.bot?.activeDifficulty
             || this.profileName
         );
-        if (nextProfileName === this.profileName) return;
-        this.profileName = nextProfileName;
-        this.profile = HEURISTIC_PROFILES[nextProfileName];
-    }
-
-    _applyClassicItemUse(input, player, observation) {
-        const targetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
-        const targetAlignment = clamp(readObservationValue(observation, TARGET_ALIGNMENT, 0), -1, 1);
-        const targetInFront = readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
-        const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
-        const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
-        const openness = clamp(readObservationValue(observation, LOCAL_OPENNESS_RATIO, 0), 0, 1);
-        const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
-        const hasInventory = readObservationValue(observation, INVENTORY_COUNT_RATIO, 0) > 0 || inventory.length > 0;
-        if (!hasInventory) return '';
-
-        let bestUseScore = Number.NEGATIVE_INFINITY;
-        let bestUseIndex = -1;
-        let bestUseReason = '';
-        let bestShootScore = Number.NEGATIVE_INFINITY;
-        let bestShootIndex = -1;
-        let bestShootReason = '';
-        const danger = Math.max(pressureLevel, 1 - wallFront, openness < 0.34 ? 0.68 : 0);
-        const goodCorridor = targetInFront && targetAlignment > (0.54 + this.profile.attackWindow * 0.12) && targetDistanceRatio < this.profile.attackWindow;
-
-        for (let i = 0; i < inventory.length; i += 1) {
-            const type = normalizePickupType(inventory[i], { fallback: inventory[i] });
-            if (!type || isRocketPickupType(type)) continue;
-            const rule = BOT_ITEM_RULES[type];
-            if (!rule) continue;
-            const offensive = isPickupTypeOffensive(type);
-            if (isPickupTypeSelfUsable(type, 'CLASSIC') && !offensive) {
-                const utilityPressure = (type === 'SPEED_UP' || type === 'GHOST' || type === 'THICK') && (openness < 0.38 || pressureLevel > 0.58)
-                    ? 0.24
-                    : 0;
-                const score = rule.self + danger * rule.defensiveScale + (1 - wallFront) * rule.emergencyScale + utilityPressure;
-                if (score > bestUseScore) {
-                    bestUseScore = score;
-                    bestUseIndex = i;
-                    bestUseReason = danger > 0.72 ? 'defense-danger' : (utilityPressure > 0 ? 'utility-pressure' : 'self-safe');
-                }
-            }
-            if (isPickupTypeShootable(type, 'CLASSIC') && offensive && goodCorridor) {
-                const score = rule.offense + targetAlignment * 0.22 + (1 - targetDistanceRatio) * 0.14 - pressureLevel * 0.12;
-                if (score > bestShootScore) {
-                    bestShootScore = score;
-                    bestShootIndex = i;
-                    bestShootReason = 'offense-corridor';
-                }
-            }
+        if (nextProfileName !== this.profileName) {
+            this.profileName = nextProfileName;
+            this.profile = HEURISTIC_PROFILES[nextProfileName];
         }
-
-        const useThreshold = (0.7 - pressureLevel * 0.22) * this.profile.itemThresholdScale;
-        if (bestUseIndex >= 0 && danger > 0.52 && bestUseScore > useThreshold) {
-            input.useItem = bestUseIndex;
-            return bestUseReason;
+        const nextDifficultyName = normalizeDifficultyName(
+            runtimeContext?.difficulty
+            || runtimeContext?.runtimeConfig?.bot?.activeDifficulty
+            || this.difficultyName
+        );
+        if (nextDifficultyName !== this.difficultyName) {
+            this.difficultyName = nextDifficultyName;
+            this.difficulty = HEURISTIC_DIFFICULTIES[nextDifficultyName];
         }
-        const shootThreshold = (0.58 + pressureLevel * 0.12) * this.profile.itemThresholdScale;
-        if (bestShootIndex >= 0 && bestShootScore > shootThreshold) {
-            input.shootItem = true;
-            input.shootItemIndex = bestShootIndex;
-            return bestShootReason;
-        }
-        const selectedItemIndex = resolveSelectedItemIndex(player);
-        return selectedItemIndex >= 0 ? 'held' : '';
     }
 
     _applyRetreatSteering(input, player, enemy) {
@@ -215,15 +197,26 @@ export class HeuristicBotPolicy {
         const enemyVitalityRatio = clamp(enemyHealthRatio * 0.72 + enemyShieldRatio * 0.28, 0, 1);
         const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
         const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
-        const targetInFront = !!huntTarget || readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
+        let targetAlignment = clamp(readObservationValue(observation, TARGET_ALIGNMENT, 0), -1, 1);
+        let targetInFront = readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
         const observedTargetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
         const targetDistanceMax = Math.max(1, Number(runtimeContext?.observationContext?.targetDistanceMax) || 120);
-        const targetDistanceRatio = Number.isFinite(Number(huntTarget?.distance))
-            ? clamp(Number(huntTarget.distance) / targetDistanceMax, 0, 1)
-            : observedTargetDistanceRatio;
-        const targetDistanceSq = Number.isFinite(huntTarget?.distance)
-            ? huntTarget.distance * huntTarget.distance
-            : nearest.distSq;
+        let targetDistanceSq = nearest.distSq;
+        let targetDistanceRatio = observedTargetDistanceRatio;
+        if (enemy?.position && player?.position) {
+            this._tmpToEnemy.subVectors(enemy.position, player.position);
+            targetDistanceSq = this._tmpToEnemy.lengthSq();
+            targetDistanceRatio = clamp(Math.sqrt(targetDistanceSq) / targetDistanceMax, 0, 1);
+            if (targetDistanceSq > 0.000001) {
+                this._tmpToEnemy.multiplyScalar(1 / Math.sqrt(targetDistanceSq));
+                if (typeof player.getDirection === 'function') {
+                    player.getDirection(this._tmpForward);
+                    if (this._tmpForward.lengthSq() > 0.000001) this._tmpForward.normalize();
+                    targetAlignment = this._tmpForward.dot(this._tmpToEnemy);
+                    targetInFront = targetAlignment >= this.difficulty.aimDot;
+                }
+            }
+        }
         const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
         const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1);
         const survivalPressure = Math.max(pressureLevel, projectileThreat ? 0.84 : 0, (1 - vitalityRatio) * 0.95);
@@ -244,15 +237,24 @@ export class HeuristicBotPolicy {
             crashRisk: projectileThreat ? 1 : (pressureLevel > 0.64 ? 0.5 : 0),
         });
 
-        if (enemy && targetInFront && survivalPressure < 0.84 && aggression >= 0.38 && targetDistanceRatio < this.profile.attackWindow) {
+        const attackWindow = clamp(this.profile.attackWindow * this.difficulty.attackWindowScale, 0.1, 1);
+        if (
+            enemy
+            && targetInFront
+            && targetAlignment >= this.difficulty.aimDot
+            && survivalPressure < 0.84
+            && aggression >= 0.38
+            && targetDistanceRatio < attackWindow
+        ) {
             input.shootMG = true;
         }
         const rocketWindow = targetDistanceRatio >= 0.16
-            && targetDistanceRatio <= Math.min(0.82, this.profile.attackWindow + 0.12);
+            && targetDistanceRatio <= Math.min(0.9, attackWindow + 0.12);
         if (
             rocketIndex >= 0
             && enemy
             && targetInFront
+            && targetAlignment >= this.difficulty.aimDot
             && rocketWindow
             && pressureLevel < 0.9
             && (aggression >= 0.32 || enemyVitalityRatio > 0.55 || survivalPressure > 0.72)
@@ -443,10 +445,7 @@ export class HeuristicBotPolicy {
         } else if (mode === 'ARCADE') {
             decision = this._applyArcadeBehavior(input, player, runtimeContext, observation);
         } else {
-            const selectedItemReason = this._applyClassicItemUse(input, player, observation);
-            decision.selectedItemReason = selectedItemReason;
-            decision.intent = selectedItemReason && selectedItemReason !== 'held' ? 'classic-item' : 'avoid';
-            input.shootMG = false;
+            decision = applyHeuristicClassicBehavior(this, input, dt, player, runtimeContext, observation);
         }
         if (mode !== 'HUNT') input.shootMG = false;
         if (resolveInventoryLength(player) === 0) {
@@ -462,7 +461,8 @@ export class HeuristicBotPolicy {
             input.boost === true,
             decision.selectedItemReason,
             decision.targetDistanceRatio,
-            decision.retreatReason
+            decision.retreatReason,
+            input
         );
         return input;
     }
@@ -477,7 +477,8 @@ export class HeuristicBotPolicy {
     }
 
     setDifficulty(profileName) {
-        this.setProfile(profileName);
+        this.difficultyName = normalizeDifficultyName(profileName);
+        this.difficulty = HEURISTIC_DIFFICULTIES[this.difficultyName];
     }
 
     onBounce(type, normal = null) {
@@ -491,5 +492,14 @@ export class HeuristicBotPolicy {
     reset() {
         resetInput(this._input);
         resetHeuristicSafetyState(this._safetyState);
+        this._classicState.intent = 'space-seek';
+        this._classicState.commitTimer = 0;
+        this._classicState.targetIndex = -1;
+        this._decisionCounters.updates = 0;
+        this._decisionCounters.intentChanges = 0;
+        this._decisionCounters.safetyTransitions = 0;
+        this._decisionCounters.steeringChanges = 0;
+        this._decisionCounters.safetyActiveUpdates = 0;
+        this._decisionCounters.lastSteeringSignature = 0;
     }
 }

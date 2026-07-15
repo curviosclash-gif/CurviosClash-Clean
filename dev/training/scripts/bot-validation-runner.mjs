@@ -822,6 +822,22 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     log(`${roundLabel} start`);
     await ensureMenuState(page, `${roundLabel}:prepare`, deadlines);
 
+    const roundSeed = Math.max(0, Math.trunc(Number(scenario.seedBase) || 0) + roundIndex);
+    await evaluatePhase(
+        page,
+        `${roundLabel}:apply-seed`,
+        resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:apply-seed`, deadlines),
+        (seed) => {
+            const g = window.GAME_INSTANCE;
+            if (!g?.settings) throw new Error('GAME_INSTANCE settings missing');
+            if (!g.settings.arcade || typeof g.settings.arcade !== 'object') g.settings.arcade = {};
+            g.settings.arcade.seed = seed;
+            if (typeof g._onSettingsChanged === 'function') g._onSettingsChanged();
+            return seed;
+        },
+        roundSeed
+    );
+
     await evaluatePhase(
         page,
         `${roundLabel}:start-match`,
@@ -922,7 +938,7 @@ function quantile(sortedValues, ratio) {
     return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight;
 }
 
-function buildScenarioMetrics(rounds) {
+function buildScenarioMetrics(rounds, runtimeSamples = []) {
     const played = rounds.length;
     const totalDuration = sumBy(rounds, (r) => r.duration);
     const botWins = rounds.filter((r) => !!r.winnerIsBot).length;
@@ -940,6 +956,49 @@ function buildScenarioMetrics(rounds) {
     const survivalP25 = quantile(survivalSamples, 0.25);
     const survivalP75 = quantile(survivalSamples, 0.75);
     const stuckPerMinute = totalDuration > 0 ? stuckEvents / (totalDuration / 60) : 0;
+    const itemUseEvents = sumBy(rounds, (round) => round.itemUseEvents);
+    const failedItemActions = sumBy(rounds, (round) => round.failedItemActions);
+    const mgHits = sumBy(rounds, (round) => round.mgHits);
+    const rocketHits = sumBy(rounds, (round) => round.rocketHits);
+    const mgShots = sumBy(rounds, (round) => round?.itemUseModeCounts?.mg);
+    const projectileShots = sumBy(rounds, (round) => round?.itemUseModeCounts?.shoot);
+    const parcoursCompletions = rounds.filter((round) => round?.parcoursCompleted === true).length;
+    const parcoursCheckpointCount = sumBy(rounds, (round) => round.parcoursCheckpointCount);
+    const decisionSnapshots = runtimeSamples.flatMap((sample) => (
+        Array.isArray(sample?.botDecisions)
+            ? sample.botDecisions.map((entry) => entry?.snapshot).filter(Boolean)
+            : []
+    ));
+    const intentCounts = {};
+    const safetyStateCounts = {};
+    for (const snapshot of decisionSnapshots) {
+        const intent = String(snapshot?.intent || 'unknown');
+        const safetyState = String(snapshot?.safetyState || 'unknown');
+        intentCounts[intent] = (intentCounts[intent] || 0) + 1;
+        safetyStateCounts[safetyState] = (safetyStateCounts[safetyState] || 0) + 1;
+    }
+    const startCounters = new Map();
+    let steeringChanges = 0;
+    let intentChanges = 0;
+    let safetyRatioSum = 0;
+    let safetyRatioSamples = 0;
+    for (const sample of runtimeSamples) {
+        const decisions = Array.isArray(sample?.botDecisions) ? sample.botDecisions : [];
+        for (const entry of decisions) {
+            const snapshot = entry?.snapshot;
+            if (!snapshot) continue;
+            const key = `${sample.round}:${entry.playerIndex}`;
+            if (sample.checkpoint === 'start') {
+                startCounters.set(key, snapshot);
+            } else if (sample.checkpoint === 'end') {
+                const start = startCounters.get(key);
+                steeringChanges += Math.max(0, Number(snapshot.steeringChanges) - Number(start?.steeringChanges || 0));
+                intentChanges += Math.max(0, Number(snapshot.intentChanges) - Number(start?.intentChanges || 0));
+                safetyRatioSum += Math.max(0, Math.min(1, Number(snapshot.safetyActiveRatio) || 0));
+                safetyRatioSamples += 1;
+            }
+        }
+    }
     return {
         rounds: played,
         botWinRate: played > 0 ? botWins / played : 0,
@@ -953,6 +1012,20 @@ function buildScenarioMetrics(rounds) {
         botSurvivalSampleCount: survivalSamples.length,
         stuckPerMinute,
         totalDuration,
+        itemUsePerRound: played > 0 ? itemUseEvents / played : 0,
+        itemUseFailureRate: itemUseEvents > 0 ? failedItemActions / itemUseEvents : 0,
+        mgHitsPerRound: played > 0 ? mgHits / played : 0,
+        rocketHitsPerRound: played > 0 ? rocketHits / played : 0,
+        mgHitRate: mgShots > 0 ? mgHits / mgShots : 0,
+        projectileHitRate: projectileShots > 0 ? rocketHits / projectileShots : 0,
+        parcoursCompletionRate: played > 0 ? parcoursCompletions / played : 0,
+        parcoursCheckpointsPerRound: played > 0 ? parcoursCheckpointCount / played : 0,
+        decisionSampleCount: decisionSnapshots.length,
+        intentCounts,
+        safetyStateCounts,
+        steeringChangesPerSecond: totalDuration > 0 ? steeringChanges / totalDuration : 0,
+        intentChangesPerSecond: totalDuration > 0 ? intentChanges / totalDuration : 0,
+        averageSafetyActiveRatio: safetyRatioSamples > 0 ? safetyRatioSum / safetyRatioSamples : 0,
     };
 }
 
@@ -1029,6 +1102,9 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push(`- Gesamt-Durchschnitt Bot-Ueberlebenszeit: ${formatSeconds(overall.averageBotSurvival)}`);
     lines.push(`- Survival Median/P10/IQR: ${formatSeconds(overall.botSurvivalMedian)} / ${formatSeconds(overall.botSurvivalP10)} / ${formatSeconds(overall.botSurvivalIqr)}`);
     lines.push(`- Gesamt-Stuck/Minute: ${formatNumber(overall.stuckPerMinute)}`);
+    lines.push(`- Items/Runde und Fehlerrate: ${formatNumber(overall.itemUsePerRound)} / ${formatPercent(overall.itemUseFailureRate)}`);
+    lines.push(`- MG-/Projektil-Trefferquote: ${formatPercent(overall.mgHitRate)} / ${formatPercent(overall.projectileHitRate)}`);
+    lines.push(`- Parcours-Abschlussrate: ${formatPercent(overall.parcoursCompletionRate)}`);
     lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}, runtime-error=${failureTaxonomy?.['runtime-error'] ?? 0}`);
     if (runner) {
         lines.push(`- Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
@@ -1050,12 +1126,12 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
         }
     }
     lines.push('');
-    lines.push('| Szenario | Runden | Vertrag | Bot-Winrate | Stuck | Wandtreffer | Trailtreffer | Avg/Median/P10 Survival | Stuck/Minute |');
-    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|');
+    lines.push('| Szenario | Runden | Vertrag | Bot-Winrate | Stuck | Wand/Trail | Survival Avg/Median/P10 | Items/Fehler | MG/Rakete | Safety/Lenken | Parcours |');
+    lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
     for (const result of scenarioResults) {
         const m = result.metrics;
         const contractOk = result.runtimeVerification?.policy?.ok === true && result.runtimeVerification?.mode?.ok === true;
-        lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits} | ${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.stuckPerMinute)} |`);
+        lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits}/${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.itemUsePerRound)} / ${formatPercent(m.itemUseFailureRate)} | ${formatPercent(m.mgHitRate)} / ${formatPercent(m.projectileHitRate)} | ${formatPercent(m.averageSafetyActiveRatio)} / ${formatNumber(m.steeringChangesPerSecond)} | ${formatPercent(m.parcoursCompletionRate)} |`);
     }
     lines.push('');
     return lines.join('\n');
@@ -1341,7 +1417,7 @@ async function run() {
             );
             runnerStats.runtimeErrors += localStats.runtimeErrors;
 
-            const metrics = buildScenarioMetrics(scenarioRounds);
+            const metrics = buildScenarioMetrics(scenarioRounds, runtimeSamples);
             const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
             if (!runtimeVerification.policy.ok) runnerStats.policyMismatches += 1;
             if (!runtimeVerification.mode.ok) runnerStats.modeMismatches += 1;
@@ -1397,9 +1473,11 @@ async function run() {
                 selectedScenarioIds: scenarios.map((scenario) => scenario.id),
             },
             reproducibility: {
-                seedMode: 'none',
-                seed: null,
-                note: 'No seed was injected by the validation runner; runtime-observed Arcade seeds are diagnostic only.',
+                seedMode: 'scenario-base-plus-round-index',
+                seedsByScenario: scenarios.map((scenario) => ({
+                    id: scenario.id,
+                    seeds: Array.from({ length: ROUNDS_PER_SCENARIO }, (_, index) => scenario.seedBase + index),
+                })),
             },
             scenarios: scenarioResults,
             overall,
