@@ -79,6 +79,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const {
         container, viewSwitch, search, onlyFavBtn, categoryTabs, hitboxChips, levelChips,
         familySelect, tierSelect, traitSelect, availabilitySelect, quickRows, catalogList, cameraToolbar, cameraReset, previewStage,
+        vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, favoriteBtn, compareSelect, slotGrid, undoButton, redoButton,
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
         presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
@@ -415,6 +416,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(favoriteBtn, 'click', () => { selection.toggleFavorite(draft.vehicleId); syncDisplay(); });
     bind(compareSelect, 'change', () => { selection.setCompareVehicleId(compareSelect.value); syncDisplay(); });
     bind(buildCompareSelect, 'change', () => syncDisplay());
+    bind(vehiclePreviousButton, 'click', () => selectVehicle(selection.getNextVisibleVehicleId(-1, profiles))); bind(vehicleNextButton, 'click', () => selectVehicle(selection.getNextVisibleVehicleId(1, profiles)));
     bind(cameraToolbar, 'click', (event) => { const preset = event.target?.closest?.('[data-camera-preset]')?.dataset.cameraPreset; if (preset) viewport.setCameraPreset(preset); });
     bind(cameraReset, 'click', () => viewport.resetCamera());
     bind(undoButton, 'click', () => { const value = history.undo(); if (value) setDraft(value, { recordHistory: false }); });

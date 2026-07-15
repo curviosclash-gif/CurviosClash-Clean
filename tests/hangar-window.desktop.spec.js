@@ -1,6 +1,29 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
+test('Desktop-Hangar wechselt Fahrzeuge über die neuen Richtungsschalter', async ({ page, electronApp }) => {
+    await waitForLoadedGame(page);
+    await openCustomSubmenu(page);
+    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    const windowPromise = electronApp.waitForEvent('window');
+    await page.locator('.hangar-window-open').click();
+    const hangarPage = await windowPromise;
+    await hangarPage.waitForLoadState('domcontentloaded');
+    await expect(hangarPage.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 10_000 });
+
+    const selectedVehicleBefore = await hangarPage.locator('.arcade-vehicle-card[aria-selected="true"]')
+        .getAttribute('data-vehicle-id');
+    await hangarPage.getByRole('button', { name: 'Nächstes Fahrzeug' }).click();
+    await expect(hangarPage.locator('.arcade-vehicle-card[aria-selected="true"]'))
+        .not.toHaveAttribute('data-vehicle-id', selectedVehicleBefore);
+    await hangarPage.getByRole('button', { name: 'Vorheriges Fahrzeug' }).click();
+    await expect(hangarPage.locator('.arcade-vehicle-card[aria-selected="true"]'))
+        .toHaveAttribute('data-vehicle-id', selectedVehicleBefore);
+
+    await hangarPage.locator('#hangar-window-close').click();
+    await expect.poll(() => electronApp.windows().length).toBe(1);
+});
+
 test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page, electronApp }) => {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);

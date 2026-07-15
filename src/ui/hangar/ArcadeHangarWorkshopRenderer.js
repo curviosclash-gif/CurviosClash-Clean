@@ -52,6 +52,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
         resultLine, catalogList, detailTitle, detailMeta, favoriteBtn, levelLine, xpFill,
+        vehiclePreviousButton, vehicleNextButton,
         compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
         revertButton, activateButton, presetSelect, presetLoad, presetRename, presetDuplicate,
         presetDelete, presetSort, presetTags, presetFavorite, presetExport, activeBuildLabel,
@@ -322,6 +323,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
         hitboxChips.querySelectorAll('button').forEach((node) => node.classList.toggle('is-active', node.dataset.filterValue === selection.getHitboxFilter()));
         levelChips.querySelectorAll('button').forEach((node) => node.classList.toggle('is-active', node.dataset.filterValue === selection.getLevelFilter()));
         onlyFavBtn.classList.toggle('is-active', selection.isFavoritesOnly());
+        const visibleVehicles = selection.getVisibleEntries(state.profiles);
+        const canCycleVehicles = visibleVehicles.length > 1
+            || (visibleVehicles.length === 1 && visibleVehicles[0].vehicleId !== state.draft.vehicleId);
+        vehiclePreviousButton.disabled = !canCycleVehicles;
+        vehicleNextButton.disabled = !canCycleVehicles;
         compareSelect.replaceChildren();
         catalogEntries.filter((item) => item.vehicleId !== state.draft.vehicleId).forEach((item) => {
             const option = document.createElement('option');

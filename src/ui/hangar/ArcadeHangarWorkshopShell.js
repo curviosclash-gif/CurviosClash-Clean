@@ -116,7 +116,19 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
     previewStage.id = 'arcade-vehicle-preview-stage';
     const previewOverlay = el('div', 'arcade-vehicle-preview-overlay hangar-hardpoint-overlay');
     previewOverlay.id = 'arcade-vehicle-preview-overlay';
-    previewStage.appendChild(previewOverlay);
+    const vehiclePreviousButton = button(
+        'hangar-vehicle-cycle hangar-vehicle-cycle-previous',
+        '‹',
+        'Vorheriges Fahrzeug'
+    );
+    vehiclePreviousButton.setAttribute('aria-label', 'Vorheriges Fahrzeug');
+    const vehicleNextButton = button(
+        'hangar-vehicle-cycle hangar-vehicle-cycle-next',
+        '›',
+        'Nächstes Fahrzeug'
+    );
+    vehicleNextButton.setAttribute('aria-label', 'Nächstes Fahrzeug');
+    previewStage.append(previewOverlay, vehiclePreviousButton, vehicleNextButton);
     const viewportFooter = el('div', 'hangar-viewport-footer');
     viewportFooter.appendChild(el('p', 'menu-hint arcade-vehicle-preview-hint', 'Ziehen: drehen · Rad: zoomen · Rechtszug: verschieben · Esc: Drag abbrechen'));
     const pairLabel = el('label', 'hangar-pair-toggle');
@@ -233,6 +245,7 @@ export function createArcadeHangarWorkshopShell(rules = {}) {
         container, saveState, viewSwitch, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, traitSelect, availabilitySelect, quickRows,
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
+        vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, favoriteBtn, levelLine,
         xpFill, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
         redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,

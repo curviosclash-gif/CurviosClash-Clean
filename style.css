@@ -3914,6 +3914,47 @@ input[type="range"]::-webkit-slider-thumb {
     z-index: 5;
 }
 
+.hangar-vehicle-cycle {
+    position: absolute;
+    top: 50%;
+    z-index: 8;
+    display: grid;
+    width: 48px;
+    height: 64px;
+    place-items: center;
+    transform: translateY(-50%);
+    border: 1px solid rgba(111, 202, 255, 0.58);
+    border-radius: 15px;
+    background: rgba(5, 15, 27, 0.82);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
+    color: #effaff;
+    font-size: 2rem;
+    line-height: 1;
+    cursor: pointer;
+    backdrop-filter: blur(9px);
+    touch-action: manipulation;
+}
+
+.hangar-vehicle-cycle-previous {
+    left: 14px;
+}
+
+.hangar-vehicle-cycle-next {
+    right: 14px;
+}
+
+.hangar-vehicle-cycle:is(:hover, :focus-visible) {
+    border-color: rgba(113, 222, 255, 0.95);
+    background: rgba(24, 116, 166, 0.72);
+    box-shadow: 0 0 0 3px rgba(71, 188, 241, 0.18), 0 10px 28px rgba(0, 0, 0, 0.36);
+    outline: none;
+}
+
+.hangar-vehicle-cycle:disabled {
+    opacity: 0.28;
+    cursor: default;
+}
+
 .hangar-slot-hardpoint {
     box-shadow: 0 0 0 4px rgba(73, 165, 235, 0.12), 0 0 18px rgba(73, 165, 235, 0.5);
     transition: border-color 120ms ease, background 120ms ease, box-shadow 120ms ease, opacity 120ms ease;
@@ -4212,6 +4253,11 @@ input[type="range"]::-webkit-slider-thumb {
 
     .hangar-viewport-panel {
         grid-template-rows: auto 300px auto auto;
+    }
+
+    .hangar-vehicle-cycle {
+        width: 42px;
+        height: 54px;
     }
 
     .hangar-stat-row {

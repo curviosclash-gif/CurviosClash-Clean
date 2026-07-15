@@ -58,6 +58,28 @@ function readMetric(page, metric) {
     return page.locator(`[data-metric="${metric}"] .hangar-stat-value`).evaluate((node) => Number(node.textContent));
 }
 
+test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async ({ page }) => {
+    await loadGame(page);
+    await openArcadeHangar(page);
+
+    const previousButton = page.getByRole('button', { name: 'Vorheriges Fahrzeug' });
+    const nextButton = page.getByRole('button', { name: 'Nächstes Fahrzeug' });
+    await expect(previousButton).toBeVisible();
+    await expect(nextButton).toBeVisible();
+    await expect(previousButton).toBeEnabled();
+    await expect(nextButton).toBeEnabled();
+
+    const selectedBefore = await page.locator('.arcade-vehicle-card[aria-selected="true"]').getAttribute('data-vehicle-id');
+    await nextButton.click();
+    await expect(page.locator('.arcade-vehicle-card[aria-selected="true"]')).not.toHaveAttribute('data-vehicle-id', selectedBefore);
+    await previousButton.click();
+    await expect(page.locator('.arcade-vehicle-card[aria-selected="true"]')).toHaveAttribute('data-vehicle-id', selectedBefore);
+
+    await page.locator('.arcade-vehicle-search').fill('__keine_fahrzeuge__');
+    await expect(previousButton).toBeDisabled();
+    await expect(nextButton).toBeDisabled();
+});
+
 test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung', async ({ page }) => {
     await loadGame(page);
     await seedUnlockedProfiles(page);
