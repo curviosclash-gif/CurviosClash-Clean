@@ -1469,6 +1469,27 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(menuState.modePath).toBe('arcade');
     });
 
+    test('T20x00: Ebene 2 ist bereinigt und der Fight-Hangar liegt nur im Kampf-Setup', async ({ page }) => {
+        await page.addInitScript(() => {
+            globalThis.__CURVIOS_HANGAR_WINDOW__ = {
+                contractVersion: 'preload.hangar-window.v1',
+                openWindow: async () => ({ ok: true }),
+            };
+        });
+        await loadGame(page);
+        await openCustomSubmenu(page);
+
+        await expect(page.getByRole('button', { name: 'Ohne Vorgabe konfigurieren' })).toHaveCount(0);
+        await expect(page.locator('#btn-quick-event-playlist')).toHaveCount(0);
+        await expect(page.locator('#submenu-custom #btn-open-fight-hangar')).toHaveCount(0);
+
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await expect(page.locator('#submenu-game #btn-open-fight-hangar')).toBeHidden();
+        await page.click('#submenu-game [data-back]');
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await expect(page.locator('#submenu-game #btn-open-fight-hangar')).toBeVisible();
+    });
+
     test('T20x0: Ebene-4 Fight-HP/MG-Regler sind nur im Fight-Modus aktiv', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);

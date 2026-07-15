@@ -143,7 +143,11 @@ export function setupMenuGameplayBindings(ctx) {
     }
 
     if (ui.openFightHangarButton) {
-        ui.openFightHangarButton.classList.toggle('hidden', !hangarWindow.isAvailable());
+        const hangarWindowAvailable = hangarWindow.isAvailable();
+        ui.openFightHangarButton.dataset.hangarWindowAvailable = String(hangarWindowAvailable);
+        ui.openFightHangarButton.classList.toggle('hidden', !hangarWindowAvailable || !isFightModePathActive());
+        ui.openFightHangarButton.setAttribute('aria-hidden', String(!hangarWindowAvailable || !isFightModePathActive()));
+        ui.openFightHangarButton.disabled = !hangarWindowAvailable;
         bind(ui.openFightHangarButton, 'click', async () => {
             const result = await hangarWindow.openWindow?.({ mode: 'fight', focus: true });
             if (result?.ok !== true) {

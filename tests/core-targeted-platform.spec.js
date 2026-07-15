@@ -685,10 +685,9 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(matchPreset.winsNeeded).toBe(expectedPreset.values.winsNeeded);
     });
 
-    test('T20bb: Event-Playlist Quickstart ist sichtbar, startet direkt und persistiert den Cursor', async ({ page }) => {
+    test('T20bb: Event-Playlist-Runtime startet direkt und persistiert den Cursor', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);
-        await expect(page.locator('#btn-quick-event-playlist')).toBeVisible();
         const baselineState = await page.evaluate(() => ({
             mapKey: String(window.GAME_INSTANCE?.settings?.mapKey || ''),
             modePath: String(window.GAME_INSTANCE?.settings?.localSettings?.modePath || ''),
@@ -706,7 +705,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             };
         });
 
-        await page.click('#btn-quick-event-playlist');
+        await page.evaluate(() => window.GAME_INSTANCE?.runtimeFacade?.handleQuickStartEventPlaylistStart?.());
         await page.waitForTimeout(80);
 
         const firstState = await page.evaluate((settingsStorageKey) => {
@@ -748,7 +747,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             };
         });
 
-        await page.click('#btn-quick-event-playlist');
+        await page.evaluate(() => window.GAME_INSTANCE?.runtimeFacade?.handleQuickStartEventPlaylistStart?.());
         await page.waitForTimeout(80);
 
         const secondPresetId = await page.evaluate(() => window.GAME_INSTANCE?.settings?.matchSettings?.activePresetId || '');
@@ -773,7 +772,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         });
 
         for (let index = 0; index < 4; index += 1) {
-            await page.click('#btn-quick-event-playlist');
+            await page.evaluate(() => window.GAME_INSTANCE?.runtimeFacade?.handleQuickStartEventPlaylistStart?.());
             await page.waitForTimeout(60);
         }
 

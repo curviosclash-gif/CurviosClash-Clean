@@ -91,6 +91,14 @@ export function syncMenuSurfacePolicyUi({
         });
     }
 
+    if (ui.openFightHangarButton) {
+        const hangarWindowAvailable = ui.openFightHangarButton.dataset.hangarWindowAvailable !== 'false';
+        const hangarVisible = modePath === 'fight' && hangarWindowAvailable;
+        ui.openFightHangarButton.classList.toggle('hidden', !hangarVisible);
+        ui.openFightHangarButton.setAttribute('aria-hidden', String(!hangarVisible));
+        ui.openFightHangarButton.disabled = !hangarWindowAvailable;
+    }
+
     const quickStartButtons = [
         { button: ui.quickStartLastButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS, alternative: false },
         { button: ui.quickStartEventPlaylistButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST, alternative: true },

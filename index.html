@@ -113,6 +113,8 @@
                             <div class="start-rail-actions">
                                 <button type="button" id="btn-level3-reset" class="secondary-btn"
                                     data-menu-text-id="menu.level3.reset.label">Zurücksetzen</button>
+                                <button type="button" id="btn-open-fight-hangar" class="secondary-btn hidden"
+                                    aria-hidden="true">Fight-Hangar öffnen</button>
                                 <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="gameplay"
                                     data-menu-text-id="menu.level3.open_level4.label">Erweiterte Optionen</button>
                                 <button type="button" id="btn-start" class="start-btn" data-menu-action="start-match"
@@ -198,7 +200,6 @@
                                         <option value="heavy">Schwer</option>
                                     </select>
                                 </div>
-
                                 <div class="start-vehicle-picker">
                                     <div id="start-vehicle-preview-stage" class="arcade-vehicle-preview-stage start-vehicle-preview-stage">
                                         <div id="start-vehicle-preview-mount" class="start-vehicle-preview-mount"></div>
@@ -837,8 +838,6 @@
                                     <span class="menu-choice-copy">Der klassische Start mit freier Wahl von Karte, Flugzeug und Regeln.</span>
                                 </button>
                             </div>
-                            <button type="button" class="secondary-btn level2-free-setup" data-menu-step-target="submenu-game"
-                                data-menu-text-id="menu.level2.next_to_start.label">Ohne Vorgabe konfigurieren</button>
                         </div>
                         <div class="menu-section level2-alternative-section">
                             <h2 class="section-title" data-menu-text-id="menu.level2.quick.title">Weitere Schnellstarts</h2>
@@ -846,14 +845,6 @@
                                 <button type="button" id="btn-classic-tutorial" class="start-btn menu-choice-card">
                                     <span class="menu-choice-title">Classic-Tutorial starten</span>
                                     <span class="menu-choice-copy">Steuerung, Boost, Hindernisse und Power-ups auf einem kurzen Parcours lernen.</span>
-                                </button>
-                                <button type="button" id="btn-open-fight-hangar" class="secondary-btn menu-choice-card">
-                                    <span class="menu-choice-title">Fight-Hangar öffnen</span>
-                                    <span class="menu-choice-copy">Fahrzeugwerte verändern; jeder Vorteil kostet einen Nachteil.</span>
-                                </button>
-                                <button type="button" id="btn-quick-event-playlist" class="secondary-btn menu-choice-card"
-                                    data-menu-action="quickstart-event-playlist">
-                                    <span class="menu-choice-title" data-menu-text-id="menu.level2.quick_event.label">Event-Playlist starten</span>
                                 </button>
                                 <button type="button" id="btn-quick-random-map" class="secondary-btn menu-choice-card"
                                     data-menu-action="quickstart-random">

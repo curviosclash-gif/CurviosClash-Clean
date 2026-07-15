@@ -315,34 +315,6 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('T77b: Event-Playlist Quickstart startet und kehrt mehrfach fehlerfrei ins Menue zurueck', async ({ page }) => {
-        test.setTimeout(120000);
-        const errors = collectErrors(page);
-        await loadGame(page);
-        await selectSessionType(page, 'single');
-
-        for (let index = 0; index < 4; index += 1) {
-            await page.click('#btn-quick-event-playlist');
-            await page.waitForFunction(() => {
-                const hud = document.getElementById('hud');
-                const game = window.GAME_INSTANCE;
-                return !!(
-                    hud
-                    && !hud.classList.contains('hidden')
-                    && game?.entityManager?.players?.length > 0
-                );
-            }, null, { timeout: 15000 });
-            await page.waitForTimeout(200);
-            await returnToMenu(page);
-            await page.click('#menu-nav [data-session-type="single"]');
-            await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 5000 });
-        }
-
-        const playlistState = await page.evaluate(() => window.GAME_INSTANCE?.settings?.localSettings?.eventPlaylistState || null);
-        expect(playlistState?.nextIndex).toBe(1);
-        expect(errors).toHaveLength(0);
-    });
-
     test('T78: SettingsManager Release-Vorschau Toggle-Burst bleibt stabil', async ({ page }) => {
         const errors = collectErrors(page);
         await loadGame(page);
