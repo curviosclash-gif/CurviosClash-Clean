@@ -71,8 +71,10 @@ async function clickCanvas(page, xFactor, yFactor = 0.32) {
         throw new Error('Editor canvas bounding box unavailable.');
     }
 
+    const dockBox = await page.locator('#buildDock').boundingBox();
+    const visibleWidth = dockBox && dockBox.x > box.x ? dockBox.x - box.x : box.width;
     await page.mouse.click(
-        box.x + (box.width * xFactor),
+        box.x + (visibleWidth * xFactor),
         box.y + (box.height * yFactor)
     );
 }
@@ -82,7 +84,7 @@ test.describe('V65: Editor Build Dock', () => {
         viewport: { width: 1600, height: 1100 }
     });
 
-    test('T65a: Bottom-Dock rendert Kategorien, Schnellzugriff und Status sauber', async ({ page }) => {
+    test('T65a: Rechtes Dock rendert Kategorien, Schnellzugriff und Status sauber', async ({ page }) => {
         const errors = collectErrors(page);
         await loadEditorPage(page);
 
@@ -215,7 +217,7 @@ test.describe('V65: Editor Build Dock', () => {
 test.describe('Editor Workspace und Desktop-Layout', () => {
     test.use({ viewport: { width: 1280, height: 720 } });
 
-    test('kompaktes Dock laesst Arbeitsflaeche frei und Seitenleistenbereiche ueberlappen nicht', async ({ page }) => {
+    test('kompaktes Dock sitzt rechts und Seitenleistenbereiche ueberlappen nicht', async ({ page }) => {
         await loadEditorPage(page);
 
         const layout = await page.evaluate(() => {
@@ -226,13 +228,22 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
                 .map((section) => section.getBoundingClientRect());
             return {
                 dockHeight: dockRect.height,
+                dockWidth: dockRect.width,
                 canvasHeight: canvasRect.height,
+                canvasWidth: canvasRect.width,
+                topGap: dockRect.top - canvasRect.top,
+                rightGap: canvasRect.right - dockRect.right,
+                bottomGap: canvasRect.bottom - dockRect.bottom,
                 overlaps: sections.some((section, index) => index > 0 && section.top < sections[index - 1].bottom),
             };
         });
 
-        expect(layout.dockHeight).toBeLessThanOrEqual(242);
-        expect(layout.canvasHeight - layout.dockHeight).toBeGreaterThan(400);
+        for (const gap of [layout.topGap, layout.rightGap, layout.bottomGap]) {
+            expect(gap).toBeGreaterThanOrEqual(12);
+            expect(gap).toBeLessThanOrEqual(14);
+        }
+        expect(layout.dockHeight).toBeGreaterThan(layout.dockWidth);
+        expect(layout.canvasWidth - layout.dockWidth).toBeGreaterThan(500);
         expect(layout.overlaps).toBeFalsy();
 
         await page.locator('#btnDockCollapse').click();
@@ -253,7 +264,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
         await page.mouse.move(canvasBox.x + canvasBox.width * 0.32, canvasBox.y + 180);
         await page.mouse.down();
-        await page.mouse.move(canvasBox.x + canvasBox.width * 0.45, dockBox.y + 70, { steps: 4 });
+        await page.mouse.move(dockBox.x + 70, dockBox.y + 70, { steps: 4 });
         await page.mouse.up();
 
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);

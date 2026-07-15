@@ -193,7 +193,7 @@ function updateSummaryViews(dom, snapshot) {
         ? 'Auswahl / Bewegen'
         : (activeEntry?.label || 'Build-Dock');
     const description = isSelectionMode
-        ? `Letzte Baukarte: ${activeEntry?.label || 'keine'}. Unten eine Karte anklicken und dann in die Szene klicken.`
+        ? `Letzte Baukarte: ${activeEntry?.label || 'keine'}. Rechts eine Karte anklicken und dann in die Szene klicken.`
         : `${activeEntry?.description || 'Objekt platzieren.'} ${snapshot.assetState?.detail || 'Klick in die Szene, um die Platzierung auszufuehren.'}`;
     const badgeText = isSelectionMode ? 'Auswahl' : 'Bau-Modus';
 

@@ -227,6 +227,7 @@
 
         .canvasShell {
             --dock-height: 228px;
+            --dock-width: min(360px, calc(100% - 24px));
             position: relative;
             border-radius: 22px;
             border: 1px solid #111827;
@@ -247,7 +248,7 @@
         .hud {
             position: absolute;
             left: 14px;
-            bottom: calc(var(--dock-height) + 12px);
+            bottom: 14px;
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
@@ -256,7 +257,7 @@
 
         .help {
             position: absolute;
-            right: 14px;
+            right: calc(var(--dock-width) + 26px);
             top: 14px;
             max-width: 340px;
             background: rgba(2, 6, 23, 0.78);
@@ -306,9 +307,11 @@
 
         #buildDock {
             position: absolute;
-            left: 12px;
+            left: auto;
             right: 12px;
             bottom: 12px;
+            top: 12px;
+            width: var(--dock-width);
             display: flex;
             flex-direction: column;
             gap: 12px;
@@ -319,17 +322,18 @@
                 linear-gradient(180deg, rgba(15, 23, 42, 0.92), var(--dock-bg));
             box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
             backdrop-filter: blur(18px);
-            max-height: 240px;
+            max-height: none;
             overflow: hidden;
             transition: max-height .18s ease, padding .18s ease;
         }
 
         #buildDock.is-detailed {
-            max-height: min(70vh, 560px);
+            max-height: none;
             overflow-y: auto;
         }
 
         #buildDock.is-collapsed {
+            bottom: auto;
             max-height: 52px;
             padding-top: 9px;
             padding-bottom: 9px;
@@ -349,6 +353,7 @@
 
         .dockHeader {
             display: flex;
+            flex-direction: column;
             justify-content: space-between;
             gap: 12px;
             align-items: flex-start;
@@ -378,18 +383,18 @@
             display: flex;
             gap: 8px;
             flex-wrap: wrap;
-            justify-content: flex-end;
+            justify-content: flex-start;
         }
 
         .dockShortcutGrid {
             display: grid;
-            grid-template-columns: repeat(2, minmax(0, 1fr));
+            grid-template-columns: 1fr;
             gap: 10px;
         }
 
         .dockCatalogControls {
             display: grid;
-            grid-template-columns: minmax(180px, 1fr) auto auto;
+            grid-template-columns: minmax(0, 1fr) auto;
             gap: 8px;
             align-items: center;
         }
@@ -398,6 +403,10 @@
         .dockCatalogControls select {
             width: 100%;
             min-width: 0;
+        }
+
+        .dockCatalogControls input {
+            grid-column: 1 / -1;
         }
 
         .dockShortcutPanel {
@@ -502,14 +511,14 @@
         }
 
         .dockCategoryTabs {
-            display: flex;
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 8px;
-            overflow-x: auto;
             padding-bottom: 2px;
         }
 
         .dockCategoryTab {
-            min-width: 140px;
+            min-width: 0;
             display: flex;
             justify-content: space-between;
             gap: 10px;
@@ -535,10 +544,10 @@
 
         .dockCards {
             display: grid;
-            grid-auto-flow: column;
-            grid-auto-columns: minmax(180px, 180px);
+            grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
-            overflow-x: auto;
+            min-height: 0;
+            overflow-y: auto;
             padding-bottom: 4px;
         }
 
@@ -569,8 +578,8 @@
             display: none;
         }
 
-        #buildDock.is-compact-view .dockCards {
-            grid-auto-columns: minmax(132px, 132px);
+        #buildDock.is-detailed .dockCards {
+            grid-template-columns: 1fr;
         }
 
         #buildDock.is-compact-view .buildCard {
@@ -998,9 +1007,6 @@
                 grid-template-columns: 300px minmax(0, 1fr);
             }
 
-            .dockCards {
-                grid-auto-columns: minmax(170px, 170px);
-            }
         }
 
         @media (max-width: 960px) {
@@ -1017,16 +1023,6 @@
 
             .panel {
                 max-height: none;
-            }
-
-            .dockShortcutGrid {
-                grid-template-columns: 1fr;
-            }
-
-            #buildDock { max-height: 260px; }
-
-            .hud {
-                bottom: calc(var(--dock-height) + 12px);
             }
 
             .help {
@@ -1048,8 +1044,23 @@
             #buildDock {
                 left: 8px;
                 right: 8px;
+                top: auto;
                 bottom: 8px;
+                width: auto;
+                max-height: 260px;
                 padding: 12px;
+            }
+
+            #buildDock.is-collapsed {
+                bottom: 8px;
+            }
+
+            .hud {
+                bottom: calc(var(--dock-height) + 12px);
+            }
+
+            .help {
+                right: 14px;
             }
 
             .dockHeader {
@@ -1061,7 +1072,25 @@
             }
 
             .dockCards {
+                display: grid;
+                grid-auto-flow: column;
                 grid-auto-columns: minmax(156px, 156px);
+                grid-template-columns: none;
+                overflow-x: auto;
+                overflow-y: hidden;
+            }
+
+            #buildDock.is-detailed .dockCards {
+                grid-template-columns: none;
+            }
+
+            .dockCategoryTabs {
+                display: flex;
+                overflow-x: auto;
+            }
+
+            .dockCategoryTab {
+                min-width: 140px;
             }
 
             .dockCatalogControls {
@@ -1083,7 +1112,7 @@
                     <div>
                         <h1>Curvios Clash 3D Editor</h1>
                         <p class="sub">
-                            Nutze das Build-Dock unten fuer Kategorien und Karten. Die Szene bleibt frei fuer Platzierung,
+                            Nutze das Build-Dock rechts fuer Kategorien und Karten. Die Szene bleibt frei fuer Platzierung,
                             Auswahl und Playtest.
                         </p>
                     </div>
@@ -1122,7 +1151,7 @@
                     <span class="badge" id="inspectorToolModeBadge">Auswahl</span>
                     <div class="toolStatusTitle" id="inspectorToolTitle">Auswahl / Bewegen</div>
                     <p class="sub" id="inspectorToolDescription">
-                        Unten eine Karte anklicken und dann in die Szene klicken, um Objekte zu platzieren.
+                        Rechts eine Karte anklicken und dann in die Szene klicken, um Objekte zu platzieren.
                     </p>
                 </div>
             </div>
