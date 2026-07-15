@@ -72,10 +72,6 @@ const checks = [
         label: 'application -> core legacy edge budget',
         actual: report.scorecard.applicationToCoreImports.totalEdges,
     },
-    ...legacySurfaceChecks,
-];
-
-const observedChecks = [
     {
         key: 'electronPreloadExposures',
         label: 'electron preload exposure count',
@@ -91,6 +87,7 @@ const observedChecks = [
         label: 'electron ipcMain channel count',
         actual: report.scorecard.electronIpcMainChannels.totalOccurrences,
     },
+    ...legacySurfaceChecks,
 ];
 
 const failures = [];
@@ -117,15 +114,6 @@ if (failures.length === 0) {
         const max = baselineBudgets[check.key];
         const status = check.actual === max ? 'at-baseline' : 'below-baseline';
         console.log(`- ${status}: ${check.label} = ${check.actual} (baseline ${max})`);
-    }
-    for (const check of observedChecks) {
-        const max = Number(baselineBudgets[check.key]);
-        if (Number.isFinite(max)) {
-            const status = check.actual === max ? 'at-baseline' : check.actual < max ? 'below-baseline' : 'above-baseline';
-            console.log(`- ${status}: ${check.label} = ${check.actual} (baseline ${max})`);
-        } else {
-            console.log(`- observed: ${check.label} = ${check.actual} (no ratchet baseline yet)`);
-        }
     }
     process.exit(0);
 }

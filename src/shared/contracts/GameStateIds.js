@@ -10,11 +10,21 @@ export const GAME_STATE_IDS = Object.freeze({
 
 const VALID_GAME_STATE_IDS = new Set(/** @type {string[]} */ (Object.values(GAME_STATE_IDS)));
 
+/**
+ * @param {unknown} value
+ * @param {GameStateId} [fallback]
+ * @returns {GameStateId}
+ */
 export function normalizeGameStateId(value, fallback = GAME_STATE_IDS.MENU) {
     const normalized = typeof value === 'string' ? value.trim().toUpperCase() : '';
     return /** @type {GameStateId} */ (VALID_GAME_STATE_IDS.has(normalized) ? normalized : fallback);
 }
 
+/**
+ * @param {unknown} value
+ * @param {unknown} expectedState
+ * @returns {boolean}
+ */
 export function isGameState(value, expectedState) {
     const normalizedValue = typeof value === 'string' ? value.trim().toUpperCase() : '';
     const normalizedExpected = typeof expectedState === 'string' ? expectedState.trim().toUpperCase() : '';

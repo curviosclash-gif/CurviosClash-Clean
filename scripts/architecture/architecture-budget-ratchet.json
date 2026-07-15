@@ -5,7 +5,7 @@
     "domAccessFiles": 8,
     "coreToUiImportEdges": 0,
     "uiToCoreImportEdges": 0,
-    "uiToStateImportEdges": 3,
+    "uiToStateImportEdges": 0,
     "stateToUiImportEdges": 0,
     "entitiesToCoreImportEdges": 0,
     "stateToCoreImportEdges": 0,
@@ -13,10 +13,13 @@
     "applicationToUiImportEdges": 0,
     "applicationToCoreImportEdges": 0,
     "legacySurface_game_runtimeBundle_totalFiles": 0,
-    "legacySurface_game_runtimeFacade_totalFiles": 2,
-    "legacySurface_window_GAME_INSTANCE_totalFiles": 2,
+    "legacySurface_game_runtimeFacade_totalFiles": 1,
+    "legacySurface_window_GAME_INSTANCE_totalFiles": 1,
     "legacySurface_GameRuntimePorts_fallbacks_totalFiles": 0,
     "legacySurface_curviosApp_totalFiles": 3,
-    "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3
+    "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3,
+    "electronPreloadExposures": 7,
+    "electronIpcRendererChannels": 11,
+    "electronIpcMainChannels": 16
   }
 }

@@ -88,22 +88,22 @@ const checks = [
         actual: report.scorecard.applicationToCoreImports.totalEdges,
         max: resolveBudget('applicationToCoreImportEdges', report.budgets.applicationToCoreImportEdges),
     },
-    ...legacySurfaceChecks,
-];
-
-const observedChecks = [
     {
         label: 'electron preload exposures',
         actual: report.scorecard.electronPreloadExposures.totalOccurrences,
+        max: resolveBudget('electronPreloadExposures', report.scorecard.electronPreloadExposures.totalOccurrences),
     },
     {
         label: 'electron ipcRenderer channels',
         actual: report.scorecard.electronIpcRendererChannels.totalOccurrences,
+        max: resolveBudget('electronIpcRendererChannels', report.scorecard.electronIpcRendererChannels.totalOccurrences),
     },
     {
         label: 'electron ipcMain channels',
         actual: report.scorecard.electronIpcMainChannels.totalOccurrences,
+        max: resolveBudget('electronIpcMainChannels', report.scorecard.electronIpcMainChannels.totalOccurrences),
     },
+    ...legacySurfaceChecks,
 ];
 
 const failures = checks.filter((check) => check.actual > check.max);
@@ -115,12 +115,6 @@ for (const check of checks) {
     const status = check.actual <= check.max ? 'OK' : 'FAIL';
     console.log(`- ${status}: ${check.label} = ${check.actual} (budget ${check.max})`);
 }
-console.log('');
-console.log('Architecture observed surfaces:');
-for (const check of observedChecks) {
-    console.log(`- OBSERVED: ${check.label} = ${check.actual}`);
-}
-
 if (failures.length > 0) {
     process.exit(1);
 }

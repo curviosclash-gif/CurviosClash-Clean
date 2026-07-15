@@ -33,11 +33,14 @@
     "assets:cc0:download": "node scripts/download_cc0_models.js",
     "lint": "eslint src electron server editor scripts prototypes/vehicle-lab dev/vite --max-warnings 0",
     "typecheck:architecture": "tsc -p tsconfig.architecture.json",
+    "typecheck:contracts": "tsc -p tsconfig.contracts.json",
     "check:architecture": "node scripts/check-architecture-boundaries.mjs && node scripts/check-architecture-ratchet.mjs && node scripts/check-runtime-determinism.mjs && node scripts/check-runtime-encoding.mjs && node scripts/check-editor-path-drift.mjs",
     "check:parcours": "node scripts/check-parcours-routes.mjs",
     "test": "npm run test:contract",
-    "pretest:contract": "npm run build:app",
-    "test:contract": "node --test \"tests/*.contract.test.mjs\" tests/observation-bridge-policy-runtime.test.mjs",
+    "test:contract:fast": "node scripts/run-contract-tests.mjs fast",
+    "pretest:contract:dist": "npm run build:app",
+    "test:contract:dist": "node scripts/run-contract-tests.mjs dist",
+    "test:contract": "npm run test:contract:fast && npm run test:contract:dist",
     "test:dev:training": "node --test \"dev/training/tests/*.test.mjs\" \"dev/training/tests/*.contract.test.mjs\"",
     "test:desktop:smoke": "node scripts/run-playwright-smoke.mjs tests/core.spec.js --timeout=180000",
     "test:desktop:e2e": "node scripts/run-playwright-targeted-clusters.mjs --timeout=240000",
@@ -58,7 +61,7 @@
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
-    "quality": "npm run lint && npm run typecheck:architecture && npm run check:architecture && npm run check:parcours && npm run test:contract"
+    "quality": "npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract"
   },
   "dependencies": {
     "@capacitor/android": "8.3.4",

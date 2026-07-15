@@ -1,0 +1,12 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "strict": true
+  },
+  "files": [
+    "src/shared/contracts/ContractNormalizeUtils.js",
+    "src/shared/contracts/EditorPathContract.js",
+    "src/shared/contracts/GameStateIds.js",
+    "src/shared/utils/CanonicalJson.js"
+  ]
+}
