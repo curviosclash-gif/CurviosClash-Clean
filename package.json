@@ -6,6 +6,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "git:hooks:install": "git config core.hooksPath .githooks",
     "build": "vite build && node scripts/check-production-training-boundary.mjs dist",
     "build:web": "vite build --mode web && node scripts/check-production-training-boundary.mjs dist",
     "build:app": "vite build --mode app && node scripts/check-production-training-boundary.mjs dist-app",
