@@ -12,6 +12,9 @@ export class ModularVehicleMesh extends THREE.Group {
         this.geometries = new Map();
         this.dynamicGeometries = new Set();
         this.isWireframe = false;
+        this.selectedIndex = null;
+        this.selectedPath = [];
+        this.activeGeometryKeys = new Set();
 
         this.initMaterials(config);
         this.build();
@@ -32,13 +35,15 @@ export class ModularVehicleMesh extends THREE.Group {
         this.isWireframe = enabled;
         this.traverse(child => {
             if (child.isMesh && child.material) {
-                child.material.wireframe = enabled;
+                const materials = Array.isArray(child.material) ? child.material : [child.material];
+                materials.forEach((material) => { material.wireframe = enabled; });
             }
         });
     }
 
     build() {
         this.disposeDynamicGeometries();
+        this.activeGeometryKeys.clear();
 
         // Resource Disposal (Geometries & Cloned Materials)
         this.traverse(child => {
@@ -57,11 +62,16 @@ export class ModularVehicleMesh extends THREE.Group {
         });
 
         this.clear();
-        if (!this.config.parts) return;
+        if (!this.config.parts) {
+            this.pruneUnusedGeometries();
+            return;
+        }
 
         this.config.parts.forEach((partConfig, index) => {
             this.buildRecursive(this, partConfig, index, [], false);
         });
+        this.pruneUnusedGeometries();
+        this.applySelectionHighlight();
     }
 
     trackDynamicGeometry(geometry) {
@@ -85,11 +95,22 @@ export class ModularVehicleMesh extends THREE.Group {
         part.userData.path = path;
         part.userData.config = partConfig;
         part.userData.isMirror = isMirror;
+        part.traverse((child) => {
+            if (!child.isMesh || !child.material) return;
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((material) => {
+                material.wireframe = this.isWireframe;
+                if (material.emissive) {
+                    child.userData.baseEmissiveIntensity = material.emissiveIntensity || 0;
+                    child.userData.baseEmissiveColor = material.emissive.getHex();
+                }
+            });
+        });
 
         parentGroup.add(part);
 
         // Mirroring logic
-        if (parentGroup === this && !isMirror) {
+        if (!isMirror) {
             const mirrorAxis = partConfig.mirrorAxis || (partConfig.mirror ? 'x' : null);
             if (mirrorAxis) {
                 const mirrored = this.buildRecursive(this, partConfig, index, path, true);
@@ -113,6 +134,7 @@ export class ModularVehicleMesh extends THREE.Group {
 
     getGeometry(type, size) {
         const key = `${type}_${size.join('_')}`;
+        this.activeGeometryKeys.add(key);
         if (this.geometries.has(key)) return this.geometries.get(key);
 
         let geo;
@@ -129,6 +151,14 @@ export class ModularVehicleMesh extends THREE.Group {
 
         if (geo) this.geometries.set(key, geo);
         return geo;
+    }
+
+    pruneUnusedGeometries() {
+        this.geometries.forEach((geometry, key) => {
+            if (this.activeGeometryKeys.has(key)) return;
+            geometry.dispose();
+            this.geometries.delete(key);
+        });
     }
 
     createPart(data) {
@@ -158,6 +188,7 @@ export class ModularVehicleMesh extends THREE.Group {
         }
 
         const mesh = new THREE.Mesh(geo, mat);
+        mesh.userData.baseEmissiveIntensity = mat.emissiveIntensity || 0;
         mesh.material.wireframe = this.isWireframe;
         this.applyTransforms(mesh, data);
         return mesh;
@@ -272,19 +303,15 @@ export class ModularVehicleMesh extends THREE.Group {
                         const bob = Math.sin(time * speed) * amount * 0.1;
                         child.position.y = (config.pos ? config.pos[1] : 0) + bob;
                         break;
-                    case 'pulse':
+                    case 'pulse': {
                         const pulse = 1 + Math.sin(time * speed) * amount * 0.1;
-                        child.scale.setScalar(pulse * (config.scale ? config.scale[0] : 1));
+                        const baseScale = config.scale || [1, 1, 1];
+                        child.scale.set(
+                            pulse * baseScale[0],
+                            pulse * baseScale[1],
+                            pulse * baseScale[2]
+                        );
                         break;
-                }
-            }
-
-            // Highlight selected part
-            if (child.userData.partIndex !== undefined && child.userData.partIndex === this.selectedIndex && !child.userData.isMirror) {
-                if (child.material && (child.material.emissive || child.material.isMeshStandardMaterial)) {
-                    const pulse = (Math.sin(time * 8) + 1) * 0.2; // 0 to 0.4 pulse
-                    if (child.material.emissive) {
-                        child.material.emissiveIntensity = (config.emissiveIntensity || 0) + pulse;
                     }
                 }
             }
@@ -292,7 +319,52 @@ export class ModularVehicleMesh extends THREE.Group {
     }
 
     setSelectedIndex(index) {
-        this.selectedIndex = index;
+        this.setSelectedSelection(index, []);
+    }
+
+    setSelectedSelection(index, path = []) {
+        this.selectedIndex = Number.isInteger(index) ? index : null;
+        this.selectedPath = Array.isArray(path) ? [...path] : [];
+        this.applySelectionHighlight();
+    }
+
+    applySelectionHighlight() {
+        let selectedObject = null;
+        this.traverse((child) => {
+            if (child.userData.partIndex === undefined || child.userData.isMirror) return;
+            const sameIndex = child.userData.partIndex === this.selectedIndex;
+            const childPath = Array.isArray(child.userData.path) ? child.userData.path : [];
+            const samePath = childPath.length === this.selectedPath.length
+                && childPath.every((segment, index) => segment === this.selectedPath[index]);
+            if (sameIndex && samePath) selectedObject = child;
+        });
+
+        this.traverse((child) => {
+            if (!child.isMesh || !child.material) return;
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((material) => {
+                if (!material.emissive) return;
+                const base = Number(child.userData.baseEmissiveIntensity) || 0;
+                material.emissiveIntensity = base;
+                material.emissive.setHex(Number(child.userData.baseEmissiveColor) || 0x000000);
+            });
+        });
+        selectedObject?.traverse((child) => {
+            if (!child.isMesh || !child.material) return;
+            const materials = Array.isArray(child.material) ? child.material : [child.material];
+            materials.forEach((material) => {
+                if (!material.emissive) return;
+                const base = Number(child.userData.baseEmissiveIntensity) || 0;
+                const baseColor = Number(child.userData.baseEmissiveColor) || 0x000000;
+                material.emissive.setHex(baseColor === 0 ? 0x2563eb : baseColor);
+                material.emissiveIntensity = base + 0.45;
+            });
+        });
+    }
+
+    updatePartTransform(object, config) {
+        if (!object || !config) return;
+        this.applyTransforms(object, config);
     }
 
     updateConfig(newConfig) {

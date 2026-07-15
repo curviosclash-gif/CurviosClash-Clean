@@ -18,6 +18,11 @@ class FakeClassList {
         this.values.delete(value);
         this.element.className = Array.from(this.values).join(' ');
     }
+
+    toggle(value, force) {
+        if (force === false) this.remove(value);
+        else this.add(value);
+    }
 }
 
 class FakeElement {
@@ -39,8 +44,13 @@ class FakeElement {
         this.onchange = null;
         this.oninput = null;
         this.parentNode = null;
+        this.hidden = false;
         this._innerHTML = '';
     }
+
+    addEventListener() {}
+    removeEventListener() {}
+    setAttribute(name, value) { this[name] = value; }
 
     appendChild(child) {
         child.parentNode = this;
@@ -64,6 +74,7 @@ class FakeElement {
 function createFakeDocument(ids) {
     const elements = new Map(ids.map((id) => [id, new FakeElement('div', id)]));
     elements.set('compareVehicleSelect', new FakeElement('select', 'compareVehicleSelect'));
+    elements.set('presetSelect', new FakeElement('select', 'presetSelect'));
 
     return {
         getElementById(id) {
@@ -71,6 +82,9 @@ function createFakeDocument(ids) {
         },
         createElement(tagName) {
             return new FakeElement(tagName);
+        },
+        querySelectorAll() {
+            return [];
         },
     };
 }
@@ -86,6 +100,14 @@ function createWorkshopUi(callbacks = {}) {
         'btnAddPart',
         'btnAddChild',
         'btnDeletePart',
+        'btnDuplicatePart',
+        'btnMirrorPart',
+        'partSearch',
+        'chkSnap',
+        'snapTranslate',
+        'snapRotate',
+        'snapScale',
+        'workshopDialogCancel',
         'compareRows',
         'shipLabel',
         'shipPrimaryColor',
@@ -137,6 +159,23 @@ test('VehicleLabUI toggles undo and redo controls from history state', () => {
     }
 });
 
+test('VehicleLabUI loads the selected vehicle immediately', () => {
+    let selectedVehicle = '';
+    const { document, restore } = createWorkshopUi({
+        onLoadPreset: (vehicleId) => {
+            selectedVehicle = vehicleId;
+        },
+    });
+
+    try {
+        const select = document.getElementById('presetSelect');
+        select.onchange({ target: { value: 'spaceship' } });
+        assert.equal(selectedVehicle, 'spaceship');
+    } finally {
+        restore();
+    }
+});
+
 test('VehicleLabUI renders compare candidates and metric rows', () => {
     let selectedVehicle = '';
     const { document, restore, ui } = createWorkshopUi({
@@ -153,7 +192,7 @@ test('VehicleLabUI renders compare candidates and metric rows', () => {
             ],
             selectedId: 'spaceship',
             rows: [
-                { key: 'parts', label: 'Parts', current: 8, baseline: 6, delta: 2 },
+                { key: 'parts', label: 'Bauteile', current: 8, baseline: 6, delta: 2 },
                 { key: 'animated', label: 'Animated', current: 0, baseline: 0, delta: 0 },
             ],
         });
@@ -168,7 +207,7 @@ test('VehicleLabUI renders compare candidates and metric rows', () => {
         const rows = document.getElementById('compareRows').children;
         assert.equal(rows.length, 2);
         assert.equal(rows[0].dataset.metric, 'parts');
-        assert.equal(rows[0].children[0].textContent, 'Parts');
+        assert.equal(rows[0].children[0].textContent, 'Bauteile');
         assert.equal(rows[0].children[1].textContent, '8');
         assert.equal(rows[0].children[2].textContent, '6');
         assert.equal(rows[0].children[3].textContent, '+2');
@@ -190,7 +229,7 @@ test('VehicleLabUI renders the desktop workshop status bar', () => {
 
         assert.equal(document.getElementById('workshopStatusBar').dataset.tone, 'info');
         assert.equal(document.getElementById('workshopStatusMessage').textContent, 'Undo angewendet. | Auswahl: Wing');
-        assert.equal(document.getElementById('workshopHistoryState').textContent, 'History 2/3');
+        assert.equal(document.getElementById('workshopHistoryState').textContent, 'Verlauf 2/3');
         assert.equal(document.getElementById('workshopBlueprintState').textContent, 'Blueprint ok');
     } finally {
         restore();

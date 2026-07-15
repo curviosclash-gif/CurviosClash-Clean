@@ -3,11 +3,17 @@ import { buildVehicleLabSelectionKey } from './VehicleLabSelection.js';
 export class VehicleLabUI {
     constructor(callbacks) {
         this.callbacks = callbacks;
+        this.collapsedSelectionKeys = new Set();
+        this.partSearch = '';
+        this.inputId = 0;
         this.initEventListeners();
+        this.initPanelResizers();
     }
 
     initEventListeners() {
-        document.getElementById('btnLoadPreset').onclick = () => this.callbacks.onLoadPreset();
+        const presetSelect = document.getElementById('presetSelect');
+        document.getElementById('btnLoadPreset').onclick = () => this.callbacks.onLoadPreset(presetSelect.value);
+        presetSelect.onchange = (e) => this.callbacks.onLoadPreset(e.target.value);
         document.getElementById('btnImportJson').onclick = () => this.callbacks.onImportJson();
         document.getElementById('btnExportJson').onclick = () => this.callbacks.onExportJson();
         const btnSaveToGameVehicle = document.getElementById('btnSaveToGameVehicle');
@@ -22,7 +28,13 @@ export class VehicleLabUI {
         document.getElementById('btnRedo').onclick = () => this.callbacks.onRedo();
         document.getElementById('btnAddPart').onclick = () => this.callbacks.onAddPart();
         document.getElementById('btnAddChild').onclick = () => this.callbacks.onAddChild();
+        document.getElementById('btnDuplicatePart').onclick = () => this.callbacks.onDuplicatePart?.();
+        document.getElementById('btnMirrorPart').onclick = () => this.callbacks.onMirrorPart?.();
         document.getElementById('btnDeletePart').onclick = () => this.callbacks.onDeletePart();
+        document.getElementById('partSearch').oninput = (e) => {
+            this.partSearch = String(e.target.value || '').trim().toLowerCase();
+            this.callbacks.onPartSearchChange?.();
+        };
         const compareSelect = document.getElementById('compareVehicleSelect');
         if (compareSelect) {
             compareSelect.onchange = (e) => this.callbacks.onCompareVehicleChange?.(e.target.value);
@@ -43,8 +55,106 @@ export class VehicleLabUI {
             hitboxToggle.onchange = (e) => this.callbacks.onHitboxChange(e.target.checked);
         }
 
+        const snapControls = ['chkSnap', 'snapTranslate', 'snapRotate', 'snapScale'];
+        snapControls.forEach((id) => {
+            document.getElementById(id).onchange = () => this.callbacks.onSnapChange?.(this.getSnapSettings());
+        });
+
+        document.querySelectorAll('[data-camera-view]').forEach((button) => {
+            button.onclick = () => {
+                document.querySelectorAll('[data-camera-view]').forEach((candidate) => {
+                    candidate.setAttribute('aria-pressed', String(candidate === button));
+                });
+                this.callbacks.onCameraView?.(button.dataset.cameraView);
+            };
+        });
+
         document.getElementById('shipLabel').oninput = (e) => this.callbacks.onGlobalUpdate('label', e.target.value);
-        document.getElementById('shipPrimaryColor').oninput = (e) => this.callbacks.onGlobalUpdate('color', e.target.value);
+        document.getElementById('shipPrimaryColor').onchange = (e) => this.callbacks.onGlobalUpdate('color', e.target.value);
+        document.getElementById('workshopDialogCancel').onclick = () => document.getElementById('workshopDialog').close('cancel');
+    }
+
+    getSnapSettings() {
+        return {
+            enabled: document.getElementById('chkSnap').checked,
+            translate: Math.max(0.01, Number(document.getElementById('snapTranslate').value) || 0.25),
+            rotate: Math.max(1, Number(document.getElementById('snapRotate').value) || 15),
+            scale: Math.max(0.01, Number(document.getElementById('snapScale').value) || 0.1),
+        };
+    }
+
+    setActiveCameraView(view) {
+        document.querySelectorAll('[data-camera-view]').forEach((button) => {
+            button.setAttribute('aria-pressed', String(button.dataset.cameraView === view));
+        });
+    }
+
+    setPresetSelection(vehicleId) {
+        const select = document.getElementById('presetSelect');
+        if (!select) return;
+        const requestedId = String(vehicleId || '');
+        const hasOption = Array.from(select.options || []).some((option) => option.value === requestedId);
+        if (hasOption) select.value = requestedId;
+    }
+
+    setReferenceMode(active, label = '') {
+        const isReference = active === true;
+        const notice = document.getElementById('referenceVehicleNotice');
+        if (notice) {
+            notice.textContent = isReference
+                ? `${label} ist ein fertiges Spielmodell. Ansicht und Kamera sind verfügbar; Bauteilbearbeitung und Veröffentlichung sind schreibgeschützt.`
+                : '';
+            notice.classList.toggle('is-hidden', !isReference);
+        }
+
+        [
+            'btnAddPart', 'btnAddChild', 'btnDuplicatePart', 'btnMirrorPart', 'btnDeletePart',
+            'btnExportJson', 'btnSaveToGameVehicle', 'btnUndo', 'btnRedo', 'shipLabel',
+            'shipPrimaryColor', 'partSearch', 'chkSnap', 'snapTranslate', 'snapRotate', 'snapScale',
+        ].forEach((id) => {
+            const element = document.getElementById(id);
+            if (!element) return;
+            if (isReference) {
+                if (element.dataset.disabledBeforeReference === undefined) {
+                    element.dataset.disabledBeforeReference = String(element.disabled === true);
+                }
+                element.disabled = true;
+            } else if (element.dataset.disabledBeforeReference !== undefined) {
+                element.disabled = element.dataset.disabledBeforeReference === 'true';
+                delete element.dataset.disabledBeforeReference;
+            }
+        });
+
+        if (isReference) this.hideProperties();
+    }
+
+    initPanelResizers() {
+        document.querySelectorAll('[data-panel-resizer]').forEach((resizer) => {
+            const side = resizer.dataset.panelResizer;
+            const property = side === 'left' ? '--left-panel-width' : '--right-panel-width';
+            const direction = side === 'left' ? 1 : -1;
+            const resizeTo = (clientX) => {
+                const width = side === 'left' ? clientX : window.innerWidth - clientX;
+                document.documentElement.style.setProperty(property, `${Math.max(260, Math.min(520, width))}px`);
+            };
+            resizer.addEventListener('pointerdown', (event) => {
+                resizer.setPointerCapture(event.pointerId);
+                const move = (moveEvent) => resizeTo(moveEvent.clientX);
+                const stop = () => {
+                    resizer.removeEventListener('pointermove', move);
+                    resizer.removeEventListener('pointerup', stop);
+                };
+                resizer.addEventListener('pointermove', move);
+                resizer.addEventListener('pointerup', stop);
+            });
+            resizer.addEventListener('keydown', (event) => {
+                if (event.key !== 'ArrowLeft' && event.key !== 'ArrowRight') return;
+                event.preventDefault();
+                const current = Number.parseFloat(getComputedStyle(document.documentElement).getPropertyValue(property)) || 320;
+                const delta = (event.key === 'ArrowRight' ? 12 : -12) * direction;
+                document.documentElement.style.setProperty(property, `${Math.max(260, Math.min(520, current + delta))}px`);
+            });
+        });
     }
 
     updateShipInfo(config) {
@@ -63,19 +173,49 @@ export class VehicleLabUI {
         let totalCount = 0;
         const activeSelectionKey = buildVehicleLabSelectionKey(selectedIndex, selectedPath);
 
+        const matchesSearch = (part) => {
+            if (!this.partSearch) return true;
+            if (String(part?.name || '').toLowerCase().includes(this.partSearch)) return true;
+            return Array.isArray(part?.children) && part.children.some(matchesSearch);
+        };
+
         const renderItem = (part, index, depth = 0, path = []) => {
             totalCount++;
-            const item = document.createElement('div');
+            if (!matchesSearch(part)) return;
             const itemSelectionKey = buildVehicleLabSelectionKey(index, path);
             const isSelected = itemSelectionKey && itemSelectionKey === activeSelectionKey;
-            item.className = 'part-item' + (isSelected ? ' is-selected' : '');
-            if (depth > 0) item.style.paddingLeft = `${depth * 12 + 8}px`;
+            const row = document.createElement('div');
+            row.className = 'part-row';
+            row.style.paddingLeft = `${depth * 12}px`;
+            row.setAttribute('role', 'treeitem');
+            row.setAttribute('aria-level', String(depth + 1));
+            row.setAttribute('aria-selected', String(!!isSelected));
 
+            const hasChildren = Array.isArray(part?.children) && part.children.length > 0;
+            const collapsed = this.collapsedSelectionKeys.has(itemSelectionKey);
+            const toggle = document.createElement('button');
+            toggle.type = 'button';
+            toggle.className = 'part-toggle';
+            toggle.textContent = collapsed ? '▸' : '▾';
+            toggle.hidden = !hasChildren;
+            toggle.setAttribute('aria-label', collapsed ? 'Unterbauteile öffnen' : 'Unterbauteile schließen');
+            toggle.onclick = (event) => {
+                event.stopPropagation();
+                if (collapsed) this.collapsedSelectionKeys.delete(itemSelectionKey);
+                else this.collapsedSelectionKeys.add(itemSelectionKey);
+                this.callbacks.onPartSearchChange?.();
+            };
+
+            const item = document.createElement('button');
+            item.type = 'button';
+            item.className = 'part-item' + (isSelected ? ' is-selected' : '');
             item.textContent = part.name || `Part ${index}`;
             item.onclick = () => onSelect(index, path);
-            list.appendChild(item);
+            row.appendChild(toggle);
+            row.appendChild(item);
+            list.appendChild(row);
 
-            if (part && part.children) {
+            if (part && part.children && (!collapsed || this.partSearch)) {
                 part.children.forEach((child, cIdx) => {
                     renderItem(child, index, depth + 1, [...path, cIdx]);
                 });
@@ -84,14 +224,18 @@ export class VehicleLabUI {
 
         const safeParts = Array.isArray(parts) ? parts : [];
         safeParts.forEach((part, index) => renderItem(part, index, 0, []));
-        document.getElementById('partCountBadge').textContent = `Parts: ${totalCount}`;
+        document.getElementById('partCountBadge').textContent = `Bauteile: ${totalCount}`;
 
         // Update button states
         const hasSelection = activeSelectionKey !== '';
         const btnDelete = document.getElementById('btnDeletePart');
         const btnAddChild = document.getElementById('btnAddChild');
+        const btnDuplicate = document.getElementById('btnDuplicatePart');
+        const btnMirror = document.getElementById('btnMirrorPart');
         if (btnDelete) btnDelete.disabled = !hasSelection;
         if (btnAddChild) btnAddChild.disabled = !hasSelection;
+        if (btnDuplicate) btnDuplicate.disabled = !hasSelection;
+        if (btnMirror) btnMirror.disabled = !hasSelection;
     }
 
     showProperties(part, onUpdate) {
@@ -189,19 +333,24 @@ export class VehicleLabUI {
     createInputRow(container, label, value, onChange, type = 'number') {
         const lbl = document.createElement('label');
         lbl.textContent = label;
-        container.appendChild(lbl);
         const inp = document.createElement('input');
+        const inputId = `vehicleLabProperty${++this.inputId}`;
+        inp.id = inputId;
+        lbl.htmlFor = inputId;
         inp.type = type;
         inp.value = value;
         inp.onchange = (e) => onChange(type === 'number' ? (parseFloat(e.target.value) || 0) : e.target.value);
+        container.appendChild(lbl);
         container.appendChild(inp);
     }
 
     createSelectRow(container, label, value, options, onChange) {
         const lbl = document.createElement('label');
         lbl.textContent = label;
-        container.appendChild(lbl);
         const sel = document.createElement('select');
+        const selectId = `vehicleLabProperty${++this.inputId}`;
+        sel.id = selectId;
+        lbl.htmlFor = selectId;
         options.forEach(opt => {
             const o = document.createElement('option');
             o.value = opt;
@@ -210,6 +359,7 @@ export class VehicleLabUI {
             sel.appendChild(o);
         });
         sel.onchange = (e) => onChange(e.target.value);
+        container.appendChild(lbl);
         container.appendChild(sel);
     }
 
@@ -292,7 +442,7 @@ export class VehicleLabUI {
 
                 const btnLoad = document.createElement('button');
                 btnLoad.type = 'button';
-                btnLoad.textContent = 'Load';
+                btnLoad.textContent = 'Auswählen';
                 btnLoad.onclick = () => this.callbacks.onLoadSavedVehicle?.(vehicle);
                 actions.appendChild(btnLoad);
 
@@ -334,7 +484,7 @@ export class VehicleLabUI {
 
                 const btnLoad = document.createElement('button');
                 btnLoad.type = 'button';
-                btnLoad.textContent = 'Load';
+                btnLoad.textContent = 'Auswählen';
                 btnLoad.onclick = () => this.callbacks.onLoadSavedVehicle?.(vehicle);
 
                 const btnRename = document.createElement('button');
@@ -365,6 +515,48 @@ export class VehicleLabUI {
         const btnRedo = document.getElementById('btnRedo');
         if (btnUndo) btnUndo.disabled = historyState.canUndo !== true;
         if (btnRedo) btnRedo.disabled = historyState.canRedo !== true;
+    }
+
+    updateSaveState(state = 'saved', text = 'Lokal gespeichert') {
+        const node = document.getElementById('workshopSaveState');
+        if (!node) return;
+        node.dataset.state = state;
+        node.textContent = text;
+    }
+
+    showToast(message, tone = 'info') {
+        const region = document.getElementById('workshopToastRegion');
+        if (!region) return;
+        const toast = document.createElement('div');
+        toast.className = 'toast';
+        toast.dataset.tone = tone;
+        toast.textContent = String(message || '');
+        region.appendChild(toast);
+        window.setTimeout(() => toast.remove(), 3600);
+    }
+
+    requestDialog({ title, message, inputLabel = '', inputValue = '', confirmLabel = 'Bestätigen', danger = false } = {}) {
+        const dialog = document.getElementById('workshopDialog');
+        const input = document.getElementById('workshopDialogInput');
+        const label = document.getElementById('workshopDialogInputLabel');
+        const confirm = document.getElementById('workshopDialogConfirm');
+        document.getElementById('workshopDialogTitle').textContent = title || 'Vehicle Lab';
+        document.getElementById('workshopDialogMessage').textContent = message || '';
+        confirm.textContent = confirmLabel;
+        confirm.classList.toggle('btn--danger', danger);
+        confirm.classList.toggle('btn--primary', !danger);
+        const hasInput = !!inputLabel;
+        input.classList.toggle('is-hidden', !hasInput);
+        label.classList.toggle('is-hidden', !hasInput);
+        label.textContent = inputLabel;
+        input.value = inputValue;
+        dialog.showModal();
+        if (hasInput) input.focus();
+        return new Promise((resolve) => {
+            dialog.addEventListener('close', () => {
+                resolve(dialog.returnValue === 'confirm' ? (hasInput ? input.value : true) : null);
+            }, { once: true });
+        });
     }
 
     updateComparePanel({ candidates = [], selectedId = '', rows = [] } = {}) {
@@ -424,7 +616,7 @@ export class VehicleLabUI {
         messageNode.textContent = selectedLabel ? `${message} | ${selectedLabel}` : message;
         const currentIndex = Number.isFinite(historyState.index) ? historyState.index + 1 : 1;
         const historyLength = Number.isFinite(historyState.length) ? historyState.length : 1;
-        historyNode.textContent = `History ${currentIndex}/${historyLength}`;
-        blueprintNode.textContent = blueprintStatus || 'Blueprint n/a';
+        historyNode.textContent = `Verlauf ${currentIndex}/${historyLength}`;
+        blueprintNode.textContent = blueprintStatus || 'Blueprint nicht verfügbar';
     }
 }

@@ -11,6 +11,7 @@ const RENDERER_INPUT_FILES = {
     app: 'index.html',
     hangar: 'hangar.html',
     editorMap3d: 'editor/map-editor-3d.html',
+    vehicleLab: 'prototypes/vehicle-lab/index.html',
 };
 
 const RENDERER_APP_TARGETS = Object.freeze({

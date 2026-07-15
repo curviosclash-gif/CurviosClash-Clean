@@ -5,6 +5,8 @@ import { VehicleLabUI } from './src/VehicleLabUI.js';
 import { VehicleHistory } from './src/VehicleHistory.js';
 import { ModularVehicleMesh } from './src/ModularVehicleMesh.js';
 import { VEHICLE_PRESETS } from './src/VehiclePresets.js';
+import { GameVehicleReferenceMesh } from './src/GameVehicleReferenceMesh.js';
+import { listVehicleLabGameReferences } from './src/VehicleLabGameVehicleCatalog.js';
 import {
     buildValidatedArcadeBlueprint,
     describeArcadeBlueprintStatus,
@@ -17,6 +19,13 @@ import {
     normalizeVehicleLabHangarPublicationRecord,
     upsertVehicleLabHangarPublication,
 } from '../../src/shared/contracts/VehicleLabHangarPublishContract.js';
+import {
+    formatVehicleLabConfigIssues,
+    normalizeVehicleLabConfig,
+} from '../../src/shared/contracts/VehicleLabConfigContract.js';
+
+const VEHICLE_LAB_CONFIG_STORAGE_KEY = 'vehicle_lab_config';
+const GAME_VEHICLE_REFERENCES = listVehicleLabGameReferences();
 
 function toBlueprintId(value) {
     return String(value || 'custom_blueprint')
@@ -62,17 +71,35 @@ function summarizeVehicleConfig(config = {}) {
 function createCompareRows(currentConfig, baselineConfig) {
     const current = summarizeVehicleConfig(currentConfig);
     const baseline = summarizeVehicleConfig(baselineConfig);
-    return [
-        { key: 'parts', label: 'Parts' },
-        { key: 'engines', label: 'Engines' },
-        { key: 'wings', label: 'Wings/Fins' },
-        { key: 'animated', label: 'Animated' },
+    const currentBlueprint = buildValidatedArcadeBlueprint(currentConfig, { label: currentConfig?.label }).blueprint;
+    const baselineBlueprint = buildValidatedArcadeBlueprint(baselineConfig, { label: baselineConfig?.label }).blueprint;
+    const countRows = [
+        { key: 'parts', label: 'Bauteile' },
+        { key: 'engines', label: 'Antriebe' },
+        { key: 'wings', label: 'Flügel/Finnen' },
+        { key: 'animated', label: 'Animiert' },
     ].map((metric) => ({
         ...metric,
         current: current[metric.key],
         baseline: baseline[metric.key],
         delta: current[metric.key] - baseline[metric.key],
     }));
+    const statRows = [
+        { key: 'budgetUsed', label: 'Budget' },
+        { key: 'massUsed', label: 'Masse' },
+        { key: 'powerUsed', label: 'Energie' },
+        { key: 'heatUsed', label: 'Hitze' },
+    ].map((metric) => {
+        const currentValue = Number(currentBlueprint?.stats?.[metric.key]) || 0;
+        const baselineValue = Number(baselineBlueprint?.stats?.[metric.key]) || 0;
+        return {
+            ...metric,
+            current: currentValue,
+            baseline: baselineValue,
+            delta: Number((currentValue - baselineValue).toFixed(3)),
+        };
+    });
+    return [...countRows, ...statRows];
 }
 
 class VehicleLabApp {
@@ -80,10 +107,14 @@ class VehicleLabApp {
         this.canvas = document.getElementById('vehicleCanvas');
         this.core = new VehicleLabCore(this.canvas);
 
-        const saved = localStorage.getItem('vehicle_lab_config');
+        const saved = localStorage.getItem(VEHICLE_LAB_CONFIG_STORAGE_KEY);
         let initialConfig = null;
         try {
-            if (saved) initialConfig = JSON.parse(saved);
+            if (saved) {
+                const parsed = JSON.parse(saved);
+                const normalized = normalizeVehicleLabConfig(parsed, { requireParts: true });
+                if (normalized.ok) initialConfig = normalized.config;
+            }
         } catch (e) {
             console.warn('Vehicle Lab: Invalid JSON in local storage, falling back to default.');
         }
@@ -96,7 +127,7 @@ class VehicleLabApp {
         this._saveTimeout = null;
         this.viewport = new VehicleLabViewport(this.core, (idx, path) => this.selectPart(idx, path));
         this.ui = new VehicleLabUI({
-            onLoadPreset: () => this.loadPreset(),
+            onLoadPreset: (vehicleId) => this.loadPreset(vehicleId),
             onImportJson: () => this.importJson(),
             onExportJson: () => this.exportJson(),
             onSaveToGame: () => this.saveToGame(),
@@ -107,8 +138,13 @@ class VehicleLabApp {
             onAddPart: () => this.addPart(),
             onAddChild: () => this.addChild(),
             onDeletePart: () => this.deletePart(),
+            onDuplicatePart: () => this.duplicatePart(),
+            onMirrorPart: () => this.toggleMirrorPart(),
+            onPartSearchChange: () => this.updateUI(),
+            onSnapChange: (settings) => this.applySnapSettings(settings),
+            onCameraView: (view) => this.viewport.setCameraView(view, this.vehicle),
             onFlyModeChange: (val) => { this.viewport.isFlyMode = val; },
-            onWireframeChange: (val) => { this.vehicle.setWireframe(val); },
+            onWireframeChange: (val) => { this.vehicle?.setWireframe?.(val); },
             onHitboxChange: (val) => { this.viewport.setHitboxVisible(val); },
             onUndo: () => this.undo(),
             onRedo: () => this.redo(),
@@ -116,13 +152,15 @@ class VehicleLabApp {
             onGlobalUpdate: (type, val) => this.onGlobalUpdate(type, val)
         });
         this.vehicle = new ModularVehicleMesh(initialConfig);
+        this.activeReferenceVehicle = null;
         if (this.vehicle.children.length === 0) {
             console.warn('Vehicle Lab: Loaded config generated empty mesh. Forcing default preset.');
             initialConfig = JSON.parse(JSON.stringify(VEHICLE_PRESETS[0]));
             this.vehicle = new ModularVehicleMesh(initialConfig);
-            localStorage.setItem('vehicle_lab_config', JSON.stringify(initialConfig));
+            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(initialConfig));
         }
         this.core.scene.add(this.vehicle);
+        this.viewport.setCameraView('fit', this.vehicle);
 
         this.selectedIndex = null;
         this.selectedPath = [];
@@ -132,17 +170,21 @@ class VehicleLabApp {
         this.statusTone = 'info';
         this.arcadeBlueprintStatus = 'Blueprint: n/a';
         this.lastArcadeBlueprintResult = null;
+        this._hudDirty = true;
+        this._lastHudText = '';
+        this._animationFrameId = null;
+        this._disposed = false;
         this.updateArcadeBlueprintStatus();
         this.initPresets();
         this.updateUI();
         this.updateSavedVehiclesUi('');
         this.refreshSavedVehiclesList();
+        this.applySnapSettings(this.ui.getSnapSettings());
         this.animate();
 
-        window.addEventListener('resize', () => this.core.onResize());
-
         // Global Shortcuts
-        window.addEventListener('keydown', (e) => {
+        this.onGlobalShortcut = (e) => {
+            if (this.core.isEditingTarget(e.target)) return;
             if (e.ctrlKey || e.metaKey) {
                 if (e.key.toLowerCase() === 'z') {
                     e.preventDefault();
@@ -152,19 +194,21 @@ class VehicleLabApp {
                     this.redo();
                 }
             }
-        });
+        };
+        window.addEventListener('keydown', this.onGlobalShortcut);
+        this.onBeforeUnload = () => this.dispose();
+        window.addEventListener('beforeunload', this.onBeforeUnload, { once: true });
 
         // Listen for viewport changes (Gizmo)
         this.viewport.onChanged = () => {
             if (this.selectedIndex === null) return;
             this.syncGizmoToConfig();
-            this.vehicle.build();
             this.updateArcadeBlueprintStatus();
             this.persistCurrentConfig('Gizmo-Aenderung gespeichert.');
-            const part = this.vehicle.config.parts[this.selectedIndex];
+            this.markSceneMetricsDirty();
+            const part = this.resolveSelectedPart();
             if (part) {
                 this.ui.showProperties(part, (type) => this.onPropUpdate(type));
-                this.refreshGizmoAttachment();
             }
         };
 
@@ -172,20 +216,34 @@ class VehicleLabApp {
 
     initPresets() {
         const select = document.getElementById('presetSelect');
+        const labGroup = document.createElement('optgroup');
+        labGroup.label = 'Bearbeitbare Lab-Vorlagen';
         VEHICLE_PRESETS.forEach(p => {
             const opt = document.createElement('option');
             opt.value = p.id;
             opt.textContent = p.label;
-            select.appendChild(opt);
+            labGroup.appendChild(opt);
         });
+        select.appendChild(labGroup);
+
+        const gameGroup = document.createElement('optgroup');
+        gameGroup.label = 'Spiel-Flieger (schreibgeschützt)';
+        GAME_VEHICLE_REFERENCES.forEach((vehicle) => {
+            const opt = document.createElement('option');
+            opt.value = vehicle.id;
+            opt.textContent = vehicle.label;
+            gameGroup.appendChild(opt);
+        });
+        select.appendChild(gameGroup);
+        this.ui.setPresetSelection(this.vehicle?.config?.id);
     }
 
     getStandardReadonlyVehicles() {
-        return VEHICLE_PRESETS.map((preset) => ({
+        return [...VEHICLE_PRESETS.map((preset) => ({
             id: preset.id,
             label: preset.label || preset.id,
             readOnly: true
-        }));
+        })), ...GAME_VEHICLE_REFERENCES];
     }
 
     getCompareCandidates() {
@@ -237,28 +295,72 @@ class VehicleLabApp {
         });
     }
 
-    persistCurrentConfig(statusMessage = 'Aenderungen lokal gespeichert.') {
-        this.history.save(this.vehicle.config);
-        localStorage.setItem('vehicle_lab_config', JSON.stringify(this.vehicle.config));
-        this.setStatus(statusMessage, 'success');
+    persistCurrentConfig(statusMessage = 'Änderungen lokal gespeichert.') {
+        if (this.activeReferenceVehicle) return;
+        try {
+            this.history.save(this.vehicle.config);
+            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(this.vehicle.config));
+            this.ui.updateSaveState('saved', 'Lokal gespeichert');
+            this.setStatus(statusMessage, 'success');
+        } catch (error) {
+            this.ui.updateSaveState('error', 'Speichern fehlgeschlagen');
+            this.setStatus(`Lokales Speichern fehlgeschlagen: ${error.message}`, 'error');
+        }
     }
 
     flushPendingSave() {
         if (!this._saveTimeout) return;
         clearTimeout(this._saveTimeout);
         this._saveTimeout = null;
-        this.persistCurrentConfig('Aenderungen lokal gespeichert.');
+        this.persistCurrentConfig('Änderungen lokal gespeichert.');
     }
 
     applyVehicleConfigToEditor(config) {
-        if (!config || typeof config !== 'object') {
-            throw new Error('Invalid vehicle config');
-        }
-        const cloned = cloneVehicleConfig(config);
-        this.vehicle.updateConfig(cloned);
+        const normalized = normalizeVehicleLabConfig(config, { requireParts: true });
+        if (!normalized.ok) throw new Error(formatVehicleLabConfigIssues(normalized));
+        const cloned = cloneVehicleConfig(normalized.config);
+        this.replaceVehicle(new ModularVehicleMesh(cloned));
+        this.activeReferenceVehicle = null;
+        this.viewport.setCameraView('fit', this.vehicle);
+        this.ui.setActiveCameraView('fit');
+        this.ui.setPresetSelection(cloned.id);
+        this.markSceneMetricsDirty();
         this.updateArcadeBlueprintStatus();
         this.persistCurrentConfig('Fahrzeug geladen.');
         this.selectPart(null);
+        this.updateUI();
+        if (normalized.warnings.length > 0) this.ui.showToast(normalized.warnings.join(' '), 'warning');
+    }
+
+    replaceVehicle(nextVehicle) {
+        this.viewport.attach(null);
+        if (this.vehicle) {
+            this.core.scene.remove(this.vehicle);
+            this.vehicle.dispose?.();
+        }
+        this.vehicle = nextVehicle;
+        this.core.scene.add(nextVehicle);
+        this.markSceneMetricsDirty();
+    }
+
+    async loadGameVehicleReference(vehicle) {
+        this.flushPendingSave();
+        this.selectPart(null);
+        const reference = new GameVehicleReferenceMesh(vehicle);
+        this.replaceVehicle(reference);
+        this.activeReferenceVehicle = vehicle;
+        this.ui.setPresetSelection(vehicle.id);
+        this.viewport.setCameraView('fit', reference);
+        this.ui.setActiveCameraView('fit');
+        this.updateArcadeBlueprintStatus();
+        this.setStatus(`${vehicle.label} wird geladen …`, 'info');
+        this.updateUI();
+
+        await reference.ready;
+        if (this.vehicle !== reference || this._disposed) return;
+        this.viewport.setCameraView('fit', reference);
+        this.markSceneMetricsDirty();
+        this.setStatus(`Spielmodell geladen: ${vehicle.label} (schreibgeschützt).`, 'success');
         this.updateUI();
     }
 
@@ -302,6 +404,11 @@ class VehicleLabApp {
                 this.applyVehicleConfigToEditor(preset);
                 return;
             }
+            const gameReference = GAME_VEHICLE_REFERENCES.find((entry) => entry.id === vehicleId);
+            if (gameReference) {
+                await this.loadGameVehicleReference(gameReference);
+                return;
+            }
         }
 
         try {
@@ -320,23 +427,27 @@ class VehicleLabApp {
 
             this.applyVehicleConfigToEditor(payload.config);
         } catch (error) {
-            alert(`Fahrzeug konnte nicht geladen werden: ${error.message}`);
+            this.ui.showToast(`Fahrzeug konnte nicht geladen werden: ${error.message}`, 'error');
         }
     }
 
-    loadPreset() {
-        const id = document.getElementById('presetSelect').value;
+    loadPreset(vehicleId) {
+        const id = String(vehicleId || document.getElementById('presetSelect').value || '');
         const preset = VEHICLE_PRESETS.find(p => p.id === id);
         if (preset) {
             this.applyVehicleConfigToEditor(preset);
+            return;
         }
+        const gameReference = GAME_VEHICLE_REFERENCES.find((vehicle) => vehicle.id === id);
+        if (gameReference) this.loadGameVehicleReference(gameReference);
     }
 
 
     selectPart(index, path = []) {
+        if (this.activeReferenceVehicle && index !== null) return;
         this.selectedIndex = index;
         this.selectedPath = path;
-        this.vehicle.setSelectedIndex(index);
+        this.vehicle.setSelectedSelection?.(index, path);
         this.updateUI();
 
         if (index !== null) {
@@ -348,10 +459,18 @@ class VehicleLabApp {
     }
 
     onPropUpdate(type) {
-        this.vehicle.build();
-        this.refreshGizmoAttachment();
+        const rebuildTypes = new Set(['geo', 'size', 'material', 'color', 'emissive', 'mirror', 'anim']);
+        if (rebuildTypes.has(type)) {
+            this.rebuildVehicle();
+        } else {
+            const part = this.resolveSelectedPart();
+            const object = this.findSelectedObject();
+            if (part && object) this.vehicle.updatePartTransform(object, part);
+        }
         this.updateArcadeBlueprintStatus();
-        this.setStatus(type === 'add' ? 'Bauteil hinzugefuegt.' : 'Aenderungen ausstehend.', 'warning');
+        this.markSceneMetricsDirty();
+        this.setStatus(type === 'add' ? 'Bauteil hinzugefügt.' : 'Änderungen ausstehend.', 'warning');
+        this.ui.updateSaveState('dirty', 'Ungespeicherte Änderungen');
         this.debouncedSave();
         this.updateUI();
     }
@@ -360,7 +479,8 @@ class VehicleLabApp {
         if (this._saveTimeout) clearTimeout(this._saveTimeout);
         this._saveTimeout = setTimeout(() => {
             this._saveTimeout = null;
-            this.persistCurrentConfig('Aenderungen lokal gespeichert.');
+            this.updateArcadeBlueprintStatus();
+            this.persistCurrentConfig('Änderungen lokal gespeichert.');
             this.updateUI();
         }, 180);
     }
@@ -371,14 +491,58 @@ class VehicleLabApp {
         } else if (type === 'color') {
             this.vehicle.config.primaryColor = parseInt(val.replace('#', ''), 16);
             this.vehicle.initMaterials(this.vehicle.config);
-            this.vehicle.build();
+            this.rebuildVehicle();
         }
         this.updateArcadeBlueprintStatus();
-        this.persistCurrentConfig('Ship Settings gespeichert.');
+        this.ui.updateSaveState('dirty', 'Ungespeicherte Änderungen');
+        this.debouncedSave();
         this.updateUI();
     }
 
+    resolveSelectedPart() {
+        if (this.selectedIndex === null) return null;
+        let part = this.vehicle?.config?.parts?.[this.selectedIndex] || null;
+        for (const pathIndex of this.selectedPath || []) {
+            part = Array.isArray(part?.children) ? part.children[pathIndex] : null;
+            if (!part) return null;
+        }
+        return part;
+    }
+
+    findSelectedObject() {
+        const targetPart = this.resolveSelectedPart();
+        if (!targetPart) return null;
+        let foundMesh = null;
+        this.vehicle.traverse((node) => {
+            if (!foundMesh && node.userData.config === targetPart && !node.userData.isMirror) foundMesh = node;
+        });
+        return foundMesh;
+    }
+
+    rebuildVehicle() {
+        this.viewport.attach(null);
+        this.vehicle.build();
+        this.vehicle.setSelectedSelection(this.selectedIndex, this.selectedPath);
+        this.refreshGizmoAttachment();
+        this.markSceneMetricsDirty();
+    }
+
+    markSceneMetricsDirty() {
+        this._hudDirty = true;
+        this.viewport?.requestHitboxUpdate();
+    }
+
+    applySnapSettings(settings = {}) {
+        this.snapSettings = settings;
+        this.viewport.setSnapping(settings.enabled, settings.translate, settings.rotate, settings.scale);
+    }
+
     updateArcadeBlueprintStatus(labelOverride = '') {
+        if (this.activeReferenceVehicle) {
+            this.lastArcadeBlueprintResult = null;
+            this.arcadeBlueprintStatus = 'Spielmodell-Referenz · schreibgeschützt · keine modulare Veröffentlichung';
+            return null;
+        }
         const config = this.vehicle?.config || {};
         const resolvedLabel = String(labelOverride || config.label || 'Custom Vehicle').trim() || 'Custom Vehicle';
         const result = buildValidatedArcadeBlueprint(config, {
@@ -393,21 +557,7 @@ class VehicleLabApp {
 
     refreshGizmoAttachment() {
         if (this.selectedIndex === null) return;
-
-        let targetPart = this.vehicle.config.parts[this.selectedIndex];
-        if (this.selectedPath && this.selectedPath.length > 0) {
-            this.selectedPath.forEach(pIdx => {
-                if (targetPart && targetPart.children) targetPart = targetPart.children[pIdx];
-            });
-        }
-
-        let foundMesh = null;
-        this.vehicle.traverse(node => {
-            if (node.userData.config === targetPart && !node.userData.isMirror) {
-                foundMesh = node;
-            }
-        });
-
+        const foundMesh = this.findSelectedObject();
         if (foundMesh) {
             this.viewport.attach(foundMesh);
         } else {
@@ -420,35 +570,35 @@ class VehicleLabApp {
         const obj = this.viewport.gizmo.object;
         if (!obj) return;
 
-        let part = this.vehicle.config.parts[this.selectedIndex];
-        if (this.selectedPath && this.selectedPath.length > 0) {
-            this.selectedPath.forEach(pIdx => {
-                if (part.children) part = part.children[pIdx];
-            });
-        }
+        const part = this.resolveSelectedPart();
+        if (!part) return;
+        const currentPos = Array.isArray(part.pos) ? part.pos : [0, 0, 0];
+        const currentRot = Array.isArray(part.rot) ? part.rot : [0, 0, 0];
+        const currentScale = Array.isArray(part.scale) ? part.scale : [1, 1, 1];
 
         part.pos = [
-            Number.isFinite(obj.position.x) ? obj.position.x : part.pos[0],
-            Number.isFinite(obj.position.y) ? obj.position.y : part.pos[1],
-            Number.isFinite(obj.position.z) ? obj.position.z : part.pos[2]
+            Number.isFinite(obj.position.x) ? obj.position.x : currentPos[0],
+            Number.isFinite(obj.position.y) ? obj.position.y : currentPos[1],
+            Number.isFinite(obj.position.z) ? obj.position.z : currentPos[2]
         ];
         part.rot = [
-            Number.isFinite(obj.rotation.x) ? THREE.MathUtils.radToDeg(obj.rotation.x) : part.rot[0],
-            Number.isFinite(obj.rotation.y) ? THREE.MathUtils.radToDeg(obj.rotation.y) : part.rot[1],
-            Number.isFinite(obj.rotation.z) ? THREE.MathUtils.radToDeg(obj.rotation.z) : part.rot[2]
+            Number.isFinite(obj.rotation.x) ? THREE.MathUtils.radToDeg(obj.rotation.x) : currentRot[0],
+            Number.isFinite(obj.rotation.y) ? THREE.MathUtils.radToDeg(obj.rotation.y) : currentRot[1],
+            Number.isFinite(obj.rotation.z) ? THREE.MathUtils.radToDeg(obj.rotation.z) : currentRot[2]
         ];
         part.scale = [
-            Number.isFinite(obj.scale.x) ? obj.scale.x : (part.scale ? part.scale[0] : 1),
-            Number.isFinite(obj.scale.y) ? obj.scale.y : (part.scale ? part.scale[1] : 1),
-            Number.isFinite(obj.scale.z) ? obj.scale.z : (part.scale ? part.scale[2] : 1)
+            Number.isFinite(obj.scale.x) ? obj.scale.x : currentScale[0],
+            Number.isFinite(obj.scale.y) ? obj.scale.y : currentScale[1],
+            Number.isFinite(obj.scale.z) ? obj.scale.z : currentScale[2]
         ];
 
     }
 
     addPart() {
+        if (this.activeReferenceVehicle) return;
         const newPart = { name: 'New Part', geo: 'box', size: [1, 1, 1], pos: [0, 1, 0], rot: [0, 0, 0], material: 'primary' };
         this.vehicle.config.parts.push(newPart);
-        this.vehicle.build();
+        this.rebuildVehicle();
         this.selectPart(this.vehicle.config.parts.length - 1, []);
         this.onPropUpdate('add');
     }
@@ -464,7 +614,7 @@ class VehicleLabApp {
         if (!part.children) part.children = [];
         const newChild = { name: 'Child Part', geo: 'sphere', size: [0.5, 0.5, 0.5], pos: [0, 1, 0], rot: [0, 0, 0], material: 'secondary' };
         part.children.push(newChild);
-        this.vehicle.build();
+        this.rebuildVehicle();
         this.selectPart(this.selectedIndex, [...this.selectedPath, part.children.length - 1]);
         this.onPropUpdate('add');
     }
@@ -490,11 +640,53 @@ class VehicleLabApp {
                 this.selectPart(null);
             }
 
-            this.vehicle.build();
+            this.rebuildVehicle();
             this.updateArcadeBlueprintStatus();
-            this.persistCurrentConfig('Bauteil geloescht.');
+            this.persistCurrentConfig('Bauteil gelöscht.');
             this.updateUI();
         }
+    }
+
+    duplicatePart() {
+        const part = this.resolveSelectedPart();
+        if (!part) return;
+        const copy = cloneVehicleConfig(part);
+        copy.name = `${part.name || 'Part'} Kopie`;
+        copy.pos = [...(copy.pos || [0, 0, 0])];
+        copy.pos[0] += this.snapSettings?.translate || 0.25;
+
+        if (this.selectedPath.length === 0) {
+            const insertIndex = this.selectedIndex + 1;
+            this.vehicle.config.parts.splice(insertIndex, 0, copy);
+            this.rebuildVehicle();
+            this.selectPart(insertIndex, []);
+        } else {
+            let parent = this.vehicle.config.parts[this.selectedIndex];
+            for (let index = 0; index < this.selectedPath.length - 1; index++) {
+                parent = parent.children[this.selectedPath[index]];
+            }
+            const leafIndex = this.selectedPath[this.selectedPath.length - 1];
+            parent.children.splice(leafIndex + 1, 0, copy);
+            const newPath = [...this.selectedPath];
+            newPath[newPath.length - 1] = leafIndex + 1;
+            this.rebuildVehicle();
+            this.selectPart(this.selectedIndex, newPath);
+        }
+        this.persistCurrentConfig('Bauteil dupliziert.');
+        this.updateUI();
+    }
+
+    toggleMirrorPart() {
+        const part = this.resolveSelectedPart();
+        if (!part) return;
+        const axes = [null, 'x', 'y', 'z'];
+        const currentIndex = axes.indexOf(part.mirrorAxis || null);
+        const nextAxis = axes[(currentIndex + 1) % axes.length];
+        if (nextAxis) part.mirrorAxis = nextAxis;
+        else delete part.mirrorAxis;
+        this.rebuildVehicle();
+        this.persistCurrentConfig(nextAxis ? `Spiegelung ${nextAxis.toUpperCase()} aktiviert.` : 'Spiegelung deaktiviert.');
+        this.updateUI();
     }
 
     updateUI() {
@@ -511,6 +703,7 @@ class VehicleLabApp {
             rows: createCompareRows(this.vehicle.config, this.resolveComparePreset()),
         });
         this.updateStatusBar();
+        this.ui.setReferenceMode(!!this.activeReferenceVehicle, this.activeReferenceVehicle?.label || '');
 
         if (this.selectedIndex !== null) {
             let part = this.vehicle.config.parts[this.selectedIndex];
@@ -530,13 +723,17 @@ class VehicleLabApp {
         input.onchange = (e) => {
             const file = e.target.files[0];
             if (!file) return;
+            if (file.size > 2 * 1024 * 1024) {
+                this.ui.showToast('Import fehlgeschlagen: Die JSON-Datei darf höchstens 2 MB groß sein.', 'error');
+                return;
+            }
             const reader = new FileReader();
             reader.onload = (re) => {
                 try {
                     const config = JSON.parse(re.target.result);
                     this.applyVehicleConfigToEditor(config);
                 } catch (err) {
-                    alert('Invalid JSON file');
+                    this.ui.showToast(`Import fehlgeschlagen: ${err.message}`, 'error');
                 }
             };
             reader.readAsText(file);
@@ -545,6 +742,7 @@ class VehicleLabApp {
     }
 
     exportJson() {
+        if (this.activeReferenceVehicle) return;
         const data = JSON.stringify(this.vehicle.config, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
@@ -553,28 +751,30 @@ class VehicleLabApp {
         a.download = `${this.vehicle.config.label || 'ship'}.json`;
         a.click();
         URL.revokeObjectURL(url);
+        this.ui.showToast('JSON exportiert.', 'success');
     }
 
     async saveToGame() {
         const suggested = String(this.vehicle?.config?.label || 'Custom Vehicle').trim() || 'Custom Vehicle';
-        const requestedName = window.prompt(
-            'Name fuer das Fahrzeug im Spiel (gleicher Name aktualisiert den bestehenden Eintrag):',
-            suggested
-        );
+        this.flushPendingSave();
+        const requestedName = await this.ui.requestDialog({
+            title: 'Im Spiel veröffentlichen',
+            message: 'Ein identischer Name aktualisiert den bestehenden Eintrag.',
+            inputLabel: 'Fahrzeugname',
+            inputValue: suggested,
+            confirmLabel: 'Veröffentlichen',
+        });
         if (requestedName === null) return;
 
         const vehicleName = requestedName.trim();
         if (!vehicleName) {
-            alert('Bitte einen gueltigen Fahrzeugnamen eingeben.');
+            this.ui.showToast('Bitte einen gültigen Fahrzeugnamen eingeben.', 'error');
             return;
         }
 
         const guardResult = this.updateArcadeBlueprintStatus(vehicleName);
         if (!guardResult.validation.ok) {
-            alert(
-                'Arcade-Blueprint Guard fehlgeschlagen.\n' +
-                `${formatArcadeBlueprintValidationMessage(guardResult)}`
-            );
+            this.ui.showToast(`Blueprint ungültig: ${formatArcadeBlueprintValidationMessage(guardResult)}`, 'error');
             return;
         }
 
@@ -613,22 +813,13 @@ class VehicleLabApp {
                 VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
                 JSON.stringify(upsertVehicleLabHangarPublication(currentPublicationRecord, publication))
             );
-            alert(
-                `Fahrzeug ${saveMode}.\n` +
-                `Fahrzeug-ID: ${payload.vehicleId}\n` +
-                `Label: ${payload.vehicleLabel}\n` +
-                `Config-Datei: ${payload.vehicleConfigPath}\n` +
-                `Registry: ${payload.generatedModulePath}\n` +
-                `${this.arcadeBlueprintStatus}\n` +
-                `${publication.parts.length} Bauteil(e) im Hangar-Katalog veröffentlicht.\n` +
-                `Spielseite neu laden, damit Fahrzeug und Bauteile erscheinen.`
-            );
+            this.ui.showToast(`Fahrzeug ${saveMode}; ${publication.parts.length} Bauteile im Hangar veröffentlicht.`, 'success');
+            this.setStatus(`${payload.vehicleLabel} veröffentlicht – Spielseite zum Aktualisieren neu laden.`, 'success');
+            this.ui.updateSaveState('saved', 'Im Spiel veröffentlicht');
             this.refreshSavedVehiclesList();
         } catch (error) {
-            alert(
-                `Fahrzeug konnte nicht gespeichert werden: ${error.message}\n` +
-                `Hinweis: Vehicle Lab muss ueber den lokalen Vite-Server laufen (npm run dev).`
-            );
+            this.ui.showToast(`Veröffentlichen fehlgeschlagen: ${error.message}`, 'error');
+            this.setStatus('Vehicle Lab muss über den lokalen Desktop-Entwicklungsserver laufen.', 'error');
         }
     }
 
@@ -637,15 +828,18 @@ class VehicleLabApp {
         const currentLabel = String(vehicle?.label || vehicleId || '').trim();
         if (!vehicleId) return;
 
-        const requestedName = window.prompt(
-            'Neuer Name fuer das gespeicherte Fahrzeug:',
-            currentLabel || 'Custom Vehicle'
-        );
+        const requestedName = await this.ui.requestDialog({
+            title: 'Fahrzeug umbenennen',
+            message: `Gespeichertes Fahrzeug: ${currentLabel}`,
+            inputLabel: 'Neuer Name',
+            inputValue: currentLabel || 'Custom Vehicle',
+            confirmLabel: 'Umbenennen',
+        });
         if (requestedName === null) return;
 
         const vehicleName = requestedName.trim();
         if (!vehicleName) {
-            alert('Bitte einen gueltigen Fahrzeugnamen eingeben.');
+            this.ui.showToast('Bitte einen gültigen Fahrzeugnamen eingeben.', 'error');
             return;
         }
 
@@ -672,15 +866,10 @@ class VehicleLabApp {
                 throw new Error(payload?.error || `HTTP ${response.status}`);
             }
 
-            alert(
-                `Fahrzeug umbenannt.\n` +
-                `Alt: ${payload.previousVehicleId}\n` +
-                `Neu: ${payload.vehicleLabel} (${payload.vehicleId})\n` +
-                `Spielseite neu laden, damit die Auswahl aktualisiert wird.`
-            );
+            this.ui.showToast(`${payload.vehicleLabel} wurde umbenannt.`, 'success');
             this.refreshSavedVehiclesList();
         } catch (error) {
-            alert(`Umbenennen fehlgeschlagen: ${error.message}`);
+            this.ui.showToast(`Umbenennen fehlgeschlagen: ${error.message}`, 'error');
         }
     }
 
@@ -689,9 +878,12 @@ class VehicleLabApp {
         const currentLabel = String(vehicle?.label || vehicleId || '').trim();
         if (!vehicleId) return;
 
-        const confirmed = window.confirm(
-            `Custom-Fahrzeug wirklich loeschen?\n${currentLabel} (${vehicleId})`
-        );
+        const confirmed = await this.ui.requestDialog({
+            title: 'Fahrzeug löschen',
+            message: `${currentLabel} (${vehicleId}) wird dauerhaft entfernt.`,
+            confirmLabel: 'Löschen',
+            danger: true,
+        });
         if (!confirmed) return;
 
         try {
@@ -716,20 +908,23 @@ class VehicleLabApp {
                 throw new Error(payload?.error || `HTTP ${response.status}`);
             }
 
-            alert(`Fahrzeug geloescht: ${vehicleId}`);
+            this.ui.showToast(`Fahrzeug gelöscht: ${currentLabel}`, 'success');
             this.refreshSavedVehiclesList();
         } catch (error) {
-            alert(`Loeschen fehlgeschlagen: ${error.message}`);
+            this.ui.showToast(`Löschen fehlgeschlagen: ${error.message}`, 'error');
         }
     }
 
     undo() {
+        if (this.activeReferenceVehicle) return;
         this.flushPendingSave();
         const config = this.history.undo();
         if (config) {
             this.vehicle.updateConfig(config);
+            this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
-            localStorage.setItem('vehicle_lab_config', JSON.stringify(config));
+            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
+            this.ui.updateSaveState('saved', 'Lokal gespeichert');
             this.setStatus('Undo angewendet.', 'info');
             this.selectPart(null);
             this.updateUI();
@@ -739,12 +934,15 @@ class VehicleLabApp {
     }
 
     redo() {
+        if (this.activeReferenceVehicle) return;
         this.flushPendingSave();
         const config = this.history.redo();
         if (config) {
             this.vehicle.updateConfig(config);
+            this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
-            localStorage.setItem('vehicle_lab_config', JSON.stringify(config));
+            localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
+            this.ui.updateSaveState('saved', 'Lokal gespeichert');
             this.setStatus('Redo angewendet.', 'info');
             this.selectPart(null);
             this.updateUI();
@@ -754,20 +952,21 @@ class VehicleLabApp {
     }
 
     animate() {
-        requestAnimationFrame(() => this.animate());
+        if (this._disposed) return;
+        this._animationFrameId = requestAnimationFrame(() => this.animate());
         const dt = this.core.clock?.getDelta() || 0.016;
         const time = this.core.clock?.getElapsedTime() || performance.now() / 1000;
 
         if (this.viewport) this.viewport.update(dt);
 
         if (this.vehicle) {
-            this.vehicle.tick(dt, time);
+            this.vehicle.tick?.(dt, time);
             const autoRotate = document.getElementById('chkAutoRotate');
             if (autoRotate && autoRotate.checked) {
                 this.vehicle.rotation.y += 0.5 * dt;
             }
             if (this.viewport) {
-                this.viewport.updateHitbox(this.vehicle);
+                this.viewport.updateHitboxIfNeeded(this.vehicle);
                 this.handlePartKeyboardMovement(dt);
             }
         }
@@ -777,18 +976,20 @@ class VehicleLabApp {
     }
 
     updateHud() {
-        if (!this.vehicle) return;
+        if (!this.vehicle || !this._hudDirty) return;
+        this._hudDirty = false;
         let polyCount = 0;
         this.vehicle.traverse(child => {
             if (child.isMesh && child.geometry) {
-                const pos = child.geometry.attributes.position;
-                if (pos) {
-                    polyCount += pos.count / 3;
-                }
+                const indexCount = child.geometry.index?.count;
+                const positionCount = child.geometry.attributes.position?.count;
+                polyCount += (indexCount || positionCount || 0) / 3;
             }
         });
         const badge = document.getElementById('polyCountBadge');
-        if (badge) badge.textContent = `Polys: ${Math.round(polyCount)} | ${this.arcadeBlueprintStatus}`;
+        const nextText = `Polygone: ${Math.round(polyCount)}`;
+        if (badge && nextText !== this._lastHudText) badge.textContent = nextText;
+        this._lastHudText = nextText;
     }
 
     handlePartKeyboardMovement(dt) {
@@ -798,12 +999,8 @@ class VehicleLabApp {
         const speed = (keys.shift ? 25 : 5) * dt;
 
         // Find targeted part by path
-        let part = this.vehicle.config.parts[this.selectedIndex];
-        if (this.selectedPath && this.selectedPath.length > 0) {
-            this.selectedPath.forEach(pIdx => {
-                if (part.children) part = part.children[pIdx];
-            });
-        }
+        const part = this.resolveSelectedPart();
+        if (!part) return;
 
         let moved = false;
 
@@ -843,11 +1040,28 @@ class VehicleLabApp {
         }
 
         if (moved) {
-            this.vehicle.build();
-            this.ui.showProperties(part, (type) => this.onPropUpdate(type));
-            this.refreshGizmoAttachment();
+            const object = this.findSelectedObject();
+            if (object) this.vehicle.updatePartTransform(object, part);
+            this.markSceneMetricsDirty();
+            this.ui.updateSaveState('dirty', 'Ungespeicherte Änderungen');
             this.debouncedSave();
         }
+    }
+
+    dispose() {
+        if (this._disposed) return;
+        this.flushPendingSave();
+        this._disposed = true;
+        if (this._animationFrameId !== null) cancelAnimationFrame(this._animationFrameId);
+        if (this._saveTimeout) clearTimeout(this._saveTimeout);
+        window.removeEventListener('keydown', this.onGlobalShortcut);
+        window.removeEventListener('beforeunload', this.onBeforeUnload);
+        this.viewport?.dispose();
+        if (this.vehicle) {
+            this.core.scene.remove(this.vehicle);
+            this.vehicle.dispose();
+        }
+        this.core?.dispose();
     }
 }
 

@@ -1,19 +1,46 @@
 import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { TransformControls } from 'three/addons/controls/TransformControls.js';
+import {
+    VEHICLE_LAB_CAMERA_DISTANCE_LIMITS,
+    resolveVehicleLabFitDistance,
+    resolveVehicleLabViewPose,
+} from './VehicleLabCameraPolicy.js';
 
 export class VehicleLabViewport {
     constructor(core, onSelect) {
         this.core = core;
         this.onSelect = onSelect;
         this.isFlyMode = false;
+        this.hitboxDirty = true;
+        this.pointerStartX = 0;
+        this.pointerStartY = 0;
+        this.pointerIsDown = false;
+        this.pointerDragged = false;
+        this.suppressSelectionUntil = 0;
+        this.scratch = {
+            center: new THREE.Vector3(),
+            offset: new THREE.Vector3(),
+            direction: new THREE.Vector3(),
+            right: new THREE.Vector3(),
+            up: new THREE.Vector3(),
+            move: new THREE.Vector3(),
+            box: new THREE.Box3(),
+            size: new THREE.Vector3(),
+            sphere: new THREE.Sphere(),
+        };
 
         this.controls = new OrbitControls(core.camera, core.canvas);
         this.controls.enableDamping = true;
+        this.controls.enablePan = true;
+        this.controls.enableZoom = true;
+        this.controls.screenSpacePanning = true;
+        this.controls.minDistance = VEHICLE_LAB_CAMERA_DISTANCE_LIMITS.min;
+        this.controls.maxDistance = VEHICLE_LAB_CAMERA_DISTANCE_LIMITS.max;
         this.controls.mouseButtons = {
-            LEFT: THREE.MOUSE.NONE,
-            MIDDLE: THREE.MOUSE.DOLLY,
-            RIGHT: THREE.MOUSE.ROTATE
+            LEFT: THREE.MOUSE.ROTATE,
+            MIDDLE: THREE.MOUSE.PAN,
+            RIGHT: THREE.MOUSE.PAN
         };
 
         this.gizmo = new TransformControls(core.camera, core.canvas);
@@ -26,13 +53,36 @@ export class VehicleLabViewport {
         this.raycaster = new THREE.Raycaster();
         this.mouse = new THREE.Vector2();
 
-        core.canvas.addEventListener('click', (e) => this.onClick(e));
+        this.onCanvasClick = (e) => this.onClick(e);
+        this.onPointerDown = (e) => {
+            this.pointerIsDown = true;
+            this.pointerStartX = e.clientX;
+            this.pointerStartY = e.clientY;
+            this.pointerDragged = false;
+        };
+        this.onPointerMove = (e) => {
+            if (!this.pointerIsDown) return;
+            const deltaX = e.clientX - this.pointerStartX;
+            const deltaY = e.clientY - this.pointerStartY;
+            if ((deltaX * deltaX) + (deltaY * deltaY) > 16) this.pointerDragged = true;
+        };
+        this.onPointerUp = () => {
+            if (this.pointerDragged) this.suppressSelectionUntil = Date.now() + 120;
+            this.pointerIsDown = false;
+        };
+        core.canvas.addEventListener('click', this.onCanvasClick);
+        core.canvas.addEventListener('pointerdown', this.onPointerDown);
+        core.canvas.addEventListener('pointermove', this.onPointerMove);
+        core.canvas.addEventListener('pointerup', this.onPointerUp);
+        core.canvas.addEventListener('pointercancel', this.onPointerUp);
 
-        window.addEventListener('keydown', (e) => {
+        this.onShortcutKeyDown = (e) => {
+            if (this.core.isEditingTarget(e.target)) return;
             if (e.key === 't') this.gizmo.setMode('translate');
             if (e.key === 'r') this.gizmo.setMode('rotate');
             if (e.key === 's') this.gizmo.setMode('scale');
-        });
+        };
+        window.addEventListener('keydown', this.onShortcutKeyDown);
 
         // Hitbox Preview (AABB/OBB style)
         this.hitboxPreview = new THREE.Mesh(
@@ -50,7 +100,7 @@ export class VehicleLabViewport {
 
     onClick(event) {
         try {
-            if (this.gizmo.dragging) return;
+            if (this.gizmo.dragging || Date.now() < this.suppressSelectionUntil) return;
 
             const rect = this.core.canvas.getBoundingClientRect();
             if (rect.width === 0 || rect.height === 0) return;
@@ -77,76 +127,75 @@ export class VehicleLabViewport {
         }
     }
 
-    updateHitbox(vehicle) {
-        if (!this.hitboxPreview.visible) return;
+    setHitboxVisible(visible) {
+        this.hitboxPreview.visible = visible;
+        this.hitboxDirty = visible;
+    }
 
-        // Simulate game's Player.js hitbox calculation
-        // Calculate the bounding box of the entire vehicle group
-        const box = new THREE.Box3();
-        box.setFromObject(vehicle);
+    requestHitboxUpdate() {
+        this.hitboxDirty = true;
+    }
 
+    updateHitboxIfNeeded(vehicle) {
+        if (!this.hitboxDirty || !this.hitboxPreview.visible) return;
+        this.hitboxDirty = false;
+        const box = this.scratch.box.setFromObject(vehicle);
         if (box.isEmpty()) {
             this.hitboxPreview.visible = false;
             return;
         }
-
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-        box.getSize(size);
-        box.getCenter(center);
-
-        this.hitboxPreview.position.copy(center);
-        this.hitboxPreview.scale.copy(size);
+        box.getSize(this.scratch.size);
+        box.getCenter(this.scratch.center);
+        this.hitboxPreview.position.copy(this.scratch.center);
+        this.hitboxPreview.scale.copy(this.scratch.size);
     }
 
-    setHitboxVisible(visible) {
-        this.hitboxPreview.visible = visible;
+    setSnapping(enabled, translateStep = 0.25, rotationDegrees = 15, scaleStep = 0.1) {
+        this.gizmo.setTranslationSnap(enabled ? translateStep : null);
+        this.gizmo.setRotationSnap(enabled ? THREE.MathUtils.degToRad(rotationDegrees) : null);
+        this.gizmo.setScaleSnap(enabled ? scaleStep : null);
+    }
+
+    setCameraView(view, vehicle) {
+        const target = this.controls.target;
+        let distance = Math.max(6, this.core.camera.position.distanceTo(target));
+        if (vehicle) {
+            const box = this.scratch.box.setFromObject(vehicle);
+            if (!box.isEmpty()) {
+                box.getBoundingSphere(this.scratch.sphere);
+                target.copy(this.scratch.sphere.center);
+                distance = resolveVehicleLabFitDistance(
+                    this.scratch.sphere.radius,
+                    this.core.camera.fov,
+                    this.core.camera.aspect
+                );
+            }
+        }
+
+        const pose = resolveVehicleLabViewPose(view, distance);
+        this.core.camera.up.fromArray(pose.up);
+        this.scratch.offset.fromArray(pose.offset);
+        this.core.camera.position.copy(target).add(this.scratch.offset);
+        this.core.camera.lookAt(target);
+        this.controls.update();
     }
 
     update(dt) {
         if (this.isFlyMode) {
             const keys = this.core.keys;
             const speed = (keys.shift ? 15 : 5) * dt;
-            const orbitSpeed = (keys.shift ? 2.5 : 1.2) * dt;
-            const center = this.controls.target.clone();
-
-            // Orbit (WASD + QE)
-            const pitchInput = (keys.w ? 1 : 0) - (keys.s ? 1 : 0);
-            const yawInput = (keys.e ? 1 : 0) - (keys.q ? 1 : 0);
-
-            if (pitchInput !== 0 || yawInput !== 0) {
-                const offset = this.core.camera.position.clone().sub(center);
-                if (offset.lengthSq() > 0.0001) {
-                    const spherical = new THREE.Spherical().setFromVector3(offset);
-
-                    if (yawInput !== 0) spherical.theta -= yawInput * orbitSpeed;
-                    if (pitchInput !== 0) {
-                        spherical.phi = THREE.MathUtils.clamp(
-                            spherical.phi - (pitchInput * orbitSpeed),
-                            0.05,
-                            Math.PI - 0.05
-                        );
-                    }
-
-                    offset.setFromSpherical(spherical);
-                    this.core.camera.position.copy(center).add(offset);
-                    this.core.camera.lookAt(center);
-                }
-            }
-
-            // Strafe / Plane Movement (A/D/X/Y)
-            const dir = new THREE.Vector3();
+            const dir = this.scratch.direction;
             this.core.camera.getWorldDirection(dir);
-            const right = new THREE.Vector3().crossVectors(dir, this.core.camera.up).normalize();
+            const right = this.scratch.right.crossVectors(dir, this.core.camera.up).normalize();
+            const camUp = this.scratch.up.copy(this.core.camera.up).normalize();
 
-            // Re-calculate effective up for vertical movement relative to camera
-            const camUp = new THREE.Vector3().crossVectors(right, dir).normalize();
-
-            const move = new THREE.Vector3();
+            const move = this.scratch.move.set(0, 0, 0);
+            if (keys.w) move.add(dir);
+            if (keys.s) move.sub(dir);
             if (keys.d) move.add(right);
             if (keys.a) move.sub(right);
-            if (keys.y) move.add(camUp);
-            if (keys.x) move.sub(camUp);
+            if (keys.e) move.add(camUp);
+            if (keys.q) move.sub(camUp);
 
             if (move.lengthSq() > 0) {
                 move.normalize().multiplyScalar(speed);
@@ -155,5 +204,21 @@ export class VehicleLabViewport {
             }
         }
         this.controls.update();
+    }
+
+    dispose() {
+        this.attach(null);
+        this.controls.dispose();
+        this.gizmo.dispose();
+        this.hitboxPreview.geometry.dispose();
+        this.hitboxPreview.material.dispose();
+        this.core.canvas.removeEventListener('click', this.onCanvasClick);
+        this.core.canvas.removeEventListener('pointerdown', this.onPointerDown);
+        this.core.canvas.removeEventListener('pointermove', this.onPointerMove);
+        this.core.canvas.removeEventListener('pointerup', this.onPointerUp);
+        this.core.canvas.removeEventListener('pointercancel', this.onPointerUp);
+        window.removeEventListener('keydown', this.onShortcutKeyDown);
+        this.core.scene.remove(this.gizmo);
+        this.core.scene.remove(this.hitboxPreview);
     }
 }

@@ -21,13 +21,13 @@ export function describeArcadeBlueprintStatus(result) {
     }
     const stats = blueprint.stats || {};
     const limits = blueprint.limits || {};
-    const status = validation.ok ? 'ok' : 'invalid';
+    const status = validation.ok ? 'gültig' : 'ungültig';
     return [
         `Blueprint ${status}`,
-        `budget ${stats.budgetUsed || 0}/${limits.editorBudget || 0}`,
-        `mass ${stats.massUsed || 0}/${limits.massBudget || 0}`,
-        `power ${stats.powerUsed || 0}/${limits.powerBudget || 0}`,
-        `heat ${stats.heatUsed || 0}/${limits.heatBudget || 0}`,
+        `Budget ${stats.budgetUsed || 0}/${limits.editorBudget || 0}`,
+        `Masse ${stats.massUsed || 0}/${limits.massBudget || 0}`,
+        `Energie ${stats.powerUsed || 0}/${limits.powerBudget || 0}`,
+        `Hitze ${stats.heatUsed || 0}/${limits.heatBudget || 0}`,
     ].join(' | ');
 }
 

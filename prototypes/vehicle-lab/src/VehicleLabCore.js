@@ -12,7 +12,7 @@ export class VehicleLabCore {
 
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
         this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
-        this.renderer.setPixelRatio(window.devicePixelRatio);
+        this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
         this.keys = {
             w: false, a: false, s: false, d: false, q: false, e: false, x: false, y: false, shift: false,
@@ -26,19 +26,37 @@ export class VehicleLabCore {
         this.clock = new THREE.Clock();
         this.setupLights();
         this.setupGrid();
+        this.resizeObserver = typeof ResizeObserver === 'function'
+            ? new ResizeObserver(() => this.onResize())
+            : null;
+        this.resizeObserver?.observe(this.canvas);
     }
 
     initKeys() {
-        window.addEventListener('keydown', (e) => {
+        this.onKeyDown = (e) => {
+            if (this.isEditingTarget(e.target)) return;
             const key = e.key.toLowerCase();
             if (this.keys.hasOwnProperty(key)) this.keys[key] = true;
             if (e.key === 'Shift') this.keys.shift = true;
-        });
-        window.addEventListener('keyup', (e) => {
+        };
+        this.onKeyUp = (e) => {
             const key = e.key.toLowerCase();
             if (this.keys.hasOwnProperty(key)) this.keys[key] = false;
             if (e.key === 'Shift') this.keys.shift = false;
-        });
+        };
+        this.onBlur = () => this.resetKeys();
+        window.addEventListener('keydown', this.onKeyDown);
+        window.addEventListener('keyup', this.onKeyUp);
+        window.addEventListener('blur', this.onBlur);
+    }
+
+    isEditingTarget(target) {
+        if (!target || typeof target.closest !== 'function') return false;
+        return !!target.closest('input, select, textarea, [contenteditable="true"]');
+    }
+
+    resetKeys() {
+        Object.keys(this.keys).forEach((key) => { this.keys[key] = false; });
     }
 
     setupLights() {
@@ -58,8 +76,17 @@ export class VehicleLabCore {
     onResize() {
         const w = this.canvas.clientWidth;
         const h = this.canvas.clientHeight;
+        if (w <= 0 || h <= 0) return;
         this.camera.aspect = w / h;
         this.camera.updateProjectionMatrix();
-        this.renderer.setSize(w, h);
+        this.renderer.setSize(w, h, false);
+    }
+
+    dispose() {
+        this.resizeObserver?.disconnect();
+        window.removeEventListener('keydown', this.onKeyDown);
+        window.removeEventListener('keyup', this.onKeyUp);
+        window.removeEventListener('blur', this.onBlur);
+        this.renderer.dispose();
     }
 }
