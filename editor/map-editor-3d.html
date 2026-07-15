@@ -112,6 +112,14 @@
             transform: translateY(0) scale(.99);
         }
 
+        button:focus-visible,
+        input:focus-visible,
+        select:focus-visible,
+        textarea:focus-visible {
+            outline: 2px solid #93c5fd;
+            outline-offset: 2px;
+        }
+
         button.small {
             font-size: 11px;
             padding: 5px 8px;
@@ -128,6 +136,7 @@
             flex-direction: column;
             gap: 8px;
             min-height: 0;
+            flex: 0 0 auto;
         }
 
         .inspectorHero {
@@ -217,6 +226,7 @@
         }
 
         .canvasShell {
+            --dock-height: 228px;
             position: relative;
             border-radius: 22px;
             border: 1px solid #111827;
@@ -237,7 +247,7 @@
         .hud {
             position: absolute;
             left: 14px;
-            bottom: 236px;
+            bottom: calc(var(--dock-height) + 12px);
             display: flex;
             flex-wrap: wrap;
             gap: 6px;
@@ -277,6 +287,7 @@
             border-radius: 14px;
             padding: 10px;
             margin-top: 4px;
+            flex: 0 0 auto;
         }
 
         .splitActions {
@@ -286,8 +297,7 @@
         }
 
         .jsonSection {
-            flex: 1 1 auto;
-            min-height: 210px;
+            min-height: 0;
         }
 
         #legacyBuildInputs {
@@ -309,6 +319,32 @@
                 linear-gradient(180deg, rgba(15, 23, 42, 0.92), var(--dock-bg));
             box-shadow: 0 18px 36px rgba(0, 0, 0, 0.35);
             backdrop-filter: blur(18px);
+            max-height: 240px;
+            overflow: hidden;
+            transition: max-height .18s ease, padding .18s ease;
+        }
+
+        #buildDock.is-detailed {
+            max-height: min(70vh, 560px);
+            overflow-y: auto;
+        }
+
+        #buildDock.is-collapsed {
+            max-height: 52px;
+            padding-top: 9px;
+            padding-bottom: 9px;
+        }
+
+        #buildDock.is-collapsed .dockHeadingDescription,
+        #buildDock.is-collapsed .dockShortcutGrid,
+        #buildDock.is-collapsed .dockCatalogControls,
+        #buildDock.is-collapsed .dockCategoryTabs,
+        #buildDock.is-collapsed .dockCards,
+        #buildDock.is-collapsed #btnDockSelectMode,
+        #buildDock.is-collapsed #btnDockFavoriteToggle,
+        #buildDock:not(.is-detailed) .dockHeadingDescription,
+        #buildDock:not(.is-detailed) .dockShortcutGrid {
+            display: none;
         }
 
         .dockHeader {
@@ -349,6 +385,19 @@
             display: grid;
             grid-template-columns: repeat(2, minmax(0, 1fr));
             gap: 10px;
+        }
+
+        .dockCatalogControls {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) auto auto;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .dockCatalogControls input,
+        .dockCatalogControls select {
+            width: 100%;
+            min-width: 0;
         }
 
         .dockShortcutPanel {
@@ -497,12 +546,250 @@
             display: flex;
             flex-direction: column;
             gap: 10px;
-            min-height: 176px;
+            min-height: 116px;
             padding: 12px;
             background: var(--card-bg);
             border-color: rgba(148, 163, 184, 0.18);
             text-align: left;
         }
+
+        #buildDock:not(.is-detailed) .buildCardPreview {
+            min-height: 38px;
+        }
+
+        #buildDock:not(.is-detailed) .buildCardPreviewGlyph {
+            min-width: 34px;
+            min-height: 34px;
+            padding: 4px 8px;
+            font-size: 13px;
+        }
+
+        #buildDock:not(.is-detailed) .buildCardDescription,
+        #buildDock:not(.is-detailed) .buildCardStateDetail {
+            display: none;
+        }
+
+        #buildDock.is-compact-view .dockCards {
+            grid-auto-columns: minmax(132px, 132px);
+        }
+
+        #buildDock.is-compact-view .buildCard {
+            min-height: 92px;
+            gap: 6px;
+            padding: 8px;
+        }
+
+        #buildDock.is-compact-view .buildCardDescription,
+        #buildDock.is-compact-view .buildCardStateDetail,
+        #buildDock.is-compact-view .buildCardBadge {
+            display: none;
+        }
+
+        .sceneToolbar {
+            position: absolute;
+            left: 14px;
+            top: 14px;
+            z-index: 4;
+            display: flex;
+            gap: 6px;
+        }
+
+        .help.is-hidden {
+            display: none;
+        }
+
+        .workspaceStatus {
+            display: flex;
+            flex-direction: column;
+            gap: 7px;
+            padding: 10px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 14px;
+            background: rgba(2, 6, 23, 0.58);
+        }
+
+        .workspaceStatusLine,
+        .outlinerActions {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .statusMessage {
+            min-height: 18px;
+            font-size: 11px;
+            color: var(--muted);
+            line-height: 1.4;
+        }
+
+        .statusMessage[data-level="success"] { color: #86efac; }
+        .statusMessage[data-level="warn"] { color: #fde68a; }
+        .statusMessage[data-level="error"] { color: #fecaca; }
+
+        .validationList {
+            display: grid;
+            gap: 4px;
+            margin: 0;
+            padding: 0;
+            list-style: none;
+            font-size: 11px;
+            color: var(--muted);
+        }
+
+        .validationList li::before {
+            content: "✓";
+            color: var(--safe);
+            margin-right: 6px;
+        }
+
+        .validationList li.is-warning::before {
+            content: "!";
+            color: #fbbf24;
+        }
+
+        .validationList button {
+            width: auto;
+            padding: 0;
+            border: 0;
+            background: transparent;
+            color: inherit;
+            text-align: left;
+            font-size: inherit;
+        }
+
+        .outlinerControls {
+            display: grid;
+            grid-template-columns: 1fr 105px;
+            gap: 6px;
+        }
+
+        .outlinerControls input,
+        .outlinerControls select {
+            width: 100%;
+            min-width: 0;
+        }
+
+        .objectList {
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            max-height: 220px;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+
+        .objectListEmpty {
+            padding: 10px;
+            border: 1px dashed rgba(148, 163, 184, .2);
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 11px;
+        }
+
+        .objectRow {
+            display: grid;
+            grid-template-columns: auto minmax(0, 1fr) auto;
+            gap: 6px;
+            align-items: center;
+            min-height: 32px;
+        }
+
+        .objectListSpacer { flex: 0 0 auto; }
+
+        .buildCardPreview img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            border-radius: inherit;
+        }
+
+        .layerList,
+        .prefabList {
+            display: grid;
+            gap: 6px;
+        }
+
+        .layerRow {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto auto auto;
+            gap: 5px;
+            align-items: center;
+        }
+
+        .layerRow.active { color: #bfdbfe; }
+        .layerRow button { padding: 5px 7px; }
+
+        .prefabCard {
+            display: grid;
+            grid-template-columns: minmax(0, 1fr) auto;
+            gap: 8px;
+            align-items: center;
+            padding: 8px;
+            border: 1px solid rgba(148, 163, 184, .18);
+            border-radius: 10px;
+        }
+
+        .prefabCard small { display: block; color: var(--muted); margin-top: 2px; }
+
+        .objectRowMain {
+            min-width: 0;
+            text-align: left;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .objectRowMain.active {
+            border-color: var(--accent);
+        }
+
+        .objectRowMeta {
+            font-size: 9px;
+            color: var(--muted);
+        }
+
+        .recoveryBanner {
+            display: none;
+            padding: 10px;
+            border: 1px solid rgba(251, 191, 36, .35);
+            border-radius: 12px;
+            background: rgba(69, 26, 3, .42);
+            font-size: 11px;
+        }
+
+        .recoveryBanner.is-visible { display: block; }
+
+        .editorModalBackdrop {
+            position: fixed;
+            inset: 0;
+            z-index: 50;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(2, 6, 23, .76);
+        }
+
+        .editorModalBackdrop.is-open { display: flex; }
+
+        .editorModal {
+            width: min(460px, 100%);
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+            padding: 18px;
+            border-radius: 18px;
+            border: 1px solid rgba(148, 163, 184, .28);
+            background: #08111f;
+            box-shadow: 0 24px 70px rgba(0,0,0,.6);
+        }
+
+        .editorModal h2 { margin: 0; font-size: 18px; }
+        .editorModal p { margin: 0; color: var(--muted); line-height: 1.5; }
+        .editorModal input { width: 100%; }
+        .editorModalActions { display: flex; justify-content: flex-end; gap: 8px; }
+        .dangerAction { color: #fecaca; border-color: rgba(249,115,115,.5); }
 
         .buildCard.is-active {
             border-color: var(--entry-accent);
@@ -552,6 +839,53 @@
             font-size: 18px;
             font-weight: 800;
             letter-spacing: 0.06em;
+        }
+
+        .buildCardPreview[data-preview-token^="block-"] .buildCardPreviewGlyph {
+            min-width: 46px;
+            min-height: 38px;
+            transform: perspective(80px) rotateX(24deg) rotateZ(-18deg);
+            background: linear-gradient(135deg, var(--entry-accent), rgba(15, 23, 42, .9));
+        }
+
+        .buildCardPreview[data-preview-token^="portal-"] .buildCardPreviewGlyph,
+        .buildCardPreview[data-preview-token^="checkpoint-"] .buildCardPreviewGlyph {
+            min-width: 48px;
+            min-height: 48px;
+            border-radius: 50%;
+            border: 5px double var(--entry-accent);
+            background: radial-gradient(circle, transparent 42%, rgba(96, 165, 250, .18) 44%);
+        }
+
+        .buildCardPreview[data-preview-token^="item-"] .buildCardPreviewGlyph {
+            min-width: 38px;
+            min-height: 38px;
+            transform: rotate(45deg);
+            border-radius: 8px 18px 8px 18px;
+            background: linear-gradient(135deg, rgba(255,255,255,.38), var(--entry-accent));
+        }
+
+        .buildCardPreview[data-preview-token^="item-"] .buildCardPreviewGlyph::first-letter {
+            transform: rotate(-45deg);
+        }
+
+        .buildCardPreview[data-preview-token^="aircraft-"] .buildCardPreviewGlyph {
+            clip-path: polygon(50% 0, 62% 38%, 100% 72%, 62% 62%, 50% 100%, 38% 62%, 0 72%, 38% 38%);
+            background: linear-gradient(180deg, #e2e8f0, var(--entry-accent));
+            border-radius: 0;
+        }
+
+        .buildCardPreview[data-preview-token^="spawn-"] .buildCardPreviewGlyph {
+            border-radius: 50% 50% 50% 8px;
+            transform: rotate(-45deg);
+            background: linear-gradient(135deg, #fde68a, var(--entry-accent));
+        }
+
+        .buildCardPreview[data-preview-token^="trail-"] .buildCardPreviewGlyph {
+            min-width: 72px;
+            min-height: 24px;
+            border-radius: 999px;
+            background: linear-gradient(90deg, transparent, var(--entry-accent));
         }
 
         .buildCardBody {
@@ -689,8 +1023,10 @@
                 grid-template-columns: 1fr;
             }
 
+            #buildDock { max-height: 260px; }
+
             .hud {
-                bottom: 260px;
+                bottom: calc(var(--dock-height) + 12px);
             }
 
             .help {
@@ -727,6 +1063,12 @@
             .dockCards {
                 grid-auto-columns: minmax(156px, 156px);
             }
+
+            .dockCatalogControls {
+                grid-template-columns: 1fr 1fr;
+            }
+
+            .dockCatalogControls input { grid-column: 1 / -1; }
         }
     </style>
 
@@ -745,11 +1087,32 @@
                             Auswahl und Playtest.
                         </p>
                     </div>
-                    <button id="btnDelSelected" class="small" style="color: var(--danger);">Ausgewaehltes loeschen</button>
+                    <button id="btnDelSelected" class="small" style="color: var(--danger);" disabled>Ausgewaehltes loeschen</button>
                 </div>
                 <div class="row" style="padding-top: 0;">
-                    <label>Asset-Status</label>
+                    <span>Asset-Status</span>
                     <span id="assetStatusText" style="font-size: 12px; color: var(--muted);">Nicht geladen</span>
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Arbeitsstand</strong>
+                <div class="workspaceStatus">
+                    <div class="workspaceStatusLine">
+                        <span class="badge" id="dirtyStateBadge">Gespeichert</span>
+                        <span class="badge" id="validationStateBadge">Pruefung laeuft</span>
+                    </div>
+                    <div class="statusMessage" id="workspaceStatusMessage" role="status" aria-live="polite">
+                        Editor bereit.
+                    </div>
+                    <ul class="validationList" id="validationList" aria-label="Map-Pruefung"></ul>
+                </div>
+                <div class="recoveryBanner" id="recoveryBanner">
+                    <div>Es gibt einen automatisch gesicherten Arbeitsstand.</div>
+                    <div class="splitActions" style="margin-top: 8px;">
+                        <button id="btnRestoreAutosave" class="small">Wiederherstellen</button>
+                        <button id="btnDismissAutosave" class="small">Verwerfen</button>
+                    </div>
                 </div>
             </div>
 
@@ -762,6 +1125,45 @@
                         Unten eine Karte anklicken und dann in die Szene klicken, um Objekte zu platzieren.
                     </p>
                 </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Objekte</strong>
+                <div class="outlinerControls">
+                    <input id="objectSearch" type="search" placeholder="Objekte suchen" aria-label="Objekte suchen" />
+                    <select id="objectTypeFilter" aria-label="Objekttyp filtern">
+                        <option value="">Alle Typen</option>
+                        <option value="hard">Hartblock</option>
+                        <option value="foam">Schaumblock</option>
+                        <option value="tunnel">Tunnel</option>
+                        <option value="portal">Portal</option>
+                        <option value="spawn">Spawns</option>
+                        <option value="item">Pickups</option>
+                        <option value="aircraft">Flugobjekte</option>
+                        <option value="checkpoint">Parcours</option>
+                    </select>
+                </div>
+                <div class="objectList" id="objectList" aria-label="Map-Objekte"></div>
+                <div class="outlinerActions">
+                    <button id="btnDuplicateSelected" class="small" disabled>Duplizieren</button>
+                    <button id="btnToggleSelectedVisibility" class="small" disabled>Ausblenden</button>
+                    <button id="btnToggleSelectedLock" class="small" disabled>Sperren</button>
+                    <button id="btnGroupMarked" class="small" disabled>Gruppieren</button>
+                    <button id="btnDuplicateMarked" class="small" disabled>Gruppe duplizieren</button>
+                    <button id="btnTransformMarked" class="small" disabled>Gruppe transformieren</button>
+                    <button id="btnDeleteMarked" class="small dangerAction" disabled>Markierte loeschen</button>
+                </div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Ebenen</strong>
+                <p class="sub">Aktive Ebene waehlen; Auge, Schloss oder Solo pro Ebene schalten.</p>
+                <div class="layerList" id="layerList"></div>
+            </div>
+
+            <div class="panelSection">
+                <strong class="sectionTitle">Vorlagen</strong>
+                <div class="prefabList" id="prefabList"></div>
             </div>
 
             <div id="legacyBuildInputs" aria-hidden="true">
@@ -838,40 +1240,76 @@
 
             <div id="propPanel">
                 <strong class="sectionTitle" style="color: #bfdbfe;">Eigenschaften</strong>
+                <div class="row">
+                    <label for="propObjectId">Objekt-ID</label>
+                    <input id="propObjectId" type="text" readonly />
+                </div>
+                <div class="row">
+                    <label for="propObjectType">Typ</label>
+                    <input id="propObjectType" type="text" readonly />
+                </div>
+                <div class="row" id="propContextRow" style="display: none;">
+                    <label for="propContext">Verknuepfung</label>
+                    <input id="propContext" type="text" readonly />
+                </div>
+                <div class="row" id="propPortalPartnerRow" style="display: none;">
+                    <label for="propPortalPartner">Portal-Partner</label>
+                    <select id="propPortalPartner"></select>
+                </div>
+                <div class="row" id="propCheckpointOrderRow" style="display: none;">
+                    <label for="propCheckpointOrder">Parcours-Reihenfolge</label>
+                    <input id="propCheckpointOrder" type="number" step="1" min="0" />
+                </div>
+                <div class="row">
+                    <label for="propX">X-Position</label>
+                    <input id="propX" type="number" step="10" />
+                </div>
                 <div class="row" id="propSizeRow" style="display: none;">
-                    <label>Groesse / Radius</label>
+                    <label for="propSize">Groesse / Radius</label>
                     <input id="propSize" type="number" step="10" />
                 </div>
                 <div class="row" id="propWidthRow" style="display: none;">
-                    <label>Breite (X)</label>
+                    <label for="propWidth">Breite (X)</label>
                     <input id="propWidth" type="number" step="10" />
                 </div>
                 <div class="row" id="propDepthRow" style="display: none;">
-                    <label>Tiefe (Z)</label>
+                    <label for="propDepth">Tiefe (Z)</label>
                     <input id="propDepth" type="number" step="10" />
                 </div>
                 <div class="row" id="propHeightRow" style="display: none;">
-                    <label>Hoehe (Y-Scale)</label>
+                    <label for="propHeight">Hoehe (Y-Scale)</label>
                     <input id="propHeight" type="number" step="10" />
                 </div>
                 <div class="row" id="propScaleRow" style="display: none;">
-                    <label>Skalierung</label>
+                    <label for="propScale">Skalierung</label>
                     <input id="propScale" type="number" step="0.1" min="0.1" />
                 </div>
                 <div class="row">
-                    <label>Y-Position</label>
+                    <label for="propY">Y-Position</label>
                     <input id="propY" type="number" step="10" />
+                </div>
+                <div class="row">
+                    <label for="propZ">Z-Position</label>
+                    <input id="propZ" type="number" step="10" />
+                </div>
+                <div class="row">
+                    <label for="propRotationY">Rotation Y (Grad)</label>
+                    <input id="propRotationY" type="number" step="5" />
+                </div>
+                <div class="row">
+                    <label for="propGroup">Gruppe</label>
+                    <input id="propGroup" type="text" placeholder="Keine Gruppe" />
                 </div>
             </div>
 
             <div class="panelSection">
                 <strong class="sectionTitle">Ansicht und Raster</strong>
                 <div class="row">
-                    <label>Snap to Grid</label>
+                    <label for="chkSnap">Snap to Grid</label>
                     <input id="chkSnap" type="checkbox" />
                 </div>
                 <div class="row">
-                    <label>Grid-Groesse</label>
+                    <label for="numGrid">Grid-Groesse</label>
                     <input id="numGrid" type="number" value="50" step="10" />
                 </div>
             </div>
@@ -879,15 +1317,15 @@
             <div class="panelSection">
                 <strong class="sectionTitle">Arena Rahmen</strong>
                 <div class="row">
-                    <label>Breite (X)</label>
+                    <label for="numArenaW">Breite (X)</label>
                     <input id="numArenaW" type="number" value="2800" step="100" />
                 </div>
                 <div class="row">
-                    <label>Tiefe (Z)</label>
+                    <label for="numArenaD">Tiefe (Z)</label>
                     <input id="numArenaD" type="number" value="2400" step="100" />
                 </div>
                 <div class="row">
-                    <label>Hoehe (Y)</label>
+                    <label for="numArenaH">Hoehe (Y)</label>
                     <input id="numArenaH" type="number" value="950" step="50" />
                 </div>
             </div>
@@ -895,11 +1333,11 @@
             <div class="panelSection">
                 <strong class="sectionTitle">Hoehen-Ebene</strong>
                 <div class="row">
-                    <label>Bauen auf dieser Ebene</label>
+                    <label for="chkYLayer">Bauen auf dieser Ebene</label>
                     <input id="chkYLayer" type="checkbox" />
                 </div>
                 <div class="row">
-                    <label>Y-Hoehe</label>
+                    <label for="numYLayer">Y-Hoehe</label>
                     <input id="numYLayer" type="number" value="0" step="10" />
                 </div>
             </div>
@@ -907,8 +1345,15 @@
             <div class="panelSection">
                 <strong class="sectionTitle">Kamera</strong>
                 <div class="row">
-                    <label>Fly Mode (WASD)</label>
+                    <label for="chkFly">Fly Mode (WASD)</label>
                     <input id="chkFly" type="checkbox" />
+                </div>
+                <div class="outlinerActions">
+                    <button id="btnViewPerspective" class="small">Perspektive</button>
+                    <button id="btnViewTop" class="small">Oben</button>
+                    <button id="btnViewFront" class="small">Vorne</button>
+                    <button id="btnViewSide" class="small">Seite</button>
+                    <button id="btnFocusSelection" class="small">Auswahl fokussieren</button>
                 </div>
             </div>
 
@@ -923,7 +1368,7 @@
                     Map im Browser spielen
                 </button>
                 <div class="row" style="margin-top: 2px;">
-                    <label>Playtest-Modus</label>
+                    <label for="selPlaytestMode">Playtest-Modus</label>
                     <select id="selPlaytestMode">
                         <option value="3d" selected>3D</option>
                         <option value="planar">Planar</option>
@@ -934,20 +1379,30 @@
                     <button id="btnRedo" class="small" title="Redo (Strg+Y / Strg+Shift+Z)" disabled>Redo</button>
                     <button id="btnExport" class="small">Export JSON</button>
                     <button id="btnImport" class="small">Import JSON</button>
+                    <button id="btnCopyJson" class="small">JSON kopieren</button>
+                    <button id="btnDownloadJson" class="small">JSON-Datei</button>
+                    <button id="btnLoadJsonFile" class="small">Datei laden</button>
                     <button id="btnNew" class="small">Neu</button>
                 </div>
-                <textarea id="jsonOutput" spellcheck="false"></textarea>
+                <input id="jsonFileInput" type="file" accept="application/json,.json" hidden />
+                <textarea id="jsonOutput" spellcheck="false" aria-label="Map JSON"></textarea>
             </div>
         </div>
 
         <div class="canvasShell">
             <div id="threeCanvas"></div>
 
-            <div class="help">
+            <div class="sceneToolbar" aria-label="Ansicht steuern">
+                <button id="btnToggleHelp" class="small" aria-pressed="true">Hilfe ausblenden</button>
+                <button id="btnToggleDockFromScene" class="small" aria-pressed="true">Baukarten ausblenden</button>
+            </div>
+
+            <div class="help" id="editorHelp">
                 <span class="kbd">Maus links</span> = Auswaehlen / Platzieren<br>
                 <span class="kbd">Maus rechts</span> = Kamera drehen<br>
                 <span class="kbd">Mausrad</span> = Zoom<br>
                 <span class="kbd">T</span> = Bewegen | <span class="kbd">R</span> = Rotieren<br>
+                <span class="kbd">F</span> = Auswahl fokussieren<br>
                 <span class="kbd">Strg+C / Strg+V</span> = Duplizieren<br>
                 <span class="kbd">Strg+Z / Strg+Y</span> = Undo / Redo<br>
                 <span class="kbd">Entf</span> = Loeschen<br><br>
@@ -958,7 +1413,7 @@
                 <span class="badge" id="hudObjCount">Objekte: 0</span>
             </div>
 
-            <div id="buildDock">
+            <div id="buildDock" class="is-compact-view">
                 <div class="dockHeader">
                     <div class="dockHeading">
                         <span class="badge" id="dockModeBadge">Auswahl</span>
@@ -970,6 +1425,8 @@
                     <div class="dockActions">
                         <button id="btnDockSelectMode" class="small active">Auswahl</button>
                         <button id="btnDockFavoriteToggle" class="small">Favorit merken</button>
+                        <button id="btnDockDetailToggle" class="small" aria-pressed="false">Details zeigen</button>
+                        <button id="btnDockCollapse" class="small" aria-pressed="false">Einklappen</button>
                     </div>
                 </div>
 
@@ -984,8 +1441,31 @@
                     </div>
                 </div>
 
+                <div class="dockCatalogControls">
+                    <input id="dockSearch" type="search" placeholder="Baukarten suchen" aria-label="Baukarten suchen" />
+                    <select id="dockAssetFilter" aria-label="Assetstatus filtern">
+                        <option value="">Alle Assets</option>
+                        <option value="builtin">Direkt</option>
+                        <option value="loaded">Geladen</option>
+                        <option value="problem">Fehler / Fallback</option>
+                    </select>
+                    <button id="btnDockViewToggle" class="small" aria-pressed="true">Kompakt</button>
+                </div>
+
                 <div class="dockCategoryTabs" id="dockCategoryTabs"></div>
                 <div class="dockCards" id="dockCards"></div>
+            </div>
+        </div>
+    </div>
+
+    <div class="editorModalBackdrop" id="editorModalBackdrop" role="presentation">
+        <div class="editorModal" role="dialog" aria-modal="true" aria-labelledby="editorModalTitle" aria-describedby="editorModalMessage">
+            <h2 id="editorModalTitle">Bestaetigen</h2>
+            <p id="editorModalMessage"></p>
+            <input id="editorModalInput" type="text" hidden />
+            <div class="editorModalActions">
+                <button id="btnEditorModalCancel">Abbrechen</button>
+                <button id="btnEditorModalConfirm">Bestaetigen</button>
             </div>
         </div>
     </div>

@@ -20,6 +20,10 @@ import {
     EDITOR_DISK_IO_CONTRACT_VERSION,
 } from './src/shared/contracts/EditorPathContract.js';
 import { resolveArtifactVersionState } from './src/shared/contracts/ArtifactVersionMigrationContract.js';
+import {
+    createEditorAuthoringDocument,
+    parseEditorAuthoringDocument,
+} from './editor/js/EditorAuthoringDocument.js';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf-8'));
 const buildTime = new Date().toISOString();
@@ -272,7 +276,7 @@ function writeGeneratedLocalMapsModule() {
     writeFileSync(GENERATED_LOCAL_MAPS_MODULE_PATH, fileContent, 'utf-8');
 }
 
-function saveEditorMapToDisk({ jsonText, mapName }) {
+function saveEditorMapToDisk({ jsonText, mapName, editorDocument = null }) {
     const parsed = parseMapJSON(jsonText);
     const resolved = resolveGeneratedMapKey(mapName);
     const conversionScale = getEditorDiskConversionScale(parsed.map);
@@ -285,7 +289,17 @@ function saveEditorMapToDisk({ jsonText, mapName }) {
     const runtimeMapPath = getRuntimeMapPathForKey(resolved.mapKey);
 
     mkdirSync(EDITOR_MAP_DIR, { recursive: true });
-    writeFileSync(editorSchemaPath, JSON.stringify(parsed.map, null, 2), 'utf-8');
+    let authoringDocument = createEditorAuthoringDocument({ map: parsed.map });
+    if (editorDocument && typeof editorDocument === 'object') {
+        const authoring = parseEditorAuthoringDocument(editorDocument);
+        authoringDocument = createEditorAuthoringDocument({
+            map: parsed.map,
+            workspaceMetadata: authoring.workspaceMetadata,
+            layerState: authoring.layerState,
+            viewState: authoring.viewState,
+        });
+    }
+    writeFileSync(editorSchemaPath, JSON.stringify(authoringDocument, null, 2), 'utf-8');
     writeFileSync(runtimeMapPath, JSON.stringify(converted.map, null, 2), 'utf-8');
     writeGeneratedLocalMapsModule();
 
@@ -620,6 +634,9 @@ function editorDiskSaveApiPlugin() {
                     return;
                 }
                 const jsonText = typeof body?.jsonText === 'string' ? body.jsonText : '';
+                const editorDocument = body?.editorDocument && typeof body.editorDocument === 'object'
+                    ? body.editorDocument
+                    : null;
                 const mapName = typeof body?.mapName === 'string' ? body.mapName : '';
                 const vehicleName = typeof body?.vehicleName === 'string' ? body.vehicleName : '';
                 const vehicleId = typeof body?.vehicleId === 'string' ? body.vehicleId.trim() : '';
@@ -630,7 +647,7 @@ function editorDiskSaveApiPlugin() {
                 }
 
                 const result = isMapSave
-                    ? saveEditorMapToDisk({ jsonText, mapName })
+                    ? saveEditorMapToDisk({ jsonText, mapName, editorDocument })
                     : isVehicleSave
                         ? saveVehicleConfigToDisk({ jsonText, vehicleName })
                         : isVehicleRename

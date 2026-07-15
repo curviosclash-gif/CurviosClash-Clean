@@ -874,11 +874,16 @@ export function getEditorBuildCatalogDescriptor() {
 export function getEditorTemplateRegistryDescriptor() {
     return createContentRegistryDescriptor({
         descriptorType: CONTENT_DESCRIPTOR_TYPES.EDITOR_TEMPLATES,
-        source: 'editor/templates/**',
-        status: 'missing',
-        entries: [],
+        source: 'editor/js/ui/EditorPrefabCatalog.js',
+        status: 'ready',
+        entries: [
+            { id: 'starter-zone', label: 'Startbereich' },
+            { id: 'tunnel-run', label: 'Tunnelstrecke' },
+            { id: 'arena-corner', label: 'Arena-Ecke' },
+            { id: 'parcours-basic', label: 'Mini-Parcours' },
+        ],
         metadata: {
-            reason: 'templates_path_not_present',
+            contractVersion: 'curvios-editor-prefabs.v1',
         },
     });
 }
@@ -894,7 +899,7 @@ export function resolveEditorTemplateImportCapability(descriptor = null) {
         ? ''
         : (status === 'missing' ? 'templates_path_not_present' : `templates_${status}`);
     const message = available
-        ? 'Editor-Templates sind verfuegbar.'
+        ? `${entryCount} Editor-Vorlagen sind verfuegbar.`
         : (status === 'missing'
             ? 'Editor-Templates fehlen aktuell unter editor/templates/**; Template-Import bleibt deaktiviert.'
             : `Editor-Templates sind derzeit nicht verfuegbar (${status}).`);

@@ -7,6 +7,10 @@ import { bindEditorShortcutControls } from './ui/EditorShortcutControls.js';
 import { bindEditorViewportControls } from './ui/EditorViewportControls.js';
 import { bindEditorSessionControls } from './ui/EditorSessionControls.js';
 import { createEditorDomRefs } from './ui/EditorDomRefs.js';
+import { bindEditorLayoutControls } from './ui/EditorLayoutControls.js';
+import { bindEditorWorkspaceControls } from './ui/EditorWorkspaceControls.js';
+import { bindEditorLayerControls } from './ui/EditorLayerControls.js';
+import { bindEditorRelationshipControls } from './ui/EditorRelationshipControls.js';
 import { isFlyModeChecked, readArenaSizeInputs, writeArenaSizeInputs } from './ui/EditorFormState.js';
 import {
     setupEditorSceneVisuals,
@@ -89,8 +93,15 @@ export class EditorUI {
 
     setMapManager(mana) {
         this.mapManager = mana;
+        if (!this.authoringControlsBound) {
+            bindEditorLayerControls(this);
+            bindEditorRelationshipControls(this);
+            this.authoringControlsBound = true;
+        }
+        this.restorePlaytestReturnIfRequested?.();
         this.updateUndoRedoUi();
         this.refreshToolDock?.();
+        this.refreshWorkspace?.();
     }
 
     detachTransformControl() {
@@ -238,6 +249,9 @@ export class EditorUI {
 
     setupEventListeners() {
         this.flyModeEnabled = isFlyModeChecked(this);
+
+        bindEditorLayoutControls(this);
+        bindEditorWorkspaceControls(this);
 
         bindEditorToolPaletteControls(this);
 

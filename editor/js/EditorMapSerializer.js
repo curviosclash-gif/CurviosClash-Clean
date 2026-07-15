@@ -210,6 +210,7 @@ export function generateJSONExport(manager, arenaSize) {
         else if (u.type === 'checkpoint') {
             editorCheckpoints.push({
                 id: u.id,
+                editorOrder: Number.isFinite(Number(u.checkpointOrder)) ? Number(u.checkpointOrder) : editorCheckpoints.length,
                 type: u.subType || 'gate',
                 pos: [p.x, p.y, p.z],
                 radius: u.cpRadius || 5.5,
@@ -219,10 +220,32 @@ export function generateJSONExport(manager, arenaSize) {
         }
     });
 
+    // Runtime portals are paired sequentially. Authoring links decide that order,
+    // without leaking editor-only partner ids into the runtime schema.
+    if (payload.portals.length > 1) {
+        const portalById = new Map(payload.portals.map((entry) => [entry.id, entry]));
+        const orderedPortals = [];
+        const emitted = new Set();
+        for (const portal of payload.portals) {
+            if (emitted.has(portal.id)) continue;
+            orderedPortals.push(portal);
+            emitted.add(portal.id);
+            const source = manager.getObjectById?.(portal.id);
+            const partner = portalById.get(String(source?.userData?.portalPartnerId || ''));
+            if (partner && !emitted.has(partner.id)) {
+                orderedPortals.push(partner);
+                emitted.add(partner.id);
+            }
+        }
+        payload.portals = orderedPortals;
+    }
+
     // Build parcours block from placed checkpoints
     if (editorCheckpoints.length > 0) {
+        editorCheckpoints.sort((left, right) => left.editorOrder - right.editorOrder);
         const finishCp = editorCheckpoints.find((cp) => cp.type === 'finish');
         const routeCps = editorCheckpoints.filter((cp) => cp.type !== 'finish');
+        editorCheckpoints.forEach((checkpoint) => delete checkpoint.editorOrder);
 
         payload.parcours = {
             enabled: true,
@@ -414,7 +437,6 @@ export function importFromJSON(manager, jsonString, options = {}) {
     } catch (e) {
         storeSchemaWarnings(manager, []);
         console.error('[EditorMapManager] Map import failed:', e);
-        alert(`Map Import Error: ${e.message}`);
-        return null;
+        throw e;
     }
 }

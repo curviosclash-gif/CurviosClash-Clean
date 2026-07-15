@@ -4,9 +4,11 @@ import { EditorUI } from './EditorUI.js';
 import { EditorMapManager } from './EditorMapManager.js';
 import {
     getEditorBuildCatalogDescriptor,
+    listEditorBuildDescriptorEntries,
     resolveEditorTemplateImportCapability,
 } from './ui/EditorBuildCatalog.js';
 import { resolveMapAuthoringStatus } from './EditorMapSerializer.js';
+import { createEditorBuildPreviewCache } from './ui/EditorPreviewRenderer.js';
 
 function buildEditorRuntimeSnapshot({ ui, mapManager, core }) {
     const activeEntry = ui?.toolDockState?.getActiveEntry?.() || null;
@@ -91,6 +93,7 @@ export async function initEditor() {
                         'var(--muted)'
             );
             ui?.refreshToolDock?.();
+            ui?.renderWorkspaceValidation?.();
         };
 
         setAssetStatus({ level: 'info', message: 'Lade Assets...' });
@@ -107,6 +110,9 @@ export async function initEditor() {
         mapManager.setCallbacks({
             onTunnelVisualsChanged: () => ui.updateTunnelVisuals(),
             onHudCountChanged: () => ui.updateHudCount(),
+            onSceneChanged: () => {
+                ui.scheduleWorkspaceRefresh?.();
+            },
             onBeforeManagedObjectRemoved: (object) => ui.onBeforeManagedObjectRemoved(object),
             onBeforeManagedObjectsCleared: () => ui.beforeManagedObjectsCleared()
         });
@@ -117,6 +123,7 @@ export async function initEditor() {
         core.animate();
 
         const assetSummary = await assetLoader.loadAll();
+        ui.setBuildPreviewCache?.(createEditorBuildPreviewCache(listEditorBuildDescriptorEntries(), assetLoader));
         if ((assetSummary.failed + assetSummary.timedOut) > 0) {
             setAssetStatus({
                 level: 'warn',
@@ -139,7 +146,11 @@ export async function initEditor() {
         }
         document.body.dataset.editorReady = '0';
         globalThis.CURVIOS_EDITOR_INIT_ERROR = String(error?.message || error || 'unknown');
-        alert("Fehler beim Starten des 3D Map Editors. Details in der Konsole.");
+        const workspaceStatusMessage = document.getElementById('workspaceStatusMessage');
+        if (workspaceStatusMessage) {
+            workspaceStatusMessage.textContent = `Editor-Start fehlgeschlagen: ${error?.message || error || 'Unbekannter Fehler'}`;
+            workspaceStatusMessage.dataset.level = 'error';
+        }
     }
 }
 

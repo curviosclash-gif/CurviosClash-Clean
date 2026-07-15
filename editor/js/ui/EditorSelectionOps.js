@@ -26,7 +26,7 @@ export function syncTransformControlAttachmentSelection(editor) {
     const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
     const flyMode = !!editor.flyModeEnabled;
 
-    if (!selected || flyMode) {
+    if (!selected || selected.visible === false || flyMode || selected.userData?.editorLocked === true || selected.userData?.editorLayerLocked === true) {
         editor.detachTransformControl();
         return;
     }
@@ -127,6 +127,10 @@ export function selectManagedObject(editor, obj) {
         editor.detachTransformControl();
         editor.hidePropPanel();
     }
+    if (editor.dom?.btnDelSelected) {
+        editor.dom.btnDelSelected.disabled = !editor.selectedObject;
+    }
+    editor.refreshWorkspace?.();
 }
 
 export function clearAllManagedObjects(editor) {

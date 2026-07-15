@@ -3,21 +3,45 @@ import { readPropertyFieldNumber } from './EditorFormState.js';
 export function bindEditorPropertyControls(editor) {
     if (!editor) return;
     const dom = editor.dom;
+    const isLocked = (object) => object?.userData?.editorLocked === true || object?.userData?.editorLayerLocked === true;
+
+    const updateTransformField = (field, label, applyValue) => {
+        dom[field]?.addEventListener('change', () => {
+            editor.executeHistoryMutation(label, () => {
+                const selected = editor.selectedObject;
+                if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
+                applyValue(selected);
+                editor.mapManager?.notifyObjectMutated?.(selected);
+                editor.showPropPanel(selected);
+            });
+        });
+    };
+
+    updateTransformField('propX', 'Edit object X', (selected) => {
+        selected.position.x = readPropertyFieldNumber(editor, 'x', selected.position.x);
+    });
+
+    updateTransformField('propZ', 'Edit object Z', (selected) => {
+        selected.position.z = readPropertyFieldNumber(editor, 'z', selected.position.z);
+    });
+
+    updateTransformField('propRotationY', 'Rotate object', (selected) => {
+        const degrees = readPropertyFieldNumber(editor, 'rotationY', selected.rotation.y * 180 / Math.PI);
+        selected.rotation.y = degrees * Math.PI / 180;
+    });
 
     dom.propY?.addEventListener('change', () => {
         editor.executeHistoryMutation('Edit object Y', () => {
-            if (!editor.selectedObject || !editor.isManagedObjectAlive(editor.selectedObject)) return;
+            if (!editor.selectedObject || !editor.isManagedObjectAlive(editor.selectedObject) || isLocked(editor.selectedObject)) return;
             editor.selectedObject.position.y = readPropertyFieldNumber(editor, 'y', editor.selectedObject.position.y);
-            if (editor.selectedObject.userData.type === 'tunnel') {
-                editor.mapManager?.notifyObjectMutated?.(editor.selectedObject);
-            }
+            editor.mapManager?.notifyObjectMutated?.(editor.selectedObject);
             editor.showPropPanel(editor.selectedObject);
         });
     });
 
     dom.propSize?.addEventListener('change', () => {
         editor.executeHistoryMutation('Edit object size', () => {
-            if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject)) {
+            if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && !isLocked(editor.selectedObject)) {
                 const val = readPropertyFieldNumber(editor, 'size', editor.selectedObject.userData.sizeInfo || 0);
                 const userData = editor.selectedObject.userData;
                 userData.sizeInfo = val;
@@ -32,6 +56,7 @@ export function bindEditorPropertyControls(editor) {
                     editor.selectedObject.scale.set(val, val, val);
                     userData.radius = val;
                 }
+                editor.mapManager?.notifyObjectMutated?.(editor.selectedObject);
             }
         });
     });
@@ -39,7 +64,7 @@ export function bindEditorPropertyControls(editor) {
     const updateBoxScale = () => {
         editor.executeHistoryMutation('Resize block', () => {
             const selected = editor.selectedObject;
-            if (!selected || !editor.isManagedObjectAlive(selected)) return;
+            if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
             if (selected.userData.type !== 'hard' && selected.userData.type !== 'foam') return;
 
             const w = readPropertyFieldNumber(editor, 'width', selected.userData.sizeX || 0);
@@ -51,6 +76,7 @@ export function bindEditorPropertyControls(editor) {
             selected.userData.sizeY = h;
             selected.userData.sizeInfo = Math.max(w, d, h) * 0.5;
             selected.scale.set(w, h, d);
+            editor.mapManager?.notifyObjectMutated?.(selected);
         });
     };
 
@@ -61,14 +87,25 @@ export function bindEditorPropertyControls(editor) {
     dom.propScale?.addEventListener('change', () => {
         editor.executeHistoryMutation('Scale aircraft', () => {
             const selected = editor.selectedObject;
-            if (!selected || !editor.isManagedObjectAlive(selected)) return;
+            if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
             if (selected.userData.type !== 'aircraft') return;
 
             const s = readPropertyFieldNumber(editor, 'scale', selected.userData.modelScale || 0);
             if (s > 0) {
                 selected.userData.modelScale = s;
                 selected.scale.set(s, s, s);
+                editor.mapManager?.notifyObjectMutated?.(selected);
             }
+        });
+    });
+
+    dom.propGroup?.addEventListener('change', () => {
+        editor.executeHistoryMutation('Edit object group', () => {
+            const selected = editor.selectedObject;
+            if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
+            selected.userData.groupId = String(dom.propGroup.value || '').trim();
+            editor.mapManager?.notifyObjectMutated?.(selected);
+            editor.showPropPanel(selected);
         });
     });
 }

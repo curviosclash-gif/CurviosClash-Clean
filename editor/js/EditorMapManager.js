@@ -10,6 +10,7 @@ export class EditorMapManager {
         this.callbacks = {
             onTunnelVisualsChanged: null,
             onHudCountChanged: null,
+            onSceneChanged: null,
             onBeforeManagedObjectRemoved: null,
             onBeforeManagedObjectsCleared: null
         };
@@ -19,8 +20,10 @@ export class EditorMapManager {
         this._sceneMutationDepth = 0;
         this._pendingHudRefresh = false;
         this._pendingTunnelVisualRefresh = false;
+        this._pendingSceneRefresh = false;
         this.mapDocumentMeta = {};
         this.lastSchemaWarnings = [];
+        this.authoringMetadataProvider = null;
 
         this.setCallbacks(options?.callbacks || options);
         this.setupPrimitives();
@@ -34,6 +37,9 @@ export class EditorMapManager {
         }
         if (typeof callbacks.onHudCountChanged === 'function') {
             this.callbacks.onHudCountChanged = callbacks.onHudCountChanged;
+        }
+        if (typeof callbacks.onSceneChanged === 'function') {
+            this.callbacks.onSceneChanged = callbacks.onSceneChanged;
         }
         if (typeof callbacks.onBeforeManagedObjectRemoved === 'function') {
             this.callbacks.onBeforeManagedObjectRemoved = callbacks.onBeforeManagedObjectRemoved;
@@ -85,8 +91,9 @@ export class EditorMapManager {
         }
     }
 
-    queueSceneUiRefresh({ tunnelVisuals = false } = {}) {
+    queueSceneUiRefresh({ tunnelVisuals = false, workspace = true } = {}) {
         this._pendingHudRefresh = true;
+        this._pendingSceneRefresh = this._pendingSceneRefresh || workspace;
         this._pendingTunnelVisualRefresh = this._pendingTunnelVisualRefresh || tunnelVisuals;
 
         if (this._sceneMutationDepth === 0) {
@@ -101,9 +108,13 @@ export class EditorMapManager {
         if (this._pendingHudRefresh) {
             this.callbacks.onHudCountChanged?.();
         }
+        if (this._pendingSceneRefresh) {
+            this.callbacks.onSceneChanged?.();
+        }
 
         this._pendingHudRefresh = false;
         this._pendingTunnelVisualRefresh = false;
+        this._pendingSceneRefresh = false;
     }
 
     getObjectCount() {
@@ -112,6 +123,14 @@ export class EditorMapManager {
 
     getObjectById(id) {
         return this.registry.getObjectById(id);
+    }
+
+    queryObjectsNear(position, radius) {
+        return this.registry.queryNear(position, radius);
+    }
+
+    setAuthoringMetadataProvider(provider) {
+        this.authoringMetadataProvider = typeof provider === 'function' ? provider : null;
     }
 
     hasObjectId(id) {
@@ -281,20 +300,27 @@ export class EditorMapManager {
         });
     }
 
-    notifyObjectMutated(object) {
+    notifyObjectMutated(object, options = {}) {
         const rootObject = this.resolveManagedObject(object);
         if (!rootObject) return null;
+        this.registry.updateObjectSpatial(rootObject);
 
         if (rootObject.userData?.type === 'tunnel') {
             this.syncTunnelEndpointsFromMesh(rootObject);
-            this.queueSceneUiRefresh({ tunnelVisuals: true });
+            this.queueSceneUiRefresh({ tunnelVisuals: true, workspace: options.workspace !== false });
+        } else {
+            this.queueSceneUiRefresh({ workspace: options.workspace !== false });
         }
 
         return rootObject;
     }
 
     createMesh(type, subType, x, y, z, sizeInfo, extraProps = {}, options = {}) {
-        return createEditorMesh(this, type, subType, x, y, z, sizeInfo, extraProps, options);
+        const authoringMetadata = this.authoringMetadataProvider?.(type, subType) || {};
+        return createEditorMesh(this, type, subType, x, y, z, sizeInfo, {
+            ...authoringMetadata,
+            ...extraProps,
+        }, options);
     }
 
     alignTunnelSegment(mesh, pA, pB, radius) {

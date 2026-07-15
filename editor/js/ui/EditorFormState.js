@@ -60,7 +60,10 @@ export function setJsonEditorText(editor, value) {
 }
 
 const PROPERTY_FIELD_MAP = Object.freeze({
+    x: 'propX',
     y: 'propY',
+    z: 'propZ',
+    rotationY: 'propRotationY',
     size: 'propSize',
     width: 'propWidth',
     depth: 'propDepth',

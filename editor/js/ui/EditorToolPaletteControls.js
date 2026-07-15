@@ -2,7 +2,8 @@ import {
     findEditorBuildEntryById,
     findEditorBuildEntryByToolAndSubtype,
     getEditorBuildCategories,
-    getEditorBuildEntriesForCategory
+    getEditorBuildEntriesForCategory,
+    listEditorBuildDescriptorEntries
 } from './EditorBuildCatalog.js';
 import { createEditorToolDockState } from './EditorToolDockState.js';
 
@@ -108,6 +109,7 @@ function createEntryButton(entry, options = {}) {
     button.style.setProperty('--entry-accent', entry.accentColor);
     button.className = options.compact ? 'dockMiniCard' : 'buildCard';
     button.title = `${entry.label}: ${entry.description} ${assetState.detail}`;
+    button.setAttribute('aria-label', `${entry.label}. ${entry.description}. ${assetState.label}.`);
 
     if (options.isActive) {
         button.classList.add('is-active');
@@ -128,7 +130,7 @@ function createEntryButton(entry, options = {}) {
 
     button.innerHTML = `
         <span class="buildCardPreview" data-preview-token="${entry.previewToken}" aria-hidden="true">
-            <span class="buildCardPreviewGlyph">${entry.previewGlyph}</span>
+            ${options.previewUrl ? `<img src="${options.previewUrl}" alt="" loading="lazy" />` : `<span class="buildCardPreviewGlyph">${entry.previewGlyph}</span>`}
         </span>
         <span class="buildCardBody">
             <span class="buildCardTitleRow">
@@ -210,6 +212,25 @@ export function bindEditorToolPaletteControls(editor) {
     const toolDockState = createEditorToolDockState();
     editor.toolDockState = toolDockState;
     let hoveredEntryId = null;
+    let catalogQuery = '';
+    let assetFilter = '';
+
+    const matchesCatalogFilter = (entry) => {
+        const assetState = resolveEntryAssetState(editor, entry);
+        if (assetFilter === 'builtin' && assetState.state !== 'builtin') return false;
+        if (assetFilter === 'loaded' && assetState.state !== 'loaded') return false;
+        if (assetFilter === 'problem' && !['timeout', 'error', 'placeholder'].includes(assetState.state)) return false;
+        if (!catalogQuery) return true;
+        const haystack = [
+            entry.label,
+            entry.description,
+            entry.badge,
+            entry.tool,
+            entry.subType,
+            ...(Array.isArray(entry.keywords) ? entry.keywords : [])
+        ].join(' ').toLocaleLowerCase('de');
+        return haystack.includes(catalogQuery);
+    };
 
     const buildSnapshotView = (snapshot) => {
         const hoveredEntry = hoveredEntryId ? findEditorBuildEntryById(hoveredEntryId) : null;
@@ -234,6 +255,8 @@ export function bindEditorToolPaletteControls(editor) {
         const nextTool = snapshot.mode === 'place' ? (activeEntry?.tool || 'select') : 'select';
         const shouldClearSelection = options.clearSelection === true && nextTool !== 'select';
         editor.currentTool = nextTool;
+        editor.core.container.dataset.activeTool = nextTool;
+        editor.core.container.style.cursor = nextTool === 'select' ? 'default' : 'crosshair';
 
         if (shouldClearSelection) {
             editor.selectObject(null);
@@ -300,13 +323,25 @@ export function bindEditorToolPaletteControls(editor) {
         if (!dom.dockCards) return;
         dom.dockCards.replaceChildren();
 
-        const entries = getEditorBuildEntriesForCategory(snapshot.currentCategoryId);
+        const sourceEntries = catalogQuery
+            ? listEditorBuildDescriptorEntries()
+            : getEditorBuildEntriesForCategory(snapshot.currentCategoryId);
+        const entries = sourceEntries.filter(matchesCatalogFilter);
+
+        if (entries.length === 0) {
+            const emptyState = document.createElement('span');
+            emptyState.className = 'dockShortcutEmpty';
+            emptyState.textContent = 'Keine passenden Baukarten.';
+            dom.dockCards.appendChild(emptyState);
+            return;
+        }
 
         for (const entry of entries) {
             const button = createEntryButton(entry, {
                 isActive: snapshot.mode === 'place' && snapshot.selectedEntry?.id === entry.id,
                 isSelected: snapshot.selectedEntry?.id === entry.id,
-                assetState: resolveEntryAssetState(editor, entry)
+                assetState: resolveEntryAssetState(editor, entry),
+                previewUrl: editor.getBuildPreviewUrl?.(entry.id) || '',
             });
             button.addEventListener('click', () => {
                 hoveredEntryId = null;
@@ -398,6 +433,11 @@ export function bindEditorToolPaletteControls(editor) {
     editor.refreshToolDock = () => {
         renderAll(toolDockState.getSnapshot());
     };
+    editor.setBuildPreviewCache = (cache) => {
+        editor.buildPreviewCache = cache instanceof Map ? cache : new Map();
+        renderAll(toolDockState.getSnapshot());
+    };
+    editor.getBuildPreviewUrl = (entryId) => editor.buildPreviewCache?.get(entryId) || '';
 
     dom.btnDockSelectMode?.addEventListener('click', () => {
         hoveredEntryId = null;
@@ -412,7 +452,18 @@ export function bindEditorToolPaletteControls(editor) {
         renderAll(nextSnapshot);
     });
 
+    dom.dockSearch?.addEventListener('input', () => {
+        catalogQuery = String(dom.dockSearch.value || '').trim().toLocaleLowerCase('de');
+        renderAll(toolDockState.getSnapshot());
+    });
+
+    dom.dockAssetFilter?.addEventListener('change', () => {
+        assetFilter = String(dom.dockAssetFilter.value || '');
+        renderAll(toolDockState.getSnapshot());
+    });
+
     document.addEventListener('keydown', (event) => {
+        if (editor.dom?.editorModalBackdrop?.classList.contains('is-open')) return;
         if (event.target instanceof HTMLElement) {
             const tagName = event.target.tagName.toLowerCase();
             if (tagName === 'input' || tagName === 'textarea' || tagName === 'select' || event.target.isContentEditable) {
@@ -420,6 +471,10 @@ export function bindEditorToolPaletteControls(editor) {
             }
         }
         if (event.key !== 'Escape') return;
+        if (editor.isDrawing) {
+            event.preventDefault();
+            editor.cancelActiveDrawing?.();
+        }
         if (editor.currentTool === 'select') return;
         hoveredEntryId = null;
         const nextSnapshot = toolDockState.activateSelectionMode();

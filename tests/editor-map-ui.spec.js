@@ -4,6 +4,8 @@ import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
 
 const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
+const EDITOR_LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
+const EDITOR_AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
 const KNOWN_EDITOR_WARNING_PATTERNS = [
     'THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN.'
 ];
@@ -13,13 +15,13 @@ function filterKnownEditorWarnings(errors = []) {
 }
 
 async function loadEditorPage(page) {
-    await page.addInitScript((storageKey) => {
+    await page.addInitScript((storageKeys) => {
         try {
-            window.localStorage.removeItem(storageKey);
+            storageKeys.forEach((storageKey) => window.localStorage.removeItem(storageKey));
         } catch {
             // Ignore storage cleanup failures in restricted contexts.
         }
-    }, TOOL_DOCK_STORAGE_KEY);
+    }, [TOOL_DOCK_STORAGE_KEY, EDITOR_LAYOUT_STORAGE_KEY, EDITOR_AUTOSAVE_STORAGE_KEY]);
 
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -89,6 +91,8 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#dockActiveTitle')).toHaveText('Auswahl / Bewegen');
         await expect(page.locator('#dockRecentList')).toContainText('Noch nichts benutzt');
         await expect(page.locator('#dockFavoriteList')).toContainText('Keine Favoriten');
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
+        await expect(page.locator('#validationList li')).toHaveCount(10);
 
         const state = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
         expect(state.mode).toBe('select');
@@ -160,7 +164,6 @@ test.describe('V65: Editor Build Dock', () => {
 
         const mapName = `V65 Smoke ${Date.now()}`;
         let saveRequestBody = null;
-        let saveAlertMessage = '';
         await page.route(`**${EDITOR_API_ROUTES.SAVE_MAP_DISK}`, async (route) => {
             const request = route.request();
             saveRequestBody = JSON.parse(request.postData() || '{}');
@@ -180,20 +183,16 @@ test.describe('V65: Editor Build Dock', () => {
             });
         });
 
-        page.on('dialog', async (dialog) => {
-            if (dialog.type() === 'prompt') {
-                await dialog.accept(mapName);
-                return;
-            }
-            if (dialog.type() === 'alert') {
-                saveAlertMessage = dialog.message();
-            }
-            await dialog.accept();
-        });
-
         await page.locator('#btnSaveToGame').click();
+        await expect(page.locator('#editorModalBackdrop')).toHaveClass(/is-open/);
+        await page.locator('#editorModalInput').fill(mapName);
+        await page.locator('#btnEditorModalConfirm').click();
         await expect.poll(() => saveRequestBody?.mapName || null).toBe(mapName);
-        await expect.poll(() => saveAlertMessage).toContain('Map auf Festplatte neu gespeichert.');
+        expect(saveRequestBody?.editorDocument?.contractVersion).toBe('curvios-editor-document.v1');
+        expect(saveRequestBody?.editorDocument?.authoring?.layerState?.layers?.geometry).toBeTruthy();
+        expect(saveRequestBody?.jsonText).not.toContain('workspaceMetadata');
+        await expect(page.locator('#workspaceStatusMessage')).toContainText(`Map neu gespeichert: ${mapName}`);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
 
         const popupPromise = page.waitForEvent('popup');
         await page.locator('#btnPlaytest').click();
@@ -201,6 +200,7 @@ test.describe('V65: Editor Build Dock', () => {
         await popup.waitForURL(/index\.html\?/, { timeout: 15_000 });
         expect(popup.url()).toContain('playtest=1');
         expect(popup.url()).toContain('planar=0');
+        await expect(popup.locator('#playtest-return-to-editor')).toBeVisible();
         await popup.close();
 
         const evidenceScreenshotPath = String(process.env.V65_EVIDENCE_SCREENSHOT || '').trim();
@@ -209,5 +209,176 @@ test.describe('V65: Editor Build Dock', () => {
         }
 
         expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
+    });
+});
+
+test.describe('Editor Workspace und Desktop-Layout', () => {
+    test.use({ viewport: { width: 1280, height: 720 } });
+
+    test('kompaktes Dock laesst Arbeitsflaeche frei und Seitenleistenbereiche ueberlappen nicht', async ({ page }) => {
+        await loadEditorPage(page);
+
+        const layout = await page.evaluate(() => {
+            const dockRect = document.querySelector('#buildDock').getBoundingClientRect();
+            const canvasRect = document.querySelector('.canvasShell').getBoundingClientRect();
+            const panel = document.querySelector('.panel');
+            const sections = Array.from(panel.querySelectorAll(':scope > .panelSection'))
+                .map((section) => section.getBoundingClientRect());
+            return {
+                dockHeight: dockRect.height,
+                canvasHeight: canvasRect.height,
+                overlaps: sections.some((section, index) => index > 0 && section.top < sections[index - 1].bottom),
+            };
+        });
+
+        expect(layout.dockHeight).toBeLessThanOrEqual(242);
+        expect(layout.canvasHeight - layout.dockHeight).toBeGreaterThan(400);
+        expect(layout.overlaps).toBeFalsy();
+
+        await page.locator('#btnDockCollapse').click();
+        await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
+        await expect(page.locator('#btnToggleDockFromScene')).toHaveText('Baukarten zeigen');
+        await page.locator('#btnToggleDockFromScene').click();
+        await expect(page.locator('#buildDock')).not.toHaveClass(/is-collapsed/);
+    });
+
+    test('Outliner, Inspector, Dirty-State und Pointer-Capture bilden einen stabilen Autorenfluss', async ({ page }) => {
+        await loadEditorPage(page);
+        await activateDockEntry(page, 'build', 'build-hard');
+
+        const canvasBox = await page.locator('#threeCanvas').boundingBox();
+        const dockBox = await page.locator('#buildDock').boundingBox();
+        expect(canvasBox).toBeTruthy();
+        expect(dockBox).toBeTruthy();
+
+        await page.mouse.move(canvasBox.x + canvasBox.width * 0.32, canvasBox.y + 180);
+        await page.mouse.down();
+        await page.mouse.move(canvasBox.x + canvasBox.width * 0.45, dockBox.y + 70, { steps: 4 });
+        await page.mouse.up();
+
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+        await expect.poll(() => page.evaluate(() => window.localStorage.getItem('curviosclash.editor.autosave.v1'))).not.toBeNull();
+        await expect(page.locator('#propPanel')).toBeVisible();
+        await expect(page.getByLabel('X-Position')).toBeVisible();
+        await expect(page.getByLabel('Rotation Y (Grad)')).toBeVisible();
+        await expect(page.locator('#btnDuplicateSelected')).toBeEnabled();
+
+        await page.locator('#btnDuplicateSelected').click();
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(2);
+        await expect(page.locator('#btnUndo')).toBeEnabled();
+
+        const marked = page.locator('#objectList input[type="checkbox"]');
+        await marked.nth(0).check();
+        await marked.nth(1).check();
+        await expect(page.locator('#btnGroupMarked')).toBeEnabled();
+        await page.locator('#btnGroupMarked').click();
+        const groupIds = await page.evaluate(() => Array.from(window.CURVIOS_EDITOR.core.objectsContainer.children)
+            .map((object) => object.userData?.groupId || ''));
+        expect(groupIds[0]).toBeTruthy();
+        expect(new Set(groupIds).size).toBe(1);
+
+        await page.locator('#btnTransformMarked').click();
+        await page.locator('#editorModalInput').fill('100, 0, 50, 90, 1');
+        await page.locator('#btnEditorModalConfirm').click();
+        const transformed = await page.evaluate(() => Array.from(window.CURVIOS_EDITOR.core.objectsContainer.children)
+            .map((object) => ({ x: Math.round(object.position.x), z: Math.round(object.position.z) })));
+        expect(transformed.every((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.z))).toBeTruthy();
+    });
+
+    test('Katalogsuche und sicherer Neue-Map-Dialog funktionieren ohne Browser-Popups', async ({ page }) => {
+        await loadEditorPage(page);
+
+        await page.locator('#dockSearch').fill('Rakete');
+        await expect(page.locator('#dockCards [data-entry-id="pickups-rocket"]')).toBeVisible();
+        await expect(page.locator('#dockCards [data-entry-id]')).toHaveCount(1);
+
+        await page.locator('#dockSearch').fill('');
+        await activateDockEntry(page, 'build', 'build-hard');
+        await clickCanvas(page, 0.35, 0.24);
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+
+        await page.locator('#btnNew').click();
+        await expect(page.locator('#editorModalBackdrop')).toHaveClass(/is-open/);
+        await page.locator('#btnEditorModalCancel').click();
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+
+        await page.locator('#btnNew').click();
+        await page.locator('#btnEditorModalConfirm').click();
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(0);
+    });
+
+    test('Ebenen, Vorlagen, 3D-Vorschauen und orthografische Ansichten arbeiten zusammen', async ({ page }) => {
+        await loadEditorPage(page);
+        await expect(page.locator('#prefabList .prefabCard')).toHaveCount(4);
+        await page.locator('#prefabList .prefabCard').first().getByRole('button', { name: 'Einsetzen' }).click();
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(4);
+        await expect(page.locator('#layerList .layerRow')).toHaveCount(6);
+
+        const spawnLayer = page.locator('#layerList [data-layer-id="spawns"]');
+        await spawnLayer.getByRole('button', { name: /Spawns ausblenden/ }).click();
+        const spawnVisibility = await page.evaluate(() => Array.from(window.CURVIOS_EDITOR.core.objectsContainer.children)
+            .filter((object) => object.userData.type === 'spawn').map((object) => object.visible));
+        expect(spawnVisibility.every((visible) => visible === false)).toBeTruthy();
+
+        await page.locator('#btnViewTop').click();
+        const cameraState = await page.evaluate(() => ({
+            mode: window.CURVIOS_EDITOR.core.viewMode,
+            orthographic: window.CURVIOS_EDITOR.core.camera.isOrthographicCamera === true,
+        }));
+        expect(cameraState).toEqual({ mode: 'top', orthographic: true });
+
+        await expect(page.locator('#assetStatusText')).toContainText(/geladen/i);
+        await expect.poll(() => page.locator('#dockCards .buildCardPreview img').count()).toBeGreaterThan(0);
+    });
+
+    test('Portal- und Parcours-Beziehungen werden bearbeitet, visualisiert und geprueft', async ({ page }) => {
+        await loadEditorPage(page);
+        const ids = await page.evaluate(() => {
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            const created = [];
+            manager.withSceneMutation(() => {
+                created.push(manager.createMesh('portal', 'portal_ring', -300, 300, 0, 120));
+                created.push(manager.createMesh('portal', 'portal_ring', 300, 300, 0, 120));
+                created.push(manager.createMesh('checkpoint', 'start', -500, 250, 0, 0));
+                created.push(manager.createMesh('checkpoint', 'gate', 0, 250, 0, 0));
+                created.push(manager.createMesh('checkpoint', 'finish', 500, 250, 0, 0));
+            });
+            return created.map((object) => object.userData.id);
+        });
+        await expect.poll(() => page.locator('#objectList .objectRow').count()).toBe(5);
+        await page.evaluate((id) => window.CURVIOS_EDITOR.ui.selectObject(window.CURVIOS_EDITOR.mapManager.getObjectById(id)), ids[0]);
+        await page.locator('#propPortalPartner').selectOption(ids[1]);
+        const relation = await page.evaluate(([left, right]) => ({
+            left: window.CURVIOS_EDITOR.mapManager.getObjectById(left).userData.portalPartnerId,
+            right: window.CURVIOS_EDITOR.mapManager.getObjectById(right).userData.portalPartnerId,
+            lineCount: window.CURVIOS_EDITOR.core.scene.getObjectByName('editor-relationships').children.length,
+        }), [ids[0], ids[1]]);
+        expect(relation.left).toBe(ids[1]);
+        expect(relation.right).toBe(ids[0]);
+        expect(relation.lineCount).toBeGreaterThanOrEqual(3);
+        await expect(page.locator('#validationList')).toContainText('Portale sind explizit gepaart');
+    });
+
+    test('grosse Maps nutzen virtuellen Outliner und raeumliche Auswahlindizes', async ({ page }) => {
+        await loadEditorPage(page);
+        await page.evaluate(() => {
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            manager.withSceneMutation(() => {
+                for (let index = 0; index < 260; index += 1) {
+                    manager.createMesh('hard', null, (index % 26) * 100, 80, Math.floor(index / 26) * 100, 50, {
+                        sizeX: 50, sizeY: 50, sizeZ: 50,
+                    });
+                }
+            });
+        });
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(260);
+        const scaleState = await page.evaluate(() => ({
+            renderedRows: document.querySelectorAll('#objectList .objectRow').length,
+            nearby: window.CURVIOS_EDITOR.mapManager.queryObjectsNear({ x: 50, z: 50 }, 250).length,
+        }));
+        expect(scaleState.renderedRows).toBeLessThan(30);
+        expect(scaleState.nearby).toBeGreaterThan(0);
+        expect(scaleState.nearby).toBeLessThan(260);
     });
 });

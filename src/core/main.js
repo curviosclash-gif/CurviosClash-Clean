@@ -19,6 +19,7 @@ import {
 import { RuntimePerfProfiler } from './perf/RuntimePerfProfiler.js';
 import { initializeGameApp } from './AppInitializer.js';
 import { isPlaytestLaunchRequested, readPlaytestLaunchBoolParam } from './PlaytestLaunchParams.js';
+import { installPlaytestReturnControl } from './PlaytestReturnControl.js';
 import { ensureInteractiveMatchRuntime } from './InteractiveMatchRuntimeGuard.js';
 import { GameRuntimeCoordinator } from './runtime/GameRuntimeCoordinator.js';
 import { isPersistenceSuccess } from './settings/SettingsDomainUtils.js';
@@ -132,6 +133,8 @@ export class Game {
         if (!isPlaytestLaunchRequested()) {
             return;
         }
+
+        this._disposePlaytestReturnControl = installPlaytestReturnControl();
 
         this.settings.mapKey = CUSTOM_MAP_KEY;
         const planarRequested = readPlaytestLaunchBoolParam('planar');
@@ -467,6 +470,8 @@ export class Game {
         this._disposed = true;
 
         this._clearPlaytestStartTimeout();
+        this._disposePlaytestReturnControl?.();
+        this._disposePlaytestReturnControl = null;
         if (this._boundKeyCaptureHandler) {
             window.removeEventListener('keydown', this._boundKeyCaptureHandler, true);
             this._boundKeyCaptureHandler = null;

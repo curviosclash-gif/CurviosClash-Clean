@@ -44,7 +44,7 @@ function resolveWarningsTitle(baseTitle, warnings) {
         : baseTitle;
 }
 
-function promptForDiskMapName() {
+async function promptForDiskMapName(editor) {
     let defaultName = DEFAULT_DISK_MAP_NAME;
     try {
         const stored = localStorage.getItem(LAST_DISK_MAP_NAME_STORAGE_KEY);
@@ -55,10 +55,12 @@ function promptForDiskMapName() {
         // localStorage may be unavailable in some environments
     }
 
-    const input = window.prompt(
-        'Name fuer die Map im Spieleordner (gleichnamiger Export aktualisiert die bestehende Map):',
-        defaultName
-    );
+    const input = await editor.requestText?.({
+        title: 'Map im Spieleordner speichern',
+        message: 'Gib einen Map-Namen ein. Ein gleichnamiger Export aktualisiert die bestehende Map.',
+        confirmLabel: 'Speichern',
+        value: defaultName,
+    });
 
     if (input === null) return null;
     const name = input.trim();
@@ -141,6 +143,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             throw new Error('Editor-Disk-Import/Export ist in dieser Umgebung nicht verfuegbar, weil kein Fetch-Transport bereitsteht.');
         }
         const { jsonText, warnings: exportWarnings } = generateCurrentMapJson();
+        const editorDocument = editor.createEditorDocument?.(jsonText) || null;
         const response = await diskCapability.fetchImpl(EDITOR_API_ROUTES.SAVE_MAP_DISK, {
             method: 'POST',
             headers: {
@@ -149,7 +152,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             body: JSON.stringify({
                 contractVersion: EDITOR_DISK_IO_CONTRACT_VERSION,
                 jsonText,
-                mapName
+                mapName,
+                editorDocument,
             })
         });
 
@@ -183,17 +187,15 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         const { jsonText, warnings } = generateCurrentMapJson();
         setJsonEditorText(editor, jsonText);
         const warningMessage = formatWarningsMessage(resolveWarningsTitle('Map exportiert mit Hinweisen:', warnings), warnings);
-        if (warningMessage) {
-            alert(warningMessage);
-        }
+        editor.notify?.(warningMessage || 'JSON-Export aktualisiert.', warningMessage ? 'warn' : 'success');
     });
 
     dom.btnSaveToGame?.addEventListener("click", async () => {
         let requestedMapName = null;
         try {
-            requestedMapName = promptForDiskMapName();
+            requestedMapName = await promptForDiskMapName(editor);
         } catch (error) {
-            alert(`Map-Name ungueltig: ${error.message}`);
+            editor.notify?.(`Map-Name ungueltig: ${error.message}`, 'error');
             return;
         }
 
@@ -210,19 +212,14 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 : '';
             const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
 
-            alert(
-                `Map auf Festplatte ${saveMode}.\n` +
-                `Map-Auswahl: ${payload.mapName} (${payload.mapKey})\n` +
-                `Editor-Datei: ${payload.editorSchemaPath}\n` +
-                `Runtime-Datei: ${payload.runtimeMapPath}\n` +
-                `Registry: ${payload.generatedModulePath}\n` +
-                `Spielseite neu laden, damit der Eintrag sichtbar ist.` +
-                warningSuffix
+            editor.markSaved?.(
+                `Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).` +
+                (warningSuffix ? ` ${warningSuffix.trim()}` : '')
             );
         } catch (error) {
-            alert(
-                `Map konnte nicht auf Festplatte gespeichert werden: ${error.message}\n` +
-                `Hinweis: Der Editor muss ueber den lokalen Vite-Server laufen (npm run dev).`
+            editor.notify?.(
+                `Map konnte nicht gespeichert werden: ${error.message}. Der lokale Editor-Server muss laufen.`,
+                'error'
             );
         }
     });
@@ -232,17 +229,16 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         try {
             ({ warnings } = saveCurrentMapToGameStorage());
         } catch (error) {
-            alert(`Playtest konnte nicht gespeichert werden: ${error.message}`);
+            editor.notify?.(`Playtest konnte nicht gespeichert werden: ${error.message}`, 'error');
             return;
         }
 
+        editor.capturePlaytestReturnState?.();
         const warningMessage = formatWarningsMessage(
             resolveWarningsTitle('Playtest startet mit normalisierten Map-Hinweisen:', warnings),
             warnings
         );
-        if (warningMessage) {
-            alert(warningMessage);
-        }
+        editor.notify?.(warningMessage || 'Playtest wird geoeffnet.', warningMessage ? 'warn' : 'success');
 
         const playtestMode = String(dom.selPlaytestMode?.value || '3d').toLowerCase();
         const params = new URLSearchParams();
@@ -259,36 +255,62 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         window.location.href = playtestUrl;
     });
 
-    dom.btnImport?.addEventListener("click", () => {
+    dom.btnImport?.addEventListener("click", async () => {
         const txt = getJsonEditorText(editor).trim();
-        if (!txt) return;
-        editor.executeHistoryMutation('Import map', () => {
-            editor.mapManager.importFromJSON(txt, {
-                onArenaSize: (arenaSize) => {
-                    if (typeof editor.setArenaSizeInputs === 'function') {
-                        editor.setArenaSizeInputs(arenaSize);
-                    }
-                    if (typeof syncArenaValues === 'function') {
-                        syncArenaValues();
-                    }
-                }
+        if (!txt) {
+            editor.notify?.('Fuege JSON ein oder lade eine JSON-Datei.', 'warn');
+            return;
+        }
+        if (editor.mapManager?.getObjectCount?.() > 0) {
+            const confirmed = await editor.confirmAction?.({
+                title: 'Map importieren?',
+                message: 'Der aktuelle Map-Inhalt wird durch den Import ersetzt. Undo bleibt danach verfuegbar.',
+                confirmLabel: 'Importieren',
+                danger: true,
             });
-        });
+            if (!confirmed) return;
+        }
+        try {
+            const importDocument = editor.resolveEditorImportText?.(txt) || { jsonText: txt };
+            editor.executeHistoryMutation('Import map', () => {
+                editor.mapManager.importFromJSON(importDocument.jsonText, {
+                    onArenaSize: (arenaSize) => {
+                        if (typeof editor.setArenaSizeInputs === 'function') {
+                            editor.setArenaSizeInputs(arenaSize);
+                        }
+                        if (typeof syncArenaValues === 'function') {
+                            syncArenaValues();
+                        }
+                    }
+                });
+                editor.applyEditorImportState?.(importDocument);
+            });
 
-        const warningMessage = formatWarningsMessage(
-            resolveWarningsTitle('Map importiert mit Hinweisen:', editor.mapManager?.lastSchemaWarnings),
-            editor.mapManager?.lastSchemaWarnings
-        );
-        if (warningMessage) {
-            alert(warningMessage);
+            const warningMessage = formatWarningsMessage(
+                resolveWarningsTitle('Map importiert mit Hinweisen:', editor.mapManager?.lastSchemaWarnings),
+                editor.mapManager?.lastSchemaWarnings
+            );
+            editor.notify?.(warningMessage || 'Map erfolgreich importiert.', warningMessage ? 'warn' : 'success');
+        } catch (error) {
+            editor.notify?.(`Map-Import fehlgeschlagen: ${error.message}`, 'error');
         }
     });
 
-    dom.btnNew?.addEventListener("click", () => {
+    dom.btnNew?.addEventListener("click", async () => {
+        if (editor.mapManager?.getObjectCount?.() > 0 || editor.isDirty?.()) {
+            const confirmed = await editor.confirmAction?.({
+                title: 'Neue Map beginnen?',
+                message: 'Alle aktuellen Objekte werden entfernt. Die Aktion kann danach mit Undo zurueckgenommen werden.',
+                confirmLabel: 'Neue Map',
+                danger: true,
+            });
+            if (!confirmed) return;
+        }
         editor.executeHistoryMutation('Clear map', () => {
             editor.clearAllObjects();
             setJsonEditorText(editor, "");
         });
+        editor.markDirty?.('Neue leere Map begonnen.');
     });
 
     dom.btnDelSelected?.addEventListener("click", () => {
@@ -301,5 +323,43 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
 
     dom.btnRedo?.addEventListener("click", () => {
         editor.redo();
+    });
+
+    dom.btnCopyJson?.addEventListener('click', async () => {
+        const { jsonText } = generateCurrentMapJson();
+        setJsonEditorText(editor, jsonText);
+        try {
+            await navigator.clipboard.writeText(jsonText);
+            editor.notify?.('Map-JSON in die Zwischenablage kopiert.', 'success');
+        } catch (error) {
+            editor.notify?.(`Zwischenablage nicht verfuegbar: ${error.message}`, 'error');
+        }
+    });
+
+    dom.btnDownloadJson?.addEventListener('click', () => {
+        const { jsonText } = generateCurrentMapJson();
+        setJsonEditorText(editor, jsonText);
+        const blob = new Blob([jsonText], { type: 'application/json' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = 'curvios-map.json';
+        link.click();
+        URL.revokeObjectURL(url);
+        editor.markSaved?.('JSON-Datei erstellt.');
+    });
+
+    dom.btnLoadJsonFile?.addEventListener('click', () => dom.jsonFileInput?.click());
+    dom.jsonFileInput?.addEventListener('change', async () => {
+        const file = dom.jsonFileInput.files?.[0];
+        if (!file) return;
+        try {
+            setJsonEditorText(editor, await file.text());
+            editor.notify?.(`${file.name} geladen. Mit „Import JSON“ uebernehmen.`, 'success');
+        } catch (error) {
+            editor.notify?.(`Datei konnte nicht gelesen werden: ${error.message}`, 'error');
+        } finally {
+            dom.jsonFileInput.value = '';
+        }
     });
 }

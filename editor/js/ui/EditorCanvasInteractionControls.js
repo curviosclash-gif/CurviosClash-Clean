@@ -5,6 +5,31 @@ export function bindEditorCanvasInteractionControls(editor) {
     if (!editor) return;
 
     let isDraggingTransform = false;
+    let activePointerId = null;
+
+    const releasePointer = () => {
+        if (activePointerId === null) return;
+        const pointerId = activePointerId;
+        activePointerId = null;
+        if (editor.core.container.hasPointerCapture?.(pointerId)) {
+            editor.core.container.releasePointerCapture(pointerId);
+        }
+    };
+
+    const cancelDrawing = () => {
+        const preview = editor.previewMesh;
+        releasePointer();
+        editor.cancelHistoryGesture('draw');
+        editor.isDrawing = false;
+        editor.previewMesh = null;
+        editor.drawStartPos = null;
+        if (preview && editor.isManagedObjectAlive(preview)) {
+            editor.mapManager?.removeObject?.(preview);
+        }
+        editor.notify?.('Platzierung abgebrochen.', 'info');
+    };
+
+    editor.cancelActiveDrawing = cancelDrawing;
 
     editor.core.transformControl.addEventListener('dragging-changed', (e) => {
         isDraggingTransform = e.value;
@@ -16,6 +41,7 @@ export function bindEditorCanvasInteractionControls(editor) {
             }
         } else {
             editor.commitHistoryGesture('transform');
+            editor.mapManager?.queueSceneUiRefresh?.();
         }
     });
 
@@ -23,7 +49,7 @@ export function bindEditorCanvasInteractionControls(editor) {
         const activeObject = editor.core.transformControl.object;
         if (!activeObject) return;
 
-        const managedObject = editor.mapManager?.notifyObjectMutated?.(activeObject) || activeObject;
+        const managedObject = editor.mapManager?.notifyObjectMutated?.(activeObject, { workspace: false }) || activeObject;
         if (!editor.isManagedObjectAlive(managedObject)) {
             editor.detachTransformControl();
             if (editor.selectedObject && !editor.isManagedObjectAlive(editor.selectedObject)) {
@@ -60,6 +86,7 @@ export function bindEditorCanvasInteractionControls(editor) {
 
     editor.core.container.addEventListener('pointerdown', (e) => {
         if (isDraggingTransform) return;
+        if (editor.isDrawing) return;
         if (e.button !== 0) return;
 
         const rect = editor.core.container.getBoundingClientRect();
@@ -68,7 +95,14 @@ export function bindEditorCanvasInteractionControls(editor) {
         editor.raycaster.setFromCamera(editor.mouse, editor.core.camera);
 
         if (editor.currentTool === "select") {
-            const intersects = editor.raycaster.intersectObjects(editor.core.objectsContainer.children, true);
+            const groundPosition = getGroundPos(e);
+            const nearbyObjects = groundPosition
+                ? editor.mapManager?.queryObjectsNear?.(groundPosition, 900) || []
+                : [];
+            const selectionCandidates = nearbyObjects.length > 0
+                ? nearbyObjects
+                : editor.core.objectsContainer.children;
+            const intersects = editor.raycaster.intersectObjects(selectionCandidates, true);
             if (intersects.length > 0) {
                 editor.selectObject(editor.resolveSelectableObject(intersects[0].object));
             } else {
@@ -106,6 +140,8 @@ export function bindEditorCanvasInteractionControls(editor) {
         });
 
         if (editor.previewMesh) {
+            activePointerId = e.pointerId;
+            editor.core.container.setPointerCapture?.(e.pointerId);
             editor.setSelectionOutline(editor.previewMesh, 0xffff00, 0.65);
         } else {
             editor.cancelHistoryGesture('draw');
@@ -115,8 +151,7 @@ export function bindEditorCanvasInteractionControls(editor) {
     editor.core.container.addEventListener('pointermove', (e) => {
         if (!editor.isDrawing || !editor.previewMesh) return;
         if (!editor.isManagedObjectAlive(editor.previewMesh)) {
-            editor.cancelHistoryGesture('draw');
-            editor.clearDrawingState();
+            cancelDrawing();
             return;
         }
 
@@ -151,8 +186,14 @@ export function bindEditorCanvasInteractionControls(editor) {
     });
 
     editor.core.container.addEventListener('pointerup', () => {
-        if (!editor.isDrawing || !editor.previewMesh) return;
+        if (!editor.isDrawing) return;
+        if (!editor.previewMesh) {
+            releasePointer();
+            editor.clearDrawingState();
+            return;
+        }
 
+        releasePointer();
         editor.isDrawing = false;
         if (editor.isManagedObjectAlive(editor.previewMesh)) {
             editor.setSelectionOutline(editor.previewMesh, 0x000000, 0.2);
@@ -161,5 +202,10 @@ export function bindEditorCanvasInteractionControls(editor) {
         editor.previewMesh = null;
         editor.drawStartPos = null;
         editor.commitHistoryGesture('draw');
+    });
+
+    editor.core.container.addEventListener('pointercancel', cancelDrawing);
+    editor.core.container.addEventListener('lostpointercapture', () => {
+        if (editor.isDrawing && activePointerId !== null) cancelDrawing();
     });
 }

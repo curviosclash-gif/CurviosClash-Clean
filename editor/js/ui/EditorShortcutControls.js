@@ -14,6 +14,7 @@ export function bindEditorShortcutControls(editor) {
 
     const shouldIgnoreGlobalShortcut = (target) => {
         if (!(target instanceof Element)) return false;
+        if (target.closest('#editorModalBackdrop')) return true;
         const tagName = target.tagName.toLowerCase();
         return tagName === 'input'
             || tagName === 'textarea'
@@ -60,6 +61,9 @@ export function bindEditorShortcutControls(editor) {
                 editor.core.transformControl.showY = true;
                 editor.core.transformControl.showZ = true;
             }
+        }
+        if (lowerKey === 'f' && !e.ctrlKey) {
+            editor.core.focusObject?.(editor.selectedObject);
         }
 
         if (e.ctrlKey && lowerKey === 'c') {

@@ -2,7 +2,7 @@
 <html lang="de">
 <head>
   <meta charset="utf-8" />
-  <title>Curvios Clash Map Editor (Pro)</title>
+  <title>Curvios Clash Map Editor (Legacy 2D)</title>
   <style>
     :root{
       --bg-0:#020617;
@@ -124,12 +124,23 @@
       border:1px solid #1f2937;background:#020617;
       font-size:10px;margin-right:4px;
     }
+    .legacyNotice{
+      position:fixed;top:8px;left:50%;transform:translateX(-50%);z-index:20;
+      display:flex;align-items:center;gap:8px;padding:7px 10px;border-radius:12px;
+      border:1px solid #f59e0b;background:#1f1605;color:#fde68a;font-size:11px;
+      box-shadow:0 8px 24px rgba(0,0,0,.4);
+    }
+    .legacyNotice a{color:#bfdbfe;font-weight:700;}
     @media(max-width:980px){
       .wrap{grid-template-columns: 1fr;}
     }
   </style>
 </head>
 <body>
+<div class="legacyNotice" role="status">
+  Legacy-2D-Editor · Der produktive Editor ist die 3D-Version.
+  <a href="./map-editor-3d.html">3D-Editor oeffnen</a>
+</div>
 <div class="wrap">
   <div class="panel">
     <div>

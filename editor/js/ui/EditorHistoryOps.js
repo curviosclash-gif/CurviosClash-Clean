@@ -34,7 +34,9 @@ export function captureHistorySnapshot(editor) {
     return {
         json,
         selectedObjectId,
-        hasPlayerSpawnObject
+        hasPlayerSpawnObject,
+        workspaceMetadata: editor.captureWorkspaceMetadata?.() || {},
+        layerState: editor.captureLayerState?.() || null
     };
 }
 
@@ -55,6 +57,8 @@ export function applyHistorySnapshot(editor, snapshot) {
             ));
             playerSpawns.forEach((obj) => editor.mapManager.removeObject(obj));
         }
+        editor.applyWorkspaceMetadata?.(snapshot.workspaceMetadata);
+        editor.applyLayerState?.(snapshot.layerState);
         const selected = snapshot.selectedObjectId ? editor.mapManager.getObjectById(snapshot.selectedObjectId) : null;
         editor.selectObject(selected || null);
     });
@@ -64,7 +68,9 @@ export function pushSnapshotHistoryCommand(editor, label, beforeSnapshot, afterS
     if (!beforeSnapshot || !afterSnapshot) return false;
     if (
         beforeSnapshot.json === afterSnapshot.json &&
-        beforeSnapshot.hasPlayerSpawnObject === afterSnapshot.hasPlayerSpawnObject
+        beforeSnapshot.hasPlayerSpawnObject === afterSnapshot.hasPlayerSpawnObject &&
+        JSON.stringify(beforeSnapshot.workspaceMetadata || {}) === JSON.stringify(afterSnapshot.workspaceMetadata || {}) &&
+        JSON.stringify(beforeSnapshot.layerState || {}) === JSON.stringify(afterSnapshot.layerState || {})
     ) {
         return false;
     }
@@ -86,7 +92,8 @@ export function executeHistoryMutation(editor, label, mutateFn) {
     const beforeSnapshot = captureHistorySnapshot(editor);
     const result = mutateFn();
     const afterSnapshot = captureHistorySnapshot(editor);
-    pushSnapshotHistoryCommand(editor, label, beforeSnapshot, afterSnapshot);
+    const changed = pushSnapshotHistoryCommand(editor, label, beforeSnapshot, afterSnapshot);
+    if (changed) editor.markDirty?.(`${label}.`);
     return result;
 }
 
@@ -113,7 +120,10 @@ export function commitHistoryGesture(editor, key, labelOverride = null) {
     if (!editor.mapManager || isHistoryRecordingSuspended(editor)) return false;
 
     const afterSnapshot = captureHistorySnapshot(editor);
-    return pushSnapshotHistoryCommand(editor, labelOverride || pending.label, pending.before, afterSnapshot);
+    const label = labelOverride || pending.label;
+    const changed = pushSnapshotHistoryCommand(editor, label, pending.before, afterSnapshot);
+    if (changed) editor.markDirty?.(`${label}.`);
+    return changed;
 }
 
 export function cancelHistoryGesture(editor, key) {
@@ -124,9 +134,11 @@ export function cancelHistoryGesture(editor, key) {
 export function undoHistory(editor) {
     if (!editor.commandHistory) return false;
     try {
-        return editor.commandHistory.undo();
+        const changed = editor.commandHistory.undo();
+        if (changed) editor.markDirty?.('Undo ausgefuehrt.');
+        return changed;
     } catch (error) {
-        alert(`Undo fehlgeschlagen: ${error.message}`);
+        editor.notify?.(`Undo fehlgeschlagen: ${error.message}`, 'error');
         return false;
     }
 }
@@ -134,9 +146,11 @@ export function undoHistory(editor) {
 export function redoHistory(editor) {
     if (!editor.commandHistory) return false;
     try {
-        return editor.commandHistory.redo();
+        const changed = editor.commandHistory.redo();
+        if (changed) editor.markDirty?.('Redo ausgefuehrt.');
+        return changed;
     } catch (error) {
-        alert(`Redo fehlgeschlagen: ${error.message}`);
+        editor.notify?.(`Redo fehlgeschlagen: ${error.message}`, 'error');
         return false;
     }
 }

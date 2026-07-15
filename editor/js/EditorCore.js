@@ -9,6 +9,15 @@ export class EditorCore {
             isFlyModeEnabled: () => false,
             getArenaHeight: () => 950
         };
+        this.viewMode = 'perspective';
+        this._scratchCenter = new THREE.Vector3();
+        this._scratchOffset = new THREE.Vector3();
+        this._scratchDirection = new THREE.Vector3();
+        this._scratchRight = new THREE.Vector3();
+        this._scratchMove = new THREE.Vector3();
+        this._scratchSpherical = new THREE.Spherical();
+        this._focusBox = new THREE.Box3();
+        this._focusSphere = new THREE.Sphere();
 
         this.keys = { w: false, a: false, s: false, d: false, q: false, e: false, x: false, y: false, shift: false };
         document.addEventListener('keydown', (e) => {
@@ -39,8 +48,12 @@ export class EditorCore {
         this.scene.background = new THREE.Color(0x020617);
         this.scene.fog = new THREE.Fog(0x020617, 3000, 6000);
 
-        this.camera = new THREE.PerspectiveCamera(45, this.container.clientWidth / this.container.clientHeight, 1, 10000);
-        this.camera.position.set(0, 2000, 2000);
+        this.perspectiveCamera = new THREE.PerspectiveCamera(45, this.container.clientWidth / this.container.clientHeight, 1, 10000);
+        this.perspectiveCamera.position.set(0, 2000, 2000);
+        this.orthographicCamera = new THREE.OrthographicCamera(-1000, 1000, 1000, -1000, 1, 20000);
+        this.orthographicCamera.position.set(0, 4000, 0);
+        this.orthographicCamera.up.set(0, 0, -1);
+        this.camera = this.perspectiveCamera;
 
         this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
         this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
@@ -114,12 +127,107 @@ export class EditorCore {
 
         // Resize
         window.addEventListener('resize', () => {
-            this.camera.aspect = this.container.clientWidth / this.container.clientHeight;
-            this.camera.updateProjectionMatrix();
+            this.updateCameraProjection();
             this.renderer.setSize(this.container.clientWidth, this.container.clientHeight);
         });
 
         this.lastTime = performance.now();
+    }
+
+    updateCameraProjection() {
+        const width = Math.max(1, this.container.clientWidth);
+        const height = Math.max(1, this.container.clientHeight);
+        this.perspectiveCamera.aspect = width / height;
+        this.perspectiveCamera.updateProjectionMatrix();
+        const halfHeight = 1000;
+        const halfWidth = halfHeight * (width / height);
+        this.orthographicCamera.left = -halfWidth;
+        this.orthographicCamera.right = halfWidth;
+        this.orthographicCamera.top = halfHeight;
+        this.orthographicCamera.bottom = -halfHeight;
+        this.orthographicCamera.updateProjectionMatrix();
+    }
+
+    setViewMode(mode = 'perspective') {
+        const normalized = ['top', 'front', 'side'].includes(mode) ? mode : 'perspective';
+        const target = this.orbit.target.clone();
+        this.viewMode = normalized;
+        if (normalized === 'perspective') {
+            this.camera = this.perspectiveCamera;
+            if (this.camera.position.distanceToSquared(target) < 1) {
+                this.camera.position.set(target.x + 1400, target.y + 1200, target.z + 1400);
+            }
+            this.camera.up.set(0, 1, 0);
+        } else {
+            this.camera = this.orthographicCamera;
+            this.camera.zoom = 1;
+            if (normalized === 'top') {
+                this.camera.position.set(target.x, target.y + 5000, target.z);
+                this.camera.up.set(0, 0, -1);
+            } else if (normalized === 'front') {
+                this.camera.position.set(target.x, target.y, target.z + 5000);
+                this.camera.up.set(0, 1, 0);
+            } else {
+                this.camera.position.set(target.x + 5000, target.y, target.z);
+                this.camera.up.set(0, 1, 0);
+            }
+            this.camera.lookAt(target);
+        }
+        this.orbit.object = this.camera;
+        this.orbit.enableRotate = normalized === 'perspective';
+        this.transformControl.camera = this.camera;
+        this.updateCameraProjection();
+        this.orbit.update();
+        return this.viewMode;
+    }
+
+    focusObject(object) {
+        if (!object) return false;
+        this._focusBox.setFromObject(object);
+        if (this._focusBox.isEmpty()) return false;
+        this._focusBox.getBoundingSphere(this._focusSphere);
+        const center = this._focusSphere.center;
+        const radius = Math.max(40, this._focusSphere.radius);
+        this.orbit.target.copy(center);
+        if (this.camera.isOrthographicCamera) {
+            this.camera.zoom = Math.max(0.15, Math.min(12, 650 / radius));
+            if (this.viewMode === 'top') this.camera.position.set(center.x, center.y + 5000, center.z);
+            else if (this.viewMode === 'front') this.camera.position.set(center.x, center.y, center.z + 5000);
+            else this.camera.position.set(center.x + 5000, center.y, center.z);
+            this.camera.lookAt(center);
+            this.camera.updateProjectionMatrix();
+        } else {
+            this._scratchDirection.copy(this.camera.position).sub(center);
+            if (this._scratchDirection.lengthSq() < 1) this._scratchDirection.set(1, 0.8, 1);
+            this._scratchDirection.normalize().multiplyScalar(radius * 3.2);
+            this.camera.position.copy(center).add(this._scratchDirection);
+            this.camera.lookAt(center);
+        }
+        this.orbit.update();
+        return true;
+    }
+
+    captureViewState() {
+        return {
+            mode: this.viewMode,
+            position: this.camera.position.toArray(),
+            target: this.orbit.target.toArray(),
+            zoom: Number(this.camera.zoom) || 1,
+        };
+    }
+
+    restoreViewState(state) {
+        if (!state || typeof state !== 'object') return false;
+        this.setViewMode(state.mode);
+        if (Array.isArray(state.position) && state.position.length === 3) this.camera.position.fromArray(state.position);
+        if (Array.isArray(state.target) && state.target.length === 3) this.orbit.target.fromArray(state.target);
+        if (this.camera.isOrthographicCamera && Number(state.zoom) > 0) {
+            this.camera.zoom = Number(state.zoom);
+            this.camera.updateProjectionMatrix();
+        }
+        this.camera.lookAt(this.orbit.target);
+        this.orbit.update();
+        return true;
     }
 
     animate(time) {
@@ -133,15 +241,15 @@ export class EditorCore {
             const speed = (this.keys.shift ? 600 : 250) * dt;
             const orbitSpeed = (this.keys.shift ? 1.4 : 0.8) * dt;
             const arenaHeight = Number(this.runtimeStateAccessors.getArenaHeight?.()) || 950;
-            const mapCenter = new THREE.Vector3(0, arenaHeight * 0.5, 0);
+            const mapCenter = this._scratchCenter.set(0, arenaHeight * 0.5, 0);
 
             // W/S = vertical orbit (pitch), Q/E = horizontal orbit (yaw) around map center.
             const pitchInput = (this.keys.w ? 1 : 0) - (this.keys.s ? 1 : 0);
             const yawInput = (this.keys.e ? 1 : 0) - (this.keys.q ? 1 : 0);
             if (pitchInput !== 0 || yawInput !== 0) {
-                const offset = this.camera.position.clone().sub(mapCenter);
+                const offset = this._scratchOffset.copy(this.camera.position).sub(mapCenter);
                 if (offset.lengthSq() > 1e-6) {
-                    const spherical = new THREE.Spherical().setFromVector3(offset);
+                    const spherical = this._scratchSpherical.setFromVector3(offset);
 
                     if (yawInput !== 0) {
                         spherical.theta -= yawInput * orbitSpeed;
@@ -162,14 +270,14 @@ export class EditorCore {
                 }
             }
 
-            const dir = new THREE.Vector3();
+            const dir = this._scratchDirection;
             this.camera.getWorldDirection(dir);
             dir.normalize();
 
-            const right = new THREE.Vector3();
+            const right = this._scratchRight;
             right.crossVectors(dir, this.camera.up).normalize();
 
-            const move = new THREE.Vector3();
+            const move = this._scratchMove.set(0, 0, 0);
             if (this.keys.d) move.add(right);
             if (this.keys.a) move.sub(right);
             if (this.keys.y) move.y += 1;
