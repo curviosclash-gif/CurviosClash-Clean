@@ -23,3 +23,4 @@
 ## Coding
 
 17. Nutze für jede Coding-Aufgabe die `ponytail`-Skill im Modus `full`: Verstehe zuerst den vollständigen betroffenen Ablauf und wähle danach die kleinste tragfähige Änderung nach YAGNI, Wiederverwendung, Standardbibliothek, nativen Plattformfunktionen und bereits installierten Abhängigkeiten; behebe Bugs an der gemeinsamen Ursache und vereinfache niemals Validierung, Schutz vor Datenverlust, Sicherheit, Barrierefreiheit oder ausdrücklich verlangtes Verhalten.
+18. Ergänze bei nicht-trivialen Commits einen knappen Body mit Motivation (`Why:`) und ausgeführter Verifikation (`Tests:`); wiederhole weder Betreff noch Diff. Bei trivialen Dokumentations- und Konfigurationsänderungen darf der Body entfallen.
