@@ -3,6 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { CONFIG } from './Config.js';
 import { CameraRigSystem } from './renderer/CameraRigSystem.js';
 import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
@@ -16,22 +17,26 @@ export class Renderer {
 
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
-            antialias: window.devicePixelRatio <= 1,
+            antialias: true,
             alpha: false,
             preserveDrawingBuffer: false,
+            powerPreference: 'high-performance',
         });
         this._recordingActive = false;
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
         this.renderer.shadowMap.enabled = true;
-        this.renderer.shadowMap.type = THREE.BasicShadowMap;
+        this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.toneMappingExposure = 1.2;
         this.renderer.setClearColor(CONFIG.COLORS.BACKGROUND);
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
+        this._environmentRenderTarget = null;
 
         this._setupLights();
+        this._setupEnvironment();
 
         this.sceneRootManager = new SceneRootManager(this.scene);
         this.persistentRoot = this.sceneRootManager.persistentRoot;
@@ -89,6 +94,18 @@ export class Renderer {
         const fillLight = new THREE.DirectionalLight(0x4466aa, 0.3);
         fillLight.position.set(-20, 30, -10);
         this.scene.add(fillLight);
+    }
+
+    _setupEnvironment() {
+        const environment = new RoomEnvironment();
+        const pmremGenerator = new THREE.PMREMGenerator(this.renderer);
+        try {
+            this._environmentRenderTarget = pmremGenerator.fromScene(environment, 0.04);
+            this.scene.environment = this._environmentRenderTarget.texture;
+        } finally {
+            environment.dispose();
+            pmremGenerator.dispose();
+        }
     }
 
     createCamera(_index) {
@@ -267,6 +284,9 @@ export class Renderer {
         }
         this.recordingCapturePipeline.dispose();
         this.clearScene();
+        this.scene.environment = null;
+        this._environmentRenderTarget?.dispose?.();
+        this._environmentRenderTarget = null;
         this.renderer.dispose();
     }
 }

@@ -74,7 +74,7 @@ export const CONFIG_SECTIONS = {
 
     // ---- Rendering ----
     RENDER: {
-        MAX_PIXEL_RATIO: 1.35,
+        MAX_PIXEL_RATIO: 1.5,
         SHADOW_MAP_SIZE: 512,
     },
 

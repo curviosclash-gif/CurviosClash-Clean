@@ -117,7 +117,7 @@ export const GAMEPLAY_CONFIG_DEFAULTS = Object.freeze({
         BOT_COLORS: Object.freeze([0xff4444, 0x44ff44, 0xffff44, 0xff44ff, 0x44ffff]),
     }),
     RENDER: Object.freeze({
-        MAX_PIXEL_RATIO: 1.35,
+        MAX_PIXEL_RATIO: 1.5,
         SHADOW_MAP_SIZE: 512,
     }),
 });

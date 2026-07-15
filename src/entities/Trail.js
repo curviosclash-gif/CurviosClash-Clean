@@ -5,7 +5,7 @@
 import * as THREE from 'three';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 
-const UNIT_CYLINDER_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 4);
+const TRAIL_SEGMENT_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
 const DUMMY = new THREE.Object3D();
 
@@ -40,6 +40,17 @@ export class Trail {
         this.lastX = 0;
         this.lastY = 0;
         this.lastZ = 0;
+        this.lastVisualX = 0;
+        this.lastVisualY = 0;
+        this.lastVisualZ = 0;
+        this._sampleVisualX = 0;
+        this._sampleVisualY = 0;
+        this._sampleVisualZ = 0;
+        this._previousStepVisualX = 0;
+        this._previousStepVisualY = 0;
+        this._previousStepVisualZ = 0;
+        this._hasPreviousStepVisual = false;
+        this.visualRearOffset = 0;
         this.inGap = false;
         this.gapTimer = 0;
         this.width = config.TRAIL.WIDTH;
@@ -49,17 +60,30 @@ export class Trail {
         this.material = new THREE.MeshStandardMaterial({
             color: color,
             emissive: color,
-            emissiveIntensity: 0.3,
-            roughness: 0.3,
-            metalness: 0.6,
+            emissiveIntensity: 0.48,
+            roughness: 0.5,
+            metalness: 0.2,
         });
 
         // InstancedMesh
-        this.mesh = new THREE.InstancedMesh(UNIT_CYLINDER_GEOMETRY, this.material, this.maxSegments);
+        this.mesh = new THREE.InstancedMesh(TRAIL_SEGMENT_GEOMETRY, this.material, this.maxSegments);
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.mesh.castShadow = false;
         this.mesh.receiveShadow = false;
         this.mesh.frustumCulled = false;
+
+        // Render-only head segment. The collision trail keeps its existing
+        // sampling interval while this one mesh follows the interpolated pose.
+        this.headMesh = new THREE.Mesh(TRAIL_SEGMENT_GEOMETRY, this.material);
+        this.headMesh.castShadow = false;
+        this.headMesh.receiveShadow = false;
+        this.headMesh.frustumCulled = false;
+        this.headMesh.visible = false;
+        this.headMesh.userData = {
+            ...(this.headMesh.userData || {}),
+            entityViewType: 'trail-visual-head',
+            collisionEnabled: false,
+        };
 
         DUMMY.scale.set(0, 0, 0);
         DUMMY.updateMatrix();
@@ -68,6 +92,7 @@ export class Trail {
         }
 
         this.renderer.addToScene(this.mesh);
+        this.renderer.addToScene(this.headMesh);
 
         // Data Storage
         this.segmentRefs = new Array(this.maxSegments).fill(null); // Stores refs {key, entry} for global unregistration
@@ -75,6 +100,11 @@ export class Trail {
 
     setWidth(width) {
         this.width = width;
+    }
+
+    setVisualRearOffset(offset) {
+        const numericOffset = Number(offset);
+        this.visualRearOffset = Number.isFinite(numericOffset) ? Math.max(0, numericOffset) : 0;
     }
 
     resetWidth() {
@@ -85,19 +115,59 @@ export class Trail {
         this.inGap = true;
         this.gapTimer = duration;
         this.hasLastPosition = false;
+        this._hasPreviousStepVisual = false;
+        this.hideVisualHead();
+    }
+
+    hideVisualHead() {
+        if (this.headMesh) {
+            this.headMesh.visible = false;
+        }
+    }
+
+    updateVisualHead(position, direction = null) {
+        if (!this.headMesh || !position || this.inGap || !this.hasLastPosition) {
+            this.hideVisualHead();
+            return false;
+        }
+
+        this._resolveVisualSample(position, direction);
+        const dx = this._sampleVisualX - this.lastVisualX;
+        const dy = this._sampleVisualY - this.lastVisualY;
+        const dz = this._sampleVisualZ - this.lastVisualZ;
+        const lengthSq = dx * dx + dy * dy + dz * dz;
+        if (!Number.isFinite(lengthSq) || lengthSq < 0.0001) {
+            this.hideVisualHead();
+            return false;
+        }
+
+        const length = Math.sqrt(lengthSq);
+        const radius = this.width * 0.5;
+        this.headMesh.position.set(
+            this.lastVisualX + dx * 0.5,
+            this.lastVisualY + dy * 0.5,
+            this.lastVisualZ + dz * 0.5
+        );
+        this._tmpDir.set(dx / length, dy / length, dz / length);
+        this.headMesh.quaternion.setFromUnitVectors(UP_AXIS, this._tmpDir);
+        this.headMesh.scale.set(radius, length, radius);
+        this.headMesh.visible = true;
+        return true;
     }
 
     update(dt, position, direction) {
         const config = resolveEntityRuntimeConfig(this.entityManager);
         if (this.inGap) {
+            this.hideVisualHead();
             this.gapTimer -= dt;
             if (this.gapTimer <= 0) {
                 this.inGap = false;
             }
-            this._setLastPosition(position);
+            this._setLastPosition(position, direction);
             return;
         }
 
+        this._resolveVisualSample(position, direction);
         this.timeSinceUpdate += dt;
 
         if (this.timeSinceUpdate >= config.TRAIL.UPDATE_INTERVAL) {
@@ -106,15 +176,31 @@ export class Trail {
             if (Math.random() < config.TRAIL.GAP_CHANCE) {
                 this.inGap = true;
                 this.gapTimer = config.TRAIL.GAP_DURATION;
-                this._setLastPosition(position);
+                this._setLastPosition(position, direction);
+                this.hideVisualHead();
                 return;
             }
 
+            const visualToX = this._hasPreviousStepVisual ? this._previousStepVisualX : this._sampleVisualX;
+            const visualToY = this._hasPreviousStepVisual ? this._previousStepVisualY : this._sampleVisualY;
+            const visualToZ = this._hasPreviousStepVisual ? this._previousStepVisualZ : this._sampleVisualZ;
             if (this.hasLastPosition) {
-                this._addSegment(this.lastX, this.lastY, this.lastZ, position.x, position.y, position.z);
+                this._addSegment(
+                    this.lastX,
+                    this.lastY,
+                    this.lastZ,
+                    position.x,
+                    position.y,
+                    position.z,
+                    visualToX,
+                    visualToY,
+                    visualToZ
+                );
             }
-            this._setLastPosition(position);
+            this._storeLastPositionFromSample(position, visualToX, visualToY, visualToZ);
         }
+
+        this._storePreviousStepVisualFromSample();
 
         // needsUpdate nur einmal pro Frame
         if (this._dirty) {
@@ -124,14 +210,61 @@ export class Trail {
         }
     }
 
-    _setLastPosition(position) {
+    _resolveVisualSample(position, direction = null) {
+        const positionX = Number(position?.x) || 0;
+        const positionY = Number(position?.y) || 0;
+        const positionZ = Number(position?.z) || 0;
+        const directionX = Number(direction?.x) || 0;
+        const directionY = Number(direction?.y) || 0;
+        const directionZ = Number(direction?.z) || 0;
+        const directionLength = Math.hypot(directionX, directionY, directionZ);
+        const offsetScale = directionLength > 0.000001
+            ? (this.visualRearOffset / directionLength)
+            : 0;
+        this._sampleVisualX = positionX - directionX * offsetScale;
+        this._sampleVisualY = positionY - directionY * offsetScale;
+        this._sampleVisualZ = positionZ - directionZ * offsetScale;
+    }
+
+    _storeLastPositionFromSample(
+        position,
+        visualX = this._sampleVisualX,
+        visualY = this._sampleVisualY,
+        visualZ = this._sampleVisualZ
+    ) {
         this.hasLastPosition = true;
         this.lastX = position.x;
         this.lastY = position.y;
         this.lastZ = position.z;
+        this.lastVisualX = visualX;
+        this.lastVisualY = visualY;
+        this.lastVisualZ = visualZ;
     }
 
-    _addSegment(fromX, fromY, fromZ, toX, toY, toZ) {
+    _storePreviousStepVisualFromSample() {
+        this._previousStepVisualX = this._sampleVisualX;
+        this._previousStepVisualY = this._sampleVisualY;
+        this._previousStepVisualZ = this._sampleVisualZ;
+        this._hasPreviousStepVisual = true;
+    }
+
+    _setLastPosition(position, direction = null) {
+        this._resolveVisualSample(position, direction);
+        this._storeLastPositionFromSample(position);
+        this._storePreviousStepVisualFromSample();
+    }
+
+    _addSegment(
+        fromX,
+        fromY,
+        fromZ,
+        toX,
+        toY,
+        toZ,
+        visualToX = this._sampleVisualX,
+        visualToY = this._sampleVisualY,
+        visualToZ = this._sampleVisualZ
+    ) {
         const dx = toX - fromX;
         const dy = toY - fromY;
         const dz = toZ - fromZ;
@@ -158,14 +291,35 @@ export class Trail {
 
         const radius = this.width * 0.5;
         const midX = (fromX + toX) * 0.5;
-        const midY = (fromY + toY) * 0.5;
         const midZ = (fromZ + toZ) * 0.5;
+        const visualFromX = this.hasLastPosition ? this.lastVisualX : fromX;
+        const visualFromY = this.hasLastPosition ? this.lastVisualY : fromY;
+        const visualFromZ = this.hasLastPosition ? this.lastVisualZ : fromZ;
+        const resolvedVisualToX = this.hasLastPosition ? visualToX : toX;
+        const resolvedVisualToY = this.hasLastPosition ? visualToY : toY;
+        const resolvedVisualToZ = this.hasLastPosition ? visualToZ : toZ;
+        const visualDx = resolvedVisualToX - visualFromX;
+        const visualDy = resolvedVisualToY - visualFromY;
+        const visualDz = resolvedVisualToZ - visualFromZ;
+        const visualLength = Math.hypot(visualDx, visualDy, visualDz);
+        const resolvedVisualDx = visualLength >= 0.01 ? visualDx : dx;
+        const resolvedVisualDy = visualLength >= 0.01 ? visualDy : dy;
+        const resolvedVisualDz = visualLength >= 0.01 ? visualDz : dz;
+        const resolvedVisualLength = visualLength >= 0.01 ? visualLength : length;
 
         // Visual
-        DUMMY.position.set(midX, midY, midZ);
-        this._tmpDir.set(dx / length, dy / length, dz / length);
+        DUMMY.position.set(
+            visualLength >= 0.01 ? visualFromX + visualDx * 0.5 : fromX + dx * 0.5,
+            visualLength >= 0.01 ? visualFromY + visualDy * 0.5 : fromY + dy * 0.5,
+            visualLength >= 0.01 ? visualFromZ + visualDz * 0.5 : fromZ + dz * 0.5
+        );
+        this._tmpDir.set(
+            resolvedVisualDx / resolvedVisualLength,
+            resolvedVisualDy / resolvedVisualLength,
+            resolvedVisualDz / resolvedVisualLength
+        );
         DUMMY.quaternion.setFromUnitVectors(UP_AXIS, this._tmpDir);
-        DUMMY.scale.set(radius, length, radius);
+        DUMMY.scale.set(radius, resolvedVisualLength, radius);
         DUMMY.updateMatrix();
         this.mesh.setMatrixAt(this.writeIndex, DUMMY.matrix);
         this._dirty = true;
@@ -233,13 +387,17 @@ export class Trail {
         this.writeIndex = 0;
         this.segmentCount = 0;
         this.hasLastPosition = false;
+        this._hasPreviousStepVisual = false;
         this.timeSinceUpdate = 0;
         this.inGap = false;
+        this.hideVisualHead();
     }
 
     dispose() {
         this.renderer.removeFromScene(this.mesh);
+        this.renderer.removeFromScene(this.headMesh);
         this.mesh.dispose();
         this.material.dispose();
+        this.headMesh = null;
     }
 }

@@ -70,8 +70,12 @@ export class PlayerView {
 
         this._onVehicleLoaded = null;
         this._vehicleLoadedTarget = null;
+        this._vehicleReady = true;
+        this._readyPromise = Promise.resolve(this);
         this._renderPosition = new THREE.Vector3();
         this._renderQuaternion = new THREE.Quaternion();
+        this._renderDirection = new THREE.Vector3(0, 0, -1);
+        this._visualTime = 0;
         this._exhaustAccumulator = 0;
         this._tmpExhaustOrigin = new THREE.Vector3();
         this._tmpExhaustSample = new THREE.Vector3();
@@ -81,6 +85,7 @@ export class PlayerView {
     createModel() {
         const playerConfig = resolveGameplayConfig(this.player).PLAYER;
         this.group = new THREE.Group();
+        this.group.visible = false;
         this.vehicleMesh = createVehicleMesh(this.player.vehicleId, this.player.color);
         this.group.add(this.vehicleMesh);
 
@@ -147,20 +152,45 @@ export class PlayerView {
     }
 
     _attachVehicleLoadedHandler(mesh) {
-        const updateBounds = () => {
+        const updateLoadedVehicle = () => {
             const currentMesh = this.vehicleMesh;
             if (!currentMesh || currentMesh !== mesh || !this.group) return;
             syncPlayerHitboxFromVehicleMesh(this.player, currentMesh);
             this._syncShieldBaseScaleToHitbox();
+            this._collectFlames();
+            this._syncPlayerRefs();
         };
 
         if (mesh?.addEventListener) {
-            this._onVehicleLoaded = updateBounds;
+            this._onVehicleLoaded = updateLoadedVehicle;
             this._vehicleLoadedTarget = mesh;
-            mesh.addEventListener('loaded', updateBounds);
+            mesh.addEventListener('loaded', updateLoadedVehicle);
         }
 
-        updateBounds();
+        const readiness = typeof mesh?.whenReady === 'function'
+            ? mesh.whenReady()
+            : (mesh?.ready && typeof mesh.ready.then === 'function' ? mesh.ready : null);
+        if (readiness && mesh?._loaded !== true) {
+            this._vehicleReady = false;
+            this._readyPromise = Promise.resolve(readiness).then(() => {
+                updateLoadedVehicle();
+                this._vehicleReady = true;
+                return this;
+            });
+        } else {
+            this._vehicleReady = true;
+            this._readyPromise = Promise.resolve(this);
+        }
+
+        updateLoadedVehicle();
+    }
+
+    isReady() {
+        return this._vehicleReady === true;
+    }
+
+    whenReady() {
+        return this._readyPromise;
     }
 
     _collectFlames() {
@@ -199,6 +229,9 @@ export class PlayerView {
         if (this.group) {
             this.group.visible = !!visible;
         }
+        if (!visible) {
+            this.player?.trail?.hideVisualHead?.();
+        }
     }
 
     syncRotation() {
@@ -212,6 +245,12 @@ export class PlayerView {
         this.player.resolveRenderTransform(renderAlpha, this._renderPosition, this._renderQuaternion);
         this.group.position.copy(this._renderPosition);
         this.group.quaternion.copy(this._renderQuaternion);
+        this._renderDirection.set(0, 0, -1).applyQuaternion(this._renderQuaternion).normalize();
+        if (this.player.alive) {
+            this.player.trail?.updateVisualHead?.(this._renderPosition, this._renderDirection);
+        } else {
+            this.player.trail?.hideVisualHead?.();
+        }
     }
 
     copyRenderTransform(outPosition = null, outQuaternion = null) {
@@ -231,6 +270,7 @@ export class PlayerView {
         this.group.quaternion.copy(this.player.quaternion);
         this._renderPosition.copy(this.player.position);
         this._renderQuaternion.copy(this.player.quaternion);
+        this._renderDirection.set(0, 0, -1).applyQuaternion(this._renderQuaternion).normalize();
     }
 
     _resolveExhaustOrigin(out) {
@@ -254,8 +294,11 @@ export class PlayerView {
             }
         }
 
-        this.player.getDirection(this._tmpExhaustDirection);
-        return out.copy(this.player.position).addScaledVector(this._tmpExhaustDirection, -0.9 * (this.player.modelScale || 1));
+        this._tmpExhaustDirection.set(0, 0, -1).applyQuaternion(this._renderQuaternion);
+        return out.copy(this._renderPosition).addScaledVector(
+            this._tmpExhaustDirection,
+            -0.9 * (this.player.modelScale || 1)
+        );
     }
 
     _emitThrusterExhaust(dt) {
@@ -285,7 +328,7 @@ export class PlayerView {
         if (burstCount <= 0) return;
         this._exhaustAccumulator -= burstCount;
 
-        this.player.getDirection(this._tmpExhaustDirection).multiplyScalar(-1);
+        this._tmpExhaustDirection.copy(this._renderDirection).multiplyScalar(-1);
         this._resolveExhaustOrigin(this._tmpExhaustOrigin);
 
         const color = this.player.isBoosting ? 0xfff0b3 : 0xff9a3c;
@@ -318,14 +361,17 @@ export class PlayerView {
         }
     }
 
-    update(dt) {
+    updateVisuals(dt) {
         if (!this.group) return;
 
-        if (this.vehicleMesh && typeof this.vehicleMesh.tick === 'function') {
-            this.vehicleMesh.tick(dt);
+        const safeDt = Math.max(0, Math.min(0.05, Number(dt) || 0));
+        this._visualTime += safeDt;
+
+        if (safeDt > 0 && this.vehicleMesh && typeof this.vehicleMesh.tick === 'function') {
+            this.vehicleMesh.tick(safeDt);
         }
 
-        const time = performance.now() * 0.001;
+        const time = this._visualTime;
         if (this.flames.length > 0) {
             const boostFactor = this.player.isBoosting ? 3.0 : 1.0;
             const flicker = Math.sin(time * 25) * 0.15 + Math.sin(time * 37) * 0.1;
@@ -349,7 +395,9 @@ export class PlayerView {
             }
         }
 
-        this._emitThrusterExhaust(dt);
+        if (safeDt > 0 && this.player.alive) {
+            this._emitThrusterExhaust(safeDt);
+        }
 
         if (this.shieldMesh) {
             this.shieldMesh.visible = this.player.hasShield;
@@ -371,6 +419,12 @@ export class PlayerView {
         }
     }
 
+    // Compatibility for preview/test callers. Product gameplay uses updateVisuals
+    // from the render phase so effects match the display refresh rate.
+    update(dt) {
+        this.updateVisuals(dt);
+    }
+
     getFirstPersonCameraAnchor(out = null) {
         const target = out || new THREE.Vector3();
         if (this.firstPersonAnchor) {
@@ -389,6 +443,7 @@ export class PlayerView {
         }
         this._onVehicleLoaded = null;
         this._vehicleLoadedTarget = null;
+        this.vehicleMesh?.cancelPendingLoad?.();
 
         if (this.group) {
             if (this.renderer?.removeFromScene) {
@@ -403,6 +458,8 @@ export class PlayerView {
         this.firstPersonAnchor = null;
         this.flames = [];
         this.group = null;
+        this._vehicleReady = true;
+        this._readyPromise = Promise.resolve(this);
 
         this.player.group = null;
         this.player.vehicleMesh = null;

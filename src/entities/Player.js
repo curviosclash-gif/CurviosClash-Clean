@@ -124,7 +124,9 @@ export class Player {
             : String(playerConfig.DEFAULT_VEHICLE_ID || 'ship5');
 
         const vehicleDef = VEHICLE_DEFINITIONS.find((v) => v.id === this.vehicleId) || VEHICLE_DEFINITIONS[0];
-        this.hitboxRadius = (vehicleDef.hitbox?.radius || playerConfig.HITBOX_RADIUS || 0.8) * this.modelScale;
+        const vehicleHitboxRadius = vehicleDef.hitbox?.radius || playerConfig.HITBOX_RADIUS || 0.8;
+        this.hitboxRadius = vehicleHitboxRadius * this.modelScale;
+        this._trailVisualRearOffsetBase = Math.max(0.6, vehicleHitboxRadius * 1.05);
 
         // Hitbox state
         this.hitboxBox = new THREE.Box3();
@@ -155,6 +157,7 @@ export class Player {
         this.view.createModel();
 
         this.trail = new Trail(renderer, color, this.index, options.entityManager);
+        this.trail.setVisualRearOffset(this._trailVisualRearOffsetBase * Math.max(0, this.modelScale));
         this._renderPrevPosition.copy(this.position);
         this._renderPrevQuaternion.copy(this.quaternion);
         this._renderInterpolationPosition.copy(this.position);
@@ -257,8 +260,6 @@ export class Player {
         const motionOptions = (strategy && typeof strategy.getTurnRateMultiplier === 'function')
             ? { turnRateMultiplier: strategy.getTurnRateMultiplier() } : null;
         updatePlayerMotion(this, dt, controlState, motionOptions);
-
-        this.view?.update(dt);
     }
 
     setControlOptions(options = {}) {
@@ -267,6 +268,9 @@ export class Player {
         }
         if (typeof options.modelScale === 'number') {
             this.modelScale = options.modelScale;
+            this.trail?.setVisualRearOffset?.(
+                this._trailVisualRearOffsetBase * Math.max(0, this.modelScale)
+            );
             this.view?.applyModelScale();
         }
         if (typeof options.cockpitCamera === 'boolean') {
@@ -325,6 +329,7 @@ export class Player {
     kill() {
         this.alive = false;
         this.hp = 0;
+        this.trail?.hideVisualHead?.();
         this.view?.setVisible(false);
     }
 

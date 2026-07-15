@@ -3,6 +3,7 @@
 // ============================================
 
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
+import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 
 export function createPlayingStateRuntimeAccess(runtime) {
     return createRuntimeAccess(runtime, (game) => {
@@ -50,6 +51,7 @@ export function createPlayingStateRuntimeAccess(runtime) {
         getRenderer: () => game?.renderer || null,
         getRenderTiming: () => game?.gameLoop?.getRenderTiming?.() || null,
         getFixedStep: () => Number(game?.gameLoop?.fixedStep) || (1 / 60),
+        getVisualsActive: () => game?.state === GAME_STATE_IDS.PLAYING,
         getRuntimeProjectionPort: () => game?.runtimeBundle?.ports?.runtimeProjectionPort || null,
         getRuntimePerfProfiler: () => game?.runtimePerfProfiler || null,
         getCrosshairSystem: () => game?.crosshairSystem || null,
@@ -177,7 +179,8 @@ export class PlayingStateSystem {
             reason: renderTiming?.resetReason || '',
         });
 
-        entityManager.renderInterpolatedTransforms(renderAlpha);
+        const visualDelta = this.runtimeAccess.getVisualsActive?.() === false ? 0 : cameraDt;
+        entityManager.renderInterpolatedTransforms(renderAlpha, visualDelta);
         this._matchRenderProjection = this.runtimeAccess.getRuntimeProjectionPort?.()?.getMatchRenderProjection?.({
             renderAlpha,
         }) || null;

@@ -5,6 +5,7 @@
 
 import * as THREE from 'three';
 import { createLogger } from '../shared/logging/Logger.js';
+import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 
 const logger = createLogger('OBJVehicleMesh');
 let OBJ_MTL_LOADER_PROMISE = null;
@@ -31,6 +32,7 @@ export class OBJVehicleMesh extends THREE.Group {
         this.playerColor = color;
         this.shipId = shipId;
         this._loaded = false;
+        this._disposed = false;
         this._loadingPromise = null;
 
         this.glowMat = new THREE.MeshBasicMaterial({
@@ -53,7 +55,23 @@ export class OBJVehicleMesh extends THREE.Group {
         this.muzzle = new THREE.Object3D();
         this.add(this.muzzle);
 
-        this.loadModel();
+        this.ready = this.loadModel();
+    }
+
+    whenReady() {
+        return this.ready || this._loadingPromise || Promise.resolve(false);
+    }
+
+    cancelPendingLoad() {
+        this._disposed = true;
+        this._disposeTemplateMaterials();
+    }
+
+    _disposeTemplateMaterials() {
+        this.glowMat?.dispose?.();
+        this.forceFieldMat?.dispose?.();
+        this.glowMat = null;
+        this.forceFieldMat = null;
     }
 
     loadModel() {
@@ -87,17 +105,26 @@ export class OBJVehicleMesh extends THREE.Group {
                 );
             }))
             .then((object) => {
+                if (this._disposed) {
+                    disposeObject3DResources(object);
+                    return false;
+                }
                 this._applyLoadedModel(object);
+                this._disposeTemplateMaterials();
                 return true;
             })
             .catch((error) => {
+                if (this._disposed) return false;
                 logger.warn(`Failed to load ${this.shipId}.obj/.mtl, using fallback mesh.`, error);
                 this._applyFallbackModel();
+                this._disposeTemplateMaterials();
                 return false;
             })
             .finally(() => {
                 this._loaded = true;
-                this.dispatchEvent({ type: 'loaded' });
+                if (!this._disposed) {
+                    this.dispatchEvent({ type: 'loaded' });
+                }
             });
 
         return this._loadingPromise;
