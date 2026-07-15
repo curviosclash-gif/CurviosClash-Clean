@@ -127,18 +127,6 @@ function createPanelSchema(featureFlags) {
             settingsDomain: 'localSettings',
         },
         {
-            id: 'submenu-developer',
-            semanticId: 'developer',
-            label: 'Developer',
-            icon: '🛠️',
-            order: 70,
-            level: 'developer',
-            accessPolicy: MENU_ACCESS_POLICIES.OWNER_ONLY,
-            visibility: featureFlags.developerModeEnabled ? 'visible' : 'hidden',
-            legacyIds: [],
-            settingsDomain: 'localSettings',
-        },
-        {
             id: 'submenu-debug',
             semanticId: 'debug',
             label: 'Debug / Info',

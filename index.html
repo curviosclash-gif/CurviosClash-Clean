@@ -777,7 +777,7 @@
                     </div>
                     <div class="submenu-body">
                         <p id="expert-login-status" class="menu-field-hint" role="status" aria-live="polite">
-                            Developer- und Debugfunktionen sind lokal gesperrt.
+                            Debugfunktionen sind lokal gesperrt.
                         </p>
                         <div id="expert-locked-state">
                             <div class="menu-section expert-auth-card">
@@ -798,10 +798,6 @@
                                 </div>
                                 <div id="build-info" class="build-info build-info--expert"></div>
                                 <div class="expert-panel-actions">
-                                    <button type="button" id="btn-open-developer" class="secondary-btn secondary-btn-spaced"
-                                        data-menu-step-target="submenu-developer" data-menu-text-id="menu.level4.tools.open_developer.label">
-                                        Developer öffnen
-                                    </button>
                                     <button type="button" id="btn-open-debug" class="secondary-btn secondary-btn-spaced"
                                         data-menu-step-target="submenu-debug" data-menu-text-id="menu.developer.open_debug.label">
                                         Debug / Info öffnen
@@ -964,89 +960,6 @@
                             </p>
                             <button type="button" class="secondary-btn" data-menu-action="level4-open"
                                 data-level4-section="advanced_map">Map-Details öffnen</button>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- ======= SUBMENU: DEVELOPER ======= -->
-                <div id="submenu-developer" class="submenu-panel hidden" role="region"
-                    aria-labelledby="submenu-developer-title" aria-hidden="true" data-menu-panel="developer">
-                    <div class="submenu-header">
-                        <button type="button" class="back-btn" data-back data-back-target="submenu-expert"
-                            data-menu-action="back" aria-label="Zurueck zum Expertenbereich">←
-                            Zurück</button>
-                        <h2 id="submenu-developer-title" class="submenu-title" data-menu-text-id="menu.developer.title">🛠️ Developer</h2>
-                    </div>
-                    <div class="submenu-body">
-                        <div class="menu-section">
-                            <label class="toggle-row" for="developer-mode-toggle">
-                                <input type="checkbox" id="developer-mode-toggle">
-                                Developer-Modus aktiv
-                            </label>
-                        </div>
-                        <div class="menu-section">
-                            <label for="developer-theme-select">Developer Theme</label>
-                            <select id="developer-theme-select">
-                                <option value="classic-console">Classic Console</option>
-                                <option value="sandstorm-lab">Sandstorm Lab</option>
-                                <option value="arctic-grid">Arctic Grid</option>
-                            </select>
-                        </div>
-                        <div class="menu-section">
-                            <label for="developer-visibility-select">Developer Zugriff</label>
-                            <select id="developer-visibility-select">
-                                <option value="hidden_for_players">hidden_for_players</option>
-                                <option value="owner_only" selected>owner_only</option>
-                                <option value="open">open</option>
-                            </select>
-                        </div>
-                        <div class="menu-section">
-                            <label class="toggle-row" for="developer-fixed-preset-lock-toggle">
-                                <input type="checkbox" id="developer-fixed-preset-lock-toggle">
-                                Fixed-Preset-Lock fuer Spieler erzwingen
-                            </label>
-                        </div>
-                        <div class="menu-section">
-                            <label for="developer-actor-select">Session Actor</label>
-                            <select id="developer-actor-select">
-                                <option value="owner" selected>owner</option>
-                                <option value="player">player</option>
-                            </select>
-                        </div>
-                        <div class="menu-section">
-                            <label class="toggle-row" for="developer-release-preview-toggle">
-                                <input type="checkbox" id="developer-release-preview-toggle">
-                                Release-Vorschau aktivieren (Developer-Off simulieren)
-                            </label>
-                        </div>
-                        <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.developer.text_override.title">Textkatalog-Override</h2>
-                            <label for="developer-text-id-select">Text-ID</label>
-                            <select id="developer-text-id-select">
-                                <option value="">Bitte Text-ID wählen</option>
-                            </select>
-                            <label for="developer-text-override-input">Override-Text</label>
-                            <input type="text" id="developer-text-override-input" maxlength="120" placeholder="Neuer Label-Text">
-                            <div class="btn-group secondary-btn-spaced">
-                                <button type="button" id="btn-developer-text-apply" class="secondary-btn"
-                                    data-menu-text-id="menu.developer.text_override.apply.label">
-                                    Override setzen
-                                </button>
-                                <button type="button" id="btn-developer-text-clear" class="secondary-btn"
-                                    data-menu-text-id="menu.developer.text_override.clear.label">
-                                    Override löschen
-                                </button>
-                            </div>
-                        </div>
-                        <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.developer.telemetry.title">Entwicklungs-Telemetrie</h2>
-                            <div id="developer-telemetry-dashboard" class="developer-telemetry-dashboard" aria-live="polite"></div>
-                            <pre id="developer-telemetry-output" class="build-info-detail">Keine Telemetrie vorhanden.</pre>
-                        </div>
-                        <div class="menu-section">
-                            <p id="developer-hint" class="menu-hint" role="status" aria-live="polite">
-                                Developer Scope: owner_only | Session: owner
-                            </p>
                         </div>
                     </div>
                 </div>

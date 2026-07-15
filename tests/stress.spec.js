@@ -2,7 +2,6 @@ import { test, expect } from '@playwright/test';
 import {
     collectErrors,
     loadGame,
-    openDeveloperSubmenu,
     openGameSubmenu,
     openLevel4Drawer,
     openMultiplayerSubmenu,
@@ -344,28 +343,27 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('T78: Developer Release-Vorschau Toggle-Burst bleibt stabil', async ({ page }) => {
+    test('T78: SettingsManager Release-Vorschau Toggle-Burst bleibt stabil', async ({ page }) => {
         const errors = collectErrors(page);
         await loadGame(page);
-        await openDeveloperSubmenu(page);
-
-        if (!(await page.isChecked('#developer-mode-toggle'))) {
-            await page.check('#developer-mode-toggle');
-        }
-        await page.selectOption('#developer-text-id-select', 'menu.level3.start.label');
-        await page.fill('#developer-text-override-input', 'BurstStart');
-        await page.click('#btn-developer-text-apply');
-        await page.waitForTimeout(80);
-
-        for (let i = 0; i < 8; i += 1) {
-            if (i % 2 === 0) {
-                await page.check('#developer-release-preview-toggle');
-            } else {
-                await page.uncheck('#developer-release-preview-toggle');
+        const burstResult = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const accessContext = {
+                isOwner: true,
+                developerModeVisibility: 'owner_only',
+                expertModeUnlocked: true,
+            };
+            const modeResult = game.settingsManager.setDeveloperMode(game.settings, true, accessContext);
+            const textResult = game.settingsManager.setMenuTextOverride('menu.level3.start.label', 'BurstStart');
+            for (let i = 0; i < 8; i += 1) {
+                game.settingsManager.setDeveloperReleasePreview(game.settings, i % 2 === 0, accessContext);
+                game.runtimeFacade.onSettingsChanged({ changedKeys: ['developer.releasePreview'] });
             }
-            await page.waitForTimeout(60);
-        }
+            return modeResult.success && textResult.success;
+        });
+        expect(burstResult).toBeTruthy();
 
+        await returnToMenu(page);
         await openGameSubmenu(page);
         const startLabel = (await page.textContent('#btn-start')).trim();
         expect(['Spiel starten', 'BurstStart']).toContain(startLabel);

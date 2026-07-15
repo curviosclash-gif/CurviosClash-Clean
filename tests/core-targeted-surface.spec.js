@@ -7,7 +7,6 @@ import {
     loadGame,
     openCustomSubmenu,
     openDebugSubmenu,
-    openDeveloperSubmenu,
     openExpertSubmenu,
     openGameSubmenu,
     openStartSetupSection,
@@ -254,7 +253,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(overlayState.botWinRate).toBe('0%');
     });
 
-    test('T20ke: Developer-Telemetrie-Dashboard zeigt Balancing-Summary aus dem Round-End-Pfad', async ({ page }) => {
+    test('T20ke: SettingsManager liefert Balancing-Telemetrie aus dem Round-End-Pfad', async ({ page }) => {
         await startGameWithBots(page, 1);
 
         const telemetryProbe = await page.evaluate(() => {
@@ -291,12 +290,14 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.recorder.roundStartTime = now - simulatedDurationMs;
             game.matchFlowUiController.onRoundEnd(players[0]);
 
+            const telemetry = game.settingsManager.getMenuTelemetrySnapshot(game.settings);
             return {
                 error: '',
                 mapKey: String(game.arena?.currentMapKey || game.settings?.mapKey || ''),
-                balanceRounds: Number(game.settings?.localSettings?.telemetryState?.balance?.rounds || 0),
-                telemetryBalance: game.settings?.localSettings?.telemetryState?.balance || null,
-                telemetryRecentRound: game.settings?.localSettings?.telemetryState?.recentRounds?.[0] || null,
+                balanceRounds: Number(telemetry?.balance?.rounds || 0),
+                telemetryBalance: telemetry?.balance || null,
+                telemetryRecentRound: telemetry?.recentRounds?.[0] || null,
+                topMap: telemetry?.topMaps?.[0]?.key || '',
             };
         });
 
@@ -313,42 +314,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(Number(telemetryProbe.telemetryRecentRound?.rocketHits || 0)).toBe(1);
         expect(Number(telemetryProbe.telemetryRecentRound?.hpDamage || 0)).toBeGreaterThan(0);
         expect(Number(telemetryProbe.telemetryRecentRound?.shieldAbsorb || 0)).toBeGreaterThan(0);
-
-        await returnToMenu(page);
-        await openDeveloperSubmenu(page);
-
-        const dashboardState = await page.evaluate(() => {
-            const telemetry = JSON.parse(document.getElementById('developer-telemetry-output')?.textContent || '{}');
-            const readValue = (cardId, rowKey) => document.querySelector(
-                `[data-telemetry-card="${cardId}"] [data-telemetry-row-key="${rowKey}"] .developer-telemetry-value`
-            )?.textContent || '';
-            const readLabel = (cardId, rowKey) => document.querySelector(
-                `[data-telemetry-card="${cardId}"] [data-telemetry-row-key="${rowKey}"] .developer-telemetry-label`
-            )?.textContent || '';
-
-            return {
-                telemetry,
-                cardIds: Array.from(document.querySelectorAll('[data-telemetry-card]')).map((node) => node.getAttribute('data-telemetry-card')),
-                overviewRounds: readValue('overview', 'rounds'),
-                balanceDuration: readValue('balance', 'average-round-duration'),
-                topMap: readLabel('maps', 'bucket-0'),
-                recentRows: Array.from(document.querySelectorAll('[data-telemetry-recent-index]')).map((node) => node.textContent || ''),
-            };
-        });
-
-        expect(dashboardState.cardIds).toEqual(expect.arrayContaining(['overview', 'balance', 'maps', 'modes', 'recent']));
-        expect(Number(dashboardState.telemetry?.balance?.rounds || 0)).toBe(1);
-        expect(Number(dashboardState.telemetry?.balance?.humanWins || 0)).toBe(1);
-        expect(Number(dashboardState.telemetry?.balance?.mgHitsPerRound || 0)).toBeGreaterThanOrEqual(1);
-        expect(Number(dashboardState.telemetry?.balance?.rocketHitsPerRound || 0)).toBeGreaterThanOrEqual(1);
-        expect(Number(dashboardState.telemetry?.balance?.hpDamagePerRound || 0)).toBeGreaterThan(0);
-        expect(Number(dashboardState.telemetry?.balance?.shieldAbsorbPerRound || 0)).toBeGreaterThan(0);
-        expect(dashboardState.telemetry?.topMaps?.[0]?.key).toBe(telemetryProbe.mapKey);
-        expect(dashboardState.overviewRounds).toBe('1');
-        expect(dashboardState.balanceDuration).not.toBe('0.00s');
-        expect(dashboardState.topMap).toBe(telemetryProbe.mapKey);
-        expect(dashboardState.recentRows[0] || '').toContain('Spieler 1');
-        expect(dashboardState.recentRows[0] || '').toContain(`${telemetryProbe.mapKey} / classic`);
+        expect(telemetryProbe.topMap).toBe(telemetryProbe.mapKey);
     });
 
     test('T20g: Runtime-Guard blockiert Developer-Events fuer non-owner', async ({ page }) => {
@@ -578,10 +544,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(expandedOnLevel3).toBe(0);
     });
 
-    test('T20ia: Expertenlogin sperrt Developer/Debug bis Passwort 1307 und entsperrt danach', async ({ page }) => {
+    test('T20ia: Expertenlogin sperrt Debug bis Passwort 1307; Developer-Menue bleibt entfernt', async ({ page }) => {
         await loadGame(page);
-        await openLevel4Drawer(page, { section: 'tools' });
-        await expect(page.locator('#submenu-level4 #btn-open-developer')).toHaveCount(0);
+        await expect(page.locator('#btn-open-developer')).toHaveCount(0);
+        await expect(page.locator('#submenu-developer')).toHaveCount(0);
 
         await openExpertSubmenu(page);
         await expect(page.locator('#expert-unlocked-state')).toBeHidden();
@@ -594,9 +560,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#btn-expert-unlock');
         await expect(page.locator('#expert-unlocked-state')).toBeVisible();
         await expect(page.locator('#build-info')).toContainText('Build');
-
-        await page.click('#btn-open-developer');
-        await expect(page.locator('#submenu-developer')).toBeVisible();
+        await expect(page.locator('#btn-open-developer')).toHaveCount(0);
+        await expect(page.locator('#submenu-developer')).toHaveCount(0);
 
         await openDebugSubmenu(page);
         await expect(page.locator('#submenu-debug')).toBeVisible();
@@ -1257,46 +1222,61 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(repairedState.validationField).toBe('');
     });
 
-    test('T20r: Textkatalog-Override greift und Release-Vorschau deaktiviert ihn', async ({ page }) => {
+    test('T20r: SettingsManager steuert Text-Overrides und Release-Vorschau ohne Developer-Menue', async ({ page }) => {
         await loadGame(page);
-        await openDeveloperSubmenu(page);
-
-        if (!(await page.isChecked('#developer-mode-toggle'))) {
-            await page.check('#developer-mode-toggle');
-        }
-        await page.selectOption('#developer-text-id-select', 'menu.level3.start.label');
-        await page.fill('#developer-text-override-input', 'Los jetzt');
-        await page.click('#btn-developer-text-apply');
-        await page.waitForTimeout(120);
+        const configured = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const accessContext = {
+                isOwner: true,
+                developerModeVisibility: 'owner_only',
+                expertModeUnlocked: true,
+            };
+            const modeResult = game.settingsManager.setDeveloperMode(game.settings, true, accessContext);
+            const startResult = game.settingsManager.setMenuTextOverride('menu.level3.start.label', 'Los jetzt');
+            const editorResult = game.settingsManager.setMenuTextOverride('menu.level4.tools.map_editor.label', 'Map Builder');
+            game.runtimeFacade.onSettingsChanged({
+                changedKeys: ['developer.modeEnabled', 'developer.textOverrides'],
+            });
+            return modeResult.success && startResult.success && editorResult.success;
+        });
+        expect(configured).toBeTruthy();
 
         await openGameSubmenu(page);
         await expect(page.locator('#btn-start')).toHaveText('Los jetzt');
 
-        await openDeveloperSubmenu(page);
-        await page.selectOption('#developer-text-id-select', 'menu.level4.tools.map_editor.label');
-        await page.fill('#developer-text-override-input', 'Map Builder');
-        await page.click('#btn-developer-text-apply');
-        await page.waitForTimeout(120);
-
         await openLevel4Drawer(page, { section: 'tools' });
         await expect(page.locator('#btn-open-editor')).toHaveText('Map Builder');
 
-        await openDeveloperSubmenu(page);
-        await page.check('#developer-release-preview-toggle');
-        await page.waitForTimeout(120);
+        const previewEnabled = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const result = game.settingsManager.setDeveloperReleasePreview(game.settings, true, {
+                isOwner: true,
+                developerModeVisibility: 'owner_only',
+                expertModeUnlocked: true,
+            });
+            game.runtimeFacade.onSettingsChanged({ changedKeys: ['developer.releasePreview'] });
+            return result.success;
+        });
+        expect(previewEnabled).toBeTruthy();
 
-        await openGameSubmenu(page);
+        await page.click('#btn-close-level4');
+        await expect(page.locator('#submenu-game')).toBeVisible();
         await expect(page.locator('#btn-start')).toHaveText('Spiel starten');
 
-        await openDeveloperSubmenu(page);
-        await page.uncheck('#developer-release-preview-toggle');
-        if (!(await page.isChecked('#developer-mode-toggle'))) {
-            await page.check('#developer-mode-toggle');
-        }
-        await page.selectOption('#developer-text-id-select', 'menu.level3.start.label');
-        await page.click('#btn-developer-text-clear');
-        await page.selectOption('#developer-text-id-select', 'menu.level4.tools.map_editor.label');
-        await page.click('#btn-developer-text-clear');
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const accessContext = {
+                isOwner: true,
+                developerModeVisibility: 'owner_only',
+                expertModeUnlocked: true,
+            };
+            game.settingsManager.setDeveloperReleasePreview(game.settings, false, accessContext);
+            game.settingsManager.clearMenuTextOverride('menu.level3.start.label');
+            game.settingsManager.clearMenuTextOverride('menu.level4.tools.map_editor.label');
+            game.runtimeFacade.onSettingsChanged({
+                changedKeys: ['developer.releasePreview', 'developer.textOverrides'],
+            });
+        });
     });
 
     test('T20s: Config-Export/Import stellt Setup reproduzierbar wieder her', async ({ page }) => {
@@ -1337,15 +1317,16 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(mapOptions.length).toBeGreaterThanOrEqual(1);
         expect(mapOptions.some((entry) => entry.toLowerCase().includes('maze') || entry.toLowerCase().includes('labyrinth'))).toBeTruthy();
 
-        await page.click('#submenu-game [data-back]');
-        await page.click('#menu-nav [data-session-type=\"single\"]');
+        await page.evaluate(() => window.GAME_INSTANCE?.uiManager?.showMainNav?.());
+        await expect(page.locator('#btn-quick-last-settings')).toBeVisible();
         await page.click('#btn-quick-last-settings');
         await page.waitForTimeout(500);
         await returnToMenu(page);
 
-        await openDeveloperSubmenu(page);
-        const telemetryText = await page.textContent('#developer-telemetry-output');
-        const telemetry = JSON.parse(telemetryText || '{}');
+        const telemetry = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            return game.settingsManager.getMenuTelemetrySnapshot(game.settings);
+        });
         expect(Number(telemetry.quickStartCount || 0)).toBeGreaterThanOrEqual(1);
         expect(Number(telemetry.startAttempts || 0)).toBeGreaterThanOrEqual(1);
     });

@@ -143,11 +143,11 @@ export class MenuExpertLoginRuntime {
             this.ui.expertPasswordInput.value = '';
         }
         this.syncUi();
-        this.showStatusToast('Lokaler Dev-Bereich freigeschaltet.', 1400, 'success');
+        this.showStatusToast('Lokaler Diagnosebereich freigeschaltet.', 1400, 'success');
         return {
             success: true,
             reason: 'unlocked',
-            message: 'Lokaler Dev-Bereich freigeschaltet.',
+            message: 'Lokaler Diagnosebereich freigeschaltet.',
             state: this.getState(),
         };
     }
@@ -163,12 +163,12 @@ export class MenuExpertLoginRuntime {
         }
         this.syncUi();
         if (wasUnlocked && !silent) {
-            this.showStatusToast('Lokaler Dev-Bereich gesperrt.', 1400, 'info');
+            this.showStatusToast('Lokaler Diagnosebereich gesperrt.', 1400, 'info');
         }
         return {
             success: true,
             reason: 'locked',
-            message: 'Lokaler Dev-Bereich gesperrt.',
+            message: 'Lokaler Diagnosebereich gesperrt.',
             state: this.getState(),
         };
     }
@@ -179,7 +179,7 @@ export class MenuExpertLoginRuntime {
             return;
         }
         if (this.isUnlocked()) {
-            this.ui.openDeveloperButton?.focus?.();
+            this.ui.openDebugButton?.focus?.();
             return;
         }
         this.ui.expertPasswordInput?.focus?.();
@@ -194,10 +194,10 @@ export class MenuExpertLoginRuntime {
         const unlocked = this.isUnlocked();
         const available = this.state.available === true;
         const statusText = !available
-            ? String(this.state.message || 'Developer- und Debugpfade sind fuer diese Surface nicht verfuegbar.')
+            ? 'Debugpfade sind fuer diese Surface nicht verfuegbar.'
             : (unlocked
-                ? 'Lokaler Dev-/Diagnosebereich fuer diese Sitzung freigeschaltet.'
-                : (this.state.error || String(this.state.message || 'Developer- und Debugfunktionen sind lokal gesperrt.')));
+                ? 'Lokaler Diagnosebereich fuer diese Sitzung freigeschaltet.'
+                : (this.state.error || 'Debugfunktionen sind lokal gesperrt.'));
 
         if (this.ui.openExpertButton) {
             this.ui.openExpertButton.textContent = unlocked ? 'Expertenbereich offen' : 'Expertenbereich';

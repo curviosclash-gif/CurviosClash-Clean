@@ -22,6 +22,7 @@ import {
     createBrowserDemoSurfacePolicyOverrideDraft,
 } from '../src/shared/contracts/BrowserDemoSurfacePolicyOverrideContract.js';
 import { SECTIONS } from '../electron/settings-studio/ui/settings-studio-i18n.js';
+import { createMenuSchema } from '../src/ui/menu/MenuSchema.js';
 
 const require = createRequire(import.meta.url);
 const { registerSettingsStudioIpc } = require('../electron/settings-studio/ipc/settings-studio-ipc.cjs');
@@ -164,6 +165,25 @@ test('Schema descriptor fields include help metadata', () => {
     assert.ok('riskLevel' in field, 'descriptor field missing riskLevel');
     assert.ok('help' in field, 'descriptor field missing help');
     assert.ok('impact' in field, 'descriptor field missing impact');
+});
+
+test('Developer settings stay in Settings Studio while the game menu omits the Developer panel', async () => {
+    const descriptor = createSettingsStudioSchemaDescriptor();
+    const fieldPaths = new Set(descriptor.fields.map((field) => field.path));
+    [
+        'localSettings.developerModeEnabled',
+        'localSettings.developerThemeId',
+        'localSettings.developerModeVisibility',
+        'localSettings.fixedPresetLockEnabled',
+        'localSettings.actorId',
+        'localSettings.releasePreviewEnabled',
+    ].forEach((fieldPath) => assert.equal(fieldPaths.has(fieldPath), true, fieldPath));
+
+    const schema = createMenuSchema();
+    assert.equal(schema.panels.some((panel) => panel.id === 'submenu-developer'), false);
+
+    const gameHtml = await fs.readFile(new URL('../index.html', import.meta.url), 'utf8');
+    assert.doesNotMatch(gameHtml, /id="(?:btn-open-developer|submenu-developer)"/);
 });
 
 // ─── 97.4 Migration classification ───────────────────
