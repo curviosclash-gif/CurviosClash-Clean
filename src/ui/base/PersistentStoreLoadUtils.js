@@ -1,6 +1,7 @@
-import { createDefaultStoragePlatform } from '../../state/storage/StoragePlatform.js';
+import { createDefaultStoragePlatform } from '../../shared/storage/StoragePlatform.js';
 import { getDefaultBrowserStorage } from './PersistentStore.js';
 import { resolveArtifactVersionState } from '../../shared/contracts/ArtifactVersionMigrationContract.js';
+import { areCanonicalJsonValuesEqual } from '../../shared/utils/CanonicalJson.js';
 
 /**
  * Resolves the storagePlatform/storageKey/storageLegacyKeys triple
@@ -36,13 +37,29 @@ export function resolveStorePlatformOptions(options, defaultStorageKey, defaultL
  * @param {Function} opts.createDefault - Returns a fresh default value (called on missing/rejected/error).
  * @param {Function} opts.transform - (parsed, versionState) => normalized value.
  * @param {Function} [opts.onUpgrade] - Called with the normalized value when shouldFallback/shouldUpgrade.
+ * @param {Function} [opts.createCanonicalRecord] - Wraps the normalized value in its persisted record shape.
+ * @param {Function} [opts.onCanonicalize] - Persists normalized current-version or invalid records.
  * @param {Function} [opts.onLoadError] - Called with (error, artifactType) on parse/transform failure.
  * @returns {*} Normalized value or the default on parse failure.
  */
-export function loadVersionedRecord(readRecord, { artifactType, schemaVersion, createDefault, transform, onUpgrade, onLoadError }) {
+export function loadVersionedRecord(readRecord, {
+    artifactType,
+    schemaVersion,
+    createDefault,
+    transform,
+    onUpgrade,
+    createCanonicalRecord,
+    onCanonicalize,
+    onLoadError,
+}) {
     try {
         const parsed = readRecord();
-        if (!parsed || typeof parsed !== 'object') return createDefault();
+        if (parsed === null || parsed === undefined) return createDefault();
+        if (typeof parsed !== 'object') {
+            const fallback = createDefault();
+            if (typeof onCanonicalize === 'function') onCanonicalize(fallback);
+            return fallback;
+        }
         const versionState = resolveArtifactVersionState(parsed, {
             artifactType,
             versionFields: ['schemaVersion'],
@@ -52,7 +69,15 @@ export function loadVersionedRecord(readRecord, { artifactType, schemaVersion, c
         });
         if (versionState.shouldReject) return createDefault();
         const normalized = transform(parsed, versionState);
-        if ((versionState.shouldFallback || versionState.shouldUpgrade) && onUpgrade) {
+        const canonicalRecord = typeof createCanonicalRecord === 'function'
+            ? createCanonicalRecord(normalized)
+            : null;
+        const requiresCanonicalRewrite = canonicalRecord !== null
+            && !areCanonicalJsonValuesEqual(parsed, canonicalRecord);
+        if ((versionState.shouldFallback || versionState.shouldUpgrade || requiresCanonicalRewrite)
+            && typeof onCanonicalize === 'function') {
+            onCanonicalize(normalized);
+        } else if ((versionState.shouldFallback || versionState.shouldUpgrade) && onUpgrade) {
             onUpgrade(normalized);
         }
         return normalized;

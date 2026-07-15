@@ -14,6 +14,22 @@ export class PersistentStore {
         this.storageLegacyKeys = Array.isArray(options.storageLegacyKeys)
             ? [...options.storageLegacyKeys]
             : [];
+        this.persistenceStatus = { status: 'unknown', reason: '' };
+    }
+
+    _recordPersistenceResult(result) {
+        const normalizedResult = result && typeof result === 'object'
+            ? result
+            : { ok: false, reason: 'storage_failed', quotaExceeded: false };
+        this.persistenceStatus = {
+            status: normalizedResult.ok === true ? 'ok' : 'failed',
+            reason: String(normalizedResult.reason || (normalizedResult.ok === true ? 'ok' : 'storage_failed')),
+        };
+        return normalizedResult;
+    }
+
+    getPersistenceStatus() {
+        return { ...this.persistenceStatus };
     }
 
     readJsonRecord(fallbackValue = null) {
@@ -23,15 +39,31 @@ export class PersistentStore {
 
     writeJsonRecord(value) {
         if (!this.storageKey) {
-            return { ok: false, reason: 'missing_storage_key', quotaExceeded: false };
+            return this._recordPersistenceResult({ ok: false, reason: 'missing_storage_key', quotaExceeded: false });
         }
-        return this.storagePlatform.writeJson(this.storageKey, value);
+        try {
+            return this._recordPersistenceResult(this.storagePlatform.writeJson(this.storageKey, value));
+        } catch (error) {
+            return this._recordPersistenceResult({
+                ok: false,
+                reason: String(error?.message || 'storage_failed'),
+                quotaExceeded: false,
+            });
+        }
     }
 
     removeRecord() {
         if (!this.storageKey) {
-            return { ok: false, reason: 'missing_storage_key', quotaExceeded: false };
+            return this._recordPersistenceResult({ ok: false, reason: 'missing_storage_key', quotaExceeded: false });
         }
-        return this.storagePlatform.remove(this.storageKey);
+        try {
+            return this._recordPersistenceResult(this.storagePlatform.remove(this.storageKey));
+        } catch (error) {
+            return this._recordPersistenceResult({
+                ok: false,
+                reason: String(error?.message || 'storage_failed'),
+                quotaExceeded: false,
+            });
+        }
     }
 }

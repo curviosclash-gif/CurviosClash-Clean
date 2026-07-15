@@ -1,0 +1,80 @@
+import { deepClone } from './SettingsDomainUtils.js';
+
+export const SETTINGS_VERSION_MIGRATION_IDS = Object.freeze({
+    V0_TO_V1: 'settings.v0-to-v1',
+    V1_TO_V2: 'settings.v1-to-v2',
+});
+
+function ensureLocalSettings(settings) {
+    if (!settings.localSettings || typeof settings.localSettings !== 'object' || Array.isArray(settings.localSettings)) {
+        settings.localSettings = {};
+    }
+    return settings.localSettings;
+}
+
+function migrateV0ToV1(settings, defaults) {
+    const localSettings = ensureLocalSettings(settings);
+    if (!localSettings.sessionType) {
+        localSettings.sessionType = settings.mode === '2p'
+            ? 'splitscreen'
+            : (settings.mode === '1p' ? 'single' : defaults?.localSettings?.sessionType || 'single');
+    }
+    settings.settingsVersion = 1;
+    return settings;
+}
+
+function migrateV1ToV2(settings, defaults) {
+    const localSettings = ensureLocalSettings(settings);
+    if (!localSettings.modePath) {
+        localSettings.modePath = defaults?.localSettings?.modePath || 'normal';
+    }
+    if (!settings.botPolicyStrategy) {
+        settings.botPolicyStrategy = defaults?.botPolicyStrategy || 'auto';
+    }
+    settings.settingsVersion = 2;
+    return settings;
+}
+
+const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
+    Object.freeze({
+        id: SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
+        fromVersion: 0,
+        toVersion: 1,
+        migrate: migrateV0ToV1,
+    }),
+    Object.freeze({
+        id: SETTINGS_VERSION_MIGRATION_IDS.V1_TO_V2,
+        fromVersion: 1,
+        toVersion: 2,
+        migrate: migrateV1ToV2,
+    }),
+]);
+
+function normalizeVersion(value, fallback = 0) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric >= 0 ? Math.floor(numeric) : fallback;
+}
+
+export function migrateSettingsSnapshot(source, defaults) {
+    const settings = deepClone(source && typeof source === 'object' ? source : {});
+    const fromVersion = normalizeVersion(settings.settingsVersion, 0);
+    const targetVersion = normalizeVersion(defaults?.settingsVersion, fromVersion);
+    const appliedMigrations = [];
+    let reachedVersion = fromVersion;
+
+    while (reachedVersion < targetVersion) {
+        const migration = SETTINGS_VERSION_MIGRATIONS.find((entry) => entry.fromVersion === reachedVersion);
+        if (!migration || migration.toVersion > targetVersion) break;
+        migration.migrate(settings, defaults);
+        reachedVersion = migration.toVersion;
+        appliedMigrations.push(migration.id);
+    }
+
+    return {
+        settings,
+        fromVersion,
+        targetVersion,
+        reachedVersion,
+        appliedMigrations,
+    };
+}

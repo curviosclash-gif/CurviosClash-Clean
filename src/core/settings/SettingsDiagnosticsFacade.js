@@ -26,7 +26,13 @@ export function createSettingsDiagnosticsFacade(manager) {
             menuTextOverridePort: manager.menuTextOverridePort,
             listMenuPresets: () => manager.listMenuPresets(),
             telemetryFacade: manager.telemetryFacade,
-            persistenceStatus: manager.settingsStore.getPersistenceStatus(),
+            getPersistenceStatus: () => ({
+                ...manager.settingsStore.getPersistenceStatus(),
+                presets: manager.menuPresetStore.getPersistenceStatus(),
+                drafts: manager.menuDraftStore.getPersistenceStatus(),
+                textOverrides: manager.menuTextOverrideStore.getPersistenceStatus(),
+                telemetry: manager.menuTelemetryStore.getPersistenceStatus(),
+            }),
         });
     }
 

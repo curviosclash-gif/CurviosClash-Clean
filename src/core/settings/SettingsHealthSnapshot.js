@@ -19,6 +19,23 @@ function normalizePersistenceStatus(value) {
         settings: normalizeString(source?.settings?.status) || 'unknown',
         profiles: normalizeString(source?.profiles?.status) || 'unknown',
         records: normalizeString(source?.records?.status) || 'unknown',
+        presets: normalizeString(source?.presets?.status) || 'unknown',
+        drafts: normalizeString(source?.drafts?.status) || 'unknown',
+        textOverrides: normalizeString(source?.textOverrides?.status) || 'unknown',
+        telemetry: normalizeString(source?.telemetry?.status) || 'unknown',
+    };
+}
+
+function normalizePersistenceReasons(value) {
+    const source = value && typeof value === 'object' ? value : {};
+    return {
+        settings: normalizeString(source?.settings?.reason),
+        profiles: normalizeString(source?.profiles?.reason),
+        records: normalizeString(source?.records?.reason),
+        presets: normalizeString(source?.presets?.reason),
+        drafts: normalizeString(source?.drafts?.reason),
+        textOverrides: normalizeString(source?.textOverrides?.reason),
+        telemetry: normalizeString(source?.telemetry?.reason),
     };
 }
 
@@ -30,8 +47,19 @@ export function createSettingsHealthSnapshot({
     listMenuPresets = null,
     telemetryFacade = null,
     persistenceStatus = null,
+    getPersistenceStatus = null,
 } = {}) {
     const source = settings && typeof settings === 'object' ? settings : {};
+    const presetCount = safeCount(() => (typeof listMenuPresets === 'function' ? listMenuPresets() : []));
+    const textOverrideCount = safeCount(() => menuTextOverridePort?.listOverrides?.());
+    let resolvedPersistenceStatus = persistenceStatus;
+    if (typeof getPersistenceStatus === 'function') {
+        try {
+            resolvedPersistenceStatus = getPersistenceStatus();
+        } catch {
+            resolvedPersistenceStatus = persistenceStatus;
+        }
+    }
     return {
         hasRecordStorePort: !!(
             recordStorePort
@@ -48,8 +76,8 @@ export function createSettingsHealthSnapshot({
             && typeof menuTextOverridePort.listOverrides === 'function'
             && typeof menuTextOverridePort.getOverride === 'function'
         ),
-        presetCount: safeCount(() => (typeof listMenuPresets === 'function' ? listMenuPresets() : [])),
-        textOverrideCount: safeCount(() => menuTextOverridePort?.listOverrides?.()),
+        presetCount,
+        textOverrideCount,
         telemetryAvailable: !!(
             telemetryFacade
             && typeof telemetryFacade.getMenuTelemetrySnapshot === 'function'
@@ -58,7 +86,8 @@ export function createSettingsHealthSnapshot({
         activePresetId: normalizeString(source?.matchSettings?.activePresetId),
         activePresetKind: normalizeString(source?.matchSettings?.activePresetKind),
         sessionType: normalizeString(source?.localSettings?.sessionType),
-        persistenceStatus: normalizePersistenceStatus(persistenceStatus),
-        lastPersistenceReason: normalizeString(persistenceStatus?.lastPersistenceReason),
+        persistenceStatus: normalizePersistenceStatus(resolvedPersistenceStatus),
+        persistenceReasons: normalizePersistenceReasons(resolvedPersistenceStatus),
+        lastPersistenceReason: normalizeString(resolvedPersistenceStatus?.lastPersistenceReason),
     };
 }

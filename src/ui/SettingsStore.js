@@ -6,7 +6,7 @@ import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
 } from './StorageKeys.js';
-import { createDefaultStoragePlatform } from '../state/storage/StoragePlatform.js';
+import { createDefaultStoragePlatform } from '../shared/storage/StoragePlatform.js';
 import { getDefaultBrowserStorage } from './base/PersistentStore.js';
 import {
     normalizeProfileEntries,
@@ -16,6 +16,7 @@ import {
     findProfileByName,
 } from '../shared/contracts/SettingsProfileContract.js';
 import { resolveArtifactVersionState } from '../shared/contracts/ArtifactVersionMigrationContract.js';
+import { areCanonicalJsonValuesEqual } from '../shared/utils/CanonicalJson.js';
 
 const SETTINGS_STORAGE_KEY = STORAGE_KEYS.settings;
 const SETTINGS_STORAGE_LEGACY_KEYS = LEGACY_STORAGE_KEYS.settings;
@@ -30,47 +31,6 @@ const SETTINGS_PERSISTENCE_REASONS = Object.freeze({
     QUOTA_EXCEEDED: 'quota_exceeded',
     INVALID_KEY: 'invalid_key',
 });
-
-function stableCanonicalSerialize(value, seen = null) {
-    if (value === null || value === undefined) return String(value);
-    const valueType = typeof value;
-    if (valueType === 'number') {
-        if (Number.isNaN(value)) return 'number:NaN';
-        if (value === Infinity) return 'number:Infinity';
-        if (value === -Infinity) return 'number:-Infinity';
-        return `number:${value}`;
-    }
-    if (valueType === 'string') return `string:${value}`;
-    if (valueType === 'boolean') return value ? 'boolean:true' : 'boolean:false';
-    if (valueType === 'bigint') return `bigint:${value.toString()}`;
-    if (valueType !== 'object') return `other:${String(value)}`;
-    if (valueType === 'object' && typeof value.toJSON === 'function') {
-        return stableCanonicalSerialize(value.toJSON(), seen);
-    }
-
-    const activeSeen = seen || new WeakSet();
-    if (activeSeen.has(value)) return 'cycle';
-    activeSeen.add(value);
-
-    if (Array.isArray(value)) {
-        const serialized = value.map((entry) => stableCanonicalSerialize(entry, activeSeen));
-        activeSeen.delete(value);
-        return `[${serialized.join(',')}]`;
-    }
-
-    const keys = Object.keys(value).sort();
-    const pairs = keys.map((key) => `${JSON.stringify(key)}:${stableCanonicalSerialize(value[key], activeSeen)}`);
-    activeSeen.delete(value);
-    return `{${pairs.join(',')}}`;
-}
-
-function areCanonicalSettingsEqual(left, right) {
-    try {
-        return stableCanonicalSerialize(left) === stableCanonicalSerialize(right);
-    } catch {
-        return false;
-    }
-}
 
 function createPersistenceResult(success, reason, metadata = null) {
     const result = { success: success === true, reason: String(reason || '') };
@@ -185,7 +145,7 @@ export class SettingsStore {
             hasObjectInput,
             canonicalSettings,
             didNormalize: hasInput
-                ? !areCanonicalSettingsEqual(settings, canonicalSettings)
+                ? !areCanonicalJsonValuesEqual(settings, canonicalSettings)
                 : false,
         };
     }
@@ -227,10 +187,14 @@ export class SettingsStore {
             this.settingsStorageKey,
             persistenceState.canonicalSettings
         );
-        return this._recordPersistenceResult(
+        const persistenceResult = this._recordPersistenceResult(
             'settings',
             mapStorageWriteToPersistenceResult(result, { key: this.settingsStorageKey })
         );
+        return {
+            ...persistenceResult,
+            canonicalSettings: persistenceState.canonicalSettings,
+        };
     }
 
     loadProfiles() {

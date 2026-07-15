@@ -4,6 +4,18 @@ export function deepClone(value) {
     return cloneJsonValue(value);
 }
 
+export function reconcileSettingsSnapshot(target, canonicalSettings) {
+    if (!target || typeof target !== 'object' || Array.isArray(target)) return false;
+    if (!canonicalSettings || typeof canonicalSettings !== 'object' || Array.isArray(canonicalSettings)) return false;
+
+    const canonicalClone = deepClone(canonicalSettings);
+    for (const key of Object.keys(target)) {
+        delete target[key];
+    }
+    Object.assign(target, canonicalClone);
+    return true;
+}
+
 export function normalizePresetId(rawValue) {
     const base = String(rawValue || '')
         .trim()

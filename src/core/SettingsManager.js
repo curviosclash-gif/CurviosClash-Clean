@@ -29,6 +29,7 @@ import { createSettingsTextOverrideFacade } from './settings/SettingsTextOverrid
 import { createSettingsTelemetryFacade } from './settings/SettingsTelemetryFacade.js';
 import { createSettingsBotPolicyFacade } from './settings/SettingsBotPolicyFacade.js';
 import { createSettingsDiagnosticsFacade } from './settings/SettingsDiagnosticsFacade.js';
+import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
 
 export class SettingsManager {
     constructor(options = {}) {
@@ -112,7 +113,11 @@ export class SettingsManager {
     }
 
     saveSettings(settings) {
-        return this.settingsStore.saveSettings(settings);
+        const result = this.settingsStore.saveSettings(settings);
+        if (result?.success === true) {
+            reconcileSettingsSnapshot(settings, result.canonicalSettings);
+        }
+        return result;
     }
 
     listMenuPresets() {

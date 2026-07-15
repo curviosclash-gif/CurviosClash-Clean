@@ -29,6 +29,7 @@ import {
     normalizeModePath,
 } from './SettingsDomainUtils.js';
 import { createRuntimeSettingsLimitsForRuntime } from './SettingsRuntimeLimits.js';
+import { migrateSettingsSnapshot } from './SettingsVersionMigrations.js';
 
 function applySessionSanitization({ merged, src, defaults, migratedSessionType, runtimeLimits }) {
     const huntFeatureEnabled = CONFIG.HUNT?.ENABLED !== false;
@@ -228,29 +229,21 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
     return merged;
 }
 
-function migrateLegacySettingsSnapshot(src, defaults) {
-    const sourceVersion = Number(src?.settingsVersion || 0);
-    const targetVersion = Number(defaults?.settingsVersion || sourceVersion || 0);
-    if (!Number.isFinite(targetVersion) || targetVersion <= 0) {
-        return src;
-    }
-    if (!Number.isFinite(sourceVersion) || sourceVersion >= targetVersion) {
-        return src;
-    }
-    const migrated = deepClone(src);
-    migrated.settingsVersion = targetVersion;
-    return migrated;
-}
-
 export function sanitizeSettingsSnapshot(saved, createDefaultSettings, runtimeGlobal = globalThis) {
     const defaults = createDefaultSettings();
     const runtimeLimits = createRuntimeSettingsLimitsForRuntime(runtimeGlobal);
     const rawSource = saved && typeof saved === 'object' ? saved : {};
-    const src = migrateLegacySettingsSnapshot(rawSource, defaults);
+    const src = migrateSettingsSnapshot(rawSource, defaults).settings;
 
     const merged = deepClone(defaults);
+    const fallbackSessionType = src.mode === '2p'
+        ? MENU_SESSION_TYPES.SPLITSCREEN
+        : (src.mode === '1p'
+            ? MENU_SESSION_TYPES.SINGLE
+            : defaults?.localSettings?.sessionType || MENU_SESSION_TYPES.SINGLE);
     const migratedSessionType = normalizeSessionType(
-        src?.localSettings?.sessionType || (src.mode === '2p' ? MENU_SESSION_TYPES.SPLITSCREEN : MENU_SESSION_TYPES.SINGLE)
+        src?.localSettings?.sessionType || fallbackSessionType,
+        defaults?.localSettings?.sessionType || MENU_SESSION_TYPES.SINGLE
     );
 
     applySessionSanitization({ merged, src, defaults, migratedSessionType, runtimeLimits });

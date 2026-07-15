@@ -494,6 +494,7 @@ test('V103 SettingsManager health snapshot exposes narrow diagnostic fields only
             'hasProfileStorePort',
             'hasRecordStorePort',
             'lastPersistenceReason',
+            'persistenceReasons',
             'persistenceStatus',
             'presetCount',
             'sessionType',
@@ -513,6 +514,19 @@ test('V103 SettingsManager health snapshot exposes narrow diagnostic fields only
             settings: 'unknown',
             profiles: 'unknown',
             records: 'unknown',
+            presets: 'unknown',
+            drafts: 'unknown',
+            textOverrides: 'ok',
+            telemetry: 'unknown',
+        });
+        assert.deepEqual(health.persistenceReasons, {
+            settings: '',
+            profiles: '',
+            records: '',
+            presets: '',
+            drafts: '',
+            textOverrides: 'ok',
+            telemetry: '',
         });
         assert.equal(health.lastPersistenceReason, '');
         assert.equal('settings' in health, false);
@@ -531,6 +545,19 @@ test('V103 SettingsManager health snapshot includes narrow persistence status af
         settings: 'ok',
         profiles: 'unknown',
         records: 'unknown',
+        presets: 'unknown',
+        drafts: 'unknown',
+        textOverrides: 'unknown',
+        telemetry: 'unknown',
+    });
+    assert.deepEqual(health.persistenceReasons, {
+        settings: 'ok',
+        profiles: '',
+        records: '',
+        presets: '',
+        drafts: '',
+        textOverrides: '',
+        telemetry: '',
     });
     assert.equal(health.lastPersistenceReason, 'ok');
     assert.equal('metadata' in health.persistenceStatus, false);
