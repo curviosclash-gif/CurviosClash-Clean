@@ -1,1 +1,4 @@
-export { initializeGameApp } from './AppInitializerLifecycle.js';
+export {
+    initializeGameApp,
+    releasePublishedRuntimeHandles,
+} from './AppInitializerLifecycle.js';

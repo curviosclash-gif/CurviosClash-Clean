@@ -44,6 +44,21 @@ function clearPublishedRuntimeHandles(runtimeWindow) {
     runtimeWindow.GAME_DEBUG = null;
 }
 
+/**
+ * Releases the diagnostics publication owned by the app initializer without
+ * exposing mutable runtime globals to productive runtime modules.
+ *
+ * @param {RuntimeGameInstance} game
+ * @param {unknown} runtimeFacade
+ * @param {unknown} debugApi
+ */
+export function releasePublishedRuntimeHandles(game, runtimeFacade, debugApi) {
+    const runtimeWindow = getRuntimeWindow();
+    if (runtimeWindow.GAME_INSTANCE === game) runtimeWindow.GAME_INSTANCE = null;
+    if (runtimeWindow.GAME_RUNTIME === runtimeFacade) runtimeWindow.GAME_RUNTIME = null;
+    if (runtimeWindow.GAME_DEBUG === debugApi) runtimeWindow.GAME_DEBUG = null;
+}
+
 function releaseGracefulCloseHandler() {
     const detach = detachGracefulCloseHandler;
     detachGracefulCloseHandler = null;

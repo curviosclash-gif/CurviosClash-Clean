@@ -17,7 +17,10 @@ import {
     MATCH_LIFECYCLE_CONTRACT_VERSION,
 } from '../shared/contracts/MatchLifecycleContract.js';
 import { RuntimePerfProfiler } from './perf/RuntimePerfProfiler.js';
-import { initializeGameApp } from './AppInitializer.js';
+import {
+    initializeGameApp,
+    releasePublishedRuntimeHandles,
+} from './AppInitializer.js';
 import { isPlaytestLaunchRequested, readPlaytestLaunchBoolParam } from './PlaytestLaunchParams.js';
 import { installPlaytestReturnControl } from './PlaytestReturnControl.js';
 import { ensureInteractiveMatchRuntime } from './InteractiveMatchRuntimeGuard.js';
@@ -484,9 +487,7 @@ export class Game {
         this._disposePromise = Promise.resolve()
             .then(() => runtimeCoordinator?.disposeRuntime?.())
             .finally(() => {
-                if (window.GAME_INSTANCE === this) window.GAME_INSTANCE = null;
-                if (window.GAME_RUNTIME === runtimeFacade) window.GAME_RUNTIME = null;
-                if (window.GAME_DEBUG === this.debugApi) window.GAME_DEBUG = null;
+                releasePublishedRuntimeHandles(this, runtimeFacade, this.debugApi);
             });
         return this._disposePromise;
     }
