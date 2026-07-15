@@ -1,4 +1,4 @@
-import { grantShield } from '../../hunt/HealthSystem.js';
+import { applyHealing, grantShield } from '../../hunt/HealthSystem.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { isPickupTypeAllowedForMode, getPickupDefinition } from '../PickupRegistry.js';
@@ -162,6 +162,12 @@ export function applyPlayerPowerup(player, type) {
 
     const modeType = resolveModeType(player);
     if (!isPickupTypeAllowedForMode(type, modeType)) {
+        return;
+    }
+
+    if (type === 'HEALTH') {
+        const runtimeConfig = resolveEntityRuntimeConfig(player);
+        applyHealing(player, Number(definition.healing) || 0, runtimeConfig);
         return;
     }
 
