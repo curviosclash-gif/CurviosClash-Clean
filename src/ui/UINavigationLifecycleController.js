@@ -307,7 +307,15 @@ export class UINavigationLifecycleController {
             : Array.from(document.querySelectorAll('.submenu-panel'));
 
         if (!this._level4CloseFallbackSetup && this.ui.closeLevel4Button) {
-            this.manager._listen(this.ui.closeLevel4Button, 'click', () => manager.setLevel4Open(false));
+            this.manager._listen(this.ui.closeLevel4Button, 'click', () => {
+                queueMicrotask(() => {
+                    const drawer = this.ui.level4Drawer;
+                    const isStillOpen = !!drawer
+                        && !drawer.classList.contains('hidden')
+                        && drawer.getAttribute('aria-hidden') !== 'true';
+                    if (isStillOpen) manager.setLevel4Open(false);
+                });
+            });
             this._level4CloseFallbackSetup = true;
         }
 

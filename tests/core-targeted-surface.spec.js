@@ -442,6 +442,113 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         }, null, { timeout: 4000 });
     });
 
+    test('T20hc: Expertenbereich hat konsistenten State, Fokus und Escape-Navigation', async ({ page }) => {
+        await loadGame(page);
+        await openExpertSubmenu(page);
+
+        const expertState = await page.evaluate(() => ({
+            activeId: document.activeElement?.id || '',
+            menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
+            visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
+        }));
+        expect(expertState.activeId).toBe('expert-password-input');
+        expect(expertState.menuState).toBe('expert');
+        expect(expertState.visiblePanels).toEqual(['submenu-expert']);
+
+        await page.keyboard.press('Escape');
+        const mainState = await page.evaluate(() => ({
+            menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
+            visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
+        }));
+        expect(mainState.menuState).toBe('main');
+        expect(mainState.visiblePanels).toHaveLength(0);
+    });
+
+    test('T20hd: Blockierte Menue-Transitionen veraendern das sichtbare Panel nicht', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+
+        const result = await page.evaluate(() => {
+            const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
+            return {
+                opened: runtime?.showPanel?.('submenu-multiplayer', { trigger: 'blocked_transition_test' }),
+                menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
+                visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
+            };
+        });
+
+        expect(result.opened).toBeFalsy();
+        expect(result.menuState).toBe('path');
+        expect(result.visiblePanels).toEqual(['submenu-custom']);
+    });
+
+    test('T20he: Native Menue-Eingaben behalten Pfeiltastensteuerung und Fokus', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page, { section: 'gameplay' });
+
+        const speedSlider = page.locator('#speed-slider');
+        const speedBefore = Number(await speedSlider.inputValue());
+        await speedSlider.focus();
+        await page.keyboard.press('ArrowRight');
+        expect(Number(await speedSlider.inputValue())).toBeGreaterThan(speedBefore);
+        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('speed-slider');
+
+        await page.click('#level4-group-camera > summary');
+        const cameraSelect = page.locator('#normal-camera-perspective-select');
+        await cameraSelect.selectOption('classic');
+        await cameraSelect.focus();
+        await page.keyboard.press('ArrowDown');
+        expect(await cameraSelect.inputValue()).toBe('cinematic_soft');
+        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('normal-camera-perspective-select');
+    });
+
+    test('T20hf: Level4-Close verarbeitet genau einen Panelwechsel ohne Abort-Telemetrie', async ({ page }) => {
+        await loadGame(page);
+        await page.click('[data-level4-return-target="main"][data-level4-section="gameplay"]');
+        await expect(page.locator('#submenu-level4')).toBeVisible();
+
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const navigation = game?.uiManager?.menuNavigationRuntime;
+            const facade = game?.runtimeFacade;
+            const originalPanelChanged = navigation?.onPanelChanged;
+            const originalRecordTelemetry = facade?._recordMenuTelemetry?.bind(facade);
+            window.__level4CloseAudit = {
+                historyBefore: game?.uiManager?.menuStateMachine?.getHistory?.().length || 0,
+                panelChanges: [],
+                telemetry: [],
+            };
+            if (navigation) {
+                navigation.onPanelChanged = (...args) => {
+                    window.__level4CloseAudit.panelChanges.push(args[0] || null);
+                    return originalPanelChanged?.(...args);
+                };
+            }
+            if (facade) {
+                facade._recordMenuTelemetry = (type, payload) => {
+                    window.__level4CloseAudit.telemetry.push({ type, payload });
+                    return originalRecordTelemetry?.(type, payload);
+                };
+            }
+        });
+
+        await page.click('#btn-close-level4');
+        const closeAudit = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            return {
+                historyDelta: (game?.uiManager?.menuStateMachine?.getHistory?.().length || 0)
+                    - window.__level4CloseAudit.historyBefore,
+                menuState: game?.uiManager?.menuStateMachine?.getState?.() || '',
+                panelChanges: window.__level4CloseAudit.panelChanges,
+                telemetry: window.__level4CloseAudit.telemetry,
+            };
+        });
+        expect(closeAudit.historyDelta).toBe(1);
+        expect(closeAudit.menuState).toBe('main');
+        expect(closeAudit.panelChanges).toEqual([null]);
+        expect(closeAudit.telemetry.filter((entry) => entry.type === 'abort')).toHaveLength(0);
+    });
+
     test('T20i: ARIA-Status wird bei Panelwechsel konsistent gesetzt', async ({ page }) => {
         await loadGame(page);
         await openCustomSubmenu(page);

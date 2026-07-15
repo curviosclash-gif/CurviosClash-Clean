@@ -476,13 +476,9 @@ export function handleLevel4CloseAction(ctx) {
     if (!game.settings.localSettings.toolsState || typeof game.settings.localSettings.toolsState !== 'object') {
         game.settings.localSettings.toolsState = {};
     }
-    const returnTarget = String(game.settings.localSettings.toolsState.level4ReturnTarget || '').trim().toLowerCase();
     delete game.settings.localSettings.toolsState.level4ReturnTarget;
     game.settings.localSettings.toolsState.level4Open = false;
     game.uiManager?.setLevel4Open?.(false);
-    if (returnTarget === 'main') {
-        game.uiManager?.menuNavigationRuntime?.showMainNav?.({ trigger: 'level4_close' });
-    }
 }
 
 export function handleLevel4ResetAction(ctx) {

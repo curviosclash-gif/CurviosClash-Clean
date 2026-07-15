@@ -135,6 +135,7 @@ export class MenuNavigationRuntime {
 
         const backButtons = Array.from(document.querySelectorAll('[data-back]'));
         backButtons.forEach((button) => {
+            if (button === this.ui.closeLevel4Button) return;
             const onClick = () => {
                 const targetId = normalizeId(button.dataset.backTarget);
                 this._goBackFromCurrent('back_button', targetId);
@@ -236,6 +237,12 @@ export class MenuNavigationRuntime {
             return false;
         }
 
+        const semanticState = normalizeId(panelConfig?.semanticId, panelId);
+        const transition = this.stateMachine?.transition
+            ? this.stateMachine.transition(semanticState, metadata)
+            : { state: semanticState };
+        if (transition?.blocked) return false;
+
         this._submenuPanels.forEach((panel) => {
             const isTarget = panel === targetPanel;
             panel.classList.toggle('hidden', !isTarget);
@@ -266,17 +273,13 @@ export class MenuNavigationRuntime {
             button.setAttribute('aria-expanded', String(isExpanded));
         });
 
-        const semanticState = normalizeId(panelConfig?.semanticId, panelId);
-        const transition = this.stateMachine?.transition
-            ? this.stateMachine.transition(semanticState, metadata)
-            : { state: semanticState };
-
         this.onPanelChanged?.(panelId, panelConfig || null, transition, metadata && typeof metadata === 'object' ? { ...metadata } : null);
         this.onMenuStateChanged?.(transition);
 
-        const focusables = getFocusableElements(targetPanel);
-        if (focusables.length > 0) {
-            focusWithoutScroll(focusables[0]);
+        const callbackFocusTarget = document.activeElement;
+        if (!targetPanel.contains?.(callbackFocusTarget)) {
+            const [focusTarget] = getFocusableElements(targetPanel);
+            focusWithoutScroll(focusTarget);
         }
         resetMobileMenuScroll(targetPanel);
         return true;
@@ -341,15 +344,15 @@ export class MenuNavigationRuntime {
         }
 
         const activeElement = document.activeElement;
-        const isTextInput = this._isTextInputElement(activeElement);
+        const usesNativeKeyboardInput = this._usesNativeKeyboardInput(activeElement);
         if (event.key === 'Enter' || event.key === ' ') {
-            if (isTextInput) return;
+            if (usesNativeKeyboardInput) return;
             this._activateFocusedElement(event);
             return;
         }
 
         if (!['ArrowRight', 'ArrowLeft', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
-        if (isTextInput) return;
+        if (usesNativeKeyboardInput) return;
 
         event.preventDefault();
         if (event.key === 'ArrowRight') this._moveFocusByDirection('right');
@@ -358,18 +361,11 @@ export class MenuNavigationRuntime {
         if (event.key === 'ArrowDown') this._moveFocusByDirection('down');
     }
 
-    _isTextInputElement(element) {
+    _usesNativeKeyboardInput(element) {
         if (!element || typeof element.tagName !== 'string') return false;
         const tagName = element.tagName.toLowerCase();
-        if (tagName === 'textarea') return true;
-        if (tagName !== 'input') return false;
-        const inputType = String(element.getAttribute('type') || 'text').toLowerCase();
-        return inputType === 'text'
-            || inputType === 'search'
-            || inputType === 'url'
-            || inputType === 'email'
-            || inputType === 'number'
-            || inputType === 'password';
+        return ['input', 'select', 'textarea'].includes(tagName)
+            || element.isContentEditable === true;
     }
 
     _getVisibleNavButtons() {
