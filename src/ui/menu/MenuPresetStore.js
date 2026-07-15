@@ -91,7 +91,11 @@ export class MenuPresetStore extends PersistentStore {
                     const presets = Array.isArray(rawPresets) ? rawPresets : [];
                     return presets.map((preset) => ensurePresetMetadataContract(preset)).filter(Boolean);
                 },
-                onUpgrade: (normalized) => this._savePersistedPresets(normalized),
+                createCanonicalRecord: (normalized) => ({
+                    schemaVersion: MENU_PRESET_STORAGE_SCHEMA_VERSION,
+                    presets: normalized,
+                }),
+                onCanonicalize: (normalized) => this._savePersistedPresets(normalized),
             }
         );
     }

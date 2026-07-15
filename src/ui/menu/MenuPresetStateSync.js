@@ -29,7 +29,7 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
 
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
-        placeholderOption.textContent = 'Preset waehlen';
+        placeholderOption.textContent = 'Preset wählen';
         ui.presetSelect.appendChild(placeholderOption);
 
         presets.forEach((preset) => {

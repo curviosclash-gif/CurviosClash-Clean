@@ -27,7 +27,7 @@ export function setupMenuDevPanelBindings(ctx) {
             const presetId = String(ui.presetSelect?.value || '').trim();
             if (!presetId) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Preset auswaehlen, bevor angewendet wird.',
+                    message: 'Preset auswählen, bevor es angewendet wird.',
                     tone: 'error',
                     duration: 1700,
                 });

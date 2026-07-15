@@ -2450,7 +2450,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         });
 
         expect(result.message).toContain('Desktop-Lobby');
-        expect(result.fieldMessage).toContain('Join only');
+        expect(result.fieldMessage).toContain('beitreten');
     });
 
     test('T20ae6: Browser-Demo Startpfad migriert Surface-Fallbacks explizit statt sie im UI-Sync zu speichern', async ({ page }) => {

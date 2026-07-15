@@ -17,7 +17,11 @@ import {
     HANGAR_BUILD_STORAGE_KEYS,
     LEGACY_ARCADE_LOADOUT_STORAGE_KEY,
     createHangarBuildPersistenceAdapter,
+    createSettingsRecordHangarCapability,
+    readActiveHangarBuildFromStore,
 } from '../src/ui/hangar/HangarBuildPersistence.js';
+import { persistArcadeHangarVehicleSelection } from '../src/ui/hangar/HangarWindowSettingsSync.js';
+import { HANGAR_CAPABILITY_IDS } from '../src/shared/contracts/HangarModeContract.js';
 import {
     HANGAR_SELECTION_PLAYER_SLOTS,
     readHangarVehicleSelection,
@@ -33,6 +37,11 @@ import {
     resolveHangarPartUnlockLevel,
     resolvePartLockReason,
 } from '../src/ui/hangar/HangarPartCatalog.js';
+import {
+    normalizeHangarStoneInventory,
+    purchaseHangarStone,
+    resolveHangarStoneAvailability,
+} from '../src/ui/hangar/HangarStoneInventory.js';
 import { HANGAR_STARTER_BUILDS, createHangarStarterBuild } from '../src/ui/hangar/HangarStarterBuildCatalog.js';
 import { HangarVehicleAssembly } from '../src/ui/hangar/HangarVehicleAssembly.js';
 import {
@@ -40,8 +49,7 @@ import {
     upsertVehicleLabHangarPublication,
 } from '../src/shared/contracts/VehicleLabHangarPublishContract.js';
 
-const PART_FAMILIES = ['core', 'nose', 'wing', 'engine', 'utility'];
-const EXPECTED_OPTIONS_BY_TIER = { T1: 2, T2: 3, T3: 4 };
+const STONE_COLORS = ['blue', 'green', 'gold', 'cyan', 'violet'];
 
 function install(build, partId, slotId, pair = false) {
     return installHangarPart(build, partId, slotId, { pair });
@@ -66,78 +74,87 @@ function partShapeSignature(node) {
     })));
 }
 
-test('hangar drops accept compatible parts and reject incompatible, locked and over-budget drafts', () => {
+test('hangar stones fit every socket and reject locked or over-budget drafts', () => {
     const base = createDefaultHangarBuild('ship5', { nowMs: 1 });
-    const valid = validateHangarDrop(base, 'wing_t2', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
+    const valid = validateHangarDrop(base, 'stone_violet_t1', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
     assert.equal(valid.ok, true);
-    assert.equal(valid.build.slots.wing_left, 'wing_t2');
+    assert.equal(valid.build.slots.wing_left, 'stone_violet_t1');
 
-    const incompatible = validateHangarDrop(base, 'core_t2', 'wing_left', 30, (build, partId, slotId) => install(build, partId, slotId));
-    assert.equal(incompatible.ok, false);
-    assert.equal(incompatible.code, 'incompatible_slot');
-    assert.deepEqual(incompatible.build.slots, base.slots);
-
-    const lockedUtility = validateHangarDrop(base, 'utility_t1', 'utility', 1, (build, partId, slotId) => install(build, partId, slotId));
-    assert.equal(lockedUtility.ok, false);
-    assert.ok(lockedUtility.errors.some((error) => ['level_locked', 'slot_locked', 'part_family_locked'].includes(error.code)));
+    for (const slotId of ['core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'engine_right']) {
+        assert.equal(install(base, 'stone_violet_t1', slotId).ok, true, slotId);
+    }
+    const locked = validateHangarDrop(base, 'stone_blue_t2', 'core', 1, (build, partId, slotId) => install(build, partId, slotId));
+    assert.equal(locked.ok, false);
+    assert.ok(locked.errors.some((error) => ['level_locked', 'tier_locked'].includes(error.code)));
 
     let expensive = base;
     for (const [partId, slotId] of [
-        ['core_t3', 'core'], ['nose_t3', 'nose'], ['wing_t3', 'wing_left'],
-        ['wing_t3', 'wing_right'], ['engine_t3', 'engine_left'], ['engine_t3', 'engine_right'],
+        ['stone_violet_t3', 'core'], ['stone_violet_t3', 'nose'], ['stone_violet_t3', 'wing_left'],
+        ['stone_violet_t3', 'wing_right'], ['stone_violet_t3', 'engine_left'], ['stone_violet_t3', 'engine_right'],
     ]) expensive = install(expensive, partId, slotId).build;
     const budgetValidation = validateHangarBuild(expensive, 1);
     assert.ok(budgetValidation.errors.some((error) => error.code === 'editor_budget'));
     assert.ok(budgetValidation.errors.some((error) => ['level_locked', 'tier_locked'].includes(error.code)));
 });
 
-test('each part family offers two T1, three T2 and four T3 choices with distinct properties', () => {
-    for (const family of PART_FAMILIES) {
-        for (const [tier, expectedCount] of Object.entries(EXPECTED_OPTIONS_BY_TIER)) {
-            const parts = listHangarParts({ family, tier });
-            assert.equal(parts.length, expectedCount, `${family} ${tier}`);
-            assert.equal(new Set(parts.map((part) => JSON.stringify({
-                costs: part.costs,
-                stats: part.stats,
-                bonuses: part.bonuses,
-            }))).size, expectedCount, `${family} ${tier} properties`);
-        }
+test('five stone colors have distinct properties across three levels', () => {
+    assert.equal(listHangarParts().length, 15);
+    for (const tier of ['T1', 'T2', 'T3']) {
+        const stones = listHangarParts({ tier });
+        assert.equal(stones.length, 5);
+        assert.deepEqual(stones.map((stone) => stone.colorId), STONE_COLORS);
+        assert.equal(new Set(stones.map((stone) => JSON.stringify({ stats: stone.stats, bonuses: stone.bonuses }))).size, 5);
     }
 });
 
-test('every selectable option and tier has a distinct 3D shape', () => {
+test('all stones share one form while their level is visible through size', () => {
     const assembly = new HangarVehicleAssembly(new THREE.Group());
-    for (const family of PART_FAMILIES) {
-        for (const [tier, expectedCount] of Object.entries(EXPECTED_OPTIONS_BY_TIER)) {
-            const nodes = listHangarParts({ family, tier }).map((part) => assembly._createPartNode(part));
-            const signatures = nodes.map(partShapeSignature);
-            assert.equal(new Set(signatures).size, expectedCount, `${family} ${tier} shapes`);
-            nodes.forEach((node) => {
-                const materialColors = new Set(node.children.map((child) => child.material?.color?.getHex()));
-                assert.ok(materialColors.size >= 2, `${family} ${tier} uses body and structure materials`);
-            });
-        }
-    }
-    for (const family of PART_FAMILIES) {
-        const legacyParts = ['T1', 'T2', 'T3'].map((tier) => listHangarParts({ family, tier })[0]);
-        assert.equal(new Set(legacyParts.map((part) => partShapeSignature(assembly._createPartNode(part)))).size, 3, `${family} tier shapes`);
-    }
+    const t1Nodes = STONE_COLORS.map((color) => assembly._createPartNode(resolveHangarPart(`stone_${color}_t1`)));
+    assert.equal(new Set(t1Nodes.map(partShapeSignature)).size, 1);
+    assert.ok(t1Nodes.every((node) => node.children.length === 1));
+    assert.ok(t1Nodes.every((node) => node.children[0].geometry.type === 'OctahedronGeometry'));
+    const sizes = ['T1', 'T2', 'T3'].map((tier) => {
+        const node = assembly._createPartNode(resolveHangarPart(`stone_blue_${tier.toLowerCase()}`));
+        return new THREE.Box3().setFromObject(node).getSize(new THREE.Vector3()).length();
+    });
+    assert.ok(sizes[0] < sizes[1] && sizes[1] < sizes[2], sizes.join(' < '));
+    assert.equal(new Set(STONE_COLORS.map((color) => resolveHangarPart(`stone_${color}_t1`).appearance.color)).size, 5);
     assembly.dispose();
 });
 
-test('role filters, silhouettes and unlock levels stay explicit', () => {
+test('color filters, properties and unlock levels stay explicit', () => {
     const speedParts = listHangarParts({ trait: 'speed' });
-    assert.ok(speedParts.length > 0);
+    assert.equal(speedParts.length, 3);
     assert.ok(speedParts.every((part) => part.trait === 'speed'));
-    assert.equal(resolveHangarPart('core_t1').appearance.style, 'standard');
-    assert.equal(resolveHangarPart('core_swift_t1').appearance.style, 'light');
-    assert.equal(resolveHangarPart('core_reactor_t2').appearance.style, 'experimental');
-    assert.equal(resolveHangarPart('core_bastion_t3').appearance.style, 'reinforced');
-    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('wing_t2')), 10);
-    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('engine_t2')), 15);
-    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('core_t2')), 20);
-    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('utility_t1')), 5);
-    assert.equal(resolvePartLockReason(resolveHangarPart('core_t2'), 1).unlockLevel, 20);
+    assert.equal(listHangarParts({ color: 'green' }).length, 3);
+    assert.equal(resolveHangarPart('stone_blue_t1').appearance.variant, 'universal-stone');
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('stone_blue_t1')), 1);
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('stone_blue_t2')), 10);
+    assert.equal(resolveHangarPartUnlockLevel(resolveHangarPart('stone_blue_t3')), 20);
+    assert.equal(resolvePartLockReason(resolveHangarPart('stone_blue_t2'), 1).unlockLevel, 10);
+});
+
+test('level one starts with two stones per color and purchases use XRP', () => {
+    const profile = { level: 1, xpBank: 0 };
+    const inventory = normalizeHangarStoneInventory(profile);
+    for (const color of STONE_COLORS) {
+        assert.equal(inventory.counts[`stone_${color}_t1`], 2);
+        assert.equal(inventory.counts[`stone_${color}_t2`], 0);
+        assert.equal(inventory.counts[`stone_${color}_t3`], 0);
+    }
+    assert.equal(purchaseHangarStone(profile, 'stone_blue_t1').code, 'level_locked');
+    const funded = { level: 5, xpBank: 150 };
+    const purchase = purchaseHangarStone(funded, 'stone_blue_t1', 100);
+    assert.equal(purchase.ok, true);
+    assert.equal(purchase.profile.xpBank, 50);
+    assert.equal(purchase.profile.hangarStoneInventory.counts.stone_blue_t1, 3);
+    assert.equal(resolveHangarStoneAvailability(resolveHangarPart('stone_blue_t1'), purchase.profile, null).owned, 3);
+    assert.equal(purchaseHangarStone({ level: 9, xpBank: 999 }, 'stone_blue_t2').code, 'level_locked');
+
+    let overEquipped = createDefaultHangarBuild('ship5', { nowMs: 101 });
+    overEquipped = install(overEquipped, 'stone_blue_t1', 'core').build;
+    overEquipped = install(overEquipped, 'stone_blue_t1', 'wing_left').build;
+    assert.ok(validateHangarBuild(overEquipped, 1, profile).errors.some((error) => error.code === 'stone_inventory'));
 });
 
 test('loaded vehicle models are normalized and mounted parts change the visible silhouette', async () => {
@@ -152,28 +169,28 @@ test('loaded vehicle models are normalized and mounted parts change the visible 
     assert.ok(Math.abs(Math.max(vehicleSize.x, vehicleSize.y, vehicleSize.z) - 4.1) < 0.01);
 
     const partsBounds = new THREE.Box3().setFromObject(assembly.partsRoot);
-    assert.ok(partsBounds.max.x > vehicleBounds.max.x + 0.1);
+    assert.ok(partsBounds.getSize(new THREE.Vector3()).length() > 1);
 
     const defaultCoreColors = new Set();
     assembly.partNodes.get('core').traverse((node) => {
         if (node.material?.color) defaultCoreColors.add(node.material.color.getHex());
     });
-    const swiftBuild = createDefaultHangarBuild('ship5', { nowMs: 3 });
-    swiftBuild.slots.core = 'core_swift_t1';
-    assembly.setBuild(swiftBuild);
-    const swiftCoreColors = new Set();
+    const blueBuild = createDefaultHangarBuild('ship5', { nowMs: 3 });
+    blueBuild.slots.core = 'stone_blue_t1';
+    assembly.setBuild(blueBuild);
+    const blueCoreColors = new Set();
     assembly.partNodes.get('core').traverse((node) => {
-        if (node.material?.color) swiftCoreColors.add(node.material.color.getHex());
+        if (node.material?.color) blueCoreColors.add(node.material.color.getHex());
     });
-    assert.notDeepEqual([...swiftCoreColors], [...defaultCoreColors]);
-    const swiftCoreMaterials = [];
+    assert.notDeepEqual([...blueCoreColors], [...defaultCoreColors]);
+    const blueCoreMaterials = [];
     assembly.partNodes.get('core').traverse((node) => {
-        if (node.material?.emissive) swiftCoreMaterials.push(node.material);
+        if (node.material?.emissive) blueCoreMaterials.push(node.material);
     });
     assembly.setSelectedSlot('core');
-    assert.ok(swiftCoreMaterials.every((material) => material.emissiveIntensity === 0.85));
+    assert.ok(blueCoreMaterials.every((material) => material.emissiveIntensity === 0.85));
     assembly.setSelectedSlot('');
-    assert.ok(swiftCoreMaterials.every((material) => material.emissiveIntensity === material.userData.hangarBaseEmissiveIntensity));
+    assert.ok(blueCoreMaterials.every((material) => material.emissiveIntensity === material.userData.hangarBaseEmissiveIntensity));
     assembly.dispose();
 });
 
@@ -184,36 +201,36 @@ test('starter builds provide four valid one-click loadouts', () => {
     assert.equal(new Set(builds.map((build) => JSON.stringify(build.slots))).size, 4);
     builds.forEach((build) => assert.equal(validateHangarBuild(build, 1).ok, true, build.name));
     const levelFiveTank = createHangarStarterBuild(base, 'tank', 5);
-    assert.equal(levelFiveTank.slots.utility, 'utility_t1');
-    assert.equal(validateHangarBuild(levelFiveTank, 5).ok, true);
+    assert.equal(levelFiveTank.slots.utility, 'stone_violet_t1');
+    assert.equal(validateHangarBuild(levelFiveTank, 5, { level: 5 }).ok, true);
 });
 
 test('level-one alternatives visibly change the build and reach runtime bonuses', () => {
     const base = createDefaultHangarBuild('ship5', { nowMs: 5 });
-    const swiftCore = validateHangarDrop(base, 'core_swift_t1', 'core', 1, (build, partId, slotId) => install(build, partId, slotId));
-    assert.equal(swiftCore.ok, true);
-    assert.equal(swiftCore.build.slots.core, 'core_swift_t1');
+    const violetCore = validateHangarDrop(base, 'stone_violet_t1', 'core', 1, (build, partId, slotId) => install(build, partId, slotId));
+    assert.equal(violetCore.ok, true);
+    assert.equal(violetCore.build.slots.core, 'stone_violet_t1');
 
-    let variant = install(swiftCore.build, 'wing_kestrel_t1', 'wing_left', true).build;
-    variant = install(variant, 'engine_eco_t1', 'engine_left', true).build;
+    let variant = install(violetCore.build, 'stone_blue_t1', 'wing_left', true).build;
+    variant = install(variant, 'stone_cyan_t1', 'engine_left', true).build;
     const bonuses = hangarBuildToProfileBonuses(variant);
-    assert.deepEqual(bonuses, { speedBonusPct: 3, turningBonusPct: 4, maxHpBonus: 0 });
+    assert.deepEqual(bonuses, { speedBonusPct: 7, turningBonusPct: 3, maxHpBonus: 0 });
     assert.deepEqual(getSlotStatBonuses({}, bonuses), bonuses);
 
     const strategy = new ArcadeModeStrategy();
     strategy.applyVehicleUpgrades(bonuses);
-    assert.equal(strategy.getTurnRateMultiplier(), 1.04);
-    assert.equal(strategy.getSpeedMultiplier(), 1.03);
+    assert.equal(strategy.getTurnRateMultiplier(), 1.03);
+    assert.equal(strategy.getSpeedMultiplier(), 1.07);
 });
 
 test('hangar draft supports replacement, optional removal, required slots, symmetry and undo/redo', () => {
     const base = createDefaultHangarBuild('ship5', { nowMs: 10 });
-    const paired = install(base, 'engine_t2', 'engine_left', true);
+    const paired = install(base, 'stone_blue_t2', 'engine_left', true);
     assert.equal(paired.ok, true);
-    assert.equal(paired.build.slots.engine_left, 'engine_t2');
-    assert.equal(paired.build.slots.engine_right, 'engine_t2');
+    assert.equal(paired.build.slots.engine_left, 'stone_blue_t2');
+    assert.equal(paired.build.slots.engine_right, 'stone_blue_t2');
 
-    const utility = install(paired.build, 'utility_t1', 'utility');
+    const utility = install(paired.build, 'stone_violet_t1', 'utility');
     const removedUtility = removeHangarPart(utility.build, 'utility');
     assert.equal(removedUtility.ok, true);
     assert.equal(removedUtility.build.slots.utility, null);
@@ -224,18 +241,18 @@ test('hangar draft supports replacement, optional removal, required slots, symme
 
     const history = new HangarBuildHistory(base);
     history.push(paired.build);
-    assert.equal(history.undo().slots.engine_left, 'engine_t1');
-    assert.equal(history.redo().slots.engine_left, 'engine_t2');
+    assert.equal(history.undo().slots.engine_left, 'stone_cyan_t1');
+    assert.equal(history.redo().slots.engine_left, 'stone_blue_t2');
 });
 
 test('hangar persistence saves, loads, activates, renames, duplicates, deletes and migrates legacy presets', async () => {
     const store = createStore();
     const adapter = createHangarBuildPersistenceAdapter({ store, mode: 'arcade' });
-    const build = install(createDefaultHangarBuild('ship5', { nowMs: 20 }), 'wing_t2', 'wing_left', true).build;
+    const build = install(createDefaultHangarBuild('ship5', { nowMs: 20 }), 'stone_green_t2', 'wing_left', true).build;
     const saved = await adapter.saveBuild(build, { asNew: true, activate: true, name: 'Interceptor' });
     assert.equal(saved.ok, true);
     assert.equal(adapter.getActiveBuild('ship5').name, 'Interceptor');
-    assert.equal(adapter.getBuild(saved.build.buildId).slots.wing_right, 'wing_t2');
+    assert.equal(adapter.getBuild(saved.build.buildId).slots.wing_right, 'stone_green_t2');
 
     const renamed = await adapter.renameBuild(saved.build.buildId, 'Interceptor Mk II');
     assert.equal(renamed.build.name, 'Interceptor Mk II');
@@ -253,8 +270,65 @@ test('hangar persistence saves, loads, activates, renames, duplicates, deletes a
     });
     const migrated = createHangarBuildPersistenceAdapter({ store: legacyStore, mode: 'arcade' });
     await migrated.hydrate();
-    assert.equal(migrated.getBuild('legacy-one').slots.wing_left, 'wing_t2');
+    assert.equal(migrated.getBuild('legacy-one').slots.wing_left, 'stone_green_t1');
     assert.equal(legacyStore.records.get(HANGAR_BUILD_STORAGE_KEYS.arcade).schemaVersion, 'hangar-build-store.v2');
+});
+
+test('failed hangar writes leave the local build snapshot unchanged', async () => {
+    const store = createStore();
+    const capability = createSettingsRecordHangarCapability({ store, mode: 'arcade' });
+    let rejectWrites = false;
+    const adapter = createHangarBuildPersistenceAdapter({
+        mode: 'arcade',
+        invokeCapability(capabilityId, payload) {
+            if (rejectWrites && capabilityId !== HANGAR_CAPABILITY_IDS.LOAD_CUSTOM_BLUEPRINT) {
+                return { ok: false, code: 'persistence_rejected' };
+            }
+            return capability(capabilityId, payload);
+        },
+    });
+    const saved = await adapter.saveBuild(createDefaultHangarBuild('ship5', { buildId: 'stable-build', nowMs: 40 }), { activate: true });
+    assert.equal(saved.ok, true);
+    const stableSnapshot = adapter.getSnapshot();
+    assert.equal(readActiveHangarBuildFromStore({ store, mode: 'arcade', vehicleId: 'ship5' }).buildId, 'stable-build');
+
+    rejectWrites = true;
+    assert.equal((await adapter.saveBuild(createDefaultHangarBuild('ship5', { buildId: 'rejected-build', nowMs: 41 }), { asNew: true })).ok, false);
+    assert.deepEqual(adapter.getSnapshot(), stableSnapshot);
+    assert.equal((await adapter.renameBuild('stable-build', 'Rejected rename')).ok, false);
+    assert.deepEqual(adapter.getSnapshot(), stableSnapshot);
+    assert.equal((await adapter.deleteBuild('stable-build')).ok, false);
+    assert.deepEqual(adapter.getSnapshot(), stableSnapshot);
+});
+
+test('hangar selection merges into the newest settings record before saving', () => {
+    const localSettings = {
+        audioVolume: 0.1,
+        vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship5' },
+        localSettings: { modePath: 'arcade', staleWindowValue: true },
+    };
+    const newestSettings = {
+        audioVolume: 0.9,
+        networkRegion: 'eu-central',
+        vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'aircraft' },
+        localSettings: { modePath: 'arcade', changedInMainWindow: true },
+    };
+    let persisted = null;
+    const vehicleId = persistArcadeHangarVehicleSelection({
+        settings: localSettings,
+        vehicleId: 'drone',
+        runtimeAccess: {
+            loadSettings: () => structuredClone(newestSettings),
+            saveSettings: (settings) => { persisted = structuredClone(settings); return { success: true }; },
+        },
+    });
+
+    assert.equal(vehicleId, 'drone');
+    assert.equal(persisted.vehicles.PLAYER_1, 'drone');
+    assert.equal(persisted.audioVolume, 0.9);
+    assert.equal(persisted.networkRegion, 'eu-central');
+    assert.equal(persisted.localSettings.changedInMainWindow, true);
+    assert.equal(localSettings.audioVolume, 0.9);
 });
 
 test('arcade and fight builds stay isolated while selection and bonuses reach the run contracts', async () => {
@@ -272,7 +346,7 @@ test('arcade and fight builds stay isolated while selection and bonuses reach th
     assert.equal(readHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, 'ship5', { modePath: 'arcade' }).value, 'aircraft');
 
     let runBuild = createDefaultHangarBuild('aircraft', { nowMs: 70 });
-    for (const [partId, slotId] of [['core_t2', 'core'], ['wing_t2', 'wing_left'], ['engine_t2', 'engine_left']]) {
+    for (const [partId, slotId] of [['stone_gold_t2', 'core'], ['stone_green_t2', 'wing_left'], ['stone_blue_t2', 'engine_left']]) {
         runBuild = install(runBuild, partId, slotId).build;
     }
     const bonuses = getSlotStatBonuses(hangarBuildToProfileUpgrades(runBuild));
@@ -286,9 +360,9 @@ test('arcade and fight builds stay isolated while selection and bonuses reach th
 test('unsaved hangar drafts recover through the settings record port', () => {
     const store = createStore();
     const drafts = createHangarDraftPersistence({ store, mode: 'arcade' });
-    const changed = install(createDefaultHangarBuild('ship5', { nowMs: 80 }), 'nose_t2', 'nose').build;
+    const changed = install(createDefaultHangarBuild('ship5', { nowMs: 80 }), 'stone_blue_t2', 'nose').build;
     drafts.save(changed);
-    assert.equal(drafts.load('ship5').slots.nose, 'nose_t2');
+    assert.equal(drafts.load('ship5').slots.nose, 'stone_blue_t2');
     assert.equal(drafts.load('aircraft'), null);
     drafts.clear('ship5');
     assert.equal(drafts.load('ship5'), null);
@@ -323,6 +397,10 @@ test('Vehicle Lab publications become validated Hangar catalog parts', () => {
     assert.equal(registerPublishedHangarParts(record), 2);
     const published = listHangarParts({ search: 'lab' });
     assert.equal(published.length, 2);
-    assert.equal(resolveHangarPart(publication.parts[0].id).family, 'engine');
+    const labStone = resolveHangarPart(publication.parts[0].id);
+    assert.equal(labStone.kind, 'stone');
+    assert.equal(labStone.family, 'stone');
+    assert.equal(labStone.compatibleSlots.length, 7);
+    assert.equal(labStone.appearance.variant, 'universal-stone');
     registerPublishedHangarParts(null);
 });

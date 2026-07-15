@@ -2,10 +2,11 @@ import {
     HANGAR_SLOT_DEFINITIONS,
     createDefaultHangarSlots,
     resolveHangarPart,
+    resolveLegacyHangarStoneId,
     resolveHangarSlot,
 } from './HangarPartCatalog.js';
 
-export const HANGAR_BUILD_SCHEMA_VERSION = 'arcade-hangar-build.v2';
+export const HANGAR_BUILD_SCHEMA_VERSION = 'arcade-hangar-build.v3';
 
 function normalizeId(value, fallback) {
     const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
@@ -23,7 +24,7 @@ export function createDefaultHangarBuild(vehicleId = 'ship5', options = {}) {
     return {
         schemaVersion: HANGAR_BUILD_SCHEMA_VERSION,
         buildId: normalizeId(options.buildId, `build-${normalizedVehicleId}-${nowMs}`),
-        mode: 'arcade',
+        mode: options.mode === 'fight' ? 'fight' : 'arcade',
         vehicleId: normalizedVehicleId,
         name: String(options.name || 'Standardkonfiguration').trim() || 'Standardkonfiguration',
         favorite: options.favorite === true,
@@ -35,21 +36,13 @@ export function createDefaultHangarBuild(vehicleId = 'ship5', options = {}) {
     };
 }
 
-function resolveLegacyPartId(slotId, rawTier) {
-    const slot = resolveHangarSlot(slotId);
-    if (!slot) return null;
-    const tier = ['T1', 'T2', 'T3'].includes(String(rawTier || '').toUpperCase())
-        ? String(rawTier).toLowerCase()
-        : 't1';
-    return `${slot.family}_${tier}`;
-}
-
 export function normalizeHangarBuild(source, fallback = {}) {
     const record = source && typeof source === 'object' ? source : {};
     const base = createDefaultHangarBuild(record.vehicleId || fallback.vehicleId || 'ship5', {
         buildId: record.buildId || record.presetId || fallback.buildId,
         name: record.name || fallback.name,
         hitboxClass: record.hitboxClass || fallback.hitboxClass,
+        mode: record.mode || fallback.mode,
         nowMs: record.createdAtMs || record.updatedAtMs || fallback.nowMs,
     });
     const sourceSlots = record.slots && typeof record.slots === 'object' ? record.slots : null;
@@ -62,14 +55,14 @@ export function normalizeHangarBuild(source, fallback = {}) {
             continue;
         }
         const part = resolveHangarPart(rawPartId);
-        if (part?.compatibleSlots.includes(slot.id)) {
+        if (part?.kind === 'stone' && part.compatibleSlots.includes(slot.id)) {
             slots[slot.id] = part.id;
             continue;
         }
         const legacyTier = legacyUpgrades?.[slot.id]
             || legacyUpgrades?.[`${slot.id}_t2`]
             || 'T1';
-        const legacyPartId = resolveLegacyPartId(slot.id, legacyTier);
+        const legacyPartId = resolveLegacyHangarStoneId(rawPartId || legacyTier, slot.id);
         if (legacyPartId) slots[slot.id] = legacyPartId;
     }
     return {

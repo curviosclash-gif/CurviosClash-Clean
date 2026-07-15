@@ -240,7 +240,7 @@ export class UIManager {
         select.replaceChildren();
         const placeholderOption = document.createElement('option');
         placeholderOption.value = '';
-        placeholderOption.textContent = 'Bitte Text-ID waehlen';
+        placeholderOption.textContent = 'Bitte Text-ID wählen';
         select.appendChild(placeholderOption);
         entries.forEach((entry) => {
             const option = document.createElement('option');
@@ -397,9 +397,9 @@ export class UIManager {
     }
 
     syncMap(settings = this.settings) {
-        if (this.ui.mapSelect) {
-            this.ui.mapSelect.value = settings.mapKey;
-        }
+        // Start-Setup owns the visible map selection because it resolves the
+        // active per-mode Hangar draft. A second direct assignment here made
+        // the select disagree with its summary and preview.
         this._syncStartSetupSnapshot(settings);
     }
 
@@ -514,9 +514,8 @@ export class UIManager {
     }
 
     syncVehicles(settings = this.settings) {
-        const ui = this.ui;
-        if (ui.vehicleSelectP1) ui.vehicleSelectP1.value = settings.vehicles.PLAYER_1;
-        if (ui.vehicleSelectP2) ui.vehicleSelectP2.value = settings.vehicles.PLAYER_2;
+        // Vehicle selects share the same per-mode selection contract as maps.
+        // Keep one renderer responsible for select, summary and preview state.
         this._syncStartSetupSnapshot(settings);
     }
 

@@ -72,6 +72,8 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
             getStatus: () => 'unavailable',
             setVehicle() {},
             setSlotStates() {},
+            setActive() {},
+            resetView() {},
             dispose() {},
         };
     }
@@ -96,6 +98,31 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
     let anchorScale = 1;
     let renderWidth = 0;
     let renderHeight = 0;
+    let active = true;
+    let disposed = false;
+    let controlsTargetY = 0.3;
+    let cameraDistance = 4.6;
+    let cameraHeight = 1.8;
+
+    const markManualInteraction = () => {
+        targetMount.dataset.previewMotion = 'manual';
+    };
+    const markIdleRotation = () => {
+        targetMount.dataset.previewMotion = 'idle-spin';
+    };
+    const beginManualRotation = () => {
+        if (controls) controls.autoRotate = false;
+        markManualInteraction();
+    };
+    const resumeIdleRotation = () => {
+        if (controls) controls.autoRotate = true;
+        markIdleRotation();
+    };
+
+    targetMount.addEventListener('pointerdown', beginManualRotation, true);
+    window.addEventListener('pointerup', resumeIdleRotation);
+    window.addEventListener('pointercancel', resumeIdleRotation);
+    window.addEventListener('blur', resumeIdleRotation);
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x0f1524);
@@ -128,6 +155,24 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
     );
     platform.position.set(0, -0.78, 0);
     previewRoot.add(platform);
+
+    const floorGrid = new THREE.GridHelper(16, 32, 0x62c7ff, 0x254c6b);
+    floorGrid.name = 'preview-floor-grid';
+    floorGrid.position.set(0, -0.84, 0);
+    floorGrid.material.transparent = true;
+    floorGrid.material.opacity = 0.34;
+    floorGrid.material.depthWrite = false;
+    previewRoot.add(floorGrid);
+
+    const backdropGrid = new THREE.GridHelper(14, 28, 0x4faee0, 0x203d59);
+    backdropGrid.name = 'preview-backdrop-grid';
+    backdropGrid.position.set(0, 2.15, -5.2);
+    backdropGrid.rotation.x = Math.PI * 0.5;
+    backdropGrid.material.transparent = true;
+    backdropGrid.material.opacity = 0.18;
+    backdropGrid.material.depthWrite = false;
+    previewRoot.add(backdropGrid);
+    targetMount.dataset.previewGrid = 'hangar';
 
     function setStatus(nextStatus, text) {
         status = String(nextStatus || 'unknown');
@@ -207,8 +252,15 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         }
     }
 
+    function scheduleFrame() {
+        if (!disposed && active && renderer && !rafId) {
+            rafId = window.requestAnimationFrame(stepFrame);
+        }
+    }
+
     function stepFrame(nowMs) {
-        if (!renderer) return;
+        rafId = 0;
+        if (disposed || !active || !renderer) return;
         syncRendererSize(false);
         const dt = lastFrameMs > 0 ? Math.min(0.05, Math.max(0, (nowMs - lastFrameMs) / 1000)) : 0;
         lastFrameMs = nowMs;
@@ -216,10 +268,10 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         if (vehicleNode && typeof vehicleNode.tick === 'function') {
             vehicleNode.tick(dt);
         }
-        if (controls) controls.update();
+        if (controls) controls.update(dt);
         renderer.render(scene, camera);
         refreshOverlayProjection();
-        rafId = window.requestAnimationFrame(stepFrame);
+        scheduleFrame();
     }
 
     function initializeRenderer() {
@@ -232,21 +284,27 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
             renderer.setPixelRatio(Math.min(2, normalizeNumber(window.devicePixelRatio, 1)));
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.domElement.className = 'arcade-vehicle-preview-canvas-node';
+            renderer.domElement.setAttribute('aria-label', 'Interaktive 3D-Fahrzeugansicht');
             previewCanvasHost.appendChild(renderer.domElement);
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enablePan = false;
             controls.enableDamping = true;
             controls.dampingFactor = 0.075;
+            controls.autoRotate = true;
+            controls.autoRotateSpeed = 0.55;
             controls.minDistance = 2.35;
             controls.maxDistance = 8.5;
             controls.target.set(0, 0.3, 0);
-            controls.update();
+            controls.addEventListener('start', markManualInteraction);
+            controls.addEventListener('end', markIdleRotation);
+            controls.update(0);
+            markIdleRotation();
 
             syncRendererSize(true);
             setStatus('ready', '3D-Preview aktiv. Maus: drehen / zoomen.');
             window.addEventListener('resize', syncRendererSize);
 
-            rafId = window.requestAnimationFrame(stepFrame);
+            scheduleFrame();
         } catch {
             renderer = null;
             controls = null;
@@ -263,14 +321,14 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         vehicleNode = null;
 
         if (!renderer) {
-            setStatus('fallback', `Preview-Fallback fuer ${normalizedVehicleId}`);
+            setStatus('fallback', '3D-Ansicht nicht verfügbar. Auswahl bleibt bedienbar.');
             return;
         }
 
         try {
             vehicleNode = createVehicleMesh(normalizedVehicleId, normalizeColor(colorValue));
             previewRoot.add(vehicleNode);
-            vehicleNode.rotation.y = Math.PI * 0.16;
+            vehicleNode.rotation.y = Math.PI * 1.16;
 
             vehicleBounds.setFromObject(vehicleNode);
             vehicleBounds.getCenter(boundsCenter);
@@ -278,15 +336,22 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
             vehicleNode.position.sub(boundsCenter);
             vehicleNode.position.y -= boundsSize.y * 0.2;
             anchorScale = Math.max(0.7, Math.max(boundsSize.x, boundsSize.y, boundsSize.z) * 0.65);
+            const largestDimension = Math.max(boundsSize.x, boundsSize.y, boundsSize.z);
+            cameraDistance = Math.max(4.6, largestDimension * 1.55);
+            cameraHeight = Math.max(1.8, boundsSize.y * 0.5);
+            camera.position.set(0, cameraHeight, cameraDistance);
 
             if (controls) {
-                controls.target.set(0, boundsSize.y * 0.1, 0);
-                controls.update();
+                controlsTargetY = boundsSize.y * 0.1;
+                controls.minDistance = Math.max(2.35, cameraDistance * 0.45);
+                controls.maxDistance = Math.max(8.5, cameraDistance * 1.8);
+                controls.target.set(0, controlsTargetY, 0);
+                controls.update(0);
             }
-            setStatus('ready', `3D-Preview: ${normalizedVehicleId}`);
+            setStatus('ready', '3D-Ansicht bereit');
         } catch {
             vehicleNode = null;
-            setStatus('fallback', `Preview-Fallback fuer ${normalizedVehicleId}`);
+            setStatus('fallback', '3D-Ansicht nicht verfügbar. Auswahl bleibt bedienbar.');
         }
     }
 
@@ -297,28 +362,71 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         refreshOverlayProjection();
     }
 
+    function setActive(value) {
+        if (disposed) return;
+        active = value === true;
+        targetMount.dataset.previewActive = String(active);
+        if (!active && rafId) {
+            window.cancelAnimationFrame(rafId);
+            rafId = 0;
+            lastFrameMs = 0;
+            return;
+        }
+        scheduleFrame();
+    }
+
+    function resetView() {
+        if (disposed) return;
+        camera.position.set(0, cameraHeight, cameraDistance);
+        if (controls) {
+            controls.target.set(0, controlsTargetY, 0);
+            controls.update(0);
+        }
+        syncRendererSize(true);
+    }
+
     function dispose() {
+        if (disposed) return;
+        disposed = true;
+        active = false;
         if (rafId) {
             window.cancelAnimationFrame(rafId);
             rafId = 0;
         }
         window.removeEventListener('resize', syncRendererSize);
+        targetMount.removeEventListener('pointerdown', beginManualRotation, true);
+        window.removeEventListener('pointerup', resumeIdleRotation);
+        window.removeEventListener('pointercancel', resumeIdleRotation);
+        window.removeEventListener('blur', resumeIdleRotation);
         if (slotOverlayRoot) {
             slotOverlayRoot.replaceChildren();
         }
         removeVehicleNode(previewRoot, vehicleNode);
         vehicleNode = null;
         if (controls) {
+            controls.removeEventListener('start', markManualInteraction);
+            controls.removeEventListener('end', markIdleRotation);
             controls.dispose();
             controls = null;
         }
         if (renderer) {
+            renderer.forceContextLoss?.();
             renderer.dispose();
             if (renderer.domElement?.parentElement) {
                 renderer.domElement.parentElement.removeChild(renderer.domElement);
             }
             renderer = null;
         }
+        platform.geometry.dispose();
+        if (Array.isArray(platform.material)) platform.material.forEach((material) => material.dispose());
+        else platform.material.dispose();
+        [floorGrid, backdropGrid].forEach((grid) => {
+            grid.geometry.dispose();
+            if (Array.isArray(grid.material)) grid.material.forEach((material) => material.dispose());
+            else grid.material.dispose();
+        });
+        delete targetMount.dataset.previewGrid;
+        delete targetMount.dataset.previewMotion;
         if (previewCanvasHost.parentElement) {
             previewCanvasHost.parentElement.removeChild(previewCanvasHost);
         }
@@ -334,6 +442,8 @@ export function createVehicleManagerPreview3d({ mount, overlay }) {
         getStatus: () => status,
         setVehicle,
         setSlotStates,
+        setActive,
+        resetView,
         dispose,
     };
 }

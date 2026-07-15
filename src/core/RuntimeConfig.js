@@ -1,4 +1,4 @@
-﻿import { CONFIG, CONFIG_BASE } from './Config.js';
+import { CONFIG, CONFIG_BASE } from './Config.js';
 import { GAME_MODE_TYPES, isHuntMode, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotPolicyTypes.js';
 import {
@@ -35,6 +35,16 @@ function toNumber(value, fallback) {
 
 function deepClone(value) {
     return cloneJsonValue(value);
+}
+
+function normalizeFightBonuses(source = null) {
+    const value = source && typeof source === 'object' ? source : {};
+    const clamp = (input, min, max) => Math.max(min, Math.min(max, Number(input) || 0));
+    return Object.freeze({
+        speedBonusPct: clamp(value.speedBonusPct, -30, 30),
+        turningBonusPct: clamp(value.turningBonusPct, -30, 30),
+        maxHpBonus: clamp(value.maxHpBonus, -60, 60),
+    });
 }
 
 const DEFAULT_NEXT_CHECKPOINT_GLOW_INTENSITY = 1.35;
@@ -199,6 +209,11 @@ export function createRuntimeConfigSnapshot(settings, {
             : sessionContract.multiplayerTransport);
     const modePath = String(source?.localSettings?.modePath || 'normal').trim().toLowerCase();
     const arcadeEnabled = modePath === 'arcade';
+    const fightBonusesByVehicle = modePath === 'fight'
+        && source?.localSettings?.fightHangar?.activeBonusesByVehicle
+        && typeof source.localSettings.fightHangar.activeBonusesByVehicle === 'object'
+        ? source.localSettings.fightHangar.activeBonusesByVehicle
+        : {};
     const networkEnabled = sessionContract.isNetworkSession;
     const mode = sessionType === 'splitscreen' ? '2p' : '1p';
     const numHumans = networkEnabled ? 1 : (mode === '2p' ? 2 : 1);
@@ -257,6 +272,10 @@ export function createRuntimeConfigSnapshot(settings, {
                 PLAYER_1: source?.vehicles?.PLAYER_1 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5',
                 PLAYER_2: source?.vehicles?.PLAYER_2 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5',
             },
+            fightLoadouts: modePath === 'fight' ? {
+                PLAYER_1: normalizeFightBonuses(fightBonusesByVehicle[source?.vehicles?.PLAYER_1 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5']),
+                PLAYER_2: normalizeFightBonuses(fightBonusesByVehicle[source?.vehicles?.PLAYER_2 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5']),
+            } : null,
         },
         gameplay: {
             planarMode,

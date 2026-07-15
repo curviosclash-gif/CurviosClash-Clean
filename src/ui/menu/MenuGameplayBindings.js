@@ -18,6 +18,7 @@ import {
     writeHangarMapSelection,
     writeHangarVehicleSelection,
 } from '../hangar/HangarSelectionWritebackContract.js';
+import { createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
     const settings = ctx.settings;
@@ -32,6 +33,7 @@ export function setupMenuGameplayBindings(ctx) {
     const runtimeLimits = createRuntimeSettingsLimitsForRuntime();
     const sessionLimits = runtimeLimits.session;
     const gameplayLimits = runtimeLimits.gameplay;
+    const hangarWindow = createHangarWindowMenuPort(globalThis);
     const mgTrailAimLimits = gameplayLimits.mgTrailAimRadius;
     const fightMgDamageLimits = gameplayLimits.fightMgDamage;
     const ensureMobileControls = () => {
@@ -115,6 +117,42 @@ export function setupMenuGameplayBindings(ctx) {
     if (ui.quickStartRandomButton) {
         bind(ui.quickStartRandomButton, 'click', () => {
             emit(eventTypes.QUICKSTART_RANDOM_START);
+        });
+    }
+
+    if (ui.classicTutorialButton) {
+        bind(ui.classicTutorialButton, 'click', () => {
+            settings.mode = '1p';
+            settings.gameMode = GAME_MODE_TYPES.CLASSIC;
+            settings.numBots = 0;
+            settings.mapKey = 'tutorial_classic';
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
+            settings.localSettings.sessionType = 'single';
+            settings.localSettings.modePath = 'normal';
+            writeHangarMapSelection(settings, 'tutorial_classic', 'tutorial_classic', { modePath: 'normal' });
+            emitSettingsChangedImmediate([
+                keys.MODE,
+                keys.SESSION_TYPE,
+                keys.MODE_PATH,
+                keys.GAME_MODE,
+                keys.MAP_KEY,
+                keys.BOTS_COUNT,
+            ]);
+            emit(eventTypes.START_MATCH);
+        });
+    }
+
+    if (ui.openFightHangarButton) {
+        ui.openFightHangarButton.classList.toggle('hidden', !hangarWindow.isAvailable());
+        bind(ui.openFightHangarButton, 'click', async () => {
+            const result = await hangarWindow.openWindow?.({ mode: 'fight', focus: true });
+            if (result?.ok !== true) {
+                emit(eventTypes.SHOW_STATUS_TOAST, {
+                    message: 'Fight-Hangar konnte nicht geöffnet werden.',
+                    tone: 'warning',
+                    duration: 1600,
+                });
+            }
         });
     }
 

@@ -17,10 +17,9 @@ import {
     listEligibleMapKeysForModePath,
     resolveModePathFallbackMapKey,
 } from '../../shared/contracts/MapModeContract.js';
-import {
-    PLATFORM_SURFACE_QUICK_START_ACTION_IDS,
-} from '../../shared/contracts/PlatformCapabilityRegistry.js';
+import { PLATFORM_SURFACE_QUICK_START_ACTION_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
+import { syncMenuSelectionWriteback } from './MenuRuntimePresetConfigService.js';
 import {
     MULTIPLAYER_TRANSPORTS,
     isLegacyMultiplayerTransport,
@@ -28,10 +27,7 @@ import {
 } from '../../shared/contracts/RuntimeSessionContract.js';
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
-import {
-    appendMutationChangedKeys,
-    resolveMutationChangedKeys,
-} from './RuntimeSettingsChangeKeys.js';
+import { appendMutationChangedKeys, resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 
 const MODE_PATH_TO_PRESET_ID = Object.freeze({
     arcade: 'arcade',
@@ -261,15 +257,17 @@ export function handleModePathChangeAction(ctx) {
     }
     const currentMapKey = String(game.settings?.mapKey || '').trim();
     if (currentMapKey !== 'custom') {
-    const currentMapDefinition = CONFIG?.MAPS?.[currentMapKey];
-    const curatedFallbackMapKey = getSurfacePort(game).listAllowedMapKeysForModePath(modePath)
-        .find((mapKey) => CONFIG?.MAPS?.[mapKey] && isMapEligibleForModePath(CONFIG.MAPS[mapKey], modePath));
-    if (!isMapEligibleForModePath(currentMapDefinition, modePath)
-        || !getSurfacePort(game).isMapAllowed(currentMapKey, modePath)) {
-        game.settings.mapKey = curatedFallbackMapKey || resolveModePathFallbackMapKey(CONFIG?.MAPS, modePath, currentMapKey);
-        changedKeys.push(SETTINGS_CHANGE_KEYS.MAP_KEY);
+        const currentMapDefinition = CONFIG?.MAPS?.[currentMapKey];
+        const curatedFallbackMapKey = getSurfacePort(game).listAllowedMapKeysForModePath(modePath)
+            .find((mapKey) => CONFIG?.MAPS?.[mapKey] && isMapEligibleForModePath(CONFIG.MAPS[mapKey], modePath));
+        if (!isMapEligibleForModePath(currentMapDefinition, modePath)
+            || !getSurfacePort(game).isMapAllowed(currentMapKey, modePath)) {
+            game.settings.mapKey = curatedFallbackMapKey || resolveModePathFallbackMapKey(CONFIG?.MAPS, modePath, currentMapKey);
+            changedKeys.push(SETTINGS_CHANGE_KEYS.MAP_KEY);
+        }
     }
-    }
+
+    syncMenuSelectionWriteback(game.settings, modePath);
 
     if (modePath === 'fight') {
         game.settings.gameMode = 'HUNT';
@@ -293,12 +291,12 @@ export function handleModePathChangeAction(ctx) {
         modePath,
     });
 
-    const label = modePath === 'fight' ? 'Fight' : (modePath === 'arcade' ? 'Arcade' : 'Normal');
+    const label = modePath === 'fight' ? 'Kampf' : (modePath === 'arcade' ? 'Arcade' : 'Klassisch');
     if (requestedModePath && requestedModePath !== modePath && !getSurfacePort(game).isModePathAllowed(requestedModePath)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Dieser Modus');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
     } else if (requestedModePath === 'fight' && !huntFeatureEnabled) {
-        game._showStatusToast('Fight ist deaktiviert. Normal wurde gesetzt.', 1500, 'warning');
+        game._showStatusToast('Kampf ist deaktiviert. Klassisch wurde gesetzt.', 1500, 'warning');
     } else {
         game._showStatusToast(`Modus gewaehlt: ${label}`, 1200, 'info');
     }
@@ -451,17 +449,20 @@ export function handleLevel3ResetAction(ctx) {
             SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE,
         ],
     });
-    game._showStatusToast('Ebene 3 zurueckgesetzt', 1200, 'info');
+    game._showStatusToast('Auswahl zurückgesetzt', 1200, 'info');
 }
 
 export function handleLevel4OpenAction(ctx) {
     const { game, event } = ctx;
     const requestedSectionId = String(event?.sectionId || '').trim();
+    const requestedReturnTarget = String(event?.returnTarget || '').trim().toLowerCase() === 'main' ? 'main' : 'game';
     const validSectionIds = new Set(Object.values(LEVEL4_SECTION_IDS));
-    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', { trigger: 'open_level4' });
     if (!game.settings.localSettings.toolsState || typeof game.settings.localSettings.toolsState !== 'object') {
         game.settings.localSettings.toolsState = {};
     }
+    game.settings.localSettings.toolsState.level4ReturnTarget = requestedReturnTarget;
+    game.ui?.level4Drawer?.setAttribute?.('data-level4-return-target', requestedReturnTarget);
+    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', { trigger: 'open_level4' });
     if (validSectionIds.has(requestedSectionId)) {
         game.settings.localSettings.toolsState.activeSection = requestedSectionId;
         game.uiManager?.setLevel4Section?.(requestedSectionId, { persist: true, focus: false });
@@ -475,41 +476,36 @@ export function handleLevel4CloseAction(ctx) {
     if (!game.settings.localSettings.toolsState || typeof game.settings.localSettings.toolsState !== 'object') {
         game.settings.localSettings.toolsState = {};
     }
+    const returnTarget = String(game.settings.localSettings.toolsState.level4ReturnTarget || '').trim().toLowerCase();
+    delete game.settings.localSettings.toolsState.level4ReturnTarget;
     game.settings.localSettings.toolsState.level4Open = false;
     game.uiManager?.setLevel4Open?.(false);
+    if (returnTarget === 'main') {
+        game.uiManager?.menuNavigationRuntime?.showMainNav?.({ trigger: 'level4_close' });
+    }
 }
 
 export function handleLevel4ResetAction(ctx) {
     const { game, onSettingsChanged } = ctx;
     const defaults = game.settingsManager.createDefaultSettings();
     game.settings.gameplay = { ...defaults.gameplay };
-    game.settings.controls = JSON.parse(JSON.stringify(defaults.controls));
     if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
         game.settings.localSettings = {};
     }
     game.settings.localSettings.shadowQuality = defaults.localSettings.shadowQuality;
-    game.settings.portalsEnabled = defaults.portalsEnabled;
     game.settings.autoRoll = defaults.autoRoll;
     game.settings.invertPitch = { ...defaults.invertPitch };
     game.settings.cockpitCamera = { ...defaults.cockpitCamera };
-    game.settings.numBots = defaults.numBots;
-    game.settings.botDifficulty = defaults.botDifficulty;
-    game.settings.winsNeeded = defaults.winsNeeded;
-    game.settings.hunt = { ...defaults.hunt };
     game.settings.cameraPerspective = { ...defaults.cameraPerspective };
+    game.settings.recording = { ...defaults.recording };
 
     onSettingsChanged({
         changedKeys: [
-            SETTINGS_CHANGE_KEYS.BOTS_COUNT,
-            SETTINGS_CHANGE_KEYS.BOTS_DIFFICULTY,
-            SETTINGS_CHANGE_KEYS.RULES_WINS_NEEDED,
             SETTINGS_CHANGE_KEYS.RULES_AUTO_ROLL,
             SETTINGS_CHANGE_KEYS.RULES_INVERT_P1,
             SETTINGS_CHANGE_KEYS.RULES_INVERT_P2,
             SETTINGS_CHANGE_KEYS.RULES_COCKPIT_P1,
             SETTINGS_CHANGE_KEYS.RULES_COCKPIT_P2,
-            SETTINGS_CHANGE_KEYS.RULES_PORTALS_ENABLED,
-            SETTINGS_CHANGE_KEYS.HUNT_RESPAWN_ENABLED,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_SPEED,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_TURN_SENSITIVITY,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANE_SCALE,
@@ -519,16 +515,20 @@ export function handleLevel4ResetAction(ctx) {
             SETTINGS_CHANGE_KEYS.GAMEPLAY_ITEM_AMOUNT,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_FIRE_RATE,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_LOCK_ON_ANGLE,
+            SETTINGS_CHANGE_KEYS.GAMEPLAY_NEXT_CHECKPOINT_GLOW_INTENSITY,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_MG_TRAIL_AIM_RADIUS,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_PLAYER_HP,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_MG_DAMAGE,
             SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANAR_MODE,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_PORTAL_COUNT,
-            SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANAR_LEVEL_COUNT,
+            SETTINGS_CHANGE_KEYS.RECORDING_PROFILE,
+            SETTINGS_CHANGE_KEYS.RECORDING_HUD_MODE,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_NORMAL,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_REDUCE_MOTION,
+            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_SPEED_FOV_ENABLED,
+            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_SPEED_FOV_INTENSITY,
+            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_ENABLED,
+            SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_INTENSITY,
         ],
     });
-    game._showStatusToast('Ebene 4 zurueckgesetzt', 1200, 'info');
+    game._showStatusToast('Spieloptionen zurückgesetzt', 1600, 'info');
 }

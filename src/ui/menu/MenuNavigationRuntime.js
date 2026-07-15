@@ -13,7 +13,8 @@ function getFocusableElements(container) {
     if (!container) return [];
     return Array.from(container.querySelectorAll(
         'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    ));
+    )).filter((element) => !element.closest?.('[inert], [aria-hidden="true"], .hidden, details:not([open])')
+        && element.getAttribute?.('aria-disabled') !== 'true');
 }
 
 function focusWithoutScroll(element) {
@@ -167,6 +168,16 @@ export class MenuNavigationRuntime {
             this._disposers.push(() => menuRoot.removeEventListener('keydown', onKeyDown));
         }
 
+        const focusMainAfterDocumentLoad = () => requestAnimationFrame(
+            () => this.focusMainAction({ onlyIfFocusLost: true })
+        );
+        if (document.readyState === 'complete') {
+            focusMainAfterDocumentLoad();
+        } else {
+            window.addEventListener('load', focusMainAfterDocumentLoad, { once: true });
+            this._disposers.push(() => window.removeEventListener('load', focusMainAfterDocumentLoad));
+        }
+
         this.applyAccessPolicy();
         this.showMainNav({ trigger: 'init' });
         this._startGamepadLoop();
@@ -291,13 +302,35 @@ export class MenuNavigationRuntime {
         this.onPanelChanged?.(null, null, transition, metadata && typeof metadata === 'object' ? { ...metadata } : null);
         this.onMenuStateChanged?.(transition);
 
-        const firstVisibleButton = this._navButtons.find((button) => !button.classList.contains('hidden'));
-        focusWithoutScroll(firstVisibleButton);
+        const firstVisibleButton = this._getVisibleMainActions()[0] || null;
+        this.focusMainAction();
+        queueMicrotask(() => {
+            this.focusMainAction({ onlyIfFocusLost: true, fallbackTarget: firstVisibleButton });
+        });
         resetMobileMainNavScroll(this.ui.mainMenu || document.getElementById('main-menu'));
+    }
+
+    focusMainAction(options = {}) {
+        if (this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN) return false;
+        const menuRoot = this.ui.mainMenu || document.getElementById('main-menu');
+        const activeElement = document.activeElement;
+        const focusWasLost = !activeElement || activeElement === document.body || !menuRoot?.contains?.(activeElement);
+        if (options.onlyIfFocusLost === true && !focusWasLost) return false;
+        if (!this._isMenuInteractive()) return false;
+        const target = options.fallbackTarget || this._getVisibleMainActions()[0] || null;
+        focusWithoutScroll(target);
+        return !!target;
     }
 
     _handleMenuKeyDown(event) {
         if (!event) return;
+        if (event.key === 'Tab') {
+            const focusScope = this._isLevel4Open()
+                ? (this.ui.level4Drawer || document.getElementById('submenu-level4'))
+                : (this._getVisiblePanelElement() || this.ui.mainMenu || document.getElementById('main-menu'));
+            this._trapFocus(event, focusScope);
+            return;
+        }
         if (
             event.key === 'Escape'
             && (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN)
@@ -343,7 +376,40 @@ export class MenuNavigationRuntime {
         return this._navButtons.filter((button) => !button.classList.contains('hidden'));
     }
 
+    _trapFocus(event, container) {
+        const focusables = getFocusableElements(container);
+        if (focusables.length === 0) return false;
+        const first = focusables[0];
+        const last = focusables[focusables.length - 1];
+        const activeElement = document.activeElement;
+        const activeInside = !!activeElement && container?.contains?.(activeElement);
+        if (event.shiftKey && (!activeInside || activeElement === first)) {
+            event.preventDefault();
+            focusWithoutScroll(last);
+            return true;
+        }
+        if (!event.shiftKey && (!activeInside || activeElement === last)) {
+            event.preventDefault();
+            focusWithoutScroll(first);
+            return true;
+        }
+        return false;
+    }
+
+    _getVisibleMainActions() {
+        const menuRoot = this.ui.mainMenu || document.getElementById('main-menu');
+        const primaryActions = Array.from(menuRoot?.querySelectorAll?.('[data-menu-main-action]') || []);
+        return [...primaryActions, ...this._getVisibleNavButtons()].filter((button) => (
+            !button.classList.contains('hidden')
+            && button.getAttribute('aria-hidden') !== 'true'
+            && !button.disabled
+        ));
+    }
+
     _getVisiblePanelElement() {
+        if (this._isLevel4Open()) {
+            return this.ui.level4Drawer || document.getElementById('submenu-level4');
+        }
         return this._submenuPanels.find((panel) => !panel.classList.contains('hidden')) || null;
     }
 
@@ -357,10 +423,13 @@ export class MenuNavigationRuntime {
     }
 
     _moveFocusByDirection(direction) {
+        if ((direction === 'left' || direction === 'right') && this._moveStartSetupChoice(direction)) {
+            return;
+        }
         const delta = direction === 'left' || direction === 'up' ? -1 : 1;
         const state = this.stateMachine?.getState?.() || MENU_STATE_IDS.MAIN;
         if (state === MENU_STATE_IDS.MAIN) {
-            this._moveFocusInCollection(this._getVisibleNavButtons(), delta);
+            this._moveFocusInCollection(this._getVisibleMainActions(), delta);
             return;
         }
 
@@ -371,6 +440,21 @@ export class MenuNavigationRuntime {
             return;
         }
         this._moveFocusInCollection(this._getVisibleNavButtons(), delta);
+    }
+
+    _moveStartSetupChoice(direction) {
+        const activeElement = document.activeElement;
+        const listbox = activeElement?.closest?.('[role="listbox"]');
+        if (!listbox) return false;
+        const choices = Array.from(listbox.querySelectorAll('[role="option"]'))
+            .filter((entry) => !entry.disabled && !entry.classList.contains('hidden'));
+        const currentIndex = choices.indexOf(activeElement);
+        if (currentIndex < 0 || choices.length < 2) return false;
+        const delta = direction === 'left' ? -1 : 1;
+        const next = choices[(currentIndex + delta + choices.length) % choices.length];
+        next.focus();
+        next.click();
+        return true;
     }
 
     _activateFocusedElement(event = null) {

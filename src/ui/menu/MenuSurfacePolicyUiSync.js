@@ -87,13 +87,17 @@ export function syncMenuSurfacePolicyUi({
             button.setAttribute('aria-pressed', String(isActive));
             button.setAttribute('aria-hidden', String(!surfaceAllowed));
             button.disabled = !surfaceAllowed || disabledByFeatureFlag;
-            button.title = disabledByFeatureFlag ? 'Fight ist per Feature-Flag deaktiviert' : '';
+            button.title = disabledByFeatureFlag ? 'Kampf ist per Feature-Flag deaktiviert' : '';
         });
     }
 
-    const quickStartButtons = [{ button: ui.quickStartLastButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS }, { button: ui.quickStartEventPlaylistButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST }, { button: ui.quickStartRandomButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.RANDOM_MAP }];
-    let visibleQuickStartCount = 0;
-    quickStartButtons.forEach(({ button, actionId }) => {
+    const quickStartButtons = [
+        { button: ui.quickStartLastButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS, alternative: false },
+        { button: ui.quickStartEventPlaylistButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST, alternative: true },
+        { button: ui.quickStartRandomButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.RANDOM_MAP, alternative: true },
+    ];
+    let visibleAlternativeQuickStartCount = 0;
+    quickStartButtons.forEach(({ button, actionId, alternative }) => {
         if (!button) {
             return;
         }
@@ -101,19 +105,21 @@ export function syncMenuSurfacePolicyUi({
         button.classList.toggle('hidden', !surfaceAllowed);
         button.setAttribute('aria-hidden', String(!surfaceAllowed));
         button.disabled = !surfaceAllowed;
-        if (surfaceAllowed) {
-            visibleQuickStartCount += 1;
+        if (surfaceAllowed && alternative) {
+            visibleAlternativeQuickStartCount += 1;
         }
     });
 
-    const quickStartSection = ui.quickStartLastButton?.closest('.menu-section') || ui.quickStartEventPlaylistButton?.closest('.menu-section') || ui.quickStartRandomButton?.closest('.menu-section') || null;
+    const quickStartSection = ui.quickStartEventPlaylistButton?.closest('.menu-section')
+        || ui.quickStartRandomButton?.closest('.menu-section')
+        || null;
     if (quickStartSection) {
-        quickStartSection.classList.toggle('hidden', visibleQuickStartCount === 0);
-        quickStartSection.setAttribute('aria-hidden', String(visibleQuickStartCount === 0));
+        quickStartSection.classList.toggle('hidden', visibleAlternativeQuickStartCount === 0);
+        quickStartSection.setAttribute('aria-hidden', String(visibleAlternativeQuickStartCount === 0));
     }
 
     if (ui.startButton) {
-        const surfaceStartButtonLabel = surfaceEntryCopy?.startButtonLabel || 'Starten';
+        const surfaceStartButtonLabel = surfaceEntryCopy?.startButtonLabel || 'Spiel starten';
         ui.startButton.textContent = resolveMenuText('menu.level3.start.label', surfaceStartButtonLabel);
         ui.startButton.title = surfaceEntryCopy?.startButtonTitle || '';
     }
@@ -149,7 +155,7 @@ export function syncMenuSurfacePolicyUi({
         {
             label: resolveMenuText(
                 'menu.level4.tools.map_editor.label',
-                ui.openEditorButton?.dataset?.surfaceDefaultLabel || '3D Map-Editor oeffnen'
+                ui.openEditorButton?.dataset?.surfaceDefaultLabel || '3D-Map-Editor öffnen'
             ),
         }
     );
@@ -161,7 +167,7 @@ export function syncMenuSurfacePolicyUi({
         {
             label: resolveMenuText(
                 'menu.level4.tools.vehicle_editor.label',
-                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Vehicle-Editor oeffnen'
+                ui.openVehicleEditorButton?.dataset?.surfaceDefaultLabel || 'Vehicle-Editor öffnen'
             ),
         }
     );

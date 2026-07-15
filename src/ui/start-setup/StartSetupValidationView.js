@@ -42,6 +42,15 @@ export function clearStartFieldHints(ui) {
     if (ui?.startValidationStatus) {
         setStartFieldHint(ui.startValidationStatus, '', 'info');
     }
+    if (ui?.startButton) {
+        ui.startButton.classList.remove('is-validation-blocked');
+        ui.startButton.removeAttribute('aria-disabled');
+        ui.startButton.removeAttribute('aria-describedby');
+        if (ui.startButton.dataset.validationTitle === 'true') {
+            ui.startButton.title = '';
+            delete ui.startButton.dataset.validationTitle;
+        }
+    }
 }
 
 export function resolveLockedStartFieldHints(settings, settingsManager) {
@@ -96,6 +105,13 @@ export function renderStartFieldHints({
     const summaryMessage = normalizeString(issue.message, '');
     if (ui?.startValidationStatus) {
         setStartFieldHint(ui.startValidationStatus, summaryMessage, 'error');
+    }
+    if (ui?.startButton && summaryMessage) {
+        ui.startButton.classList.add('is-validation-blocked');
+        ui.startButton.setAttribute('aria-disabled', 'true');
+        ui.startButton.setAttribute('aria-describedby', 'start-validation-status');
+        ui.startButton.title = summaryMessage;
+        ui.startButton.dataset.validationTitle = 'true';
     }
 
     const fieldKey = normalizeString(issue.fieldKey, '');

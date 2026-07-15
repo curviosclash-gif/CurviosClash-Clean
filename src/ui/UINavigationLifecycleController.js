@@ -150,10 +150,14 @@ export class UINavigationLifecycleController {
             panel.classList.toggle('is-active', isActive);
             panel.setAttribute('aria-hidden', String(!isActive));
         });
+        if (this.ui.level4ResetButton) {
+            const resetVisible = resolvedSectionId === LEVEL4_SECTION_IDS.GAMEPLAY;
+            this.ui.level4ResetButton.classList.toggle('hidden', !resetVisible);
+            this.ui.level4ResetButton.setAttribute('aria-hidden', String(!resetVisible));
+            this.ui.level4ResetButton.disabled = !resetVisible;
+        }
         if (options.focus) {
-            const activePanel = panels.find((panel) => this._resolveLevel4Section(panel?.dataset?.level4Section, '') === resolvedSectionId);
-            const focusTarget = activePanel?.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
-                || tabs.find((button) => this._resolveLevel4Section(button?.dataset?.level4SectionTarget, '') === resolvedSectionId);
+            const focusTarget = tabs.find((button) => this._resolveLevel4Section(button?.dataset?.level4SectionTarget, '') === resolvedSectionId);
             focusWithoutScroll(focusTarget);
         }
     }
@@ -192,8 +196,26 @@ export class UINavigationLifecycleController {
         }
         const settings = this._updateToolsState({ level4Open: open });
         if (!settings?.localSettings?.toolsState) return;
+        const menuScrollContainer = drawer.closest?.('.menu-content');
+        if (open && !wasOpen && menuScrollContainer) {
+            if (typeof menuScrollContainer.scrollTo === 'function') {
+                menuScrollContainer.scrollTo({ top: 0, behavior: 'auto' });
+            } else {
+                menuScrollContainer.scrollTop = 0;
+            }
+        }
         drawer.classList.toggle('hidden', !open);
         drawer.setAttribute('aria-hidden', String(!open));
+        const activeSubmenu = this._getActiveSubmenu();
+        const menuPanels = Array.isArray(this.ui.menuPanels) ? this.ui.menuPanels : [];
+        menuPanels.forEach((panel) => {
+            const shouldBeInert = open && panel?.id === activeSubmenu;
+            panel?.toggleAttribute?.('inert', shouldBeInert);
+            if (panel) {
+                panel.inert = shouldBeInert;
+                panel.setAttribute('aria-hidden', String(shouldBeInert || panel.classList.contains('hidden')));
+            }
+        });
         const activeSection = this._resolveLevel4Section(
             settings?.localSettings?.toolsState?.activeSection,
             LEVEL4_SECTION_IDS.CONTROLS
@@ -202,15 +224,17 @@ export class UINavigationLifecycleController {
             this._syncLevel4SectionState(activeSection, { focus: false });
         }
         this._syncMenuChromeState(this._getActiveSubmenu() || null);
-        if (open) {
-            const activePanel = Array.isArray(this.ui.level4SectionPanels)
-                ? this.ui.level4SectionPanels.find((panel) => this._resolveLevel4Section(panel?.dataset?.level4Section, '') === activeSection)
-                : null;
-            const firstFocusable = activePanel?.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])')
-                || drawer.querySelector('button, input, select, textarea, [tabindex]:not([tabindex="-1"])');
-            focusWithoutScroll(firstFocusable);
-        } else if (wasOpen && this._getActiveSubmenu() === 'submenu-game') {
-            focusWithoutScroll(this.ui.openLevel4Button);
+        if (open && !wasOpen) {
+            focusWithoutScroll(this.ui.closeLevel4Button || drawer.querySelector('button'));
+            if (menuScrollContainer) menuScrollContainer.scrollTop = 0;
+        } else if (wasOpen) {
+            const returnTarget = String(drawer.dataset?.level4ReturnTarget || 'game').trim().toLowerCase();
+            delete drawer.dataset.level4ReturnTarget;
+            if (returnTarget === 'main') {
+                this.manager.menuNavigationRuntime?.showMainNav?.({ trigger: 'level4_close' });
+            } else if (this._getActiveSubmenu() === 'submenu-game') {
+                focusWithoutScroll(this.ui.openLevel4Button);
+            }
         }
         this.manager.updateContext();
     }
@@ -437,16 +461,16 @@ export class UINavigationLifecycleController {
             || MENU_SESSION_TYPES.SINGLE
         ).toLowerCase();
         const sessionLabel = sessionType === MENU_SESSION_TYPES.SPLITSCREEN
-            ? 'Splitscreen'
-            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER ? 'Multiplayer' : 'Single Player');
+            ? 'Geteilter Bildschirm'
+            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER ? 'Mehrspieler' : 'Einzelspieler');
         const modePath = String(
             resolvedContext?.surfaceMenuState?.modePath
             || settings?.localSettings?.modePath
             || 'normal'
         ).toLowerCase();
         const modeLabel = modePath === 'fight'
-            ? 'Fight'
-            : (modePath === 'arcade' ? 'Arcade' : (modePath === 'quick_action' ? 'Schnellstart' : 'Normal'));
+            ? 'Kampf'
+            : (modePath === 'arcade' ? 'Arcade' : (modePath === 'quick_action' ? 'Schnellstart' : 'Klassisch'));
         const mapLabel = resolveMapPreview(settings?.mapKey).name;
         const activeSection = this._resolveLevel4Section(settings?.localSettings?.toolsState?.activeSection);
         const activeSectionLabel = {
@@ -455,23 +479,35 @@ export class UINavigationLifecycleController {
             [LEVEL4_SECTION_IDS.GAMEPLAY]: 'Gameplay',
             [LEVEL4_SECTION_IDS.ADVANCED_MAP]: 'Map-Details',
             [LEVEL4_SECTION_IDS.TOOLS]: 'Profile',
+            [LEVEL4_SECTION_IDS.PRESETS]: 'Presets',
+            [LEVEL4_SECTION_IDS.UTILITIES]: 'Werkzeuge',
         }[activeSection] || 'Profile';
 
         let contextText = `${section} | Profil: ${activeProfile} | ${dirtyState}`;
+        let breadcrumbText = '';
         if (settings?.localSettings?.toolsState?.level4Open) {
-            contextText = `Ebene 4 | ${activeSectionLabel} | ${sessionLabel} | ${dirtyState}`;
+            contextText = `Erweiterte Optionen | ${activeSectionLabel} | ${sessionLabel} | ${dirtyState}`;
+            breadcrumbText = `${sessionLabel} › ${modeLabel} › Erweiterte Optionen › ${activeSectionLabel}`;
         } else if (activeSubmenu === 'submenu-game') {
             contextText = `${section} | ${sessionLabel} | ${modeLabel} | ${mapLabel}`;
+            breadcrumbText = `${sessionLabel} › ${modeLabel} › Match vorbereiten`;
         } else if (activeSubmenu === 'submenu-custom') {
             contextText = `${section} | ${sessionLabel} | Sofortstart oder Setup | ${dirtyState}`;
+            breadcrumbText = `${sessionLabel} › Spielstil wählen`;
         } else if (activeSubmenu === 'submenu-expert') {
             const expertState = this._getExpertLoginRuntime()?.getState?.() || null;
             const expertStateLabel = expertState?.available === false
                 ? 'lokaler Dev-Pfad'
                 : (expertState?.unlocked ? 'freigeschaltet' : 'gesperrt');
             contextText = `${section} | Expertenstatus: ${expertStateLabel} | ${dirtyState}`;
+            breadcrumbText = 'Erweiterter Bereich';
         }
         this.ui.menuContext.textContent = contextText;
+        if (this.ui.menuBreadcrumb) {
+            this.ui.menuBreadcrumb.textContent = breadcrumbText;
+            this.ui.menuBreadcrumb.classList.toggle('hidden', !breadcrumbText);
+            this.ui.menuBreadcrumb.setAttribute('aria-hidden', String(!breadcrumbText));
+        }
     }
 
     _resolveActiveProfileName() {

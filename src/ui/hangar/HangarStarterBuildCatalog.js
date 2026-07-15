@@ -9,20 +9,20 @@ export const HANGAR_STARTER_BUILDS = Object.freeze([
 
 const SLOT_PRESETS = Object.freeze({
     sprinter: Object.freeze({
-        core: 'core_swift_t1', nose: 'nose_t1', wing_left: 'wing_kestrel_t1', wing_right: 'wing_kestrel_t1',
-        engine_left: 'engine_t1', engine_right: 'engine_t1', utility: null,
+        core: 'stone_blue_t1', nose: 'stone_blue_t1', wing_left: 'stone_green_t1', wing_right: 'stone_green_t1',
+        engine_left: 'stone_cyan_t1', engine_right: 'stone_cyan_t1', utility: null,
     }),
     turn_fighter: Object.freeze({
-        core: 'core_swift_t1', nose: 'nose_razor_t1', wing_left: 'wing_t1', wing_right: 'wing_t1',
-        engine_left: 'engine_eco_t1', engine_right: 'engine_eco_t1', utility: null,
+        core: 'stone_green_t1', nose: 'stone_green_t1', wing_left: 'stone_blue_t1', wing_right: 'stone_blue_t1',
+        engine_left: 'stone_cyan_t1', engine_right: 'stone_cyan_t1', utility: null,
     }),
     tank: Object.freeze({
-        core: 'core_t1', nose: 'nose_t1', wing_left: 'wing_t1', wing_right: 'wing_t1',
-        engine_left: 'engine_t1', engine_right: 'engine_t1', utility: 'utility_t1',
+        core: 'stone_gold_t1', nose: 'stone_gold_t1', wing_left: 'stone_green_t1', wing_right: 'stone_green_t1',
+        engine_left: 'stone_cyan_t1', engine_right: 'stone_cyan_t1', utility: 'stone_violet_t1',
     }),
     efficient: Object.freeze({
-        core: 'core_t1', nose: 'nose_t1', wing_left: 'wing_t1', wing_right: 'wing_t1',
-        engine_left: 'engine_eco_t1', engine_right: 'engine_eco_t1', utility: null,
+        core: 'stone_cyan_t1', nose: 'stone_cyan_t1', wing_left: 'stone_green_t1', wing_right: 'stone_green_t1',
+        engine_left: 'stone_blue_t1', engine_right: 'stone_blue_t1', utility: null,
     }),
 });
 

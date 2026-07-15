@@ -45,20 +45,12 @@ export function pushRecentEntry(list, value, maxItems = 6) {
 
 export function renderQuickList(container, items, dataKey) {
     if (!container) return;
-    
-    // Clear container securely
-    while (container.firstChild) {
-        container.removeChild(container.firstChild);
-    }
-    
-    if (!Array.isArray(items) || items.length === 0) {
-        const empty = document.createElement('span');
-        empty.className = 'menu-hint';
-        empty.textContent = 'keine';
-        container.appendChild(empty);
-        return;
-    }
-    items.forEach((value) => {
+    const normalizedItems = Array.isArray(items) ? items.filter(Boolean) : [];
+    const group = container.closest?.('.setup-chip-group') || container.parentElement;
+    const grid = container.closest?.('.setup-chip-grid');
+    container.replaceChildren();
+    group?.classList.toggle('hidden', normalizedItems.length === 0);
+    normalizedItems.forEach((value) => {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'secondary-btn quick-pill';
@@ -66,6 +58,10 @@ export function renderQuickList(container, items, dataKey) {
         button.dataset[dataKey] = String(value);
         container.appendChild(button);
     });
+    if (grid) {
+        const groups = Array.from(grid.querySelectorAll('.setup-chip-group'));
+        grid.classList.toggle('hidden', groups.length > 0 && groups.every((entry) => entry.classList.contains('hidden')));
+    }
 }
 
 export function humanizePreviewCategory(value) {
@@ -98,6 +94,7 @@ export function renderSummaryBlocks(container, blocks) {
 
         const blockDiv = document.createElement('div');
         blockDiv.className = 'start-summary-block';
+        if (block.secondary) blockDiv.classList.add('is-secondary');
         blockDiv.dataset.summaryLabel = label.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 
         const labelSpan = document.createElement('span');
@@ -108,6 +105,8 @@ export function renderSummaryBlocks(container, blocks) {
         valueSpan.className = 'start-summary-value';
         if (block.muted) valueSpan.classList.add('is-muted');
         valueSpan.textContent = value;
+        valueSpan.title = value;
+        blockDiv.setAttribute('aria-label', `${label}: ${value}`);
 
         blockDiv.appendChild(labelSpan);
         blockDiv.appendChild(valueSpan);

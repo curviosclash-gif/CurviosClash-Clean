@@ -73,6 +73,33 @@ function createSessionDraftSnapshot(settings, sessionType) {
     };
 }
 
+function normalizeStoredSessionDraftSnapshot(snapshot, sessionType) {
+    const source = snapshot && typeof snapshot === 'object' && !Array.isArray(snapshot) ? snapshot : {};
+    return createSessionDraftSnapshot({
+        ...source,
+        localSettings: {
+            sessionType: source.sessionType,
+            multiplayerTransport: source.multiplayerTransport,
+            modePath: source.modePath,
+            themeMode: source.themeMode,
+            shadowQuality: source.shadowQuality,
+            startSetup: source.startSetup,
+        },
+    }, sessionType);
+}
+
+function normalizeDraftCollection(rawDrafts) {
+    const normalized = {};
+    if (!rawDrafts || typeof rawDrafts !== 'object' || Array.isArray(rawDrafts)) return normalized;
+
+    for (const [rawSessionType, draft] of Object.entries(rawDrafts)) {
+        const sessionType = normalizeSessionType(rawSessionType, '');
+        if (!sessionType) continue;
+        normalized[sessionType] = normalizeStoredSessionDraftSnapshot(draft, sessionType);
+    }
+    return normalized;
+}
+
 function applySnapshotToSettings(settings, snapshot) {
     if (!settings || typeof settings !== 'object' || !snapshot || typeof snapshot !== 'object') return false;
     const defaults = createMenuConfigSharePayloadDefaults();
@@ -163,10 +190,11 @@ export class MenuDraftStore extends PersistentStore {
                         );
                     return {
                         schemaVersion: MENU_DRAFT_STORAGE_SCHEMA_VERSION,
-                        drafts: rawDrafts && typeof rawDrafts === 'object' && !Array.isArray(rawDrafts) ? rawDrafts : {},
+                        drafts: normalizeDraftCollection(rawDrafts),
                     };
                 },
-                onUpgrade: (normalized) => this._saveStore(normalized),
+                createCanonicalRecord: (normalized) => normalized,
+                onCanonicalize: (normalized) => this._saveStore(normalized),
             }
         );
     }

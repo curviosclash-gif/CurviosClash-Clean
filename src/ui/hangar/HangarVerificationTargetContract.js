@@ -4,7 +4,7 @@ export const HANGAR_VERIFICATION_SURFACE_STATUS = Object.freeze({
     runtimeStatus: 'productively-wired',
     productivity: 'desktop-workshop',
     activeProductSurface: 'src/ui/hangar/ArcadeHangarWorkshop.js',
-    note: 'Verification targets cover the dedicated workshop plus its ArcadeMenuSurface lifecycle adapter.',
+    note: 'Verification targets cover the dedicated HangarWindowApp workshop plus the ArcadeMenuSurface launch adapter.',
 });
 
 export const HANGAR_VERIFICATION_TARGETS = Object.freeze({

@@ -1,6 +1,7 @@
 import { validateArcadeHangarBlueprintForLevel } from '../../shared/contracts/ArcadeHangarRulesContract.js';
 import { HANGAR_SLOT_DEFINITIONS, resolveHangarPart } from './HangarPartCatalog.js';
 import { normalizeHangarBuild } from './HangarBuildDraftState.js';
+import { countEquippedHangarStones, normalizeHangarStoneInventory } from './HangarStoneInventory.js';
 
 function round1(value) {
     return Math.round((Number(value) || 0) * 10) / 10;
@@ -18,7 +19,7 @@ export function projectHangarBuildBlueprint(build) {
         const part = resolveHangarPart(normalized.slots[slot.id]);
         slots[slot.id] = part ? 1 : 0;
         if (!part) continue;
-        if (part.tier !== 'T1') slots[`${slot.id}_t2`] = 1;
+        if (part.kind !== 'stone' && part.tier !== 'T1') slots[`${slot.id}_t2`] = 1;
         stats.budgetUsed += part.costs.budget;
         stats.massUsed += part.costs.mass;
         stats.powerUsed += part.costs.energy;
@@ -64,7 +65,7 @@ export function describeHangarDropFailure(result) {
     }[String(result?.code || '')] || 'Der Umbau wurde abgelehnt; der Entwurf blieb unverändert.';
 }
 
-export function validateHangarBuild(build, level = 1) {
+export function validateHangarBuild(build, level = 1, profile = null) {
     const normalized = normalizeHangarBuild(build);
     const blueprint = projectHangarBuildBlueprint(normalized);
     const contractValidation = validateArcadeHangarBlueprintForLevel(blueprint, level);
@@ -86,16 +87,31 @@ export function validateHangarBuild(build, level = 1) {
         if (Number(level) < part.minLevel) {
             pushUnique(errors, { code: 'level_locked', slotId: slot.id, partId: part.id, message: `${part.label} benötigt Level ${part.minLevel}` });
         }
-        if (!allowedFamilies.has(part.family)) {
+        if (part.kind !== 'stone' && !allowedFamilies.has(part.family)) {
             pushUnique(errors, { code: 'part_family_locked', slotId: slot.id, partId: part.id, message: `Teilefamilie ${part.family} ist gesperrt` });
         }
         if (!allowedTiers.has(part.tier)) {
             pushUnique(errors, { code: 'tier_locked', slotId: slot.id, partId: part.id, message: `${part.tier} ist noch gesperrt` });
         }
         const tierSlot = `${slot.id}_${part.tier.toLowerCase()}`;
-        if (!unlockedSlots.has(slot.id) && !unlockedSlots.has(tierSlot)) {
+        const slotUnlocked = part.kind === 'stone' ? unlockedSlots.has(slot.id) : (unlockedSlots.has(slot.id) || unlockedSlots.has(tierSlot));
+        if (!slotUnlocked) {
             pushUnique(errors, { code: 'slot_locked', slotId: slot.id, partId: part.id, message: `${slot.label} ist gesperrt` });
         }
+    }
+
+    if (profile) {
+        const owned = normalizeHangarStoneInventory(profile).counts;
+        const equipped = countEquippedHangarStones(normalized);
+        Object.entries(equipped).forEach(([stoneId, count]) => {
+            if (count <= (owned[stoneId] || 0)) return;
+            const slotId = HANGAR_SLOT_DEFINITIONS.find((slot) => normalized.slots[slot.id] === stoneId)?.id || '';
+            const stone = resolveHangarPart(stoneId);
+            pushUnique(errors, {
+                code: 'stone_inventory', slotId, partId: stoneId,
+                message: `${stone?.label || stoneId}: ${count} eingesetzt, aber nur ${owned[stoneId] || 0} im Inventar`,
+            });
+        });
     }
 
     return {
@@ -113,12 +129,12 @@ export function validateHangarBuild(build, level = 1) {
     };
 }
 
-export function validateHangarDrop(build, partId, slotId, level, install) {
+export function validateHangarDrop(build, partId, slotId, level, install, profile = null) {
     const installResult = install(build, partId, slotId);
     if (!installResult?.ok) {
         return { ok: false, code: installResult?.code || 'drop_rejected', build: normalizeHangarBuild(build), errors: [] };
     }
-    const validation = validateHangarBuild(installResult.build, level);
+    const validation = validateHangarBuild(installResult.build, level, profile);
     if (!validation.ok) {
         const relevant = validation.errors.find((error) => error.slotId === slotId)
             || validation.errors.find((error) => String(error.code).includes('budget'))

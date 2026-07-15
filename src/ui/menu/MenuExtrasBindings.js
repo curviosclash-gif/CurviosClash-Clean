@@ -35,6 +35,7 @@ export function bindMenuExtrasButtons(ctx) {
         bind(button, 'click', () => {
             emit(eventTypes.LEVEL4_OPEN, {
                 sectionId: String(button?.dataset?.level4Section || '').trim(),
+                returnTarget: String(button?.dataset?.level4ReturnTarget || '').trim(),
             });
         });
     });
@@ -46,9 +47,26 @@ export function bindMenuExtrasButtons(ctx) {
     }
 
     if (ui.level4ResetButton) {
+        let resetArmedUntil = 0;
+        const resetLabel = String(ui.level4ResetButton.dataset?.resetLabel || 'Spieloptionen zurücksetzen');
+        const resetConfirmLabel = String(ui.level4ResetButton.dataset?.resetConfirmLabel || 'Zum Bestätigen erneut klicken');
+        const disarmReset = () => {
+            resetArmedUntil = 0;
+            ui.level4ResetButton.textContent = resetLabel;
+            ui.level4ResetButton.removeAttribute('data-reset-armed');
+        };
         bind(ui.level4ResetButton, 'click', () => {
+            const now = Date.now();
+            if (now > resetArmedUntil) {
+                resetArmedUntil = now + 4000;
+                ui.level4ResetButton.textContent = resetConfirmLabel;
+                ui.level4ResetButton.setAttribute('data-reset-armed', 'true');
+                return;
+            }
+            disarmReset();
             emit(eventTypes.LEVEL4_RESET);
         });
+        bind(ui.level4ResetButton, 'blur', disarmReset);
     }
 
     if (ui.exportConfigCodeButton) {

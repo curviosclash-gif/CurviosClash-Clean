@@ -36,12 +36,9 @@ import {
     MENU_DRAFTS_STORAGE_KEY,
     MENU_PRESETS_STORAGE_KEY,
     CUSTOM_MAP_STORAGE_KEY,
-    ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
-    ARCADE_VEHICLE_LOADOUT_STORAGE_KEY,
     ARCADE_LAST_RUN_STORAGE_KEY,
     buildLegacyRuntimeCustomMap,
     createMockEditorManager,
-    loadGameWithRetry,
 } from './core-targeted.shared.js';
 
 test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
@@ -104,143 +101,32 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(matchState.humanVehicleId).toBe(String(selectedVehicleId));
     });
 
-    test('T66a: Vehicle-Manager deckt Filter, 3D-Preview, Upgrade-Overlay und Presets ab', async ({ page }) => {
+    test('T66a: Arcade-Menü enthält nur den Einstieg zum dedizierten Hangar', async ({ page }) => {
         await loadGame(page);
-        const vehicleIds = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('#vehicle-select-p1 option'))
-                .map((option) => String(option?.value || '').trim())
-                .filter(Boolean);
-        });
-        await page.evaluate(({ profileKey, loadoutKey, vehicleIdList }) => {
-            const nowIso = new Date().toISOString();
-            const unlockedSlots = [
-                'core',
-                'nose',
-                'wing_left',
-                'wing_right',
-                'engine_left',
-                'engine_right',
-                'utility',
-                'wing_left_t2',
-                'wing_right_t2',
-                'engine_left_t2',
-                'engine_right_t2',
-                'core_t2',
-                'nose_t2',
-                'utility_t2',
-                'core_t3',
-                'nose_t3',
-            ];
-            const profiles = {};
-            vehicleIdList.forEach((vehicleId) => {
-                profiles[vehicleId] = {
-                    schemaVersion: 'arcade-vehicle-profile.v1',
-                    vehicleId,
-                    xp: 999999,
-                    level: 30,
-                    unlockedSlots: [...unlockedSlots],
-                    upgrades: {},
-                    createdAt: nowIso,
-                    updatedAt: nowIso,
-                };
-            });
-            localStorage.setItem(profileKey, JSON.stringify(profiles));
-            localStorage.removeItem(loadoutKey);
-        }, {
-            profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
-            loadoutKey: ARCADE_VEHICLE_LOADOUT_STORAGE_KEY,
-            vehicleIdList: vehicleIds,
-        });
-
-        await page.reload();
-        await loadGameWithRetry(page);
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-        await expect(page.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 5000 });
-
-        const allCount = await page.locator('#arcade-vehicle-manager .arcade-vehicle-card').count();
-        expect(allCount).toBeGreaterThan(3);
-
-        await page.evaluate(() => {
-            document.querySelector('#arcade-vehicle-manager [data-category=\"jaeger\"]')?.dispatchEvent(
-                new MouseEvent('click', { bubbles: true })
-            );
-        });
-        const activeCategory = await page.evaluate(() => {
-            return String(document.querySelector('#arcade-vehicle-manager .arcade-vehicle-tab.is-active')?.getAttribute('data-category') || '');
-        });
-        expect(activeCategory).toBe('jaeger');
-        const jaegerState = await page.evaluate(() => {
-            const cards = Array.from(document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-card'));
-            return {
-                count: cards.length,
-                categories: [...new Set(cards.map((card) => String(card.getAttribute('data-vehicle-category') || '')))],
-            };
-        });
-        expect(jaegerState.count).toBeGreaterThan(0);
-        expect(jaegerState.categories).toEqual(['jaeger']);
-
-        await page.fill('#arcade-vehicle-manager .arcade-vehicle-search', 'drone');
-        const droneCount = await page.locator('#arcade-vehicle-manager .arcade-vehicle-card').count();
-        expect(droneCount).toBeGreaterThanOrEqual(1);
-        await page.locator('#arcade-vehicle-manager .arcade-vehicle-card').first().click({ force: true });
-
-        const previewState = await page.evaluate(() => ({
-            status: String(document.getElementById('arcade-vehicle-manager')?.dataset?.previewStatus || ''),
-            hasCanvas: !!document.querySelector('#arcade-vehicle-manager .arcade-vehicle-preview-canvas-node'),
-            hasOverlayDots: document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-slot-dot').length,
-        }));
-        expect(previewState.status).toBe('ready');
-        expect(previewState.hasCanvas).toBeTruthy();
-        expect(previewState.hasOverlayDots).toBeGreaterThanOrEqual(3);
-
-        const tiersBefore = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-slot-tier'))
-                .map((node) => String(node.textContent || ''));
-        });
-        const clickedOverlay = await page.evaluate(() => {
-            const button = document.querySelector('#arcade-vehicle-manager .arcade-vehicle-slot-dot:not(.is-disabled):not(.hidden)');
-            if (!button) return false;
-            button.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            return true;
-        });
-        if (!clickedOverlay) {
-            await page.locator('#arcade-vehicle-manager .arcade-vehicle-upgrade-btn:not([disabled])').first().click({ force: true });
-        }
-        await page.waitForTimeout(120);
-        const tiersAfter = await page.evaluate(() => {
-            return Array.from(document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-slot-tier'))
-                .map((node) => String(node.textContent || ''));
-        });
-        expect(tiersAfter.join('|')).not.toBe(tiersBefore.join('|'));
-
-        await page.fill('#arcade-vehicle-manager .arcade-vehicle-preset-input', 'QA Slot Preset');
-        await page.locator('#arcade-vehicle-manager .arcade-vehicle-preset-save').click({ force: true });
-        const presetCount = await page.locator('#arcade-vehicle-manager .arcade-vehicle-preset-select option').count();
-        expect(presetCount).toBeGreaterThan(0);
-
-        await page.screenshot({ path: 'test-results/v66-vehicle-manager-panel.png', fullPage: true });
+        await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
+        await expect(page.locator('#arcade-vehicle-manager-mount')).toHaveCount(0);
+        await expect(page.locator('.hangar-window-launch-card')).toHaveCount(1);
+        await expect(page.locator('.hangar-window-open')).toHaveCount(1);
         await returnToMenu(page);
     });
 
-    test('T66b: Vehicle-Selection bleibt zwischen Arcade-Manager, Settings, Snapshot und Spawn konsistent', async ({ page }) => {
+    test('T66b: Vehicle-Selection bleibt zwischen Start-Setup, Settings, Snapshot und Spawn konsistent', async ({ page }) => {
         await loadGame(page);
         await page.evaluate((lastRunKey) => localStorage.removeItem(lastRunKey), ARCADE_LAST_RUN_STORAGE_KEY);
 
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
-        await expect(page.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 5000 });
-
+        await openStartSetupSection(page, 'vehicle');
         const selectedVehicleId = await page.evaluate(() => {
-            const cards = Array.from(document.querySelectorAll('#arcade-vehicle-manager .arcade-vehicle-card'));
-            const preferred = cards.find((node) => node.getAttribute('data-vehicle-id') === 'drone')
-                || cards.find((node) => node.getAttribute('data-vehicle-id') === 'aircraft')
-                || cards[0];
-            if (!preferred) return '';
-            preferred.dispatchEvent(new MouseEvent('click', { bubbles: true }));
-            return String(preferred.getAttribute('data-vehicle-id') || '');
+            const options = Array.from(document.querySelectorAll('#vehicle-select-p1 option'))
+                .map((option) => String(option.value || '').trim())
+                .filter(Boolean);
+            return options.includes('drone') ? 'drone' : (options.includes('aircraft') ? 'aircraft' : (options[0] || ''));
         });
         expect(selectedVehicleId).not.toBe('');
+        await page.selectOption('#vehicle-select-p1', selectedVehicleId);
         await expect(page.locator('#vehicle-select-p1')).toHaveValue(selectedVehicleId);
 
         await page.evaluate(() => {
@@ -487,6 +373,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20h: Keyboard Navigation (Arrow/Escape) funktioniert im Menue', async ({ page }) => {
         await loadGame(page);
+        const startupFocus = await page.evaluate(() => ({
+            id: document.activeElement?.id || '',
+            sessionType: document.activeElement?.getAttribute?.('data-session-type') || '',
+        }));
+        expect(startupFocus.id || startupFocus.sessionType).toBeTruthy();
         const focusIds = await page.evaluate(() => {
             const firstButton = document.querySelector('#menu-nav .nav-btn');
             firstButton?.focus();
@@ -1180,6 +1071,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openMultiplayerSubmenu(page);
         await page.click('#btn-start');
         await expect(page.locator('#start-validation-status')).toContainText('Start nicht moeglich');
+        await expect(page.locator('#btn-start')).toHaveClass(/is-validation-blocked/);
+        await expect(page.locator('#btn-start')).toHaveAttribute('aria-disabled', 'true');
+        await expect(page.locator('#multiplayer-inline-stub')).toHaveJSProperty('open', true);
         const focusedElementId = await page.evaluate(() => document.activeElement?.id || '');
         expect(focusedElementId).toBe('multiplayer-lobby-code');
     });
@@ -1207,6 +1101,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.runtimeFacade.onSettingsChanged({ changedKeys: ['vehicles.player1'] });
         });
         await openStartSetupSection(page, 'match');
+        await page.locator('.start-inline-advanced > summary').click();
         await page.selectOption('#theme-mode-select', 'hell');
         await page.click('#btn-level3-reset');
         expect(await page.inputValue('#map-select')).toBe(expectedDefaults.level3MapKey);
@@ -1220,8 +1115,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             slider.value = '30';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
+        await page.click('#level4-group-camera > summary');
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_action');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
+        await page.click('#btn-level4-reset');
+        await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.click('#btn-level4-reset');
         await page.waitForTimeout(100);
         expect(await page.inputValue('#speed-slider')).toBe(expectedDefaults.level4Speed);
@@ -1281,7 +1179,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.waitForTimeout(120);
 
         await openGameSubmenu(page);
-        await expect(page.locator('#btn-start')).toHaveText('Starten');
+        await expect(page.locator('#btn-start')).toHaveText('Spiel starten');
 
         await openDeveloperSubmenu(page);
         await page.uncheck('#developer-release-preview-toggle');
@@ -1398,12 +1296,15 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(state.planarMode).toBeFalsy();
     });
 
-    test('T20w: Kopf- und Level-2-Zweitcopy ist visuell entfernt, Context bleibt als SR-Status aktiv', async ({ page }) => {
+    test('T20w: Hauptaktion fuehrt den Fokus und Unterseiten zeigen kompakten Pfad plus Moduscopy', async ({ page }) => {
         await loadGame(page);
+        await page.evaluate(() => document.activeElement?.blur?.());
+        await page.keyboard.press('Tab');
 
         const level1State = await page.evaluate(() => {
             const root = document.getElementById('main-menu');
             const context = document.getElementById('menu-context');
+            const primaryAction = document.getElementById('btn-quick-last-settings');
             const isVisible = (selector) => Array.from(document.querySelectorAll(selector)).some((element) => {
                 const style = window.getComputedStyle(element);
                 return style.display !== 'none' && style.visibility !== 'hidden' && element.getClientRects().length > 0;
@@ -1415,6 +1316,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 contextText: String(context?.textContent || '').trim(),
                 contextWidth: Math.round(contextRect.width || 0),
                 contextHeight: Math.round(contextRect.height || 0),
+                primaryVisible: !!primaryAction?.offsetParent,
+                primarySummary: String(document.getElementById('quick-last-summary')?.textContent || '').trim(),
+                sessionLabels: Array.from(document.querySelectorAll('#menu-nav [data-session-type] .nav-btn-label'))
+                    .map((label) => String(label.textContent || '').trim()),
+                activeId: document.activeElement?.id || '',
             };
         });
 
@@ -1429,9 +1335,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             return {
                 depth: root?.getAttribute('data-menu-depth') || '',
                 panel: root?.getAttribute('data-menu-panel') || '',
-                level2SecondaryVisible: isVisible('#submenu-custom .menu-choice-eyebrow')
-                    || isVisible('#submenu-custom .menu-choice-copy')
-                    || isVisible('#submenu-custom .menu-copy-secondary'),
+                modeCopyVisible: isVisible('#submenu-custom .level2-mode-grid .menu-choice-copy'),
+                mainNavigationVisible: isVisible('#menu-nav'),
+                mainPrimaryVisible: isVisible('.menu-primary-action'),
+                breadcrumbVisible: isVisible('#menu-breadcrumb'),
+                breadcrumbText: String(document.getElementById('menu-breadcrumb')?.textContent || '').trim(),
             };
         });
 
@@ -1440,9 +1348,17 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(level1State.contextText).toContain('Hauptmenue');
         expect(level1State.contextWidth).toBeLessThanOrEqual(1);
         expect(level1State.contextHeight).toBeLessThanOrEqual(1);
+        expect(level1State.primaryVisible).toBeTruthy();
+        expect(level1State.primarySummary).toContain('·');
+        expect(level1State.sessionLabels).toEqual(['Einzelspieler', 'Mehrspieler', 'Geteilter Bildschirm']);
+        expect(level1State.activeId).toBe('btn-quick-last-settings');
         expect(compactState.depth).toBe('2');
         expect(compactState.panel).toBe('submenu-custom');
-        expect(compactState.level2SecondaryVisible).toBeFalsy();
+        expect(compactState.modeCopyVisible).toBeTruthy();
+        expect(compactState.mainNavigationVisible).toBeFalsy();
+        expect(compactState.mainPrimaryVisible).toBeFalsy();
+        expect(compactState.breadcrumbVisible).toBeTruthy();
+        expect(compactState.breadcrumbText).toContain('Spielstil');
     });
 
     test('T20x: Moduskarte fuehrt direkt in Ebene 3', async ({ page }) => {
@@ -2573,29 +2489,360 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 railPosition: rail ? window.getComputedStyle(rail).position : '',
                 startVisible: !!(startButton && startButton.offsetParent),
                 summaryBlocks: document.querySelectorAll('#menu-selection-summary .start-summary-block').length,
+                summaryWhiteSpace: window.getComputedStyle(document.querySelector('.start-summary-value')).whiteSpace,
+                visibleSummaryBlocks: Array.from(document.querySelectorAll('#menu-selection-summary .start-summary-block'))
+                    .filter((block) => window.getComputedStyle(block).display !== 'none')
+                    .map((block) => String(block.querySelector('.start-summary-label')?.textContent || '').trim()),
             };
         });
 
         expect(railState.railPosition).toBe('sticky');
         expect(railState.startVisible).toBeTruthy();
         expect(railState.summaryBlocks).toBeGreaterThanOrEqual(4);
+        expect(railState.summaryWhiteSpace).toBe('normal');
+        expect(railState.visibleSummaryBlocks).toEqual(['Spielstil', 'Karte', 'Flugzeug']);
+
+        await page.click('[data-start-section-target="vehicle"]');
+        await expect(page.locator('#btn-start')).toBeInViewport();
+        await expect(page.locator('#start-vehicle-section > summary')).toBeInViewport();
     });
 
-    test('T20z: Map- und Fahrzeugvorschau rendern strukturierte Preview-Karten', async ({ page }) => {
+    test('T20z2: Start-Setup fuehrt exklusiv durch Karte, Flugzeug und kompakte Regeln', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
+
+        await expect(page.locator('#start-map-section')).toHaveJSProperty('open', true);
+        await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', false);
+        await expect(page.locator('#start-match-section')).toHaveJSProperty('open', false);
+        await expect(page.locator('#map-favorites-list').locator('..')).toHaveClass(/hidden/);
+        await expect(page.locator('#map-recent-list').locator('..')).toHaveClass(/hidden/);
+
+        await page.click('[data-start-section-target="vehicle"]');
+        await expect(page.locator('#start-map-section')).toHaveJSProperty('open', false);
+        await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', true);
+        await expect(page.locator('#start-vehicle-section > summary')).toBeFocused();
+
+        await page.click('[data-start-section-target="match"]');
+        await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', false);
+        await expect(page.locator('#start-match-section')).toHaveJSProperty('open', true);
+        await expect(page.locator('#bot-count')).toBeVisible();
+        await expect(page.locator('#theme-mode-select')).not.toBeVisible();
+        await page.click('.start-inline-advanced > summary');
+        await expect(page.locator('#theme-mode-select')).toBeVisible();
+        await expect(page.locator('#bot-policy-strategy')).toBeVisible();
+
+        await page.click('#start-map-section > summary');
+        const initialMapKey = await page.inputValue('#map-select');
+        const activeMapChoice = page.locator('#start-map-choice-strip [aria-selected="true"]');
+        await activeMapChoice.focus();
+        await page.keyboard.press('ArrowRight');
+        await expect(page.locator('#map-select')).not.toHaveValue(initialMapKey);
+        await expect(page.locator('#start-map-choice-strip [aria-selected="true"]')).toBeFocused();
+    });
+
+    test('T20z: Map-Vorschau und Fahrzeug-Mini-Hangar rendern ihre Auswahl strukturiert', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page);
+        await openStartSetupSection(page, 'vehicle');
 
         const previewState = await page.evaluate(() => ({
             mapBadges: document.querySelectorAll('#map-preview .preview-badge').length,
             mapFacts: document.querySelectorAll('#map-preview .preview-kv').length,
+            mapChoices: document.querySelectorAll('#start-map-choice-strip [data-map-key]').length,
+            mapCanvasCount: document.querySelectorAll('#start-map-preview-mount canvas').length,
+            mapPreviewStatus: document.getElementById('start-map-preview-mount')?.dataset?.previewStatus || '',
+            mapPreviewKey: document.getElementById('start-map-preview-mount')?.dataset?.previewMapKey || '',
             vehicleBadges: document.querySelectorAll('#vehicle-preview-p1 .preview-badge').length,
-            vehicleFacts: document.querySelectorAll('#vehicle-preview-p1 .preview-kv').length,
+            vehicleStats: document.querySelectorAll('#vehicle-preview-p1 .start-vehicle-stat progress').length,
+            vehicleChoices: document.querySelectorAll('#start-vehicle-choice-strip [data-vehicle-id]').length,
+            previewStatus: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewStatus || '',
+            previewGrid: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewGrid || '',
+            previewMotion: document.getElementById('start-vehicle-preview-mount')?.dataset?.previewMotion || '',
         }));
 
         expect(previewState.mapBadges).toBeGreaterThanOrEqual(2);
         expect(previewState.mapFacts).toBeGreaterThanOrEqual(2);
-        expect(previewState.vehicleBadges).toBeGreaterThanOrEqual(1);
-        expect(previewState.vehicleFacts).toBeGreaterThanOrEqual(2);
+        expect(previewState.mapChoices).toBeGreaterThan(1);
+        expect(previewState.mapCanvasCount).toBeLessThanOrEqual(1);
+        expect(['ready', 'fallback']).toContain(previewState.mapPreviewStatus);
+        expect(previewState.mapPreviewKey).toBe(await page.inputValue('#map-select'));
+        expect(previewState.vehicleBadges).toBe(2);
+        expect(previewState.vehicleStats).toBe(3);
+        expect(previewState.vehicleChoices).toBeGreaterThan(1);
+        expect(['ready', 'fallback']).toContain(previewState.previewStatus);
+        expect(previewState.previewGrid).toBe('hangar');
+        expect(previewState.previewMotion).toBe(previewState.previewStatus === 'ready' ? 'idle-spin' : '');
+
+        if (previewState.previewStatus === 'ready') {
+            const previewMount = page.locator('#start-vehicle-preview-mount');
+            await previewMount.dispatchEvent('pointerdown', { button: 0, pointerId: 1, pointerType: 'mouse' });
+            await expect(previewMount).toHaveAttribute('data-preview-motion', 'manual');
+            await previewMount.dispatchEvent('pointerup', { button: 0, pointerId: 1, pointerType: 'mouse' });
+            await expect(previewMount).toHaveAttribute('data-preview-motion', 'idle-spin');
+        }
+    });
+
+    test('T20z3: Karten-Miniatur nutzt bestehenden Writeback und pausiert bei geschlossenem Bereich', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page);
+        await openStartSetupSection(page, 'map');
+
+        const initialMapKey = await page.inputValue('#map-select');
+        await page.click('#btn-map-next');
+        await expect(page.locator('#map-select')).not.toHaveValue(initialMapKey);
+
+        const selectedState = await page.evaluate(() => {
+            const select = document.getElementById('map-select');
+            const selectedMapKey = String(select?.value || '');
+            const selectedLabel = String(select?.selectedOptions?.[0]?.textContent || '')
+                .replace(/\s*\[GLB\]\s*$/, '')
+                .trim();
+            const summary = Array.from(document.querySelectorAll('#menu-selection-summary .start-summary-block'))
+                .find((block) => String(block.querySelector('.start-summary-label')?.textContent || '').trim() === 'Karte');
+            return {
+                selectedMapKey,
+                selectedLabel,
+                settingsMapKey: String(window.GAME_INSTANCE?.settings?.mapKey || ''),
+                previewMapKey: String(document.getElementById('start-map-preview-mount')?.dataset?.previewMapKey || ''),
+                previewTitle: String(document.querySelector('#map-preview .preview-card-title')?.textContent || '').trim(),
+                summary: String(summary?.querySelector('.start-summary-value')?.textContent || '').trim(),
+                activeChoiceKey: document.querySelector('#start-map-choice-strip .start-map-choice.active')?.dataset?.mapKey || '',
+                canvasCount: document.querySelectorAll('#start-map-preview-mount canvas').length,
+                previewStatus: String(document.getElementById('start-map-preview-mount')?.dataset?.previewStatus || ''),
+            };
+        });
+
+        expect(selectedState.settingsMapKey).toBe(selectedState.selectedMapKey);
+        expect(selectedState.previewMapKey).toBe(selectedState.selectedMapKey);
+        expect(selectedState.previewTitle).toBe(selectedState.selectedLabel);
+        expect(selectedState.summary).toBe(selectedState.selectedLabel);
+        expect(selectedState.activeChoiceKey).toBe(selectedState.selectedMapKey);
+        expect(selectedState.canvasCount).toBeLessThanOrEqual(1);
+
+        if (selectedState.previewStatus === 'ready') {
+            const previewMount = page.locator('#start-map-preview-mount');
+            await previewMount.dispatchEvent('pointerdown', { button: 0, pointerId: 1, pointerType: 'mouse' });
+            await expect(previewMount).toHaveAttribute('data-preview-motion', 'manual');
+            await previewMount.dispatchEvent('pointerup', { button: 0, pointerId: 1, pointerType: 'mouse' });
+            await expect(previewMount).toHaveAttribute('data-preview-motion', 'idle-spin');
+        }
+
+        await page.click('#start-map-section > summary');
+        await expect(page.locator('#start-map-preview-mount')).toHaveAttribute('data-preview-active', 'false');
+        await openStartSetupSection(page, 'map');
+        await expect(page.locator('#start-map-preview-mount')).toHaveAttribute('data-preview-active', 'true');
+
+        await page.evaluate(() => {
+            const controller = window.GAME_INSTANCE?.uiManager?._startSync;
+            controller?.setupStartSetupControls?.();
+            controller?.syncStartSetupState?.(window.GAME_INSTANCE?.settings);
+        });
+        await expect(page.locator('#start-map-preview-mount canvas')).toHaveCount(selectedState.canvasCount);
+    });
+
+    test('T20z4: Mini-Hangar wechselt Fahrzeuge ueber den bestehenden Writeback und pausiert geschlossen', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page);
+        await openStartSetupSection(page, 'vehicle');
+
+        const initialVehicleId = await page.inputValue('#vehicle-select-p1');
+        await page.click('#btn-vehicle-next');
+        await expect(page.locator('#vehicle-select-p1')).not.toHaveValue(initialVehicleId);
+
+        const selectedState = await page.evaluate(() => {
+            const select = document.getElementById('vehicle-select-p1');
+            const selectedId = String(select?.value || '');
+            const selectedLabel = String(select?.selectedOptions?.[0]?.textContent || '').trim();
+            const summary = Array.from(document.querySelectorAll('#menu-selection-summary .start-summary-block'))
+                .find((block) => String(block.querySelector('.start-summary-label')?.textContent || '').trim() === 'Flugzeug');
+            return {
+                selectedId,
+                selectedLabel,
+                settingsVehicleId: String(window.GAME_INSTANCE?.settings?.vehicles?.PLAYER_1 || ''),
+                title: String(document.getElementById('start-vehicle-title')?.textContent || '').trim(),
+                summary: String(summary?.querySelector('.start-summary-value')?.textContent || '').trim(),
+                activeChoiceId: document.querySelector('#start-vehicle-choice-strip .start-vehicle-choice.active')?.dataset?.vehicleId || '',
+                canvasCount: document.querySelectorAll('#start-vehicle-preview-mount canvas').length,
+                statValues: Array.from(document.querySelectorAll('.start-vehicle-stat progress')).map((node) => Number(node.value)),
+            };
+        });
+
+        expect(selectedState.selectedId).toBe(selectedState.settingsVehicleId);
+        expect(selectedState.title).toBe(selectedState.selectedLabel);
+        expect(selectedState.summary).toBe(selectedState.selectedLabel);
+        expect(selectedState.activeChoiceId).toBe(selectedState.selectedId);
+        expect(selectedState.canvasCount).toBeLessThanOrEqual(1);
+        expect(selectedState.statValues).toHaveLength(3);
+        selectedState.statValues.forEach((value) => expect(value).toBeGreaterThanOrEqual(1));
+
+        await page.click('#start-vehicle-section > summary');
+        await expect(page.locator('#start-vehicle-preview-mount')).toHaveAttribute('data-preview-active', 'false');
+        await openStartSetupSection(page, 'vehicle');
+        await expect(page.locator('#start-vehicle-preview-mount')).toHaveAttribute('data-preview-active', 'true');
+
+        await page.evaluate(() => document.getElementById('main-menu')?.classList.add('hidden'));
+        await expect(page.locator('#start-vehicle-preview-mount')).toHaveAttribute('data-preview-active', 'false');
+        await page.evaluate(() => document.getElementById('main-menu')?.classList.remove('hidden'));
+        await expect(page.locator('#start-vehicle-preview-mount')).toHaveAttribute('data-preview-active', 'true');
+
+        await page.evaluate(() => {
+            const controller = window.GAME_INSTANCE?.uiManager?._startSync;
+            controller?.setupStartSetupControls?.();
+            controller?.syncStartSetupState?.(window.GAME_INSTANCE?.settings);
+        });
+        await expect(page.locator('#start-vehicle-preview-mount canvas')).toHaveCount(selectedState.canvasCount);
+    });
+
+    test('T20z5: Splitscreen nutzt einen Renderer und getrennte Fahrzeugauswahl fuer Pilot 1 und 2', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page, { sessionType: 'splitscreen' });
+        await openStartSetupSection(page, 'vehicle');
+
+        await expect(page.locator('#vehicle-p2-container')).toBeVisible();
+        const player1VehicleId = await page.inputValue('#vehicle-select-p1');
+        const initialPlayer2VehicleId = await page.inputValue('#vehicle-select-p2');
+        await page.click('#vehicle-p2-container');
+        await expect(page.locator('#vehicle-select-p2-panel')).toBeVisible();
+        await page.click('#btn-vehicle-next');
+        await expect(page.locator('#vehicle-select-p2')).not.toHaveValue(initialPlayer2VehicleId);
+
+        const splitscreenState = await page.evaluate(() => ({
+            player1VehicleId: String(window.GAME_INSTANCE?.settings?.vehicles?.PLAYER_1 || ''),
+            player2VehicleId: String(window.GAME_INSTANCE?.settings?.vehicles?.PLAYER_2 || ''),
+            selectedPlayer2Id: String(document.getElementById('vehicle-select-p2')?.value || ''),
+            selectedPlayer2Label: String(document.getElementById('vehicle-select-p2')?.selectedOptions?.[0]?.textContent || '').trim(),
+            title: String(document.getElementById('start-vehicle-title')?.textContent || '').trim(),
+            canvasCount: document.querySelectorAll('#start-vehicle-preview-mount canvas').length,
+        }));
+
+        expect(splitscreenState.player1VehicleId).toBe(player1VehicleId);
+        expect(splitscreenState.player2VehicleId).toBe(splitscreenState.selectedPlayer2Id);
+        expect(splitscreenState.title).toBe(splitscreenState.selectedPlayer2Label);
+        expect(splitscreenState.canvasCount).toBeLessThanOrEqual(1);
+    });
+
+    test('T20z6: Mehrspieler erlaubt getrennte Fahrzeugauswahl fuer Pilot 1 und 2', async ({ page }) => {
+        await loadGame(page);
+        await openGameSubmenu(page, { sessionType: 'multiplayer' });
+        await openStartSetupSection(page, 'vehicle');
+
+        await expect(page.locator('#vehicle-p2-container')).toBeVisible();
+        const player1VehicleId = await page.inputValue('#vehicle-select-p1');
+        const initialPlayer2VehicleId = await page.inputValue('#vehicle-select-p2');
+        await page.click('#vehicle-p2-container');
+        await expect(page.locator('#vehicle-select-p2-panel')).toBeVisible();
+        await page.click('#btn-vehicle-next');
+        await expect(page.locator('#vehicle-select-p2')).not.toHaveValue(initialPlayer2VehicleId);
+
+        const multiplayerState = await page.evaluate(() => {
+            const player2Summary = Array.from(document.querySelectorAll('#menu-selection-summary .start-summary-block'))
+                .find((block) => String(block.querySelector('.start-summary-label')?.textContent || '').trim() === 'Flugzeug P2');
+            return {
+                player1VehicleId: String(window.GAME_INSTANCE?.settings?.vehicles?.PLAYER_1 || ''),
+                player2VehicleId: String(window.GAME_INSTANCE?.settings?.vehicles?.PLAYER_2 || ''),
+                selectedPlayer2Id: String(document.getElementById('vehicle-select-p2')?.value || ''),
+                selectedPlayer2Label: String(document.getElementById('vehicle-select-p2')?.selectedOptions?.[0]?.textContent || '').trim(),
+                title: String(document.getElementById('start-vehicle-title')?.textContent || '').trim(),
+                summary: String(player2Summary?.querySelector('.start-summary-value')?.textContent || '').trim(),
+                canvasCount: document.querySelectorAll('#start-vehicle-preview-mount canvas').length,
+            };
+        });
+
+        expect(multiplayerState.player1VehicleId).toBe(player1VehicleId);
+        expect(multiplayerState.player2VehicleId).toBe(multiplayerState.selectedPlayer2Id);
+        expect(multiplayerState.title).toBe(multiplayerState.selectedPlayer2Label);
+        expect(multiplayerState.summary).toBe(multiplayerState.selectedPlayer2Label);
+        expect(multiplayerState.canvasCount).toBeLessThanOrEqual(1);
+    });
+
+    test('T20z1: Kartenfeld, Zusammenfassung, Vorschau und Runtime verwenden dieselbe Auswahl', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
+        await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+
+        const state = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const select = document.getElementById('map-select');
+            const summaryEntries = Array.from(document.querySelectorAll('#menu-selection-summary .start-summary-block'))
+                .map((block) => ({
+                    label: String(block.querySelector('.start-summary-label')?.textContent || '').trim(),
+                    value: String(block.querySelector('.start-summary-value')?.textContent || '').trim(),
+                }));
+            return {
+                selectValue: String(select?.value || ''),
+                selectLabel: String(select?.selectedOptions?.[0]?.textContent || '').replace(/\s*\[GLB\]\s*$/, '').trim(),
+                previewTitle: String(document.querySelector('#map-preview .preview-card-title')?.textContent || '').trim(),
+                summaryValue: summaryEntries.find((entry) => entry.label === 'Karte')?.value || '',
+                runtimeMapKey: String(game?.settings?.mapKey || ''),
+                modeMapKey: String(game?.settings?.localSettings?.startSetup?.modeSelections?.fight?.mapKey || ''),
+            };
+        });
+
+        expect(state.selectValue).toBeTruthy();
+        expect(state.selectValue).toBe(state.runtimeMapKey);
+        expect(state.selectValue).toBe(state.modeMapKey);
+        expect(state.selectLabel).toBe(state.previewTitle);
+        expect(state.summaryValue).toBe(state.previewTitle);
+    });
+
+    test('T20z2: Erweiterte Optionen starten oben, sperren den Hintergrund und fokussieren Schliessen', async ({ page }) => {
+        await loadGame(page);
+        await openLevel4Drawer(page);
+
+        const state = await page.evaluate(() => {
+            const menu = document.querySelector('.menu-content');
+            const drawer = document.getElementById('submenu-level4');
+            const background = document.getElementById('submenu-game');
+            const menuRect = menu?.getBoundingClientRect?.();
+            const drawerRect = drawer?.getBoundingClientRect?.();
+            return {
+                activeId: document.activeElement?.id || '',
+                menuScrollTop: Math.round(menu?.scrollTop || 0),
+                drawerOffsetTop: Math.round((drawerRect?.top || 0) - (menuRect?.top || 0)),
+                backgroundInert: background?.hasAttribute('inert') || background?.inert === true,
+                backgroundAriaHidden: background?.getAttribute('aria-hidden'),
+                fireRateText: String(document.getElementById('fire-rate-label')?.textContent || '').trim(),
+                lockOnText: String(document.getElementById('lockon-label')?.textContent || '').trim(),
+            };
+        });
+
+        expect(state.activeId).toBe('btn-close-level4');
+        expect(state.menuScrollTop).toBe(0);
+        expect(Math.abs(state.drawerOffsetTop)).toBeLessThanOrEqual(2);
+        expect(state.backgroundInert).toBeTruthy();
+        expect(state.backgroundAriaHidden).toBe('true');
+        expect(state.fireRateText).toMatch(/^\d+(?:\.\d+)?s$/);
+        expect(state.lockOnText).toMatch(/^\d+°$/);
+        const focusBoundary = await page.evaluate(() => {
+            const drawer = document.getElementById('submenu-level4');
+            const focusables = Array.from(drawer?.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+            ) || []).filter((element) => (
+                !element.closest('[inert], [aria-hidden="true"], .hidden, details:not([open])')
+            ));
+            const first = focusables[0];
+            const last = focusables[focusables.length - 1];
+            last?.focus();
+            return { firstId: first?.id || '', lastId: last?.id || '' };
+        });
+        expect(focusBoundary.firstId).toBeTruthy();
+        expect(focusBoundary.lastId).toBeTruthy();
+        await page.keyboard.press('Tab');
+        expect(await page.evaluate(() => document.activeElement?.id || '')).toBe(focusBoundary.firstId);
+    });
+
+    test('T20z3: Einstellungen aus dem Hauptmenue kehren beim Schliessen dorthin zurueck', async ({ page }) => {
+        await loadGame(page);
+        await page.click('[data-level4-return-target="main"][data-level4-section="gameplay"]');
+        await expect(page.locator('#submenu-level4')).toBeVisible();
+        await expect(page.locator('#submenu-level4')).toHaveAttribute('data-level4-return-target', 'main');
+
+        await page.click('#btn-close-level4');
+        await expect(page.locator('#submenu-level4')).toBeHidden();
+        await expect(page.locator('#btn-quick-last-settings')).toBeVisible();
+        await expect(page.locator('#main-menu')).toHaveAttribute('data-menu-panel', 'main');
+        await expect(page.locator('#main-menu')).toHaveAttribute('data-menu-depth', '1');
     });
 
     test('T20aa: Ebene 4 nutzt Bereichstabs ohne horizontalen Overflow auf Mobil', async ({ page }) => {
@@ -2610,13 +2857,21 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             return {
                 tabCount: drawer?.querySelectorAll('[data-level4-section-target]').length || 0,
                 activeSection: String(activePanel?.dataset?.level4Section || ''),
+                profileContainsPresetActions: !!document.querySelector('#level4-section-tools #btn-preset-apply'),
+                profileContainsEditorActions: !!document.querySelector('#level4-section-tools #btn-open-editor'),
+                presetsContainPresetActions: !!document.querySelector('#level4-section-presets #btn-preset-apply'),
+                utilitiesContainEditorActions: !!document.querySelector('#level4-section-utilities #btn-open-editor'),
                 drawerOverflow: Math.max(0, Math.round((drawer?.scrollWidth || 0) - (drawer?.clientWidth || 0))),
                 stackOverflow: Math.max(0, Math.round((stack?.scrollWidth || 0) - (stack?.clientWidth || 0))),
             };
         });
 
-        expect(level4State.tabCount).toBe(5);
+        expect(level4State.tabCount).toBe(7);
         expect(level4State.activeSection).toBe('tools');
+        expect(level4State.profileContainsPresetActions).toBeFalsy();
+        expect(level4State.profileContainsEditorActions).toBeFalsy();
+        expect(level4State.presetsContainPresetActions).toBeTruthy();
+        expect(level4State.utilitiesContainEditorActions).toBeTruthy();
         expect(level4State.drawerOverflow).toBeLessThanOrEqual(4);
         expect(level4State.stackOverflow).toBeLessThanOrEqual(4);
     });

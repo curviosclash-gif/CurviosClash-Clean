@@ -32,6 +32,11 @@
     gap: 10px;
 }
 
+#hangar-window-close {
+    width: auto;
+    padding: 8px 12px;
+}
+
 .hangar-window-kicker {
     color: #62b8ff;
     font-size: 0.68rem;
@@ -68,6 +73,15 @@
     overflow: auto;
 }
 
+.hangar-window-mount .hangar-build-panel {
+    overflow: hidden;
+}
+
+.hangar-window-mount .hangar-build-scroll {
+    min-height: 0;
+    overflow: auto;
+}
+
 .hangar-window-mount .hangar-viewport-panel {
     grid-template-rows: auto minmax(360px, 1fr) auto auto;
     overflow: hidden !important;
@@ -100,4 +114,34 @@
 .hangar-window-mount .hangar-catalog-list,
 .hangar-window-mount .hangar-build-panel {
     max-height: none;
+}
+
+.hangar-window-mount .hangar-part-card.is-purchase {
+    border-color: rgba(246, 196, 83, 0.72);
+    box-shadow: inset 0 0 0 1px rgba(246, 196, 83, 0.16);
+}
+
+.hangar-window-mount .hangar-part-card.is-purchase:hover {
+    box-shadow: inset 0 0 0 1px rgba(246, 196, 83, 0.3), 0 0 18px rgba(246, 196, 83, 0.18);
+}
+
+.hangar-window-mount .hangar-stone-inventory {
+    color: #b8cee2;
+    font-size: 0.72rem;
+}
+
+.hangar-window-mount .hangar-stone-swatch {
+    display: inline-block;
+    width: 0.68rem;
+    height: 0.68rem;
+    margin-right: 0.42rem;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    border-radius: 50%;
+    box-shadow: 0 0 8px currentColor;
+    vertical-align: -0.04rem;
+}
+
+.hangar-window-mount .hangar-part-card.is-purchase .hangar-part-drag-hint {
+    color: #f6c453;
+    font-weight: 800;
 }

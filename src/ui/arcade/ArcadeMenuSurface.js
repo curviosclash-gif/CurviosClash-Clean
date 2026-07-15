@@ -5,8 +5,8 @@ import {
     getArcadeVehicleProfileRecord,
     readArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
-import { setupArcadeVehicleManager } from './ArcadeVehicleManager.js';
 import { applyHangarWindowStorageEvent, createHangarWindowLauncher, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
+import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
 const ARCADE_SEED_STORAGE_KEY = 'cuviosclash.arcade.seed.v1';
 const ARCADE_LAST_RUN_STORAGE_KEY = 'cuviosclash.arcade.last_run.v1';
 
@@ -143,24 +143,6 @@ function resolveVehicleMasteryMaxLevel() {
     return ARCADE_VEHICLE_PROFILE_MAX_LEVEL;
 }
 
-function ensureArcadeVehicleManager(ctx, refs) {
-    const ui = ctx?.ui || {};
-    const mount = refs?.vehicleManagerMount;
-    if (!mount || typeof mount.appendChild !== 'function') {
-        return null;
-    }
-    if (ui.__arcadeVehicleManager) {
-        return ui.__arcadeVehicleManager;
-    }
-    const manager = setupArcadeVehicleManager(ctx);
-    if (!manager?.container) {
-        return null;
-    }
-    mount.replaceChildren(manager.container);
-    ui.__arcadeVehicleManager = manager;
-    return manager;
-}
-
 function buildArcadeSurface(level3Body, ui) {
     const details = createElement('details', 'menu-section menu-accordion start-section-card arcade-inline-surface hidden');
     details.id = 'arcade-inline-surface';
@@ -243,10 +225,6 @@ function buildArcadeSurface(level3Body, ui) {
     const { card: hangarLaunchCard, button: openHangarButton } = createHangarWindowLauncher(createElement);
     body.appendChild(hangarLaunchCard);
 
-    const vehicleManagerMount = createElement('div', 'arcade-vehicle-manager-mount');
-    vehicleManagerMount.id = 'arcade-vehicle-manager-mount';
-    body.appendChild(vehicleManagerMount);
-
     const ctaRow = createElement('div', 'arcade-surface-cta');
     const startRunButton = createElement('button', 'start-btn', t('menu.arcade.start.label', 'Arcade Run starten'));
     startRunButton.type = 'button';
@@ -269,7 +247,6 @@ function buildArcadeSurface(level3Body, ui) {
     ui.arcadeSeedCopyButton = copySeedButton;
     ui.arcadeReplayButton = replayButton;
     ui.arcadeDailyButton = dailyButton;
-    ui.arcadeVehicleManagerMount = vehicleManagerMount;
 
     return {
         details,
@@ -288,7 +265,6 @@ function buildArcadeSurface(level3Body, ui) {
         dailyButton,
         hangarLaunchCard,
         openHangarButton,
-        vehicleManagerMount,
     };
 }
 
@@ -319,25 +295,11 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const bind = typeof ctx.bind === 'function' ? ctx.bind : null;
     const runtimeAccess = normalizeRuntimeAccess(ctx.runtimeAccess);
     const hangarWindow = createHangarWindowMenuPort(globalThis);
-    const vehicleManagerContext = {
-        ...ctx,
-        ui,
-        settings,
-        emit,
-        eventTypes,
-        bind,
-        runtimeAccess,
-    };
 
     if (!emit || !bind) return;
 
     const level3Body = document.querySelector('#submenu-game .level3-body');
     if (!level3Body) return;
-
-    if (ui.__arcadeVehicleManager && typeof ui.__arcadeVehicleManager.dispose === 'function') {
-        ui.__arcadeVehicleManager.dispose();
-        ui.__arcadeVehicleManager = null;
-    }
 
     const existing = document.getElementById('arcade-inline-surface');
     if (existing?.parentElement) {
@@ -361,8 +323,6 @@ export function setupArcadeMenuSurface(ctx = {}) {
         refs.details.classList.toggle('hidden', !isArcade);
         refs.details.open = isArcade;
         if (!isArcade) return;
-
-        ensureArcadeVehicleManager(vehicleManagerContext, refs)?.syncDisplay?.();
 
         const mapKey = normalizeString(settings?.mapKey, 'standard');
         const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5');
@@ -423,9 +383,13 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     const prepareHangarRunStart = () => {
-        const manager = ensureArcadeVehicleManager(vehicleManagerContext, refs);
-        if (!manager || typeof manager.prepareRunStart !== 'function') return { ok: true, build: null };
-        return manager.prepareRunStart();
+        const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5').toLowerCase();
+        const build = readActiveHangarBuildFromStore({
+            store: runtimeAccess?.getSettingsStore?.(),
+            mode: 'arcade',
+            vehicleId,
+        });
+        return { ok: true, build };
     };
 
     const recordRunStart = (hangarBuild = null) => {

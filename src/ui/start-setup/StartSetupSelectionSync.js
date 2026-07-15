@@ -250,5 +250,15 @@ export function syncStartSetupSelectionState({
     renderQuickList(ui.vehicleFavoritesList, startSetup.favoriteVehicles, 'vehicleId');
     renderQuickList(ui.vehicleRecentList, startSetup.recentVehicles, 'vehicleId');
 
+    if (ui.mapFavoriteToggleButton) {
+        const isFavorite = startSetup.favoriteMaps.includes(effectiveMapKey);
+        ui.mapFavoriteToggleButton.classList.toggle('active', isFavorite);
+        ui.mapFavoriteToggleButton.setAttribute('aria-pressed', String(isFavorite));
+        ui.mapFavoriteToggleButton.textContent = isFavorite ? '★ Favorit' : '☆ Favorit';
+        ui.mapFavoriteToggleButton.title = isFavorite
+            ? 'Karte aus Favoriten entfernen'
+            : 'Karte als Favorit speichern';
+    }
+
     return { effectiveMapKey };
 }

@@ -1,5 +1,5 @@
 import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
-import { resolveGLBFootprint } from '../../entities/GLBMapLoader.js';
+import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 
 function normalizeString(value, fallback = '') {
@@ -47,9 +47,9 @@ export function listMapPreviewEntries() {
         const portalLevels = Array.isArray(mapDefinition?.portalLevels) ? mapDefinition.portalLevels.length : 0;
         const spawnCount = (mapDefinition?.playerSpawn ? 1 : 0)
             + (Array.isArray(mapDefinition?.botSpawns) ? mapDefinition.botSpawns.length : 0);
-        const hasGlbModel = typeof mapDefinition?.glbModel === 'string' && mapDefinition.glbModel.trim().length > 0;
+        const hasGlbModel = hasGLBMapSource(mapDefinition);
         const glbFootprint = hasGlbModel
-            ? resolveGLBFootprint(mapDefinition.glbModel, { colliderMode: mapDefinition?.glbColliderMode || 'scene' })
+            ? resolveGLBMapSourceFootprint(mapDefinition)
             : null;
         const usesFallbackColliders = glbFootprint?.colliderMode === 'fallbackOnly';
         return {

@@ -126,7 +126,7 @@ export const HANGAR_SHELL_SURFACE_STATUS = Object.freeze({
     runtimeStatus: 'productively-wired',
     productivity: 'desktop-workshop',
     activeProductSurface: 'src/ui/hangar/ArcadeHangarWorkshop.js',
-    note: 'The dedicated Arcade desktop workshop is mounted through ArcadeMenuSurface while preserving the established menu lifecycle and selection ports.',
+    note: 'ArcadeMenuSurface launches the dedicated desktop window; HangarWindowApp mounts the workshop while preserving the established selection ports.',
 });
 
 function cloneCommonRegion(region) {

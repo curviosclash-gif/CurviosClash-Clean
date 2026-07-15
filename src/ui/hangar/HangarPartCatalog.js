@@ -1,203 +1,140 @@
 import { resolveArcadeHangarRulesForLevel } from '../../shared/contracts/ArcadeHangarRulesContract.js';
 
-export const HANGAR_PART_CATALOG_VERSION = 'arcade-hangar-parts.v2';
+export const HANGAR_PART_CATALOG_VERSION = 'arcade-hangar-stones.v1';
 
 export const HANGAR_SLOT_DEFINITIONS = Object.freeze([
-    Object.freeze({ id: 'core', label: 'Core', family: 'core', required: true, pair: null }),
-    Object.freeze({ id: 'nose', label: 'Nose', family: 'nose', required: true, pair: null }),
-    Object.freeze({ id: 'wing_left', label: 'Wing L', family: 'wing', required: true, pair: 'wing_right' }),
-    Object.freeze({ id: 'wing_right', label: 'Wing R', family: 'wing', required: true, pair: 'wing_left' }),
-    Object.freeze({ id: 'engine_left', label: 'Engine L', family: 'engine', required: true, pair: 'engine_right' }),
-    Object.freeze({ id: 'engine_right', label: 'Engine R', family: 'engine', required: true, pair: 'engine_left' }),
-    Object.freeze({ id: 'utility', label: 'Utility', family: 'utility', required: false, pair: null }),
+    Object.freeze({ id: 'core', label: 'Core-Fassung', family: 'core', required: true, pair: null }),
+    Object.freeze({ id: 'nose', label: 'Nasen-Fassung', family: 'nose', required: true, pair: null }),
+    Object.freeze({ id: 'wing_left', label: 'Flügel L', family: 'wing', required: true, pair: 'wing_right' }),
+    Object.freeze({ id: 'wing_right', label: 'Flügel R', family: 'wing', required: true, pair: 'wing_left' }),
+    Object.freeze({ id: 'engine_left', label: 'Antrieb L', family: 'engine', required: true, pair: 'engine_right' }),
+    Object.freeze({ id: 'engine_right', label: 'Antrieb R', family: 'engine', required: true, pair: 'engine_left' }),
+    Object.freeze({ id: 'utility', label: 'Utility-Fassung', family: 'utility', required: false, pair: null }),
 ]);
 
 const SLOT_BY_ID = new Map(HANGAR_SLOT_DEFINITIONS.map((slot) => [slot.id, slot]));
+const UNIVERSAL_SLOTS = Object.freeze(HANGAR_SLOT_DEFINITIONS.map((slot) => slot.id));
 
-const FAMILY_TEMPLATES = Object.freeze({
-    core: Object.freeze({
-        slots: ['core'], visual: 'core',
-        costs: [
-            { budget: 10, mass: 9, energy: 5, heat: 3 },
-            { budget: 14, mass: 9.5, energy: 7, heat: 4 },
-            { budget: 19, mass: 10, energy: 9, heat: 5 },
-        ],
-        stats: [
-            { maxHp: 8 },
-            { maxHp: 18, agility: 1 },
-            { maxHp: 34, agility: 2 },
-        ],
-        variants: [
-            { key: 'aegis', legacy: true, label: 'Aegis Core', role: 'Panzerung', color: 0x6aaeea, startTier: 0, costDelta: {}, statDelta: {}, bonuses: [{}, { maxHpBonus: 15 }, { maxHpBonus: 30 }] },
-            { key: 'swift', label: 'Swift Core', role: 'Leicht & wendig', color: 0x3dd6b5, startTier: 0, costDelta: { budget: -1, mass: -2, energy: 1, heat: 1 }, statDelta: { maxHp: -4, agility: 3, speed: 1 }, bonuses: [{ turningBonusPct: 2 }, { turningBonusPct: 4, maxHpBonus: 8 }, { turningBonusPct: 6, maxHpBonus: 18 }] },
-            { key: 'reactor', label: 'Reactor Core', role: 'Tempo & Energie', style: 'experimental', color: 0xb78cff, startTier: 1, costDelta: { budget: 1, mass: -1, energy: 3, heat: 2 }, statDelta: { maxHp: -8, agility: 1, speed: 4 }, bonuses: [null, { speedBonusPct: 4, maxHpBonus: 6 }, { speedBonusPct: 8, maxHpBonus: 16 }] },
-            { key: 'bastion', label: 'Bastion Core', role: 'Maximale Struktur', style: 'reinforced', color: 0xf3a85b, startTier: 2, costDelta: { budget: 4, mass: 4, energy: -1, heat: -1 }, statDelta: { maxHp: 16, agility: -1 }, bonuses: [null, null, { maxHpBonus: 45 }] },
-        ],
-    }),
-    nose: Object.freeze({
-        slots: ['nose'], visual: 'nose',
-        costs: [
-            { budget: 7, mass: 5, energy: 4, heat: 3 },
-            { budget: 10, mass: 5.5, energy: 6, heat: 4 },
-            { budget: 14, mass: 6, energy: 8, heat: 5 },
-        ],
-        stats: [
-            { speed: 2 },
-            { speed: 5, agility: 1 },
-            { speed: 9, agility: 2 },
-        ],
-        variants: [
-            { key: 'vector', legacy: true, label: 'Vector Nose', role: 'Ausgewogen', color: 0x6aaeea, startTier: 0, costDelta: {}, statDelta: {}, bonuses: [{}, {}, {}] },
-            { key: 'razor', label: 'Razor Nose', role: 'Präzise Steuerung', color: 0x3dd6b5, startTier: 0, costDelta: { budget: 1, mass: -1.5, energy: 1, heat: 1 }, statDelta: { speed: -1, agility: 4 }, bonuses: [{ turningBonusPct: 2 }, { turningBonusPct: 4 }, { turningBonusPct: 6 }] },
-            { key: 'bulwark', label: 'Bulwark Nose', role: 'Frontschutz', color: 0xf3a85b, startTier: 1, costDelta: { budget: 2, mass: 2, energy: -1, heat: -1 }, statDelta: { speed: -3, maxHp: 14 }, bonuses: [null, { maxHpBonus: 10 }, { maxHpBonus: 18 }] },
-            { key: 'phantom', label: 'Phantom Nose', role: 'Hochgeschwindigkeit', color: 0xb78cff, startTier: 2, costDelta: { budget: 3, mass: -2, energy: 3, heat: 3 }, statDelta: { speed: 6, agility: 3 }, bonuses: [null, null, { speedBonusPct: 8, turningBonusPct: 3 }] },
-        ],
-    }),
-    wing: Object.freeze({
-        slots: ['wing_left', 'wing_right'], visual: 'wing',
-        costs: [
-            { budget: 6, mass: 5.5, energy: 3, heat: 2 },
-            { budget: 8, mass: 5.7, energy: 4, heat: 2.5 },
-            { budget: 11, mass: 6, energy: 5, heat: 3 },
-        ],
-        stats: [
-            { agility: 2 },
-            { agility: 4, speed: 1 },
-            { agility: 7, speed: 2 },
-        ],
-        variants: [
-            { key: 'falcon', legacy: true, label: 'Falcon Wing', role: 'Wendigkeit', color: 0x6aaeea, startTier: 0, costDelta: {}, statDelta: {}, bonuses: [{}, { turningBonusPct: 5 }, { turningBonusPct: 9 }] },
-            { key: 'kestrel', label: 'Kestrel Wing', role: 'Leicht & schnell', color: 0x3dd6b5, startTier: 0, costDelta: { budget: -1, mass: -1.5, energy: 1, heat: 1 }, statDelta: { agility: -1, speed: 3 }, bonuses: [{ speedBonusPct: 1.5 }, { speedBonusPct: 2, turningBonusPct: 3 }, { speedBonusPct: 3, turningBonusPct: 6 }] },
-            { key: 'guardian', label: 'Guardian Wing', role: 'Stabilität & Schutz', color: 0xf3a85b, startTier: 1, costDelta: { budget: 2, mass: 2, energy: -1, heat: -0.5 }, statDelta: { agility: -1, maxHp: 10 }, bonuses: [null, { turningBonusPct: 2, maxHpBonus: 5 }, { turningBonusPct: 4, maxHpBonus: 8 }] },
-            { key: 'specter', label: 'Specter Wing', role: 'Extreme Agilität', color: 0xb78cff, startTier: 2, costDelta: { budget: 3, mass: -1, energy: 3, heat: 2 }, statDelta: { agility: 5, speed: 3 }, bonuses: [null, null, { turningBonusPct: 12, speedBonusPct: 2 }] },
-        ],
-    }),
-    engine: Object.freeze({
-        slots: ['engine_left', 'engine_right'], visual: 'engine',
-        costs: [
-            { budget: 6.5, mass: 6, energy: 7, heat: 6 },
-            { budget: 9, mass: 6.3, energy: 9, heat: 8 },
-            { budget: 13, mass: 6.8, energy: 12, heat: 11 },
-        ],
-        stats: [
-            { speed: 4 },
-            { speed: 8 },
-            { speed: 14, agility: 1 },
-        ],
-        variants: [
-            { key: 'ion', legacy: true, label: 'Ion Drive', role: 'Schubleistung', color: 0x6aaeea, startTier: 0, costDelta: {}, statDelta: {}, bonuses: [{}, { speedBonusPct: 4 }, { speedBonusPct: 8 }] },
-            { key: 'eco', label: 'Eco Drive', role: 'Kühl & effizient', color: 0x3dd6b5, startTier: 0, costDelta: { budget: -0.5, mass: 1, energy: -3, heat: -3 }, statDelta: { speed: -1, agility: 1 }, bonuses: [{ turningBonusPct: 1 }, { speedBonusPct: 2, turningBonusPct: 1 }, { speedBonusPct: 5, turningBonusPct: 2 }] },
-            { key: 'vector', label: 'Vector Drive', role: 'Agiler Schub', color: 0xb78cff, startTier: 1, costDelta: { budget: 2, mass: -0.5, energy: 2, heat: 3 }, statDelta: { speed: 3, agility: 3 }, bonuses: [null, { speedBonusPct: 6, turningBonusPct: 2 }, { speedBonusPct: 10, turningBonusPct: 3 }] },
-            { key: 'nova', label: 'Nova Drive', role: 'Maximaler Schub', color: 0xf35b68, startTier: 2, costDelta: { budget: 4, mass: 1, energy: 3, heat: 6 }, statDelta: { speed: 8, agility: 2 }, bonuses: [null, null, { speedBonusPct: 14 }] },
-        ],
-    }),
-    utility: Object.freeze({
-        slots: ['utility'], visual: 'utility',
-        costs: [
-            { budget: 5, mass: 3, energy: 5, heat: 4 },
-            { budget: 8, mass: 3.5, energy: 7, heat: 6 },
-            { budget: 12, mass: 4, energy: 10, heat: 8 },
-        ],
-        stats: [
-            { maxHp: 4 },
-            { maxHp: 8, agility: 2 },
-            { maxHp: 14, agility: 3, speed: 3 },
-        ],
-        variants: [
-            { key: 'pulse', legacy: true, label: 'Pulse Utility', role: 'Strukturreserve', color: 0x6aaeea, startTier: 0, costDelta: {}, statDelta: {}, bonuses: [{ maxHpBonus: 5 }, { maxHpBonus: 10 }, { maxHpBonus: 18 }] },
-            { key: 'flux', label: 'Flux Utility', role: 'Manövrierhilfe', color: 0x3dd6b5, startTier: 0, costDelta: { budget: 1, mass: -1, energy: 1, heat: 1 }, statDelta: { maxHp: -2, agility: 3, speed: 1 }, bonuses: [{ turningBonusPct: 3 }, { turningBonusPct: 5 }, { turningBonusPct: 8 }] },
-            { key: 'shield', label: 'Shield Utility', role: 'Schildverstärker', color: 0xf3a85b, startTier: 1, costDelta: { budget: 3, mass: 2, energy: 2, heat: 1 }, statDelta: { maxHp: 12, agility: -1 }, bonuses: [null, { maxHpBonus: 20 }, { maxHpBonus: 30 }] },
-            { key: 'overclock', label: 'Overclock Utility', role: 'Tempo-Boost', color: 0xb78cff, startTier: 2, costDelta: { budget: 4, mass: -1, energy: 4, heat: 4 }, statDelta: { maxHp: -4, agility: 3, speed: 8 }, bonuses: [null, null, { speedBonusPct: 12, turningBonusPct: 5 }] },
-        ],
-    }),
+export const HANGAR_STONE_COLORS = Object.freeze([
+    Object.freeze({ id: 'blue', label: 'Blau', name: 'Impulsstein', role: 'Geschwindigkeit', trait: 'speed', color: 0x35a7ff }),
+    Object.freeze({ id: 'green', label: 'Grün', name: 'Wendestein', role: 'Wendigkeit', trait: 'agility', color: 0x35d07f }),
+    Object.freeze({ id: 'gold', label: 'Gold', name: 'Bollwerkstein', role: 'Lebenspunkte & Schutz', trait: 'armor', color: 0xf6c453 }),
+    Object.freeze({ id: 'cyan', label: 'Cyan', name: 'Kühlstein', role: 'Energie & Hitze', trait: 'efficiency', color: 0x36e1d5 }),
+    Object.freeze({ id: 'violet', label: 'Violett', name: 'Resonanzstein', role: 'Gemischte Boni', trait: 'balanced', color: 0xa875ff }),
+]);
+
+const COLOR_BY_ID = new Map(HANGAR_STONE_COLORS.map((entry) => [entry.id, entry]));
+const TIER_CONFIG = Object.freeze({
+    T1: Object.freeze({ index: 1, minLevel: 1, purchaseLevel: 5, price: 100, size: 0.78, costs: { budget: 5, mass: 4, energy: 3, heat: 2 } }),
+    T2: Object.freeze({ index: 2, minLevel: 10, purchaseLevel: 10, price: 350, size: 1.04, costs: { budget: 8, mass: 5, energy: 5, heat: 4 } }),
+    T3: Object.freeze({ index: 3, minLevel: 20, purchaseLevel: 20, price: 900, size: 1.34, costs: { budget: 12, mass: 6, energy: 8, heat: 7 } }),
 });
 
-const TIER_LEVELS = Object.freeze({ T1: 1, T2: 10, T3: 20 });
-const ARCADE_HANGAR_MAX_LEVEL = 30;
+const STONE_EFFECTS = Object.freeze({
+    blue: Object.freeze({
+        stats: [{ speed: 3 }, { speed: 7 }, { speed: 12 }],
+        bonuses: [{ speedBonusPct: 2 }, { speedBonusPct: 5 }, { speedBonusPct: 9 }],
+        costs: { energy: 1, heat: 1 },
+    }),
+    green: Object.freeze({
+        stats: [{ agility: 3 }, { agility: 7 }, { agility: 12 }],
+        bonuses: [{ turningBonusPct: 2 }, { turningBonusPct: 5 }, { turningBonusPct: 9 }],
+        costs: { mass: -1, energy: 1 },
+    }),
+    gold: Object.freeze({
+        stats: [{ maxHp: 10 }, { maxHp: 22 }, { maxHp: 40 }],
+        bonuses: [{ maxHpBonus: 6 }, { maxHpBonus: 15 }, { maxHpBonus: 30 }],
+        costs: { budget: 1, mass: 2 },
+    }),
+    cyan: Object.freeze({
+        stats: [{ agility: 1 }, { agility: 2, speed: 1 }, { agility: 3, speed: 2 }],
+        bonuses: [{ turningBonusPct: 1 }, { turningBonusPct: 2 }, { turningBonusPct: 3, speedBonusPct: 2 }],
+        costs: { budget: -1, energy: -2, heat: -1 },
+    }),
+    violet: Object.freeze({
+        stats: [{ speed: 1, agility: 1, maxHp: 4 }, { speed: 3, agility: 3, maxHp: 10 }, { speed: 6, agility: 6, maxHp: 18 }],
+        bonuses: [{ speedBonusPct: 1, turningBonusPct: 1 }, { speedBonusPct: 3, turningBonusPct: 3, maxHpBonus: 6 }, { speedBonusPct: 6, turningBonusPct: 6, maxHpBonus: 12 }],
+        costs: { budget: 1, energy: 2, heat: 2 },
+    }),
+});
 
 function round1(value) {
     return Math.round((Number(value) || 0) * 10) / 10;
 }
 
-function mergeNumbers(base, delta, keys) {
-    return Object.fromEntries(keys.map((key) => [key, round1((base?.[key] || 0) + (delta?.[key] || 0))]));
+function stoneId(colorId, tier) {
+    return `stone_${colorId}_${tier.toLowerCase()}`;
 }
 
-function createPartId(family, variant, tier) {
-    return variant.legacy ? `${family}_${tier.toLowerCase()}` : `${family}_${variant.key}_${tier.toLowerCase()}`;
-}
-
-function resolveTrait(role) {
-    const value = String(role || '').toLowerCase();
-    if (/effizient|kühl/.test(value)) return 'efficiency';
-    if (/panzer|schutz|struktur|schild/.test(value)) return 'armor';
-    if (/tempo|geschwindigkeit|schub|schnell/.test(value)) return 'speed';
-    if (/wendig|steuer|agil|manövrier/.test(value)) return 'agility';
-    return 'balanced';
-}
-
-function createPartDefinition(family, template, variant, tierIndex) {
-    const tier = `T${tierIndex + 1}`;
-    const nextTier = tierIndex < 2 ? `T${tierIndex + 2}` : null;
+function createStone(color, tier) {
+    const tierConfig = TIER_CONFIG[tier];
+    const effect = STONE_EFFECTS[color.id];
+    const effectStats = effect.stats[tierConfig.index - 1];
     return Object.freeze({
-        id: createPartId(family, variant, tier),
-        label: `${variant.label} ${tier}`,
-        role: variant.role,
-        trait: resolveTrait(variant.role),
-        family,
+        id: stoneId(color.id, tier),
+        kind: 'stone',
+        colorId: color.id,
+        colorLabel: color.label,
+        label: `${color.name} ${tier}`,
+        role: color.role,
+        trait: color.trait,
+        family: 'stone',
         tier,
-        minLevel: Math.max(family === 'utility' ? 5 : 1, TIER_LEVELS[tier]),
-        compatibleSlots: Object.freeze([...template.slots]),
-        symmetric: family === 'wing' || family === 'engine',
-        visual: template.visual,
-        appearance: Object.freeze({
-            color: variant.color,
-            variant: variant.key,
-            style: variant.style || (variant.legacy ? 'standard' : (variant.startTier === 0 ? 'light' : (variant.startTier === 1 ? 'reinforced' : 'experimental'))),
+        minLevel: tierConfig.minLevel,
+        compatibleSlots: UNIVERSAL_SLOTS,
+        symmetric: true,
+        visual: 'stone',
+        appearance: Object.freeze({ color: color.color, variant: 'universal-stone', style: 'crystal', sizeScale: tierConfig.size }),
+        costs: Object.freeze(Object.fromEntries(Object.entries(tierConfig.costs).map(([key, value]) => [key, round1(value + (effect.costs[key] || 0))]))),
+        stats: Object.freeze({ speed: 0, agility: 0, maxHp: 0, ...effectStats }),
+        bonuses: Object.freeze({ speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0, ...effect.bonuses[tierConfig.index - 1] }),
+        inventory: Object.freeze({
+            initialCount: tier === 'T1' ? 2 : 0,
+            purchaseUnlockLevel: tierConfig.purchaseLevel,
+            priceXrp: tierConfig.price,
+            maxOwned: 7,
         }),
-        costs: Object.freeze(mergeNumbers(template.costs[tierIndex], variant.costDelta, ['budget', 'mass', 'energy', 'heat'])),
-        stats: Object.freeze(mergeNumbers(template.stats[tierIndex], variant.statDelta, ['speed', 'agility', 'maxHp'])),
-        bonuses: Object.freeze({ speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0, ...(variant.bonuses[tierIndex] || {}) }),
-        upgradeTo: nextTier ? createPartId(family, variant, nextTier) : null,
-        searchTokens: Object.freeze(`${variant.label} ${variant.role} ${family} ${tier}`.toLowerCase().split(/\s+/)),
+        upgradeTo: tier === 'T1' ? stoneId(color.id, 'T2') : (tier === 'T2' ? stoneId(color.id, 'T3') : null),
+        searchTokens: Object.freeze(`${color.label} ${color.name} ${color.role} ${tier} stein kristall`.toLowerCase().split(/\s+/)),
     });
 }
 
 export const HANGAR_PART_CATALOG = Object.freeze(
-    Object.entries(FAMILY_TEMPLATES).flatMap(([family, template]) => (
-        [0, 1, 2].flatMap((tierIndex) => template.variants
-            .filter((variant) => variant.startTier <= tierIndex)
-            .map((variant) => createPartDefinition(family, template, variant, tierIndex)))
-    ))
+    HANGAR_STONE_COLORS.flatMap((color) => ['T1', 'T2', 'T3'].map((tier) => createStone(color, tier)))
 );
 
 const PART_BY_ID = new Map(HANGAR_PART_CATALOG.map((part) => [part.id, part]));
 let publishedParts = [];
 
+function clonePart(part) {
+    return part ? {
+        ...part,
+        compatibleSlots: [...part.compatibleSlots],
+        costs: { ...part.costs },
+        stats: { ...part.stats },
+        bonuses: { ...(part.bonuses || {}) },
+        inventory: part.inventory ? { ...part.inventory } : undefined,
+        searchTokens: [...part.searchTokens],
+        appearance: part.appearance ? { ...part.appearance, size: [...(part.appearance.size || [])] } : undefined,
+    } : null;
+}
+
+function colorForPublishedFamily(family) {
+    return { core: 'gold', nose: 'blue', wing: 'green', engine: 'cyan', utility: 'violet' }[family] || 'violet';
+}
+
 function normalizePublishedPart(part) {
-    const family = String(part?.family || '').toLowerCase();
-    const compatibleSlots = (Array.isArray(part?.compatibleSlots) ? part.compatibleSlots : [])
-        .filter((slotId) => SLOT_BY_ID.get(slotId)?.family === family);
     const id = String(part?.id || '').trim().toLowerCase();
-    if (!id || !FAMILY_TEMPLATES[family] || !compatibleSlots.length) return null;
+    if (!id) return null;
+    const color = COLOR_BY_ID.get(colorForPublishedFamily(String(part.family || '').toLowerCase()));
+    const tier = ['T1', 'T2', 'T3'].includes(part.tier) ? part.tier : 'T1';
+    const base = createStone(color, tier);
     return Object.freeze({
+        ...base,
         id,
-        label: String(part.label || id).trim(),
-        role: String(part.role || 'Vehicle Lab').trim(),
-        trait: resolveTrait(part.role || 'Vehicle Lab'),
-        family,
-        tier: ['T1', 'T2', 'T3'].includes(part.tier) ? part.tier : 'T1',
-        minLevel: Math.max(1, Number(part.minLevel) || 1),
-        compatibleSlots: Object.freeze(compatibleSlots),
-        symmetric: part.symmetric === true,
-        visual: 'lab',
-        appearance: Object.freeze({ ...(part.appearance || {}) }),
-        costs: Object.freeze({ budget: 7, mass: 5, energy: 4, heat: 3, ...(part.costs || {}) }),
-        stats: Object.freeze({ speed: 0, agility: 0, maxHp: 0, ...(part.stats || {}) }),
-        bonuses: Object.freeze({ speedBonusPct: 0, turningBonusPct: 0, maxHpBonus: 0 }),
-        upgradeTo: null,
-        searchTokens: Object.freeze(`${part.label || id} ${family} vehicle lab`.toLowerCase().split(/\s+/)),
+        label: `${String(part.label || id).trim()} · Lab-Stein`,
         published: true,
+        searchTokens: Object.freeze(`${part.label || id} ${color.label} vehicle lab stein`.toLowerCase().split(/\s+/)),
     });
 }
 
@@ -207,46 +144,6 @@ export function registerPublishedHangarParts(record) {
     for (const [id, part] of [...PART_BY_ID.entries()]) if (part?.published) PART_BY_ID.delete(id);
     publishedParts.forEach((part) => PART_BY_ID.set(part.id, part));
     return publishedParts.length;
-}
-
-const DEFAULT_LAYOUT = Object.freeze({
-    core: Object.freeze({ position: [0, 0.28, 0], rotation: [0, 0, 0], scale: 0.9 }),
-    nose: Object.freeze({ position: [0, 0.06, -1.48], rotation: [-Math.PI / 2, 0, 0], scale: 0.82 }),
-    wing_left: Object.freeze({ position: [-1.1, 0.04, -0.05], rotation: [0, 0, 0.08], scale: 0.88 }),
-    wing_right: Object.freeze({ position: [1.1, 0.04, -0.05], rotation: [0, 0, -0.08], scale: 0.88 }),
-    engine_left: Object.freeze({ position: [-0.78, 0, 1.05], rotation: [Math.PI / 2, 0, 0], scale: 0.82 }),
-    engine_right: Object.freeze({ position: [0.78, 0, 1.05], rotation: [Math.PI / 2, 0, 0], scale: 0.82 }),
-    utility: Object.freeze({ position: [0, 0.72, 0.25], rotation: [0, 0, 0], scale: 0.72 }),
-});
-
-const VEHICLE_LAYOUT_SPECS = Object.freeze({
-    ship5: Object.freeze({ scale: 1.1, length: 1.08, width: 1.02 }),
-    aircraft: Object.freeze({ scale: 1.05, length: 1.18, width: 1.18 }),
-    spaceship: Object.freeze({ scale: 1.05, length: 0.9, width: 1.12 }),
-    arrow: Object.freeze({ scale: 0.82, length: 1.35, width: 0.7 }),
-    manta: Object.freeze({ scale: 1.12, length: 0.92, width: 1.34 }),
-    drone: Object.freeze({ scale: 0.9, length: 0.92, width: 1.08 }),
-    orb: Object.freeze({ scale: 0.9, length: 0.82, width: 1.12 }),
-    ship1: Object.freeze({ scale: 0.98, length: 1.05, width: 0.94 }),
-    ship2: Object.freeze({ scale: 1.18, length: 1.08, width: 1.1 }),
-    ship3: Object.freeze({ scale: 0.86, length: 1.02, width: 0.82 }),
-    ship4: Object.freeze({ scale: 1.24, length: 1.12, width: 1.16 }),
-    ship6: Object.freeze({ scale: 1.06, length: 1.04, width: 1.02 }),
-    ship7: Object.freeze({ scale: 1.12, length: 1.02, width: 1.06 }),
-    ship8: Object.freeze({ scale: 1.0, length: 1.1, width: 1 }),
-    ship9: Object.freeze({ scale: 0.94, length: 1.05, width: 0.9 }),
-});
-
-function clonePart(part) {
-    return part ? {
-        ...part,
-        compatibleSlots: [...part.compatibleSlots],
-        costs: { ...part.costs },
-        stats: { ...part.stats },
-        bonuses: { ...(part.bonuses || {}) },
-        searchTokens: [...part.searchTokens],
-        appearance: part.appearance ? { ...part.appearance, size: [...(part.appearance.size || [])] } : undefined,
-    } : null;
 }
 
 export function resolveHangarSlot(slotId) {
@@ -260,11 +157,11 @@ export function resolveHangarPart(partId) {
 
 export function listHangarParts(filters = {}) {
     const search = String(filters.search || '').trim().toLowerCase();
-    const family = String(filters.family || 'all').trim().toLowerCase();
+    const color = String(filters.color || filters.family || 'all').trim().toLowerCase();
     const tier = String(filters.tier || 'all').trim().toUpperCase();
     const trait = String(filters.trait || 'all').trim().toLowerCase();
     return [...HANGAR_PART_CATALOG, ...publishedParts].filter((part) => {
-        if (family !== 'all' && part.family !== family) return false;
+        if (color !== 'all' && part.colorId !== color) return false;
         if (tier !== 'ALL' && part.tier !== tier) return false;
         if (trait !== 'all' && part.trait !== trait) return false;
         if (!search) return true;
@@ -273,32 +170,37 @@ export function listHangarParts(filters = {}) {
 }
 
 export function resolveHangarPartUnlockLevel(part) {
-    if (!part) return ARCADE_HANGAR_MAX_LEVEL;
-    for (let level = 1; level <= ARCADE_HANGAR_MAX_LEVEL; level += 1) {
-        const rules = resolveArcadeHangarRulesForLevel(level);
-        if (level < part.minLevel || !rules.allowedPartFamilies.includes(part.family) || !rules.allowedTiers.includes(part.tier)) continue;
-        const unlocked = new Set(rules.unlockedSlots);
-        const compatible = part.compatibleSlots.some((slotId) => {
-            if (!unlocked.has(slotId)) return false;
-            return part.tier === 'T1' || unlocked.has(`${slotId}_t2`);
-        });
-        if (compatible) return level;
-    }
-    return ARCADE_HANGAR_MAX_LEVEL;
+    return part?.kind === 'stone' ? Math.max(1, Number(part.minLevel) || 1) : 30;
 }
 
+const DEFAULT_LAYOUT = Object.freeze({
+    core: Object.freeze({ position: [0, 0.28, 0], rotation: [0, 0, 0], scale: 0.9 }),
+    nose: Object.freeze({ position: [0, 0.06, -1.48], rotation: [-Math.PI / 2, 0, 0], scale: 0.82 }),
+    wing_left: Object.freeze({ position: [-1.1, 0.04, -0.05], rotation: [0, 0, 0.08], scale: 0.88 }),
+    wing_right: Object.freeze({ position: [1.1, 0.04, -0.05], rotation: [0, 0, -0.08], scale: 0.88 }),
+    engine_left: Object.freeze({ position: [-0.78, 0, 1.05], rotation: [Math.PI / 2, 0, 0], scale: 0.82 }),
+    engine_right: Object.freeze({ position: [0.78, 0, 1.05], rotation: [Math.PI / 2, 0, 0], scale: 0.82 }),
+    utility: Object.freeze({ position: [0, 0.72, 0.25], rotation: [0, 0, 0], scale: 0.72 }),
+});
+
+const VEHICLE_LAYOUT_SPECS = Object.freeze({
+    ship5: Object.freeze({ scale: 1.1, length: 1.08, width: 1.02 }), aircraft: Object.freeze({ scale: 1.05, length: 1.18, width: 1.18 }),
+    spaceship: Object.freeze({ scale: 1.05, length: 0.9, width: 1.12 }), arrow: Object.freeze({ scale: 0.82, length: 1.35, width: 0.7 }),
+    manta: Object.freeze({ scale: 1.12, length: 0.92, width: 1.34 }), drone: Object.freeze({ scale: 0.9, length: 0.92, width: 1.08 }),
+    orb: Object.freeze({ scale: 0.9, length: 0.82, width: 1.12 }), ship1: Object.freeze({ scale: 0.98, length: 1.05, width: 0.94 }),
+    ship2: Object.freeze({ scale: 1.18, length: 1.08, width: 1.1 }), ship3: Object.freeze({ scale: 0.86, length: 1.02, width: 0.82 }),
+    ship4: Object.freeze({ scale: 1.24, length: 1.12, width: 1.16 }), ship6: Object.freeze({ scale: 1.06, length: 1.04, width: 1.02 }),
+    ship7: Object.freeze({ scale: 1.12, length: 1.02, width: 1.06 }), ship8: Object.freeze({ scale: 1, length: 1.1, width: 1 }),
+    ship9: Object.freeze({ scale: 0.94, length: 1.05, width: 0.9 }),
+});
+
 export function resolveVehicleHardpoints(vehicleId) {
-    const spec = VEHICLE_LAYOUT_SPECS[String(vehicleId || '').trim().toLowerCase()]
-        || Object.freeze({ scale: 1, length: 1, width: 1 });
+    const spec = VEHICLE_LAYOUT_SPECS[String(vehicleId || '').trim().toLowerCase()] || { scale: 1, length: 1, width: 1 };
     return HANGAR_SLOT_DEFINITIONS.map((slot) => {
         const anchor = DEFAULT_LAYOUT[slot.id];
-        const position = [...anchor.position];
-        position[0] *= spec.scale * spec.width;
-        position[1] *= spec.scale;
-        position[2] *= spec.scale * spec.length;
         return {
             ...slot,
-            position,
+            position: [anchor.position[0] * spec.scale * spec.width, anchor.position[1] * spec.scale, anchor.position[2] * spec.scale * spec.length],
             rotation: [...anchor.rotation],
             scale: anchor.scale * spec.scale,
         };
@@ -307,34 +209,29 @@ export function resolveVehicleHardpoints(vehicleId) {
 
 export function createDefaultHangarSlots() {
     return {
-        core: 'core_t1',
-        nose: 'nose_t1',
-        wing_left: 'wing_t1',
-        wing_right: 'wing_t1',
-        engine_left: 'engine_t1',
-        engine_right: 'engine_t1',
-        utility: null,
+        core: 'stone_gold_t1', nose: 'stone_blue_t1',
+        wing_left: 'stone_green_t1', wing_right: 'stone_green_t1',
+        engine_left: 'stone_cyan_t1', engine_right: 'stone_cyan_t1', utility: null,
     };
 }
 
+export function resolveLegacyHangarStoneId(partId, slotId) {
+    const raw = String(partId || '').toLowerCase();
+    if (raw.startsWith('stone_') && PART_BY_ID.has(raw)) return raw;
+    const slot = resolveHangarSlot(slotId);
+    const color = { core: 'gold', nose: 'blue', wing: 'green', engine: 'cyan', utility: 'violet' }[slot?.family] || 'violet';
+    return stoneId(color, 'T1');
+}
+
 export function resolvePartLockReason(part, level, buildValidation = null) {
-    if (!part) return { code: 'unknown_part', message: 'Unbekanntes Bauteil' };
+    if (!part) return { code: 'unknown_part', message: 'Unbekannter Stein' };
     const unlockLevel = resolveHangarPartUnlockLevel(part);
+    if (Number(level) < unlockLevel) return { code: 'level_locked', unlockLevel, message: `Freischaltung auf Level ${unlockLevel}` };
     const rules = resolveArcadeHangarRulesForLevel(level);
-    if (level < unlockLevel) {
-        return { code: 'level_locked', unlockLevel, message: `Freischaltung auf Level ${unlockLevel}` };
+    if (!rules.allowedTiers.includes(part.tier)) return { code: 'tier_locked', unlockLevel, message: `${part.tier} ist noch gesperrt` };
+    if (buildValidation && buildValidation.ok === false) {
+        const error = buildValidation.errors?.[0];
+        return { code: error?.code || buildValidation.code || 'build_invalid', message: error?.message || buildValidation.message || 'Build-Limit überschritten' };
     }
-    if (!rules.allowedPartFamilies.includes(part.family)) {
-        return { code: 'part_family_locked', message: `Teilefamilie ${part.family} ist gesperrt` };
-    }
-    if (!rules.allowedTiers.includes(part.tier)) {
-        return { code: 'tier_locked', message: `Tier ${part.tier} ist gesperrt` };
-    }
-    if (!part.compatibleSlots.some((slotId) => rules.unlockedSlots.includes(slotId)
-        || rules.unlockedSlots.includes(`${slotId}_${part.tier.toLowerCase()}`))) {
-        return { code: 'slot_locked', message: 'Kompatibler Slot ist noch gesperrt' };
-    }
-    const budgetError = buildValidation?.errors?.find((error) => String(error.code || '').includes('budget'));
-    if (budgetError) return { code: budgetError.code, message: budgetError.message };
     return null;
 }

@@ -117,7 +117,7 @@ function createPanelSchema(featureFlags) {
         {
             id: 'submenu-expert',
             semanticId: 'expert',
-            label: 'Expert',
+            label: 'Expertenbereich',
             icon: 'LOCK',
             order: 65,
             level: 'expert',

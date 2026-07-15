@@ -4,6 +4,8 @@ import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 
 const store = new SettingsStore();
 const settings = store.loadSettings();
+const requestedMode = new URLSearchParams(globalThis.location.search).get('mode');
+const hangarMode = requestedMode === 'fight' ? 'fight' : 'arcade';
 const hangarWindow = createElectronPreloadHangarAdapter(globalThis);
 const mount = document.getElementById('hangar-window-mount');
 const closeButton = document.getElementById('hangar-window-close');
@@ -17,6 +19,7 @@ function bind(element, eventName, handler, options) {
 }
 
 const workshop = setupArcadeHangarWorkshop({
+    mode: hangarMode,
     settings,
     ui: {},
     bind,
@@ -24,9 +27,17 @@ const workshop = setupArcadeHangarWorkshop({
     eventTypes: {},
     runtimeAccess: {
         getSettingsStore: () => store,
+        loadSettings: () => store.loadSettings(),
         saveSettings(nextSettings) { return store.saveSettings(nextSettings); },
     },
+    onDirtyChange(dirty) {
+        Promise.resolve(hangarWindow.setUnsavedChanges?.(dirty)).catch(() => {});
+    },
 });
+
+document.body.dataset.hangarMode = hangarMode;
+const title = document.querySelector('.hangar-window-titlebar strong');
+if (title) title.textContent = hangarMode === 'fight' ? 'Fight-Hangar' : 'Arcade-Hangar';
 
 if (workshop?.container) mount?.appendChild(workshop.container);
 
@@ -38,7 +49,15 @@ bind(closeButton, 'click', async () => {
     globalThis.location.assign('/');
 });
 
-bind(globalThis, 'beforeunload', () => {
+bind(globalThis, 'beforeunload', (event) => {
+    if (!hangarWindow.isAvailable() && workshop?.hasUnsavedChanges?.()) {
+        event.preventDefault();
+        event.returnValue = '';
+    }
+});
+
+bind(globalThis, 'unload', () => {
+    workshop?.flushDraft?.();
     workshop?.dispose?.();
     cleanups.splice(0).forEach((cleanup) => cleanup());
 }, { once: true });

@@ -202,13 +202,17 @@ function createDefaultState() {
 }
 
 function normalizeTelemetryState(source) {
+    const normalizedSource = source && typeof source === 'object' ? source : {};
     return {
         ...createDefaultState(),
-        ...(source && typeof source === 'object' ? source : {}),
-        events: Array.isArray(source?.events) ? source.events : [],
-        balanceSummary: normalizeBalanceSummary(source?.balanceSummary),
-        recentRounds: Array.isArray(source?.recentRounds)
-            ? source.recentRounds.map((entry) => normalizeRecentRoundEntry(entry))
+        abortCount: toNonNegativeInt(normalizedSource.abortCount, 0),
+        backtrackCount: toNonNegativeInt(normalizedSource.backtrackCount, 0),
+        quickStartCount: toNonNegativeInt(normalizedSource.quickStartCount, 0),
+        startAttempts: toNonNegativeInt(normalizedSource.startAttempts, 0),
+        events: Array.isArray(normalizedSource.events) ? normalizedSource.events.slice(-MAX_EVENTS) : [],
+        balanceSummary: normalizeBalanceSummary(normalizedSource.balanceSummary),
+        recentRounds: Array.isArray(normalizedSource.recentRounds)
+            ? normalizedSource.recentRounds.map((entry) => normalizeRecentRoundEntry(entry))
             : [],
     };
 }
@@ -240,7 +244,11 @@ export class MenuTelemetryStore extends PersistentStore {
                         );
                     return normalizeTelemetryState(rawState);
                 },
-                onUpgrade: (normalized) => this._saveState(normalized),
+                createCanonicalRecord: (normalized) => ({
+                    schemaVersion: MENU_TELEMETRY_STORAGE_SCHEMA_VERSION,
+                    state: normalized,
+                }),
+                onCanonicalize: (normalized) => this._saveState(normalized),
             }
         );
     }

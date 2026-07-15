@@ -57,7 +57,11 @@ export class MenuTextOverrideStore extends PersistentStore {
                         );
                     return normalizeOverrides(rawOverrides);
                 },
-                onUpgrade: (normalized) => this._saveRaw(normalized),
+                createCanonicalRecord: (normalized) => ({
+                    schemaVersion: MENU_TEXT_OVERRIDE_STORAGE_SCHEMA_VERSION,
+                    overrides: normalized,
+                }),
+                onCanonicalize: (normalized) => this._saveRaw(normalized),
             }
         );
     }

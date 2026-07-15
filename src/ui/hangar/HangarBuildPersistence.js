@@ -60,6 +60,15 @@ function saveRecord(store, key, record) {
         : { ok: false, code: String(result?.reason || 'persistence_failed') };
 }
 
+export function readActiveHangarBuildFromStore({ store, mode = 'arcade', vehicleId = 'ship5' } = {}) {
+    const normalizedMode = normalizeMode(mode);
+    const normalizedVehicleId = String(vehicleId || 'ship5').trim().toLowerCase() || 'ship5';
+    if (!store || typeof store.loadJsonRecord !== 'function') return null;
+    const record = normalizeRecord(store.loadJsonRecord(HANGAR_BUILD_STORAGE_KEYS[normalizedMode], null), normalizedMode);
+    const buildId = record.activeBuildByVehicle[normalizedVehicleId];
+    return cloneHangarBuild(record.builds.find((build) => build.buildId === buildId && build.vehicleId === normalizedVehicleId));
+}
+
 export function createSettingsRecordHangarCapability({ store, mode = 'arcade' } = {}) {
     const normalizedMode = normalizeMode(mode);
     const storageKey = HANGAR_BUILD_STORAGE_KEYS[normalizedMode];
@@ -170,7 +179,6 @@ export function createHangarBuildPersistenceAdapter(options = {}) {
         if (index >= 0) record.builds[index] = normalized;
         else record.builds.unshift(normalized);
         if (activate) record.activeBuildByVehicle[normalized.vehicleId] = normalized.buildId;
-        localRevision += 1;
         return normalized;
     }
 
@@ -184,30 +192,36 @@ export function createHangarBuildPersistenceAdapter(options = {}) {
             createdAtMs: asNew ? Date.now() : source.createdAtMs,
             updatedAtMs: Date.now(),
         });
-        const saved = upsertLocal(next, saveOptions.activate === true);
-        const result = await facade.saveCustomVehicle({ mode, build: saved, activate: saveOptions.activate === true });
-        return { ok: result.ok === true, build: cloneHangarBuild(saved), result };
+        localRevision += 1;
+        const result = await facade.saveCustomVehicle({ mode, build: next, activate: saveOptions.activate === true });
+        if (result.ok === true) upsertLocal(next, saveOptions.activate === true);
+        return { ok: result.ok === true, build: cloneHangarBuild(next), result };
     }
 
     async function renameBuild(buildId, name) {
         const build = record.builds.find((entry) => entry.buildId === buildId);
         if (!build) return { ok: false, code: 'build_not_found' };
-        build.name = String(name || '').trim() || build.name;
-        build.updatedAtMs = Date.now();
+        const next = normalizeHangarBuild({
+            ...build,
+            name: String(name || '').trim() || build.name,
+            updatedAtMs: Date.now(),
+        });
         localRevision += 1;
-        const result = await facade.renameCustomVehicle({ mode, buildId, name: build.name });
-        return { ok: result.ok === true, build: cloneHangarBuild(build), result };
+        const result = await facade.renameCustomVehicle({ mode, buildId, name: next.name });
+        if (result.ok === true) upsertLocal(next);
+        return { ok: result.ok === true, build: cloneHangarBuild(next), result };
     }
 
     async function deleteBuild(buildId) {
-        const before = record.builds.length;
-        record.builds = record.builds.filter((entry) => entry.buildId !== buildId);
-        if (record.builds.length === before) return { ok: false, code: 'build_not_found' };
-        for (const [vehicleId, activeBuildId] of Object.entries(record.activeBuildByVehicle)) {
-            if (activeBuildId === buildId) delete record.activeBuildByVehicle[vehicleId];
-        }
+        if (!record.builds.some((entry) => entry.buildId === buildId)) return { ok: false, code: 'build_not_found' };
         localRevision += 1;
         const result = await facade.deleteCustomVehicle({ mode, buildId });
+        if (result.ok === true) {
+            record.builds = record.builds.filter((entry) => entry.buildId !== buildId);
+            for (const [vehicleId, activeBuildId] of Object.entries(record.activeBuildByVehicle)) {
+                if (activeBuildId === buildId) delete record.activeBuildByVehicle[vehicleId];
+            }
+        }
         return { ok: result.ok === true, result };
     }
 

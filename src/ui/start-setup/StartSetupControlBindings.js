@@ -106,7 +106,42 @@ function bindQuickPickList(listNode, attributeName, selectNode, listen) {
     });
 }
 
+function bindStartSectionFlow(controller, listen) {
+    const sections = Array.isArray(controller.ui?.startAccordions)
+        ? controller.ui.startAccordions.filter((entry) => (
+            typeof HTMLDetailsElement !== 'undefined' && entry instanceof HTMLDetailsElement
+            && entry.dataset.startSection !== 'multiplayer'
+        ))
+        : [];
+    const syncSectionState = (activeSection = null) => {
+        sections.forEach((section) => {
+            if (activeSection && section !== activeSection && section.open) section.open = false;
+            const summary = section.querySelector(':scope > summary');
+            summary?.setAttribute('aria-expanded', String(section.open));
+            section.dataset.startSectionState = section.open ? 'open' : 'closed';
+        });
+    };
+    sections.forEach((section) => {
+        listen(section, 'toggle', () => syncSectionState(section.open ? section : null));
+    });
+    syncSectionState(sections.find((section) => section.open) || null);
+
+    const root = controller.ui?.mainMenu || document.getElementById('main-menu');
+    root?.querySelectorAll?.('[data-start-section-target]').forEach((button) => {
+        listen(button, 'click', () => {
+            const sectionId = String(button.dataset.startSectionTarget || '').trim();
+            const target = sections.find((section) => section.dataset.startSection === sectionId);
+            if (!target) return;
+            target.open = true;
+            syncSectionState(target);
+            target.querySelector(':scope > summary')?.focus?.();
+            target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        });
+    });
+}
+
 export function bindStartSetupControls(controller, listen, getSettings) {
+    bindStartSectionFlow(controller, listen);
     bindSearchAndFilterControls(controller, listen, getSettings);
     bindMapAndVehicleRecents(controller, listen, getSettings);
     bindFavoriteToggles(controller, listen, getSettings);

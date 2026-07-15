@@ -419,12 +419,12 @@ test('V77.3.3 surface entry copy cuts showcase, join-only and splitscreen access
     assert.equal(isSurfaceSessionTypeAllowed('splitscreen', {
         productSurfaceId: PLATFORM_PRODUCT_SURFACE_IDS.BROWSER_DEMO,
     }), false);
-    assert.equal(browserEntryCopy.startButtonLabel, 'Showcase starten');
+    assert.equal(browserEntryCopy.startButtonLabel, 'Demo starten');
     assert.equal(browserEntryCopy.hostButtonLabel, 'Nur Desktop');
-    assert.equal(browserEntryCopy.joinButtonLabel, 'Join only');
-    assert.match(browserEntryCopy.multiplayerSubtitle, /hostet aber nicht/);
+    assert.equal(browserEntryCopy.joinButtonLabel, 'Beitreten');
+    assert.match(browserEntryCopy.multiplayerSubtitle, /keine Lobby hosten/);
     assert.equal(desktopEntryCopy.hostButtonLabel, 'Host');
-    assert.equal(desktopEntryCopy.sessionSummaryLabels.single, 'Single Player');
+    assert.equal(desktopEntryCopy.sessionSummaryLabels.single, 'Einzelspieler');
 });
 
 test('surface UI sync remains the final owner of browser copy while honoring developer text overrides', () => {
@@ -475,9 +475,9 @@ test('surface UI sync remains the final owner of browser copy while honoring dev
     });
 
     sync({ featureEnabled: true, releasePreviewEnabled: false, releaseCutEnabled: false });
-    assert.equal(singleLabel.textContent, 'Showcase');
-    assert.equal(startButton.textContent, 'Showcase starten');
-    assert.equal(editorButton.textContent, '3D Map-Editor oeffnen (Nur Desktop)');
+    assert.equal(singleLabel.textContent, 'Demo');
+    assert.equal(startButton.textContent, 'Demo starten');
+    assert.equal(editorButton.textContent, '3D-Map-Editor öffnen (Nur Desktop)');
 
     settings.localSettings.developerModeEnabled = true;
     overrides.set('menu.level1.single.label', 'Solo Lab');
@@ -490,8 +490,8 @@ test('surface UI sync remains the final owner of browser copy while honoring dev
 
     settings.localSettings.releasePreviewEnabled = true;
     sync({ featureEnabled: true, releasePreviewEnabled: true, releaseCutEnabled: true });
-    assert.equal(singleLabel.textContent, 'Showcase');
-    assert.equal(startButton.textContent, 'Showcase starten');
+    assert.equal(singleLabel.textContent, 'Demo');
+    assert.equal(startButton.textContent, 'Demo starten');
     assert.equal(editorButton.textContent, '3D Map-Editor oeffnen (Nur Desktop)');
 });
 

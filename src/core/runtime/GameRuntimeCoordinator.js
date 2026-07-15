@@ -233,6 +233,7 @@ export class GameRuntimeCoordinator {
             ui.mainMenu.dataset.shellReady = 'true';
             ui.mainMenu.style.visibility = '';
         }
+        this.getUiManager()?.menuNavigationRuntime?.focusMainAction?.({ onlyIfFocusLost: true });
         this.getRuntimeHandle('gameLoop')?.start?.();
     }
 

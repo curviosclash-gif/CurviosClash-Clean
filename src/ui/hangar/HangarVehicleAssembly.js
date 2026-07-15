@@ -100,7 +100,10 @@ export class HangarVehicleAssembly {
             return mesh;
         };
         const tierScale = part.tier === 'T3' ? 1.18 : (part.tier === 'T2' ? 1.08 : 1);
-        if (part.visual === 'core') {
+        if (part.visual === 'stone') {
+            const stoneSize = Math.max(0.65, Math.min(1.5, Number(part.appearance?.sizeScale) || 1));
+            add(this._geometry('universal-stone', () => new THREE.OctahedronGeometry(0.36, 0)), [0, -0.1, 0], [0.62 * stoneSize, 0.78 * stoneSize, 0.62 * stoneSize]);
+        } else if (part.visual === 'core') {
             add(this._geometry('part-core-mount', () => new THREE.CylinderGeometry(0.34, 0.4, 0.12, 12)), [0, -0.22, 0], [1, 1, 1], [0, 0, 0], structureMaterial);
             if (variant === 'swift') {
                 add(this._geometry('part-core-swift', () => new THREE.OctahedronGeometry(0.34, 0)), [0, 0.01, 0], [0.82 * tierScale, 1.08 * tierScale, 0.82 * tierScale]);

@@ -238,11 +238,11 @@ test('desktop arcade hangar exposes the dedicated workshop through the compatibi
     const verificationTargets = listHangarVerificationTargets();
 
     assert.equal(legacyStatus.runtimeStatus, 'productively-wired');
-    assert.equal(legacyStatus.status, 'compatibility-entry');
+    assert.equal(legacyStatus.status, 'window-only-entry');
     assert.equal(legacyStatus.productivity, 'dedicated-workshop-active');
-    assert.equal(legacyStatus.activeProductSurface?.entryPath, 'src/ui/arcade/ArcadeMenuSurface.js');
-    assert.equal(legacyStatus.activeProductSurface?.entryAdapter, 'setupArcadeMenuSurface');
-    assert.equal(legacyStatus.activeProductSurface?.mountId, 'arcade-vehicle-manager-mount');
+    assert.equal(legacyStatus.activeProductSurface?.entryPath, 'src/ui/hangar/HangarWindowApp.js');
+    assert.equal(legacyStatus.activeProductSurface?.entryAdapter, 'setupArcadeHangarWorkshop');
+    assert.equal(legacyStatus.activeProductSurface?.mountId, 'hangar-window-mount');
 
     assert.equal(arcadeShellLayout.surfaceStatus?.runtimeStatus, 'productively-wired');
     assert.equal(arcadeShellLayout.surfaceStatus?.productivity, 'desktop-workshop');

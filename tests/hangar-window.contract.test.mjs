@@ -15,7 +15,13 @@ class FakeBrowserWindow {
     maximize() { this.maximized = true; }
     show() { this.shown = true; }
     focus() { this.focused = true; }
-    close() { this.destroyed = true; this.events.get('closed')?.(); }
+    close() {
+        let prevented = false;
+        this.events.get('close')?.({ preventDefault() { prevented = true; } });
+        if (prevented) return;
+        this.destroyed = true;
+        this.events.get('closed')?.();
+    }
 }
 
 test('desktop hangar opens once in a maximized secure window', async () => {
@@ -34,4 +40,19 @@ test('desktop hangar opens once in a maximized secure window', async () => {
     assert.match(opened.window.url, /hangar\.html/);
     assert.equal((await controller.openHangarWindow()).reused, true);
     assert.equal(controller.closeHangarWindow(), true);
+});
+
+test('desktop hangar warns before discarding unsaved changes', async () => {
+    const responses = [1, 0];
+    const controller = createHangarWindowController({
+        BrowserWindow: FakeBrowserWindow,
+        dialog: { showMessageBoxSync: () => responses.shift() },
+        resolveWindowUrl: () => 'http://127.0.0.1/hangar.html?mode=arcade',
+    });
+    await controller.openHangarWindow();
+    assert.equal(controller.setUnsavedChanges(true), true);
+    assert.equal(controller.closeHangarWindow(), false);
+    assert.ok(controller.getWindow());
+    assert.equal(controller.closeHangarWindow(), true);
+    assert.equal(controller.getWindow(), null);
 });

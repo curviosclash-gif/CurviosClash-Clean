@@ -1,5 +1,7 @@
 import { createUiNode as el, resolvePlayerColor, toVehicleLevelBand } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import { resolveFightPartTradeoff } from '../../shared/contracts/FightHangarBalanceContract.js';
 import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePartLockReason } from './HangarPartCatalog.js';
+import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
 import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
 
@@ -27,8 +29,8 @@ function signed(value, suffix = '') {
     return `${number > 0 ? '+' : ''}${number}${suffix}`;
 }
 
-function partRunBonusesText(part, multiplier = 1) {
-    const bonuses = part.bonuses || {};
+function partRunBonusesText(part, multiplier = 1, mode = 'arcade') {
+    const bonuses = mode === 'fight' ? resolveFightPartTradeoff(part) : (part.bonuses || {});
     return [
         Number(bonuses.speedBonusPct) ? `Tempo ${signed(bonuses.speedBonusPct * multiplier, '%')}` : '',
         Number(bonuses.turningBonusPct) ? `Wende ${signed(bonuses.turningBonusPct * multiplier, '%')}` : '',
@@ -48,6 +50,8 @@ export function createArcadeHangarWorkshopRenderer(options) {
         getState, entryFor, profileFor, evaluateInstall, describeFailure,
         onSelectSlot, isDirty,
     } = options;
+    const validateBuild = typeof options.validateBuild === 'function' ? options.validateBuild : validateHangarBuild;
+    const mode = options.mode === 'fight' ? 'fight' : 'arcade';
     const {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
@@ -100,26 +104,39 @@ export function createArcadeHangarWorkshopRenderer(options) {
 
     function renderParts(state) {
         const profile = profileFor(state.draft.vehicleId);
-        const records = listHangarParts({ search: search.value, family: state.partFamily, tier: state.partTier, trait: state.partTrait })
+        const records = listHangarParts({ search: search.value, color: state.partFamily, tier: state.partTier, trait: state.partTrait })
             .map((part) => {
-                const target = part.compatibleSlots.find((slotId) => state.draft.slots[slotId] !== part.id) || part.compatibleSlots[0];
-                const projected = target ? evaluateInstall(part.id, target) : null;
-                return { part, lock: resolvePartLockReason(part, profile.level, projected) };
+                const availability = resolveHangarStoneAvailability(part, profile, state.draft);
+                const selectedTarget = part.compatibleSlots.includes(state.selectedSlotId) ? state.selectedSlotId : '';
+                const target = selectedTarget || part.compatibleSlots.find((slotId) => state.draft.slots[slotId] !== part.id) || part.compatibleSlots[0];
+                const projected = target && availability.canInstall ? evaluateInstall(part.id, target) : null;
+                const ruleLock = resolvePartLockReason(part, profile.level, projected);
+                const pairNeedsAnotherStone = projected?.errors?.some((error) => error.code === 'stone_inventory');
+                const purchase = availability.canPurchase && (!availability.canInstall || pairNeedsAnotherStone);
+                const inventoryLock = !availability.canInstall && !availability.canPurchase
+                    ? { code: 'stone_inventory', message: availability.levelAllowsPurchase
+                        ? `Noch ${Math.max(0, availability.priceXrp - availability.xrp)} XRP erforderlich`
+                        : `Weitere Exemplare ab Level ${availability.purchaseLevel}` }
+                    : null;
+                return { part, availability, purchase, lock: purchase ? null : (ruleLock || inventoryLock) };
             })
             .filter(({ lock }) => state.partAvailability === 'available' ? !lock : (state.partAvailability === 'locked' ? Boolean(lock) : true));
-        resultLine.textContent = `${records.length} Bauteile · Klick wählt aus, Ziehen montiert direkt`;
+        resultLine.textContent = `${records.length} Steine · universell in jede Fassung einsetzbar`;
         catalogList.replaceChildren();
-        if (!records.length) catalogList.appendChild(el('p', 'menu-hint hangar-empty-state', 'Keine Bauteile für diese Filterung gefunden.'));
-        records.forEach(({ part, lock }) => {
+        if (!records.length) catalogList.appendChild(el('p', 'menu-hint hangar-empty-state', 'Keine Steine für diese Filterung gefunden.'));
+        records.forEach(({ part, availability, purchase, lock }) => {
             const card = button('hangar-part-card', '');
             card.dataset.partId = part.id;
+            card.dataset.stoneColor = part.colorId;
             card.dataset.partLabel = part.label;
             card.dataset.partTrait = part.trait;
             card.setAttribute('aria-pressed', String(state.selectedPartId === part.id));
-            card.setAttribute('aria-disabled', String(Boolean(lock)));
+            card.setAttribute('aria-disabled', String(Boolean(lock) && !purchase));
             card.classList.toggle('is-locked', Boolean(lock));
+            card.classList.toggle('is-purchase', purchase);
             card.classList.toggle('is-selected', state.selectedPartId === part.id);
-            if (lock) {
+            if (purchase) card.dataset.purchaseStoneId = part.id;
+            if (lock && !purchase) {
                 card.dataset.locked = 'true';
                 const targetXp = lock.unlockLevel ? Number(state.xpForLevel?.(lock.unlockLevel)) || 0 : 0;
                 const remainingXp = Math.max(0, targetXp - (Number(profile.xp) || 0));
@@ -128,13 +145,18 @@ export function createArcadeHangarWorkshopRenderer(options) {
             const paired = part.symmetric && shell.pairToggle.checked;
             const head = el('div', 'hangar-part-card-head');
             head.append(el('strong', 'hangar-part-name', part.label), el('span', `hangar-tier hangar-tier-${part.tier.toLowerCase()}`, part.tier));
+            const colorLine = el('span', 'hangar-part-family');
+            const colorSwatch = el('span', 'hangar-stone-swatch');
+            colorSwatch.style.backgroundColor = `#${Number(part.appearance?.color || 0).toString(16).padStart(6, '0')}`;
+            colorLine.append(colorSwatch, `${part.colorLabel || part.colorId} · ${part.role}`);
             card.append(
                 head,
-                el('span', 'hangar-part-family', `${part.family} · ${part.role}`),
+                colorLine,
                 el('span', 'hangar-part-stats', partStatsText(part)),
-                el('span', 'hangar-part-run-bonuses', `Run: ${partRunBonusesText(part, paired ? 2 : 1)}`),
+                el('span', 'hangar-part-run-bonuses', `Run: ${partRunBonusesText(part, paired ? 2 : 1, mode)}`),
                 el('span', 'hangar-part-costs', partCostsText(part, paired)),
-                el('span', lock ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', lock ? card.dataset.lockedReason : 'Anklicken oder auf einen Hardpoint ziehen')
+                el('span', 'hangar-stone-inventory', `Bestand: ${availability.available} frei · ${availability.equipped}/${availability.owned} eingesetzt`),
+                el('span', lock && !purchase ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', purchase ? `Für ${availability.priceXrp} XRP kaufen` : (lock ? card.dataset.lockedReason : 'Anklicken oder auf eine Fassung ziehen'))
             );
             catalogList.appendChild(card);
         });
@@ -168,13 +190,13 @@ export function createArcadeHangarWorkshopRenderer(options) {
             .map((metric) => `${metric.label} ${signed(metric.delta)}`);
         partPreviewBox.append(
             el('span', 'hangar-part-preview-deltas', deltas.join(' · ') || 'Keine Wertänderung'),
-            el('span', 'hangar-part-preview-help', state.selectedPartId ? 'Hardpoint anklicken, um zu montieren' : 'Anklicken, um das Teil auszuwählen')
+                el('span', 'hangar-part-preview-help', state.selectedPartId ? 'Fassung anklicken, um den Stein einzusetzen' : 'Anklicken, um den Stein auszuwählen')
         );
     }
 
     function renderStatistics(state, validation) {
         const current = projectHangarStats(state.draft);
-        const saved = projectHangarStats(state.savedBuild || state.draft);
+        const saved = projectHangarStats(state.baselineBuild || state.savedBuild || state.draft);
         const savedComparison = persistence.getBuild(buildCompareSelect.value);
         const compareEntry = entryFor(selection.getCompareVehicleId());
         const compareBuild = savedComparison || state.buildFromProfile(compareEntry.vehicleId, compareEntry, profileFor(compareEntry.vehicleId));
@@ -229,12 +251,12 @@ export function createArcadeHangarWorkshopRenderer(options) {
                 installed.dataset.partLabel = part.label;
             } else installed.disabled = true;
             const tier = el('span', 'arcade-vehicle-slot-tier', part?.tier || '—');
-            const quick = button('secondary-btn arcade-vehicle-upgrade-btn', part?.tier === 'T3' ? 'MAX' : 'Tier +');
+            const quick = button('secondary-btn arcade-vehicle-upgrade-btn', part?.tier === 'T3' ? 'MAX' : 'Stufe +');
             quick.dataset.quickUpgrade = slot.id;
             const nextId = part?.upgradeTo || '';
             const nextValidation = nextId ? evaluateInstall(nextId, slot.id) : null;
             quick.disabled = !nextValidation?.ok;
-            quick.title = nextValidation?.ok ? 'Nächstes Tier als Entwurf montieren' : describeFailure(nextValidation);
+            quick.title = nextValidation?.ok ? 'Nächste Steinstufe als Entwurf einsetzen' : describeFailure(nextValidation);
             const remove = button('secondary-btn hangar-slot-remove', '×');
             remove.dataset.removeSlot = slot.id;
             remove.disabled = !part || slot.required;
@@ -277,7 +299,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             builds.forEach((build) => {
                 const option = document.createElement('option');
                 option.value = build.buildId;
-                const validity = validateHangarBuild(build, profileFor(build.vehicleId).level);
+                const validity = validateBuild(build, profileFor(build.vehicleId).level, profileFor(build.vehicleId));
                 option.textContent = `${build.favorite ? '★ ' : ''}${build.name}${validity.ok ? '' : ' ⚠'}`;
                 presetSelect.appendChild(option);
             });
@@ -300,13 +322,15 @@ export function createArcadeHangarWorkshopRenderer(options) {
         if (!state.draft) return;
         const entry = entryFor(state.draft.vehicleId);
         const profile = profileFor(state.draft.vehicleId);
-        const validation = validateHangarBuild(state.draft, profile.level);
+        const validation = validateBuild(state.draft, profile.level, profile);
         const favorites = new Set(selection.getFavorites());
         detailTitle.textContent = entry.label;
         detailMeta.textContent = `${entry.kategorie} · ${entry.hitboxKlasse} · ${toVehicleLevelBand(profile.level)}`;
         const xp = state.xpToNextLevel(profile);
-        levelLine.textContent = `Level ${profile.level} · Mastery ${profile.masteryMilestones?.length || 0} · XP ${xp.current}/${xp.required} · Upgrade-XP ${state.getSpendableUpgradeXp(profile)}`;
-        xpFill.style.width = `${(xp.progress * 100).toFixed(1)}%`;
+        levelLine.textContent = mode === 'fight'
+            ? `Fight-Sidegrade · Leistungsbudget ${validation.balanceScore ?? 0}`
+            : `Level ${profile.level} · Mastery ${profile.masteryMilestones?.length || 0} · XP ${xp.current}/${xp.required} · XRP ${state.getSpendableUpgradeXp(profile)}`;
+        xpFill.style.width = mode === 'fight' ? '100%' : `${(xp.progress * 100).toFixed(1)}%`;
         favoriteBtn.textContent = favorites.has(state.draft.vehicleId) ? 'Favorit entfernen' : 'Favorit';
         favoriteBtn.classList.toggle('is-active', favorites.has(state.draft.vehicleId));
         vehiclesViewButton.classList.toggle('is-active', state.catalogView === 'vehicles');
@@ -314,7 +338,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         [categoryTabs, hitboxChips, levelChips, quickRows].forEach((node) => node.classList.toggle('hidden', state.catalogView !== 'vehicles'));
         partFilters.classList.toggle('hidden', state.catalogView !== 'parts');
         onlyFavBtn.classList.toggle('hidden', state.catalogView !== 'vehicles');
-        search.placeholder = state.catalogView === 'vehicles' ? 'Fahrzeuge durchsuchen …' : 'Bauteile durchsuchen …';
+        search.placeholder = state.catalogView === 'vehicles' ? 'Fahrzeuge durchsuchen …' : 'Steine durchsuchen …';
         if (!syncOptions.preserveCatalog) {
             if (state.catalogView === 'vehicles') renderVehicles(state);
             else renderParts(state);
@@ -373,7 +397,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         container.dataset.buildDirty = String(dirty);
         undoButton.disabled = !state.history?.canUndo();
         redoButton.disabled = !state.history?.canRedo();
-        revertButton.disabled = !state.savedBuild || !dirty;
+        revertButton.disabled = !state.baselineBuild || !dirty;
         activateButton.disabled = !validation.ok;
         activeBuildLabel.textContent = `Aktiver Run-Build: ${persistence.getActiveBuild(state.draft.vehicleId)?.name || 'Standard'}`;
     }

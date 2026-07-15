@@ -1,4 +1,5 @@
-import { HANGAR_SELECTION_PLAYER_SLOTS, writeHangarVehicleSelection } from './HangarSelectionWritebackContract.js';
+import { persistHangarVehicleSelection } from './HangarWindowSettingsSync.js';
+/* eslint-disable max-lines -- Hangar lifecycle wiring stays in one controller. */
 import {
     getVehicleManagerInteractionRules,
     listVehicleManagerCatalogEntries,
@@ -31,7 +32,9 @@ import { createArcadeHangarWorkshopRenderer } from './ArcadeHangarWorkshopRender
 import { createHangarDraftPersistence } from './HangarDraftPersistence.js';
 import { createHangarWorkshopAudio } from './HangarWorkshopAudio.js';
 import { createHangarStarterBuild } from './HangarStarterBuildCatalog.js';
+import { purchaseHangarStone } from './HangarStoneInventory.js';
 import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromProfile, mapHangarHitboxClass } from './HangarWorkshopProfileSupport.js';
+import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
 
 function createButton(className, text) {
     const button = el('button', className, text);
@@ -47,6 +50,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const emit = typeof ctx.emit === 'function' ? ctx.emit : null;
     const eventTypes = ctx.eventTypes || {};
     if (!bind) return null;
+    const hangarMode = ctx.mode === 'fight' ? 'fight' : 'arcade';
     const store = runtimeAccess?.getSettingsStore?.() || ctx.settingsManager?.getSettingsRecordStorePort?.() || null;
     registerPublishedHangarParts(store?.loadJsonRecord?.(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY, null));
     const profilePort = runtimeAccess?.arcadeVehicleProfileWorkshop || createFallbackProfilePort(store);
@@ -55,8 +59,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     if (!catalogEntries.length) return null;
     const byVehicleId = new Map(catalogEntries.map((entry) => [entry.vehicleId, entry]));
     const selection = createVehicleManagerSelectionState({ settings, catalogEntries });
-    const persistence = createHangarBuildPersistenceAdapter({ mode: 'arcade', store, invokeCapability: runtimeAccess?.invokeHangarCapability });
-    const draftPersistence = createHangarDraftPersistence({ mode: 'arcade', store });
+    const persistence = createHangarBuildPersistenceAdapter({ mode: hangarMode, store, invokeCapability: runtimeAccess?.invokeHangarCapability });
+    const draftPersistence = createHangarDraftPersistence({ mode: hangarMode, store });
     const audio = createHangarWorkshopAudio();
     let profiles = profilePort.load();
     let catalogView = 'vehicles';
@@ -69,13 +73,15 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     let previewPartId = '';
     let draft = null;
     let savedBuild = null;
+    let baselineBuild = null;
     let history = null;
     let hydrated = false;
     let disposed = false;
     let draftSaveTimer = 0;
     let persistDraftChanges = false;
+    let lastReportedDirty = null;
 
-    const shell = createArcadeHangarWorkshopShell(rules);
+    const shell = createArcadeHangarWorkshopShell(rules, { mode: hangarMode });
     const {
         container, viewSwitch, search, onlyFavBtn, categoryTabs, hitboxChips, levelChips,
         familySelect, tierSelect, traitSelect, availabilitySelect, quickRows, catalogList, cameraToolbar, cameraReset, previewStage,
@@ -101,14 +107,23 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
 
     function profileFor(vehicleId) {
         const id = norm(vehicleId, 'ship5').toLowerCase();
+        if (hangarMode === 'fight') {
+            return {
+                vehicleId: id,
+                level: 30,
+                xp: 0,
+                xpBank: 0,
+                masteryMilestones: [],
+                fightUnlimitedInventory: true,
+            };
+        }
         profiles[id] = profilePort.getOrCreate(profiles, id);
         return profiles[id];
     }
 
     function syncVehicleWriteback(vehicleId) {
         const id = norm(vehicleId, 'ship5').toLowerCase();
-        writeHangarVehicleSelection(settings, HANGAR_SELECTION_PLAYER_SLOTS.PLAYER_1, id, 'ship5', { modePath: 'arcade' });
-        runtimeAccess?.saveSettings?.(settings);
+        persistHangarVehicleSelection({ settings, runtimeAccess, vehicleId: id, mode: hangarMode });
         const hasOption = Array.from(ui.vehicleSelectP1?.options || []).some((option) => option.value === id);
         if (hasOption && ui.vehicleSelectP1.value !== id) {
             ui.vehicleSelectP1.value = id;
@@ -118,18 +133,25 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function initialBuild(vehicleId) {
-        return persistence.getActiveBuild(vehicleId)
+        const build = persistence.getActiveBuild(vehicleId)
             || persistence.listBuilds(vehicleId)[0]
             || buildFromProfile(vehicleId, entryFor(vehicleId), profileFor(vehicleId));
+        return normalizeHangarBuild({ ...build, mode: hangarMode });
+    }
+
+    function validateForMode(build, level = 1, profile = null) {
+        return hangarMode === 'fight'
+            ? validateFightHangarBuild(build)
+            : validateHangarBuild(build, level, profile);
     }
 
     function isDirty() {
-        return savedBuild ? !areHangarBuildsEqual(draft, savedBuild) : false;
+        return !!draft && !!baselineBuild && !areHangarBuildsEqual(draft, baselineBuild);
     }
 
     function state() {
         return {
-            draft, savedBuild, history, hydrated, profiles, catalogView, partFamily, partTier,
+            draft, savedBuild, baselineBuild, history, hydrated, profiles, catalogView, partFamily, partTier,
             partTrait, partAvailability, selectedSlotId, selectedPartId, previewPartId, buildFromProfile,
             xpToNextLevel: profilePort.xpToNextLevel,
             xpForLevel: profilePort.xpForLevel,
@@ -138,19 +160,39 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function syncDisplay(options = {}) {
-        if (!disposed) renderer?.sync(options);
+        if (disposed) return;
+        renderer?.sync(options);
+        const dirty = isDirty();
+        if (dirty !== lastReportedDirty) {
+            lastReportedDirty = dirty;
+            ctx.onDirtyChange?.(dirty);
+        }
+    }
+
+    function flushDraft() {
+        if (draftSaveTimer) {
+            window.clearTimeout(draftSaveTimer);
+            draftSaveTimer = 0;
+        }
+        if (!draft) return false;
+        if (isDirty()) return draftPersistence.save(draft) !== false;
+        draftPersistence.clear(draft.vehicleId);
+        return true;
     }
 
     function setDraft(nextBuild, options = {}) {
         draft = normalizeHangarBuild(nextBuild);
         if (!history || options.resetHistory) history = new HangarBuildHistory(draft);
         else if (options.recordHistory !== false) history.push(draft);
-        if (options.saved) savedBuild = normalizeHangarBuild(draft);
+        if (options.saved) {
+            savedBuild = normalizeHangarBuild(draft);
+            baselineBuild = normalizeHangarBuild(draft);
+        }
         if (persistDraftChanges && options.persist !== false) {
             if (draftSaveTimer) window.clearTimeout(draftSaveTimer);
             draftSaveTimer = window.setTimeout(() => {
                 draftSaveTimer = 0;
-                if (savedBuild && areHangarBuildsEqual(draft, savedBuild)) draftPersistence.clear(draft.vehicleId);
+                if (!isDirty()) draftPersistence.clear(draft.vehicleId);
                 else draftPersistence.save(draft);
             }, 180);
         }
@@ -158,12 +200,14 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function selectVehicle(vehicleId, options = {}) {
+        if (draft && norm(vehicleId, 'ship5').toLowerCase() !== draft.vehicleId) flushDraft();
         const id = syncVehicleWriteback(vehicleId);
         selection.setSelectedVehicleId(id, options);
         selectedPartId = '';
         previewPartId = '';
         savedBuild = persistence.getActiveBuild(id) || persistence.listBuilds(id)[0] || null;
-        setDraft(draftPersistence.load(id) || savedBuild || initialBuild(id), { resetHistory: true, recordHistory: false, persist: false });
+        baselineBuild = savedBuild || initialBuild(id);
+        setDraft(draftPersistence.load(id) || baselineBuild, { resetHistory: true, recordHistory: false, persist: false });
     }
 
     function installWithPair(build, partId, slotId) {
@@ -172,7 +216,10 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function evaluateInstall(partId, slotId) {
-        return validateHangarDrop(draft, partId, slotId, profileFor(draft.vehicleId).level, installWithPair);
+        const profile = profileFor(draft.vehicleId);
+        return hangarMode === 'fight'
+            ? validateFightHangarDrop(draft, partId, slotId, installWithPair)
+            : validateHangarDrop(draft, partId, slotId, profile.level, installWithPair, profile);
     }
 
     function applyInstall(partId, slotId) {
@@ -186,14 +233,15 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         previewPartId = '';
         setDraft(result.build, { changedSlots: result.changedSlots });
         audio.play('drop');
-        toast(`${resolveHangarPart(partId)?.label || partId} montiert`, 'success');
+        toast(`${resolveHangarPart(partId)?.label || partId} eingesetzt`, 'success');
         return true;
     }
 
     function evaluateRemoval(slotId) {
         const removal = removeHangarPart(draft, slotId, { pair: pairToggle.checked });
         if (!removal.ok) return removal;
-        const validation = validateHangarBuild(removal.build, profileFor(draft.vehicleId).level);
+        const profile = profileFor(draft.vehicleId);
+        const validation = validateForMode(removal.build, profile.level, profile);
         return validation.ok
             ? { ...validation, ok: true, build: removal.build }
             : { ...validation, ok: false, code: validation.errors[0]?.code, message: validation.errors[0]?.message };
@@ -207,7 +255,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         }
         setDraft(result.build, { changedSlots: result.changedSlots });
         audio.play('drop');
-        toast('Bauteil entfernt');
+        toast('Stein entfernt');
         return true;
     }
 
@@ -222,7 +270,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         selectedPartId = selectedPartId === part.id ? '' : part.id;
         previewPartId = selectedPartId;
         if (selectedPartId && !part.compatibleSlots.includes(selectedSlotId)) selectedSlotId = part.compatibleSlots[0];
-        toast(selectedPartId ? `${part.label} ausgewählt · jetzt Hardpoint anklicken` : 'Teileauswahl aufgehoben');
+        toast(selectedPartId ? `${part.label} ausgewählt · jetzt Fassung anklicken` : 'Steinauswahl aufgehoben');
         syncDisplay();
     }
 
@@ -237,10 +285,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function applyStarterBuild(presetId) {
-        const level = profileFor(draft.vehicleId).level;
+        const profile = profileFor(draft.vehicleId);
+        const level = profile.level;
         const starter = createHangarStarterBuild(draft, presetId, level);
         if (!starter) return;
-        const validation = validateHangarBuild(starter, level);
+        const validation = validateForMode(starter, level, profile);
         if (!validation.ok) {
             toast(`Starter-Build ist noch gesperrt: ${validation.errors[0]?.message || ''}`, 'warning');
             return;
@@ -251,7 +300,44 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         toast(`${starter.name} geladen`, 'success');
     }
 
+    function purchaseStone(stoneId) {
+        if (hangarMode === 'fight') {
+            toast('Fight-Bauteile sind frei verfügbar und werden über Nachteile ausbalanciert.', 'info');
+            return false;
+        }
+        const vehicleId = draft.vehicleId;
+        const result = purchaseHangarStone(profileFor(vehicleId), stoneId);
+        if (!result.ok) {
+            const message = result.code === 'insufficient_xrp'
+                ? `Nicht genug XRP · benötigt ${result.priceXrp}`
+                : (result.code === 'level_locked' ? `Kauf ab Level ${result.requiredLevel}` : 'Stein kann nicht gekauft werden');
+            toast(message, 'warning');
+            return false;
+        }
+        profiles[vehicleId] = result.profile;
+        profilePort.save(profiles);
+        audio.play('pickup');
+        toast(`${result.stone.label} gekauft · ${result.remainingXrp} XRP übrig`, 'success');
+        syncDisplay();
+        return true;
+    }
+
     function commitProfileForRun(build) {
+        if (hangarMode === 'fight') {
+            const validation = validateFightHangarBuild(build);
+            if (!validation.ok) return false;
+            const latestSettings = runtimeAccess?.loadSettings?.() || settings;
+            if (!latestSettings.localSettings || typeof latestSettings.localSettings !== 'object') latestSettings.localSettings = {};
+            const local = latestSettings.localSettings;
+            if (!local.fightHangar || typeof local.fightHangar !== 'object') local.fightHangar = {};
+            if (!local.fightHangar.activeBonusesByVehicle || typeof local.fightHangar.activeBonusesByVehicle !== 'object') {
+                local.fightHangar.activeBonusesByVehicle = {};
+            }
+            local.fightHangar.activeBonusesByVehicle[build.vehicleId] = { ...validation.bonuses };
+            runtimeAccess?.saveSettings?.(latestSettings);
+            if (latestSettings !== settings) Object.assign(settings, latestSettings);
+            return true;
+        }
         const profile = profileFor(build.vehicleId);
         profiles[build.vehicleId] = {
             ...profile,
@@ -260,10 +346,12 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             updatedAt: new Date().toISOString(),
         };
         profilePort.save(profiles);
+        return true;
     }
 
     async function saveCurrent(options = {}) {
-        const validation = validateHangarBuild(draft, profileFor(draft.vehicleId).level);
+        const profile = profileFor(draft.vehicleId);
+        const validation = validateForMode(draft, profile.level, profile);
         if (!validation.ok) {
             toast('Ungültige Builds werden nicht gespeichert.', 'warning');
             return { ok: false, validation };
@@ -286,6 +374,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         }
         draft = normalizeHangarBuild(result.build);
         savedBuild = normalizeHangarBuild(result.build);
+        baselineBuild = normalizeHangarBuild(result.build);
         history = new HangarBuildHistory(draft);
         presetName.value = '';
         if (options.activate) commitProfileForRun(draft);
@@ -296,7 +385,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function prepareRunStart() {
-        const validation = validateHangarBuild(draft, profileFor(draft.vehicleId).level);
+        const profile = profileFor(draft.vehicleId);
+        const validation = validateForMode(draft, profile.level, profile);
         if (!validation.ok) {
             toast('Run-Start blockiert: Der angezeigte Build ist ungültig.', 'warning');
             return { ok: false, code: 'invalid_build', validation };
@@ -308,6 +398,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             if (!result.ok || disposed) return;
             draft = normalizeHangarBuild(result.build);
             savedBuild = normalizeHangarBuild(result.build);
+            baselineBuild = normalizeHangarBuild(result.build);
             history = new HangarBuildHistory(draft);
             syncDisplay();
         });
@@ -323,6 +414,8 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         onQuickUpgrade: quickUpgrade,
         onSelectSlot: handleSlotSelection,
         isDirty,
+        mode: hangarMode,
+        validateBuild: validateForMode,
     });
 
     const dragController = createHangarDragDropController({
@@ -373,15 +466,19 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         const card = event.target?.closest?.('[data-part-id]');
         if (!card) return;
         if (card.dataset.hangarSuppressClick === 'true') return;
+        if (card.dataset.purchaseStoneId) {
+            purchaseStone(card.dataset.purchaseStoneId);
+            return;
+        }
         if (card.dataset.locked === 'true') {
-            toast(card.dataset.lockedReason || 'Dieses Bauteil ist noch gesperrt.', 'warning');
+            toast(card.dataset.lockedReason || 'Dieser Stein ist noch gesperrt.', 'warning');
             return;
         }
         selectPart(card.dataset.partId);
     });
     bind(catalogList, 'pointerover', (event) => {
         const card = event.target?.closest?.('[data-part-id]');
-        if (!card || card.dataset.locked === 'true' || previewPartId === card.dataset.partId) return;
+        if (!card || card.dataset.locked === 'true' || card.dataset.purchaseStoneId || previewPartId === card.dataset.partId) return;
         previewPartId = card.dataset.partId;
         syncDisplay({ preserveCatalog: true });
     });
@@ -394,7 +491,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(quickRows, 'click', (event) => { const id = event.target?.closest?.('[data-quick-vehicle-id]')?.dataset.quickVehicleId; if (id) selectVehicle(id); });
     bind(catalogList, 'pointerdown', (event) => {
         const card = event.target?.closest?.('[data-part-id]');
-        if (card && card.dataset.locked !== 'true') dragController.begin(event, { partId: card.dataset.partId, label: card.dataset.partLabel }, card);
+        if (card && card.dataset.locked !== 'true' && !card.dataset.purchaseStoneId) dragController.begin(event, { partId: card.dataset.partId, label: card.dataset.partLabel }, card);
     });
     bind(slotGrid, 'pointerdown', (event) => {
         const item = event.target?.closest?.('[data-installed-slot][data-part-id]');
@@ -421,11 +518,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(cameraReset, 'click', () => viewport.resetCamera());
     bind(undoButton, 'click', () => { const value = history.undo(); if (value) setDraft(value, { recordHistory: false }); });
     bind(redoButton, 'click', () => { const value = history.redo(); if (value) setDraft(value, { recordHistory: false }); });
-    bind(revertButton, 'click', () => { if (savedBuild) setDraft(savedBuild, { resetHistory: true, recordHistory: false }); });
+    bind(revertButton, 'click', () => { if (baselineBuild) setDraft(baselineBuild, { resetHistory: true, recordHistory: false }); });
     bind(defaultButton, 'click', () => {
         selectedPartId = '';
         previewPartId = '';
-        setDraft(createDefaultHangarBuild(draft.vehicleId, { hitboxClass: mapHangarHitboxClass(entryFor(draft.vehicleId)) }), { resetHistory: true });
+        setDraft(createDefaultHangarBuild(draft.vehicleId, { mode: hangarMode, hitboxClass: mapHangarHitboxClass(entryFor(draft.vehicleId)) }), { resetHistory: true });
     });
     bind(presetSave, 'click', () => { void saveCurrent(); });
     bind(presetSaveAs, 'click', () => { void saveCurrent({ asNew: true }); });
@@ -433,12 +530,29 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(presetLoad, 'click', () => {
         const value = persistence.getBuild(presetSelect.value);
         if (!value) return;
-        const validation = validateHangarBuild(value, profileFor(value.vehicleId).level);
+        const profile = profileFor(value.vehicleId);
+        const validation = validateForMode(value, profile.level, profile);
         savedBuild = value;
+        baselineBuild = value;
         setDraft(value, { resetHistory: true, recordHistory: false, persist: false });
         if (!validation.ok) toast(`Preset ist mit dem aktuellen Fortschritt ungültig: ${validation.errors[0]?.message}`, 'warning');
     });
-    bind(presetRename, 'click', async () => { const name = norm(presetName.value); if (!name) return; const result = await persistence.renameBuild(presetSelect.value, name); if (result.ok && savedBuild?.buildId === result.build.buildId) savedBuild = result.build; presetName.value = ''; syncDisplay(); });
+    bind(presetRename, 'click', async () => {
+        const name = norm(presetName.value);
+        if (!name) return;
+        const wasDirty = isDirty();
+        const result = await persistence.renameBuild(presetSelect.value, name);
+        if (result.ok && savedBuild?.buildId === result.build.buildId) {
+            savedBuild = result.build;
+            baselineBuild = result.build;
+            if (!wasDirty) {
+                draft = normalizeHangarBuild(result.build);
+                history = new HangarBuildHistory(draft);
+            }
+        }
+        presetName.value = '';
+        syncDisplay();
+    });
     bind(presetDuplicate, 'click', async () => { const value = persistence.getBuild(presetSelect.value); if (value) await persistence.duplicateBuild(value, norm(presetName.value, `${value.name} Kopie`)); presetName.value = ''; syncDisplay(); });
     bind(presetSort, 'change', () => syncDisplay());
     bind(presetFavorite, 'click', async () => {
@@ -479,7 +593,16 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         };
         input.click();
     });
-    bind(presetDelete, 'click', async () => { if (!presetSelect.value || (window.confirm && !window.confirm('Diesen Build wirklich löschen?'))) return; const id = presetSelect.value; await persistence.deleteBuild(id); if (savedBuild?.buildId === id) savedBuild = null; syncDisplay(); });
+    bind(presetDelete, 'click', async () => {
+        if (!presetSelect.value || (window.confirm && !window.confirm('Diesen Build wirklich löschen?'))) return;
+        const id = presetSelect.value;
+        const result = await persistence.deleteBuild(id);
+        if (result.ok && savedBuild?.buildId === id) {
+            savedBuild = null;
+            baselineBuild = buildFromProfile(draft.vehicleId, entryFor(draft.vehicleId), profileFor(draft.vehicleId));
+        }
+        syncDisplay();
+    });
     bind(activateButton, 'click', () => { void saveCurrent({ activate: true }); });
     bind(container, 'keydown', (event) => {
         const editing = ['input', 'select', 'textarea'].includes(String(event.target?.tagName || '').toLowerCase());
@@ -493,21 +616,30 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
 
     const initialVehicleId = syncVehicleWriteback(selection.getSelectedVehicleId());
     const recoveredDraft = draftPersistence.load(initialVehicleId);
-    draft = recoveredDraft || initialBuild(initialVehicleId);
     savedBuild = persistence.getActiveBuild(initialVehicleId) || persistence.listBuilds(initialVehicleId)[0] || null;
+    baselineBuild = savedBuild || initialBuild(initialVehicleId);
+    draft = recoveredDraft || baselineBuild;
     history = new HangarBuildHistory(draft);
     persistDraftChanges = true;
     toast(recoveredDraft ? 'Ungespeicherten Entwurf wiederhergestellt.' : 'Gespeicherte Builds werden geladen …', recoveredDraft ? 'success' : 'info');
     syncDisplay();
-    void persistence.hydrate().then(() => {
+    void persistence.hydrate().then((result) => {
         if (disposed) return;
         hydrated = true;
         const loaded = persistence.getActiveBuild(draft.vehicleId) || persistence.listBuilds(draft.vehicleId)[0];
-        if (recoveredDraft) savedBuild = loaded || null;
-        else if (!isDirty()) {
-            if (loaded) { savedBuild = loaded; draft = loaded; history = new HangarBuildHistory(draft); }
+        if (recoveredDraft) {
+            savedBuild = loaded || null;
+            baselineBuild = loaded || baselineBuild;
         }
-        toast('Hangar bereit', 'success');
+        else if (!isDirty()) {
+            if (loaded) {
+                savedBuild = loaded;
+                baselineBuild = loaded;
+                draft = loaded;
+                history = new HangarBuildHistory(draft);
+            }
+        }
+        toast(result.ok ? 'Hangar bereit' : 'Gespeicherte Builds konnten nicht geladen werden.', result.ok ? 'success' : 'warning');
         syncDisplay();
     });
 
@@ -517,13 +649,15 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         getSelectedVehicleId: () => draft.vehicleId,
         getDraftBuild: () => normalizeHangarBuild(draft),
         getActiveBuild: () => persistence.getActiveBuild(draft.vehicleId),
+        hasUnsavedChanges: isDirty,
+        flushDraft,
         prepareRunStart,
         dispose() {
             if (disposed) return;
+            flushDraft();
             disposed = true;
             dragController.dispose();
             viewport.dispose();
-            if (draftSaveTimer) window.clearTimeout(draftSaveTimer);
             audio.dispose();
             container.dataset.lifecycle = 'disposed';
         },

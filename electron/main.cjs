@@ -687,10 +687,12 @@ function readMenuDefaultsOverrideSnapshotSync() {
 const desktopWindowShellCapability = createDesktopWindowShellCapability();
 const hangarWindowShellCapability = createHangarWindowController({
     BrowserWindow,
+    dialog,
     resolveParentWindow: () => desktopWindowShellCapability.getWindow(),
-    resolveWindowUrl: async () => {
+    resolveWindowUrl: async (options = {}) => {
         const appServer = await startAppServer();
-        return new URL('hangar.html?mode=arcade', appServer.url).href;
+        const mode = String(options.mode || '').trim().toLowerCase() === 'fight' ? 'fight' : 'arcade';
+        return new URL(`hangar.html?mode=${mode}`, appServer.url).href;
     },
 });
 const lanHostShellCapability = createLanHostShellCapability();
@@ -868,6 +870,10 @@ ipcMain.handle('hangar-window:open', withTrustedMainWindowSender(async (options 
 
 ipcMain.handle('hangar-window:close', withTrustedHangarWindowSender(() => ({
     ok: hangarWindowShellCapability.closeHangarWindow(),
+})));
+
+ipcMain.handle('hangar-window:set-unsaved-changes', withTrustedHangarWindowSender((value) => ({
+    ok: hangarWindowShellCapability.setUnsavedChanges(value === true),
 })));
 
 ipcMain.handle('start-lan-server', withTrustedMainWindowSender(

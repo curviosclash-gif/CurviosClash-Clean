@@ -368,7 +368,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
 
         await openGameSubmenu(page);
         const startLabel = (await page.textContent('#btn-start')).trim();
-        expect(['Starten', 'BurstStart']).toContain(startLabel);
+        expect(['Spiel starten', 'BurstStart']).toContain(startLabel);
         expect(errors).toHaveLength(0);
     });
 

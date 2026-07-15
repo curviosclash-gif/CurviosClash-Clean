@@ -14,15 +14,15 @@ import { resolveArcadeGhostDuelModeLabel } from './StartSetupSelectionSync.js';
 function resolveSessionLabel(surfaceEntryCopy, sessionType) {
     return surfaceEntryCopy.sessionSummaryLabels[sessionType]
         || (sessionType === MENU_SESSION_TYPES.SPLITSCREEN
-            ? 'Splitscreen'
-            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER ? 'Multiplayer' : 'Single Player'));
+            ? 'Geteilter Bildschirm'
+            : (sessionType === MENU_SESSION_TYPES.MULTIPLAYER ? 'Mehrspieler' : 'Einzelspieler'));
 }
 
 function resolveModeLabel(modePath) {
-    if (modePath === 'fight') return 'Fight';
+    if (modePath === 'fight') return 'Kampf';
     if (modePath === 'arcade') return 'Arcade';
     if (modePath === 'quick_action') return 'Schnellstart';
-    return 'Normal';
+    return 'Klassisch';
 }
 
 function createSummaryBlocks({
@@ -41,24 +41,27 @@ function createSummaryBlocks({
 }) {
     const themeLabel = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell' ? 'Hell' : 'Dunkel';
     const summaryBlocks = [
-        { label: 'Session', value: resolveSessionLabel(surfaceEntryCopy, sessionType) },
+        { label: 'Session', value: resolveSessionLabel(surfaceEntryCopy, sessionType), secondary: true },
         { label: 'Spielstil', value: resolveModeLabel(modePath) },
-        { label: 'Map', value: mapPreview.name },
-        { label: 'P1', value: vehiclePreviewP1.label },
+        { label: 'Karte', value: mapPreview.name },
+        { label: 'Flugzeug', value: vehiclePreviewP1.label },
         {
             label: 'Ghost',
             value: resolveArcadeGhostDuelModeLabel(ghostDuelState.effectiveMode),
             muted: !ghostDuelState.duelSelectable,
+            secondary: true,
         },
         {
             label: 'Ghost-Kollision',
             value: ghostDuelState.effectiveTrailCollisionEnabled ? 'An' : 'Aus',
             muted: !ghostDuelState.trailCollisionSelectable,
+            secondary: true,
         },
-        { label: 'Ansicht', value: themeLabel },
+        { label: 'Ansicht', value: themeLabel, secondary: true },
     ];
-    if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN) {
-        summaryBlocks.push({ label: 'P2', value: vehiclePreviewP2.label });
+    if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN
+        || sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
+        summaryBlocks.push({ label: 'Flugzeug P2', value: vehiclePreviewP2.label });
     }
     if (sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
         const hasCode = String(resolvedMultiplayerSessionState?.lobbyCode || ui.multiplayerLobbyCodeInput?.value || '').trim();
@@ -84,6 +87,7 @@ function createSummaryBlocks({
             label: 'Transport',
             value: sessionContract.transportAudienceLabel,
             muted: sessionContract.isLegacyTransport === true,
+            secondary: true,
         });
     }
     return summaryBlocks;
@@ -99,18 +103,13 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
                 mapPreview.portalLevelCount > 1 ? `${mapPreview.portalLevelCount} Ebenen` : mapPreview.sizeText,
             ],
             facts: [
-                { label: 'Groesse', value: mapPreview.sizeText },
+                { label: 'Größe', value: mapPreview.sizeText },
                 { label: 'Hindernisse', value: String(mapPreview.obstacleCount) },
-                { label: 'Tunnel', value: String(mapPreview.tunnelCount) },
                 { label: 'Portale', value: String(mapPreview.portalCount) },
-                { label: 'Gates', value: String(mapPreview.gateCount) },
-                { label: 'Spawns', value: String(mapPreview.spawnCount) },
-                { label: 'Items', value: String(mapPreview.itemAnchorCount) },
-                { label: 'Deko', value: String(mapPreview.aircraftCount) },
             ],
         });
     }
-    if (ui.vehiclePreviewP1) {
+    if (ui.vehiclePreviewP1 && !ui.vehiclePreview3dMount) {
         renderPreviewCard(ui.vehiclePreviewP1, {
             title: vehiclePreviewP1.label,
             badges: ['Pilot 1', humanizePreviewCategory(vehiclePreviewP1.category)],
@@ -120,7 +119,7 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
             ],
         });
     }
-    if (ui.vehiclePreviewP2) {
+    if (ui.vehiclePreviewP2 && !ui.vehiclePreview3dMount) {
         renderPreviewCard(ui.vehiclePreviewP2, {
             title: vehiclePreviewP2.label,
             badges: ['Pilot 2', humanizePreviewCategory(vehiclePreviewP2.category)],
@@ -162,6 +161,13 @@ export function renderStartSetupSummaryAndPreview({
             vehiclePreviewP2,
             ghostDuelState,
         }));
+    }
+    if (ui.quickStartLastSummary) {
+        ui.quickStartLastSummary.textContent = [
+            resolveModeLabel(modePath),
+            mapPreview.name,
+            vehiclePreviewP1.label,
+        ].join(' · ');
     }
     renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2);
 }

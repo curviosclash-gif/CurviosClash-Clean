@@ -23,6 +23,8 @@ import {
     ensureStartSetupLocalState,
 } from './start-setup/StartSetupUiOps.js';
 import { bindStartSetupControls } from './start-setup/StartSetupControlBindings.js';
+import { createStartSetupMapPicker3d } from './start-setup/StartSetupMapPicker3d.js';
+import { createStartSetupVehiclePicker3d } from './start-setup/StartSetupVehiclePicker3d.js';
 import {
     formatStartSetupMapLabel,
     renderStartFieldHints,
@@ -61,6 +63,8 @@ export class UIStartSyncController {
         this._startSetupDisposers = [];
         this._startValidationIssue = null;
         this._activeSyncSnapshot = null;
+        this._mapPicker3d = null;
+        this._vehiclePicker3d = null;
     }
 
     _getSettings() {
@@ -135,7 +139,8 @@ export class UIStartSyncController {
             opt.value = key;
             opt.textContent = this._formatMapLabel({
                 name: String(mapDef?.name || key),
-                hasGlbModel: typeof mapDef?.glbModel === 'string' && mapDef.glbModel.trim().length > 0,
+                hasGlbModel: (typeof mapDef?.glbModel === 'string' && mapDef.glbModel.trim().length > 0)
+                    || (Array.isArray(mapDef?.glbModels) && mapDef.glbModels.length > 0),
             });
             select.appendChild(opt);
         });
@@ -165,11 +170,17 @@ export class UIStartSyncController {
     setupStartSetupControls() {
         const settings = this._getSettings();
         if (!settings) return;
+        this._mapPicker3d?.dispose();
+        this._mapPicker3d = null;
+        this._vehiclePicker3d?.dispose();
+        this._vehiclePicker3d = null;
         this.manager._disposeDisposerList(this._startSetupDisposers);
         const getSettings = () => this._getSettings();
         const listen = (target, type, handler) => this.manager._listen(target, type, handler, undefined, this._startSetupDisposers);
 
         bindStartSetupControls(this, listen, getSettings);
+        this._mapPicker3d = createStartSetupMapPicker3d({ ui: this.ui, listen });
+        this._vehiclePicker3d = createStartSetupVehiclePicker3d({ ui: this.ui, listen });
     }
 
     // ------------------------------------------------------------------
@@ -364,6 +375,8 @@ export class UIStartSyncController {
                 hasStoredCustomMap: () => this._hasStoredCustomMap(),
                 ghostDuelState,
             });
+            this._mapPicker3d?.sync({ mapKey: effectiveMapKey, maps: runtimeMaps });
+            this._vehiclePicker3d?.sync({ settings, sessionType });
 
         const surfaceEntryCopy = resolveSurfaceEntryCopy({
             productSurfaceId: this._resolveSurfacePolicy()?.productSurfaceId,
@@ -409,6 +422,10 @@ export class UIStartSyncController {
     // ------------------------------------------------------------------
 
     dispose() {
+        this._mapPicker3d?.dispose();
+        this._mapPicker3d = null;
+        this._vehiclePicker3d?.dispose();
+        this._vehiclePicker3d = null;
         this.manager._disposeDisposerList(this._startSetupDisposers);
     }
 }

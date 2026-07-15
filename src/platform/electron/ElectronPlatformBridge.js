@@ -342,6 +342,7 @@ export function createElectronPreloadHangarAdapter(runtimeGlobal = globalThis) {
         : resolveNamedContract(appRuntime, 'hangar');
     const openWindow = createCapabilityIntent(contract, contract?.openWindow, appRuntime, null);
     const closeWindow = createCapabilityIntent(contract, contract?.closeWindow, appRuntime, null);
+    const setUnsavedChanges = createCapabilityIntent(contract, contract?.setUnsavedChanges, appRuntime, null);
     const available = typeof openWindow === 'function';
     return Object.freeze({
         adapterName: 'electron.preload.hangar-window.v1',
@@ -349,6 +350,7 @@ export function createElectronPreloadHangarAdapter(runtimeGlobal = globalThis) {
         isAvailable: () => available,
         openWindow,
         closeWindow,
+        setUnsavedChanges,
     });
 }
 

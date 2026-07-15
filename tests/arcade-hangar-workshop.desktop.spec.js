@@ -14,8 +14,11 @@ const HANGAR_BUILD_STORAGE_KEY = 'curviosclash.hangar.arcade-builds.v2';
 const BUILD_NAME = 'Desktop E2E Build';
 
 async function openArcadeHangar(page) {
-    await openCustomSubmenu(page);
-    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    if (await page.locator('#menu-nav [data-session-type="single"]').first().isVisible()) {
+        await openCustomSubmenu(page);
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    }
+    await page.goto(new URL('/hangar.html?mode=arcade', page.url()).href);
     await expect(page.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 5000 });
     await expect(page.locator('#arcade-vehicle-preview-stage')).toHaveAttribute('data-preview-status', 'ready');
 }
@@ -35,6 +38,7 @@ async function seedUnlockedProfiles(page) {
             schemaVersion: 'arcade-vehicle-profile.v1',
             vehicleId,
             xp: 999999,
+            xpBank: 999999,
             level: 30,
             unlockedSlots: [...unlockedSlots],
             upgrades: {},
@@ -96,7 +100,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
         return String(card?.getAttribute('data-vehicle-id') || '');
     });
     expect(selectedVehicleId).not.toBe('');
-    await expect(page.locator('#vehicle-select-p1')).toHaveValue(selectedVehicleId);
+    await expect(page.locator(`#arcade-vehicle-manager .arcade-vehicle-card[data-vehicle-id="${selectedVehicleId}"]`)).toHaveAttribute('aria-selected', 'true');
 
     const stage = page.locator('#arcade-vehicle-preview-stage');
     const revisionBefore = Number(await stage.getAttribute('data-camera-revision') || 0);
@@ -133,27 +137,34 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
 
     const agilityBefore = await readMetric(page, 'agility');
     await page.locator('[data-catalog-view="parts"]').click();
-    await expect(page.locator('.hangar-part-card')).toHaveCount(45);
-    await expect(page.locator('.hangar-part-card[data-part-id="core_swift_t1"] .hangar-part-stats')).toContainText('Wende +3');
-    await expect(page.locator('.hangar-part-card[data-part-id="wing_kestrel_t1"] .hangar-part-costs')).toContainText('Paarpreis');
-    await expect(page.locator('.hangar-part-card[data-part-id="wing_kestrel_t1"] .hangar-part-run-bonuses')).toContainText('Tempo +3%');
+    await expect(page.locator('.hangar-part-card')).toHaveCount(15);
+    await expect(page.locator('.hangar-part-card[data-part-id="stone_blue_t1"] .hangar-part-stats')).toContainText('Tempo +3');
+    await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-costs')).toContainText('Paarpreis');
+    await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-run-bonuses')).toContainText('Wende +4%');
 
-    const swiftCore = page.locator('.hangar-part-card[data-part-id="core_swift_t1"]');
-    await swiftCore.click();
-    await expect(swiftCore).toHaveAttribute('aria-pressed', 'true');
-    await expect(page.locator('.hangar-part-preview')).toContainText('Hardpoint anklicken');
+    const violetCore = page.locator('.hangar-part-card[data-part-id="stone_violet_t1"]');
+    await violetCore.click();
+    await expect(violetCore).toHaveAttribute('aria-pressed', 'true');
+    await expect(page.locator('.hangar-part-preview')).toContainText('Fassung anklicken');
     await page.locator('[data-hangar-slot="core"]').click();
-    await expect(page.locator('[data-hangar-slot-row="core"] .hangar-installed-part')).toContainText('Swift Core T1');
-    await expect(page.locator('.hangar-status-message')).toContainText('montiert');
+    await expect(page.locator('[data-hangar-slot-row="core"] .hangar-installed-part')).toContainText('Resonanzstein T1');
+    await expect(page.locator('.hangar-status-message')).toContainText('eingesetzt');
 
     await page.locator('[data-starter-build="sprinter"]').click();
-    await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toContainText('Kestrel Wing T1');
+    await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toContainText('Wendestein T1');
     await expect(page.locator('.hangar-status-message')).toContainText('Sprinter Build geladen');
-    const wingPart = page.locator('.hangar-part-card[data-part-id="wing_t2"]');
+    await page.locator('[data-select-slot="wing_left"]').click();
+    const wingPart = page.locator('.hangar-part-card[data-part-id="stone_green_t2"]');
     await wingPart.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
     await page.waitForTimeout(100);
     await expect(wingPart).toBeVisible();
     await expect(wingPart).not.toHaveAttribute('data-locked', 'true');
+    await expect(wingPart).toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
+    await wingPart.click();
+    await expect(wingPart).toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
+    await wingPart.click();
+    await expect(wingPart).not.toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
+    await expect(page.locator('.hangar-status-message')).toContainText('gekauft');
     await wingPart.hover();
     await page.mouse.down();
     const wingPartPoint = await wingPart.evaluate((node) => {
@@ -190,10 +201,14 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('.arcade-vehicle-preset-input').fill(BUILD_NAME);
     await page.locator('.arcade-vehicle-preset-save').click();
     await expect(page.locator('.arcade-vehicle-preset-select option', { hasText: BUILD_NAME })).toHaveCount(1);
-    await page.evaluate(() => {
-        window.__hangarPreviousContainer = document.getElementById('arcade-vehicle-manager');
-    });
+    await page.locator('.hangar-activate-build').click();
+    await expect(page.locator('.hangar-status-message')).toContainText('aktiviert');
 
+    await page.goto(new URL('/', page.url()).href);
+    await loadGameWithRetry(page);
+    await openCustomSubmenu(page);
+    await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
+    await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
     await page.locator('#btn-start').click();
     await page.waitForFunction(() => (
         window.GAME_INSTANCE?.state === 'PLAYING'
@@ -228,24 +243,4 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect(page.locator('#arcade-vehicle-manager .hangar-viewport-canvas-node')).toHaveCount(1);
     await expect(page.locator('#arcade-vehicle-manager [data-hangar-slot]')).toHaveCount(7);
-    const lifecycleState = await page.evaluate(() => ({
-        oldDisposed: window.__hangarPreviousContainer?.dataset?.lifecycle === 'disposed',
-        oldDisconnected: window.__hangarPreviousContainer?.isConnected === false,
-        sameContainer: window.__hangarPreviousContainer === document.getElementById('arcade-vehicle-manager'),
-    }));
-    expect(lifecycleState.sameContainer || lifecycleState.oldDisposed || lifecycleState.oldDisconnected).toBeTruthy();
-
-    const cleanupState = await page.evaluate(() => {
-        const game = window.GAME_INSTANCE;
-        const ui = game?.runtimeCoordinator?.getRuntimeHandle?.('ui') || game?.ui;
-        const manager = ui?.__arcadeVehicleManager;
-        const container = manager?.container;
-        manager?.dispose?.();
-        return {
-            lifecycle: String(container?.dataset?.lifecycle || ''),
-            canvases: container?.querySelectorAll('.hangar-viewport-canvas-node').length ?? -1,
-            hardpoints: container?.querySelectorAll('[data-hangar-slot]').length ?? -1,
-        };
-    });
-    expect(cleanupState).toEqual({ lifecycle: 'disposed', canvases: 0, hardpoints: 0 });
 });

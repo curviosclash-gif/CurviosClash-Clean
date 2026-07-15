@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    handleLevel4ResetAction,
     handleQuickStartLastStartAction,
     handleSessionTypeChangeAction,
     resolveProductiveMultiplayerTransport,
@@ -150,7 +151,7 @@ test('handleSessionTypeChangeAction keeps desktop splitscreen instead of browser
     assert.equal(game.settings.localSettings.sessionType, 'splitscreen');
     assert.equal(game.settings.mode, '2p');
     assert.equal(calls.settingsChanged.length, 1);
-    assert.match(calls.toasts[0]?.message || '', /Splitscreen/);
+    assert.match(calls.toasts[0]?.message || '', /Geteilter Bildschirm/);
 });
 
 test('handleQuickStartLastStartAction allows desktop default-full quickstart', () => {
@@ -173,4 +174,54 @@ test('handleQuickStartLastStartAction allows desktop default-full quickstart', (
     assert.equal(calls.settingsChanged.length, 1);
     assert.equal(calls.telemetry[0]?.type, 'quickstart');
     assert.equal(calls.startMatch, 1);
+});
+
+test('handleLevel4ResetAction resets only the options shown in the gameplay panel', () => {
+    const defaults = {
+        gameplay: { speed: 35, portalCount: 8 },
+        controls: { PLAYER_1: { LEFT: 'KeyA' } },
+        localSettings: { shadowQuality: 3 },
+        portalsEnabled: true,
+        autoRoll: true,
+        invertPitch: { PLAYER_1: true, PLAYER_2: true },
+        cockpitCamera: { PLAYER_1: true, PLAYER_2: true },
+        cameraPerspective: { normal: 'classic', reduceMotion: true },
+        recording: { profile: 'standard', hudMode: 'clean' },
+    };
+    const changed = [];
+    const toasts = [];
+    const game = {
+        settings: {
+            gameplay: { speed: 12, portalCount: 2 },
+            controls: { PLAYER_1: { LEFT: 'ArrowLeft' } },
+            localSettings: { shadowQuality: 0 },
+            portalsEnabled: false,
+            autoRoll: false,
+            invertPitch: { PLAYER_1: false, PLAYER_2: false },
+            cockpitCamera: { PLAYER_1: false, PLAYER_2: false },
+            cameraPerspective: { normal: 'cinematic_action', reduceMotion: false },
+            recording: { profile: 'youtube_short', hudMode: 'with_hud' },
+        },
+        settingsManager: {
+            createDefaultSettings: () => structuredClone(defaults),
+        },
+        _showStatusToast(message, duration, tone) {
+            toasts.push({ message, duration, tone });
+        },
+    };
+
+    handleLevel4ResetAction({
+        game,
+        onSettingsChanged(payload) {
+            changed.push(payload);
+        },
+    });
+
+    assert.deepEqual(game.settings.gameplay, defaults.gameplay);
+    assert.deepEqual(game.settings.cameraPerspective, defaults.cameraPerspective);
+    assert.deepEqual(game.settings.recording, defaults.recording);
+    assert.deepEqual(game.settings.controls, { PLAYER_1: { LEFT: 'ArrowLeft' } });
+    assert.equal(game.settings.portalsEnabled, false);
+    assert.equal(changed.length, 1);
+    assert.match(toasts[0]?.message || '', /Spieloptionen zurückgesetzt/);
 });

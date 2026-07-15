@@ -200,7 +200,7 @@ export class MenuExpertLoginRuntime {
                 : (this.state.error || String(this.state.message || 'Developer- und Debugfunktionen sind lokal gesperrt.')));
 
         if (this.ui.openExpertButton) {
-            this.ui.openExpertButton.textContent = unlocked ? 'Expert offen' : 'Expert';
+            this.ui.openExpertButton.textContent = unlocked ? 'Expertenbereich offen' : 'Expertenbereich';
             this.ui.openExpertButton.setAttribute('aria-pressed', String(unlocked));
         }
         setElementHidden(this.ui.expertQuickLockButton, !available || !unlocked);
