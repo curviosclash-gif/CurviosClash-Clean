@@ -4,8 +4,17 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
-const OBJ_VEHICLE_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'jets', 'cc0', 'spaceship_pack', 'dist', 'obj_mtl');
-const OBJ_VEHICLE_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'jets', 'cc0', 'spaceship_pack', 'dist', 'obj_mtl'];
+const OBJ_ASSET_COPY_ENTRIES = [
+    ['assets', 'items'],
+    ['assets', 'portals'],
+    ['assets', 'trails'],
+    ['assets', 'models', 'jets', 'cc0', 'WWIairplane.obj'],
+    ['assets', 'models', 'jets', 'cc0', 'funky_aircraft_low.obj'],
+    ['assets', 'models', 'jets', 'cc0', 'funky_aircraft_high.obj'],
+    ['assets', 'models', 'jets', 'cc0', 'funky_aircraft_control.obj'],
+    ['assets', 'models', 'jets', 'cc0', 'pinnace_lo.obj'],
+    ['assets', 'models', 'jets', 'cc0', 'spaceship_pack', 'dist', 'obj_mtl'],
+];
 const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'downloaded_cc0');
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];
 
@@ -19,10 +28,13 @@ export function copyObjVehicleAssetsPlugin() {
             resolvedOutDir = path.resolve(config.root, config.build.outDir || 'dist');
         },
         writeBundle() {
-            if (!existsSync(OBJ_VEHICLE_ASSET_SOURCE_DIR)) return;
-            const targetDir = path.join(resolvedOutDir, ...OBJ_VEHICLE_ASSET_OUTPUT_SEGMENTS);
-            mkdirSync(path.dirname(targetDir), { recursive: true });
-            cpSync(OBJ_VEHICLE_ASSET_SOURCE_DIR, targetDir, { recursive: true, force: true });
+            for (const pathSegments of OBJ_ASSET_COPY_ENTRIES) {
+                const sourcePath = path.resolve(__dirname, ...pathSegments);
+                if (!existsSync(sourcePath)) continue;
+                const targetPath = path.join(resolvedOutDir, ...pathSegments);
+                mkdirSync(path.dirname(targetPath), { recursive: true });
+                cpSync(sourcePath, targetPath, { recursive: true, force: true });
+            }
         },
     };
 }
