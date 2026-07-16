@@ -62,6 +62,7 @@ import { UIManager } from '../src/ui/UIManager.js';
 import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
 import { UIStartSyncController } from '../src/ui/UIStartSyncController.js';
 import { renderStartSetupSummaryAndPreview, syncStartSetupMultiplayerUi } from '../src/ui/start-setup/StartSetupMultiplayerUiSync.js';
+import { syncStartSetupSelectionState } from '../src/ui/start-setup/StartSetupSelectionSync.js';
 import { resolveDeveloperReleaseState, resolveMenuUiSyncContext } from '../src/ui/menu/MenuUiSyncContext.js';
 
 function withMockRuntimeGlobals(run, options = {}) {
@@ -1385,6 +1386,98 @@ test('UIManager syncStartSetupState forced call still emits a snapshot contract 
     assert.equal(syncCalls.length, 1);
     assert.equal(syncCalls[0]?.surfacePolicy?.productSurfaceId, 'desktop-app');
     assert.equal(syncCalls[0]?.surfaceMenuState?.sessionType, 'single');
+});
+
+test('start setup filters retain the active map instead of previewing a different match', () => {
+    class FakeOption {
+        constructor() {
+            this.value = '';
+            this.textContent = '';
+            this.dataset = {};
+        }
+    }
+
+    class FakeSelect {
+        constructor() {
+            this.options = [];
+            this.value = '';
+        }
+
+        appendChild(option) {
+            this.options.push(option);
+            if (!this.value) this.value = option.value;
+            return option;
+        }
+
+        replaceChildren() {
+            this.options = [];
+            this.value = '';
+        }
+    }
+
+    const originalDocument = globalThis.document;
+    globalThis.document = {
+        createElement(tagName) {
+            if (String(tagName).toLowerCase() === 'option') return new FakeOption();
+            throw new Error(`unexpected tag: ${tagName}`);
+        },
+    };
+
+    try {
+        const mapSelect = new FakeSelect();
+        const startSetup = {
+            mapSearch: 'beta',
+            mapFilter: 'all',
+            vehicleSearch: '',
+            vehicleFilter: 'all',
+            favoriteMaps: [],
+            recentMaps: [],
+            favoriteVehicles: [],
+            recentVehicles: [],
+            modeSelections: {
+                normal: {
+                    mapKey: 'alpha',
+                    vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship6' },
+                },
+            },
+        };
+        const settings = {
+            mapKey: 'alpha',
+            vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship6' },
+            localSettings: { modePath: 'normal', startSetup },
+        };
+        const runtimeMaps = {
+            alpha: { name: 'Alpha', size: [80, 30, 80] },
+            beta: { name: 'Beta', size: [80, 30, 80] },
+        };
+        const result = syncStartSetupSelectionState({
+            ui: { mapSelect },
+            settings,
+            startSetup,
+            runtimeMaps,
+            surfaceMenuState: { mapKey: 'alpha' },
+            mapPreviewEntries: [
+                { key: 'alpha', name: 'Alpha', category: 'medium' },
+                { key: 'beta', name: 'Beta', category: 'medium' },
+            ],
+            vehiclePreviewEntries: [],
+            modePath: 'normal',
+            hangarSelectionModePath: 'normal',
+            surfacePolicyPort: { isMapAllowed: () => true },
+            formatMapLabel: (entry) => entry.name,
+            resolveSurfaceFallbackMapKey: () => 'alpha',
+            hasStoredCustomMap: () => false,
+            ghostDuelState: {},
+        });
+
+        assert.equal(result.effectiveMapKey, 'alpha');
+        assert.equal(mapSelect.value, 'alpha');
+        assert.deepEqual(mapSelect.options.map((option) => option.value), ['beta', 'alpha']);
+        assert.equal(mapSelect.options[1].dataset.filterRetained, 'true');
+    } finally {
+        if (typeof originalDocument === 'undefined') delete globalThis.document;
+        else globalThis.document = originalDocument;
+    }
 });
 
 test('UIStartSyncController renders the mode-specific map without mutating stale settings during sync', () => {

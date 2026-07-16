@@ -319,8 +319,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
     const sync = () => {
         const isArcade = shouldShowArcade(settings);
         refs.details.classList.toggle('hidden', !isArcade);
-        refs.details.open = isArcade;
-        if (!isArcade) return;
+        if (!isArcade) {
+            refs.details.open = false;
+            return;
+        }
+        const hasOpenSetupSection = Array.from(
+            level3Body.querySelectorAll('details[data-start-section][open]')
+        ).some((section) => section !== refs.details && section.dataset.startSection !== 'multiplayer');
+        if (!hasOpenSetupSection) refs.details.open = true;
 
         const mapKey = normalizeString(settings?.mapKey, 'standard');
         const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5');

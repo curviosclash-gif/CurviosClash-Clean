@@ -107,37 +107,52 @@ function bindQuickPickList(listNode, attributeName, selectNode, listen) {
 }
 
 function bindStartSectionFlow(controller, listen) {
-    const sections = Array.isArray(controller.ui?.startAccordions)
-        ? controller.ui.startAccordions.filter((entry) => (
-            typeof HTMLDetailsElement !== 'undefined' && entry instanceof HTMLDetailsElement
-            && entry.dataset.startSection !== 'multiplayer'
-        ))
-        : [];
+    const root = controller.ui?.mainMenu || document.getElementById('main-menu');
+    const getSections = () => Array.from(root?.querySelectorAll?.('details[data-start-section]') || [])
+        .filter((entry) => entry.dataset.startSection !== 'multiplayer');
     const syncSectionState = (activeSection = null) => {
+        const sections = getSections();
         sections.forEach((section) => {
             if (activeSection && section !== activeSection && section.open) section.open = false;
             const summary = section.querySelector(':scope > summary');
             summary?.setAttribute('aria-expanded', String(section.open));
             section.dataset.startSectionState = section.open ? 'open' : 'closed';
         });
-    };
-    sections.forEach((section) => {
-        listen(section, 'toggle', () => syncSectionState(section.open ? section : null));
-    });
-    syncSectionState(sections.find((section) => section.open) || null);
-
-    const root = controller.ui?.mainMenu || document.getElementById('main-menu');
-    root?.querySelectorAll?.('[data-start-section-target]').forEach((button) => {
-        listen(button, 'click', () => {
-            const sectionId = String(button.dataset.startSectionTarget || '').trim();
-            const target = sections.find((section) => section.dataset.startSection === sectionId);
-            if (!target) return;
-            target.open = true;
-            syncSectionState(target);
-            target.querySelector(':scope > summary')?.focus?.();
-            target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        const activeSectionId = String(activeSection?.dataset?.startSection || '').trim();
+        root?.querySelectorAll?.('[data-start-section-target]').forEach((button) => {
+            const isActive = !!activeSectionId
+                && String(button.dataset.startSectionTarget || '').trim() === activeSectionId;
+            button.classList.toggle('active', isActive);
+            button.toggleAttribute('aria-current', isActive);
+            if (isActive) button.setAttribute('aria-current', 'step');
         });
+    };
+    listen(root, 'toggle', (event) => {
+        const section = event.target;
+        if (section?.matches?.('details[data-start-section]:not([data-start-section="multiplayer"])')) {
+            const activeSection = section.open
+                ? section
+                : getSections().find((entry) => entry.open) || null;
+            syncSectionState(activeSection);
+        }
+    }, true);
+    listen(root, 'click', (event) => {
+        const button = event.target?.closest?.('[data-start-section-target]');
+        if (!button || !root?.contains?.(button)) return;
+        const sectionId = String(button.dataset.startSectionTarget || '').trim();
+        const target = getSections().find((section) => section.dataset.startSection === sectionId);
+        if (!target) return;
+        target.open = true;
+        syncSectionState(target);
+        target.querySelector(':scope > summary')?.focus?.();
+        const launchBayActive = !!root.querySelector?.('.start-step-rail')
+            && globalThis.matchMedia?.('(min-width: 1180px)')?.matches === true;
+        if (!launchBayActive) {
+            target.scrollIntoView?.({ behavior: 'smooth', block: 'start' });
+        }
     });
+    const sections = getSections();
+    syncSectionState(sections.find((section) => section.open) || null);
 }
 
 export function bindStartSetupControls(controller, listen, getSettings) {

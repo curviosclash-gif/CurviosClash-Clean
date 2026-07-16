@@ -176,7 +176,13 @@ export class UIStartSyncController {
         this._vehiclePicker3d = null;
         this.manager._disposeDisposerList(this._startSetupDisposers);
         const getSettings = () => this._getSettings();
-        const listen = (target, type, handler) => this.manager._listen(target, type, handler, undefined, this._startSetupDisposers);
+        const listen = (target, type, handler, options = undefined) => this.manager._listen(
+            target,
+            type,
+            handler,
+            options,
+            this._startSetupDisposers
+        );
 
         bindStartSetupControls(this, listen, getSettings);
         this._mapPicker3d = createStartSetupMapPicker3d({ ui: this.ui, listen });

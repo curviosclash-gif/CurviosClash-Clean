@@ -5464,3 +5464,305 @@ input[type="range"]::-webkit-slider-thumb {
         animation-delay: 2.4s;
     }
 }
+
+/* ============================================
+   DESKTOP START-SETUP LAUNCH BAY
+   ============================================ */
+
+.start-step-rail {
+    display: none;
+}
+
+@media (min-width: 1180px) {
+    #main-menu[data-menu-depth="3"] .menu-content {
+        width: min(1280px, 94vw);
+        max-height: 94vh;
+        padding: 20px;
+    }
+
+    #submenu-game .level3-body {
+        grid-template-columns: minmax(180px, 0.72fr) minmax(600px, 2.4fr) minmax(260px, 1fr);
+        grid-template-rows: auto minmax(0, 1fr);
+        gap: 16px;
+        align-items: start;
+    }
+
+    #submenu-game .start-step-rail {
+        position: sticky;
+        top: 8px;
+        grid-column: 1;
+        grid-row: 1 / -1;
+        display: flex;
+        flex-direction: column;
+        gap: 7px;
+        min-width: 0;
+        padding: 14px;
+        border: 1px solid rgba(113, 181, 232, 0.2);
+        border-radius: 16px;
+        background: linear-gradient(165deg, rgba(14, 27, 47, 0.9), rgba(7, 16, 30, 0.86));
+        box-shadow: 0 16px 34px rgba(0, 0, 0, 0.18);
+        backdrop-filter: blur(14px);
+    }
+
+    .start-step-rail-heading {
+        display: grid;
+        gap: 3px;
+        padding: 3px 5px 10px;
+    }
+
+    .start-step-rail-heading strong {
+        color: #f3f9ff;
+        font-family: var(--menu-theme-display-font);
+        font-size: 0.94rem;
+    }
+
+    .start-step-rail-kicker {
+        color: #73d7ff;
+        font-size: 0.62rem;
+        font-weight: 800;
+        letter-spacing: 0.15em;
+        text-transform: uppercase;
+    }
+
+    .start-step-tab {
+        display: grid;
+        grid-template-columns: 30px minmax(0, 1fr);
+        align-items: center;
+        gap: 10px;
+        width: 100%;
+        min-height: 58px;
+        padding: 9px 10px;
+        border: 1px solid transparent;
+        border-radius: 12px;
+        background: transparent;
+        color: #d9e6f5;
+        text-align: left;
+        cursor: pointer;
+        transition: background 160ms ease, border-color 160ms ease, transform 160ms ease;
+    }
+
+    .start-step-tab > span:last-child {
+        display: grid;
+        gap: 3px;
+        min-width: 0;
+    }
+
+    .start-step-tab strong {
+        color: inherit;
+        font-size: 0.82rem;
+        line-height: 1.1;
+    }
+
+    .start-step-tab small {
+        overflow: hidden;
+        color: #8197b2;
+        font-size: 0.64rem;
+        line-height: 1.2;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+    }
+
+    .start-step-tab:hover,
+    .start-step-tab:focus-visible {
+        border-color: rgba(92, 190, 241, 0.38);
+        background: rgba(43, 111, 158, 0.14);
+    }
+
+    .start-step-tab.active {
+        transform: translateX(3px);
+        border-color: rgba(75, 204, 255, 0.72);
+        background: linear-gradient(135deg, rgba(17, 138, 201, 0.3), rgba(14, 72, 115, 0.16));
+        color: #fff;
+        box-shadow: inset 3px 0 0 #48cfff, 0 0 18px rgba(26, 155, 213, 0.12);
+    }
+
+    .start-step-tab.active small {
+        color: #9edfff;
+    }
+
+    .start-step-tab .start-step-index {
+        width: 27px;
+        height: 27px;
+        flex-basis: 27px;
+    }
+
+    .start-step-tab-glyph {
+        display: grid;
+        width: 27px;
+        height: 27px;
+        place-items: center;
+        color: #ffad6d;
+        font-size: 0.82rem;
+    }
+
+    .start-step-rail-divider {
+        height: 1px;
+        margin: 5px 4px;
+        background: linear-gradient(90deg, transparent, rgba(116, 185, 235, 0.28), transparent);
+    }
+
+    .start-step-tab-utility {
+        min-height: 50px;
+    }
+
+    #submenu-game:not(:has(#arcade-inline-surface:not(.hidden))) .start-step-tab[data-start-section-target="arcade"] {
+        display: none;
+    }
+
+    #submenu-game .level3-body > .start-rail {
+        position: sticky;
+        top: 8px;
+        grid-column: 3;
+        grid-row: 1;
+        gap: 12px;
+        padding: 15px;
+        border-color: rgba(85, 202, 255, 0.4);
+        background:
+            radial-gradient(circle at 90% 0%, rgba(24, 153, 219, 0.18), transparent 44%),
+            linear-gradient(165deg, rgba(15, 31, 54, 0.96), rgba(8, 19, 36, 0.92));
+    }
+
+    #submenu-game .start-rail-copy {
+        grid-template-columns: 1fr;
+        gap: 9px;
+    }
+
+    #submenu-game .start-rail-copy .section-title {
+        color: #78d9ff;
+        font-size: 0.7rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+    }
+
+    #submenu-game .start-summary-grid {
+        grid-template-columns: 1fr;
+        gap: 7px;
+    }
+
+    #submenu-game .start-summary-block {
+        grid-template-columns: minmax(70px, 0.72fr) minmax(0, 1fr);
+        align-items: center;
+        gap: 8px;
+        padding: 8px 9px;
+        border: 0;
+        border-radius: 9px;
+        background: rgba(255, 255, 255, 0.035);
+    }
+
+    #submenu-game .start-summary-label {
+        font-size: 0.58rem;
+    }
+
+    #submenu-game .start-summary-value {
+        font-size: 0.74rem;
+        text-align: right;
+    }
+
+    #submenu-game .start-rail-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+        gap: 7px;
+    }
+
+    #submenu-game .start-rail-actions .secondary-btn,
+    #submenu-game .start-rail-actions .start-btn {
+        width: 100%;
+        min-height: 40px;
+    }
+
+    #submenu-game .start-rail-actions .start-btn {
+        order: -2;
+        min-height: 52px;
+        background: linear-gradient(135deg, #078fd6, #08b4ed);
+        box-shadow: 0 10px 28px rgba(0, 153, 224, 0.24);
+    }
+
+    #submenu-game #btn-level3-reset {
+        order: 3;
+        min-height: 34px;
+        border-color: transparent;
+        background: transparent;
+        color: #8fa3bb;
+        font-size: 0.7rem;
+    }
+
+    #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) {
+        grid-column: 2;
+        grid-row: 1 / -1;
+        min-width: 0;
+        margin: 0;
+        border-color: rgba(101, 178, 231, 0.22);
+        background: linear-gradient(165deg, rgba(10, 24, 43, 0.82), rgba(6, 15, 29, 0.74));
+        box-shadow: 0 18px 36px rgba(0, 0, 0, 0.16);
+    }
+
+    #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub):not([open]) {
+        display: none;
+    }
+
+    #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub)[open] {
+        display: block;
+    }
+
+    #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) > .menu-accordion-summary {
+        min-height: 54px;
+        padding: 13px 16px;
+        border-bottom: 1px solid rgba(111, 181, 230, 0.16);
+        cursor: default;
+    }
+
+    #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) > .menu-accordion-summary::after {
+        display: none;
+    }
+
+    #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) > .menu-accordion-body {
+        padding: 14px 16px 16px;
+    }
+
+    #submenu-game .level3-body > #multiplayer-inline-stub:not(.hidden) {
+        grid-column: 3;
+        grid-row: 2;
+        display: block;
+        border-color: rgba(255, 153, 86, 0.32);
+        background: linear-gradient(165deg, rgba(43, 28, 25, 0.9), rgba(20, 20, 34, 0.9));
+    }
+
+    #submenu-game .level3-body > #multiplayer-inline-stub > .menu-accordion-summary {
+        padding: 11px 13px;
+    }
+
+    #submenu-game .level3-body > #multiplayer-inline-stub > .menu-accordion-body {
+        padding: 0 13px 13px;
+    }
+
+    #main-menu[data-menu-local-theme="hell"] .start-step-rail,
+    #main-menu[data-menu-local-theme="hell"] #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) {
+        background: rgba(246, 250, 255, 0.9);
+        color: #1f3454;
+    }
+
+    #main-menu[data-menu-local-theme="hell"] .start-step-tab {
+        color: #294764;
+    }
+
+    #main-menu[data-menu-local-theme="hell"] .start-step-tab small {
+        color: #627d99;
+    }
+}
+
+@media (min-width: 1180px) and (max-height: 760px) {
+    #main-menu[data-menu-depth="3"] .menu-content {
+        max-height: 96vh;
+        padding: 16px;
+    }
+
+    #submenu-game .start-map-preview-stage {
+        height: 225px;
+        min-height: 225px;
+    }
+
+    #submenu-game .start-vehicle-preview-stage {
+        height: 260px;
+        min-height: 260px;
+    }
+}

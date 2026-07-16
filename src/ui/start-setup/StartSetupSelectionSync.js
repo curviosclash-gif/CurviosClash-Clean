@@ -129,6 +129,23 @@ function syncMapSelect({
         });
         ui.mapSelect.appendChild(option);
     }
+    let hasPreviousOption = Array.from(ui.mapSelect.options).some((option) => option.value === previousValue);
+    const previousMapDefinition = runtimeMaps?.[previousValue];
+    const canRetainPreviousMap = previousValue === 'custom'
+        ? hasStoredCustomMap()
+        : !!previousMapDefinition
+            && isMapEligibleForModePath(previousMapDefinition, modePath)
+            && surfacePolicyPort.isMapAllowed(previousValue, modePath);
+    if (!hasPreviousOption && canRetainPreviousMap) {
+        const previousEntry = mapPreviewEntries.find((entry) => entry.key === previousValue)
+            || resolveMapPreview(previousValue);
+        const option = document.createElement('option');
+        option.value = previousValue;
+        option.textContent = formatMapLabel(previousEntry);
+        option.dataset.filterRetained = 'true';
+        ui.mapSelect.appendChild(option);
+        hasPreviousOption = true;
+    }
     if (ui.mapSelect.options.length === 0) {
         const option = document.createElement('option');
         const fallbackOptionKey = String(fallbackMapKey || previousValue || 'standard');
@@ -136,7 +153,6 @@ function syncMapSelect({
         option.textContent = formatMapLabel(resolveMapPreview(fallbackOptionKey));
         ui.mapSelect.appendChild(option);
     }
-    const hasPreviousOption = Array.from(ui.mapSelect.options).some((option) => option.value === previousValue);
     const resolvedMapKey = hasPreviousOption
         ? previousValue
         : ui.mapSelect.options[0].value;

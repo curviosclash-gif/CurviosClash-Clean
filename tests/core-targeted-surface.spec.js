@@ -2658,7 +2658,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(railState.summaryWhiteSpace).toBe('normal');
         expect(railState.visibleSummaryBlocks).toEqual(['Spielstil', 'Karte', 'Flugzeug']);
 
-        await page.click('[data-start-section-target="vehicle"]');
+        await page.click('.start-step-tab[data-start-section-target="vehicle"]');
         await expect(page.locator('#btn-start')).toBeInViewport();
         await expect(page.locator('#start-vehicle-section > summary')).toBeInViewport();
     });
@@ -2670,15 +2670,17 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#start-map-section')).toHaveJSProperty('open', true);
         await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', false);
         await expect(page.locator('#start-match-section')).toHaveJSProperty('open', false);
+        await expect(page.locator('.start-step-tab[data-start-section-target="map"]')).toHaveAttribute('aria-current', 'step');
         await expect(page.locator('#map-favorites-list').locator('..')).toHaveClass(/hidden/);
         await expect(page.locator('#map-recent-list').locator('..')).toHaveClass(/hidden/);
 
-        await page.click('[data-start-section-target="vehicle"]');
+        await page.click('.start-step-tab[data-start-section-target="vehicle"]');
         await expect(page.locator('#start-map-section')).toHaveJSProperty('open', false);
         await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', true);
+        await expect(page.locator('.start-step-tab[data-start-section-target="vehicle"]')).toHaveAttribute('aria-current', 'step');
         await expect(page.locator('#start-vehicle-section > summary')).toBeFocused();
 
-        await page.click('[data-start-section-target="match"]');
+        await page.click('.start-step-tab[data-start-section-target="match"]');
         await expect(page.locator('#start-vehicle-section')).toHaveJSProperty('open', false);
         await expect(page.locator('#start-match-section')).toHaveJSProperty('open', true);
         await expect(page.locator('#bot-count')).toBeVisible();
@@ -2687,7 +2689,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await expect(page.locator('#theme-mode-select')).toBeVisible();
         await expect(page.locator('#bot-policy-strategy')).toBeVisible();
 
-        await page.click('#start-map-section > summary');
+        await page.click('.start-step-tab[data-start-section-target="map"]');
         const initialMapKey = await page.inputValue('#map-select');
         const activeMapChoice = page.locator('#start-map-choice-strip [aria-selected="true"]');
         await activeMapChoice.focus();
