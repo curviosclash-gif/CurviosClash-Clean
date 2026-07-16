@@ -29,6 +29,7 @@ import {
     resolveVehicleManagerCatalogEntry,
     applyPlayerPowerup,
     updatePlayerEffects,
+    waitForRenderFrames,
     SETTINGS_STORAGE_KEY,
     SETTINGS_PROFILES_STORAGE_KEY,
     LEGACY_SETTINGS_STORAGE_KEY,
@@ -647,7 +648,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         await page.click('#keybind-global .keybind-btn[data-action="CINEMATIC_TOGGLE"]');
         await page.keyboard.press('KeyB');
-        await page.waitForTimeout(50);
+        await waitForRenderFrames(page, 1);
 
         const globalBinding = await page.evaluate(() => (
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.CINEMATIC_TOGGLE || ''
@@ -661,7 +662,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         await page.click('#keybind-global .keybind-btn[data-action="RECORDING_TOGGLE"]');
         await page.keyboard.press('KeyN');
-        await page.waitForTimeout(50);
+        await waitForRenderFrames(page, 1);
 
         const globalBinding = await page.evaluate(() => (
             window.GAME_INSTANCE?.settings?.controls?.GLOBAL?.RECORDING_TOGGLE || ''
@@ -679,7 +680,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         const before = await page.evaluate(() => window.GAME_INSTANCE?.renderer?.getCinematicEnabled?.());
         await page.keyboard.press('b');
-        await page.waitForTimeout(100);
+        await waitForRenderFrames(page, 2);
         const after = await page.evaluate(() => window.GAME_INSTANCE?.renderer?.getCinematicEnabled?.());
         expect(after).toBe(!before);
     });
@@ -716,9 +717,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         });
 
         await page.keyboard.press('n');
-        await page.waitForTimeout(60);
+        await waitForRenderFrames(page, 2);
         await page.keyboard.press('n');
-        await page.waitForTimeout(60);
+        await waitForRenderFrames(page, 2);
 
         const probeState = await page.evaluate(() => {
             const probe = window.__recordingHotkeyProbe || { events: [], recording: false };
@@ -1000,25 +1001,26 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20n: Escape-Return finalisiert Recording-Export trotz doppeltem Lifecycle-Stop', async ({ page }) => {
         await startGame(page);
-        await page.waitForTimeout(500);
+        await waitForRenderFrames(page, 30);
 
-        const recordingState = await page.evaluate(() => {
+        const recordingState = await page.evaluate(async () => {
             const recorder = window.GAME_INSTANCE?.mediaRecorderSystem;
             const support = recorder?.getSupportState?.() || {};
+            let startResult = null;
             if (support.canRecord && !recorder?.isRecording?.()) {
-                recorder?.notifyLifecycleEvent?.('recording_requested', { command: 'start' });
+                startResult = await recorder?.startRecording?.({ type: 'e2e_recording_start' });
             }
             return {
                 canRecord: !!support.canRecord,
                 isRecording: !!recorder?.isRecording?.(),
+                startResult,
             };
         });
-        if (!recordingState.canRecord || !recordingState.isRecording) {
-            test.skip(true, 'MediaRecorder-Exportpfad im Runtime nicht aktiv. Sunset: durch Capability-Fixture ersetzen, sobald der Desktop-Recording-Harness deterministisch ist.');
-        }
+        expect(recordingState.canRecord, 'Desktop-Recording-Capability muss im E2E-Harness aktiv sein.').toBe(true);
+        expect(recordingState.isRecording, JSON.stringify(recordingState.startResult)).toBe(true);
 
         await returnToMenu(page);
-        await page.waitForTimeout(300);
+        await waitForRenderFrames(page, 18);
 
         const recorderState = await page.evaluate(async () => {
             const recorder = window.GAME_INSTANCE?.mediaRecorderSystem;
@@ -1042,9 +1044,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             };
         });
 
-        if (!recorderState.canRecord || !recorderState.exportMeta) {
-            test.skip(true, 'MediaRecorder-Export im Runtime nicht deterministisch verfuegbar. Sunset: durch eventbasiertes Export-Ready-Signal ersetzen.');
-        }
+        expect(recorderState.canRecord, 'Desktop-Recording-Capability muss bis zum Export aktiv bleiben.').toBe(true);
         expect(recorderState.exportMeta).toBeTruthy();
         expect(String(recorderState.exportMeta.fileName || '')).toMatch(/\.(webm|mp4|video)$/);
     });
@@ -1198,7 +1198,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#btn-level4-reset');
         await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.click('#btn-level4-reset');
-        await page.waitForTimeout(100);
+        await waitForRenderFrames(page, 2);
         expect(await page.inputValue('#speed-slider')).toBe(expectedDefaults.level4Speed);
         expect(await page.inputValue('#normal-camera-perspective-select')).toBe(expectedDefaults.level4PerspectiveNormal);
         await expect(page.locator('#normal-camera-reduce-motion-toggle')).toHaveJSProperty(
@@ -1309,7 +1309,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openLevel4Drawer(page, { section: 'tools' });
         await page.fill('#config-share-input', exportedJson);
         await page.click('#btn-config-import');
-        await page.waitForTimeout(120);
+        await waitForRenderFrames(page, 3);
         expect(await page.inputValue('#map-select')).toBe('maze');
     });
 
@@ -1325,7 +1325,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.evaluate(() => window.GAME_INSTANCE?.uiManager?.showMainNav?.());
         await expect(page.locator('#btn-quick-last-settings')).toBeVisible();
         await page.click('#btn-quick-last-settings');
-        await page.waitForTimeout(500);
+        await waitForRenderFrames(page, 30);
         await returnToMenu(page);
 
         const telemetry = await page.evaluate(() => {
@@ -1361,7 +1361,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await openStartSetupSection(page, 'match');
 
         await page.click('#btn-dimension-planar');
-        await page.waitForTimeout(120);
+        await waitForRenderFrames(page, 3);
         let state = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             return {
@@ -1375,7 +1375,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(state.planarMode).toBeTruthy();
 
         await page.click('#btn-dimension-classic-3d');
-        await page.waitForTimeout(120);
+        await waitForRenderFrames(page, 3);
         state = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             return {
@@ -1610,7 +1610,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 damageSlider.dispatchEvent(new Event('input', { bubbles: true }));
             }
         });
-        await page.waitForTimeout(220);
+        await waitForRenderFrames(page, 14);
 
         const fightState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -1649,7 +1649,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 5000 });
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-        await page.waitForTimeout(160);
+        await waitForRenderFrames(page, 10);
 
         const revertedState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;

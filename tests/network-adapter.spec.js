@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loadGame } from './helpers.js';
+import { loadGame, waitForRenderFrames } from './helpers.js';
 import { createLANSignalingServer } from '../server/lan-signaling.js';
 import { waitForRuntimePlayersLoaded } from '../src/core/runtime/RuntimeSessionLifecycleService.js';
 import { DataChannelManager } from '../src/network/DataChannelManager.js';
@@ -78,7 +78,7 @@ test.describe('V59-59.7.3: Network Adapter Robustness', () => {
                         document.querySelector('button.multiplayer-btn');
             if (btn) btn.click();
         });
-        await page.waitForTimeout(1000);
+        await waitForRenderFrames(page, 60);
         expect(errors.length).toBe(0);
     });
 

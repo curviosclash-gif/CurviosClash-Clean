@@ -62,6 +62,21 @@ export async function waitForLoadedGame(page, timeoutMs = 30000) {
     await waitForMenuIdle(page, timeoutMs);
 }
 
+export async function waitForRenderFrames(page, frameCount = 2) {
+    await page.evaluate((requestedFrames) => new Promise((resolve) => {
+        let remaining = Math.max(1, Number(requestedFrames) || 1);
+        const next = () => {
+            remaining -= 1;
+            if (remaining <= 0) {
+                resolve();
+                return;
+            }
+            requestAnimationFrame(next);
+        };
+        requestAnimationFrame(next);
+    }), frameCount);
+}
+
 async function ensureTestModuleImportBridge(page, timeoutMs = 5000) {
     try {
         await page.waitForFunction(() => {

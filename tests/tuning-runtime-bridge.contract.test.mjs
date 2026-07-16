@@ -55,14 +55,11 @@ test('tuning runtime bridge mutates frozen HUNT branch values without throwing',
     assert.equal(refreshCalls.length, 1);
 });
 
-test('tuning runtime bridge blocks readonly PPO_V2 paths', (t) => {
+test('tuning runtime bridge blocks readonly PPO_V2 paths', () => {
     const readonlyDescriptor = getTuningParameterDescriptors().find(
         (descriptor) => descriptor.path.startsWith('BOT.DIFFICULTY_PROFILES.PPO_V2.')
     );
-    if (!readonlyDescriptor) {
-        t.skip('PPO_V2 descriptor not available in current config');
-        return;
-    }
+    assert.ok(readonlyDescriptor, 'PPO_V2 readonly descriptor must exist in the active config');
     const bridge = new TuningRuntimeBridge({
         configBase: cloneJsonValue(CONFIG_BASE),
         refreshRuntimeConfig: () => true,

@@ -1,33 +1,56 @@
 import { readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
-const mode = process.argv[2] || 'fast';
 const distDependentTests = new Set([
     'electron-renderer-dist-drift.contract.test.mjs',
 ]);
-const contractTests = readdirSync('tests')
-    .filter((fileName) => fileName.endsWith('.contract.test.mjs'))
-    .sort();
 
-const selectedTests = mode === 'dist'
-    ? contractTests.filter((fileName) => distDependentTests.has(fileName))
-    : contractTests.filter((fileName) => !distDependentTests.has(fileName));
-
-if (mode === 'fast') {
-    selectedTests.push('observation-bridge-policy-runtime.test.mjs');
-} else if (mode !== 'dist') {
-    console.error(`Unknown contract-test mode: ${mode}`);
-    process.exit(2);
+export function selectNodeTestFiles(fileNames, mode = 'fast') {
+    if (mode !== 'fast' && mode !== 'dist') {
+        throw new Error(`Unknown contract-test mode: ${mode}`);
+    }
+    return fileNames
+        .filter((fileName) => fileName.endsWith('.test.mjs'))
+        .filter((fileName) => mode === 'dist'
+            ? distDependentTests.has(fileName)
+            : !distDependentTests.has(fileName))
+        .sort();
 }
 
-const result = spawnSync(process.execPath, [
-    '--test',
-    ...selectedTests.map((fileName) => path.join('tests', fileName)),
-], {
-    stdio: 'inherit',
-    env: process.env,
-});
+export function runContractTests(argv = process.argv.slice(2)) {
+    const mode = argv.find((value) => !String(value).startsWith('-')) || 'fast';
+    const coverageEnabled = argv.includes('--coverage');
+    const selectedTests = selectNodeTestFiles(readdirSync('tests'), mode);
+    const testArgs = coverageEnabled
+        ? [
+            '--experimental-test-coverage',
+            '--test-coverage-include=src/shared/contracts/**/*.js',
+            '--test-coverage-lines=70',
+            '--test-coverage-branches=60',
+            '--test-coverage-functions=60',
+        ]
+        : [];
 
-if (result.error) throw result.error;
-process.exit(result.status ?? 1);
+    const result = spawnSync(process.execPath, [
+        ...testArgs,
+        '--test',
+        ...selectedTests.map((fileName) => path.join('tests', fileName)),
+    ], {
+        stdio: 'inherit',
+        env: process.env,
+    });
+
+    if (result.error) throw result.error;
+    return result.status ?? 1;
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    try {
+        process.exit(runContractTests());
+    } catch (error) {
+        console.error(error?.message || error);
+        process.exit(2);
+    }
+}

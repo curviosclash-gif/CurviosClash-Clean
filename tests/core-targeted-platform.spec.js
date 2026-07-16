@@ -18,6 +18,7 @@ import {
     startGame,
     startGameWithBots,
     unlockExpertMode,
+    waitForRenderFrames,
     createMapDocument,
     parseMapJSON,
     stringifyMapDocument,
@@ -247,14 +248,15 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         });
         await loadGame(page);
         const multiplayerActive = await openMultiplayerSubmenu(page);
-        test.skip(!multiplayerActive, 'Multiplayer-Surface im aktuellen Lauf nicht aktiv.');
+        expect(multiplayerActive, 'Multiplayer-Surface muss im Desktop-Profil aktiv sein.').toBe(true);
         const hostButton = page.locator('#btn-multiplayer-host').first();
         const hostButtonVisible = (await hostButton.count()) > 0
             && await hostButton.isVisible().catch(() => false);
         const hostButtonDisabled = hostButtonVisible
             ? await hostButton.isDisabled().catch(() => true)
             : true;
-        test.skip(!hostButtonVisible || hostButtonDisabled, 'Multiplayer-Host ist im aktuellen Lauf nicht verfuegbar.');
+        expect(hostButtonVisible, 'Multiplayer-Host-Button muss sichtbar sein.').toBe(true);
+        expect(hostButtonDisabled, 'Multiplayer-Host-Button muss aktiv sein.').toBe(false);
         await page.fill('#multiplayer-lobby-code', 'QA-LOBBY');
         await page.click('#btn-multiplayer-host');
         let hostEventObserved = false;
@@ -276,10 +278,10 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
                 lobbyStateText: String(document.getElementById('multiplayer-lobby-state')?.textContent || ''),
             };
         });
-        test.skip(
-            !hostEventObserved && !hostProbe.sessionState?.joined,
+        expect(
+            hostEventObserved || hostProbe.sessionState?.joined,
             `Multiplayer-Host im Lauf nicht verbunden (${hostProbe.lobbyStateText || 'ohne Status'}).`
-        );
+        ).toBe(true);
         const lifecycleEvent = hostProbe.lifecycleEvent;
 
         expect(lifecycleEvent).toBeTruthy();
@@ -303,7 +305,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 
             const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
-            test.skip(!(hostMultiplayerActive && clientMultiplayerActive), 'Multiplayer-Surface im aktuellen Lauf nicht aktiv.');
+            expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
             await secondPage.fill('#multiplayer-lobby-code', 'SYNC-LOBBY');
             await secondPage.click('#btn-multiplayer-join');
             await secondPage.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
@@ -375,7 +377,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             await page.waitForFunction((mapKey) => window.GAME_INSTANCE?.settings?.mapKey === mapKey, String(selectedMapKey), { timeout: 5000 });
 
             const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
-            test.skip(!(hostMultiplayerActive && clientMultiplayerActive), 'Multiplayer-Surface im aktuellen Lauf nicht aktiv.');
+            expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
             await secondPage.fill('#multiplayer-lobby-code', 'START-LOBBY');
             await secondPage.click('#btn-multiplayer-join');
             await secondPage.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
@@ -634,7 +636,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await openLevel4Drawer(page, { section: 'tools' });
         await page.fill('#preset-name', 'Open Preset QA');
         await page.click('#btn-preset-save-open');
-        await page.waitForTimeout(50);
+        await waitForRenderFrames(page, 1);
 
         const contractState = await page.evaluate(() => {
             const raw = localStorage.getItem('cuviosclash.menu-presets.v1');
@@ -668,7 +670,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             const button = document.querySelector('#submenu-game [data-preset-id="competitive"]');
             button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
         });
-        await page.waitForTimeout(50);
+        await waitForRenderFrames(page, 1);
 
         const matchPreset = await page.evaluate(() => ({
             id: window.GAME_INSTANCE?.settings?.matchSettings?.activePresetId || '',
@@ -706,7 +708,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         });
 
         await page.evaluate(() => window.GAME_INSTANCE?.runtimeFacade?.handleQuickStartEventPlaylistStart?.());
-        await page.waitForTimeout(80);
+        await waitForRenderFrames(page, 2);
 
         const firstState = await page.evaluate((settingsStorageKey) => {
             const game = window.GAME_INSTANCE;
@@ -748,7 +750,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         });
 
         await page.evaluate(() => window.GAME_INSTANCE?.runtimeFacade?.handleQuickStartEventPlaylistStart?.());
-        await page.waitForTimeout(80);
+        await waitForRenderFrames(page, 2);
 
         const secondPresetId = await page.evaluate(() => window.GAME_INSTANCE?.settings?.matchSettings?.activePresetId || '');
         expect(secondPresetId).toBe('chaos');
@@ -773,7 +775,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
         for (let index = 0; index < 4; index += 1) {
             await page.evaluate(() => window.GAME_INSTANCE?.runtimeFacade?.handleQuickStartEventPlaylistStart?.());
-            await page.waitForTimeout(60);
+            await waitForRenderFrames(page, 2);
         }
 
         const rotationState = await page.evaluate((settingsStorageKey) => {

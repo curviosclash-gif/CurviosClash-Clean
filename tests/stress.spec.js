@@ -8,10 +8,25 @@ import {
     selectSessionType,
     returnToMenu,
     startGame,
+    waitForRenderFrames,
 } from './helpers.js';
 
 const SETTINGS_STORAGE_KEY = 'cuviosclash.settings.v1';
 const SETTINGS_PROFILES_STORAGE_KEY = 'cuviosclash.settings-profiles.v1';
+
+async function expectRuntimeResponsive(page) {
+    await expect.poll(() => page.evaluate(() => {
+        const mainMenu = document.getElementById('main-menu');
+        const hud = document.getElementById('hud');
+        return {
+            hasRuntime: !!window.GAME_INSTANCE,
+            hasVisibleSurface: !!(
+                (mainMenu && !mainMenu.classList.contains('hidden'))
+                || (hud && !hud.classList.contains('hidden'))
+            ),
+        };
+    })).toEqual({ hasRuntime: true, hasVisibleSurface: true });
+}
 
 test.describe('T61-125: Stress, I/O & Sicherheit', () => {
     test.describe.configure({ mode: 'serial' });
@@ -20,15 +35,16 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         test.setTimeout(30000);
         const errors = collectErrors(page);
         await startGame(page);
-        await page.waitForTimeout(2000);
+        await waitForRenderFrames(page, 120);
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
     });
 
     test('T62: DOM-Knoten-Anzahl stabil nach 5s', async ({ page }) => {
         test.setTimeout(60000);
         await startGame(page);
         const before = await page.evaluate(() => document.querySelectorAll('*').length);
-        await page.waitForTimeout(2000);
+        await waitForRenderFrames(page, 120);
         const after = await page.evaluate(() => document.querySelectorAll('*').length);
         expect(after - before).toBeLessThan(100);
     });
@@ -36,7 +52,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
     test('T63: ESC waehrend Spiel oeffnet Menue', async ({ page }) => {
         test.setTimeout(60000);
         await startGame(page);
-        await page.waitForTimeout(400);
+        await waitForRenderFrames(page, 24);
         await returnToMenu(page);
         await expect(page.locator('#main-menu')).toBeVisible();
     });
@@ -51,6 +67,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         await page.reload();
         await page.waitForSelector('#main-menu', { state: 'visible', timeout: 15000 });
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_STORAGE_KEY);
     });
 
@@ -64,7 +81,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         if (!isDisabled) {
             await page.click('#btn-profile-save');
         }
-        await page.waitForTimeout(400);
+        await waitForRenderFrames(page, 24);
         expect(dialogs).toHaveLength(0);
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
     });
@@ -82,6 +99,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         await page.reload();
         await page.waitForSelector('#main-menu', { state: 'visible', timeout: 10000 });
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_STORAGE_KEY);
     });
 
@@ -96,18 +114,20 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
                 const hud = document.getElementById('hud');
                 return hud && !hud.classList.contains('hidden');
             }, null, { timeout: 15000 });
-            await page.waitForTimeout(1000);
+            await waitForRenderFrames(page, 60);
             await returnToMenu(page);
         }
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
     });
 
     test('T68: visibilitychange verursacht keinen Crash', async ({ page }) => {
         const errors = collectErrors(page);
         await startGame(page);
         await page.evaluate(() => document.dispatchEvent(new Event('visibilitychange')));
-        await page.waitForTimeout(1000);
+        await waitForRenderFrames(page, 60);
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
     });
 
     test('T69: p1-hud Element vorhanden nach Start', async ({ page }) => {
@@ -124,7 +144,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             }
         });
         await startGame(page);
-        await page.waitForTimeout(2000);
+        await waitForRenderFrames(page, 120);
         expect(warnings).toHaveLength(0);
     });
 
@@ -139,11 +159,12 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
                 const hud = document.getElementById('hud');
                 return hud && !hud.classList.contains('hidden');
             }, null, { timeout: 15000 });
-            await page.waitForTimeout(200);
+            await waitForRenderFrames(page, 2);
             await returnToMenu(page);
-            await page.waitForTimeout(200);
+            await waitForRenderFrames(page, 2);
         }
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
     });
 
     test('T71b: Showcase-Nexus startet mehrfach ohne Aircraft-Deko-Leaks', async ({ page }) => {
@@ -191,14 +212,19 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         test.setTimeout(30000);
         const errors = collectErrors(page);
         await loadGame(page);
+        const viewportMatrix = [
+            { width: 800, height: 600 },
+            { width: 960, height: 720 },
+            { width: 1200, height: 800 },
+            { width: 1024, height: 768 },
+            { width: 840, height: 900 },
+        ];
         for (let i = 0; i < 20; i += 1) {
-            await page.setViewportSize({
-                width: Math.floor(800 + (Math.random() * 400)),
-                height: Math.floor(600 + (Math.random() * 400)),
-            });
-            await page.waitForTimeout(50);
+            await page.setViewportSize(viewportMatrix[i % viewportMatrix.length]);
+            await waitForRenderFrames(page, 1);
         }
         expect(errors).toHaveLength(0);
+        await expectRuntimeResponsive(page);
     });
 
     test('T73: Extreme Settings (100 Bots) stuerzen nicht direkt ab', async ({ page }) => {
@@ -214,8 +240,14 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         await page.waitForSelector('#main-menu', { state: 'visible', timeout: 15000 });
         await openGameSubmenu(page);
         await page.click('#btn-start');
-        await page.waitForTimeout(1500);
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            const hud = document.getElementById('hud');
+            return !!(hud && !hud.classList.contains('hidden') && game?.entityManager?.players?.length > 0);
+        }, null, { timeout: 30000 });
         expect(errors).toHaveLength(0);
+        const playerCount = await page.evaluate(() => window.GAME_INSTANCE?.entityManager?.players?.length || 0);
+        expect(playerCount).toBeGreaterThan(0);
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_STORAGE_KEY);
     });
 
@@ -231,7 +263,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
                 const button = document.querySelector(`#submenu-game [data-preset-id="${targetPresetId}"]`);
                 button?.dispatchEvent(new MouseEvent('click', { bubbles: true }));
             }, presetId);
-            await page.waitForTimeout(30);
+            await waitForRenderFrames(page, 1);
         }
 
         const activePresetId = await page.evaluate(() => window.GAME_INSTANCE?.settings?.matchSettings?.activePresetId || '');
@@ -252,7 +284,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             return state?.joined === true && state?.isHost === true;
         }, null, { timeout: 5000 });
         await page.check('#multiplayer-ready-toggle');
-        await page.waitForTimeout(80);
+        await waitForRenderFrames(page, 2);
 
         await openGameSubmenu(page);
         await page.evaluate(() => {
@@ -260,7 +292,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             slider.value = '4';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        await page.waitForTimeout(150);
+        await waitForRenderFrames(page, 2);
 
         const hasInvalidationEvent = await page.evaluate(() => {
             const events = window.GAME_INSTANCE?.getMenuLifecycleEvents?.() || [];
@@ -307,7 +339,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
                 const hud = document.getElementById('hud');
                 return hud && !hud.classList.contains('hidden');
             }, null, { timeout: 15000 });
-            await page.waitForTimeout(200);
+            await waitForRenderFrames(page, 2);
             await returnToMenu(page);
             await page.click('#menu-nav [data-session-type=\"single\"]');
         }

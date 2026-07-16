@@ -4,6 +4,7 @@ import {
     returnToMenu,
     startGameFromMenu,
     waitForLoadedGame,
+    waitForRenderFrames,
 } from './helpers.js';
 
 test.describe('Desktop Smoke', () => {
@@ -152,7 +153,7 @@ test.describe('Desktop Smoke', () => {
             return !!browserWindow;
         });
 
-        await page.waitForTimeout(750);
+        await waitForRenderFrames(page, 45);
 
         const probeResult = await page.evaluate(() => {
             const probe = window.__gracefulCloseProbe || null;

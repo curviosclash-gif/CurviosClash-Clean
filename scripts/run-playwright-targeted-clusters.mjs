@@ -3,22 +3,10 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolvePlaywrightFailureTaxonomy } from '../tests/playwright-readiness.js';
-
-const DESKTOP_E2E_CLUSTERS = Object.freeze([
-    { id: 'core-shell', specs: ['tests/core-targeted.spec.js'] },
-    { id: 'core-platform', specs: ['tests/core-targeted-platform.spec.js'] },
-    { id: 'core-surface', specs: ['tests/core-targeted-surface.spec.js'] },
-    { id: 'core-runtime', specs: ['tests/core-targeted-runtime.spec.js'] },
-]);
-
-const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
-    { id: 'core-regressions', specs: ['tests/core-targeted-regressions.spec.js'] },
-    { id: 'physics-core', specs: ['tests/physics-core.spec.js'] },
-    { id: 'physics-hunt', specs: ['tests/physics-hunt.spec.js'] },
-    { id: 'physics-policy', specs: ['tests/physics-policy.spec.js'] },
-    { id: 'arcade-blueprint', specs: ['tests/arcade-blueprint.spec.js'] },
-    { id: 'bot-targeting', specs: ['tests/bot-targeting.spec.js'] },
-]);
+import {
+    DESKTOP_E2E_CLUSTERS,
+    HEAVY_DIAGNOSTIC_CLUSTERS,
+} from './playwright-test-clusters.mjs';
 const PLAYWRIGHT_STARTUP_DIAGNOSTICS_FILE = 'playwright-startup-diagnostics.json';
 const PLAYWRIGHT_SPAWN_DIAGNOSTICS_FILE = 'playwright-spawn-diagnostics.json';
 const ALL_CLUSTERS = Object.freeze([

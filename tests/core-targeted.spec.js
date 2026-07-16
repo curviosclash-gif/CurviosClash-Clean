@@ -26,11 +26,9 @@ import {
     importFromJSON,
     RoundMetricsStore,
     createMatchRuntimeProjection,
-    getVehicleManagerInteractionRules,
-    listVehicleManagerCatalogEntries,
-    resolveVehicleManagerCatalogEntry,
     applyPlayerPowerup,
     updatePlayerEffects,
+    waitForRenderFrames,
     SETTINGS_STORAGE_KEY,
     SETTINGS_PROFILES_STORAGE_KEY,
     LEGACY_SETTINGS_STORAGE_KEY,
@@ -45,60 +43,6 @@ import {
     loadGameWithRetry,
 } from './core-targeted.shared.js';
 import { resolveMapPreview } from '../src/ui/menu/MenuPreviewCatalog.js';
-
-test.describe('T66x: Vehicle-Manager-Katalogvertrag', () => {
-    test('T66x1: Katalog liefert Pflichtmetadaten fuer jedes Vehicle', () => {
-        const entries = listVehicleManagerCatalogEntries();
-        expect(entries.length).toBeGreaterThan(0);
-
-        for (let i = 0; i < entries.length; i += 1) {
-            const entry = entries[i];
-            expect(typeof entry.vehicleId).toBe('string');
-            expect(entry.vehicleId.length).toBeGreaterThan(0);
-            expect(typeof entry.label).toBe('string');
-            expect(entry.label.length).toBeGreaterThan(0);
-            expect(['jaeger', 'kreuzer', 'spezial', 'custom']).toContain(entry.kategorie);
-            expect(['kompakt', 'standard', 'schwer']).toContain(entry.hitboxKlasse);
-            expect(typeof entry.kurzbeschreibung).toBe('string');
-            expect(entry.kurzbeschreibung.length).toBeGreaterThan(0);
-            expect(Number.isInteger(entry.sortOrder)).toBeTruthy();
-            expect(Array.isArray(entry.keywords)).toBeTruthy();
-            expect(entry.keywords.length).toBeGreaterThan(0);
-            expect(typeof entry.previewToken).toBe('string');
-            expect(entry.previewToken.length).toBeGreaterThan(0);
-            expect(typeof entry.statsSummary).toBe('object');
-            expect(entry.statsSummary).not.toBeNull();
-            expect(typeof entry.statsSummary.armor).toBe('number');
-            expect(typeof entry.statsSummary.agility).toBe('number');
-            expect(typeof entry.statsSummary.control).toBe('number');
-            expect(typeof entry.statsSummary.upgradePotential).toBe('number');
-        }
-    });
-
-    test('T66x2: Interaktionsregeln definieren Kategorien, Filter und Breakpoints', () => {
-        const rules = getVehicleManagerInteractionRules();
-        expect(rules.version).toBe('66.1');
-        expect(Array.isArray(rules.categories)).toBeTruthy();
-        expect(rules.categories.map((entry) => entry.id)).toEqual(['all', 'jaeger', 'kreuzer', 'spezial', 'custom']);
-        expect(rules.filterChips.category).toContain('jaeger');
-        expect(rules.filterChips.hitboxKlasse).toContain('kompakt');
-        expect(rules.preview.mode).toBe('interactive-3d');
-        expect(rules.preview.allowOrbit).toBeTruthy();
-        expect(rules.upgradeFlow.maxTier).toBe('T3');
-        expect(rules.responsiveBreakpoints.stackedPanelMaxWidth).toBe(1000);
-        expect(rules.responsiveBreakpoints.compactListMaxWidth).toBe(700);
-    });
-
-    test('T66x3: Unbekannte Vehicle-IDs liefern stabilen Katalog-Fallback', () => {
-        const fallback = resolveVehicleManagerCatalogEntry('ghost_vehicle');
-        expect(fallback.vehicleId).toBe('ghost_vehicle');
-        expect(fallback.label).toBe('ghost_vehicle');
-        expect(fallback.kategorie).toBe('custom');
-        expect(fallback.hitboxKlasse).toBe('standard');
-        expect(fallback.previewToken).toBe('vehicle:placeholder');
-        expect(fallback.statsSummary.upgradePotential).toBeGreaterThan(0);
-    });
-});
 
 test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
     test.describe.configure({ mode: 'serial' });
@@ -236,7 +180,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
     test('T13: Keine Fehler 2s nach Laden', async ({ page }) => {
         const errors = collectErrors(page);
         await loadGame(page);
-        await page.waitForTimeout(800);
+        await waitForRenderFrames(page, 48);
         expect(errors).toHaveLength(0);
     });
 
@@ -263,7 +207,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
                 const hud = document.getElementById('hud');
                 return hud && !hud.classList.contains('hidden');
             }, null, { timeout: 15000 });
-            await page.waitForTimeout(500);
+            await waitForRenderFrames(page, 30);
             await returnToMenu(page);
         }
         expect(errors).toHaveLength(0);
@@ -294,7 +238,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
             };
         });
         const glbMapKey = mapSelection.visibleGlbKey || mapSelection.runtimeGlbKey || null;
-        test.skip(!glbMapKey, 'Keine GLB-Map im aktuellen Runtime-Katalog gefunden.');
+        expect(glbMapKey, 'GLB-Map muss im Desktop-Runtime-Katalog verfuegbar sein.').toBeTruthy();
 
         if (mapSelection.visibleGlbKey) {
             await page.selectOption('#map-select', glbMapKey);
@@ -396,7 +340,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
             if (!(select instanceof HTMLSelectElement)) return false;
             return Array.from(select.options).some((option) => String(option.value || '').trim() === 'custom');
         });
-        test.skip(!customMapAvailable, 'Custom-Map im aktuellen Surface nicht verfuegbar.');
+        expect(customMapAvailable, 'Custom-Map muss im Desktop-Surface verfuegbar sein.').toBe(true);
         const customApplied = await page.evaluate(() => {
             const select = document.getElementById('map-select');
             const game = window.GAME_INSTANCE;
@@ -1189,7 +1133,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         await openSubmenu(page, 'submenu-settings');
         await expect(page.locator('#submenu-settings')).toBeVisible();
         await page.click('#submenu-settings [data-back]');
-        await page.waitForTimeout(150);
+        await waitForRenderFrames(page, 3);
         await expect(page.locator('#menu-nav')).toBeVisible();
     });
 });

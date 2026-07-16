@@ -39,13 +39,14 @@
     "check:parcours": "node scripts/check-parcours-routes.mjs",
     "test": "npm run test:contract",
     "test:contract:fast": "node scripts/run-contract-tests.mjs fast",
+    "test:contract:coverage": "node scripts/run-contract-tests.mjs fast --coverage",
     "pretest:contract:dist": "npm run build:app",
     "test:contract:dist": "node scripts/run-contract-tests.mjs dist",
     "test:contract": "npm run test:contract:fast && npm run test:contract:dist",
     "test:dev:training": "node --test \"dev/training/tests/*.test.mjs\" \"dev/training/tests/*.contract.test.mjs\"",
     "test:desktop:smoke": "node scripts/run-playwright-smoke.mjs tests/core.spec.js --timeout=180000",
     "test:desktop:e2e": "node scripts/run-playwright-targeted-clusters.mjs --timeout=240000",
-    "test:browser:compat": "node scripts/run-playwright-browser-contract.mjs",
+    "test:browser:compat": "node scripts/run-playwright-browser-contract.mjs tests/core-targeted.spec.js --grep \"T1:|T2:|T3:\"",
     "test:editor-ui": "npx playwright test --config playwright.editor.config.mjs tests/editor-map-ui.spec.js",
     "test:gpu": "node scripts/run-playwright-targeted.mjs tests/gpu.spec.js",
     "test:physics": "node scripts/run-playwright-targeted.mjs tests/physics-core.spec.js tests/physics-hunt.spec.js tests/physics-policy.spec.js",
@@ -62,7 +63,7 @@
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
-    "quality": "npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract"
+    "quality": "npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract:coverage && npm run test:dev:training && npm run test:contract:dist"
   },
   "dependencies": {
     "@capacitor/android": "8.3.4",

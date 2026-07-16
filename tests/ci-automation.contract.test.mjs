@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
+
+import { selectNodeTestFiles } from '../scripts/run-contract-tests.mjs';
+import {
+    DESKTOP_E2E_CLUSTERS,
+    HEAVY_DIAGNOSTIC_CLUSTERS,
+    PLAYWRIGHT_SMOKE_SPECS,
+} from '../scripts/playwright-test-clusters.mjs';
 
 function readRepoFile(relativePath) {
     return readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
@@ -35,7 +42,7 @@ test('desktop smoke covers product, dependency, branding, and launcher changes',
         'server/**',
         'editor/**',
         'prototypes/vehicle-lab/**',
-        'assets/branding/**',
+        'assets/**',
         'START_CURVIOSCLASH.cmd',
         'package-lock.json',
         'electron/package-lock.json',
@@ -43,6 +50,71 @@ test('desktop smoke covers product, dependency, branding, and launcher changes',
         assert.match(workflow, new RegExp(pathFilter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')));
     }
     assert.match(workflow, /npm run test:desktop:smoke/);
+    assert.match(workflow, /schedule:/);
+    assert.match(workflow, /heavy-e2e:/);
+    assert.match(workflow, /browser-compat:/);
+    assert.match(workflow, /needs: smoke/);
+    assert.match(workflow, /npm run test:browser:compat/);
+    for (const cluster of [...DESKTOP_E2E_CLUSTERS, ...HEAVY_DIAGNOSTIC_CLUSTERS]) {
+        assert.match(workflow, new RegExp(`- ${cluster.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\r?\\n|$)`));
+    }
+});
+
+test('contract runner discovers every root Node test exactly once', () => {
+    const allNodeTests = readdirSync(new URL('../tests/', import.meta.url))
+        .filter((fileName) => fileName.endsWith('.test.mjs'))
+        .sort();
+    const selected = [
+        ...selectNodeTestFiles(allNodeTests, 'fast'),
+        ...selectNodeTestFiles(allNodeTests, 'dist'),
+    ].sort();
+
+    assert.deepEqual(selected, allNodeTests);
+});
+
+test('CI cluster catalog assigns every Playwright spec exactly once', () => {
+    const allSpecs = readdirSync(new URL('../tests/', import.meta.url))
+        .filter((fileName) => fileName.endsWith('.spec.js'))
+        .map((fileName) => `tests/${fileName}`)
+        .sort();
+    const assignedSpecs = [
+        ...PLAYWRIGHT_SMOKE_SPECS,
+        ...DESKTOP_E2E_CLUSTERS.flatMap((cluster) => cluster.specs),
+        ...HEAVY_DIAGNOSTIC_CLUSTERS.flatMap((cluster) => cluster.specs),
+    ].sort();
+
+    assert.deepEqual(assignedSpecs, allSpecs);
+});
+
+test('Playwright design keeps skips, fixed sleeps, randomness, and white-box growth out', () => {
+    const specSources = readdirSync(new URL('../tests/', import.meta.url))
+        .filter((fileName) => fileName.endsWith('.spec.js'))
+        .map((fileName) => ({
+            fileName,
+            source: readRepoFile(`tests/${fileName}`),
+        }));
+    const combinedSource = specSources.map(({ source }) => source).join('\n');
+
+    assert.doesNotMatch(combinedSource, /\btest\.skip\s*\(/);
+    assert.doesNotMatch(combinedSource, /\.waitForTimeout\s*\(/);
+    assert.doesNotMatch(combinedSource, /\bMath\.random\s*\(/);
+
+    const fixturelessTests = specSources.flatMap(({ fileName, source }) => (
+        [...source.matchAll(/\btest\([^\n]+,\s*(?:async\s*)?\(\)\s*=>/g)]
+            .map(() => fileName)
+    ));
+    assert.ok(
+        fixturelessTests.length <= 29,
+        `Move browserless Playwright tests to node:test before adding more: ${fixturelessTests.join(', ')}`
+    );
+
+    const privateAccesses = combinedSource.match(
+        /\b(?:game|runtime|manager|system|service|recorder|player|adapter|bridge)\._[A-Za-z]/g
+    ) || [];
+    assert.ok(
+        privateAccesses.length <= 133,
+        `Use runtime/debug contracts before adding E2E private access (${privateAccesses.length}/133)`
+    );
 });
 
 test('package changes build and exercise both packaged Electron entries', () => {

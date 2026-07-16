@@ -1,4 +1,5 @@
 const path = require('node:path');
+const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');
 
 const HANGAR_WINDOW_SHELL_CONTRACT_VERSION = 'hangar-window-shell.v1';
 const HANGAR_WINDOW_MIN_WIDTH = 1100;
@@ -64,13 +65,10 @@ function createHangarWindowController({
             autoHideMenuBar: true,
             show: false,
             parent: isWindowAlive(parent) ? parent : undefined,
-            webPreferences: {
+            webPreferences: createSecureWindowWebPreferences({
                 preload: preloadPath,
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: true,
                 backgroundThrottling: false,
-            },
+            }),
         });
         hangarWindow.on('close', (event) => {
             if (allowWindowClose || !hasUnsavedChanges) return;

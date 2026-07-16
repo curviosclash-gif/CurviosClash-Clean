@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loadGame, openLevel4Drawer, startGame, startGameWithBots, returnToMenu } from './helpers.js';
+import { loadGame, openLevel4Drawer, startGame, startGameWithBots, returnToMenu, waitForRenderFrames } from './helpers.js';
 
 test.describe('T21-40: Rendering & GPU', () => {
 
@@ -94,7 +94,7 @@ test.describe('T21-40: Rendering & GPU', () => {
             window.addEventListener('webglcontextlost', () => window.__reportContextLost());
         });
         await startGame(page);
-        await page.waitForTimeout(2000);
+        await waitForRenderFrames(page, 120);
         expect(lost).toHaveLength(0);
     });
 
@@ -172,7 +172,7 @@ test.describe('T21-40: Rendering & GPU', () => {
             slider.value = '3';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        await page.waitForTimeout(100);
+        await waitForRenderFrames(page, 2);
 
         const highState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -205,7 +205,7 @@ test.describe('T21-40: Rendering & GPU', () => {
             slider.value = '0';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        await page.waitForTimeout(100);
+        await waitForRenderFrames(page, 2);
 
         const offState = await page.evaluate(() => ({
             stored: window.GAME_INSTANCE?.settings?.localSettings?.shadowQuality,
@@ -514,7 +514,7 @@ test.describe('T21-40: Rendering & GPU', () => {
             g.startMatch();
         });
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: 10000 });
-        await page.waitForTimeout(500);
+        await waitForRenderFrames(page, 30);
 
         const probe = await page.evaluate(() => {
             const g = window.GAME_INSTANCE;

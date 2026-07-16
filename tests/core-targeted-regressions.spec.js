@@ -71,36 +71,11 @@ test.describe('V56: Code-Audit Remediation Regressions', () => {
                 secondIdActive: orch._activeSessionId === secondId,
             };
         });
-        if (result.skip) { test.skip(); return; }
+        expect(result.skip, 'MatchLifecycleSessionOrchestrator muss im Desktop-Runtime vorhanden sein.').not.toBe(true);
         expect(result.idsAreDifferent).toBeTruthy();
         expect(result.secondIdActive).toBeTruthy();
     });
 
-    test('V56.3 TouchInputSource double-dispose does not throw', async ({ page }) => {
-        await loadGame(page);
-        const result = await page.evaluate(() => {
-            const { TouchInputSource } = window.__CC_MODULES?.TouchInputSource
-                || {};
-            if (!TouchInputSource) {
-                // Fallback: try to instantiate from game instance input sources
-                const game = window.GAME_INSTANCE;
-                const touchSrc = game?.inputSources?.find(s => s?._disposed !== undefined);
-                if (touchSrc) {
-                    touchSrc.dispose();
-                    touchSrc.dispose(); // second call must not throw
-                    return { ok: true, disposed: touchSrc._disposed };
-                }
-                return { skip: true };
-            }
-            const src = new TouchInputSource();
-            src.dispose();
-            src.dispose();
-            return { ok: true, disposed: src._disposed };
-        });
-        if (result.skip) { test.skip(); return; }
-        expect(result.ok).toBeTruthy();
-        expect(result.disposed).toBeTruthy();
-    });
 });
 
 // ---------------------------------------------------------------------------

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loadGame, openGameSubmenu, startGame, startGameWithBots } from './helpers.js';
+import { loadGame, openGameSubmenu, startGame, startGameWithBots, waitForRenderFrames } from './helpers.js';
 
 async function startMazeGameWithBots(page, botCount = 3) {
     await loadGame(page);
@@ -124,7 +124,7 @@ test.describe('V28 Baseline Regression Setup (28.0)', () => {
     test('T28c: Maze Draw-Calls bleiben innerhalb der Baseline-Huelle', async ({ page }) => {
         test.setTimeout(90000);
         await startMazeGameWithBots(page, 3);
-        await page.waitForTimeout(800);
+        await waitForRenderFrames(page, 48);
 
         const metrics = await page.evaluate(async () => {
             const renderInfo = window.GAME_INSTANCE?.renderer?.renderer?.info?.render;

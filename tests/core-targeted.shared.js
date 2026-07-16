@@ -17,6 +17,7 @@ import {
     startGame,
     startGameWithBots,
     unlockExpertMode,
+    waitForRenderFrames,
 } from './helpers.js';
 import { createMapDocument, parseMapJSON, stringifyMapDocument, toArenaMapDefinition } from '../src/entities/MapSchema.js';
 import { generateJSONExport, importFromJSON } from '../editor/js/EditorMapSerializer.js';
@@ -123,6 +124,7 @@ export {
     startGame,
     startGameWithBots,
     unlockExpertMode,
+    waitForRenderFrames,
     loadGameWithRetry,
     // Map/editor contract helpers.
     createMapDocument,

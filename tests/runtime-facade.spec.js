@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loadGame, startGameWithBots, returnToMenu } from './helpers.js';
+import { loadGame, startGameWithBots, returnToMenu, waitForRenderFrames } from './helpers.js';
 
 test.describe('V59-59.7.2: GameRuntimeFacade', () => {
 
@@ -108,7 +108,7 @@ test.describe('V59-59.7.2: GameRuntimeFacade', () => {
 
     test('Session switch: start match then return to menu', async ({ page }) => {
         await startGameWithBots(page, 1);
-        await page.waitForTimeout(2000);
+        await waitForRenderFrames(page, 120);
         await returnToMenu(page);
         const menuVisible = await page.evaluate(() => {
             const menu = document.getElementById('main-menu');
@@ -134,7 +134,7 @@ test.describe('V59-59.7.2: GameRuntimeFacade', () => {
 
     test('Cleanup/dispose does not leave dangling state', async ({ page }) => {
         await startGameWithBots(page, 1);
-        await page.waitForTimeout(1000);
+        await waitForRenderFrames(page, 60);
         await returnToMenu(page);
         const state = await page.evaluate(() => {
             const g = window.GAME_INSTANCE;

@@ -7,6 +7,7 @@ const {
     initSessionDataSelfHeal,
 } = require('../session-data-runtime.cjs');
 const { isTrustedWindowSender } = require('../ipc-sender-guard.cjs');
+const { createSecureWindowWebPreferences } = require('../window-security-options.cjs');
 
 const WINDOW_SHELL_CONTRACT_VERSION = 'settings-studio.window-shell.v1';
 const DIRTY_STATE_CHANNEL = 'settings-studio:set-dirty-state';
@@ -106,13 +107,10 @@ function createWindowShellCapability() {
                 minHeight: 680,
                 title: 'CurviosClash Settings Studio',
                 show: shouldShowWindow,
-                webPreferences: {
+                webPreferences: createSecureWindowWebPreferences({
                     preload: path.resolve(__dirname, 'preload.cjs'),
-                    contextIsolation: true,
-                    nodeIntegration: false,
-                    sandbox: true,
                     backgroundThrottling: false,
-                },
+                }),
             });
 
             mainWindow.webContents.on('will-navigate', (event) => {

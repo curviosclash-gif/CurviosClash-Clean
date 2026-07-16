@@ -1,5 +1,4 @@
 import assert from 'node:assert/strict';
-import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import os from 'node:os';
@@ -15,7 +14,7 @@ const {
     resolveRecordingVideoSaveCapabilityStatus,
 } = require('../electron/recording-video-export-job.cjs');
 
-function createVideoExportJobFixture(t) {
+function createVideoExportJobFixture(t, overrides = {}) {
     const fixtureDir = fs.mkdtempSync(path.join(os.tmpdir(), 'curvios-recording-export-job-'));
     t.after(() => {
         fs.rmSync(fixtureDir, { recursive: true, force: true });
@@ -35,6 +34,7 @@ function createVideoExportJobFixture(t) {
             },
         },
         resolveWindow: () => null,
+        ...overrides,
     });
     return {
         fixtureDir,
@@ -54,37 +54,6 @@ function createVideoExportRequestPayload(videoBytes) {
         transcodeRequested: true,
         videoBytes,
     };
-}
-
-function createValidWebmBytes({ ffmpegCommand, fixtureDir }) {
-    const sourcePath = path.join(fixtureDir, 'valid-input.webm');
-    const generation = spawnSync(ffmpegCommand, [
-        '-hide_banner',
-        '-loglevel',
-        'error',
-        '-f',
-        'lavfi',
-        '-i',
-        'color=c=black:s=64x64:d=0.2:r=10',
-        '-an',
-        '-c:v',
-        'libvpx-vp9',
-        '-pix_fmt',
-        'yuv420p',
-        '-f',
-        'webm',
-        '-y',
-        sourcePath,
-    ], {
-        windowsHide: true,
-        encoding: 'utf8',
-    });
-    assert.equal(
-        generation.status,
-        0,
-        `webm-fixture generation failed: ${generation.stderr || generation.stdout || 'unknown'}`
-    );
-    return new Uint8Array(fs.readFileSync(sourcePath));
 }
 
 test('recording-video-export transcode intent resolves desktop webm->mp4 pair', () => {
@@ -150,23 +119,28 @@ test('recording-video-export temp path keeps container extension for transcoder 
 });
 
 test('recording-video-export job writes native mp4 delivery when transcode succeeds', async (t) => {
-    const { fixtureDir, job } = createVideoExportJobFixture(t);
+    const readyCapability = {
+        tool: 'ffmpeg',
+        available: true,
+        statusCode: 'ready',
+        source: 'test-double',
+        command: 'test-ffmpeg',
+    };
+    const { job } = createVideoExportJobFixture(t, {
+        resolveNativeTranscodeCapability: async () => readyCapability,
+        executeNativeTranscode: async ({ sourcePath, targetPath }) => {
+            await fs.promises.copyFile(sourcePath, targetPath);
+            return { ok: true, transcodeFailureCode: null, message: null };
+        },
+    });
     const capability = await job.getCapabilityStatus({
         transcodeRequested: true,
         masterContainer: 'webm',
         deliveryContainer: 'mp4',
         forceRefresh: true,
     });
-    if (capability?.available !== true || !capability?.command) {
-        t.skip('native transcode not available in this test runtime');
-        return;
-    }
-
-    const validWebmBytes = createValidWebmBytes({
-        ffmpegCommand: capability.command,
-        fixtureDir,
-    });
-    const result = await job.handle(createVideoExportRequestPayload(validWebmBytes));
+    assert.equal(capability.available, true);
+    const result = await job.handle(createVideoExportRequestPayload(new Uint8Array([1, 2, 3, 4])));
 
     assert.equal(result.saved, true);
     assert.equal(result.code, 'RECORDING_SAVE_OK');
@@ -177,17 +151,27 @@ test('recording-video-export job writes native mp4 delivery when transcode succe
 });
 
 test('recording-video-export job degrades to master artifact when native transcode fails', async (t) => {
-    const { job } = createVideoExportJobFixture(t);
+    const { job } = createVideoExportJobFixture(t, {
+        resolveNativeTranscodeCapability: async () => ({
+            tool: 'ffmpeg',
+            available: true,
+            statusCode: 'ready',
+            source: 'test-double',
+            command: 'test-ffmpeg',
+        }),
+        executeNativeTranscode: async () => ({
+            ok: false,
+            transcodeFailureCode: 'test_transcode_failure',
+            message: 'deterministic test failure',
+        }),
+    });
     const capability = await job.getCapabilityStatus({
         transcodeRequested: true,
         masterContainer: 'webm',
         deliveryContainer: 'mp4',
         forceRefresh: true,
     });
-    if (capability?.available !== true || !capability?.command) {
-        t.skip('native transcode not available in this test runtime');
-        return;
-    }
+    assert.equal(capability.available, true);
 
     const result = await job.handle(createVideoExportRequestPayload(new Uint8Array([1, 2, 3, 4, 5, 6, 7, 8])));
 

@@ -662,6 +662,8 @@ function createRecordingVideoExportJob({
     app,
     dialog,
     resolveWindow,
+    resolveNativeTranscodeCapability = null,
+    executeNativeTranscode = runNativeTranscode,
     contractVersion = 'recording-video-export-request.v1',
     capabilityId = 'recording-video-export-save',
 } = {}) {
@@ -674,12 +676,14 @@ function createRecordingVideoExportJob({
         if (!forceRefresh && cachedNativeCapability && (nowMs - cachedAt) < 15000) {
             return cachedNativeCapability;
         }
-        cachedNativeCapability = await probeNativeTranscodeCapability({
-            env: process.env,
-            platformName: process.platform,
-            resourcesPath: process.resourcesPath,
-            now: () => Date.now(),
-        });
+        cachedNativeCapability = typeof resolveNativeTranscodeCapability === 'function'
+            ? await resolveNativeTranscodeCapability()
+            : await probeNativeTranscodeCapability({
+                env: process.env,
+                platformName: process.platform,
+                resourcesPath: process.resourcesPath,
+                now: () => Date.now(),
+            });
         cachedAt = nowMs;
         return cachedNativeCapability;
     }
@@ -837,7 +841,7 @@ function createRecordingVideoExportJob({
         try {
             await fsPromises.mkdir(path.dirname(targetDeliveryPath), { recursive: true });
             await fsPromises.writeFile(masterTempPath, Buffer.from(request.videoBytes));
-            const transcodeResult = await runNativeTranscode({
+            const transcodeResult = await executeNativeTranscode({
                 capability: nativeCapability,
                 sourcePath: masterTempPath,
                 targetPath: deliveryTempPath,

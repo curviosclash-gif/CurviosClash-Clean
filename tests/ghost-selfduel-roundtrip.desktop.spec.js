@@ -4,6 +4,7 @@ import {
     loadGame,
     openStartSetupSection,
     returnToMenu,
+    waitForRenderFrames,
 } from './core-targeted.shared.js';
 
 const MODE_PATHS = ['normal', 'fight', 'arcade'];
@@ -101,11 +102,7 @@ async function triggerRoundEndForPersistence(page) {
         const preRecorderDebug = {
             shouldCaptureFrames: game?.recorder?.shouldCaptureFrames?.() === true,
             frameCaptureEnabled: game?.recorder?.isFrameCaptureEnabled?.() === true,
-            snapshotCount: Number(game?.recorder?._snapshotStore?.snapshotCount || 0),
-            frameCounter: Number(game?.recorder?._frameCounter || 0),
-            orderedSnapshotCount: Array.isArray(game?.recorder?._snapshotStore?.getOrderedSnapshots?.())
-                ? game.recorder._snapshotStore.getOrderedSnapshots().length
-                : 0,
+            snapshotCount: Number(game?.recorder?.snapshotCount || 0),
             roundStartTime: Number(game?.recorder?.roundStartTime || 0),
         };
         game?.matchFlowUiController?.onRoundEnd?.(winner, { reason: 'ELIMINATION' });
@@ -113,11 +110,7 @@ async function triggerRoundEndForPersistence(page) {
         const postRecorderDebug = {
             shouldCaptureFrames: game?.recorder?.shouldCaptureFrames?.() === true,
             frameCaptureEnabled: game?.recorder?.isFrameCaptureEnabled?.() === true,
-            snapshotCount: Number(game?.recorder?._snapshotStore?.snapshotCount || 0),
-            frameCounter: Number(game?.recorder?._frameCounter || 0),
-            orderedSnapshotCount: Array.isArray(game?.recorder?._snapshotStore?.getOrderedSnapshots?.())
-                ? game.recorder._snapshotStore.getOrderedSnapshots().length
-                : 0,
+            snapshotCount: Number(game?.recorder?.snapshotCount || 0),
             roundStartTime: Number(game?.recorder?.roundStartTime || 0),
         };
         const storageRaw = localStorage.getItem('cuviosclash.arcade-ghost-library.v1');
@@ -199,7 +192,7 @@ test('Ghost-Selbstduell Roundtrip persistiert und spielt auf Desktop-Electron in
             continue;
         }
 
-        await page.waitForTimeout(3500);
+        await waitForRenderFrames(page, 210);
         const roundEndResult = await triggerRoundEndForPersistence(page);
         await page.waitForFunction(
             () => ['ROUND_END', 'MATCH_END'].includes(String(globalThis.GAME_INSTANCE?.state || '')),

@@ -24,6 +24,14 @@ test('TouchInputSource reuses the playing-state projection before requesting a n
     assert.equal(snapshotBuilds, 0);
 });
 
+test('TouchInputSource dispose is idempotent', () => {
+    const source = new TouchInputSource();
+
+    source.dispose();
+    assert.doesNotThrow(() => source.dispose());
+    assert.equal(source._disposed, true);
+});
+
 test('match projections resolve only needed config sections while preserving fallback precedence', () => {
     const player = {
         index: 0,

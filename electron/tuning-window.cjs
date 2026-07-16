@@ -1,5 +1,6 @@
 const path = require('node:path');
 const { existsSync } = require('node:fs');
+const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');
 
 const TUNING_WINDOW_SHELL_CONTRACT_VERSION = 'tuning-window-shell.v1';
 const TUNING_WINDOW_DEFAULT_WIDTH = 420;
@@ -164,24 +165,21 @@ function createTuningWindowController({
             show: typeof shouldShowWindow === 'function' ? shouldShowWindow() : resolveShowWindowFlag(),
             alwaysOnTop: resolvedAlwaysOnTop,
             parent: isWindowAlive(parentWindow) ? parentWindow : undefined,
-            webPreferences: {
+            webPreferences: createSecureWindowWebPreferences({
                 preload: preloadPath,
-                contextIsolation: true,
-                nodeIntegration: false,
-                sandbox: true,
                 backgroundThrottling: false,
-            },
+            }),
         });
 
         tuningWindow.on('closed', () => {
             tuningWindow = null;
             onWindowClosed?.();
         });
-
         tuningWindow.webContents?.on?.('will-navigate', (event) => {
             event.preventDefault();
         });
         tuningWindow.webContents?.setWindowOpenHandler?.(() => ({ action: 'deny' }));
+
         const windowRef = tuningWindow;
         if (existsSync(htmlPath)) {
             try {

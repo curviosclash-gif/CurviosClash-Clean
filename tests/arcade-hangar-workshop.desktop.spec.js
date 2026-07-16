@@ -8,6 +8,7 @@ import {
     openCustomSubmenu,
     returnToMenu,
     test,
+    waitForRenderFrames,
 } from './core-targeted.shared.js';
 
 const HANGAR_BUILD_STORAGE_KEY = 'curviosclash.hangar.arcade-builds.v2';
@@ -121,7 +122,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     const revisionBefore = Number(await stage.getAttribute('data-camera-revision') || 0);
     const canvas = page.locator('.hangar-viewport-canvas-node');
     await canvas.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'center' }));
-    await page.waitForTimeout(100);
+    await waitForRenderFrames(page, 2);
     const canvasPoint = await canvas.evaluate((node) => {
         const rect = node.getBoundingClientRect();
         const candidates = [[0.18, 0.2], [0.82, 0.2], [0.18, 0.78], [0.82, 0.78], [0.5, 0.5]];
@@ -139,7 +140,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.mouse.up();
     await expect.poll(async () => Number(await stage.getAttribute('data-camera-revision') || 0)).toBeGreaterThan(revisionBefore);
     await page.locator('.hangar-camera-reset').click({ force: true });
-    await page.waitForTimeout(1200);
+    await waitForRenderFrames(page, 72);
 
     const raycastPoint = await page.locator('[data-hangar-slot="wing_left"]').evaluate((node) => {
         const rect = node.getBoundingClientRect();
@@ -171,7 +172,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('[data-select-slot="wing_left"]').click();
     const wingPart = page.locator('.hangar-part-card[data-part-id="stone_green_t2"]');
     await wingPart.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
-    await page.waitForTimeout(100);
+    await waitForRenderFrames(page, 2);
     await expect(wingPart).toBeVisible();
     await expect(wingPart).not.toHaveAttribute('data-locked', 'true');
     await expect(wingPart).toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
@@ -189,7 +190,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.mouse.move(wingPartPoint.x + 8, wingPartPoint.y, { steps: 2 });
     await expect(page.locator('.hangar-status-message')).toContainText('aufgenommen');
     await stage.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'center' }));
-    await page.waitForTimeout(100);
+    await waitForRenderFrames(page, 2);
     const wingTarget = page.locator('[data-hangar-slot="wing_left"]');
     const targetPoint = await wingTarget.evaluate((node) => {
         const rect = node.getBoundingClientRect();

@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test';
-import { loadGame, openGameSubmenu, startGame, startGameWithBots } from './helpers.js';
+import { loadGame, openGameSubmenu, startGame, startGameWithBots, waitForRenderFrames } from './helpers.js';
 import { stringifyMapDocument } from '../src/entities/MapSchema.js';
 import { TEST_HANGAR_GLB_DATA_URI } from '../src/core/config/maps/EmbeddedGlbMapAssets.js';
 import { ParcoursProgressSystem } from '../src/entities/systems/ParcoursProgressSystem.js';
@@ -287,7 +287,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
 
     test('T45: Spieler hat Trail-Mesh nach 2s', async ({ page }) => {
         await startGame(page);
-        await page.waitForTimeout(2000);
+        await waitForRenderFrames(page, 120);
         const hasTrail = await page.evaluate(() => {
             const p = window.GAME_INSTANCE?.entityManager?.players?.[0];
             return (p?.trail?.mesh?.geometry?.attributes?.position?.count ?? 0) > 0;
@@ -393,7 +393,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
         });
 
         await tapBoost();
-        await page.waitForTimeout(250);
+        await waitForRenderFrames(page, 15);
 
         const during = await page.evaluate(() => {
             const player = window.GAME_INSTANCE?.entityManager?.players?.[0];
@@ -407,7 +407,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
         });
 
         await tapBoost();
-        await page.waitForTimeout(120);
+        await waitForRenderFrames(page, 3);
 
         const afterToggleOff = await page.evaluate(() => {
             const player = window.GAME_INSTANCE?.entityManager?.players?.[0];
@@ -418,7 +418,7 @@ test.describe('Physics Core (Tests 41-60)', () => {
             };
         });
 
-        await page.waitForTimeout(700);
+        await waitForRenderFrames(page, 42);
 
         const afterRecharge = await page.evaluate(() => {
             const player = window.GAME_INSTANCE?.entityManager?.players?.[0];

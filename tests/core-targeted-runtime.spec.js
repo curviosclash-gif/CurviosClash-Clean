@@ -18,6 +18,7 @@ import {
     startGame,
     startGameWithBots,
     unlockExpertMode,
+    waitForRenderFrames,
     createMapDocument,
     parseMapJSON,
     stringifyMapDocument,
@@ -41,7 +42,6 @@ import {
     ARCADE_LAST_RUN_STORAGE_KEY,
     buildLegacyRuntimeCustomMap,
     createMockEditorManager,
-    loadGameWithRetry,
 } from './core-targeted.shared.js';
 
 test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm', () => {
@@ -2605,7 +2605,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
     test('T10c: Prewarmed Match behaelt Arena-Visuals beim Start', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
-        await page.waitForTimeout(250);
+        await waitForRenderFrames(page, 15);
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {
             const hud = document.getElementById('hud');
@@ -2647,7 +2647,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 slider.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
-        await page.waitForTimeout(250);
+        await waitForRenderFrames(page, 15);
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {
             const hud = document.getElementById('hud');
@@ -2682,7 +2682,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             }
             g?.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['mapKey'] });
         }, { storageKey: CUSTOM_MAP_STORAGE_KEY, mapJson: mapA });
-        await page.waitForTimeout(250);
+        await waitForRenderFrames(page, 15);
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {
             const hud = document.getElementById('hud');
@@ -2708,7 +2708,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             g?.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['mapKey'] });
         }, { storageKey: CUSTOM_MAP_STORAGE_KEY, mapJson: mapB });
 
-        await page.waitForTimeout(250);
+        await waitForRenderFrames(page, 15);
         const reopened = await page.evaluate(() => {
             const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
             return !!runtime?.showPanel?.('submenu-game', { trigger: 'test_custom_map_reopen' });
@@ -2795,59 +2795,4 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(probe.snapshots[0].hasMultiplayerSessionState).toBeTruthy();
     });
 
-    test.skip('T10g: Editor-Disk-Maps erscheinen im Runtime-Menue und laden im Match (Sunset: aktivieren, sobald der desktop-e2e-Harness Editor-Disk-Map-Seeding stabil bereitstellt)', async ({ page }) => {
-        await loadGameWithRetry(page);
-        await openGameSubmenu(page);
-
-        const selectionState = await page.evaluate(() => {
-            const options = Array.from(document.querySelectorAll('#map-select option')).map((option) => ({
-                value: String(option.value || ''),
-                text: String(option.textContent || ''),
-            }));
-            const matching = options.find((entry) => entry.value.startsWith('editor_')) || null;
-            return {
-                matching,
-                optionCount: options.length,
-            };
-        });
-
-        if (!selectionState.matching) {
-            test.skip(true, 'Sunset: Skip entfernen, sobald der Harness deterministisch mindestens eine editor_ Runtime-Map seedet.');
-            return;
-        }
-
-        const selectedEditorMapKey = String(selectionState.matching.value || '');
-        expect(selectionState.optionCount).toBeGreaterThan(0);
-        expect(selectedEditorMapKey.startsWith('editor_')).toBeTruthy();
-
-        await page.evaluate((mapKey) => {
-            const game = window.GAME_INSTANCE;
-            if (!game?.settings) return;
-            game.settings.mapKey = mapKey;
-            game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['mapKey'] });
-        }, selectedEditorMapKey);
-        await page.waitForTimeout(200);
-
-        const runtimeSelection = await page.evaluate(() => ({
-            domValue: document.getElementById('map-select')?.value ?? null,
-            settingsMapKey: window.GAME_INSTANCE?.settings?.mapKey ?? null,
-        }));
-
-        expect(runtimeSelection.domValue).toBe(selectedEditorMapKey);
-        expect(runtimeSelection.settingsMapKey).toBe(selectedEditorMapKey);
-        await page.click('#submenu-game:not(.hidden) #btn-start');
-        await page.waitForFunction(() => {
-            const hud = document.getElementById('hud');
-            const g = window.GAME_INSTANCE;
-            return hud && !hud.classList.contains('hidden') && g?.entityManager?.players?.length > 0;
-        }, null, { timeout: 15000 });
-
-        const matchProbe = await page.evaluate(() => ({
-            mapKey: window.GAME_INSTANCE?.arena?.currentMapKey ?? null,
-            obstacleCount: window.GAME_INSTANCE?.arena?.obstacles?.filter((entry) => !entry?.isWall)?.length ?? 0,
-        }));
-
-        expect(matchProbe.mapKey).toBe(selectedEditorMapKey);
-        expect(matchProbe.obstacleCount).toBeGreaterThanOrEqual(1);
-    });
 });

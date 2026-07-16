@@ -1,12 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createRequire } from 'node:module';
+
+const require = createRequire(import.meta.url);
+const { createSecureWindowWebPreferences } = require('../electron/window-security-options.cjs');
 
 function readSource(relativePath) {
     return readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 }
 
-test('every Electron window explicitly isolates its renderer from Node.js', () => {
+test('every Electron window uses the executable renderer security policy', () => {
     for (const relativePath of [
         '../electron/main.cjs',
         '../electron/tuning-window.cjs',
@@ -14,10 +18,24 @@ test('every Electron window explicitly isolates its renderer from Node.js', () =
         '../electron/settings-studio/main.cjs',
     ]) {
         const source = readSource(relativePath);
-        assert.match(source, /contextIsolation:\s*true/);
-        assert.match(source, /nodeIntegration:\s*false/);
+        assert.match(source, /createSecureWindowWebPreferences\s*\(/);
     }
+
+    const auxiliary = createSecureWindowWebPreferences({ preload: 'aux-preload.cjs' });
+    assert.deepEqual(auxiliary, {
+        preload: 'aux-preload.cjs',
+        contextIsolation: true,
+        nodeIntegration: false,
+        sandbox: true,
+        backgroundThrottling: false,
+    });
+
+    const main = createSecureWindowWebPreferences({ preload: 'main-preload.cjs', sandbox: false });
+    assert.equal(main.sandbox, false);
+    assert.equal(main.contextIsolation, true);
+    assert.equal(main.nodeIntegration, false);
 });
+
 test('main and auxiliary game windows deny renderer navigation and popups', () => {
     for (const relativePath of [
         '../electron/main.cjs',
@@ -29,7 +47,6 @@ test('main and auxiliary game windows deny renderer navigation and popups', () =
         assert.match(source, /webContents(?:\?\.|\.)setWindowOpenHandler(?:\?\.)?\(\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\)\)/);
     }
 });
-
 
 test('desktop capability IPC remains bound to the owning window main frame', () => {
     const source = readSource('../electron/main.cjs');

@@ -1,18 +1,7 @@
 import { expect, test } from '@playwright/test';
-import * as THREE from 'three';
 
-import { EditorAssetLoader } from '../editor/js/EditorAssetLoader.js';
 import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
-import { ModularVehicleMesh } from '../src/shared/vehicle-lab/ModularVehicleMeshBridge.js';
-
-function createTestAssetObject() {
-    const group = new THREE.Group();
-    group.add(new THREE.Mesh(
-        new THREE.BoxGeometry(1, 1, 1),
-        new THREE.MeshBasicMaterial({ color: 0xffffff })
-    ));
-    return group;
-}
+import { waitForRenderFrames } from './helpers.js';
 
 async function resetVehicleLab(page) {
     await page.goto(EDITOR_VIEW_PATHS.VEHICLE_LAB, { waitUntil: 'domcontentloaded' });
@@ -27,54 +16,6 @@ async function resetVehicleLab(page) {
 async function getVehicleLabPartCount(page) {
     return page.locator('#partsList .part-item').count();
 }
-
-test.describe('EditorAssetLoader', () => {
-    test('soft timeout does not poison the cache when a late load succeeds', async () => {
-        const loader = new EditorAssetLoader({ timeoutMs: 10, maxConcurrentLoads: 1 });
-        loader.loader = {
-            load(_url, onLoad) {
-                setTimeout(() => onLoad(createTestAssetObject()), 25);
-            }
-        };
-
-        const result = await loader._loadModelWithTimeout('demo_asset', '/demo.obj');
-        expect(result.status).toBe('timeout');
-
-        const timeoutClone = loader.getClone('demo_asset');
-        expect(timeoutClone.userData.isEditorPlaceholder).toBeTruthy();
-
-        await new Promise((resolve) => setTimeout(resolve, 40));
-
-        const recoveredClone = loader.getClone('demo_asset');
-        expect(loader.loadStatus.get('demo_asset')?.state).toBe('loaded');
-        expect(recoveredClone.userData.isEditorPlaceholder).toBeFalsy();
-    });
-
-    test('loadAll respects maxConcurrentLoads', async () => {
-        const loader = new EditorAssetLoader({ timeoutMs: 200, maxConcurrentLoads: 2 });
-        loader.modelsToLoad = ['asset_a', 'asset_b', 'asset_c', 'asset_d'];
-        loader.jetsToLoad = [];
-        loader.portalModelsToLoad = [];
-        loader.trailModelsToLoad = [];
-
-        let activeLoads = 0;
-        let peakLoads = 0;
-        loader.loader = {
-            load(_url, onLoad) {
-                activeLoads += 1;
-                peakLoads = Math.max(peakLoads, activeLoads);
-                setTimeout(() => {
-                    activeLoads -= 1;
-                    onLoad(createTestAssetObject());
-                }, 20);
-            }
-        };
-
-        const summary = await loader.loadAll();
-        expect(summary.loaded).toBe(4);
-        expect(peakLoads).toBeLessThanOrEqual(2);
-    });
-});
 
 test.describe('Vehicle Lab', () => {
     test('vehicle selection is visible and loads a preset immediately', async ({ page }) => {
@@ -147,7 +88,7 @@ test.describe('Vehicle Lab', () => {
 
         await page.locator('#partsList .part-item').first().click();
         await page.locator('#btnDeletePart').click();
-        await page.waitForTimeout(100);
+        await waitForRenderFrames(page, 2);
 
         expect(await getVehicleLabPartCount(page)).toBe(7);
 
@@ -162,7 +103,7 @@ test.describe('Vehicle Lab', () => {
 
         await page.locator('#partsList .part-item').first().click();
         await page.locator('#btnAddChild').click();
-        await page.waitForTimeout(150);
+        await waitForRenderFrames(page, 2);
 
         const selectedItems = await page.locator('#partsList .part-item.is-selected').evaluateAll((nodes) => (
             nodes.map((node) => node.textContent?.trim())
@@ -180,7 +121,7 @@ test.describe('Vehicle Lab', () => {
         ));
 
         await page.locator('#shipLabel').fill('WASD TRS Vehicle');
-        await page.waitForTimeout(80);
+        await waitForRenderFrames(page, 2);
 
         const after = await page.locator('#propertiesContainer input[type="number"]').evaluateAll((inputs) => (
             inputs.map((input) => input.value)
@@ -213,7 +154,7 @@ test.describe('Vehicle Lab', () => {
         await page.mouse.down({ button: 'left' });
         await page.mouse.move(center.x + 90, center.y + 35, { steps: 8 });
         await page.mouse.up({ button: 'left' });
-        await page.waitForTimeout(180);
+        await waitForRenderFrames(page, 3);
         const orbited = await canvas.screenshot();
         expect(orbited.equals(initial)).toBe(false);
         await expect(page.locator('#propertyPanel')).toHaveClass(/is-hidden/);
@@ -221,13 +162,13 @@ test.describe('Vehicle Lab', () => {
         await page.mouse.down({ button: 'middle' });
         await page.mouse.move(center.x + 45, center.y - 30, { steps: 6 });
         await page.mouse.up({ button: 'middle' });
-        await page.waitForTimeout(180);
+        await waitForRenderFrames(page, 3);
         const panned = await canvas.screenshot();
         expect(panned.equals(orbited)).toBe(false);
 
         await page.mouse.move(center.x, center.y);
         await page.mouse.wheel(0, -500);
-        await page.waitForTimeout(180);
+        await waitForRenderFrames(page, 3);
         const zoomed = await canvas.screenshot();
         expect(zoomed.equals(panned)).toBe(false);
     });
@@ -240,43 +181,12 @@ test.describe('Vehicle Lab', () => {
         for (const view of ['front', 'side', 'top', 'fit']) {
             const button = page.locator(`[data-camera-view="${view}"]`);
             await button.click();
-            await page.waitForTimeout(120);
+            await waitForRenderFrames(page, 3);
             await expect(button).toHaveAttribute('aria-pressed', 'true');
             captures.push((await canvas.screenshot()).toString('base64'));
         }
 
         expect(new Set(captures).size).toBe(4);
-    });
-});
-
-test.describe('ModularVehicleMesh', () => {
-    test('rebuild disposes transient compound geometries', async () => {
-        const mesh = new ModularVehicleMesh({
-            parts: [
-                { name: 'Engine', geo: 'engine', size: [0.28, 0.28, 0.5] },
-                { name: 'Shield', geo: 'forcefield', size: [0.06, 0.06, 1.2] },
-                { name: 'Flame', geo: 'flame', size: [0.15, 0.01, 0.5] }
-            ]
-        });
-
-        const trackedGeometries = Array.from(mesh.dynamicGeometries);
-        expect(trackedGeometries.length).toBeGreaterThan(0);
-
-        let disposeCalls = 0;
-        trackedGeometries.forEach((geometry) => {
-            const originalDispose = geometry.dispose.bind(geometry);
-            geometry.dispose = () => {
-                disposeCalls += 1;
-                originalDispose();
-            };
-        });
-
-        mesh.build();
-
-        expect(disposeCalls).toBe(trackedGeometries.length);
-        expect(mesh.dynamicGeometries.size).toBeGreaterThan(0);
-
-        mesh.dispose();
     });
 });
 
