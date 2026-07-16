@@ -7,6 +7,7 @@ import { OrbMesh } from './orb-mesh.js';
 import { OBJVehicleMesh } from './obj-vehicle-mesh.js';
 import { RuntimeModularVehicleMesh } from './runtime-modular-vehicle-mesh.js';
 import { GENERATED_VEHICLE_CONFIGS } from './GeneratedVehicleConfigs.js';
+import { loadVehicleLabCatalog } from '../shared/contracts/VehicleLabConfigContract.js';
 import {
     CONTENT_DESCRIPTOR_TYPES,
     createContentRegistryDescriptor,
@@ -31,7 +32,13 @@ const BASE_VEHICLE_DEFINITIONS = [
     { id: 'ship9', label: 'Recon (Ship 9)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.0 } },
 ];
 
-const GENERATED_CUSTOM_VEHICLE_DEFINITIONS = (Array.isArray(GENERATED_VEHICLE_CONFIGS) ? GENERATED_VEHICLE_CONFIGS : [])
+const LOCAL_VEHICLE_CONFIGS = loadVehicleLabCatalog().vehicles;
+const CUSTOM_VEHICLE_CONFIGS = Array.from(new Map([
+    ...(Array.isArray(GENERATED_VEHICLE_CONFIGS) ? GENERATED_VEHICLE_CONFIGS : []),
+    ...LOCAL_VEHICLE_CONFIGS,
+].map((entry) => [String(entry?.id || '').trim(), entry])).values());
+
+const GENERATED_CUSTOM_VEHICLE_DEFINITIONS = CUSTOM_VEHICLE_CONFIGS
     .filter((entry) => entry && typeof entry === 'object' && Array.isArray(entry.config?.parts))
     .map((entry) => ({
         id: String(entry.id || '').trim(),

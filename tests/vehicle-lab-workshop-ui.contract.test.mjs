@@ -95,6 +95,8 @@ function createWorkshopUi(callbacks = {}) {
         'btnLoadPreset',
         'btnImportJson',
         'btnExportJson',
+        'btnSaveVehicle',
+        'btnRestoreDraft',
         'btnUndo',
         'btnRedo',
         'btnAddPart',
@@ -176,6 +178,25 @@ test('VehicleLabUI loads the selected vehicle immediately', () => {
     }
 });
 
+test('VehicleLabUI separates named save from draft recovery', () => {
+    let saves = 0;
+    let restores = 0;
+    const { document, restore, ui } = createWorkshopUi({
+        onSaveVehicle: () => { saves += 1; },
+        onRestoreDraft: () => { restores += 1; },
+    });
+    try {
+        document.getElementById('btnSaveVehicle').onclick();
+        document.getElementById('btnRestoreDraft').onclick();
+        ui.setDraftRecoveryAvailable(false);
+        assert.equal(saves, 1);
+        assert.equal(restores, 1);
+        assert.equal(document.getElementById('btnRestoreDraft').disabled, true);
+    } finally {
+        restore();
+    }
+});
+
 test('VehicleLabUI renders compare candidates and metric rows', () => {
     let selectedVehicle = '';
     const { document, restore, ui } = createWorkshopUi({
@@ -192,7 +213,7 @@ test('VehicleLabUI renders compare candidates and metric rows', () => {
             ],
             selectedId: 'spaceship',
             rows: [
-                { key: 'parts', label: 'Bauteile', current: 8, baseline: 6, delta: 2 },
+                { key: 'parts', label: 'Bauteile', current: 8, baseline: 6, delta: 2, tone: 'info' },
                 { key: 'animated', label: 'Animated', current: 0, baseline: 0, delta: 0 },
             ],
         });
@@ -211,6 +232,7 @@ test('VehicleLabUI renders compare candidates and metric rows', () => {
         assert.equal(rows[0].children[1].textContent, '8');
         assert.equal(rows[0].children[2].textContent, '6');
         assert.equal(rows[0].children[3].textContent, '+2');
+        assert.match(rows[0].children[3].className, /is-info/);
     } finally {
         restore();
     }

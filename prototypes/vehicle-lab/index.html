@@ -18,14 +18,15 @@
             <div class="toolbar-group" aria-label="Dateiaktionen">
                 <button id="btnImportJson">Importieren</button>
                 <button id="btnExportJson">JSON exportieren</button>
-                <button id="btnSaveToGameVehicle" class="btn--primary">Im Spiel veröffentlichen</button>
+                <button id="btnSaveVehicle">Fahrzeug speichern</button>
+                <button id="btnSaveToGameVehicle" class="btn--primary">Im Hangar veröffentlichen</button>
             </div>
             <div class="toolbar-spacer"></div>
             <div class="toolbar-group" aria-label="Bearbeitungsverlauf">
                 <button id="btnUndo" title="Rückgängig (Strg+Z)" aria-label="Rückgängig">↶</button>
                 <button id="btnRedo" title="Wiederholen (Strg+Y)" aria-label="Wiederholen">↷</button>
             </div>
-            <div class="toolbar-save-state" id="workshopSaveState" data-state="saved">Lokal gespeichert</div>
+            <div class="toolbar-save-state" id="workshopSaveState" data-state="saved">Entwurf automatisch gesichert</div>
         </header>
 
         <div class="app-layout">
@@ -33,7 +34,7 @@
                 <section class="sidebar__panel">
                     <h2>Vorlagen</h2>
                     <select id="presetSelect" aria-label="Fahrzeugvorlage"></select>
-                    <button id="btnLoadPreset" class="btn--wide">Ausgewählte Vorlage neu laden</button>
+                    <button id="btnRestoreDraft" class="btn--wide is-hidden" disabled>Vorherigen Entwurf wiederherstellen</button>
                 </section>
 
                 <section class="sidebar__panel sidebar__panel--grow">
@@ -52,7 +53,7 @@
                     <div id="partsList" class="sidebar__list parts-tree" role="tree"></div>
                 </section>
 
-                <details class="sidebar__panel vehicle-library" open>
+                <details class="sidebar__panel vehicle-library">
                     <summary>Fahrzeugbibliothek</summary>
                     <div class="sidebar__header-row section-heading">
                         <h2>Alle Fahrzeuge</h2>
@@ -122,7 +123,7 @@
                 </section>
 
                 <section class="sidebar__panel">
-                    <h2>Vergleich und Spielwerte</h2>
+                    <h2>Vergleich und Blueprint-Budget</h2>
                     <select id="compareVehicleSelect" aria-label="Vergleichsfahrzeug"></select>
                     <div class="compare-header" aria-hidden="true"><span>Wert</span><span>Aktuell</span><span>Vergleich</span><span>Δ</span></div>
                     <div id="compareRows" class="compare-rows"></div>

@@ -136,6 +136,9 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .sidebar__row--wrap button { flex: 1 1 calc(50% - 4px); }
 .sidebar__grid { display: grid; grid-template-columns: minmax(90px, 0.8fr) minmax(110px, 1.2fr); align-items: center; gap: 7px; font-size: 0.78rem; }
 .properties-grid { overflow-y: auto; padding-right: 3px; }
+.vector-components { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
+.vector-component { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 3px; color: var(--muted); font-size: 0.65rem; }
+.vector-component input { min-width: 0; }
 
 .sidebar__list { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .parts-tree { flex: 1; max-height: none; margin-top: 8px; }
@@ -186,15 +189,18 @@ details > summary { cursor: pointer; color: var(--muted); font-size: 0.78rem; fo
 .toggle-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 7px; font-size: 0.76rem; }
 .snap-grid { display: grid; grid-template-columns: 1fr 70px; align-items: center; gap: 5px; margin-top: 10px; color: var(--muted); font-size: 0.72rem; }
 .compare-header,
-.compare-row { display: grid; grid-template-columns: minmax(76px, 1fr) 48px 48px 42px; align-items: center; gap: 5px; }
+.compare-row { display: grid; grid-template-columns: minmax(70px, 1fr) 70px 50px 42px; align-items: center; gap: 5px; }
 .compare-header { margin-top: 9px; padding: 0 7px 4px; color: var(--muted); font-size: 0.62rem; }
 .compare-rows { display: grid; gap: 4px; }
 .compare-row { padding: 6px 7px; border-radius: 6px; background: rgba(255, 255, 255, 0.025); font-size: 0.7rem; }
 .compare-label,
 .compare-baseline { color: var(--muted); }
-.compare-delta { text-align: right; }
-.compare-delta.is-positive { color: #93c5fd; }
-.compare-delta.is-negative { color: #fca5a5; }
+.compare-current,
+.compare-baseline,
+.compare-delta { overflow: hidden; font-variant-numeric: tabular-nums; text-align: right; white-space: nowrap; }
+.compare-delta.is-better { color: #86efac; }
+.compare-delta.is-worse { color: #fca5a5; }
+.compare-delta.is-info { color: #93c5fd; }
 .compare-delta.is-neutral { color: var(--muted); }
 .shortcut-list { display: grid; gap: 6px; margin-top: 10px; }
 .shortcut { display: flex; justify-content: space-between; gap: 10px; color: var(--muted); font-size: 0.7rem; }

@@ -75,3 +75,17 @@ test('Arcade blueprint validation accepts a balanced required-slot layout', () =
     assert.equal(validation.ok, true);
     assert.deepEqual(validation.errors, []);
 });
+
+test('Arcade blueprint accepts explicit roles independently of localized names', () => {
+    const parts = [
+        ['Rumpf', 'core', 'box'],
+        ['Nase', 'nose', 'cone'],
+        ['Flügel links', 'wing_left', 'box'],
+        ['Flügel rechts', 'wing_right', 'box'],
+        ['Antrieb links', 'engine_left', 'engine'],
+        ['Antrieb rechts', 'engine_right', 'engine'],
+    ].map(([name, role, geo]) => ({ name, role, geo, size: [0.2, 0.2, 0.2] }));
+
+    const blueprint = createArcadeBlueprintFromVehicleConfig({ label: 'Explizite Rollen', parts });
+    assert.equal(validateArcadeBlueprint(blueprint).ok, true);
+});

@@ -9,6 +9,19 @@ export const VEHICLE_LAB_CONFIG_LIMITS = Object.freeze({
     maxScale: 20,
 });
 
+export const VEHICLE_LAB_CATALOG_VERSION = 'vehicle-lab-catalog.v1';
+export const VEHICLE_LAB_CATALOG_STORAGE_KEY = 'curviosclash.vehicle-lab.catalog.v1';
+export const VEHICLE_LAB_PART_ROLES = Object.freeze([
+    'auto',
+    'core',
+    'nose',
+    'wing_left',
+    'wing_right',
+    'engine_left',
+    'engine_right',
+    'utility',
+]);
+
 export const VEHICLE_LAB_GEOMETRIES = Object.freeze([
     'box',
     'sphere',
@@ -25,6 +38,8 @@ export const VEHICLE_LAB_GEOMETRIES = Object.freeze([
 const VEHICLE_LAB_MATERIALS = new Set(['primary', 'secondary', 'glass', 'glow']);
 const VEHICLE_LAB_ANIMATIONS = new Set(['rotate', 'bob', 'pulse']);
 const VEHICLE_LAB_AXES = new Set(['x', 'y', 'z']);
+const VEHICLE_LAB_ROLE_SET = new Set(VEHICLE_LAB_PART_ROLES);
+const VEHICLE_LAB_CATALOG_LIMIT = 24;
 
 function finiteNumber(value, fallback, min, max) {
     const numeric = Number(value);
@@ -102,6 +117,10 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
             material: VEHICLE_LAB_MATERIALS.has(part.material) ? part.material : 'primary',
         };
 
+        const role = String(part.role || 'auto').trim().toLowerCase();
+        if (role !== 'auto' && VEHICLE_LAB_ROLE_SET.has(role)) normalized.role = role;
+        else delete normalized.role;
+
         if (part.color !== undefined) normalized.color = normalizeColor(part.color, '#ffffff');
         if (part.opacity !== undefined) normalized.opacity = finiteNumber(part.opacity, 1, 0, 1);
         if (part.emissive !== undefined) normalized.emissive = normalizeColor(part.emissive, 0x000000);
@@ -150,4 +169,145 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
 
 export function formatVehicleLabConfigIssues(result) {
     return [...(result?.errors || []), ...(result?.warnings || [])].join('\n');
+}
+
+function createVehicleId(label) {
+    const slug = String(label || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48) || 'vehicle';
+    return `editor_vehicle_${slug}`;
+}
+
+function normalizeVehicleId(value, fallbackLabel = '') {
+    const id = String(value || '').trim().toLowerCase();
+    return /^editor_vehicle_[a-z0-9-]+$/.test(id) ? id : createVehicleId(fallbackLabel);
+}
+
+export function estimateVehicleLabHitboxRadius(vehicleConfig) {
+    let maxCandidate = 0;
+    const visit = (part) => {
+        if (!part || typeof part !== 'object') return;
+        const pos = Array.isArray(part.pos) ? part.pos : [0, 0, 0];
+        const size = Array.isArray(part.size) && part.size.length > 0 ? part.size : [1, 1, 1];
+        const scale = Array.isArray(part.scale) && part.scale.length > 0 ? part.scale : [1, 1, 1];
+        const maxPos = Math.max(...pos.slice(0, 3).map((value) => Math.abs(Number(value) || 0)));
+        const maxSize = Math.max(...size.slice(0, 3).map((value) => Math.abs(Number(value) || 0)), 1);
+        const maxScale = Math.max(...scale.slice(0, 3).map((value) => Math.abs(Number(value) || 0)), 1);
+        maxCandidate = Math.max(maxCandidate, maxPos + (maxSize * maxScale));
+        if (Array.isArray(part.children)) part.children.forEach(visit);
+    };
+    if (Array.isArray(vehicleConfig?.parts)) vehicleConfig.parts.forEach(visit);
+    if (maxCandidate <= 0) return 1.2;
+    return Math.max(0.6, Math.min(2.5, Number((maxCandidate / 6).toFixed(2))));
+}
+
+function normalizeCatalogVehicle(entry) {
+    const normalized = normalizeVehicleLabConfig(entry?.config, {
+        fallbackLabel: entry?.label,
+        requireParts: true,
+    });
+    if (!normalized.ok) return null;
+    const label = normalized.config.label;
+    return {
+        id: normalizeVehicleId(entry?.id, label),
+        label,
+        hitbox: { radius: estimateVehicleLabHitboxRadius(normalized.config) },
+        config: normalized.config,
+        updatedAtMs: Math.max(0, Number(entry?.updatedAtMs) || 0),
+    };
+}
+
+export function normalizeVehicleLabCatalogRecord(source) {
+    const input = source && typeof source === 'object' ? source : {};
+    const seen = new Set();
+    const vehicles = [];
+    for (const entry of Array.isArray(input.vehicles) ? input.vehicles : []) {
+        const vehicle = normalizeCatalogVehicle(entry);
+        if (!vehicle || seen.has(vehicle.id)) continue;
+        seen.add(vehicle.id);
+        vehicles.push(vehicle);
+        if (vehicles.length >= VEHICLE_LAB_CATALOG_LIMIT) break;
+    }
+    return { schemaVersion: VEHICLE_LAB_CATALOG_VERSION, vehicles };
+}
+
+export function upsertVehicleLabCatalogVehicle(source, config, options = {}) {
+    const record = normalizeVehicleLabCatalogRecord(source);
+    const normalized = normalizeVehicleLabConfig({
+        ...config,
+        label: options.label || config?.label,
+    }, { requireParts: true });
+    if (!normalized.ok) throw new Error(formatVehicleLabConfigIssues(normalized));
+
+    const labelKey = normalized.config.label.toLowerCase();
+    const matching = record.vehicles.find((entry) => entry.label.toLowerCase() === labelKey);
+    const requestedId = options.vehicleId ? normalizeVehicleId(options.vehicleId, normalized.config.label) : '';
+    let vehicleId = requestedId || matching?.id || createVehicleId(normalized.config.label);
+    if (!requestedId && !matching) {
+        const baseId = vehicleId;
+        let suffix = 2;
+        while (record.vehicles.some((entry) => entry.id === vehicleId)) vehicleId = `${baseId}-${suffix++}`;
+    }
+
+    const vehicle = normalizeCatalogVehicle({
+        id: vehicleId,
+        label: normalized.config.label,
+        config: normalized.config,
+        updatedAtMs: Number(options.updatedAtMs) || Date.now(),
+    });
+    const vehicles = record.vehicles.filter((entry) => entry.id !== vehicle.id && entry !== matching);
+    vehicles.unshift(vehicle);
+    return {
+        record: { schemaVersion: VEHICLE_LAB_CATALOG_VERSION, vehicles: vehicles.slice(0, VEHICLE_LAB_CATALOG_LIMIT) },
+        vehicle,
+        overwritten: !!matching || record.vehicles.some((entry) => entry.id === vehicle.id),
+    };
+}
+
+export function renameVehicleLabCatalogVehicle(source, vehicleId, label) {
+    const record = normalizeVehicleLabCatalogRecord(source);
+    const current = record.vehicles.find((entry) => entry.id === String(vehicleId || '').trim());
+    if (!current) throw new Error('Fahrzeug wurde nicht gefunden.');
+    const renamedConfig = normalizeVehicleLabConfig({ ...current.config, label }, { requireParts: true });
+    if (!renamedConfig.ok) throw new Error(formatVehicleLabConfigIssues(renamedConfig));
+    const labelKey = renamedConfig.config.label.toLowerCase();
+    if (record.vehicles.some((entry) => (
+        entry.id !== current.id && entry.label.toLowerCase() === labelKey
+    ))) {
+        throw new Error('Ein Fahrzeug mit diesem Namen existiert bereits.');
+    }
+    const withoutCurrent = {
+        ...record,
+        vehicles: record.vehicles.filter((entry) => entry.id !== current.id),
+    };
+    const result = upsertVehicleLabCatalogVehicle(withoutCurrent, renamedConfig.config, { label: renamedConfig.config.label });
+    return { ...result, previousVehicleId: current.id };
+}
+
+export function deleteVehicleLabCatalogVehicle(source, vehicleId) {
+    const record = normalizeVehicleLabCatalogRecord(source);
+    const id = String(vehicleId || '').trim();
+    const vehicles = record.vehicles.filter((entry) => entry.id !== id);
+    return {
+        record: { schemaVersion: VEHICLE_LAB_CATALOG_VERSION, vehicles },
+        deleted: vehicles.length !== record.vehicles.length,
+    };
+}
+
+export function loadVehicleLabCatalog(storage = globalThis.localStorage) {
+    try {
+        return normalizeVehicleLabCatalogRecord(JSON.parse(storage?.getItem?.(VEHICLE_LAB_CATALOG_STORAGE_KEY) || 'null'));
+    } catch {
+        return normalizeVehicleLabCatalogRecord(null);
+    }
+}
+
+export function saveVehicleLabCatalog(record, storage = globalThis.localStorage) {
+    const normalized = normalizeVehicleLabCatalogRecord(record);
+    storage?.setItem?.(VEHICLE_LAB_CATALOG_STORAGE_KEY, JSON.stringify(normalized));
+    return normalized;
 }

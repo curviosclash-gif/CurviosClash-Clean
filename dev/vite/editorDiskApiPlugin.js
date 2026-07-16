@@ -12,7 +12,10 @@ import {
     EDITOR_DISK_IO_CONTRACT_VERSION,
 } from '../../src/shared/contracts/EditorPathContract.js';
 import { resolveArtifactVersionState } from '../../src/shared/contracts/ArtifactVersionMigrationContract.js';
-import { normalizeVehicleLabConfig } from '../../src/shared/contracts/VehicleLabConfigContract.js';
+import {
+    estimateVehicleLabHitboxRadius,
+    normalizeVehicleLabConfig,
+} from '../../src/shared/contracts/VehicleLabConfigContract.js';
 import {
     createEditorAuthoringDocument,
     parseEditorAuthoringDocument,
@@ -38,7 +41,6 @@ const VEHICLE_NAME_MAX_LENGTH = 80;
 const VEHICLE_CONFIG_DIR = path.resolve(__dirname, EDITOR_DATA_PATHS.VEHICLES_DIR);
 const GENERATED_VEHICLE_CONFIGS_MODULE_PATH = path.resolve(__dirname, EDITOR_DATA_PATHS.GENERATED_VEHICLE_CONFIGS_MODULE);
 const VEHICLE_CONFIG_SUFFIX = '.vehicle.json';
-const DEFAULT_GENERATED_VEHICLE_HITBOX_RADIUS = 1.2;
 const EDITOR_DISK_IO_VERSION_FIELDS = Object.freeze(['contractVersion']);
 const EDITOR_DISK_IO_SUPPORTED_VERSIONS = Object.freeze([EDITOR_DISK_IO_CONTRACT_VERSION]);
 
@@ -333,34 +335,6 @@ function resolveGeneratedVehicleKey(vehicleName) {
     }
 }
 
-function estimateGeneratedVehicleHitboxRadius(vehicleConfig) {
-    let maxCandidate = 0;
-
-    const visit = (part) => {
-        if (!part || typeof part !== 'object') return;
-        const pos = Array.isArray(part.pos) ? part.pos : [0, 0, 0];
-        const size = Array.isArray(part.size) && part.size.length > 0 ? part.size : [1, 1, 1];
-        const scale = Array.isArray(part.scale) && part.scale.length > 0 ? part.scale : [1, 1, 1];
-
-        const maxPos = Math.max(Math.abs(Number(pos[0]) || 0), Math.abs(Number(pos[1]) || 0), Math.abs(Number(pos[2]) || 0));
-        const maxSize = Math.max(...size.map((v) => Math.abs(Number(v) || 0)), 1);
-        const maxScale = Math.max(...scale.map((v) => Math.abs(Number(v) || 0)), 1);
-        maxCandidate = Math.max(maxCandidate, maxPos + (maxSize * maxScale));
-
-        if (Array.isArray(part.children)) {
-            part.children.forEach(visit);
-        }
-    };
-
-    if (Array.isArray(vehicleConfig?.parts)) {
-        vehicleConfig.parts.forEach(visit);
-    }
-
-    if (maxCandidate <= 0) return DEFAULT_GENERATED_VEHICLE_HITBOX_RADIUS;
-    const estimated = maxCandidate / 6;
-    return Math.max(0.6, Math.min(2.5, Number(estimated.toFixed(2))));
-}
-
 function loadGeneratedVehicleConfigsFromDisk() {
     if (!existsSync(VEHICLE_CONFIG_DIR)) {
         return [];
@@ -382,7 +356,7 @@ function loadGeneratedVehicleConfigsFromDisk() {
         vehicles.push({
             id: vehicleId,
             label: String(config.label || vehicleId),
-            hitbox: { radius: estimateGeneratedVehicleHitboxRadius(config) },
+            hitbox: { radius: estimateVehicleLabHitboxRadius(config) },
             config
         });
     }

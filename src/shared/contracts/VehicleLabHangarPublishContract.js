@@ -13,7 +13,18 @@ function slug(value, fallback = 'part') {
     return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
 }
 
+function vehicleKey(value) {
+    return String(value || '').trim().toLowerCase()
+        .replace(/[^a-z0-9_-]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'custom-vehicle';
+}
+
 function resolveFamily(part = {}) {
+    const role = String(part.role || '').toLowerCase();
+    if (role.startsWith('engine')) return 'engine';
+    if (role.startsWith('wing')) return 'wing';
+    if (role === 'nose') return 'nose';
+    if (role === 'core') return 'core';
     const token = `${part.name || ''} ${part.geo || ''}`.toLowerCase();
     if (/engine|drive|thruster|jet/.test(token)) return 'engine';
     if (/wing|fin|aileron/.test(token)) return 'wing';
@@ -32,7 +43,7 @@ function flattenParts(parts, result = []) {
 }
 
 export function createVehicleLabHangarPublication(config = {}, options = {}) {
-    const vehicleId = slug(options.vehicleId || config.label, 'custom-vehicle');
+    const vehicleId = vehicleKey(options.vehicleId || config.label);
     const publishedAtMs = Math.max(0, Number(options.publishedAtMs) || Date.now());
     const parts = flattenParts(config.parts).slice(0, 48).map((part, index) => {
         const family = resolveFamily(part);

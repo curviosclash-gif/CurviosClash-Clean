@@ -20,11 +20,17 @@ import {
     upsertVehicleLabHangarPublication,
 } from '../../src/shared/contracts/VehicleLabHangarPublishContract.js';
 import {
+    deleteVehicleLabCatalogVehicle,
     formatVehicleLabConfigIssues,
+    loadVehicleLabCatalog,
     normalizeVehicleLabConfig,
+    renameVehicleLabCatalogVehicle,
+    saveVehicleLabCatalog,
+    upsertVehicleLabCatalogVehicle,
 } from '../../src/shared/contracts/VehicleLabConfigContract.js';
 
 const VEHICLE_LAB_CONFIG_STORAGE_KEY = 'vehicle_lab_config';
+const VEHICLE_LAB_RECOVERY_STORAGE_KEY = 'vehicle_lab_recovery_config';
 const GAME_VEHICLE_REFERENCES = listVehicleLabGameReferences();
 
 function toBlueprintId(value) {
@@ -60,8 +66,9 @@ function summarizeVehicleConfig(config = {}) {
         summary.parts += 1;
         const name = String(part.name || '').toLowerCase();
         const geo = String(part.geo || '').toLowerCase();
-        if (geo === 'engine' || name.includes('engine')) summary.engines += 1;
-        if (name.includes('wing') || name.includes('fin')) summary.wings += 1;
+        const role = String(part.role || '').toLowerCase();
+        if (role.startsWith('engine') || geo === 'engine' || name.includes('engine')) summary.engines += 1;
+        if (role.startsWith('wing') || name.includes('wing') || name.includes('fin')) summary.wings += 1;
         if (part.anim && part.anim.type && part.anim.type !== 'none') summary.animated += 1;
     });
 
@@ -83,20 +90,25 @@ function createCompareRows(currentConfig, baselineConfig) {
         current: current[metric.key],
         baseline: baseline[metric.key],
         delta: current[metric.key] - baseline[metric.key],
+        tone: 'info',
     }));
     const statRows = [
-        { key: 'budgetUsed', label: 'Budget' },
-        { key: 'massUsed', label: 'Masse' },
-        { key: 'powerUsed', label: 'Energie' },
-        { key: 'heatUsed', label: 'Hitze' },
+        { key: 'budgetUsed', limitKey: 'editorBudget', label: 'Budget' },
+        { key: 'massUsed', limitKey: 'massBudget', label: 'Masse' },
+        { key: 'powerUsed', limitKey: 'powerBudget', label: 'Energie' },
+        { key: 'heatUsed', limitKey: 'heatBudget', label: 'Hitze' },
     ].map((metric) => {
         const currentValue = Number(currentBlueprint?.stats?.[metric.key]) || 0;
         const baselineValue = Number(baselineBlueprint?.stats?.[metric.key]) || 0;
+        const limitValue = Number(currentBlueprint?.limits?.[metric.limitKey]) || 0;
+        const delta = Number((currentValue - baselineValue).toFixed(3));
         return {
             ...metric,
             current: currentValue,
             baseline: baselineValue,
-            delta: Number((currentValue - baselineValue).toFixed(3)),
+            currentDisplay: `${currentValue}/${limitValue}`,
+            delta,
+            tone: delta < 0 ? 'better' : delta > 0 ? 'worse' : 'neutral',
         };
     });
     return [...countRows, ...statRows];
@@ -130,7 +142,9 @@ class VehicleLabApp {
             onLoadPreset: (vehicleId) => this.loadPreset(vehicleId),
             onImportJson: () => this.importJson(),
             onExportJson: () => this.exportJson(),
+            onSaveVehicle: () => this.saveNamedVehicle(false),
             onSaveToGame: () => this.saveToGame(),
+            onRestoreDraft: () => this.restoreDraft(),
             onRefreshSavedVehicles: () => this.refreshSavedVehiclesList(),
             onLoadSavedVehicle: (vehicle) => this.loadSavedVehicle(vehicle),
             onRenameSavedVehicle: (vehicle) => this.renameSavedVehicle(vehicle),
@@ -164,7 +178,8 @@ class VehicleLabApp {
 
         this.selectedIndex = null;
         this.selectedPath = [];
-        this.savedVehicles = [];
+        this.catalogRecord = loadVehicleLabCatalog(localStorage);
+        this.savedVehicles = this.catalogRecord.vehicles;
         this.compareVehicleId = VEHICLE_PRESETS[1]?.id || VEHICLE_PRESETS[0]?.id || '';
         this.statusMessage = 'Bereit';
         this.statusTone = 'info';
@@ -247,19 +262,24 @@ class VehicleLabApp {
     }
 
     getCompareCandidates() {
-        return VEHICLE_PRESETS.map((preset) => ({
+        return [...VEHICLE_PRESETS, ...this.savedVehicles].map((preset) => ({
             id: preset.id,
             label: preset.label || preset.id,
         }));
     }
 
     resolveComparePreset() {
-        return VEHICLE_PRESETS.find((preset) => preset.id === this.compareVehicleId) || VEHICLE_PRESETS[0] || {};
+        return [...VEHICLE_PRESETS, ...this.savedVehicles]
+            .find((preset) => preset.id === this.compareVehicleId)?.config
+            || VEHICLE_PRESETS.find((preset) => preset.id === this.compareVehicleId)
+            || VEHICLE_PRESETS[0]
+            || {};
     }
 
     setCompareVehicle(vehicleId) {
         const normalizedVehicleId = String(vehicleId || '').trim();
-        const candidate = VEHICLE_PRESETS.find((preset) => preset.id === normalizedVehicleId);
+        const candidate = [...VEHICLE_PRESETS, ...this.savedVehicles]
+            .find((preset) => preset.id === normalizedVehicleId);
         if (!candidate) return;
         this.compareVehicleId = candidate.id;
         this.setStatus(`Vergleich: ${candidate.label || candidate.id}`, 'info');
@@ -295,12 +315,12 @@ class VehicleLabApp {
         });
     }
 
-    persistCurrentConfig(statusMessage = 'Änderungen lokal gespeichert.') {
+    persistCurrentConfig(statusMessage = 'Entwurf automatisch gesichert.') {
         if (this.activeReferenceVehicle) return;
         try {
             this.history.save(this.vehicle.config);
             localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(this.vehicle.config));
-            this.ui.updateSaveState('saved', 'Lokal gespeichert');
+            this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
             this.setStatus(statusMessage, 'success');
         } catch (error) {
             this.ui.updateSaveState('error', 'Speichern fehlgeschlagen');
@@ -312,12 +332,57 @@ class VehicleLabApp {
         if (!this._saveTimeout) return;
         clearTimeout(this._saveTimeout);
         this._saveTimeout = null;
-        this.persistCurrentConfig('Änderungen lokal gespeichert.');
+        this.persistCurrentConfig('Entwurf automatisch gesichert.');
     }
 
-    applyVehicleConfigToEditor(config) {
+    readRecoveryDraft() {
+        try {
+            const normalized = normalizeVehicleLabConfig(
+                JSON.parse(localStorage.getItem(VEHICLE_LAB_RECOVERY_STORAGE_KEY) || 'null'),
+                { requireParts: true }
+            );
+            return normalized.ok ? normalized.config : null;
+        } catch {
+            return null;
+        }
+    }
+
+    captureRecoveryDraft() {
+        if (this.activeReferenceVehicle || !this.vehicle?.config?.parts?.length) return;
+        try {
+            localStorage.setItem(VEHICLE_LAB_RECOVERY_STORAGE_KEY, JSON.stringify(this.vehicle.config));
+            this.ui.setDraftRecoveryAvailable(true);
+        } catch (error) {
+            this.ui.showToast(`Entwurfssicherung fehlgeschlagen: ${error.message}`, 'error');
+        }
+    }
+
+    restoreDraft() {
+        const recovered = this.readRecoveryDraft();
+        if (!recovered) return;
+        let current = null;
+        try {
+            current = this.activeReferenceVehicle
+                ? JSON.parse(localStorage.getItem(VEHICLE_LAB_CONFIG_STORAGE_KEY) || 'null')
+                : cloneVehicleConfig(this.vehicle.config);
+        } catch { current = null; }
+        this.applyVehicleConfigToEditor(recovered, { captureRecovery: false });
+        const normalizedCurrent = normalizeVehicleLabConfig(current, { requireParts: true });
+        if (normalizedCurrent.ok) {
+            try {
+                localStorage.setItem(VEHICLE_LAB_RECOVERY_STORAGE_KEY, JSON.stringify(normalizedCurrent.config));
+            } catch (error) {
+                this.ui.showToast(`Entwurfssicherung fehlgeschlagen: ${error.message}`, 'error');
+            }
+        }
+        this.ui.setDraftRecoveryAvailable(this.readRecoveryDraft() !== null);
+        this.setStatus('Vorheriger Entwurf wiederhergestellt.', 'success');
+    }
+
+    applyVehicleConfigToEditor(config, options = {}) {
         const normalized = normalizeVehicleLabConfig(config, { requireParts: true });
         if (!normalized.ok) throw new Error(formatVehicleLabConfigIssues(normalized));
+        if (options.captureRecovery !== false) this.captureRecoveryDraft();
         const cloned = cloneVehicleConfig(normalized.config);
         this.replaceVehicle(new ModularVehicleMesh(cloned));
         this.activeReferenceVehicle = null;
@@ -326,7 +391,7 @@ class VehicleLabApp {
         this.ui.setPresetSelection(cloned.id);
         this.markSceneMetricsDirty();
         this.updateArcadeBlueprintStatus();
-        this.persistCurrentConfig('Fahrzeug geladen.');
+        this.persistCurrentConfig('Entwurf geladen und automatisch gesichert.');
         this.selectPart(null);
         this.updateUI();
         if (normalized.warnings.length > 0) this.ui.showToast(normalized.warnings.join(' '), 'warning');
@@ -345,6 +410,7 @@ class VehicleLabApp {
 
     async loadGameVehicleReference(vehicle) {
         this.flushPendingSave();
+        this.captureRecoveryDraft();
         this.selectPart(null);
         const reference = new GameVehicleReferenceMesh(vehicle);
         this.replaceVehicle(reference);
@@ -373,25 +439,36 @@ class VehicleLabApp {
     }
 
     async refreshSavedVehiclesList() {
+        this.catalogRecord = loadVehicleLabCatalog(localStorage);
+        this.savedVehicles = this.catalogRecord.vehicles;
+        this.updateSavedVehiclesUi('');
+
+        // Existing developer-disk vehicles are migrated once; packaged desktop needs no API.
         try {
             const response = await fetch(EDITOR_API_ROUTES.LIST_VEHICLES_DISK, { method: 'GET' });
-            let payload = null;
-            try {
-                payload = await response.json();
-            } catch {
-                payload = null;
-            }
-
-            if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.error || `HTTP ${response.status}`);
-            }
-
-            this.savedVehicles = Array.isArray(payload.vehicles) ? payload.vehicles : [];
+            const payload = response.ok ? await response.json() : null;
+            if (!payload?.ok || !Array.isArray(payload.vehicles)) return;
+            const missing = payload.vehicles.filter((entry) => (
+                !this.catalogRecord.vehicles.some((current) => current.id === entry.id)
+            ));
+            const configs = await Promise.all(missing.map(async (entry) => {
+                const query = new URLSearchParams({ vehicleId: entry.id });
+                const itemResponse = await fetch(`${EDITOR_API_ROUTES.GET_VEHICLE_DISK}?${query.toString()}`);
+                if (!itemResponse.ok) return null;
+                const item = await itemResponse.json();
+                return item?.ok ? { ...entry, config: item.config } : null;
+            }));
+            configs.filter(Boolean).forEach((entry) => {
+                const result = upsertVehicleLabCatalogVehicle(this.catalogRecord, entry.config, {
+                    label: entry.label,
+                    vehicleId: entry.id,
+                });
+                this.catalogRecord = result.record;
+            });
+            this.catalogRecord = saveVehicleLabCatalog(this.catalogRecord, localStorage);
+            this.savedVehicles = this.catalogRecord.vehicles;
             this.updateSavedVehiclesUi('');
-        } catch (error) {
-            this.savedVehicles = [];
-            this.updateSavedVehiclesUi(error.message || 'Liste konnte nicht geladen werden');
-        }
+        } catch { /* Desktop catalog is already available from local persistence. */ }
     }
 
     async loadSavedVehicle(vehicle) {
@@ -411,24 +488,7 @@ class VehicleLabApp {
             }
         }
 
-        try {
-            const query = new URLSearchParams({ vehicleId });
-            const response = await fetch(`${EDITOR_API_ROUTES.GET_VEHICLE_DISK}?${query.toString()}`, { method: 'GET' });
-            let payload = null;
-            try {
-                payload = await response.json();
-            } catch {
-                payload = null;
-            }
-
-            if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.error || `HTTP ${response.status}`);
-            }
-
-            this.applyVehicleConfigToEditor(payload.config);
-        } catch (error) {
-            this.ui.showToast(`Fahrzeug konnte nicht geladen werden: ${error.message}`, 'error');
-        }
+        if (vehicle.config) this.applyVehicleConfigToEditor(vehicle.config);
     }
 
     loadPreset(vehicleId) {
@@ -470,7 +530,7 @@ class VehicleLabApp {
         this.updateArcadeBlueprintStatus();
         this.markSceneMetricsDirty();
         this.setStatus(type === 'add' ? 'Bauteil hinzugefügt.' : 'Änderungen ausstehend.', 'warning');
-        this.ui.updateSaveState('dirty', 'Ungespeicherte Änderungen');
+        this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
         this.debouncedSave();
         this.updateUI();
     }
@@ -480,7 +540,7 @@ class VehicleLabApp {
         this._saveTimeout = setTimeout(() => {
             this._saveTimeout = null;
             this.updateArcadeBlueprintStatus();
-            this.persistCurrentConfig('Änderungen lokal gespeichert.');
+            this.persistCurrentConfig('Entwurf automatisch gesichert.');
             this.updateUI();
         }, 180);
     }
@@ -494,7 +554,7 @@ class VehicleLabApp {
             this.rebuildVehicle();
         }
         this.updateArcadeBlueprintStatus();
-        this.ui.updateSaveState('dirty', 'Ungespeicherte Änderungen');
+        this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
         this.debouncedSave();
         this.updateUI();
     }
@@ -544,7 +604,7 @@ class VehicleLabApp {
             return null;
         }
         const config = this.vehicle?.config || {};
-        const resolvedLabel = String(labelOverride || config.label || 'Custom Vehicle').trim() || 'Custom Vehicle';
+        const resolvedLabel = String(labelOverride || config.label || 'Eigenes Fahrzeug').trim() || 'Eigenes Fahrzeug';
         const result = buildValidatedArcadeBlueprint(config, {
             blueprintId: toBlueprintId(resolvedLabel),
             label: resolvedLabel,
@@ -704,6 +764,7 @@ class VehicleLabApp {
         });
         this.updateStatusBar();
         this.ui.setReferenceMode(!!this.activeReferenceVehicle, this.activeReferenceVehicle?.label || '');
+        this.ui.setDraftRecoveryAvailable(this.readRecoveryDraft() !== null);
 
         if (this.selectedIndex !== null) {
             let part = this.vehicle.config.parts[this.selectedIndex];
@@ -754,15 +815,31 @@ class VehicleLabApp {
         this.ui.showToast('JSON exportiert.', 'success');
     }
 
-    async saveToGame() {
-        const suggested = String(this.vehicle?.config?.label || 'Custom Vehicle').trim() || 'Custom Vehicle';
+    async requestDiskApi(route, body) {
+        try {
+            const response = await fetch(route, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(body),
+            });
+            if (!response.ok) return null;
+            const payload = await response.json();
+            return payload?.ok ? payload : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async saveNamedVehicle(publish = false) {
+        if (this.activeReferenceVehicle) return;
+        const suggested = String(this.vehicle?.config?.label || 'Eigenes Fahrzeug').trim() || 'Eigenes Fahrzeug';
         this.flushPendingSave();
         const requestedName = await this.ui.requestDialog({
-            title: 'Im Spiel veröffentlichen',
+            title: publish ? 'Im Hangar veröffentlichen' : 'Fahrzeug speichern',
             message: 'Ein identischer Name aktualisiert den bestehenden Eintrag.',
             inputLabel: 'Fahrzeugname',
             inputValue: suggested,
-            confirmLabel: 'Veröffentlichen',
+            confirmLabel: publish ? 'Veröffentlichen' : 'Speichern',
         });
         if (requestedName === null) return;
 
@@ -773,54 +850,54 @@ class VehicleLabApp {
         }
 
         const guardResult = this.updateArcadeBlueprintStatus(vehicleName);
-        if (!guardResult.validation.ok) {
+        if (publish && !guardResult.validation.ok) {
             this.ui.showToast(`Blueprint ungültig: ${formatArcadeBlueprintValidationMessage(guardResult)}`, 'error');
             return;
         }
 
         try {
-            const response = await fetch(EDITOR_API_ROUTES.SAVE_VEHICLE_DISK, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    jsonText: JSON.stringify(this.vehicle.config),
-                    vehicleName,
-                    arcadeBlueprint: guardResult.blueprint,
-                })
+            const namedConfig = { ...cloneVehicleConfig(this.vehicle.config), label: vehicleName };
+            const saved = upsertVehicleLabCatalogVehicle(this.catalogRecord, namedConfig, {
+                label: vehicleName,
             });
+            this.catalogRecord = saveVehicleLabCatalog(saved.record, localStorage);
+            this.savedVehicles = this.catalogRecord.vehicles;
+            void this.requestDiskApi(EDITOR_API_ROUTES.SAVE_VEHICLE_DISK, {
+                jsonText: JSON.stringify(saved.vehicle.config),
+                vehicleName: saved.vehicle.label,
+                arcadeBlueprint: guardResult.blueprint,
+            });
+            this.vehicle.config.label = saved.vehicle.label;
+            this.persistCurrentConfig('Entwurf automatisch gesichert.');
+            this.updateSavedVehiclesUi('');
 
-            let payload = null;
-            try {
-                payload = await response.json();
-            } catch {
-                payload = null;
+            if (publish) {
+                const publication = createVehicleLabHangarPublication(saved.vehicle.config, { vehicleId: saved.vehicle.id });
+                let currentPublicationRecord = null;
+                try {
+                    currentPublicationRecord = JSON.parse(localStorage.getItem(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY) || 'null');
+                } catch { currentPublicationRecord = null; }
+                currentPublicationRecord = normalizeVehicleLabHangarPublicationRecord(currentPublicationRecord);
+                localStorage.setItem(
+                    VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
+                    JSON.stringify(upsertVehicleLabHangarPublication(currentPublicationRecord, publication))
+                );
+                this.ui.showToast(`${publication.label} veröffentlicht; ${publication.parts.length} Bauteile sind im Hangar verfügbar.`, 'success');
+                this.setStatus(`${publication.label} veröffentlicht – Spielseite zum Aktualisieren neu laden.`, 'success');
+                this.ui.updateSaveState('saved', 'Im Hangar veröffentlicht');
+            } else {
+                this.ui.showToast(`${saved.vehicle.label} gespeichert; Spielseite zum Auswählen neu laden.`, 'success');
+                this.setStatus(`${saved.vehicle.label} als Fahrzeug gespeichert.`, 'success');
+                this.ui.updateSaveState('saved', 'Fahrzeug gespeichert');
             }
-
-            if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.error || `HTTP ${response.status}`);
-            }
-
-            const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
-            const publication = createVehicleLabHangarPublication(this.vehicle.config, { vehicleId: payload.vehicleId });
-            let currentPublicationRecord = null;
-            try {
-                currentPublicationRecord = JSON.parse(localStorage.getItem(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY) || 'null');
-            } catch { currentPublicationRecord = null; }
-            currentPublicationRecord = normalizeVehicleLabHangarPublicationRecord(currentPublicationRecord);
-            localStorage.setItem(
-                VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
-                JSON.stringify(upsertVehicleLabHangarPublication(currentPublicationRecord, publication))
-            );
-            this.ui.showToast(`Fahrzeug ${saveMode}; ${publication.parts.length} Bauteile im Hangar veröffentlicht.`, 'success');
-            this.setStatus(`${payload.vehicleLabel} veröffentlicht – Spielseite zum Aktualisieren neu laden.`, 'success');
-            this.ui.updateSaveState('saved', 'Im Spiel veröffentlicht');
-            this.refreshSavedVehiclesList();
+            this.updateUI();
         } catch (error) {
-            this.ui.showToast(`Veröffentlichen fehlgeschlagen: ${error.message}`, 'error');
-            this.setStatus('Vehicle Lab muss über den lokalen Desktop-Entwicklungsserver laufen.', 'error');
+            this.ui.showToast(`${publish ? 'Veröffentlichen' : 'Speichern'} fehlgeschlagen: ${error.message}`, 'error');
         }
+    }
+
+    async saveToGame() {
+        return this.saveNamedVehicle(true);
     }
 
     async renameSavedVehicle(vehicle) {
@@ -832,7 +909,7 @@ class VehicleLabApp {
             title: 'Fahrzeug umbenennen',
             message: `Gespeichertes Fahrzeug: ${currentLabel}`,
             inputLabel: 'Neuer Name',
-            inputValue: currentLabel || 'Custom Vehicle',
+            inputValue: currentLabel || 'Eigenes Fahrzeug',
             confirmLabel: 'Umbenennen',
         });
         if (requestedName === null) return;
@@ -844,30 +921,18 @@ class VehicleLabApp {
         }
 
         try {
-            const response = await fetch(EDITOR_API_ROUTES.RENAME_VEHICLE_DISK, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    vehicleId,
-                    vehicleName
-                })
-            });
-
-            let payload = null;
-            try {
-                payload = await response.json();
-            } catch {
-                payload = null;
+            const renamed = renameVehicleLabCatalogVehicle(this.catalogRecord, vehicleId, vehicleName);
+            this.catalogRecord = saveVehicleLabCatalog(renamed.record, localStorage);
+            this.savedVehicles = this.catalogRecord.vehicles;
+            if (this.compareVehicleId === vehicleId) this.compareVehicleId = renamed.vehicle.id;
+            this.updateSavedVehiclesUi('');
+            void this.requestDiskApi(EDITOR_API_ROUTES.RENAME_VEHICLE_DISK, { vehicleId, vehicleName });
+            if (this.vehicle?.config?.label === currentLabel) {
+                this.vehicle.config.label = renamed.vehicle.label;
+                this.persistCurrentConfig('Entwurf automatisch gesichert.');
             }
-
-            if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.error || `HTTP ${response.status}`);
-            }
-
-            this.ui.showToast(`${payload.vehicleLabel} wurde umbenannt.`, 'success');
-            this.refreshSavedVehiclesList();
+            this.updateUI();
+            this.ui.showToast(`${renamed.vehicle.label} wurde umbenannt.`, 'success');
         } catch (error) {
             this.ui.showToast(`Umbenennen fehlgeschlagen: ${error.message}`, 'error');
         }
@@ -887,29 +952,17 @@ class VehicleLabApp {
         if (!confirmed) return;
 
         try {
-            const response = await fetch(EDITOR_API_ROUTES.DELETE_VEHICLE_DISK, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({
-                    vehicleId
-                })
-            });
-
-            let payload = null;
-            try {
-                payload = await response.json();
-            } catch {
-                payload = null;
+            const deleted = deleteVehicleLabCatalogVehicle(this.catalogRecord, vehicleId);
+            if (!deleted.deleted) throw new Error('Fahrzeug wurde nicht gefunden.');
+            this.catalogRecord = saveVehicleLabCatalog(deleted.record, localStorage);
+            this.savedVehicles = this.catalogRecord.vehicles;
+            if (this.compareVehicleId === vehicleId) {
+                this.compareVehicleId = VEHICLE_PRESETS[0]?.id || '';
             }
-
-            if (!response.ok || !payload?.ok) {
-                throw new Error(payload?.error || `HTTP ${response.status}`);
-            }
-
+            this.updateSavedVehiclesUi('');
+            void this.requestDiskApi(EDITOR_API_ROUTES.DELETE_VEHICLE_DISK, { vehicleId });
+            this.updateUI();
             this.ui.showToast(`Fahrzeug gelöscht: ${currentLabel}`, 'success');
-            this.refreshSavedVehiclesList();
         } catch (error) {
             this.ui.showToast(`Löschen fehlgeschlagen: ${error.message}`, 'error');
         }
@@ -924,7 +977,7 @@ class VehicleLabApp {
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
             localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
-            this.ui.updateSaveState('saved', 'Lokal gespeichert');
+            this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
             this.setStatus('Undo angewendet.', 'info');
             this.selectPart(null);
             this.updateUI();
@@ -942,7 +995,7 @@ class VehicleLabApp {
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
             localStorage.setItem(VEHICLE_LAB_CONFIG_STORAGE_KEY, JSON.stringify(config));
-            this.ui.updateSaveState('saved', 'Lokal gespeichert');
+            this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
             this.setStatus('Redo angewendet.', 'info');
             this.selectPart(null);
             this.updateUI();
@@ -1043,7 +1096,7 @@ class VehicleLabApp {
             const object = this.findSelectedObject();
             if (object) this.vehicle.updatePartTransform(object, part);
             this.markSceneMetricsDirty();
-            this.ui.updateSaveState('dirty', 'Ungespeicherte Änderungen');
+            this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
             this.debouncedSave();
         }
     }

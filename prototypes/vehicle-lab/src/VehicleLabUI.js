@@ -1,4 +1,35 @@
 import { buildVehicleLabSelectionKey } from './VehicleLabSelection.js';
+import { VEHICLE_LAB_PART_ROLES } from '../../../src/shared/contracts/VehicleLabConfigContract.js';
+
+const OPTION_LABELS = Object.freeze({
+    auto: 'Automatisch (alter Name)',
+    core: 'Rumpf',
+    nose: 'Nase',
+    wing_left: 'Flügel links',
+    wing_right: 'Flügel rechts',
+    engine_left: 'Antrieb links',
+    engine_right: 'Antrieb rechts',
+    utility: 'Zusatzmodul',
+    none: 'Keine',
+    box: 'Quader',
+    sphere: 'Kugel',
+    cylinder: 'Zylinder',
+    cone: 'Kegel',
+    torus: 'Torus',
+    capsule: 'Kapsel',
+    pylon: 'Pylon',
+    engine: 'Antrieb',
+    forcefield: 'Kraftfeld',
+    flame: 'Flamme',
+    primary: 'Primärfarbe',
+    secondary: 'Sekundärfarbe',
+    glass: 'Glas',
+    glow: 'Leuchten',
+    rotate: 'Drehen',
+    bob: 'Schweben',
+    pulse: 'Pulsieren',
+});
+const TREE_NAVIGATION_KEYS = new Set(['ArrowDown', 'ArrowUp', 'ArrowLeft', 'ArrowRight', 'Home', 'End']);
 
 export class VehicleLabUI {
     constructor(callbacks) {
@@ -12,10 +43,11 @@ export class VehicleLabUI {
 
     initEventListeners() {
         const presetSelect = document.getElementById('presetSelect');
-        document.getElementById('btnLoadPreset').onclick = () => this.callbacks.onLoadPreset(presetSelect.value);
         presetSelect.onchange = (e) => this.callbacks.onLoadPreset(e.target.value);
         document.getElementById('btnImportJson').onclick = () => this.callbacks.onImportJson();
         document.getElementById('btnExportJson').onclick = () => this.callbacks.onExportJson();
+        const btnSaveVehicle = document.getElementById('btnSaveVehicle');
+        if (btnSaveVehicle) btnSaveVehicle.onclick = () => this.callbacks.onSaveVehicle?.();
         const btnSaveToGameVehicle = document.getElementById('btnSaveToGameVehicle');
         if (btnSaveToGameVehicle) {
             btnSaveToGameVehicle.onclick = () => this.callbacks.onSaveToGame?.();
@@ -24,6 +56,8 @@ export class VehicleLabUI {
         if (btnRefreshSavedVehicles) {
             btnRefreshSavedVehicles.onclick = () => this.callbacks.onRefreshSavedVehicles?.();
         }
+        const btnRestoreDraft = document.getElementById('btnRestoreDraft');
+        if (btnRestoreDraft) btnRestoreDraft.onclick = () => this.callbacks.onRestoreDraft?.();
         document.getElementById('btnUndo').onclick = () => this.callbacks.onUndo();
         document.getElementById('btnRedo').onclick = () => this.callbacks.onRedo();
         document.getElementById('btnAddPart').onclick = () => this.callbacks.onAddPart();
@@ -102,14 +136,14 @@ export class VehicleLabUI {
         const notice = document.getElementById('referenceVehicleNotice');
         if (notice) {
             notice.textContent = isReference
-                ? `${label} ist ein fertiges Spielmodell. Ansicht und Kamera sind verfügbar; Bauteilbearbeitung und Veröffentlichung sind schreibgeschützt.`
+                ? `${label} ist ein fertiges Spielmodell. Ansicht und Kamera sind verfügbar; Bauteilbearbeitung und Hangar-Veröffentlichung sind schreibgeschützt.`
                 : '';
             notice.classList.toggle('is-hidden', !isReference);
         }
 
         [
             'btnAddPart', 'btnAddChild', 'btnDuplicatePart', 'btnMirrorPart', 'btnDeletePart',
-            'btnExportJson', 'btnSaveToGameVehicle', 'btnUndo', 'btnRedo', 'shipLabel',
+            'btnExportJson', 'btnSaveVehicle', 'btnSaveToGameVehicle', 'btnUndo', 'btnRedo', 'shipLabel',
             'shipPrimaryColor', 'partSearch', 'chkSnap', 'snapTranslate', 'snapRotate', 'snapScale',
         ].forEach((id) => {
             const element = document.getElementById(id);
@@ -126,6 +160,13 @@ export class VehicleLabUI {
         });
 
         if (isReference) this.hideProperties();
+    }
+
+    setDraftRecoveryAvailable(available) {
+        const button = document.getElementById('btnRestoreDraft');
+        if (!button) return;
+        button.disabled = available !== true;
+        button.classList.toggle('is-hidden', available !== true);
     }
 
     initPanelResizers() {
@@ -186,16 +227,16 @@ export class VehicleLabUI {
             const isSelected = itemSelectionKey && itemSelectionKey === activeSelectionKey;
             const row = document.createElement('div');
             row.className = 'part-row';
+            row.setAttribute('role', 'presentation');
             row.style.paddingLeft = `${depth * 12}px`;
-            row.setAttribute('role', 'treeitem');
-            row.setAttribute('aria-level', String(depth + 1));
-            row.setAttribute('aria-selected', String(!!isSelected));
 
             const hasChildren = Array.isArray(part?.children) && part.children.length > 0;
             const collapsed = this.collapsedSelectionKeys.has(itemSelectionKey);
             const toggle = document.createElement('button');
             toggle.type = 'button';
             toggle.className = 'part-toggle';
+            toggle.tabIndex = -1;
+            toggle.setAttribute('aria-hidden', 'true');
             toggle.textContent = collapsed ? '▸' : '▾';
             toggle.hidden = !hasChildren;
             toggle.setAttribute('aria-label', collapsed ? 'Unterbauteile öffnen' : 'Unterbauteile schließen');
@@ -210,7 +251,39 @@ export class VehicleLabUI {
             item.type = 'button';
             item.className = 'part-item' + (isSelected ? ' is-selected' : '');
             item.textContent = part.name || `Part ${index}`;
+            item.setAttribute('role', 'treeitem');
+            item.setAttribute('aria-level', String(depth + 1));
+            item.setAttribute('aria-selected', String(!!isSelected));
+            if (hasChildren) item.setAttribute('aria-expanded', String(!collapsed));
+            item.dataset.depth = String(depth);
+            item.tabIndex = isSelected || (!activeSelectionKey && list.children.length === 0) ? 0 : -1;
             item.onclick = () => onSelect(index, path);
+            item.onkeydown = (event) => {
+                if (TREE_NAVIGATION_KEYS.has(event.key)) event.stopPropagation();
+                const visibleItems = Array.from(list.querySelectorAll('.part-item'));
+                const currentIndex = visibleItems.indexOf(item);
+                const focusItem = (target) => {
+                    if (!target) return;
+                    event.preventDefault();
+                    target.focus();
+                    target.click();
+                };
+                if (event.key === 'ArrowDown') focusItem(visibleItems[currentIndex + 1]);
+                else if (event.key === 'ArrowUp') focusItem(visibleItems[currentIndex - 1]);
+                else if (event.key === 'Home') focusItem(visibleItems[0]);
+                else if (event.key === 'End') focusItem(visibleItems[visibleItems.length - 1]);
+                else if (event.key === 'ArrowRight' && hasChildren && collapsed) {
+                    event.preventDefault();
+                    toggle.click();
+                } else if (event.key === 'ArrowLeft' && hasChildren && !collapsed) {
+                    event.preventDefault();
+                    toggle.click();
+                } else if (event.key === 'ArrowLeft' && depth > 0) {
+                    const parent = visibleItems.slice(0, currentIndex).reverse()
+                        .find((candidate) => Number(candidate.dataset.depth) === depth - 1);
+                    focusItem(parent);
+                }
+            };
             row.appendChild(toggle);
             row.appendChild(item);
             list.appendChild(row);
@@ -243,7 +316,7 @@ export class VehicleLabUI {
         const panel = document.getElementById('propertyPanel');
         const container = document.getElementById('propertiesContainer');
         panel.classList.remove('is-hidden');
-        document.getElementById('partTitle').textContent = `Edit: ${part.name}`;
+        document.getElementById('partTitle').textContent = `Bearbeiten: ${part.name}`;
 
         container.innerHTML = '';
 
@@ -252,13 +325,20 @@ export class VehicleLabUI {
             onUpdate('name');
         }, 'text');
 
-        this.createSelectRow(container, 'Geo', part.geo, ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'pylon', 'engine', 'forcefield', 'flame'], (val) => {
+        this.createSelectRow(container, 'Geometrie', part.geo, ['box', 'sphere', 'cylinder', 'cone', 'torus', 'capsule', 'pylon', 'engine', 'forcefield', 'flame'], (val) => {
             part.geo = val;
             onUpdate('geo');
         });
 
-        this.createSelectRow(container, 'Mirror Axis', part.mirrorAxis || 'none', ['none', 'x', 'y', 'z'], (val) => {
-            part.mirrorAxis = val === 'none' ? null : val;
+        this.createSelectRow(container, 'Spielrolle', part.role || 'auto', VEHICLE_LAB_PART_ROLES, (val) => {
+            if (val === 'auto') delete part.role;
+            else part.role = val;
+            onUpdate('role');
+        });
+
+        this.createSelectRow(container, 'Spiegelachse', part.mirrorAxis || 'none', ['none', 'x', 'y', 'z'], (val) => {
+            if (val === 'none') delete part.mirrorAxis;
+            else part.mirrorAxis = val;
             onUpdate('mirror');
         });
 
@@ -267,29 +347,29 @@ export class VehicleLabUI {
             onUpdate('material');
         });
 
-        this.createInputRow(container, 'Custom Color', this.colorToHex(part.color || '#ffffff'), (val) => {
+        this.createInputRow(container, 'Eigene Farbe', this.colorToHex(part.color || '#ffffff'), (val) => {
             part.color = val;
             onUpdate('color');
         }, 'color');
 
-        this.createInputRow(container, 'Emissive Intensity', part.emissiveIntensity !== undefined ? part.emissiveIntensity : 0, (val) => {
+        this.createInputRow(container, 'Leuchtstärke', part.emissiveIntensity !== undefined ? part.emissiveIntensity : 0, (val) => {
             part.emissiveIntensity = val;
             onUpdate('emissive');
         }, 'number');
 
-        this.createVectorRow(container, 'Size', part.size || [1, 1, 1], (i, val) => {
+        this.createVectorRow(container, 'Größe', part.size || [1, 1, 1], (i, val) => {
             if (!part.size) part.size = [1, 1, 1];
             part.size[i] = val;
             onUpdate('size');
         });
 
-        this.createVectorRow(container, 'Pos', part.pos || [0, 0, 0], (i, val) => {
+        this.createVectorRow(container, 'Position', part.pos || [0, 0, 0], (i, val) => {
             if (!part.pos) part.pos = [0, 0, 0];
             part.pos[i] = val;
             onUpdate('pos');
         });
 
-        this.createVectorRow(container, 'Rot', part.rot || [0, 0, 0], (i, val) => {
+        this.createVectorRow(container, 'Rotation', part.rot || [0, 0, 0], (i, val) => {
             if (!part.rot) part.rot = [0, 0, 0];
             part.rot[i] = val;
             onUpdate('rot');
@@ -308,17 +388,17 @@ export class VehicleLabUI {
 
         if (part.anim) {
             if (part.anim.type === 'rotate') {
-                this.createSelectRow(container, 'Axis', part.anim.axis || 'y', ['x', 'y', 'z'], (val) => {
+                this.createSelectRow(container, 'Achse', part.anim.axis || 'y', ['x', 'y', 'z'], (val) => {
                     part.anim.axis = val;
                     onUpdate('anim');
                 });
             }
-            this.createInputRow(container, 'Anim Speed', part.anim.speed || 1, (val) => {
+            this.createInputRow(container, 'Animationsgeschwindigkeit', part.anim.speed || 1, (val) => {
                 part.anim.speed = val;
                 onUpdate('anim');
             });
             if (part.anim.type !== 'rotate') {
-                this.createInputRow(container, 'Anim Amount', part.anim.amount || 1, (val) => {
+                this.createInputRow(container, 'Animationsstärke', part.anim.amount || 1, (val) => {
                     part.anim.amount = val;
                     onUpdate('anim');
                 });
@@ -354,7 +434,7 @@ export class VehicleLabUI {
         options.forEach(opt => {
             const o = document.createElement('option');
             o.value = opt;
-            o.textContent = opt.charAt(0).toUpperCase() + opt.slice(1);
+            o.textContent = OPTION_LABELS[opt] || opt.toUpperCase();
             if (opt === value) o.selected = true;
             sel.appendChild(o);
         });
@@ -368,19 +448,24 @@ export class VehicleLabUI {
         lbl.textContent = label;
         container.appendChild(lbl);
         const div = document.createElement('div');
-        div.style.display = 'flex';
-        div.style.gap = '4px';
+        div.className = 'vector-components';
         vector.forEach((val, i) => {
+            const component = document.createElement('label');
+            component.className = 'vector-component';
+            const axis = document.createElement('span');
+            axis.textContent = ['X', 'Y', 'Z'][i] || String(i + 1);
             const inp = document.createElement('input');
             inp.type = 'number';
             inp.step = '0.1';
             inp.value = val.toFixed(2);
-            inp.style.width = '30%';
+            inp.setAttribute('aria-label', `${label} ${axis.textContent}`);
             inp.onchange = (e) => {
                 const val = parseFloat(e.target.value);
                 onChange(i, Number.isNaN(val) ? vector[i] : val);
             };
-            div.appendChild(inp);
+            component.appendChild(axis);
+            component.appendChild(inp);
+            div.appendChild(component);
         });
         container.appendChild(div);
     }
@@ -425,7 +510,7 @@ export class VehicleLabUI {
 
                 const label = document.createElement('div');
                 label.className = 'saved-vehicle-label';
-                label.textContent = String(vehicle?.label || vehicle?.id || 'Standard Vehicle');
+                label.textContent = String(vehicle?.label || vehicle?.id || 'Standardfahrzeug');
                 labelWrap.appendChild(label);
 
                 const meta = document.createElement('div');
@@ -435,7 +520,7 @@ export class VehicleLabUI {
 
                 const badge = document.createElement('span');
                 badge.className = 'badge--readonly';
-                badge.textContent = 'Read-only';
+                badge.textContent = 'Schreibgeschützt';
 
                 const actions = document.createElement('div');
                 actions.className = 'saved-vehicle-actions';
@@ -471,7 +556,7 @@ export class VehicleLabUI {
 
                 const label = document.createElement('div');
                 label.className = 'saved-vehicle-label';
-                label.textContent = String(vehicle?.label || vehicle?.id || 'Custom Vehicle');
+                label.textContent = String(vehicle?.label || vehicle?.id || 'Eigenes Fahrzeug');
                 labelWrap.appendChild(label);
 
                 const meta = document.createElement('div');
@@ -489,12 +574,12 @@ export class VehicleLabUI {
 
                 const btnRename = document.createElement('button');
                 btnRename.type = 'button';
-                btnRename.textContent = 'Rename';
+                btnRename.textContent = 'Umbenennen';
                 btnRename.onclick = () => this.callbacks.onRenameSavedVehicle?.(vehicle);
 
                 const btnDelete = document.createElement('button');
                 btnDelete.type = 'button';
-                btnDelete.textContent = 'Delete';
+                btnDelete.textContent = 'Löschen';
                 btnDelete.onclick = () => this.callbacks.onDeleteSavedVehicle?.(vehicle);
 
                 actions.appendChild(btnLoad);
@@ -506,7 +591,7 @@ export class VehicleLabUI {
                 savedList.appendChild(row);
             });
         } else {
-            renderEmpty(savedList, 'Noch keine gespeicherten Custom-Fahrzeuge.');
+            renderEmpty(savedList, 'Noch keine eigenen Fahrzeuge gespeichert.');
         }
     }
 
@@ -517,7 +602,7 @@ export class VehicleLabUI {
         if (btnRedo) btnRedo.disabled = historyState.canRedo !== true;
     }
 
-    updateSaveState(state = 'saved', text = 'Lokal gespeichert') {
+    updateSaveState(state = 'saved', text = 'Entwurf automatisch gesichert') {
         const node = document.getElementById('workshopSaveState');
         if (!node) return;
         node.dataset.state = state;
@@ -569,7 +654,7 @@ export class VehicleLabUI {
         candidates.forEach((candidate) => {
             const option = document.createElement('option');
             option.value = String(candidate.id || '');
-            option.textContent = String(candidate.label || candidate.id || 'Vehicle');
+            option.textContent = String(candidate.label || candidate.id || 'Fahrzeug');
             if (option.value === normalizedSelectedId) option.selected = true;
             select.appendChild(option);
         });
@@ -588,16 +673,16 @@ export class VehicleLabUI {
 
             const current = document.createElement('strong');
             current.className = 'compare-current';
-            current.textContent = String(metric.current);
+            current.textContent = String(metric.currentDisplay ?? metric.current);
             row.appendChild(current);
 
             const baseline = document.createElement('span');
             baseline.className = 'compare-baseline';
-            baseline.textContent = String(metric.baseline);
+            baseline.textContent = String(metric.baselineDisplay ?? metric.baseline);
             row.appendChild(baseline);
 
             const delta = document.createElement('span');
-            delta.className = `compare-delta ${metric.delta > 0 ? 'is-positive' : metric.delta < 0 ? 'is-negative' : 'is-neutral'}`;
+            delta.className = `compare-delta is-${metric.tone || (metric.delta === 0 ? 'neutral' : 'info')}`;
             delta.textContent = metric.delta === 0 ? '0' : `${metric.delta > 0 ? '+' : ''}${metric.delta}`;
             row.appendChild(delta);
 

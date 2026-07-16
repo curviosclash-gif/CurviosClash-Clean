@@ -140,6 +140,8 @@ function computeBounds(flatParts) {
 }
 
 function classifySlotPart(part) {
+    const explicitRole = String(part?.role || '').trim().toLowerCase();
+    if (ARCADE_REQUIRED_SLOTS.includes(explicitRole) || explicitRole === 'utility') return explicitRole;
     const name = String(part?.name || '').trim().toLowerCase();
     if (!name) return null;
     const keys = Object.keys(SLOT_PATTERNS);

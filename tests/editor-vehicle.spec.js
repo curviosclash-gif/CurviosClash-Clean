@@ -1,12 +1,15 @@
 import { expect, test } from '@playwright/test';
 
-import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
+import { EDITOR_API_ROUTES, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { waitForRenderFrames } from './helpers.js';
 
 async function resetVehicleLab(page) {
     await page.goto(EDITOR_VIEW_PATHS.VEHICLE_LAB, { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {
         localStorage.removeItem('vehicle_lab_config');
+        localStorage.removeItem('vehicle_lab_recovery_config');
+        localStorage.removeItem('curviosclash.vehicle-lab.catalog.v1');
+        localStorage.removeItem('curviosclash.vehicle-lab.hangar-parts.v1');
     });
     await page.reload({ waitUntil: 'domcontentloaded' });
     await expect(page.locator('#partsList .part-item')).toHaveCount(8, { timeout: 15000 });
@@ -21,14 +24,14 @@ test.describe('Vehicle Lab', () => {
     test('vehicle selection is visible and loads a preset immediately', async ({ page }) => {
         await resetVehicleLab(page);
 
-        await expect(page.locator('.vehicle-library')).toHaveAttribute('open', '');
+        await expect(page.locator('.vehicle-library')).not.toHaveAttribute('open', '');
         await expect(page.locator('#standardVehiclesList button', { hasText: 'Auswählen' })).toHaveCount(15);
 
         await page.locator('#presetSelect').selectOption('spaceship');
         await expect(page.locator('#partsList .part-item')).toHaveCount(6);
         await expect(page.locator('#shipLabel')).toHaveValue('Spaceship');
         await expect(page.locator('[data-camera-view="fit"]')).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('#workshopStatusMessage')).toContainText('Fahrzeug geladen');
+        await expect(page.locator('#workshopStatusMessage')).toContainText('Entwurf geladen');
     });
 
     test('all game OBJ ships load as read-only references and can return to editing', async ({ page }) => {
@@ -79,7 +82,7 @@ test.describe('Vehicle Lab', () => {
 
         await page.locator('#btnAddPart').click();
         await expect(page.locator('[data-metric="parts"] .compare-current')).toHaveText('9');
-        await expect(page.locator('#workshopStatusMessage')).toContainText('Änderungen lokal gespeichert.');
+        await expect(page.locator('#workshopStatusMessage')).toContainText('Entwurf automatisch gesichert.');
         await expect(page.locator('#workshopStatusMessage')).toContainText('Auswahl: New Part');
     });
 
@@ -110,7 +113,7 @@ test.describe('Vehicle Lab', () => {
         ));
 
         expect(selectedItems).toEqual(['Child Part']);
-        await expect(page.locator('#partTitle')).toHaveText('Edit: Child Part');
+        await expect(page.locator('#partTitle')).toHaveText('Bearbeiten: Child Part');
     });
 
     test('typing editor shortcuts in the vehicle name does not move the selected part', async ({ page }) => {
@@ -187,6 +190,74 @@ test.describe('Vehicle Lab', () => {
         }
 
         expect(new Set(captures).size).toBe(4);
+    });
+
+    test('desktop layout prioritizes the part tree over the collapsed vehicle library', async ({ page }) => {
+        await resetVehicleLab(page);
+        const visiblePartRows = await page.locator('#partsList .part-item').evaluateAll((nodes) => {
+            const listRect = nodes[0]?.parentElement?.parentElement?.getBoundingClientRect();
+            return nodes.filter((node) => {
+                const rect = node.getBoundingClientRect();
+                return listRect && rect.top >= listRect.top && rect.bottom <= listRect.bottom;
+            }).length;
+        });
+        expect(visiblePartRows).toBeGreaterThanOrEqual(6);
+    });
+
+    test('preset changes keep a recoverable auto-saved draft across reloads', async ({ page }) => {
+        await resetVehicleLab(page);
+        await page.locator('#shipLabel').fill('Mein Entwurf');
+        await expect(page.locator('#workshopSaveState')).toContainText('Entwurf automatisch gesichert');
+
+        await page.locator('#presetSelect').selectOption('spaceship');
+        await expect(page.locator('#shipLabel')).toHaveValue('Spaceship');
+        await expect(page.locator('#btnRestoreDraft')).toBeEnabled();
+        await page.locator('#btnRestoreDraft').click();
+        await expect(page.locator('#shipLabel')).toHaveValue('Mein Entwurf');
+
+        await page.reload({ waitUntil: 'domcontentloaded' });
+        await expect(page.locator('#shipLabel')).toHaveValue('Mein Entwurf');
+    });
+
+    test('named desktop save works without the developer disk API', async ({ page }) => {
+        await page.route(`**${EDITOR_API_ROUTES.SAVE_VEHICLE_DISK}`, (route) => (
+            route.fulfill({ status: 404, body: 'not available' })
+        ));
+        await resetVehicleLab(page);
+        await page.locator('#btnSaveVehicle').click();
+        await page.locator('#workshopDialogInput').fill('Desktop Testflieger');
+        await page.locator('#workshopDialogConfirm').click();
+
+        await expect(page.locator('#workshopSaveState')).toHaveText('Fahrzeug gespeichert');
+        const catalog = await page.evaluate(() => JSON.parse(
+            localStorage.getItem('curviosclash.vehicle-lab.catalog.v1')
+        ));
+        expect(catalog.vehicles[0].id).toBe('editor_vehicle_desktop-testflieger');
+        expect(catalog.vehicles[0].config.parts).toHaveLength(8);
+
+        await page.locator('#btnSaveToGameVehicle').click();
+        await page.locator('#workshopDialogConfirm').click();
+        await expect(page.locator('#workshopSaveState')).toHaveText('Im Hangar veröffentlicht');
+        const publications = await page.evaluate(() => JSON.parse(
+            localStorage.getItem('curviosclash.vehicle-lab.hangar-parts.v1')
+        ).publications);
+        expect(publications[0].label).toBe('Desktop Testflieger');
+        expect(publications[0].vehicleId).toBe('editor_vehicle_desktop-testflieger');
+    });
+
+    test('properties expose localized roles, labeled axes and directional budget deltas', async ({ page }) => {
+        await resetVehicleLab(page);
+        await page.locator('#partsList .part-item').first().click();
+        await expect(page.locator('#partTitle')).toContainText('Bearbeiten:');
+        const roleSelect = page.locator('#propertiesContainer select').nth(1);
+        await expect(roleSelect).toContainText('Rumpf');
+        await roleSelect.selectOption('core');
+        await expect(page.locator('#propertiesContainer input[aria-label="Position X"]')).toBeVisible();
+        await expect(page.locator('[data-metric="budgetUsed"] .compare-current')).toContainText('/100');
+        await expect(page.locator('[data-metric="budgetUsed"] .compare-delta')).toHaveClass(/is-worse/);
+        await page.locator('#partsList .part-item').first().focus();
+        await page.keyboard.press('ArrowDown');
+        await expect(page.locator('#partsList .part-item.is-selected')).toHaveText('Nose Cone');
     });
 });
 

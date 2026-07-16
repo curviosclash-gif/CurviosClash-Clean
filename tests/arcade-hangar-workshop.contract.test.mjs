@@ -389,10 +389,13 @@ test('Vehicle Lab publications become validated Hangar catalog parts', () => {
         label: 'Test Ship',
         primaryColor: 0x55aaff,
         parts: [
-            { name: 'Main Engine', geo: 'cylinder', size: [1, 1, 2] },
-            { name: 'Left Wing', geo: 'box', size: [2, 0.2, 1] },
+            { name: 'Hauptantrieb', role: 'engine_left', geo: 'cylinder', size: [1, 1, 2] },
+            { name: 'Linker Flügel', role: 'wing_left', geo: 'box', size: [2, 0.2, 1] },
         ],
     }, { vehicleId: 'test_ship', publishedAtMs: 100 });
+    assert.equal(publication.vehicleId, 'test_ship');
+    assert.equal(publication.parts[0].family, 'engine');
+    assert.equal(publication.parts[1].family, 'wing');
     const record = upsertVehicleLabHangarPublication(null, publication);
     assert.equal(registerPublishedHangarParts(record), 2);
     const published = listHangarParts({ search: 'lab' });
