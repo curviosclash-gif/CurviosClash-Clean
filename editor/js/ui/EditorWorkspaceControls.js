@@ -507,14 +507,6 @@ export function bindEditorWorkspaceControls(editor) {
             );
             object.rotation.y += radians;
             object.scale.multiplyScalar(scale);
-            const u = object.userData;
-            if (u.type === 'hard' || u.type === 'foam') {
-                u.sizeX *= scale; u.sizeY *= scale; u.sizeZ *= scale; u.sizeInfo *= scale;
-            } else if (u.type === 'portal' || u.type === 'tunnel') {
-                u.radius = (Number(u.radius) || Number(u.sizeInfo) || 1) * scale;
-                u.sizeInfo = (Number(u.sizeInfo) || Number(u.radius) || 1) * scale;
-            } else if (u.type === 'aircraft') u.modelScale = (Number(u.modelScale) || 50) * scale;
-            else if (u.type === 'glb') u.targetSize = (Number(u.targetSize) || 14) * scale;
             editor.mapManager.notifyObjectMutated(object, { workspace: false });
         }
     };

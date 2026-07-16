@@ -49,7 +49,10 @@ export function bindEditorCanvasInteractionControls(editor) {
         const activeObject = editor.core.transformControl.object;
         if (!activeObject) return;
 
-        const managedObject = editor.mapManager?.notifyObjectMutated?.(activeObject, { workspace: false }) || activeObject;
+        const managedObject = editor.mapManager?.notifyObjectMutated?.(activeObject, {
+            workspace: false,
+            scaleAxis: editor.core.transformControl.mode === 'scale' ? editor.core.transformControl.axis : '',
+        }) || activeObject;
         if (!editor.isManagedObjectAlive(managedObject)) {
             editor.detachTransformControl();
             if (editor.selectedObject && !editor.isManagedObjectAlive(editor.selectedObject)) {

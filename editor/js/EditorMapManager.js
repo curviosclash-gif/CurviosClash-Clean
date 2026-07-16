@@ -3,6 +3,9 @@ import { createEditorMesh, alignTunnelSegment as alignTunnelSegmentMesh } from '
 import { EditorObjectRegistry } from './EditorObjectRegistry.js';
 import { generateJSONExport, importFromJSON } from './EditorMapSerializer.js';
 
+const SCALABLE_OBJECT_TYPES = new Set(['hard', 'foam', 'tunnel', 'portal', 'aircraft', 'glb', 'checkpoint']);
+const CHECKPOINT_SCALE_FACTOR = 14;
+
 export class EditorMapManager {
     constructor(core, assetLoader, options = {}) {
         this.core = core;
@@ -330,6 +333,7 @@ export class EditorMapManager {
     notifyObjectMutated(object, options = {}) {
         const rootObject = this.resolveManagedObject(object);
         if (!rootObject) return null;
+        this.syncObjectScaleMetadata(rootObject, options.scaleAxis);
         this.registry.updateObjectSpatial(rootObject);
 
         if (rootObject.userData?.type === 'tunnel') {
@@ -340,6 +344,52 @@ export class EditorMapManager {
         }
 
         return rootObject;
+    }
+
+    canScaleObject(object) {
+        const rootObject = this.resolveManagedObject(object) || object;
+        return SCALABLE_OBJECT_TYPES.has(rootObject?.userData?.type);
+    }
+
+    syncObjectScaleMetadata(object, scaleAxis = '') {
+        const rootObject = this.resolveManagedObject(object) || object;
+        if (!this.canScaleObject(rootObject)) return;
+
+        const userData = rootObject.userData;
+        const axisValue = scaleAxis === 'Y'
+            ? rootObject.scale.y
+            : (scaleAxis === 'Z' ? rootObject.scale.z : rootObject.scale.x);
+
+        if (userData.type === 'hard' || userData.type === 'foam') {
+            rootObject.scale.set(
+                Math.max(1, rootObject.scale.x),
+                Math.max(1, rootObject.scale.y),
+                Math.max(1, rootObject.scale.z),
+            );
+            userData.sizeX = rootObject.scale.x;
+            userData.sizeY = rootObject.scale.y;
+            userData.sizeZ = rootObject.scale.z;
+            userData.sizeInfo = Math.max(userData.sizeX, userData.sizeY, userData.sizeZ) * 0.5;
+        } else if (userData.type === 'tunnel') {
+            const radius = Math.max(1, scaleAxis === 'Z' ? rootObject.scale.z : rootObject.scale.x);
+            rootObject.scale.set(radius, Math.max(1, rootObject.scale.y), radius);
+            userData.radius = radius;
+            userData.sizeInfo = radius;
+        } else {
+            const minimum = userData.type === 'portal' ? 1 : 0.1;
+            const scalar = Math.max(minimum, axisValue);
+            rootObject.scale.setScalar(scalar);
+            if (userData.type === 'portal') {
+                userData.radius = scalar;
+                userData.sizeInfo = scalar;
+            } else if (userData.type === 'aircraft') {
+                userData.modelScale = scalar;
+            } else if (userData.type === 'glb') {
+                userData.targetSize = scalar;
+            } else if (userData.type === 'checkpoint') {
+                userData.cpRadius = scalar / CHECKPOINT_SCALE_FACTOR;
+            }
+        }
     }
 
     createMesh(type, subType, x, y, z, sizeInfo, extraProps = {}, options = {}) {

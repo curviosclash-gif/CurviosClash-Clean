@@ -356,6 +356,66 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(transformed.every((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.z))).toBeTruthy();
     });
 
+    test('S skaliert ausgewaehlte Map-Objekte und exportiert die neue Groesse', async ({ page }) => {
+        await loadEditorPage(page);
+
+        const ids = await page.evaluate(() => {
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            const block = manager.createMesh('hard', null, 0, 100, 0, 100, {
+                sizeX: 100,
+                sizeY: 100,
+                sizeZ: 100,
+            });
+            const portal = manager.createMesh('portal', null, 300, 100, 0, 80);
+            window.CURVIOS_EDITOR.ui.selectObject(block);
+            return { block: block.userData.id, portal: portal.userData.id };
+        });
+
+        await page.keyboard.press('s');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.transformControl.mode)).toBe('scale');
+
+        await page.evaluate((blockId) => {
+            const editor = window.CURVIOS_EDITOR;
+            const control = editor.core.transformControl;
+            const block = editor.mapManager.getObjectById(blockId);
+            control.dispatchEvent({ type: 'dragging-changed', value: true });
+            control.axis = 'X';
+            block.scale.x = 240;
+            control.dispatchEvent({ type: 'objectChange' });
+            control.dispatchEvent({ type: 'dragging-changed', value: false });
+            control.axis = null;
+        }, ids.block);
+        await expect(page.locator('#propWidth')).toHaveValue('240');
+
+        await page.evaluate((portalId) => {
+            const editor = window.CURVIOS_EDITOR;
+            editor.ui.selectObject(editor.mapManager.getObjectById(portalId));
+        }, ids.portal);
+        await page.keyboard.press('s');
+        const result = await page.evaluate(({ blockId, portalId }) => {
+            const editor = window.CURVIOS_EDITOR;
+            const control = editor.core.transformControl;
+            const portal = editor.mapManager.getObjectById(portalId);
+            control.dispatchEvent({ type: 'dragging-changed', value: true });
+            control.axis = 'Y';
+            portal.scale.y = 120;
+            control.dispatchEvent({ type: 'objectChange' });
+            control.dispatchEvent({ type: 'dragging-changed', value: false });
+            control.axis = null;
+
+            const exported = JSON.parse(editor.mapManager.generateJSONExport({ width: 2800, depth: 2400, height: 950 }));
+            return {
+                block: exported.hardBlocks.find((entry) => entry.id === blockId),
+                portal: exported.portals.find((entry) => entry.id === portalId),
+                portalScale: portal.scale.toArray(),
+            };
+        }, { blockId: ids.block, portalId: ids.portal });
+
+        expect(result.block).toMatchObject({ width: 240, height: 100, depth: 100 });
+        expect(result.portal.radius).toBe(120);
+        expect(result.portalScale).toEqual([120, 120, 120]);
+    });
+
     test('Katalogsuche und sicherer Neue-Map-Dialog funktionieren ohne Browser-Popups', async ({ page }) => {
         await loadEditorPage(page);
 

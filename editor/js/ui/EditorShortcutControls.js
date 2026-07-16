@@ -62,6 +62,18 @@ export function bindEditorShortcutControls(editor) {
                 editor.core.transformControl.showZ = true;
             }
         }
+        if (lowerKey === 's' && !e.ctrlKey && !e.metaKey) {
+            if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && editor.core.transformControl.object) {
+                if (!editor.mapManager?.canScaleObject?.(editor.selectedObject)) {
+                    editor.notify?.('Dieser Objekttyp besitzt keine speicherbare Skalierung.', 'warn');
+                    return;
+                }
+                editor.core.transformControl.setMode('scale');
+                editor.core.transformControl.showX = true;
+                editor.core.transformControl.showY = true;
+                editor.core.transformControl.showZ = true;
+            }
+        }
         if (lowerKey === 'f' && !e.ctrlKey) {
             editor.core.focusObject?.(editor.selectedObject);
         }
