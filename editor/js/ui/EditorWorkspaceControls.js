@@ -91,12 +91,19 @@ function buildValidationItems(editor) {
     const arena = editor.getArenaSizeForExport();
     const halfW = arena.width * 0.5;
     const halfD = arena.depth * 0.5;
-    const outside = objects.filter((object) => (
-        Math.abs(Number(object.position?.x) || 0) > halfW
-        || Math.abs(Number(object.position?.z) || 0) > halfD
-        || (Number(object.position?.y) || 0) < 0
-        || (Number(object.position?.y) || 0) > arena.height
-    ));
+    const outside = objects.filter((object) => {
+        const box = new THREE.Box3().setFromObject(object);
+        const bounds = [box.min.x, box.min.y, box.min.z, box.max.x, box.max.y, box.max.z];
+        if (!box.isEmpty() && bounds.every(Number.isFinite)) {
+            return box.min.x < -halfW || box.max.x > halfW
+                || box.min.z < -halfD || box.max.z > halfD
+                || box.min.y < 0 || box.max.y > arena.height;
+        }
+        return Math.abs(Number(object.position?.x) || 0) > halfW
+            || Math.abs(Number(object.position?.z) || 0) > halfD
+            || (Number(object.position?.y) || 0) < 0
+            || (Number(object.position?.y) || 0) > arena.height;
+    });
     const boxes = getBlockingBoxes(objects);
     const spawns = objects.filter((object) => object.userData?.type === 'spawn');
     const portals = objects.filter((object) => object.userData?.type === 'portal');
@@ -172,6 +179,9 @@ export function bindEditorWorkspaceControls(editor) {
     let workspaceFrame = null;
     let draggedCheckpointId = '';
     let lastIssueSignature = '';
+    let pendingRecovery = readAutosave();
+    let modalReturnFocus = null;
+    const pageShell = document.querySelector('.wrap');
 
     const issueGroup = new THREE.Group();
     issueGroup.name = 'editor-problem-markers';
@@ -258,7 +268,7 @@ export function bindEditorWorkspaceControls(editor) {
     });
 
     const writeAutosave = () => {
-        if (!dirty || !editor.mapManager) return;
+        if (!dirty || !editor.mapManager || pendingRecovery) return;
         try {
             const json = editor.mapManager.generateJSONExport(editor.getArenaSizeForExport());
             const documentValue = createDocument(json);
@@ -287,8 +297,10 @@ export function bindEditorWorkspaceControls(editor) {
     const markSaved = (message = 'Map gespeichert.') => {
         dirty = false;
         renderDirty();
-        removeAutosave();
-        dom.recoveryBanner?.classList.remove('is-visible');
+        if (!pendingRecovery) {
+            removeAutosave();
+            dom.recoveryBanner?.classList.remove('is-visible');
+        }
         notify(message, 'success');
     };
 
@@ -425,9 +437,13 @@ export function bindEditorWorkspaceControls(editor) {
 
     const closeModal = (result) => {
         dom.editorModalBackdrop?.classList.remove('is-open');
+        dom.editorModalBackdrop?.setAttribute('aria-hidden', 'true');
+        if (pageShell) pageShell.inert = false;
         const resolve = modalResolve;
         modalResolve = null;
         resolve?.(result);
+        modalReturnFocus?.focus?.();
+        modalReturnFocus = null;
     };
 
     const openModal = ({ title, message, confirmLabel = 'Bestaetigen', value = null, danger = false } = {}) => {
@@ -439,6 +455,9 @@ export function bindEditorWorkspaceControls(editor) {
         const hasInput = value !== null;
         dom.editorModalInput.hidden = !hasInput;
         dom.editorModalInput.value = hasInput ? String(value || '') : '';
+        modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+        if (pageShell) pageShell.inert = true;
+        dom.editorModalBackdrop.setAttribute('aria-hidden', 'false');
         dom.editorModalBackdrop.classList.add('is-open');
         window.setTimeout(() => (hasInput ? dom.editorModalInput : dom.btnEditorModalConfirm)?.focus(), 0);
         return new Promise((resolve) => {
@@ -551,7 +570,31 @@ export function bindEditorWorkspaceControls(editor) {
     dom.btnEditorModalCancel?.addEventListener('click', () => closeModal(false));
     dom.btnEditorModalConfirm?.addEventListener('click', () => closeModal(true));
     dom.editorModalBackdrop?.addEventListener('click', (event) => { if (event.target === dom.editorModalBackdrop) closeModal(false); });
-    dom.editorModalInput?.addEventListener('keydown', (event) => { if (event.key === 'Enter') closeModal(true); if (event.key === 'Escape') closeModal(false); });
+    dom.editorModalBackdrop?.addEventListener('keydown', (event) => {
+        if (!modalResolve) return;
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            closeModal(false);
+            return;
+        }
+        if (event.key === 'Enter' && event.target === dom.editorModalInput) {
+            event.preventDefault();
+            closeModal(true);
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const focusable = [...dom.editorModalBackdrop.querySelectorAll('button:not([disabled]), input:not([disabled]):not([hidden])')];
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    });
     dom.objectSearch?.addEventListener('input', renderOutliner);
     dom.objectTypeFilter?.addEventListener('change', renderOutliner);
     dom.objectList?.addEventListener('scroll', scheduleOutliner, { passive: true });
@@ -657,7 +700,7 @@ export function bindEditorWorkspaceControls(editor) {
     });
 
     dom.btnRestoreAutosave?.addEventListener('click', () => {
-        const autosave = readAutosave();
+        const autosave = pendingRecovery;
         if (!autosave) return;
         try {
             editor.executeHistoryMutation('Restore autosave', () => {
@@ -666,11 +709,19 @@ export function bindEditorWorkspaceControls(editor) {
                 editor.applyLayerState?.(autosave.layerState);
                 editor.restoreEditorViewState?.(autosave.viewState);
             });
+            pendingRecovery = null;
+            removeAutosave();
             dom.recoveryBanner?.classList.remove('is-visible');
             markDirty('Autosave wiederhergestellt.');
         } catch (error) { notify(`Autosave konnte nicht geladen werden: ${error.message}`, 'error'); }
     });
-    dom.btnDismissAutosave?.addEventListener('click', () => { removeAutosave(); dom.recoveryBanner?.classList.remove('is-visible'); notify('Autosave verworfen.', 'info'); });
+    dom.btnDismissAutosave?.addEventListener('click', () => {
+        pendingRecovery = null;
+        removeAutosave();
+        dom.recoveryBanner?.classList.remove('is-visible');
+        notify('Autosave verworfen.', 'info');
+        if (dirty) scheduleAutosave();
+    });
     window.addEventListener('beforeunload', (event) => { if (dirty) { event.preventDefault(); event.returnValue = ''; } });
 
     editor.captureEditorViewState = () => ({
@@ -741,7 +792,6 @@ export function bindEditorWorkspaceControls(editor) {
     editor.requestText = (options) => openModal(options);
 
     renderPrefabs();
-    const autosave = readAutosave();
-    dom.recoveryBanner?.classList.toggle('is-visible', !!autosave);
+    dom.recoveryBanner?.classList.toggle('is-visible', !!pendingRecovery);
     refresh();
 }

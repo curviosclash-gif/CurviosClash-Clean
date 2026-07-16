@@ -306,6 +306,7 @@ export function resolveMapAuthoringStatus(manager) {
     let botSpawnCount = 0;
     let portalCount = 0;
     let parcourHasFinish = false;
+    let checkpointCount = 0;
 
     manager.core.objectsContainer.children.forEach((obj) => {
         const u = obj.userData || {};
@@ -314,12 +315,13 @@ export function resolveMapAuthoringStatus(manager) {
             else botSpawnCount++;
         } else if (u.type === 'portal') {
             portalCount++;
-        } else if (u.type === 'checkpoint' && u.subType === 'finish') {
-            parcourHasFinish = true;
+        } else if (u.type === 'checkpoint') {
+            checkpointCount++;
+            if (u.subType === 'finish') parcourHasFinish = true;
         }
     });
 
-    const parcoursEnabled = manager.mapDocumentMeta?.parcours?.enabled === true;
+    const parcoursEnabled = manager.mapDocumentMeta?.parcours?.enabled === true || checkpointCount > 0;
     const warnings = [];
     if (!playerSpawnPlaced) warnings.push('Kein Spieler-Spawn platziert.');
     if (botSpawnCount === 0) warnings.push('Keine Bot-Spawn-Punkte platziert.');

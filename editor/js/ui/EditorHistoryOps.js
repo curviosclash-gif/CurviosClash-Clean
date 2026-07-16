@@ -90,7 +90,19 @@ export function executeHistoryMutation(editor, label, mutateFn) {
     }
 
     const beforeSnapshot = captureHistorySnapshot(editor);
-    const result = mutateFn();
+    let result;
+    try {
+        result = mutateFn();
+    } catch (error) {
+        if (beforeSnapshot) {
+            try {
+                applyHistorySnapshot(editor, beforeSnapshot);
+            } catch (rollbackError) {
+                console.error(`[EditorUI] Rollback failed after "${label}":`, rollbackError);
+            }
+        }
+        throw error;
+    }
     const afterSnapshot = captureHistorySnapshot(editor);
     const changed = pushSnapshotHistoryCommand(editor, label, beforeSnapshot, afterSnapshot);
     if (changed) editor.markDirty?.(`${label}.`);

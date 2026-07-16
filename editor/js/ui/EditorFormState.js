@@ -1,9 +1,13 @@
 export function readArenaSizeInputs(editor, fallback = {}) {
     const dom = editor?.dom || {};
+    const positive = (value, fallbackValue) => {
+        const parsed = Number.parseFloat(value);
+        return Number.isFinite(parsed) && parsed > 0 ? parsed : fallbackValue;
+    };
     return {
-        width: parseFloat(dom.numArenaW?.value) || fallback.width || 2800,
-        depth: parseFloat(dom.numArenaD?.value) || fallback.depth || 2400,
-        height: parseFloat(dom.numArenaH?.value) || fallback.height || 950
+        width: positive(dom.numArenaW?.value, fallback.width || 2800),
+        depth: positive(dom.numArenaD?.value, fallback.depth || 2400),
+        height: positive(dom.numArenaH?.value, fallback.height || 950)
     };
 }
 
@@ -31,7 +35,9 @@ export function isYLayerEnabled(editor) {
 }
 
 export function getYLayerValue(editor, fallback = 0) {
-    return parseFloat(editor?.dom?.numYLayer?.value) || fallback;
+    const value = Number.parseFloat(editor?.dom?.numYLayer?.value);
+    if (!Number.isFinite(value)) return fallback;
+    return Math.max(0, Math.min(Number(editor?.ARENA_H) || value, value));
 }
 
 export function getCurrentToolSubtype(editor) {
@@ -76,6 +82,11 @@ export function readPropertyFieldNumber(editor, field, fallback = 0) {
     if (!domKey) return fallback;
     const value = parseFloat(editor?.dom?.[domKey]?.value);
     return Number.isFinite(value) ? value : fallback;
+}
+
+export function readPositivePropertyFieldNumber(editor, field, fallback = 1) {
+    const value = readPropertyFieldNumber(editor, field, fallback);
+    return Number.isFinite(value) && value > 0 ? value : fallback;
 }
 
 export function writePropertyFieldValue(editor, field, value) {

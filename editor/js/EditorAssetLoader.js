@@ -209,6 +209,10 @@ export class EditorAssetLoader {
 
         scene.updateWorldMatrix(true, true);
         const bounds = new THREE.Box3().setFromObject(scene);
+        const boundValues = [bounds.min.x, bounds.min.y, bounds.min.z, bounds.max.x, bounds.max.y, bounds.max.z];
+        if (bounds.isEmpty() || !boundValues.every(Number.isFinite)) {
+            throw new Error(`GLB asset "${id}" has invalid geometry bounds.`);
+        }
         const size = bounds.getSize(new THREE.Vector3());
         const center = bounds.getCenter(new THREE.Vector3());
         const maxDimension = Math.max(size.x, size.y, size.z, 0.0001);

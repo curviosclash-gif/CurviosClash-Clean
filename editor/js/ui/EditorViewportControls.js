@@ -19,7 +19,9 @@ export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
         editor.core.yGridHelper.visible = e.target.checked;
     });
     dom.numYLayer?.addEventListener('change', (e) => {
-        const y = parseFloat(e.target.value);
+        const parsed = Number.parseFloat(e.target.value);
+        const y = Number.isFinite(parsed) ? Math.max(0, Math.min(editor.ARENA_H, parsed)) : 0;
+        e.target.value = String(y);
         editor.core.yGridHelper.position.y = y;
         editor.core.yGroundMesh.position.y = y;
     });
@@ -49,7 +51,9 @@ export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
         editor.core.transformControl.setTranslationSnap(editor.useSnap ? editor.snapSize : null);
     });
     dom.numGrid?.addEventListener('change', (e) => {
-        editor.snapSize = parseFloat(e.target.value);
+        const parsed = Number.parseFloat(e.target.value);
+        editor.snapSize = Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
+        e.target.value = String(editor.snapSize);
         if (editor.useSnap) editor.core.transformControl.setTranslationSnap(editor.snapSize);
     });
 }

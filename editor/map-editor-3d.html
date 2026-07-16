@@ -1296,19 +1296,19 @@
                 </div>
                 <div class="row" id="propSizeRow" style="display: none;">
                     <label for="propSize">Groesse / Radius</label>
-                    <input id="propSize" type="number" step="10" />
+                    <input id="propSize" type="number" step="10" min="1" />
                 </div>
                 <div class="row" id="propWidthRow" style="display: none;">
                     <label for="propWidth">Breite (X)</label>
-                    <input id="propWidth" type="number" step="10" />
+                    <input id="propWidth" type="number" step="10" min="1" />
                 </div>
                 <div class="row" id="propDepthRow" style="display: none;">
                     <label for="propDepth">Tiefe (Z)</label>
-                    <input id="propDepth" type="number" step="10" />
+                    <input id="propDepth" type="number" step="10" min="1" />
                 </div>
                 <div class="row" id="propHeightRow" style="display: none;">
                     <label for="propHeight">Hoehe (Y-Scale)</label>
-                    <input id="propHeight" type="number" step="10" />
+                    <input id="propHeight" type="number" step="10" min="1" />
                 </div>
                 <div class="row" id="propScaleRow" style="display: none;">
                     <label for="propScale">Skalierung</label>
@@ -1340,7 +1340,7 @@
                 </div>
                 <div class="row">
                     <label for="numGrid">Grid-Groesse</label>
-                    <input id="numGrid" type="number" value="50" step="10" />
+                    <input id="numGrid" type="number" value="50" step="10" min="1" />
                 </div>
             </div>
 
@@ -1348,15 +1348,15 @@
                 <strong class="sectionTitle">Arena Rahmen</strong>
                 <div class="row">
                     <label for="numArenaW">Breite (X)</label>
-                    <input id="numArenaW" type="number" value="2800" step="100" />
+                    <input id="numArenaW" type="number" value="2800" step="100" min="1" />
                 </div>
                 <div class="row">
                     <label for="numArenaD">Tiefe (Z)</label>
-                    <input id="numArenaD" type="number" value="2400" step="100" />
+                    <input id="numArenaD" type="number" value="2400" step="100" min="1" />
                 </div>
                 <div class="row">
                     <label for="numArenaH">Hoehe (Y)</label>
-                    <input id="numArenaH" type="number" value="950" step="50" />
+                    <input id="numArenaH" type="number" value="950" step="50" min="1" />
                 </div>
             </div>
 
@@ -1368,7 +1368,7 @@
                 </div>
                 <div class="row">
                     <label for="numYLayer">Y-Hoehe</label>
-                    <input id="numYLayer" type="number" value="0" step="10" />
+                    <input id="numYLayer" type="number" value="0" step="10" min="0" />
                 </div>
             </div>
 
@@ -1488,7 +1488,7 @@
         </div>
     </div>
 
-    <div class="editorModalBackdrop" id="editorModalBackdrop" role="presentation">
+    <div class="editorModalBackdrop" id="editorModalBackdrop" role="presentation" aria-hidden="true">
         <div class="editorModal" role="dialog" aria-modal="true" aria-labelledby="editorModalTitle" aria-describedby="editorModalMessage">
             <h2 id="editorModalTitle">Bestaetigen</h2>
             <p id="editorModalMessage"></p>

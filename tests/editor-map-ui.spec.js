@@ -6,22 +6,20 @@ import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
 const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
 const EDITOR_LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
 const EDITOR_AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
-const KNOWN_EDITOR_WARNING_PATTERNS = [
-    'THREE.BufferGeometry.computeBoundingSphere(): Computed radius is NaN.'
-];
 
-function filterKnownEditorWarnings(errors = []) {
-    return errors.filter((message) => !KNOWN_EDITOR_WARNING_PATTERNS.some((pattern) => message.includes(pattern)));
-}
-
-async function loadEditorPage(page) {
-    await page.addInitScript((storageKeys) => {
+async function loadEditorPage(page, { autosave = null } = {}) {
+    await page.addInitScript(({ storageKeys, autosaveStorageKey, autosaveValue }) => {
         try {
             storageKeys.forEach((storageKey) => window.localStorage.removeItem(storageKey));
+            if (autosaveValue) window.localStorage.setItem(autosaveStorageKey, JSON.stringify(autosaveValue));
         } catch {
             // Ignore storage cleanup failures in restricted contexts.
         }
-    }, [TOOL_DOCK_STORAGE_KEY, EDITOR_LAYOUT_STORAGE_KEY, EDITOR_AUTOSAVE_STORAGE_KEY]);
+    }, {
+        storageKeys: [TOOL_DOCK_STORAGE_KEY, EDITOR_LAYOUT_STORAGE_KEY, EDITOR_AUTOSAVE_STORAGE_KEY],
+        autosaveStorageKey: EDITOR_AUTOSAVE_STORAGE_KEY,
+        autosaveValue: autosave,
+    });
 
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
@@ -107,7 +105,7 @@ test.describe('V65: Editor Build Dock', () => {
         expect(state.activeEntryId).toBe('build-hard');
         expect(state.objectCount).toBe(0);
         expect(missingPreviewAssets).toEqual([]);
-        expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
+        expect(errors).toHaveLength(0);
     });
 
     test('T65b: Kartenwahl schaltet den Platzierungs-Contract fuer Kernkategorien', async ({ page }) => {
@@ -157,7 +155,7 @@ test.describe('V65: Editor Build Dock', () => {
             expect(lastObject?.subType ?? null).toBe(placement.subType);
         }
 
-        expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
+        expect(errors).toHaveLength(0);
     });
 
     test('GLB-Katalog laedt ein Modell bei Bedarf und exportiert seine Platzierung', async ({ page }) => {
@@ -180,7 +178,7 @@ test.describe('V65: Editor Build Dock', () => {
             targetSize: 14,
         });
         expect(exported.glbColliderMode).toBe('fallbackOnly');
-        expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
+        expect(errors).toHaveLength(0);
     });
 
     test('T65d: Save/Export/Playtest bleiben ueber den Dock-Flow stabil nutzbar', async ({ page }) => {
@@ -240,7 +238,7 @@ test.describe('V65: Editor Build Dock', () => {
             await page.screenshot({ path: evidenceScreenshotPath, fullPage: true });
         }
 
-        expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
+        expect(errors).toHaveLength(0);
     });
 });
 
@@ -301,6 +299,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
         await expect.poll(() => page.evaluate(() => window.localStorage.getItem('curviosclash.editor.autosave.v1'))).not.toBeNull();
         await expect(page.locator('#propPanel')).toBeVisible();
+        await expect.poll(() => page.locator('#propPanel').evaluate((element) => element.previousElementSibling?.classList.contains('outlinerActions'))).toBeTruthy();
         await expect(page.getByLabel('X-Position')).toBeVisible();
         await expect(page.getByLabel('Rotation Y (Grad)')).toBeVisible();
         await expect(page.locator('#btnDuplicateSelected')).toBeEnabled();
@@ -310,6 +309,23 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#propX').fill('0');
         await page.locator('#propX').press('Tab');
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.selectedObject.position.x)).toBe(0);
+
+        const originalWidth = await page.locator('#propWidth').inputValue();
+        await page.locator('#propWidth').fill('-10');
+        await page.locator('#propWidth').press('Tab');
+        await expect(page.locator('#propWidth')).toHaveValue(originalWidth);
+        await page.locator('#numGrid').fill('0');
+        await page.locator('#numGrid').press('Tab');
+        await expect(page.locator('#numGrid')).toHaveValue('50');
+        await page.locator('#numArenaW').fill('-20');
+        await page.locator('#numArenaW').press('Tab');
+        await expect(page.locator('#numArenaW')).toHaveValue('2800');
+
+        await page.locator('#propX').fill('1300');
+        await page.locator('#propX').press('Tab');
+        await page.locator('#propWidth').fill('500');
+        await page.locator('#propWidth').press('Tab');
+        await expect(page.locator('#validationList')).toContainText('Objekt(e) ausserhalb der Arena');
 
         await page.locator('#btnToggleSelectedLock').click();
         await expect(page.locator('#btnDelSelected')).toBeDisabled();
@@ -354,12 +370,74 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
         await page.locator('#btnNew').click();
         await expect(page.locator('#editorModalBackdrop')).toHaveClass(/is-open/);
-        await page.locator('#btnEditorModalCancel').click();
+        await expect(page.locator('#btnEditorModalConfirm')).toBeFocused();
+        await page.keyboard.press('Tab');
+        await expect(page.locator('#btnEditorModalCancel')).toBeFocused();
+        await page.keyboard.press('Escape');
+        await expect(page.locator('#editorModalBackdrop')).not.toHaveClass(/is-open/);
+        await expect(page.locator('#btnNew')).toBeFocused();
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
 
         await page.locator('#btnNew').click();
         await page.locator('#btnEditorModalConfirm').click();
         await expect(page.locator('#objectList .objectRow')).toHaveCount(0);
+    });
+
+    test('offener Recovery-Stand bleibt bis zur Benutzerentscheidung unveraendert', async ({ page }) => {
+        const recovery = {
+            savedAt: '2026-07-16T10:00:00.000Z',
+            json: JSON.stringify({
+                schemaVersion: 4,
+                arenaSize: { width: 2800, depth: 2400, height: 950 },
+                hardBlocks: [{ id: 'recovery_block', x: 0, y: 100, z: 0, width: 200, depth: 200, height: 200, size: 100 }],
+                playerSpawn: { id: 'recovery_spawn', x: -800, y: 500, z: 0 },
+            }),
+        };
+        await loadEditorPage(page, { autosave: recovery });
+        await expect(page.locator('#recoveryBanner')).toHaveClass(/is-visible/);
+
+        await activateDockEntry(page, 'build', 'build-hard');
+        await clickCanvas(page, 0.35, 0.24);
+        await page.waitForTimeout(700);
+        const storedSavedAt = await page.evaluate((storageKey) => JSON.parse(window.localStorage.getItem(storageKey) || 'null')?.savedAt, EDITOR_AUTOSAVE_STORAGE_KEY);
+        expect(storedSavedAt).toBe(recovery.savedAt);
+
+        await page.locator('#btnRestoreAutosave').click();
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.hasObjectId('recovery_block'))).toBeTruthy();
+    });
+
+    test('fehlgeschlagener Import stellt den vorherigen Arbeitsstand wieder her', async ({ page }) => {
+        await loadEditorPage(page);
+        await activateDockEntry(page, 'build', 'build-hard');
+        await clickCanvas(page, 0.35, 0.24);
+        const before = await getEditorState(page);
+        await page.locator('#btnExport').click();
+
+        await page.evaluate(() => {
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            const createMesh = manager.createMesh.bind(manager);
+            let failNextCreate = true;
+            manager.createMesh = (...args) => {
+                if (failNextCreate) {
+                    failNextCreate = false;
+                    throw new Error('forced import failure');
+                }
+                return createMesh(...args);
+            };
+        });
+        await page.locator('#btnImport').click();
+        await page.locator('#btnEditorModalConfirm').click();
+        await expect(page.locator('#workspaceStatusMessage')).toContainText('Map-Import fehlgeschlagen');
+        const after = await getEditorState(page);
+        expect(after.objectCount).toBe(before.objectCount);
+        expect(after.objects.map((entry) => entry.id)).toEqual(before.objects.map((entry) => entry.id));
+    });
+
+    test('neu platzierter Parcours warnt live vor fehlendem Finish', async ({ page }) => {
+        await loadEditorPage(page);
+        await activateDockEntry(page, 'parcours', 'parcours-checkpoint-gate');
+        await clickCanvas(page, 0.35, 0.24);
+        await expect(page.locator('#validationList')).toContainText('Parcours-Finish fehlt');
     });
 
     test('Ebenen, Vorlagen, 3D-Vorschauen und orthografische Ansichten arbeiten zusammen', async ({ page }) => {

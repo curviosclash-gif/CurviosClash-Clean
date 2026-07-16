@@ -13,17 +13,22 @@ import {
 } from '../src/shared/contracts/EditorAuthoringContract.js';
 import * as THREE from 'three';
 import { createEditorMesh } from '../editor/js/EditorMeshFactory.js';
-import { readPropertyFieldNumber } from '../editor/js/ui/EditorFormState.js';
+import {
+    getYLayerValue,
+    readArenaSizeInputs,
+    readPositivePropertyFieldNumber,
+    readPropertyFieldNumber,
+} from '../editor/js/ui/EditorFormState.js';
 
 test('EDITOR_AUTHORING_CONTRACT_VERSION is a non-empty string', () => {
     assert.equal(typeof EDITOR_AUTHORING_CONTRACT_VERSION, 'string');
     assert.ok(EDITOR_AUTHORING_CONTRACT_VERSION.length > 0);
 });
 
-test('EDITOR_OBJECT_TYPES contains all eight authoritative types', () => {
-    const expected = ['hard', 'foam', 'portal', 'spawn', 'item', 'aircraft', 'tunnel', 'checkpoint'];
+test('EDITOR_OBJECT_TYPES contains all nine authoritative types', () => {
+    const expected = ['hard', 'foam', 'portal', 'spawn', 'item', 'aircraft', 'glb', 'tunnel', 'checkpoint'];
     const actual = Object.values(EDITOR_OBJECT_TYPES);
-    assert.equal(actual.length, expected.length, 'Object type count must be 8');
+    assert.equal(actual.length, expected.length, 'Object type count must be 9');
     for (const type of expected) {
         assert.ok(actual.includes(type), `Expected object type "${type}" in EDITOR_OBJECT_TYPES`);
     }
@@ -103,4 +108,24 @@ test('editor property fields preserve valid zero values', () => {
     const editor = { dom: { propX: { value: '0' }, propY: { value: '' } } };
     assert.equal(readPropertyFieldNumber(editor, 'x', 123), 0);
     assert.equal(readPropertyFieldNumber(editor, 'y', 123), 123);
+});
+
+test('editor numeric authoring fields reject invalid dimensions and clamp build height', () => {
+    const editor = {
+        ARENA_H: 950,
+        dom: {
+            numArenaW: { value: '-1' },
+            numArenaD: { value: '3000' },
+            numArenaH: { value: '' },
+            numYLayer: { value: '1200' },
+            propWidth: { value: '-20' },
+        },
+    };
+    assert.deepEqual(readArenaSizeInputs(editor, { width: 2800, depth: 2400, height: 950 }), {
+        width: 2800,
+        depth: 3000,
+        height: 950,
+    });
+    assert.equal(getYLayerValue(editor), 950);
+    assert.equal(readPositivePropertyFieldNumber(editor, 'width', 200), 200);
 });

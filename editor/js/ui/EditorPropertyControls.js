@@ -1,4 +1,4 @@
-import { readPropertyFieldNumber } from './EditorFormState.js';
+import { readPositivePropertyFieldNumber, readPropertyFieldNumber } from './EditorFormState.js';
 
 export function bindEditorPropertyControls(editor) {
     if (!editor) return;
@@ -42,7 +42,7 @@ export function bindEditorPropertyControls(editor) {
     dom.propSize?.addEventListener('change', () => {
         editor.executeHistoryMutation('Edit object size', () => {
             if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && !isLocked(editor.selectedObject)) {
-                const val = readPropertyFieldNumber(editor, 'size', editor.selectedObject.userData.sizeInfo || 0);
+                const val = readPositivePropertyFieldNumber(editor, 'size', editor.selectedObject.userData.sizeInfo || 1);
                 const userData = editor.selectedObject.userData;
                 userData.sizeInfo = val;
 
@@ -57,6 +57,7 @@ export function bindEditorPropertyControls(editor) {
                     userData.radius = val;
                 }
                 editor.mapManager?.notifyObjectMutated?.(editor.selectedObject);
+                editor.showPropPanel(editor.selectedObject);
             }
         });
     });
@@ -67,9 +68,9 @@ export function bindEditorPropertyControls(editor) {
             if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
             if (selected.userData.type !== 'hard' && selected.userData.type !== 'foam') return;
 
-            const w = readPropertyFieldNumber(editor, 'width', selected.userData.sizeX || 0);
-            const d = readPropertyFieldNumber(editor, 'depth', selected.userData.sizeZ || 0);
-            const h = readPropertyFieldNumber(editor, 'height', selected.userData.sizeY || 0);
+            const w = readPositivePropertyFieldNumber(editor, 'width', selected.userData.sizeX || 1);
+            const d = readPositivePropertyFieldNumber(editor, 'depth', selected.userData.sizeZ || 1);
+            const h = readPositivePropertyFieldNumber(editor, 'height', selected.userData.sizeY || 1);
 
             selected.userData.sizeX = w;
             selected.userData.sizeZ = d;
@@ -77,6 +78,7 @@ export function bindEditorPropertyControls(editor) {
             selected.userData.sizeInfo = Math.max(w, d, h) * 0.5;
             selected.scale.set(w, h, d);
             editor.mapManager?.notifyObjectMutated?.(selected);
+            editor.showPropPanel(selected);
         });
     };
 
@@ -91,7 +93,7 @@ export function bindEditorPropertyControls(editor) {
             if (selected.userData.type !== 'aircraft' && selected.userData.type !== 'glb') return;
 
             const scaleField = selected.userData.type === 'glb' ? 'targetSize' : 'modelScale';
-            const s = readPropertyFieldNumber(editor, 'scale', selected.userData[scaleField] || 0);
+            const s = readPositivePropertyFieldNumber(editor, 'scale', selected.userData[scaleField] || 1);
             if (s > 0) {
                 selected.userData[scaleField] = s;
                 selected.scale.set(s, s, s);

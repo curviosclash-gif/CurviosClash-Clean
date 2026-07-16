@@ -57,6 +57,14 @@ test('EditorAssetLoader loadAll respects maxConcurrentLoads', async () => {
     assert.ok(peakLoads <= 2);
 });
 
+test('EditorAssetLoader rejects empty GLB bounds before they reach rendering', () => {
+    const loader = new EditorAssetLoader();
+    assert.throws(
+        () => loader._prepareGLBScene('empty_glb', { scene: new THREE.Group() }),
+        /invalid geometry bounds/,
+    );
+});
+
 test('ModularVehicleMesh rebuild disposes transient compound geometries', () => {
     const mesh = new ModularVehicleMesh({
         parts: [

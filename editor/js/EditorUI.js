@@ -81,6 +81,9 @@ export class EditorUI {
         this.historySuspendDepth = 0;
         this.pendingHistoryGestures = new Map();
         this.dom = createEditorDomRefs(document);
+        if (this.dom.objectList && this.dom.propPanel) {
+            this.dom.objectList.closest('.panelSection')?.append(this.dom.propPanel);
+        }
 
         this.core.setRuntimeStateAccessors?.({
             isFlyModeEnabled: () => this.flyModeEnabled,
@@ -268,10 +271,11 @@ export class EditorUI {
         // Arena resize
         const syncArenaValues = () => {
             const arenaSize = readArenaSizeInputs(this, {
-                width: 2800,
-                depth: 2400,
-                height: 950
+                width: this.ARENA_W,
+                depth: this.ARENA_D,
+                height: this.ARENA_H
             });
+            writeArenaSizeInputs(this, arenaSize);
             this.ARENA_W = arenaSize.width;
             this.ARENA_D = arenaSize.depth;
             this.ARENA_H = arenaSize.height;
