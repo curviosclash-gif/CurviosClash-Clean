@@ -47,13 +47,13 @@ function ensureMobileClassicUpdateUi(doc = document) {
     const checkButton = doc.createElement('button');
     checkButton.type = 'button';
     checkButton.id = MOBILE_CLASSIC_UPDATE_CHECK_ID;
-    checkButton.className = 'secondary-btn mobile-classic-update-btn';
+    checkButton.className = 'secondary-btn menu-utility-btn mobile-classic-update-btn';
     checkButton.textContent = 'Update';
 
     const openButton = doc.createElement('button');
     openButton.type = 'button';
     openButton.id = MOBILE_CLASSIC_UPDATE_OPEN_ID;
-    openButton.className = 'secondary-btn mobile-classic-update-btn';
+    openButton.className = 'secondary-btn menu-utility-btn mobile-classic-update-btn';
     openButton.textContent = 'GitHub';
     openButton.hidden = true;
 

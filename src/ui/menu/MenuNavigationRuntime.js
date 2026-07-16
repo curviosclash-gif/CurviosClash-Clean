@@ -38,13 +38,10 @@ function resetMobileMenuScroll(targetPanel) {
         || doc?.querySelector?.('.menu-content')
         || null;
     if (!scrollContainer) return;
-    const targetTop = Number.isFinite(targetPanel?.offsetTop)
-        ? Math.max(0, targetPanel.offsetTop - 8)
-        : 0;
     if (typeof scrollContainer.scrollTo === 'function') {
-        scrollContainer.scrollTo({ top: targetTop, behavior: 'auto' });
+        scrollContainer.scrollTo({ top: 0, behavior: 'auto' });
     } else {
-        scrollContainer.scrollTop = targetTop;
+        scrollContainer.scrollTop = 0;
     }
 }
 

@@ -197,7 +197,7 @@ test('Unified Mobile Android uses its product-local Capacitor wrapper', async ()
   );
 });
 
-test('Mobile menu panel focus does not scroll past the submenu header', () => {
+test('Mobile menu panel focus keeps the shared submenu header visible', () => {
   const scrollContainer = {
     scrollTop: 569,
     scrollTo({ top }) {
@@ -257,7 +257,7 @@ test('Mobile menu panel focus does not scroll past the submenu header', () => {
 
   assert.equal(runtime.showPanel('submenu-game'), true);
   assert.equal(focusOptions?.preventScroll, true);
-  assert.equal(scrollContainer.scrollTop, 40);
+  assert.equal(scrollContainer.scrollTop, 0);
 });
 
 test('Mobile Classic build target emits only the game shell into its own dist path', () => {
@@ -363,7 +363,7 @@ test('Mobile Classic default tilt assist is soft for phone play', () => {
   assert.equal(controls.tiltAssistMode, MOBILE_CLASSIC_TILT_ASSIST_MODES.SOFT);
 });
 
-test('Unified Mobile Android UI exposes Classic and Arcade-Parcours in one app shell', () => {
+test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode limits', () => {
   const singleButton = createButton({ sessionType: 'single' });
   const multiButton = createButton({ sessionType: 'multiplayer' });
   const normalButton = createButton({ modePath: 'normal' });
@@ -371,7 +371,11 @@ test('Unified Mobile Android UI exposes Classic and Arcade-Parcours in one app s
   const fightButton = createButton({ modePath: 'fight' });
   const mapSelect = createMapSelect(['standard', 'micro_maw', 'storm_switchyard', 'mirror_docks'], 'storm_switchyard');
   const startButton = createButton();
-  const menuContext = { textContent: '' };
+  const menuContext = { textContent: 'Hauptmenue' };
+  singleButton.textContent = 'Einzelspieler';
+  normalButton.textContent = 'Klassisch';
+  arcadeButton.textContent = 'Arcade';
+  startButton.textContent = 'Spiel starten';
   const gameSettings = {
     localSettings: {
       modePath: 'arcade',
@@ -390,32 +394,32 @@ test('Unified Mobile Android UI exposes Classic and Arcade-Parcours in one app s
   });
 
   assert.equal(singleButton.disabled, false);
-  assert.equal(singleButton.textContent, 'Solo spielen');
+  assert.equal(singleButton.textContent, 'Einzelspieler');
   assert.equal(multiButton.disabled, true);
   assert.equal(normalButton.disabled, false);
-  assert.equal(normalButton.textContent, 'Classic');
+  assert.equal(normalButton.textContent, 'Klassisch');
   assert.equal(arcadeButton.disabled, false);
-  assert.equal(arcadeButton.textContent, 'Parcours');
+  assert.equal(arcadeButton.textContent, 'Arcade');
   assert.equal(fightButton.disabled, true);
   assert.deepEqual(mapSelect.options.map((option) => option.value), ['micro_maw', 'mirror_docks']);
   assert.equal(mapSelect.value, 'micro_maw');
   assert.equal(gameSettings.mapKey, 'micro_maw');
   assert.equal(gameSettings.localSettings.startSetup.modeSelections.arcade.mapKey, 'micro_maw');
   assert.equal(gameSettings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
-  assert.equal(startButton.textContent, 'Parcours starten');
-  assert.equal(menuContext.textContent, 'Arcade-Parcours');
+  assert.equal(startButton.textContent, 'Spiel starten');
+  assert.equal(menuContext.textContent, 'Hauptmenue');
 });
 
-test('Unified Mobile Android Level 4 copy opens curated settings', () => {
+test('Unified Mobile Android Level 4 keeps the shared game menu copy', () => {
   const nodesById = new Map([
-    ['btn-open-level4', { textContent: '', dataset: { level4Section: LEVEL4_SECTION_IDS.TOOLS } }],
-    ['level4-tab-mobile-controls', { textContent: '' }],
-    ['level4-tab-gameplay', { textContent: '' }],
+    ['btn-open-level4', { textContent: 'Erweiterte Optionen', dataset: { level4Section: LEVEL4_SECTION_IDS.GAMEPLAY } }],
+    ['level4-tab-mobile-controls', { textContent: 'Mobile' }],
+    ['level4-tab-gameplay', { textContent: 'Gameplay' }],
   ]);
   const nodesBySelector = new Map([
-    ['#submenu-level4 .level4-header .submenu-title', { textContent: '' }],
-    ['#level4-section-mobile-controls .section-title', { textContent: '' }],
-    ['#level4-section-gameplay .section-title', { textContent: '' }],
+    ['#submenu-level4 .level4-header .submenu-title', { textContent: 'Erweiterte Optionen' }],
+    ['#level4-section-mobile-controls .section-title', { textContent: 'Mobile-Feineinstellung' }],
+    ['#level4-section-gameplay .section-title', { textContent: 'Spieloptionen' }],
   ]);
   const doc = {
     documentElement: {
@@ -445,13 +449,13 @@ test('Unified Mobile Android Level 4 copy opens curated settings', () => {
     },
   });
 
-  assert.equal(nodesById.get('btn-open-level4').textContent, 'Einstellungen');
-  assert.equal(nodesById.get('btn-open-level4').dataset.level4Section, LEVEL4_SECTION_IDS.MOBILE_CONTROLS);
-  assert.equal(nodesBySelector.get('#submenu-level4 .level4-header .submenu-title').textContent, 'Einstellungen');
-  assert.equal(nodesById.get('level4-tab-mobile-controls').textContent, 'Steuerung');
-  assert.equal(nodesById.get('level4-tab-gameplay').textContent, 'Anzeige');
-  assert.equal(nodesBySelector.get('#level4-section-mobile-controls .section-title').textContent, 'Steuerung');
-  assert.equal(nodesBySelector.get('#level4-section-gameplay .section-title').textContent, 'Anzeige & Spielgefuehl');
+  assert.equal(nodesById.get('btn-open-level4').textContent, 'Erweiterte Optionen');
+  assert.equal(nodesById.get('btn-open-level4').dataset.level4Section, LEVEL4_SECTION_IDS.GAMEPLAY);
+  assert.equal(nodesBySelector.get('#submenu-level4 .level4-header .submenu-title').textContent, 'Erweiterte Optionen');
+  assert.equal(nodesById.get('level4-tab-mobile-controls').textContent, 'Mobile');
+  assert.equal(nodesById.get('level4-tab-gameplay').textContent, 'Gameplay');
+  assert.equal(nodesBySelector.get('#level4-section-mobile-controls .section-title').textContent, 'Mobile-Feineinstellung');
+  assert.equal(nodesBySelector.get('#level4-section-gameplay .section-title').textContent, 'Spieloptionen');
 });
 
 test('Mobile Classic GitHub update config resolves repository metadata', () => {
@@ -1132,17 +1136,15 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.match(mobileClassicUpdateUi, /mobile-classic-update-check/);
   assert.match(mobileClassicUpdateUi, /checkMobileClassicGithubRelease/);
   assert.match(mobileClassicUpdateUi, /mobile-classic\.manifest\.json/);
-  assert.match(mobileClassicMenuUi, /Freier Flug fuer den schnellen Start/);
-  assert.match(mobileClassicMenuUi, /Zeitroute mit Ghost-Selbstduell/);
-  assert.match(mobileClassicSurface, /mobile-android-route-panel/);
-  assert.match(mobileClassicMenuUi, /mobileRouteKey/);
-  assert.match(mobileClassicMenuUi, /dispatchMapSelectChange/);
-  assert.match(mobileClassicStyles, /start-summary-block\[data-summary-label="ghost_kollision"\]/);
+  assert.doesNotMatch(mobileClassicMenuUi, /Freier Flug fuer den schnellen Start/);
+  assert.doesNotMatch(mobileClassicMenuUi, /Zeitroute mit Ghost-Selbstduell/);
+  assert.doesNotMatch(mobileClassicMenuUi, /mobile-android-route-panel/);
+  assert.doesNotMatch(mobileClassicMenuUi, /mobileRouteKey|dispatchMapSelectChange/);
+  assert.match(mobileClassicStyles, /#menu-nav\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.doesNotMatch(mobileClassicStyles, /mobile-android-entry|mobile-android-route/);
   assert.match(mobileClassicApp, /ensureMobileClassicStyles/);
   assert.match(startSetupUiOps, /dataset\.summaryLabel/);
-  assert.match(mobileClassicMenuUi, /Classic starten/);
-  assert.match(mobileClassicMenuUi, /Parcours starten/);
-  assert.match(mobileClassicMenuUi, /Solo spielen/);
+  assert.doesNotMatch(mobileClassicMenuUi, /Classic starten|Parcours starten|Solo spielen/);
   assert.match(mobileClassicUpdateUi, /Update/);
   assert.match(touchTiltUiOps, /TILT SANFT/);
   assert.match(touchTiltUiOps, /KALIBRIERE/);

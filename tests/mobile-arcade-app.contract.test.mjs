@@ -154,15 +154,18 @@ test('Unified Mobile Android shell carries Arcade HUD, Ghost, and pause affordan
   const mobileClassicApp = await readText('src/mobile-classic/MobileClassicApp.js');
   const mobileClassicStyles = await readText('src/mobile-classic/MobileClassicStyles.js');
   const mobileClassicMenuUi = await readText('src/mobile-classic/MobileClassicMenuUi.js');
+  const sharedMenuHtml = await readText('index.html');
   const mobileClassicSurface = `${mobileClassicApp}\n${mobileClassicStyles}\n${mobileClassicMenuUi}`;
   const hudRuntimeSystem = await readText('src/ui/HudRuntimeSystem.js');
 
   assert.match(mobileClassicApp, /modePath === MENU_MODE_PATHS\.ARCADE/);
   assert.match(mobileClassicSurface, /touch-button-pause/);
-  assert.match(mobileClassicSurface, /mobile-android-entry-panel/);
-  assert.match(mobileClassicMenuUi, /mobileModeEntry/);
-  assert.match(mobileClassicMenuUi, /Spielstil waehlen/);
-  assert.match(mobileClassicMenuUi, /Start vorbereiten/);
+  assert.doesNotMatch(mobileClassicMenuUi, /mobile-android-entry-panel/);
+  assert.doesNotMatch(mobileClassicMenuUi, /mobileModeEntry|Spielstil waehlen|Start vorbereiten/);
+  assert.match(sharedMenuHtml, /id="menu-nav"/);
+  assert.match(sharedMenuHtml, />Einzelspieler</);
+  assert.match(sharedMenuHtml, />Arcade</);
+  assert.match(sharedMenuHtml, />Klassisch</);
   assert.match(mobileClassicSurface, /#parcours-hud/);
   assert.match(mobileClassicSurface, /#parcours-minimap/);
   assert.match(mobileClassicSurface, /mobile-arcade-ghost-status/);
