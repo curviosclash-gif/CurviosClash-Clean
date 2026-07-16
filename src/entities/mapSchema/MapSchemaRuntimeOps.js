@@ -324,6 +324,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             preferAuthoredPortals: normalized.preferAuthoredPortals === true || portalAuthoring.authoredPairCount > 0,
             itemSpawnMode,
             itemSpawnAuthoring,
+            scaleAuthoredAnchors: true,
             gates,
             playerSpawn,
             botSpawns,

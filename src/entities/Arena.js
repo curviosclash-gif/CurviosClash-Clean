@@ -94,10 +94,13 @@ export class Arena {
         this._aircraftDecorations = [];
     }
 
-    _buildAuthoredAircraftDecorations(map) {
+    _buildAuthoredAircraftDecorations(map, mapScale = 1) {
         this._clearAuthoredAircraftDecorations();
         const authoredAircraft = Array.isArray(map?.aircraft) ? map.aircraft : [];
         if (authoredAircraft.length === 0) return;
+        const scale = map?.scaleAuthoredAnchors === true
+            ? Math.max(0.001, Number(mapScale) || 1)
+            : 1;
 
         for (let i = 0; i < authoredAircraft.length; i += 1) {
             const entry = authoredAircraft[i];
@@ -106,12 +109,12 @@ export class Arena {
             const root = new THREE.Group();
             root.name = `map-aircraft-${entry.id || i}`;
             root.position.set(
-                Number(entry.x) || 0,
-                Number(entry.y) || 0,
-                Number(entry.z) || 0,
+                (Number(entry.x) || 0) * scale,
+                (Number(entry.y) || 0) * scale,
+                (Number(entry.z) || 0) * scale,
             );
             root.rotation.y = Number(entry.rotateY) || 0;
-            root.scale.setScalar(Math.max(0.05, Number(entry.scale) || 1));
+            root.scale.setScalar(Math.max(0.05, (Number(entry.scale) || 1) * scale));
 
             const vehicleId = resolveAircraftDecorationVehicleId(entry.jetId);
             const mesh = createVehicleMesh(vehicleId, resolveAircraftDecorationColor(i));
@@ -182,7 +185,7 @@ export class Arena {
 
         if (buildContext.rebuildPolicy === 'reuse') {
             if (includeAuthoredAircraft) {
-                this._buildAuthoredAircraftDecorations(buildContext.map);
+                this._buildAuthoredAircraftDecorations(buildContext.map, buildContext.scale);
             } else {
                 this._clearAuthoredAircraftDecorations();
             }
@@ -213,7 +216,7 @@ export class Arena {
             this._builder.geometryPipeline.flushMergeStage(buildContext.materialBundle);
             this._portalGateSystem.build(buildContext.map, buildContext.scale);
             if (includeAuthoredAircraft) {
-                this._buildAuthoredAircraftDecorations(buildContext.map);
+                this._buildAuthoredAircraftDecorations(buildContext.map, buildContext.scale);
             } else {
                 this._clearAuthoredAircraftDecorations();
             }
