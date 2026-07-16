@@ -13,6 +13,7 @@ import {
 function markConnected(adapter, msg, { hostPeerIdFallback = null } = {}) {
     adapter._lobbyCode = msg.lobbyCode || msg?.sessionState?.lobbyCode || adapter._lobbyCode;
     adapter.localPlayerId = msg.playerId || adapter.localPlayerId;
+    adapter._sessionToken = String(msg.sessionToken || adapter._sessionToken || '').trim();
     adapter._hostPeerId = msg.hostPeerId
         || msg?.sessionState?.hostPeerId
         || hostPeerIdFallback

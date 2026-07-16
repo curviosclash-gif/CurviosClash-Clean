@@ -22,6 +22,10 @@ function generateLobbyCode() {
     return code;
 }
 
+function generateSessionToken() {
+    return crypto.randomBytes(32).toString('base64url');
+}
+
 function generateMatchCommandId() {
     return `match-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
 }
@@ -44,6 +48,14 @@ function normalizeString(value, fallback = '') {
 
 function normalizeLobbyCode(value, fallback = '') {
     return normalizeString(value, fallback).toUpperCase();
+}
+
+function isValidSessionToken(expectedToken, providedToken) {
+    const expected = Buffer.from(normalizeString(expectedToken, ''), 'utf8');
+    const provided = Buffer.from(normalizeString(providedToken, ''), 'utf8');
+    return expected.length > 0
+        && expected.length === provided.length
+        && crypto.timingSafeEqual(expected, provided);
 }
 
 function sendJson(ws, data) {
@@ -104,6 +116,7 @@ function createLobbyPlayer({
     name = '',
     joinedAt = Date.now(),
     lastSeenAt = Date.now(),
+    sessionToken = generateSessionToken(),
 } = {}) {
     const normalizedPeerId = normalizeString(peerId, '');
     const fallbackName = isHost === true ? 'Host' : normalizedPeerId;
@@ -114,6 +127,7 @@ function createLobbyPlayer({
         ready: ready === true,
         actorId: normalizeString(actorId, fallbackName),
         name: normalizeString(name || actorId, fallbackName),
+        sessionToken: normalizeString(sessionToken, ''),
         joinedAt: Number.isFinite(Number(joinedAt)) ? Math.max(0, Math.floor(Number(joinedAt))) : Date.now(),
         lastSeenAt: Number.isFinite(Number(lastSeenAt)) ? Math.max(0, Math.floor(Number(lastSeenAt))) : Date.now(),
     };
@@ -165,6 +179,7 @@ function setReconnectLease(lobbyCode, player) {
         ready: player.ready === true,
         actorId: normalizeString(player.actorId, ''),
         name: normalizeString(player.name, ''),
+        sessionToken: normalizeString(player.sessionToken, ''),
         joinedAt: Number(player.joinedAt || Date.now()),
         expiresAt: Date.now() + RECONNECT_WINDOW_MS,
     });
@@ -309,6 +324,7 @@ export function createSignalingServer(port = 9090) {
                 sendSignaling(ws, SIGNALING_EVENT_TYPES.LOBBY_CREATED, {
                     lobbyCode: code,
                     playerId: peerId,
+                    sessionToken: lobby.players[0].sessionToken,
                     maxPlayers,
                     sessionState: buildLobbyState(lobby),
                 });
@@ -326,19 +342,21 @@ export function createSignalingServer(port = 9090) {
                     sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby full' });
                     return;
                 }
-                lobby.players.push(createLobbyPlayer({
+                const player = createLobbyPlayer({
                     peerId,
                     ws,
                     isHost: false,
                     ready: false,
                     actorId: normalizeString(msg.actorId, peerId),
                     name: normalizeString(msg.name || msg.actorId, peerId),
-                }));
+                });
+                lobby.players.push(player);
                 bumpLobbyState(lobby);
                 peerToLobby.set(ws, requestedLobbyCode);
                 sendSignaling(ws, SIGNALING_EVENT_TYPES.LOBBY_JOINED, {
                     playerId: peerId,
                     lobbyCode: requestedLobbyCode,
+                    sessionToken: player.sessionToken,
                     sessionState: buildLobbyState(lobby),
                 });
                 broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.PLAYER_JOINED, {
@@ -356,12 +374,16 @@ export function createSignalingServer(port = 9090) {
                 const leaseKey = buildReconnectLeaseKey(lobbyCode, resumePeerId);
                 const lease = leaseKey ? reconnectLeases.get(leaseKey) : null;
                 if (!lobby || !lease) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Reconnect window expired' });
+                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Connection resume failed' });
                     break;
                 }
                 if (lease.expiresAt <= Date.now()) {
                     reconnectLeases.delete(leaseKey);
                     sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Reconnect window expired' });
+                    break;
+                }
+                if (!isValidSessionToken(lease.sessionToken, msg.sessionToken)) {
+                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Connection resume failed' });
                     break;
                 }
                 if (lobby.players.some((entry) => entry.peerId === resumePeerId)) {
@@ -379,6 +401,7 @@ export function createSignalingServer(port = 9090) {
                     ready: lease.ready === true,
                     actorId: lease.actorId,
                     name: lease.name,
+                    sessionToken: lease.sessionToken,
                     joinedAt: lease.joinedAt,
                     lastSeenAt: resumedAt,
                 }));
@@ -388,6 +411,7 @@ export function createSignalingServer(port = 9090) {
                 sendSignaling(ws, SIGNALING_EVENT_TYPES.CONNECTION_RESUMED, {
                     lobbyCode,
                     playerId: resumePeerId,
+                    sessionToken: lease.sessionToken,
                     sessionState: buildLobbyState(lobby),
                 });
                 broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.PLAYER_RECONNECTED, {
@@ -409,7 +433,7 @@ export function createSignalingServer(port = 9090) {
                 const player = lobby
                     ? lobby.players.find((entry) => entry.peerId === attachPeerId)
                     : null;
-                if (!lobby || !player) {
+                if (!lobby || !player || !isValidSessionToken(player.sessionToken, msg.sessionToken)) {
                     sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Transport attach failed' });
                     break;
                 }
@@ -431,6 +455,7 @@ export function createSignalingServer(port = 9090) {
                 sendSignaling(ws, SIGNALING_EVENT_TYPES.TRANSPORT_ATTACHED, {
                     playerId: attachPeerId,
                     lobbyCode,
+                    sessionToken: player.sessionToken,
                     isHost: player.isHost === true,
                     hostPeerId: lobby.hostPeerId,
                     attachedPeerIds,

@@ -8,6 +8,7 @@ import {
 function applyServerStateOrFallbackForLobbyCreated(lobby, msg) {
     lobby.lobbyCode = msg.lobbyCode;
     lobby._playerId = msg.playerId;
+    lobby._sessionToken = String(msg.sessionToken || '').trim();
     const serverState = msg?.sessionState && typeof msg.sessionState === 'object'
         ? msg.sessionState
         : {
@@ -31,6 +32,7 @@ function applyServerStateOrFallbackForLobbyCreated(lobby, msg) {
 
 function applyServerStateOrFallbackForLobbyJoined(lobby, msg) {
     lobby._playerId = msg.playerId;
+    lobby._sessionToken = String(msg.sessionToken || '').trim();
     const serverState = msg?.sessionState && typeof msg.sessionState === 'object'
         ? msg.sessionState
         : {
@@ -51,6 +53,7 @@ function applyServerStateOrFallbackForLobbyJoined(lobby, msg) {
 
 function applyServerStateOrFallbackForConnectionResumed(lobby, msg) {
     lobby._playerId = msg.playerId || lobby._playerId;
+    lobby._sessionToken = String(msg.sessionToken || lobby._sessionToken || '').trim();
     if (msg?.sessionState && typeof msg.sessionState === 'object') {
         lobby._applySessionState(msg.sessionState);
     }

@@ -69,6 +69,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         });
         this._lobbyCode = null;
         this._hostPeerId = null;
+        this._sessionToken = String(options.sessionToken || options.peerToken || '').trim();
 
         this._dataChannelManager.on('message', ({ peerId, channel, data }) => {
             this._handleDataMessage(peerId, channel, data);
@@ -102,6 +103,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
 
     async connect(options = {}) {
         this._signalingUrl = resolveOnlineSignalingUrl(options.signalingUrl, this._signalingUrl);
+        this._sessionToken = String(options.sessionToken || options.peerToken || this._sessionToken || '').trim();
         return this._runConnectLoop(() => this._connectSingleAttempt(options), options);
     }
 
@@ -213,6 +215,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
                 this._sendSignaling(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.ATTACH_TRANSPORT, {
                     lobbyCode: attachLobbyCode,
                     playerId: attachPlayerId,
+                    sessionToken: this._sessionToken,
                 }));
             } else if (this.isHost) {
                 this._sendSignaling(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: options.maxPlayers || 10 }));
@@ -226,7 +229,11 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         return this._socketAttempt(() => {
             this._sendSignaling(createSignalingEnvelope(
                 SIGNALING_COMMAND_TYPES.RESUME_CONNECTION,
-                { lobbyCode: this._lobbyCode, playerId: this.localPlayerId }
+                {
+                    lobbyCode: this._lobbyCode,
+                    playerId: this.localPlayerId,
+                    sessionToken: this._sessionToken,
+                }
             ));
         }, options);
     }
@@ -457,6 +464,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             this._ws = null;
         }
         this.isConnected = false;
+        this._sessionToken = '';
 
         if (typeof window !== 'undefined') {
             window.removeEventListener('beforeunload', this._beforeUnloadHandler);

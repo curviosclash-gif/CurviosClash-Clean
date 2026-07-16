@@ -42,6 +42,7 @@ export class OnlineMatchLobby extends MatchLobby {
         this._signalingUrl = options.signalingUrl || '';
         this._ws = null;
         this._playerId = null;
+        this._sessionToken = '';
         this._lastHandledMatchCommandId = '';
         this._pendingMutationAcks = new Map();
         this._closedByClient = false;
@@ -329,7 +330,11 @@ export class OnlineMatchLobby extends MatchLobby {
 
         return this._makeConnectPromise((ws, connectResolve, connectReject, connectState) => {
             ws.onopen = () => {
-                this._send(createResumeSignalingEnvelope({ lobbyCode, playerId }));
+                this._send(createResumeSignalingEnvelope({
+                    lobbyCode,
+                    playerId,
+                    sessionToken: this._sessionToken,
+                }));
             };
             ws.onmessage = (event) => {
                 try {
@@ -409,6 +414,7 @@ export class OnlineMatchLobby extends MatchLobby {
         this.players = [];
         this.sessionState = createInitialLobbySessionState();
         this._playerId = null;
+        this._sessionToken = '';
         this._lastHandledMatchCommandId = '';
         this._emit('closed', {});
     }
@@ -493,8 +499,7 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     getLocalPeerToken() {
-        // Online signaling authenticates via the WebSocket session itself.
-        return '';
+        return this._sessionToken;
     }
 
     dispose() {

@@ -133,8 +133,16 @@ test('online match handoff attaches transports to the SAME lobby and completes t
         clientAdapter._peerManager = stubPeerManager(clientLog);
 
         const hostPlayerConnected = waitForEvent(hostAdapter, 'playerConnected');
-        await hostAdapter.connect({ playerId: hostPeerId, lobbyCode });
-        await clientAdapter.connect({ playerId: clientPeerId, lobbyCode });
+        await hostAdapter.connect({
+            playerId: hostPeerId,
+            lobbyCode,
+            sessionToken: hostLobby.getLocalPeerToken(),
+        });
+        await clientAdapter.connect({
+            playerId: clientPeerId,
+            lobbyCode,
+            sessionToken: clientLobby.getLocalPeerToken(),
+        });
 
         // Same lobby: the host adapter must offer to the attaching client and
         // receive the answer back through the relay.
