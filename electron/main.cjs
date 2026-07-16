@@ -23,7 +23,11 @@ const { createRecordingVideoExportJob } = require('./recording-video-export-job.
 const { createTuningWindowController } = require('./tuning-window.cjs');
 const { registerTuningIpc } = require('./tuning-ipc.cjs');
 const { createHangarWindowController } = require('./hangar-window.cjs');
-const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');
+const {
+    createEditorWindowOpenHandler,
+    createPlaytestWindowOpenHandler,
+    createSecureWindowWebPreferences,
+} = require('./window-security-options.cjs');
 const {
     assertTrustedWindowSender,
     isTrustedWindowSender,
@@ -504,7 +508,16 @@ async function createWindow() {
     mainWindow.webContents.on('will-navigate', (event) => {
         event.preventDefault();
     });
-    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+    mainWindow.webContents.setWindowOpenHandler(createEditorWindowOpenHandler(appServer.url));
+    mainWindow.webContents.on('did-create-window', (editorWindow, details) => {
+        const isMapEditor = new URL(details.url).pathname === '/editor/map-editor-3d.html';
+        editorWindow.webContents.setWindowOpenHandler(isMapEditor
+            ? createPlaytestWindowOpenHandler(appServer.url)
+            : () => ({ action: 'deny' }));
+        editorWindow.webContents.on('did-create-window', (playtestWindow) => {
+            playtestWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
+        });
+    });
     await mainWindow.loadURL(appServer.url);
     mainWindow.on('closed', () => {
         mainWindow = null;

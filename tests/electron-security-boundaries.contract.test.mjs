@@ -4,7 +4,11 @@ import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
-const { createSecureWindowWebPreferences } = require('../electron/window-security-options.cjs');
+const {
+    createEditorWindowOpenHandler,
+    createPlaytestWindowOpenHandler,
+    createSecureWindowWebPreferences,
+} = require('../electron/window-security-options.cjs');
 
 function readSource(relativePath) {
     return readFileSync(new URL(relativePath, import.meta.url), 'utf8');
@@ -36,15 +40,62 @@ test('every Electron window uses the executable renderer security policy', () =>
     assert.equal(main.nodeIntegration, false);
 });
 
-test('main and auxiliary game windows deny renderer navigation and popups', () => {
+test('auxiliary game windows deny renderer navigation and popups', () => {
     for (const relativePath of [
-        '../electron/main.cjs',
         '../electron/tuning-window.cjs',
         '../electron/hangar-window.cjs',
     ]) {
         const source = readSource(relativePath);
         assert.match(source, /webContents(?:\?\.|\.)on(?:\?\.)?\('will-navigate',[\s\S]*event\.preventDefault\(\)/);
         assert.match(source, /webContents(?:\?\.|\.)setWindowOpenHandler(?:\?\.)?\(\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\)\)/);
+    }
+});
+
+test('main window allows only same-origin editor popups with isolated renderers', () => {
+    const handleWindowOpen = createEditorWindowOpenHandler('http://127.0.0.1:38765/');
+    for (const url of [
+        'http://127.0.0.1:38765/editor/map-editor-3d.html',
+        'http://127.0.0.1:38765/prototypes/vehicle-lab/index.html',
+    ]) {
+        const result = handleWindowOpen({ url });
+        assert.equal(result.action, 'allow');
+        assert.equal(result.overrideBrowserWindowOptions.webPreferences.contextIsolation, true);
+        assert.equal(result.overrideBrowserWindowOptions.webPreferences.nodeIntegration, false);
+        assert.equal(result.overrideBrowserWindowOptions.webPreferences.sandbox, true);
+    }
+
+    for (const url of [
+        'https://example.com/editor/map-editor-3d.html',
+        'http://127.0.0.1:38765/editor/map-editor-3d.html.evil',
+        'http://127.0.0.1:38765/',
+        'not-a-url',
+    ]) {
+        assert.deepEqual(handleWindowOpen({ url }), { action: 'deny' });
+    }
+
+    const source = readSource('../electron/main.cjs');
+    assert.match(source, /setWindowOpenHandler\(createEditorWindowOpenHandler\(appServer\.url\)\)/);
+    assert.match(source, /'did-create-window'[\s\S]*createPlaytestWindowOpenHandler\(appServer\.url\)/);
+    assert.match(source, /playtestWindow\.webContents\.setWindowOpenHandler\(\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\)\)/);
+});
+
+test('map editor allows only its same-origin playtest popup', () => {
+    const handleWindowOpen = createPlaytestWindowOpenHandler('http://127.0.0.1:38765/');
+    for (const url of [
+        'http://127.0.0.1:38765/?playtest=1&planar=0',
+        'http://127.0.0.1:38765/index.html?playtest=1&planar=0',
+    ]) {
+        const result = handleWindowOpen({ url });
+        assert.equal(result.action, 'allow');
+        assert.equal(result.overrideBrowserWindowOptions.webPreferences.sandbox, true);
+    }
+
+    for (const url of [
+        'http://127.0.0.1:38765/',
+        'http://127.0.0.1:38765/?playtest=0',
+        'https://example.com/?playtest=1',
+    ]) {
+        assert.deepEqual(handleWindowOpen({ url }), { action: 'deny' });
     }
 });
 
