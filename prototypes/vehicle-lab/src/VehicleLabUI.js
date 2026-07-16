@@ -94,6 +94,10 @@ export class VehicleLabUI {
             document.getElementById(id).onchange = () => this.callbacks.onSnapChange?.(this.getSnapSettings());
         });
 
+        document.querySelectorAll('[data-transform-mode]').forEach((button) => {
+            button.onclick = () => this.callbacks.onTransformMode?.(button.dataset.transformMode);
+        });
+
         document.querySelectorAll('[data-camera-view]').forEach((button) => {
             button.onclick = () => {
                 document.querySelectorAll('[data-camera-view]').forEach((candidate) => {
@@ -120,6 +124,20 @@ export class VehicleLabUI {
     setActiveCameraView(view) {
         document.querySelectorAll('[data-camera-view]').forEach((button) => {
             button.setAttribute('aria-pressed', String(button.dataset.cameraView === view));
+        });
+    }
+
+    setActiveTransformMode(mode) {
+        document.querySelectorAll('[data-transform-mode]').forEach((button) => {
+            const active = button.dataset.transformMode === mode;
+            button.classList.toggle('active', active);
+            button.setAttribute('aria-pressed', String(active));
+        });
+    }
+
+    setTransformControlsEnabled(enabled) {
+        document.querySelectorAll('[data-transform-mode]').forEach((button) => {
+            button.disabled = enabled !== true;
         });
     }
 
@@ -357,10 +375,20 @@ export class VehicleLabUI {
             onUpdate('emissive');
         }, 'number');
 
-        this.createVectorRow(container, 'Größe', part.size || [1, 1, 1], (i, val) => {
+        this.createVectorRow(container, 'Grundabmessungen', part.size || [1, 1, 1], (i, val) => {
             if (!part.size) part.size = [1, 1, 1];
             part.size[i] = val;
             onUpdate('size');
+        });
+
+        this.createVectorRow(container, 'Skalierung', part.scale || [1, 1, 1], (i, val) => {
+            if (!part.scale) part.scale = [1, 1, 1];
+            part.scale[i] = Math.max(0.1, val);
+            onUpdate('scale');
+        });
+        this.createActionRow(container, 'Skalierung zurücksetzen', () => {
+            part.scale = [1, 1, 1];
+            onUpdate('scale');
         });
 
         this.createVectorRow(container, 'Position', part.pos || [0, 0, 0], (i, val) => {
@@ -468,6 +496,16 @@ export class VehicleLabUI {
             div.appendChild(component);
         });
         container.appendChild(div);
+    }
+
+    createActionRow(container, label, onClick) {
+        container.appendChild(document.createElement('span'));
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = 'btn--small';
+        button.textContent = label;
+        button.onclick = onClick;
+        container.appendChild(button);
     }
 
     createCheckboxRow(container, label, value, onChange) {

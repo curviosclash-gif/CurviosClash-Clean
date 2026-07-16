@@ -38,9 +38,9 @@ export class VehicleLabViewport {
         this.controls.minDistance = VEHICLE_LAB_CAMERA_DISTANCE_LIMITS.min;
         this.controls.maxDistance = VEHICLE_LAB_CAMERA_DISTANCE_LIMITS.max;
         this.controls.mouseButtons = {
-            LEFT: THREE.MOUSE.ROTATE,
+            LEFT: THREE.MOUSE.NONE,
             MIDDLE: THREE.MOUSE.PAN,
-            RIGHT: THREE.MOUSE.PAN
+            RIGHT: THREE.MOUSE.ROTATE
         };
 
         this.gizmo = new TransformControls(core.camera, core.canvas);
@@ -77,10 +77,11 @@ export class VehicleLabViewport {
         core.canvas.addEventListener('pointercancel', this.onPointerUp);
 
         this.onShortcutKeyDown = (e) => {
-            if (this.core.isEditingTarget(e.target)) return;
-            if (e.key === 't') this.gizmo.setMode('translate');
-            if (e.key === 'r') this.gizmo.setMode('rotate');
-            if (e.key === 's') this.gizmo.setMode('scale');
+            if (this.core.isEditingTarget(e.target) || this.isFlyMode || e.ctrlKey || e.metaKey) return;
+            const key = e.key.toLowerCase();
+            if (key === 't') this.setTransformMode('translate');
+            if (key === 'r') this.setTransformMode('rotate');
+            if (key === 's') this.setTransformMode('scale');
         };
         window.addEventListener('keydown', this.onShortcutKeyDown);
 
@@ -96,6 +97,21 @@ export class VehicleLabViewport {
     attach(object) {
         if (object) this.gizmo.attach(object);
         else this.gizmo.detach();
+        this.gizmo.enabled = !this.isFlyMode;
+        this.gizmo.visible = !this.isFlyMode && !!this.gizmo.object;
+    }
+
+    setTransformMode(mode) {
+        if (!['translate', 'rotate', 'scale'].includes(mode)) return false;
+        this.gizmo.setMode(mode);
+        this.onModeChanged?.(mode);
+        return true;
+    }
+
+    setFlyMode(enabled) {
+        this.isFlyMode = enabled === true;
+        this.gizmo.enabled = !this.isFlyMode;
+        this.gizmo.visible = !this.isFlyMode && !!this.gizmo.object;
     }
 
     onClick(event) {

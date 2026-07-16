@@ -44,6 +44,8 @@ export function createEditorDomRefs(doc = document) {
         numYLayer: doc.getElementById("numYLayer"),
         chkSnap: doc.getElementById("chkSnap"),
         numGrid: doc.getElementById("numGrid"),
+        numRotationSnap: doc.getElementById("numRotationSnap"),
+        numScaleSnap: doc.getElementById("numScaleSnap"),
 
         numArenaW: doc.getElementById("numArenaW"),
         numArenaD: doc.getElementById("numArenaD"),
@@ -65,6 +67,7 @@ export function createEditorDomRefs(doc = document) {
         propRotationY: doc.getElementById("propRotationY"),
         propGroup: doc.getElementById("propGroup"),
         propSizeRow: doc.getElementById("propSizeRow"),
+        propSizeLabel: doc.getElementById("propSizeLabel"),
         propWidthRow: doc.getElementById("propWidthRow"),
         propDepthRow: doc.getElementById("propDepthRow"),
         propHeightRow: doc.getElementById("propHeightRow"),

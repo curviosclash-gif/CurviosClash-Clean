@@ -68,7 +68,7 @@ export class EditorCore {
         this.orbit.maxDistance = 6000;
         this.orbit.mouseButtons = {
             LEFT: THREE.MOUSE.NONE,
-            MIDDLE: THREE.MOUSE.DOLLY,
+            MIDDLE: THREE.MOUSE.PAN,
             RIGHT: THREE.MOUSE.ROTATE
         };
 

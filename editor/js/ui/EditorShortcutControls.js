@@ -22,6 +22,41 @@ export function bindEditorShortcutControls(editor) {
             || target.isContentEditable;
     };
 
+    const transformButtons = Array.from(document.querySelectorAll('[data-transform-mode]'));
+    const syncTransformModeUi = () => {
+        const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
+        const attached = !!selected && editor.core.transformControl.object === selected;
+        const mode = editor.core.transformControl.mode;
+        transformButtons.forEach((button) => {
+            const buttonMode = button.dataset.transformMode;
+            button.disabled = !attached || (buttonMode === 'scale' && !editor.mapManager?.canScaleObject?.(selected));
+            button.classList.toggle('active', attached && buttonMode === mode);
+            button.setAttribute('aria-pressed', String(attached && buttonMode === mode));
+        });
+    };
+    const setTransformMode = (mode) => {
+        const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
+        if (!selected || editor.core.transformControl.object !== selected) return false;
+        if (mode === 'scale' && !editor.mapManager?.canScaleObject?.(selected)) {
+            editor.notify?.('Dieser Objekttyp besitzt keine speicherbare Skalierung.', 'warn');
+            syncTransformModeUi();
+            return false;
+        }
+        editor.core.transformControl.setMode(mode);
+        const rotate = mode === 'rotate';
+        editor.core.transformControl.showX = !rotate;
+        editor.core.transformControl.showY = true;
+        editor.core.transformControl.showZ = !rotate;
+        syncTransformModeUi();
+        return true;
+    };
+    editor.setTransformMode = setTransformMode;
+    editor.syncTransformModeUi = syncTransformModeUi;
+    transformButtons.forEach((button) => {
+        button.addEventListener('click', () => setTransformMode(button.dataset.transformMode));
+    });
+    syncTransformModeUi();
+
     document.addEventListener('keydown', (e) => {
         if (shouldIgnoreGlobalShortcut(e.target)) return;
 
@@ -46,34 +81,9 @@ export function bindEditorShortcutControls(editor) {
             editor.deleteSelectedObject();
         }
 
-        if (lowerKey === 'r') {
-            if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && editor.core.transformControl.object) {
-                editor.core.transformControl.setMode('rotate');
-                editor.core.transformControl.showX = false;
-                editor.core.transformControl.showY = true;
-                editor.core.transformControl.showZ = false;
-            }
-        }
-        if (lowerKey === 't') {
-            if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && editor.core.transformControl.object) {
-                editor.core.transformControl.setMode('translate');
-                editor.core.transformControl.showX = true;
-                editor.core.transformControl.showY = true;
-                editor.core.transformControl.showZ = true;
-            }
-        }
-        if (lowerKey === 's' && !e.ctrlKey && !e.metaKey) {
-            if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && editor.core.transformControl.object) {
-                if (!editor.mapManager?.canScaleObject?.(editor.selectedObject)) {
-                    editor.notify?.('Dieser Objekttyp besitzt keine speicherbare Skalierung.', 'warn');
-                    return;
-                }
-                editor.core.transformControl.setMode('scale');
-                editor.core.transformControl.showX = true;
-                editor.core.transformControl.showY = true;
-                editor.core.transformControl.showZ = true;
-            }
-        }
+        if (!e.ctrlKey && !e.metaKey && lowerKey === 'r') setTransformMode('rotate');
+        if (!e.ctrlKey && !e.metaKey && lowerKey === 't') setTransformMode('translate');
+        if (!e.ctrlKey && !e.metaKey && lowerKey === 's') setTransformMode('scale');
         if (lowerKey === 'f' && !e.ctrlKey) {
             editor.core.focusObject?.(editor.selectedObject);
         }

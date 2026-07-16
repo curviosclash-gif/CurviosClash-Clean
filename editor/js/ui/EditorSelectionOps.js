@@ -28,11 +28,17 @@ export function syncTransformControlAttachmentSelection(editor) {
 
     if (!selected || selected.visible === false || flyMode || selected.userData?.editorLocked === true || selected.userData?.editorLayerLocked === true) {
         editor.detachTransformControl();
+        editor.syncTransformModeUi?.();
         return;
     }
 
     if (editor.core.transformControl.object !== selected) {
         editor.core.transformControl.attach(selected);
+    }
+    if (editor.core.transformControl.mode === 'scale' && !editor.mapManager?.canScaleObject?.(selected)) {
+        editor.setTransformMode?.('translate');
+    } else {
+        editor.syncTransformModeUi?.();
     }
 }
 
@@ -132,6 +138,7 @@ export function selectManagedObject(editor, obj) {
     } else {
         editor.detachTransformControl();
         editor.hidePropPanel();
+        editor.syncTransformModeUi?.();
     }
     if (editor.dom?.btnDelSelected) {
         editor.dom.btnDelSelected.disabled = !editor.selectedObject || editor.isObjectLocked?.(editor.selectedObject);

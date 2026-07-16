@@ -154,9 +154,9 @@ test.describe('Vehicle Lab', () => {
 
         const initial = await canvas.screenshot();
         await page.mouse.move(center.x, center.y);
-        await page.mouse.down({ button: 'left' });
+        await page.mouse.down({ button: 'right' });
         await page.mouse.move(center.x + 90, center.y + 35, { steps: 8 });
-        await page.mouse.up({ button: 'left' });
+        await page.mouse.up({ button: 'right' });
         await waitForRenderFrames(page, 3);
         const orbited = await canvas.screenshot();
         expect(orbited.equals(initial)).toBe(false);
@@ -258,6 +258,40 @@ test.describe('Vehicle Lab', () => {
         await page.locator('#partsList .part-item').first().focus();
         await page.keyboard.press('ArrowDown');
         await expect(page.locator('#partsList .part-item.is-selected')).toHaveText('Nose Cone');
+    });
+
+    test('transform tools separate dimensions from scale and keyboard snap avoids the S conflict', async ({ page }) => {
+        await resetVehicleLab(page);
+        await page.locator('#partsList .part-item').first().click();
+
+        await expect(page.locator('[data-transform-mode="translate"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('#propertiesContainer input[aria-label="Grundabmessungen X"]')).toBeVisible();
+        const positionZ = page.locator('#propertiesContainer input[aria-label="Position Z"]');
+        const beforeZ = await positionZ.inputValue();
+        await page.keyboard.press('s');
+        await expect(page.locator('[data-transform-mode="scale"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(positionZ).toHaveValue(beforeZ);
+
+        const positionX = page.locator('#propertiesContainer input[aria-label="Position X"]');
+        const beforeX = Number(await positionX.inputValue());
+        await page.keyboard.press('ArrowRight');
+        await expect(positionX).toHaveValue((beforeX + 0.25).toFixed(2));
+        await page.keyboard.press('Shift+ArrowRight');
+        await expect(positionX).toHaveValue((beforeX + 2.75).toFixed(2));
+
+        const scaleX = page.locator('#propertiesContainer input[aria-label="Skalierung X"]');
+        await scaleX.fill('1.7');
+        await scaleX.press('Tab');
+        await expect(page.locator('#propertiesContainer input[aria-label="Skalierung X"]')).toHaveValue('1.70');
+        await page.getByRole('button', { name: 'Skalierung zurücksetzen' }).click();
+        await expect(page.locator('#propertiesContainer input[aria-label="Skalierung X"]')).toHaveValue('1.00');
+
+        await page.locator('#chkFlyMode').check();
+        await expect(page.locator('[data-transform-mode="translate"]')).toBeDisabled();
+        await expect(page.locator('[data-transform-mode="rotate"]')).toBeDisabled();
+        await expect(page.locator('[data-transform-mode="scale"]')).toBeDisabled();
+        await page.locator('#chkFlyMode').uncheck();
+        await expect(page.locator('[data-transform-mode="scale"]')).toBeEnabled();
     });
 });
 

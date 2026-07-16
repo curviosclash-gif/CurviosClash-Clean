@@ -33,7 +33,7 @@ export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
         editor.flyModeEnabled = isFly;
         const rightClickRotate = {
             LEFT: THREE.MOUSE.NONE,
-            MIDDLE: THREE.MOUSE.DOLLY,
+            MIDDLE: THREE.MOUSE.PAN,
             RIGHT: THREE.MOUSE.ROTATE
         };
 
@@ -46,14 +46,32 @@ export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
         }
     });
 
+    const syncTransformSnapping = () => {
+        editor.core.transformControl.setTranslationSnap(editor.useSnap ? editor.snapSize : null);
+        editor.core.transformControl.setRotationSnap(editor.useSnap ? THREE.MathUtils.degToRad(editor.rotationSnap) : null);
+        editor.core.transformControl.setScaleSnap(editor.useSnap ? editor.scaleSnap : null);
+    };
+
     dom.chkSnap?.addEventListener('change', (e) => {
         editor.useSnap = e.target.checked;
-        editor.core.transformControl.setTranslationSnap(editor.useSnap ? editor.snapSize : null);
+        syncTransformSnapping();
     });
     dom.numGrid?.addEventListener('change', (e) => {
         const parsed = Number.parseFloat(e.target.value);
         editor.snapSize = Number.isFinite(parsed) && parsed > 0 ? parsed : 50;
         e.target.value = String(editor.snapSize);
-        if (editor.useSnap) editor.core.transformControl.setTranslationSnap(editor.snapSize);
+        syncTransformSnapping();
+    });
+    dom.numRotationSnap?.addEventListener('change', (e) => {
+        const parsed = Number.parseFloat(e.target.value);
+        editor.rotationSnap = Number.isFinite(parsed) && parsed > 0 ? parsed : 15;
+        e.target.value = String(editor.rotationSnap);
+        syncTransformSnapping();
+    });
+    dom.numScaleSnap?.addEventListener('change', (e) => {
+        const parsed = Number.parseFloat(e.target.value);
+        editor.scaleSnap = Number.isFinite(parsed) && parsed > 0 ? parsed : 1;
+        e.target.value = String(editor.scaleSnap);
+        syncTransformSnapping();
     });
 }

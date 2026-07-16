@@ -371,8 +371,11 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             return { block: block.userData.id, portal: portal.userData.id };
         });
 
+        await expect(page.locator('[data-transform-mode="translate"]')).toHaveAttribute('aria-pressed', 'true');
+        await expect(page.locator('[data-transform-mode="scale"]')).toBeEnabled();
         await page.keyboard.press('s');
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.transformControl.mode)).toBe('scale');
+        await expect(page.locator('[data-transform-mode="scale"]')).toHaveAttribute('aria-pressed', 'true');
 
         await page.evaluate((blockId) => {
             const editor = window.CURVIOS_EDITOR;
@@ -414,6 +417,130 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(result.block).toMatchObject({ width: 240, height: 100, depth: 100 });
         expect(result.portal.radius).toBe(120);
         expect(result.portalScale).toEqual([120, 120, 120]);
+    });
+
+    test('Transform-Raster, Checkpoint-Radius und nicht skalierbare Objekte bleiben eindeutig', async ({ page }) => {
+        await loadEditorPage(page);
+
+        await page.locator('#chkSnap').check();
+        await page.locator('#numGrid').fill('25');
+        await page.locator('#numGrid').press('Tab');
+        await page.locator('#numRotationSnap').fill('30');
+        await page.locator('#numRotationSnap').press('Tab');
+        await page.locator('#numScaleSnap').fill('0.5');
+        await page.locator('#numScaleSnap').press('Tab');
+
+        const snaps = await page.evaluate(() => {
+            const control = window.CURVIOS_EDITOR.core.transformControl;
+            return {
+                translation: control.translationSnap,
+                rotation: control.rotationSnap,
+                scale: control.scaleSnap,
+            };
+        });
+        expect(snaps.translation).toBe(25);
+        expect(snaps.rotation).toBeCloseTo(Math.PI / 6, 8);
+        expect(snaps.scale).toBe(0.5);
+
+        const ids = await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const checkpoint = editor.mapManager.createMesh('checkpoint', 'gate', 0, 250, 0, 0);
+            const item = editor.mapManager.createMesh('item', 'item_rocket', 300, 100, 0, 50);
+            editor.ui.selectObject(checkpoint);
+            return { checkpoint: checkpoint.userData.id, item: item.userData.id };
+        });
+
+        await expect(page.locator('#propSizeLabel')).toHaveText('Groesse / Radius (gleichmaessig)');
+        await expect(page.locator('#propSize')).toHaveValue('5.5');
+        await page.locator('#propSize').fill('9');
+        await page.locator('#propSize').press('Tab');
+        const checkpoint = await page.evaluate((id) => {
+            const editor = window.CURVIOS_EDITOR;
+            const object = editor.mapManager.getObjectById(id);
+            const exported = JSON.parse(editor.mapManager.generateJSONExport({ width: 2800, depth: 2400, height: 950 }));
+            return {
+                radius: exported.parcours.checkpoints.find((entry) => entry.id === id)?.radius,
+                scale: object.scale.toArray(),
+            };
+        }, ids.checkpoint);
+        expect(checkpoint.radius).toBe(9);
+        expect(checkpoint.scale).toEqual([126, 126, 126]);
+
+        await page.evaluate((id) => {
+            const editor = window.CURVIOS_EDITOR;
+            editor.ui.selectObject(editor.mapManager.getObjectById(id));
+        }, ids.item);
+        await expect(page.locator('[data-transform-mode="scale"]')).toBeDisabled();
+        await page.keyboard.press('s');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.transformControl.mode)).toBe('translate');
+    });
+
+    test('Skalierungs-Gizmo reagiert auf einen echten Mauszug', async ({ page }) => {
+        await loadEditorPage(page);
+
+        await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const block = editor.mapManager.createMesh('hard', null, 0, 100, 0, 100, {
+                sizeX: 100,
+                sizeY: 100,
+                sizeZ: 100,
+            });
+            editor.ui.selectObject(block);
+            editor.core.focusObject(block);
+        });
+        await page.locator('[data-transform-mode="scale"]').click();
+        await page.waitForTimeout(100);
+
+        const drag = await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const control = editor.core.transformControl;
+            const renderer = editor.core.renderer;
+            const camera = editor.core.camera;
+            renderer.render(editor.core.scene, camera);
+            control.updateMatrixWorld(true);
+
+            const center = control.worldPosition.clone().project(camera);
+            const xHandles = control._gizmo.gizmo.scale.children.filter((child) => child.name === 'X');
+            const handlePoints = xHandles.map((handle) => {
+                handle.geometry.computeBoundingSphere();
+                return handle.geometry.boundingSphere.center.clone().applyMatrix4(handle.matrixWorld).project(camera);
+            });
+            const end = handlePoints.reduce((farthest, point) => (
+                point.distanceToSquared(center) > farthest.distanceToSquared(center) ? point : farthest
+            ));
+            const rect = renderer.domElement.getBoundingClientRect();
+            const project = (point) => ({
+                x: rect.left + ((point.x + 1) * rect.width / 2),
+                y: rect.top + ((1 - point.y) * rect.height / 2),
+            });
+            const start = project(end);
+            const origin = project(center);
+            const dx = start.x - origin.x;
+            const dy = start.y - origin.y;
+            const length = Math.hypot(dx, dy) || 1;
+            return {
+                start,
+                end: {
+                    x: start.x + (dx / length) * 70,
+                    y: start.y + (dy / length) * 70,
+                },
+            };
+        });
+
+        await page.mouse.move(drag.start.x, drag.start.y);
+        await page.mouse.down({ button: 'left' });
+        await page.mouse.move(drag.end.x, drag.end.y, { steps: 10 });
+        await page.mouse.up({ button: 'left' });
+
+        const width = await page.locator('#propWidth').inputValue();
+        expect(Number(width)).toBeGreaterThan(100);
+        const exportedWidth = await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const id = editor.ui.selectedObject.userData.id;
+            const exported = JSON.parse(editor.mapManager.generateJSONExport({ width: 2800, depth: 2400, height: 950 }));
+            return exported.hardBlocks.find((entry) => entry.id === id)?.width;
+        });
+        expect(exportedWidth).toBeGreaterThan(100);
     });
 
     test('Katalogsuche und sicherer Neue-Map-Dialog funktionieren ohne Browser-Popups', async ({ page }) => {

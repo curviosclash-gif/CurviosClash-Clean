@@ -62,6 +62,8 @@ export class EditorUI {
 
         this.useSnap = false;
         this.snapSize = 50;
+        this.rotationSnap = 15;
+        this.scaleSnap = 1;
         this.flyModeEnabled = false;
         this.ARENA_W = 2800;
         this.ARENA_D = 2400;

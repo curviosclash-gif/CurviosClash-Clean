@@ -42,8 +42,9 @@ export function bindEditorPropertyControls(editor) {
     dom.propSize?.addEventListener('change', () => {
         editor.executeHistoryMutation('Edit object size', () => {
             if (editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) && !isLocked(editor.selectedObject)) {
-                const val = readPositivePropertyFieldNumber(editor, 'size', editor.selectedObject.userData.sizeInfo || 1);
                 const userData = editor.selectedObject.userData;
+                const fallback = userData.type === 'checkpoint' ? (userData.cpRadius || 5.5) : (userData.sizeInfo || 1);
+                const val = readPositivePropertyFieldNumber(editor, 'size', fallback);
                 userData.sizeInfo = val;
 
                 if (userData.type === 'tunnel') {
@@ -55,6 +56,9 @@ export function bindEditorPropertyControls(editor) {
                 } else if (userData.type === 'portal') {
                     editor.selectedObject.scale.set(val, val, val);
                     userData.radius = val;
+                } else if (userData.type === 'checkpoint') {
+                    editor.selectedObject.scale.setScalar(val * 14);
+                    userData.cpRadius = val;
                 }
                 editor.mapManager?.notifyObjectMutated?.(editor.selectedObject);
                 editor.showPropPanel(editor.selectedObject);

@@ -156,8 +156,12 @@ class VehicleLabApp {
             onMirrorPart: () => this.toggleMirrorPart(),
             onPartSearchChange: () => this.updateUI(),
             onSnapChange: (settings) => this.applySnapSettings(settings),
+            onTransformMode: (mode) => this.viewport.setTransformMode(mode),
             onCameraView: (view) => this.viewport.setCameraView(view, this.vehicle),
-            onFlyModeChange: (val) => { this.viewport.isFlyMode = val; },
+            onFlyModeChange: (val) => {
+                this.viewport.setFlyMode(val);
+                this.ui.setTransformControlsEnabled(!val);
+            },
             onWireframeChange: (val) => { this.vehicle?.setWireframe?.(val); },
             onHitboxChange: (val) => { this.viewport.setHitboxVisible(val); },
             onUndo: () => this.undo(),
@@ -165,6 +169,8 @@ class VehicleLabApp {
             onCompareVehicleChange: (vehicleId) => this.setCompareVehicle(vehicleId),
             onGlobalUpdate: (type, val) => this.onGlobalUpdate(type, val)
         });
+        this.viewport.onModeChanged = (mode) => this.ui.setActiveTransformMode(mode);
+        this.ui.setActiveTransformMode(this.viewport.gizmo.mode);
         this.vehicle = new ModularVehicleMesh(initialConfig);
         this.activeReferenceVehicle = null;
         if (this.vehicle.children.length === 0) {
@@ -207,6 +213,23 @@ class VehicleLabApp {
                 } else if (e.key.toLowerCase() === 'y') {
                     e.preventDefault();
                     this.redo();
+                }
+            }
+            if (!e.ctrlKey && !e.metaKey && this.snapSettings?.enabled && !this.viewport.isFlyMode) {
+                const key = e.key.toLowerCase();
+                const multiplier = e.shiftKey ? 3 : 1;
+                const changed = this.applyPartKeyboardTransform((candidate) => candidate === key, {
+                    moveStep: this.snapSettings.translate * (e.shiftKey ? 10 : 1),
+                    rotateStep: this.snapSettings.rotate * multiplier,
+                    scaleStep: this.snapSettings.scale * multiplier,
+                    snap: true,
+                    moveSnap: this.snapSettings.translate,
+                    rotateSnap: this.snapSettings.rotate,
+                    scaleSnap: this.snapSettings.scale,
+                });
+                if (changed) {
+                    e.preventDefault();
+                    this.commitPartKeyboardTransform();
                 }
             }
         };
@@ -1045,60 +1068,65 @@ class VehicleLabApp {
         this._lastHudText = nextText;
     }
 
-    handlePartKeyboardMovement(dt) {
-        if (this.selectedIndex === null || this.viewport.isFlyMode) return;
-
-        const keys = this.core.keys;
-        const speed = (keys.shift ? 25 : 5) * dt;
-
-        // Find targeted part by path
+    applyPartKeyboardTransform(isPressed, {
+        moveStep,
+        rotateStep,
+        scaleStep,
+        snap = false,
+        moveSnap = moveStep,
+        rotateSnap = rotateStep,
+        scaleSnap = scaleStep,
+    }) {
         const part = this.resolveSelectedPart();
-        if (!part) return;
-
-        let moved = false;
-
-        // X/Z Movement (Arrows or WASD)
-        if (keys.arrowup || keys.w) { part.pos[2] -= speed; moved = true; }
-        if (keys.arrowdown || keys.s) { part.pos[2] += speed; moved = true; }
-        if (keys.arrowleft || keys.a) { part.pos[0] -= speed; moved = true; }
-        if (keys.arrowright || keys.d) { part.pos[0] += speed; moved = true; }
-
-        // Y Movement (PageUp/Down or Y/X)
-        if (keys.pageup || keys.y) { part.pos[1] += speed; moved = true; }
-        if (keys.pagedown || keys.x) { part.pos[1] -= speed; moved = true; }
-
-        // Rotation (I/K, J/L, U/O)
-        const rotSpeed = (keys.shift ? 180 : 60) * dt;
+        if (!part) return false;
+        if (!part.pos) part.pos = [0, 0, 0];
         if (!part.rot) part.rot = [0, 0, 0];
-
-        if (keys.i) { part.rot[0] += rotSpeed; moved = true; }
-        if (keys.k) { part.rot[0] -= rotSpeed; moved = true; }
-        if (keys.j) { part.rot[1] += rotSpeed; moved = true; }
-        if (keys.l) { part.rot[1] -= rotSpeed; moved = true; }
-        if (keys.u) { part.rot[2] += rotSpeed; moved = true; }
-        if (keys.o) { part.rot[2] -= rotSpeed; moved = true; }
-
-        // Scaling (N = shrink, M = grow)
-        const scaleSpeed = 2 * dt;
         if (!part.scale) part.scale = [1, 1, 1];
-        if (keys.n) {
-            const s = Math.max(0.1, part.scale[0] - scaleSpeed);
-            part.scale = [s, s, s];
-            moved = true;
-        }
-        if (keys.m) {
-            const s = part.scale[0] + scaleSpeed;
-            part.scale = [s, s, s];
-            moved = true;
-        }
+        const adjust = (value, delta, step) => snap
+            ? Math.round((value + delta) / step) * step
+            : value + delta;
+        let changed = false;
 
-        if (moved) {
-            const object = this.findSelectedObject();
-            if (object) this.vehicle.updatePartTransform(object, part);
-            this.markSceneMetricsDirty();
-            this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
-            this.debouncedSave();
+        if (isPressed('arrowup')) { part.pos[2] = adjust(part.pos[2], -moveStep, moveSnap); changed = true; }
+        if (isPressed('arrowdown')) { part.pos[2] = adjust(part.pos[2], moveStep, moveSnap); changed = true; }
+        if (isPressed('arrowleft')) { part.pos[0] = adjust(part.pos[0], -moveStep, moveSnap); changed = true; }
+        if (isPressed('arrowright')) { part.pos[0] = adjust(part.pos[0], moveStep, moveSnap); changed = true; }
+        if (isPressed('pageup') || isPressed('y')) { part.pos[1] = adjust(part.pos[1], moveStep, moveSnap); changed = true; }
+        if (isPressed('pagedown') || isPressed('x')) { part.pos[1] = adjust(part.pos[1], -moveStep, moveSnap); changed = true; }
+
+        if (isPressed('i')) { part.rot[0] = adjust(part.rot[0], rotateStep, rotateSnap); changed = true; }
+        if (isPressed('k')) { part.rot[0] = adjust(part.rot[0], -rotateStep, rotateSnap); changed = true; }
+        if (isPressed('j')) { part.rot[1] = adjust(part.rot[1], rotateStep, rotateSnap); changed = true; }
+        if (isPressed('l')) { part.rot[1] = adjust(part.rot[1], -rotateStep, rotateSnap); changed = true; }
+        if (isPressed('u')) { part.rot[2] = adjust(part.rot[2], rotateStep, rotateSnap); changed = true; }
+        if (isPressed('o')) { part.rot[2] = adjust(part.rot[2], -rotateStep, rotateSnap); changed = true; }
+
+        const scaleDelta = isPressed('n') ? -scaleStep : (isPressed('m') ? scaleStep : 0);
+        if (scaleDelta !== 0) {
+            part.scale = part.scale.map((value) => Math.max(0.1, adjust(value, scaleDelta, scaleSnap)));
+            changed = true;
         }
+        return changed;
+    }
+
+    commitPartKeyboardTransform() {
+        const part = this.resolveSelectedPart();
+        const object = this.findSelectedObject();
+        if (part && object) this.vehicle.updatePartTransform(object, part);
+        this.markSceneMetricsDirty();
+        this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
+        this.debouncedSave();
+    }
+
+    handlePartKeyboardMovement(dt) {
+        if (this.selectedIndex === null || this.viewport.isFlyMode || this.snapSettings?.enabled) return;
+        const keys = this.core.keys;
+        const changed = this.applyPartKeyboardTransform((key) => keys[key], {
+            moveStep: (keys.shift ? 25 : 5) * dt,
+            rotateStep: (keys.shift ? 180 : 60) * dt,
+            scaleStep: 2 * dt,
+        });
+        if (changed) this.commitPartKeyboardTransform();
     }
 
     dispose() {

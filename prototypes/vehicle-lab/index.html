@@ -75,6 +75,11 @@
                     <button data-camera-view="top" aria-pressed="false">Oben</button>
                     <button data-camera-view="fit" aria-pressed="true" title="Fahrzeug vollständig anzeigen">Einpassen</button>
                 </div>
+                <div class="viewport-toolbar viewport-transform-toolbar" aria-label="Bauteil transformieren">
+                    <button data-transform-mode="translate" aria-pressed="true" title="Bewegen (T)">Bewegen</button>
+                    <button data-transform-mode="rotate" aria-pressed="false" title="Drehen (R)">Drehen</button>
+                    <button data-transform-mode="scale" aria-pressed="false" title="Skalieren (S)">Skalieren</button>
+                </div>
                 <div id="viewportHud" class="viewport__hud">
                     <span id="polyCountBadge" class="badge">Polygone: 0</span>
                 </div>
@@ -132,12 +137,13 @@
                 <details class="sidebar__panel shortcuts-panel">
                     <summary>Tastatursteuerung</summary>
                     <div class="shortcut-list">
-                        <div class="shortcut"><span>Links ziehen</span><span>Perspektive drehen</span></div>
-                        <div class="shortcut"><span>Mitte/Rechts</span><span>Perspektive verschieben</span></div>
+                        <div class="shortcut"><span>Linksklick</span><span>Bauteil auswählen</span></div>
+                        <div class="shortcut"><span>Rechts ziehen</span><span>Perspektive drehen</span></div>
+                        <div class="shortcut"><span>Mitte ziehen</span><span>Perspektive verschieben</span></div>
                         <div class="shortcut"><span>Mausrad</span><span>Zoomen</span></div>
                         <div class="shortcut"><span>T / R / S</span><span>Bewegen / Drehen / Skalieren</span></div>
+                        <div class="shortcut"><span>Pfeile + Y/X</span><span>Bauteil verschieben</span></div>
                         <div class="shortcut"><span>WASD + Q/E</span><span>Freie Kamera bewegen</span></div>
-                        <div class="shortcut"><span>Y / X</span><span>Hoch / Runter</span></div>
                         <div class="shortcut"><span>I K / J L / U O</span><span>Drehen</span></div>
                         <div class="shortcut"><span>N / M</span><span>Skalieren</span></div>
                     </div>

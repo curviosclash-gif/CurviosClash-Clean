@@ -36,6 +36,7 @@ export function showPropertyPanelView(editor, obj) {
     const {
         propPanel,
         propSizeRow,
+        propSizeLabel,
         propWidthRow,
         propDepthRow,
         propHeightRow,
@@ -95,9 +96,14 @@ export function showPropertyPanelView(editor, obj) {
         writePropertyFieldValue(editor, 'width', u.sizeX || u.sizeInfo * 2);
         writePropertyFieldValue(editor, 'depth', u.sizeZ || u.sizeInfo * 2);
         writePropertyFieldValue(editor, 'height', u.sizeY || u.sizeInfo * 2);
-    } else if (u.type === 'tunnel' || u.type === 'portal') {
+    } else if (u.type === 'tunnel' || u.type === 'portal' || u.type === 'checkpoint') {
         if (propSizeRow) propSizeRow.style.display = "grid";
-        writePropertyFieldValue(editor, 'size', u.radius || u.sizeInfo);
+        if (propSizeLabel) {
+            propSizeLabel.textContent = u.type === 'tunnel'
+                ? 'Radius (X/Z; Laenge ueber Y-Gizmo)'
+                : 'Groesse / Radius (gleichmaessig)';
+        }
+        writePropertyFieldValue(editor, 'size', u.type === 'checkpoint' ? (u.cpRadius || 5.5) : (u.radius || u.sizeInfo));
     } else if (u.type === 'aircraft' || u.type === 'glb') {
         if (propScaleRow) propScaleRow.style.display = "grid";
         writePropertyFieldValue(editor, 'scale', u.type === 'glb' ? (u.targetSize || 14) : (u.modelScale || 50));
