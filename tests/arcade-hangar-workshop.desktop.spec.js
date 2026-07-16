@@ -66,6 +66,21 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
     await loadGame(page);
     await openArcadeHangar(page);
 
+    const infoHints = page.locator('#arcade-vehicle-manager .menu-info-hint');
+    await expect(infoHints).toHaveCount(3);
+    await expect(infoHints.nth(0)).toHaveAttribute(
+        'title',
+        'Universelle Steine einsetzen und den nächsten Run vorbereiten.'
+    );
+    await expect(infoHints.nth(1)).toHaveAttribute(
+        'title',
+        'Ziehen: drehen · Rad: zoomen · Rechtszug: verschieben · Esc: Drag abbrechen'
+    );
+    await expect(infoHints.nth(2)).toHaveAttribute(
+        'title',
+        'Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln'
+    );
+
     const previousButton = page.getByRole('button', { name: 'Vorheriges Fahrzeug' });
     const nextButton = page.getByRole('button', { name: 'Nächstes Fahrzeug' });
     await expect(previousButton).toBeVisible();

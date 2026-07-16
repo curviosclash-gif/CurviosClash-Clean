@@ -4,7 +4,11 @@ import { STORAGE_KEYS } from '../StorageKeys.js';
 export function createHangarWindowLauncher(createElement) {
     const card = createElement('section', 'arcade-surface-card hangar-window-launch-card');
     card.appendChild(createElement('h3', 'arcade-surface-card-title', 'Desktop Hangar'));
-    card.appendChild(createElement('p', 'menu-hint', 'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.'));
+    const hint = createElement('span', 'menu-info-hint', 'i');
+    hint.title = 'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.';
+    hint.setAttribute('role', 'img');
+    hint.setAttribute('aria-label', hint.title);
+    card.appendChild(hint);
     const button = createElement('button', 'start-btn hangar-window-open', 'Hangar im großen Fenster öffnen');
     button.type = 'button';
     card.appendChild(button);

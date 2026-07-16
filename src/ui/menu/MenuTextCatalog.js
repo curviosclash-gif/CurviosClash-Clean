@@ -10,7 +10,6 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level2.quick_last.label': 'Letzte Runde starten',
     'menu.level2.quick_random.label': 'Zufallskarte starten',
     'menu.level2.mode.title': 'Wie möchtest du spielen?',
-    'menu.level2.mode.hint': 'Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.',
     'menu.level2.arcade.label': 'Arcade',
     'menu.level2.fight.label': 'Kampf',
     'menu.level2.normal.label': 'Klassisch',
@@ -107,7 +106,6 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.arcade.mastery.title': 'Vehicle Mastery',
     'menu.arcade.mastery.current.label': 'Aktives Airframe',
     'menu.arcade.mastery.progress.label': 'Mastery',
-    'menu.arcade.mastery.hint': 'Mastery-, Blueprint- und Lab-Hooks folgen in V45.3.',
 });
 
 export function listMenuTextCatalogEntries() {

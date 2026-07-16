@@ -108,6 +108,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('#arcade-vehicle-manager-mount')).toHaveCount(0);
         await expect(page.locator('.hangar-window-launch-card')).toHaveCount(1);
         await expect(page.locator('.hangar-window-open')).toHaveCount(1);
+        await expect(page.locator('.hangar-window-launch-card .menu-info-hint')).toHaveAttribute(
+            'title',
+            'Öffnet den Fahrzeug-Workshop bildschirmfüllend in einem eigenen Fenster.'
+        );
+        await expect(page.locator('#submenu-game')).not.toContainText('Mastery-, Blueprint- und Lab-Hooks folgen');
         await returnToMenu(page);
     });
 
@@ -1463,6 +1468,32 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await expect(page.locator('#submenu-custom .level2-mode-grid')).not.toContainText(
             'Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.'
         );
+    });
+
+    test('T20w2: Statische Menühilfen liegen am I und Statusfelder bleiben bestehen', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+
+        await expect(page.locator('#submenu-custom .level2-config-section > .section-title .menu-info-hint'))
+            .toHaveAttribute('title', 'Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.');
+        await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+        await expect(page.locator('.start-map-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
+        await expect(page.locator('.start-vehicle-preview-hint')).toHaveAttribute('title', 'Ziehen: drehen · Mausrad: zoomen');
+
+        await openLevel4Drawer(page, { section: 'tools' });
+        await expect(page.locator('#level4-section-tools .section-title .menu-info-hint')).toHaveAttribute(
+            'title',
+            'Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.'
+        );
+        await expect(page.locator('#level4-section-presets .section-title .menu-info-hint')).toHaveAttribute(
+            'title',
+            'Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.'
+        );
+        await expect(page.locator('#level4-section-utilities .section-title .menu-info-hint')).toHaveAttribute(
+            'title',
+            'Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.'
+        );
+        await expect(page.locator('#profile-transfer-status')).toHaveAttribute('role', 'status');
     });
 
     test('T20x: Moduskarte fuehrt direkt in Ebene 3', async ({ page }) => {

@@ -216,8 +216,6 @@ function buildArcadeSurface(level3Body, ui) {
     const masteryLine = createElement('p', 'arcade-surface-card-value');
     masteryLine.id = 'arcade-mastery-line';
     masteryCard.appendChild(masteryLine);
-    const masteryHint = createElement('p', 'menu-hint', t('menu.arcade.mastery.hint', 'Mastery-, Blueprint- und Lab-Hooks folgen in V45.3.'));
-    masteryCard.appendChild(masteryHint);
     cardGrid.appendChild(masteryCard);
 
     body.appendChild(cardGrid);

@@ -17,6 +17,14 @@ function button(className, text, title = '') {
     return node;
 }
 
+function infoHint(text, className = '') {
+    const node = el('span', `menu-info-hint ${className}`.trim(), 'i');
+    node.title = text;
+    node.setAttribute('role', 'img');
+    node.setAttribute('aria-label', text);
+    return node;
+}
+
 export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const mode = options.mode === 'fight' ? 'fight' : 'arcade';
     const container = el('section', 'arcade-surface-card arcade-vehicle-manager hangar-workshop-shell');
@@ -30,9 +38,9 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     heading.append(
         el('span', 'hangar-workshop-kicker', mode === 'fight' ? 'FIGHT ENGINEERING' : 'ARCADE OPERATIONS'),
         el('h3', 'arcade-surface-card-title hangar-workshop-title', 'Desktop Hangar'),
-        el('p', 'menu-hint hangar-workshop-subtitle', mode === 'fight'
+        infoHint(mode === 'fight'
             ? 'Faire Sidegrades bauen: Jeder Vorteil erzeugt einen Nachteil.'
-            : 'Universelle Steine einsetzen und den nächsten Run vorbereiten.')
+            : 'Universelle Steine einsetzen und den nächsten Run vorbereiten.', 'hangar-workshop-subtitle')
     );
     const saveState = el('div', 'hangar-save-state', 'Gespeichert');
     saveState.setAttribute('role', 'status');
@@ -136,7 +144,10 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     vehicleNextButton.setAttribute('aria-label', 'Nächstes Fahrzeug');
     previewStage.append(previewOverlay, vehiclePreviousButton, vehicleNextButton);
     const viewportFooter = el('div', 'hangar-viewport-footer');
-    viewportFooter.appendChild(el('p', 'menu-hint arcade-vehicle-preview-hint', 'Ziehen: drehen · Rad: zoomen · Rechtszug: verschieben · Esc: Drag abbrechen'));
+    viewportFooter.appendChild(infoHint(
+        'Ziehen: drehen · Rad: zoomen · Rechtszug: verschieben · Esc: Drag abbrechen',
+        'arcade-vehicle-preview-hint'
+    ));
     const pairLabel = el('label', 'hangar-pair-toggle');
     const pairToggle = document.createElement('input');
     pairToggle.type = 'checkbox';
@@ -239,7 +250,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions);
     buildScroll.append(
         detailHead, profileBox, comparePanel, slotsPanel, validationBox, historyBar, starterPanel, loadoutPanel,
-        el('p', 'menu-hint arcade-vehicle-shortcuts', 'Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln')
+        infoHint('Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln', 'arcade-vehicle-shortcuts')
     );
     const activationDock = el('div', 'hangar-activation-dock');
     activationDock.appendChild(activateButton);

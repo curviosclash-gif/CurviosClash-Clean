@@ -147,7 +147,9 @@
                                             aria-label="Nächste Karte">›</button>
                                         <button type="button" id="btn-map-view-reset" class="secondary-btn start-map-view-reset"
                                             aria-label="3D-Kartenansicht zurücksetzen">Ansicht zurücksetzen</button>
-                                        <p class="start-map-preview-hint">Ziehen: drehen · Mausrad: zoomen</p>
+                                        <span class="menu-info-hint start-map-preview-hint" role="img"
+                                            aria-label="Ziehen: drehen · Mausrad: zoomen"
+                                            title="Ziehen: drehen · Mausrad: zoomen">i</span>
                                     </div>
 
                                     <div class="start-map-details">
@@ -209,7 +211,9 @@
                                             aria-label="Nächstes Fahrzeug">›</button>
                                         <button type="button" id="btn-vehicle-view-reset" class="secondary-btn start-vehicle-view-reset"
                                             aria-label="3D-Ansicht zurücksetzen">Ansicht zurücksetzen</button>
-                                        <p class="start-vehicle-preview-hint">Ziehen: drehen · Mausrad: zoomen</p>
+                                        <span class="menu-info-hint start-vehicle-preview-hint" role="img"
+                                            aria-label="Ziehen: drehen · Mausrad: zoomen"
+                                            title="Ziehen: drehen · Mausrad: zoomen">i</span>
                                     </div>
 
                                     <div id="vehicle-preview-p1" class="start-vehicle-details" aria-live="polite">
@@ -655,8 +659,12 @@
                         <section id="level4-section-tools" class="level4-section-panel" data-level4-section="tools"
                             role="tabpanel" aria-labelledby="level4-tab-tools" aria-hidden="true">
                         <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.level4.tools.title">Profile</h2>
-                            <p class="menu-hint">Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.</p>
+                            <h2 class="section-title section-title-with-info"
+                                aria-description="Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.">
+                                <span data-menu-text-id="menu.level4.tools.title">Profile</span>
+                                <span class="menu-info-hint" aria-hidden="true"
+                                    title="Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.">i</span>
+                            </h2>
                             <label for="profile-name" data-menu-text-id="menu.level4.tools.profile_name.label">Profilname</label>
                             <input type="text" id="profile-name" maxlength="32" placeholder="z. B. Turnier">
                             <button type="button" id="btn-profile-save" class="secondary-btn secondary-btn-spaced"
@@ -705,8 +713,12 @@
                         <section id="level4-section-presets" class="level4-section-panel" data-level4-section="presets"
                             role="tabpanel" aria-labelledby="level4-tab-presets" aria-hidden="true">
                         <div class="menu-section">
-                            <h2 class="section-title">Presets</h2>
-                            <p class="menu-hint">Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.</p>
+                            <h2 class="section-title section-title-with-info"
+                                aria-description="Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.">
+                                Presets
+                                <span class="menu-info-hint" aria-hidden="true"
+                                    title="Wende vorbereitete Match-Konfigurationen an oder speichere eine neue Vorlage.">i</span>
+                            </h2>
                             <label for="preset-select" class="secondary-btn-spaced"
                                 data-menu-text-id="menu.level4.tools.preset_catalog.label">Preset-Katalog</label>
                             <select id="preset-select">
@@ -736,8 +748,12 @@
                         <section id="level4-section-utilities" class="level4-section-panel" data-level4-section="utilities"
                             role="tabpanel" aria-labelledby="level4-tab-utilities" aria-hidden="true">
                         <div class="menu-section">
-                            <h2 class="section-title">Werkzeuge</h2>
-                            <p class="menu-hint">Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.</p>
+                            <h2 class="section-title section-title-with-info"
+                                aria-description="Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.">
+                                Werkzeuge
+                                <span class="menu-info-hint" aria-hidden="true"
+                                    title="Öffne die Desktop-Editoren oder übertrage eine vollständige Konfiguration.">i</span>
+                            </h2>
                             <div class="btn-group secondary-btn-spaced">
                                 <button type="button" id="btn-open-editor" class="secondary-btn"
                                     data-menu-action="open-map-editor" data-menu-text-id="menu.level4.tools.map_editor.label">
@@ -819,28 +835,32 @@
                     </div>
                     <div class="submenu-body">
                         <div class="menu-section level2-config-section">
-                            <h2 class="section-title" data-menu-text-id="menu.level2.mode.title">Wie möchtest du spielen?</h2>
-                            <p class="menu-hint menu-copy-secondary" data-menu-text-id="menu.level2.mode.hint">Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.</p>
+                            <h2 class="section-title section-title-with-info"
+                                aria-description="Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.">
+                                <span data-menu-text-id="menu.level2.mode.title">Wie möchtest du spielen?</span>
+                                <span class="menu-info-hint" aria-hidden="true"
+                                    title="Wähle einen Spielstil. Karte, Flugzeug und Regeln kannst du danach noch anpassen.">i</span>
+                            </h2>
                             <div class="level2-mode-grid">
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="arcade"
                                     aria-description="Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.arcade.label">Arcade</span>
-                                    <span class="menu-choice-copy" aria-hidden="true"
+                                    <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
                                         title="Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.">i</span>
                                 </button>
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="fight"
                                     aria-description="Direkter Schlagabtausch mit Jagdmodus und schnellerem Tempo.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.fight.label">Kampf</span>
-                                    <span class="menu-choice-copy" aria-hidden="true"
+                                    <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
                                         title="Direkter Schlagabtausch mit Jagdmodus und schnellerem Tempo.">i</span>
                                 </button>
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="normal"
                                     aria-description="Der klassische Start mit freier Wahl von Karte, Flugzeug und Regeln.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.normal.label">Klassisch</span>
-                                    <span class="menu-choice-copy" aria-hidden="true"
+                                    <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
                                         title="Der klassische Start mit freier Wahl von Karte, Flugzeug und Regeln.">i</span>
                                 </button>
                             </div>
