@@ -38,6 +38,10 @@ const HEARTBEAT_INTERVAL = 4000;
 const STALE_TIMEOUT = 15000;
 const LOBBY_TIMEOUT = 30 * 60 * 1000;
 const RECONNECT_WINDOW_MS = 30_000;
+const MESSAGE_RATE_WINDOW_MS = 10_000;
+const MAX_MESSAGES_PER_SOCKET = 120;
+const MAX_MESSAGES_PER_IP = 600;
+const MAX_LOBBIES = 1_000;
 
 let nextPeerId = 1;
 
@@ -266,10 +270,14 @@ function findPeerWs(senderWs, targetPeerId) {
 
 export function createSignalingServer(port = 9090) {
     const wss = new WebSocketServer({ port });
+    const ipMessageRates = new Map();
 
-    wss.on('connection', (ws) => {
+    wss.on('connection', (ws, request) => {
         ws._peerId = `peer-${nextPeerId++}`;
         ws._lastPong = Date.now();
+        ws._messageWindowStartedAt = Date.now();
+        ws._messageCount = 0;
+        ws._remoteAddress = String(request?.socket?.remoteAddress || 'unknown');
         ws.isAlive = true;
 
         ws.on('pong', () => {
@@ -284,6 +292,24 @@ export function createSignalingServer(port = 9090) {
         });
 
         ws.on('message', (raw) => {
+            const timestamp = Date.now();
+            if (timestamp - ws._messageWindowStartedAt >= MESSAGE_RATE_WINDOW_MS) {
+                ws._messageWindowStartedAt = timestamp;
+                ws._messageCount = 0;
+            }
+            let ipRate = ipMessageRates.get(ws._remoteAddress);
+            if (!ipRate || timestamp - ipRate.windowStartedAt >= MESSAGE_RATE_WINDOW_MS) {
+                ipRate = { windowStartedAt: timestamp, count: 0 };
+                ipMessageRates.set(ws._remoteAddress, ipRate);
+            }
+            ws._messageCount += 1;
+            ipRate.count += 1;
+            if (ws._messageCount > MAX_MESSAGES_PER_SOCKET || ipRate.count > MAX_MESSAGES_PER_IP) {
+                sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Rate limit exceeded' });
+                ws.close(1008, 'rate_limit_exceeded');
+                return;
+            }
+
             let parsed;
             try {
                 parsed = JSON.parse(raw);
@@ -296,6 +322,10 @@ export function createSignalingServer(port = 9090) {
 
             switch (envelope.type) {
             case SIGNALING_COMMAND_TYPES.CREATE_LOBBY: {
+                if (lobbies.size >= MAX_LOBBIES) {
+                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby capacity reached' });
+                    break;
+                }
                 const code = generateLobbyCode();
                 const maxPlayers = Math.min(Math.max(msg.maxPlayers || 10, 2), 10);
                 const createdAt = Date.now();
@@ -603,6 +633,11 @@ export function createSignalingServer(port = 9090) {
         });
 
         const now = Date.now();
+        for (const [address, rate] of ipMessageRates.entries()) {
+            if (now - rate.windowStartedAt >= MESSAGE_RATE_WINDOW_MS) {
+                ipMessageRates.delete(address);
+            }
+        }
         for (const [leaseKey, lease] of reconnectLeases.entries()) {
             if (Number(lease?.expiresAt || 0) <= now) {
                 reconnectLeases.delete(leaseKey);

@@ -44,13 +44,44 @@ function generateAccessToken(prefix = 'tok') {
     return `${prefix}-${crypto.randomBytes(16).toString('hex')}`;
 }
 
+function resolveCorsOrigin(req) {
+    const origin = String(req.headers.origin || '').trim();
+    if (!origin) return '';
+    try {
+        const { protocol, hostname: rawHostname } = new URL(origin);
+        const hostname = rawHostname.replace(/^\[|\]$/g, '').toLowerCase();
+        const octets = hostname.split('.').map(Number);
+        const isPrivateIpv4 = octets.length === 4 && octets.every(Number.isInteger) && (
+            octets[0] === 10
+            || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
+            || (octets[0] === 192 && octets[1] === 168)
+            || (octets[0] === 169 && octets[1] === 254)
+            || octets[0] === 127
+        );
+        const isPrivateIpv6 = hostname === '::1'
+            || hostname.startsWith('fc')
+            || hostname.startsWith('fd')
+            || hostname.startsWith('fe80:');
+        return (protocol === 'http:' || protocol === 'https:')
+            && (hostname === 'localhost' || isPrivateIpv4 || isPrivateIpv6)
+            ? origin
+            : null;
+    } catch {
+        return null;
+    }
+}
+
 function jsonResponse(res, data, status = 200) {
-    res.writeHead(status, {
+    const headers = {
         'Content-Type': 'application/json',
-        'Access-Control-Allow-Origin': '*',
         'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
         'Access-Control-Allow-Headers': 'Content-Type',
-    });
+    };
+    if (res.corsOrigin) {
+        headers['Access-Control-Allow-Origin'] = res.corsOrigin;
+        headers.Vary = 'Origin';
+    }
+    res.writeHead(status, headers);
     res.end(JSON.stringify({
         contractVersion: SIGNALING_SESSION_CONTRACT_VERSION,
         ...data,
@@ -263,6 +294,13 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         : null;
 
     const server = http.createServer(async (req, res) => {
+        const corsOrigin = resolveCorsOrigin(req);
+        if (corsOrigin === null) {
+            jsonResponse(res, { ok: false, message: 'origin_not_allowed' }, 403);
+            return;
+        }
+        res.corsOrigin = corsOrigin;
+
         if (req.method === 'OPTIONS') {
             jsonResponse(res, {});
             return;
@@ -467,10 +505,15 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         }
 
         if (req.method === 'GET' && path === SIGNALING_HTTP_ROUTES.LOBBY_STATUS) {
+            const playerId = toPlayerId(url.searchParams.get('playerId'));
+            if (!isAuthorizedSignalingActor(playerId, url.searchParams.get('token'))) {
+                jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
+                return;
+            }
             // The periodic lobby status poll is the liveness signal of menu
             // clients — without this touch, idle players were ghost-cleaned
             // after 60s even though they were still connected and polling.
-            touchPlayerActivity(url.searchParams.get('playerId'));
+            touchPlayerActivity(playerId);
             cleanupGhostPlayers();
             const pending = lobby.pendingPlayers.map((entry) => ({ playerId: entry.playerId }));
             const lobbyState = buildLobbyState(lobby);
@@ -765,14 +808,14 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             cleanupGhostPlayers();
             const diagnostics = resolveDiagnostics ? resolveDiagnostics() : null;
             const hostIp = String(diagnostics?.hostIp || diagnostics?.localIps?.[0] || '').trim();
+            const requestedLobbyCode = normalizeLobbyCode(url.searchParams.get('lobbyCode'));
             jsonResponse(res, {
-                lobbyCode: lobby.code,
+                matchesLobby: requestedLobbyCode !== '' && requestedLobbyCode === normalizeLobbyCode(lobby.code),
                 playerCount: lobby.players.length,
                 maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
                 ip: hostIp || undefined,
                 hostIp: hostIp || undefined,
                 diagnostics,
-                sessionState: buildLobbyState(lobby),
             });
             return;
         }

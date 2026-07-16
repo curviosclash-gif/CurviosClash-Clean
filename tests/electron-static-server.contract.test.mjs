@@ -20,10 +20,14 @@ test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
         const connectSrc = csp.split(';').find((part) => part.trim().startsWith('connect-src')) || '';
 
         assert.match(csp, /connect-src[^;]*'self'/);
-        assert.match(csp, /connect-src[^;]*http:/);
-        assert.match(csp, /connect-src[^;]*ws:/);
-        assert.match(csp, /connect-src[^;]*wss:/);
-        assert.ok(connectSrc.includes('http:'), 'connect-src keeps localhost/127.0.0.1/LAN-IP HTTP signaling URLs allowed');
+        assert.match(connectSrc, /http:\/\/\*:\*/);
+        assert.match(connectSrc, /ws:\/\/\*:\*/);
+        assert.match(connectSrc, /wss:\/\/\*:\*/);
+        assert.equal(connectSrc.trim().split(/\s+/).includes('http:'), false);
+        assert.equal(connectSrc.trim().split(/\s+/).includes('ws:'), false);
+        assert.equal(connectSrc.trim().split(/\s+/).includes('wss:'), false);
+        assert.match(csp, /frame-src 'none'/);
+        assert.match(csp, /form-action 'none'/);
     } finally {
         await server?.close?.();
         await rm(rootDir, { recursive: true, force: true });

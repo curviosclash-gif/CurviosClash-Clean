@@ -502,6 +502,10 @@ async function createWindow() {
         },
     });
 
+    mainWindow.webContents.on('will-navigate', (event) => {
+        event.preventDefault();
+    });
+    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));
     await mainWindow.loadURL(appServer.url);
     mainWindow.on('closed', () => {
         mainWindow = null;

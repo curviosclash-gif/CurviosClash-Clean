@@ -293,11 +293,10 @@ export class LANMatchLobby extends MatchLobby {
             this._pollingAbortController?.abort();
         }, this._pollTimeoutMs);
         try {
-            // playerId identifies this poll as a liveness signal — without it the
-            // server ghost-cleans idle menu clients after 60s.
-            const statusParams = this._localPeerId && this._localPeerId !== 'host'
-                ? `?${new URLSearchParams({ playerId: this._localPeerId }).toString()}`
-                : '';
+            const statusParams = `?${new URLSearchParams({
+                playerId: this._localPeerId,
+                token: this._localPeerToken,
+            }).toString()}`;
             const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_STATUS}${statusParams}`, {
                 signal: this._pollingAbortController.signal,
             });

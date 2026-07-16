@@ -456,7 +456,11 @@ test.describe('V67-67.3: State and server cleanup hardening', () => {
             await new Promise((resolve) => setTimeout(resolve, 80));
             lanServer.cleanupGhostPlayers();
 
-            const statusResponse = await fetch(`${lanServer.baseUrl}/lobby/status`);
+            const statusParams = new URLSearchParams({
+                playerId: 'host',
+                token: lanServer.lobby.hostToken,
+            });
+            const statusResponse = await fetch(`${lanServer.baseUrl}/lobby/status?${statusParams}`);
             const statusData = await statusResponse.json();
             expect(Array.isArray(statusData.players)).toBe(true);
             expect(statusData.players.length).toBe(0);

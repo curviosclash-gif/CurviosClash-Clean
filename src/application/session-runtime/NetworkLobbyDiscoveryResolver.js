@@ -57,12 +57,13 @@ async function validateDiscoveredHost(host, lobbyCode, options = {}) {
         : null;
     const candidateUrl = `http://${normalizedHost.ip}:${normalizedHost.port}`;
     try {
-        const response = await fetchImpl(`${candidateUrl}/discovery/info`, controller ? { signal: controller.signal } : undefined);
+        const discoveryUrl = `${candidateUrl}/discovery/info?${new URLSearchParams({ lobbyCode }).toString()}`;
+        const response = await fetchImpl(discoveryUrl, controller ? { signal: controller.signal } : undefined);
         if (!response?.ok) {
             return null;
         }
         const payload = await response.json();
-        if (normalizeLobbyCode(payload?.lobbyCode, '') !== lobbyCode) {
+        if (payload?.matchesLobby !== true) {
             return null;
         }
         const diagnosticsPort = normalizeHostPort(payload?.diagnostics?.selectedPort, 0);

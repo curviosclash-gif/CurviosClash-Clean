@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 
 import { WebSocket } from 'ws';
@@ -57,6 +58,13 @@ async function createClient(url) {
             });
         },
     };
+}
+
+function waitForClose(socket) {
+    return new Promise((resolve) => {
+        socket.once('error', () => {});
+        socket.once('close', (code, reason) => resolve({ code, reason: reason.toString() }));
+    });
 }
 
 async function createTestServer() {
@@ -213,6 +221,31 @@ test('leave and lobby cleanup invalidate issued session tokens', async () => {
     } finally {
         await closeTestServer(wss);
     }
+});
+
+test('online signaling bounds per-socket message rate', async () => {
+    const { wss, url } = await createTestServer();
+    try {
+        const flooding = new WebSocket(url);
+        await once(flooding, 'open');
+        const floodingClosed = waitForClose(flooding);
+        for (let index = 0; index <= 120; index += 1) {
+            flooding.send('{}');
+        }
+        const floodResult = await floodingClosed;
+        assert.equal(floodResult.code, 1008);
+        assert.equal(floodResult.reason, 'rate_limit_exceeded');
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
+test('online signaling declares IP message and global lobby resource ceilings', () => {
+    const source = readFileSync(new URL('../server/signaling-server.js', import.meta.url), 'utf8');
+    assert.match(source, /const MAX_MESSAGES_PER_IP = \d[\d_]*;/);
+    assert.match(source, /ipRate\.count > MAX_MESSAGES_PER_IP/);
+    assert.match(source, /const MAX_LOBBIES = \d[\d_]*;/);
+    assert.match(source, /lobbies\.size >= MAX_LOBBIES/);
 });
 
 test('OnlineSessionAdapter retains the server token and sends it on resume', async () => {

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createLANSignalingServer } from '../server/lan-signaling.js';
+import { selectJoinSignalingUrlFromDiscoveredHosts } from '../src/application/session-runtime/NetworkLobbyDiscoveryResolver.js';
 
 async function startLanServer(options = {}) {
     const bundle = createLANSignalingServer(0, options);
@@ -46,6 +47,68 @@ async function postRaw(baseUrl, path, rawBody) {
         payload,
     };
 }
+
+function statusUrl(baseUrl, playerId, token) {
+    return `${baseUrl}/lobby/status?${new URLSearchParams({ playerId, token })}`;
+}
+
+test('LAN discovery hides join data, status requires a token, and CORS rejects public origins', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 3 });
+        const lobbyCode = String(created.payload?.lobbyCode || '');
+        const hostToken = String(created.payload?.hostToken || '');
+
+        const discoveryResponse = await fetch(`${lanServer.baseUrl}/discovery/info`);
+        const discovery = await discoveryResponse.json();
+        assert.equal(discovery.matchesLobby, false);
+        assert.equal('lobbyCode' in discovery, false);
+        assert.equal('sessionState' in discovery, false);
+
+        const matchingDiscovery = await (
+            await fetch(`${lanServer.baseUrl}/discovery/info?${new URLSearchParams({ lobbyCode })}`)
+        ).json();
+        assert.equal(matchingDiscovery.matchesLobby, true);
+        assert.equal('lobbyCode' in matchingDiscovery, false);
+        const port = Number(new URL(lanServer.baseUrl).port);
+        const resolvedDiscovery = await selectJoinSignalingUrlFromDiscoveredHosts({
+            lobbyCode,
+            hosts: [{ ip: '127.0.0.1', port, lobbyCode, lastSeen: Date.now() }],
+        });
+        assert.equal(resolvedDiscovery.signalingUrl, lanServer.baseUrl);
+
+        const unauthenticatedStatus = await fetch(`${lanServer.baseUrl}/lobby/status`);
+        assert.equal(unauthenticatedStatus.status, 403);
+        const authenticatedStatus = await fetch(statusUrl(lanServer.baseUrl, 'host', hostToken));
+        assert.equal(authenticatedStatus.status, 200);
+
+        const blockedJoin = await fetch(`${lanServer.baseUrl}/lobby/join`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'text/plain',
+                Origin: 'https://attacker.example',
+            },
+            body: JSON.stringify({ lobbyCode }),
+        });
+        assert.equal(blockedJoin.status, 403);
+        assert.equal(blockedJoin.headers.get('access-control-allow-origin'), null);
+
+        const allowedOrigin = 'http://127.0.0.1:5173';
+        const allowedJoin = await fetch(`${lanServer.baseUrl}/lobby/join`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                Origin: allowedOrigin,
+            },
+            body: JSON.stringify({ lobbyCode }),
+        });
+        assert.equal(allowedJoin.status, 200);
+        assert.equal(allowedJoin.headers.get('access-control-allow-origin'), allowedOrigin);
+        assert.notEqual(allowedJoin.headers.get('access-control-allow-origin'), '*');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
 
 test('LAN signaling enforces maxPlayers on join requests', async () => {
     const lanServer = await startLanServer();
@@ -257,6 +320,7 @@ test('LAN signaling counts the status poll as liveness and offers rejoin leases 
     });
     try {
         const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 4 });
+        const hostToken = String(created.payload?.hostToken || '');
         const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
             lobbyCode: created.payload?.lobbyCode || '',
         });
@@ -265,17 +329,17 @@ test('LAN signaling counts the status poll as liveness and offers rejoin leases 
 
         // Player idles past the ghost timeout, but keeps polling the status route.
         currentTime += 900;
-        const polled = await fetch(`${lanServer.baseUrl}/lobby/status?playerId=${playerId}`);
+        const polled = await fetch(statusUrl(lanServer.baseUrl, playerId, playerToken));
         assert.equal(polled.status, 200);
         currentTime += 900;
         lanServer.cleanupGhostPlayers();
-        const statusAfterPoll = await (await fetch(`${lanServer.baseUrl}/lobby/status`)).json();
+        const statusAfterPoll = await (await fetch(statusUrl(lanServer.baseUrl, 'host', hostToken))).json();
         assert.equal(statusAfterPoll.players.length, 1, 'status poll must count as liveness');
 
         // Without any liveness signal the player is ghost-cleaned...
         currentTime += 2_000;
         lanServer.cleanupGhostPlayers();
-        const statusAfterGhost = await (await fetch(`${lanServer.baseUrl}/lobby/status`)).json();
+        const statusAfterGhost = await (await fetch(statusUrl(lanServer.baseUrl, 'host', hostToken))).json();
         assert.equal(statusAfterGhost.players.length, 0);
 
         // ...but can rejoin with the SAME playerId via the reconnect lease.
@@ -291,7 +355,7 @@ test('LAN signaling counts the status poll as liveness and offers rejoin leases 
         });
         assert.equal(rejoined.ok, true);
         assert.equal(rejoined.payload?.playerId, playerId);
-        const statusAfterRejoin = await (await fetch(`${lanServer.baseUrl}/lobby/status`)).json();
+        const statusAfterRejoin = await (await fetch(statusUrl(lanServer.baseUrl, playerId, playerToken))).json();
         assert.equal(statusAfterRejoin.players.length, 1);
         assert.deepEqual(statusAfterRejoin.pendingPlayers, [{ playerId }]);
     } finally {

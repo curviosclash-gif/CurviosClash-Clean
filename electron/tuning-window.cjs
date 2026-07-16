@@ -178,6 +178,10 @@ function createTuningWindowController({
             onWindowClosed?.();
         });
 
+        tuningWindow.webContents?.on?.('will-navigate', (event) => {
+            event.preventDefault();
+        });
+        tuningWindow.webContents?.setWindowOpenHandler?.(() => ({ action: 'deny' }));
         const windowRef = tuningWindow;
         if (existsSync(htmlPath)) {
             try {

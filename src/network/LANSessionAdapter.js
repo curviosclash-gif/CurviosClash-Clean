@@ -254,7 +254,11 @@ export class LANSessionAdapter extends SessionAdapterBase {
                         this._pollAbortController?.abort();
                     }, HOST_STATUS_POLL_TIMEOUT_MS);
                     try {
-                        const res = await fetch(`${this._signalingUrl}/lobby/status`, {
+                        const statusParams = new URLSearchParams({
+                            playerId: 'host',
+                            token: this._peerToken,
+                        });
+                        const res = await fetch(`${this._signalingUrl}/lobby/status?${statusParams}`, {
                             signal: this._pollAbortController.signal,
                         });
                         if (res?.ok === false) {

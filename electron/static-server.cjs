@@ -38,11 +38,13 @@ const CSP_HEADER = [
     "script-src 'self' 'unsafe-inline'",
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: blob:",
-    "connect-src 'self' http: ws: wss:",
+    "connect-src 'self' http://*:* ws://*:* wss://*:*",
     "media-src 'self' blob:",
     "font-src 'self' data:",
     "object-src 'none'",
     "base-uri 'self'",
+    "frame-src 'none'",
+    "form-action 'none'",
 ].join('; ');
 
 function createStaticRequestHandler(rootDir) {

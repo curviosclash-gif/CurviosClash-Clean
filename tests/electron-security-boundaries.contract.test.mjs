@@ -18,6 +18,18 @@ test('every Electron window explicitly isolates its renderer from Node.js', () =
         assert.match(source, /nodeIntegration:\s*false/);
     }
 });
+test('main and auxiliary game windows deny renderer navigation and popups', () => {
+    for (const relativePath of [
+        '../electron/main.cjs',
+        '../electron/tuning-window.cjs',
+        '../electron/hangar-window.cjs',
+    ]) {
+        const source = readSource(relativePath);
+        assert.match(source, /webContents(?:\?\.|\.)on(?:\?\.)?\('will-navigate',[\s\S]*event\.preventDefault\(\)/);
+        assert.match(source, /webContents(?:\?\.|\.)setWindowOpenHandler(?:\?\.)?\(\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\)\)/);
+    }
+});
+
 
 test('desktop capability IPC remains bound to the owning window main frame', () => {
     const source = readSource('../electron/main.cjs');
