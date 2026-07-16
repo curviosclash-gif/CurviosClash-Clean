@@ -276,7 +276,7 @@ export class MenuNavigationRuntime {
         this.onPanelChanged?.(panelId, panelConfig || null, transition, metadata && typeof metadata === 'object' ? { ...metadata } : null);
         this.onMenuStateChanged?.(transition);
 
-        const callbackFocusTarget = document.activeElement;
+        const callbackFocusTarget = targetPanel.ownerDocument?.activeElement || null;
         if (!targetPanel.contains?.(callbackFocusTarget)) {
             const [focusTarget] = getFocusableElements(targetPanel);
             focusWithoutScroll(focusTarget);

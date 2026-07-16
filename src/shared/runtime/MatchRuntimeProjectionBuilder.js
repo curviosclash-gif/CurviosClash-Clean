@@ -1,9 +1,13 @@
 import * as THREE from 'three';
 import { GAME_STATE_IDS } from '../contracts/GameStateIds.js';
-import { resolveGameplayConfig } from '../contracts/GameplayConfigContract.js';
+import {
+    CONFIG_SECTIONS,
+    getGameplayConfigSection,
+} from '../contracts/GameplayConfigContract.js';
 import { createMatchRuntimeProjection } from '../contracts/MatchRuntimeProjectionContract.js';
 
 const TMP_AIM_DIRECTION = new THREE.Vector3();
+const TMP_CONFIG_SOURCE = { config: null, entityRuntimeConfig: null };
 
 function toVector3Projection(value = null) {
     return {
@@ -85,12 +89,13 @@ function buildTraversalProjection(entityManager, playerIndex) {
 
 function buildPlayerHudProjection({ runtimeState, game, entityManager, player }) {
     if (!player) return null;
-    const gameplayConfig = resolveGameplayConfig({
-        config: runtimeState?.config || game?.config || null,
-        entityRuntimeConfig: player?.entityRuntimeConfig || null,
-    });
-    const playerConfig = gameplayConfig?.PLAYER || {};
-    const cameraModeId = gameplayConfig?.CAMERA?.MODES?.[player?.cameraMode] || 'THIRD_PERSON';
+    const configSource = TMP_CONFIG_SOURCE;
+    configSource.config = runtimeState?.config || game?.config || null;
+    configSource.entityRuntimeConfig = player?.entityRuntimeConfig || player?.gameplayConfig || null;
+    const playerConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.PLAYER);
+    const cameraConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.CAMERA);
+    const gameplayConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.GAMEPLAY);
+    const cameraModeId = cameraConfig?.MODES?.[player?.cameraMode] || 'THIRD_PERSON';
     const aimDirection = typeof player?.getAimDirection === 'function'
         ? player.getAimDirection(TMP_AIM_DIRECTION)
         : null;
@@ -116,7 +121,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
         itemUseCooldownRemaining: Math.max(0, Number(player?.itemUseCooldownRemaining) || 0),
         shootCooldown: Math.max(0, Number(player?.shootCooldown) || 0),
-        planarMode: gameplayConfig?.GAMEPLAY?.PLANAR_MODE === true,
+        planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         traversal: buildTraversalProjection(entityManager, player?.index),
     };

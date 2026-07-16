@@ -257,6 +257,8 @@ export class TouchInputSource extends PlayerInputSource {
     }
 
     _getMatchRuntimeProjection() {
+        const cached = this._game?.playingStateSystem?.getMatchRuntimeProjection?.();
+        if (cached && typeof cached === 'object') return cached;
         const projected = this._getRuntimeProjection?.();
         if (projected && typeof projected === 'object') {
             return projected;

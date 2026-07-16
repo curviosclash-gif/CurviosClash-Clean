@@ -1,11 +1,15 @@
 import * as THREE from 'three';
 import { createMatchRenderProjection } from '../contracts/MatchRenderProjectionContract.js';
-import { resolveGameplayConfig } from '../contracts/GameplayConfigContract.js';
+import {
+    CONFIG_SECTIONS,
+    getGameplayConfigSection,
+} from '../contracts/GameplayConfigContract.js';
 
 const TMP_RENDER_POSITION = new THREE.Vector3();
 const TMP_RENDER_QUATERNION = new THREE.Quaternion();
 const TMP_RENDER_DIRECTION = new THREE.Vector3();
 const TMP_FIRST_PERSON_ANCHOR = new THREE.Vector3();
+const TMP_CONFIG_SOURCE = { config: null, entityRuntimeConfig: null };
 
 function toVector3Projection(value = null) {
     return {
@@ -104,12 +108,13 @@ function copyPlayerRenderTransform(player, renderAlpha = 1) {
 function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha = 1 }) {
     if (!player) return null;
 
-    const gameplayConfig = resolveGameplayConfig({
-        config: runtimeState?.config || game?.config || null,
-        entityRuntimeConfig: player?.entityRuntimeConfig || null,
-    });
-    const playerConfig = gameplayConfig?.PLAYER || {};
-    const cameraModeId = gameplayConfig?.CAMERA?.MODES?.[player?.cameraMode] || 'THIRD_PERSON';
+    const configSource = TMP_CONFIG_SOURCE;
+    configSource.config = runtimeState?.config || game?.config || null;
+    configSource.entityRuntimeConfig = player?.entityRuntimeConfig || player?.gameplayConfig || null;
+    const playerConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.PLAYER);
+    const cameraConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.CAMERA);
+    const gameplayConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.GAMEPLAY);
+    const cameraModeId = cameraConfig?.MODES?.[player?.cameraMode] || 'THIRD_PERSON';
     const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
     const renderTransform = copyPlayerRenderTransform(player, renderAlpha);
 
@@ -126,7 +131,7 @@ function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha =
         hp: Math.max(0, Number(player?.hp) || 0),
         maxHp: Math.max(1, Number(player?.maxHp) || 1),
         cockpitCamera: player?.cockpitCamera === true,
-        planarMode: gameplayConfig?.GAMEPLAY?.PLANAR_MODE === true,
+        planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         position: renderTransform.position,
         quaternion: renderTransform.quaternion,

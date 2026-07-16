@@ -77,9 +77,7 @@ function resolveRendererManualChunk(id) {
         normalizedId.includes('/config/maps/presets/')) {
         return 'map-presets';
     }
-    if (normalizedId.includes('/menu/MenuTelemetryDashboard') ||
-        normalizedId.includes('/menu/MenuTelemetryStore') ||
-        normalizedId.includes('/state/TelemetryHistoryStore')) {
+    if (normalizedId.includes('/menu/MenuTelemetryDashboard')) {
         return 'developer-ui';
     }
 
