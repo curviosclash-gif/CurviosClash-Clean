@@ -74,7 +74,9 @@ export function createClipboardPayloadFromObject(editor, object) {
     const payload = {
         ...object.userData,
         sourcePos: object.position.clone(),
-        rotateY: object.rotation.y || 0
+        rotateX: object.rotation.x || 0,
+        rotateY: object.rotation.y || 0,
+        rotateZ: object.rotation.z || 0
     };
     delete payload.id;
     delete payload.editorObjectId;

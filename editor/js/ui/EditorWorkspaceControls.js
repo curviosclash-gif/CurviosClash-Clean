@@ -15,7 +15,7 @@ const OUTLINER_OVERSCAN = 5;
 
 const TYPE_LABELS = Object.freeze({
     hard: 'Hartblock', foam: 'Schaumblock', tunnel: 'Tunnel', portal: 'Portal',
-    spawn: 'Spawn', item: 'Pickup', aircraft: 'Flugobjekt', checkpoint: 'Parcours',
+    spawn: 'Spawn', item: 'Pickup', aircraft: 'Flugobjekt', glb: 'GLB-Modell', checkpoint: 'Parcours',
 });
 
 function listObjects(editor) {
@@ -495,6 +495,7 @@ export function bindEditorWorkspaceControls(editor) {
                 u.radius = (Number(u.radius) || Number(u.sizeInfo) || 1) * scale;
                 u.sizeInfo = (Number(u.sizeInfo) || Number(u.radius) || 1) * scale;
             } else if (u.type === 'aircraft') u.modelScale = (Number(u.modelScale) || 50) * scale;
+            else if (u.type === 'glb') u.targetSize = (Number(u.targetSize) || 14) * scale;
             editor.mapManager.notifyObjectMutated(object, { workspace: false });
         }
     };

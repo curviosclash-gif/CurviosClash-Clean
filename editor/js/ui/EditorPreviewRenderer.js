@@ -77,7 +77,8 @@ export function createEditorBuildPreviewCache(entries, assetLoader) {
         const center = new THREE.Vector3();
         for (const entry of entries) {
             const assetId = resolveEditorBuildEntryAssetId(entry);
-            let object = assetId ? assetLoader?.getClone?.(assetId) : null;
+            const assetStatus = assetId ? assetLoader?.getLoadStatus?.(assetId) : null;
+            let object = assetId && assetStatus?.state === 'loaded' ? assetLoader?.getClone?.(assetId) : null;
             if (object && !hasFinitePreviewGeometry(object)) object = null;
             if (!object) object = createFallbackPreviewObject(entry);
             box.setFromObject(object);

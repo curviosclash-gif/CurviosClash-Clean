@@ -98,9 +98,9 @@ export function showPropertyPanelView(editor, obj) {
     } else if (u.type === 'tunnel' || u.type === 'portal') {
         if (propSizeRow) propSizeRow.style.display = "grid";
         writePropertyFieldValue(editor, 'size', u.radius || u.sizeInfo);
-    } else if (u.type === 'aircraft') {
+    } else if (u.type === 'aircraft' || u.type === 'glb') {
         if (propScaleRow) propScaleRow.style.display = "grid";
-        writePropertyFieldValue(editor, 'scale', u.modelScale || 50);
+        writePropertyFieldValue(editor, 'scale', u.type === 'glb' ? (u.targetSize || 14) : (u.modelScale || 50));
     }
 }
 

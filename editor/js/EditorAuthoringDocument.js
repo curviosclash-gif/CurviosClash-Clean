@@ -16,7 +16,7 @@ export function getDefaultEditorLayerId(type) {
     if (type === 'spawn') return 'spawns';
     if (type === 'portal') return 'portals';
     if (type === 'item') return 'pickups';
-    if (type === 'aircraft') return 'decoration';
+    if (type === 'aircraft' || type === 'glb') return 'decoration';
     return 'gameplay';
 }
 

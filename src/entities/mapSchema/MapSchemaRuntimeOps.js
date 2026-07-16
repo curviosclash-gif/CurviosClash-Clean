@@ -260,6 +260,15 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         rotateY: Number(entry.rotateY) || 0,
     }));
 
+    const glbModels = normalized.glbModels.map((entry) => ({
+        id: entry.id,
+        url: entry.url,
+        position: entry.position.map((value) => value * invScale),
+        rotation: [...entry.rotation],
+        scale: asPositiveNumber(entry.scale, 1, 0.0001) * invScale,
+        targetSize: Number(entry.targetSize) > 0 ? entry.targetSize * invScale : 0,
+    }));
+
     const playerSpawn = normalized.playerSpawn
         ? {
             id: normalized.playerSpawn.id,
@@ -321,6 +330,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             items,
             aircraft,
             glbModel: typeof normalized.glbModel === 'string' ? normalized.glbModel : undefined,
+            glbModels,
             glbColliderMode: typeof normalized.glbColliderMode === 'string' ? normalized.glbColliderMode : undefined,
             parcours,
         },

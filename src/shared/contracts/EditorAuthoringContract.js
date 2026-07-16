@@ -10,6 +10,7 @@ export const EDITOR_OBJECT_TYPES = Object.freeze({
     SPAWN: 'spawn',
     ITEM: 'item',
     AIRCRAFT: 'aircraft',
+    GLB: 'glb',
     TUNNEL: 'tunnel',
     CHECKPOINT: 'checkpoint',
 });

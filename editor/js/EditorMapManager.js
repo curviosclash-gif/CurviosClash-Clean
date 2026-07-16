@@ -27,6 +27,9 @@ export class EditorMapManager {
 
         this.setCallbacks(options?.callbacks || options);
         this.setupPrimitives();
+        this.assetLoader?.setCloneHydrationHandler?.((target, replacement) => {
+            this.hydrateAssetClone(target, replacement);
+        });
     }
 
     setCallbacks(callbacks = {}) {
@@ -252,6 +255,30 @@ export class EditorMapManager {
                 material.dispose?.();
             }
         });
+    }
+
+    hydrateAssetClone(target, replacement) {
+        const rootObject = this.resolveManagedObject(target);
+        if (!rootObject || rootObject !== target) {
+            this.disposeObjectResources(replacement);
+            return false;
+        }
+
+        const userData = { ...target.userData };
+        this.disposeObjectResources(target);
+        target.clear();
+        while (replacement.children.length > 0) {
+            target.add(replacement.children[0]);
+        }
+        target.userData = {
+            ...userData,
+            ...replacement.userData,
+            isEditorPlaceholder: false,
+        };
+        this.attachSelectionOutlines(target);
+        this.markManagedHierarchy(target, target.userData.id);
+        this.notifyObjectMutated(target);
+        return true;
     }
 
     removeObject(object, { updateUi = true } = {}) {

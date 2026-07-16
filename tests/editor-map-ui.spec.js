@@ -160,6 +160,29 @@ test.describe('V65: Editor Build Dock', () => {
         expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
     });
 
+    test('GLB-Katalog laedt ein Modell bei Bedarf und exportiert seine Platzierung', async ({ page }) => {
+        const errors = collectErrors(page);
+        await loadEditorPage(page);
+
+        await activateDockEntry(page, 'glb', 'glb-pm-abm-altar01-art');
+        await clickCanvas(page, 0.5);
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.getState().objects.at(-1)?.type)).toBe('glb');
+        await expect.poll(() => page.evaluate(() => (
+            window.CURVIOS_EDITOR.core.objectsContainer.children.at(-1)?.userData?.isEditorPlaceholder
+        )), { timeout: 30_000 }).toBe(false);
+
+        await page.locator('#btnExport').click();
+        const exported = JSON.parse(await page.locator('#jsonOutput').inputValue());
+        expect(exported.glbModels).toHaveLength(1);
+        expect(exported.glbModels[0]).toMatchObject({
+            id: expect.stringContaining('pm-abm/Altar01_Art#'),
+            url: 'assets/models/downloaded_cc0/pm-abm/Altar01_Art.glb',
+            targetSize: 14,
+        });
+        expect(exported.glbColliderMode).toBe('fallbackOnly');
+        expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
+    });
+
     test('T65d: Save/Export/Playtest bleiben ueber den Dock-Flow stabil nutzbar', async ({ page }) => {
         const errors = collectErrors(page);
         await loadEditorPage(page);

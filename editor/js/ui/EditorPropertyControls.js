@@ -85,14 +85,15 @@ export function bindEditorPropertyControls(editor) {
     dom.propHeight?.addEventListener('change', updateBoxScale);
 
     dom.propScale?.addEventListener('change', () => {
-        editor.executeHistoryMutation('Scale aircraft', () => {
+        editor.executeHistoryMutation('Scale model', () => {
             const selected = editor.selectedObject;
             if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
-            if (selected.userData.type !== 'aircraft') return;
+            if (selected.userData.type !== 'aircraft' && selected.userData.type !== 'glb') return;
 
-            const s = readPropertyFieldNumber(editor, 'scale', selected.userData.modelScale || 0);
+            const scaleField = selected.userData.type === 'glb' ? 'targetSize' : 'modelScale';
+            const s = readPropertyFieldNumber(editor, 'scale', selected.userData[scaleField] || 0);
             if (s > 0) {
-                selected.userData.modelScale = s;
+                selected.userData[scaleField] = s;
                 selected.scale.set(s, s, s);
                 editor.mapManager?.notifyObjectMutated?.(selected);
             }

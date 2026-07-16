@@ -1,5 +1,6 @@
 import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
 import { getPickupDefinition, normalizePickupType } from '../PickupRegistry.js';
+import { sanitizeGLBModels } from './MapSchemaGlbOps.js';
 
 export function asFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -536,6 +537,7 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
         gates: sanitizeGateList(rawMap.gates, { warnings }),
         items,
         aircraft: asArray(rawMap.aircraft).map((entry) => sanitizeAircraft(entry)),
+        glbModels: sanitizeGLBModels(rawMap.glbModels),
         botSpawns: asArray(rawMap.botSpawns).map((entry) => sanitizeVector3(entry, { x: 0, y: playerSpawnDefault.y, z: 0 })),
         playerSpawn: sanitizeVector3(rawMap.playerSpawn, playerSpawnDefault),
         preferAuthoredPortals: rawMap.preferAuthoredPortals === true,
@@ -551,9 +553,7 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
     }, 'glbModel', rawMap.glbModel);
 
     const glbColliderMode = normalizeGlbColliderMode(rawMap.glbColliderMode);
-    if (glbColliderMode) {
-        normalized.glbColliderMode = glbColliderMode;
-    }
+    if (glbColliderMode) normalized.glbColliderMode = glbColliderMode;
 
     const parcours = sanitizeParcours(rawMap.parcours);
     if (parcours) {

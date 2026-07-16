@@ -51,6 +51,7 @@ function sanitizeLegacyRuntimeMapDocument(rawMap, warnings) {
         gates: [],
         items: [],
         aircraft: [],
+        glbModels: asArray(rawMap?.glbModels),
         botSpawns: [],
         playerSpawn: {
             x: -800,

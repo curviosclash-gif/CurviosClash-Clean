@@ -1,11 +1,17 @@
 import * as THREE from 'three';
 import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { GLB_GALLERY_MAPS } from '../../src/core/config/maps/presets/glb_gallery.js';
 
 export class EditorAssetLoader {
     constructor(options = {}) {
         this.loader = new OBJLoader();
+        this.glbLoader = new GLTFLoader();
         this.cache = new Map();
         this.loadStatus = new Map();
+        this.pendingLoads = new Map();
+        this.pendingCloneHydrations = new Map();
+        this.onCloneHydration = null;
         this.warnedMissingAssets = new Set();
         this.timeoutMs = Number.isFinite(options.timeoutMs) && options.timeoutMs > 0 ? options.timeoutMs : 8000;
         this.maxConcurrentLoads = Number.isFinite(options.maxConcurrentLoads) && options.maxConcurrentLoads > 0
@@ -47,6 +53,17 @@ export class EditorAssetLoader {
         this.trailModelsToLoad = [
             'trail_arrow', 'trail_segment'
         ];
+
+        this.glbModels = GLB_GALLERY_MAPS.glb_gallery.glbModels.map((model) => ({
+            id: model.id,
+            url: model.url,
+            loadUrl: `../${model.url}`,
+        }));
+        this.glbModelById = new Map(this.glbModels.map((model) => [model.id, model]));
+        this.glbModels.forEach((model) => this.loadStatus.set(model.id, {
+            state: 'idle',
+            url: model.url,
+        }));
 
         // Specific colors per item to distinguish them in the editor before textures
         this.colors = {
@@ -99,6 +116,10 @@ export class EditorAssetLoader {
 
     setStatusHandler(handler) {
         this.onStatus = typeof handler === 'function' ? handler : null;
+    }
+
+    setCloneHydrationHandler(handler) {
+        this.onCloneHydration = typeof handler === 'function' ? handler : null;
     }
 
     _emitStatus(level, message, extra = {}) {
@@ -159,12 +180,14 @@ export class EditorAssetLoader {
         return group;
     }
 
-    _prepareLoadedObject(id, object) {
+    _prepareLoadedObject(id, object, options = {}) {
         const color = this.colors[id] || 0xdddddd;
 
         object.traverse((child) => {
             if (!child?.isMesh) return;
-            child.material = new THREE.MeshLambertMaterial({ color });
+            if (options.preserveMaterials !== true) {
+                child.material = new THREE.MeshLambertMaterial({ color });
+            }
             child.castShadow = true;
             child.receiveShadow = true;
             child.userData = {
@@ -178,6 +201,28 @@ export class EditorAssetLoader {
             editorAssetId: id,
             isEditorPlaceholder: false
         };
+    }
+
+    _prepareGLBScene(id, gltf) {
+        const scene = gltf?.scene || gltf?.scenes?.[0];
+        if (!scene) throw new Error(`GLB asset "${id}" has no root scene.`);
+
+        scene.updateWorldMatrix(true, true);
+        const bounds = new THREE.Box3().setFromObject(scene);
+        const size = bounds.getSize(new THREE.Vector3());
+        const center = bounds.getCenter(new THREE.Vector3());
+        const maxDimension = Math.max(size.x, size.y, size.z, 0.0001);
+
+        const root = new THREE.Group();
+        const normalizer = new THREE.Group();
+        const offset = new THREE.Group();
+        normalizer.scale.setScalar(1 / maxDimension);
+        offset.position.set(-center.x, -bounds.min.y, -center.z);
+        offset.add(scene);
+        normalizer.add(offset);
+        root.add(normalizer);
+        this._prepareLoadedObject(id, root, { preserveMaterials: true });
+        return root;
     }
 
     _cloneAssetObject(object, id) {
@@ -226,23 +271,46 @@ export class EditorAssetLoader {
         return placeholder;
     }
 
-    _loadModelWithTimeout(id, url) {
+    _hydratePendingClones(id, object) {
+        const pendingClones = this.pendingCloneHydrations.get(id);
+        if (!pendingClones) return;
+        this.pendingCloneHydrations.delete(id);
+        if (!this.onCloneHydration) return;
+        for (const target of pendingClones) {
+            const replacement = this._cloneAssetObject(object, id);
+            this.onCloneHydration?.(target, replacement);
+        }
+    }
+
+    _loadModelWithTimeout(id, url, options = {}) {
+        const loader = options.loader || this.loader;
+        const prepare = typeof options.prepare === 'function' ? options.prepare : (value) => value;
         return new Promise((resolve) => {
             let settled = false;
             let timedOut = false;
 
-            const resolveLoaded = (object) => {
-                this._prepareLoadedObject(id, object);
+            const resolveLoaded = (loadedValue) => {
+                let object;
+                try {
+                    object = prepare(loadedValue);
+                    if (options.preserveMaterials !== true) this._prepareLoadedObject(id, object);
+                } catch (error) {
+                    resolveFailure('error', error);
+                    return false;
+                }
                 this.cache.set(id, object);
                 this.loadStatus.set(id, {
                     state: 'loaded',
                     url
                 });
+                this._hydratePendingClones(id, object);
+                return true;
             };
 
             const resolveFailure = (status, error = null) => {
                 const failureReason = status === 'timeout' ? 'timeout' : 'error';
                 this._createAndCachePlaceholder(id, failureReason);
+                this.pendingCloneHydrations.delete(id);
                 this.loadStatus.set(id, {
                     state: status,
                     url,
@@ -260,8 +328,8 @@ export class EditorAssetLoader {
                 settled = true;
                 clearTimeout(timeoutHandle);
                 if (status === 'loaded' && object) {
-                    resolveLoaded(object);
-                    resolve({ id, status: 'loaded' });
+                    const loaded = resolveLoaded(object);
+                    resolve({ id, status: loaded ? 'loaded' : 'error' });
                     return;
                 }
                 resolveFailure(status, error);
@@ -273,7 +341,7 @@ export class EditorAssetLoader {
                 finalize('timeout', null, new Error(`Asset load timeout after ${this.timeoutMs}ms`));
             }, this.timeoutMs);
 
-            this.loader.load(
+            loader.load(
                 url,
                 (object) => {
                     if (timedOut) {
@@ -290,6 +358,24 @@ export class EditorAssetLoader {
                 }
             );
         });
+    }
+
+    loadAsset(id) {
+        const model = this.glbModelById.get(String(id || ''));
+        if (!model) return Promise.resolve({ id, status: 'missing' });
+        if (this.loadStatus.get(model.id)?.state === 'loaded') {
+            return Promise.resolve({ id: model.id, status: 'loaded' });
+        }
+        if (this.pendingLoads.has(model.id)) return this.pendingLoads.get(model.id);
+
+        this.loadStatus.set(model.id, { state: 'loading', url: model.url });
+        const pending = this._loadModelWithTimeout(model.id, model.loadUrl, {
+            loader: this.glbLoader,
+            prepare: (gltf) => this._prepareGLBScene(model.id, gltf),
+            preserveMaterials: true,
+        }).finally(() => this.pendingLoads.delete(model.id));
+        this.pendingLoads.set(model.id, pending);
+        return pending;
     }
 
     async _runWithConcurrency(entries, task) {
@@ -354,16 +440,34 @@ export class EditorAssetLoader {
 
     getClone(modelName) {
         if (!this.cache.has(modelName)) {
-            if (!this.warnedMissingAssets.has(modelName)) {
-                this.warnedMissingAssets.add(modelName);
-                this._emitStatus('warn', `Asset "${modelName}" is not in cache. Using placeholder.`, { id: modelName });
+            if (this.glbModelById.has(modelName)) {
+                this._createAndCachePlaceholder(modelName, 'loading');
+                this.loadStatus.set(modelName, {
+                    state: 'loading',
+                    url: this.glbModelById.get(modelName).url,
+                });
+                void this.loadAsset(modelName);
+            } else {
+                if (!this.warnedMissingAssets.has(modelName)) {
+                    this.warnedMissingAssets.add(modelName);
+                    this._emitStatus('warn', `Asset "${modelName}" is not in cache. Using placeholder.`, { id: modelName });
+                }
+                this._createAndCachePlaceholder(modelName, 'missing');
             }
-            this._createAndCachePlaceholder(modelName, 'missing');
         }
 
         const original = this.cache.get(modelName);
         if (!original) return null;
-        return this._cloneAssetObject(original, modelName);
+        const clone = this._cloneAssetObject(original, modelName);
+        if (this.glbModelById.has(modelName) && original.userData?.isEditorPlaceholder) {
+            if (!this.pendingCloneHydrations.has(modelName)) this.pendingCloneHydrations.set(modelName, new Set());
+            this.pendingCloneHydrations.get(modelName).add(clone);
+        }
+        return clone;
+    }
+
+    getAssetUrl(modelName) {
+        return this.glbModelById.get(String(modelName || ''))?.url || '';
     }
 
     getLoadStatus(modelName) {

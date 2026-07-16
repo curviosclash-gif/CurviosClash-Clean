@@ -92,6 +92,14 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         userData.subType = subType;
         userData.modelScale = s;
     }
+    else if (type === 'glb') {
+        mesh = manager.assetLoader.getClone(subType) || new THREE.Mesh(manager.blockGeo, manager.mats.aircraft_fallback);
+        const targetSize = Number(props.targetSize) || Number(sizeInfo) || 14;
+        mesh.scale.setScalar(targetSize);
+        userData.subType = subType;
+        userData.glbUrl = props.glbUrl || manager.assetLoader.getAssetUrl?.(subType) || '';
+        userData.targetSize = targetSize;
+    }
     else if (type === 'checkpoint') {
         const isFinish = subType === 'finish';
         const mat = isFinish ? manager.mats.checkpoint_finish : manager.mats.checkpoint;
@@ -124,6 +132,8 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
     if (isFiniteNumber(props.rotateY)) {
         mesh.rotation.y = Number(props.rotateY);
     }
+    if (isFiniteNumber(props.rotateX)) mesh.rotation.x = Number(props.rotateX);
+    if (isFiniteNumber(props.rotateZ)) mesh.rotation.z = Number(props.rotateZ);
 
     return manager.registerObject(mesh, {
         requestedId,

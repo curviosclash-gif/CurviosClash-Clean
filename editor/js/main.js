@@ -17,7 +17,7 @@ function buildEditorRuntimeSnapshot({ ui, mapManager, core }) {
     const buildCatalogDescriptor = getEditorBuildCatalogDescriptor();
     const templateImportCapability = resolveEditorTemplateImportCapability();
     const assetId = activeEntry ? (
-        activeEntry.tool === 'item' || activeEntry.tool === 'aircraft'
+        activeEntry.tool === 'item' || activeEntry.tool === 'aircraft' || activeEntry.tool === 'glb'
             ? activeEntry.subType
             : ((activeEntry.tool === 'portal' || activeEntry.tool === 'tunnel') ? activeEntry.subType : null)
     ) : null;

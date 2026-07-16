@@ -119,6 +119,7 @@ export function generateJSONExport(manager, arenaSize) {
         portals: [],
         items: [],
         aircraft: [],
+        glbModels: [],
         playerSpawn: { x: -800, y: arenaSize.height * 0.55, z: 0 },
     };
 
@@ -193,6 +194,15 @@ export function generateJSONExport(manager, arenaSize) {
                 rotateY: ry
             });
         }
+        else if (u.type === 'glb') {
+            payload.glbModels.push({
+                id: `${u.subType}#${u.id}`,
+                url: u.glbUrl,
+                position: [p.x, p.y, p.z],
+                rotation: [obj.rotation.x || 0, ry, obj.rotation.z || 0],
+                targetSize: u.targetSize || 14,
+            });
+        }
         else if (u.type === 'tunnel') {
             if (u.pointA && u.pointB) {
                 const tunnelEntry = {
@@ -219,6 +229,10 @@ export function generateJSONExport(manager, arenaSize) {
             });
         }
     });
+
+    if (payload.glbModels.length > 0 && !payload.glbColliderMode) {
+        payload.glbColliderMode = 'fallbackOnly';
+    }
 
     // Runtime portals are paired sequentially. Authoring links decide that order,
     // without leaking editor-only partner ids into the runtime schema.
@@ -378,6 +392,20 @@ export function importFromJSON(manager, jsonString, options = {}) {
                     modelScale: a.scale || 50,
                     rotateY: a.rotateY || 0
                 }, { updateUi: false }));
+            }
+
+            if (data.glbModels) {
+                data.glbModels.forEach((model) => {
+                    const [assetId, placementId] = String(model.id || '').split('#');
+                    manager.createMesh('glb', assetId, ...model.position, model.targetSize, {
+                        id: placementId || model.id,
+                        glbUrl: model.url,
+                        targetSize: model.targetSize || 14,
+                        rotateX: model.rotation?.[0] || 0,
+                        rotateY: model.rotation?.[1] || 0,
+                        rotateZ: model.rotation?.[2] || 0,
+                    }, { updateUi: false });
+                });
             }
 
             if (data.botSpawns) {

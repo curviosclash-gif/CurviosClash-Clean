@@ -6,6 +6,7 @@ import {
     EDITOR_OBJECT_TYPES,
     isKnownEditorObjectType,
 } from '../../../src/shared/contracts/EditorAuthoringContract.js';
+import { GLB_GALLERY_MAPS } from '../../../src/core/config/maps/presets/glb_gallery.js';
 
 const CATEGORY_META = Object.freeze({
     build: Object.freeze({
@@ -31,6 +32,12 @@ const CATEGORY_META = Object.freeze({
         label: 'Flugobjekte',
         accentColor: '#34d399',
         description: 'Schiffe und Flugzeuge fuer Deko oder Ziele.'
+    }),
+    glb: Object.freeze({
+        id: 'glb',
+        label: 'GLB-Modelle',
+        accentColor: '#22d3ee',
+        description: 'Lokale GLB-Modelle fuer Kulissen und Dekoration.'
     }),
     parcours: Object.freeze({
         id: 'parcours',
@@ -87,8 +94,26 @@ export const EDITOR_BUILD_CATEGORIES = Object.freeze([
     CATEGORY_META.flow,
     CATEGORY_META.pickups,
     CATEGORY_META.aircraft,
+    CATEGORY_META.glb,
     CATEGORY_META.parcours
 ]);
+
+const GLB_BUILD_ITEMS = GLB_GALLERY_MAPS.glb_gallery.glbModels.map((model, index) => {
+    const [pack, modelName] = model.id.split('/');
+    return createBuildEntry({
+        id: `glb-${pack}-${modelName}`.toLowerCase().replace(/[^a-z0-9-]+/g, '-'),
+        tool: 'glb',
+        subType: model.id,
+        categoryId: 'glb',
+        label: modelName.replaceAll('_', ' '),
+        description: `GLB-Modell aus ${pack}.`,
+        previewGlyph: '3D',
+        previewToken: `glb-${pack}`,
+        sortOrder: index + 1,
+        keywords: ['glb', 'modell', pack, modelName],
+        isDefault: index === 0,
+    });
+});
 
 export const EDITOR_BUILD_ITEMS = Object.freeze([
     createBuildEntry({
@@ -774,7 +799,8 @@ export const EDITOR_BUILD_ITEMS = Object.freeze([
         keywords: ['checkpoint', 'finish', 'ziel', 'parcours'],
         badge: 'Ziel',
         isFeatured: true
-    })
+    }),
+    ...GLB_BUILD_ITEMS
 ].sort((left, right) => left.sortOrder - right.sortOrder || left.label.localeCompare(right.label)));
 
 function createEditorBuildDescriptorEntries() {
@@ -834,7 +860,7 @@ export function getEditorBuildCategories() {
 
 export function resolveEditorBuildEntryAssetId(entry) {
     if (!entry) return null;
-    if (entry.tool === 'item' || entry.tool === 'aircraft') return entry.subType || null;
+    if (entry.tool === 'item' || entry.tool === 'aircraft' || entry.tool === 'glb') return entry.subType || null;
     if (entry.tool === 'portal' && typeof entry.subType === 'string' && entry.subType.startsWith('portal_')) return entry.subType;
     if (entry.tool === 'tunnel' && typeof entry.subType === 'string' && entry.subType.startsWith('trail_')) return entry.subType;
     return null;

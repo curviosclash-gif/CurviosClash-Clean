@@ -125,7 +125,9 @@ export function bindEditorCanvasInteractionControls(editor) {
         const useYLayer = isYLayerEnabled(editor);
         let y = useYLayer
             ? getYLayerValue(editor)
-            : ((editor.currentTool === 'hard' || editor.currentTool === 'foam') ? editor.ARENA_H * 0.35 : editor.ARENA_H * 0.55);
+            : (editor.currentTool === 'glb'
+                ? p.y
+                : ((editor.currentTool === 'hard' || editor.currentTool === 'foam') ? editor.ARENA_H * 0.35 : editor.ARENA_H * 0.55));
 
         if (useYLayer && (editor.currentTool === 'hard' || editor.currentTool === 'foam')) {
             y += (editor.ARENA_H * 0.7) / 2;

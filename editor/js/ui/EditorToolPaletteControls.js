@@ -29,7 +29,15 @@ function resolveEntryAssetState(editor, entry) {
         };
     }
 
-    if (status.state === 'loading' || status.state === 'idle') {
+    if (status.state === 'idle') {
+        return {
+            state: 'idle',
+            label: 'Bereit',
+            detail: 'Asset wird bei der ersten Platzierung geladen.'
+        };
+    }
+
+    if (status.state === 'loading') {
         return {
             state: 'loading',
             label: 'Laedt',
