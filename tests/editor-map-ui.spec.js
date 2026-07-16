@@ -86,6 +86,12 @@ test.describe('V65: Editor Build Dock', () => {
 
     test('T65a: Rechtes Dock rendert Kategorien, Schnellzugriff und Status sauber', async ({ page }) => {
         const errors = collectErrors(page);
+        const missingPreviewAssets = [];
+        page.on('console', (message) => {
+            if (message.type() === 'warning' && message.text().includes('is not in cache')) {
+                missingPreviewAssets.push(message.text());
+            }
+        });
         await loadEditorPage(page);
 
         await expect(page.locator('#buildDock')).toBeVisible();
@@ -100,6 +106,7 @@ test.describe('V65: Editor Build Dock', () => {
         expect(state.mode).toBe('select');
         expect(state.activeEntryId).toBe('build-hard');
         expect(state.objectCount).toBe(0);
+        expect(missingPreviewAssets).toEqual([]);
         expect(filterKnownEditorWarnings(errors)).toHaveLength(0);
     });
 
@@ -275,6 +282,19 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.getByLabel('Rotation Y (Grad)')).toBeVisible();
         await expect(page.locator('#btnDuplicateSelected')).toBeEnabled();
 
+        await page.locator('#propX').fill('125');
+        await page.locator('#propX').press('Tab');
+        await page.locator('#propX').fill('0');
+        await page.locator('#propX').press('Tab');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.selectedObject.position.x)).toBe(0);
+
+        await page.locator('#btnToggleSelectedLock').click();
+        await expect(page.locator('#btnDelSelected')).toBeDisabled();
+        await page.keyboard.press('Delete');
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+        await page.locator('#btnToggleSelectedLock').click();
+        await expect(page.locator('#btnDelSelected')).toBeEnabled();
+
         await page.locator('#btnDuplicateSelected').click();
         await expect(page.locator('#objectList .objectRow')).toHaveCount(2);
         await expect(page.locator('#btnUndo')).toBeEnabled();
@@ -325,6 +345,14 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#prefabList .prefabCard').first().getByRole('button', { name: 'Einsetzen' }).click();
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(4);
         await expect(page.locator('#layerList .layerRow')).toHaveCount(6);
+
+        const geometryLayer = page.locator('#layerList [data-layer-id="geometry"]');
+        await geometryLayer.getByRole('button', { name: 'Geometrie sperren' }).click();
+        await activateDockEntry(page, 'build', 'build-hard');
+        await clickCanvas(page, 0.4);
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(4);
+        await expect(page.locator('#workspaceStatusMessage')).toContainText('aktive Ebene ist gesperrt');
+        await geometryLayer.getByRole('button', { name: 'Geometrie entsperren' }).click();
 
         const spawnLayer = page.locator('#layerList [data-layer-id="spawns"]');
         await spawnLayer.getByRole('button', { name: /Spawns ausblenden/ }).click();
@@ -391,5 +419,27 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(scaleState.renderedRows).toBeLessThan(30);
         expect(scaleState.nearby).toBeGreaterThan(0);
         expect(scaleState.nearby).toBeLessThan(260);
+
+        await page.locator('#objectList').evaluate((element) => { element.scrollTop = element.scrollHeight; });
+        await page.locator('#objectSearch').fill('hard_260');
+        await expect(page.getByRole('button', { name: 'Hartblock · hard_260', exact: true })).toBeVisible();
+    });
+});
+
+test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
+    test.use({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 2 });
+
+    test('Canvas-Mitte bleibt bei 200 Prozent Skalierung Weltursprung', async ({ page }) => {
+        await page.goto('/editor/map-editor.html', { waitUntil: 'domcontentloaded' });
+        const canvas = page.locator('#mapCanvas');
+        const box = await canvas.boundingBox();
+        expect(box).toBeTruthy();
+        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+        await expect(page.locator('#hudPos')).toHaveText('x=0, z=0');
+        const sizing = await canvas.evaluate((element) => ({
+            internalWidth: element.width,
+            displayWidth: element.clientWidth,
+        }));
+        expect(sizing.internalWidth).toBeCloseTo(sizing.displayWidth * 2, 0);
     });
 });

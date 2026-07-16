@@ -32,6 +32,7 @@ export function bindEditorLayerControls(editor) {
             object.visible = object.userData.editorObjectVisible !== false && layerVisible;
         }
         editor.syncTransformControlAttachment?.();
+        if (editor.selectedObject) editor.showPropPanel?.(editor.selectedObject);
         editor.updateRelationshipVisuals?.();
     };
 
@@ -108,6 +109,8 @@ export function bindEditorLayerControls(editor) {
         editorLayerId: state.activeLayerId || getDefaultEditorLayerId(type),
         editorObjectVisible: true,
     });
+    editor.isLayerLocked = (layerId) => state.layers[layerId]?.locked === true;
+    editor.isActiveLayerLocked = () => editor.isLayerLocked(state.activeLayerId);
     editor.mapManager?.setAuthoringMetadataProvider?.((type) => editor.getActiveLayerMetadata(type));
     render();
 }

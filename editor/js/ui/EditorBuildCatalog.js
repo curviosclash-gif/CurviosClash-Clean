@@ -832,6 +832,14 @@ export function getEditorBuildCategories() {
     return categories.map((entry) => cloneDescriptorEntry(entry));
 }
 
+export function resolveEditorBuildEntryAssetId(entry) {
+    if (!entry) return null;
+    if (entry.tool === 'item' || entry.tool === 'aircraft') return entry.subType || null;
+    if (entry.tool === 'portal' && typeof entry.subType === 'string' && entry.subType.startsWith('portal_')) return entry.subType;
+    if (entry.tool === 'tunnel' && typeof entry.subType === 'string' && entry.subType.startsWith('trail_')) return entry.subType;
+    return null;
+}
+
 export function getEditorBuildEntriesForCategory(categoryId) {
     return EDITOR_BUILD_CATALOG_DESCRIPTOR.entries
         .filter((entry) => entry.categoryId === categoryId)

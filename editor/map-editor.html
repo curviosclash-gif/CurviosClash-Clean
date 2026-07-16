@@ -435,15 +435,15 @@
   // Koordinaten-Umrechnung
   // ==========================
   function worldToScreen(x,z){
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
     const sx = (x / ARENA_W + 0.5) * w;
     const sz = (z / ARENA_D + 0.5) * h;
     return { x:sx, y:sz };
   }
   function screenToWorld(sx,sy){
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
     const x = (sx / w - 0.5) * ARENA_W;
     const z = (sy / h - 0.5) * ARENA_D;
     return { x, z };
@@ -469,8 +469,8 @@
   // Zeichnen
   // ==========================
   function drawGrid(){
-    const w = canvas.width;
-    const h = canvas.height;
+    const w = canvas.clientWidth;
+    const h = canvas.clientHeight;
     ctx.fillStyle = "#020617";
     ctx.fillRect(0,0,w,h);
 
@@ -928,11 +928,12 @@
     const rect = shell.getBoundingClientRect();
     const w = Math.max(400, rect.width);
     const h = Math.max(300, rect.height);
-    canvas.width = w * window.devicePixelRatio;
-    canvas.height = h * window.devicePixelRatio;
+    const pixelRatio = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * pixelRatio);
+    canvas.height = Math.round(h * pixelRatio);
     canvas.style.width = w + "px";
     canvas.style.height = h + "px";
-    ctx.setTransform(window.devicePixelRatio,0,0,window.devicePixelRatio,0,0);
+    ctx.setTransform(pixelRatio,0,0,pixelRatio,0,0);
     draw();
   }
   window.addEventListener("resize", resize);

@@ -3,26 +3,13 @@ import {
     findEditorBuildEntryByToolAndSubtype,
     getEditorBuildCategories,
     getEditorBuildEntriesForCategory,
-    listEditorBuildDescriptorEntries
+    listEditorBuildDescriptorEntries,
+    resolveEditorBuildEntryAssetId,
 } from './EditorBuildCatalog.js';
 import { createEditorToolDockState } from './EditorToolDockState.js';
 
-function resolveAssetIdForEntry(entry) {
-    if (!entry) return null;
-    if (entry.tool === 'item' || entry.tool === 'aircraft') {
-        return entry.subType || null;
-    }
-    if (entry.tool === 'portal' && typeof entry.subType === 'string' && entry.subType.startsWith('portal_')) {
-        return entry.subType;
-    }
-    if (entry.tool === 'tunnel' && typeof entry.subType === 'string' && entry.subType.startsWith('trail_')) {
-        return entry.subType;
-    }
-    return null;
-}
-
 function resolveEntryAssetState(editor, entry) {
-    const assetId = resolveAssetIdForEntry(entry);
+    const assetId = resolveEditorBuildEntryAssetId(entry);
     if (!assetId) {
         return {
             state: 'builtin',

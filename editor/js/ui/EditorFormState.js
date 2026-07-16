@@ -74,7 +74,8 @@ const PROPERTY_FIELD_MAP = Object.freeze({
 export function readPropertyFieldNumber(editor, field, fallback = 0) {
     const domKey = PROPERTY_FIELD_MAP[field];
     if (!domKey) return fallback;
-    return parseFloat(editor?.dom?.[domKey]?.value) || fallback;
+    const value = parseFloat(editor?.dom?.[domKey]?.value);
+    return Number.isFinite(value) ? value : fallback;
 }
 
 export function writePropertyFieldValue(editor, field, value) {

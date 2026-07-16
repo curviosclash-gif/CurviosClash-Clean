@@ -116,6 +116,10 @@ export class EditorUI {
         return this.mapManager.isRegisteredObject(object);
     }
 
+    isObjectLocked(object) {
+        return object?.userData?.editorLocked === true || object?.userData?.editorLayerLocked === true;
+    }
+
     clearDrawingState() {
         this.cancelHistoryGesture('draw');
         this.isDrawing = false;

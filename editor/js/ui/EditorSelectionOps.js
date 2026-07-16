@@ -90,6 +90,10 @@ export function deleteSelectedManagedObject(editor) {
         editor.selectObject(null);
         return;
     }
+    if (editor.isObjectLocked?.(editor.selectedObject)) {
+        editor.notify?.('Gesperrte Objekte koennen nicht geloescht werden.', 'warn');
+        return;
+    }
     if (editor.mapManager) {
         editor.executeHistoryMutation('Delete object', () => {
             editor.mapManager.removeObject(editor.selectedObject);
@@ -128,7 +132,7 @@ export function selectManagedObject(editor, obj) {
         editor.hidePropPanel();
     }
     if (editor.dom?.btnDelSelected) {
-        editor.dom.btnDelSelected.disabled = !editor.selectedObject;
+        editor.dom.btnDelSelected.disabled = !editor.selectedObject || editor.isObjectLocked?.(editor.selectedObject);
     }
     editor.refreshWorkspace?.();
 }

@@ -113,6 +113,10 @@ export function bindEditorCanvasInteractionControls(editor) {
 
         const p = getGroundPos(e);
         if (!p) return;
+        if (editor.isActiveLayerLocked?.()) {
+            editor.notify?.('Die aktive Ebene ist gesperrt.', 'warn');
+            return;
+        }
 
         editor.selectObject(null);
         editor.beginHistoryGesture('draw', `Create ${editor.currentTool}`);

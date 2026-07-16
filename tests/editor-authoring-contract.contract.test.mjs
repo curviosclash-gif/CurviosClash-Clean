@@ -13,6 +13,7 @@ import {
 } from '../src/shared/contracts/EditorAuthoringContract.js';
 import * as THREE from 'three';
 import { createEditorMesh } from '../editor/js/EditorMeshFactory.js';
+import { readPropertyFieldNumber } from '../editor/js/ui/EditorFormState.js';
 
 test('EDITOR_AUTHORING_CONTRACT_VERSION is a non-empty string', () => {
     assert.equal(typeof EDITOR_AUTHORING_CONTRACT_VERSION, 'string');
@@ -96,4 +97,10 @@ test('placing an editor item persists its default pickupType without overriding 
     assert.equal(medipack.userData.pickupType, 'HEALTH');
     assert.equal(override.userData.pickupType, 'SHIELD');
     assert.equal(randomBox.userData.pickupType, undefined);
+});
+
+test('editor property fields preserve valid zero values', () => {
+    const editor = { dom: { propX: { value: '0' }, propY: { value: '' } } };
+    assert.equal(readPropertyFieldNumber(editor, 'x', 123), 0);
+    assert.equal(readPropertyFieldNumber(editor, 'y', 123), 123);
 });

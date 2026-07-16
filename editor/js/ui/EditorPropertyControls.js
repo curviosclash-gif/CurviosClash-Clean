@@ -3,7 +3,7 @@ import { readPropertyFieldNumber } from './EditorFormState.js';
 export function bindEditorPropertyControls(editor) {
     if (!editor) return;
     const dom = editor.dom;
-    const isLocked = (object) => object?.userData?.editorLocked === true || object?.userData?.editorLayerLocked === true;
+    const isLocked = (object) => editor.isObjectLocked(object);
 
     const updateTransformField = (field, label, applyValue) => {
         dom[field]?.addEventListener('change', () => {

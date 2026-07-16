@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { resolveEditorBuildEntryAssetId } from './EditorBuildCatalog.js';
 
 function createFallbackPreviewObject(entry) {
     if (entry.tool === 'hard' || entry.tool === 'foam') {
@@ -75,7 +76,8 @@ export function createEditorBuildPreviewCache(entries, assetLoader) {
         const size = new THREE.Vector3();
         const center = new THREE.Vector3();
         for (const entry of entries) {
-            let object = entry.subType ? assetLoader?.getClone?.(entry.subType) : null;
+            const assetId = resolveEditorBuildEntryAssetId(entry);
+            let object = assetId ? assetLoader?.getClone?.(assetId) : null;
             if (object && !hasFinitePreviewGeometry(object)) object = null;
             if (!object) object = createFallbackPreviewObject(entry);
             box.setFromObject(object);

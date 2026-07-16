@@ -11,7 +11,11 @@ import {
     parseEditorAuthoringDocument,
 } from '../editor/js/EditorAuthoringDocument.js';
 import { EDITOR_PREFABS, EDITOR_PREFAB_CATALOG_VERSION } from '../editor/js/ui/EditorPrefabCatalog.js';
-import { getEditorTemplateRegistryDescriptor, resolveEditorTemplateImportCapability } from '../editor/js/ui/EditorBuildCatalog.js';
+import {
+    getEditorTemplateRegistryDescriptor,
+    resolveEditorBuildEntryAssetId,
+    resolveEditorTemplateImportCapability,
+} from '../editor/js/ui/EditorBuildCatalog.js';
 import { EditorObjectRegistry } from '../editor/js/EditorObjectRegistry.js';
 
 test('editor authoring document keeps metadata outside the runtime map', () => {
@@ -58,6 +62,15 @@ test('built-in prefab catalog exposes reusable grouped authoring templates', () 
     assert.equal(descriptor.status, 'ready');
     assert.equal(capability.available, true);
     assert.equal(capability.entryCount, EDITOR_PREFABS.length);
+});
+
+test('build previews request assets only for externally modeled entries', () => {
+    assert.equal(resolveEditorBuildEntryAssetId({ tool: 'spawn', subType: 'player' }), null);
+    assert.equal(resolveEditorBuildEntryAssetId({ tool: 'checkpoint', subType: 'finish' }), null);
+    assert.equal(resolveEditorBuildEntryAssetId({ tool: 'tunnel', subType: 'tunnel' }), null);
+    assert.equal(resolveEditorBuildEntryAssetId({ tool: 'tunnel', subType: 'trail_arrow' }), 'trail_arrow');
+    assert.equal(resolveEditorBuildEntryAssetId({ tool: 'portal', subType: 'portal_ring' }), 'portal_ring');
+    assert.equal(resolveEditorBuildEntryAssetId({ tool: 'item', subType: 'item_crystal' }), 'item_crystal');
 });
 
 test('object registry spatial index tracks movement and removal', () => {

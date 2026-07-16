@@ -305,10 +305,11 @@ export function bindEditorWorkspaceControls(editor) {
     };
 
     const updateMarkedActions = () => {
-        if (dom.btnGroupMarked) dom.btnGroupMarked.disabled = markedIds.size < 2;
-        if (dom.btnDeleteMarked) dom.btnDeleteMarked.disabled = markedIds.size === 0;
+        const hasLockedObject = [...markedIds].some((id) => editor.isObjectLocked?.(editor.mapManager?.getObjectById?.(id)));
+        if (dom.btnGroupMarked) dom.btnGroupMarked.disabled = markedIds.size < 2 || hasLockedObject;
+        if (dom.btnDeleteMarked) dom.btnDeleteMarked.disabled = markedIds.size === 0 || hasLockedObject;
         if (dom.btnDuplicateMarked) dom.btnDuplicateMarked.disabled = markedIds.size === 0;
-        if (dom.btnTransformMarked) dom.btnTransformMarked.disabled = markedIds.size === 0;
+        if (dom.btnTransformMarked) dom.btnTransformMarked.disabled = markedIds.size === 0 || hasLockedObject;
     };
 
     const renderOutliner = () => {
@@ -318,8 +319,11 @@ export function bindEditorWorkspaceControls(editor) {
         const objects = getFilteredObjects();
         markedIds.forEach((id) => { if (!editor.mapManager?.hasObjectId?.(id)) markedIds.delete(id); });
         const viewportHeight = dom.objectList.clientHeight || 220;
-        const startIndex = Math.max(0, Math.floor(dom.objectList.scrollTop / OUTLINER_ROW_HEIGHT) - OUTLINER_OVERSCAN);
         const visibleCount = Math.ceil(viewportHeight / OUTLINER_ROW_HEIGHT) + OUTLINER_OVERSCAN * 2;
+        const startIndex = Math.min(
+            Math.max(0, objects.length - visibleCount),
+            Math.max(0, Math.floor(dom.objectList.scrollTop / OUTLINER_ROW_HEIGHT) - OUTLINER_OVERSCAN),
+        );
         const endIndex = Math.min(objects.length, startIndex + visibleCount);
         const fragment = document.createDocumentFragment();
         if (objects.length === 0) {
@@ -386,7 +390,7 @@ export function bindEditorWorkspaceControls(editor) {
         dom.objectList.replaceChildren(fragment);
 
         const selected = editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
-        if (dom.btnDelSelected) dom.btnDelSelected.disabled = !selected;
+        if (dom.btnDelSelected) dom.btnDelSelected.disabled = !selected || editor.isObjectLocked?.(selected);
         if (dom.btnDuplicateSelected) dom.btnDuplicateSelected.disabled = !selected;
         if (dom.btnToggleSelectedVisibility) {
             dom.btnToggleSelectedVisibility.disabled = !selected;
@@ -514,6 +518,10 @@ export function bindEditorWorkspaceControls(editor) {
             button.addEventListener('click', () => {
                 const selectedPrefab = getEditorPrefabById(prefab.id);
                 if (!selectedPrefab || !editor.mapManager) return;
+                if (selectedPrefab.parts.some((part) => editor.isLayerLocked?.(getDefaultEditorLayerId(part.type)))) {
+                    notify('Eine von der Vorlage verwendete Ebene ist gesperrt.', 'warn');
+                    return;
+                }
                 const anchor = editor.core.orbit.target;
                 editor.executeHistoryMutation(`Insert prefab ${prefab.label}`, () => {
                     const groupId = `prefab_${prefab.id}_${Date.now().toString(36)}`;
@@ -574,10 +582,16 @@ export function bindEditorWorkspaceControls(editor) {
             selected.userData.editorLocked = selected.userData.editorLocked !== true;
             editor.syncTransformControlAttachment();
             editor.mapManager.notifyObjectMutated(selected);
+            editor.showPropPanel(selected);
         });
     });
 
     dom.btnGroupMarked?.addEventListener('click', () => {
+        const objects = [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean);
+        if (objects.some((object) => editor.isObjectLocked?.(object))) {
+            notify('Gesperrte Objekte koennen nicht gruppiert werden.', 'warn');
+            return;
+        }
         const groupId = `group_${Date.now().toString(36)}`;
         editor.executeHistoryMutation('Group objects', () => editor.mapManager.withSceneMutation(() => {
             markedIds.forEach((id) => {
@@ -596,6 +610,11 @@ export function bindEditorWorkspaceControls(editor) {
     }));
 
     dom.btnTransformMarked?.addEventListener('click', async () => {
+        const objects = [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean);
+        if (objects.some((object) => editor.isObjectLocked?.(object))) {
+            notify('Gesperrte Objekte koennen nicht transformiert werden.', 'warn');
+            return;
+        }
         const value = await openModal({
             title: 'Gruppe transformieren',
             message: 'Werte als X, Y, Z, Rotation in Grad, Skalierung eingeben.',
@@ -611,6 +630,11 @@ export function bindEditorWorkspaceControls(editor) {
     });
 
     dom.btnDeleteMarked?.addEventListener('click', async () => {
+        const objects = [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean);
+        if (objects.some((object) => editor.isObjectLocked?.(object))) {
+            notify('Gesperrte Objekte koennen nicht geloescht werden.', 'warn');
+            return;
+        }
         const confirmed = await openModal({ title: 'Markierte Objekte loeschen?', message: `${markedIds.size} Objekt(e) werden aus der Map entfernt.`, confirmLabel: 'Objekte loeschen', danger: true });
         if (!confirmed) return;
         editor.executeHistoryMutation('Delete marked objects', () => editor.mapManager.withSceneMutation(() => {
