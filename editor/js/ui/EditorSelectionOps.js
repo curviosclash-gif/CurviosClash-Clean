@@ -24,9 +24,8 @@ export function onBeforeManagedObjectRemovedSelectionState(editor, object) {
 
 export function syncTransformControlAttachmentSelection(editor) {
     const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
-    const flyMode = !!editor.flyModeEnabled;
 
-    if (!selected || selected.visible === false || flyMode || selected.userData?.editorLocked === true || selected.userData?.editorLayerLocked === true) {
+    if (!selected || selected.visible === false || selected.userData?.editorLocked === true || selected.userData?.editorLayerLocked === true) {
         editor.detachTransformControl();
         editor.syncTransformModeUi?.();
         return;

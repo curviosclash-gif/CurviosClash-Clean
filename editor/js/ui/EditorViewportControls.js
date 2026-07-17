@@ -37,13 +37,8 @@ export function bindEditorViewportControls(editor, { syncArenaValues } = {}) {
             RIGHT: THREE.MOUSE.ROTATE
         };
 
-        if (isFly) {
-            editor.core.orbit.mouseButtons = rightClickRotate;
-            if (editor.selectedObject) editor.detachTransformControl();
-        } else {
-            editor.core.orbit.mouseButtons = rightClickRotate;
-            if (editor.selectedObject) editor.syncTransformControlAttachment();
-        }
+        editor.core.orbit.mouseButtons = rightClickRotate;
+        if (editor.selectedObject) editor.syncTransformControlAttachment();
     });
 
     const syncTransformSnapping = () => {
