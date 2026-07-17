@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 
 import {
     EDITOR_AUTHORING_DOCUMENT_VERSION,
@@ -17,6 +18,17 @@ import {
     resolveEditorTemplateImportCapability,
 } from '../editor/js/ui/EditorBuildCatalog.js';
 import { EditorObjectRegistry } from '../editor/js/EditorObjectRegistry.js';
+import { EditorMapManager } from '../editor/js/EditorMapManager.js';
+
+function createMapManager(callbacks = {}) {
+    return new EditorMapManager({
+        objectsContainer: new THREE.Group(),
+        transformControl: { object: null, detach() {} },
+    }, {
+        getClone() { return null; },
+        setCloneHydrationHandler() {},
+    }, callbacks);
+}
 
 test('editor authoring document keeps metadata outside the runtime map', () => {
     const runtimeMap = { schemaVersion: 4, arenaSize: { width: 100, height: 50, depth: 100 } };
@@ -90,4 +102,39 @@ test('object registry spatial index tracks movement and removal', () => {
     assert.equal(registry.queryNear({ x: 0, z: 0 }, 500).length, 2);
     registry.unregisterObjectById(near.userData.id);
     assert.deepEqual(registry.queryNear({ x: 0, z: 0 }, 500), [far]);
+});
+
+test('editor rejects duplicate player spawns and finish checkpoints before export', () => {
+    const rejected = [];
+    const manager = createMapManager({ onObjectCreationRejected: (event) => rejected.push(event) });
+    const playerSpawn = manager.createMesh('spawn', 'player', -100, 100, 0, 0, { id: 'player_a' });
+    const finish = manager.createMesh('checkpoint', 'finish', 100, 100, 0, 0, { id: 'finish_a' });
+
+    assert.equal(manager.createMesh('spawn', 'player', 100, 100, 0, 0, { id: 'player_b' }), null);
+    assert.equal(manager.createMesh('checkpoint', 'finish', 200, 100, 0, 0, { id: 'finish_b' }), null);
+    assert.equal(manager.getObjectCount(), 2);
+    assert.deepEqual(rejected.map(({ type, subType }) => [type, subType]), [
+        ['spawn', 'player'],
+        ['checkpoint', 'finish'],
+    ]);
+
+    const exported = JSON.parse(manager.generateJSONExport({ width: 2000, height: 1000, depth: 2000 }));
+    assert.equal(exported.playerSpawn.id, playerSpawn.userData.id);
+    assert.equal(exported.parcours.finish.id, finish.userData.id);
+});
+
+test('tunnel spatial index follows transformed endpoints immediately', () => {
+    const manager = createMapManager();
+    const tunnel = manager.createMesh('tunnel', null, 0, 0, 0, 50, {
+        id: 'tunnel_a',
+        pointA: new THREE.Vector3(-100, 0, 0),
+        pointB: new THREE.Vector3(100, 0, 0),
+        radius: 50,
+    });
+
+    tunnel.position.set(5000, 0, 0);
+    manager.notifyObjectMutated(tunnel);
+
+    assert.deepEqual(manager.queryObjectsNear({ x: 5000, z: 0 }, 100), [tunnel]);
+    assert.deepEqual(manager.queryObjectsNear({ x: 0, z: 0 }, 100), []);
 });

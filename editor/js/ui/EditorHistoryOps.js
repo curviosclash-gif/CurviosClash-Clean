@@ -147,7 +147,10 @@ export function undoHistory(editor) {
     if (!editor.commandHistory) return false;
     try {
         const changed = editor.commandHistory.undo();
-        if (changed) editor.markDirty?.('Undo ausgefuehrt.');
+        if (changed) {
+            if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Undo ausgefuehrt.');
+            else editor.markDirty?.('Undo ausgefuehrt.');
+        }
         return changed;
     } catch (error) {
         editor.notify?.(`Undo fehlgeschlagen: ${error.message}`, 'error');
@@ -159,7 +162,10 @@ export function redoHistory(editor) {
     if (!editor.commandHistory) return false;
     try {
         const changed = editor.commandHistory.redo();
-        if (changed) editor.markDirty?.('Redo ausgefuehrt.');
+        if (changed) {
+            if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Redo ausgefuehrt.');
+            else editor.markDirty?.('Redo ausgefuehrt.');
+        }
         return changed;
     } catch (error) {
         editor.notify?.(`Redo fehlgeschlagen: ${error.message}`, 'error');

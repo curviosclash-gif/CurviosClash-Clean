@@ -114,6 +114,15 @@ export async function initEditor() {
             onSceneChanged: () => {
                 ui.scheduleWorkspaceRefresh?.();
             },
+            onObjectCreationRejected: ({ type, existingObject }) => {
+                ui.selectObject(existingObject);
+                ui.notify?.(
+                    type === 'spawn'
+                        ? 'Es kann nur einen Spieler-Spawn geben.'
+                        : 'Es kann nur einen Finish-Checkpoint geben.',
+                    'warn'
+                );
+            },
             onBeforeManagedObjectRemoved: (object) => ui.onBeforeManagedObjectRemoved(object),
             onBeforeManagedObjectsCleared: () => ui.beforeManagedObjectsCleared()
         });

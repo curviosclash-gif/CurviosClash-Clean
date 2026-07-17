@@ -14,6 +14,7 @@ export class EditorMapManager {
             onTunnelVisualsChanged: null,
             onHudCountChanged: null,
             onSceneChanged: null,
+            onObjectCreationRejected: null,
             onBeforeManagedObjectRemoved: null,
             onBeforeManagedObjectsCleared: null
         };
@@ -46,6 +47,9 @@ export class EditorMapManager {
         }
         if (typeof callbacks.onSceneChanged === 'function') {
             this.callbacks.onSceneChanged = callbacks.onSceneChanged;
+        }
+        if (typeof callbacks.onObjectCreationRejected === 'function') {
+            this.callbacks.onObjectCreationRejected = callbacks.onObjectCreationRejected;
         }
         if (typeof callbacks.onBeforeManagedObjectRemoved === 'function') {
             this.callbacks.onBeforeManagedObjectRemoved = callbacks.onBeforeManagedObjectRemoved;
@@ -334,12 +338,13 @@ export class EditorMapManager {
         const rootObject = this.resolveManagedObject(object);
         if (!rootObject) return null;
         this.syncObjectScaleMetadata(rootObject, options.scaleAxis);
-        this.registry.updateObjectSpatial(rootObject);
 
         if (rootObject.userData?.type === 'tunnel') {
             this.syncTunnelEndpointsFromMesh(rootObject);
+            this.registry.updateObjectSpatial(rootObject);
             this.queueSceneUiRefresh({ tunnelVisuals: true, workspace: options.workspace !== false });
         } else {
+            this.registry.updateObjectSpatial(rootObject);
             this.queueSceneUiRefresh({ workspace: options.workspace !== false });
         }
 
@@ -393,6 +398,14 @@ export class EditorMapManager {
     }
 
     createMesh(type, subType, x, y, z, sizeInfo, extraProps = {}, options = {}) {
+        const singletonObject = this.core.objectsContainer.children.find((object) => (
+            (type === 'spawn' && subType === 'player' && object.userData?.type === 'spawn' && object.userData?.subType === 'player')
+            || (type === 'checkpoint' && subType === 'finish' && object.userData?.type === 'checkpoint' && object.userData?.subType === 'finish')
+        ));
+        if (singletonObject) {
+            this.callbacks.onObjectCreationRejected?.({ type, subType, existingObject: singletonObject });
+            return null;
+        }
         const authoringMetadata = this.authoringMetadataProvider?.(type, subType) || {};
         return createEditorMesh(this, type, subType, x, y, z, sizeInfo, {
             ...authoringMetadata,

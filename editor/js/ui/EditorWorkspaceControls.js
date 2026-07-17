@@ -171,6 +171,7 @@ export function bindEditorWorkspaceControls(editor) {
     const dom = editor.dom || {};
     const markedIds = new Set();
     let dirty = false;
+    let savedStateSignature = null;
     let autosaveTimer = null;
     let modalResolve = null;
     let lastStatus = 'Editor bereit.';
@@ -267,6 +268,15 @@ export function bindEditorWorkspaceControls(editor) {
         viewState: editor.captureEditorViewState?.(),
     });
 
+    const captureStateSignature = () => {
+        if (!editor.mapManager) return null;
+        return JSON.stringify([
+            editor.mapManager.generateJSONExport(editor.getArenaSizeForExport()),
+            cloneWorkspaceMetadata(editor),
+            editor.captureLayerState?.() || null,
+        ]);
+    };
+
     const writeAutosave = () => {
         if (!dirty || !editor.mapManager || pendingRecovery) return;
         try {
@@ -295,6 +305,7 @@ export function bindEditorWorkspaceControls(editor) {
     };
 
     const markSaved = (message = 'Map gespeichert.') => {
+        savedStateSignature = captureStateSignature();
         dirty = false;
         renderDirty();
         if (!pendingRecovery) {
@@ -302,6 +313,25 @@ export function bindEditorWorkspaceControls(editor) {
             dom.recoveryBanner?.classList.remove('is-visible');
         }
         notify(message, 'success');
+    };
+
+    const initializeSavedState = () => {
+        savedStateSignature = captureStateSignature();
+        dirty = false;
+        renderDirty();
+    };
+
+    const reconcileDirtyState = (reason) => {
+        const currentStateSignature = captureStateSignature();
+        if (savedStateSignature !== null && currentStateSignature === savedStateSignature) {
+            dirty = false;
+            renderDirty();
+            if (!pendingRecovery) removeAutosave();
+            notify(`${reason} Gespeicherter Stand wiederhergestellt.`, 'success');
+            return false;
+        }
+        markDirty(reason);
+        return true;
     };
 
     const getFilteredObjects = () => {
@@ -732,6 +762,7 @@ export function bindEditorWorkspaceControls(editor) {
             const json = editor.mapManager.generateJSONExport(editor.getArenaSizeForExport());
             localStorage.setItem(PLAYTEST_RETURN_STORAGE_KEY, JSON.stringify({
                 savedAt: new Date().toISOString(),
+                dirty,
                 viewState: editor.captureEditorViewState(),
                 editorDocument: editor.createEditorDocument(json),
                 issues: (editor.lastValidationItems || []).filter((item) => !item.ok).map((item) => ({ code: item.code, objectIds: item.objectIds })),
@@ -763,7 +794,9 @@ export function bindEditorWorkspaceControls(editor) {
                 editor.applyLayerState?.(parsed.layerState);
                 editor.restoreEditorViewState?.(stored.viewState || parsed.viewState);
             });
-            notify('Playtest-Arbeitsstand und Kamera wiederhergestellt; Probleme sind markiert.', 'success');
+            const restoreMessage = 'Playtest-Arbeitsstand und Kamera wiederhergestellt; Probleme sind markiert.';
+            if (stored.dirty === false) markSaved(restoreMessage);
+            else markDirty(restoreMessage);
             renderValidation();
             return true;
         } catch (error) {
@@ -773,6 +806,8 @@ export function bindEditorWorkspaceControls(editor) {
     };
     editor.markDirty = markDirty;
     editor.markSaved = markSaved;
+    editor.initializeSavedState = initializeSavedState;
+    editor.reconcileDirtyState = reconcileDirtyState;
     editor.notify = notify;
     editor.refreshWorkspace = refresh;
     editor.scheduleWorkspaceRefresh = scheduleRefresh;

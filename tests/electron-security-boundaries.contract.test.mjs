@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 
 const require = createRequire(import.meta.url);
 const {
@@ -52,11 +53,10 @@ test('auxiliary game windows deny renderer navigation and popups', () => {
 });
 
 test('main window allows only same-origin editor popups with isolated renderers', () => {
-    const handleWindowOpen = createEditorWindowOpenHandler('http://127.0.0.1:38765/');
-    for (const url of [
-        'http://127.0.0.1:38765/editor/map-editor-3d.html',
-        'http://127.0.0.1:38765/prototypes/vehicle-lab/index.html',
-    ]) {
+    const appUrl = 'http://127.0.0.1:38765/';
+    const handleWindowOpen = createEditorWindowOpenHandler(appUrl);
+    const resolveAppUrl = (viewPath, baseUrl = appUrl) => new URL(viewPath, baseUrl).href;
+    for (const url of [EDITOR_VIEW_PATHS.MAP_EDITOR, EDITOR_VIEW_PATHS.VEHICLE_LAB].map((viewPath) => resolveAppUrl(viewPath))) {
         const result = handleWindowOpen({ url });
         assert.equal(result.action, 'allow');
         assert.equal(result.overrideBrowserWindowOptions.webPreferences.contextIsolation, true);
@@ -65,9 +65,9 @@ test('main window allows only same-origin editor popups with isolated renderers'
     }
 
     for (const url of [
-        'https://example.com/editor/map-editor-3d.html',
-        'http://127.0.0.1:38765/editor/map-editor-3d.html.evil',
-        'http://127.0.0.1:38765/',
+        resolveAppUrl(EDITOR_VIEW_PATHS.MAP_EDITOR, 'https://example.com/'),
+        `${resolveAppUrl(EDITOR_VIEW_PATHS.MAP_EDITOR)}.evil`,
+        appUrl,
         'not-a-url',
     ]) {
         assert.deepEqual(handleWindowOpen({ url }), { action: 'deny' });

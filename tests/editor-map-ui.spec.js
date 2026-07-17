@@ -387,6 +387,34 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(transformed.every((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.z))).toBeTruthy();
     });
 
+    test('Undo und Redo gleichen den Dirty-State mit dem gespeicherten Stand ab', async ({ page }) => {
+        await loadEditorPage(page);
+        await activateDockEntry(page, 'build', 'build-hard');
+        await clickCanvas(page, 0.4);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+
+        await page.locator('#btnUndo').click();
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(0);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
+
+        await page.locator('#btnRedo').click();
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+    });
+
+    test('Playtest-Rueckkehr behaelt den ungespeicherten Zustand', async ({ page }) => {
+        await loadEditorPage(page);
+        await activateDockEntry(page, 'flow', 'flow-spawn-player');
+        await clickCanvas(page, 0.4);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.capturePlaytestReturnState())).toBe(true);
+
+        await page.goto(`${EDITOR_VIEW_PATHS.MAP_EDITOR}?returnFromPlaytest=1`, { waitUntil: 'domcontentloaded' });
+        await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.getState, null, { timeout: 30_000 });
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+    });
+
     test('S skaliert ausgewaehlte Map-Objekte und exportiert die neue Groesse', async ({ page }) => {
         await loadEditorPage(page);
 

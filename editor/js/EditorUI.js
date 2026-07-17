@@ -103,6 +103,7 @@ export class EditorUI {
             bindEditorRelationshipControls(this);
             this.authoringControlsBound = true;
         }
+        this.initializeSavedState?.();
         this.restorePlaytestReturnIfRequested?.();
         this.updateUndoRedoUi();
         this.refreshToolDock?.();
