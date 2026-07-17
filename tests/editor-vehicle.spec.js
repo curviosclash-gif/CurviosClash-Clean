@@ -25,16 +25,16 @@ test.describe('Vehicle Lab', () => {
         await resetVehicleLab(page);
 
         await expect(page.locator('.vehicle-library')).not.toHaveAttribute('open', '');
-        await expect(page.locator('#standardVehiclesList button', { hasText: 'Auswählen' })).toHaveCount(15);
+        await expect(page.locator('#standardVehiclesList button', { hasText: 'Auswählen' })).toHaveCount(21);
 
-        await page.locator('#presetSelect').selectOption('spaceship');
+        await page.locator('#presetSelect').selectOption('lab_spaceship');
         await expect(page.locator('#partsList .part-item')).toHaveCount(6);
-        await expect(page.locator('#shipLabel')).toHaveValue('Spaceship');
+        await expect(page.locator('#shipLabel')).toHaveValue('Lab-Vorlage: Raumschiff');
         await expect(page.locator('[data-camera-view="fit"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#workshopStatusMessage')).toContainText('Entwurf geladen');
     });
 
-    test('all game OBJ ships load as read-only references and can return to editing', async ({ page }) => {
+    test('all built-in game vehicles load as read-only references and can return to editing', async ({ page }) => {
         await resetVehicleLab(page);
 
         await page.locator('#presetSelect').selectOption('ship1');
@@ -45,7 +45,7 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('#btnSaveToGameVehicle')).toBeDisabled();
         await expect(page.locator('#polyCountBadge')).not.toHaveText('Polygone: 0');
 
-        await page.locator('#presetSelect').selectOption('jet_fighter');
+        await page.locator('#presetSelect').selectOption('lab_jet_fighter');
         await expect(page.locator('#partsList .part-item')).toHaveCount(8);
         await expect(page.locator('#referenceVehicleNotice')).toBeHidden();
         await expect(page.locator('#btnAddPart')).toBeEnabled();
@@ -74,7 +74,7 @@ test.describe('Vehicle Lab', () => {
     test('comparison panel and status bar reflect workshop state', async ({ page }) => {
         await resetVehicleLab(page);
 
-        await expect(page.locator('#compareVehicleSelect')).toHaveValue('spaceship');
+        await expect(page.locator('#compareVehicleSelect')).toHaveValue('lab_spaceship');
         await expect(page.locator('[data-metric="parts"] .compare-current')).toHaveText('8');
         await expect(page.locator('[data-metric="parts"] .compare-baseline')).toHaveText('6');
         await expect(page.locator('[data-metric="parts"] .compare-delta')).toHaveText('+2');
@@ -209,8 +209,8 @@ test.describe('Vehicle Lab', () => {
         await page.locator('#shipLabel').fill('Mein Entwurf');
         await expect(page.locator('#workshopSaveState')).toContainText('Entwurf automatisch gesichert');
 
-        await page.locator('#presetSelect').selectOption('spaceship');
-        await expect(page.locator('#shipLabel')).toHaveValue('Spaceship');
+        await page.locator('#presetSelect').selectOption('lab_spaceship');
+        await expect(page.locator('#shipLabel')).toHaveValue('Lab-Vorlage: Raumschiff');
         await expect(page.locator('#btnRestoreDraft')).toBeEnabled();
         await page.locator('#btnRestoreDraft').click();
         await expect(page.locator('#shipLabel')).toHaveValue('Mein Entwurf');

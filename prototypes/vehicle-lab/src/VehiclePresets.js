@@ -1,7 +1,7 @@
 export const VEHICLE_PRESETS = [
     {
-        id: 'jet_fighter',
-        label: 'Jet-Fighter',
+        id: 'lab_jet_fighter',
+        label: 'Lab-Vorlage: Jet-Fighter',
         primaryColor: 0x60a5fa,
         parts: [
             { name: 'Fuselage', geo: 'cylinder', size: [0.5, 0.7, 5], pos: [0, 0, -0.4], rot: [90, 0, 0], material: 'primary' },
@@ -15,8 +15,8 @@ export const VEHICLE_PRESETS = [
         ]
     },
     {
-        id: 'spaceship',
-        label: 'Spaceship',
+        id: 'lab_spaceship',
+        label: 'Lab-Vorlage: Raumschiff',
         primaryColor: 0xcccccc,
         parts: [
             { name: 'Saucer', geo: 'cylinder', size: [1.0, 1.2, 0.25], pos: [0, 0, 0], material: 'primary' },
@@ -29,8 +29,8 @@ export const VEHICLE_PRESETS = [
     },
 
     {
-        id: 'manta',
-        label: 'Manta-Ray',
+        id: 'lab_manta',
+        label: 'Lab-Vorlage: Manta',
         primaryColor: 0x7e22ce,
         parts: [
             { name: 'Body', geo: 'capsule', size: [1.2, 3], pos: [0, 0, 0], rot: [90, 0, 0], material: 'primary' },
@@ -43,8 +43,8 @@ export const VEHICLE_PRESETS = [
     },
 
     {
-        id: 'drone',
-        label: 'Combat Drone',
+        id: 'lab_drone',
+        label: 'Lab-Vorlage: Kampfdrohne',
         primaryColor: 0x10b981,
         parts: [
             { name: 'Core', geo: 'box', size: [1.6, 0.8, 2.4], material: 'primary' },
@@ -57,8 +57,8 @@ export const VEHICLE_PRESETS = [
     },
 
     {
-        id: 'orb',
-        label: 'Energy Orb',
+        id: 'lab_orb',
+        label: 'Lab-Vorlage: Energie-Orb',
         primaryColor: 0xec4899,
         parts: [
             { name: 'Core', geo: 'sphere', size: [1.0], material: 'glow' },
@@ -71,8 +71,8 @@ export const VEHICLE_PRESETS = [
     },
 
     {
-        id: 'arrow',
-        label: 'Arrow',
+        id: 'lab_arrow',
+        label: 'Lab-Vorlage: Pfeil',
         primaryColor: 0xeab308,
         parts: [
             { name: 'Shaft', geo: 'cylinder', size: [0.1, 0.25, 4], pos: [0, 0, 1.0], rot: [90, 0, 0], material: 'primary' },

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { OBJVehicleMesh } from '../../../src/entities/obj-vehicle-mesh.js';
+import { createVehicleMesh } from '../../../src/entities/vehicle-registry.js';
 import { disposeObject3DResources } from '../../../src/shared/rendering/ThreeDisposal.js';
 
 export class GameVehicleReferenceMesh extends THREE.Group {
@@ -8,21 +8,11 @@ export class GameVehicleReferenceMesh extends THREE.Group {
         this.isModularVehicle = true;
         this.isGameVehicleReference = true;
         this.config = { id, label, primaryColor: color, parts: [] };
-        this.referenceMesh = new OBJVehicleMesh(color, id);
+        this.referenceMesh = createVehicleMesh(id, color);
         this.add(this.referenceMesh);
         this._disposed = false;
-        this.ready = new Promise((resolve) => {
-            const finish = () => {
-                this.referenceMesh?.removeEventListener?.('loaded', finish);
-                if (this._disposed && this.referenceMesh) {
-                    disposeObject3DResources(this.referenceMesh);
-                    this.referenceMesh.clear();
-                }
-                resolve(!this._disposed);
-            };
-            this.referenceMesh.addEventListener('loaded', finish);
-            if (this.referenceMesh._loaded) queueMicrotask(finish);
-        });
+        const readiness = this.referenceMesh?.whenReady?.() || this.referenceMesh?.ready;
+        this.ready = Promise.resolve(readiness).catch(() => false).then(() => !this._disposed);
     }
 
     tick(dt) {
@@ -43,8 +33,7 @@ export class GameVehicleReferenceMesh extends THREE.Group {
 
     dispose() {
         this._disposed = true;
-        this.referenceMesh?.glowMat?.dispose?.();
-        this.referenceMesh?.forceFieldMat?.dispose?.();
+        this.referenceMesh?.cancelPendingLoad?.();
         disposeObject3DResources(this);
         this.clear();
     }

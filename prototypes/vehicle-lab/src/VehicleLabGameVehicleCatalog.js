@@ -2,7 +2,7 @@ import { listVehicleDescriptors } from '../../../src/entities/vehicle-registry.j
 
 export function listVehicleLabGameReferences() {
     return listVehicleDescriptors()
-        .filter((vehicle) => vehicle.usesObjMesh === true)
+        .filter((vehicle) => vehicle.isGeneratedModular !== true)
         .map((vehicle) => ({
             id: vehicle.id,
             label: vehicle.label,
