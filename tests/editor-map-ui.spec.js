@@ -119,6 +119,24 @@ test.describe('V65: Editor Build Dock', () => {
         expect(errors).toHaveLength(0);
     });
 
+    test('Kategorien filtern Baukarten ohne den Platzierungsmodus zu aktivieren', async ({ page }) => {
+        await loadEditorPage(page);
+
+        await page.locator('#dockCategoryTabs [data-category-id="glb"]').click();
+
+        const state = await getEditorState(page);
+        expect(state).toMatchObject({
+            mode: 'select',
+            currentTool: 'select',
+            activeCategoryId: 'glb',
+            objectCount: 0,
+            recentEntryIds: [],
+        });
+        await expect(page.locator('#dockCards [data-entry-id="glb-pm-abm-altar01-art"]')).toBeVisible();
+        await clickCanvas(page, 0.35);
+        await expect.poll(() => getEditorState(page).then((value) => value.objectCount)).toBe(0);
+    });
+
     test('T65b: Kartenwahl schaltet den Platzierungs-Contract fuer Kernkategorien', async ({ page }) => {
         await loadEditorPage(page);
 
@@ -308,6 +326,16 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#btnToggleDockFromScene')).toHaveText('Baukarten zeigen');
         await page.locator('#btnToggleDockFromScene').click();
         await expect(page.locator('#buildDock')).not.toHaveClass(/is-collapsed/);
+
+        await page.locator('#btnDockDetailToggle').click();
+        await expect(page.locator('#buildDock')).toHaveClass(/is-detailed/);
+        await expect(page.locator('#buildDock')).not.toHaveClass(/is-compact-view/);
+        await expect(page.locator('#dockCards [data-entry-id="build-hard"] .buildCardDescription')).toBeVisible();
+
+        await page.locator('#btnDockViewToggle').click();
+        await expect(page.locator('#buildDock')).toHaveClass(/is-compact-view/);
+        await expect(page.locator('#buildDock')).not.toHaveClass(/is-detailed/);
+        await expect(page.locator('#dockCards [data-entry-id="build-hard"] .buildCardDescription')).toBeHidden();
     });
 
     test('Outliner, Inspector, Dirty-State und Pointer-Capture bilden einen stabilen Autorenfluss', async ({ page }) => {
@@ -378,6 +406,13 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             .map((object) => object.userData?.groupId || ''));
         expect(groupIds[0]).toBeTruthy();
         expect(new Set(groupIds).size).toBe(1);
+
+        await marked.nth(0).uncheck();
+        await expect(marked.nth(0)).not.toBeChecked();
+        await expect(marked.nth(1)).not.toBeChecked();
+        await marked.nth(0).check();
+        await expect(marked.nth(0)).toBeChecked();
+        await expect(marked.nth(1)).toBeChecked();
 
         await page.locator('#btnTransformMarked').click();
         await page.locator('#editorModalInput').fill('100, 0, 50, 90, 1');

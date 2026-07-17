@@ -348,7 +348,7 @@ export function bindEditorToolPaletteControls(editor) {
             button.addEventListener('click', () => {
                 hoveredEntryId = null;
                 const nextSnapshot = toolDockState.activateCategory(category.id);
-                applySnapshotToEditor(nextSnapshot, { clearSelection: true });
+                applySnapshotToEditor(nextSnapshot);
                 renderAll(nextSnapshot);
             });
             button.addEventListener('keydown', (event) => {

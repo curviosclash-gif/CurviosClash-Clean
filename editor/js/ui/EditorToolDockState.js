@@ -193,13 +193,20 @@ export function createEditorToolDockState(options = {}) {
             return commit();
         },
 
-        activateCategory(categoryId, options = {}) {
+        activateCategory(categoryId) {
             const nextEntry = resolveEntryForCategory(state, categoryId);
             if (!nextEntry) {
                 return api.getSnapshot();
             }
 
-            return api.activateEntry(nextEntry.id, options);
+            state = {
+                ...state,
+                mode: 'select',
+                currentCategoryId: nextEntry.categoryId,
+                selectedEntryId: nextEntry.id,
+            };
+
+            return commit();
         },
 
         toggleFavorite(entryId = state.selectedEntryId) {

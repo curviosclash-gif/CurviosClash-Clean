@@ -97,10 +97,12 @@ export function bindEditorLayoutControls(editor) {
     dom.btnToggleDockFromScene?.addEventListener('click', toggleDock);
     dom.btnDockDetailToggle?.addEventListener('click', () => {
         state.dockDetailed = !state.dockDetailed;
+        if (state.dockDetailed) state.dockCompact = false;
         render();
     });
     dom.btnDockViewToggle?.addEventListener('click', () => {
         state.dockCompact = !state.dockCompact;
+        if (state.dockCompact) state.dockDetailed = false;
         render();
     });
     dom.btnToggleHelp?.addEventListener('click', () => {

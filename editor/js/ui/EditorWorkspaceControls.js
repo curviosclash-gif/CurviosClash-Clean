@@ -405,6 +405,7 @@ export function bindEditorWorkspaceControls(editor) {
                 const affected = groupId ? allObjects.filter((entry) => entry.userData?.groupId === groupId) : [object];
                 affected.forEach((entry) => checkbox.checked ? markedIds.add(entry.userData.id) : markedIds.delete(entry.userData.id));
                 updateMarkedActions();
+                scheduleOutliner();
             });
 
             const button = document.createElement('button');
