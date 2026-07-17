@@ -1,6 +1,11 @@
 export function createHuntHudDomRefs(doc = document) {
     return {
         root: doc.getElementById('hunt-hud'),
+        objective: doc.getElementById('hunt-objective'),
+        scoreboard: doc.getElementById('hunt-scoreboard'),
+        p1HpFill: doc.getElementById('hunt-p1-hp-fill'),
+        p1HpText: doc.getElementById('hunt-p1-hp-text'),
+        p1Respawn: doc.getElementById('hunt-p1-respawn'),
         p1ShieldFill: doc.getElementById('hunt-p1-shield-fill'),
         p1ShieldText: doc.getElementById('hunt-p1-shield-text'),
         p1BoostFill: doc.getElementById('hunt-p1-boost-fill'),
@@ -8,6 +13,9 @@ export function createHuntHudDomRefs(doc = document) {
         p1OverheatFill: doc.getElementById('hunt-p1-overheat-fill'),
         p1OverheatText: doc.getElementById('hunt-p1-overheat-text'),
         p2Panel: doc.getElementById('hunt-p2-panel'),
+        p2HpFill: doc.getElementById('hunt-p2-hp-fill'),
+        p2HpText: doc.getElementById('hunt-p2-hp-text'),
+        p2Respawn: doc.getElementById('hunt-p2-respawn'),
         p2ShieldFill: doc.getElementById('hunt-p2-shield-fill'),
         p2ShieldText: doc.getElementById('hunt-p2-shield-text'),
         p2BoostFill: doc.getElementById('hunt-p2-boost-fill'),

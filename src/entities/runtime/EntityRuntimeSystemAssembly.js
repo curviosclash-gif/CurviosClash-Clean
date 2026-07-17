@@ -21,9 +21,12 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         huntCombatSystem: new HuntCombatSystem(runtimeContext),
         staticTurretSystem: new StaticTurretSystem(owner),
         roundOutcomeSystem: new RoundOutcomeSystem({
+            getPlayers: () => owner.players,
             getHumanPlayers: () => owner.humanPlayers,
             getBots: () => owner.bots,
-            getPendingHumanRespawns: (players) => owner._getPendingHumanRespawns(players),
+            getScoreboard: () => owner.getHuntScoreboard(),
+            isRespawnEnabled: () => owner.gameModeStrategy?.isRespawnEnabled?.() === true,
+            getDeathmatchKillLimit: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
             getObjectiveOutcome: () => owner._parcoursProgressSystem?.getRoundOutcome?.() || null,
         }),
         setupOps: new EntitySetupOps(owner),

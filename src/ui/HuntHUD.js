@@ -48,6 +48,11 @@ export class HuntHUD {
         this.runtime = options.runtime ?? options.game ?? null;
         this.ports = options.ports || null;
         this.root = refs.root ?? null;
+        this.objective = refs.objective ?? null;
+        this.scoreboard = refs.scoreboard ?? null;
+        this.p1HpFill = refs.p1HpFill ?? null;
+        this.p1HpText = refs.p1HpText ?? null;
+        this.p1Respawn = refs.p1Respawn ?? null;
         this.p1ShieldFill = refs.p1ShieldFill ?? null;
         this.p1ShieldText = refs.p1ShieldText ?? null;
         this.p1BoostFill = refs.p1BoostFill ?? null;
@@ -55,6 +60,9 @@ export class HuntHUD {
         this.p1OverheatFill = refs.p1OverheatFill ?? null;
         this.p1OverheatText = refs.p1OverheatText ?? null;
         this.p2Panel = refs.p2Panel ?? null;
+        this.p2HpFill = refs.p2HpFill ?? null;
+        this.p2HpText = refs.p2HpText ?? null;
+        this.p2Respawn = refs.p2Respawn ?? null;
         this.p2ShieldFill = refs.p2ShieldFill ?? null;
         this.p2ShieldText = refs.p2ShieldText ?? null;
         this.p2BoostFill = refs.p2BoostFill ?? null;
@@ -72,9 +80,11 @@ export class HuntHUD {
         this._indicatorTickTimer = 0;
         this._wasHuntActive = false;
         this._panelCache = [
-            { shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatTxt: null },
-            { shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatTxt: null, respawnTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatTxt: null, respawnTxt: null },
         ];
+        this._objectiveText = null;
+        this._scoreboardText = null;
         this._indicatorP2Visible = null;
         this._isHuntActive = typeof options.isHuntActive === 'function'
             ? options.isHuntActive
@@ -112,7 +122,13 @@ export class HuntHUD {
         this._indicatorTickTimer = 0;
         this.damageIndicatorP1?.classList.add('hidden');
         this.damageIndicatorP2?.classList.add('hidden');
+        this.p1Respawn?.classList.add('hidden');
+        this.p2Respawn?.classList.add('hidden');
+        this.p1Respawn?.setAttribute?.('aria-hidden', 'true');
+        this.p2Respawn?.setAttribute?.('aria-hidden', 'true');
         for (const cache of this._panelCache) {
+            cache.hpW = null;
+            cache.hpTxt = null;
             cache.shieldW = null;
             cache.shieldTxt = null;
             cache.boostW = null;
@@ -120,15 +136,23 @@ export class HuntHUD {
             cache.boostTxt = null;
             cache.overheatW = null;
             cache.overheatTxt = null;
+            cache.respawnTxt = null;
         }
+        this._objectiveText = null;
+        this._scoreboardText = null;
         this._indicatorP2Visible = null;
+    }
+
+    _setVisible(visible) {
+        this.root?.classList.toggle('hidden', !visible);
+        this.root?.setAttribute?.('aria-hidden', String(!visible));
     }
 
     update(dt, runtimeProjection = null) {
         if (!this.root || !this.runtime) return;
 
         if (!this._isHuntActive(this.runtime)) {
-            this.root.classList.toggle('hidden', true);
+            this._setVisible(false);
             if (this._wasHuntActive) {
                 this._resetTickState();
             }
@@ -147,7 +171,7 @@ export class HuntHUD {
             ? huntProjection.active === true
             : this._isHuntActive(this.runtime);
 
-        this.root.classList.toggle('hidden', !huntActive);
+        this._setVisible(huntActive);
         if (!huntActive) {
             if (this._wasHuntActive) {
                 this._resetTickState();
@@ -167,7 +191,11 @@ export class HuntHUD {
         }
 
         if (this._consumeTick('_playerPanelTickTimer', dt, playerPanelInterval) > 0) {
+            this._updateMatchStatus(huntProjection);
             this._updatePlayerPanel(humans[0], {
+                hpFill: this.p1HpFill,
+                hpText: this.p1HpText,
+                respawn: this.p1Respawn,
                 shieldFill: this.p1ShieldFill,
                 shieldText: this.p1ShieldText,
                 boostFill: this.p1BoostFill,
@@ -178,8 +206,12 @@ export class HuntHUD {
             if (this.p2Panel) {
                 const p2Visible = humans.length > 1;
                 this.p2Panel.classList.toggle('hidden', !p2Visible);
+                this.p2Panel.setAttribute?.('aria-hidden', String(!p2Visible));
                 if (p2Visible) {
                     this._updatePlayerPanel(humans[1], {
+                        hpFill: this.p2HpFill,
+                        hpText: this.p2HpText,
+                        respawn: this.p2Respawn,
                         shieldFill: this.p2ShieldFill,
                         shieldText: this.p2ShieldText,
                         boostFill: this.p2BoostFill,
@@ -202,6 +234,19 @@ export class HuntHUD {
     }
 
     _updatePlayerPanel(player, refs, cache = null, huntProjection = null) {
+        const hp = Math.max(0, Number(player?.hp) || 0);
+        const maxHp = Math.max(1, Number(player?.maxHp) || 1);
+        const hpW = toPercent(hp / maxHp);
+        const hpTxt = `${Math.round(hp)} / ${Math.round(maxHp)}`;
+        if (refs.hpFill && hpW !== cache?.hpW) {
+            refs.hpFill.style.width = hpW;
+            if (cache) cache.hpW = hpW;
+        }
+        if (refs.hpText && hpTxt !== cache?.hpTxt) {
+            refs.hpText.textContent = hpTxt;
+            if (cache) cache.hpTxt = hpTxt;
+        }
+
         const shield = Math.max(0, Number(player?.shieldHP) || 0);
         const maxShield = Math.max(1, Number(player?.maxShieldHp) || 1);
         const shieldRatio = shield / maxShield;
@@ -257,6 +302,34 @@ export class HuntHUD {
         if (refs.overheatText && overheatTxt !== cache?.overheatTxt) {
             refs.overheatText.textContent = overheatTxt;
             if (cache) cache.overheatTxt = overheatTxt;
+        }
+
+        const playerIndex = player?.playerIndex ?? player?.index;
+        const remaining = Math.max(0, Number(huntProjection?.respawnRemainingByPlayer?.[playerIndex]) || 0);
+        const respawnTxt = remaining > 0 ? `Wiedereinstieg in ${remaining.toFixed(1)} s` : '';
+        if (refs.respawn) {
+            if (respawnTxt !== cache?.respawnTxt) {
+                refs.respawn.textContent = respawnTxt;
+                if (cache) cache.respawnTxt = respawnTxt;
+            }
+            refs.respawn.classList.toggle('hidden', !respawnTxt);
+            refs.respawn.setAttribute?.('aria-hidden', String(!respawnTxt));
+        }
+    }
+
+    _updateMatchStatus(huntProjection = null) {
+        const respawnEnabled = huntProjection?.respawnEnabled === true;
+        const objectiveText = respawnEnabled
+            ? `Deathmatch · zuerst ${Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10)} Abschüsse`
+            : 'Elimination · letzter Überlebender gewinnt';
+        const scoreboardText = String(huntProjection?.scoreboardSummary || 'Noch keine Abschüsse');
+        if (this.objective && objectiveText !== this._objectiveText) {
+            this.objective.textContent = objectiveText;
+            this._objectiveText = objectiveText;
+        }
+        if (this.scoreboard && scoreboardText !== this._scoreboardText) {
+            this.scoreboard.textContent = scoreboardText;
+            this._scoreboardText = scoreboardText;
         }
     }
 
@@ -361,8 +434,9 @@ export class HuntHUD {
 
     dispose() {
         this._resetTickState();
-        this.root?.classList.add('hidden');
+        this._setVisible(false);
         this.p2Panel?.classList.add('hidden');
+        this.p2Panel?.setAttribute?.('aria-hidden', 'true');
         if (this.killFeedList) {
             this.killFeedList.textContent = '';
         }

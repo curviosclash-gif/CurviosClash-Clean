@@ -69,7 +69,7 @@ export class HuntScoring {
 
     registerElimination(targetPlayer, options = {}) {
         const targetIndex = targetPlayer?.index;
-        if (!Number.isInteger(targetIndex)) return;
+        if (!Number.isInteger(targetIndex)) return { killerIndex: -1, assistIndices: [] };
 
         const nowSeconds = Number.isFinite(options.nowSeconds) ? options.nowSeconds : getNowSeconds();
         const killerIndex = Number.isInteger(options?.killer?.index) ? options.killer.index : -1;
@@ -82,6 +82,7 @@ export class HuntScoring {
             killerStats.kills += 1;
         }
 
+        const assistIndices = [];
         const damageHistory = this._damageHistoryByTarget.get(targetIndex);
         if (damageHistory) {
             for (const [attackerIndex, entry] of damageHistory.entries()) {
@@ -94,10 +95,12 @@ export class HuntScoring {
                 }
                 const assistStats = this._ensureStats(attackerIndex);
                 assistStats.assists += 1;
+                assistIndices.push(attackerIndex);
             }
         }
 
         this._damageHistoryByTarget.delete(targetIndex);
+        return { killerIndex, assistIndices };
     }
 
     getScoreboard(players = []) {
@@ -130,11 +133,7 @@ export class HuntScoring {
         const rows = this.getScoreboard(players).slice(0, maxEntries);
         if (rows.length === 0) return '';
         return rows
-            .map((entry) => (
-                entry.shieldDamage > 0
-                    ? `${entry.label} K${entry.kills}/A${entry.assists}/Dmg${entry.damage}/S${entry.shieldDamage}`
-                    : `${entry.label} K${entry.kills}/A${entry.assists}/Dmg${entry.damage}`
-            ))
+            .map((entry) => `${entry.label} K${entry.kills}/T${entry.deaths}/A${entry.assists}`)
             .join(' | ');
     }
 }

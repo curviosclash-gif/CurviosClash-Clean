@@ -19,6 +19,7 @@ import {
     writeHangarVehicleSelection,
 } from '../hangar/HangarSelectionWritebackContract.js';
 import { createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
+import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
     const settings = ctx.settings;
@@ -152,7 +153,7 @@ export function setupMenuGameplayBindings(ctx) {
             const result = await hangarWindow.openWindow?.({ mode: 'fight', focus: true });
             if (result?.ok !== true) {
                 emit(eventTypes.SHOW_STATUS_TOAST, {
-                    message: 'Fight-Hangar konnte nicht geöffnet werden.',
+                    message: 'Kampf-Hangar konnte nicht geöffnet werden.',
                     tone: 'warning',
                     duration: 1600,
                 });
@@ -497,6 +498,16 @@ export function setupMenuGameplayBindings(ctx) {
                 fightMgDamageLimits.max
             );
             queueInputSettingsChanged([keys.GAMEPLAY_FIGHT_MG_DAMAGE]);
+        });
+    }
+    for (const button of ui.fightTuningPresetButtons || []) {
+        bind(button, 'click', () => {
+            if (!isFightModePathActive()) return;
+            const preset = FIGHT_TUNING_PRESETS[String(button?.dataset?.fightTuningPreset || '')];
+            if (!preset) return;
+            settings.gameplay.fightPlayerHp = preset.fightPlayerHp;
+            settings.gameplay.fightMgDamage = preset.fightMgDamage;
+            emitSettingsChangedImmediate([keys.GAMEPLAY_FIGHT_PLAYER_HP, keys.GAMEPLAY_FIGHT_MG_DAMAGE]);
         });
     }
 

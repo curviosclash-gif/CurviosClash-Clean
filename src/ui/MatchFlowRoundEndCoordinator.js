@@ -64,6 +64,9 @@ function resolveObjectiveLabel(reason) {
     if (normalized === 'ELIMINATION') {
         return 'Elimination';
     }
+    if (normalized === 'KILL_LIMIT') {
+        return 'Abschusslimit erreicht';
+    }
     return normalized || '-';
 }
 

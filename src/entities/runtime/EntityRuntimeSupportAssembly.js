@@ -8,29 +8,6 @@ import { EntityEventBus } from './EntityEventBus.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
 import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
 
-function formatFeedDamageSuffix(damageResult = {}) {
-    const applied = Math.max(0, Number(damageResult?.applied) || 0);
-    const absorbedByShield = Math.max(0, Number(damageResult?.absorbedByShield) || 0);
-    const hpApplied = Math.max(0, Number(damageResult?.hpApplied) || (applied - absorbedByShield));
-    if (hpApplied > 0 && absorbedByShield > 0) {
-        return `-${Math.round(hpApplied)} HP / -${Math.round(absorbedByShield)} Schild`;
-    }
-    if (hpApplied > 0) {
-        return `-${Math.round(hpApplied)} HP`;
-    }
-    if (absorbedByShield > 0) {
-        return `-${Math.round(absorbedByShield)} Schild`;
-    }
-    return 'TREFFER';
-}
-
-function formatCombatantLabel(player) {
-    const explicitLabel = typeof player?.combatLabel === 'string' ? player.combatLabel.trim() : '';
-    if (explicitLabel) return explicitLabel;
-    if (!player) return 'Umgebung';
-    return player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
-}
-
 export function createEntityRuntimeSupport(owner) {
     let eventBus = null;
     const projectileSystem = new ProjectileSystem({
@@ -94,16 +71,6 @@ export function createEntityRuntimeSupport(owner) {
             });
             if (damageResult?.isDead) {
                 owner._killPlayer(target, 'PROJECTILE', { killer: projectileOwner || null });
-            }
-            if (damageResult?.isDead && projectileOwner) {
-                const attackerLabel = formatCombatantLabel(projectileOwner);
-                const targetLabel = formatCombatantLabel(target);
-                eventBus?.emitHuntFeed(`${attackerLabel} -> ${targetLabel}: ELIMINATED`);
-            }
-            if (!damageResult?.isDead && projectileOwner) {
-                const attackerLabel = formatCombatantLabel(projectileOwner);
-                const targetLabel = formatCombatantLabel(target);
-                eventBus?.emitHuntFeed(`${attackerLabel} -> ${targetLabel}: ${formatFeedDamageSuffix(damageResult)}`);
             }
         },
         runtimeProfiler: owner.runtimeProfiler || null,

@@ -37,7 +37,7 @@ const workshop = setupArcadeHangarWorkshop({
 
 document.body.dataset.hangarMode = hangarMode;
 const title = document.querySelector('.hangar-window-titlebar strong');
-if (title) title.textContent = hangarMode === 'fight' ? 'Fight-Hangar' : 'Arcade-Hangar';
+if (title) title.textContent = hangarMode === 'fight' ? 'Kampf-Hangar' : 'Arcade-Hangar';
 
 if (workshop?.container) mount?.appendChild(workshop.container);
 

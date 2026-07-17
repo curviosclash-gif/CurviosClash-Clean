@@ -234,12 +234,22 @@ function createHuntProjection(value = null, nowMs = 0) {
     }
 
     const legacyIndicator = createDamageIndicatorProjection(source.damageIndicator, nowMs);
+    const respawnRemainingByPlayer = {};
+    const respawnSource = source.respawnRemainingByPlayer && typeof source.respawnRemainingByPlayer === 'object'
+        ? source.respawnRemainingByPlayer
+        : {};
+    for (const [key, entry] of Object.entries(respawnSource)) {
+        respawnRemainingByPlayer[key] = Math.max(0, normalizeNumber(entry, 0));
+    }
     return {
         active: source.active === true,
         killFeed: cloneStringArray(source.killFeed),
         overheatByPlayer,
         damageIndicatorsByPlayer,
         damageIndicator: legacyIndicator,
+        respawnEnabled: source.respawnEnabled === true,
+        deathmatchKillLimit: Math.max(1, normalizeNonNegativeInt(source.deathmatchKillLimit, 10)),
+        respawnRemainingByPlayer,
         scoreboardSummary: normalizeString(source.scoreboardSummary, ''),
     };
 }

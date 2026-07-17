@@ -4,6 +4,7 @@ import { RuleBasedBotPolicy } from '../entities/ai/RuleBasedBotPolicy.js';
 import { BOT_POLICY_TYPES } from '../entities/ai/BotPolicyTypes.js';
 import { BOT_ITEM_RULES } from '../entities/ai/BotTuningConfig.js';
 import { resolveHuntTargetOwnerPlayer } from './HuntTargetingOps.js';
+import { getPreferredFightEnemy } from './FightTargetSelector.js';
 import {
     isPickupTypeSelfUsable,
     isPickupTypeShootable,
@@ -367,16 +368,23 @@ export class HuntBotPolicy {
         const allPlayers = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
         const snapshot = resolveSensorSnapshot(this);
         const huntTarget = runtimeContext?.huntTarget || null;
-        const nearest = getNearestEnemy(player, allPlayers, this._tmpToEnemy);
+        const preferred = getPreferredFightEnemy(player, allPlayers, this._tmpToEnemy);
         const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, allPlayers);
-        const enemy = targetPlayer || (snapshot?.targetPlayer && snapshot.targetPlayer.alive ? snapshot.targetPlayer : nearest.enemy);
-        const distSq = Number.isFinite(huntTarget?.distance)
+        const sharedTargetAccepted = targetPlayer && (
+            targetPlayer === preferred.enemy
+            || preferred.candidateCount <= 1
+            || targetPlayer.index === player.fightLastAttackerIndex
+        );
+        const enemy = (sharedTargetAccepted ? targetPlayer : null)
+            || preferred.enemy
+            || (snapshot?.targetPlayer && snapshot.targetPlayer.alive ? snapshot.targetPlayer : null);
+        const distSq = sharedTargetAccepted && Number.isFinite(huntTarget?.distance)
             ? huntTarget.distance * huntTarget.distance
-            : (Number.isFinite(snapshot?.targetDistanceSq) ? snapshot.targetDistanceSq : nearest.distSq);
-        const targetInFront = huntTarget ? true : (snapshot ? !!snapshot.targetInFront : true);
+            : (preferred.enemy ? preferred.distSq : snapshot?.targetDistanceSq);
+        const targetInFront = sharedTargetAccepted ? true : (snapshot ? !!snapshot.targetInFront : true);
         const pressure = Number.isFinite(snapshot?.pressure) ? snapshot.pressure : 0;
         const projectileThreat = !!snapshot?.projectileThreat;
-        const hasSharedTarget = !!huntTarget;
+        const hasSharedTarget = !!sharedTargetAccepted;
         const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];
         const scenarioTuning = resolveScenarioBotTuning(player);
 

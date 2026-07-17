@@ -2695,6 +2695,44 @@ input[type="range"]::-webkit-slider-thumb {
     display: none !important;
 }
 
+.hunt-match-status {
+    position: absolute;
+    top: 20px;
+    left: 50%;
+    min-width: 280px;
+    max-width: min(50vw, 620px);
+    transform: translateX(-50%);
+    padding: 8px 12px;
+    border: 1px solid rgba(0, 255, 255, 0.3);
+    border-radius: 4px;
+    background: rgba(0, 15, 30, 0.55);
+    text-align: center;
+}
+
+.hunt-match-status .hunt-value {
+    margin: 3px 0 0;
+    text-align: center;
+}
+
+.hunt-respawn-status {
+    color: #ffd166;
+    font: 700 13px monospace;
+    text-align: center;
+}
+
+.hunt-respawn-status.hidden {
+    display: none !important;
+}
+
+#fight-tuning-hint[data-tone="fast"],
+#fight-tuning-hint[data-tone="slow"] {
+    color: #ffd166;
+}
+
+#fight-tuning-hint[data-tone="balanced"] {
+    color: #9ff2c7;
+}
+
 #hunt-p1-panel {
     top: 20px;
     right: 20px;
@@ -4317,6 +4355,12 @@ input[type="range"]::-webkit-slider-thumb {
 @media (max-width: 1260px) {
     .hangar-workshop-layout {
         grid-template-columns: minmax(230px, 0.9fr) minmax(330px, 1.25fr) minmax(300px, 1.1fr);
+    }
+
+    .hunt-match-status {
+        top: 8px;
+        min-width: 0;
+        width: min(46vw, 360px);
     }
 }
 

@@ -72,7 +72,8 @@ function pickWeightedType(typeEntries = [], random = Math.random) {
         return weighted[0].type;
     }
 
-    const randomValue = Number.isFinite(Number(random())) ? Number(random()) : 0;
+    const sampledRandom = Number(random());
+    const randomValue = Number.isFinite(sampledRandom) ? sampledRandom : 0;
     let roll = Math.max(0, Math.min(0.999999, randomValue)) * totalWeight;
     for (const entry of weighted) {
         roll -= entry.weight;
@@ -376,7 +377,7 @@ export class HuntModeStrategy extends GameModeContract {
                     : 1,
             }));
 
-        if (this._random() < rocketSpawnChance) {
+        if (rocketSpawnChance > 0 && this._random() < rocketSpawnChance) {
             const weightedRocketType = pickWeightedRocketTierType({
                 allowedTypes: normalizedSpawnableTypes,
                 tiersConfig: activeConfig?.HUNT?.ROCKET_TIERS || null,

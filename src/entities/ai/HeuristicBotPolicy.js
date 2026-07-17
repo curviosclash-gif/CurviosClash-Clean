@@ -15,11 +15,11 @@ import {
     findNearestReadyPortal,
     findNearestReadySpecialGate,
     findStrongestRocketIndex,
-    getNearestEnemy,
     resolveHealthRatio,
     resolveHuntFallbackItemAction,
     resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
+import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
@@ -187,8 +187,13 @@ export class HeuristicBotPolicy {
     _applyHuntBehavior(input, player, runtimeContext, observation) {
         const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
         const huntTarget = runtimeContext?.huntTarget || null;
-        const nearest = getNearestEnemy(player, players, this._tmpToEnemy);
-        const enemy = resolveHuntTargetOwnerPlayer(huntTarget, players) || nearest.enemy;
+        const preferred = getPreferredFightEnemy(player, players, this._tmpToEnemy);
+        const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, players);
+        const enemy = targetPlayer && (
+            targetPlayer === preferred.enemy
+            || preferred.candidateCount <= 1
+            || targetPlayer.index === player.fightLastAttackerIndex
+        ) ? targetPlayer : preferred.enemy;
         const healthRatio = resolveHealthRatio(player);
         const shieldRatio = resolveShieldRatio(player);
         const enemyHealthRatio = resolveHealthRatio(enemy);
@@ -201,7 +206,7 @@ export class HeuristicBotPolicy {
         let targetInFront = readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
         const observedTargetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
         const targetDistanceMax = Math.max(1, Number(runtimeContext?.observationContext?.targetDistanceMax) || 120);
-        let targetDistanceSq = nearest.distSq;
+        let targetDistanceSq = preferred.distSq;
         let targetDistanceRatio = observedTargetDistanceRatio;
         if (enemy?.position && player?.position) {
             this._tmpToEnemy.subVectors(enemy.position, player.position);

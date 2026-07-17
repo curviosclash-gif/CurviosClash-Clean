@@ -246,7 +246,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const presetExport = button('secondary-btn hangar-preset-export', 'Export');
     const presetImport = button('secondary-btn hangar-preset-import', 'Import');
     presetActions.append(presetSave, presetSaveAs, presetLoad, presetRename, presetDuplicate, presetFavorite, presetExport, presetImport, presetDelete);
-    const activateButton = button('start-btn hangar-activate-build', mode === 'fight' ? 'Für nächsten Fight aktivieren' : 'Für nächsten Run aktivieren');
+    const activateButton = button('start-btn hangar-activate-build', mode === 'fight' ? 'Für nächsten Kampf aktivieren' : 'Für nächsten Run aktivieren');
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions);
     buildScroll.append(
         detailHead, profileBox, comparePanel, slotsPanel, validationBox, historyBar, starterPanel, loadoutPanel,

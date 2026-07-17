@@ -7,6 +7,7 @@ import { DEFAULT_BOT_POLICY_TYPE } from './ai/BotPolicyTypes.js';
 import { createBotRuntimeContext } from './ai/BotRuntimeContextFactory.js';
 import { assembleEntityRuntime } from './runtime/EntityRuntimeAssembler.js';
 import { emitHuntDamageFeedback } from '../hunt/HuntDamageFeedback.js';
+import { emitHuntEliminationFeed, rememberFightAttacker } from '../hunt/HuntEliminationFeed.js';
 import { createGameModeStrategy } from '../modes/GameModeRegistry.js';
 import { LastRoundGhostSystem } from './LastRoundGhostSystem.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -273,6 +274,8 @@ export class EntityManager {
         return this._huntScoring.formatSummary(this.players, { maxEntries });
     }
 
+    getHuntRespawnRemainingByPlayer() { return this._respawnSystem.getRemainingByPlayer(); }
+
     getParcoursHudState(playerIndex, now = undefined) {
         if (!this._parcoursProgressSystem) return null;
         return this._parcoursProgressSystem.getPlayerHudState(playerIndex, now);
@@ -298,6 +301,7 @@ export class EntityManager {
     _emitArcadeGameplayEvent(event) { emitArcadeGameplayEvent(this, event); }
 
     _emitHuntDamageEvent(event) {
+        rememberFightAttacker(event?.target, event?.sourcePlayer);
         this.recorder?.recordDamageEvent?.(event || null);
         if (this.gameModeStrategy?.hasDamageEvents()) {
             this._huntScoring.registerDamage(event?.sourcePlayer, event?.target, event?.damageResult);
@@ -315,9 +319,10 @@ export class EntityManager {
         this._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
         player.kill();
         if (this.gameModeStrategy?.hasScoring()) {
-            this._huntScoring.registerElimination(player, {
+            const scoringResult = this._huntScoring.registerElimination(player, {
                 killer: options?.killer || null,
             });
+            emitHuntEliminationFeed(this._eventBus, this.players, player, options?.killer, scoringResult?.assistIndices);
         }
         this._respawnSystem.onPlayerDied(player);
         if (this.particles) this.particles.spawnExplosion(player.position, player.color);

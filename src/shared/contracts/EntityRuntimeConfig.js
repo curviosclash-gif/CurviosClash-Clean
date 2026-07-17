@@ -73,6 +73,7 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         ACTIVE_MODE: 'CLASSIC',
         DEFAULT_MODE: 'CLASSIC',
         RESPAWN_ENABLED: false,
+        DEATHMATCH_KILL_LIMIT: 10,
         PLAYER_MAX_HP: 100,
         SHIELD_MAX_HP: 40,
         PLAYER_REGEN_DELAY: 3,

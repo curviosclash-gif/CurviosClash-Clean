@@ -1,14 +1,29 @@
 export class RoundOutcomeSystem {
     constructor({
+        getPlayers = () => [],
         getHumanPlayers = () => [],
         getBots = () => [],
-        getPendingHumanRespawns = () => 0,
+        getScoreboard = () => [],
+        isRespawnEnabled = () => false,
+        getDeathmatchKillLimit = () => 10,
         getObjectiveOutcome = () => null,
     } = {}) {
+        this.getPlayers = getPlayers;
         this.getHumanPlayers = getHumanPlayers;
         this.getBots = getBots;
-        this.getPendingHumanRespawns = getPendingHumanRespawns;
+        this.getScoreboard = getScoreboard;
+        this.isRespawnEnabled = isRespawnEnabled;
+        this.getDeathmatchKillLimit = getDeathmatchKillLimit;
         this.getObjectiveOutcome = getObjectiveOutcome;
+    }
+
+    _getCombatants() {
+        const players = this.getPlayers();
+        if (Array.isArray(players) && players.length > 0) return players.filter(Boolean);
+        return [
+            ...(this.getHumanPlayers() || []),
+            ...(this.getBots() || []).map((entry) => entry?.player).filter(Boolean),
+        ];
     }
 
     resolve() {
@@ -22,41 +37,22 @@ export class RoundOutcomeSystem {
             };
         }
 
-        const humanPlayers = this.getHumanPlayers();
-        let humansAlive = 0;
-        let lastHumanAlive = null;
-        for (const player of humanPlayers) {
-            if (!player?.alive) continue;
-            humansAlive++;
-            lastHumanAlive = player;
+        const combatants = this._getCombatants();
+        if (this.isRespawnEnabled()) {
+            const killLimit = Math.max(1, Math.trunc(Number(this.getDeathmatchKillLimit()) || 10));
+            const leader = (this.getScoreboard() || []).find((entry) => Number(entry?.kills) >= killLimit);
+            if (leader) {
+                const winner = combatants.find((player) => player?.index === leader.playerIndex) || null;
+                return { shouldEnd: true, winner, reason: 'KILL_LIMIT', parcours: null };
+            }
+            return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
 
-        const pendingHumanRespawns = this.getPendingHumanRespawns(humanPlayers);
-        let shouldEnd = false;
-        let winner = null;
-
-        if (humanPlayers.length === 1) {
-            if (humansAlive === 0 && pendingHumanRespawns === 0) {
-                shouldEnd = true;
-                const bots = this.getBots();
-                for (let i = 0; i < bots.length; i++) {
-                    const botPlayer = bots[i]?.player;
-                    if (botPlayer?.alive) {
-                        winner = botPlayer;
-                        break;
-                    }
-                }
-            }
-        } else if (humanPlayers.length >= 2) {
-            if (humansAlive <= 1 && pendingHumanRespawns === 0) {
-                shouldEnd = true;
-                winner = lastHumanAlive;
-            }
-        }
-
+        const alive = combatants.filter((player) => player?.alive);
+        const shouldEnd = combatants.length > 1 && alive.length <= 1;
         return {
             shouldEnd,
-            winner,
+            winner: shouldEnd ? (alive[0] || null) : null,
             reason: shouldEnd ? 'ELIMINATION' : '',
             parcours: null,
         };

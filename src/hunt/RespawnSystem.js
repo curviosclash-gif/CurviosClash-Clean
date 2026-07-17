@@ -64,6 +64,14 @@ export class RespawnSystem {
         return this.pendingByPlayer.has(player.index);
     }
 
+    getRemainingByPlayer() {
+        const snapshot = {};
+        for (const [playerIndex, pending] of this.pendingByPlayer) {
+            snapshot[playerIndex] = Math.max(0, Number(pending?.remaining) || 0);
+        }
+        return snapshot;
+    }
+
     getPendingCountForPlayers(players) {
         if (!Array.isArray(players) || players.length === 0) return 0;
         let count = 0;
@@ -121,7 +129,7 @@ export class RespawnSystem {
                     `delay=${Math.max(0, Number(respawnConfig?.DELAY_SECONDS || 3)).toFixed(2)} shield=${Math.round(player.shieldHP || 0)} items=${player.inventory.length}`
                 );
             }
-            this.runtime?.events?.emitHuntFeed(`${getLabel(player)} respawned`);
+            this.runtime?.events?.emitHuntFeed(`${getLabel(player)} ist wieder im Kampf`);
 
             this.pendingByPlayer.delete(playerIndex);
         }

@@ -46,6 +46,7 @@ function resolveObjectiveLabel(reason) {
     const normalized = String(reason || '').trim();
     if (normalized === 'PARCOURS_COMPLETE') return 'Parcours abgeschlossen';
     if (normalized === 'ELIMINATION') return 'Elimination';
+    if (normalized === 'KILL_LIMIT') return 'Abschusslimit erreicht';
     return normalized || '-';
 }
 

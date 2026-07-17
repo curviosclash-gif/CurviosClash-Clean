@@ -147,7 +147,7 @@
                                 <button type="button" id="btn-level3-reset" class="secondary-btn"
                                     data-menu-text-id="menu.level3.reset.label">Zurücksetzen</button>
                                 <button type="button" id="btn-open-fight-hangar" class="secondary-btn hidden"
-                                    aria-hidden="true">Fight-Hangar öffnen</button>
+                                    aria-hidden="true">Kampf-Hangar öffnen</button>
                                 <button type="button" id="btn-open-level4" class="secondary-btn" data-level4-section="gameplay"
                                     data-menu-text-id="menu.level3.open_level4.label">Erweiterte Optionen</button>
                                 <button type="button" id="btn-start" class="start-btn" data-menu-action="start-match"
@@ -393,7 +393,7 @@
                                         <div id="hunt-respawn-row" class="menu-section hidden">
                                             <label class="toggle-row" for="hunt-respawn-toggle">
                                                 <input type="checkbox" id="hunt-respawn-toggle">
-                                                Respawn aktivieren
+                                                Respawn aktivieren (Deathmatch)
                                             </label>
                                         </div>
                                     </div>
@@ -411,7 +411,7 @@
                                     <button type="button" class="secondary-btn" data-preset-id="arcade">Arcade</button>
                                     <button type="button" class="secondary-btn" data-preset-id="competitive">Competitive</button>
                                     <button type="button" class="secondary-btn" data-preset-id="chaos">Chaos</button>
-                                    <button type="button" class="secondary-btn" data-preset-id="fight-standard">Fight Standard</button>
+                                    <button type="button" class="secondary-btn" data-preset-id="fight-standard">Kampf Standard</button>
                                     <button type="button" class="secondary-btn" data-preset-id="normal-standard">Normal Standard</button>
                                 </div>
                                 <small id="preset-status" class="menu-hint">Preset: custom</small>
@@ -610,7 +610,12 @@
                                         <label for="fight-mg-damage-slider">MG-Schaden im Kampf: <span id="fight-mg-damage-label">7.75</span></label>
                                         <input type="range" id="fight-mg-damage-slider" min="4" max="20" step="0.25" value="7.75">
                                     </div>
-                                    <p id="fight-tuning-hint" class="field-hint hidden">Nur im Spielstil Kampf aktiv.</p>
+                                    <div id="fight-tuning-presets" class="fight-only-setting btn-group hidden" aria-label="Kampfdauer-Presets">
+                                        <button type="button" class="secondary-btn" data-fight-tuning-preset="fast">Schnell</button>
+                                        <button type="button" class="secondary-btn" data-fight-tuning-preset="standard">Standard</button>
+                                        <button type="button" class="secondary-btn" data-fight-tuning-preset="tactical">Taktisch</button>
+                                    </div>
+                                    <p id="fight-tuning-hint" class="field-hint" role="status" aria-live="polite">Nur im Spielstil Kampf aktiv.</p>
                                 </div>
                             </details>
 
@@ -887,11 +892,11 @@
                                         title="Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.">i</span>
                                 </button>
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="fight"
-                                    aria-description="Direkter Schlagabtausch mit Jagdmodus und schnellerem Tempo.">
+                                    aria-description="Direkter Schlagabtausch im Kampfmodus mit schnellerem Tempo.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.fight.label">Kampf</span>
                                     <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
-                                        title="Direkter Schlagabtausch mit Jagdmodus und schnellerem Tempo.">i</span>
+                                        title="Direkter Schlagabtausch im Kampfmodus mit schnellerem Tempo.">i</span>
                                 </button>
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="normal"
                                     aria-description="Der klassische Start mit freier Wahl von Karte, Flugzeug und Regeln.">
@@ -1147,7 +1152,17 @@
             </div>
 
             <div id="hunt-hud" class="hunt-hud hidden" aria-hidden="true">
+                <div class="hunt-match-status" role="status" aria-live="polite">
+                    <div id="hunt-objective" class="hunt-label">Elimination</div>
+                    <div id="hunt-scoreboard" class="hunt-value"></div>
+                </div>
                 <div id="hunt-p1-panel" class="hunt-player-panel">
+                    <div class="hunt-label">Struktur</div>
+                    <div class="hunt-bar hunt-bar-hp">
+                        <div id="hunt-p1-hp-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p1-hp-text" class="hunt-value">0 / 0</div>
+
                     <div class="hunt-label">Schild</div>
                     <div class="hunt-bar hunt-bar-shield">
                         <div id="hunt-p1-shield-fill" class="hunt-fill"></div>
@@ -1160,13 +1175,20 @@
                     </div>
                     <div id="hunt-p1-boost-text" class="hunt-value">100%</div>
 
-                    <div class="hunt-label">Overheat</div>
+                    <div class="hunt-label">Überhitzung</div>
                     <div class="hunt-bar hunt-bar-overheat">
                         <div id="hunt-p1-overheat-fill" class="hunt-fill"></div>
                     </div>
                     <div id="hunt-p1-overheat-text" class="hunt-value">0%</div>
+                    <div id="hunt-p1-respawn" class="hunt-respawn-status hidden" role="status"></div>
                 </div>
                 <div id="hunt-p2-panel" class="hunt-player-panel hidden">
+                    <div class="hunt-label">Struktur</div>
+                    <div class="hunt-bar hunt-bar-hp">
+                        <div id="hunt-p2-hp-fill" class="hunt-fill"></div>
+                    </div>
+                    <div id="hunt-p2-hp-text" class="hunt-value">0 / 0</div>
+
                     <div class="hunt-label">Schild</div>
                     <div class="hunt-bar hunt-bar-shield">
                         <div id="hunt-p2-shield-fill" class="hunt-fill"></div>
@@ -1179,15 +1201,16 @@
                     </div>
                     <div id="hunt-p2-boost-text" class="hunt-value">100%</div>
 
-                    <div class="hunt-label">Overheat</div>
+                    <div class="hunt-label">Überhitzung</div>
                     <div class="hunt-bar hunt-bar-overheat">
                         <div id="hunt-p2-overheat-fill" class="hunt-fill"></div>
                     </div>
                     <div id="hunt-p2-overheat-text" class="hunt-value">0%</div>
+                    <div id="hunt-p2-respawn" class="hunt-respawn-status hidden" role="status"></div>
                 </div>
                 <div class="hunt-kill-feed">
-                    <div class="hunt-label">Kill Feed</div>
-                    <ul id="hunt-kill-feed-list"></ul>
+                    <div class="hunt-label">Kampfmeldungen</div>
+                    <ul id="hunt-kill-feed-list" aria-live="polite"></ul>
                 </div>
                 <div id="hunt-damage-indicator" class="hunt-damage-indicator p1 hidden">▲</div>
                 <div id="hunt-damage-indicator-p2" class="hunt-damage-indicator p2 hidden">▲</div>
