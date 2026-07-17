@@ -1,12 +1,11 @@
-import { listVehicleDescriptors } from '../../../src/entities/vehicle-registry.js';
+import { listBaseVehicleDescriptors } from '../../../src/entities/vehicle-registry.js';
 
 export function listVehicleLabGameReferences() {
-    return listVehicleDescriptors()
-        .filter((vehicle) => vehicle.isGeneratedModular !== true)
+    return listBaseVehicleDescriptors()
         .map((vehicle) => ({
             id: vehicle.id,
             label: vehicle.label,
-            readOnly: true,
-            source: 'game-reference',
+            editableProduct: true,
+            source: 'game-vehicle',
         }));
 }

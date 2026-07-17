@@ -13,15 +13,16 @@ test('Vehicle Lab exposes every built-in game vehicle as a reference', () => {
         'ship5', 'aircraft', 'spaceship', 'arrow', 'manta', 'drone', 'orb',
         'ship1', 'ship2', 'ship3', 'ship4', 'ship6', 'ship7', 'ship8', 'ship9',
     ]);
-    assert.ok(references.every((vehicle) => vehicle.readOnly === true));
-    assert.ok(references.every((vehicle) => vehicle.source === 'game-reference'));
+    assert.ok(references.every((vehicle) => vehicle.editableProduct === true));
+    assert.ok(references.every((vehicle) => vehicle.source === 'game-vehicle'));
 });
 
 test('Vehicle Lab game references use the same mesh factory as gameplay', async () => {
     const reference = new GameVehicleReferenceMesh({ id: 'aircraft', label: 'Jet-Fighter' });
 
-    assert.ok(reference.referenceMesh instanceof AircraftMesh);
+    assert.ok(reference.baseMesh instanceof AircraftMesh);
     assert.equal(await reference.ready, true);
+    assert.equal(reference.config.baseVehicleId, 'aircraft');
     reference.dispose();
 });
 

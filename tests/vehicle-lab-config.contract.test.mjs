@@ -53,6 +53,23 @@ test('Vehicle Lab config preserves explicit gameplay roles', () => {
     assert.equal(result.config.parts[1].role, undefined);
 });
 
+test('Vehicle Lab accepts product vehicles with a fixed base and editable transform', () => {
+    const result = normalizeVehicleLabConfig({
+        label: 'Jet-Fighter',
+        baseVehicleId: 'aircraft',
+        baseTransform: { pos: [1, 2, 3], rot: [10, 20, 30], scale: [1.5, 1, 0.8] },
+        parts: [],
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(result.config.baseVehicleId, 'aircraft');
+    assert.deepEqual(result.config.baseTransform, {
+        pos: [1, 2, 3],
+        rot: [10, 20, 30],
+        scale: [1.5, 1, 0.8],
+    });
+});
+
 test('Vehicle Lab catalog persists, renames and deletes full runtime configs', () => {
     const values = new Map();
     const storage = {

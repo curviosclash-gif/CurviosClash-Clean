@@ -10,13 +10,13 @@ function cloneVehicleConfig(config) {
 }
 
 export class RuntimeModularVehicleMesh extends ModularVehicleMesh {
-    constructor(color, config = {}) {
+    constructor(color, config = {}, options = {}) {
         const runtimeConfig = cloneVehicleConfig(config);
         if (Number.isFinite(Number(color))) {
             runtimeConfig.primaryColor = Number(color);
         }
 
-        super(runtimeConfig);
+        super(runtimeConfig, options);
 
         this.playerColor = color;
         this.muzzle = new THREE.Object3D();

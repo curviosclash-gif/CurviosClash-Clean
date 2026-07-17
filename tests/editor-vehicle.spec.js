@@ -34,16 +34,36 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('#workshopStatusMessage')).toContainText('Entwurf geladen');
     });
 
-    test('all built-in game vehicles load as read-only references and can return to editing', async ({ page }) => {
+    test('built-in game vehicles keep their base mesh and save editable product overrides', async ({ page }) => {
         await resetVehicleLab(page);
+        let savedRequest = null;
+        await page.route(`**${EDITOR_API_ROUTES.SAVE_VEHICLE_DISK}`, async (route) => {
+            savedRequest = route.request().postDataJSON();
+            await route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, vehicleId: 'ship1' }),
+            });
+        });
 
         await page.locator('#presetSelect').selectOption('ship1');
-        await expect(page.locator('#workshopStatusMessage')).toContainText('Spielmodell geladen: Interceptor');
+        await expect(page.locator('#workshopStatusMessage')).toContainText('Produktives Spielmodell geladen: Interceptor');
         await expect(page.locator('#referenceVehicleNotice')).toBeVisible();
-        await expect(page.locator('#referenceVehicleNotice')).toContainText('schreibgeschützt');
-        await expect(page.locator('#btnAddPart')).toBeDisabled();
+        await expect(page.locator('#referenceVehicleNotice')).toContainText('bearbeitbar');
+        await expect(page.locator('#btnAddPart')).toBeEnabled();
         await expect(page.locator('#btnSaveToGameVehicle')).toBeDisabled();
+        await expect(page.locator('#btnSaveVehicle')).toHaveText('Spiel-Fahrzeug speichern');
         await expect(page.locator('#polyCountBadge')).not.toHaveText('Polygone: 0');
+
+        await page.locator('#btnEditBaseVehicle').click();
+        const basePositionX = page.locator('#propertiesContainer input[aria-label="Position X"]');
+        await basePositionX.fill('1.5');
+        await basePositionX.press('Tab');
+        await page.locator('#btnAddPart').click();
+        await page.locator('#btnSaveVehicle').click();
+        await expect(page.locator('#workshopSaveState')).toHaveText('Spiel-Fahrzeug gespeichert');
+        expect(savedRequest.vehicleId).toBe('ship1');
+        expect(JSON.parse(savedRequest.jsonText).baseTransform.pos[0]).toBe(1.5);
 
         await page.locator('#presetSelect').selectOption('lab_jet_fighter');
         await expect(page.locator('#partsList .part-item')).toHaveCount(8);

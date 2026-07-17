@@ -31,6 +31,7 @@ const BASE_VEHICLE_DEFINITIONS = [
     { id: 'ship8', label: 'Striker (Ship 8)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.1 } },
     { id: 'ship9', label: 'Recon (Ship 9)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.0 } },
 ];
+const BASE_VEHICLE_BY_ID = new Map(BASE_VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
 
 const LOCAL_VEHICLE_CONFIGS = loadVehicleLabCatalog().vehicles;
 const CUSTOM_VEHICLE_CONFIGS = Array.from(new Map([
@@ -45,6 +46,7 @@ const GENERATED_CUSTOM_VEHICLE_DEFINITIONS = CUSTOM_VEHICLE_CONFIGS
         label: String(entry.label || entry.id || 'Custom Vehicle'),
         MeshClass: RuntimeModularVehicleMesh,
         isGeneratedModular: true,
+        isBuiltIn: BASE_VEHICLE_BY_ID.has(String(entry.id || '').trim()),
         modularConfig: entry.config,
         hitbox: {
             radius: Number(entry.hitbox?.radius) || 1.2
@@ -52,9 +54,15 @@ const GENERATED_CUSTOM_VEHICLE_DEFINITIONS = CUSTOM_VEHICLE_CONFIGS
     }))
     .filter((entry) => entry.id.length > 0);
 
+const GENERATED_VEHICLE_BY_ID = new Map(GENERATED_CUSTOM_VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
 export const VEHICLE_DEFINITIONS = [
-    ...BASE_VEHICLE_DEFINITIONS,
-    ...GENERATED_CUSTOM_VEHICLE_DEFINITIONS,
+    ...BASE_VEHICLE_DEFINITIONS.map((entry) => ({
+        ...entry,
+        isBuiltIn: true,
+        ...(GENERATED_VEHICLE_BY_ID.get(entry.id) || {}),
+        hitbox: entry.hitbox,
+    })),
+    ...GENERATED_CUSTOM_VEHICLE_DEFINITIONS.filter((entry) => !BASE_VEHICLE_BY_ID.has(entry.id)),
 ];
 
 const VEHICLE_BY_ID = new Map(VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
@@ -67,16 +75,35 @@ export function isValidVehicleId(vehicleId) {
     return VEHICLE_BY_ID.has(String(vehicleId || '').trim());
 }
 
+export function createBaseVehicleMesh(vehicleId, color) {
+    const selected = BASE_VEHICLE_BY_ID.get(String(vehicleId || '').trim()) || BASE_VEHICLE_DEFINITIONS[0];
+    if (selected.isObj) return new selected.MeshClass(color, selected.id);
+    return new selected.MeshClass(color);
+}
+
 export function createVehicleMesh(vehicleId, color) {
     const key = String(vehicleId || '').trim();
     const selected = VEHICLE_BY_ID.get(key) || VEHICLE_DEFINITIONS[0];
     if (selected.isGeneratedModular) {
-        return new selected.MeshClass(color, selected.modularConfig);
+        const baseVehicleId = String(selected.modularConfig?.baseVehicleId || '').trim();
+        const baseMesh = BASE_VEHICLE_BY_ID.has(baseVehicleId)
+            ? createBaseVehicleMesh(baseVehicleId, color)
+            : null;
+        return new selected.MeshClass(color, selected.modularConfig, { baseMesh });
     }
     if (selected.isObj) {
         return new selected.MeshClass(color, selected.id);
     }
     return new selected.MeshClass(color);
+}
+
+export function listBaseVehicleDescriptors() {
+    return BASE_VEHICLE_DEFINITIONS.map((entry) => ({
+        id: entry.id,
+        label: entry.label,
+        hitboxRadius: Number(entry?.hitbox?.radius) || 1.1,
+        usesObjMesh: entry.isObj === true,
+    }));
 }
 
 export function listVehicleDescriptors() {
@@ -85,6 +112,7 @@ export function listVehicleDescriptors() {
         label: entry.label,
         hitboxRadius: Number(entry?.hitbox?.radius) || 1.1,
         isGeneratedModular: entry.isGeneratedModular === true,
+        isBuiltIn: entry.isBuiltIn === true,
         usesObjMesh: entry.isObj === true,
     }));
 }

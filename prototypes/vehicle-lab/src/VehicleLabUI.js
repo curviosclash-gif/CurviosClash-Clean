@@ -61,6 +61,8 @@ export class VehicleLabUI {
         document.getElementById('btnUndo').onclick = () => this.callbacks.onUndo();
         document.getElementById('btnRedo').onclick = () => this.callbacks.onRedo();
         document.getElementById('btnAddPart').onclick = () => this.callbacks.onAddPart();
+        const btnEditBaseVehicle = document.getElementById('btnEditBaseVehicle');
+        if (btnEditBaseVehicle) btnEditBaseVehicle.onclick = () => this.callbacks.onEditBaseVehicle?.();
         document.getElementById('btnAddChild').onclick = () => this.callbacks.onAddChild();
         document.getElementById('btnDuplicatePart').onclick = () => this.callbacks.onDuplicatePart?.();
         document.getElementById('btnMirrorPart').onclick = () => this.callbacks.onMirrorPart?.();
@@ -150,34 +152,19 @@ export class VehicleLabUI {
     }
 
     setReferenceMode(active, label = '') {
-        const isReference = active === true;
+        const isProductVehicle = active === true;
         const notice = document.getElementById('referenceVehicleNotice');
         if (notice) {
-            notice.textContent = isReference
-                ? `${label} ist ein fertiges Spielmodell. Ansicht und Kamera sind verfügbar; Bauteilbearbeitung und Hangar-Veröffentlichung sind schreibgeschützt.`
+            notice.textContent = isProductVehicle
+                ? `${label} ist ein produktives Spielmodell. Das Grundmodell bleibt als Asset erhalten; Transformation und zusätzliche Bauteile sind bearbeitbar.`
                 : '';
-            notice.classList.toggle('is-hidden', !isReference);
+            notice.classList.toggle('is-hidden', !isProductVehicle);
         }
-
-        [
-            'btnAddPart', 'btnAddChild', 'btnDuplicatePart', 'btnMirrorPart', 'btnDeletePart',
-            'btnExportJson', 'btnSaveVehicle', 'btnSaveToGameVehicle', 'btnUndo', 'btnRedo', 'shipLabel',
-            'shipPrimaryColor', 'partSearch', 'chkSnap', 'snapTranslate', 'snapRotate', 'snapScale',
-        ].forEach((id) => {
-            const element = document.getElementById(id);
-            if (!element) return;
-            if (isReference) {
-                if (element.dataset.disabledBeforeReference === undefined) {
-                    element.dataset.disabledBeforeReference = String(element.disabled === true);
-                }
-                element.disabled = true;
-            } else if (element.dataset.disabledBeforeReference !== undefined) {
-                element.disabled = element.dataset.disabledBeforeReference === 'true';
-                delete element.dataset.disabledBeforeReference;
-            }
-        });
-
-        if (isReference) this.hideProperties();
+        document.getElementById('btnEditBaseVehicle')?.classList.toggle('is-hidden', !isProductVehicle);
+        const saveButton = document.getElementById('btnSaveVehicle');
+        if (saveButton) saveButton.textContent = isProductVehicle ? 'Spiel-Fahrzeug speichern' : 'Fahrzeug speichern';
+        const publishButton = document.getElementById('btnSaveToGameVehicle');
+        if (publishButton) publishButton.disabled = isProductVehicle;
     }
 
     setDraftRecoveryAvailable(available) {
@@ -334,6 +321,7 @@ export class VehicleLabUI {
         const panel = document.getElementById('propertyPanel');
         const container = document.getElementById('propertiesContainer');
         panel.classList.remove('is-hidden');
+        document.getElementById('btnDeletePart').classList.remove('is-hidden');
         document.getElementById('partTitle').textContent = `Bearbeiten: ${part.name}`;
 
         container.innerHTML = '';
@@ -432,6 +420,28 @@ export class VehicleLabUI {
                 });
             }
         }
+    }
+
+    showBaseProperties(config, onUpdate) {
+        const panel = document.getElementById('propertyPanel');
+        const container = document.getElementById('propertiesContainer');
+        const transform = config.baseTransform;
+        panel.classList.remove('is-hidden');
+        document.getElementById('partTitle').textContent = `Grundmodell: ${config.baseVehicleId}`;
+        document.getElementById('btnDeletePart').classList.add('is-hidden');
+        container.innerHTML = '';
+        this.createVectorRow(container, 'Position', transform.pos, (index, value) => {
+            transform.pos[index] = value;
+            onUpdate('baseTransform');
+        });
+        this.createVectorRow(container, 'Rotation', transform.rot, (index, value) => {
+            transform.rot[index] = value;
+            onUpdate('baseTransform');
+        });
+        this.createVectorRow(container, 'Skalierung', transform.scale, (index, value) => {
+            transform.scale[index] = Math.max(0.01, value);
+            onUpdate('baseTransform');
+        });
     }
 
     hideProperties() {
@@ -558,7 +568,7 @@ export class VehicleLabUI {
 
                 const badge = document.createElement('span');
                 badge.className = 'badge--readonly';
-                badge.textContent = 'Schreibgeschützt';
+                badge.textContent = vehicle?.editableProduct ? 'Produktiv · bearbeitbar' : 'Vorlage';
 
                 const actions = document.createElement('div');
                 actions.className = 'saved-vehicle-actions';

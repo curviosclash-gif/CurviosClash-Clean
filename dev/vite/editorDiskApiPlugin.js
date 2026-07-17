@@ -15,6 +15,7 @@ import { resolveArtifactVersionState } from '../../src/shared/contracts/Artifact
 import {
     estimateVehicleLabHitboxRadius,
     normalizeVehicleLabConfig,
+    VEHICLE_LAB_GAME_VEHICLE_IDS,
 } from '../../src/shared/contracts/VehicleLabConfigContract.js';
 import {
     createEditorAuthoringDocument,
@@ -36,6 +37,7 @@ const LEGACY_EDITOR_LARGE_DIM_THRESHOLD = 500;
 const RUNTIME_MAP_SCALE = 3;
 
 const GENERATED_EDITOR_VEHICLE_KEY_PREFIX = 'editor_vehicle_';
+const GAME_VEHICLE_ID_SET = new Set(VEHICLE_LAB_GAME_VEHICLE_IDS);
 const DEFAULT_EDITOR_VEHICLE_NAME = 'Custom Vehicle';
 const VEHICLE_NAME_MAX_LENGTH = 80;
 const VEHICLE_CONFIG_DIR = path.resolve(__dirname, EDITOR_DATA_PATHS.VEHICLES_DIR);
@@ -347,7 +349,7 @@ function loadGeneratedVehicleConfigsFromDisk() {
     const vehicles = [];
     for (const fileName of files) {
         const vehicleId = fileName.slice(0, -VEHICLE_CONFIG_SUFFIX.length);
-        if (!vehicleId.startsWith(GENERATED_EDITOR_VEHICLE_KEY_PREFIX)) continue;
+        if (!vehicleId.startsWith(GENERATED_EDITOR_VEHICLE_KEY_PREFIX) && !GAME_VEHICLE_ID_SET.has(vehicleId)) continue;
 
         const configRaw = safeReadJson(path.resolve(VEHICLE_CONFIG_DIR, fileName));
         if (!configRaw || typeof configRaw !== 'object') continue;
@@ -374,8 +376,14 @@ function ensureGeneratedVehicleIdEditable(vehicleId) {
     }
 }
 
+function ensureVehicleIdLoadable(vehicleId) {
+    if (!isGeneratedVehicleId(vehicleId) && !GAME_VEHICLE_ID_SET.has(vehicleId)) {
+        throw new Error('Vehicle id is not editable.');
+    }
+}
+
 function listSavedVehicleConfigs() {
-    return loadGeneratedVehicleConfigsFromDisk().map((entry) => ({
+    return loadGeneratedVehicleConfigsFromDisk().filter((entry) => isGeneratedVehicleId(entry.id)).map((entry) => ({
         id: entry.id,
         label: entry.label,
         readOnly: false
@@ -383,7 +391,7 @@ function listSavedVehicleConfigs() {
 }
 
 function getVehicleConfigFromDisk({ vehicleId }) {
-    ensureGeneratedVehicleIdEditable(vehicleId);
+    ensureVehicleIdLoadable(vehicleId);
 
     const sourcePath = getVehicleConfigPathForKey(vehicleId);
     if (!existsSync(sourcePath)) {
@@ -412,7 +420,7 @@ function writeGeneratedVehicleConfigsModule() {
     writeFileSync(GENERATED_VEHICLE_CONFIGS_MODULE_PATH, fileContent, 'utf-8');
 }
 
-function saveVehicleConfigToDisk({ jsonText, vehicleName }) {
+function saveVehicleConfigToDisk({ jsonText, vehicleName, vehicleId = '' }) {
     let parsed;
     try {
         parsed = JSON.parse(jsonText);
@@ -420,9 +428,21 @@ function saveVehicleConfigToDisk({ jsonText, vehicleName }) {
         throw new Error(`Invalid vehicle JSON: ${error.message}`);
     }
 
-    const resolved = resolveGeneratedVehicleKey(vehicleName);
+    const requestedVehicleId = String(vehicleId || '').trim().toLowerCase();
+    const isGameVehicle = GAME_VEHICLE_ID_SET.has(requestedVehicleId);
+    if (requestedVehicleId && !isGameVehicle && !isGeneratedVehicleId(requestedVehicleId)) {
+        throw new Error('Vehicle id is not editable.');
+    }
+    const resolved = isGameVehicle
+        ? {
+            vehicleId: requestedVehicleId,
+            overwritten: existsSync(getVehicleConfigPathForKey(requestedVehicleId)),
+            vehicleName: sanitizeVehicleName(vehicleName),
+        }
+        : resolveGeneratedVehicleKey(vehicleName);
     const config = sanitizeVehicleConfig(parsed, resolved.vehicleName);
     config.label = resolved.vehicleName;
+    if (isGameVehicle) config.baseVehicleId = requestedVehicleId;
 
     const vehicleConfigPath = getVehicleConfigPathForKey(resolved.vehicleId);
     mkdirSync(VEHICLE_CONFIG_DIR, { recursive: true });
@@ -593,7 +613,7 @@ export function editorDiskSaveApiPlugin() {
                 const result = isMapSave
                     ? saveEditorMapToDisk({ jsonText, mapName, editorDocument })
                     : isVehicleSave
-                        ? saveVehicleConfigToDisk({ jsonText, vehicleName })
+                        ? saveVehicleConfigToDisk({ jsonText, vehicleName, vehicleId })
                         : isVehicleRename
                             ? renameVehicleConfigOnDisk({ vehicleId, vehicleName })
                             : deleteVehicleConfigFromDisk({ vehicleId });

@@ -11,6 +11,10 @@ export const VEHICLE_LAB_CONFIG_LIMITS = Object.freeze({
 
 export const VEHICLE_LAB_CATALOG_VERSION = 'vehicle-lab-catalog.v1';
 export const VEHICLE_LAB_CATALOG_STORAGE_KEY = 'curviosclash.vehicle-lab.catalog.v1';
+export const VEHICLE_LAB_GAME_VEHICLE_IDS = Object.freeze([
+    'ship5', 'aircraft', 'spaceship', 'arrow', 'manta', 'drone', 'orb',
+    'ship1', 'ship2', 'ship3', 'ship4', 'ship6', 'ship7', 'ship8', 'ship9',
+]);
 export const VEHICLE_LAB_PART_ROLES = Object.freeze([
     'auto',
     'core',
@@ -39,6 +43,7 @@ const VEHICLE_LAB_MATERIALS = new Set(['primary', 'secondary', 'glass', 'glow'])
 const VEHICLE_LAB_ANIMATIONS = new Set(['rotate', 'bob', 'pulse']);
 const VEHICLE_LAB_AXES = new Set(['x', 'y', 'z']);
 const VEHICLE_LAB_ROLE_SET = new Set(VEHICLE_LAB_PART_ROLES);
+const VEHICLE_LAB_GAME_VEHICLE_ID_SET = new Set(VEHICLE_LAB_GAME_VEHICLE_IDS);
 const VEHICLE_LAB_CATALOG_LIMIT = 24;
 
 function finiteNumber(value, fallback, min, max) {
@@ -83,9 +88,16 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
         return { ok: false, config: null, errors: ['Fahrzeug-Konfiguration muss ein Objekt sein.'], warnings };
     }
 
+    const requestedBaseVehicleId = String(source.baseVehicleId || '').trim().toLowerCase();
+    const baseVehicleId = VEHICLE_LAB_GAME_VEHICLE_ID_SET.has(requestedBaseVehicleId)
+        ? requestedBaseVehicleId
+        : '';
     const inputParts = Array.isArray(source.parts) ? source.parts : [];
     if (!Array.isArray(source.parts)) errors.push('"parts" muss ein Array sein.');
-    if (options.requireParts !== false && inputParts.length === 0) errors.push('Das Fahrzeug benötigt mindestens ein Bauteil.');
+    if (requestedBaseVehicleId && !baseVehicleId) warnings.push('Unbekanntes Grundmodell wurde entfernt.');
+    if (options.requireParts !== false && inputParts.length === 0 && !baseVehicleId) {
+        errors.push('Das Fahrzeug benötigt mindestens ein Bauteil.');
+    }
 
     let partCount = 0;
     const normalizePart = (part, depth, path) => {
@@ -150,7 +162,7 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
     const parts = inputParts
         .map((part, index) => normalizePart(part, 0, String(index)))
         .filter(Boolean);
-    if (options.requireParts !== false && parts.length === 0 && errors.length === 0) {
+    if (options.requireParts !== false && parts.length === 0 && !baseVehicleId && errors.length === 0) {
         errors.push('Das Fahrzeug enthält keine verwendbaren Bauteile.');
     }
 
@@ -163,6 +175,20 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
         primaryColor: normalizeColor(source.primaryColor),
         parts,
     };
+    if (baseVehicleId) {
+        const transform = source.baseTransform && typeof source.baseTransform === 'object'
+            ? source.baseTransform
+            : {};
+        config.baseVehicleId = baseVehicleId;
+        config.baseTransform = {
+            pos: normalizeVector(transform.pos, [0, 0, 0], -limits.maxAbsPosition, limits.maxAbsPosition),
+            rot: normalizeVector(transform.rot, [0, 0, 0], -limits.maxAbsRotation, limits.maxAbsRotation),
+            scale: normalizeVector(transform.scale, [1, 1, 1], 0.01, limits.maxScale),
+        };
+    } else {
+        delete config.baseVehicleId;
+        delete config.baseTransform;
+    }
 
     return { ok: errors.length === 0, config, errors, warnings };
 }

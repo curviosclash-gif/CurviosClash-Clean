@@ -3,6 +3,8 @@ import { test } from 'node:test';
 import * as THREE from 'three';
 
 import { EditorAssetLoader } from '../editor/js/EditorAssetLoader.js';
+import { AircraftMesh } from '../src/entities/aircraft-mesh.js';
+import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
 import { ModularVehicleMesh } from '../src/shared/vehicle-lab/ModularVehicleMeshBridge.js';
 
 function createTestAssetObject() {
@@ -90,5 +92,21 @@ test('ModularVehicleMesh rebuild disposes transient compound geometries', () => 
 
     assert.equal(disposeCalls, trackedGeometries.length);
     assert.ok(mesh.dynamicGeometries.size > 0);
+    mesh.dispose();
+});
+
+test('runtime product vehicle preserves its base mesh and authored attachments', () => {
+    const baseMesh = new AircraftMesh(0x60a5fa);
+    const mesh = new RuntimeModularVehicleMesh(0x60a5fa, {
+        baseVehicleId: 'aircraft',
+        baseTransform: { pos: [1, 2, 3], rot: [0, 15, 0], scale: [1.2, 1.2, 1.2] },
+        parts: [{ name: 'Developer Attachment', geo: 'box', pos: [0, 1, 0] }],
+    }, { baseMesh });
+
+    assert.equal(mesh.baseMesh, baseMesh);
+    assert.deepEqual(baseMesh.position.toArray(), [1, 2, 3]);
+    assert.ok(mesh.children.some((child) => child.userData.config?.name === 'Developer Attachment'));
+    mesh.build();
+    assert.equal(mesh.baseMesh, baseMesh);
     mesh.dispose();
 });

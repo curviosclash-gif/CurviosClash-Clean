@@ -4,10 +4,11 @@ import * as THREE from 'three';
  * ModularVehicleMesh builds a 3D vehicle from a configuration object.
  */
 export class ModularVehicleMesh extends THREE.Group {
-    constructor(config = {}) {
+    constructor(config = {}, options = {}) {
         super();
         this.isModularVehicle = true;
         this.config = config;
+        this.baseMesh = options.baseMesh || null;
         this.materials = new Map();
         this.geometries = new Map();
         this.dynamicGeometries = new Set();
@@ -42,6 +43,7 @@ export class ModularVehicleMesh extends THREE.Group {
     }
 
     build() {
+        if (this.baseMesh?.parent === this) this.remove(this.baseMesh);
         this.disposeDynamicGeometries();
         this.activeGeometryKeys.clear();
 
@@ -62,6 +64,10 @@ export class ModularVehicleMesh extends THREE.Group {
         });
 
         this.clear();
+        if (this.baseMesh) {
+            this.applyBaseTransform();
+            this.add(this.baseMesh);
+        }
         if (!this.config.parts) {
             this.pruneUnusedGeometries();
             return;
@@ -72,6 +78,14 @@ export class ModularVehicleMesh extends THREE.Group {
         });
         this.pruneUnusedGeometries();
         this.applySelectionHighlight();
+    }
+
+    applyBaseTransform() {
+        if (!this.baseMesh) return;
+        const transform = this.config.baseTransform || {};
+        this.baseMesh.position.fromArray(transform.pos || [0, 0, 0]);
+        this.baseMesh.rotation.set(...(transform.rot || [0, 0, 0]).map((value) => THREE.MathUtils.degToRad(value)));
+        this.baseMesh.scale.fromArray(transform.scale || [1, 1, 1]);
     }
 
     trackDynamicGeometry(geometry) {
@@ -316,6 +330,7 @@ export class ModularVehicleMesh extends THREE.Group {
                 }
             }
         });
+        this.baseMesh?.tick?.(dt);
     }
 
     setSelectedIndex(index) {
@@ -374,6 +389,7 @@ export class ModularVehicleMesh extends THREE.Group {
     }
 
     dispose() {
+        this.baseMesh?.cancelPendingLoad?.();
         this.disposeDynamicGeometries();
         this.traverse(child => {
             if (child.isMesh) {
