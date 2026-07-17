@@ -24,7 +24,19 @@ export function applyHangarWindowStorageEvent(event, settings, ui) {
     try {
         const loaded = JSON.parse(event.newValue);
         if (loaded?.vehicles && typeof loaded.vehicles === 'object') settings.vehicles = { ...loaded.vehicles };
-        if (loaded?.localSettings && typeof loaded.localSettings === 'object') settings.localSettings = { ...(settings.localSettings || {}), ...loaded.localSettings };
+        const loadedLocal = loaded?.localSettings;
+        if (loadedLocal && typeof loadedLocal === 'object') {
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
+            if (loadedLocal?.startSetup?.modeSelections && typeof loadedLocal.startSetup.modeSelections === 'object') {
+                settings.localSettings.startSetup = {
+                    ...(settings.localSettings.startSetup || {}),
+                    modeSelections: { ...loadedLocal.startSetup.modeSelections },
+                };
+            }
+            if (loadedLocal.fightHangar && typeof loadedLocal.fightHangar === 'object') {
+                settings.localSettings.fightHangar = { ...loadedLocal.fightHangar };
+            }
+        }
         const vehicleId = String(settings?.vehicles?.PLAYER_1 || '');
         if (ui?.vehicleSelectP1 && vehicleId) ui.vehicleSelectP1.value = vehicleId;
         return true;

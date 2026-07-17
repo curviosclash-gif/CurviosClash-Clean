@@ -880,7 +880,10 @@ ipcMain.handle('get-lan-server-status', withTrustedMainWindowSender(
 ));
 
 ipcMain.handle('hangar-window:open', withTrustedMainWindowSender(async (options = {}) => {
-    const result = await hangarWindowShellCapability.openHangarWindow({ focus: options?.focus !== false });
+    const result = await hangarWindowShellCapability.openHangarWindow({
+        mode: options?.mode,
+        focus: options?.focus !== false,
+    });
     return { ok: result.ok === true, reused: result.reused === true };
 }));
 
