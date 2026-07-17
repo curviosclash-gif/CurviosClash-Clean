@@ -54,9 +54,15 @@ function hasFinitePreviewGeometry(object) {
     return valid;
 }
 
-export function createEditorBuildPreviewCache(entries, assetLoader) {
-    const cache = new Map();
-    if (!Array.isArray(entries) || entries.length === 0 || typeof document === 'undefined') return cache;
+function disposePreviewObject(object) {
+    object?.traverse?.((node) => {
+        node.geometry?.dispose?.();
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        materials.forEach((material) => material?.dispose?.());
+    });
+}
+
+export function createEditorBuildPreviewRenderer(assetLoader) {
     let renderer = null;
     try {
         renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
@@ -75,28 +81,64 @@ export function createEditorBuildPreviewCache(entries, assetLoader) {
         const box = new THREE.Box3();
         const size = new THREE.Vector3();
         const center = new THREE.Vector3();
-        for (const entry of entries) {
-            const assetId = resolveEditorBuildEntryAssetId(entry);
-            const assetStatus = assetId ? assetLoader?.getLoadStatus?.(assetId) : null;
-            let object = assetId && assetStatus?.state === 'loaded' ? assetLoader?.getClone?.(assetId) : null;
-            if (object && !hasFinitePreviewGeometry(object)) object = null;
-            if (!object) object = createFallbackPreviewObject(entry);
-            box.setFromObject(object);
-            box.getSize(size);
-            box.getCenter(center);
-            object.position.sub(center);
-            const largest = Math.max(size.x, size.y, size.z, 0.001);
-            object.scale.multiplyScalar(1.8 / largest);
-            object.rotation.y += 0.55;
-            scene.add(object);
-            renderer.render(scene, camera);
-            cache.set(entry.id, renderer.domElement.toDataURL('image/webp', 0.82));
-            scene.remove(object);
-        }
+
+        return {
+            render(entries) {
+                const cache = new Map();
+                if (!Array.isArray(entries) || entries.length === 0) return cache;
+                for (const entry of entries) {
+                    let object = null;
+                    try {
+                        const assetId = resolveEditorBuildEntryAssetId(entry);
+                        const assetStatus = assetId ? assetLoader?.getLoadStatus?.(assetId) : null;
+                        object = assetId && assetStatus?.state === 'loaded' ? assetLoader?.getClone?.(assetId) : null;
+                        if (object && !hasFinitePreviewGeometry(object)) {
+                            disposePreviewObject(object);
+                            object = null;
+                        }
+                        if (!object) object = createFallbackPreviewObject(entry);
+                        box.setFromObject(object);
+                        box.getSize(size);
+                        box.getCenter(center);
+                        object.position.sub(center);
+                        const largest = Math.max(size.x, size.y, size.z, 0.001);
+                        object.scale.multiplyScalar(1.8 / largest);
+                        object.rotation.y += 0.55;
+                        scene.add(object);
+                        renderer.render(scene, camera);
+                        cache.set(entry.id, renderer.domElement.toDataURL('image/webp', 0.82));
+                    } catch (error) {
+                        console.warn(`[EditorPreviewRenderer] Preview for "${entry.id}" unavailable:`, error);
+                    } finally {
+                        if (object) {
+                            scene.remove(object);
+                            disposePreviewObject(object);
+                        }
+                    }
+                }
+                return cache;
+            },
+            dispose() {
+                renderer?.dispose?.();
+                renderer = null;
+            },
+        };
     } catch (error) {
         console.warn('[EditorPreviewRenderer] 3D preview cache unavailable:', error);
-    } finally {
         renderer?.dispose?.();
+        return {
+            render() { return new Map(); },
+            dispose() {},
+        };
     }
-    return cache;
+}
+
+export function createEditorBuildPreviewCache(entries, assetLoader) {
+    if (typeof document === 'undefined') return new Map();
+    const previewRenderer = createEditorBuildPreviewRenderer(assetLoader);
+    try {
+        return previewRenderer.render(entries);
+    } finally {
+        previewRenderer.dispose();
+    }
 }

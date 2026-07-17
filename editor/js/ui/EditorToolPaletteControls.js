@@ -143,6 +143,28 @@ function createEntryButton(entry, options = {}) {
     return button;
 }
 
+function updateEntryButtonPreview(button, entry, previewUrl, assetState) {
+    if (!button || !previewUrl) return;
+    const preview = button.querySelector('.buildCardPreview');
+    if (preview) {
+        const image = document.createElement('img');
+        image.src = previewUrl;
+        image.alt = '';
+        image.loading = 'lazy';
+        preview.replaceChildren(image);
+    }
+    button.dataset.assetState = assetState.state;
+    button.title = `${entry.label}: ${entry.description} ${assetState.detail}`;
+    button.setAttribute('aria-label', `${entry.label}. ${entry.description}. ${assetState.label}.`);
+    const stateLabel = button.querySelector('.buildCardState');
+    if (stateLabel) {
+        stateLabel.className = `buildCardState state-${assetState.state}`;
+        stateLabel.textContent = assetState.label;
+    }
+    const stateDetail = button.querySelector('.buildCardStateDetail');
+    if (stateDetail) stateDetail.textContent = assetState.detail;
+}
+
 function renderShortcutList(container, entries, snapshot, onSelect, emptyLabel, editor, onHoverChange) {
     if (!container) return;
     container.replaceChildren();
@@ -209,6 +231,38 @@ export function bindEditorToolPaletteControls(editor) {
     let hoveredEntryId = null;
     let catalogQuery = '';
     let assetFilter = '';
+    const previewLoads = new Map();
+
+    const requestEntryPreview = (button, entry) => {
+        if (entry.tool !== 'glb' || editor.getBuildPreviewUrl?.(entry.id)) return;
+        let pending = previewLoads.get(entry.id);
+        if (!pending && typeof editor.loadBuildPreview === 'function') {
+            pending = Promise.resolve(editor.loadBuildPreview(entry));
+            previewLoads.set(entry.id, pending);
+        }
+        pending?.then((previewUrl) => {
+            if (!previewUrl) return;
+            editor.buildPreviewCache?.set(entry.id, previewUrl);
+            const currentButton = button.isConnected
+                ? button
+                : Array.from(dom.dockCards?.querySelectorAll('[data-entry-id]') || [])
+                    .find((candidate) => candidate.dataset.entryId === entry.id);
+            updateEntryButtonPreview(currentButton, entry, previewUrl, resolveEntryAssetState(editor, entry));
+        }).catch((error) => {
+            console.warn(`[EditorToolPaletteControls] Preview for "${entry.id}" failed:`, error);
+        });
+    };
+
+    const previewObserver = typeof IntersectionObserver === 'function' && dom.dockCards
+        ? new IntersectionObserver((records) => {
+            for (const record of records) {
+                if (!record.isIntersecting) continue;
+                previewObserver.unobserve(record.target);
+                const entry = findEditorBuildEntryById(record.target.dataset.entryId);
+                if (entry) requestEntryPreview(record.target, entry);
+            }
+        }, { root: dom.dockCards, rootMargin: '120px 0px' })
+        : null;
 
     const matchesCatalogFilter = (entry) => {
         const assetState = resolveEntryAssetState(editor, entry);
@@ -345,6 +399,7 @@ export function bindEditorToolPaletteControls(editor) {
                 renderAll(nextSnapshot);
             });
             button.addEventListener('mouseenter', () => {
+                requestEntryPreview(button, entry);
                 hoveredEntryId = entry.id;
                 updateSummaryViews(dom, buildSnapshotView(snapshot));
             });
@@ -354,6 +409,7 @@ export function bindEditorToolPaletteControls(editor) {
                 updateSummaryViews(dom, buildSnapshotView(snapshot));
             });
             button.addEventListener('focus', () => {
+                requestEntryPreview(button, entry);
                 hoveredEntryId = entry.id;
                 updateSummaryViews(dom, buildSnapshotView(snapshot));
             });
@@ -384,6 +440,9 @@ export function bindEditorToolPaletteControls(editor) {
                 }
             });
             dom.dockCards.appendChild(button);
+            if (entry.tool === 'glb' && !editor.getBuildPreviewUrl?.(entry.id)) {
+                previewObserver?.observe(button);
+            }
         }
     };
 
@@ -431,6 +490,9 @@ export function bindEditorToolPaletteControls(editor) {
     editor.setBuildPreviewCache = (cache) => {
         editor.buildPreviewCache = cache instanceof Map ? cache : new Map();
         renderAll(toolDockState.getSnapshot());
+    };
+    editor.setBuildPreviewLoader = (loader) => {
+        editor.loadBuildPreview = typeof loader === 'function' ? loader : null;
     };
     editor.getBuildPreviewUrl = (entryId) => editor.buildPreviewCache?.get(entryId) || '';
 

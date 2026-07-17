@@ -5,10 +5,11 @@ import { EditorMapManager } from './EditorMapManager.js';
 import {
     getEditorBuildCatalogDescriptor,
     listEditorBuildDescriptorEntries,
+    resolveEditorBuildEntryAssetId,
     resolveEditorTemplateImportCapability,
 } from './ui/EditorBuildCatalog.js';
 import { resolveMapAuthoringStatus } from './EditorMapSerializer.js';
-import { createEditorBuildPreviewCache } from './ui/EditorPreviewRenderer.js';
+import { createEditorBuildPreviewRenderer } from './ui/EditorPreviewRenderer.js';
 
 function buildEditorRuntimeSnapshot({ ui, mapManager, core }) {
     const activeEntry = ui?.toolDockState?.getActiveEntry?.() || null;
@@ -123,7 +124,16 @@ export async function initEditor() {
         core.animate();
 
         const assetSummary = await assetLoader.loadAll();
-        ui.setBuildPreviewCache?.(createEditorBuildPreviewCache(listEditorBuildDescriptorEntries(), assetLoader));
+        const previewRenderer = createEditorBuildPreviewRenderer(assetLoader);
+        window.addEventListener('beforeunload', () => previewRenderer.dispose(), { once: true });
+        const buildEntries = listEditorBuildDescriptorEntries();
+        ui.setBuildPreviewLoader?.(async (entry) => {
+            const assetId = resolveEditorBuildEntryAssetId(entry);
+            if (entry?.tool !== 'glb' || !assetId) return '';
+            await assetLoader.loadAsset(assetId);
+            return previewRenderer.render([entry]).get(entry.id) || '';
+        });
+        ui.setBuildPreviewCache?.(previewRenderer.render(buildEntries.filter((entry) => entry.tool !== 'glb')));
         if ((assetSummary.failed + assetSummary.timedOut) > 0) {
             setAssetStatus({
                 level: 'warn',
