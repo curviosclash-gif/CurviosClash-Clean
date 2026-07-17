@@ -218,7 +218,7 @@ export class VehicleLabUI {
 
     updateShipInfo(config) {
         document.getElementById('shipLabel').value = config.label || '';
-        document.getElementById('shipPrimaryColor').value = this.colorToHex(config.primaryColor || 0x60a5fa);
+        document.getElementById('shipPrimaryColor').value = this.colorToHex(config.primaryColor ?? 0x60a5fa);
     }
 
     colorToHex(color) {

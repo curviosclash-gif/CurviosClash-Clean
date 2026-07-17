@@ -252,6 +252,10 @@ export function upsertVehicleLabCatalogVehicle(source, config, options = {}) {
         let suffix = 2;
         while (record.vehicles.some((entry) => entry.id === vehicleId)) vehicleId = `${baseId}-${suffix++}`;
     }
+    const overwritesExisting = !!matching || record.vehicles.some((entry) => entry.id === vehicleId);
+    if (!overwritesExisting && record.vehicles.length >= VEHICLE_LAB_CATALOG_LIMIT) {
+        throw new Error(`Fahrzeuglimit von ${VEHICLE_LAB_CATALOG_LIMIT} erreicht. Bitte zuerst ein Fahrzeug löschen.`);
+    }
 
     const vehicle = normalizeCatalogVehicle({
         id: vehicleId,
@@ -264,7 +268,7 @@ export function upsertVehicleLabCatalogVehicle(source, config, options = {}) {
     return {
         record: { schemaVersion: VEHICLE_LAB_CATALOG_VERSION, vehicles: vehicles.slice(0, VEHICLE_LAB_CATALOG_LIMIT) },
         vehicle,
-        overwritten: !!matching || record.vehicles.some((entry) => entry.id === vehicle.id),
+        overwritten: overwritesExisting,
     };
 }
 

@@ -1,12 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 
 import { ModularVehicleMesh } from '../src/shared/vehicle-lab/ModularVehicleMeshBridge.js';
 
-test('nested Vehicle Lab parts can be mirrored and selected by exact path', () => {
+test('nested Vehicle Lab parts preserve their parent transform when mirrored', () => {
     const child = { name: 'Child', geo: 'box', mirrorAxis: 'x', pos: [2, 0, 0] };
     const sibling = { name: 'Sibling', geo: 'box' };
-    const mesh = new ModularVehicleMesh({ parts: [{ name: 'Root', geo: 'box', children: [child, sibling] }] });
+    const mesh = new ModularVehicleMesh({ parts: [{ name: 'Root', geo: 'box', pos: [10, 0, 0], children: [child, sibling] }] });
 
     const childObjects = [];
     mesh.traverse((node) => {
@@ -14,6 +15,10 @@ test('nested Vehicle Lab parts can be mirrored and selected by exact path', () =
     });
     assert.equal(childObjects.length, 2);
     assert.equal(childObjects.filter((node) => node.userData.isMirror).length, 1);
+    const mirrored = childObjects.find((node) => node.userData.isMirror);
+    mesh.updateMatrixWorld(true);
+    assert.equal(mirrored.parent, mesh.children[0]);
+    assert.equal(mirrored.getWorldPosition(new THREE.Vector3()).x, 8);
 
     mesh.setSelectedSelection(0, [0]);
     const selected = childObjects.find((node) => !node.userData.isMirror);
@@ -35,6 +40,25 @@ test('pulse animation preserves non-uniform scale', () => {
     assert.equal(Number(mesh.children[0].scale.x.toFixed(2)), 2.2);
     assert.equal(Number(mesh.children[0].scale.y.toFixed(2)), 3.3);
     assert.equal(Number(mesh.children[0].scale.z.toFixed(2)), 4.4);
+    mesh.dispose();
+});
+
+test('zero-valued colors and animation settings remain effective', () => {
+    const mesh = new ModularVehicleMesh({
+        primaryColor: 0,
+        parts: [
+            { name: 'Primary Black', geo: 'box' },
+            { name: 'Custom Black', geo: 'box', material: 'secondary', color: 0 },
+            { name: 'Stopped Rotation', geo: 'box', anim: { type: 'rotate', axis: 'y', speed: 0 } },
+            { name: 'Stopped Pulse', geo: 'box', anim: { type: 'pulse', speed: 1, amount: 0 } },
+        ],
+    });
+
+    mesh.tick(1, Math.PI / 2);
+    assert.equal(mesh.children[0].material.color.getHex(), 0);
+    assert.equal(mesh.children[1].material.color.getHex(), 0);
+    assert.equal(mesh.children[2].rotation.y, 0);
+    assert.deepEqual(mesh.children[3].scale.toArray(), [1, 1, 1]);
     mesh.dispose();
 });
 

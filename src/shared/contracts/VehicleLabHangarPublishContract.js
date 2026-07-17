@@ -45,6 +45,8 @@ function flattenParts(parts, result = []) {
 export function createVehicleLabHangarPublication(config = {}, options = {}) {
     const vehicleId = vehicleKey(options.vehicleId || config.label);
     const publishedAtMs = Math.max(0, Number(options.publishedAtMs) || Date.now());
+    const primaryColor = Number(config.primaryColor);
+    const appearanceColor = Number.isFinite(primaryColor) ? primaryColor : 0x60a5fa;
     const parts = flattenParts(config.parts).slice(0, 48).map((part, index) => {
         const family = resolveFamily(part);
         const id = `lab-${vehicleId}-${slug(part.name || part.geo, `part-${index + 1}`)}-${index + 1}`;
@@ -62,7 +64,7 @@ export function createVehicleLabHangarPublication(config = {}, options = {}) {
             appearance: {
                 geometry: String(part.geo || 'box').toLowerCase(),
                 size: size.slice(0, 3).map((value) => Math.max(0.1, Math.min(3, Number(value) || 1))),
-                color: Number(config.primaryColor) || 0x60a5fa,
+                color: appearanceColor,
             },
             costs: { budget: 7, mass: 5, energy: 4, heat: 3 },
             stats: { speed: 0, agility: 1, maxHp: 4 },

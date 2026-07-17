@@ -25,7 +25,7 @@ export class ModularVehicleMesh extends THREE.Group {
         this.materials.forEach(m => m.dispose());
         this.materials.clear();
 
-        this.materials.set('primary', new THREE.MeshStandardMaterial({ color: config.primaryColor || 0x60a5fa, roughness: 0.3, metalness: 0.6 }));
+        this.materials.set('primary', new THREE.MeshStandardMaterial({ color: config.primaryColor ?? 0x60a5fa, roughness: 0.3, metalness: 0.6 }));
         this.materials.set('secondary', new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.7, metalness: 0.2 }));
         this.materials.set('glass', new THREE.MeshPhysicalMaterial({ color: 0x1e293b, transmission: 0.5, opacity: 0.7, roughness: 0.2, metalness: 0.1, clearcoat: 1.0 }));
         this.materials.set('glow', new THREE.MeshBasicMaterial({ color: 0x00ffff, transparent: true, opacity: 0.8 }));
@@ -113,7 +113,7 @@ export class ModularVehicleMesh extends THREE.Group {
         if (!isMirror) {
             const mirrorAxis = partConfig.mirrorAxis || (partConfig.mirror ? 'x' : null);
             if (mirrorAxis) {
-                const mirrored = this.buildRecursive(this, partConfig, index, path, true);
+                const mirrored = this.buildRecursive(parentGroup, partConfig, index, path, true);
                 if (mirrored) {
                     if (mirrorAxis === 'x') { mirrored.position.x *= -1; mirrored.rotation.y *= -1; mirrored.rotation.z *= -1; }
                     else if (mirrorAxis === 'y') { mirrored.position.y *= -1; mirrored.rotation.x *= -1; mirrored.rotation.z *= -1; }
@@ -177,7 +177,7 @@ export class ModularVehicleMesh extends THREE.Group {
         const mat = matBase.clone();
 
         // Custom Per-Part Styling
-        if (data.color) mat.color.set(data.color);
+        if (data.color !== undefined) mat.color.set(data.color);
         if (data.opacity !== undefined) {
             mat.transparent = true;
             mat.opacity = data.opacity;
@@ -236,11 +236,11 @@ export class ModularVehicleMesh extends THREE.Group {
         geo.rotateX(Math.PI / 2);
 
         const mat = new THREE.MeshStandardMaterial({
-            color: data.color || 0x00ffff,
+            color: data.color ?? 0x00ffff,
             transparent: true,
             opacity: 0.3,
             side: THREE.DoubleSide,
-            emissive: data.color || 0x00ffff,
+            emissive: data.color ?? 0x00ffff,
             emissiveIntensity: 0.5
         });
 
@@ -248,7 +248,7 @@ export class ModularVehicleMesh extends THREE.Group {
 
         // Inner Wireframe
         const wire = new THREE.Mesh(geo, new THREE.MeshBasicMaterial({
-            color: data.color || 0x00ffff,
+            color: data.color ?? 0x00ffff,
             wireframe: true,
             transparent: true,
             opacity: 0.2
@@ -266,7 +266,7 @@ export class ModularVehicleMesh extends THREE.Group {
         geo.rotateX(-Math.PI / 2);
 
         const mat = new THREE.MeshBasicMaterial({
-            color: data.color || 0x00eeff,
+            color: data.color ?? 0x00eeff,
             transparent: true,
             opacity: 0.8
         });
@@ -290,8 +290,8 @@ export class ModularVehicleMesh extends THREE.Group {
             // Custom Animations from Config
             if (config.anim) {
                 const a = config.anim;
-                const speed = a.speed || 1;
-                const amount = a.amount || 1;
+                const speed = a.speed ?? 1;
+                const amount = a.amount ?? 1;
 
                 switch (a.type) {
                     case 'rotate':

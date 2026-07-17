@@ -80,6 +80,30 @@ test('Vehicle Lab catalog persists, renames and deletes full runtime configs', (
     assert.deepEqual(deleted.record.vehicles, []);
 });
 
+test('Vehicle Lab catalog rejects new vehicles at capacity without evicting saved data', () => {
+    let record = null;
+    for (let index = 1; index <= 24; index++) {
+        record = upsertVehicleLabCatalogVehicle(record, {
+            label: `Vehicle ${index}`,
+            parts: [{ name: 'Body', geo: 'box' }],
+        }).record;
+    }
+
+    assert.throws(() => upsertVehicleLabCatalogVehicle(record, {
+        label: 'Vehicle 25',
+        parts: [{ name: 'Body', geo: 'box' }],
+    }), /Fahrzeuglimit von 24 erreicht/);
+    assert.equal(record.vehicles.length, 24);
+    assert.ok(record.vehicles.some((vehicle) => vehicle.label === 'Vehicle 1'));
+
+    const updated = upsertVehicleLabCatalogVehicle(record, {
+        label: 'Vehicle 1',
+        parts: [{ name: 'Updated Body', geo: 'sphere' }],
+    });
+    assert.equal(updated.record.vehicles.length, 24);
+    assert.equal(updated.vehicle.config.parts[0].geo, 'sphere');
+});
+
 test('runtime vehicle registry reads packaged-desktop catalog storage', async () => {
     const previousStorage = globalThis.localStorage;
     const saved = upsertVehicleLabCatalogVehicle(null, {

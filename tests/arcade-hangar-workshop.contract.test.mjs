@@ -387,7 +387,7 @@ test('preset metadata, sorting and capability-backed import/export stay versione
 test('Vehicle Lab publications become validated Hangar catalog parts', () => {
     const publication = createVehicleLabHangarPublication({
         label: 'Test Ship',
-        primaryColor: 0x55aaff,
+        primaryColor: 0,
         parts: [
             { name: 'Hauptantrieb', role: 'engine_left', geo: 'cylinder', size: [1, 1, 2] },
             { name: 'Linker Flügel', role: 'wing_left', geo: 'box', size: [2, 0.2, 1] },
@@ -396,6 +396,7 @@ test('Vehicle Lab publications become validated Hangar catalog parts', () => {
     assert.equal(publication.vehicleId, 'test_ship');
     assert.equal(publication.parts[0].family, 'engine');
     assert.equal(publication.parts[1].family, 'wing');
+    assert.equal(publication.parts[0].appearance.color, 0);
     const record = upsertVehicleLabHangarPublication(null, publication);
     assert.equal(registerPublishedHangarParts(record), 2);
     const published = listHangarParts({ search: 'lab' });
