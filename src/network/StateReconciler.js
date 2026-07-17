@@ -2,6 +2,7 @@
 // StateReconciler.js - client-side state correction
 // ============================================
 import { normalizeMultiplayerStateUpdateEvent } from '../shared/contracts/MultiplayerSessionContract.js';
+import { applyHuntNetworkState } from '../hunt/HuntNetworkState.js';
 
 const MIN_POSITION_DISTANCE = 0.01;
 const MIN_VECTOR_DISTANCE = 0.001;
@@ -168,7 +169,7 @@ export class StateReconciler {
         this._lastStateUpdate = normalizeMultiplayerStateUpdateEvent(serverState);
     }
 
-    reconcile(localPlayers, _entityManager) {
+    reconcile(localPlayers, entityManager) {
         if (!this._lastStateUpdate || !localPlayers) return;
 
         const serverPlayers = this._lastStateUpdate?.state?.players;
@@ -184,6 +185,7 @@ export class StateReconciler {
             this._reconcileEffects(localPlayer, serverPlayer);
             this._reconcileAuthoritativeFields(localPlayer, serverPlayer);
         }
+        applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
     }
 
     _reconcileAuthoritativeFields(localPlayer, serverPlayer) {

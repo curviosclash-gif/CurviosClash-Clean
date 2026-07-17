@@ -47,6 +47,8 @@ function resolveObjectiveLabel(reason) {
     if (normalized === 'PARCOURS_COMPLETE') return 'Parcours abgeschlossen';
     if (normalized === 'ELIMINATION') return 'Elimination';
     if (normalized === 'KILL_LIMIT') return 'Abschusslimit erreicht';
+    if (normalized === 'TIME_LIMIT') return 'Zeitlimit erreicht';
+    if (normalized === 'OVERTIME') return 'Golden Kill';
     return normalized || '-';
 }
 

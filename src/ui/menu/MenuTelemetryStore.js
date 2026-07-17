@@ -74,6 +74,7 @@ function createDefaultBucket() {
         totalSelfCollisions: 0,
         totalItemUses: 0,
         totalStuckEvents: 0,
+        totalSpawnDeaths: 0,
         totalMgHits: 0,
         totalRocketHits: 0,
         totalShieldAbsorb: 0,
@@ -101,6 +102,7 @@ function normalizeBucketCollection(source) {
             totalSelfCollisions: toNonNegativeInt(bucket.totalSelfCollisions, 0),
             totalItemUses: toNonNegativeInt(bucket.totalItemUses, 0),
             totalStuckEvents: toNonNegativeInt(bucket.totalStuckEvents, 0),
+            totalSpawnDeaths: toNonNegativeInt(bucket.totalSpawnDeaths, 0),
             totalMgHits: toNonNegativeInt(bucket.totalMgHits, 0),
             totalRocketHits: toNonNegativeInt(bucket.totalRocketHits, 0),
             totalShieldAbsorb: toNonNegativeNumber(bucket.totalShieldAbsorb, 0),
@@ -125,6 +127,7 @@ function createDefaultBalanceSummary() {
         totalSelfCollisions: 0,
         totalItemUses: 0,
         totalStuckEvents: 0,
+        totalSpawnDeaths: 0,
         totalMgHits: 0,
         totalRocketHits: 0,
         totalShieldAbsorb: 0,
@@ -149,6 +152,7 @@ function normalizeBalanceSummary(source) {
         totalSelfCollisions: toNonNegativeInt(summary.totalSelfCollisions, 0),
         totalItemUses: toNonNegativeInt(summary.totalItemUses, 0),
         totalStuckEvents: toNonNegativeInt(summary.totalStuckEvents, 0),
+        totalSpawnDeaths: toNonNegativeInt(summary.totalSpawnDeaths, 0),
         totalMgHits: toNonNegativeInt(summary.totalMgHits, 0),
         totalRocketHits: toNonNegativeInt(summary.totalRocketHits, 0),
         totalShieldAbsorb: toNonNegativeNumber(summary.totalShieldAbsorb, 0),
@@ -183,6 +187,7 @@ function normalizeRecentRoundEntry(entry) {
         shieldAbsorb: toNonNegativeNumber(source.shieldAbsorb, 0),
         hpDamage: toNonNegativeNumber(source.hpDamage, 0),
         stuckEvents: toNonNegativeInt(source.stuckEvents, 0),
+        spawnDeaths: toNonNegativeInt(source.spawnDeaths, 0),
         parcoursCompleted: source.parcoursCompleted === true,
         parcoursRouteId: sanitizeBucketKey(source.parcoursRouteId, ''),
         parcoursCompletionTimeMs: toNonNegativeNumber(source.parcoursCompletionTimeMs, 0),
@@ -292,6 +297,7 @@ export class MenuTelemetryStore extends PersistentStore {
         const shieldAbsorb = toNonNegativeNumber(source.shieldAbsorb, 0);
         const hpDamage = toNonNegativeNumber(source.hpDamage, 0);
         const stuckEvents = toNonNegativeInt(source.stuckEvents, 0);
+        const spawnDeaths = toNonNegativeInt(source.spawnDeaths, 0);
         const reason = sanitizeBucketKey(source.reason, 'ELIMINATION');
         const parcoursCompleted = source.parcoursCompleted === true;
         const parcoursRouteId = sanitizeBucketKey(source.parcoursRouteId, '');
@@ -311,6 +317,7 @@ export class MenuTelemetryStore extends PersistentStore {
         summary.totalShieldAbsorb += shieldAbsorb;
         summary.totalHpDamage += hpDamage;
         summary.totalStuckEvents += stuckEvents;
+        summary.totalSpawnDeaths += spawnDeaths;
         if (parcoursCompleted) {
             summary.parcoursCompletions += 1;
             summary.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
@@ -333,6 +340,7 @@ export class MenuTelemetryStore extends PersistentStore {
         mapBucket.totalShieldAbsorb += shieldAbsorb;
         mapBucket.totalHpDamage += hpDamage;
         mapBucket.totalStuckEvents += stuckEvents;
+        mapBucket.totalSpawnDeaths += spawnDeaths;
         if (parcoursCompleted) {
             mapBucket.parcoursCompletions += 1;
             mapBucket.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
@@ -356,6 +364,7 @@ export class MenuTelemetryStore extends PersistentStore {
         modeBucket.totalShieldAbsorb += shieldAbsorb;
         modeBucket.totalHpDamage += hpDamage;
         modeBucket.totalStuckEvents += stuckEvents;
+        modeBucket.totalSpawnDeaths += spawnDeaths;
         if (parcoursCompleted) {
             modeBucket.parcoursCompletions += 1;
             modeBucket.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
@@ -383,6 +392,7 @@ export class MenuTelemetryStore extends PersistentStore {
             shieldAbsorb,
             hpDamage,
             stuckEvents,
+            spawnDeaths,
             parcoursCompleted,
             parcoursRouteId,
             parcoursCompletionTimeMs,

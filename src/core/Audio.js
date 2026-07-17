@@ -21,6 +21,9 @@ const SOUND_COOLDOWNS_MS = Object.freeze({
     PARCOURS_CP: 80,
     PARCOURS_BRANCH: 140,
     PARCOURS_FINISH: 650,
+    FIGHT_KILL: 120,
+    FIGHT_ASSIST: 180,
+    FIGHT_LEAD: 800,
 });
 
 const AUDIO_INIT_EVENT_TYPES = ['click', 'keydown', 'touchstart'];
@@ -196,6 +199,9 @@ export class AudioManager {
             case 'PARCOURS_CP': this._playParcoursCheckpoint(options); break;
             case 'PARCOURS_BRANCH': this._playParcoursBranch(options); break;
             case 'PARCOURS_FINISH': this._playParcoursFinish(options); break;
+            case 'FIGHT_KILL': this._playParcoursFinish({ intensity: 0.72 }); break;
+            case 'FIGHT_ASSIST': this._playParcoursCheckpoint({ intensity: 0.65 }); break;
+            case 'FIGHT_LEAD': this._playParcoursBranch({ intensity: 0.7 }); break;
         }
     }
 

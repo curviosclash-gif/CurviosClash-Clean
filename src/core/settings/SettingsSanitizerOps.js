@@ -69,6 +69,10 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
 
     merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;
     merged.hunt.respawnEnabled = !!(src?.hunt?.respawnEnabled ?? defaults.hunt.respawnEnabled);
+    merged.hunt.deathmatchKillLimit = Math.max(1, Math.min(100, Math.trunc(
+        Number(src?.hunt?.deathmatchKillLimit ?? defaults.hunt.deathmatchKillLimit) || 10
+    )));
+    merged.hunt.timeLimitEnabled = src?.hunt?.timeLimitEnabled !== false;
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
         merged.hunt.respawnEnabled = false;
     }

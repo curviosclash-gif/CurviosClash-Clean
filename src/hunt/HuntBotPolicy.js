@@ -368,7 +368,7 @@ export class HuntBotPolicy {
         const allPlayers = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
         const snapshot = resolveSensorSnapshot(this);
         const huntTarget = runtimeContext?.huntTarget || null;
-        const preferred = getPreferredFightEnemy(player, allPlayers, this._tmpToEnemy);
+        const preferred = getPreferredFightEnemy(player, allPlayers, this._tmpToEnemy, runtimeContext?.dt);
         const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, allPlayers);
         const sharedTargetAccepted = targetPlayer && (
             targetPlayer === preferred.enemy

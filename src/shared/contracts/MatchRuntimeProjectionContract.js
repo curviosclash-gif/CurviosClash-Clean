@@ -234,6 +234,18 @@ function createHuntProjection(value = null, nowMs = 0) {
     }
 
     const legacyIndicator = createDamageIndicatorProjection(source.damageIndicator, nowMs);
+    const scoreboardRows = Array.isArray(source.scoreboardRows)
+        ? source.scoreboardRows.map((row) => ({
+            playerIndex: normalizeNonNegativeInt(row?.playerIndex, 0),
+            label: normalizeString(row?.label, ''),
+            kills: normalizeNonNegativeInt(row?.kills, 0),
+            deaths: normalizeNonNegativeInt(row?.deaths, 0),
+            assists: normalizeNonNegativeInt(row?.assists, 0),
+            damage: normalizeNonNegativeInt(row?.damage, 0),
+            shieldDamage: normalizeNonNegativeInt(row?.shieldDamage, 0),
+            spawnDeaths: normalizeNonNegativeInt(row?.spawnDeaths, 0),
+        }))
+        : [];
     const respawnRemainingByPlayer = {};
     const respawnSource = source.respawnRemainingByPlayer && typeof source.respawnRemainingByPlayer === 'object'
         ? source.respawnRemainingByPlayer
@@ -250,7 +262,13 @@ function createHuntProjection(value = null, nowMs = 0) {
         respawnEnabled: source.respawnEnabled === true,
         deathmatchKillLimit: Math.max(1, normalizeNonNegativeInt(source.deathmatchKillLimit, 10)),
         respawnRemainingByPlayer,
+        scoreboardRows,
         scoreboardSummary: normalizeString(source.scoreboardSummary, ''),
+        elapsedSeconds: Math.max(0, normalizeNumber(source.elapsedSeconds, 0)),
+        timeLimitSeconds: Math.max(0, normalizeNumber(source.timeLimitSeconds, 0)),
+        timeRemainingSeconds: Math.max(0, normalizeNumber(source.timeRemainingSeconds, 0)),
+        overtime: source.overtime === true,
+        authoritativeClient: source.authoritativeClient === true,
     };
 }
 

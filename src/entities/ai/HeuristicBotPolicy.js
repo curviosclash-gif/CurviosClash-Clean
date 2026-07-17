@@ -187,7 +187,7 @@ export class HeuristicBotPolicy {
     _applyHuntBehavior(input, player, runtimeContext, observation) {
         const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
         const huntTarget = runtimeContext?.huntTarget || null;
-        const preferred = getPreferredFightEnemy(player, players, this._tmpToEnemy);
+        const preferred = getPreferredFightEnemy(player, players, this._tmpToEnemy, runtimeContext?.dt);
         const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, players);
         const enemy = targetPlayer && (
             targetPlayer === preferred.enemy

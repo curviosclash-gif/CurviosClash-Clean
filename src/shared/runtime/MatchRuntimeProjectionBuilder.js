@@ -145,6 +145,9 @@ function buildLockTargetProjection(entityManager, playerIndex) {
 
 export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessionRuntime }) {
     const entityManager = runtimeState?.entityManager || game?.entityManager || null;
+    const authoritativeFightState = entityManager?._authoritativeHuntState || null;
+    const localDeathmatchState = entityManager?._roundOutcomeSystem?.getDeathmatchState?.() || null;
+    const deathmatchState = authoritativeFightState || localDeathmatchState || {};
     const sessionPlayers = resolveSessionPlayers(facade, game);
     const localPlayerIndex = resolveLocalPlayerIndex(facade, sessionPlayers, game);
     const players = Array.isArray(entityManager?.players)
@@ -180,9 +183,15 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             damageIndicatorsByPlayer: huntState.damageIndicatorsByPlayer || {},
             damageIndicator: huntState.damageIndicator || null,
             respawnEnabled: entityManager?.gameModeStrategy?.isRespawnEnabled?.() === true,
-            deathmatchKillLimit: entityManager?.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
+            deathmatchKillLimit: authoritativeFightState?.killLimit || entityManager?.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
             respawnRemainingByPlayer: entityManager?.getHuntRespawnRemainingByPlayer?.() || {},
+            scoreboardRows: authoritativeFightState?.scoreboardRows || entityManager?.getHuntScoreboard?.() || [],
             scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4) || '',
+            elapsedSeconds: deathmatchState.elapsedSeconds || 0,
+            timeLimitSeconds: deathmatchState.timeLimitSeconds || 0,
+            timeRemainingSeconds: deathmatchState.timeRemainingSeconds || 0,
+            overtime: deathmatchState.overtime === true,
+            authoritativeClient: entityManager?.isFightOutcomeAuthority === false,
         },
         arcade: facade?.arcadeRunRuntime?.getHudState?.() || null,
     });

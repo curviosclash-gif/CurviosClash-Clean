@@ -74,6 +74,7 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         DEFAULT_MODE: 'CLASSIC',
         RESPAWN_ENABLED: false,
         DEATHMATCH_KILL_LIMIT: 10,
+        DEATHMATCH_TIME_LIMIT_SECONDS: 300,
         PLAYER_MAX_HP: 100,
         SHIELD_MAX_HP: 40,
         PLAYER_REGEN_DELAY: 3,
@@ -190,6 +191,14 @@ export function createEntityRuntimeConfig(runtimeConfig = null, baseConfig = nul
         if (typeof runtimeConfig.hunt.respawnEnabled === 'boolean') {
             contract.HUNT.RESPAWN_ENABLED = runtimeConfig.hunt.respawnEnabled;
         }
+        contract.HUNT.DEATHMATCH_KILL_LIMIT = Math.max(1, Math.trunc(toFiniteNumber(
+            runtimeConfig.hunt.deathmatchKillLimit,
+            contract.HUNT.DEATHMATCH_KILL_LIMIT
+        )));
+        contract.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS = Math.max(0, Math.trunc(toFiniteNumber(
+            runtimeConfig.hunt.timeLimitSeconds,
+            contract.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS
+        )));
     }
 
     if (runtimeConfig?.huntCombat) {

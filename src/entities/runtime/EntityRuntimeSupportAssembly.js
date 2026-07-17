@@ -144,6 +144,7 @@ export function createEntityRuntimeSupport(owner) {
         },
         callbacks: {
             getStrategy: () => owner.gameModeStrategy || null,
+            getSimulationNowMs: () => Math.max(0, Number(owner._simulationClockMs) || 0),
             combat: {
                 shootItemProjectile: (player, preferredIndex = -1) => projectileSystem.shootItemProjectile(player, preferredIndex),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),

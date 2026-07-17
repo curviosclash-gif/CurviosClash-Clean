@@ -48,11 +48,14 @@ export class SpawnPlacementSystem {
         this._assignedSpawnByPlayer = new Map();
         this._botSpawnCursor = 0;
         this._tmpSpawnProbe = new THREE.Vector3();
+        this._tmpSpawnDirection = new THREE.Vector3();
+        this._recentSpawnPositions = [];
     }
 
     resetAssignments() {
         this._assignedSpawnByPlayer.clear();
         this._botSpawnCursor = 0;
+        this._recentSpawnPositions.length = 0;
     }
 
     findSpawnPosition(minDistance = 12, margin = 12, planarLevelOrOptions = null, extraOptions = null) {
@@ -75,12 +78,13 @@ export class SpawnPlacementSystem {
                 : (Number.isFinite(options.planarLevel) ? options.planarLevel : ((arena.bounds.minY + arena.bounds.maxY) * 0.5));
             this._tmpSpawnProbe.set(Number(candidate.x) || 0, y, Number(candidate.z) || 0);
             if (this._isSpawnPositionSafe(this._tmpSpawnProbe, preferredRadius, minDistanceSq, players, options.player)) {
-                return this._tmpSpawnProbe.clone();
+                return this._rememberSpawn(this._tmpSpawnProbe.clone());
             }
         }
 
         let checkedFallback = null;
-        let arenaClearFallback = null;
+        let safestFallback = null;
+        let safestFallbackScore = -Infinity;
         for (let attempts = 0; attempts < 100; attempts++) {
             const pos = usePlanarLevel
                 ? arena.getRandomPositionOnLevel(options.planarLevel, margin)
@@ -89,15 +93,19 @@ export class SpawnPlacementSystem {
             if (!checkedFallback) {
                 checkedFallback = clonePosition(pos);
             }
-            if (!arenaClearFallback && !arena.checkCollision(pos, preferredRadius)) {
-                arenaClearFallback = clonePosition(pos);
+            if (!arena.checkCollision(pos, preferredRadius)) {
+                const score = this._scoreSpawnPosition(pos, players, options.player);
+                if (score > safestFallbackScore) {
+                    safestFallbackScore = score;
+                    safestFallback = clonePosition(pos);
+                }
             }
             if (this._isSpawnPositionSafe(pos, preferredRadius, minDistanceSq, players, options.player)) {
-                return pos;
+                return this._rememberSpawn(pos);
             }
         }
 
-        return arenaClearFallback || checkedFallback;
+        return this._rememberSpawn(safestFallback || checkedFallback);
     }
 
     findSafeSpawnDirection(position, radius = 0.8) {
@@ -245,16 +253,40 @@ export class SpawnPlacementSystem {
         if (arena.checkCollision(position, collisionRadius)) {
             return false;
         }
+        if (player?.fightLastDeathPosition && position.distanceToSquared(player.fightLastDeathPosition) < 400) return false;
+        for (const recent of this._recentSpawnPositions) {
+            if (position.distanceToSquared(recent) < 64) return false;
+        }
 
         for (let i = 0; i < players.length; i++) {
             const other = players[i];
             if (!other?.alive || other === player) continue;
-            if (other.position.distanceToSquared(position) < minDistanceSq) {
-                return false;
-            }
+            const distanceSq = other.position.distanceToSquared(position);
+            if (distanceSq < minDistanceSq) return false;
+            if (distanceSq > 2025) continue;
+            const distance = Math.sqrt(distanceSq);
+            this._tmpSpawnDirection.subVectors(other.position, position).normalize();
+            if (this.traceFreeDistance(position, this._tmpSpawnDirection, distance, 2.5, collisionRadius) >= distance - 2.5) return false;
         }
 
         return true;
+    }
+
+    _scoreSpawnPosition(position, players, player) {
+        let nearestEnemySq = Infinity;
+        for (const other of players) {
+            if (!other?.alive || other === player) continue;
+            nearestEnemySq = Math.min(nearestEnemySq, other.position.distanceToSquared(position));
+        }
+        const deathPenalty = player?.fightLastDeathPosition && position.distanceToSquared(player.fightLastDeathPosition) < 400 ? 10000 : 0;
+        return (Number.isFinite(nearestEnemySq) ? nearestEnemySq : 100000) - deathPenalty;
+    }
+
+    _rememberSpawn(position) {
+        if (!position) return position;
+        this._recentSpawnPositions.push(clonePosition(position));
+        if (this._recentSpawnPositions.length > 6) this._recentSpawnPositions.shift();
+        return position;
     }
 
     findSafeBouncePosition(player, baseDirection, normal = null, options = {}) {

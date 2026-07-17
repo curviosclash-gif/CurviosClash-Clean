@@ -12,6 +12,10 @@ export class EntitySpawnOps {
         owner._simulationClockMs = 0;
         owner._respawnSystem.reset();
         owner._huntScoring.reset();
+        owner._roundOutcomeSystem.reset();
+        owner._lastRoundOutcome = null;
+        owner._authoritativeHuntState = null;
+        owner._lastAppliedAuthoritativeOutcomeKey = '';
         owner._parcoursProgressSystem?.startRound?.(owner.players);
         owner._spawnPlacementSystem?.resetAssignments?.();
         const spawnContext = this.createSpawnContext();
@@ -40,6 +44,9 @@ export class EntitySpawnOps {
         const dir = owner._findSafeSpawnDirection(pos, player.hitboxRadius);
         player.spawn(pos, dir);
         player.fightLastAttackerIndex = -1;
+        player.fightTargetPlayerIndex = -1;
+        player.fightTargetLockRemaining = 0;
+        player.fightSpawnedAtSeconds = Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001;
         if (player.isBot && player.scenarioRole) {
             player.scenarioAnchor = { x: pos.x, y: pos.y, z: pos.z };
         }

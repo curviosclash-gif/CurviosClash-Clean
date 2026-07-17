@@ -110,6 +110,10 @@ export class RespawnSystem {
             });
             const spawnDir = this.runtime.spawn.findSafeSpawnDirection(spawnPos, player.hitboxRadius);
             player.spawn(spawnPos, spawnDir);
+            player.fightLastAttackerIndex = -1;
+            player.fightTargetPlayerIndex = -1;
+            player.fightTargetLockRemaining = 0;
+            player.fightSpawnedAtSeconds = Math.max(0, Number(this.runtime?.callbacks?.getSimulationNowMs?.()) || 0) * 0.001;
             this.runtime?.callbacks?.parcours?.onPlayerSpawn?.(player, { reason: 'respawn' });
 
             resetRespawnInventory(player, respawnConfig);

@@ -17,6 +17,11 @@ function toPercent(value) {
     return `${(clamp01(value) * 100).toFixed(1)}%`;
 }
 
+function formatClock(seconds) {
+    const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
+    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
+}
+
 function normalizeConstructorOptions(input) {
     if (!input || typeof input !== 'object') {
         return { runtime: null };
@@ -85,6 +90,10 @@ export class HuntHUD {
         ];
         this._objectiveText = null;
         this._scoreboardText = null;
+        this._leaderIndex = null;
+        this._leaderKills = -1;
+        this._localKills = -1;
+        this._localAssists = -1;
         this._indicatorP2Visible = null;
         this._isHuntActive = typeof options.isHuntActive === 'function'
             ? options.isHuntActive
@@ -140,6 +149,10 @@ export class HuntHUD {
         }
         this._objectiveText = null;
         this._scoreboardText = null;
+        this._leaderIndex = null;
+        this._leaderKills = -1;
+        this._localKills = -1;
+        this._localAssists = -1;
         this._indicatorP2Visible = null;
     }
 
@@ -191,7 +204,7 @@ export class HuntHUD {
         }
 
         if (this._consumeTick('_playerPanelTickTimer', dt, playerPanelInterval) > 0) {
-            this._updateMatchStatus(huntProjection);
+            this._updateMatchStatus(huntProjection, humans[0]?.playerIndex ?? humans[0]?.index);
             this._updatePlayerPanel(humans[0], {
                 hpFill: this.p1HpFill,
                 hpText: this.p1HpText,
@@ -317,12 +330,37 @@ export class HuntHUD {
         }
     }
 
-    _updateMatchStatus(huntProjection = null) {
+    _updateMatchStatus(huntProjection = null, localPlayerIndex = -1) {
         const respawnEnabled = huntProjection?.respawnEnabled === true;
+        const killLimit = Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10);
+        const rows = Array.isArray(huntProjection?.scoreboardRows) ? huntProjection.scoreboardRows : [];
+        const leader = rows[0] || null;
+        const localRow = rows.find((row) => row?.playerIndex === localPlayerIndex) || null;
+        const timeText = huntProjection?.overtime
+            ? ' · Golden Kill'
+            : (Number(huntProjection?.timeLimitSeconds) > 0 ? ` · ${formatClock(huntProjection?.timeRemainingSeconds)}` : '');
+        const matchPointText = leader && leader.kills === killLimit - 1 ? ' · Matchball' : '';
         const objectiveText = respawnEnabled
-            ? `Deathmatch · zuerst ${Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10)} Abschüsse`
+            ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
             : 'Elimination · letzter Überlebender gewinnt';
-        const scoreboardText = String(huntProjection?.scoreboardSummary || 'Noch keine Abschüsse');
+        const scoreboardText = rows.length > 0
+            ? rows.map((row) => `${row.playerIndex === localPlayerIndex ? '▶ ' : ''}${row.label} ${row.kills}/${killLimit} · T${row.deaths} · A${row.assists}`).join(' | ')
+            : String(huntProjection?.scoreboardSummary || 'Noch keine Abschüsse');
+        if (leader && this._leaderIndex !== null && leader.playerIndex !== this._leaderIndex) {
+            this.runtime?.audio?.play?.('FIGHT_LEAD');
+        } else if (leader && leader.kills === killLimit - 1 && leader.kills !== this._leaderKills) {
+            this.runtime?.audio?.play?.('FIGHT_LEAD');
+        }
+        if (huntProjection?.authoritativeClient && this._localKills >= 0 && Number(localRow?.kills) > this._localKills) {
+            this.runtime?.audio?.play?.('FIGHT_KILL');
+        }
+        if (huntProjection?.authoritativeClient && this._localAssists >= 0 && Number(localRow?.assists) > this._localAssists) {
+            this.runtime?.audio?.play?.('FIGHT_ASSIST');
+        }
+        this._leaderIndex = leader?.playerIndex ?? null;
+        this._leaderKills = Number(leader?.kills) || 0;
+        this._localKills = Number(localRow?.kills) || 0;
+        this._localAssists = Number(localRow?.assists) || 0;
         if (this.objective && objectiveText !== this._objectiveText) {
             this.objective.textContent = objectiveText;
             this._objectiveText = objectiveText;

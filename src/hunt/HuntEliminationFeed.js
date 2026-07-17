@@ -11,14 +11,25 @@ export function rememberFightAttacker(target, sourcePlayer) {
     }
 }
 
-export function emitHuntEliminationFeed(eventBus, players, target, killer, assistIndices = []) {
+export function rememberFightDeath(player) {
+    if (!player?.position) return;
+    player.fightLastDeathPosition = {
+        x: Number(player.position.x) || 0,
+        y: Number(player.position.y) || 0,
+        z: Number(player.position.z) || 0,
+    };
+}
+
+export function emitHuntEliminationFeed(eventBus, players, target, killer, assistIndices = [], audio = null) {
     if (killer && killer !== target) {
         eventBus?.emitHuntFeed(`${formatCombatantLabel(killer)} -> ${formatCombatantLabel(target)}: ausgeschaltet`);
+        if (!killer.isBot) audio?.play?.('FIGHT_KILL');
     }
     for (const assistIndex of assistIndices) {
         const assistant = players.find((candidate) => candidate?.index === assistIndex);
         if (assistant) {
             eventBus?.emitHuntFeed(`${formatCombatantLabel(assistant)}: Assist bei ${formatCombatantLabel(target)}`);
+            if (!assistant.isBot) audio?.play?.('FIGHT_ASSIST');
         }
     }
 }

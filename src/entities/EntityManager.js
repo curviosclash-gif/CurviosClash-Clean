@@ -7,7 +7,7 @@ import { DEFAULT_BOT_POLICY_TYPE } from './ai/BotPolicyTypes.js';
 import { createBotRuntimeContext } from './ai/BotRuntimeContextFactory.js';
 import { assembleEntityRuntime } from './runtime/EntityRuntimeAssembler.js';
 import { emitHuntDamageFeedback } from '../hunt/HuntDamageFeedback.js';
-import { emitHuntEliminationFeed, rememberFightAttacker } from '../hunt/HuntEliminationFeed.js';
+import { emitHuntEliminationFeed, rememberFightAttacker, rememberFightDeath } from '../hunt/HuntEliminationFeed.js';
 import { createGameModeStrategy } from '../modes/GameModeRegistry.js';
 import { LastRoundGhostSystem } from './LastRoundGhostSystem.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -303,7 +303,7 @@ export class EntityManager {
     _emitHuntDamageEvent(event) {
         rememberFightAttacker(event?.target, event?.sourcePlayer);
         this.recorder?.recordDamageEvent?.(event || null);
-        if (this.gameModeStrategy?.hasDamageEvents()) {
+        if (this.gameModeStrategy?.hasDamageEvents() && this.isFightOutcomeAuthority !== false) {
             this._huntScoring.registerDamage(event?.sourcePlayer, event?.target, event?.damageResult);
         }
         emitHuntDamageFeedback(event, {
@@ -316,13 +316,12 @@ export class EntityManager {
 
     _killPlayer(player, cause = 'UNKNOWN', options = {}) {
         if (!player || !player.alive) return;
+        rememberFightDeath(player);
         this._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
         player.kill();
-        if (this.gameModeStrategy?.hasScoring()) {
-            const scoringResult = this._huntScoring.registerElimination(player, {
-                killer: options?.killer || null,
-            });
-            emitHuntEliminationFeed(this._eventBus, this.players, player, options?.killer, scoringResult?.assistIndices);
+        if (this.gameModeStrategy?.hasScoring() && this.isFightOutcomeAuthority !== false) {
+            const scoringResult = this._huntScoring.registerElimination(player, { killer: options?.killer || null, spawnAgeSeconds: (Math.max(0, Number(this._simulationClockMs) || 0) * 0.001) - (Number(player.fightSpawnedAtSeconds) || 0) });
+            emitHuntEliminationFeed(this._eventBus, this.players, player, options?.killer, scoringResult?.assistIndices, this.audio);
         }
         this._respawnSystem.onPlayerDied(player);
         if (this.particles) this.particles.spawnExplosion(player.position, player.color);

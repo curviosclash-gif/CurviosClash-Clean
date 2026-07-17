@@ -1,4 +1,7 @@
 const ASSIST_WINDOW_SECONDS = 8;
+const ASSIST_MIN_DAMAGE = 10;
+const ASSIST_MIN_EFFECTIVE_HP_RATIO = 0.1;
+const SPAWN_DEATH_WINDOW_SECONDS = 5;
 
 function getNowSeconds() {
     if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
@@ -31,6 +34,7 @@ export class HuntScoring {
                 deaths: 0,
                 damage: 0,
                 shieldDamage: 0,
+                spawnDeaths: 0,
             });
         }
         return this._statsByPlayer.get(playerIndex);
@@ -76,6 +80,7 @@ export class HuntScoring {
 
         const targetStats = this._ensureStats(targetIndex);
         targetStats.deaths += 1;
+        if (Number(options.spawnAgeSeconds) <= SPAWN_DEATH_WINDOW_SECONDS) targetStats.spawnDeaths += 1;
 
         if (killerIndex >= 0 && killerIndex !== targetIndex) {
             const killerStats = this._ensureStats(killerIndex);
@@ -93,6 +98,9 @@ export class HuntScoring {
                 if ((nowSeconds - lastHitAt) > ASSIST_WINDOW_SECONDS) {
                     continue;
                 }
+                const contribution = Math.max(0, Number(entry?.damage) || 0) + Math.max(0, Number(entry?.shieldDamage) || 0);
+                const effectiveHp = Math.max(1, Number(targetPlayer?.maxHp) || 1) + Math.max(0, Number(targetPlayer?.maxShieldHp) || 0);
+                if (contribution < Math.max(ASSIST_MIN_DAMAGE, effectiveHp * ASSIST_MIN_EFFECTIVE_HP_RATIO)) continue;
                 const assistStats = this._ensureStats(attackerIndex);
                 assistStats.assists += 1;
                 assistIndices.push(attackerIndex);
@@ -116,6 +124,7 @@ export class HuntScoring {
                 deaths: stats.deaths,
                 damage: Math.round(stats.damage),
                 shieldDamage: Math.round(stats.shieldDamage || 0),
+                spawnDeaths: stats.spawnDeaths,
             });
         }
 
@@ -126,6 +135,22 @@ export class HuntScoring {
             a.playerIndex - b.playerIndex
         ));
         return rows;
+    }
+
+    applyScoreboard(rows = []) {
+        this._statsByPlayer.clear();
+        for (const row of rows) {
+            const playerIndex = Number(row?.playerIndex);
+            if (!Number.isInteger(playerIndex) || playerIndex < 0) continue;
+            this._statsByPlayer.set(playerIndex, {
+                kills: Math.max(0, Number(row?.kills) || 0),
+                assists: Math.max(0, Number(row?.assists) || 0),
+                deaths: Math.max(0, Number(row?.deaths) || 0),
+                damage: Math.max(0, Number(row?.damage) || 0),
+                shieldDamage: Math.max(0, Number(row?.shieldDamage) || 0),
+                spawnDeaths: Math.max(0, Number(row?.spawnDeaths) || 0),
+            });
+        }
     }
 
     formatSummary(players = [], options = {}) {

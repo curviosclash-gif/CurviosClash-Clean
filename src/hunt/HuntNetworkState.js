@@ -1,0 +1,39 @@
+function normalizeOutcome(outcome) {
+    if (!outcome?.shouldEnd) return null;
+    return {
+        reason: String(outcome.reason || ''),
+        winnerIndex: Number.isInteger(outcome?.winner?.index) ? outcome.winner.index : -1,
+    };
+}
+
+export function createHuntNetworkState(entityManager) {
+    if (!entityManager?.huntEnabled) return null;
+    const matchState = entityManager._roundOutcomeSystem?.getDeathmatchState?.() || {};
+    return {
+        scoreboardRows: entityManager._huntScoring?.getScoreboard?.(entityManager.players) || [],
+        killLimit: Math.max(1, Number(entityManager.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT) || 10),
+        ...matchState,
+        outcome: normalizeOutcome(entityManager._lastRoundOutcome),
+    };
+}
+
+export function applyHuntNetworkState(entityManager, state) {
+    if (!entityManager || !state || typeof state !== 'object') return;
+    const rows = Array.isArray(state.scoreboardRows) ? state.scoreboardRows : [];
+    entityManager._huntScoring?.applyScoreboard?.(rows);
+    entityManager._authoritativeHuntState = state;
+
+    const outcome = state.outcome;
+    if (!outcome) return;
+    const key = `${outcome.reason}:${outcome.winnerIndex}`;
+    if (entityManager._lastAppliedAuthoritativeOutcomeKey === key) return;
+    entityManager._lastAppliedAuthoritativeOutcomeKey = key;
+    entityManager._roundEnded = true;
+    const winner = entityManager.players?.find((player) => player?.index === outcome.winnerIndex) || null;
+    entityManager._eventBus?.emitRoundEnd?.(winner, {
+        shouldEnd: true,
+        winner,
+        reason: String(outcome.reason || 'KILL_LIMIT'),
+        parcours: null,
+    });
+}

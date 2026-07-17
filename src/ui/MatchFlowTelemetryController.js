@@ -149,6 +149,8 @@ export class MatchFlowTelemetryController {
             if (!normalizedType) return;
             itemUseByType[normalizedType] = Math.max(0, Number(count) || 0);
         });
+        const spawnDeaths = (game?.entityManager?.getHuntScoreboard?.() || [])
+            .reduce((total, row) => total + Math.max(0, Number(row?.spawnDeaths) || 0), 0);
 
         return {
             mapKey: normalizeTelemetryString(game?.arena?.currentMapKey || game?.mapKey, 'standard'),
@@ -172,6 +174,7 @@ export class MatchFlowTelemetryController {
             shieldAbsorb: Math.max(0, Number(roundMetrics.shieldAbsorb) || 0),
             hpDamage: Math.max(0, Number(roundMetrics.hpDamage) || 0),
             stuckEvents: Math.max(0, Number(roundMetrics.stuckEvents) || 0),
+            spawnDeaths,
             parcoursCompleted: roundMetrics.parcoursCompleted === true,
             parcoursRouteId: normalizeTelemetryString(roundMetrics.parcoursRouteId, ''),
             parcoursCompletionTimeMs: Math.max(0, Number(roundMetrics.parcoursCompletionTimeMs) || 0),

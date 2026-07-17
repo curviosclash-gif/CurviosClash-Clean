@@ -5,7 +5,10 @@ export class RoundOutcomeSystem {
         getBots = () => [],
         getScoreboard = () => [],
         isRespawnEnabled = () => false,
+        isOutcomeAuthority = () => true,
         getDeathmatchKillLimit = () => 10,
+        getDeathmatchTimeLimitSeconds = () => 300,
+        getElapsedSeconds = () => 0,
         getObjectiveOutcome = () => null,
     } = {}) {
         this.getPlayers = getPlayers;
@@ -13,8 +16,25 @@ export class RoundOutcomeSystem {
         this.getBots = getBots;
         this.getScoreboard = getScoreboard;
         this.isRespawnEnabled = isRespawnEnabled;
+        this.isOutcomeAuthority = isOutcomeAuthority;
         this.getDeathmatchKillLimit = getDeathmatchKillLimit;
+        this.getDeathmatchTimeLimitSeconds = getDeathmatchTimeLimitSeconds;
+        this.getElapsedSeconds = getElapsedSeconds;
         this.getObjectiveOutcome = getObjectiveOutcome;
+        this._overtime = false;
+    }
+
+    reset() { this._overtime = false; }
+
+    getDeathmatchState() {
+        const timeLimitSeconds = Math.max(0, Number(this.getDeathmatchTimeLimitSeconds()) || 0);
+        const elapsedSeconds = Math.max(0, Number(this.getElapsedSeconds()) || 0);
+        return {
+            elapsedSeconds,
+            timeLimitSeconds,
+            timeRemainingSeconds: timeLimitSeconds > 0 ? Math.max(0, timeLimitSeconds - elapsedSeconds) : 0,
+            overtime: this._overtime,
+        };
     }
 
     _getCombatants() {
@@ -27,6 +47,9 @@ export class RoundOutcomeSystem {
     }
 
     resolve() {
+        if (this.isRespawnEnabled() && !this.isOutcomeAuthority()) {
+            return { shouldEnd: false, winner: null, reason: '', parcours: null };
+        }
         const objectiveOutcome = this.getObjectiveOutcome?.();
         if (objectiveOutcome?.shouldEnd === true && objectiveOutcome?.winner) {
             return {
@@ -40,10 +63,30 @@ export class RoundOutcomeSystem {
         const combatants = this._getCombatants();
         if (this.isRespawnEnabled()) {
             const killLimit = Math.max(1, Math.trunc(Number(this.getDeathmatchKillLimit()) || 10));
-            const leader = (this.getScoreboard() || []).find((entry) => Number(entry?.kills) >= killLimit);
-            if (leader) {
+            const scoreboard = this.getScoreboard() || [];
+            const leader = scoreboard[0] || null;
+            const runnerUp = scoreboard[1] || null;
+            const leaderKills = Math.max(0, Number(leader?.kills) || 0);
+            const topTied = !!runnerUp && leaderKills === Math.max(0, Number(runnerUp?.kills) || 0);
+            const state = this.getDeathmatchState();
+            const timeExpired = state.timeLimitSeconds > 0 && state.timeRemainingSeconds <= 0;
+
+            if (this._overtime && leader && !topTied) {
                 const winner = combatants.find((player) => player?.index === leader.playerIndex) || null;
-                return { shouldEnd: true, winner, reason: 'KILL_LIMIT', parcours: null };
+                return { shouldEnd: !!winner, winner, reason: 'OVERTIME', parcours: null };
+            }
+            if ((leaderKills >= killLimit || timeExpired) && topTied) {
+                this._overtime = true;
+                return { shouldEnd: false, winner: null, reason: 'OVERTIME', parcours: null };
+            }
+            if (leader && (leaderKills >= killLimit || timeExpired)) {
+                const winner = combatants.find((player) => player?.index === leader.playerIndex) || null;
+                return {
+                    shouldEnd: !!winner,
+                    winner,
+                    reason: leaderKills >= killLimit ? 'KILL_LIMIT' : 'TIME_LIMIT',
+                    parcours: null,
+                };
             }
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }

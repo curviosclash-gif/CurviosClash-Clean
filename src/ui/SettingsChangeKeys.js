@@ -28,6 +28,8 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     VEHICLES_PLAYER_1: 'vehicles.player1',
     VEHICLES_PLAYER_2: 'vehicles.player2',
     HUNT_RESPAWN_ENABLED: 'hunt.respawnEnabled',
+    HUNT_DEATHMATCH_KILL_LIMIT: 'hunt.deathmatchKillLimit',
+    HUNT_TIME_LIMIT_ENABLED: 'hunt.timeLimitEnabled',
     GAMEPLAY_SPEED: 'gameplay.speed',
     GAMEPLAY_TURN_SENSITIVITY: 'gameplay.turnSensitivity',
     GAMEPLAY_PLANE_SCALE: 'gameplay.planeScale',

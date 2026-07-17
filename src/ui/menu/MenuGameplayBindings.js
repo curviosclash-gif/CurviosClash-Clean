@@ -208,6 +208,20 @@ export function setupMenuGameplayBindings(ctx) {
             emitSettingsChangedImmediate([keys.HUNT_RESPAWN_ENABLED]);
         });
     }
+    if (ui.huntKillLimitSelect) {
+        bind(ui.huntKillLimitSelect, 'change', () => {
+            if (!settings.hunt) settings.hunt = {};
+            settings.hunt.deathmatchKillLimit = Math.max(1, Math.min(100, parseInt(ui.huntKillLimitSelect.value, 10) || 10));
+            emitSettingsChangedImmediate([keys.HUNT_DEATHMATCH_KILL_LIMIT]);
+        });
+    }
+    if (ui.huntTimeLimitToggle) {
+        bind(ui.huntTimeLimitToggle, 'change', () => {
+            if (!settings.hunt) settings.hunt = {};
+            settings.hunt.timeLimitEnabled = !!ui.huntTimeLimitToggle.checked;
+            emitSettingsChangedImmediate([keys.HUNT_TIME_LIMIT_ENABLED]);
+        });
+    }
 
     if (ui.vehicleSelectP1) {
         bind(ui.vehicleSelectP1, 'change', (e) => {

@@ -29,6 +29,8 @@ export class EntityTickPipeline {
             const outcome = owner._roundOutcomeSystem.resolve();
             if (outcome.shouldEnd) {
                 owner._roundEnded = true;
+                owner._lastRoundOutcome = outcome;
+                owner.onAuthoritativeFightStateChanged?.();
                 owner._eventBus.emitRoundEnd(outcome.winner, outcome);
             }
         } finally {

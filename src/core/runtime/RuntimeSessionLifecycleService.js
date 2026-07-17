@@ -204,8 +204,18 @@ function clearRuntimeClientArenaLoadedNotifier(facade) {
     }
 }
 
+function configureFightNetworkAuthority(facade) {
+    const entityManager = facade?.game?.entityManager;
+    if (!entityManager || !facade?.session) return;
+    entityManager.isFightOutcomeAuthority = facade.session.isHost !== false;
+    entityManager.onAuthoritativeFightStateChanged = facade.session.isHost
+        ? () => facade.session?.broadcastState?.(createGameStateSnapshot(entityManager, facade?.game?.roundStateController))
+        : null;
+}
+
 export async function waitForRuntimePlayersLoaded(facade) {
     if (!facade?.session || facade.session instanceof LocalSessionAdapter) return;
+    configureFightNetworkAuthority(facade);
 
     const slotContext = resolveRuntimeNetworkPlayerSlotContext(facade);
     const configuredPlayers = Array.isArray(slotContext?.slots)
@@ -341,6 +351,10 @@ export async function waitForRuntimePlayersLoaded(facade) {
 }
 
 export function teardownRuntimeSession(facade) {
+    if (facade?.game?.entityManager) {
+        facade.game.entityManager.isFightOutcomeAuthority = true;
+        facade.game.entityManager.onAuthoritativeFightStateChanged = null;
+    }
     stopRuntimeStateBroadcast(facade);
     clearRuntimeClientArenaLoadedNotifier(facade);
     if (facade?._onStateUpdateHandler && facade.session) {

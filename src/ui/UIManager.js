@@ -394,6 +394,18 @@ export class UIManager {
             ui.huntRespawnToggle.checked = huntRespawnEnabled;
             ui.huntRespawnToggle.disabled = resolvedGameMode !== GAME_MODE_TYPES.HUNT;
         }
+        if (ui.huntDeathmatchRules) {
+            ui.huntDeathmatchRules.classList.toggle('hidden', !huntRespawnEnabled);
+            ui.huntDeathmatchRules.setAttribute('aria-hidden', String(!huntRespawnEnabled));
+        }
+        if (ui.huntKillLimitSelect) {
+            ui.huntKillLimitSelect.value = String(settings?.hunt?.deathmatchKillLimit || 10);
+            ui.huntKillLimitSelect.disabled = !huntRespawnEnabled;
+        }
+        if (ui.huntTimeLimitToggle) {
+            ui.huntTimeLimitToggle.checked = settings?.hunt?.timeLimitEnabled !== false;
+            ui.huntTimeLimitToggle.disabled = !huntRespawnEnabled;
+        }
     }
 
     syncMap(settings = this.settings) {

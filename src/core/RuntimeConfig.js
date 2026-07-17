@@ -344,6 +344,8 @@ export function createRuntimeConfigSnapshot(settings, {
         hunt: {
             enabled: huntModeActive,
             respawnEnabled: huntModeActive ? !!huntSource.respawnEnabled : false,
+            deathmatchKillLimit: Math.max(1, Math.min(100, Math.trunc(Number(huntSource.deathmatchKillLimit) || 10))),
+            timeLimitSeconds: huntSource.timeLimitEnabled === false ? 0 : 300,
         },
         arcade: {
             enabled: arcadeEnabled,
@@ -414,6 +416,8 @@ export function applyRuntimeConfigCompatibility(runtimeConfig, targetConfig = CO
     if (nextConfig.HUNT) {
         nextConfig.HUNT.ACTIVE_MODE = runtimeConfig?.session?.activeGameMode || GAME_MODE_TYPES.CLASSIC;
         nextConfig.HUNT.RESPAWN_ENABLED = !!runtimeConfig?.hunt?.respawnEnabled;
+        nextConfig.HUNT.DEATHMATCH_KILL_LIMIT = Math.max(1, Number(runtimeConfig?.hunt?.deathmatchKillLimit) || 10);
+        nextConfig.HUNT.DEATHMATCH_TIME_LIMIT_SECONDS = Math.max(0, Number(runtimeConfig?.hunt?.timeLimitSeconds) || 0);
         const fightTuningEnabled = runtimeConfig?.huntCombat?.fightTuningEnabled === true;
         if (fightTuningEnabled) {
             nextConfig.HUNT.PLAYER_MAX_HP = Math.max(

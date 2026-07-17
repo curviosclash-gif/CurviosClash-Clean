@@ -67,6 +67,8 @@ function resolveObjectiveLabel(reason) {
     if (normalized === 'KILL_LIMIT') {
         return 'Abschusslimit erreicht';
     }
+    if (normalized === 'TIME_LIMIT') return 'Zeitlimit erreicht';
+    if (normalized === 'OVERTIME') return 'Golden Kill';
     return normalized || '-';
 }
 

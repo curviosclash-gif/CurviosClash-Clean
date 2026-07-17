@@ -1,4 +1,6 @@
 // ============================================
+
+import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
 // GameStateSnapshot.js - serializable game state for network transport
 // ============================================
 
@@ -50,6 +52,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         players,
         projectiles,
         powerups,
+        fight: createHuntNetworkState(entityManager),
         roundState: roundState ? {
             round: roundState.round ?? 0,
             timeRemaining: roundState.timeRemaining ?? 0,

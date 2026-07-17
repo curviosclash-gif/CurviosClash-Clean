@@ -50,6 +50,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         portalsEnabled: true,
         hunt: {
             respawnEnabled: !!HUNT_CONFIG.DEFAULT_RESPAWN_ENABLED,
+            deathmatchKillLimit: Number(HUNT_CONFIG.DEATHMATCH_KILL_LIMIT) || 10,
+            timeLimitEnabled: true,
         },
         gameplay: {
             speed: 18,
@@ -221,7 +223,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             id: 'fight-standard',
             name: 'Kampf Standard',
             description: 'Empfohlene Deathmatch-Kombination fuer den 4-Ebenen-Flow.',
-            lockedFields: ['gameMode', 'winsNeeded', 'hunt.respawnEnabled'],
+            lockedFields: ['gameMode', 'winsNeeded', 'hunt.respawnEnabled', 'hunt.deathmatchKillLimit'],
             values: {
                 mode: '1p',
                 gameMode: 'HUNT',
@@ -230,6 +232,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
                 botDifficulty: 'NORMAL',
                 winsNeeded: 1,
                 'hunt.respawnEnabled': true,
+                'hunt.deathmatchKillLimit': 10,
+                'hunt.timeLimitEnabled': true,
                 'gameplay.speed': 20,
                 'gameplay.turnSensitivity': 2.4,
                 'gameplay.fireRate': 0.35,
