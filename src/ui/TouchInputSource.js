@@ -233,6 +233,7 @@ export class TouchInputSource extends PlayerInputSource {
 
     onMatchEnd() {
         this._inMatch = false;
+        this._releaseAllControls(); this._tiltSensorLifecycle.stopListening();
         this._setUIVisibility(false);
     }
 
@@ -324,13 +325,11 @@ export class TouchInputSource extends PlayerInputSource {
             }
 
             const action = this._buttonTouches.get(touch.identifier);
-            if (action && action in this._buttons) {
-                this._buttons[action] = false;
-                if (action in this._prevDiscreteButtons) {
-                    this._prevDiscreteButtons[action] = false;
-                }
-            }
             this._buttonTouches.delete(touch.identifier);
+            if (action && action in this._buttons) {
+                this._buttons[action] = [...this._buttonTouches.values()].includes(action);
+                if (!this._buttons[action] && action in this._prevDiscreteButtons) this._prevDiscreteButtons[action] = false;
+            }
         }
     }
 
@@ -489,6 +488,7 @@ export class TouchInputSource extends PlayerInputSource {
         const jx = Math.abs(this._joystickDelta.x) > deadzone ? this._joystickDelta.x : 0;
         const jy = Math.abs(this._joystickDelta.y) > deadzone ? this._joystickDelta.y : 0;
         const tiltInput = this._resolveTiltSteeringInput();
+        if (this._containerEl?.dataset?.tiltControlState !== this._resolveTiltControlState()) this._updateTiltUi();
         const touchPitchActive = !!tiltInput && this._tiltPitchMode === MOBILE_CLASSIC_TILT_PITCH_MODES.TOUCH;
         const actionState = this._resolveActionState();
         this._syncActionButtons(actionState);

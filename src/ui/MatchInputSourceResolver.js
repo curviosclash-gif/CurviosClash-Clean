@@ -133,6 +133,56 @@ function createGamepadInputSource(gamepadIndex = 0) {
     };
 }
 
+function createGamepadWithTouchFallback(gamepadSource, touchSource) {
+    let touchUiCreated = false;
+    let touchActive = false;
+
+    function setTouchActive(active) {
+        if (active === touchActive) return;
+        if (active) {
+            if (!touchUiCreated) {
+                touchSource.createUI();
+                touchUiCreated = true;
+            }
+            touchSource.onMatchStart();
+        } else {
+            touchSource.onMatchEnd();
+        }
+        touchActive = active;
+    }
+
+    return {
+        type: 'gamepad',
+        playerIndex: -1,
+        active: false,
+        bind(playerIndex) {
+            this.playerIndex = playerIndex;
+            this.active = true;
+            gamepadSource.bind(playerIndex);
+            touchSource.bind(playerIndex);
+        },
+        unbind() {
+            setTouchActive(false);
+            gamepadSource.unbind();
+            touchSource.unbind();
+            this.playerIndex = -1;
+            this.active = false;
+        },
+        poll() {
+            const gamepadInput = gamepadSource.poll();
+            setTouchActive(!gamepadInput);
+            return gamepadInput || touchSource.poll();
+        },
+        dispose() {
+            setTouchActive(false);
+            gamepadSource.dispose();
+            touchSource.dispose();
+            this.playerIndex = -1;
+            this.active = false;
+        },
+    };
+}
+
 export function createPreferredMatchInputSource({
     inputManager,
     playerIndex,
@@ -146,24 +196,28 @@ export function createPreferredMatchInputSource({
     const resolvedInputDeviceIndex = Number.isInteger(inputDeviceIndex)
         ? Math.max(0, inputDeviceIndex)
         : Math.max(0, Number(inputDeviceIndex) || 0);
+    const touchAvailable = resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable();
+    const mobileClassic = touchAvailable && isMobileClassicTarget(game);
+    const mobileArcade = touchAvailable && isMobileArcadeTarget(game);
+    const mobileArcadeMode = mobileArcade || (mobileClassic && isMobileArcadeMode(game));
+    const createTouchSource = () => new TouchInputSource({
+        game,
+        playerIndex,
+        getMatchRuntimeProjection,
+        controlMode: (mobileClassic || mobileArcade) ? TOUCH_CONTROL_MODES.TILT : TOUCH_CONTROL_MODES.JOYSTICK,
+        includePauseButton: mobileClassic || mobileArcadeMode,
+        mobileControls: normalizeMobileClassicControlSettings(game?.settings?.localSettings?.mobileControls),
+    });
     const gamepadSource = createGamepadInputSource(resolvedInputDeviceIndex);
     if (gamepadSource.isConnected()) {
-        return gamepadSource;
+        return touchAvailable
+            ? createGamepadWithTouchFallback(gamepadSource, createTouchSource())
+            : gamepadSource;
     }
     gamepadSource.dispose();
 
-    if (resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable()) {
-        const mobileClassic = isMobileClassicTarget(game);
-        const mobileArcade = isMobileArcadeTarget(game);
-        const mobileArcadeMode = mobileArcade || (mobileClassic && isMobileArcadeMode(game));
-        const touchSource = new TouchInputSource({
-            game,
-            playerIndex,
-            getMatchRuntimeProjection,
-            controlMode: (mobileClassic || mobileArcade) ? TOUCH_CONTROL_MODES.TILT : TOUCH_CONTROL_MODES.JOYSTICK,
-            includePauseButton: mobileClassic || mobileArcadeMode,
-            mobileControls: normalizeMobileClassicControlSettings(game?.settings?.localSettings?.mobileControls),
-        });
+    if (touchAvailable) {
+        const touchSource = createTouchSource();
         touchSource.createUI();
         touchSource.onMatchStart();
         return touchSource;

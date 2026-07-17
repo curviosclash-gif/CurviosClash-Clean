@@ -1010,22 +1010,103 @@ test('Mobile Classic fallback joystick can start as a floating left-side stick',
   source.dispose();
 });
 
-test('Mobile Classic input resolver prefers a connected gamepad over touch fallback', () => {
+test('Mobile Classic restores the visible joystick when tilt input becomes stale', () => {
+  const container = createTouchElement({ id: 'touch-controls' });
+  const joystick = createTouchElement();
+  const source = new TouchInputSource({
+    controlMode: TOUCH_CONTROL_MODES.TILT,
+    game: {
+      settings: {
+        localSettings: {},
+      },
+    },
+  });
+
+  source._containerEl = container;
+  source._joystickEl = joystick;
+  source._uiVisible = true;
+  source._tiltState.enabled = true;
+  source._tiltState.hasNeutral = true;
+  source._tiltState.lastEventAt = Date.now() - 2000;
+  container.dataset.tiltControlState = TILT_CONTROL_STATES.ACTIVE;
+  container.dataset.tiltActive = '1';
+  joystick.style.display = 'none';
+
+  source.poll();
+
+  assert.equal(container.dataset.tiltControlState, TILT_CONTROL_STATES.FALLBACK);
+  assert.equal(container.dataset.tiltActive, '0');
+  assert.equal(joystick.style.display, '');
+  source.dispose();
+});
+
+test('Mobile Classic keeps an action held while another finger still holds it', () => {
+  const source = new TouchInputSource();
+  source._buttons.boost = true;
+  source._buttonTouches.set(1, 'boost');
+  source._buttonTouches.set(2, 'boost');
+
+  source._onTouchEnd({ changedTouches: [{ identifier: 1 }] });
+  assert.equal(source._buttons.boost, true);
+
+  source._onTouchEnd({ changedTouches: [{ identifier: 2 }] });
+  assert.equal(source._buttons.boost, false);
+  source.dispose();
+});
+
+test('Mobile Classic input resolver falls back to touch after a gamepad disconnect', () => {
   const gamepad = {
     axes: [0, 0, 0],
     buttons: Array.from({ length: 8 }, () => ({ pressed: false })),
   };
+  let gamepads = [gamepad];
+  const container = createTouchElement({ id: 'touch-controls' });
+  const doc = {
+    body: container,
+    documentElement: {
+      clientWidth: 800,
+      clientHeight: 400,
+    },
+    defaultView: {
+      innerWidth: 800,
+      innerHeight: 400,
+    },
+    createElement() {
+      const element = createTouchElement();
+      element.ownerDocument = doc;
+      return element;
+    },
+    getElementById(id) {
+      return id === 'touch-controls' ? container : null;
+    },
+  };
+  container.ownerDocument = doc;
 
   withGlobalValue('window', { ontouchstart: null }, () => {
-    withGlobalValue('navigator', { getGamepads: () => [gamepad] }, () => {
-      const source = createPreferredMatchInputSource({
-        inputManager: { getKeyboardInput: () => null },
-        playerIndex: 0,
-        localHumanCount: 1,
-        game: { _mobileClassicAppTarget: true },
+    withGlobalValue('navigator', { getGamepads: () => gamepads }, () => {
+      withGlobalValue('document', doc, () => {
+        const source = createPreferredMatchInputSource({
+          inputManager: { getKeyboardInput: () => null },
+          playerIndex: 0,
+          localHumanCount: 1,
+          game: {
+            _mobileClassicAppTarget: true,
+            settings: { localSettings: {} },
+          },
+        });
+        assert.equal(source.type, 'gamepad');
+        assert.equal(Math.abs(source.poll().yawAxis), 0);
+        assert.equal(container.style.display, undefined);
+
+        gamepads = [];
+        assert.equal(Math.abs(source.poll().yawAxis), 0);
+        assert.equal(container.style.display, 'block');
+
+        gamepads = [gamepad];
+        assert.equal(Math.abs(source.poll().yawAxis), 0);
+        assert.equal(container.style.display, 'none');
+        source.dispose();
       });
-      assert.equal(source.type, 'gamepad');
-      source.dispose();
     });
   });
 });
