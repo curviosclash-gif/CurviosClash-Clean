@@ -11,7 +11,7 @@ export class VehicleLabCore {
         this.camera.position.set(5, 5, 10);
 
         this.renderer = new THREE.WebGLRenderer({ canvas: this.canvas, antialias: true });
-        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight);
+        this.renderer.setSize(canvas.clientWidth, canvas.clientHeight, false);
         this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
 
         this.keys = {

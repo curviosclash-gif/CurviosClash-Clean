@@ -38,7 +38,7 @@ export class VehicleLabViewport {
         this.controls.minDistance = VEHICLE_LAB_CAMERA_DISTANCE_LIMITS.min;
         this.controls.maxDistance = VEHICLE_LAB_CAMERA_DISTANCE_LIMITS.max;
         this.controls.mouseButtons = {
-            LEFT: THREE.MOUSE.NONE,
+            LEFT: THREE.MOUSE.ROTATE,
             MIDDLE: THREE.MOUSE.PAN,
             RIGHT: THREE.MOUSE.ROTATE
         };

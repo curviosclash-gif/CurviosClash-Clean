@@ -165,7 +165,7 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('#partsList .part-item')).toHaveCount(2);
     });
 
-    test('camera can orbit, pan and zoom without selecting a part after dragging', async ({ page }) => {
+    test('camera can orbit with primary drag, pan and zoom without selecting a part after dragging', async ({ page }) => {
         await resetVehicleLab(page);
         const canvas = page.locator('#vehicleCanvas');
         const box = await canvas.boundingBox();
@@ -174,9 +174,9 @@ test.describe('Vehicle Lab', () => {
 
         const initial = await canvas.screenshot();
         await page.mouse.move(center.x, center.y);
-        await page.mouse.down({ button: 'right' });
+        await page.mouse.down({ button: 'left' });
         await page.mouse.move(center.x + 90, center.y + 35, { steps: 8 });
-        await page.mouse.up({ button: 'right' });
+        await page.mouse.up({ button: 'left' });
         await waitForRenderFrames(page, 3);
         const orbited = await canvas.screenshot();
         expect(orbited.equals(initial)).toBe(false);
@@ -194,6 +194,23 @@ test.describe('Vehicle Lab', () => {
         await waitForRenderFrames(page, 3);
         const zoomed = await canvas.screenshot();
         expect(zoomed.equals(panned)).toBe(false);
+    });
+
+    test('canvas follows the desktop viewport when the window is maximized', async ({ page }) => {
+        await resetVehicleLab(page);
+        const canvas = page.locator('#vehicleCanvas');
+        const initialWidth = await canvas.evaluate((element) => element.clientWidth);
+
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await waitForRenderFrames(page, 2);
+
+        const maximized = await canvas.evaluate((element) => ({
+            clientWidth: element.clientWidth,
+            drawingWidth: element.width,
+            pixelRatio: Math.min(window.devicePixelRatio || 1, 2),
+        }));
+        expect(maximized.clientWidth).toBeGreaterThan(initialWidth);
+        expect(maximized.drawingWidth).toBeCloseTo(maximized.clientWidth * maximized.pixelRatio, 0);
     });
 
     test('fixed camera views recenter the vehicle and expose the active view', async ({ page }) => {
