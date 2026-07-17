@@ -96,6 +96,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         modePath: 'fight',
         themeMode: 'dunkel',
         shadowQuality: DEFAULT_SHADOW_QUALITY,
+        mouseSteering: false,
         startSetup: {
             mapSearch: '',
             mapFilter: 'all',
@@ -360,6 +361,7 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             modePath: String(localSettings.modePath || MENU_DEFAULT_EDITOR_CONFIG.localSettings.modePath),
             themeMode: String(localSettings.themeMode || MENU_DEFAULT_EDITOR_CONFIG.localSettings.themeMode),
             shadowQuality: String(localSettings.shadowQuality || MENU_DEFAULT_EDITOR_CONFIG.localSettings.shadowQuality),
+            mouseSteering: localSettings.mouseSteering === true,
             startSetup: deepClone(localSettings.startSetup || MENU_DEFAULT_EDITOR_CONFIG.localSettings.startSetup),
             toolsState: deepClone(localSettings.toolsState || MENU_DEFAULT_EDITOR_CONFIG.localSettings.toolsState),
             eventPlaylistState: deepClone(localSettings.eventPlaylistState || MENU_DEFAULT_EDITOR_CONFIG.localSettings.eventPlaylistState),

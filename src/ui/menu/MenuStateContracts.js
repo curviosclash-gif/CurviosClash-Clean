@@ -205,6 +205,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         modePath,
         themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
+        mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
         startSetup,
         toolsState,
         mobileControls,

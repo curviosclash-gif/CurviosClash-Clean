@@ -6,6 +6,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     ARCADE_GHOST_TRAIL_COLLISION_ENABLED: 'startSetup.arcadeGhostTrailCollisionEnabled',
     LOCAL_THEME_MODE: 'local.themeMode',
     LOCAL_SHADOW_QUALITY: 'local.shadowQuality',
+    LOCAL_MOUSE_STEERING: 'local.mouseSteering',
     LOCAL_MOBILE_TILT_SENSITIVITY: 'local.mobileControls.tiltSensitivity',
     LOCAL_MOBILE_TILT_ASSIST_MODE: 'local.mobileControls.tiltAssistMode',
     LOCAL_MOBILE_TILT_PITCH_MODE: 'local.mobileControls.tiltPitchMode',

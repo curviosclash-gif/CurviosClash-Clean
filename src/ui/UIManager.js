@@ -431,6 +431,9 @@ export class UIManager {
         const runtimeConfig = this._getGameplayConfig();
         const runtimeLimits = this._runtimeSettingLimits;
         const mobileControls = normalizeMobileClassicControlSettings(settings?.localSettings?.mobileControls);
+        if (ui.mouseSteeringToggle) {
+            ui.mouseSteeringToggle.checked = settings?.localSettings?.mouseSteering === true;
+        }
         if (ui.mobileTiltSensitivitySlider) {
             ui.mobileTiltSensitivitySlider.value = String(Math.round(mobileControls.tiltSensitivity * 100));
         }

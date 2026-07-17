@@ -2,6 +2,7 @@ import { TOUCH_CONTROL_MODES, TouchInputSource } from './TouchInputSource.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
 
 const GAMEPAD_DEADZONE = 0.15;
+const MOUSE_STEERING_DEADZONE = 0.08;
 const GAMEPAD_MAPPING = Object.freeze({
     pitchAxis: 1,
     yawAxis: 0,
@@ -133,6 +134,78 @@ function createGamepadInputSource(gamepadIndex = 0) {
     };
 }
 
+function normalizeMouseSteeringAxis(value) {
+    const clamped = Math.max(-1, Math.min(1, Number(value) || 0));
+    const magnitude = Math.abs(clamped);
+    if (magnitude <= MOUSE_STEERING_DEADZONE) return 0;
+    return Math.sign(clamped) * ((magnitude - MOUSE_STEERING_DEADZONE) / (1 - MOUSE_STEERING_DEADZONE));
+}
+
+export function createMouseSteeringInputSource(inputManager, includeSecondaryBindings = false, options = {}) {
+    const keyboardPlayerIndex = Number.isInteger(options.keyboardPlayerIndex)
+        ? Math.max(0, options.keyboardPlayerIndex)
+        : null;
+    const output = {};
+    let target = null;
+    let pointerActive = false;
+    let pitchAxis = 0;
+    let yawAxis = 0;
+
+    const resetPointer = () => {
+        pointerActive = false;
+        pitchAxis = 0;
+        yawAxis = 0;
+    };
+    const handlePointerMove = (event) => {
+        if (event?.pointerType === 'touch') return;
+        const rect = target?.getBoundingClientRect?.();
+        if (!rect || rect.width <= 0 || rect.height <= 0) {
+            resetPointer();
+            return;
+        }
+        pointerActive = true;
+        yawAxis = normalizeMouseSteeringAxis((rect.left + rect.width / 2 - event.clientX) / (rect.width / 2));
+        pitchAxis = normalizeMouseSteeringAxis((rect.top + rect.height / 2 - event.clientY) / (rect.height / 2));
+    };
+
+    return {
+        type: 'mouse',
+        playerIndex: -1,
+        active: false,
+        bind(playerIndex) {
+            this.unbind();
+            this.playerIndex = playerIndex;
+            this.active = true;
+            target = options.target || globalThis.document?.getElementById?.('game-canvas');
+            target?.addEventListener?.('pointermove', handlePointerMove);
+            target?.addEventListener?.('pointerleave', resetPointer);
+            globalThis.window?.addEventListener?.('blur', resetPointer);
+        },
+        unbind() {
+            target?.removeEventListener?.('pointermove', handlePointerMove);
+            target?.removeEventListener?.('pointerleave', resetPointer);
+            globalThis.window?.removeEventListener?.('blur', resetPointer);
+            target = null;
+            resetPointer();
+            this.playerIndex = -1;
+            this.active = false;
+        },
+        poll() {
+            if (!inputManager || this.playerIndex < 0) return null;
+            const inputPlayerIndex = keyboardPlayerIndex ?? this.playerIndex;
+            const keyboardInput = inputManager.getKeyboardInput(inputPlayerIndex, { includeSecondaryBindings });
+            if (!pointerActive) return keyboardInput;
+            Object.assign(output, keyboardInput);
+            output.pitchAxis = pitchAxis;
+            output.yawAxis = yawAxis;
+            return output;
+        },
+        dispose() {
+            this.unbind();
+        },
+    };
+}
+
 function createGamepadWithTouchFallback(gamepadSource, touchSource) {
     let touchUiCreated = false;
     let touchActive = false;
@@ -208,6 +281,15 @@ export function createPreferredMatchInputSource({
         includePauseButton: mobileClassic || mobileArcadeMode,
         mobileControls: normalizeMobileClassicControlSettings(game?.settings?.localSettings?.mobileControls),
     });
+    if (resolvedInputDeviceIndex === 0
+        && !touchAvailable
+        && game?.settings?.localSettings?.mouseSteering === true) {
+        return createMouseSteeringInputSource(
+            inputManager,
+            localHumanCount === 1,
+            { keyboardPlayerIndex: 0 }
+        );
+    }
     const gamepadSource = createGamepadInputSource(resolvedInputDeviceIndex);
     if (gamepadSource.isConnected()) {
         return touchAvailable

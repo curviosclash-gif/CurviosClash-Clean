@@ -1,8 +1,21 @@
 export function setupMenuControlBindings(ctx) {
     const ui = ctx.ui;
+    const settings = ctx.settings;
     const emit = ctx.emit;
+    const emitSettingsChangedImmediate = ctx.emitSettingsChangedImmediate;
     const eventTypes = ctx.eventTypes;
+    const keys = ctx.settingsChangeKeys;
     const bind = ctx.bind;
+
+    if (ui.mouseSteeringToggle) {
+        bind(ui.mouseSteeringToggle, 'change', () => {
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') {
+                settings.localSettings = {};
+            }
+            settings.localSettings.mouseSteering = ui.mouseSteeringToggle.checked === true;
+            emitSettingsChangedImmediate([keys.LOCAL_MOUSE_STEERING]);
+        });
+    }
 
     bind(ui.keybindP1, 'click', (e) => {
         const btn = e.target.closest('button.keybind-btn');
