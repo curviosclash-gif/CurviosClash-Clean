@@ -255,6 +255,111 @@ test('Hunt bot turns toward a target directly behind instead of flying straight'
     assert.notEqual(action.yawLeft, action.yawRight);
 });
 
+test('Hunt bot leads a moving target while approaching', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -72);
+    enemy.velocity = new THREE.Vector3(18, 0, 0);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(policy.getDecisionSnapshot().intent, 'approach');
+    assert.equal(action.yawRight, true);
+});
+
+test('Hunt bot keeps MG and rockets behind blocked fight corridors', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -48);
+    player.inventory = ['ROCKET_HEAVY'];
+    const blockedArena = {
+        checkCollisionFast(position) {
+            return position.z < -18 && position.z > -30;
+        },
+    };
+    const arenaPolicy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const arenaAction = arenaPolicy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: blockedArena,
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    const trailPolicy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const trailAction = trailPolicy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        trailSpatialIndex: {
+            checkGlobalCollision(position) {
+                return position.z < -18 && position.z > -30 ? { hit: true } : null;
+            },
+        },
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(arenaAction.shootMG, false);
+    assert.equal(arenaAction.shootItem, false);
+    assert.equal(trailAction.shootMG, false);
+    assert.equal(trailAction.shootItem, false);
+});
+
+test('Hunt movement commits briefly, then uses a lateral close-range breakaway', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -72);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const context = {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    };
+
+    policy.update(0.1, player, context);
+    enemy.position.set(0, 0, -12);
+    policy.update(0.1, player, context);
+    assert.equal(policy.getDecisionSnapshot().intent, 'approach');
+
+    const breakaway = policy.update(1, player, context);
+    assert.equal(policy.getDecisionSnapshot().intent, 'breakaway');
+    assert.equal(breakaway.yawLeft || breakaway.yawRight, true);
+});
+
+test('Hunt pursuit bends toward arena center near a boundary', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    player.position.set(90, 0, 0);
+    enemy.position.set(90, 0, -72);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {
+            bounds: { minX: -100, maxX: 100, minY: -100, maxY: 100, minZ: -100, maxZ: 100 },
+        },
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(action.yawLeft, true);
+    assert.equal(action.yawRight, false);
+});
+
 test('3D safety chooses the open vertical escape when both sides are blocked', () => {
     const player = createPlayer(1);
     const observation = createSafeObservation();

@@ -2,29 +2,18 @@ import * as THREE from 'three';
 import {
     LOCAL_OPENNESS_RATIO,
     PRESSURE_LEVEL,
-    PROJECTILE_THREAT,
-    TARGET_ALIGNMENT,
     TARGET_DISTANCE_RATIO,
-    TARGET_IN_FRONT,
     WALL_DISTANCE_FRONT,
 } from './observation/ObservationSchemaV1.js';
 import { BOT_POLICY_TYPES } from './BotPolicyTypes.js';
 import {
     applySteeringTowardPosition,
     clearSteeringInput,
-    findNearestReadyPortal,
-    findNearestReadySpecialGate,
-    findStrongestRocketIndex,
-    resolveHealthRatio,
-    resolveHuntFallbackItemAction,
-    resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
-import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
-import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
-import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
-import { HEURISTIC_DIFFICULTIES, HEURISTIC_PROFILES, WORLD_UP, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex, resolveStableStrafeRight } from './HeuristicBotPolicyOps.js';
+import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
+import { HEURISTIC_DIFFICULTIES, HEURISTIC_PROFILES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
 import {
     applyHeuristicObstacleAvoidance,
     applyHeuristicSafetyArbiter,
@@ -78,6 +67,10 @@ export class HeuristicBotPolicy {
             commitTimer: 0,
             targetIndex: -1,
         };
+        this._huntState = {
+            movementIntent: 'search',
+            commitTimer: 0,
+        };
         this._decisionCounters = {
             updates: 0,
             intentChanges: 0,
@@ -92,6 +85,7 @@ export class HeuristicBotPolicy {
         this._tmpUp = new THREE.Vector3();
         this._tmpGate = new THREE.Vector3();
         this._tmpTarget = new THREE.Vector3();
+        this._tmpAimTarget = new THREE.Vector3();
         this._tmpProjectileRelative = new THREE.Vector3();
         this._tmpProjectileVelocity = new THREE.Vector3();
         this._tmpEvade = new THREE.Vector3();
@@ -152,180 +146,6 @@ export class HeuristicBotPolicy {
             this.difficultyName = nextDifficultyName;
             this.difficulty = HEURISTIC_DIFFICULTIES[nextDifficultyName];
         }
-    }
-
-    _applyRetreatSteering(input, player, enemy) {
-        if (!player?.position) return;
-        if (enemy?.position) {
-            this._tmpGate.subVectors(player.position, enemy.position);
-            if (this._tmpGate.lengthSq() > 0.000001) {
-                this._tmpGate.normalize().multiplyScalar(24).add(player.position);
-                applySteeringTowardPosition(this, input, player, this._tmpGate);
-                return;
-            }
-        }
-        if (typeof player.getDirection === 'function') {
-            player.getDirection(this._tmpForward);
-        } else {
-            this._tmpForward.set(0, 0, 1);
-        }
-        if (this._tmpForward.lengthSq() <= 0.000001) {
-            this._tmpForward.set(0, 0, 1);
-        } else {
-            this._tmpForward.normalize();
-        }
-        this._tmpRight.crossVectors(WORLD_UP, this._tmpForward);
-        if (this._tmpRight.lengthSq() <= 0.000001) {
-            this._tmpRight.set(1, 0, 0);
-        } else {
-            this._tmpRight.normalize();
-        }
-        input.yawRight = true;
-        input.yawLeft = false;
-    }
-
-    _applyHuntBehavior(input, player, runtimeContext, observation) {
-        const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
-        const huntTarget = runtimeContext?.huntTarget || null;
-        const preferred = getPreferredFightEnemy(player, players, this._tmpToEnemy, runtimeContext?.dt);
-        const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, players);
-        const enemy = targetPlayer && (
-            targetPlayer === preferred.enemy
-            || preferred.candidateCount <= 1
-            || targetPlayer.index === player.fightLastAttackerIndex
-        ) ? targetPlayer : preferred.enemy;
-        const healthRatio = resolveHealthRatio(player);
-        const shieldRatio = resolveShieldRatio(player);
-        const enemyHealthRatio = resolveHealthRatio(enemy);
-        const enemyShieldRatio = resolveShieldRatio(enemy);
-        const vitalityRatio = clamp(healthRatio * 0.72 + shieldRatio * 0.28, 0, 1);
-        const enemyVitalityRatio = clamp(enemyHealthRatio * 0.72 + enemyShieldRatio * 0.28, 0, 1);
-        const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
-        const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
-        let targetAlignment = clamp(readObservationValue(observation, TARGET_ALIGNMENT, 0), -1, 1);
-        let targetInFront = readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
-        const observedTargetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
-        const targetDistanceMax = Math.max(1, Number(runtimeContext?.observationContext?.targetDistanceMax) || 120);
-        let targetDistanceSq = preferred.distSq;
-        let targetDistanceRatio = observedTargetDistanceRatio;
-        if (enemy?.position && player?.position) {
-            this._tmpToEnemy.subVectors(enemy.position, player.position);
-            targetDistanceSq = this._tmpToEnemy.lengthSq();
-            targetDistanceRatio = clamp(Math.sqrt(targetDistanceSq) / targetDistanceMax, 0, 1);
-            if (targetDistanceSq > 0.000001) {
-                this._tmpToEnemy.multiplyScalar(1 / Math.sqrt(targetDistanceSq));
-                if (typeof player.getDirection === 'function') {
-                    player.getDirection(this._tmpForward);
-                    if (this._tmpForward.lengthSq() > 0.000001) this._tmpForward.normalize();
-                    targetAlignment = this._tmpForward.dot(this._tmpToEnemy);
-                    targetInFront = targetAlignment >= this.difficulty.aimDot;
-                }
-            }
-        }
-        const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
-        const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1);
-        const survivalPressure = Math.max(pressureLevel, projectileThreat ? 0.84 : 0, (1 - vitalityRatio) * 0.95);
-        const rocketIndex = findStrongestRocketIndex(player?.inventory || []);
-        let intent = 'fight-search';
-        let retreatReason = '';
-
-        const itemAction = resolveHuntFallbackItemAction(player, {
-            pressureLevel,
-            aggression,
-            targetInFront,
-            healthRatio,
-            shieldRatio,
-            survivalPressure,
-            preferDefense: projectileThreat || survivalPressure > 0.62,
-            preferTraversal: survivalPressure > 0.72 || vitalityRatio < 0.38,
-            enemyClose: targetDistanceSq <= 22 * 22,
-            crashRisk: projectileThreat ? 1 : (pressureLevel > 0.64 ? 0.5 : 0),
-        });
-
-        const attackWindow = clamp(this.profile.attackWindow * this.difficulty.attackWindowScale, 0.1, 1);
-        if (
-            enemy
-            && targetInFront
-            && targetAlignment >= this.difficulty.aimDot
-            && survivalPressure < 0.84
-            && aggression >= 0.38
-            && targetDistanceRatio < attackWindow
-        ) {
-            input.shootMG = true;
-        }
-        const rocketWindow = targetDistanceRatio >= 0.16
-            && targetDistanceRatio <= Math.min(0.9, attackWindow + 0.12);
-        if (
-            rocketIndex >= 0
-            && enemy
-            && targetInFront
-            && targetAlignment >= this.difficulty.aimDot
-            && rocketWindow
-            && pressureLevel < 0.9
-            && (aggression >= 0.32 || enemyVitalityRatio > 0.55 || survivalPressure > 0.72)
-        ) {
-            input.shootItem = true;
-            input.shootItemIndex = rocketIndex;
-        }
-        if (itemAction.useItem >= 0) {
-            input.useItem = itemAction.useItem;
-        } else if (rocketIndex < 0 && itemAction.shootItem === true && itemAction.shootItemIndex >= 0) {
-            input.shootItem = true;
-            input.shootItemIndex = itemAction.shootItemIndex;
-        }
-
-        if (enemy && (vitalityRatio <= this.profile.retreatVitality || (vitalityRatio < 0.52 && survivalPressure > this.profile.retreatPressure))) {
-            intent = 'retreat';
-            retreatReason = vitalityRatio <= this.profile.retreatVitality ? 'low-vitality' : 'pressure';
-            const huntConfig = resolveGameplayConfig(player).HUNT;
-            const gateAssistRange = Math.max(24, Number(huntConfig?.RETREAT_GATE_RANGE || 54));
-            const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];
-            const readyGate = survivalPressure > 0.8
-                ? findNearestReadySpecialGate(this, player, specialGates, gateAssistRange * gateAssistRange)
-                : null;
-            const portalAssistRange = Math.max(30, gateAssistRange * 1.25);
-            const readyPortal = readyGate?.gate
-                ? null
-                : findNearestReadyPortal(this, player, runtimeContext?.arena, portalAssistRange * portalAssistRange);
-
-            clearSteeringInput(input);
-            if (readyGate?.gate) {
-                applySteeringTowardPosition(this, input, player, readyGate.gate.pos);
-            } else if (readyPortal?.entry) {
-                applySteeringTowardPosition(this, input, player, readyPortal.entry);
-            } else {
-                this._applyRetreatSteering(input, player, enemy);
-            }
-            if (!hasYaw(input)) {
-                this._applyRetreatSteering(input, player, enemy);
-            }
-            input.boost = wallFront > Math.max(this.profile.safetyDistance, 0.34);
-            input.shootMG = false;
-            if (rocketIndex < 0) {
-                input.shootItem = false;
-                input.shootItemIndex = -1;
-            }
-        } else if (enemy?.position && player?.position) {
-            clearSteeringInput(input);
-            if (targetDistanceRatio > this.profile.strafeDistance && wallFront > this.profile.safetyDistance) {
-                applySteeringTowardPosition(this, input, player, enemy.position);
-                intent = aggression > 0.5 ? 'attack-approach' : 'approach';
-            } else if (targetDistanceRatio > this.profile.preferredRange) {
-                applySteeringTowardPosition(this, input, player, enemy.position);
-                const strafeRight = resolveStableStrafeRight(player);
-                input.rollRight = strafeRight;
-                input.rollLeft = !strafeRight;
-                intent = 'strafe';
-            } else {
-                this._applyRetreatSteering(input, player, enemy);
-                input.boost = false;
-                intent = 'hold-distance';
-            }
-            if (wallFront <= this.profile.safetyDistance) {
-                input.boost = false;
-            }
-        }
-        return { intent, retreatReason, targetDistanceRatio, selectedItemReason: itemAction.type || (rocketIndex >= 0 ? 'rocket' : '') };
     }
 
     _resolveParcoursProgressSnapshot(runtimeContext, player) {
@@ -446,7 +266,7 @@ export class HeuristicBotPolicy {
             targetDistanceRatio: clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1),
         };
         if (mode === 'HUNT') {
-            decision = this._applyHuntBehavior(input, player, runtimeContext, observation);
+            decision = applyHeuristicHuntBehavior(this, input, dt, player, runtimeContext, observation);
         } else if (mode === 'ARCADE') {
             decision = this._applyArcadeBehavior(input, player, runtimeContext, observation);
         } else {
@@ -500,6 +320,8 @@ export class HeuristicBotPolicy {
         this._classicState.intent = 'space-seek';
         this._classicState.commitTimer = 0;
         this._classicState.targetIndex = -1;
+        this._huntState.movementIntent = 'search';
+        this._huntState.commitTimer = 0;
         this._decisionCounters.updates = 0;
         this._decisionCounters.intentChanges = 0;
         this._decisionCounters.safetyTransitions = 0;

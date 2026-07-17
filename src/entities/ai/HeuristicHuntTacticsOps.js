@@ -1,0 +1,306 @@
+import {
+    PRESSURE_LEVEL,
+    PROJECTILE_THREAT,
+    TARGET_ALIGNMENT,
+    TARGET_DISTANCE_RATIO,
+    TARGET_IN_FRONT,
+    WALL_DISTANCE_FRONT,
+} from './observation/ObservationSchemaV1.js';
+import {
+    applySteeringTowardPosition,
+    clearSteeringInput,
+    findNearestReadyPortal,
+    findNearestReadySpecialGate,
+    findStrongestRocketIndex,
+    resolveHealthRatio,
+    resolveHuntFallbackItemAction,
+    resolveShieldRatio,
+} from '../../hunt/HuntBotPolicy.js';
+import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
+import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
+import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { clamp } from '../../utils/MathOps.js';
+import {
+    HEURISTIC_SAFETY_CONFIG,
+    checkArenaCollision,
+    checkTrailCollision,
+} from './HeuristicBotSafetyOps.js';
+import {
+    WORLD_UP,
+    hasYaw,
+    readObservationValue,
+    resolveStableStrafeRight,
+} from './HeuristicBotPolicyOps.js';
+
+function isFightCorridorClear(policy, player, targetPosition, runtimeContext) {
+    if (!policy || !player?.position || !targetPosition) return false;
+    policy._tmpGate.subVectors(targetPosition, player.position);
+    const distance = policy._tmpGate.length();
+    if (!(distance > 0.000001)) return false;
+    policy._tmpGate.multiplyScalar(1 / distance);
+    const sampleCount = Math.min(
+        HEURISTIC_SAFETY_CONFIG.shotProbeMaxSamples,
+        Math.max(2, Math.ceil(distance / HEURISTIC_SAFETY_CONFIG.shotProbeStep))
+    );
+    const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
+        * HEURISTIC_SAFETY_CONFIG.shotProbeRadiusMultiplier;
+    for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
+        policy._tmpTarget.copy(player.position).addScaledVector(
+            policy._tmpGate,
+            distance * sampleIndex / sampleCount
+        );
+        if (checkArenaCollision(runtimeContext?.arena, policy._tmpTarget, radius)) return false;
+        if (checkTrailCollision(runtimeContext?.trailSpatialIndex, policy._tmpTarget, radius, player)) return false;
+    }
+    return true;
+}
+
+function applyRetreatSteering(policy, input, player, enemy) {
+    if (!player?.position) return;
+    if (enemy?.position) {
+        policy._tmpGate.subVectors(player.position, enemy.position);
+        if (policy._tmpGate.lengthSq() > 0.000001) {
+            policy._tmpGate.normalize().multiplyScalar(24).add(player.position);
+            applySteeringTowardPosition(policy, input, player, policy._tmpGate);
+            return;
+        }
+    }
+    if (typeof player.getDirection === 'function') player.getDirection(policy._tmpForward);
+    else policy._tmpForward.set(0, 0, 1);
+    if (policy._tmpForward.lengthSq() <= 0.000001) policy._tmpForward.set(0, 0, 1);
+    else policy._tmpForward.normalize();
+    policy._tmpRight.crossVectors(WORLD_UP, policy._tmpForward);
+    if (policy._tmpRight.lengthSq() <= 0.000001) policy._tmpRight.set(1, 0, 0);
+    else policy._tmpRight.normalize();
+    input.yawRight = true;
+    input.yawLeft = false;
+}
+
+function applyArenaCenterBias(target, player, arena) {
+    const bounds = arena?.bounds;
+    if (!target || !player?.position || !bounds) return target;
+    const minX = Number(bounds.minX);
+    const maxX = Number(bounds.maxX);
+    const minY = Number(bounds.minY);
+    const maxY = Number(bounds.maxY);
+    const minZ = Number(bounds.minZ);
+    const maxZ = Number(bounds.maxZ);
+    if (!Number.isFinite(minX) || !Number.isFinite(maxX)
+        || !Number.isFinite(minY) || !Number.isFinite(maxY)
+        || !Number.isFinite(minZ) || !Number.isFinite(maxZ)) return target;
+    const centerX = (minX + maxX) * 0.5;
+    const centerY = (minY + maxY) * 0.5;
+    const centerZ = (minZ + maxZ) * 0.5;
+    const edgePressure = Math.max(
+        Math.abs(player.position.x - centerX) / Math.max(1, (maxX - minX) * 0.5),
+        Math.abs(player.position.y - centerY) / Math.max(1, (maxY - minY) * 0.5),
+        Math.abs(player.position.z - centerZ) / Math.max(1, (maxZ - minZ) * 0.5)
+    );
+    const blend = clamp((edgePressure - 0.72) * 0.75, 0, 0.22);
+    target.x += (centerX - target.x) * blend;
+    target.y += (centerY - target.y) * blend;
+    target.z += (centerZ - target.z) * blend;
+    return target;
+}
+
+function resolveMovementIntent(policy, dt, requestedIntent) {
+    const state = policy._huntState;
+    state.commitTimer = Math.max(0, state.commitTimer - Math.max(0, Number(dt) || 0));
+    const canSwitch = requestedIntent === 'retreat'
+        || state.movementIntent === 'retreat'
+        || state.movementIntent === 'search'
+        || state.commitTimer <= 0;
+    if (requestedIntent !== state.movementIntent && canSwitch) {
+        state.movementIntent = requestedIntent;
+        state.commitTimer = Math.max(0.1, Number(policy.difficulty?.tacticalCommitSeconds) || 0.64);
+    }
+    return state.movementIntent;
+}
+
+function applyBreakawaySteering(policy, input, player, enemy, arena) {
+    if (!player?.position || !enemy?.position) return;
+    policy._tmpGate.subVectors(player.position, enemy.position);
+    if (policy._tmpGate.lengthSq() <= 0.000001) {
+        applyRetreatSteering(policy, input, player, enemy);
+        return;
+    }
+    policy._tmpGate.normalize();
+    policy._tmpRight.crossVectors(WORLD_UP, policy._tmpGate);
+    if (policy._tmpRight.lengthSq() <= 0.000001) policy._tmpRight.set(1, 0, 0);
+    else policy._tmpRight.normalize();
+
+    let side = resolveStableStrafeRight(player) ? 1 : -1;
+    const bounds = arena?.bounds;
+    if (bounds) {
+        const centerX = (Number(bounds.minX) + Number(bounds.maxX)) * 0.5;
+        const centerY = (Number(bounds.minY) + Number(bounds.maxY)) * 0.5;
+        const centerZ = (Number(bounds.minZ) + Number(bounds.maxZ)) * 0.5;
+        const centerDot = (centerX - player.position.x) * policy._tmpRight.x
+            + (centerY - player.position.y) * policy._tmpRight.y
+            + (centerZ - player.position.z) * policy._tmpRight.z;
+        if (Number.isFinite(centerDot) && Math.abs(centerDot) > 0.01) side = centerDot > 0 ? 1 : -1;
+    }
+    policy._tmpTarget.copy(player.position)
+        .addScaledVector(policy._tmpGate, 18)
+        .addScaledVector(policy._tmpRight, side * 14);
+    applyArenaCenterBias(policy._tmpTarget, player, arena);
+    applySteeringTowardPosition(policy, input, player, policy._tmpTarget);
+    input.rollRight = side < 0;
+    input.rollLeft = side > 0;
+}
+
+export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeContext, observation) {
+    const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
+    const huntTarget = runtimeContext?.huntTarget || null;
+    const preferred = getPreferredFightEnemy(player, players, policy._tmpToEnemy, runtimeContext?.dt);
+    const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, players);
+    const enemy = targetPlayer && (
+        targetPlayer === preferred.enemy
+        || preferred.candidateCount <= 1
+        || targetPlayer.index === player.fightLastAttackerIndex
+    ) ? targetPlayer : preferred.enemy;
+    const healthRatio = resolveHealthRatio(player);
+    const shieldRatio = resolveShieldRatio(player);
+    const enemyHealthRatio = resolveHealthRatio(enemy);
+    const enemyShieldRatio = resolveShieldRatio(enemy);
+    const vitalityRatio = clamp(healthRatio * 0.72 + shieldRatio * 0.28, 0, 1);
+    const enemyVitalityRatio = clamp(enemyHealthRatio * 0.72 + enemyShieldRatio * 0.28, 0, 1);
+    const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
+    const projectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
+    let targetAlignment = clamp(readObservationValue(observation, TARGET_ALIGNMENT, 0), -1, 1);
+    let targetInFront = readObservationValue(observation, TARGET_IN_FRONT, 0) >= 0.5;
+    const observedTargetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
+    const targetDistanceMax = Math.max(1, Number(runtimeContext?.observationContext?.targetDistanceMax) || 120);
+    let targetDistanceSq = preferred.distSq;
+    let targetDistanceRatio = observedTargetDistanceRatio;
+    if (enemy?.position) policy._tmpAimTarget.copy(enemy.position);
+    else if (player?.position) policy._tmpAimTarget.copy(player.position);
+    else policy._tmpAimTarget.set(0, 0, 0);
+    if (enemy?.position && player?.position) {
+        policy._tmpToEnemy.subVectors(enemy.position, player.position);
+        targetDistanceSq = policy._tmpToEnemy.lengthSq();
+        const targetDistance = Math.sqrt(targetDistanceSq);
+        targetDistanceRatio = clamp(targetDistance / targetDistanceMax, 0, 1);
+        if (targetDistanceSq > 0.000001) {
+            policy._tmpToEnemy.multiplyScalar(1 / targetDistance);
+            if (typeof player.getDirection === 'function') {
+                player.getDirection(policy._tmpForward);
+                if (policy._tmpForward.lengthSq() > 0.000001) policy._tmpForward.normalize();
+                targetAlignment = policy._tmpForward.dot(policy._tmpToEnemy);
+                targetInFront = targetAlignment >= policy.difficulty.aimDot;
+            }
+        }
+        const leadSeconds = clamp(targetDistance / 90, 0, 0.75) * policy.difficulty.tacticalLeadScale;
+        if (enemy.velocity && Number.isFinite(Number(enemy.velocity.x))
+            && Number.isFinite(Number(enemy.velocity.y)) && Number.isFinite(Number(enemy.velocity.z))) {
+            policy._tmpAimTarget.addScaledVector(enemy.velocity, leadSeconds);
+        }
+    }
+    const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
+    const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1);
+    const survivalPressure = Math.max(pressureLevel, projectileThreat ? 0.84 : 0, (1 - vitalityRatio) * 0.95);
+    const rocketIndex = findStrongestRocketIndex(player?.inventory || []);
+    let intent = 'fight-search';
+    let retreatReason = '';
+
+    const itemAction = resolveHuntFallbackItemAction(player, {
+        pressureLevel,
+        aggression,
+        targetInFront,
+        healthRatio,
+        shieldRatio,
+        survivalPressure,
+        preferDefense: projectileThreat || survivalPressure > 0.62,
+        preferTraversal: survivalPressure > 0.72 || vitalityRatio < 0.38,
+        enemyClose: targetDistanceSq <= 22 * 22,
+        crashRisk: projectileThreat ? 1 : (pressureLevel > 0.64 ? 0.5 : 0),
+    });
+
+    const attackWindow = clamp(policy.profile.attackWindow * policy.difficulty.attackWindowScale, 0.1, 1);
+    const rocketWindow = targetDistanceRatio >= 0.16
+        && targetDistanceRatio <= Math.min(0.9, attackWindow + 0.12);
+    const shouldProbeShot = enemy?.position
+        && targetInFront
+        && targetAlignment >= policy.difficulty.aimDot
+        && (targetDistanceRatio < attackWindow || (rocketIndex >= 0 && rocketWindow) || itemAction.shootItem === true);
+    const clearShot = shouldProbeShot ? isFightCorridorClear(policy, player, enemy.position, runtimeContext) : false;
+    if (enemy && targetInFront && targetAlignment >= policy.difficulty.aimDot
+        && survivalPressure < 0.84 && aggression >= 0.38
+        && targetDistanceRatio < attackWindow && clearShot) {
+        input.shootMG = true;
+    }
+    if (rocketIndex >= 0 && enemy && targetInFront && targetAlignment >= policy.difficulty.aimDot
+        && rocketWindow && pressureLevel < 0.9
+        && (aggression >= 0.32 || enemyVitalityRatio > 0.55 || survivalPressure > 0.72)
+        && clearShot) {
+        input.shootItem = true;
+        input.shootItemIndex = rocketIndex;
+    }
+    if (itemAction.useItem >= 0) input.useItem = itemAction.useItem;
+    else if (clearShot && rocketIndex < 0 && itemAction.shootItem === true && itemAction.shootItemIndex >= 0) {
+        input.shootItem = true;
+        input.shootItemIndex = itemAction.shootItemIndex;
+    }
+
+    const retreatRequested = enemy && (vitalityRatio <= policy.profile.retreatVitality
+        || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure));
+    const requestedMovementIntent = retreatRequested
+        ? 'retreat'
+        : (targetDistanceRatio > policy.profile.strafeDistance
+            ? 'approach'
+            : (targetDistanceRatio > policy.profile.preferredRange ? 'strafe' : 'breakaway'));
+    const movementIntent = resolveMovementIntent(policy, dt, enemy ? requestedMovementIntent : 'search');
+
+    if (enemy && movementIntent === 'retreat') {
+        intent = 'retreat';
+        retreatReason = vitalityRatio <= policy.profile.retreatVitality ? 'low-vitality' : 'pressure';
+        const huntConfig = resolveGameplayConfig(player).HUNT;
+        const gateAssistRange = Math.max(24, Number(huntConfig?.RETREAT_GATE_RANGE || 54));
+        const specialGates = Array.isArray(runtimeContext?.arena?.specialGates) ? runtimeContext.arena.specialGates : [];
+        const readyGate = survivalPressure > 0.8
+            ? findNearestReadySpecialGate(policy, player, specialGates, gateAssistRange * gateAssistRange)
+            : null;
+        const portalAssistRange = Math.max(30, gateAssistRange * 1.25);
+        const readyPortal = readyGate?.gate
+            ? null
+            : findNearestReadyPortal(policy, player, runtimeContext?.arena, portalAssistRange * portalAssistRange);
+        clearSteeringInput(input);
+        if (readyGate?.gate) applySteeringTowardPosition(policy, input, player, readyGate.gate.pos);
+        else if (readyPortal?.entry) applySteeringTowardPosition(policy, input, player, readyPortal.entry);
+        else applyRetreatSteering(policy, input, player, enemy);
+        if (!hasYaw(input)) applyRetreatSteering(policy, input, player, enemy);
+        input.boost = wallFront > Math.max(policy.profile.safetyDistance, 0.34);
+        input.shootMG = false;
+        if (rocketIndex < 0) {
+            input.shootItem = false;
+            input.shootItemIndex = -1;
+        }
+    } else if (enemy?.position && player?.position) {
+        clearSteeringInput(input);
+        if (movementIntent === 'approach' && wallFront > policy.profile.safetyDistance) {
+            policy._tmpTarget.copy(policy._tmpAimTarget);
+            applyArenaCenterBias(policy._tmpTarget, player, runtimeContext?.arena);
+            applySteeringTowardPosition(policy, input, player, policy._tmpTarget);
+            intent = aggression > 0.5 ? 'attack-approach' : 'approach';
+        } else if (movementIntent === 'strafe') {
+            policy._tmpTarget.copy(policy._tmpAimTarget);
+            applyArenaCenterBias(policy._tmpTarget, player, runtimeContext?.arena);
+            applySteeringTowardPosition(policy, input, player, policy._tmpTarget);
+            const strafeRight = resolveStableStrafeRight(player);
+            input.rollRight = strafeRight;
+            input.rollLeft = !strafeRight;
+            intent = 'strafe';
+        } else {
+            applyBreakawaySteering(policy, input, player, enemy, runtimeContext?.arena);
+            input.boost = false;
+            intent = 'breakaway';
+        }
+        if (wallFront <= policy.profile.safetyDistance) input.boost = false;
+    }
+    return {
+        intent,
+        retreatReason,
+        targetDistanceRatio,
+        selectedItemReason: itemAction.type || (rocketIndex >= 0 ? 'rocket' : ''),
+    };
+}

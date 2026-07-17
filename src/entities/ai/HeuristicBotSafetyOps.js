@@ -50,6 +50,9 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     projectileThreatRange: 32,
     projectileImpactHorizon: 1.25,
     projectileSafetyRadius: 3.2,
+    shotProbeStep: 5,
+    shotProbeMaxSamples: 20,
+    shotProbeRadiusMultiplier: 0.55,
 });
 
 function clamp01(value) {
@@ -183,7 +186,7 @@ export function recordHeuristicBounce(state, type, normal = null) {
     }
 }
 
-function checkArenaCollision(arena, position, radius) {
+export function checkArenaCollision(arena, position, radius) {
     if (typeof arena?.checkCollisionFast === 'function') {
         return !!arena.checkCollisionFast(position, radius);
     }
@@ -193,7 +196,7 @@ function checkArenaCollision(arena, position, radius) {
     return false;
 }
 
-function checkTrailCollision(trailSpatialIndex, position, radius, player) {
+export function checkTrailCollision(trailSpatialIndex, position, radius, player) {
     if (typeof trailSpatialIndex?.checkGlobalCollision !== 'function') return false;
     const playerIndex = Number.isInteger(player?.index) ? player.index : -1;
     const hit = trailSpatialIndex.checkGlobalCollision(

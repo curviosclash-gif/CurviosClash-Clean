@@ -86,9 +86,10 @@ test('runtime verification checks policy instances and separates semantic from i
 });
 
 test('runner applies selected ids, records real bot deaths, and analysis defaults to heuristic policy', async () => {
-    const [runnerSource, analysisSource] = await Promise.all([
+    const [runnerSource, analysisSource, packageSource] = await Promise.all([
         readFile(new URL('../scripts/bot-validation-runner.mjs', import.meta.url), 'utf8'),
         readFile(new URL('../scripts/bot-play-analysis.mjs', import.meta.url), 'utf8'),
+        readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
     assert.match(runnerSource, /scenario-base-plus-round-index/);
@@ -97,4 +98,5 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
     assert.match(runnerSource, /if \(raw === 'dev'\) return 'dev';\s+return 'preview';/);
     assert.match(analysisSource, /readOption\(\['policy', 'policy-type'\], 'heuristic'\)/);
+    assert.match(packageSource, /"bot:validate:fight".*H-FIGHT.*--rounds 8.*--headless true/);
 });
