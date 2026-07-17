@@ -89,7 +89,7 @@ export class MGTracerFx {
 
         const beamRadius = Math.max(0.02, Number(mg?.TRACER_BEAM_RADIUS) || MG_TRACER_DEFAULT_BEAM_RADIUS);
         const bulletRadius = Math.max(0.04, Number(mg?.TRACER_BULLET_RADIUS) || MG_TRACER_DEFAULT_BULLET_RADIUS);
-        const tracerColor = hit ? 0xffe38a : 0x8ad5ff;
+        const tracerColor = hit ? 0xffe38a : (Number(mg?.TRACER_COLOR) || 0x8ad5ff);
         const tracerEntry = this._acquireTracerEntry();
         const tracerRoot = tracerEntry.mesh;
         tracerRoot.quaternion.setFromUnitVectors(MG_TRACER_UP_AXIS, this._tmpTracerDir);

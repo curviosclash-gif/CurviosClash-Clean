@@ -1,4 +1,5 @@
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import { FIGHT_MACHINE_GUN_MODELS } from '../../shared/contracts/FightMachineGunContract.js';
 
 const STONE_COLORS = Object.freeze([
     ['all', 'Alle Farben'], ['blue', 'Blau · Geschwindigkeit'], ['green', 'Grün · Wendigkeit'],
@@ -175,6 +176,20 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const xpFill = el('div', 'arcade-vehicle-xp-fill');
     xpBar.appendChild(xpFill);
     profileBox.append(levelLine, xpBar);
+    const machineGunPanel = el('section', `hangar-preset-panel hangar-machine-gun-panel${mode === 'fight' ? '' : ' hidden'}`);
+    machineGunPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Maschinengewehr'));
+    const machineGunSelect = document.createElement('select');
+    machineGunSelect.className = 'hangar-machine-gun-select';
+    machineGunSelect.setAttribute('aria-label', 'Maschinengewehr-Modell');
+    FIGHT_MACHINE_GUN_MODELS.forEach((model) => {
+        const option = document.createElement('option');
+        option.value = model.id;
+        option.textContent = `${model.label} · ${model.role}`;
+        machineGunSelect.appendChild(option);
+    });
+    const machineGunDetails = el('p', 'field-hint hangar-machine-gun-details');
+    machineGunDetails.setAttribute('aria-live', 'polite');
+    machineGunPanel.append(machineGunSelect, machineGunDetails);
     const comparePanel = el('section', 'arcade-vehicle-compare hangar-stat-panel');
     const compareHeader = el('div', 'hangar-panel-heading');
     compareHeader.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Build-Statistik'));
@@ -249,7 +264,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const activateButton = button('start-btn hangar-activate-build', mode === 'fight' ? 'Für nächsten Kampf aktivieren' : 'Für nächsten Run aktivieren');
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions);
     buildScroll.append(
-        detailHead, profileBox, comparePanel, slotsPanel, validationBox, historyBar, starterPanel, loadoutPanel,
+        detailHead, profileBox, machineGunPanel, comparePanel, slotsPanel, validationBox, historyBar, starterPanel, loadoutPanel,
         infoHint('Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln', 'arcade-vehicle-shortcuts')
     );
     const activationDock = el('div', 'hangar-activation-dock');
@@ -268,7 +283,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, favoriteBtn, levelLine,
-        xpFill, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
+        xpFill, machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
         redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, buildScroll, activationDock, activateButton,

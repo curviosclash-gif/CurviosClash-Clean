@@ -5,8 +5,9 @@ import {
     resolveLegacyHangarStoneId,
     resolveHangarSlot,
 } from './HangarPartCatalog.js';
+import { DEFAULT_FIGHT_MACHINE_GUN_ID, normalizeFightMachineGunId } from '../../shared/contracts/FightMachineGunContract.js';
 
-export const HANGAR_BUILD_SCHEMA_VERSION = 'arcade-hangar-build.v3';
+export const HANGAR_BUILD_SCHEMA_VERSION = 'arcade-hangar-build.v4';
 
 function normalizeId(value, fallback) {
     const normalized = String(value || '').trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
@@ -21,16 +22,18 @@ export function cloneHangarBuild(build) {
 export function createDefaultHangarBuild(vehicleId = 'ship5', options = {}) {
     const nowMs = Math.max(0, Number(options.nowMs) || Date.now());
     const normalizedVehicleId = normalizeId(vehicleId, 'ship5');
+    const mode = options.mode === 'fight' ? 'fight' : 'arcade';
     return {
         schemaVersion: HANGAR_BUILD_SCHEMA_VERSION,
         buildId: normalizeId(options.buildId, `build-${normalizedVehicleId}-${nowMs}`),
-        mode: options.mode === 'fight' ? 'fight' : 'arcade',
+        mode,
         vehicleId: normalizedVehicleId,
         name: String(options.name || 'Standardkonfiguration').trim() || 'Standardkonfiguration',
         favorite: options.favorite === true,
         tags: [],
         hitboxClass: String(options.hitboxClass || 'standard').trim().toLowerCase(),
         slots: createDefaultHangarSlots(),
+        ...(mode === 'fight' ? { machineGunId: normalizeFightMachineGunId(options.machineGunId || DEFAULT_FIGHT_MACHINE_GUN_ID) } : {}),
         createdAtMs: nowMs,
         updatedAtMs: nowMs,
     };
@@ -65,13 +68,15 @@ export function normalizeHangarBuild(source, fallback = {}) {
         const legacyPartId = resolveLegacyHangarStoneId(rawPartId || legacyTier, slot.id);
         if (legacyPartId) slots[slot.id] = legacyPartId;
     }
+    const mode = record.mode === 'fight' || fallback.mode === 'fight' ? 'fight' : 'arcade';
     return {
         ...base,
         schemaVersion: HANGAR_BUILD_SCHEMA_VERSION,
-        mode: record.mode === 'fight' ? 'fight' : 'arcade',
+        mode,
         favorite: record.favorite === true,
         tags: [...new Set((Array.isArray(record.tags) ? record.tags : []).map((tag) => String(tag).trim().slice(0, 24)).filter(Boolean))].slice(0, 8),
         slots,
+        ...(mode === 'fight' ? { machineGunId: normalizeFightMachineGunId(record.machineGunId || fallback.machineGunId) } : {}),
         createdAtMs: Math.max(0, Number(record.createdAtMs) || base.createdAtMs),
         updatedAtMs: Math.max(0, Number(record.updatedAtMs) || base.updatedAtMs),
     };
@@ -116,6 +121,7 @@ export function areHangarBuildsEqual(left, right) {
     const b = normalizeHangarBuild(right);
     return a.vehicleId === b.vehicleId
         && a.hitboxClass === b.hitboxClass
+        && a.machineGunId === b.machineGunId
         && HANGAR_SLOT_DEFINITIONS.every((slot) => a.slots[slot.id] === b.slots[slot.id]);
 }
 

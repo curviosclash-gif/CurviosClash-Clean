@@ -1,5 +1,6 @@
 import { createUiNode as el, resolvePlayerColor, toVehicleLevelBand } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { resolveFightPartTradeoff } from '../../shared/contracts/FightHangarBalanceContract.js';
+import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePartLockReason } from './HangarPartCatalog.js';
 import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
 import { validateHangarBuild } from './HangarBuildValidation.js';
@@ -57,7 +58,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
         resultLine, catalogList, detailTitle, detailMeta, favoriteBtn, levelLine, xpFill,
         vehiclePreviousButton, vehicleNextButton,
-        compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
+        machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
         revertButton, activateButton, presetSelect, presetLoad, presetRename, presetDuplicate,
         presetDelete, presetSort, presetTags, presetFavorite, presetExport, activeBuildLabel,
     } = shell;
@@ -331,6 +332,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
             ? `Fight-Sidegrade · Leistungsbudget ${validation.balanceScore ?? 0}`
             : `Level ${profile.level} · Mastery ${profile.masteryMilestones?.length || 0} · XP ${xp.current}/${xp.required} · XRP ${state.getSpendableUpgradeXp(profile)}`;
         xpFill.style.width = mode === 'fight' ? '100%' : `${(xp.progress * 100).toFixed(1)}%`;
+        if (mode === 'fight') {
+            const machineGun = resolveFightMachineGunModel(state.draft.machineGunId);
+            machineGunSelect.value = machineGun.id;
+            machineGunDetails.textContent = machineGun.description;
+        }
         favoriteBtn.textContent = favorites.has(state.draft.vehicleId) ? 'Favorit entfernen' : 'Favorit';
         favoriteBtn.classList.toggle('is-active', favorites.has(state.draft.vehicleId));
         vehiclesViewButton.classList.toggle('is-active', state.catalogView === 'vehicles');

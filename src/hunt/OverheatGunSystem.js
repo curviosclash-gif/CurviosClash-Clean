@@ -7,6 +7,7 @@ import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
 } from '../shared/contracts/GameplayActionResultContract.js';
+import { resolveFightMachineGunConfig } from '../shared/contracts/FightMachineGunContract.js';
 
 function getMgConfig(source = null) {
     return resolveEntityRuntimeConfig(source)?.HUNT?.MG || {};
@@ -119,7 +120,10 @@ export class OverheatGunSystem {
             });
         }
 
-        const mg = getMgConfig(this.runtimeContext || this.entityManager);
+        const mg = resolveFightMachineGunConfig(
+            getMgConfig(this.runtimeContext || this.entityManager),
+            player?.fightLoadout?.machineGunId
+        );
         const shotCooldown = Math.max(0.01, Number(mg.COOLDOWN || 0.08));
         if ((player.shootCooldown || 0) > 0) {
             return buildGameplayActionResult({
@@ -172,11 +176,13 @@ export class OverheatGunSystem {
                     hit: !!hitResult.target,
                     trailHit: !!hitResult.trail,
                     overheat: this.getOverheatValue(idx),
+                    machineGunId: mg.MACHINE_GUN_ID,
                 },
             }),
             hit: !!hitResult.target,
             trailHit: !!hitResult.trail,
             overheat: this.getOverheatValue(idx),
+            machineGunId: mg.MACHINE_GUN_ID,
         };
     }
 }

@@ -27,6 +27,7 @@ import {
 } from '../shared/contracts/RuntimeSessionContract.js';
 import { cloneJsonValue } from '../shared/utils/JsonClone.js';
 import { createRuntimeSettingsLimitsForRuntime } from './settings/SettingsRuntimeLimits.js';
+import { normalizeFightMachineGunId } from '../shared/contracts/FightMachineGunContract.js';
 
 function toNumber(value, fallback) {
     const parsed = Number(value);
@@ -44,6 +45,7 @@ function normalizeFightBonuses(source = null) {
         speedBonusPct: clamp(value.speedBonusPct, -30, 30),
         turningBonusPct: clamp(value.turningBonusPct, -30, 30),
         maxHpBonus: clamp(value.maxHpBonus, -60, 60),
+        ...(Object.hasOwn(value, 'machineGunId') ? { machineGunId: normalizeFightMachineGunId(value.machineGunId) } : {}),
     });
 }
 

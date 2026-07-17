@@ -35,6 +35,7 @@ import { createHangarStarterBuild } from './HangarStarterBuildCatalog.js';
 import { purchaseHangarStone } from './HangarStoneInventory.js';
 import { createFallbackProfilePort, createHangarBuildFromProfile as buildFromProfile, mapHangarHitboxClass } from './HangarWorkshopProfileSupport.js';
 import { validateFightHangarBuild, validateFightHangarDrop } from './FightHangarValidation.js';
+import { normalizeFightMachineGunId, resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 
 function createButton(className, text) {
     const button = el('button', className, text);
@@ -89,7 +90,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         previewOverlay, pairToggle, favoriteBtn, compareSelect, slotGrid, undoButton, redoButton,
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
         presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
-        presetExport, presetImport, buildCompareSelect, starterBuilds, activateButton, statusMessage,
+        presetExport, presetImport, buildCompareSelect, starterBuilds, machineGunSelect, activateButton, statusMessage,
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
@@ -274,6 +275,14 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         syncDisplay();
     }
 
+    function selectMachineGun(machineGunId) {
+        if (hangarMode !== 'fight') return;
+        const id = normalizeFightMachineGunId(machineGunId);
+        if (draft.machineGunId === id) return;
+        setDraft({ ...draft, machineGunId: id, updatedAtMs: Math.max(draft.updatedAtMs + 1, Date.now()) });
+        toast(`${resolveFightMachineGunModel(id).label} ausgewählt`, 'success');
+    }
+
     function handleSlotSelection(slotId) {
         if (selectedPartId) {
             applyInstall(selectedPartId, slotId);
@@ -333,7 +342,10 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             if (!local.fightHangar.activeBonusesByVehicle || typeof local.fightHangar.activeBonusesByVehicle !== 'object') {
                 local.fightHangar.activeBonusesByVehicle = {};
             }
-            local.fightHangar.activeBonusesByVehicle[build.vehicleId] = { ...validation.bonuses };
+            local.fightHangar.activeBonusesByVehicle[build.vehicleId] = {
+                ...validation.bonuses,
+                machineGunId: normalizeFightMachineGunId(build.machineGunId),
+            };
             runtimeAccess?.saveSettings?.(latestSettings);
             if (latestSettings !== settings) Object.assign(settings, latestSettings);
             return true;
@@ -513,6 +525,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(favoriteBtn, 'click', () => { selection.toggleFavorite(draft.vehicleId); syncDisplay(); });
     bind(compareSelect, 'change', () => { selection.setCompareVehicleId(compareSelect.value); syncDisplay(); });
     bind(buildCompareSelect, 'change', () => syncDisplay());
+    bind(machineGunSelect, 'change', () => selectMachineGun(machineGunSelect.value));
     bind(vehiclePreviousButton, 'click', () => selectVehicle(selection.getNextVisibleVehicleId(-1, profiles))); bind(vehicleNextButton, 'click', () => selectVehicle(selection.getNextVisibleVehicleId(1, profiles)));
     bind(cameraToolbar, 'click', (event) => { const preset = event.target?.closest?.('[data-camera-preset]')?.dataset.cameraPreset; if (preset) viewport.setCameraPreset(preset); });
     bind(cameraReset, 'click', () => viewport.resetCamera());
