@@ -182,9 +182,20 @@ export class HuntCombatSystem {
             });
         }
 
+        if (itemPreview.type === 'MG_TURRET' && !this.runtime?.combat?.deployMgTurret?.(player)) {
+            return buildGameplayActionResult({
+                ok: false,
+                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
+                message: 'MG-Geschuetz konnte nicht aufgestellt werden',
+                type: itemPreview.type,
+            });
+        }
+
         const itemResult = this.takeInventoryItem(player, preferredIndex, 'use');
         if (!itemResult.ok) return itemResult;
-        player.applyPowerup(itemResult.type);
+        if (itemResult.type !== 'MG_TURRET') {
+            player.applyPowerup(itemResult.type);
+        }
         const nextCooldown = huntCombatActive ? this._resolveItemUseCooldownSeconds(itemResult.type) : 0;
         if (nextCooldown > 0) {
             player.itemUseCooldownRemaining = nextCooldown;

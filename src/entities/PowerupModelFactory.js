@@ -63,6 +63,7 @@ export class PowerupModelFactory {
             if (visualKind === 'thin') return this._createThinTrailModel(color);
             if (visualKind === 'shield') return this._createShieldModel(color);
             if (visualKind === 'health') return this._createHealthModel(color);
+            if (visualKind === 'turret') return this._createTurretModel(color);
             if (visualKind === 'slow-time') return this._createSlowTimeModel(color);
             if (visualKind === 'ghost') return this._createGhostModel(color);
             if (visualKind === 'invert') return this._createInvertModel(color);
@@ -104,6 +105,24 @@ export class PowerupModelFactory {
         const vertical = horizontal.clone();
         horizontal.rotation.z = Math.PI * 0.5;
         group.add(horizontal, vertical);
+        return group;
+    }
+
+    _createTurretModel(color) {
+        const group = new THREE.Group();
+        const body = new THREE.Mesh(this._geometries.sphere, createStandardMaterial(color, {
+            emissiveIntensity: 0.5,
+            roughness: 0.35,
+            metalness: 0.75,
+        }));
+        const barrel = new THREE.Mesh(this._geometries.rod, createStandardMaterial(0xffffff, {
+            emissiveIntensity: 0.2,
+            roughness: 0.3,
+            metalness: 0.8,
+        }));
+        barrel.rotation.x = Math.PI * 0.5;
+        barrel.position.z = -this.size * 0.45;
+        group.add(body, barrel);
         return group;
     }
 

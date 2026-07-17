@@ -30,6 +30,12 @@ export const HUNT_CONFIG = Object.freeze({
         TRACER_BEAM_RADIUS: 0.16,
         TRACER_BULLET_RADIUS: 0.42,
     }),
+    MG_TURRET: Object.freeze({
+        RANGE: 58,
+        COOLDOWN: 0.24,
+        DAMAGE: 3,
+        DURATION_SECONDS: 20,
+    }),
     TARGETING: Object.freeze({
         MUZZLE_OFFSET: 2.1,
         PROJECTILE_SPAWN_OFFSET: 2.2,
@@ -133,6 +139,7 @@ export const HUNT_CONFIG = Object.freeze({
     ROCKET_PICKUP_SPAWN_CHANCE: 0.28,
     PICKUP_WEIGHTS: Object.freeze({
         SHIELD: 1.45,
+        MG_TURRET: 0.45,
         SPEED_UP: 1.0,
         GHOST: 0.75,
         THICK: 0.55,

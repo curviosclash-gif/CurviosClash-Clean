@@ -148,6 +148,7 @@ export function createEntityRuntimeSupport(owner) {
             combat: {
                 shootItemProjectile: (player, preferredIndex = -1) => projectileSystem.shootItemProjectile(player, preferredIndex),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
+                deployMgTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player) || null,
                 resetRespawnCombatState: (player) => owner._overheatGunSystem.resetPlayer(player?.index),
             },
             spawn: {

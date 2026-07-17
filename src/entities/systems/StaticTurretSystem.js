@@ -13,6 +13,7 @@ export class StaticTurretSystem {
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
+        this._trailQueryStamp = 0;
         this._baseGeometry = new THREE.CylinderGeometry(1.8, 2.4, 2.2, 10);
         this._headGeometry = new THREE.SphereGeometry(1.35, 10, 8);
         this._barrelGeometry = new THREE.CylinderGeometry(0.22, 0.3, 3.8, 8);
@@ -66,6 +67,30 @@ export class StaticTurretSystem {
         };
     }
 
+    deployForPlayer(player) {
+        const owner = this.entityManager;
+        if (!owner || String(owner.gameModeStrategy?.modeType || '').toUpperCase() !== 'HUNT' || !player?.alive || !player.position) {
+            return null;
+        }
+        const config = resolveGameplayConfig(owner).HUNT?.MG_TURRET || {};
+        const definition = {
+            id: `player_${player.index}_${this.turrets.length + 1}`,
+            weapon: 'mg',
+            pos: [player.position.x, player.position.y, player.position.z],
+            range: Math.max(1, Number(config.RANGE) || 58),
+            cooldown: Math.max(0.05, Number(config.COOLDOWN) || 0.24),
+            damage: Math.max(1, Number(config.DAMAGE) || 3),
+            phase: 0,
+            rocketType: 'ROCKET_WEAK',
+        };
+        const turret = this._createTurret(definition);
+        turret.ownerPlayer = player;
+        turret.source = player;
+        turret.expiresRemaining = Math.max(1, Number(config.DURATION_SECONDS) || 20);
+        this.turrets.push(turret);
+        return turret;
+    }
+
     _createVisual(definition, position, authoredScale = 1) {
         const renderer = this.entityManager?.renderer;
         if (!renderer) return null;
@@ -91,18 +116,69 @@ export class StaticTurretSystem {
     }
 
     _findTarget(turret) {
-        const humans = this.entityManager?.humanPlayers || [];
+        const candidates = turret.ownerPlayer
+            ? (this.entityManager?.players || [])
+            : (this.entityManager?.humanPlayers || []);
         let nearest = null;
         let nearestDistanceSq = turret.range * turret.range;
-        for (let i = 0; i < humans.length; i += 1) {
-            const candidate = humans[i];
+        for (let i = 0; i < candidates.length; i += 1) {
+            const candidate = candidates[i];
+            if (candidate === turret.ownerPlayer) continue;
             if (!candidate?.alive || !candidate.position) continue;
             const distanceSq = turret.position.distanceToSquared(candidate.position);
             if (distanceSq >= nearestDistanceSq) continue;
             nearest = candidate;
             nearestDistanceSq = distanceSq;
         }
+        if (turret.ownerPlayer) {
+            const trailTarget = this._findTrailTarget(turret, nearestDistanceSq);
+            if (trailTarget) return trailTarget;
+        }
         return nearest;
+    }
+
+    _findTrailTarget(turret, nearestDistanceSq) {
+        const trailSpatialIndex = this.entityManager?._trailSpatialIndex;
+        const grid = trailSpatialIndex?.spatialGrid;
+        const gridSize = Math.max(1, Number(trailSpatialIndex?.gridSize) || 10);
+        if (!(grid instanceof Map)) return null;
+
+        const range = turret.range;
+        const minCellX = Math.floor((turret.position.x - range) / gridSize);
+        const maxCellX = Math.floor((turret.position.x + range) / gridSize);
+        const minCellZ = Math.floor((turret.position.z - range) / gridSize);
+        const maxCellZ = Math.floor((turret.position.z + range) / gridSize);
+        const queryStamp = ++this._trailQueryStamp;
+        const target = turret.trailTarget || (turret.trailTarget = {
+            isTrail: true,
+            entry: null,
+            position: new THREE.Vector3(),
+        });
+        target.entry = null;
+
+        for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
+            for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
+                const cell = grid.get((cellX + 1000) * 2000 + (cellZ + 1000));
+                if (!cell) continue;
+                for (const entry of cell) {
+                    if (!entry || entry.destroyed || entry.playerIndex === turret.ownerPlayer.index) continue;
+                    if (entry._turretTrailQueryStamp === queryStamp) continue;
+                    entry._turretTrailQueryStamp = queryStamp;
+                    const x = (entry.fromX + entry.toX) * 0.5;
+                    const y = (entry.fromY + entry.toY) * 0.5;
+                    const z = (entry.fromZ + entry.toZ) * 0.5;
+                    const dx = x - turret.position.x;
+                    const dy = y - turret.position.y;
+                    const dz = z - turret.position.z;
+                    const distanceSq = dx * dx + dy * dy + dz * dz;
+                    if (distanceSq >= nearestDistanceSq) continue;
+                    nearestDistanceSq = distanceSq;
+                    target.entry = entry;
+                    target.position.set(x, y, z);
+                }
+            }
+        }
+        return target.entry ? target : null;
     }
 
     _hasLineOfSight(turret, target) {
@@ -122,6 +198,15 @@ export class StaticTurretSystem {
 
     _applyMgHit(turret, target) {
         const owner = this.entityManager;
+        if (target?.isTrail) {
+            const trailSpatialIndex = owner?._trailSpatialIndex;
+            if (!trailSpatialIndex?.damageTrailSegment || !target.entry) return;
+            const damageResult = trailSpatialIndex.damageTrailSegment(target.entry, turret.damage);
+            owner.particles?.spawnTrailImpact?.(target.position, TURRET_MG_COLOR, {
+                destroyed: damageResult?.destroyed === true,
+            });
+            return;
+        }
         if (!owner || typeof target?.takeDamage !== 'function') return;
         const damageResult = target.takeDamage(turret.damage);
         owner._emitHuntDamageEvent?.({
@@ -163,19 +248,37 @@ export class StaticTurretSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
-        for (let i = 0; i < this.turrets.length; i += 1) {
+        for (let i = 0; i < this.turrets.length;) {
             const turret = this.turrets[i];
+            if (Number.isFinite(turret.expiresRemaining)) {
+                turret.expiresRemaining -= safeDt;
+                if (turret.expiresRemaining <= 0 || !turret.ownerPlayer?.alive) {
+                    this._removeTurretAt(i);
+                    continue;
+                }
+            }
             turret.cooldownRemaining = Math.max(0, turret.cooldownRemaining - safeDt);
             turret.flashRemaining = Math.max(0, turret.flashRemaining - safeDt);
             if (turret.root?.userData?.muzzleFlash && turret.flashRemaining <= 0) {
                 turret.root.userData.muzzleFlash.visible = false;
             }
             const target = this._findTarget(turret);
-            if (!target) continue;
+            if (!target) {
+                i += 1;
+                continue;
+            }
             turret.root?.lookAt?.(target.position);
-            if (turret.cooldownRemaining > 0 || !this._hasLineOfSight(turret, target)) continue;
-            this._fire(turret, target);
+            if (turret.cooldownRemaining <= 0 && this._hasLineOfSight(turret, target)) {
+                this._fire(turret, target);
+            }
+            i += 1;
         }
+    }
+
+    _removeTurretAt(index) {
+        const turret = this.turrets[index];
+        if (turret?.root) this.entityManager?.renderer?.removeFromScene?.(turret.root);
+        this.turrets.splice(index, 1);
     }
 
     clear() {
