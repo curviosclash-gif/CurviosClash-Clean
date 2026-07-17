@@ -16,6 +16,7 @@
             --accent: #60a5fa;
             --danger: #f97373;
             --safe: #34d399;
+            --warning: #fbbf24;
             --dock-bg: rgba(3, 7, 18, 0.9);
             --card-bg: rgba(12, 18, 32, 0.88);
             --card-muted: rgba(148, 163, 184, 0.14);
@@ -32,7 +33,7 @@
 
         body {
             margin: 0;
-            font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+            font-family: Inter, system-ui, -apple-system, "Segoe UI", sans-serif;
             color: var(--text);
             background:
                 radial-gradient(circle at top, rgba(96, 165, 250, 0.14), transparent 34%),
@@ -58,7 +59,7 @@
         .panel {
             background: linear-gradient(180deg, var(--panel), rgba(2, 6, 23, 0.96));
             border: 1px solid var(--border);
-            border-radius: 22px;
+            border-radius: 14px;
             padding: 14px;
             box-shadow: 0 18px 42px rgba(0, 0, 0, 0.42);
             backdrop-filter: blur(12px);
@@ -66,7 +67,7 @@
             flex-direction: column;
             gap: 14px;
             min-height: 0;
-            overflow-y: auto;
+            overflow: hidden;
             z-index: 10;
         }
 
@@ -96,7 +97,7 @@
             background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
             color: var(--text);
             padding: 7px 10px;
-            border-radius: 12px;
+            border-radius: 8px;
             font-weight: 600;
             font-size: 12px;
             cursor: pointer;
@@ -139,22 +140,43 @@
             flex: 0 0 auto;
         }
 
-        .inspectorHero {
-            display: flex;
-            justify-content: space-between;
-            gap: 10px;
-            align-items: flex-start;
+        .inspectorHeader {
+            display: grid;
+            gap: 6px;
+            flex: 0 0 auto;
         }
 
-        .toolStatusCard {
-            border: 1px solid rgba(96, 165, 250, 0.2);
-            border-radius: 18px;
-            padding: 12px;
-            background:
-                linear-gradient(160deg, rgba(15, 23, 42, 0.98), rgba(9, 17, 31, 0.94));
+        .inspectorTabs {
+            display: grid;
+            grid-template-columns: repeat(4, minmax(0, 1fr));
+            gap: 4px;
+            flex: 0 0 auto;
+        }
+
+        .inspectorTabs button {
+            min-width: 0;
+            padding-inline: 5px;
+            color: var(--muted);
+        }
+
+        .inspectorTabs button[aria-selected="true"] {
+            border-color: var(--accent);
+            background: rgba(37, 99, 235, 0.24);
+            color: var(--text);
+        }
+
+        .inspectorTabPanel {
             display: flex;
+            min-height: 0;
+            flex: 1 1 auto;
             flex-direction: column;
-            gap: 8px;
+            gap: 14px;
+            overflow-y: auto;
+            padding-right: 2px;
+        }
+
+        .inspectorTabPanel[hidden] {
+            display: none;
         }
 
         .badge {
@@ -170,12 +192,6 @@
             letter-spacing: 0.08em;
             color: #cbd5e1;
             width: fit-content;
-        }
-
-        .toolStatusTitle {
-            font-size: 18px;
-            font-weight: 700;
-            line-height: 1.15;
         }
 
         .row {
@@ -227,9 +243,9 @@
 
         .canvasShell {
             --dock-height: 228px;
-            --dock-width: min(360px, calc(100% - 24px));
+            --dock-width: min(320px, calc(100% - 24px));
             position: relative;
-            border-radius: 22px;
+            border-radius: 14px;
             border: 1px solid #111827;
             overflow: hidden;
             background:
@@ -258,7 +274,7 @@
         .help {
             position: absolute;
             right: calc(var(--dock-width) + 26px);
-            top: 14px;
+            top: 108px;
             max-width: 340px;
             background: rgba(2, 6, 23, 0.78);
             border: 1px solid rgba(148, 163, 184, 0.16);
@@ -310,13 +326,13 @@
             left: auto;
             right: 12px;
             bottom: 12px;
-            top: 12px;
+            top: 66px;
             width: var(--dock-width);
             display: flex;
             flex-direction: column;
             gap: 12px;
             padding: 14px;
-            border-radius: 20px;
+            border-radius: 14px;
             border: 1px solid rgba(148, 163, 184, 0.16);
             background:
                 linear-gradient(180deg, rgba(15, 23, 42, 0.92), var(--dock-bg));
@@ -597,7 +613,7 @@
         .sceneToolbar {
             position: absolute;
             left: 14px;
-            top: 14px;
+            top: 66px;
             z-index: 4;
             display: flex;
             gap: 6px;
@@ -617,7 +633,123 @@
             background: rgba(2, 6, 23, 0.58);
         }
 
-        .workspaceStatusLine,
+        .validationDetails {
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 10px;
+            background: rgba(2, 6, 23, 0.58);
+        }
+
+        .validationDetails summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 10px;
+            cursor: pointer;
+            list-style: none;
+        }
+
+        .validationDetails summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .validationDetails[open] summary {
+            border-bottom: 1px solid rgba(148, 163, 184, 0.18);
+        }
+
+        .validationDetails .workspaceStatus {
+            border: 0;
+            border-radius: 0;
+            background: transparent;
+        }
+
+        .editorTopbar {
+            position: absolute;
+            top: 12px;
+            right: 12px;
+            left: 12px;
+            z-index: 8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            min-height: 42px;
+            padding: 6px;
+            border: 1px solid rgba(148, 163, 184, 0.18);
+            border-radius: 10px;
+            background: rgba(2, 6, 23, 0.9);
+            box-shadow: 0 10px 24px rgba(0, 0, 0, 0.3);
+            backdrop-filter: blur(14px);
+        }
+
+        .editorTopbar__spacer {
+            min-width: 8px;
+            flex: 1 1 auto;
+        }
+
+        .editorTopbar select {
+            width: auto;
+            min-width: 72px;
+            padding: 5px 7px;
+        }
+
+        .editorTopbar__primary {
+            border-color: #2563eb;
+            background: #2563eb;
+            color: white;
+        }
+
+        .editorTopbar__save {
+            border-color: #059669;
+            background: #047857;
+            color: white;
+        }
+
+        .playtestMode {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            color: var(--muted);
+            font-size: 11px;
+            white-space: nowrap;
+        }
+
+        .fileMenu {
+            position: relative;
+        }
+
+        .fileMenu > summary {
+            padding: 5px 8px;
+            border: 1px solid #25324a;
+            border-radius: 8px;
+            background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            list-style: none;
+        }
+
+        .fileMenu > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .fileMenu__items {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            display: grid;
+            gap: 5px;
+            width: 170px;
+            padding: 8px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--panel-solid);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+        }
+
+        .fileMenu__items button {
+            text-align: left;
+        }
+
         .outlinerActions {
             display: flex;
             gap: 6px;
@@ -1051,6 +1183,14 @@
                 padding: 12px;
             }
 
+            .editorTopbar {
+                overflow-x: auto;
+            }
+
+            .editorTopbar__spacer {
+                display: none;
+            }
+
             #buildDock.is-collapsed {
                 bottom: 8px;
             }
@@ -1107,93 +1247,166 @@
 <body>
     <div class="wrap">
         <div class="panel">
-            <div class="panelSection">
-                <div class="inspectorHero">
-                    <div>
-                        <h1>Curvios Clash 3D Editor</h1>
-                        <p class="sub">
-                            Nutze das Build-Dock rechts fuer Kategorien und Karten. Die Szene bleibt frei fuer Platzierung,
-                            Auswahl und Playtest.
-                        </p>
-                    </div>
-                    <button id="btnDelSelected" class="small" style="color: var(--danger);" disabled>Ausgewaehltes loeschen</button>
-                </div>
+            <header class="inspectorHeader">
+                <h1>Curvios Clash 3D Editor</h1>
                 <div class="row" style="padding-top: 0;">
-                    <span>Asset-Status</span>
+                    <span>Assets</span>
                     <span id="assetStatusText" style="font-size: 12px; color: var(--muted);">Nicht geladen</span>
                 </div>
+            </header>
+
+            <div class="inspectorTabs" role="tablist" aria-label="Editor-Arbeitsbereiche">
+                <button id="editorTabObjects" type="button" role="tab" data-editor-tab="objects"
+                    aria-controls="editorPanelObjects" aria-selected="true">Objekte</button>
+                <button id="editorTabLayers" type="button" role="tab" data-editor-tab="layers"
+                    aria-controls="editorPanelLayers" aria-selected="false" tabindex="-1">Ebenen</button>
+                <button id="editorTabMap" type="button" role="tab" data-editor-tab="map"
+                    aria-controls="editorPanelMap" aria-selected="false" tabindex="-1">Map</button>
+                <button id="editorTabValidation" type="button" role="tab" data-editor-tab="validation"
+                    aria-controls="editorPanelValidation" aria-selected="false" tabindex="-1">Pruefung</button>
             </div>
 
-            <div class="panelSection">
-                <strong class="sectionTitle">Arbeitsstand</strong>
-                <div class="workspaceStatus">
-                    <div class="workspaceStatusLine">
-                        <span class="badge" id="dirtyStateBadge">Gespeichert</span>
-                        <span class="badge" id="validationStateBadge">Pruefung laeuft</span>
+            <div class="inspectorTabPanel" id="editorPanelObjects" role="tabpanel"
+                aria-labelledby="editorTabObjects" data-editor-tab-panel="objects">
+                <div class="panelSection">
+                    <div class="outlinerControls">
+                        <input id="objectSearch" type="search" placeholder="Objekte suchen" aria-label="Objekte suchen" />
+                        <select id="objectTypeFilter" aria-label="Objekttyp filtern">
+                            <option value="">Alle Typen</option>
+                            <option value="hard">Hartblock</option>
+                            <option value="foam">Schaumblock</option>
+                            <option value="tunnel">Tunnel</option>
+                            <option value="portal">Portal</option>
+                            <option value="spawn">Spawns</option>
+                            <option value="item">Pickups</option>
+                            <option value="aircraft">Flugobjekte</option>
+                            <option value="glb">GLB-Modelle</option>
+                            <option value="checkpoint">Parcours</option>
+                        </select>
                     </div>
-                    <div class="statusMessage" id="workspaceStatusMessage" role="status" aria-live="polite">
-                        Editor bereit.
+                    <div class="objectList" id="objectList" aria-label="Map-Objekte"></div>
+                    <div class="outlinerActions">
+                        <button id="btnDuplicateSelected" class="small" disabled>Duplizieren</button>
+                        <button id="btnToggleSelectedVisibility" class="small" disabled>Ausblenden</button>
+                        <button id="btnToggleSelectedLock" class="small" disabled>Sperren</button>
+                        <button id="btnGroupMarked" class="small" disabled>Gruppieren</button>
+                        <button id="btnDuplicateMarked" class="small" disabled>Gruppe duplizieren</button>
+                        <button id="btnTransformMarked" class="small" disabled>Gruppe transformieren</button>
+                        <button id="btnDeleteMarked" class="small dangerAction" disabled>Markierte loeschen</button>
+                        <button id="btnDelSelected" class="small dangerAction" disabled>Ausgewaehltes loeschen</button>
                     </div>
-                    <ul class="validationList" id="validationList" aria-label="Map-Pruefung"></ul>
                 </div>
-                <div class="recoveryBanner" id="recoveryBanner">
-                    <div>Es gibt einen automatisch gesicherten Arbeitsstand.</div>
-                    <div class="splitActions" style="margin-top: 8px;">
-                        <button id="btnRestoreAutosave" class="small">Wiederherstellen</button>
-                        <button id="btnDismissAutosave" class="small">Verwerfen</button>
+
+                <div class="panelSection">
+                    <strong class="sectionTitle">Vorlagen</strong>
+                    <div class="prefabList" id="prefabList"></div>
+                </div>
+            </div>
+
+            <div class="inspectorTabPanel" id="editorPanelLayers" role="tabpanel"
+                aria-labelledby="editorTabLayers" data-editor-tab-panel="layers" hidden>
+                <div class="panelSection">
+                    <strong class="sectionTitle">Ebenen</strong>
+                    <p class="sub">Aktive Ebene waehlen; Auge, Schloss oder Solo pro Ebene schalten.</p>
+                    <div class="layerList" id="layerList"></div>
+                </div>
+
+                <div class="panelSection">
+                    <strong class="sectionTitle">Hoehen-Ebene</strong>
+                    <div class="row">
+                        <label for="chkYLayer">Bauen auf dieser Ebene</label>
+                        <input id="chkYLayer" type="checkbox" />
+                    </div>
+                    <div class="row">
+                        <label for="numYLayer">Y-Hoehe</label>
+                        <input id="numYLayer" type="number" value="0" step="10" min="0" />
                     </div>
                 </div>
             </div>
 
-            <div class="panelSection">
-                <strong class="sectionTitle">Aktiver Modus</strong>
-                <div class="toolStatusCard">
-                    <span class="badge" id="inspectorToolModeBadge">Auswahl</span>
-                    <div class="toolStatusTitle" id="inspectorToolTitle">Auswahl / Bewegen</div>
-                    <p class="sub" id="inspectorToolDescription">
-                        Rechts eine Karte anklicken und dann in die Szene klicken, um Objekte zu platzieren.
-                    </p>
+            <div class="inspectorTabPanel" id="editorPanelMap" role="tabpanel"
+                aria-labelledby="editorTabMap" data-editor-tab-panel="map" hidden>
+                <div class="panelSection">
+                    <strong class="sectionTitle">Ansicht und Raster</strong>
+                    <div class="row">
+                        <label for="chkSnap">Snap to Grid</label>
+                        <input id="chkSnap" type="checkbox" />
+                    </div>
+                    <div class="row">
+                        <label for="numGrid">Grid-Groesse</label>
+                        <input id="numGrid" type="number" value="50" step="10" min="1" />
+                    </div>
+                    <div class="row">
+                        <label for="numRotationSnap">Rotation (Grad)</label>
+                        <input id="numRotationSnap" type="number" value="15" step="1" min="1" />
+                    </div>
+                    <div class="row">
+                        <label for="numScaleSnap">Skalierung</label>
+                        <input id="numScaleSnap" type="number" value="1" step="0.1" min="0.1" />
+                    </div>
+                </div>
+
+                <div class="panelSection">
+                    <strong class="sectionTitle">Arena Rahmen</strong>
+                    <div class="row">
+                        <label for="numArenaW">Breite (X)</label>
+                        <input id="numArenaW" type="number" value="2800" step="100" min="1" />
+                    </div>
+                    <div class="row">
+                        <label for="numArenaD">Tiefe (Z)</label>
+                        <input id="numArenaD" type="number" value="2400" step="100" min="1" />
+                    </div>
+                    <div class="row">
+                        <label for="numArenaH">Hoehe (Y)</label>
+                        <input id="numArenaH" type="number" value="950" step="50" min="1" />
+                    </div>
+                </div>
+
+                <div class="panelSection">
+                    <strong class="sectionTitle">Kamera</strong>
+                    <div class="row">
+                        <label for="chkFly">Fly Mode (WASD)</label>
+                        <input id="chkFly" type="checkbox" />
+                    </div>
+                    <div class="outlinerActions">
+                        <button id="btnViewPerspective" class="small">Perspektive</button>
+                        <button id="btnViewTop" class="small">Oben</button>
+                        <button id="btnViewFront" class="small">Vorne</button>
+                        <button id="btnViewSide" class="small">Seite</button>
+                        <button id="btnFocusSelection" class="small">Auswahl fokussieren</button>
+                    </div>
+                </div>
+
+                <details class="panelSection jsonSection">
+                    <summary>Map JSON</summary>
+                    <textarea id="jsonOutput" spellcheck="false" aria-label="Map JSON"></textarea>
+                </details>
+            </div>
+
+            <div class="inspectorTabPanel" id="editorPanelValidation" role="tabpanel"
+                aria-labelledby="editorTabValidation" data-editor-tab-panel="validation" hidden>
+                <div class="panelSection">
+                    <details class="validationDetails" id="validationDetails">
+                        <summary>
+                            <strong class="sectionTitle">Map-Pruefung</strong>
+                            <span class="badge" id="validationStateBadge">Pruefung laeuft</span>
+                        </summary>
+                        <div class="workspaceStatus">
+                            <div class="statusMessage" id="workspaceStatusMessage" role="status" aria-live="polite">
+                                Editor bereit.
+                            </div>
+                            <ul class="validationList" id="validationList" aria-label="Map-Pruefung"></ul>
+                        </div>
+                    </details>
                 </div>
             </div>
 
-            <div class="panelSection">
-                <strong class="sectionTitle">Objekte</strong>
-                <div class="outlinerControls">
-                    <input id="objectSearch" type="search" placeholder="Objekte suchen" aria-label="Objekte suchen" />
-                    <select id="objectTypeFilter" aria-label="Objekttyp filtern">
-                        <option value="">Alle Typen</option>
-                        <option value="hard">Hartblock</option>
-                        <option value="foam">Schaumblock</option>
-                        <option value="tunnel">Tunnel</option>
-                        <option value="portal">Portal</option>
-                        <option value="spawn">Spawns</option>
-                        <option value="item">Pickups</option>
-                        <option value="aircraft">Flugobjekte</option>
-                        <option value="glb">GLB-Modelle</option>
-                        <option value="checkpoint">Parcours</option>
-                    </select>
+            <div class="recoveryBanner" id="recoveryBanner">
+                <div>Es gibt einen automatisch gesicherten Arbeitsstand.</div>
+                <div class="splitActions" style="margin-top: 8px;">
+                    <button id="btnRestoreAutosave" class="small">Wiederherstellen</button>
+                    <button id="btnDismissAutosave" class="small">Verwerfen</button>
                 </div>
-                <div class="objectList" id="objectList" aria-label="Map-Objekte"></div>
-                <div class="outlinerActions">
-                    <button id="btnDuplicateSelected" class="small" disabled>Duplizieren</button>
-                    <button id="btnToggleSelectedVisibility" class="small" disabled>Ausblenden</button>
-                    <button id="btnToggleSelectedLock" class="small" disabled>Sperren</button>
-                    <button id="btnGroupMarked" class="small" disabled>Gruppieren</button>
-                    <button id="btnDuplicateMarked" class="small" disabled>Gruppe duplizieren</button>
-                    <button id="btnTransformMarked" class="small" disabled>Gruppe transformieren</button>
-                    <button id="btnDeleteMarked" class="small dangerAction" disabled>Markierte loeschen</button>
-                </div>
-            </div>
-
-            <div class="panelSection">
-                <strong class="sectionTitle">Ebenen</strong>
-                <p class="sub">Aktive Ebene waehlen; Auge, Schloss oder Solo pro Ebene schalten.</p>
-                <div class="layerList" id="layerList"></div>
-            </div>
-
-            <div class="panelSection">
-                <strong class="sectionTitle">Vorlagen</strong>
-                <div class="prefabList" id="prefabList"></div>
             </div>
 
             <div id="legacyBuildInputs" aria-hidden="true">
@@ -1332,109 +1545,44 @@
                 </div>
             </div>
 
-            <div class="panelSection">
-                <strong class="sectionTitle">Ansicht und Raster</strong>
-                <div class="row">
-                    <label for="chkSnap">Snap to Grid</label>
-                    <input id="chkSnap" type="checkbox" />
-                </div>
-                <div class="row">
-                    <label for="numGrid">Grid-Groesse</label>
-                    <input id="numGrid" type="number" value="50" step="10" min="1" />
-                </div>
-                <div class="row">
-                    <label for="numRotationSnap">Rotation (Grad)</label>
-                    <input id="numRotationSnap" type="number" value="15" step="1" min="1" />
-                </div>
-                <div class="row">
-                    <label for="numScaleSnap">Skalierung</label>
-                    <input id="numScaleSnap" type="number" value="1" step="0.1" min="0.1" />
-                </div>
-            </div>
-
-            <div class="panelSection">
-                <strong class="sectionTitle">Arena Rahmen</strong>
-                <div class="row">
-                    <label for="numArenaW">Breite (X)</label>
-                    <input id="numArenaW" type="number" value="2800" step="100" min="1" />
-                </div>
-                <div class="row">
-                    <label for="numArenaD">Tiefe (Z)</label>
-                    <input id="numArenaD" type="number" value="2400" step="100" min="1" />
-                </div>
-                <div class="row">
-                    <label for="numArenaH">Hoehe (Y)</label>
-                    <input id="numArenaH" type="number" value="950" step="50" min="1" />
-                </div>
-            </div>
-
-            <div class="panelSection">
-                <strong class="sectionTitle">Hoehen-Ebene</strong>
-                <div class="row">
-                    <label for="chkYLayer">Bauen auf dieser Ebene</label>
-                    <input id="chkYLayer" type="checkbox" />
-                </div>
-                <div class="row">
-                    <label for="numYLayer">Y-Hoehe</label>
-                    <input id="numYLayer" type="number" value="0" step="10" min="0" />
-                </div>
-            </div>
-
-            <div class="panelSection">
-                <strong class="sectionTitle">Kamera</strong>
-                <div class="row">
-                    <label for="chkFly">Fly Mode (WASD)</label>
-                    <input id="chkFly" type="checkbox" />
-                </div>
-                <div class="outlinerActions">
-                    <button id="btnViewPerspective" class="small">Perspektive</button>
-                    <button id="btnViewTop" class="small">Oben</button>
-                    <button id="btnViewFront" class="small">Vorne</button>
-                    <button id="btnViewSide" class="small">Seite</button>
-                    <button id="btnFocusSelection" class="small">Auswahl fokussieren</button>
-                </div>
-            </div>
-
-            <div class="panelSection jsonSection">
-                <strong class="sectionTitle">Speichern und Export</strong>
-                <button id="btnSaveToGame"
-                    style="margin: 2px 0; background-color: #10b981; color: white; border: none;">
-                    Im Spieleordner speichern
-                </button>
-                <button id="btnPlaytest"
-                    style="margin: 2px 0; background-color: #2563eb; color: white; border: none;">
-                    Map im Browser spielen
-                </button>
-                <div class="row" style="margin-top: 2px;">
-                    <label for="selPlaytestMode">Playtest-Modus</label>
-                    <select id="selPlaytestMode">
-                        <option value="3d" selected>3D</option>
-                        <option value="planar">Planar</option>
-                    </select>
-                </div>
-                <div class="splitActions">
-                    <button id="btnUndo" class="small" title="Undo (Strg+Z)" disabled>Undo</button>
-                    <button id="btnRedo" class="small" title="Redo (Strg+Y / Strg+Shift+Z)" disabled>Redo</button>
-                    <button id="btnExport" class="small">Export JSON</button>
-                    <button id="btnImport" class="small">Import JSON</button>
-                    <button id="btnCopyJson" class="small">JSON kopieren</button>
-                    <button id="btnDownloadJson" class="small">JSON-Datei</button>
-                    <button id="btnLoadJsonFile" class="small">Datei laden</button>
-                    <button id="btnNew" class="small">Neu</button>
-                </div>
-                <input id="jsonFileInput" type="file" accept="application/json,.json" hidden />
-                <textarea id="jsonOutput" spellcheck="false" aria-label="Map JSON"></textarea>
-            </div>
         </div>
 
         <div class="canvasShell">
             <div id="threeCanvas"></div>
 
+            <div class="editorTopbar" aria-label="Map-Aktionen">
+                <button id="btnUndo" class="small" title="Undo (Strg+Z)" disabled>Undo</button>
+                <button id="btnRedo" class="small" title="Redo (Strg+Y / Strg+Shift+Z)" disabled>Redo</button>
+                <span class="badge" id="dirtyStateBadge">Gespeichert</span>
+                <div class="editorTopbar__spacer"></div>
+                <button id="btnSaveToGame" class="small editorTopbar__save">Im Spieleordner speichern</button>
+                <label class="playtestMode" for="selPlaytestMode">
+                    Modus
+                    <select id="selPlaytestMode">
+                        <option value="3d" selected>3D</option>
+                        <option value="planar">Planar</option>
+                    </select>
+                </label>
+                <button id="btnPlaytest" class="small editorTopbar__primary">Playtest</button>
+                <details class="fileMenu" id="fileMenu">
+                    <summary>Datei</summary>
+                    <div class="fileMenu__items">
+                        <button id="btnExport" class="small">Export JSON</button>
+                        <button id="btnImport" class="small">Import JSON</button>
+                        <button id="btnCopyJson" class="small">JSON kopieren</button>
+                        <button id="btnDownloadJson" class="small">JSON-Datei</button>
+                        <button id="btnLoadJsonFile" class="small">Datei laden</button>
+                        <button id="btnNew" class="small">Neu</button>
+                    </div>
+                </details>
+                <input id="jsonFileInput" type="file" accept="application/json,.json" hidden />
+            </div>
+
             <div class="sceneToolbar" aria-label="Werkzeuge und Ansicht steuern">
                 <button class="small" data-transform-mode="translate" aria-pressed="false" title="Bewegen (T)" disabled>Bewegen</button>
                 <button class="small" data-transform-mode="rotate" aria-pressed="false" title="Um Y drehen (R)" disabled>Drehen</button>
                 <button class="small" data-transform-mode="scale" aria-pressed="false" title="Bloecke achsenweise; Portale, Modelle und Checkpoints gleichmaessig skalieren (S)" disabled>Skalieren</button>
-                <button id="btnToggleHelp" class="small" aria-pressed="true">Hilfe ausblenden</button>
+                <button id="btnToggleHelp" class="small" aria-pressed="true">? Hilfe</button>
                 <button id="btnToggleDockFromScene" class="small" aria-pressed="true">Baukarten ausblenden</button>
             </div>
 

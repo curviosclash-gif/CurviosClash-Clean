@@ -77,6 +77,17 @@ async function clickCanvas(page, xFactor, yFactor = 0.32) {
     );
 }
 
+async function activateInspectorTab(page, panelId) {
+    const tab = page.locator(`[data-editor-tab="${panelId}"]`);
+    await tab.click();
+    await expect(tab).toHaveAttribute('aria-selected', 'true');
+}
+
+async function openFileMenu(page) {
+    const menu = page.locator('#fileMenu');
+    if (!await menu.getAttribute('open')) await menu.locator('summary').click();
+}
+
 test.describe('V65: Editor Build Dock', () => {
     test.use({
         viewport: { width: 1600, height: 1100 }
@@ -169,6 +180,7 @@ test.describe('V65: Editor Build Dock', () => {
             window.CURVIOS_EDITOR.core.objectsContainer.children.at(-1)?.userData?.isEditorPlaceholder
         )), { timeout: 30_000 }).toBe(false);
 
+        await openFileMenu(page);
         await page.locator('#btnExport').click();
         const exported = JSON.parse(await page.locator('#jsonOutput').inputValue());
         expect(exported.glbModels).toHaveLength(1);
@@ -188,6 +200,7 @@ test.describe('V65: Editor Build Dock', () => {
         await activateDockEntry(page, 'build', 'build-hard');
         await clickCanvas(page, 0.34);
 
+        await openFileMenu(page);
         await page.locator('#btnExport').click();
         const exportedJson = await page.locator('#jsonOutput').inputValue();
         expect(exportedJson.length).toBeGreaterThan(20);
@@ -251,7 +264,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         const layout = await page.evaluate(() => {
             const dockRect = document.querySelector('#buildDock').getBoundingClientRect();
             const canvasRect = document.querySelector('.canvasShell').getBoundingClientRect();
-            const panel = document.querySelector('.panel');
+            const panel = document.querySelector('[data-editor-tab-panel="objects"]');
             const sections = Array.from(panel.querySelectorAll(':scope > .panelSection'))
                 .map((section) => section.getBoundingClientRect());
             return {
@@ -266,13 +279,29 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             };
         });
 
-        for (const gap of [layout.topGap, layout.rightGap, layout.bottomGap]) {
+        expect(layout.topGap).toBeGreaterThanOrEqual(65);
+        expect(layout.topGap).toBeLessThanOrEqual(67);
+        for (const gap of [layout.rightGap, layout.bottomGap]) {
             expect(gap).toBeGreaterThanOrEqual(12);
             expect(gap).toBeLessThanOrEqual(14);
         }
         expect(layout.dockHeight).toBeGreaterThan(layout.dockWidth);
         expect(layout.canvasWidth - layout.dockWidth).toBeGreaterThan(500);
         expect(layout.overlaps).toBeFalsy();
+        await expect(page.locator('.editorTopbar')).toBeVisible();
+        await expect(page.locator('.inspectorTabs [role="tab"]')).toHaveCount(4);
+        await expect(page.locator('#validationDetails')).not.toHaveAttribute('open', '');
+
+        await page.locator('[data-editor-tab="objects"]').focus();
+        await page.keyboard.press('ArrowRight');
+        await expect(page.locator('[data-editor-tab="layers"]')).toBeFocused();
+        await expect(page.locator('#editorPanelLayers')).toBeVisible();
+
+        await expect(page.locator('#editorHelp')).toBeVisible();
+        await page.locator('#btnToggleHelp').click();
+        await expect(page.locator('#editorHelp')).toBeHidden();
+        const storedLayout = await page.evaluate((storageKey) => JSON.parse(localStorage.getItem(storageKey) || '{}'), EDITOR_LAYOUT_STORAGE_KEY);
+        expect(storedLayout).toMatchObject({ helpSeen: true, helpVisible: false, activePanel: 'layers' });
 
         await page.locator('#btnDockCollapse').click();
         await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
@@ -314,12 +343,14 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#propWidth').fill('-10');
         await page.locator('#propWidth').press('Tab');
         await expect(page.locator('#propWidth')).toHaveValue(originalWidth);
+        await activateInspectorTab(page, 'map');
         await page.locator('#numGrid').fill('0');
         await page.locator('#numGrid').press('Tab');
         await expect(page.locator('#numGrid')).toHaveValue('50');
         await page.locator('#numArenaW').fill('-20');
         await page.locator('#numArenaW').press('Tab');
         await expect(page.locator('#numArenaW')).toHaveValue('2800');
+        await activateInspectorTab(page, 'objects');
 
         await page.locator('#propX').fill('1300');
         await page.locator('#propX').press('Tab');
@@ -421,6 +452,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
     test('Transform-Raster, Checkpoint-Radius und nicht skalierbare Objekte bleiben eindeutig', async ({ page }) => {
         await loadEditorPage(page);
+        await activateInspectorTab(page, 'map');
 
         await page.locator('#chkSnap').check();
         await page.locator('#numGrid').fill('25');
@@ -441,6 +473,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(snaps.translation).toBe(25);
         expect(snaps.rotation).toBeCloseTo(Math.PI / 6, 8);
         expect(snaps.scale).toBe(0.5);
+        await activateInspectorTab(page, 'objects');
 
         const ids = await page.evaluate(() => {
             const editor = window.CURVIOS_EDITOR;
@@ -555,6 +588,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await clickCanvas(page, 0.35, 0.24);
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
 
+        await openFileMenu(page);
         await page.locator('#btnNew').click();
         await expect(page.locator('#editorModalBackdrop')).toHaveClass(/is-open/);
         await expect(page.locator('#btnEditorModalConfirm')).toBeFocused();
@@ -598,6 +632,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await activateDockEntry(page, 'build', 'build-hard');
         await clickCanvas(page, 0.35, 0.24);
         const before = await getEditorState(page);
+        await openFileMenu(page);
         await page.locator('#btnExport').click();
 
         await page.evaluate(() => {
@@ -632,6 +667,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#prefabList .prefabCard')).toHaveCount(4);
         await page.locator('#prefabList .prefabCard').first().getByRole('button', { name: 'Einsetzen' }).click();
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(4);
+        await activateInspectorTab(page, 'layers');
         await expect(page.locator('#layerList .layerRow')).toHaveCount(6);
 
         const geometryLayer = page.locator('#layerList [data-layer-id="geometry"]');
@@ -648,6 +684,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             .filter((object) => object.userData.type === 'spawn').map((object) => object.visible));
         expect(spawnVisibility.every((visible) => visible === false)).toBeTruthy();
 
+        await activateInspectorTab(page, 'map');
         await page.locator('#btnViewTop').click();
         const cameraState = await page.evaluate(() => ({
             mode: window.CURVIOS_EDITOR.core.viewMode,
