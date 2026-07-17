@@ -205,6 +205,9 @@ export function applySteeringTowardPosition(policy, input, player, targetPositio
     if (Math.abs(yawTowardTarget) > 0.03) {
         input.yawLeft = yawTowardTarget > 0;
         input.yawRight = yawTowardTarget < 0;
+    } else if (policy._tmpForward.dot(policy._tmpGate) < 0) {
+        input.yawLeft = ((Number(player.index) || 0) & 1) === 0;
+        input.yawRight = !input.yawLeft;
     }
 
     if (!planarMode) {

@@ -236,6 +236,25 @@ test('Hunt bot does not fire at a selected target behind it', () => {
     assert.equal(action.shootItem, false);
 });
 
+test('Hunt bot turns toward a target directly behind instead of flying straight', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, 60);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        huntTarget: { playerIndex: enemy.index, distance: 60 },
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(action.yawLeft || action.yawRight, true);
+    assert.notEqual(action.yawLeft, action.yawRight);
+});
+
 test('3D safety chooses the open vertical escape when both sides are blocked', () => {
     const player = createPlayer(1);
     const observation = createSafeObservation();
