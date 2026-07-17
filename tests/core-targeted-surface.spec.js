@@ -1391,8 +1391,6 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20w: Hauptaktion fuehrt den Fokus und Unterseiten zeigen kompakten Pfad plus Moduscopy', async ({ page }) => {
         await loadGame(page);
-        await page.evaluate(() => document.activeElement?.blur?.());
-        await page.keyboard.press('Tab');
 
         const level1State = await page.evaluate(() => {
             const root = document.getElementById('main-menu');
@@ -1413,7 +1411,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 primarySummary: String(document.getElementById('quick-last-summary')?.textContent || '').trim(),
                 sessionLabels: Array.from(document.querySelectorAll('#menu-nav [data-session-type] .nav-btn-label'))
                     .map((label) => String(label.textContent || '').trim()),
-                activeId: document.activeElement?.id || '',
+                primaryFocused: document.activeElement === primaryAction,
             };
         });
 
@@ -1444,7 +1442,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(level1State.primaryVisible).toBeTruthy();
         expect(level1State.primarySummary).toContain('·');
         expect(level1State.sessionLabels).toEqual(['Einzelspieler', 'Mehrspieler', 'Geteilter Bildschirm']);
-        expect(level1State.activeId).toBe('btn-quick-last-settings');
+        expect(level1State.primaryFocused).toBeTruthy();
         expect(compactState.depth).toBe('2');
         expect(compactState.panel).toBe('submenu-custom');
         expect(compactState.modeCopyVisible).toBeTruthy();

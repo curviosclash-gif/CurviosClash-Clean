@@ -210,7 +210,19 @@ export async function loadGame(page) {
 }
 
 export async function selectSessionType(page, sessionType = 'single') {
-    const selector = `#menu-nav [data-session-type="${sessionType}"]`;
+    const normalizedSessionType = String(sessionType || 'single').trim().toLowerCase() || 'single';
+    const alreadySelected = await page.evaluate((requestedSessionType) => {
+        const panel = document.getElementById('submenu-custom');
+        const activeSessionType = String(
+            window.GAME_INSTANCE?.settings?.localSettings?.sessionType || ''
+        ).trim().toLowerCase();
+        return !!panel
+            && !panel.classList.contains('hidden')
+            && activeSessionType === requestedSessionType;
+    }, normalizedSessionType);
+    if (alreadySelected) return;
+
+    const selector = `#menu-nav [data-session-type="${normalizedSessionType}"]`;
     for (let attempt = 0; attempt < 3; attempt += 1) {
         const sessionButton = page.locator(selector).first();
         await sessionButton.waitFor({ state: 'visible', timeout: 4000 });

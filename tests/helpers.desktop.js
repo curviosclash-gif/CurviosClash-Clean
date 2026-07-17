@@ -14,6 +14,7 @@ const DESKTOP_RENDERER_ERRORS_LOG_FILE = 'desktop-renderer-errors.log';
 const DESKTOP_READY_SCREENSHOT_FILE = 'desktop-renderer-ready.png';
 const DESKTOP_FAILURE_SCREENSHOT_FILE = 'desktop-renderer-failure.png';
 const DESKTOP_READY_TIMEOUT_MS = 60000;
+const DESKTOP_SCREENSHOT_TIMEOUT_MS = 15000;
 
 function toIsoNow(timestamp = Date.now()) {
     return new Date(timestamp).toISOString();
@@ -38,6 +39,19 @@ async function writeJson(filePath, payload) {
 async function writeText(filePath, payload) {
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, `${String(payload || '')}\n`, 'utf8');
+}
+
+async function captureElectronWindowScreenshot(app, filePath) {
+    const pngBase64 = await withTimeout(app.evaluate(async ({ BrowserWindow }) => {
+        const browserWindow = BrowserWindow.getAllWindows().find((entry) => !entry.isDestroyed());
+        if (!browserWindow) {
+            throw new Error('Kein Electron-Fenster fuer Screenshot verfuegbar.');
+        }
+        const image = await browserWindow.webContents.capturePage();
+        return image.toPNG().toString('base64');
+    }), DESKTOP_SCREENSHOT_TIMEOUT_MS, 'desktop screenshot');
+    await mkdir(path.dirname(filePath), { recursive: true });
+    await writeFile(filePath, Buffer.from(pngBase64, 'base64'));
 }
 
 async function withTimeout(promise, timeoutMs, label) {
@@ -480,10 +494,7 @@ export const test = base.extend({
             });
 
             try {
-                await page.screenshot({
-                    path: artifactPaths.readyScreenshotPath,
-                    timeout: 5000,
-                });
+                await captureElectronWindowScreenshot(app, artifactPaths.readyScreenshotPath);
                 activeScreenshotPath = artifactPaths.readyScreenshotPath;
             } catch (screenshotError) {
                 const detail = serializeCompactError(screenshotError);
@@ -521,10 +532,7 @@ export const test = base.extend({
                 processExit,
             });
             if (page && !page.isClosed()) {
-                await page.screenshot({
-                    path: artifactPaths.failureScreenshotPath,
-                    timeout: 5000,
-                }).then(() => {
+                await captureElectronWindowScreenshot(app, artifactPaths.failureScreenshotPath).then(() => {
                     activeScreenshotPath = artifactPaths.failureScreenshotPath;
                 }).catch(() => {});
             }
