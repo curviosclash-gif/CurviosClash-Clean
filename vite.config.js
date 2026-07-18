@@ -17,6 +17,7 @@ import {
     playwrightHealthApiPlugin,
     playwrightTestRuntimeBridgePlugin,
 } from './dev/vite/playwrightVitePlugins.js';
+import { desktopNetworkPolicyPlugin } from './dev/vite/desktopNetworkPolicyPlugin.js';
 
 const pkg = JSON.parse(readFileSync('./package.json', 'utf8'));
 const buildTime = new Date().toISOString();
@@ -40,6 +41,7 @@ export default defineConfig(({ mode }) => {
             developmentCheckpointApiPlugin(),
             copyObjVehicleAssetsPlugin(),
             copyGlbGalleryAssetsPlugin(),
+            desktopNetworkPolicyPlugin(resolvedEnv),
         ],
         server: createRendererShellServerConfig(resolvedEnv),
         build: createRendererShellBuildConfig({

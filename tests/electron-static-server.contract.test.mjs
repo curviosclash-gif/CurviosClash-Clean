@@ -13,6 +13,11 @@ test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
     let server = null;
     try {
         await writeFile(path.join(rootDir, 'index.html'), '<!doctype html><title>Curvios</title>', 'utf8');
+        await writeFile(
+            path.join(rootDir, 'desktop-network-policy.json'),
+            JSON.stringify({ signalingOrigin: 'wss://signal.example.test' }),
+            'utf8',
+        );
         server = await startStaticServer({ rootDir, port: 0 });
 
         const response = await fetch(server.url);
@@ -21,8 +26,10 @@ test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
 
         assert.match(csp, /connect-src[^;]*'self'/);
         assert.match(connectSrc, /http:\/\/\*:\*/);
-        assert.match(connectSrc, /ws:\/\/\*:\*/);
-        assert.match(connectSrc, /wss:\/\/\*:\*/);
+        assert.match(connectSrc, /ws:\/\/127\.0\.0\.1:\*/);
+        assert.match(connectSrc, /wss:\/\/signal\.example\.test/);
+        assert.doesNotMatch(connectSrc, /ws:\/\/\*:\*/);
+        assert.doesNotMatch(connectSrc, /wss:\/\/\*:\*/);
         assert.equal(connectSrc.trim().split(/\s+/).includes('http:'), false);
         assert.equal(connectSrc.trim().split(/\s+/).includes('ws:'), false);
         assert.equal(connectSrc.trim().split(/\s+/).includes('wss:'), false);

@@ -1,6 +1,6 @@
 const http = require('node:http');
 const path = require('node:path');
-const { createReadStream, existsSync } = require('node:fs');
+const { createReadStream, existsSync, readFileSync } = require('node:fs');
 const { access, constants: fsConstants } = require('node:fs/promises');
 
 const MIME_TYPES = Object.freeze({
@@ -33,21 +33,38 @@ function toFilePath(rootDir, requestPath) {
     return resolvedPath;
 }
 
-const CSP_HEADER = [
-    "default-src 'self'",
-    "script-src 'self' 'unsafe-inline'",
-    "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
-    "connect-src 'self' http://*:* ws://*:* wss://*:*",
-    "media-src 'self' blob:",
-    "font-src 'self' data:",
-    "object-src 'none'",
-    "base-uri 'self'",
-    "frame-src 'none'",
-    "form-action 'none'",
-].join('; ');
+function resolveDesktopConnectSources(rootDir) {
+    const sources = ["'self'", 'http://*:*', 'ws://127.0.0.1:*', 'ws://localhost:*'];
+    try {
+        const policy = JSON.parse(readFileSync(path.join(rootDir, 'desktop-network-policy.json'), 'utf8'));
+        const origin = new URL(String(policy?.signalingOrigin || '')).origin;
+        if ((origin.startsWith('ws://') || origin.startsWith('wss://')) && !sources.includes(origin)) {
+            sources.push(origin);
+        }
+    } catch {
+        // Online signaling stays disabled when no build-time origin is present.
+    }
+    return sources;
+}
+
+function createCspHeader(connectSources) {
+    return [
+        "default-src 'self'",
+        "script-src 'self' 'unsafe-inline'",
+        "style-src 'self' 'unsafe-inline'",
+        "img-src 'self' data: blob:",
+        `connect-src ${connectSources.join(' ')}`,
+        "media-src 'self' blob:",
+        "font-src 'self' data:",
+        "object-src 'none'",
+        "base-uri 'self'",
+        "frame-src 'none'",
+        "form-action 'none'",
+    ].join('; ');
+}
 
 function createStaticRequestHandler(rootDir) {
+    const cspHeader = createCspHeader(resolveDesktopConnectSources(rootDir));
     return async (req, res) => {
         try {
             const requestUrl = new URL(req.url || '/', 'http://127.0.0.1');
@@ -68,7 +85,7 @@ function createStaticRequestHandler(rootDir) {
             const contentType = MIME_TYPES[path.extname(filePath).toLowerCase()] || 'application/octet-stream';
             const headers = { 'Content-Type': contentType };
             if (contentType.startsWith('text/html')) {
-                headers['Content-Security-Policy'] = CSP_HEADER;
+                headers['Content-Security-Policy'] = cspHeader;
             }
             res.writeHead(200, headers);
             const stream = createReadStream(filePath);
