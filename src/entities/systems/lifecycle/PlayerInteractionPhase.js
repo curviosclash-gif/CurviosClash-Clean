@@ -44,7 +44,7 @@ export class PlayerInteractionPhase {
         }
     }
 
-    runPortalAndPickup(player) {
+    runPortalAndPickup(player, previousPosition = null) {
         const entityManager = this.entityManager;
         const exitPortalResult = entityManager.arena.checkExitPortal?.(
             player.position,
@@ -60,12 +60,22 @@ export class PlayerInteractionPhase {
             );
         }
 
-        const portalResult = entityManager.arena.checkPortal(player.position, player.hitboxRadius, player.index);
+        const portalResult = entityManager.arena.checkPortal(
+            player.position,
+            player.hitboxRadius,
+            player.index,
+            previousPosition
+        );
         if (portalResult?.target) {
-            player.getAimDirection(entityManager._tmpDir).normalize();
+            if (portalResult.exitForward) entityManager._tmpDir.copy(portalResult.exitForward).normalize();
+            else player.getAimDirection(entityManager._tmpDir).normalize();
             player.position.copy(portalResult.target).addScaledVector(entityManager._tmpDir, 1.8);
 
-            if (resolveGameplayConfig(entityManager).GAMEPLAY.PLANAR_MODE) player.currentPlanarY = portalResult.target.y;
+            const planarMode = resolveGameplayConfig(entityManager).GAMEPLAY.PLANAR_MODE;
+            if (planarMode) player.currentPlanarY = portalResult.target.y;
+            else if (portalResult.rotation && player.quaternion?.premultiply) {
+                player.quaternion.premultiply(portalResult.rotation).normalize();
+            }
             player.trail.forceGap(0.5);
 
             if (entityManager.audio && !player.isBot) entityManager.audio.play('POWERUP');

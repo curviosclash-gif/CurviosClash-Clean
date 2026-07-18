@@ -699,7 +699,7 @@
                                 <input type="checkbox" id="portals-toggle" checked>
                                 <span>Portale aktiviert</span>
                             </label>
-                            <label for="portal-count-slider">Anzahl Portale: <span id="portal-count-label">8</span></label>
+                            <label for="portal-count-slider">Anzahl Portal-Eingänge: <span id="portal-count-label">8</span></label>
                             <input type="range" id="portal-count-slider" min="0" max="20" step="2" value="8">
                             <label for="planar-level-count-slider">Anzahl Ebenen: <span id="planar-level-count-label">5</span></label>
                             <input type="range" id="planar-level-count-slider" min="2" max="10" step="1" value="5">
@@ -1140,6 +1140,7 @@
                     <div class="boost-label">BOOST</div>
                     <div id="p1-hud-boost-fill" class="boost-fill"></div>
                 </div>
+                <div id="p1-traversal-status" class="traversal-status hidden" aria-live="polite"></div>
                 <div id="p1-items" class="item-bar"></div>
             </div>
             <div id="p2-hud" class="player-hud right hidden">
@@ -1153,6 +1154,7 @@
                     <div class="boost-label">BOOST</div>
                     <div id="p2-hud-boost-fill" class="boost-fill"></div>
                 </div>
+                <div id="p2-traversal-status" class="traversal-status hidden" aria-live="polite"></div>
                 <div id="p2-items" class="item-bar"></div>
             </div>
 

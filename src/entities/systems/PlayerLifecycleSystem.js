@@ -38,7 +38,7 @@ export class PlayerLifecycleSystem {
         runtimeProfiler?.endSample?.('collision', collisionStart);
         if (aborted || !player.alive) return;
 
-        this._interactionPhase.runPortalAndPickup(player);
+        this._interactionPhase.runPortalAndPickup(player, prevPos);
         this.entityManager?._parcoursProgressSystem?.updatePlayerProgress?.(
             player,
             prevPos,

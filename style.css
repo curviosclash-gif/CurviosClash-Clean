@@ -3699,6 +3699,14 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 2px;
 }
 
+.traversal-status {
+    margin-top: 7px;
+    color: #c084fc;
+    font: 700 11px/1.2 monospace;
+    letter-spacing: 0.08em;
+    text-shadow: 0 0 8px rgba(192, 132, 252, 0.75);
+}
+
 .level4-option-groups {
     display: grid;
     gap: 10px;

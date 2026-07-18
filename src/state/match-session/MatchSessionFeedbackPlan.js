@@ -32,6 +32,17 @@ export function deriveMapResolutionFeedbackPlan({ mapResolution, portalsEnabled,
             args: ['[Game] GLB map loading warnings:', arenaBuildResult.glbLoadWarnings],
         });
     }
+    if (Array.isArray(arenaBuildResult?.portalLayoutWarnings) && arenaBuildResult.portalLayoutWarnings.length > 0) {
+        consoleEntries.push({
+            level: 'warn',
+            args: ['[Game] Portal layout warnings:', arenaBuildResult.portalLayoutWarnings],
+        });
+        toasts.push({
+            message: `Portal-Layout angepasst: ${arenaBuildResult.portalLayoutWarnings[0]}`,
+            durationMs: 3600,
+            tone: 'warning',
+        });
+    }
 
     if (mapResolution.isFallback && mapResolution.requestedMapKey === CUSTOM_MAP_KEY) {
         toasts.push({

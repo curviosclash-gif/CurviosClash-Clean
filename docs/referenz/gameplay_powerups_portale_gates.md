@@ -59,8 +59,12 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - Der Cooldown ist dynamisch: mindestens `1.2s`, je nach Distanz bis maximal `2.5s`.
 - Portal- und Gate-Meshes pulsen/skalieren leicht herunter, solange pro-Entity-Cooldowns aktiv sind.
 - Spieler landen am Zielportal plus kleinem Vorwaerts-Offset.
+- Die Gameplay-Einstellung `portalCount` zaehlt sichtbare Portal-Eingaenge; zwei Eingaenge ergeben ein Paar.
+- Portale mit authored Rotation loesen beim Kreuzen ihrer Ebene aus und drehen Spieler- sowie Projektilrichtung in die Ausgangsorientierung.
+- Nicht orientierte Legacy-Portale behalten den bisherigen radialen Trigger.
 - Im Planar-Mode wird beim Teleport auch die aktive Ebene (`currentPlanarY`) auf die Zielhoehe gesetzt.
-- Projektile behalten ihre Flugrichtung, werden am Ausgang leicht nach vorne versetzt und verlieren nach dem Teleport ihr bisheriges Homing-Ziel bis zur erneuten Erfassung.
+- Projektile behalten bei Legacy-Portalen ihre Flugrichtung; orientierte Portale drehen sie relativ zum Ausgang. Sie werden leicht nach vorne versetzt und verlieren ihr bisheriges Homing-Ziel bis zur erneuten Erfassung.
+- Projektile besitzen stabile Traversal-IDs; Pooling oder Array-Umsortierung kann ihren Portal-Cooldown nicht mehr auf andere Projektile uebertragen.
 - Der Runtime-Rueckgabevertrag fuer Portal-Interaktionen ist jetzt ebenfalls result-code-basiert: Erfolg liefert `portal.travel`, Cooldown-Blocker `portal.travel.cooldown`, deaktivierte Portale `portal.travel.inactive`.
 - `matchRuntimeProjection.players[*].traversal` zeigt den Runtime-Signalvertrag fuer Portal-/Gate-Interaktionen: `portalCooldownRemaining`, `gateCooldownRemaining`, Exit-Portal-Aktivstatus (`exitPortal.totalCount|activeCount|inactiveCount`) sowie Post-Portal-Fenster (`postPortalActive`, `postPortalRemainingSeconds`, `lastPortalTravelAtMs`).
 - Portal-Parsing normalisiert unvollstaendige Legacy-Paare nicht mehr still auf Ursprungspunkte; ungueltige oder positionslose Eintraege werden verworfen und als Warnung gemeldet.
@@ -72,6 +76,7 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - Maps koennen definieren, dass sie erst nach einem Clear-Zustand aktiviert werden.
 - Der Trigger-Radius ist groesser als bei normalen Portalen.
 - Bei Aktivierung werden sie sichtbar geschaltet und koennen als Ziel/Exit genutzt werden.
+- Vor der Aktivierung bleiben sie als verkleinerte, gesperrte Silhouette sichtbar; das HUD zeigt `EXIT GESPERRT` beziehungsweise `EXIT BEREIT`.
 - Exit-Portale liefern denselben Result-Vertrag wie andere Traversal-Pfade: `portal.exit.trigger`, `portal.exit.cooldown` und `portal.exit.inactive`.
 
 ## Spezial-Gates
@@ -101,12 +106,14 @@ Weitere Gate-Details:
 Maps koennen folgende Felder verwenden:
 
 - `portalMode`: `dynamic`, `authored` oder `hybrid`.
+- Runtime-Maps mit Portalpaaren und ohne expliziten Modus verwenden aus Kompatibilitaetsgruenden `authored`; Maps ohne Portalpaare verwenden `dynamic`.
 - `dynamic` ignoriert authored Portal-Knoten bewusst und meldet dies als Runtime-Warnung.
 - `authored` verlangt mindestens ein vollstaendiges A/B-Portalpaar; ohne Paar bleibt Dynamic-Fallback bewusst deaktiviert und wird als Warnung ausgewiesen.
 - `hybrid` kombiniert authored Paare mit dynamischen Restslots; wenn kein authored Paar vorliegt, faellt die Runtime sichtbar auf dynamic-only zurueck.
 - Ungerade authored Portal-Knoten werden nicht still normalisiert: Der letzte Knoten wird verworfen und als Authoring-Vertragswarnung gemeldet.
 - `toArenaMapDefinition()` liefert den maschinenlesbaren Portalvertrag unter `map.portalAuthoring` (`mode`, `authoredNodeCount`, `authoredPairCount`, `usesAuthoredPortals`, `usesDynamicPortals`, `hasDanglingPortalNode`).
 - `portals`: feste Portal-Paare.
+- Portal-Endpunkte koennen Editor-Visuals (`portal_ring`, `portal_cross`, `portal_diamond`, `portal_hex`, `portal_octagon`, `portal_square`, `portal_star`, `portal_triangle`) und Rotationen tragen; beides bleibt bis zur Runtime erhalten.
 - `preferAuthoredPortals`: feste Portal-Paare gegenueber dynamischen Runtime-Portalen bevorzugen.
 - `portalLevels`: feste Hoehen fuer Planar-Portal-/Item-Layouts.
 - `itemSpawnMode`: `anchor-only`, `hybrid` oder `fallback-random`; authored Anker werden in `fallback-random` bewusst ignoriert und als Runtime-Warnung gespiegelt.

@@ -65,6 +65,7 @@ export class ProjectileSystem {
         this._projectilePools = new Map();
         this._statePool = new ProjectileStatePool();
         this._projectileStatePool = this._statePool.pool;
+        this._nextTraversalId = 1;
         this._simulationOps = new ProjectileSimulationOps(this);
         this._hitResolver = new ProjectileHitResolver(this);
 
@@ -276,7 +277,9 @@ export class ProjectileSystem {
     }
 
     _acquireProjectileState() {
-        return this._statePool.acquire();
+        const projectile = this._statePool.acquire();
+        projectile.traversalId = `projectile:${this._nextTraversalId++}`;
+        return projectile;
     }
 
     _releaseProjectileState(projectile) {

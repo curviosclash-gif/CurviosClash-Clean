@@ -10,6 +10,7 @@ import {
 } from '../entities/PickupRegistry.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
     createCompletedClassicTutorialState,
     isClassicTutorialRoute,
@@ -98,6 +99,7 @@ export class HudRuntimeSystem {
                 || game.entityManager?.players?.[localIdx];
             if (localPlayer && game.ui.p1Items) {
                 this._updateItemBar(game.ui.p1Items, localPlayer, runtimeProjection);
+                updateTraversalStatus(game.ui.p1TraversalStatus, localPlayer);
             }
             return;
         }
@@ -113,6 +115,7 @@ export class HudRuntimeSystem {
                 game.ui.p1Score.textContent = p1Score;
             }
             this._updateItemBar(game.ui.p1Items, humans[0], runtimeProjection);
+            updateTraversalStatus(game.ui.p1TraversalStatus, humans[0]);
         }
 
         if (humans.length > 1) {
@@ -121,6 +124,7 @@ export class HudRuntimeSystem {
                 game.ui.p2Score.textContent = p2Score;
             }
             this._updateItemBar(game.ui.p2Items, humans[1], runtimeProjection);
+            updateTraversalStatus(game.ui.p2TraversalStatus, humans[1]);
         }
     }
 

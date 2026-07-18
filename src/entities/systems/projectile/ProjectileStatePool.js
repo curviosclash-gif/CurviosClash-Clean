@@ -33,6 +33,7 @@ export class ProjectileStatePool {
             homingReacquireTimer: 0,
             foamBounces: 0,
             foamBounceCooldown: 0,
+            traversalId: '',
         };
     }
 
@@ -59,6 +60,7 @@ export class ProjectileStatePool {
         projectile.homingReacquireTimer = 0;
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
+        projectile.traversalId = '';
         this.pool.push(projectile);
     }
 

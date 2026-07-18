@@ -1,3 +1,4 @@
+import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../../shared/contracts/GameplayConfigContract.js';
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
@@ -39,11 +40,14 @@ export class PortalRuntimeSystem {
     constructor(arena) {
         this.arena = arena;
         this._postPortalSignalByEntity = new Map();
+        this._tmpVec1 = new THREE.Vector3();
+        this._tmpVec2 = new THREE.Vector3();
+        this._tmpQuaternion = new THREE.Quaternion();
     }
 
     _syncPortalVisualState(portal, timeSeconds = 0) {
         if (!portal) return;
-        const engaged = portal.cooldowns instanceof Map && portal.cooldowns.size > 0;
+        const engaged = Number(portal.visualPulseRemaining) > 0;
         const scale = engaged ? 0.88 + Math.sin(timeSeconds * 6) * 0.03 : 1;
         portal.meshA?.scale?.setScalar?.(scale);
         portal.meshB?.scale?.setScalar?.(scale);
@@ -51,8 +55,9 @@ export class PortalRuntimeSystem {
 
     _syncExitPortalVisualState(exitPortal, timeSeconds = 0) {
         if (!exitPortal?.mesh) return;
-        const engaged = exitPortal.cooldowns instanceof Map && exitPortal.cooldowns.size > 0;
-        const scale = engaged ? 1.24 + Math.sin(timeSeconds * 6) * 0.04 : 1.4;
+        const engaged = Number(exitPortal.visualPulseRemaining) > 0;
+        const baseScale = exitPortal.active ? 1.4 : 0.75;
+        const scale = engaged ? baseScale * (0.9 + Math.sin(timeSeconds * 10) * 0.06) : baseScale;
         exitPortal.mesh.scale?.set?.(scale, scale, scale);
     }
 
@@ -91,7 +96,25 @@ export class PortalRuntimeSystem {
         this._postPortalSignalByEntity.clear();
     }
 
-    checkPortal(position, radius, entityId) {
+    _resolveOrientedTraversal(position, previousPosition, entryPosition, entryForward, exitForward) {
+        if (!previousPosition || !entryForward || !exitForward) return null;
+        const previousDot = this._tmpVec1.subVectors(previousPosition, entryPosition).dot(entryForward);
+        const currentDot = this._tmpVec2.subVectors(position, entryPosition).dot(entryForward);
+        let directionSign = 0;
+        if (previousDot <= 0 && currentDot > 0) directionSign = 1;
+        else if (previousDot >= 0 && currentDot < 0) directionSign = -1;
+        if (directionSign === 0) return false;
+
+        const inputForward = this._tmpVec1.copy(entryForward).multiplyScalar(directionSign).normalize();
+        const outputForward = this._tmpVec2.copy(exitForward).multiplyScalar(directionSign).normalize();
+        this._tmpQuaternion.setFromUnitVectors(inputForward, outputForward);
+        return {
+            exitForward: outputForward.clone(),
+            rotation: this._tmpQuaternion.clone(),
+        };
+    }
+
+    checkPortal(position, radius, entityId, previousPosition = null) {
         if (!this.arena.portalsEnabled) {
             return buildPortalInteractionResult({
                 ok: false,
@@ -122,9 +145,18 @@ export class PortalRuntimeSystem {
             }
 
             if (inRangeA) {
+                const orientedTraversal = this._resolveOrientedTraversal(
+                    position,
+                    previousPosition,
+                    portal.posA,
+                    portal.forwardA,
+                    portal.forwardB
+                );
+                if (orientedTraversal === false) continue;
                 const dist = portal.posA.distanceTo(portal.posB);
                 const dynamicCooldown = Math.min(2.5, Math.max(portalConfig.COOLDOWN, dist / 80));
                 portal.cooldowns.set(entityId, dynamicCooldown);
+                portal.visualPulseRemaining = 0.35;
                 this._markPostPortalSignal(entityId, dynamicCooldown);
                 return buildPortalInteractionResult({
                     ok: true,
@@ -134,12 +166,22 @@ export class PortalRuntimeSystem {
                     target: portal.posB,
                     portal,
                     postPortalSeconds: POST_PORTAL_SIGNAL_SECONDS,
+                    ...orientedTraversal,
                 });
             }
             if (inRangeB) {
+                const orientedTraversal = this._resolveOrientedTraversal(
+                    position,
+                    previousPosition,
+                    portal.posB,
+                    portal.forwardB,
+                    portal.forwardA
+                );
+                if (orientedTraversal === false) continue;
                 const dist = portal.posA.distanceTo(portal.posB);
                 const dynamicCooldown = Math.min(2.5, Math.max(portalConfig.COOLDOWN, dist / 80));
                 portal.cooldowns.set(entityId, dynamicCooldown);
+                portal.visualPulseRemaining = 0.35;
                 this._markPostPortalSignal(entityId, dynamicCooldown);
                 return buildPortalInteractionResult({
                     ok: true,
@@ -149,6 +191,7 @@ export class PortalRuntimeSystem {
                     target: portal.posA,
                     portal,
                     postPortalSeconds: POST_PORTAL_SIGNAL_SECONDS,
+                    ...orientedTraversal,
                 });
             }
         }
@@ -201,6 +244,7 @@ export class PortalRuntimeSystem {
             }
 
             exitPortal.cooldowns.set(entityId, 3.0);
+            exitPortal.visualPulseRemaining = 0.4;
             return buildPortalInteractionResult({
                 ok: true,
                 code: GAMEPLAY_ACTION_RESULT_CODES.EXIT_PORTAL_TRIGGER,
@@ -243,6 +287,7 @@ export class PortalRuntimeSystem {
             exitPortal.active = true;
             if (exitPortal.mesh) {
                 exitPortal.mesh.visible = true;
+                exitPortal.mesh.scale?.set?.(1.4, 1.4, 1.4);
             }
         }
     }
@@ -252,13 +297,15 @@ export class PortalRuntimeSystem {
         for (const exitPortal of this.arena.exitPortals) {
             exitPortal.active = false;
             if (exitPortal.mesh) {
-                exitPortal.mesh.visible = false;
+                exitPortal.mesh.visible = true;
+                exitPortal.mesh.scale?.set?.(0.75, 0.75, 0.75);
             }
         }
     }
 
     update(dt) {
         for (const portal of this.arena.portals) {
+            portal.visualPulseRemaining = Math.max(0, Number(portal.visualPulseRemaining || 0) - dt);
             for (const [id, t] of portal.cooldowns) {
                 const newT = t - dt;
                 if (newT <= 0) {
@@ -271,6 +318,7 @@ export class PortalRuntimeSystem {
 
         if (Array.isArray(this.arena.exitPortals)) {
             for (const exitPortal of this.arena.exitPortals) {
+                exitPortal.visualPulseRemaining = Math.max(0, Number(exitPortal.visualPulseRemaining || 0) - dt);
                 for (const [id, t] of exitPortal.cooldowns) {
                     const newT = t - dt;
                     if (newT <= 0) {

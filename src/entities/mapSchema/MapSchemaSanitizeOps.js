@@ -312,12 +312,16 @@ export function sanitizeTunnel(raw) {
 
 export function sanitizePortal(raw) {
     const source = raw && typeof raw === 'object' ? raw : {};
-    return withOptionalStringField(withOptionalId({
+    const portal = withOptionalStringField(withOptionalId({
         x: asFiniteNumber(source.x, 0),
         y: asFiniteNumber(source.y, 0),
         z: asFiniteNumber(source.z, 0),
         radius: asPositiveNumber(source.radius, 80, 1),
     }, source.id), 'model', source.model);
+    for (const key of ['rotateX', 'rotateY', 'rotateZ']) if (Number.isFinite(Number(source[key]))) portal[key] = Number(source[key]);
+    const forward = sanitizeForwardVector(source.forward);
+    if (forward) portal.forward = forward;
+    return portal;
 }
 
 function sanitizePortalList(rawPortals, options = {}) {
@@ -333,8 +337,8 @@ function sanitizePortalList(rawPortals, options = {}) {
             || Object.prototype.hasOwnProperty.call(entry, 'b');
         if (Array.isArray(entry?.a) && Array.isArray(entry?.b)) {
             const radius = asPositiveNumber(entry.radius, 80, 1);
-            portals.push(sanitizePortal({ x: entry.a[0], y: entry.a[1], z: entry.a[2], radius }));
-            portals.push(sanitizePortal({ x: entry.b[0], y: entry.b[1], z: entry.b[2], radius }));
+            portals.push(sanitizePortal({ x: entry.a[0], y: entry.a[1], z: entry.a[2], radius, model: entry.modelA || entry.model, rotateX: entry.rotationA?.[0], rotateY: entry.rotationA?.[1], rotateZ: entry.rotationA?.[2], forward: entry.forwardA }));
+            portals.push(sanitizePortal({ x: entry.b[0], y: entry.b[1], z: entry.b[2], radius, model: entry.modelB || entry.model, rotateX: entry.rotationB?.[0], rotateY: entry.rotationB?.[1], rotateZ: entry.rotationB?.[2], forward: entry.forwardB }));
             return;
         }
         if (hasLegacyPairShape) {

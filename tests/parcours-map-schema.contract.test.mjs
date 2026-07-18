@@ -77,3 +77,22 @@ test('MapSchema runtime preserves explicit zero-valued parcours timing rules', (
         }
     );
 });
+
+test('MapSchema runtime preserves portal visuals and orientation', () => {
+    const document = createMapDocument();
+    document.portalMode = 'authored';
+    document.portals = [
+        { id: 'portal_a', x: -20, y: 10, z: 0, radius: 8, model: 'portal_triangle', rotateY: Math.PI / 2 },
+        { id: 'portal_b', x: 20, y: 10, z: 0, radius: 8, model: 'portal_star', rotateZ: Math.PI / 4 },
+    ];
+    const runtime = toArenaMapDefinition(document, { mapScale: 1, name: 'Portal Schema' });
+    assert.deepEqual(runtime.map.portals[0], {
+        a: [-20, 10, 0],
+        b: [20, 10, 0],
+        color: runtime.map.portals[0].color,
+        modelA: 'portal_triangle',
+        modelB: 'portal_star',
+        rotationA: [0, Math.PI / 2, 0],
+        rotationB: [0, 0, Math.PI / 4],
+    });
+});

@@ -1,5 +1,12 @@
 import * as THREE from 'three';
 
+const EXTRA_PORTAL_SLOTS_3D = Object.freeze([
+    Object.freeze([-0.62, 0.3, -0.28]), Object.freeze([0.62, 0.3, 0.28]),
+    Object.freeze([0.28, 0.46, -0.62]), Object.freeze([-0.28, 0.46, 0.62]),
+    Object.freeze([-0.62, 0.68, 0.48]), Object.freeze([0.62, 0.68, -0.48]),
+    Object.freeze([-0.18, 0.82, 0.68]), Object.freeze([0.18, 0.82, -0.68]),
+]);
+
 export function getMapPortalSlots3D(currentMapKey) {
     const layouts = {
         standard: [
@@ -28,7 +35,7 @@ export function getMapPortalSlots3D(currentMapKey) {
             [-0.78, 0.58, 0], [0.78, 0.58, 0], [-0.2, 0.78, 0], [0.2, 0.78, 0],
         ],
     };
-    return layouts[currentMapKey] || layouts.standard;
+    return (layouts[currentMapKey] || layouts.standard).concat(EXTRA_PORTAL_SLOTS_3D);
 }
 
 export function getMapPlanarAnchors(currentMapKey) {
@@ -123,5 +130,5 @@ export function resolvePortalPosition(pos, seed, arena, portalConfig) {
         }
     }
 
-    return pos;
+    return null;
 }

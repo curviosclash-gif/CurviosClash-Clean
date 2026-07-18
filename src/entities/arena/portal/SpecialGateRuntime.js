@@ -49,7 +49,7 @@ export class SpecialGateRuntime {
 
     _syncGateVisualState(gate, timeSeconds = 0) {
         if (!gate?.mesh) return;
-        const engaged = gate.cooldowns instanceof Map && gate.cooldowns.size > 0;
+        const engaged = Number(gate.visualPulseRemaining) > 0;
         const scale = engaged ? 0.9 + Math.sin(timeSeconds * 7) * 0.025 : 1;
         if (gate.mesh.scale?.setScalar) {
             gate.mesh.scale.setScalar(scale);
@@ -90,6 +90,7 @@ export class SpecialGateRuntime {
             if (dotPrev <= 0 && dotCurr > 0) {
                 const dynamicCooldown = gate.params.cooldown || 4.0;
                 gate.cooldowns.set(entityId, dynamicCooldown);
+                gate.visualPulseRemaining = 0.35;
                 return buildGateInteractionResult({
                     ok: true,
                     code: resolveGateResultCode(gate.type),
@@ -118,6 +119,7 @@ export class SpecialGateRuntime {
 
     update(dt) {
         for (const gate of this.arena.specialGates) {
+            gate.visualPulseRemaining = Math.max(0, Number(gate.visualPulseRemaining || 0) - dt);
             for (const [id, t] of gate.cooldowns) {
                 const newT = t - dt;
                 if (newT <= 0) {

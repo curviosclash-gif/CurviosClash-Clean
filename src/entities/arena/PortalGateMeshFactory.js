@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { createPortalShapeGeometry, normalizePortalVisualType } from './portal/PortalVisualGeometry.js';
 
 const PORTAL_GEOMETRY_CACHE = new Map();
 const PORTAL_MATERIAL_CACHE = new Map();
@@ -18,8 +19,7 @@ function markSharedResource(resource) {
 
 function toColorHex(value, fallback = 0xffffff) {
     const num = Number(value);
-    if (!Number.isFinite(num)) return fallback;
-    return num >>> 0;
+    return Number.isFinite(num) ? num >>> 0 : fallback;
 }
 
 function getSharedGeometry(key, createGeometry) {
@@ -61,14 +61,10 @@ function createColoredBasicMaterial(key, options = {}) {
 }
 
 function resolvePortalDisplayColor(color, direction) {
-    if (direction === 'UP') return 0x00ff00;
-    if (direction === 'DOWN') return 0xff0000;
-    return toColorHex(color, 0x00ffcc);
+    return direction === 'UP' ? 0x00ff00 : direction === 'DOWN' ? 0xff0000 : toColorHex(color, 0x00ffcc);
 }
 
-function toColorKey(value, fallback = 0xffffff) {
-    return toColorHex(value, fallback).toString(16).padStart(6, '0');
-}
+function toColorKey(value, fallback = 0xffffff) { return toColorHex(value, fallback).toString(16).padStart(6, '0'); }
 
 class InstancedComponentBatch {
     constructor(renderer, key, geometry, material) {
@@ -471,38 +467,44 @@ export function createSlingshotGateMesh(position, rotation, color, visualRegistr
 export function createPortalMesh(position, color, direction, visualRegistry, options = {}) {
     const ringSize = Math.max(0.01, Number(resolveGameplayConfig(options.configSource).PORTAL.RING_SIZE) || 4);
     const compactMode = options?.compact === true;
+    const visualType = normalizePortalVisualType(options?.visualType);
     const ringSizeKey = ringSize.toFixed(3);
     const displayColor = resolvePortalDisplayColor(color, direction);
     const displayColorKey = toColorKey(displayColor);
-    const handle = new InstancedVisualHandle(visualRegistry, position);
+    const handle = new InstancedVisualHandle(visualRegistry, position, options?.quaternion);
 
     handle.addComponent('torus', {
-        batchKey: `portal:torus:${ringSizeKey}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`,
+        batchKey: `portal:torus:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`,
         geometry: getSharedGeometry(
-            `portal:torusGeometry:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
-            () => new THREE.TorusGeometry(
-                ringSize,
-                compactMode ? 0.24 : 0.3,
-                compactMode ? 10 : 16,
-                compactMode ? 20 : 32
-            )
+            `portal:torusGeometry:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
+            () => visualType === 'portal_ring'
+                ? new THREE.TorusGeometry(
+                    ringSize,
+                    compactMode ? 0.24 : 0.3,
+                    compactMode ? 10 : 16,
+                    compactMode ? 20 : 32
+                )
+                : createPortalShapeGeometry(visualType, ringSize, true)
         ),
-        material: createColoredStandardMaterial(`portal:torusMaterial:${compactMode ? 'compact' : 'full'}:${displayColorKey}`, {
+        material: createColoredStandardMaterial(`portal:torusMaterial:${visualType}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`, {
             color: displayColor,
             emissive: displayColor,
             emissiveIntensity: compactMode ? 0.95 : 1.2,
             roughness: 0.2,
             metalness: 0.8,
             vertexColors: false,
+            side: THREE.DoubleSide,
         }),
         colorHex: displayColor,
     });
 
     handle.addComponent('disc', {
-        batchKey: `portal:disc:${ringSizeKey}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`,
+        batchKey: `portal:disc:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`,
         geometry: getSharedGeometry(
-            `portal:discGeometry:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
-            () => new THREE.CircleGeometry(ringSize * (compactMode ? 0.82 : 0.85), compactMode ? 20 : 32)
+            `portal:discGeometry:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
+            () => visualType === 'portal_ring'
+                ? new THREE.CircleGeometry(ringSize * (compactMode ? 0.82 : 0.85), compactMode ? 20 : 32)
+                : createPortalShapeGeometry(visualType, ringSize * (compactMode ? 0.72 : 0.75))
         ),
         material: createColoredBasicMaterial(`portal:discMaterial:${compactMode ? 'compact' : 'full'}:${displayColorKey}`, {
             color: displayColor,
@@ -515,7 +517,7 @@ export function createPortalMesh(position, color, direction, visualRegistry, opt
     });
 
     if (!compactMode) {
-        handle.addComponent('innerTorus', {
+        if (visualType === 'portal_ring') handle.addComponent('innerTorus', {
             batchKey: `portal:inner-torus:${ringSizeKey}:${displayColorKey}`,
             geometry: getSharedGeometry(
                 `portal:innerTorusGeometry:${ringSizeKey}`,
@@ -533,27 +535,28 @@ export function createPortalMesh(position, color, direction, visualRegistry, opt
             }),
             colorHex: displayColor,
         });
+    }
 
-        if (direction !== 'NEUTRAL') {
-            const arrowQuaternion = direction === 'DOWN'
-                ? new THREE.Quaternion().setFromAxisAngle(AXIS_X, Math.PI)
-                : new THREE.Quaternion();
-            handle.userData.arrow = handle.addComponent('arrow', {
-                batchKey: `portal:arrow:${displayColorKey}`,
-                geometry: getSharedGeometry('portal:arrowGeometry', () => new THREE.ConeGeometry(0.8, 2.5, 8)),
-                material: createColoredBasicMaterial(`portal:arrowMaterial:${displayColorKey}`, {
-                    color: displayColor,
-                    transparent: true,
-                    opacity: 0.8,
-                    vertexColors: false,
-                }),
-                colorHex: displayColor,
-                localQuaternion: arrowQuaternion,
-            });
-        }
+    if (direction !== 'NEUTRAL') {
+        const arrowQuaternion = direction === 'DOWN'
+            ? new THREE.Quaternion().setFromAxisAngle(AXIS_X, Math.PI)
+            : new THREE.Quaternion();
+        handle.userData.arrow = handle.addComponent('arrow', {
+            batchKey: `portal:arrow:${displayColorKey}`,
+            geometry: getSharedGeometry('portal:arrowGeometry', () => new THREE.ConeGeometry(0.8, 2.5, 8)),
+            material: createColoredBasicMaterial(`portal:arrowMaterial:${displayColorKey}`, {
+                color: displayColor,
+                transparent: true,
+                opacity: 0.8,
+                vertexColors: false,
+            }),
+            colorHex: displayColor,
+            localQuaternion: arrowQuaternion,
+        });
     }
 
     handle.userData.direction = direction;
     handle.userData.compact = compactMode;
+    handle.userData.visualType = visualType;
     return handle;
 }

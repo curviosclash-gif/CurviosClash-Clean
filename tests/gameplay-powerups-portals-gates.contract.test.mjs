@@ -16,7 +16,10 @@ import {
 } from '../src/entities/PickupRegistry.js';
 import { createMapDocument } from '../src/entities/MapSchema.js';
 import { PortalRuntimeSystem } from '../src/entities/arena/portal/PortalRuntimeSystem.js';
+import { PortalLayoutBuilder } from '../src/entities/arena/portal/PortalLayoutBuilder.js';
 import { SpecialGateRuntime } from '../src/entities/arena/portal/SpecialGateRuntime.js';
+import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
+import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/PlayerInteractionPhase.js';
 import { HuntBridgePolicy } from '../src/entities/ai/HuntBridgePolicy.js';
 import {
     PRESSURE_LEVEL,
@@ -36,6 +39,8 @@ import { RoundMetricsStore } from '../src/state/recorder/RoundMetricsStore.js';
 import { deriveMapResolutionFeedbackPlan } from '../src/state/match-session/MatchSessionFeedbackPlan.js';
 import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
 import { CONFIG_BASE } from '../src/core/Config.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { updateTraversalStatus } from '../src/ui/TraversalHudPresenter.js';
 
 test('Pickup capability matrix keeps rocket and utility contracts mode-safe', () => {
     const rocketTypes = getRocketPickupTypes();
@@ -328,6 +333,137 @@ test('Portal- und Gate-Runtimes liefern standardisierte Traversal-Result-Codes',
     assert.equal(slingshotGate.ok, true);
     assert.equal(slingshotGate.code, GAMEPLAY_ACTION_RESULT_CODES.GATE_TRIGGER_SLINGSHOT);
     assert.equal(slingshotGate.type, 'SLINGSHOT');
+});
+
+test('Portal layout counts endpoints, prefers authored pairs, and keeps editor visuals', () => {
+    const scene = new THREE.Scene();
+    const renderer = {
+        addToScene(object) { scene.add(object); },
+        removeFromScene(object) { scene.remove(object); },
+    };
+    const arena = {
+        renderer,
+        portalsEnabled: true,
+        currentMapKey: 'standard',
+        bounds: { minX: -100, maxX: 100, minY: -50, maxY: 50, minZ: -100, maxZ: 100 },
+        checkCollision: () => false,
+        entityRuntimeConfig: createEntityRuntimeConfig({
+            gameplay: { portalCount: 8, planarMode: false, planarLevelCount: 5 },
+        }, CONFIG_BASE),
+    };
+    const builder = new PortalLayoutBuilder(arena);
+
+    builder.build({ portals: [] }, 1);
+    assert.equal(arena.portals.length, 4);
+
+    arena.entityRuntimeConfig = createEntityRuntimeConfig({
+        gameplay: { portalCount: 20, planarMode: false, planarLevelCount: 5 },
+    }, CONFIG_BASE);
+    builder.build({ portals: [] }, 1);
+    assert.equal(arena.portals.length, 10);
+
+    builder.build({
+        portals: [{
+            a: [-20, 0, 0],
+            b: [20, 0, 0],
+            modelA: 'portal_triangle',
+            modelB: 'portal_star',
+            rotationA: [0, Math.PI / 2, 0],
+            rotationB: [0, 0, 0],
+        }],
+    }, 1);
+    assert.equal(arena.portals.length, 1);
+    assert.equal(arena.portals[0].meshA.userData.visualType, 'portal_triangle');
+    assert.equal(arena.portals[0].meshB.userData.visualType, 'portal_star');
+    assert.ok(arena.portals[0].forwardA.distanceTo(new THREE.Vector3(1, 0, 0)) < 0.0001);
+
+    arena.checkCollision = () => true;
+    builder.build({ portals: [{ a: [-20, 0, 0], b: [20, 0, 0] }] }, 1);
+    assert.equal(arena.portals.length, 0);
+    assert.ok(arena.portalLayoutWarnings.length > 0);
+});
+
+test('Oriented portals rotate traversal direction and require a plane crossing', () => {
+    const arena = {
+        portalsEnabled: true,
+        portals: [{
+            posA: new THREE.Vector3(0, 0, 0),
+            posB: new THREE.Vector3(20, 0, 0),
+            forwardA: new THREE.Vector3(1, 0, 0),
+            forwardB: new THREE.Vector3(0, 0, 1),
+            cooldowns: new Map(),
+            meshA: null,
+            meshB: null,
+        }],
+        exitPortals: [],
+    };
+    const runtime = new PortalRuntimeSystem(arena);
+    const missed = runtime.checkPortal(
+        new THREE.Vector3(-0.2, 0, 0),
+        0.1,
+        'oriented-miss',
+        new THREE.Vector3(-0.4, 0, 0)
+    );
+    assert.equal(missed, null);
+
+    const travel = runtime.checkPortal(
+        new THREE.Vector3(0.2, 0, 0),
+        0.1,
+        'oriented-hit',
+        new THREE.Vector3(-0.2, 0, 0)
+    );
+    assert.equal(travel.ok, true);
+    assert.ok(travel.exitForward.distanceTo(new THREE.Vector3(0, 0, 1)) < 0.0001);
+    assert.ok(new THREE.Vector3(1, 0, 0).applyQuaternion(travel.rotation).distanceTo(travel.exitForward) < 0.0001);
+});
+
+test('Player interaction applies oriented portal exit position and rotation', () => {
+    const rotation = new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0, 1, 0), Math.PI / 2);
+    const entityManager = {
+        arena: {
+            checkExitPortal: () => null,
+            checkPortal: () => ({
+                target: new THREE.Vector3(10, 2, 5),
+                exitForward: new THREE.Vector3(1, 0, 0),
+                rotation,
+            }),
+        },
+        powerupManager: { checkPickup: () => null },
+        _tmpDir: new THREE.Vector3(),
+    };
+    const player = {
+        index: 0,
+        hitboxRadius: 0.5,
+        position: new THREE.Vector3(),
+        quaternion: new THREE.Quaternion(),
+        trail: { forceGap() {} },
+    };
+    new PlayerInteractionPhase(entityManager).runPortalAndPickup(player, new THREE.Vector3(-1, 0, 0));
+    assert.ok(player.position.distanceTo(new THREE.Vector3(11.8, 2, 5)) < 0.0001);
+    assert.ok(player.quaternion.angleTo(rotation) < 0.0001);
+});
+
+test('Projectile traversal IDs remain stable across pool reuse', () => {
+    const projectiles = new ProjectileSystem({ entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE) });
+    const first = projectiles._acquireProjectileState();
+    const firstId = first.traversalId;
+    projectiles._releaseProjectileState(first);
+    const reused = projectiles._acquireProjectileState();
+    assert.match(firstId, /^projectile:\d+$/);
+    assert.notEqual(reused.traversalId, firstId);
+});
+
+test('Traversal HUD reports personal cooldown and exit readiness', () => {
+    const classes = new Set(['hidden']);
+    const element = {
+        textContent: '',
+        classList: { toggle(name, enabled) { if (enabled) classes.add(name); else classes.delete(name); } },
+    };
+    updateTraversalStatus(element, { traversal: { portalCooldownRemaining: 1.25 } });
+    assert.equal(element.textContent, 'PORTAL 1.3s');
+    assert.equal(classes.has('hidden'), false);
+    updateTraversalStatus(element, { traversal: { exitPortal: { activeCount: 1 } } });
+    assert.equal(element.textContent, 'EXIT BEREIT');
 });
 
 test('HuntBotPolicy erweitert Retreat-Fallback auf Portale und defensive Nicht-Raketen-Items', () => {
@@ -626,4 +762,15 @@ test('Custom map warning toast keeps extra warning fan-out visible', () => {
         feedback.toasts[0].message,
         'Custom-Map geladen, aber mit Hinweisen normalisiert. (+1 Hinweis(e) in Konsole)'
     );
+});
+
+test('Portal placement warnings remain visible after arena build', () => {
+    const feedback = deriveMapResolutionFeedbackPlan({
+        mapResolution: { isFallback: false, isCustom: false },
+        portalsEnabled: true,
+        arenaBuildResult: { portalLayoutWarnings: ['Portal pair was skipped because an endpoint overlaps another portal.'] },
+    });
+    assert.equal(feedback.toasts[0].tone, 'warning');
+    assert.match(feedback.toasts[0].message, /Portal-Layout angepasst/);
+    assert.equal(feedback.consoleEntries[0].level, 'warn');
 });

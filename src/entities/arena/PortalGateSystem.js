@@ -19,8 +19,8 @@ export class PortalGateSystem {
         this.checkpointRingSpinEnabled = this.layoutBuilder.checkpointRingSpinEnabled;
     }
 
-    checkPortal(position, radius, entityId) {
-        return this.portalRuntime.checkPortal(position, radius, entityId);
+    checkPortal(position, radius, entityId, previousPosition = null) {
+        return this.portalRuntime.checkPortal(position, radius, entityId, previousPosition);
     }
 
     checkExitPortal(position, radius, entityId) {

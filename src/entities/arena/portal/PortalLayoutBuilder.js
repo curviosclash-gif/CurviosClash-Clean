@@ -19,6 +19,10 @@ import {
     resolvePortalPosition,
 } from '../PortalPlacementOps.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
+import { resolvePortalMode, resolvePortalPairCount } from '../../../shared/contracts/PortalAuthoringContract.js';
+
+const PORTAL_EXIT_OFFSET = 1.8;
+const PORTAL_NORMAL = new THREE.Vector3(0, 0, 1);
 
 function disposeMeshTreeResources(root) {
     if (!root || typeof root.traverse !== 'function') return;
@@ -51,13 +55,40 @@ function asPositiveNumber(value, defaultValue = 1) {
     return Number.isFinite(num) && num > 0 ? num : defaultValue;
 }
 
+function resolvePortalOrientation(forwardValue, rotationValue) {
+    const quaternion = new THREE.Quaternion();
+    if (Array.isArray(rotationValue) && rotationValue.length >= 3) {
+        quaternion.setFromEuler(new THREE.Euler(
+            asFiniteNumber(rotationValue[0]),
+            asFiniteNumber(rotationValue[1]),
+            asFiniteNumber(rotationValue[2])
+        ));
+        return {
+            quaternion,
+            forward: PORTAL_NORMAL.clone().applyQuaternion(quaternion).normalize(),
+        };
+    }
+    if (!Array.isArray(forwardValue) || forwardValue.length < 3) return null;
+    const forward = new THREE.Vector3(
+        asFiniteNumber(forwardValue[0]),
+        asFiniteNumber(forwardValue[1]),
+        asFiniteNumber(forwardValue[2])
+    );
+    if (forward.lengthSq() <= 0.000001) return null;
+    forward.normalize();
+    quaternion.setFromUnitVectors(PORTAL_NORMAL, forward);
+    return { quaternion, forward };
+}
+
 export class PortalLayoutBuilder {
     constructor(arena) {
         this.arena = arena;
         this._tmpVec = new THREE.Vector3();
+        this._tmpVec2 = new THREE.Vector3();
         this._portalMeshCompactMode = false;
         this._visualRegistry = null;
         this._checkpointRingSpinEnabled = true;
+        this.arena.portalLayoutWarnings = [];
     }
 
     build(map, scale) {
@@ -124,8 +155,9 @@ export class PortalLayoutBuilder {
             configSource: this.arena,
         });
         if (mesh) {
-            mesh.scale.set(1.4, 1.4, 1.4);
-            mesh.visible = !activateOnClear;
+            const scaleValue = activateOnClear ? 0.75 : 1.4;
+            mesh.scale.set(scaleValue, scaleValue, scaleValue);
+            mesh.visible = true;
         }
 
         this.arena.exitPortals.push({
@@ -136,6 +168,7 @@ export class PortalLayoutBuilder {
             active: !activateOnClear,
             activateOnClear,
             cooldowns: new Map(),
+            visualPulseRemaining: 0,
         });
     }
 
@@ -282,6 +315,7 @@ export class PortalLayoutBuilder {
                 mesh,
                 radius: asPositiveNumber(gateDef.radius, type === 'boost' ? 3.25 : 2.9) * scale,
                 cooldowns: new Map(),
+                visualPulseRemaining: 0,
                 params: gateDef.params || {},
             });
         }
@@ -293,9 +327,8 @@ export class PortalLayoutBuilder {
         this._portalMeshCompactMode = false;
         if (!this.arena.portalsEnabled) return;
 
-        const portalMode = String(map?.portalMode || '').trim().toLowerCase()
-            || (map?.preferAuthoredPortals === true ? 'authored' : 'dynamic');
         const hasAuthoredPortals = Array.isArray(map?.portals) && map.portals.length > 0;
+        const portalMode = resolvePortalMode(map);
         const wantsAuthoredPortals = hasAuthoredPortals && (portalMode === 'authored' || portalMode === 'hybrid');
         if (wantsAuthoredPortals) {
             this._portalMeshCompactMode = map.portals.length >= 2;
@@ -304,7 +337,7 @@ export class PortalLayoutBuilder {
             }
         }
 
-        const pairCount = Math.max(0, Math.floor(config.GAMEPLAY.PORTAL_COUNT || 0));
+        const pairCount = resolvePortalPairCount(config.GAMEPLAY.PORTAL_COUNT);
         if (pairCount > 0 && (portalMode === 'dynamic' || portalMode === 'hybrid')) {
             this._portalMeshCompactMode = pairCount >= 2;
             const remainingPairs = portalMode === 'hybrid'
@@ -331,8 +364,17 @@ export class PortalLayoutBuilder {
 
         const posA = resolvePortalPosition(new THREE.Vector3(ax * scale, ay * scale, az * scale), 11, this.arena, config.PORTAL);
         const posB = resolvePortalPosition(new THREE.Vector3(bx * scale, by * scale, bz * scale), 29, this.arena, config.PORTAL);
+        if (!posA || !posB) {
+            this._warnPortalLayout('Authored portal pair was skipped because no collision-free placement was found.');
+            return;
+        }
         const color = Number.isFinite(def.color) ? def.color : 0x00ffcc;
-        this._addPortalInstance(posA, posB, color, 'NEUTRAL', 'NEUTRAL');
+        this._addPortalInstance(posA, posB, color, 'NEUTRAL', 'NEUTRAL', {
+            visualA: def.modelA || def.model || null,
+            visualB: def.modelB || def.model || null,
+            orientationA: resolvePortalOrientation(def.forwardA, def.rotationA),
+            orientationB: resolvePortalOrientation(def.forwardB, def.rotationB),
+        });
     }
 
     _buildFixedDynamicPortals(pairCount) {
@@ -345,7 +387,7 @@ export class PortalLayoutBuilder {
 
     _buildFixed3DPortals(pairCount) {
         const config = resolveEntityRuntimeConfig(this.arena);
-        const colors = [0x00ffcc, 0xff00cc, 0xffff00, 0x00ccff, 0xff8844, 0x66ff44];
+        const colors = [0x00ffcc, 0xff00cc, 0xffff00, 0x00ccff, 0xff8844, 0x66ff44, 0x9b7bff, 0xff5f7a, 0x7dffef, 0xd4ff66];
         const slots = getMapPortalSlots3D(this.arena.currentMapKey);
         if (slots.length < 2) return;
 
@@ -367,9 +409,11 @@ export class PortalLayoutBuilder {
 
             const posA = portalPositionFromSlot(slotA, i * 13 + 5, this.arena, config.PORTAL);
             let posB = portalPositionFromSlot(slotB, i * 17 + 9, this.arena, config.PORTAL);
+            if (!posA || !posB) continue;
             if (posA.distanceToSquared(posB) < 64) {
                 posB = portalPositionFromSlot(slotBAlt, i * 23 + 3, this.arena, config.PORTAL);
             }
+            if (!posB) continue;
 
             this._addPortalInstance(posA, posB, colors[i % colors.length], 'NEUTRAL', 'NEUTRAL');
         }
@@ -377,7 +421,7 @@ export class PortalLayoutBuilder {
 
     _buildFixedPlanarPortals(pairCount) {
         const config = resolveEntityRuntimeConfig(this.arena);
-        const colors = [0x00ffcc, 0xff00cc, 0xffff00, 0x00ccff, 0xff8844, 0x66ff44];
+        const colors = [0x00ffcc, 0xff00cc, 0xffff00, 0x00ccff, 0xff8844, 0x66ff44, 0x9b7bff, 0xff5f7a, 0x7dffef, 0xd4ff66];
         const anchors = getMapPlanarAnchors(this.arena.currentMapKey);
         const levels = this.getPortalLevels();
         if (anchors.length === 0 || levels.length < 2) return;
@@ -394,35 +438,86 @@ export class PortalLayoutBuilder {
         }
     }
 
-    _addPortalInstance(posA, posB, color, dirA = 'NEUTRAL', dirB = 'NEUTRAL') {
+    _addPortalInstance(posA, posB, color, dirA = 'NEUTRAL', dirB = 'NEUTRAL', options = {}) {
+        if (!this._canAddPortalPair(posA, posB, options)) return false;
         const portalMeshOptions = this._portalMeshCompactMode
             ? { compact: true, configSource: this.arena }
             : { configSource: this.arena };
-        const meshA = createPortalMesh(posA, color, dirA, this._visualRegistry, portalMeshOptions);
-        const meshB = createPortalMesh(posB, color, dirB, this._visualRegistry, portalMeshOptions);
+        const meshA = createPortalMesh(posA, color, dirA, this._visualRegistry, {
+            ...portalMeshOptions,
+            visualType: options.visualA,
+            quaternion: options.orientationA?.quaternion,
+        });
+        const meshB = createPortalMesh(posB, color, dirB, this._visualRegistry, {
+            ...portalMeshOptions,
+            visualType: options.visualB,
+            quaternion: options.orientationB?.quaternion,
+        });
         this.arena.portals.push({
             posA,
             posB,
             meshA,
             meshB,
             color,
+            forwardA: options.orientationA?.forward || null,
+            forwardB: options.orientationB?.forward || null,
             cooldowns: new Map(),
+            visualPulseRemaining: 0,
         });
+        return true;
+    }
+
+    _canAddPortalPair(posA, posB, options = {}) {
+        if (!posA || !posB) return false;
+        const config = resolveEntityRuntimeConfig(this.arena);
+        const portalConfig = config.PORTAL;
+        const planarMode = config.GAMEPLAY.PLANAR_MODE === true;
+        const minPairDistance = planarMode
+            ? asPositiveNumber(portalConfig.MIN_PAIR_DISTANCE_PLANAR, 4)
+            : asPositiveNumber(portalConfig.MIN_PAIR_DISTANCE, 15);
+        if (posA.distanceToSquared(posB) < minPairDistance * minPairDistance) {
+            this._warnPortalLayout('Portal pair was skipped because its endpoints are too close.');
+            return false;
+        }
+
+        const endpointClearance = Math.max(4, asPositiveNumber(portalConfig.RADIUS, 4));
+        const endpointClearanceSq = endpointClearance * endpointClearance;
+        for (const portal of this.arena.portals) {
+            if (posA.distanceToSquared(portal.posA) < endpointClearanceSq
+                || posA.distanceToSquared(portal.posB) < endpointClearanceSq
+                || posB.distanceToSquared(portal.posA) < endpointClearanceSq
+                || posB.distanceToSquared(portal.posB) < endpointClearanceSq) {
+                this._warnPortalLayout('Portal pair was skipped because an endpoint overlaps another portal.');
+                return false;
+            }
+        }
+
+        const arrivalRadius = Math.max(0.5, asPositiveNumber(portalConfig.RADIUS, 4) * 0.5);
+        const arrivals = [
+            [posA, options.orientationA?.forward],
+            [posB, options.orientationB?.forward],
+        ];
+        for (const [position, forward] of arrivals) {
+            if (!forward) continue;
+            for (const directionSign of [-1, 1]) {
+                this._tmpVec2.copy(position).addScaledVector(forward, PORTAL_EXIT_OFFSET * directionSign);
+                if (this.arena.checkCollision(this._tmpVec2, arrivalRadius)) {
+                    this._warnPortalLayout('Portal pair was skipped because an oriented exit is blocked.');
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 
     _validatePortalPlacements() {
-        const minDistSq = 16;
-        for (let i = 0; i < this.arena.portals.length; i++) {
-            for (let j = i + 1; j < this.arena.portals.length; j++) {
-                const a = this.arena.portals[i];
-                const b = this.arena.portals[j];
-                if (a.posA.distanceToSquared(b.posA) < minDistSq
-                    || a.posA.distanceToSquared(b.posB) < minDistSq
-                    || a.posB.distanceToSquared(b.posA) < minDistSq
-                    || a.posB.distanceToSquared(b.posB) < minDistSq) {
-                    // Portals too close; currently tolerated.
-                }
-            }
+        return this.arena.portalLayoutWarnings;
+    }
+
+    _warnPortalLayout(message) {
+        if (!this.arena.portalLayoutWarnings.includes(message)) {
+            this.arena.portalLayoutWarnings.push(message);
+            console.warn(`[PortalLayoutBuilder] ${message}`);
         }
     }
 

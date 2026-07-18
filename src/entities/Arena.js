@@ -194,6 +194,7 @@ export class Arena {
 
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
+        this.portalLayoutWarnings = [];
         const glbModels = normalizeGLBModelCollection(buildContext.glbModels);
         const hasGlbCollection = glbModels.length > 0;
         this._glbFootprint = hasGlbCollection
@@ -227,6 +228,7 @@ export class Arena {
                 usedGlbModel,
                 glbLoadError: this._glbLoadError,
                 glbLoadWarnings: [...this._glbLoadWarnings],
+                portalLayoutWarnings: [...this.portalLayoutWarnings],
             };
         };
 
@@ -277,8 +279,8 @@ export class Arena {
         if (this._mergedFoamEdges) this._mergedFoamEdges.visible = visible;
     }
 
-    checkPortal(position, radius, entityId) {
-        return this._portalGateSystem.checkPortal(position, radius, entityId);
+    checkPortal(position, radius, entityId, previousPosition = null) {
+        return this._portalGateSystem.checkPortal(position, radius, entityId, previousPosition);
     }
 
     checkExitPortal(position, radius, entityId) {

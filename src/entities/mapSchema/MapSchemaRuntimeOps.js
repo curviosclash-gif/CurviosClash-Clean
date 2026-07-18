@@ -201,11 +201,22 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         }
 
         const pairIndex = Math.floor(i / 2);
-        portals.push({
+        const portalPair = {
             a: [entryA.x * invScale, entryA.y * invScale, entryA.z * invScale],
             b: [entryB.x * invScale, entryB.y * invScale, entryB.z * invScale],
             color: DEFAULT_PORTAL_COLORS[pairIndex % DEFAULT_PORTAL_COLORS.length],
-        });
+        };
+        if (entryA.model) portalPair.modelA = entryA.model;
+        if (entryB.model) portalPair.modelB = entryB.model;
+        if ([entryA.rotateX, entryA.rotateY, entryA.rotateZ].some(Number.isFinite)) {
+            portalPair.rotationA = [Number(entryA.rotateX) || 0, Number(entryA.rotateY) || 0, Number(entryA.rotateZ) || 0];
+        }
+        if ([entryB.rotateX, entryB.rotateY, entryB.rotateZ].some(Number.isFinite)) {
+            portalPair.rotationB = [Number(entryB.rotateX) || 0, Number(entryB.rotateY) || 0, Number(entryB.rotateZ) || 0];
+        }
+        if (Array.isArray(entryA.forward)) portalPair.forwardA = [...entryA.forward];
+        if (Array.isArray(entryB.forward)) portalPair.forwardB = [...entryB.forward];
+        portals.push(portalPair);
     }
 
     const items = normalized.items.map((entry) => ({

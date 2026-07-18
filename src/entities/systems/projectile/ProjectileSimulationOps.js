@@ -190,11 +190,19 @@ export class ProjectileSimulationOps {
         projectile.mesh.lookAt(this._tmpVec);
 
         const portalResult = arena?.checkPortal
-            ? arena.checkPortal(projectile.position, projectile.radius, 1000 + index)
+            ? arena.checkPortal(
+                projectile.position,
+                projectile.radius,
+                projectile.traversalId || `projectile:${index}`,
+                projectile.previousPosition
+            )
             : null;
         if (portalResult?.target) {
             projectile.position.copy(portalResult.target);
-            this._tmpVec.copy(projectile.velocity).normalize().multiplyScalar(rocketRuntime.portalExitForwardOffset);
+            if (portalResult.rotation) projectile.velocity.applyQuaternion(portalResult.rotation);
+            if (portalResult.exitForward) this._tmpVec.copy(portalResult.exitForward);
+            else this._tmpVec.copy(projectile.velocity).normalize();
+            this._tmpVec.multiplyScalar(rocketRuntime.portalExitForwardOffset);
             projectile.position.add(this._tmpVec);
             projectile.previousPosition?.copy?.(projectile.position);
             projectile.mesh.position.copy(projectile.position);
