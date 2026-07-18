@@ -236,6 +236,32 @@ test('Hunt bot does not fire at a selected target behind it', () => {
     assert.equal(action.shootItem, false);
 });
 
+test('Hunt bot waits for the shared shoot cooldown before firing MG or rockets', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -30);
+    player.inventory = ['ROCKET_HEAVY'];
+    player.shootCooldown = 0.2;
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'aggressive' });
+    const context = {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    };
+
+    const coolingDown = policy.update(1 / 60, player, context);
+    assert.equal(coolingDown.shootMG, false);
+    assert.equal(coolingDown.shootItem, false);
+
+    player.shootCooldown = 0;
+    const ready = policy.update(1 / 60, player, context);
+    assert.equal(ready.shootMG, true);
+    assert.equal(ready.shootItem, true);
+});
+
 test('Hunt bot turns toward a target directly behind instead of flying straight', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);

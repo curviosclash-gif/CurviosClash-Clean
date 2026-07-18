@@ -219,7 +219,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
     const attackWindow = clamp(policy.profile.attackWindow * policy.difficulty.attackWindowScale, 0.1, 1);
     const rocketWindow = targetDistanceRatio >= 0.16
         && targetDistanceRatio <= Math.min(0.9, attackWindow + 0.12);
-    const shouldProbeShot = enemy?.position
+    const shootReady = Math.max(0, Number(player?.shootCooldown) || 0) <= 0.001;
+    const shouldProbeShot = shootReady && enemy?.position
         && targetInFront
         && targetAlignment >= policy.difficulty.aimDot
         && (targetDistanceRatio < attackWindow || (rocketIndex >= 0 && rocketWindow) || itemAction.shootItem === true);
