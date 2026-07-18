@@ -585,7 +585,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             editor.core.focusObject(block);
         });
         await page.locator('[data-transform-mode="scale"]').click();
-        await page.waitForTimeout(100);
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.transformControl.mode)).toBe('scale');
 
         const drag = await page.evaluate(() => {
             const editor = window.CURVIOS_EDITOR;
@@ -668,6 +668,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
     });
 
     test('offener Recovery-Stand bleibt bis zur Benutzerentscheidung unveraendert', async ({ page }) => {
+        await page.clock.install();
         const recovery = {
             savedAt: '2026-07-16T10:00:00.000Z',
             json: JSON.stringify({
@@ -682,7 +683,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
         await activateDockEntry(page, 'build', 'build-hard');
         await clickCanvas(page, 0.35, 0.24);
-        await page.waitForTimeout(700);
+        await page.clock.fastForward(700);
         const storedSavedAt = await page.evaluate((storageKey) => JSON.parse(window.localStorage.getItem(storageKey) || 'null')?.savedAt, EDITOR_AUTOSAVE_STORAGE_KEY);
         expect(storedSavedAt).toBe(recovery.savedAt);
 

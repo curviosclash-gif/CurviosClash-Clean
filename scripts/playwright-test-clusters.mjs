@@ -25,7 +25,15 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/runtime-facade.spec.js',
         ],
     },
-    { id: 'editor', specs: ['tests/editor-map-ui.spec.js', 'tests/editor-vehicle.spec.js'] },
+    {
+        id: 'editor',
+        specs: [
+            'tests/editor-fly-mode.spec.js',
+            'tests/editor-glb-preview.spec.js',
+            'tests/editor-map-ui.spec.js',
+            'tests/editor-vehicle.spec.js',
+        ],
+    },
 ]);
 
 export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
