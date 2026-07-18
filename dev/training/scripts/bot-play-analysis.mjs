@@ -75,10 +75,12 @@ function roundMetric(value, digits = 3) {
 }
 
 function formatPercent(value) {
+    if (value == null) return 'n/a';
     return `${(toNumber(value, 0) * 100).toFixed(1)}%`;
 }
 
 function formatNumber(value) {
+    if (value == null) return 'n/a';
     return toNumber(value, 0).toFixed(2);
 }
 
@@ -220,12 +222,14 @@ function analyzeScenario(result, thresholds) {
     const rounds = Math.max(0, toNumber(metrics.rounds, 0));
     const wallHitsPerRound = getPerRound(metrics, 'wallHits');
     const trailHitsPerRound = getPerRound(metrics, 'trailHits');
-    const forcedRate = rounds > 0 ? toNumber(runner.forcedRounds, 0) / rounds : 0;
-    const averageBotSurvival = toNumber(metrics.averageBotSurvival, 0);
+    const forcedRounds = Math.max(0, toNumber(runner.forcedRounds, 0));
+    const outcomeRounds = Math.max(0, toNumber(metrics.outcomeRounds, rounds - forcedRounds));
+    const forcedRate = rounds > 0 ? forcedRounds / rounds : 0;
+    const averageBotSurvival = outcomeRounds > 0 ? toNumber(metrics.averageBotSurvival, 0) : null;
     const stuckPerMinute = toNumber(metrics.stuckPerMinute, 0);
-    const botWinRate = toNumber(metrics.botWinRate, 0);
+    const botWinRate = outcomeRounds > 0 ? toNumber(metrics.botWinRate, 0) : null;
 
-    if (averageBotSurvival > 0 && averageBotSurvival < thresholds.lowSurvivalSeconds) {
+    if (averageBotSurvival != null && averageBotSurvival > 0 && averageBotSurvival < thresholds.lowSurvivalSeconds) {
         addFinding(findings, {
             id: 'survival-low',
             score: 1 - averageBotSurvival / thresholds.lowSurvivalSeconds,
@@ -269,7 +273,7 @@ function analyzeScenario(result, thresholds) {
         });
     }
 
-    if (rounds > 0 && botWinRate < thresholds.lowBotWinRate) {
+    if (outcomeRounds > 0 && botWinRate < thresholds.lowBotWinRate) {
         addFinding(findings, {
             id: 'bot-winrate-low',
             score: 1 - botWinRate / Math.max(0.01, thresholds.lowBotWinRate),
@@ -295,8 +299,9 @@ function analyzeScenario(result, thresholds) {
         scenario,
         metrics: {
             rounds,
-            botWinRate: roundMetric(botWinRate),
-            averageBotSurvival: roundMetric(averageBotSurvival),
+            outcomeRounds,
+            botWinRate: botWinRate == null ? null : roundMetric(botWinRate),
+            averageBotSurvival: averageBotSurvival == null ? null : roundMetric(averageBotSurvival),
             wallHitsPerRound: roundMetric(wallHitsPerRound),
             trailHitsPerRound: roundMetric(trailHitsPerRound),
             stuckPerMinute: roundMetric(stuckPerMinute),

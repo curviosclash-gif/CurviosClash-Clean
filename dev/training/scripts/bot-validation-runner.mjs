@@ -909,6 +909,7 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
 
     if (forced) {
         stats.forcedRounds += 1;
+        stats.forcedRoundNumbers.push(roundNumber);
     }
     log(`${roundLabel} done`, {
         forced,
@@ -940,19 +941,23 @@ function quantile(sortedValues, ratio) {
 
 function buildScenarioMetrics(rounds, runtimeSamples = []) {
     const played = rounds.length;
+    const outcomeRounds = rounds.filter((round) => round?.forced !== true);
+    const outcomePlayed = outcomeRounds.length;
     const totalDuration = sumBy(rounds, (r) => r.duration);
-    const botWins = rounds.filter((r) => !!r.winnerIsBot).length;
+    const botWins = outcomeRounds.filter((r) => !!r.winnerIsBot).length;
     const stuckEvents = sumBy(rounds, (r) => r.stuckEvents);
     const wallHits = sumBy(rounds, (r) => r.bounceWallEvents);
     const trailHits = sumBy(rounds, (r) => r.bounceTrailEvents);
-    const survivalSamples = rounds
+    const survivalSamples = outcomeRounds
         .flatMap((round) => Array.isArray(round?.botSurvivalSeconds) ? round.botSurvivalSeconds : [])
         .map((value) => Number(value))
         .filter((value) => Number.isFinite(value) && value >= 0)
         .sort((left, right) => left - right);
     const avgBotSurvival = survivalSamples.length > 0
         ? sumBy(survivalSamples, (value) => value) / survivalSamples.length
-        : (played > 0 ? sumBy(rounds, (round) => round.botSurvivalAverage) / played : 0);
+        : (outcomePlayed > 0
+            ? sumBy(outcomeRounds, (round) => round.botSurvivalAverage) / outcomePlayed
+            : null);
     const survivalP25 = quantile(survivalSamples, 0.25);
     const survivalP75 = quantile(survivalSamples, 0.75);
     const stuckPerMinute = totalDuration > 0 ? stuckEvents / (totalDuration / 60) : 0;
@@ -1001,14 +1006,15 @@ function buildScenarioMetrics(rounds, runtimeSamples = []) {
     }
     return {
         rounds: played,
-        botWinRate: played > 0 ? botWins / played : 0,
+        outcomeRounds: outcomePlayed,
+        botWinRate: outcomePlayed > 0 ? botWins / outcomePlayed : null,
         stuckEvents,
         wallHits,
         trailHits,
         averageBotSurvival: avgBotSurvival,
-        botSurvivalMedian: quantile(survivalSamples, 0.5),
-        botSurvivalP10: quantile(survivalSamples, 0.1),
-        botSurvivalIqr: Math.max(0, survivalP75 - survivalP25),
+        botSurvivalMedian: outcomePlayed > 0 ? quantile(survivalSamples, 0.5) : null,
+        botSurvivalP10: outcomePlayed > 0 ? quantile(survivalSamples, 0.1) : null,
+        botSurvivalIqr: outcomePlayed > 0 ? Math.max(0, survivalP75 - survivalP25) : null,
         botSurvivalSampleCount: survivalSamples.length,
         stuckPerMinute,
         totalDuration,
@@ -1056,10 +1062,12 @@ function buildFailureTaxonomy(rounds = [], runner = {}) {
 }
 
 function formatPercent(value) {
+    if (value == null) return 'n/a';
     return `${(value * 100).toFixed(1)}%`;
 }
 
 function formatSeconds(value) {
+    if (value == null) return 'n/a';
     return `${Number(value || 0).toFixed(2)}s`;
 }
 
@@ -1332,6 +1340,7 @@ async function run() {
         });
 
         const scenarioResults = [];
+        const validationRounds = [];
         const runnerStats = {
             forcedRounds: 0,
             timeoutRounds: 0,
@@ -1346,6 +1355,7 @@ async function run() {
             const scenarioDeadline = createDeadline(`scenario:${scenario?.id || i}`, SCENARIO_TIMEOUT_MS);
             const localStats = {
                 forcedRounds: 0,
+                forcedRoundNumbers: [],
                 timeoutRounds: 0,
             };
             const runtimeSamples = [];
@@ -1403,7 +1413,7 @@ async function run() {
                 ));
             }
 
-            const scenarioRounds = await evaluatePhase(
+            const recordedScenarioRounds = await evaluatePhase(
                 page,
                 `${scenarioLabel}:collect-rounds`,
                 resolveTimeout(EVAL_TIMEOUT_MS, `${scenarioLabel}:collect-rounds`, [runDeadline, scenarioDeadline]),
@@ -1415,6 +1425,11 @@ async function run() {
                 },
                 startCount
             );
+            const scenarioRounds = recordedScenarioRounds.map((round, roundIndex) => ({
+                ...round,
+                forced: localStats.forcedRoundNumbers.includes(roundIndex + 1),
+            }));
+            validationRounds.push(...scenarioRounds);
 
             runnerStats.forcedRounds += localStats.forcedRounds;
             runnerStats.timeoutRounds += localStats.timeoutRounds;
@@ -1456,16 +1471,7 @@ async function run() {
         }
         diagnostics.stageTimingsMs.scenarioEvalMs = Math.max(0, Date.now() - scenarioEvalStartedAt);
 
-        const allRounds = await evaluatePhase(
-            page,
-            'finalize:all-rounds',
-            resolveTimeout(EVAL_TIMEOUT_MS, 'finalize:all-rounds', [runDeadline]),
-            () => {
-                const recorder = window.GAME_INSTANCE?.recorder;
-                if (!recorder?.getRoundSummaries) throw new Error('recorder.getRoundSummaries missing');
-                return recorder.getRoundSummaries();
-            }
-        );
+        const allRounds = validationRounds;
         const overall = buildScenarioMetrics(allRounds);
         const generatedAt = new Date().toISOString().slice(0, 10);
         const report = {

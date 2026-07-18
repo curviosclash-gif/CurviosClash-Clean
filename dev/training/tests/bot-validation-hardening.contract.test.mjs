@@ -97,6 +97,10 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         /waitForFunction\(\(\) => \{\s+const game = window\.GAME_INSTANCE;\s+return typeof game\?\.getBotValidationMatrix === 'function'\s+&& typeof game\?\.applyBotValidationScenario === 'function';/
     );
     assert.match(runnerSource, /scenario-base-plus-round-index/);
+    assert.match(runnerSource, /const outcomeRounds = rounds\.filter\(\(round\) => round\?\.forced !== true\)/);
+    assert.match(runnerSource, /botWinRate: outcomePlayed > 0 \? botWins \/ outcomePlayed : null/);
+    assert.match(runnerSource, /forced: localStats\.forcedRoundNumbers\.includes\(roundIndex \+ 1\)/);
+    assert.match(analysisSource, /outcomeRounds > 0 \? toNumber\(metrics\.botWinRate, 0\) : null/);
     assert.match(runnerSource, /round\?\.botDeathCauseCounts/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
