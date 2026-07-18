@@ -278,9 +278,6 @@ test('Hunt bot reserves hitscan MG fire for the configured aim cone', () => {
     assert.equal(policy.update(1 / 60, player, context).shootMG, false);
 
     enemy.position.set(2, 0, -30);
-    assert.equal(policy.update(1 / 60, player, context).shootMG, false);
-
-    enemy.position.set(0.5, 0, -30);
     assert.equal(policy.update(1 / 60, player, context).shootMG, true);
 });
 

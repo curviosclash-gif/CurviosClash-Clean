@@ -17,13 +17,14 @@ export class MGHitResolver {
         this._tmpAim = new THREE.Vector3();
         this._tmpHit = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
+        this._tmpTargetAim = new THREE.Vector3();
         this._targetingScratch = createHuntTargetingScratch();
         this._targetingTelemetry = createHuntTargetingTelemetry();
     }
 
     resolveHit(player, mg, outMuzzle = null, outAim = null) {
         const maxRange = Math.max(10, Number(mg.RANGE || 95));
-        this.resolveAimDirection(player, this._tmpAim);
+        this.resolveAimDirection(player, this._tmpAim, mg);
         const muzzleOffset = Math.max(0, Number(resolveGameplayConfig(player).HUNT?.TARGETING?.MUZZLE_OFFSET || 2.1));
         this._tmpMuzzle.copy(player.position).addScaledVector(this._tmpAim, muzzleOffset);
         if (outMuzzle) outMuzzle.copy(this._tmpMuzzle);
@@ -67,8 +68,31 @@ export class MGHitResolver {
         return { target: null, distance: Infinity, trail: null, point: null };
     }
 
-    resolveAimDirection(player, out) {
-        return player.getAimDirection(out).normalize();
+    resolveAimDirection(player, out, mg = null) {
+        player.getAimDirection(out).normalize();
+        if (!player?.isBot || !player?.position) return out;
+        const maxRangeSq = Math.max(10, Number(mg?.RANGE || 95)) ** 2;
+        const aimDotMin = clamp(Number(mg?.AIM_DOT_MIN) || 0.965, -1, 1);
+        let bestDot = aimDotMin;
+        let bestDistanceSq = Infinity;
+        let found = false;
+        for (const target of this.runtime?.players || []) {
+            if (!target?.alive || target === player || !target.position) continue;
+            this._tmpHit.subVectors(target.position, player.position);
+            const distanceSq = this._tmpHit.lengthSq();
+            if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;
+            this._tmpHit.multiplyScalar(1 / Math.sqrt(distanceSq));
+            const aimDot = out.dot(this._tmpHit);
+            if (aimDot < aimDotMin) continue;
+            if (aimDot > bestDot || (aimDot === bestDot && distanceSq < bestDistanceSq)) {
+                bestDot = aimDot;
+                bestDistanceSq = distanceSq;
+                this._tmpTargetAim.copy(this._tmpHit);
+                found = true;
+            }
+        }
+        if (found) out.copy(this._tmpTargetAim);
+        return out;
     }
 
     applyTrailHit(attacker, trailHit, mg) {

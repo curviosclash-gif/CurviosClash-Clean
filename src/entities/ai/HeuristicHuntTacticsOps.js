@@ -222,19 +222,11 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         crashRisk: projectileThreat ? 1 : (pressureLevel > 0.64 ? 0.5 : 0),
     });
 
-    const configuredMgAimDot = clamp(
+    const mgAimDot = clamp(
         Number(resolveGameplayConfig(player).HUNT?.MG?.AIM_DOT_MIN ?? HUNT_CONFIG.MG.AIM_DOT_MIN),
         policy.difficulty.aimDot,
         1
     );
-    const targetHitboxRadius = Math.max(
-        0.2,
-        Number(enemy?.hitboxRadius) || Number(resolveGameplayConfig(enemy).PLAYER?.HITBOX_RADIUS) || 0.8
-    );
-    const geometricMgAimDot = targetDistanceSq > targetHitboxRadius * targetHitboxRadius
-        ? Math.sqrt(Math.max(0, 1 - (targetHitboxRadius * targetHitboxRadius / targetDistanceSq)))
-        : 0;
-    const mgAimDot = Math.max(configuredMgAimDot, geometricMgAimDot);
     const rocketWindow = targetDistanceRatio >= 0.16
         && targetDistanceRatio <= Math.min(0.9, attackWindow + 0.12);
     const shootReady = Math.max(0, Number(player?.shootCooldown) || 0) <= 0.001;

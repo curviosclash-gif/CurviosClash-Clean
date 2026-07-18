@@ -1,8 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { OverheatGunSystem } from '../src/hunt/OverheatGunSystem.js';
+import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
 import {
     FIGHT_MACHINE_GUN_MODELS,
     normalizeFightMachineGunId,
@@ -89,4 +91,31 @@ test('Combat firing resolves the selected machine-gun model per player', () => {
     assert.equal(player.shootCooldown, 0.07);
     assert.equal(firedConfig.DAMAGE, 7.5);
     assert.equal(system.getOverheatValue(0), 10);
+});
+
+test('Bot MG aim assist stays inside the configured targeting cone', () => {
+    const player = {
+        alive: true,
+        isBot: true,
+        index: 1,
+        position: new THREE.Vector3(),
+        getAimDirection: (out) => out.set(0, 0, -1),
+    };
+    const target = {
+        alive: true,
+        index: 2,
+        position: new THREE.Vector3(5, 0, -30),
+        hitboxRadius: 0.8,
+    };
+    const resolver = new MGHitResolver({ players: [player, target] });
+    const mg = { RANGE: 95, AIM_DOT_MIN: 0.965 };
+
+    assert.equal(resolver.resolveHit(player, mg).target?.playerIndex, target.index);
+
+    target.position.set(10, 0, -30);
+    assert.equal(resolver.resolveHit(player, mg).target, null);
+
+    player.isBot = false;
+    target.position.set(5, 0, -30);
+    assert.equal(resolver.resolveHit(player, mg).target, null);
 });
