@@ -105,7 +105,17 @@ export class PowerupManager {
         const effectiveInterval = spawnRateMul > 0
             ? config.POWERUP.SPAWN_INTERVAL / spawnRateMul
             : config.POWERUP.SPAWN_INTERVAL;
-        if (this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
+        const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
+            ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
+            : 0;
+        if (authoredItemTarget > 0) {
+            while (this.items.length < authoredItemTarget) {
+                const previousCount = this.items.length;
+                this._spawnRandom();
+                if (this.items.length === previousCount) break;
+            }
+            this.spawnTimer = 0;
+        } else if (this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
             this.spawnTimer = 0;
             this._spawnRandom();
         }

@@ -26,6 +26,7 @@ const BASE_MAP_KEYS = [
     'portal_madness',
     'the_loop',
     'upgrade_showcase',
+    'item_showcase',
     'showcase_nexus',
     'tutorial_classic',
     'parcours_assault',
