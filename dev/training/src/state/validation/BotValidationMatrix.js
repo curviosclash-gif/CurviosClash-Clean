@@ -151,7 +151,7 @@ export function getBotValidationMatrix() {
             id: 'H-ARCADE-VERTICAL',
             mode: '1p',
             bots: 1,
-            mapKey: 'frozen_helix',
+            mapKey: 'vertical_maze',
             gameMode: 'ARCADE',
             botPolicyStrategy: 'heuristic',
             planarMode: false,

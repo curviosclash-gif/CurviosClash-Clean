@@ -54,6 +54,13 @@ test('Arcade validation preserves the CLASSIC runtime contract and the Arcade se
     assert.equal(settingsChanged, 1);
 });
 
+test('vertical Arcade bot validation avoids parcours-only maps', () => {
+    const scenario = getBotValidationMatrix().find((entry) => entry.id === 'H-ARCADE-VERTICAL');
+    assert.equal(scenario.mapKey, 'vertical_maze');
+    assert.equal(scenario.bots, 1);
+    assert.equal(scenario.expectedPolicyType, 'heuristic');
+});
+
 test('Fight validation uses a one-kill deathmatch objective that fits the runner window', () => {
     const service = new BotValidationService();
     const game = {
