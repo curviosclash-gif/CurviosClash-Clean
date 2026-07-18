@@ -8,6 +8,8 @@ import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
+const BOT_COLLISION_RECOVERY_OPTIONS = Object.freeze({ spawnProtection: 0.16 });
+
 function toSafeNumber(value, fallback) {
     const parsed = Number(value);
     return Number.isFinite(parsed) ? parsed : fallback;
@@ -18,6 +20,16 @@ function getNowSeconds() {
         return performance.now() * 0.001;
     }
     return Date.now() * 0.001;
+}
+
+function recoverBotFromCollision(player, collision, source, entityManager) {
+    if (!player?.isBot || typeof entityManager?._bounceBot !== 'function') return;
+    entityManager._bounceBot(
+        player,
+        collision?.normal || null,
+        source,
+        BOT_COLLISION_RECOVERY_OPTIONS
+    );
 }
 
 const ENTITY_RUNTIME_CONFIG_SECTION_KEYS = Object.freeze([
@@ -271,6 +283,7 @@ export class HuntModeStrategy extends GameModeContract {
             entityManager._killPlayer(player, 'WALL');
             return true;
         }
+        recoverBotFromCollision(player, arenaCollision, 'WALL', entityManager);
         return false;
     }
 
@@ -287,6 +300,7 @@ export class HuntModeStrategy extends GameModeContract {
             entityManager._killPlayer(player, trailCause, { killer: sourcePlayer || null });
             return true;
         }
+        recoverBotFromCollision(player, collision, 'TRAIL', entityManager);
         return false;
     }
 

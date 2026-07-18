@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { applyDecisionToInput } from '../src/entities/ai/BotActionOps.js';
 import { HeuristicBotPolicy } from '../src/entities/ai/HeuristicBotPolicy.js';
 import { buildObservation } from '../src/entities/ai/observation/ObservationSystem.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import {
     WALL_DISTANCE_LEFT,
     WALL_DISTANCE_RIGHT,
@@ -110,4 +111,38 @@ test('rule-based bot yaw follows the same left-positive steering contract', () =
 
     assert.equal(input.yawLeft, true);
     assert.equal(input.yawRight, false);
+});
+
+test('surviving Fight collisions bounce heuristic bots into recovery', () => {
+    const player = createPlayer();
+    const policy = new HeuristicBotPolicy();
+    const bounces = [];
+    player.isBot = true;
+    player.takeDamage = function takeDamage(amount) {
+        this.hp -= amount;
+        return { isDead: this.hp <= 0, remainingHp: this.hp };
+    };
+    const entityManager = {
+        _bounceBot(target, normal, source, options) {
+            bounces.push({ target, normal, source, options });
+            target.spawnProtectionTimer = options.spawnProtection;
+            policy.onBounce(source, normal);
+        },
+        _emitHuntDamageEvent() {},
+        _killPlayer() {},
+    };
+    const strategy = new HuntModeStrategy();
+    const wallCollision = { normal: new THREE.Vector3(1, 0, 0) };
+
+    assert.equal(strategy.handleWallCollision(player, wallCollision, entityManager), false);
+    assert.equal(player.hp, 78);
+    assert.equal(bounces[0].source, 'WALL');
+    assert.ok(bounces[0].options.spawnProtection > 0);
+    assert.equal(policy._safetyState.pendingBounce, true);
+
+    player.hp = 100;
+    assert.equal(strategy.handleTrailCollision(player, {}, 'TRAIL_SELF', player, entityManager), false);
+    assert.equal(player.hp, 66);
+    assert.equal(bounces[1].source, 'TRAIL');
+    assert.equal(policy._safetyState.recoveryRequested, true);
 });
