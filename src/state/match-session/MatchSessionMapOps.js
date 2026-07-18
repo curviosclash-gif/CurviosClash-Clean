@@ -24,7 +24,7 @@ export function resolveArenaSourceMap(mapResolution, effectiveMapKey) {
     return getRuntimeMapDefinition('standard', maps);
 }
 
-export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnabled) {
+export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnabled, graphicsStyle = 'modern') {
     const effectiveMapKey = mapResolution?.effectiveMapKey || 'standard';
     const gameplay = runtimeConfig?.gameplay || {};
     const arenaSourceMap = resolveArenaSourceMap(mapResolution, effectiveMapKey);
@@ -36,6 +36,7 @@ export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnable
         gameplay.planarMode ? '1' : '0',
         Math.max(0, Math.round(Number(gameplay.portalCount) || 0)),
         Math.max(0, Math.round(Number(gameplay.planarLevelCount) || 0)),
+        String(graphicsStyle || 'modern'),
     ].join('|');
 }
 

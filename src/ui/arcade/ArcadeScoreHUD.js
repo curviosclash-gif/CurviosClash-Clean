@@ -57,6 +57,7 @@ export class ArcadeScoreHUD {
         this._container = null;
         this._visible = false;
         this._breakdownValueByKey = new Map();
+        this._breakdownWrap = null;
         this._scoreValue = null;
         this._comboValue = null;
         this._comboMetricWrap = null;
@@ -71,6 +72,8 @@ export class ArcadeScoreHUD {
         this._transitionBanner = null;
         this._transitionVisibleUntilMs = 0;
         this._comboPopUntilMs = 0;
+        this._detailsVisibleUntilMs = 0;
+        this._lastScore = 0;
         this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._build();
@@ -86,28 +89,29 @@ export class ArcadeScoreHUD {
             'z-index:910',
             'display:none',
             'flex-direction:column',
-            'gap:8px',
-            'min-width:260px',
-            'max-width:320px',
-            'padding:10px 12px',
+            'gap:6px',
+            'min-width:208px',
+            'max-width:244px',
+            'padding:8px 10px',
             'border-radius:8px',
-            'background:rgba(8,12,20,0.86)',
+            'background:rgba(8,12,20,0.76)',
             'border:1px solid rgba(120,190,255,0.35)',
             'color:#e8f4ff',
             'pointer-events:none',
             'font-family:monospace',
             'box-shadow:0 8px 22px rgba(0,0,0,0.32)',
+            'backdrop-filter:blur(7px)',
         ].join(';');
 
         const scoreLine = createElement('div', 'arcade-score-hud-scoreline');
         scoreLine.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:8px;';
         scoreLine.appendChild(createElement('span', 'arcade-score-hud-label', 'Score'));
         this._scoreValue = createElement('strong', 'arcade-score-hud-score', '0');
-        this._scoreValue.style.cssText = 'font-size:18px;color:#9cf7a8;';
+        this._scoreValue.style.cssText = 'font-size:16px;color:#9cf7a8;';
         scoreLine.appendChild(this._scoreValue);
 
         const metricLine = createElement('div', 'arcade-score-hud-metrics');
-        metricLine.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:6px;font-size:12px;';
+        metricLine.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;font-size:11px;';
         const comboMetric = this._createMetric(metricLine, 'Combo', '0');
         this._comboMetricWrap = comboMetric.wrap;
         this._comboValue = comboMetric.value;
@@ -118,7 +122,8 @@ export class ArcadeScoreHUD {
         this._sectorValue = this._createMetric(metricLine, 'Sektor', '0').value;
 
         const breakdown = createElement('div', 'arcade-score-hud-breakdown');
-        breakdown.style.cssText = 'display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
+        breakdown.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
+        this._breakdownWrap = breakdown;
         for (let i = 0; i < BREAKDOWN_ENTRIES.length; i += 1) {
             const entry = BREAKDOWN_ENTRIES[i];
             const row = createElement('div', 'arcade-score-hud-breakdown-row');
@@ -135,7 +140,7 @@ export class ArcadeScoreHUD {
 
         this._modifierWrap = createElement('div', 'arcade-score-hud-modifier');
         this._modifierWrap.style.cssText = [
-            'display:flex',
+            'display:none',
             'align-items:flex-start',
             'gap:8px',
             'padding-top:6px',
@@ -225,7 +230,12 @@ export class ArcadeScoreHUD {
         const decayRatio = combo <= 0 ? 0 : Math.max(0, Math.min(1, (comboWindowMs - elapsedComboMs) / comboWindowMs));
         const phase = String(hudState.phase || '');
         const sectorIndex = Math.max(0, Math.floor(toSafeNumber(hudState.sectorIndex, 0)));
-        setNodeText(this._scoreValue, formatRounded(score.total));
+        const totalScore = Math.max(0, Math.round(toSafeNumber(score.total, 0)));
+        if (totalScore !== this._lastScore) {
+            this._detailsVisibleUntilMs = nowMs + 1200;
+        }
+        this._lastScore = totalScore;
+        setNodeText(this._scoreValue, `${totalScore}`);
         setNodeText(this._comboValue, formatRounded(combo));
         setNodeText(this._multiplierValue, formatMultiplier(score.multiplier));
         setNodeText(this._sectorValue, `${sectorIndex}`);
@@ -273,12 +283,20 @@ export class ArcadeScoreHUD {
 
         if (sectorIndex > 0 && sectorIndex !== this._lastSectorIndex) {
             this._transitionVisibleUntilMs = nowMs + 1400;
+            this._detailsVisibleUntilMs = nowMs + 1400;
             const mapKey = String(hudState.currentMapKey || '').trim() || 'unknown';
             setNodeText(this._transitionBanner, `Sektor ${sectorIndex} | ${mapKey}`);
         }
         this._lastSectorIndex = sectorIndex;
         const transitionVisible = nowMs < this._transitionVisibleUntilMs;
         this._transitionBanner?.classList?.toggle('hidden', !transitionVisible);
+        const showDetails = nowMs < this._detailsVisibleUntilMs || phase === 'paused' || phase === 'round_end';
+        if (this._breakdownWrap) {
+            this._breakdownWrap.style.display = showDetails ? 'grid' : 'none';
+        }
+        if (this._modifierWrap) {
+            this._modifierWrap.style.display = modifierMeta || showDetails ? 'flex' : 'none';
+        }
     }
 
     dispose() {
@@ -286,6 +304,7 @@ export class ArcadeScoreHUD {
             this._container.parentElement.removeChild(this._container);
         }
         this._breakdownValueByKey.clear();
+        this._breakdownWrap = null;
         this._container = null;
         this._scoreValue = null;
         this._comboValue = null;
@@ -301,6 +320,8 @@ export class ArcadeScoreHUD {
         this._transitionBanner = null;
         this._transitionVisibleUntilMs = 0;
         this._comboPopUntilMs = 0;
+        this._detailsVisibleUntilMs = 0;
+        this._lastScore = 0;
         this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._visible = false;

@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 
 const TRAIL_SEGMENT_GEOMETRY = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
@@ -24,6 +25,7 @@ export class Trail {
         this.color = color;
         this.playerIndex = playerIndex;
         this.entityManager = entityManager;
+        this.modernGraphics = isModernGraphicsStyle(renderer?.getGraphicsStyle?.());
         this.trailSpatialIndex = entityManager
             ? (typeof entityManager.getTrailSpatialIndex === 'function' ? entityManager.getTrailSpatialIndex() : entityManager)
             : null;
@@ -60,10 +62,21 @@ export class Trail {
         this.material = new THREE.MeshStandardMaterial({
             color: color,
             emissive: color,
-            emissiveIntensity: 0.48,
-            roughness: 0.5,
-            metalness: 0.2,
+            emissiveIntensity: this.modernGraphics ? 0.92 : 0.48,
+            roughness: this.modernGraphics ? 0.34 : 0.5,
+            metalness: this.modernGraphics ? 0.28 : 0.2,
         });
+        this.glowMaterial = this.modernGraphics
+            ? new THREE.MeshBasicMaterial({
+                color,
+                transparent: true,
+                opacity: 0.16,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false,
+                side: THREE.DoubleSide,
+            })
+            : null;
 
         // InstancedMesh
         this.mesh = new THREE.InstancedMesh(TRAIL_SEGMENT_GEOMETRY, this.material, this.maxSegments);
@@ -71,6 +84,15 @@ export class Trail {
         this.mesh.castShadow = false;
         this.mesh.receiveShadow = false;
         this.mesh.frustumCulled = false;
+        this.glowMesh = this.glowMaterial
+            ? new THREE.InstancedMesh(TRAIL_SEGMENT_GEOMETRY, this.glowMaterial, this.maxSegments)
+            : null;
+        if (this.glowMesh) {
+            this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+            this.glowMesh.castShadow = false;
+            this.glowMesh.receiveShadow = false;
+            this.glowMesh.frustumCulled = false;
+        }
 
         // Render-only head segment. The collision trail keeps its existing
         // sampling interval while this one mesh follows the interpolated pose.
@@ -79,6 +101,15 @@ export class Trail {
         this.headMesh.receiveShadow = false;
         this.headMesh.frustumCulled = false;
         this.headMesh.visible = false;
+        this.glowHeadMesh = this.glowMaterial
+            ? new THREE.Mesh(TRAIL_SEGMENT_GEOMETRY, this.glowMaterial)
+            : null;
+        if (this.glowHeadMesh) {
+            this.glowHeadMesh.castShadow = false;
+            this.glowHeadMesh.receiveShadow = false;
+            this.glowHeadMesh.frustumCulled = false;
+            this.glowHeadMesh.visible = false;
+        }
         this.headMesh.userData = {
             ...(this.headMesh.userData || {}),
             entityViewType: 'trail-visual-head',
@@ -89,10 +120,13 @@ export class Trail {
         DUMMY.updateMatrix();
         for (let i = 0; i < this.maxSegments; i++) {
             this.mesh.setMatrixAt(i, DUMMY.matrix);
+            this.glowMesh?.setMatrixAt(i, DUMMY.matrix);
         }
 
         this.renderer.addToScene(this.mesh);
+        if (this.glowMesh) this.renderer.addToScene(this.glowMesh);
         this.renderer.addToScene(this.headMesh);
+        if (this.glowHeadMesh) this.renderer.addToScene(this.glowHeadMesh);
 
         // Data Storage
         this.segmentRefs = new Array(this.maxSegments).fill(null); // Stores refs {key, entry} for global unregistration
@@ -123,6 +157,9 @@ export class Trail {
         if (this.headMesh) {
             this.headMesh.visible = false;
         }
+        if (this.glowHeadMesh) {
+            this.glowHeadMesh.visible = false;
+        }
     }
 
     updateVisualHead(position, direction = null) {
@@ -152,6 +189,12 @@ export class Trail {
         this.headMesh.quaternion.setFromUnitVectors(UP_AXIS, this._tmpDir);
         this.headMesh.scale.set(radius, length, radius);
         this.headMesh.visible = true;
+        if (this.glowHeadMesh) {
+            this.glowHeadMesh.position.copy(this.headMesh.position);
+            this.glowHeadMesh.quaternion.copy(this.headMesh.quaternion);
+            this.glowHeadMesh.scale.set(radius * 1.7, length * 1.01, radius * 1.7);
+            this.glowHeadMesh.visible = true;
+        }
         return true;
     }
 
@@ -206,6 +249,10 @@ export class Trail {
         if (this._dirty) {
             this.mesh.count = Math.min(this.segmentCount, this.maxSegments);
             this.mesh.instanceMatrix.needsUpdate = true;
+            if (this.glowMesh) {
+                this.glowMesh.count = this.mesh.count;
+                this.glowMesh.instanceMatrix.needsUpdate = true;
+            }
             this._dirty = false;
         }
     }
@@ -322,6 +369,9 @@ export class Trail {
         DUMMY.scale.set(radius, resolvedVisualLength, radius);
         DUMMY.updateMatrix();
         this.mesh.setMatrixAt(this.writeIndex, DUMMY.matrix);
+        DUMMY.scale.set(radius * 1.7, resolvedVisualLength * 1.01, radius * 1.7);
+        DUMMY.updateMatrix();
+        this.glowMesh?.setMatrixAt(this.writeIndex, DUMMY.matrix);
         this._dirty = true;
 
         // Register in global grid
@@ -365,8 +415,10 @@ export class Trail {
         DUMMY.scale.set(0, 0, 0);
         DUMMY.updateMatrix();
         this.mesh.setMatrixAt(segmentIdx, DUMMY.matrix);
+        this.glowMesh?.setMatrixAt(segmentIdx, DUMMY.matrix);
         this.segmentRefs[segmentIdx] = null;
         this.mesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh) this.glowMesh.instanceMatrix.needsUpdate = true;
         this._dirty = true;
         return true;
     }
@@ -379,10 +431,13 @@ export class Trail {
                 this.trailSpatialIndex.unregisterTrailSegment(this.segmentRefs[i].key, this.segmentRefs[i].entry);
             }
             this.mesh.setMatrixAt(i, DUMMY.matrix);
+            this.glowMesh?.setMatrixAt(i, DUMMY.matrix);
             this.segmentRefs[i] = null;
         }
         this.mesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh) this.glowMesh.instanceMatrix.needsUpdate = true;
         this.mesh.count = 0;
+        if (this.glowMesh) this.glowMesh.count = 0;
 
         this.writeIndex = 0;
         this.segmentCount = 0;
@@ -395,9 +450,15 @@ export class Trail {
 
     dispose() {
         this.renderer.removeFromScene(this.mesh);
+        if (this.glowMesh) this.renderer.removeFromScene(this.glowMesh);
         this.renderer.removeFromScene(this.headMesh);
+        if (this.glowHeadMesh) this.renderer.removeFromScene(this.glowHeadMesh);
         this.mesh.dispose();
+        this.glowMesh?.dispose();
         this.material.dispose();
+        this.glowMaterial?.dispose();
         this.headMesh = null;
+        this.glowMesh = null;
+        this.glowHeadMesh = null;
     }
 }

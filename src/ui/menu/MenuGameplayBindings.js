@@ -20,6 +20,7 @@ import {
 } from '../hangar/HangarSelectionWritebackContract.js';
 import { createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
+import { bindGraphicsStyleSelect } from './MenuGraphicsStyleBindings.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
     const settings = ctx.settings;
@@ -534,7 +535,7 @@ export function setupMenuGameplayBindings(ctx) {
             queueInputSettingsChanged([keys.LOCAL_SHADOW_QUALITY]);
         });
     }
-    bindMenuRecordingCameraControls(ctx);
+    bindGraphicsStyleSelect(ctx); bindMenuRecordingCameraControls(ctx);
 
     bind(ui.startButton, 'click', () => {
         emit(eventTypes.START_MATCH);

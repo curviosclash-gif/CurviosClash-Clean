@@ -55,6 +55,26 @@ const RIFT_ITEMS = Object.freeze([
     { id: 'rift_item_rocket', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 78, y: 28, z: 24, weight: 0.9 },
 ]);
 
+function riftLandmark(id, pack, model, position, targetSize, rotationY = 0) {
+    return Object.freeze({
+        id,
+        url: `assets/models/downloaded_cc0/${pack}/${model}.glb`,
+        position: Object.freeze(position),
+        rotation: Object.freeze([0, rotationY, 0]),
+        targetSize,
+        graphicsStyle: 'modern',
+    });
+}
+
+const RIFT_VISUAL_LANDMARKS = Object.freeze([
+    riftLandmark('rift-canyon-crystal', 'pm-crystal-crossroads', 'Crystal_ClusterSurrounded', [-86, 0, -56], 12, -0.7),
+    riftLandmark('rift-start-lamp-left', 'pm-aero-system', 'Aero_Lampost_01', [-114, 0, -18], 9),
+    riftLandmark('rift-start-lamp-right', 'pm-aero-system', 'Aero_Lampost_01', [-114, 0, 12], 9, Math.PI),
+    riftLandmark('rift-branch-crystal', 'pm-crystal-crossroads', 'Crystal_Cluster', [6, 0, -66], 14, 0.4),
+    riftLandmark('rift-airship', 'pm-aero-system', 'Aero_Airship_01', [8, 54, -58], 22, 2.1),
+    riftLandmark('rift-finish-ring', 'pm-aero-system', 'Aero_Station_Ring_Art', [116, 0, 0], 30, Math.PI / 2),
+]);
+
 const ASSAULT_OBSTACLES = Object.freeze([
     // MG approach: alternating cover forces short, readable firing windows.
     { pos: [-108, 18, -30], size: [12, 36, 34] },
@@ -254,6 +274,9 @@ export const PARCOURS_MAPS = Object.freeze({
         playerSpawn: { x: -118, y: 18, z: 0 },
         botSpawns: RIFT_BOT_SPAWNS,
         items: RIFT_ITEMS,
+        glbModels: RIFT_VISUAL_LANDMARKS,
+        glbColliderMode: 'fallbackOnly',
+        glbLoadConcurrency: 3,
         missions: [
             { type: 'TIME_TRIAL', params: { target: 52 }, weight: 1.5 },
             { type: 'NO_DAMAGE', params: {}, weight: 1.0 },
@@ -321,6 +344,9 @@ export const PARCOURS_MAPS = Object.freeze({
         playerSpawn: { x: -120, y: 18, z: -4 },
         botSpawns: RIFT_BOT_SPAWNS,
         items: RIFT_ITEMS,
+        glbModels: RIFT_VISUAL_LANDMARKS,
+        glbColliderMode: 'fallbackOnly',
+        glbLoadConcurrency: 3,
         missions: [
             { type: 'TIME_TRIAL', params: { target: 38 }, weight: 2.0 },
             { type: 'TRAIL_MASTER', params: { target: 90 }, weight: 0.9 },
@@ -360,6 +386,9 @@ export const PARCOURS_MAPS = Object.freeze({
         playerSpawn: { x: -118, y: 18, z: 0 },
         botSpawns: RIFT_BOT_SPAWNS,
         items: RIFT_ITEMS,
+        glbModels: RIFT_VISUAL_LANDMARKS,
+        glbColliderMode: 'fallbackOnly',
+        glbLoadConcurrency: 3,
         missions: [
             { type: 'NO_DAMAGE', params: {}, weight: 1.5 },
             { type: 'CLOSE_CALL', params: { target: 2 }, weight: 0.8 },

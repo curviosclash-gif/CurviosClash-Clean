@@ -164,6 +164,7 @@ export function createGameUiRefs(doc = document) {
         portalCountLabel: doc.getElementById('portal-count-label'),
         planarLevelCountSlider: doc.getElementById('planar-level-count-slider'),
         planarLevelCountLabel: doc.getElementById('planar-level-count-label'),
+        graphicsStyleSelect: doc.getElementById('graphics-style-select'),
         shadowQualitySlider: doc.getElementById('shadow-quality-slider'),
         shadowQualityLabel: doc.getElementById('shadow-quality-label'),
         recordingProfileSelect: doc.getElementById('recording-profile-select'),

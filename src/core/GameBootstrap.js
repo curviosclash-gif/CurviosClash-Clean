@@ -80,6 +80,7 @@ export function createGameUiRefs() {
 export function bootstrapGameRuntime(game, options = {}) {
     const canvas = document.getElementById('game-canvas');
     const renderer = new Renderer(canvas);
+    renderer.setGraphicsStyle(game.settings?.localSettings?.graphicsStyle);
     renderer.setShadowQuality(game.settings?.localSettings?.shadowQuality);
     const recorderRuntimeConfig = resolveRecorderRuntimeConfig();
     let mediaRecorderSystem = null;

@@ -5818,3 +5818,41 @@ input[type="range"]::-webkit-slider-thumb {
         min-height: 260px;
     }
 }
+
+html[data-graphics-style="classic"] #arcade-score-hud {
+    gap: 8px !important;
+    min-width: 260px !important;
+    max-width: 320px !important;
+    padding: 10px 12px !important;
+    background: rgba(8, 12, 20, 0.86) !important;
+    backdrop-filter: none !important;
+}
+
+html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-score {
+    font-size: 18px !important;
+}
+
+html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-metrics {
+    gap: 6px !important;
+    font-size: 12px !important;
+}
+
+html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-breakdown {
+    display: grid !important;
+}
+
+html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-modifier {
+    display: flex !important;
+}
+
+html[data-graphics-style="classic"] #arcade-mission-hud {
+    top: 12px !important;
+    font-size: 13px !important;
+}
+
+html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
+    min-width: 160px !important;
+    padding: 4px 10px !important;
+    background: rgba(0, 0, 0, 0.7) !important;
+    backdrop-filter: none !important;
+}

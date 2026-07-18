@@ -63,7 +63,12 @@ export async function prewarmMatchArenaSession({
     const portalsEnabled = runtimeConfig?.session?.portalsEnabled ?? !!settings?.portalsEnabled;
     const mapResolution = resolveMatchMap(runtimeConfig, requestedMapKey);
     const effectiveMapKey = mapResolution.effectiveMapKey;
-    const sessionKey = buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnabled);
+    const sessionKey = buildArenaSessionKey(
+        mapResolution,
+        runtimeConfig,
+        portalsEnabled,
+        renderer.getGraphicsStyle?.()
+    );
 
     const existingPrewarmedSession = consumePrewarmedArenaSessionIfMatch(renderer, sessionKey);
     if (existingPrewarmedSession) {
@@ -146,7 +151,12 @@ export function createMatchSession({
     const portalsEnabled = runtimeConfig?.session?.portalsEnabled ?? !!settings?.portalsEnabled;
     const mapResolution = resolveMatchMap(runtimeConfig, requestedMapKey);
     const effectiveMapKey = mapResolution.effectiveMapKey;
-    const sessionKey = buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnabled);
+    const sessionKey = buildArenaSessionKey(
+        mapResolution,
+        runtimeConfig,
+        portalsEnabled,
+        renderer.getGraphicsStyle?.()
+    );
     const fallbackHumans = settings?.mode === '2p' ? 2 : 1;
     const fallbackBots = Number(settings?.numBots) || 0;
     const fallbackWinsNeeded = Number(settings?.winsNeeded) || 5;

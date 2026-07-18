@@ -3,6 +3,7 @@ import { DEFAULT_SHADOW_QUALITY } from '../../shared/contracts/ShadowQualityCont
 import { createDefaultRecordingCaptureSettings } from '../../shared/contracts/RecordingCaptureContract.js';
 import { createDefaultCameraPerspectiveSettings } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { DEFAULT_MOBILE_CLASSIC_CONTROLS } from '../../shared/contracts/MobileClassicControlsContract.js';
+import { GRAPHICS_STYLES } from '../../shared/contracts/GraphicsStyleContract.js';
 
 export const MENU_DEFAULT_EDITOR_SCHEMA_VERSION = 'menu-default-editor.v1';
 export const MENU_DEFAULT_EVENT_PLAYLIST_ID = 'fun_rotation';
@@ -97,6 +98,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         sessionType: 'splitscreen',
         modePath: 'fight',
         themeMode: 'dunkel',
+        graphicsStyle: GRAPHICS_STYLES.MODERN,
         shadowQuality: DEFAULT_SHADOW_QUALITY,
         mouseSteering: false,
         startSetup: {
@@ -364,6 +366,7 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             sessionType: String(localSettings.sessionType || MENU_DEFAULT_EDITOR_CONFIG.localSettings.sessionType),
             modePath: String(localSettings.modePath || MENU_DEFAULT_EDITOR_CONFIG.localSettings.modePath),
             themeMode: String(localSettings.themeMode || MENU_DEFAULT_EDITOR_CONFIG.localSettings.themeMode),
+            graphicsStyle: String(localSettings.graphicsStyle || MENU_DEFAULT_EDITOR_CONFIG.localSettings.graphicsStyle),
             shadowQuality: String(localSettings.shadowQuality || MENU_DEFAULT_EDITOR_CONFIG.localSettings.shadowQuality),
             mouseSteering: localSettings.mouseSteering === true,
             startSetup: deepClone(localSettings.startSetup || MENU_DEFAULT_EDITOR_CONFIG.localSettings.startSetup),

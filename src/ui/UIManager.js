@@ -12,6 +12,7 @@ import { MenuStateMachine, MENU_STATE_IDS } from './menu/MenuStateMachine.js';
 import { listMenuTextCatalogEntries } from './menu/MenuTextCatalog.js';
 import { MenuTextRuntime } from './menu/MenuTextRuntime.js';
 import { DEFAULT_SHADOW_QUALITY, normalizeShadowQuality, resolveShadowQualityLabel } from '../shared/contracts/ShadowQualityContract.js';
+import { normalizeGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
@@ -495,6 +496,9 @@ export class UIManager {
         applyRangeInputLimits(ui.fightPlayerHpSlider, runtimeLimits.gameplay.fightPlayerHp);
         applyRangeInputLimits(ui.fightMgDamageSlider, runtimeLimits.gameplay.fightMgDamage);
         syncFightMenuTuningUi({ ui, settings, gameplay: gp, config: runtimeConfig });
+        if (ui.graphicsStyleSelect) {
+            ui.graphicsStyleSelect.value = normalizeGraphicsStyle(settings?.localSettings?.graphicsStyle);
+        }
         const shadowQuality = normalizeShadowQuality(settings?.localSettings?.shadowQuality, DEFAULT_SHADOW_QUALITY);
         if (ui.shadowQualitySlider) ui.shadowQualitySlider.value = String(shadowQuality);
         if (ui.shadowQualityLabel) ui.shadowQualityLabel.textContent = resolveShadowQualityLabel(shadowQuality);

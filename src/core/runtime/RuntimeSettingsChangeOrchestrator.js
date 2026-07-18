@@ -48,6 +48,7 @@ export function orchestrateRuntimeSettingsChanged({
         : (mergedChangedKeys.length > 0 ? mergedChangedKeys : null);
 
     markSettingsDirty?.(true);
+    game.renderer?.setGraphicsStyle?.(game.settings?.localSettings?.graphicsStyle);
     game.renderer?.setShadowQuality?.(game.settings?.localSettings?.shadowQuality);
     game.renderer?.setRecordingCaptureSettings?.(game.settings?.recording);
     game.renderer?.setCameraPerspectiveSettings?.(game.settings?.cameraPerspective);

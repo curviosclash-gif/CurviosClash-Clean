@@ -10,6 +10,10 @@ import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
 import { SceneRootManager } from './renderer/SceneRootManager.js';
 import { RenderQualityController } from './renderer/RenderQualityController.js';
 import { RecordingCapturePipeline } from './renderer/RecordingCapturePipeline.js';
+import {
+    GRAPHICS_STYLES,
+    normalizeGraphicsStyle,
+} from '../shared/contracts/GraphicsStyleContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -28,15 +32,20 @@ export class Renderer {
         this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-        this.renderer.toneMappingExposure = 1.2;
         this.renderer.setClearColor(CONFIG.COLORS.BACKGROUND);
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
+        this._modernBackgroundColor = new THREE.Color(0x050816);
         this._environmentRenderTarget = null;
+        this._skyDome = null;
+        this._starField = null;
+        this._graphicsStyle = GRAPHICS_STYLES.MODERN;
 
         this._setupLights();
         this._setupEnvironment();
+        this._setupAtmosphere();
+        this.setGraphicsStyle(this._graphicsStyle);
 
         this.sceneRootManager = new SceneRootManager(this.scene);
         this.persistentRoot = this.sceneRootManager.persistentRoot;
@@ -76,24 +85,26 @@ export class Renderer {
     }
 
     _setupLights() {
-        const ambient = new THREE.AmbientLight(CONFIG.COLORS.AMBIENT_LIGHT, 0.8);
-        this.scene.add(ambient);
+        this._ambientLight = new THREE.HemisphereLight(0x9bc8ff, CONFIG.COLORS.AMBIENT_LIGHT, 0.58);
+        this.scene.add(this._ambientLight);
 
-        const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
-        dirLight.position.set(30, 50, 30);
-        dirLight.castShadow = true;
-        dirLight.shadow.mapSize.set(CONFIG.RENDER.SHADOW_MAP_SIZE, CONFIG.RENDER.SHADOW_MAP_SIZE);
-        dirLight.shadow.camera.near = 1;
-        dirLight.shadow.camera.far = 150;
-        dirLight.shadow.camera.left = -60;
-        dirLight.shadow.camera.right = 60;
-        dirLight.shadow.camera.top = 60;
-        dirLight.shadow.camera.bottom = -60;
-        this.scene.add(dirLight);
+        this._keyLight = new THREE.DirectionalLight(0xfff4e8, 1.35);
+        this._keyLight.position.set(30, 50, 30);
+        this._keyLight.castShadow = true;
+        this._keyLight.shadow.mapSize.set(CONFIG.RENDER.SHADOW_MAP_SIZE, CONFIG.RENDER.SHADOW_MAP_SIZE);
+        this._keyLight.shadow.camera.near = 1;
+        this._keyLight.shadow.camera.far = 150;
+        this._keyLight.shadow.camera.left = -60;
+        this._keyLight.shadow.camera.right = 60;
+        this._keyLight.shadow.camera.top = 60;
+        this._keyLight.shadow.camera.bottom = -60;
+        this.scene.add(this._keyLight);
 
-        const fillLight = new THREE.DirectionalLight(0x4466aa, 0.3);
-        fillLight.position.set(-20, 30, -10);
-        this.scene.add(fillLight);
+        this._fillLight = new THREE.DirectionalLight(0x4f86d9, 0.32);
+        this._fillLight.position.set(-20, 30, -10);
+        this._rimLight = new THREE.DirectionalLight(0x39d9ff, 0.62);
+        this._rimLight.position.set(-35, 18, -45);
+        this.scene.add(this._fillLight, this._rimLight);
     }
 
     _setupEnvironment() {
@@ -106,6 +117,106 @@ export class Renderer {
             environment.dispose();
             pmremGenerator.dispose();
         }
+    }
+
+    _setupAtmosphere() {
+        const radius = Math.max(120, (Number(CONFIG.CAMERA.FAR) || 200) - 5);
+        const skyGeometry = new THREE.SphereGeometry(radius, 32, 18);
+        const positions = skyGeometry.getAttribute('position');
+        const colors = new Float32Array(positions.count * 3);
+        const zenith = new THREE.Color(0x02050f);
+        const horizon = new THREE.Color(0x17355a);
+        const nadir = new THREE.Color(0x070914);
+        const sample = new THREE.Color();
+        for (let i = 0; i < positions.count; i++) {
+            const y = THREE.MathUtils.clamp(positions.getY(i) / radius, -1, 1);
+            if (y >= 0) {
+                sample.copy(horizon).lerp(zenith, Math.pow(y, 0.62));
+            } else {
+                sample.copy(horizon).lerp(nadir, Math.pow(-y, 0.7));
+            }
+            colors[i * 3] = sample.r;
+            colors[i * 3 + 1] = sample.g;
+            colors[i * 3 + 2] = sample.b;
+        }
+        skyGeometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+        const skyMaterial = new THREE.MeshBasicMaterial({
+            side: THREE.BackSide,
+            vertexColors: true,
+            depthWrite: false,
+            fog: false,
+            toneMapped: false,
+        });
+        this._skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
+        this._skyDome.name = 'scene-atmosphere-sky';
+        this._skyDome.renderOrder = -1000;
+        this.scene.add(this._skyDome);
+
+        const starCount = 360;
+        const starPositions = new Float32Array(starCount * 3);
+        let seed = 0x5f3759df;
+        const nextRandom = () => {
+            seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0;
+            return seed / 0x100000000;
+        };
+        for (let i = 0; i < starCount; i++) {
+            const theta = nextRandom() * Math.PI * 2;
+            const y = nextRandom() * 2 - 1;
+            const ring = Math.sqrt(Math.max(0, 1 - y * y));
+            const distance = radius * (0.86 + nextRandom() * 0.08);
+            starPositions[i * 3] = Math.cos(theta) * ring * distance;
+            starPositions[i * 3 + 1] = y * distance;
+            starPositions[i * 3 + 2] = Math.sin(theta) * ring * distance;
+        }
+        const starGeometry = new THREE.BufferGeometry();
+        starGeometry.setAttribute('position', new THREE.BufferAttribute(starPositions, 3));
+        const starMaterial = new THREE.PointsMaterial({
+            color: 0xb9dcff,
+            size: 0.42,
+            transparent: true,
+            opacity: 0.62,
+            depthWrite: false,
+            fog: false,
+            toneMapped: false,
+        });
+        this._starField = new THREE.Points(starGeometry, starMaterial);
+        this._starField.name = 'scene-atmosphere-stars';
+        this._starField.renderOrder = -900;
+        this.scene.add(this._starField);
+    }
+
+    setGraphicsStyle(style) {
+        const normalized = normalizeGraphicsStyle(style);
+        const modern = normalized === GRAPHICS_STYLES.MODERN;
+        this._graphicsStyle = normalized;
+
+        this.renderer.toneMappingExposure = modern ? 1.05 : 1.2;
+        this.scene.background = modern ? this._modernBackgroundColor : null;
+        this.scene.fog.color.setHex(modern ? 0x0b1020 : CONFIG.COLORS.BACKGROUND);
+        this.scene.fog.near = modern ? 55 : 50;
+        this.scene.fog.far = modern ? 190 : 200;
+
+        this._ambientLight.color.setHex(modern ? 0x9bc8ff : CONFIG.COLORS.AMBIENT_LIGHT);
+        this._ambientLight.groundColor.setHex(CONFIG.COLORS.AMBIENT_LIGHT);
+        this._ambientLight.intensity = modern ? 0.58 : 0.8;
+        this._keyLight.color.setHex(modern ? 0xfff4e8 : 0xffffff);
+        this._keyLight.intensity = modern ? 1.35 : 0.8;
+        this._keyLight.shadow.bias = modern ? -0.0002 : 0;
+        this._keyLight.shadow.normalBias = modern ? 0.025 : 0;
+        this._fillLight.color.setHex(modern ? 0x4f86d9 : 0x4466aa);
+        this._fillLight.intensity = modern ? 0.32 : 0.3;
+        this._rimLight.visible = modern;
+        this._skyDome.visible = modern;
+        this._starField.visible = modern;
+
+        if (typeof document !== 'undefined') {
+            document.documentElement.dataset.graphicsStyle = normalized;
+        }
+        return normalized;
+    }
+
+    getGraphicsStyle() {
+        return this._graphicsStyle;
     }
 
     createCamera(_index) {
@@ -284,6 +395,14 @@ export class Renderer {
         }
         this.recordingCapturePipeline.dispose();
         this.clearScene();
+        for (const atmosphereObject of [this._skyDome, this._starField]) {
+            if (!atmosphereObject) continue;
+            this.scene.remove(atmosphereObject);
+            atmosphereObject.geometry?.dispose?.();
+            atmosphereObject.material?.dispose?.();
+        }
+        this._skyDome = null;
+        this._starField = null;
         this.scene.environment = null;
         this._environmentRenderTarget?.dispose?.();
         this._environmentRenderTarget = null;

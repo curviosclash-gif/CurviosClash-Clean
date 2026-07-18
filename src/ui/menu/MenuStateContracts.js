@@ -7,6 +7,7 @@ import {
     normalizeArcadeGhostTrailCollisionEnabled,
 } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { normalizeMobileClassicControlSettings } from '../../shared/contracts/MobileClassicControlsContract.js';
+import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
 import {
     createMenuEventPlaylistStateDefaults,
     createMenuLocalSettingsDefaults,
@@ -204,6 +205,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         multiplayerTransport,
         modePath,
         themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',
+        graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
         startSetup,

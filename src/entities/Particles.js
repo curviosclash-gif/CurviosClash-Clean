@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 
 const MAX_PARTICLES = 1000;
 const DUMMY = new THREE.Object3D();
@@ -29,12 +30,24 @@ export class ParticleSystem {
         this.colors = new Float32Array(MAX_PARTICLES * 3);
 
         // Geometry & Material
-        const geometry = new THREE.BoxGeometry(0.8, 0.8, 0.8);
-        const material = new THREE.MeshBasicMaterial({
-            color: 0xffffff,
-            transparent: true,
-            opacity: 1.0,
-        });
+        const modernGraphics = isModernGraphicsStyle(renderer?.getGraphicsStyle?.());
+        const geometry = modernGraphics
+            ? new THREE.OctahedronGeometry(0.62, 0)
+            : new THREE.BoxGeometry(0.8, 0.8, 0.8);
+        const material = new THREE.MeshBasicMaterial(modernGraphics
+            ? {
+                color: 0xffffff,
+                transparent: true,
+                opacity: 0.92,
+                blending: THREE.AdditiveBlending,
+                depthWrite: false,
+                toneMapped: false,
+            }
+            : {
+                color: 0xffffff,
+                transparent: true,
+                opacity: 1,
+            });
 
         this.mesh = new THREE.InstancedMesh(geometry, material, MAX_PARTICLES);
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);

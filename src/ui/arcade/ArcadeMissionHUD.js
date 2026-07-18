@@ -32,7 +32,7 @@ export class ArcadeMissionHUD {
         this._container.id = 'arcade-mission-hud';
         this._container.style.cssText = [
             'position: fixed',
-            'top: 12px',
+            'top: 224px',
             'right: 12px',
             'z-index: 900',
             'display: none',
@@ -40,7 +40,7 @@ export class ArcadeMissionHUD {
             'gap: 6px',
             'pointer-events: none',
             'font-family: monospace',
-            'font-size: 13px',
+            'font-size: 12px',
         ].join(';');
         this._parent.appendChild(this._container);
     }
@@ -75,12 +75,13 @@ export class ArcadeMissionHUD {
             for (let i = 0; i < missions.length; i += 1) {
                 const card = createElement('div', 'arcade-mission-card');
                 card.style.cssText = [
-                    'background: rgba(0,0,0,0.7)',
+                    'background: rgba(5,12,22,0.68)',
                     'border-left: 3px solid #00ff88',
-                    'padding: 4px 10px',
+                    'padding: 4px 8px',
                     'border-radius: 3px',
                     'color: #e0e0e0',
-                    'min-width: 160px',
+                    'min-width: 150px',
+                    'backdrop-filter: blur(6px)',
                 ].join(';');
 
                 const header = createElement('div', 'arcade-mission-header');

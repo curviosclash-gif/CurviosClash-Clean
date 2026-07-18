@@ -42,6 +42,8 @@ test('render-only trail head follows the visible pose without registering collis
         new THREE.Vector3(1, 0, 0)
     ), true);
     assert.equal(trail.headMesh.visible, true);
+    assert.equal(trail.glowHeadMesh.visible, true);
+    assert.ok(trail.glowHeadMesh.scale.x > trail.headMesh.scale.x);
     assert.equal(trail.headMesh.scale.y, 2);
     assert.equal(trail.headMesh.geometry.parameters.radiusTop, 1);
     assert.equal(trail.headMesh.geometry.parameters.radiusBottom, 1);
@@ -64,8 +66,8 @@ test('render-only trail head follows the visible pose without registering collis
     trail.forceGap(0.5);
     assert.equal(trail.headMesh.visible, false);
     trail.dispose();
-    assert.equal(added.length, 2);
-    assert.equal(removed.length, 2);
+    assert.equal(added.length, 4);
+    assert.equal(removed.length, 4);
 });
 
 test('render-only trail head stays continuous across a sharp visual direction change', () => {

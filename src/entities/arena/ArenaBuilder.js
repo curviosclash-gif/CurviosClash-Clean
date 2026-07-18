@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { ArenaGeometryCompilePipeline } from './ArenaGeometryCompilePipeline.js';
 import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialBundle } from './ArenaBuildResourceCache.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -21,6 +22,7 @@ export class ArenaBuilder {
 
         const scale = asPositiveScale(config.ARENA.MAP_SCALE, 1);
         const size = this._resolveScaledMapSize(mapResolution.map, mapResolution.fallbackMap, scale);
+        const graphicsStyle = normalizeGraphicsStyle(this.arena.renderer?.getGraphicsStyle?.());
         this._applyArenaBounds(size);
 
         const buildSignature = createArenaBuildSignature({
@@ -34,6 +36,7 @@ export class ArenaBuilder {
             planarMode: !!config.GAMEPLAY.PLANAR_MODE,
             portalCount: config.GAMEPLAY.PORTAL_COUNT,
             planarLevelCount: config.GAMEPLAY.PLANAR_LEVEL_COUNT,
+            graphicsStyle,
         });
         const canReuse = previousBuildSignature
             && previousBuildSignature === buildSignature
@@ -56,11 +59,14 @@ export class ArenaBuilder {
             sz: size.sz,
             obstacleDefs: Array.isArray(mapResolution.map.obstacles) ? mapResolution.map.obstacles : [],
             glbModel: typeof mapResolution.map?.glbModel === 'string' ? mapResolution.map.glbModel : '',
-            glbModels: Array.isArray(mapResolution.map?.glbModels) ? mapResolution.map.glbModels : [],
+            glbModels: Array.isArray(mapResolution.map?.glbModels)
+                ? mapResolution.map.glbModels.filter((entry) => entry?.graphicsStyle !== 'modern' || graphicsStyle === 'modern')
+                : [],
             glbLoadDelayMs: Number(mapResolution.map?.glbLoadDelayMs) || 0,
             glbLoadConcurrency: Number(mapResolution.map?.glbLoadConcurrency) || 4,
             glbColliderMode: typeof mapResolution.map?.glbColliderMode === 'string' ? mapResolution.map.glbColliderMode : 'mesh',
             materialBundle,
+            graphicsStyle,
             buildSignature,
             rebuildPolicy: canReuse ? 'reuse' : 'rebuild',
         };
@@ -150,6 +156,7 @@ export class ArenaBuilder {
             sx,
             sy,
             sz,
+            graphicsStyle: this.arena.renderer?.getGraphicsStyle?.(),
         });
     }
 
