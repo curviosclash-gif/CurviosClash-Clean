@@ -17,6 +17,7 @@ import {
     resolveShieldRatio,
 } from '../../hunt/HuntBotPolicy.js';
 import { getPreferredFightEnemy } from '../../hunt/FightTargetSelector.js';
+import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
 import { resolveHuntTargetOwnerPlayer } from '../../hunt/HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
@@ -31,6 +32,8 @@ import {
     readObservationValue,
     resolveStableStrafeRight,
 } from './HeuristicBotPolicyOps.js';
+
+const PRECISION_AIM_STEERING = Object.freeze({ precision: true, gain: 12 });
 
 function isFightCorridorClear(policy, player, targetPosition, runtimeContext) {
     if (!policy || !player?.position || !targetPosition) return false;
@@ -173,6 +176,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
     const targetDistanceMax = Math.max(1, Number(runtimeContext?.observationContext?.targetDistanceMax) || 120);
     let targetDistanceSq = preferred.distSq;
     let targetDistanceRatio = observedTargetDistanceRatio;
+    const attackWindow = clamp(policy.profile.attackWindow * policy.difficulty.attackWindowScale, 0.1, 1);
     if (enemy?.position) policy._tmpAimTarget.copy(enemy.position);
     else if (player?.position) policy._tmpAimTarget.copy(player.position);
     else policy._tmpAimTarget.set(0, 0, 0);
@@ -190,8 +194,10 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
                 targetInFront = targetAlignment >= policy.difficulty.aimDot;
             }
         }
-        const leadSeconds = clamp(targetDistance / 90, 0, 0.75) * policy.difficulty.tacticalLeadScale;
-        if (enemy.velocity && Number.isFinite(Number(enemy.velocity.x))
+        const leadSeconds = targetDistanceRatio >= attackWindow
+            ? clamp(targetDistance / 90, 0, 0.75) * policy.difficulty.tacticalLeadScale
+            : 0;
+        if (leadSeconds > 0 && enemy.velocity && Number.isFinite(Number(enemy.velocity.x))
             && Number.isFinite(Number(enemy.velocity.y)) && Number.isFinite(Number(enemy.velocity.z))) {
             policy._tmpAimTarget.addScaledVector(enemy.velocity, leadSeconds);
         }
@@ -216,7 +222,19 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         crashRisk: projectileThreat ? 1 : (pressureLevel > 0.64 ? 0.5 : 0),
     });
 
-    const attackWindow = clamp(policy.profile.attackWindow * policy.difficulty.attackWindowScale, 0.1, 1);
+    const configuredMgAimDot = clamp(
+        Number(resolveGameplayConfig(player).HUNT?.MG?.AIM_DOT_MIN ?? HUNT_CONFIG.MG.AIM_DOT_MIN),
+        policy.difficulty.aimDot,
+        1
+    );
+    const targetHitboxRadius = Math.max(
+        0.2,
+        Number(enemy?.hitboxRadius) || Number(resolveGameplayConfig(enemy).PLAYER?.HITBOX_RADIUS) || 0.8
+    );
+    const geometricMgAimDot = targetDistanceSq > targetHitboxRadius * targetHitboxRadius
+        ? Math.sqrt(Math.max(0, 1 - (targetHitboxRadius * targetHitboxRadius / targetDistanceSq)))
+        : 0;
+    const mgAimDot = Math.max(configuredMgAimDot, geometricMgAimDot);
     const rocketWindow = targetDistanceRatio >= 0.16
         && targetDistanceRatio <= Math.min(0.9, attackWindow + 0.12);
     const shootReady = Math.max(0, Number(player?.shootCooldown) || 0) <= 0.001;
@@ -225,7 +243,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         && targetAlignment >= policy.difficulty.aimDot
         && (targetDistanceRatio < attackWindow || (rocketIndex >= 0 && rocketWindow) || itemAction.shootItem === true);
     const clearShot = shouldProbeShot ? isFightCorridorClear(policy, player, enemy.position, runtimeContext) : false;
-    if (enemy && targetInFront && targetAlignment >= policy.difficulty.aimDot
+    if (enemy && targetInFront && targetAlignment >= mgAimDot
         && survivalPressure < 0.84 && aggression >= 0.38
         && targetDistanceRatio < attackWindow && clearShot) {
         input.shootMG = true;
@@ -281,12 +299,18 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         if (movementIntent === 'approach' && wallFront > policy.profile.safetyDistance) {
             policy._tmpTarget.copy(policy._tmpAimTarget);
             applyArenaCenterBias(policy._tmpTarget, player, runtimeContext?.arena);
-            applySteeringTowardPosition(policy, input, player, policy._tmpTarget);
+            applySteeringTowardPosition(
+                policy,
+                input,
+                player,
+                policy._tmpTarget,
+                targetDistanceRatio < attackWindow ? PRECISION_AIM_STEERING : null
+            );
             intent = aggression > 0.5 ? 'attack-approach' : 'approach';
         } else if (movementIntent === 'strafe') {
             policy._tmpTarget.copy(policy._tmpAimTarget);
             applyArenaCenterBias(policy._tmpTarget, player, runtimeContext?.arena);
-            applySteeringTowardPosition(policy, input, player, policy._tmpTarget);
+            applySteeringTowardPosition(policy, input, player, policy._tmpTarget, PRECISION_AIM_STEERING);
             const strafeRight = resolveStableStrafeRight(player);
             input.rollRight = strafeRight;
             input.rollLeft = !strafeRight;

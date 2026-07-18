@@ -96,10 +96,12 @@ export class HeuristicBotPolicy {
         const counters = this._decisionCounters;
         if (counters.updates > 0 && snapshot.intent !== intent) counters.intentChanges += 1;
         if (counters.updates > 0 && snapshot.safetyState !== this._safetyState.state) counters.safetyTransitions += 1;
-        const steeringSignature = (input?.yawLeft ? 1 : 0)
-            | (input?.yawRight ? 2 : 0)
-            | (input?.pitchUp ? 4 : 0)
-            | (input?.pitchDown ? 8 : 0);
+        const yawAxis = Number(input?.yawAxis) || 0;
+        const pitchAxis = Number(input?.pitchAxis) || 0;
+        const steeringSignature = (input?.yawLeft || yawAxis > 0.0001 ? 1 : 0)
+            | (input?.yawRight || yawAxis < -0.0001 ? 2 : 0)
+            | (input?.pitchUp || pitchAxis > 0.0001 ? 4 : 0)
+            | (input?.pitchDown || pitchAxis < -0.0001 ? 8 : 0);
         if (counters.updates > 0 && counters.lastSteeringSignature !== steeringSignature) {
             counters.steeringChanges += 1;
         }

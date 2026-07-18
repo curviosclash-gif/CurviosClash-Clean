@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import { createBotRuntimeContext } from '../src/entities/ai/BotRuntimeContextFactory.js';
 import { HeuristicBotPolicy } from '../src/entities/ai/HeuristicBotPolicy.js';
+import { sanitizeBotAction } from '../src/entities/ai/actions/BotActionContract.js';
 import {
     resolveBoostPressureCeiling,
 } from '../src/entities/ai/HeuristicBotSafetyOps.js';
@@ -122,6 +123,13 @@ test('3D target steering pitches toward targets above and below the bot', () => 
     applySteeringTowardPosition(policy, input, player, new THREE.Vector3(0, -20, -20));
     assert.equal(input.pitchUp, false);
     assert.equal(input.pitchDown, true);
+});
+
+test('bot action sanitization preserves bounded analog steering axes', () => {
+    const action = sanitizeBotAction({ yawAxis: -0.25, pitchAxis: 2 });
+    assert.equal(action.yawAxis, -0.25);
+    assert.equal(action.pitchAxis, 1);
+    assert.equal(action.rollAxis, undefined);
 });
 
 test('final safety arbiter vetoes Hunt combat and boost when a trail blocks the look-ahead', () => {
@@ -253,6 +261,29 @@ test('Hunt bot does not fire at a selected target behind it', () => {
     assert.equal(action.shootItem, false);
 });
 
+test('Hunt bot reserves hitscan MG fire for the configured aim cone', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    const policy = new HeuristicBotPolicy({ difficulty: 'NORMAL', profile: 'aggressive' });
+    const context = {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    };
+
+    enemy.position.set(15, 0, -20);
+    assert.equal(policy.update(1 / 60, player, context).shootMG, false);
+
+    enemy.position.set(2, 0, -30);
+    assert.equal(policy.update(1 / 60, player, context).shootMG, false);
+
+    enemy.position.set(0.5, 0, -30);
+    assert.equal(policy.update(1 / 60, player, context).shootMG, true);
+});
+
 test('Hunt bot waits for the shared shoot cooldown before firing MG or rockets', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
@@ -294,14 +325,14 @@ test('Hunt bot turns toward a target directly behind instead of flying straight'
         observationContext: { targetDistanceMax: 120 },
     });
 
-    assert.equal(action.yawLeft || action.yawRight, true);
-    assert.notEqual(action.yawLeft, action.yawRight);
+    assert.equal(action.yawLeft || action.yawRight || Math.abs(action.yawAxis) > 0, true);
+    assert.equal(action.yawLeft !== action.yawRight || Math.abs(action.yawAxis) === 1, true);
 });
 
-test('Hunt bot leads a moving target while approaching', () => {
+test('Hunt bot leads a moving target while approaching from outside its attack window', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
-    enemy.position.set(0, 0, -72);
+    enemy.position.set(0, 0, -108);
     enemy.velocity = new THREE.Vector3(18, 0, 0);
     const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
     const action = policy.update(1 / 60, player, {
@@ -315,6 +346,75 @@ test('Hunt bot leads a moving target while approaching', () => {
 
     assert.equal(policy.getDecisionSnapshot().intent, 'approach');
     assert.equal(action.yawRight, true);
+});
+
+test('Hunt bot tracks the current target position inside the hitscan attack window', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -50);
+    enemy.velocity = new THREE.Vector3(18, 0, 0);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(action.yawLeft, false);
+    assert.equal(action.yawRight, false);
+    assert.equal(action.shootMG, true);
+
+    enemy.position.x = 1;
+    const fineAim = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+    assert.ok(fineAim.yawAxis < 0 && fineAim.yawAxis > -1);
+    assert.equal(fineAim.yawLeft, false);
+    assert.equal(fineAim.yawRight, false);
+    assert.equal(sanitizeBotAction(fineAim).yawAxis, fineAim.yawAxis);
+});
+
+test('precision Hunt steering converges on a moving target across update ticks', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    player.quaternion = new THREE.Quaternion();
+    player.getDirection = (out) => out.set(0, 0, -1).applyQuaternion(player.quaternion);
+    enemy.velocity = new THREE.Vector3();
+    const policy = new HeuristicBotPolicy({ difficulty: 'NORMAL', profile: 'aggressive' });
+    const rotation = new THREE.Quaternion();
+    const euler = new THREE.Euler(0, 0, 0, 'YXZ');
+    let fired = false;
+
+    for (let tick = 0; tick < 240 && !fired; tick += 1) {
+        const targetAngle = 0.4 + tick * 0.45 / 60;
+        enemy.position.set(Math.sin(targetAngle) * 50, 8, -Math.cos(targetAngle) * 50);
+        enemy.velocity.set(Math.cos(targetAngle) * 22.5, 0, Math.sin(targetAngle) * 22.5);
+        const action = policy.update(1 / 60, player, {
+            mode: 'HUNT',
+            players: [player, enemy],
+            projectiles: [],
+            arena: {},
+            observation: createSafeObservation(),
+            observationContext: { targetDistanceMax: 120 },
+        });
+        fired = action.shootMG === true;
+        const pitch = Number.isFinite(action.pitchAxis)
+            ? action.pitchAxis : ((action.pitchUp ? 1 : 0) - (action.pitchDown ? 1 : 0));
+        const yaw = Number.isFinite(action.yawAxis)
+            ? action.yawAxis : ((action.yawLeft ? 1 : 0) - (action.yawRight ? 1 : 0));
+        rotation.setFromEuler(euler.set(pitch * 3.4 / 60, yaw * 3.4 / 60, 0));
+        player.quaternion.multiply(rotation);
+    }
+
+    assert.equal(fired, true);
 });
 
 test('Hunt bot keeps MG and rockets behind blocked fight corridors', () => {
@@ -399,7 +499,7 @@ test('Hunt pursuit bends toward arena center near a boundary', () => {
         observationContext: { targetDistanceMax: 120 },
     });
 
-    assert.equal(action.yawLeft, true);
+    assert.equal(action.yawLeft || action.yawAxis > 0, true);
     assert.equal(action.yawRight, false);
 });
 

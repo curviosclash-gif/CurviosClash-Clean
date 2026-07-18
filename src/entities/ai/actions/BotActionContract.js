@@ -5,6 +5,9 @@
 const TRUE_LITERALS = new Set(['1', 'true', 'yes', 'on']);
 
 export const BOT_ACTION_DEFAULTS = Object.freeze({
+    pitchAxis: undefined,
+    yawAxis: undefined,
+    rollAxis: undefined,
     pitchUp: false,
     pitchDown: false,
     yawLeft: false,
@@ -36,6 +39,8 @@ const BOOLEAN_KEYS = Object.freeze([
     'nextItem',
 ]);
 
+const AXIS_KEYS = Object.freeze(['pitchAxis', 'yawAxis', 'rollAxis']);
+
 function coerceBool(value) {
     if (typeof value === 'boolean') {
         return value;
@@ -58,6 +63,12 @@ function clampIndex(value, min, max) {
     return intValue;
 }
 
+function clampAxis(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return undefined;
+    return Math.max(-1, Math.min(1, numeric));
+}
+
 function resolveInventoryLength(options) {
     const raw = Number(options?.inventoryLength);
     if (!Number.isFinite(raw)) return 0;
@@ -71,6 +82,9 @@ function notifyInvalid(options, message) {
 }
 
 export function createNeutralBotAction(target = {}) {
+    target.pitchAxis = undefined;
+    target.yawAxis = undefined;
+    target.rollAxis = undefined;
     target.pitchUp = false;
     target.pitchDown = false;
     target.yawLeft = false;
@@ -98,6 +112,10 @@ export function sanitizeBotAction(action, options = {}, target = {}) {
     for (let i = 0; i < BOOLEAN_KEYS.length; i++) {
         const key = BOOLEAN_KEYS[i];
         sanitized[key] = coerceBool(action[key]);
+    }
+    for (let i = 0; i < AXIS_KEYS.length; i++) {
+        const key = AXIS_KEYS[i];
+        sanitized[key] = clampAxis(action[key]);
     }
 
     const inventoryLength = resolveInventoryLength(options);

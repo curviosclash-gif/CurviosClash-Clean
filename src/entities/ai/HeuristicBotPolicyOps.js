@@ -103,10 +103,13 @@ export function readObservationValue(observation, index, fallback = 0) {
 }
 
 export function hasYaw(input) {
-    return input.yawLeft === true || input.yawRight === true;
+    return input.yawLeft === true || input.yawRight === true || Math.abs(Number(input.yawAxis) || 0) > 0.0001;
 }
 
 export function resetInput(input) {
+    input.pitchAxis = undefined;
+    input.yawAxis = undefined;
+    input.rollAxis = undefined;
     input.pitchUp = false;
     input.pitchDown = false;
     input.yawLeft = false;

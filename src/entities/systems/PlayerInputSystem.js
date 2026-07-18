@@ -16,6 +16,9 @@ import { OBSERVATION_LENGTH_V1 } from '../ai/observation/ObservationSchemaV1.js'
 
 // Reused input object to reduce GC
 const SHARED_EMPTY_INPUT = {
+    pitchAxis: undefined,
+    yawAxis: undefined,
+    rollAxis: undefined,
     pitchUp: false,
     pitchDown: false,
     yawLeft: false,
@@ -34,6 +37,9 @@ const SHARED_EMPTY_INPUT = {
 };
 
 function getEmptyInput() {
+    SHARED_EMPTY_INPUT.pitchAxis = undefined;
+    SHARED_EMPTY_INPUT.yawAxis = undefined;
+    SHARED_EMPTY_INPUT.rollAxis = undefined;
     SHARED_EMPTY_INPUT.pitchUp = false;
     SHARED_EMPTY_INPUT.pitchDown = false;
     SHARED_EMPTY_INPUT.yawLeft = false;

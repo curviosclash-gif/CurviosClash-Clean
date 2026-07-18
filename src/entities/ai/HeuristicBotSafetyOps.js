@@ -504,6 +504,9 @@ export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeCo
     if (!safetyActive) return state;
 
     resolvePreferredTurn(policy, state, player, dangerThreshold);
+    input.pitchAxis = undefined;
+    input.yawAxis = undefined;
+    input.rollAxis = undefined;
     input.yawLeft = state.turnAxis === 'yaw' && state.turnDirection > 0;
     input.yawRight = state.turnAxis === 'yaw' && state.turnDirection < 0;
     input.pitchUp = state.turnAxis === 'pitch' && state.turnDirection > 0;

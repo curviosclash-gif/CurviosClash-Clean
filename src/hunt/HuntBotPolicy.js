@@ -15,8 +15,8 @@ import {
     applyScenarioRoleMovement,
     resolveScenarioBotTuning,
 } from './HuntScenarioBotRoles.js';
-
-const WORLD_UP = new THREE.Vector3(0, 1, 0);
+import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
+export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
 import { clamp } from '../utils/MathOps.js';
 export { clamp };
@@ -177,46 +177,6 @@ function resolveSensorYawPitch(snapshot) {
     const yaw = Number.isFinite(snapshot?.targetYaw) ? snapshot.targetYaw : 0;
     const pitch = Number.isFinite(snapshot?.targetPitch) ? snapshot.targetPitch : 0;
     return { yaw, pitch };
-}
-
-export function clearSteeringInput(input) {
-    input.yawLeft = false;
-    input.yawRight = false;
-    input.pitchUp = false;
-    input.pitchDown = false;
-}
-
-export function applySteeringTowardPosition(policy, input, player, targetPosition) {
-    if (!targetPosition || !player?.position) return;
-    const planarMode = !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
-    policy._tmpGate.subVectors(targetPosition, player.position);
-    if (policy._tmpGate.lengthSq() <= 0.000001) return;
-    policy._tmpGate.normalize();
-    player.getDirection(policy._tmpForward).normalize();
-    policy._tmpRight.crossVectors(WORLD_UP, policy._tmpForward);
-    if (policy._tmpRight.lengthSq() <= 0.000001) {
-        policy._tmpRight.set(1, 0, 0);
-    } else {
-        policy._tmpRight.normalize();
-    }
-    policy._tmpUp.crossVectors(policy._tmpForward, policy._tmpRight).normalize();
-
-    const yawTowardTarget = policy._tmpRight.dot(policy._tmpGate);
-    if (Math.abs(yawTowardTarget) > 0.03) {
-        input.yawLeft = yawTowardTarget > 0;
-        input.yawRight = yawTowardTarget < 0;
-    } else if (policy._tmpForward.dot(policy._tmpGate) < 0) {
-        input.yawLeft = ((Number(player.index) || 0) & 1) === 0;
-        input.yawRight = !input.yawLeft;
-    }
-
-    if (!planarMode) {
-        const pitchTowardTarget = policy._tmpUp.dot(policy._tmpGate);
-        if (Math.abs(pitchTowardTarget) > 0.07) {
-            input.pitchUp = pitchTowardTarget > 0;
-            input.pitchDown = pitchTowardTarget < 0;
-        }
-    }
 }
 
 function applyRetreatSteeringFallback(policy, input, player, enemy) {
