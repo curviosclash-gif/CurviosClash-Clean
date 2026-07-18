@@ -241,9 +241,11 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         editor.notify?.(warningMessage || 'Playtest wird geoeffnet.', warningMessage ? 'warn' : 'success');
 
         const playtestMode = String(dom.selPlaytestMode?.value || '3d').toLowerCase();
+        const playtestSession = String(dom.selPlaytestSession?.value || 'single').toLowerCase();
         const params = new URLSearchParams();
         params.set('playtest', '1');
         params.set('planar', playtestMode === 'planar' ? '1' : '0');
+        params.set('session', playtestSession);
         const playtestUrl = `../index.html?${params.toString()}`;
         const playtestWindow = window.open(playtestUrl, "_blank");
         if (playtestWindow) {

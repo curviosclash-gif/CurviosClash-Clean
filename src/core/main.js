@@ -21,7 +21,11 @@ import {
     initializeGameApp,
     releasePublishedRuntimeHandles,
 } from './AppInitializer.js';
-import { isPlaytestLaunchRequested, readPlaytestLaunchBoolParam } from './PlaytestLaunchParams.js';
+import {
+    isPlaytestLaunchRequested,
+    readPlaytestLaunchBoolParam,
+    readPlaytestSessionType,
+} from './PlaytestLaunchParams.js';
 import { installPlaytestReturnControl } from './PlaytestReturnControl.js';
 import { ensureInteractiveMatchRuntime } from './InteractiveMatchRuntimeGuard.js';
 import { GameRuntimeCoordinator } from './runtime/GameRuntimeCoordinator.js';
@@ -140,6 +144,10 @@ export class Game {
 
         this._disposePlaytestReturnControl = installPlaytestReturnControl();
 
+        const playtestSessionType = readPlaytestSessionType();
+        if (playtestSessionType) {
+            this.settingsManager.switchSessionType(this.settings, playtestSessionType);
+        }
         this.settings.mapKey = CUSTOM_MAP_KEY;
         const planarRequested = readPlaytestLaunchBoolParam('planar');
         if (typeof planarRequested === 'boolean') {

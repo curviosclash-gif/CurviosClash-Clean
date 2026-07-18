@@ -84,6 +84,7 @@ export function createEditorDomRefs(doc = document) {
         btnExport: doc.getElementById("btnExport"),
         btnPlaytest: doc.getElementById("btnPlaytest"),
         selPlaytestMode: doc.getElementById("selPlaytestMode"),
+        selPlaytestSession: doc.getElementById('selPlaytestSession'),
         btnImport: doc.getElementById("btnImport"),
         btnNew: doc.getElementById("btnNew"),
         btnDelSelected: doc.getElementById("btnDelSelected"),

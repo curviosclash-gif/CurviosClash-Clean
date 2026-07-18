@@ -255,12 +255,14 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#workspaceStatusMessage')).toContainText(`Map neu gespeichert: ${mapName}`);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
 
+        await page.locator('#selPlaytestSession').selectOption('splitscreen');
         const popupPromise = page.waitForEvent('popup');
         await page.locator('#btnPlaytest').click();
         const popup = await popupPromise;
         await popup.waitForURL(/index\.html\?/, { timeout: 15_000 });
         expect(popup.url()).toContain('playtest=1');
         expect(popup.url()).toContain('planar=0');
+        expect(popup.url()).toContain('session=splitscreen');
         await expect(popup.locator('#playtest-return-to-editor')).toBeVisible();
         await popup.close();
 

@@ -40,3 +40,16 @@ export function readPlaytestLaunchBoolParam(paramName, search = window.location.
     if (raw === '0' || raw === 'false' || raw === 'no' || raw === 'off') return false;
     return null;
 }
+
+/**
+ * @param {string} [search]
+ * @returns {'single' | 'splitscreen' | null}
+ */
+export function readPlaytestSessionType(search = window.location.search) {
+    const params = readSearchParams(search);
+    if (!params || !params.has('session')) {
+        return null;
+    }
+    const value = String(params.get('session') || '').trim().toLowerCase();
+    return value === 'single' || value === 'splitscreen' ? value : null;
+}
