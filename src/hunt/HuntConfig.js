@@ -131,10 +131,10 @@ export const HUNT_CONFIG = Object.freeze({
         }),
     }),
     ROCKET_TIERS: Object.freeze({
-        WEAK: Object.freeze({ damage: 10, spawnChance: 0.5, trailBlastMeters: 2 }),
-        MEDIUM: Object.freeze({ damage: 20, spawnChance: 0.28, trailBlastMeters: 4 }),
-        HEAVY: Object.freeze({ damage: 40, spawnChance: 0.18, trailBlastMeters: 10 }),
-        MEGA: Object.freeze({ damage: 70, spawnChance: 0.03, trailBlastMeters: 30 }),
+        WEAK: Object.freeze({ damage: 30, spawnChance: 0.5, trailBlastMeters: 6 }),
+        MEDIUM: Object.freeze({ damage: 60, spawnChance: 0.28, trailBlastMeters: 12 }),
+        HEAVY: Object.freeze({ damage: 120, spawnChance: 0.18, trailBlastMeters: 30 }),
+        MEGA: Object.freeze({ damage: 210, spawnChance: 0.03, trailBlastMeters: 90 }),
     }),
     ROCKET_PICKUP_SPAWN_CHANCE: 0.28,
     PICKUP_WEIGHTS: Object.freeze({

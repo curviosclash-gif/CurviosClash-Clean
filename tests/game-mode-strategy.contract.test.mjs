@@ -5,7 +5,14 @@ import { GameModeContract } from '../src/modes/GameModeContract.js';
 import { ClassicModeStrategy } from '../src/modes/ClassicModeStrategy.js';
 import { createGameModeStrategy, registerGameModeStrategy } from '../src/modes/GameModeRegistry.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
-import { isRocketTierType, normalizeRocketPickupType, pickWeightedRocketTierType } from '../src/hunt/RocketPickupSystem.js';
+import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
+import {
+    isRocketTierType,
+    normalizeRocketPickupType,
+    pickWeightedRocketTierType,
+    resolveRocketTrailBlastMeters,
+    resolveRocketTierDamage,
+} from '../src/hunt/RocketPickupSystem.js';
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
 
 test('GameModeRegistry resolves classic fallback and hunt mode deterministically', () => {
@@ -81,6 +88,13 @@ test('Projectile, collision and shield contracts stay stable across strategies',
     assert.equal(hunt.resolveRocketProjectileParams('SPEED_UP'), null);
     assert.equal(hunt.grantShield(huntShieldPlayer), 40);
     assert.equal(huntShieldPlayer.shieldHP, 40);
+});
+
+test('Fight rocket tiers use triple damage and trail destruction', () => {
+    const fightConfig = { HUNT: HUNT_CONFIG };
+    const rocketTypes = ['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA'];
+    assert.deepEqual(rocketTypes.map((type) => resolveRocketTierDamage(type, fightConfig)), [30, 60, 120, 210]);
+    assert.deepEqual(rocketTypes.map((type) => resolveRocketTrailBlastMeters(type, fightConfig)), [6, 12, 30, 90]);
 });
 
 test('Rocket pickup normalization, weighted selection and allowlists stay deterministic', () => {

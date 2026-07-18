@@ -1144,12 +1144,12 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             const maxSegments = Math.max(1, Number(enemy?.trail?.maxSegments) || 5000);
             const measureBlast = (type) => {
                 enemy.trail.clear();
-                // Create 40 segments of ~1 unit length each (total ~40 units of trail)
-                for (let i = 0; i < 40; i++) {
+                // Create 200 segments of ~1 unit length each (enough for the 90 m mega blast)
+                for (let i = 0; i < 200; i++) {
                     enemy.trail._addSegment(i, 50, -18, i + 1, 50, -18);
                 }
 
-                const centerIdx = (Math.max(0, Number(enemy.trail.writeIndex) || 0) - 20 + maxSegments) % maxSegments;
+                const centerIdx = (Math.max(0, Number(enemy.trail.writeIndex) || 0) - 100 + maxSegments) % maxSegments;
                 const ref = enemy?.trail?.segmentRefs?.[centerIdx] || null;
                 if (!ref?.entry) {
                     return { error: `missing-center-${type}` };
