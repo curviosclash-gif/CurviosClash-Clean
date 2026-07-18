@@ -213,8 +213,8 @@ export function applySteeringTowardPosition(policy, input, player, targetPositio
     if (!planarMode) {
         const pitchTowardTarget = policy._tmpUp.dot(policy._tmpGate);
         if (Math.abs(pitchTowardTarget) > 0.07) {
-            input.pitchUp = pitchTowardTarget < 0;
-            input.pitchDown = pitchTowardTarget > 0;
+            input.pitchUp = pitchTowardTarget > 0;
+            input.pitchDown = pitchTowardTarget < 0;
         }
     }
 }

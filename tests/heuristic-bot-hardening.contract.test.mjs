@@ -12,6 +12,7 @@ import {
     HEURISTIC_PROFILES,
     resolveStableStrafeRight,
 } from '../src/entities/ai/HeuristicBotPolicyOps.js';
+import { applySteeringTowardPosition } from '../src/hunt/HuntBotPolicy.js';
 import {
     LOCAL_OPENNESS_RATIO,
     OBSERVATION_LENGTH_V1,
@@ -105,6 +106,22 @@ test('runtime context exposes Arcade semantics while retaining the internal CLAS
     assert.equal(context.runtimeConfig.session.activeGameMode, 'CLASSIC');
     assert.equal(context.difficulty, 'HARD');
     assert.equal(context.entityManager, entityManager);
+});
+
+test('3D target steering pitches toward targets above and below the bot', () => {
+    const player = createPlayer(1);
+    const policy = new HeuristicBotPolicy();
+    const input = {};
+
+    applySteeringTowardPosition(policy, input, player, new THREE.Vector3(0, 20, -20));
+    assert.equal(input.pitchUp, true);
+    assert.equal(input.pitchDown, false);
+
+    input.pitchUp = false;
+    input.pitchDown = false;
+    applySteeringTowardPosition(policy, input, player, new THREE.Vector3(0, -20, -20));
+    assert.equal(input.pitchUp, false);
+    assert.equal(input.pitchDown, true);
 });
 
 test('final safety arbiter vetoes Hunt combat and boost when a trail blocks the look-ahead', () => {
