@@ -106,5 +106,6 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
     assert.match(runnerSource, /if \(raw === 'dev'\) return 'dev';\s+return 'preview';/);
     assert.match(analysisSource, /readOption\(\['policy', 'policy-type'\], 'heuristic'\)/);
-    assert.match(packageSource, /"bot:validate:fight".*H-FIGHT.*--rounds 8.*--headless true/);
+    assert.match(analysisSource, /runnerArgs\.push\('--fail-on-forced-round', 'true'\)/);
+    assert.match(packageSource, /"bot:validate:fight".*H-FIGHT.*--rounds 8.*--headless true.*--fail-on-forced-round true/);
 });

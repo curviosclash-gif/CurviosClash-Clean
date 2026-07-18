@@ -146,6 +146,7 @@ async function runBotValidation(paths) {
     const scenarioCount = scenarioCountRaw ? readIntOption(['scenario-count'], 3, 1, 32) : null;
     const scenarioIds = readOption(['scenario-ids', 'scenario-id'], '');
     const policy = readOption(['policy', 'policy-type'], 'heuristic');
+    const failOnForcedRound = readBoolOption(['fail-on-forced-round'], false);
     const rounds = readIntOption(['rounds'], 3, 1, 20);
     const port = readIntOption(['port'], 4281, 1024, 65535);
     const headless = readBoolOption(['headless'], true);
@@ -178,6 +179,7 @@ async function runBotValidation(paths) {
     if (scenarioCount) runnerArgs.push('--scenario-count', String(scenarioCount));
     if (scenarioIds) runnerArgs.push('--scenario-ids', scenarioIds);
     if (policy) runnerArgs.push('--policy', policy);
+    if (failOnForcedRound) runnerArgs.push('--fail-on-forced-round', 'true');
     await runCommand(process.execPath, runnerArgs);
 }
 

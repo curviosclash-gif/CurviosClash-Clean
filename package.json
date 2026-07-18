@@ -59,7 +59,7 @@
     "smoke:arcade": "node scripts/arcade-run-smoke.mjs",
     "smoke:headless-kernel": "node dev/training/scripts/headless-match-kernel-smoke.mjs",
     "bot:validate": "node dev/training/scripts/bot-validation-runner.mjs",
-    "bot:validate:fight": "node dev/training/scripts/bot-play-analysis.mjs --scenario-ids H-FIGHT --policy heuristic --rounds 8 --headless true",
+    "bot:validate:fight": "node dev/training/scripts/bot-play-analysis.mjs --scenario-ids H-FIGHT --policy heuristic --rounds 8 --headless true --fail-on-forced-round true",
     "bot:analyze": "node dev/training/scripts/bot-play-analysis.mjs",
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
