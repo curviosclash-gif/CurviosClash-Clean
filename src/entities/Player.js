@@ -257,9 +257,9 @@ export class Player {
 
         const controlState = this.controller.resolveControlState(this, input, steeringLocked, dt);
         // 61.4.1: Thread turn rate multiplier from strategy
-        const motionOptions = (strategy && typeof strategy.getTurnRateMultiplier === 'function')
-            ? { turnRateMultiplier: strategy.getTurnRateMultiplier() } : null;
-        updatePlayerMotion(this, dt, controlState, motionOptions);
+        const turnRateMultiplier = (strategy && typeof strategy.getTurnRateMultiplier === 'function')
+            ? strategy.getTurnRateMultiplier() : 1;
+        updatePlayerMotion(this, dt, controlState, turnRateMultiplier);
     }
 
     setControlOptions(options = {}) {
