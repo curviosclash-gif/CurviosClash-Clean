@@ -115,6 +115,8 @@ export const MULTIPLAYER_HOST_AUTHORITATIVE_MESSAGE_TYPES = Object.freeze(new Se
 export const MULTIPLAYER_CLIENT_ONLY_MESSAGE_TYPES = Object.freeze(new Set([
     MULTIPLAYER_MESSAGE_TYPES.JOIN,
     MULTIPLAYER_MESSAGE_TYPES.RECONNECT,
+    MULTIPLAYER_MESSAGE_TYPES.LEAVE,
+    MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED,
 ]));
 
 /**
@@ -137,6 +139,18 @@ export function isClientOnlyMessageType(messageType) {
     return MULTIPLAYER_CLIENT_ONLY_MESSAGE_TYPES.has(
         normalizeType(messageType)
     );
+}
+
+/**
+ * Checks a data-channel message against the authenticated transport peer role.
+ * @param {string} messageType
+ * @param {boolean} senderIsHost
+ * @returns {boolean}
+ */
+export function isMultiplayerMessageAllowedForSender(messageType, senderIsHost) {
+    if (isHostAuthoritativeMessageType(messageType)) return senderIsHost === true;
+    if (isClientOnlyMessageType(messageType)) return senderIsHost !== true;
+    return true;
 }
 
 export function normalizeMultiplayerStateUpdateEvent(rawEvent) {

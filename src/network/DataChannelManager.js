@@ -2,6 +2,31 @@
 // DataChannelManager.js - WebRTC data channel setup and routing
 // ============================================
 
+import { MULTIPLAYER_MESSAGE_TYPES } from '../shared/contracts/MultiplayerSessionContract.js';
+
+const PRIORITY_STATE_MESSAGE_TYPES = new Set([
+    MULTIPLAYER_MESSAGE_TYPES.JOIN,
+    MULTIPLAYER_MESSAGE_TYPES.READY,
+    MULTIPLAYER_MESSAGE_TYPES.LEAVE,
+    MULTIPLAYER_MESSAGE_TYPES.RECONNECT,
+    MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC,
+    MULTIPLAYER_MESSAGE_TYPES.PING,
+    MULTIPLAYER_MESSAGE_TYPES.PONG,
+    MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT,
+    MULTIPLAYER_MESSAGE_TYPES.HEARTBEAT_ACK,
+    MULTIPLAYER_MESSAGE_TYPES.HOST_LEAVING,
+    MULTIPLAYER_MESSAGE_TYPES.PLAYER_DISCONNECTED,
+    MULTIPLAYER_MESSAGE_TYPES.PLAYER_RECONNECTED,
+    MULTIPLAYER_MESSAGE_TYPES.PLAYER_REMOVED,
+    MULTIPLAYER_MESSAGE_TYPES.MATCH_LIFECYCLE_SIGNAL,
+    MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED,
+    MULTIPLAYER_MESSAGE_TYPES.ROUND_START_GATE,
+]);
+
+function isPriorityStateMessage(channelName, data) {
+    return channelName === 'state' && PRIORITY_STATE_MESSAGE_TYPES.has(data?.type);
+}
+
 /**
  * Manages two data channels per peer:
  * - "inputs" (unreliable, unordered) — Client → Host, 60/s
@@ -72,7 +97,8 @@ export class DataChannelManager {
         const key = `${peerId}:${channelName}`;
         const channel = this._channels.get(key);
         if (!channel || channel.readyState !== 'open') return false;
-        if (this._isBackpressured(peerId, channelName, channel)) return false;
+        if (this._isBackpressured(peerId, channelName, channel)
+            && !isPriorityStateMessage(channelName, data)) return false;
 
         try {
             channel.send(JSON.stringify(data));
@@ -90,7 +116,8 @@ export class DataChannelManager {
             if (channel.readyState !== 'open') continue;
             const separatorIndex = key.indexOf(':');
             const peerId = separatorIndex >= 0 ? key.slice(0, separatorIndex) : '';
-            if (this._isBackpressured(peerId, channelName, channel)) continue;
+            if (this._isBackpressured(peerId, channelName, channel)
+                && !isPriorityStateMessage(channelName, data)) continue;
             try {
                 channel.send(json);
             } catch {

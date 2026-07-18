@@ -9,6 +9,7 @@ import { DataChannelManager } from './DataChannelManager.js';
 import { LatencyMonitor } from './LatencyMonitor.js';
 import {
     buildMultiplayerStateUpdateEvent,
+    isMultiplayerMessageAllowedForSender,
     MULTIPLAYER_MESSAGE_TYPES,
     normalizeMultiplayerSessionMessage,
 } from '../shared/contracts/MultiplayerSessionContract.js';
@@ -29,8 +30,10 @@ import {
     toErrorPayload,
 } from './OnlineSignalingSupport.js';
 import { routeOnlineSessionSignalingMessage } from './OnlineSessionSignalingRouter.js';
+import { waitForStateChannelOpen } from './LANSignalingClient.js';
 
 const logger = createLogger('OnlineSessionAdapter');
+const CLIENT_CHANNEL_OPEN_TIMEOUT_MS = 10_000;
 
 function resolveSignalingUrl(explicit) {
     if (explicit) return explicit;
@@ -70,6 +73,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         this._lobbyCode = null;
         this._hostPeerId = null;
         this._sessionToken = String(options.sessionToken || options.peerToken || '').trim();
+        this._usesAttachedTransport = false;
 
         this._dataChannelManager.on('message', ({ peerId, channel, data }) => {
             this._handleDataMessage(peerId, channel, data);
@@ -102,6 +106,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
     }
 
     async connect(options = {}) {
+        this._isDisconnecting = false;
         this._signalingUrl = resolveOnlineSignalingUrl(options.signalingUrl, this._signalingUrl);
         this._sessionToken = String(options.sessionToken || options.peerToken || this._sessionToken || '').trim();
         return this._runConnectLoop(() => this._connectSingleAttempt(options), options);
@@ -151,9 +156,11 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             const done = () => { clearTimeout(timer); settle(resolve); };
             const fail = (err) => { clearTimeout(timer); settle(reject, err); };
 
-            this._ws = new WebSocket(this._signalingUrl);
-            this._ws.onopen = onOpenFn;
-            this._ws.onmessage = (event) => {
+            const socket = new WebSocket(this._signalingUrl);
+            this._ws = socket;
+            socket.onopen = onOpenFn;
+            socket.onmessage = (event) => {
+                if (this._ws !== socket) return;
                 let msg;
                 try {
                     msg = JSON.parse(event.data);
@@ -178,7 +185,8 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
                     }
                 });
             };
-            this._ws.onerror = () => {
+            socket.onerror = () => {
+                if (this._ws !== socket) return;
                 const socketError = createSocketLifecycleError('error', { signalingUrl: this._signalingUrl });
                 this._emit('error', toErrorPayload(socketError));
                 if (!settled) {
@@ -187,7 +195,8 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
                 }
                 this._emit('signalingDisconnected', toErrorPayload(socketError));
             };
-            this._ws.onclose = (event) => {
+            socket.onclose = (event) => {
+                if (this._ws !== socket) return;
                 const closeError = createSocketLifecycleError('close', buildSocketCloseDetails(event, this._signalingUrl));
                 if (!settled) {
                     fail(closeError);
@@ -203,10 +212,11 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         });
     }
 
-    _connectSingleAttempt(options = {}) {
+    async _connectSingleAttempt(options = {}, { resumed = false } = {}) {
         const attachPlayerId = String(options.playerId || '').trim();
         const attachLobbyCode = String(options.lobbyCode || '').trim();
-        return this._socketAttempt(() => {
+        this._usesAttachedTransport = !!(attachPlayerId && attachLobbyCode);
+        await this._socketAttempt(() => {
             if (attachPlayerId && attachLobbyCode) {
                 // Match-runtime handoff: reuse the existing lobby membership from the
                 // menu lobby instead of creating/joining a second lobby. Creating a
@@ -223,10 +233,21 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
                 this._sendSignaling(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.JOIN_LOBBY, { lobbyCode: options.lobbyCode }));
             }
         }, options);
+        if (!this.isHost) {
+            await this._waitForHostStateChannel(options);
+            this._completeSignalingConnection({ resumed });
+        }
     }
 
-    _reconnectSingleAttempt(options = {}) {
-        return this._socketAttempt(() => {
+    async _reconnectSingleAttempt(options = {}) {
+        if (this._usesAttachedTransport) {
+            return this._connectSingleAttempt({
+                ...options,
+                playerId: this.localPlayerId,
+                lobbyCode: this._lobbyCode,
+            }, { resumed: true });
+        }
+        await this._socketAttempt(() => {
             this._sendSignaling(createSignalingEnvelope(
                 SIGNALING_COMMAND_TYPES.RESUME_CONNECTION,
                 {
@@ -236,12 +257,41 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
                 }
             ));
         }, options);
+        if (!this.isHost) {
+            await this._waitForHostStateChannel(options);
+            this._completeSignalingConnection({ resumed: true });
+        }
+    }
+
+    async _waitForHostStateChannel(options = {}) {
+        const hostPeerId = this._findHostPeerId();
+        if (!hostPeerId) {
+            throw new Error('Online P2P connection failed: host peer is unknown');
+        }
+        await waitForStateChannelOpen({
+            dataChannelManager: this._dataChannelManager,
+            peerId: hostPeerId,
+            timeoutMs: Number.isFinite(Number(options.dataChannelOpenTimeoutMs))
+                ? Math.max(1, Math.floor(Number(options.dataChannelOpenTimeoutMs)))
+                : CLIENT_CHANNEL_OPEN_TIMEOUT_MS,
+            errorMessage: 'Online P2P connection failed: data channel did not open',
+        });
+    }
+
+    _completeSignalingConnection({ resumed = false } = {}) {
+        this.isConnected = true;
+        this._latencyMonitor.start();
+        this._emit(resumed ? 'connectionResumed' : 'connected', {
+            playerId: this.localPlayerId,
+            lobbyCode: this._lobbyCode,
+        });
     }
 
     _teardownSignalingSocket() {
         if (!this._ws) return;
-        try { this._ws.close(); } catch { /* Best-effort cleanup between retries. */ }
+        const socket = this._ws;
         this._ws = null;
+        try { socket.close(); } catch { /* Best-effort cleanup between retries. */ }
     }
 
     _handleSignalingMessage(msg, connectResolve, connectReject) {
@@ -278,11 +328,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
     _handleClientPeerDisconnect(peerId, reason) {
         const hostPeerId = this._findHostPeerId();
         if (peerId === hostPeerId) {
-            this._emit('hostDisconnected', { reason });
-            this._closePeerConnection(peerId);
-            this._removePeerLatency(peerId);
-            this._emit('playerDisconnected', { peerId, reason, isHost: true });
-            return true;
+            return this._attemptClientReconnect(peerId, reason);
         }
         this._closePeerConnection(peerId);
         this._removePeerLatency(peerId);
@@ -342,14 +388,16 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
     _handleDataMessage(peerId, channel, data) {
         this._peerManager.recordPeerActivity?.(peerId);
         const message = normalizeMultiplayerSessionMessage(data);
+        const senderIsHost = String(peerId || '').trim() === String(this._hostPeerId || '').trim();
+        if (!isMultiplayerMessageAllowedForSender(message.type, senderIsHost)) return;
         switch (message.type) {
         case MULTIPLAYER_MESSAGE_TYPES.INPUT:
-            this._emit('remoteInput', { peerId, input: data.inputs, playerId: data.playerId });
+            this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED:
             // Client signals that its arena is fully loaded.  Host collects these
             // and fires broadcastRoundStartGate() once all players have reported in.
-            this._emit('playerLoaded', { playerId: String(data.playerId || peerId || '').trim() });
+            this._emit('playerLoaded', { playerId: String(peerId || '').trim() });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.ROUND_START_GATE:
             // Host signals all clients that every player is loaded and the round may start.
@@ -383,11 +431,12 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             this._peerManager.recordHeartbeatAck(peerId);
             break;
         case MULTIPLAYER_MESSAGE_TYPES.LEAVE:
-            this._closePeerConnection(data.playerId || peerId);
-            this._removePeerLatency(data.playerId || peerId);
-            this._emit('playerDisconnected', { peerId: data.playerId || peerId, reason: 'graceful-leave' });
+            this._closePeerConnection(peerId);
+            this._removePeerLatency(peerId);
+            this._emit('playerDisconnected', { peerId, reason: 'graceful-leave' });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.HOST_LEAVING:
+            this._clientDisconnectedPeers.add(String(peerId || this._hostPeerId || '').trim());
             this._closePeerConnection(peerId || 'host');
             this._removePeerLatency(peerId || 'host');
             this._emit('hostDisconnected', { reason: 'graceful-leave' });
@@ -454,6 +503,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
     }
 
     disconnect() {
+        this._isDisconnecting = true;
         this._sendLeaveMessage();
         this._clearReconnectPeers();
         this._latencyMonitor.stop();

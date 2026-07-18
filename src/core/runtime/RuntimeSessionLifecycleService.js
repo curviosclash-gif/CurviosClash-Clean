@@ -213,9 +213,28 @@ function configureFightNetworkAuthority(facade) {
         : null;
 }
 
+function clearRuntimeHostArenaLoadedWait(facade) {
+    const activeWait = facade?._arenaLoadedHostWait || null;
+    if (activeWait && typeof activeWait.cancel === 'function') {
+        activeWait.cancel();
+    }
+    if (facade) {
+        facade._arenaLoadedHostWait = null;
+    }
+
+    const retryTimers = Array.isArray(facade?._arenaLoadedHostRetryTimers)
+        ? facade._arenaLoadedHostRetryTimers
+        : [];
+    for (const timerId of retryTimers) {
+        clearTimeout(timerId);
+    }
+    retryTimers.length = 0;
+}
+
 export async function waitForRuntimePlayersLoaded(facade) {
     if (!facade?.session || facade.session instanceof LocalSessionAdapter) return;
     configureFightNetworkAuthority(facade);
+    clearRuntimeHostArenaLoadedWait(facade);
 
     const slotContext = resolveRuntimeNetworkPlayerSlotContext(facade);
     const configuredPlayers = Array.isArray(slotContext?.slots)
@@ -269,6 +288,8 @@ export async function waitForRuntimePlayersLoaded(facade) {
         return;
     }
 
+    const hostSession = facade.session;
+
     // ── Host path ──────────────────────────────────────────────────────────────
     // Host waits for all remote peers to send PLAYER_ARENA_LOADED (surfaced as
     // 'playerLoaded' events by the adapter).  Once all peers have confirmed,
@@ -287,6 +308,24 @@ export async function waitForRuntimePlayersLoaded(facade) {
         let completed = false;
         let timeoutId = null;
 
+        const detachPlayerLoadedHandler = () => {
+            if (!facade._onPlayerLoadedHandler) return;
+            hostSession?.off?.('playerLoaded', facade._onPlayerLoadedHandler);
+            facade._onPlayerLoadedHandler = null;
+        };
+
+        const cancel = () => {
+            if (completed) return;
+            completed = true;
+            if (timeoutId) {
+                clearTimeout(timeoutId);
+                timeoutId = null;
+            }
+            detachPlayerLoadedHandler();
+            resolve();
+        };
+        facade._arenaLoadedHostWait = { cancel, session: hostSession };
+
         const finish = () => {
             if (completed) return;
             completed = true;
@@ -300,22 +339,38 @@ export async function waitForRuntimePlayersLoaded(facade) {
                     expectedPeerIds: Array.from(expectedPeerIds.values()),
                     timestamp: Date.now(),
                 };
-                facade.session?.broadcastRoundStartGate?.(payload);
+                if (facade.session !== hostSession) {
+                    detachPlayerLoadedHandler();
+                    if (facade._arenaLoadedHostWait?.session === hostSession) {
+                        facade._arenaLoadedHostWait = null;
+                    }
+                    resolve();
+                    return;
+                }
+                hostSession.broadcastRoundStartGate?.(payload);
+                const retryTimers = [];
+                facade._arenaLoadedHostRetryTimers = retryTimers;
                 for (let attempt = 1; attempt <= 4; attempt += 1) {
-                    setTimeout(() => {
-                        facade.session?.broadcastRoundStartGate?.({
-                            ...payload,
-                            timestamp: Date.now(),
-                            retry: attempt,
-                        });
+                    const timerId = setTimeout(() => {
+                        if (facade.session === hostSession) {
+                            hostSession.broadcastRoundStartGate?.({
+                                ...payload,
+                                timestamp: Date.now(),
+                                retry: attempt,
+                            });
+                        }
+                        if (attempt === 4 && facade._arenaLoadedHostRetryTimers === retryTimers) {
+                            retryTimers.length = 0;
+                        }
                     }, attempt * 350);
+                    retryTimers.push(timerId);
                 }
             } catch {
                 // Best-effort: even if broadcast fails, local host resolves and starts.
             }
-            if (facade._onPlayerLoadedHandler && facade.session) {
-                facade.session.off('playerLoaded', facade._onPlayerLoadedHandler);
-                facade._onPlayerLoadedHandler = null;
+            detachPlayerLoadedHandler();
+            if (facade._arenaLoadedHostWait?.session === hostSession) {
+                facade._arenaLoadedHostWait = null;
             }
             resolve();
         };
@@ -336,7 +391,7 @@ export async function waitForRuntimePlayersLoaded(facade) {
                 finish();
             }
         };
-        facade.session.on('playerLoaded', facade._onPlayerLoadedHandler);
+        hostSession.on('playerLoaded', facade._onPlayerLoadedHandler);
 
         if (hasAllPlayersLoaded()) {
             finish();
@@ -357,6 +412,7 @@ export function teardownRuntimeSession(facade) {
     }
     stopRuntimeStateBroadcast(facade);
     clearRuntimeClientArenaLoadedNotifier(facade);
+    clearRuntimeHostArenaLoadedWait(facade);
     if (facade?._onStateUpdateHandler && facade.session) {
         facade.session.off('stateUpdate', facade._onStateUpdateHandler);
         facade._onStateUpdateHandler = null;

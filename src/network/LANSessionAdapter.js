@@ -11,6 +11,7 @@ import { DataChannelManager } from './DataChannelManager.js';
 import { LatencyMonitor } from './LatencyMonitor.js';
 import {
     buildMultiplayerStateUpdateEvent,
+    isMultiplayerMessageAllowedForSender,
     MULTIPLAYER_MESSAGE_TYPES,
     normalizeMultiplayerSessionMessage,
 } from '../shared/contracts/MultiplayerSessionContract.js';
@@ -94,6 +95,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
     }
 
     async connect(options = {}) {
+        this._isDisconnecting = false;
         this._signalingUrl = options.signalingUrl || this._signalingUrl;
         if (options.peerToken) {
             this._peerToken = String(options.peerToken || '').trim();
@@ -405,10 +407,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
     }
 
     _handleClientPeerDisconnect(peerId, reason) {
-        if (peerId !== 'host') return false;
-        this._emit('hostDisconnected', { reason });
-        this._emit('playerDisconnected', { peerId, reason, isHost: true });
-        return true;
+        return peerId === 'host' && this._attemptClientReconnect(peerId, reason);
     }
 
     _sendLeaveMessage() {
@@ -448,14 +447,15 @@ export class LANSessionAdapter extends SessionAdapterBase {
     _handleMessage(peerId, channel, data) {
         this._peerManager.recordPeerActivity?.(peerId);
         const message = normalizeMultiplayerSessionMessage(data);
+        if (!isMultiplayerMessageAllowedForSender(message.type, peerId === 'host')) return;
         switch (message.type) {
         case MULTIPLAYER_MESSAGE_TYPES.INPUT:
-            this._emit('remoteInput', { peerId, input: data.inputs, playerId: data.playerId });
+            this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED:
             // Client signals that its arena is fully loaded.  Host collects these
             // and fires broadcastRoundStartGate() once all players have reported in.
-            this._emit('playerLoaded', { playerId: String(data.playerId || peerId || '').trim() });
+            this._emit('playerLoaded', { playerId: String(peerId || '').trim() });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.ROUND_START_GATE:
             // Host signals all clients that every player is loaded and the round may start.
@@ -489,11 +489,12 @@ export class LANSessionAdapter extends SessionAdapterBase {
             this._peerManager.recordHeartbeatAck(peerId);
             break;
         case MULTIPLAYER_MESSAGE_TYPES.LEAVE:
-            this._closePeerConnection(data.playerId || peerId);
-            this._removePeerLatency(data.playerId || peerId);
-            this._emit('playerDisconnected', { peerId: data.playerId || peerId, reason: 'graceful-leave' });
+            this._closePeerConnection(peerId);
+            this._removePeerLatency(peerId);
+            this._emit('playerDisconnected', { peerId, reason: 'graceful-leave' });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.HOST_LEAVING:
+            this._clientDisconnectedPeers.add(String(peerId || 'host').trim());
             this._closePeerConnection(peerId || 'host');
             this._removePeerLatency(peerId || 'host');
             this._emit('hostDisconnected', { reason: 'graceful-leave' });
@@ -556,6 +557,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
     }
 
     disconnect() {
+        this._isDisconnecting = true;
         this._sendLeaveMessage();
 
         this._stopStatusPolling();

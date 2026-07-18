@@ -170,7 +170,7 @@ test('64.8.2 join: LAN client has canJoin=true and isNetworkSession=true', () =>
 
 test('64.8.2 start: PLAYER_ARENA_LOADED is NOT host-authoritative (clients send it)', () => {
     assert.ok(!isHostAuthoritativeMessageType(MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED));
-    assert.ok(!isClientOnlyMessageType(MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED));
+    assert.ok(isClientOnlyMessageType(MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED));
 });
 
 test('64.8.2 start: ROUND_START_GATE is valid multiplayer message type', () => {

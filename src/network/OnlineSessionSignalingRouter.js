@@ -18,8 +18,6 @@ function markConnected(adapter, msg, { hostPeerIdFallback = null } = {}) {
         || msg?.sessionState?.hostPeerId
         || hostPeerIdFallback
         || adapter._hostPeerId;
-    adapter.isConnected = true;
-    adapter._latencyMonitor.start();
 }
 
 async function offerToPeer(adapter, peerId) {
@@ -51,19 +49,20 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
     switch (messageType) {
     case SIGNALING_EVENT_TYPES.LOBBY_CREATED:
         markConnected(adapter, msg, { hostPeerIdFallback: msg.playerId });
-        adapter._emit('connected', { playerId: adapter.localPlayerId, lobbyCode: adapter._lobbyCode });
+        adapter._completeSignalingConnection();
         if (connectResolve) connectResolve();
         break;
 
     case SIGNALING_EVENT_TYPES.LOBBY_JOINED:
         markConnected(adapter, msg);
-        adapter._emit('connected', { playerId: adapter.localPlayerId, lobbyCode: adapter._lobbyCode });
         if (connectResolve) connectResolve();
         break;
 
     case SIGNALING_EVENT_TYPES.TRANSPORT_ATTACHED:
         markConnected(adapter, msg);
-        adapter._emit('connected', { playerId: adapter.localPlayerId, lobbyCode: adapter._lobbyCode });
+        if (adapter.isHost) {
+            adapter._completeSignalingConnection();
+        }
         if (connectResolve) connectResolve();
         if (adapter.isHost && Array.isArray(msg.attachedPeerIds)) {
             // Clients that attached before the host: offer to each of them now.
@@ -87,10 +86,9 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
 
     case SIGNALING_EVENT_TYPES.CONNECTION_RESUMED:
         markConnected(adapter, msg);
-        adapter._emit('connectionResumed', {
-            playerId: adapter.localPlayerId,
-            lobbyCode: adapter._lobbyCode,
-        });
+        if (adapter.isHost) {
+            adapter._completeSignalingConnection({ resumed: true });
+        }
         if (connectResolve) connectResolve();
         break;
 
@@ -109,7 +107,7 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
         break;
 
     case SIGNALING_COMMAND_TYPES.OFFER:
-        if (!adapter.isHost) {
+        if (!adapter.isHost && (!adapter._hostPeerId || adapter._hostPeerId === msg.fromPeerId)) {
             adapter._hostPeerId = msg.fromPeerId;
             const answer = await adapter._peerManager.handleOffer(msg.fromPeerId, msg.offer);
             adapter._sendSignaling(createSignalingEnvelope(
@@ -122,12 +120,15 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
         break;
 
     case SIGNALING_COMMAND_TYPES.ANSWER:
+        if (!adapter.isHost || !msg.fromPeerId || msg.fromPeerId === adapter._hostPeerId) break;
         await adapter._peerManager.handleAnswer(msg.fromPeerId, msg.answer);
         adapter._latencyMonitor.addPeer(msg.fromPeerId);
         adapter._emit('playerConnected', { peerId: msg.fromPeerId });
         break;
 
     case SIGNALING_COMMAND_TYPES.ICE:
+        if (!msg.fromPeerId) break;
+        if (adapter.isHost ? msg.fromPeerId === adapter._hostPeerId : msg.fromPeerId !== adapter._hostPeerId) break;
         await adapter._peerManager.addIceCandidate(msg.fromPeerId, msg.candidate);
         break;
 

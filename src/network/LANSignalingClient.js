@@ -110,7 +110,12 @@ export async function pollIceCandidates({
  * Resolves once the reliable 'state' channel towards `peerId` is open, rejects
  * after `timeoutMs`. Signaling success alone is not a working P2P connection.
  */
-export function waitForStateChannelOpen({ dataChannelManager, peerId, timeoutMs }) {
+export function waitForStateChannelOpen({
+    dataChannelManager,
+    peerId,
+    timeoutMs,
+    errorMessage = 'P2P connection failed: data channel did not open',
+}) {
     const existingChannel = dataChannelManager.getChannel(peerId, 'state');
     if (existingChannel?.readyState === 'open') {
         return Promise.resolve();
@@ -128,7 +133,7 @@ export function waitForStateChannelOpen({ dataChannelManager, peerId, timeoutMs 
             if (settled) return;
             settled = true;
             dataChannelManager.off('channelOpen', onOpen);
-            reject(new Error('LAN P2P connection failed: data channel did not open'));
+            reject(new Error(errorMessage));
         }, timeoutMs);
         dataChannelManager.on('channelOpen', onOpen);
     });

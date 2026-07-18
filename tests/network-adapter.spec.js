@@ -814,6 +814,7 @@ test.describe('V67-67.4: Expanded multiplayer coverage', () => {
         const result = await page.evaluate(async () => {
             const { OnlineSessionAdapter } = await import('/src/network/OnlineSessionAdapter.js');
             const adapter = new OnlineSessionAdapter({ isHost: false });
+            adapter._hostPeerId = 'host';
             const events = [];
             const closedPeers = [];
             const removedPeers = [];

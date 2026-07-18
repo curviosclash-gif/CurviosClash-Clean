@@ -8,6 +8,10 @@ import { DataChannelManager } from '../src/network/DataChannelManager.js';
 import { PeerConnectionManager } from '../src/network/PeerConnectionManager.js';
 import { SessionAdapterBase } from '../src/network/SessionAdapterBase.js';
 import { attachMultiplayerLifecycleKernel, detachMultiplayerLifecycleKernel } from '../src/core/runtime/MultiplayerMatchLifecycleKernel.js';
+import {
+    teardownRuntimeSession,
+    waitForRuntimePlayersLoaded,
+} from '../src/core/runtime/RuntimeSessionLifecycleService.js';
 import { GAME_STATE_IDS } from '../src/shared/contracts/GameStateIds.js';
 
 function waitForEvent(emitter, event, timeoutMs = 5000) {
@@ -64,6 +68,52 @@ function createEventHarness() {
         },
     };
 }
+
+function createRuntimeLoadSession() {
+    const events = createEventHarness();
+    return {
+        ...events,
+        isHost: true,
+        localPlayerId: 'host',
+        broadcasts: 0,
+        getPlayers() {
+            return [{ peerId: 'host' }, { peerId: 'client' }];
+        },
+        broadcastRoundStartGate() {
+            this.broadcasts += 1;
+        },
+        dispose() {},
+    };
+}
+
+test('runtime teardown cancels host load waits and stale round-start retries', async () => {
+    const oldSession = createRuntimeLoadSession();
+    const facade = {
+        session: oldSession,
+        _arenaLoadedPeers: new Set(),
+        _pendingStateUpdates: [],
+    };
+    const completedWait = waitForRuntimePlayersLoaded(facade);
+    oldSession.emit('playerLoaded', { playerId: 'client' });
+    await completedWait;
+    assert.equal(oldSession.broadcasts, 1);
+
+    teardownRuntimeSession(facade);
+    const replacementSession = createRuntimeLoadSession();
+    facade.session = replacementSession;
+    await new Promise((resolve) => setTimeout(resolve, 450));
+    assert.equal(replacementSession.broadcasts, 0);
+
+    const pendingSession = createRuntimeLoadSession();
+    facade.session = pendingSession;
+    const pendingWait = waitForRuntimePlayersLoaded(facade);
+    teardownRuntimeSession(facade);
+    await Promise.race([
+        pendingWait,
+        new Promise((_, reject) => setTimeout(() => reject(new Error('host load wait was not cancelled')), 100)),
+    ]);
+    assert.equal(pendingSession.broadcasts, 0);
+});
 
 test('OnlineMatchLobby classifies invalid signaling payloads', () => {
     const lobby = new OnlineMatchLobby({ signalingUrl: 'ws://localhost:1234' });
@@ -138,11 +188,22 @@ test('online match handoff attaches transports to the SAME lobby and completes t
             lobbyCode,
             sessionToken: hostLobby.getLocalPeerToken(),
         });
-        await clientAdapter.connect({
+        let clientConnectResolved = false;
+        const clientConnect = clientAdapter.connect({
             playerId: clientPeerId,
             lobbyCode,
             sessionToken: clientLobby.getLocalPeerToken(),
+            dataChannelOpenTimeoutMs: 1000,
+        }).then(() => {
+            clientConnectResolved = true;
         });
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        assert.equal(clientConnectResolved, false, 'signaling alone must not resolve client connect');
+        clientAdapter._dataChannelManager._emit('channelOpen', {
+            peerId: hostPeerId,
+            channel: 'state',
+        });
+        await clientConnect;
 
         // Same lobby: the host adapter must offer to the attaching client and
         // receive the answer back through the relay.
@@ -153,6 +214,16 @@ test('online match handoff attaches transports to the SAME lobby and completes t
         assert.equal(clientLog[0]?.op, 'handleOffer');
         assert.equal(clientLog[0]?.peerId, hostPeerId);
         assert.equal(clientAdapter._hostPeerId, hostPeerId);
+
+        const resumed = waitForEvent(clientAdapter, 'connectionResumed');
+        clientAdapter._registerPeerDisconnect(hostPeerId, 'test-drop');
+        await new Promise((resolve) => setTimeout(resolve, 30));
+        clientAdapter._dataChannelManager._emit('channelOpen', {
+            peerId: hostPeerId,
+            channel: 'state',
+        });
+        await resumed;
+        assert.equal(clientAdapter.isConnected, true);
 
         // No double slot usage: attaching transports must not add lobby members.
         await new Promise((resolve) => setTimeout(resolve, 50));
@@ -225,6 +296,25 @@ test('DataChannelManager creates a fully reliable state channel', () => {
     assert.equal(stateChannel.options.ordered, true);
     assert.equal('maxRetransmits' in stateChannel.options, false, 'state channel must be fully reliable');
     assert.equal(inputChannel.options.maxRetransmits, 0);
+});
+
+test('DataChannelManager preserves lifecycle messages under backpressure', () => {
+    const sent = [];
+    const manager = new DataChannelManager({
+        backpressureThresholdBytes: 64,
+        backpressureCooldownMs: 0,
+    });
+    manager._channels.set('peer-1:state', {
+        readyState: 'open',
+        bufferedAmount: 512,
+        send: (payload) => sent.push(JSON.parse(payload)),
+        close: () => {},
+    });
+
+    assert.equal(manager.send('peer-1', 'state', { type: 'state_snapshot' }), false);
+    assert.equal(manager.send('peer-1', 'state', { type: 'full_state_sync' }), true);
+    assert.deepEqual(sent.map((message) => message.type), ['full_state_sync']);
+    manager.dispose();
 });
 
 test('client-side adapters deduplicate disconnect events per peer', () => {

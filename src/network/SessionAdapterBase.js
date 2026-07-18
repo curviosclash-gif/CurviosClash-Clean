@@ -31,6 +31,8 @@ export class SessionAdapterBase extends SessionAdapter {
         // Client-side dedup: channel-close fires once per data channel (inputs +
         // state), which previously emitted hostDisconnected twice.
         this._clientDisconnectedPeers = new Set();
+        this._clientReconnectGeneration = 0;
+        this._isDisconnecting = false;
     }
 
     _createStateMessage(type, payload = null) {
@@ -58,6 +60,7 @@ export class SessionAdapterBase extends SessionAdapter {
     }
 
     _registerPeerDisconnect(peerId, reason) {
+        if (this._isDisconnecting) return;
         const normalizedPeerId = normalizePeerId(peerId);
         if (!normalizedPeerId) return;
         if (this._disconnectedPeers.has(normalizedPeerId)) return;
@@ -109,6 +112,34 @@ export class SessionAdapterBase extends SessionAdapter {
         const normalizedPeerId = normalizePeerId(peerId);
         if (!normalizedPeerId) return;
         this._clientDisconnectedPeers.delete(normalizedPeerId);
+    }
+
+    _attemptClientReconnect(peerId, reason) {
+        const normalizedPeerId = normalizePeerId(peerId);
+        if (!normalizedPeerId || typeof this.reconnect !== 'function') return false;
+
+        const generation = this._clientReconnectGeneration;
+        this.isConnected = false;
+        this._closePeerConnection(normalizedPeerId);
+        this._removePeerLatency(normalizedPeerId);
+
+        Promise.resolve()
+            .then(() => this.reconnect())
+            .then(() => {
+                if (this._isDisconnecting || generation !== this._clientReconnectGeneration) return;
+                this._clearClientPeerDisconnect(normalizedPeerId);
+            })
+            .catch((error) => {
+                if (this._isDisconnecting || generation !== this._clientReconnectGeneration) return;
+                this._emit('hostDisconnected', { reason, error });
+                this._emit('playerDisconnected', {
+                    peerId: normalizedPeerId,
+                    reason,
+                    isHost: true,
+                    error,
+                });
+            });
+        return true;
     }
 
     _finalizePeerRemoval(peerId) {
@@ -237,6 +268,7 @@ export class SessionAdapterBase extends SessionAdapter {
     }
 
     _clearReconnectPeers() {
+        this._clientReconnectGeneration += 1;
         for (const entry of this._disconnectedPeers.values()) {
             if (entry?.timer) {
                 clearTimeout(entry.timer);
