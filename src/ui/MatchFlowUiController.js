@@ -62,6 +62,7 @@ export class MatchFlowUiController {
             logger: console,
         });
         this._startMatchPromise = null;
+        this._startMatchGeneration = 0;
         this.pauseOverlayController = new PauseOverlayController({
             matchFlowUiController: this,
             runtime: this.game,
@@ -235,7 +236,8 @@ export class MatchFlowUiController {
         this.telemetryController.recordRoundEndTelemetry(roundEndPlan);
     }
 
-    _completeStartedMatch(initializedMatch) {
+    _completeStartedMatch(initializedMatch, startGeneration) {
+        if (!initializedMatch || startGeneration !== this._startMatchGeneration) return false;
         startArcadeRunIfEnabled(this.runtimePort, this.game);
         this.telemetryController.bindHuntEventHandlers(this.sessionOrchestrator);
         this.startRound();
@@ -336,7 +338,7 @@ export class MatchFlowUiController {
         }
     }
 
-    _startMatchInternal() {
+    _startMatchInternal(startGeneration) {
         const game = this.game;
         game.keyCapture = null;
 
@@ -352,6 +354,7 @@ export class MatchFlowUiController {
         const sessionInitPromise = initializeMatchSession(this.runtimePort, game);
 
         const createMatch = () => {
+            if (startGeneration !== this._startMatchGeneration) return null;
             this._configureInputSourcesForMatch();
             const initializedMatch = this.sessionOrchestrator.createMatchSession({
                 onPlayerFeedback: (player, message) => {
@@ -381,15 +384,17 @@ export class MatchFlowUiController {
         };
 
         const completeWithLoadGate = (resolvedMatch) => {
+            if (!resolvedMatch || startGeneration !== this._startMatchGeneration) return false;
             const loadGate = waitForMatchPlayersLoaded(this.runtimePort, game);
             if (isPromiseLike(loadGate)) {
-                return Promise.resolve(loadGate).then(() => this._completeStartedMatch(resolvedMatch));
+                return Promise.resolve(loadGate).then(() => this._completeStartedMatch(resolvedMatch, startGeneration));
             }
-            return this._completeStartedMatch(resolvedMatch);
+            return this._completeStartedMatch(resolvedMatch, startGeneration);
         };
 
         if (isPromiseLike(sessionInitPromise)) {
-            return Promise.resolve(sessionInitPromise).then(() => {
+            return Promise.resolve(sessionInitPromise).then((sessionInitialized) => {
+                if (sessionInitialized === false || startGeneration !== this._startMatchGeneration) return false;
                 const initializedMatch = createMatch();
                 if (isPromiseLike(initializedMatch)) {
                     return Promise.resolve(initializedMatch).then((r) => completeWithLoadGate(r));
@@ -398,6 +403,7 @@ export class MatchFlowUiController {
             });
         }
 
+        if (sessionInitPromise === false || startGeneration !== this._startMatchGeneration) return false;
         const initializedMatch = createMatch();
         if (isPromiseLike(initializedMatch)) {
             return Promise.resolve(initializedMatch).then((resolvedMatch) => completeWithLoadGate(resolvedMatch));
@@ -416,7 +422,7 @@ export class MatchFlowUiController {
                     this._startMatchPromise = null;
                 }
             },
-            execute: () => this._startMatchInternal(),
+            execute: () => this._startMatchInternal(++this._startMatchGeneration),
             handleError: (error) => this._handleStartMatchFailure(error),
         });
     }
@@ -457,10 +463,12 @@ export class MatchFlowUiController {
     }
 
     applyReturnToMenuUi(options = {}) {
+        this._startMatchGeneration += 1;
         return this.lifecycleController.applyReturnToMenuUi(options);
     }
 
     returnToMenu(options = {}) {
+        this._startMatchGeneration += 1;
         return this.lifecycleController.returnToMenu(options);
     }
 
@@ -485,6 +493,7 @@ export class MatchFlowUiController {
     applyDisconnectConfirmationProjection() { return this.pauseOverlayController.applyDisconnectConfirmationProjection(); }
     setupPauseOverlayListeners() { this.pauseOverlayController.setupListeners(); }
     dispose() {
+        this._startMatchGeneration += 1;
         this.arcadeOverlayController?.dispose?.();
         this.pauseOverlayController?.dispose?.();
     }

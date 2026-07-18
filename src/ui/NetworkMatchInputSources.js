@@ -92,6 +92,9 @@ export function createNetworkLocalInputSource({
             }
             return input;
         },
+        clearInputState() {
+            source?.clearInputState?.();
+        },
         dispose() {
             source?.dispose?.();
             this.unbind();

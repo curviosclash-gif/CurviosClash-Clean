@@ -122,12 +122,7 @@ export class TouchInputSource extends PlayerInputSource {
             dropItem: false,
             shootMG: false,
         };
-        this._prevBoost = false;
-        this._prevDiscreteButtons = {
-            fire: false,
-            useItem: false,
-            nextItem: false,
-        };
+        this._pendingButtonPresses = new Set();
         this._lastPauseRequestAt = 0;
         this._overlayActive = false;
         this._blockingOverlayObserver = null;
@@ -295,6 +290,7 @@ export class TouchInputSource extends PlayerInputSource {
                     continue;
                 }
                 if (action && action in this._buttons) {
+                    if (!this._buttons[action]) this._pendingButtonPresses.add(action);
                     this._buttons[action] = true;
                     this._buttonTouches.set(touch.identifier, action);
                 }
@@ -328,7 +324,6 @@ export class TouchInputSource extends PlayerInputSource {
             this._buttonTouches.delete(touch.identifier);
             if (action && action in this._buttons) {
                 this._buttons[action] = [...this._buttonTouches.values()].includes(action);
-                if (!this._buttons[action] && action in this._prevDiscreteButtons) this._prevDiscreteButtons[action] = false;
             }
         }
     }
@@ -354,6 +349,7 @@ export class TouchInputSource extends PlayerInputSource {
     }
 
     _beginJoystickTouch(touch, { floating = false } = {}) {
+        if (this._joystickActive) return;
         this._joystickTouchId = touch.identifier;
         if (floating) {
             this._joystickCenter = { x: touch.clientX, y: touch.clientY };
@@ -494,14 +490,10 @@ export class TouchInputSource extends PlayerInputSource {
         this._syncActionButtons(actionState);
 
         const boostDown = this._buttons.boost;
-        const boostPressed = boostDown && !this._prevBoost;
-        this._prevBoost = boostDown;
-        const firePressed = this._buttons.fire && !this._prevDiscreteButtons.fire;
-        const useItemPressed = this._buttons.useItem && !this._prevDiscreteButtons.useItem;
-        const nextItemPressed = this._buttons.nextItem && !this._prevDiscreteButtons.nextItem;
-        this._prevDiscreteButtons.fire = this._buttons.fire;
-        this._prevDiscreteButtons.useItem = this._buttons.useItem;
-        this._prevDiscreteButtons.nextItem = this._buttons.nextItem;
+        const boostPressed = this._pendingButtonPresses.delete('boost');
+        const firePressed = this._pendingButtonPresses.delete('fire');
+        const useItemPressed = this._pendingButtonPresses.delete('useItem');
+        const nextItemPressed = this._pendingButtonPresses.delete('nextItem');
 
         return {
             pitchUp: touchPitchActive ? jy < -deadzone : (tiltInput ? tiltInput.pitchUp : jy < -deadzone),
@@ -555,14 +547,13 @@ export class TouchInputSource extends PlayerInputSource {
         }
         this._restoreJoystickHomePosition();
         this._buttonTouches.clear();
+        this._pendingButtonPresses.clear();
         for (const key of Object.keys(this._buttons)) {
             this._buttons[key] = false;
         }
-        this._prevBoost = false;
-        for (const key of Object.keys(this._prevDiscreteButtons)) {
-            this._prevDiscreteButtons[key] = false;
-        }
     }
+
+    clearInputState() { this._releaseAllControls(); }
 
     _isElementVisible(element) {
         return !!element && !element.classList?.contains?.('hidden')
@@ -795,6 +786,7 @@ export class TouchInputSource extends PlayerInputSource {
     dispose() {
         if (this._disposed) return;
         this._disposed = true;
+        this._releaseAllControls();
         this.removeUI();
         super.dispose();
     }

@@ -209,6 +209,9 @@ test('Mobile Arcade touch contract uses tilt controls, pause, and edge-triggered
   source._buttons.fire = true;
   source._buttons.useItem = true;
   source._buttons.nextItem = true;
+  source._pendingButtonPresses.add('fire');
+  source._pendingButtonPresses.add('useItem');
+  source._pendingButtonPresses.add('nextItem');
   const firstPoll = source.poll();
   const secondPoll = source.poll();
 

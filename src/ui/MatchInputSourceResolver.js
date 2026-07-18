@@ -246,6 +246,9 @@ function createGamepadWithTouchFallback(gamepadSource, touchSource) {
             setTouchActive(!gamepadInput);
             return gamepadInput || touchSource.poll();
         },
+        clearInputState() {
+            touchSource.clearInputState?.();
+        },
         dispose() {
             setTouchActive(false);
             gamepadSource.dispose();

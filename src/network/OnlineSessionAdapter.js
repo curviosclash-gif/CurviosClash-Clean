@@ -83,6 +83,8 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             this._registerPeerDisconnect(peerId, 'channel-close');
         });
 
+        this._dataChannelManager.on('channelOpen', ({ peerId, channel }) => this._resolvePeerReconnectOnChannelOpen(peerId, channel));
+
         this._peerManager.on('peerDisconnected', ({ peerId, state }) => {
             this._registerPeerDisconnect(peerId, state);
         });

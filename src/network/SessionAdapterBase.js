@@ -173,6 +173,12 @@ export class SessionAdapterBase extends SessionAdapter {
         this._emit('fullStateSyncNeeded', { peerId: normalizedPeerId });
     }
 
+    _resolvePeerReconnectOnChannelOpen(peerId, channel) {
+        if (this.isHost && channel === 'state' && this._disconnectedPeers.has(peerId)) {
+            this._resolvePeerReconnect(peerId);
+        }
+    }
+
     /**
      * Override in concrete adapters to return the host's peer ID as known by this adapter.
      * Returns null in the base class (no-op fallback).

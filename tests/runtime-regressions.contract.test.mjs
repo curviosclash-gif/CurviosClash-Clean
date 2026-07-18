@@ -9,6 +9,7 @@ import {
 import { SessionRuntimeCommandExecutor } from '../src/application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { GameRuntimeCoordinator } from '../src/core/runtime/GameRuntimeCoordinator.js';
+import { InputManager } from '../src/core/InputManager.js';
 import { toggleCinematicRecordingFromHotkey } from '../src/core/runtime/GameRuntimeRecordingSupport.js';
 import { GameRuntimeSessionHandler } from '../src/core/runtime/GameRuntimeSessionHandler.js';
 import { GameRuntimeSettingsHandler } from '../src/core/runtime/GameRuntimeSettingsHandler.js';
@@ -147,6 +148,68 @@ test('MatchFlowUiController assigns the start inflight guard before reentrant wo
     resolveStart();
     assert.deepEqual(await Promise.all([firstPromise, nestedPromise]), ['started', 'started']);
     assert.equal(controller._startMatchPromise, null);
+});
+
+test('MatchFlowUiController ignores a late match start after returning to menu', async () => {
+    let resolveSessionInit;
+    let createMatchCalls = 0;
+    let startRoundCalls = 0;
+    const game = {
+        state: 'MENU',
+        ui: {},
+        numHumans: 1,
+        input: null,
+        settings: {},
+        runtimeConfig: { session: { numHumans: 1 } },
+    };
+    const controller = new MatchFlowUiController({
+        game,
+        runtimePort: {
+            initializeSession: () => new Promise((resolve) => { resolveSessionInit = resolve; }),
+            waitForAllPlayersLoaded: () => undefined,
+            setSplitScreen() {},
+        },
+        sessionOrchestrator: {
+            createMatchSession() {
+                createMatchCalls += 1;
+                return { feedbackPlan: null };
+            },
+        },
+    });
+    controller.applyMatchUiState = () => {};
+    controller._configureInputSourcesForMatch = () => {};
+    controller.startRound = () => {
+        startRoundCalls += 1;
+        game.state = 'PLAYING';
+    };
+
+    const startPromise = controller.applyStartMatchProjection();
+    controller.applyReturnToMenuUi({ showMenuPanel: false });
+    resolveSessionInit(true);
+
+    assert.equal(await startPromise, false);
+    assert.equal(game.state, 'MENU');
+    assert.equal(createMatchCalls, 0);
+    assert.equal(startRoundCalls, 0);
+});
+
+test('InputManager clears assigned touch sources on blur-state reset', () => {
+    const touchSource = {
+        cleared: 0,
+        clearInputState() {
+            this.cleared += 1;
+        },
+    };
+    const manager = Object.create(InputManager.prototype);
+    manager.keys = { Space: true };
+    manager.justPressed = { Space: true };
+    manager._playerSources = new Map([[0, touchSource]]);
+
+    manager.clearInputState('window-blur');
+
+    assert.deepEqual(manager.keys, {});
+    assert.deepEqual(manager.justPressed, {});
+    assert.equal(touchSource.cleared, 1);
 });
 
 test('V115.4.2 match runtime traversal fields stay additive within projection v1', () => {

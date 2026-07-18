@@ -70,6 +70,8 @@ export class LANSessionAdapter extends SessionAdapterBase {
             this._registerPeerDisconnect(peerId, 'channel-close');
         });
 
+        this._dataChannelManager.on('channelOpen', ({ peerId, channel }) => this._resolvePeerReconnectOnChannelOpen(peerId, channel));
+
         this._peerManager.on('peerDisconnected', ({ peerId, state }) => {
             this._registerPeerDisconnect(peerId, state);
         });
@@ -367,9 +369,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
                         maxRetries: 10,
                     }).catch(() => { /* best-effort */ });
 
-                    if (this._disconnectedPeers.has(targetPeerId)) {
-                        this._resolvePeerReconnect(targetPeerId);
-                    } else {
+                    if (!this._disconnectedPeers.has(targetPeerId)) {
                         this._emit('playerConnected', { peerId: targetPeerId });
                     }
                     return;

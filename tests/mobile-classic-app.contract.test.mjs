@@ -881,6 +881,9 @@ test('Mobile Classic touch path has pause and edge-triggered item actions', () =
   source._buttons.fire = true;
   source._buttons.useItem = true;
   source._buttons.nextItem = true;
+  source._pendingButtonPresses.add('fire');
+  source._pendingButtonPresses.add('useItem');
+  source._pendingButtonPresses.add('nextItem');
   const firstPoll = source.poll();
   const secondPoll = source.poll();
 
@@ -1007,6 +1010,66 @@ test('Mobile Classic fallback joystick can start as a floating left-side stick',
   assert.equal(joystick.style.left, '60px');
   assert.equal(joystick.style.top, '460px');
 
+  source.dispose();
+});
+
+test('Mobile Classic keeps a quick touch tap latched until the next poll', () => {
+  const fireTarget = {
+    dataset: { action: 'fire' },
+    closest(selector) {
+      return selector === '[data-action]' ? this : null;
+    },
+  };
+  const source = new TouchInputSource({ game: { settings: { localSettings: {} } } });
+  source._resolveActionState = () => ({
+    canShootNow: true,
+    canUseNow: true,
+    canCycle: true,
+    showMg: false,
+  });
+  const event = {
+    changedTouches: [{ identifier: 4, clientX: 10, clientY: 10 }],
+    preventDefault() {},
+  };
+
+  withGlobalValue('document', { elementFromPoint: () => fireTarget }, () => {
+    source._onTouchStart(event);
+    source._onTouchEnd(event);
+  });
+
+  assert.equal(source.poll().shootItem, true);
+  assert.equal(source.poll().shootItem, false);
+  source.dispose();
+});
+
+test('Mobile Classic keeps the first joystick finger as owner', () => {
+  const joystick = createTouchElement();
+  const source = new TouchInputSource({ game: { settings: { localSettings: {} } } });
+  source._joystickEl = joystick;
+  source._joystickKnobEl = createTouchElement();
+
+  source._beginJoystickTouch({ identifier: 1, clientX: 40, clientY: 440 });
+  source._beginJoystickTouch({ identifier: 2, clientX: 60, clientY: 460 });
+  source._onTouchEnd({ changedTouches: [{ identifier: 2 }] });
+
+  assert.equal(source._joystickTouchId, 1);
+  assert.equal(source._joystickActive, true);
+  source.dispose();
+});
+
+test('Mobile Classic clears held touch controls through the shared input reset', () => {
+  const source = new TouchInputSource();
+  source._buttons.boost = true;
+  source._joystickActive = true;
+  source._joystickTouchId = 8;
+  source._joystickDelta = { x: 0.8, y: -0.4 };
+
+  source.clearInputState();
+
+  assert.equal(source._buttons.boost, false);
+  assert.equal(source._joystickActive, false);
+  assert.equal(source._joystickTouchId, null);
+  assert.deepEqual(source._joystickDelta, { x: 0, y: 0 });
   source.dispose();
 });
 

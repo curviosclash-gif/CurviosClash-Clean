@@ -66,16 +66,32 @@ export async function initRuntimeSession(facade) {
     const game = facade?.game;
     const sessionContract = resolveSessionContract(game?.runtimeConfig?.session);
 
-    await teardownRuntimeSession(facade);
+    const pendingTeardown = teardownRuntimeSession(facade);
+    const initGeneration = facade._runtimeSessionGeneration;
+    const isCurrentInit = () => facade?._runtimeSessionGeneration === initGeneration;
+    await pendingTeardown;
+    if (!isCurrentInit()) return false;
     facade._runtimeSessionContract = sessionContract;
     const connectionContext = resolveRuntimeSessionConnectionContext(facade, sessionContract);
-    facade.session = await createRuntimeSessionAdapter(sessionContract, connectionContext);
+    const session = await createRuntimeSessionAdapter(sessionContract, connectionContext);
+    if (!isCurrentInit()) {
+        await Promise.resolve(session?.dispose?.());
+        return false;
+    }
+    facade.session = session;
 
     const numHumans = game?.runtimeConfig?.session?.numHumans || 1;
-    await facade.session.connect({
+    await session.connect({
         numHumans,
         ...connectionContext,
     });
+    if (!isCurrentInit() || facade.session !== session) {
+        if (facade.session === session) {
+            facade.session = null;
+            await Promise.resolve(session.dispose?.());
+        }
+        return false;
+    }
 
     if (sessionContract.isNetworkSession) {
         applyRuntimeNetworkPlayerSlotContext(facade);
@@ -90,6 +106,7 @@ export async function initRuntimeSession(facade) {
         setupRuntimeClientStateReceiver(facade);
         facade._lifecycleKernelHandlers = attachMultiplayerLifecycleKernel(facade, facade.session);
     }
+    return true;
 }
 
 export function startRuntimeStateBroadcast(facade) {
@@ -406,6 +423,9 @@ export async function waitForRuntimePlayersLoaded(facade) {
 }
 
 export function teardownRuntimeSession(facade) {
+    if (facade) {
+        facade._runtimeSessionGeneration = (Number(facade._runtimeSessionGeneration) || 0) + 1;
+    }
     if (facade?.game?.entityManager) {
         facade.game.entityManager.isFightOutcomeAuthority = true;
         facade.game.entityManager.onAuthoritativeFightStateChanged = null;

@@ -206,6 +206,9 @@ export class InputManager {
     clearInputState(_reason = 'manual') {
         this.keys = {};
         this.justPressed = {};
+        for (const source of this._playerSources.values()) {
+            source.clearInputState?.();
+        }
     }
 
     _resetInput(inputObj) {

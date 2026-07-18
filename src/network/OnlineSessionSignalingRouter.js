@@ -23,9 +23,6 @@ function markConnected(adapter, msg, { hostPeerIdFallback = null } = {}) {
 async function offerToPeer(adapter, peerId) {
     const normalizedPeerId = String(peerId || '').trim();
     if (!normalizedPeerId || normalizedPeerId === adapter.localPlayerId) return;
-    if (adapter._disconnectedPeers.has(normalizedPeerId)) {
-        adapter._resolvePeerReconnect(normalizedPeerId);
-    }
     const offer = await adapter._peerManager.createOffer(normalizedPeerId);
     adapter._sendSignaling(createSignalingEnvelope(
         SIGNALING_COMMAND_TYPES.OFFER,
@@ -100,9 +97,10 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
         break;
 
     case SIGNALING_EVENT_TYPES.PLAYER_RECONNECTED:
-        adapter._emit('playerReconnected', { peerId: msg.peerId });
         if (adapter.isHost && msg.peerId) {
             await offerToPeer(adapter, msg.peerId);
+        } else {
+            adapter._emit('playerReconnected', { peerId: msg.peerId });
         }
         break;
 
@@ -123,7 +121,9 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
         if (!adapter.isHost || !msg.fromPeerId || msg.fromPeerId === adapter._hostPeerId) break;
         await adapter._peerManager.handleAnswer(msg.fromPeerId, msg.answer);
         adapter._latencyMonitor.addPeer(msg.fromPeerId);
-        adapter._emit('playerConnected', { peerId: msg.fromPeerId });
+        if (!adapter._disconnectedPeers.has(msg.fromPeerId)) {
+            adapter._emit('playerConnected', { peerId: msg.fromPeerId });
+        }
         break;
 
     case SIGNALING_COMMAND_TYPES.ICE:

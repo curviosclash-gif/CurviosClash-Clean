@@ -4,15 +4,19 @@ import test from 'node:test';
 import { createSignalingServer } from '../server/signaling-server.js';
 import { OnlineMatchLobby } from '../src/network/OnlineMatchLobby.js';
 import { OnlineSessionAdapter } from '../src/network/OnlineSessionAdapter.js';
+import { LANSessionAdapter } from '../src/network/LANSessionAdapter.js';
+import { routeOnlineSessionSignalingMessage } from '../src/network/OnlineSessionSignalingRouter.js';
 import { DataChannelManager } from '../src/network/DataChannelManager.js';
 import { PeerConnectionManager } from '../src/network/PeerConnectionManager.js';
 import { SessionAdapterBase } from '../src/network/SessionAdapterBase.js';
 import { attachMultiplayerLifecycleKernel, detachMultiplayerLifecycleKernel } from '../src/core/runtime/MultiplayerMatchLifecycleKernel.js';
 import {
+    initRuntimeSession,
     teardownRuntimeSession,
     waitForRuntimePlayersLoaded,
 } from '../src/core/runtime/RuntimeSessionLifecycleService.js';
 import { GAME_STATE_IDS } from '../src/shared/contracts/GameStateIds.js';
+import { SIGNALING_EVENT_TYPES } from '../src/shared/contracts/SignalingSessionContract.js';
 
 function waitForEvent(emitter, event, timeoutMs = 5000) {
     return new Promise((resolve, reject) => {
@@ -113,6 +117,28 @@ test('runtime teardown cancels host load waits and stale round-start retries', a
         new Promise((_, reject) => setTimeout(() => reject(new Error('host load wait was not cancelled')), 100)),
     ]);
     assert.equal(pendingSession.broadcasts, 0);
+});
+
+test('runtime session initialization stays cancelled after teardown wins the race', async () => {
+    let resolveDispose;
+    const facade = {
+        game: {
+            runtimeConfig: {
+                session: { sessionType: 'local' },
+            },
+        },
+        session: {
+            dispose: () => new Promise((resolve) => { resolveDispose = resolve; }),
+        },
+        _pendingStateUpdates: [],
+    };
+
+    const initializePromise = initRuntimeSession(facade);
+    teardownRuntimeSession(facade);
+    resolveDispose();
+
+    assert.equal(await initializePromise, false);
+    assert.equal(facade.session, null);
 });
 
 test('OnlineMatchLobby classifies invalid signaling payloads', () => {
@@ -315,6 +341,42 @@ test('DataChannelManager preserves lifecycle messages under backpressure', () =>
     assert.equal(manager.send('peer-1', 'state', { type: 'full_state_sync' }), true);
     assert.deepEqual(sent.map((message) => message.type), ['full_state_sync']);
     manager.dispose();
+});
+
+test('network reconnect completes once after the reliable state channel opens', async () => {
+    const online = new OnlineSessionAdapter({ isHost: true });
+    online.localPlayerId = 'host';
+    online._peerManager = stubPeerManager();
+    online._sendSignaling = () => {};
+    online._disconnectedPeers.set('peer-2', { timer: null });
+    let onlineReconnects = 0;
+    let onlineSyncs = 0;
+    online.on('playerReconnected', () => { onlineReconnects += 1; });
+    online.on('fullStateSyncNeeded', () => { onlineSyncs += 1; });
+
+    await routeOnlineSessionSignalingMessage(online, {
+        type: SIGNALING_EVENT_TYPES.PLAYER_RECONNECTED,
+        peerId: 'peer-2',
+    });
+    assert.equal(onlineReconnects, 0);
+    assert.equal(onlineSyncs, 0);
+
+    online._dataChannelManager._emit('channelOpen', { peerId: 'peer-2', channel: 'state' });
+    online._dataChannelManager._emit('channelOpen', { peerId: 'peer-2', channel: 'state' });
+    assert.equal(onlineReconnects, 1);
+    assert.equal(onlineSyncs, 1);
+
+    const lan = new LANSessionAdapter({ isHost: true });
+    lan._disconnectedPeers.set('peer-3', { timer: null });
+    let lanSyncs = 0;
+    lan.on('fullStateSyncNeeded', () => { lanSyncs += 1; });
+    lan._dataChannelManager._emit('channelOpen', { peerId: 'peer-3', channel: 'inputs' });
+    assert.equal(lanSyncs, 0);
+    lan._dataChannelManager._emit('channelOpen', { peerId: 'peer-3', channel: 'state' });
+    assert.equal(lanSyncs, 1);
+
+    online.dispose();
+    lan.dispose();
 });
 
 test('client-side adapters deduplicate disconnect events per peer', () => {
