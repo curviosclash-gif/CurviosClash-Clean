@@ -130,4 +130,8 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(analysisSource, /readOption\(\['policy', 'policy-type'\], 'heuristic'\)/);
     assert.match(analysisSource, /runnerArgs\.push\('--fail-on-forced-round', 'true'\)/);
     assert.match(packageSource, /"bot:validate:fight".*H-FIGHT.*--rounds 8.*--headless true.*--fail-on-forced-round true/);
+    assert.match(
+        packageSource,
+        /"bot:validate:flight".*H-FIGHT,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL.*--policy heuristic.*--rounds 2.*--headless true/
+    );
 });
