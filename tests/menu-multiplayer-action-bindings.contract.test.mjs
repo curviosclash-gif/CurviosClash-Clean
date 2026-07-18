@@ -1,6 +1,9 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
+import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
+import { createMenuEventHandlerRegistry } from '../src/core/runtime/menu-handlers/CreateMenuEventHandlerRegistry.js';
+import { MENU_CONTROLLER_EVENT_TYPES } from '../src/shared/contracts/MenuControllerContract.js';
 import { bindMenuMultiplayerActionButtons } from '../src/ui/menu/MenuMultiplayerActionBindings.js';
 
 function createButton() {
@@ -42,4 +45,19 @@ test('LAN multiplayer join button forwards lobbyCode plus optional manual signal
             signalingUrl: 'localhost:9090',
         },
     }]);
+});
+
+test('multiplayer leave event delegates through the runtime facade', () => {
+    const event = { type: MENU_CONTROLLER_EVENT_TYPES.MULTIPLAYER_LEAVE_LOBBY };
+    const facade = Object.create(GameRuntimeFacade.prototype);
+    facade.menuActionHandler = {
+        handleMultiplayerLeaveLobby(receivedEvent) {
+            assert.equal(receivedEvent, event);
+            return 'left';
+        },
+    };
+
+    const registry = createMenuEventHandlerRegistry(facade);
+
+    assert.equal(registry.get(event.type)(event), 'left');
 });

@@ -452,6 +452,7 @@ export class GameRuntimeFacade {
     _invalidateMultiplayerReadyIfHostChangedSettings(changedKeys) { return this.settingsHandler.invalidateMultiplayerReadyIfHostChangedSettings(changedKeys); }
     handleMultiplayerHost(event) { return this.menuActionHandler.handleMultiplayerHost(event); }
     handleMultiplayerJoin(event) { return this.menuActionHandler.handleMultiplayerJoin(event); }
+    handleMultiplayerLeaveLobby(event) { return this.menuActionHandler.handleMultiplayerLeaveLobby(event); }
     handleMultiplayerReadyToggle(event) { return this.menuActionHandler.handleMultiplayerReadyToggle(event); }
     handleDeveloperModeToggle(event) { return this.menuActionHandler.handleDeveloperModeToggle(event); }
     handleDeveloperThemeChange(event) { return this.menuActionHandler.handleDeveloperThemeChange(event); }
