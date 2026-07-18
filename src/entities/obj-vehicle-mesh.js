@@ -76,6 +76,12 @@ export class OBJVehicleMesh extends THREE.Group {
 
     loadModel() {
         if (this._loadingPromise) return this._loadingPromise;
+        if (typeof document === 'undefined') {
+            this._applyFallbackModel();
+            this._loaded = true;
+            this._loadingPromise = Promise.resolve(false);
+            return this._loadingPromise;
+        }
 
         const basePath = 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/';
         this._loadingPromise = loadObjAndMtlModules()
