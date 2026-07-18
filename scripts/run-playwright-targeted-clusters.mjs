@@ -109,6 +109,7 @@ function printDryRun(clusters, playwrightArgs) {
         console.log(`- ${cluster.id}: ${cluster.specs.join(', ')}`);
         console.log(`  TEST_PORT=${env.TEST_PORT || '(auto)'}`);
         console.log(`  PW_RUN_TAG=${env.PW_RUN_TAG}`);
+        console.log(`  PW_RUN_PROFILE=${env.PW_RUN_PROFILE}`);
         console.log(`  PW_OUTPUT_DIR=${env.PW_OUTPUT_DIR}`);
         console.log(`  args=${[...cluster.specs, ...playwrightArgs].join(' ') || '(none)'}`);
     }
@@ -131,6 +132,7 @@ function buildClusterEnv(cluster, index) {
     const env = {
         ...process.env,
         PW_RUN_TAG: clusterRunTag,
+        PW_RUN_PROFILE: cluster.runProfile || 'desktop-e2e',
         PW_OUTPUT_DIR: outputDir,
         PW_HTML_REPORT_DIR: htmlReportDir,
         PW_SERVER_LOG_OUT: '',
