@@ -1282,6 +1282,13 @@ async function run() {
             resolveTimeout(APP_READY_TIMEOUT_MS, 'app:menu-ready', [runDeadline]),
             'app:menu-ready'
         );
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            return typeof game?.getBotValidationMatrix === 'function'
+                && typeof game?.applyBotValidationScenario === 'function';
+        }, null, {
+            timeout: resolveTimeout(EVAL_TIMEOUT_MS, 'app:bot-validation-api', [runDeadline]),
+        });
 
         await evaluatePhase(
             page,

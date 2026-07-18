@@ -92,6 +92,10 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
+    assert.match(
+        runnerSource,
+        /waitForFunction\(\(\) => \{\s+const game = window\.GAME_INSTANCE;\s+return typeof game\?\.getBotValidationMatrix === 'function'\s+&& typeof game\?\.applyBotValidationScenario === 'function';/
+    );
     assert.match(runnerSource, /scenario-base-plus-round-index/);
     assert.match(runnerSource, /round\?\.botDeathCauseCounts/);
     assert.match(runnerSource, /browser runtime errors encountered/);
