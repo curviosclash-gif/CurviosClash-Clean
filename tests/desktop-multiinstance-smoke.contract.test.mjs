@@ -92,8 +92,8 @@ test('64.8.2 host: CREATE_LOBBY signaling command is host-only', () => {
     assert.equal(SIGNALING_COMMAND_ROLE_MAP[SIGNALING_COMMAND_TYPES.CREATE_LOBBY], 'host');
 });
 
-test('64.8.2 host: ANSWER signaling command is host-only (host replies to client offer)', () => {
-    assert.equal(resolveSignalingCommandRole(SIGNALING_COMMAND_TYPES.ANSWER), 'host');
+test('64.8.2 host: OFFER signaling command is host-only (host initiates WebRTC)', () => {
+    assert.equal(resolveSignalingCommandRole(SIGNALING_COMMAND_TYPES.OFFER), 'host');
 });
 
 test('64.8.2 host: MATCH_LIFECYCLE_SIGNAL is host-authoritative', () => {
@@ -134,8 +134,8 @@ test('64.8.2 join: JOIN_LOBBY signaling command is client-only', () => {
     assert.equal(resolveSignalingCommandRole(SIGNALING_COMMAND_TYPES.JOIN_LOBBY), 'client');
 });
 
-test('64.8.2 join: OFFER signaling command is client-only (client initiates WebRTC)', () => {
-    assert.equal(resolveSignalingCommandRole(SIGNALING_COMMAND_TYPES.OFFER), 'client');
+test('64.8.2 join: ANSWER signaling command is client-only (client replies to host offer)', () => {
+    assert.equal(resolveSignalingCommandRole(SIGNALING_COMMAND_TYPES.ANSWER), 'client');
 });
 
 test('64.8.2 join: JOIN message type is client-only', () => {

@@ -14,6 +14,7 @@ Quelle dafuer ist `.env.app` plus explizite Shell-Overrides.
 | Variable | Pflicht | Bedeutung | Default |
 | --- | --- | --- | --- |
 | `VITE_SIGNALING_URL` | ja fuer `online` | WebSocket-Endpoint des Online-Signaling-Servers | leer |
+| `CURVIOS_SIGNALING_ALLOWED_ORIGINS` | fuer Browser-Clients | Kommaseparierte Origin-Allowlist des Signaling-Servers; Loopback und native Clients bleiben erlaubt | leer |
 | `VITE_TURN_URL` | optional | TURN-Server fuer NAT-Traversal | leer |
 | `VITE_TURN_USER` | optional | bevorzugter TURN-Benutzername | leer |
 | `VITE_TURN_USERNAME` | optional | Legacy-Alias fuer `VITE_TURN_USER` | leer |
@@ -23,6 +24,7 @@ Verbindliche Regeln:
 
 - `online` ist nur dann produktiv konfiguriert, wenn `VITE_SIGNALING_URL` auf einen erreichbaren `ws://`- oder `wss://`-Endpoint zeigt.
 - Fuer verteilte Desktop-Builds und Installer ist `wss://` der erwartete Standard. `ws://localhost:9090` bleibt auf lokale Dev-/Smoke-Sessions beschraenkt.
+- Der Desktop-Build uebernimmt den Origin aus `VITE_SIGNALING_URL` in seine CSP. Der Server akzeptiert Browser-Verbindungen nur von Loopback oder einer explizit in `CURVIOS_SIGNALING_ALLOWED_ORIGINS` genannten Game-Origin.
 - Wenn `VITE_TURN_URL` gesetzt wird, muessen Benutzername und Credential zusammen gepflegt werden.
 - Ohne TURN bleibt der Desktop-Client auf die eingebauten STUN-Defaults begrenzt; das ist kein Garant fuer Internet-NAT-Kompatibilitaet.
 

@@ -10,6 +10,7 @@ import {
     SIGNALING_SESSION_CONTRACT_VERSION,
     createSignalingEnvelope,
     normalizeSignalingEnvelope,
+    resolveSignalingCommandRole,
 } from '../src/shared/contracts/SignalingSessionContract.js';
 
 function generateLobbyCode() {
@@ -38,10 +39,15 @@ const HEARTBEAT_INTERVAL = 4000;
 const STALE_TIMEOUT = 15000;
 const LOBBY_TIMEOUT = 30 * 60 * 1000;
 const RECONNECT_WINDOW_MS = 30_000;
+const MAX_SIGNALING_PAYLOAD_BYTES = 16 * 1024;
+const MAX_LOBBY_PLAYERS = 10;
 const MESSAGE_RATE_WINDOW_MS = 10_000;
 const MAX_MESSAGES_PER_SOCKET = 120;
 const MAX_MESSAGES_PER_IP = 600;
 const MAX_LOBBIES = 1_000;
+const MAX_CONNECTIONS_PER_IP = 32;
+const MAX_LOBBIES_PER_IP = 8;
+const UNASSIGNED_SOCKET_TIMEOUT_MS = 10_000;
 
 let nextPeerId = 1;
 
@@ -52,6 +58,29 @@ function normalizeString(value, fallback = '') {
 
 function normalizeLobbyCode(value, fallback = '') {
     return normalizeString(value, fallback).toUpperCase();
+}
+
+function resolveAllowedOrigins(configuredOrigins) {
+    const source = Array.isArray(configuredOrigins)
+        ? configuredOrigins
+        : String(process.env.CURVIOS_SIGNALING_ALLOWED_ORIGINS || '').split(',');
+    return new Set(source.map((entry) => {
+        try { return new URL(String(entry || '').trim()).origin; } catch { return ''; }
+    }).filter(Boolean));
+}
+
+export function isAllowedSignalingOrigin(origin, configuredOrigins = undefined) {
+    const normalizedOrigin = normalizeString(origin, '');
+    if (!normalizedOrigin) return true;
+    try {
+        const parsed = new URL(normalizedOrigin);
+        const hostname = parsed.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+        if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') return false;
+        if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1') return true;
+        return resolveAllowedOrigins(configuredOrigins).has(parsed.origin);
+    } catch {
+        return false;
+    }
 }
 
 function isValidSessionToken(expectedToken, providedToken) {
@@ -253,13 +282,18 @@ function removePeerFromLobby(ws, options = {}) {
     }
 }
 
-function findPeerWs(senderWs, targetPeerId) {
+function findSignalingRoute(senderWs, targetPeerId, commandType) {
     const lobbyCode = peerToLobby.get(senderWs);
     if (!lobbyCode) return null;
     const lobby = lobbies.get(lobbyCode);
     if (!lobby) return null;
+    const senderPeerId = getSocketPeerId(senderWs);
+    const sender = lobby.players.find((entry) => entry.peerId === senderPeerId);
     const target = lobby.players.find((entry) => entry.peerId === targetPeerId);
-    if (!target) return null;
+    if (!sender || !target || sender === target || sender.isHost === target.isHost) return null;
+    const requiredRole = resolveSignalingCommandRole(commandType);
+    if (requiredRole === 'host' && sender.isHost !== true) return null;
+    if (requiredRole === 'client' && sender.isHost === true) return null;
     // WebRTC signaling (offer/answer/ice) belongs to the match transport when
     // one is attached; lobby traffic keeps using the primary socket.
     if (target.transportWs && target.transportWs.readyState === 1) {
@@ -268,8 +302,22 @@ function findPeerWs(senderWs, targetPeerId) {
     return target?.ws || null;
 }
 
-export function createSignalingServer(port = 9090) {
-    const wss = new WebSocketServer({ port });
+export function createSignalingServer(port = 9090, options = {}) {
+    const connectionLimit = Number.isFinite(Number(options.maxConnectionsPerIp))
+        ? Math.max(1, Math.floor(Number(options.maxConnectionsPerIp)))
+        : MAX_CONNECTIONS_PER_IP;
+    const lobbyLimit = Number.isFinite(Number(options.maxLobbiesPerIp))
+        ? Math.max(1, Math.floor(Number(options.maxLobbiesPerIp)))
+        : MAX_LOBBIES_PER_IP;
+    const unassignedTimeoutMs = Number.isFinite(Number(options.unassignedSocketTimeoutMs))
+        ? Math.max(1, Math.floor(Number(options.unassignedSocketTimeoutMs)))
+        : UNASSIGNED_SOCKET_TIMEOUT_MS;
+    const ipConnectionCounts = new Map();
+    const wss = new WebSocketServer({
+        port,
+        maxPayload: MAX_SIGNALING_PAYLOAD_BYTES,
+        verifyClient: ({ origin }) => isAllowedSignalingOrigin(origin, options.allowedOrigins),
+    });
     const ipMessageRates = new Map();
 
     wss.on('connection', (ws, request) => {
@@ -279,6 +327,26 @@ export function createSignalingServer(port = 9090) {
         ws._messageCount = 0;
         ws._remoteAddress = String(request?.socket?.remoteAddress || 'unknown');
         ws.isAlive = true;
+        ipConnectionCounts.set(ws._remoteAddress, (ipConnectionCounts.get(ws._remoteAddress) || 0) + 1);
+        if (ipConnectionCounts.get(ws._remoteAddress) > connectionLimit) {
+            ipConnectionCounts.set(ws._remoteAddress, connectionLimit);
+            ws.close(1008, 'connection_limit_exceeded');
+            return;
+        }
+        const unassignedTimer = setTimeout(() => {
+            if (!peerToLobby.has(ws) && ws.readyState === 1) {
+                ws.close(1008, 'lobby_assignment_timeout');
+            }
+        }, unassignedTimeoutMs);
+
+        const releaseConnection = () => {
+            if (ws._connectionCountReleased) return;
+            ws._connectionCountReleased = true;
+            clearTimeout(unassignedTimer);
+            const remaining = Math.max(0, (ipConnectionCounts.get(ws._remoteAddress) || 1) - 1);
+            if (remaining === 0) ipConnectionCounts.delete(ws._remoteAddress);
+            else ipConnectionCounts.set(ws._remoteAddress, remaining);
+        };
 
         ws.on('pong', () => {
             ws._lastPong = Date.now();
@@ -289,6 +357,11 @@ export function createSignalingServer(port = 9090) {
             if (lobbyCode) {
                 touchLobbyActivity(lobbies.get(lobbyCode));
             }
+        });
+
+        ws.on('error', () => {
+            removePeerFromLobby(ws, { allowResume: true });
+            releaseConnection();
         });
 
         ws.on('message', (raw) => {
@@ -320,14 +393,32 @@ export function createSignalingServer(port = 9090) {
             const msg = envelope.payload;
             const peerId = getSocketPeerId(ws);
 
+            if (
+                peerToLobby.has(ws)
+                && (envelope.type === SIGNALING_COMMAND_TYPES.CREATE_LOBBY
+                    || envelope.type === SIGNALING_COMMAND_TYPES.JOIN_LOBBY)
+            ) {
+                sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Socket already assigned to a lobby' });
+                return;
+            }
+
             switch (envelope.type) {
             case SIGNALING_COMMAND_TYPES.CREATE_LOBBY: {
                 if (lobbies.size >= MAX_LOBBIES) {
                     sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby capacity reached' });
                     break;
                 }
+                const ownedLobbyCount = [...lobbies.values()]
+                    .filter((entry) => entry.ownerAddress === ws._remoteAddress).length;
+                if (ownedLobbyCount >= lobbyLimit) {
+                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'IP lobby capacity reached' });
+                    break;
+                }
                 const code = generateLobbyCode();
-                const maxPlayers = Math.min(Math.max(msg.maxPlayers || 10, 2), 10);
+                const requestedMaxPlayers = Number(msg.maxPlayers);
+                const maxPlayers = Number.isFinite(requestedMaxPlayers)
+                    ? Math.min(Math.max(Math.floor(requestedMaxPlayers), 2), MAX_LOBBY_PLAYERS)
+                    : MAX_LOBBY_PLAYERS;
                 const createdAt = Date.now();
                 const lobby = {
                     code,
@@ -348,6 +439,7 @@ export function createSignalingServer(port = 9090) {
                     lastActivityAt: createdAt,
                     revision: 1,
                     pendingMatchStart: null,
+                    ownerAddress: ws._remoteAddress,
                 };
                 lobbies.set(code, lobby);
                 peerToLobby.set(ws, code);
@@ -506,35 +598,35 @@ export function createSignalingServer(port = 9090) {
             }
 
             case SIGNALING_COMMAND_TYPES.OFFER: {
-                const target = findPeerWs(ws, msg.targetPeerId);
+                const target = findSignalingRoute(ws, msg.targetPeerId, envelope.type);
                 if (target) {
                     sendSignaling(target, SIGNALING_COMMAND_TYPES.OFFER, {
                         fromPeerId: peerId,
                         offer: msg.offer,
                     });
-                }
+                } else sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Signaling role violation' });
                 break;
             }
 
             case SIGNALING_COMMAND_TYPES.ANSWER: {
-                const target = findPeerWs(ws, msg.targetPeerId);
+                const target = findSignalingRoute(ws, msg.targetPeerId, envelope.type);
                 if (target) {
                     sendSignaling(target, SIGNALING_COMMAND_TYPES.ANSWER, {
                         fromPeerId: peerId,
                         answer: msg.answer,
                     });
-                }
+                } else sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Signaling role violation' });
                 break;
             }
 
             case SIGNALING_COMMAND_TYPES.ICE: {
-                const target = findPeerWs(ws, msg.targetPeerId);
+                const target = findSignalingRoute(ws, msg.targetPeerId, envelope.type);
                 if (target) {
                     sendSignaling(target, SIGNALING_COMMAND_TYPES.ICE, {
                         fromPeerId: peerId,
                         candidate: msg.candidate,
                     });
-                }
+                } else sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Signaling role violation' });
                 break;
             }
 
@@ -618,6 +710,7 @@ export function createSignalingServer(port = 9090) {
 
         ws.on('close', () => {
             removePeerFromLobby(ws, { allowResume: true });
+            releaseConnection();
         });
     });
 

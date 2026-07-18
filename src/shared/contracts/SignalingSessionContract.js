@@ -54,7 +54,7 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
  * 'both'   — both host and client may send this command
  *
  * WebRTC topology assumed: star (one host, multiple clients).
- * Clients send OFFER to host; host replies with ANSWER.
+ * The host sends OFFER to clients; clients reply with ANSWER.
  * ICE candidates are exchanged in both directions.
  */
 export const SIGNALING_COMMAND_ROLE_MAP = Object.freeze({
@@ -66,8 +66,8 @@ export const SIGNALING_COMMAND_ROLE_MAP = Object.freeze({
     [SIGNALING_COMMAND_TYPES.INVALIDATE_READY]: 'host',
     [SIGNALING_COMMAND_TYPES.START_MATCH]: 'host',
     [SIGNALING_COMMAND_TYPES.LEAVE]: 'both',
-    [SIGNALING_COMMAND_TYPES.OFFER]: 'client',
-    [SIGNALING_COMMAND_TYPES.ANSWER]: 'host',
+    [SIGNALING_COMMAND_TYPES.OFFER]: 'host',
+    [SIGNALING_COMMAND_TYPES.ANSWER]: 'client',
     [SIGNALING_COMMAND_TYPES.ICE]: 'both',
 });
 
