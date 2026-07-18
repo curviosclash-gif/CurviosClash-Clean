@@ -13,7 +13,11 @@ const { registerTuningIpc } = require('../electron/tuning-ipc.cjs');
 function createIpcHarness() {
     const handlers = new Map();
     const listeners = new Map();
-    return {
+    const harness = {
+        tuningWindow: {
+            isDestroyed: () => false,
+            webContents: { mainFrame: {} },
+        },
         ipcMain: {
             handle(channel, handler) {
                 handlers.set(channel, handler);
@@ -39,12 +43,37 @@ function createIpcHarness() {
             },
         },
         async invoke(channel, payload = undefined) {
+            return harness.invokeAs(channel, harness.eventFor(harness.tuningWindow), payload);
+        },
+        async invokeAs(channel, event, payload = undefined) {
             const handler = handlers.get(channel);
             assert.equal(typeof handler, 'function', `missing IPC handler: ${channel}`);
-            return handler({}, payload);
+            return handler(event, payload);
+        },
+        eventFor(windowRef) {
+            return {
+                sender: windowRef.webContents,
+                senderFrame: windowRef.webContents.mainFrame,
+            };
         },
     };
+    return harness;
 }
+
+test('tuning IPC rejects calls from renderers other than the tuning window', async () => {
+    const harness = createIpcHarness();
+    const dispose = registerTuningIpc({
+        ipcMain: harness.ipcMain,
+        dialog: null,
+        resolveTuningWindow: () => harness.tuningWindow,
+    });
+
+    await assert.rejects(
+        harness.invokeAs('tuning:get-capability', { sender: {}, senderFrame: {} }),
+        { code: 'ERR_CURVIOS_UNTRUSTED_IPC_SENDER' },
+    );
+    dispose();
+});
 
 test('tuning IPC forwards get-all requests to game window runtime bridge', async () => {
     const harness = createIpcHarness();
@@ -52,10 +81,11 @@ test('tuning IPC forwards get-all requests to game window runtime bridge', async
     const gameWindow = {
         isDestroyed: () => false,
         webContents: {
+            mainFrame: {},
             send(channel, payload) {
                 requests.push({ channel, payload });
                 if (channel !== 'tuning-runtime:request') return;
-                harness.ipcMain.emit('tuning-runtime:response', {}, {
+                harness.ipcMain.emit('tuning-runtime:response', harness.eventFor(gameWindow), {
                     requestId: payload.requestId,
                     ok: true,
                     value: { 'PLAYER.SPEED': 20 },
@@ -67,7 +97,7 @@ test('tuning IPC forwards get-all requests to game window runtime bridge', async
         ipcMain: harness.ipcMain,
         dialog: null,
         resolveGameWindow: () => gameWindow,
-        resolveTuningWindow: () => null,
+        resolveTuningWindow: () => harness.tuningWindow,
     });
 
     const result = await harness.invoke('tuning:get-all');
@@ -84,10 +114,11 @@ test('tuning IPC emits update event after successful set-value', async () => {
     const gameWindow = {
         isDestroyed: () => false,
         webContents: {
+            mainFrame: {},
             send(channel, payload) {
                 if (channel !== 'tuning-runtime:request') return;
                 if (payload.action === 'tuning:set-value') {
-                    harness.ipcMain.emit('tuning-runtime:response', {}, {
+                    harness.ipcMain.emit('tuning-runtime:response', harness.eventFor(gameWindow), {
                         requestId: payload.requestId,
                         ok: true,
                         value: {
@@ -99,7 +130,7 @@ test('tuning IPC emits update event after successful set-value', async () => {
                     return;
                 }
                 if (payload.action === 'tuning:get-all') {
-                    harness.ipcMain.emit('tuning-runtime:response', {}, {
+                    harness.ipcMain.emit('tuning-runtime:response', harness.eventFor(gameWindow), {
                         requestId: payload.requestId,
                         ok: true,
                         value: {
@@ -113,16 +144,18 @@ test('tuning IPC emits update event after successful set-value', async () => {
     const tuningWindow = {
         isDestroyed: () => false,
         webContents: {
+            mainFrame: {},
             send(channel, payload) {
                 updateEvents.push({ channel, payload });
             },
         },
     };
+    harness.tuningWindow = tuningWindow;
     const dispose = registerTuningIpc({
         ipcMain: harness.ipcMain,
         dialog: null,
         resolveGameWindow: () => gameWindow,
-        resolveTuningWindow: () => tuningWindow,
+        resolveTuningWindow: () => harness.tuningWindow,
     });
 
     const result = await harness.invoke('tuning:set-value', {
@@ -145,7 +178,7 @@ test('tuning IPC blocks operations when capability is unavailable', async () => 
         ipcMain: harness.ipcMain,
         dialog: null,
         resolveGameWindow: () => null,
-        resolveTuningWindow: () => null,
+        resolveTuningWindow: () => harness.tuningWindow,
         resolveCapabilityState: () => ({
             available: false,
             reason: 'blocked_for_test',
@@ -176,7 +209,7 @@ test('tuning IPC exports and imports preset json via dialog channels', async () 
         ipcMain: harness.ipcMain,
         dialog,
         resolveGameWindow: () => null,
-        resolveTuningWindow: () => null,
+        resolveTuningWindow: () => harness.tuningWindow,
     });
 
     const exportResult = await harness.invoke('tuning:export-preset-json', {

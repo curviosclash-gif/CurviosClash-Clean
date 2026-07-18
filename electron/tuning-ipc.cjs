@@ -1,5 +1,9 @@
 const path = require('node:path');
 const { readFileSync, writeFileSync } = require('node:fs');
+const {
+    assertTrustedWindowSender,
+    isTrustedWindowSender,
+} = require('./ipc-sender-guard.cjs');
 
 const TUNING_IPC_CONTRACT_VERSION = 'tuning-ipc.v1';
 const TUNING_UPDATE_CONTRACT_VERSION = 'tuning-update.v1';
@@ -92,7 +96,8 @@ function registerTuningIpc({
     const pendingResponses = new Map();
     const requestCounterRef = { value: 0 };
 
-    const onRuntimeResponse = (_event, payload) => {
+    const onRuntimeResponse = (event, payload) => {
+        if (!isTrustedWindowSender(event, resolveGameWindow())) return;
         const response = payload && typeof payload === 'object' ? payload : {};
         const requestId = String(response.requestId || '').trim();
         if (!requestId || !pendingResponses.has(requestId)) {
@@ -113,6 +118,13 @@ function registerTuningIpc({
     };
 
     ipcMain.on(TUNING_RUNTIME_RESPONSE_CHANNEL, onRuntimeResponse);
+
+    const registerTuningHandler = (channel, handler) => {
+        ipcMain.handle(channel, (event, ...args) => {
+            assertTrustedWindowSender(event, resolveTuningWindow());
+            return handler(event, ...args);
+        });
+    };
 
     async function forwardToGameWindow(action, payload = null) {
         const capability = resolveCapabilityStateSnapshot(resolveCapabilityState);
@@ -184,20 +196,20 @@ function registerTuningIpc({
         }
     }
 
-    ipcMain.handle(TUNING_CHANNELS.getCapability, async () => ({
+    registerTuningHandler(TUNING_CHANNELS.getCapability, async () => ({
         ok: true,
         capability: resolveCapabilityStateSnapshot(resolveCapabilityState),
     }));
 
-    ipcMain.handle(TUNING_CHANNELS.getRegistry, async () => (
+    registerTuningHandler(TUNING_CHANNELS.getRegistry, async () => (
         forwardToGameWindow(TUNING_CHANNELS.getRegistry, null)
     ));
 
-    ipcMain.handle(TUNING_CHANNELS.getAll, async () => (
+    registerTuningHandler(TUNING_CHANNELS.getAll, async () => (
         forwardToGameWindow(TUNING_CHANNELS.getAll, null)
     ));
 
-    ipcMain.handle(TUNING_CHANNELS.setValue, async (_event, payload = null) => {
+    registerTuningHandler(TUNING_CHANNELS.setValue, async (_event, payload = null) => {
         const requestPayload = payload && typeof payload === 'object'
             ? payload
             : {};
@@ -211,7 +223,7 @@ function registerTuningIpc({
         return result;
     });
 
-    ipcMain.handle(TUNING_CHANNELS.resetAll, async (_event, payload = null) => {
+    registerTuningHandler(TUNING_CHANNELS.resetAll, async (_event, payload = null) => {
         const requestPayload = payload && typeof payload === 'object'
             ? payload
             : {};
@@ -229,7 +241,7 @@ function registerTuningIpc({
         return result;
     });
 
-    ipcMain.handle(TUNING_CHANNELS.exportPresetJson, async (_event, payload = null) => {
+    registerTuningHandler(TUNING_CHANNELS.exportPresetJson, async (_event, payload = null) => {
         const capability = resolveCapabilityStateSnapshot(resolveCapabilityState);
         if (capability.available !== true) {
             return createForwardError('capability_blocked', capability, capability.message);
@@ -281,7 +293,7 @@ function registerTuningIpc({
         }
     });
 
-    ipcMain.handle(TUNING_CHANNELS.importPresetJson, async () => {
+    registerTuningHandler(TUNING_CHANNELS.importPresetJson, async () => {
         const capability = resolveCapabilityStateSnapshot(resolveCapabilityState);
         if (capability.available !== true) {
             return createForwardError('capability_blocked', capability, capability.message);

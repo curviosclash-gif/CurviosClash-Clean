@@ -35,8 +35,8 @@ test('every Electron window uses the executable renderer security policy', () =>
         backgroundThrottling: false,
     });
 
-    const main = createSecureWindowWebPreferences({ preload: 'main-preload.cjs', sandbox: false });
-    assert.equal(main.sandbox, false);
+    const main = createSecureWindowWebPreferences({ preload: 'main-preload.cjs' });
+    assert.equal(main.sandbox, true);
     assert.equal(main.contextIsolation, true);
     assert.equal(main.nodeIntegration, false);
 });
@@ -107,6 +107,9 @@ test('desktop capability IPC remains bound to the owning window main frame', () 
     assert.match(source, /ipcMain\.handle\('start-lan-server',\s*withTrustedMainWindowSender\(/);
     assert.match(source, /ipcMain\.handle\('save-replay',\s*withTrustedMainWindowSender\(/);
     assert.match(source, /ipcMain\.handle\('save-recording-video-export',\s*withTrustedMainWindowSender\(/);
+    const tuningSource = readSource('../electron/tuning-ipc.cjs');
+    assert.match(tuningSource, /assertTrustedWindowSender\(event, resolveTuningWindow\(\)\)/);
+    assert.match(tuningSource, /isTrustedWindowSender\(event, resolveGameWindow\(\)\)/);
 });
 
 test('Settings Studio IPC remains bound to its owning window main frame', () => {

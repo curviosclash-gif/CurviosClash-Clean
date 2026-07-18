@@ -32,6 +32,7 @@ import {
     applyMobileClassicUiLocks,
     isMobileClassicAppTarget,
 } from '../mobile-classic/MobileClassicApp.js';
+import { installDesktopTuningRuntimeBridge } from '../dev/tuning/TuningRuntimeIpcBridge.js';
 
 /* global __APP_VERSION__, __BUILD_TIME__, __BUILD_ID__ */
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -493,4 +494,5 @@ export class Game {
     }
 
 }
+installDesktopTuningRuntimeBridge();
 initializeGameApp({ createGame: () => new Game() });

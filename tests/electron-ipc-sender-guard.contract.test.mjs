@@ -50,10 +50,10 @@ test('Electron IPC sender guard rejects other windows, subframes and destroyed w
     ), false);
 });
 
-test('Electron main window keeps its sandbox exception scoped and documented', () => {
+test('Electron main window runs its preload in the Chromium sandbox', () => {
     const mainSource = readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf8');
-    assert.match(mainSource, /sandbox:\s*false/);
-    assert.match(mainSource, /Sandboxed preloads cannot use the ESM imports/);
+    assert.doesNotMatch(mainSource, /sandbox:\s*false/);
+    assert.match(mainSource, /createSecureWindowWebPreferences\(\{[\s\S]*preload:/);
 });
 
 test('Windows packaging keeps executable metadata editing and environment signing available', () => {

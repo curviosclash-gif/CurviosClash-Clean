@@ -207,178 +207,31 @@ function createSettingsDefaultsContract() {
     });
 }
 
-function createErrorSnapshot(error, fallbackReason = 'tuning_runtime_error') {
-    const message = error instanceof Error
-        ? error.message
-        : String(error || fallbackReason);
-    return {
-        reason: fallbackReason,
-        message,
-    };
-}
-
-const TUNING_RUNTIME_ACTIONS = Object.freeze({
-    getAll: 'tuning:get-all',
-    setValue: 'tuning:set-value',
-    resetAll: 'tuning:reset-all',
-    getRegistry: 'tuning:get-registry',
-});
-
-const tuningRuntimeState = {
-    runtimeSupportPromise: null,
-};
-
-function resolveTuningRuntimeModuleUrl(relativePath) {
-    const normalizedPath = String(relativePath || '')
-        .replace(/\\/g, '/')
-        .replace(/^\.\/+/, '')
-        .replace(/^\/+/, '');
-    const preloadDirectoryUrl = `file:///${String(__dirname).replace(/\\/g, '/')}/`;
-    return new URL(`../${normalizedPath}`, preloadDirectoryUrl).href;
-}
-
-async function loadTuningRuntimeSupport() {
-    if (!tuningRuntimeState.runtimeSupportPromise) {
-        tuningRuntimeState.runtimeSupportPromise = (async () => {
-            const bridgeModule = await import(resolveTuningRuntimeModuleUrl('src/dev/tuning/TuningRuntimeBridge.js'));
-            const registryModule = await import(resolveTuningRuntimeModuleUrl('src/dev/tuning/TuningParameterRegistry.js'));
-            const bridge = typeof bridgeModule.createTuningRuntimeBridge === 'function'
-                ? bridgeModule.createTuningRuntimeBridge()
-                : new bridgeModule.TuningRuntimeBridge();
-            if (!bridge || typeof bridge.getAllValues !== 'function' || typeof bridge.setValue !== 'function') {
-                throw new Error('TuningRuntimeBridge konnte nicht initialisiert werden.');
-            }
-            if (typeof registryModule.getTuningParameterRegistry !== 'function') {
-                throw new Error('TuningParameterRegistry ist nicht verfuegbar.');
-            }
-            return {
-                bridge,
-                getRegistry: registryModule.getTuningParameterRegistry,
-            };
-        })().catch((error) => {
-            tuningRuntimeState.runtimeSupportPromise = null;
-            throw error;
-        });
-    }
-
-    return tuningRuntimeState.runtimeSupportPromise;
-}
-
-async function executeTuningRuntimeAction(action, payload = null) {
-    const runtimeSupport = await loadTuningRuntimeSupport();
-    const bridge = runtimeSupport.bridge;
-    const requestPayload = payload && typeof payload === 'object' ? payload : {};
-    const normalizedAction = String(action || '').trim();
-
-    if (normalizedAction === TUNING_RUNTIME_ACTIONS.getRegistry) {
-        return {
-            ok: true,
-            reason: 'ok',
-            detail: '',
-            value: runtimeSupport.getRegistry(),
-        };
-    }
-
-    if (normalizedAction === TUNING_RUNTIME_ACTIONS.getAll) {
-        return {
-            ok: true,
-            reason: 'ok',
-            detail: '',
-            value: bridge.getAllValues(),
-        };
-    }
-
-    if (normalizedAction === TUNING_RUNTIME_ACTIONS.setValue) {
-        const result = bridge.setValue(String(requestPayload.path || ''), requestPayload.value);
-        return {
-            ok: result?.ok === true,
-            reason: String(result?.reason || (result?.ok === true ? 'ok' : 'set_failed')),
-            detail: '',
-            value: result,
-            error: result?.ok === true ? null : createErrorSnapshot(result?.reason || 'set_failed', 'set_failed'),
-        };
-    }
-
-    if (normalizedAction === TUNING_RUNTIME_ACTIONS.resetAll) {
-        const normalizedPaths = Array.isArray(requestPayload.paths)
-            ? requestPayload.paths.map((value) => String(value || '').trim()).filter(Boolean)
-            : null;
-        const result = bridge.resetToDefaults(normalizedPaths);
-        return {
-            ok: result?.ok === true,
-            reason: String(result?.reason || (result?.ok === true ? 'ok' : 'reset_failed')),
-            detail: '',
-            value: result,
-            error: result?.ok === true ? null : createErrorSnapshot(result?.reason || 'reset_failed', 'reset_failed'),
-        };
-    }
-
-    return {
-        ok: false,
-        reason: 'unknown_action',
-        detail: `Unbekannte Tuning-Action: ${normalizedAction || '<missing>'}`,
-        value: null,
-        error: createErrorSnapshot(`Unbekannte Tuning-Action: ${normalizedAction || '<missing>'}`, 'unknown_action'),
-    };
-}
-
 function createTuningRuntimeContract() {
+    let subscribed = false;
     return createNamedContract('tuningRuntime', PRELOAD_CONTRACT_VERSIONS.tuningRuntime, {
         preloadRequestChannel: TUNING_RUNTIME_REQUEST_CHANNEL,
         preloadResponseChannel: TUNING_RUNTIME_RESPONSE_CHANNEL,
         getStatus: () => ({
             available: true,
-            loaded: tuningRuntimeState.runtimeSupportPromise != null,
+            loaded: subscribed,
         }),
+        subscribeRequests: (callback) => {
+            if (typeof callback !== 'function') return () => {};
+            const handler = (_event, payload) => callback(payload);
+            subscribed = true;
+            ipcRenderer.on(TUNING_RUNTIME_REQUEST_CHANNEL, handler);
+            return () => {
+                ipcRenderer.removeListener(TUNING_RUNTIME_REQUEST_CHANNEL, handler);
+                subscribed = false;
+            };
+        },
+        sendResponse: (payload) => {
+            if (!payload || typeof payload !== 'object') return;
+            ipcRenderer.send(TUNING_RUNTIME_RESPONSE_CHANNEL, payload);
+        },
     });
 }
-
-async function handleTuningRuntimeRequest(payload = null) {
-    const request = payload && typeof payload === 'object' ? payload : {};
-    const requestId = String(request.requestId || '').trim();
-    if (!requestId) {
-        return;
-    }
-
-    try {
-        const response = await executeTuningRuntimeAction(
-            String(request.action || '').trim(),
-            request.payload
-        );
-        const normalizedResponse = response && typeof response === 'object'
-            ? response
-            : { ok: true, value: response };
-        const ok = normalizedResponse.ok !== false;
-        ipcRenderer.send(TUNING_RUNTIME_RESPONSE_CHANNEL, {
-            requestId,
-            ok,
-            reason: String(normalizedResponse.reason || (ok ? 'ok' : 'runtime_error')),
-            detail: String(normalizedResponse.detail || ''),
-            value: Object.prototype.hasOwnProperty.call(normalizedResponse, 'value')
-                ? normalizedResponse.value
-                : null,
-            error: ok
-                ? null
-                : (normalizedResponse.error && typeof normalizedResponse.error === 'object'
-                    ? normalizedResponse.error
-                    : createErrorSnapshot(normalizedResponse.detail || 'runtime_error', String(normalizedResponse.reason || 'runtime_error'))),
-        });
-    } catch (error) {
-        const snapshot = createErrorSnapshot(error, 'handler_threw');
-        ipcRenderer.send(TUNING_RUNTIME_RESPONSE_CHANNEL, {
-            requestId,
-            ok: false,
-            reason: snapshot.reason,
-            detail: snapshot.message,
-            error: snapshot,
-            value: null,
-        });
-    }
-}
-
-ipcRenderer.on(TUNING_RUNTIME_REQUEST_CHANNEL, (_event, payload) => {
-    void handleTuningRuntimeRequest(payload);
-});
 
 const discoveryContract = createDiscoveryContract();
 const hostContract = createHostContract();

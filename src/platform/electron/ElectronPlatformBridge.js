@@ -50,10 +50,12 @@ export function resolveElectronRuntimeSnapshot(runtimeGlobal = globalThis) {
     const isElectron = appRuntime?.isApp === true || globalRef?.__CURVIOS_APP__ === true;
     const browserDemoSurfacePolicyContract = resolveNamedContract(appRuntime, 'browserDemoSurfacePolicy');
     const settingsDefaultsContract = resolveNamedContract(appRuntime, 'settingsDefaults');
+    const tuningRuntimeContract = resolveNamedContract(appRuntime, 'tuningRuntime');
     return Object.freeze({
         runtimeKind: isElectron ? PLATFORM_RUNTIME_KINDS.ELECTRON : PLATFORM_RUNTIME_KINDS.WEB,
         browserDemoSurfacePolicyContract,
         settingsDefaultsContract,
+        tuningRuntimeContract,
     });
 }
 

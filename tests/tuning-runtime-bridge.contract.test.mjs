@@ -8,6 +8,7 @@ import {
     getTuningParameterDescriptors,
 } from '../src/dev/tuning/TuningParameterRegistry.js';
 import { TuningRuntimeBridge } from '../src/dev/tuning/TuningRuntimeBridge.js';
+import { installDesktopTuningRuntimeBridge } from '../src/dev/tuning/TuningRuntimeIpcBridge.js';
 
 test('tuning parameter registry exposes core gameplay and bot profile paths', () => {
     const descriptors = getTuningParameterDescriptors();
@@ -70,4 +71,29 @@ test('tuning runtime bridge blocks readonly PPO_V2 paths', () => {
     assert.equal(result.ok, false);
     assert.equal(result.reason, 'readonly_path');
     assert.equal(getTuningParameterDescriptor(readonlyDescriptor.path)?.readOnly, true);
+});
+
+test('desktop tuning requests run in the sandboxed renderer bridge', () => {
+    let requestHandler = null;
+    const responses = [];
+    const tuningRuntime = {
+        subscribeRequests(handler) {
+            requestHandler = handler;
+            return () => { requestHandler = null; };
+        },
+        sendResponse(response) {
+            responses.push(response);
+        },
+    };
+    const dispose = installDesktopTuningRuntimeBridge({
+        __CURVIOS_APP__: true,
+        curviosApp: { isApp: true, contracts: { tuningRuntime } },
+    });
+
+    requestHandler({ requestId: 'registry-1', action: 'tuning:get-registry' });
+    assert.equal(responses[0].requestId, 'registry-1');
+    assert.equal(responses[0].ok, true);
+    assert.ok(responses[0].value.parameters.length > 0);
+    dispose();
+    assert.equal(requestHandler, null);
 });
