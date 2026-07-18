@@ -38,6 +38,18 @@ test('online data messages use the transport peer identity and enforce sender ro
         type: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
     });
     assert.equal(clientEvents.filter((entry) => entry.type === 'stateUpdate').length, 1);
+
+    const closedPeers = [];
+    const removedPeers = [];
+    client._closePeerConnection = (peerId) => closedPeers.push(peerId);
+    client._removePeerLatency = (peerId) => removedPeers.push(peerId);
+    client._handleDataMessage('host-peer', 'state', {
+        type: MULTIPLAYER_MESSAGE_TYPES.HOST_LEAVING,
+    });
+    assert.equal(clientEvents.some((entry) => entry.type === 'hostDisconnected'), true);
+    assert.equal(clientEvents.some((entry) => entry.type === 'playerDisconnected' && entry.payload.isHost), true);
+    assert.deepEqual(closedPeers, ['host-peer']);
+    assert.deepEqual(removedPeers, ['host-peer']);
     host.dispose();
     client.dispose();
 });

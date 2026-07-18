@@ -809,35 +809,4 @@ test.describe('V67-67.4: Expanded multiplayer coverage', () => {
         expect(adapter.removedLatencyPeers).toContain('peer-b');
     });
 
-    test('67.4.4 Client host_leaving handling emits host disconnect and performs cleanup', async ({ page }) => {
-        await loadGame(page);
-        const result = await page.evaluate(async () => {
-            const { OnlineSessionAdapter } = await import('/src/network/OnlineSessionAdapter.js');
-            const adapter = new OnlineSessionAdapter({ isHost: false });
-            adapter._hostPeerId = 'host';
-            const events = [];
-            const closedPeers = [];
-            const removedPeers = [];
-
-            adapter.on('hostDisconnected', (payload) => events.push({ type: 'hostDisconnected', payload }));
-            adapter.on('playerDisconnected', (payload) => events.push({ type: 'playerDisconnected', payload }));
-            adapter._closePeerConnection = (peerId) => {
-                closedPeers.push(peerId);
-            };
-            adapter._removePeerLatency = (peerId) => {
-                removedPeers.push(peerId);
-            };
-
-            adapter._handleDataMessage('host', 'state', { type: 'host_leaving' });
-            adapter.dispose();
-
-            return { events, closedPeers, removedPeers };
-        });
-
-        expect(result.events.find((entry) => entry.type === 'hostDisconnected')).toBeTruthy();
-        expect(result.events.find((entry) => entry.type === 'playerDisconnected')?.payload?.isHost).toBe(true);
-        expect(result.closedPeers).toContain('host');
-        expect(result.removedPeers).toContain('host');
-    });
-
 });
