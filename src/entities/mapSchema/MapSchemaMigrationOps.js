@@ -1,4 +1,4 @@
-import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
+import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_VERSION, MAX_MAP_JSON_BYTES } from './MapSchemaConstants.js';
 import { resolveArtifactVersionState } from '../../shared/contracts/ArtifactVersionMigrationContract.js';
 import {
     asArray,
@@ -130,6 +130,7 @@ export function parseMapJSON(jsonText) {
     if (typeof jsonText !== 'string') {
         throw new Error('Map JSON must be a string.');
     }
+    assertMapJsonSize(jsonText);
     let parsed;
     try {
         parsed = JSON.parse(jsonText);
@@ -137,6 +138,15 @@ export function parseMapJSON(jsonText) {
         throw new Error(`Invalid JSON: ${error.message}`);
     }
     return migrateMapDocument(parsed);
+}
+
+export function assertMapJsonSize(jsonText) {
+    if (typeof jsonText !== 'string') throw new Error('Map JSON must be a string.');
+    const byteLength = new TextEncoder().encode(jsonText).byteLength;
+    if (byteLength > MAX_MAP_JSON_BYTES) {
+        throw new Error(`Map JSON exceeds the ${MAX_MAP_JSON_BYTES}-byte limit.`);
+    }
+    return byteLength;
 }
 
 export function createMapDocument(data = {}, options = {}) {

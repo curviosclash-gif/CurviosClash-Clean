@@ -1,6 +1,22 @@
 export const MAP_SCHEMA_VERSION = 4;
 export const CUSTOM_MAP_KEY = 'custom';
 export const CUSTOM_MAP_STORAGE_KEY = 'custom_map_test';
+export const MAX_MAP_JSON_BYTES = 2 * 1024 * 1024;
+
+export const MAP_SCHEMA_COLLECTION_LIMITS = Object.freeze({
+    tunnels: 512,
+    hardBlocks: 4096,
+    foamBlocks: 4096,
+    portals: 512,
+    portalLevels: 64,
+    gates: 512,
+    items: 2048,
+    aircraft: 256,
+    glbModels: 256,
+    botSpawns: 128,
+    parcoursCheckpoints: 1024,
+    checkpointNextIds: 64,
+});
 
 export const DEFAULT_ARENA_SIZE = Object.freeze({
     width: 2800,

@@ -1,6 +1,11 @@
-import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
+import {
+    DEFAULT_ARENA_SIZE,
+    MAP_SCHEMA_COLLECTION_LIMITS,
+    MAP_SCHEMA_VERSION,
+} from './MapSchemaConstants.js';
 import { getPickupDefinition, normalizePickupType } from '../PickupRegistry.js';
-import { sanitizeGLBModels } from './MapSchemaGlbOps.js';
+import { normalizeAllowedGLBUrl, sanitizeGLBModels } from './MapSchemaGlbOps.js';
+import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
 
 export function asFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -19,28 +24,13 @@ export function asArray(value) {
     return Array.isArray(value) ? value : [];
 }
 
-function cloneJsonValue(value) {
-    if (value === null || typeof value === 'string' || typeof value === 'boolean') {
-        return value;
+function asLimitedArray(value, key) {
+    const entries = asArray(value);
+    const limit = MAP_SCHEMA_COLLECTION_LIMITS[key];
+    if (Number.isFinite(limit) && entries.length > limit) {
+        throw new Error(`Map collection "${key}" exceeds the limit of ${limit}.`);
     }
-    if (typeof value === 'number') {
-        return Number.isFinite(value) ? value : 0;
-    }
-    if (Array.isArray(value)) {
-        return value.map((entry) => cloneJsonValue(entry));
-    }
-    if (!value || typeof value !== 'object') {
-        return undefined;
-    }
-
-    const result = {};
-    for (const [key, entry] of Object.entries(value)) {
-        const clonedEntry = cloneJsonValue(entry);
-        if (clonedEntry !== undefined) {
-            result[key] = clonedEntry;
-        }
-    }
-    return result;
+    return entries;
 }
 
 function sanitizeOptionalId(value) {
@@ -207,7 +197,7 @@ function sanitizeParcoursCheckpoint(raw, fallbackId = '') {
 
     const nextIds = [
         ...new Set([
-            ...asArray(source.nextIds).map((entry) => sanitizeOptionalId(entry)).filter(Boolean),
+            ...asLimitedArray(source.nextIds, 'checkpointNextIds').map((entry) => sanitizeOptionalId(entry)).filter(Boolean),
             sanitizeOptionalId(source.nextId),
         ].filter(Boolean)),
     ];
@@ -220,7 +210,7 @@ function sanitizeParcoursCheckpoint(raw, fallbackId = '') {
         checkpoint.forward = forward;
     }
 
-    const params = cloneJsonValue(source.params);
+    const params = cloneJsonCompatibleValue(source.params);
     if (params && typeof params === 'object' && !Array.isArray(params)) {
         checkpoint.params = params;
     }
@@ -241,7 +231,7 @@ function sanitizeParcours(raw) {
     }
 
     const source = raw;
-    const checkpoints = asArray(source.checkpoints)
+    const checkpoints = asLimitedArray(source.checkpoints, 'parcoursCheckpoints')
         .map((entry, index) => sanitizeParcoursCheckpoint(entry, `CP${String(index + 1).padStart(2, '0')}`))
         .filter((entry) => Array.isArray(entry.pos));
 
@@ -333,7 +323,7 @@ export function sanitizePortal(raw) {
 function sanitizePortalList(rawPortals, options = {}) {
     const portals = [];
     const warnings = Array.isArray(options.warnings) ? options.warnings : null;
-    asArray(rawPortals).forEach((entry, index) => {
+    asLimitedArray(rawPortals, 'portals').forEach((entry, index) => {
         if (!entry || typeof entry !== 'object') {
             pushSanitizeWarning(warnings, `Portal entry ${index + 1} was ignored because it is not an object.`);
             return;
@@ -412,7 +402,7 @@ export function sanitizeAircraft(raw) {
 }
 
 export function sanitizePortalLevels(raw) {
-    const levels = asArray(raw)
+    const levels = asLimitedArray(raw, 'portalLevels')
         .map((entry) => Number(entry))
         .filter((entry) => Number.isFinite(entry));
     if (levels.length === 0) return [];
@@ -460,7 +450,7 @@ export function sanitizeGate(raw, options = {}) {
         result.color = Math.round(Number(source.color));
     }
 
-    const params = cloneJsonValue(source.params);
+    const params = cloneJsonCompatibleValue(source.params);
     if (params && typeof params === 'object' && !Array.isArray(params)) {
         result.params = params;
     }
@@ -491,7 +481,7 @@ function sanitizeGateList(rawGates, options = {}) {
     const gates = [];
     const warnings = Array.isArray(options.warnings) ? options.warnings : null;
 
-    asArray(rawGates).forEach((entry, index) => {
+    asLimitedArray(rawGates, 'gates').forEach((entry, index) => {
         if (!entry || typeof entry !== 'object') {
             pushSanitizeWarning(warnings, `Gate entry ${index + 1} was ignored because it is not an object.`);
             return;
@@ -524,21 +514,24 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
     const playerSpawnDefault = { x: -800, y: arenaSize.height * 0.55, z: 0 };
     const warnings = Array.isArray(options.warnings) ? options.warnings : null;
     const portals = sanitizePortalList(rawMap.portals, { warnings });
-    const items = asArray(rawMap.items).map((entry, index) => sanitizeItem(entry, { warnings, index }));
+    if (portals.length > MAP_SCHEMA_COLLECTION_LIMITS.portals) {
+        throw new Error(`Map collection "portals" exceeds the limit of ${MAP_SCHEMA_COLLECTION_LIMITS.portals}.`);
+    }
+    const items = asLimitedArray(rawMap.items, 'items').map((entry, index) => sanitizeItem(entry, { warnings, index }));
 
     const normalized = withOptionalStringField({
         schemaVersion: MAP_SCHEMA_VERSION,
         arenaSize,
-        tunnels: asArray(rawMap.tunnels).map((entry) => sanitizeTunnel(entry)),
-        hardBlocks: asArray(rawMap.hardBlocks).map((entry) => sanitizeBlock(entry)),
-        foamBlocks: asArray(rawMap.foamBlocks).map((entry) => sanitizeBlock(entry)),
+        tunnels: asLimitedArray(rawMap.tunnels, 'tunnels').map((entry) => sanitizeTunnel(entry)),
+        hardBlocks: asLimitedArray(rawMap.hardBlocks, 'hardBlocks').map((entry) => sanitizeBlock(entry)),
+        foamBlocks: asLimitedArray(rawMap.foamBlocks, 'foamBlocks').map((entry) => sanitizeBlock(entry)),
         portals,
         portalLevels: sanitizePortalLevels(rawMap.portalLevels),
         gates: sanitizeGateList(rawMap.gates, { warnings }),
         items,
-        aircraft: asArray(rawMap.aircraft).map((entry) => sanitizeAircraft(entry)),
-        glbModels: sanitizeGLBModels(rawMap.glbModels),
-        botSpawns: asArray(rawMap.botSpawns).map((entry) => sanitizeVector3(entry, { x: 0, y: playerSpawnDefault.y, z: 0 })),
+        aircraft: asLimitedArray(rawMap.aircraft, 'aircraft').map((entry) => sanitizeAircraft(entry)),
+        glbModels: sanitizeGLBModels(asLimitedArray(rawMap.glbModels, 'glbModels')),
+        botSpawns: asLimitedArray(rawMap.botSpawns, 'botSpawns').map((entry) => sanitizeVector3(entry, { x: 0, y: playerSpawnDefault.y, z: 0 })),
         playerSpawn: sanitizeVector3(rawMap.playerSpawn, playerSpawnDefault),
         preferAuthoredPortals: rawMap.preferAuthoredPortals === true,
         portalMode: normalizePortalMode(rawMap.portalMode, {
@@ -550,7 +543,7 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
             hasAuthoredItems: items.length > 0,
             warnings,
         }),
-    }, 'glbModel', rawMap.glbModel);
+    }, 'glbModel', normalizeAllowedGLBUrl(rawMap.glbModel));
 
     const glbColliderMode = normalizeGlbColliderMode(rawMap.glbColliderMode);
     if (glbColliderMode) normalized.glbColliderMode = glbColliderMode;

@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { createStaticMeshCollider } from './arena/StaticMeshCollider.js';
+import { normalizeAllowedGLBUrl } from './mapSchema/MapSchemaGlbOps.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
 
@@ -32,7 +33,7 @@ export function normalizeGLBModelCollection(glbModels) {
     const normalized = [];
     for (let index = 0; index < glbModels.length; index += 1) {
         const source = glbModels[index];
-        const url = normalizeUrl(typeof source === 'string' ? source : source?.url);
+        const url = normalizeAllowedGLBUrl(typeof source === 'string' ? source : source?.url);
         if (!url) continue;
         normalized.push({
             id: normalizeUrl(source?.id) || `model-${index + 1}`,
@@ -169,9 +170,9 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
 }
 
 export async function loadGLBMap(glbModel, options = {}) {
-    const modelUrl = normalizeUrl(glbModel);
+    const modelUrl = normalizeAllowedGLBUrl(glbModel);
     if (!modelUrl) {
-        throw new Error('GLB map URL is required.');
+        throw new Error('GLB map URL must be an allowed local asset path or bounded embedded model.');
     }
 
     const loader = options.loader || SHARED_GLB_LOADER;

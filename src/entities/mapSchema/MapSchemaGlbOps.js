@@ -17,11 +17,32 @@ function vector3(value) {
     ];
 }
 
+export const MAX_EMBEDDED_GLB_URL_CHARS = 512 * 1024;
+
+export function normalizeAllowedGLBUrl(value) {
+    const url = typeof value === 'string' ? value.trim() : '';
+    if (!url) return '';
+    if (url.startsWith('data:model/gltf-binary;base64,')) {
+        return url.length <= MAX_EMBEDDED_GLB_URL_CHARS ? url : '';
+    }
+    if (url.includes('\\') || url.includes('?') || url.includes('#')) return '';
+    const normalized = url.replace(/^\.\//, '').replace(/^\//, '');
+    if (normalized.includes(':')) return '';
+    let segments;
+    try {
+        segments = normalized.split('/').map((segment) => decodeURIComponent(segment));
+    } catch {
+        return '';
+    }
+    if (segments.some((segment) => !segment || segment === '.' || segment === '..')) return '';
+    return normalized.toLowerCase().endsWith('.glb') ? normalized : '';
+}
+
 export function sanitizeGLBModels(value) {
     if (!Array.isArray(value)) return [];
     return value.flatMap((entry, index) => {
         const source = entry && typeof entry === 'object' ? entry : {};
-        const url = typeof source.url === 'string' ? source.url.trim() : '';
+        const url = normalizeAllowedGLBUrl(source.url);
         if (!url) return [];
         return [{
             id: String(source.id || '').trim() || `model-${index + 1}`,
