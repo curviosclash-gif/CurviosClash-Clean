@@ -54,6 +54,28 @@ test('Arcade validation preserves the CLASSIC runtime contract and the Arcade se
     assert.equal(settingsChanged, 1);
 });
 
+test('Fight validation uses a one-kill deathmatch objective that fits the runner window', () => {
+    const service = new BotValidationService();
+    const game = {
+        settings: {
+            localSettings: {},
+            gameplay: {},
+            hunt: {},
+            winsNeeded: 4,
+        },
+        _onSettingsChanged() {},
+    };
+
+    const applied = service.applyScenario(game, 'H-FIGHT');
+    assert.equal(applied.respawnEnabled, true);
+    assert.equal(applied.deathmatchKillLimit, 1);
+    assert.equal(game.settings.hunt.respawnEnabled, true);
+    assert.equal(game.settings.hunt.deathmatchKillLimit, 1);
+    assert.equal(game.settings.gameplay.fightPlayerHp, 80);
+    assert.equal(game.settings.gameplay.fightMgDamage, 20);
+    assert.equal(game.settings.gameplay.mgTrailAimRadius, 0.2);
+});
+
 test('runtime verification checks policy instances and separates semantic from internal mode', () => {
     const scenario = getBotValidationMatrix().find((entry) => entry.id === 'H-ARCADE');
     const sample = {

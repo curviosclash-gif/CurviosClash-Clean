@@ -246,7 +246,13 @@ export class BotValidationService {
         game.settings.gameplay.planarMode = !!scenario.planarMode;
         game.settings.gameplay.portalCount = scenario.portalCount;
         game.settings.portalsEnabled = scenario.portalCount > 0;
-        game.settings.hunt.respawnEnabled = scenario.gameMode === 'HUNT';
+        game.settings.hunt.respawnEnabled = scenario.respawnEnabled === true;
+        game.settings.hunt.deathmatchKillLimit = scenario.deathmatchKillLimit;
+        if (scenario.gameMode === 'HUNT') {
+            game.settings.gameplay.fightPlayerHp = scenario.fightPlayerHp;
+            game.settings.gameplay.fightMgDamage = scenario.fightMgDamage;
+            game.settings.gameplay.mgTrailAimRadius = scenario.mgTrailAimRadius;
+        }
         game.settings.winsNeeded = Math.max(1, game.settings.winsNeeded);
         if (typeof game._onSettingsChanged === 'function') {
             game._onSettingsChanged();
