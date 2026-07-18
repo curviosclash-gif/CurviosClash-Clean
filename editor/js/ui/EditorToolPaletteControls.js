@@ -520,7 +520,7 @@ export function bindEditorToolPaletteControls(editor) {
     });
 
     document.addEventListener('keydown', (event) => {
-        if (editor.dom?.editorModalBackdrop?.classList.contains('is-open')) return;
+        if (editor.dom?.editorModalBackdrop?.classList.contains('is-open') || editor.dom?.exportDialog?.open) return;
         if (event.target instanceof HTMLElement) {
             const tagName = event.target.tagName.toLowerCase();
             if (tagName === 'input' || tagName === 'textarea' || tagName === 'select' || event.target.isContentEditable) {

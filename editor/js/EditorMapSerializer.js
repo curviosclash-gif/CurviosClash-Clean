@@ -158,7 +158,16 @@ export function generateJSONExport(manager, arenaSize) {
             });
         }
         else if (u.type === 'portal') {
-            const portalEntry = { id: u.id, x: p.x, y: p.y, z: p.z, radius: u.sizeInfo };
+            const portalEntry = {
+                id: u.id,
+                x: p.x,
+                y: p.y,
+                z: p.z,
+                radius: u.sizeInfo,
+                rotateX: obj.rotation.x || 0,
+                rotateY: obj.rotation.y || 0,
+                rotateZ: obj.rotation.z || 0,
+            };
             if (typeof u.subType === 'string' && u.subType) {
                 portalEntry.model = u.subType;
             }
@@ -374,7 +383,10 @@ export function importFromJSON(manager, jsonString, options = {}) {
 
             if (data.portals) {
                 data.portals.forEach((b) => manager.createMesh('portal', b.model || null, b.x, b.y, b.z, b.radius, {
-                    id: b.id
+                    id: b.id,
+                    rotateX: b.rotateX,
+                    rotateY: b.rotateY,
+                    rotateZ: b.rotateZ,
                 }, { updateUi: false }));
             }
 

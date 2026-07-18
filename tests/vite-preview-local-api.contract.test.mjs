@@ -56,7 +56,7 @@ test('preview route matrix covers local API classes and route contracts', () => 
     assert.equal(health.previewAccess, LOCAL_API_PREVIEW_ACCESS.ACTIVE);
     assert.deepEqual(health.classes, [LOCAL_API_ROUTE_CLASS.TEST_HEALTH]);
 
-    for (const route of [EDITOR_API_ROUTES.LIST_VEHICLES_DISK, EDITOR_API_ROUTES.GET_VEHICLE_DISK]) {
+    for (const route of [EDITOR_API_ROUTES.LIST_MAPS_DISK, EDITOR_API_ROUTES.LIST_VEHICLES_DISK, EDITOR_API_ROUTES.GET_VEHICLE_DISK]) {
         const decision = getLocalApiRouteDecision({ method: 'GET', route });
         assert.equal(decision.previewAccess, LOCAL_API_PREVIEW_ACCESS.ACTIVE);
         assert.ok(decision.classes.includes(LOCAL_API_ROUTE_CLASS.ARTIFACT_READ));
@@ -64,6 +64,7 @@ test('preview route matrix covers local API classes and route contracts', () => 
 
     for (const route of [
         EDITOR_API_ROUTES.SAVE_MAP_DISK,
+        EDITOR_API_ROUTES.OPEN_MAPS_FOLDER,
         EDITOR_API_ROUTES.SAVE_VEHICLE_DISK,
         EDITOR_API_ROUTES.RENAME_VEHICLE_DISK,
         EDITOR_API_ROUTES.DELETE_VEHICLE_DISK,

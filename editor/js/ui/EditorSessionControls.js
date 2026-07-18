@@ -1,4 +1,8 @@
-import { CUSTOM_MAP_STORAGE_KEY } from '../../../src/entities/MapSchema.js';
+import {
+    assertMapJsonSize,
+    CUSTOM_MAP_STORAGE_KEY,
+    MAX_MAP_JSON_BYTES,
+} from '../../../src/entities/MapSchema.js';
 import {
     EDITOR_API_ROUTES,
     EDITOR_DISK_IO_CONTRACT_VERSION,
@@ -44,37 +48,63 @@ function resolveWarningsTitle(baseTitle, warnings) {
         : baseTitle;
 }
 
-async function promptForDiskMapName(editor) {
-    let defaultName = DEFAULT_DISK_MAP_NAME;
+function readLastMapName() {
     try {
         const stored = localStorage.getItem(LAST_DISK_MAP_NAME_STORAGE_KEY);
         if (typeof stored === 'string' && stored.trim()) {
-            defaultName = stored.trim();
+            return stored.trim();
         }
     } catch {
         // localStorage may be unavailable in some environments
     }
+    return DEFAULT_DISK_MAP_NAME;
+}
 
-    const input = await editor.requestText?.({
-        title: 'Map im Spieleordner speichern',
-        message: 'Gib einen Map-Namen ein. Ein gleichnamiger Export aktualisiert die bestehende Map.',
-        confirmLabel: 'Speichern',
-        value: defaultName,
-    });
-
-    if (input === null) return null;
-    const name = input.trim();
-    if (!name) {
-        throw new Error('Bitte einen gueltigen Map-Namen eingeben.');
-    }
-
+function storeLastMapName(name) {
     try {
         localStorage.setItem(LAST_DISK_MAP_NAME_STORAGE_KEY, name);
     } catch {
-        // ignore persistence failures for the default prompt value
+        // localStorage may be unavailable in some environments
     }
+}
 
-    return name;
+function sanitizeMapName(value) {
+    return String(value || '').trim().replace(/\s+/g, ' ').slice(0, 80);
+}
+
+function slugifyMapName(value) {
+    const slug = sanitizeMapName(value)
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '')
+        .slice(0, 48);
+    return slug || 'map';
+}
+
+function resolveMapKeyPreview(mapName, savedMaps, saveAsCopy) {
+    const normalizedName = sanitizeMapName(mapName) || DEFAULT_DISK_MAP_NAME;
+    const maps = Array.isArray(savedMaps) ? savedMaps : [];
+    const existing = maps.find((entry) => sanitizeMapName(entry?.mapName) === normalizedName);
+    if (existing && !saveAsCopy) return String(existing.mapKey || '');
+
+    const keys = new Set(maps.map((entry) => String(entry?.mapKey || '')));
+    const baseKey = `editor_${slugifyMapName(normalizedName)}`;
+    let candidate = baseKey;
+    let index = 2;
+    while (keys.has(candidate)) candidate = `${baseKey}_${index++}`;
+    return candidate;
+}
+
+function downloadJsonFile(jsonText, fileName) {
+    const blob = new Blob([jsonText], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = fileName;
+    link.click();
+    URL.revokeObjectURL(url);
 }
 
 function hasExplicitContractVersion(payload) {
@@ -137,26 +167,12 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         return { jsonText, warnings };
     };
 
-    const saveCurrentMapToDisk = async (mapName) => {
+    const fetchEditorApi = async (route, options = {}) => {
         const diskCapability = resolveEditorDiskSaveCapability(window);
         if (!diskCapability.available) {
             throw new Error('Editor-Disk-Import/Export ist in dieser Umgebung nicht verfuegbar, weil kein Fetch-Transport bereitsteht.');
         }
-        const { jsonText, warnings: exportWarnings } = generateCurrentMapJson();
-        const editorDocument = editor.createEditorDocument?.(jsonText) || null;
-        const response = await diskCapability.fetchImpl(EDITOR_API_ROUTES.SAVE_MAP_DISK, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contractVersion: EDITOR_DISK_IO_CONTRACT_VERSION,
-                jsonText,
-                mapName,
-                editorDocument,
-            })
-        });
-
+        const response = await diskCapability.fetchImpl(route, options);
         let payload = null;
         try {
             payload = await response.json();
@@ -171,10 +187,28 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         )) {
             throw new Error('Editor-Disk-Import/Export antwortet mit inkompatibler contractVersion. Bitte Renderer und Dev-Server auf denselben Stand bringen.');
         }
-
         if (!response.ok || !payload?.ok) {
-            throw new Error(payload?.error || `HTTP ${response.status} while saving map to disk.`);
+            throw new Error(payload?.error || `HTTP ${response.status} bei ${route}.`);
         }
+        return payload;
+    };
+
+    const saveCurrentMapToDisk = async (mapName, { saveAsCopy = false } = {}) => {
+        const { jsonText, warnings: exportWarnings } = generateCurrentMapJson();
+        const editorDocument = editor.createEditorDocument?.(jsonText) || null;
+        const payload = await fetchEditorApi(EDITOR_API_ROUTES.SAVE_MAP_DISK, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                contractVersion: EDITOR_DISK_IO_CONTRACT_VERSION,
+                jsonText,
+                mapName,
+                editorDocument,
+                saveAsCopy,
+            })
+        });
 
         return {
             jsonText,
@@ -183,48 +217,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         };
     };
 
-    dom.btnExport?.addEventListener("click", () => {
-        const { jsonText, warnings } = generateCurrentMapJson();
-        setJsonEditorText(editor, jsonText);
-        const warningMessage = formatWarningsMessage(resolveWarningsTitle('Map exportiert mit Hinweisen:', warnings), warnings);
-        editor.notify?.(warningMessage || 'JSON-Export aktualisiert.', warningMessage ? 'warn' : 'success');
-    });
-
-    dom.btnSaveToGame?.addEventListener("click", async () => {
-        let requestedMapName = null;
-        try {
-            requestedMapName = await promptForDiskMapName(editor);
-        } catch (error) {
-            editor.notify?.(`Map-Name ungueltig: ${error.message}`, 'error');
-            return;
-        }
-
-        if (requestedMapName === null) {
-            return;
-        }
-
-        try {
-            const { jsonText, payload, warnings } = await saveCurrentMapToDisk(requestedMapName);
-            setJsonEditorText(editor, jsonText);
-
-            const warningSuffix = warnings.length > 0
-                ? `\n${hasMigrationWarnings(warnings) ? 'Migrationshinweise' : 'Hinweise'}: ${warnings.join(' | ')}`
-                : '';
-            const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
-
-            editor.markSaved?.(
-                `Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).` +
-                (warningSuffix ? ` ${warningSuffix.trim()}` : '')
-            );
-        } catch (error) {
-            editor.notify?.(
-                `Map konnte nicht gespeichert werden: ${error.message}. Der lokale Editor-Server muss laufen.`,
-                'error'
-            );
-        }
-    });
-
-    dom.btnPlaytest?.addEventListener("click", () => {
+    const openPlaytest = () => {
         let warnings = [];
         try {
             ({ warnings } = saveCurrentMapToGameStorage());
@@ -247,14 +240,244 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         params.set('planar', playtestMode === 'planar' ? '1' : '0');
         params.set('session', playtestSession);
         const playtestUrl = `../index.html?${params.toString()}`;
-        const playtestWindow = window.open(playtestUrl, "_blank");
+        const playtestWindow = window.open(playtestUrl, '_blank');
         if (playtestWindow) {
             playtestWindow.focus?.();
             return;
         }
-
-        // Popup blocker fallback: start playtest in the current tab instead of failing silently.
         window.location.href = playtestUrl;
+    };
+
+    let exportState = null;
+
+    const closeExportDialog = () => {
+        if (dom.exportDialog?.open) dom.exportDialog.close();
+    };
+
+    const updateExportDialog = () => {
+        if (!exportState) return;
+        const mapName = sanitizeMapName(dom.exportMapName?.value);
+        const target = String(dom.exportTarget?.value || 'install');
+        const saveAsCopy = dom.exportConflictMode?.value === 'copy';
+        const mapKey = resolveMapKeyPreview(mapName, exportState.savedMaps, saveAsCopy);
+        const slug = slugifyMapName(mapName);
+        const existing = exportState.savedMaps.find((entry) => sanitizeMapName(entry?.mapName) === mapName);
+        const errors = exportState.validationItems.filter((item) => item.severity === 'error');
+        const warnings = exportState.validationItems.filter((item) => item.severity === 'warning');
+
+        if (dom.exportConflictModeRow) dom.exportConflictModeRow.hidden = target !== 'install';
+        if (dom.exportKeyPreview) {
+            dom.exportKeyPreview.textContent = target === 'install' ? `Map-Key: ${mapKey}` : 'Map-Key: nicht erforderlich';
+        }
+        if (dom.exportFilePreview) {
+            dom.exportFilePreview.textContent = target === 'install'
+                ? `Dateien: ${mapKey}.editor.json + ${mapKey}.runtime.json`
+                : `Datei: ${slug}.${target === 'project' ? 'curvios-map' : 'runtime'}.json`;
+        }
+        if (dom.exportConflictNotice) {
+            dom.exportConflictNotice.textContent = target !== 'install'
+                ? ''
+                : exportState.listError
+                    ? 'Vorhandene Maps konnten nicht geladen werden; der Server prueft den Namen beim Speichern.'
+                    : existing
+                        ? (saveAsCopy
+                            ? `„${existing.mapName}“ bleibt erhalten; eine neue Kopie wird angelegt.`
+                            : `„${existing.mapName}“ (${existing.mapKey}) wird aktualisiert.`)
+                        : 'Der Name ist frei; eine neue Map wird angelegt.';
+        }
+        if (dom.exportWarningAcknowledgeRow) dom.exportWarningAcknowledgeRow.hidden = warnings.length === 0;
+        if (dom.btnExportConfirm) {
+            dom.btnExportConfirm.disabled = !mapName
+                || errors.length > 0
+                || (warnings.length > 0 && dom.exportWarningAcknowledge?.checked !== true);
+        }
+    };
+
+    const renderExportValidation = () => {
+        if (!exportState || !dom.exportValidationList) return;
+        const issues = exportState.validationItems.filter((item) => !item.ok);
+        const errors = issues.filter((item) => item.severity === 'error');
+        const warnings = issues.filter((item) => item.severity === 'warning');
+        if (dom.exportValidationSummary) {
+            dom.exportValidationSummary.textContent = issues.length === 0
+                ? 'Map bereit'
+                : `${errors.length} Fehler, ${warnings.length} Warnung(en)`;
+        }
+
+        const fragment = document.createDocumentFragment();
+        if (issues.length === 0) {
+            const li = document.createElement('li');
+            li.textContent = 'Keine Probleme gefunden.';
+            fragment.appendChild(li);
+        }
+        for (const item of issues) {
+            const li = document.createElement('li');
+            li.dataset.severity = item.severity;
+            const objectId = String(item.objectIds?.[0] || '');
+            if (objectId) {
+                const button = document.createElement('button');
+                button.type = 'button';
+                button.textContent = `${item.severity === 'error' ? 'Fehler' : 'Warnung'}: ${item.label}`;
+                button.addEventListener('click', () => {
+                    closeExportDialog();
+                    const object = editor.mapManager?.getObjectById?.(objectId);
+                    if (object) {
+                        editor.selectObject(object);
+                        editor.core.focusObject?.(object);
+                    }
+                });
+                li.appendChild(button);
+            } else {
+                li.textContent = `${item.severity === 'error' ? 'Fehler' : 'Warnung'}: ${item.label}`;
+            }
+            fragment.appendChild(li);
+        }
+        dom.exportValidationList.replaceChildren(fragment);
+    };
+
+    const showExportResult = ({ summary, paths = [], mapKey = '', canOpenFolder = false } = {}) => {
+        if (dom.exportFormView) dom.exportFormView.hidden = true;
+        if (dom.exportResultView) dom.exportResultView.hidden = false;
+        if (dom.exportResultSummary) dom.exportResultSummary.textContent = summary;
+        if (dom.exportResultPaths) dom.exportResultPaths.textContent = paths.join('\n');
+        if (dom.btnExportOpenFolder) dom.btnExportOpenFolder.hidden = !canOpenFolder;
+        if (dom.btnExportCopyKey) dom.btnExportCopyKey.hidden = !mapKey;
+        exportState.resultMapKey = mapKey;
+    };
+
+    const openExportDialog = (defaultTarget = 'install') => {
+        if (!dom.exportDialog || dom.exportDialog.open) return;
+        const { jsonText } = generateCurrentMapJson();
+        setJsonEditorText(editor, jsonText);
+        exportState = {
+            jsonText,
+            validationItems: editor.renderWorkspaceValidation?.() || editor.lastValidationItems || [],
+            savedMaps: [],
+            listError: false,
+            resultMapKey: '',
+        };
+        if (dom.exportFormView) dom.exportFormView.hidden = false;
+        if (dom.exportResultView) dom.exportResultView.hidden = true;
+        if (dom.exportMapName) dom.exportMapName.value = readLastMapName();
+        if (dom.exportTarget) dom.exportTarget.value = defaultTarget;
+        if (dom.exportConflictMode) dom.exportConflictMode.value = 'update';
+        if (dom.exportWarningAcknowledge) dom.exportWarningAcknowledge.checked = false;
+        if (dom.btnExportConfirm) dom.btnExportConfirm.textContent = 'Exportieren';
+        renderExportValidation();
+        updateExportDialog();
+        document.getElementById('fileMenu')?.removeAttribute('open');
+        dom.exportDialog.showModal();
+        dom.exportMapName?.focus();
+
+        void fetchEditorApi(EDITOR_API_ROUTES.LIST_MAPS_DISK)
+            .then((payload) => {
+                if (!exportState || !dom.exportDialog?.open) return;
+                exportState.savedMaps = Array.isArray(payload.maps) ? payload.maps : [];
+                updateExportDialog();
+            })
+            .catch(() => {
+                if (!exportState || !dom.exportDialog?.open) return;
+                exportState.listError = true;
+                updateExportDialog();
+            });
+    };
+
+    const performExport = async () => {
+        if (!exportState || dom.btnExportConfirm?.disabled) return;
+        const mapName = sanitizeMapName(dom.exportMapName?.value);
+        const target = String(dom.exportTarget?.value || 'install');
+        const saveAsCopy = dom.exportConflictMode?.value === 'copy';
+        const slug = slugifyMapName(mapName);
+        storeLastMapName(mapName);
+        if (dom.btnExportConfirm) {
+            dom.btnExportConfirm.disabled = true;
+            dom.btnExportConfirm.textContent = 'Exportiere...';
+        }
+
+        try {
+            if (target === 'project') {
+                const editorDocument = editor.createEditorDocument?.(exportState.jsonText);
+                if (!editorDocument) throw new Error('Editor-Arbeitsstand konnte nicht erstellt werden.');
+                const projectJson = JSON.stringify(editorDocument, null, 2);
+                editor.resolveEditorImportText?.(projectJson);
+                const fileName = `${slug}.curvios-map.json`;
+                downloadJsonFile(projectJson, fileName);
+                editor.markSaved?.(`Bearbeitbare Map-Datei erstellt: ${fileName}.`);
+                showExportResult({ summary: 'Die bearbeitbare Map-Datei wurde erstellt.', paths: [fileName] });
+                return;
+            }
+            if (target === 'runtime') {
+                const fileName = `${slug}.runtime.json`;
+                downloadJsonFile(exportState.jsonText, fileName);
+                editor.notify?.(`Runtime-JSON erstellt: ${fileName}.`, 'success');
+                showExportResult({ summary: 'Das Runtime-JSON wurde erstellt. Editor-Ebenen sind darin absichtlich nicht enthalten.', paths: [fileName] });
+                return;
+            }
+
+            const { jsonText, payload, warnings } = await saveCurrentMapToDisk(mapName, { saveAsCopy });
+            setJsonEditorText(editor, jsonText);
+            const warningSuffix = warnings.length > 0
+                ? ` ${hasMigrationWarnings(warnings) ? 'Migrationshinweise' : 'Hinweise'}: ${warnings.join(' | ')}`
+                : '';
+            const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
+            editor.markSaved?.(`Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${warningSuffix}`);
+            showExportResult({
+                summary: `Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).`,
+                paths: [payload.editorSchemaPath, payload.runtimeMapPath].filter(Boolean),
+                mapKey: payload.mapKey,
+                canOpenFolder: true,
+            });
+        } catch (error) {
+            if (dom.exportConflictNotice) dom.exportConflictNotice.textContent = `Export fehlgeschlagen: ${error.message}`;
+            editor.notify?.(`Map konnte nicht exportiert werden: ${error.message}`, 'error');
+            if (dom.btnExportConfirm) {
+                dom.btnExportConfirm.textContent = 'Erneut versuchen';
+                dom.btnExportConfirm.disabled = false;
+            }
+        }
+    };
+
+    dom.btnExport?.addEventListener("click", () => {
+        const { jsonText, warnings } = generateCurrentMapJson();
+        setJsonEditorText(editor, jsonText);
+        const warningMessage = formatWarningsMessage(resolveWarningsTitle('Map exportiert mit Hinweisen:', warnings), warnings);
+        editor.notify?.(warningMessage || 'JSON-Export aktualisiert.', warningMessage ? 'warn' : 'success');
+    });
+
+    dom.btnSaveToGame?.addEventListener('click', () => openExportDialog('install'));
+    dom.btnPlaytest?.addEventListener('click', openPlaytest);
+
+    dom.exportMapName?.addEventListener('input', updateExportDialog);
+    dom.exportTarget?.addEventListener('change', updateExportDialog);
+    dom.exportConflictMode?.addEventListener('change', updateExportDialog);
+    dom.exportWarningAcknowledge?.addEventListener('change', updateExportDialog);
+    dom.btnExportCancel?.addEventListener('click', closeExportDialog);
+    dom.btnExportClose?.addEventListener('click', closeExportDialog);
+    dom.exportForm?.addEventListener('submit', (event) => {
+        event.preventDefault();
+        void performExport();
+    });
+    dom.btnExportPlay?.addEventListener('click', () => {
+        closeExportDialog();
+        openPlaytest();
+    });
+    dom.btnExportCopyKey?.addEventListener('click', async () => {
+        const mapKey = String(exportState?.resultMapKey || '');
+        if (!mapKey) return;
+        try {
+            await navigator.clipboard.writeText(mapKey);
+            editor.notify?.(`Map-Key kopiert: ${mapKey}.`, 'success');
+        } catch (error) {
+            editor.notify?.(`Map-Key konnte nicht kopiert werden: ${error.message}`, 'error');
+        }
+    });
+    dom.btnExportOpenFolder?.addEventListener('click', async () => {
+        try {
+            const payload = await fetchEditorApi(EDITOR_API_ROUTES.OPEN_MAPS_FOLDER, { method: 'POST' });
+            editor.notify?.(`Map-Ordner geoeffnet: ${payload.folderPath}.`, 'success');
+        } catch (error) {
+            editor.notify?.(`Map-Ordner konnte nicht geoeffnet werden: ${error.message}`, 'error');
+        }
     });
 
     dom.btnImport?.addEventListener("click", async () => {
@@ -273,6 +496,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             if (!confirmed) return;
         }
         try {
+            assertMapJsonSize(txt);
             const importDocument = editor.resolveEditorImportText?.(txt) || { jsonText: txt };
             editor.executeHistoryMutation('Import map', () => {
                 editor.mapManager.importFromJSON(importDocument.jsonText, {
@@ -338,24 +562,16 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         }
     });
 
-    dom.btnDownloadJson?.addEventListener('click', () => {
-        const { jsonText } = generateCurrentMapJson();
-        setJsonEditorText(editor, jsonText);
-        const blob = new Blob([jsonText], { type: 'application/json' });
-        const url = URL.createObjectURL(blob);
-        const link = document.createElement('a');
-        link.href = url;
-        link.download = 'curvios-map.json';
-        link.click();
-        URL.revokeObjectURL(url);
-        editor.markSaved?.('JSON-Datei erstellt.');
-    });
+    dom.btnDownloadJson?.addEventListener('click', () => openExportDialog('project'));
 
     dom.btnLoadJsonFile?.addEventListener('click', () => dom.jsonFileInput?.click());
     dom.jsonFileInput?.addEventListener('change', async () => {
         const file = dom.jsonFileInput.files?.[0];
         if (!file) return;
         try {
+            if (file.size > MAX_MAP_JSON_BYTES) {
+                throw new Error(`Datei ist groesser als ${MAX_MAP_JSON_BYTES} Bytes.`);
+            }
             setJsonEditorText(editor, await file.text());
             editor.notify?.(`${file.name} geladen. Mit „Import JSON“ uebernehmen.`, 'success');
         } catch (error) {

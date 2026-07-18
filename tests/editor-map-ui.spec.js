@@ -217,6 +217,10 @@ test.describe('V65: Editor Build Dock', () => {
 
         await activateDockEntry(page, 'build', 'build-hard');
         await clickCanvas(page, 0.34);
+        await activateDockEntry(page, 'flow', 'flow-spawn-player');
+        await clickCanvas(page, 0.52);
+        await activateDockEntry(page, 'flow', 'flow-spawn-bot');
+        await clickCanvas(page, 0.72);
 
         await openFileMenu(page);
         await page.locator('#btnExport').click();
@@ -225,6 +229,20 @@ test.describe('V65: Editor Build Dock', () => {
 
         const mapName = `V65 Smoke ${Date.now()}`;
         let saveRequestBody = null;
+        let folderOpenRequests = 0;
+        await page.route(`**${EDITOR_API_ROUTES.LIST_MAPS_DISK}`, (route) => route.fulfill({
+            status: 200,
+            contentType: 'application/json',
+            body: JSON.stringify({ ok: true, maps: [{ mapName, mapKey: 'editor_v65_existing' }] }),
+        }));
+        await page.route(`**${EDITOR_API_ROUTES.OPEN_MAPS_FOLDER}`, (route) => {
+            folderOpenRequests += 1;
+            return route.fulfill({
+                status: 200,
+                contentType: 'application/json',
+                body: JSON.stringify({ ok: true, folderPath: EDITOR_DATA_PATHS.MAPS_DIR }),
+            });
+        });
         await page.route(`**${EDITOR_API_ROUTES.SAVE_MAP_DISK}`, async (route) => {
             const request = route.request();
             saveRequestBody = JSON.parse(request.postData() || '{}');
@@ -245,15 +263,27 @@ test.describe('V65: Editor Build Dock', () => {
         });
 
         await page.locator('#btnSaveToGame').click();
-        await expect(page.locator('#editorModalBackdrop')).toHaveClass(/is-open/);
-        await page.locator('#editorModalInput').fill(mapName);
-        await page.locator('#btnEditorModalConfirm').click();
+        await expect(page.locator('#exportDialog')).toHaveAttribute('open', '');
+        await page.locator('#exportMapName').fill(mapName);
+        await expect(page.locator('#exportTarget')).toHaveValue('install');
+        await expect(page.locator('#exportConflictNotice')).toContainText('wird aktualisiert');
+        await page.locator('#exportConflictMode').selectOption('copy');
+        await expect(page.locator('#exportConflictNotice')).toContainText('bleibt erhalten');
+        await expect(page.locator('#btnExportConfirm')).toBeEnabled();
+        await page.locator('#btnExportConfirm').click();
         await expect.poll(() => saveRequestBody?.mapName || null).toBe(mapName);
+        expect(saveRequestBody?.saveAsCopy).toBe(true);
         expect(saveRequestBody?.editorDocument?.contractVersion).toBe('curvios-editor-document.v1');
         expect(saveRequestBody?.editorDocument?.authoring?.layerState?.layers?.geometry).toBeTruthy();
         expect(saveRequestBody?.jsonText).not.toContain('workspaceMetadata');
         await expect(page.locator('#workspaceStatusMessage')).toContainText(`Map neu gespeichert: ${mapName}`);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
+        await expect(page.locator('#exportResultView')).toBeVisible();
+        await expect(page.locator('#btnExportOpenFolder')).toBeVisible();
+        await expect(page.locator('#btnExportCopyKey')).toBeVisible();
+        await page.locator('#btnExportOpenFolder').click();
+        await expect.poll(() => folderOpenRequests).toBe(1);
+        await page.locator('#btnExportClose').click();
 
         await page.locator('#selPlaytestSession').selectOption('splitscreen');
         const popupPromise = page.waitForEvent('popup');
@@ -272,6 +302,40 @@ test.describe('V65: Editor Build Dock', () => {
         }
 
         expect(errors).toHaveLength(0);
+    });
+
+    test('Exportdialog blockiert Fehler und laedt den vollstaendigen Editor-Arbeitsstand herunter', async ({ page }) => {
+        await loadEditorPage(page);
+
+        await page.locator('#btnSaveToGame').click();
+        await expect(page.locator('#exportValidationSummary')).toContainText('Fehler');
+        await expect(page.locator('#btnExportConfirm')).toBeDisabled();
+        await page.locator('#btnExportCancel').click();
+
+        await activateDockEntry(page, 'flow', 'flow-spawn-player');
+        await clickCanvas(page, 0.3);
+
+        await openFileMenu(page);
+        await page.locator('#btnDownloadJson').click();
+        await page.locator('#exportMapName').fill('Meine Test Map');
+        await expect(page.locator('#exportTarget')).toHaveValue('project');
+        await expect(page.locator('#exportConflictModeRow')).toBeHidden();
+        await expect(page.locator('#exportValidationSummary')).toContainText('1 Warnung');
+        await expect(page.locator('#btnExportConfirm')).toBeDisabled();
+        await page.locator('#exportWarningAcknowledge').check();
+        await expect(page.locator('#btnExportConfirm')).toBeEnabled();
+        const downloadPromise = page.waitForEvent('download');
+        await page.locator('#btnExportConfirm').click();
+        const download = await downloadPromise;
+        expect(download.suggestedFilename()).toBe('meine-test-map.curvios-map.json');
+        const stream = await download.createReadStream();
+        const chunks = [];
+        for await (const chunk of stream) chunks.push(chunk);
+        const documentValue = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        expect(documentValue.contractVersion).toBe('curvios-editor-document.v1');
+        expect(documentValue.authoring?.layerState?.layers?.geometry).toBeTruthy();
+        expect(documentValue.map?.playerSpawn?.id).toBeTruthy();
+        await expect(page.locator('#exportResultView')).toBeVisible();
     });
 });
 

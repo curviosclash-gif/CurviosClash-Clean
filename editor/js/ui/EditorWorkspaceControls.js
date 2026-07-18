@@ -85,6 +85,14 @@ function getBlockingBoxes(objects) {
         .map((object) => ({ object, box: new THREE.Box3().setFromObject(object) }));
 }
 
+const BLOCKING_EXPORT_VALIDATION_CODES = new Set([
+    'player-spawn',
+    'portal-pairs',
+    'parcours-finish',
+    'spawn-trapped',
+    'portal-blocked',
+]);
+
 function buildValidationItems(editor) {
     const objects = listObjects(editor);
     const status = resolveMapAuthoringStatus(editor.mapManager);
@@ -146,7 +154,10 @@ function buildValidationItems(editor) {
         { code: 'portal-blocked', ok: blockedPortals.length === 0, label: blockedPortals.length === 0 ? 'Portalzentren sind frei' : `${blockedPortals.length} Portal(e) blockiert`, objectIds: blockedPortals.map((entry) => entry.userData.id) },
         { code: 'checkpoint-reachability', ok: unreachableCheckpoints.size === 0, label: unreachableCheckpoints.size === 0 ? 'Parcours-Segmente wirken erreichbar' : `${unreachableCheckpoints.size} Checkpoint(s) blockiert oder zu weit entfernt`, objectIds: [...unreachableCheckpoints] },
         { code: 'assets', ok: !assetsDegraded, label: assetsDegraded ? 'Assets verwenden Fallbacks' : 'Assets sind bereit', objectIds: [] },
-    ];
+    ].map((item) => ({
+        ...item,
+        severity: item.ok ? 'ok' : (BLOCKING_EXPORT_VALIDATION_CODES.has(item.code) ? 'error' : 'warning'),
+    }));
 }
 
 function offsetClipboardPayload(editor, object, offset = null) {
@@ -223,10 +234,13 @@ export function bindEditorWorkspaceControls(editor) {
 
     const renderValidation = () => {
         const items = buildValidationItems(editor);
-        const warningCount = items.filter((item) => !item.ok).length;
+        const errorCount = items.filter((item) => item.severity === 'error').length;
+        const warningCount = items.filter((item) => item.severity === 'warning').length;
         if (dom.validationStateBadge) {
-            dom.validationStateBadge.textContent = warningCount === 0 ? 'Map bereit' : `${warningCount} Hinweis(e)`;
-            dom.validationStateBadge.style.color = warningCount === 0 ? '#86efac' : '#fde68a';
+            dom.validationStateBadge.textContent = errorCount > 0
+                ? `${errorCount} Fehler`
+                : warningCount > 0 ? `${warningCount} Warnung(en)` : 'Map bereit';
+            dom.validationStateBadge.style.color = errorCount > 0 ? '#fecaca' : (warningCount > 0 ? '#fde68a' : '#86efac');
         }
         if (dom.validationList) {
             const fragment = document.createDocumentFragment();

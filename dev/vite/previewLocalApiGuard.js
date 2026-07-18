@@ -44,6 +44,20 @@ export const LOCAL_API_ROUTE_DECISIONS = Object.freeze([
         reason: 'Writes generated editor map artifacts.',
     }),
     createRouteDecision({
+        method: 'GET',
+        route: '/api/editor/list-maps-disk',
+        classes: [LOCAL_API_ROUTE_CLASS.ARTIFACT_READ],
+        previewAccess: LOCAL_API_PREVIEW_ACCESS.ACTIVE,
+        reason: 'Bounded generated-map index; no arbitrary path input.',
+    }),
+    createRouteDecision({
+        method: 'POST',
+        route: '/api/editor/open-maps-folder',
+        classes: [LOCAL_API_ROUTE_CLASS.LOCAL_MUTATION, LOCAL_API_ROUTE_CLASS.PROCESS_CONTROL],
+        previewAccess: LOCAL_API_PREVIEW_ACCESS.LOCAL_MUTATION_FLAG,
+        reason: 'Opens the fixed generated-map folder in the local file manager.',
+    }),
+    createRouteDecision({
         method: 'POST',
         route: '/api/editor/save-vehicle-disk',
         classes: [LOCAL_API_ROUTE_CLASS.DISK_WRITE, LOCAL_API_ROUTE_CLASS.LOCAL_MUTATION],

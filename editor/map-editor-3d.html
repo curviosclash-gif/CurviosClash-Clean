@@ -932,6 +932,49 @@
         .editorModalActions { display: flex; justify-content: flex-end; gap: 8px; }
         .dangerAction { color: #fecaca; border-color: rgba(249,115,115,.5); }
 
+        .exportDialog {
+            width: min(620px, calc(100% - 32px));
+            max-height: calc(100vh - 32px);
+            padding: 0;
+            color: var(--text);
+            border: 1px solid rgba(148, 163, 184, .28);
+            border-radius: 18px;
+            background: #08111f;
+            box-shadow: 0 24px 70px rgba(0,0,0,.6);
+        }
+
+        .exportDialog::backdrop { background: rgba(2, 6, 23, .76); }
+        .exportDialog [hidden] { display: none !important; }
+        .exportDialog__body { display: grid; gap: 14px; padding: 18px; overflow: auto; }
+        .exportDialog h2, .exportDialog p { margin: 0; }
+        .exportDialog p { color: var(--muted); line-height: 1.45; }
+        .exportDialog__grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+        .exportDialog label { display: grid; gap: 5px; font-size: 11px; color: var(--muted); }
+        .exportDialog input, .exportDialog select { width: 100%; }
+        .exportDialog__preview {
+            display: grid;
+            gap: 4px;
+            padding: 10px;
+            border-radius: 10px;
+            background: rgba(148, 163, 184, .1);
+            font: 11px/1.45 monospace;
+            overflow-wrap: anywhere;
+        }
+        .exportDialog__conflict { color: #fde68a; }
+        .exportDialog__issues { display: grid; gap: 5px; margin: 0; padding: 0; list-style: none; }
+        .exportDialog__issues li { padding: 7px 9px; border-radius: 8px; background: rgba(148, 163, 184, .08); }
+        .exportDialog__issues li[data-severity="error"] { color: #fecaca; }
+        .exportDialog__issues li[data-severity="warning"] { color: #fde68a; }
+        .exportDialog__issues button { width: 100%; padding: 0; border: 0; background: none; color: inherit; text-align: left; }
+        .exportDialog__acknowledge { grid-template-columns: auto 1fr !important; align-items: center; }
+        .exportDialog__acknowledge input { width: auto; }
+        .exportDialog__actions { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+        .exportDialog__resultPaths { white-space: pre-wrap; }
+
+        @media (max-width: 620px) {
+            .exportDialog__grid { grid-template-columns: 1fr; }
+        }
+
         .buildCard.is-active {
             border-color: var(--entry-accent);
             box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.04), 0 0 0 2px rgba(96, 165, 250, 0.14);
@@ -1555,7 +1598,7 @@
                 <button id="btnRedo" class="small" title="Redo (Strg+Y / Strg+Shift+Z)" disabled>Redo</button>
                 <span class="badge" id="dirtyStateBadge">Gespeichert</span>
                 <div class="editorTopbar__spacer"></div>
-                <button id="btnSaveToGame" class="small editorTopbar__save">Im Spieleordner speichern</button>
+                <button id="btnSaveToGame" class="small editorTopbar__save">Map exportieren...</button>
                 <label class="playtestMode" for="selPlaytestMode">
                     Ansicht
                     <select id="selPlaytestMode">
@@ -1574,10 +1617,10 @@
                 <details class="fileMenu" id="fileMenu">
                     <summary>Datei</summary>
                     <div class="fileMenu__items">
-                        <button id="btnExport" class="small">Export JSON</button>
+                        <button id="btnExport" class="small">JSON-Vorschau aktualisieren</button>
                         <button id="btnImport" class="small">Import JSON</button>
                         <button id="btnCopyJson" class="small">JSON kopieren</button>
-                        <button id="btnDownloadJson" class="small">JSON-Datei</button>
+                        <button id="btnDownloadJson" class="small">Map exportieren...</button>
                         <button id="btnLoadJsonFile" class="small">Datei laden</button>
                         <button id="btnNew" class="small">Neu</button>
                     </div>
@@ -1654,6 +1697,65 @@
             </div>
         </div>
     </div>
+
+    <dialog class="exportDialog" id="exportDialog" aria-labelledby="exportDialogTitle">
+        <form id="exportForm">
+            <div id="exportFormView">
+                <div class="exportDialog__body">
+                    <h2 id="exportDialogTitle">Map exportieren</h2>
+                    <p>Waehle ein Ziel. Die Map wird vor dem Export geprueft.</p>
+                    <div class="exportDialog__grid">
+                        <label for="exportMapName">Map-Name
+                            <input id="exportMapName" type="text" maxlength="80" required />
+                        </label>
+                        <label for="exportTarget">Exportziel
+                            <select id="exportTarget">
+                                <option value="install">Im Spiel installieren</option>
+                                <option value="project">Bearbeitbare Map-Datei</option>
+                                <option value="runtime">Runtime-JSON</option>
+                            </select>
+                        </label>
+                        <label id="exportConflictModeRow" for="exportConflictMode">Bei gleichem Namen
+                            <select id="exportConflictMode">
+                                <option value="update">Bestehende Map aktualisieren</option>
+                                <option value="copy">Als neue Kopie speichern</option>
+                            </select>
+                        </label>
+                    </div>
+                    <div class="exportDialog__preview" aria-live="polite">
+                        <span id="exportKeyPreview"></span>
+                        <span id="exportFilePreview"></span>
+                        <span class="exportDialog__conflict" id="exportConflictNotice"></span>
+                    </div>
+                    <div>
+                        <strong id="exportValidationSummary">Map-Pruefung</strong>
+                        <ul class="exportDialog__issues" id="exportValidationList"></ul>
+                    </div>
+                    <label class="exportDialog__acknowledge" id="exportWarningAcknowledgeRow">
+                        <input id="exportWarningAcknowledge" type="checkbox" />
+                        <span>Warnungen geprueft; trotzdem exportieren.</span>
+                    </label>
+                    <div class="exportDialog__actions">
+                        <button id="btnExportCancel" type="button">Abbrechen</button>
+                        <button id="btnExportConfirm" type="submit">Exportieren</button>
+                    </div>
+                </div>
+            </div>
+            <div id="exportResultView" hidden>
+                <div class="exportDialog__body">
+                    <h2>Export abgeschlossen</h2>
+                    <p id="exportResultSummary"></p>
+                    <div class="exportDialog__preview exportDialog__resultPaths" id="exportResultPaths"></div>
+                    <div class="exportDialog__actions">
+                        <button id="btnExportPlay" type="button">Map spielen</button>
+                        <button id="btnExportOpenFolder" type="button">Ordner oeffnen</button>
+                        <button id="btnExportCopyKey" type="button">Map-Key kopieren</button>
+                        <button id="btnExportClose" type="button">Schliessen</button>
+                    </div>
+                </div>
+            </div>
+        </form>
+    </dialog>
 
     <div class="editorModalBackdrop" id="editorModalBackdrop" role="presentation" aria-hidden="true">
         <div class="editorModal" role="dialog" aria-modal="true" aria-labelledby="editorModalTitle" aria-describedby="editorModalMessage">

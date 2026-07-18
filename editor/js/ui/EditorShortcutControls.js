@@ -14,7 +14,7 @@ export function bindEditorShortcutControls(editor) {
 
     const shouldIgnoreGlobalShortcut = (target) => {
         if (!(target instanceof Element)) return false;
-        if (target.closest('#editorModalBackdrop')) return true;
+        if (target.closest('#editorModalBackdrop, dialog[open]')) return true;
         const tagName = target.tagName.toLowerCase();
         return tagName === 'input'
             || tagName === 'textarea'

@@ -7,6 +7,8 @@ export const EDITOR_DISK_IO_CONTRACT_VERSION = 'editor-disk-io.v1';
 
 export const EDITOR_API_ROUTES = Object.freeze({
     SAVE_MAP_DISK: '/api/editor/save-map-disk',
+    LIST_MAPS_DISK: '/api/editor/list-maps-disk',
+    OPEN_MAPS_FOLDER: '/api/editor/open-maps-folder',
     SAVE_VEHICLE_DISK: '/api/editor/save-vehicle-disk',
     LIST_VEHICLES_DISK: '/api/editor/list-vehicles-disk',
     GET_VEHICLE_DISK: '/api/editor/get-vehicle-disk',
