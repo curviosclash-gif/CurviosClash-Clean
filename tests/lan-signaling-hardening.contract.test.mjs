@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { createLANSignalingServer } from '../server/lan-signaling.js';
 import { selectJoinSignalingUrlFromDiscoveredHosts } from '../src/application/session-runtime/NetworkLobbyDiscoveryResolver.js';
+import { LANMatchLobby } from '../src/network/LANMatchLobby.js';
 
 async function startLanServer(options = {}) {
     const bundle = createLANSignalingServer(0, options);
@@ -145,6 +146,40 @@ test('LAN signaling rejects oversized JSON payloads with 413', async () => {
         assert.equal(oversizedCreate.ok, false);
         assert.equal(oversizedCreate.status, 413);
         assert.equal(oversizedCreate.payload?.message, 'payload_too_large');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN lobby preserves server error codes for failed joins', async () => {
+    const lanServer = await startLanServer();
+    try {
+        await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const lobby = new LANMatchLobby({ signalingUrl: lanServer.baseUrl });
+        await assert.rejects(
+            lobby.join({ signalingUrl: lanServer.baseUrl, lobbyCode: 'WRONG' }),
+            (error) => error?.code === 'lobby_not_found'
+        );
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN signaling applies per-IP request limits and slow-request timeouts', async () => {
+    const lanServer = await startLanServer({
+        maxRequestsPerIp: 2,
+        requestRateWindowMs: 10_000,
+        requestTimeoutMs: 1_200,
+        headersTimeoutMs: 600,
+    });
+    try {
+        assert.equal(lanServer.server.requestTimeout, 1_200);
+        assert.equal(lanServer.server.headersTimeout, 600);
+        assert.equal((await fetch(`${lanServer.baseUrl}/discovery/info`)).status, 200);
+        assert.equal((await fetch(`${lanServer.baseUrl}/discovery/info`)).status, 200);
+        const limited = await fetch(`${lanServer.baseUrl}/discovery/info`);
+        assert.equal(limited.status, 429);
+        assert.equal((await limited.json()).message, 'rate_limit_exceeded');
     } finally {
         await stopLanServer(lanServer.server);
     }

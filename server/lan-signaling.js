@@ -14,6 +14,10 @@ const DEFAULT_GHOST_PLAYER_TIMEOUT_MS = 60_000;
 const DEFAULT_GHOST_CLEANUP_INTERVAL_MS = 5_000;
 const DEFAULT_RECONNECT_LEASE_MS = 60_000;
 const MAX_REQUEST_BODY_BYTES = 16 * 1024;
+const REQUEST_RATE_WINDOW_MS = 10_000;
+const MAX_REQUESTS_PER_IP = 300;
+const REQUEST_TIMEOUT_MS = 10_000;
+const HEADERS_TIMEOUT_MS = 5_000;
 
 const LOOPBACK_ADDRESSES = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 
@@ -86,6 +90,11 @@ function jsonResponse(res, data, status = 200) {
         contractVersion: SIGNALING_SESSION_CONTRACT_VERSION,
         ...data,
     }));
+}
+
+function rejectOversizedRequest(req, res) {
+    res.once('finish', () => req.destroy());
+    jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
 }
 
 function readBody(req) {
@@ -178,6 +187,13 @@ export function createLANSignalingServer(port = 9090, options = {}) {
     const reconnectLeaseMs = Number.isFinite(Number(options.reconnectLeaseMs))
         ? Math.max(1, Math.floor(Number(options.reconnectLeaseMs)))
         : DEFAULT_RECONNECT_LEASE_MS;
+    const requestRateWindowMs = Number.isFinite(Number(options.requestRateWindowMs))
+        ? Math.max(1, Math.floor(Number(options.requestRateWindowMs)))
+        : REQUEST_RATE_WINDOW_MS;
+    const maxRequestsPerIp = Number.isFinite(Number(options.maxRequestsPerIp))
+        ? Math.max(1, Math.floor(Number(options.maxRequestsPerIp)))
+        : MAX_REQUESTS_PER_IP;
+    const requestRates = new Map();
 
     const lobby = {
         code: generateLobbyCode(),
@@ -294,6 +310,20 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         : null;
 
     const server = http.createServer(async (req, res) => {
+        const timestamp = Date.now();
+        const remoteAddress = String(req.socket?.remoteAddress || 'unknown');
+        let requestRate = requestRates.get(remoteAddress);
+        if (!requestRate || timestamp - requestRate.windowStartedAt >= requestRateWindowMs) {
+            requestRate = { windowStartedAt: timestamp, count: 0 };
+            requestRates.set(remoteAddress, requestRate);
+        }
+        requestRate.count += 1;
+        if (requestRate.count > maxRequestsPerIp) {
+            req.resume();
+            jsonResponse(res, { ok: false, message: 'rate_limit_exceeded' }, 429);
+            return;
+        }
+
         const corsOrigin = resolveCorsOrigin(req);
         if (corsOrigin === null) {
             jsonResponse(res, { ok: false, message: 'origin_not_allowed' }, 403);
@@ -319,7 +349,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             }
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -353,7 +383,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             cleanupGhostPlayers();
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -392,7 +422,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_READY) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -428,7 +458,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_LEAVE) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -479,7 +509,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_INVALIDATE_READY) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -531,7 +561,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_ACK_PENDING) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -554,7 +584,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_REJOIN) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -615,7 +645,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_MATCH_START) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -659,7 +689,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.SIGNALING_OFFER) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -698,7 +728,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.SIGNALING_ANSWER) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -734,7 +764,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.SIGNALING_ICE) {
             const body = await readBody(req);
             if (body?.__tooLarge === true) {
-                jsonResponse(res, { ok: false, message: 'payload_too_large' }, 413);
+                rejectOversizedRequest(req, res);
                 return;
             }
             if (body?.__badJson === true) {
@@ -822,6 +852,16 @@ export function createLANSignalingServer(port = 9090, options = {}) {
 
         jsonResponse(res, { error: 'Not found' }, 404);
     });
+
+    server.requestTimeout = Number.isFinite(Number(options.requestTimeoutMs))
+        ? Math.max(1, Math.floor(Number(options.requestTimeoutMs)))
+        : REQUEST_TIMEOUT_MS;
+    server.headersTimeout = Math.min(
+        server.requestTimeout,
+        Number.isFinite(Number(options.headersTimeoutMs))
+            ? Math.max(1, Math.floor(Number(options.headersTimeoutMs)))
+            : HEADERS_TIMEOUT_MS,
+    );
 
     server.on('close', () => {
         if (cleanupIntervalId) {

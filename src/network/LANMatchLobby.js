@@ -168,6 +168,9 @@ export class LANMatchLobby extends MatchLobby {
             this._startPolling();
         } catch (err) {
             logger.warn('Lobby join request failed:', err);
+            if (err instanceof Error && typeof err.code === 'string') {
+                throw err;
+            }
             throw buildLanRequestError({
                 fallbackMessage: `LAN-Signaling nicht erreichbar: ${this._signalingUrl}`,
                 fallbackCode: 'signaling_network_unavailable',
