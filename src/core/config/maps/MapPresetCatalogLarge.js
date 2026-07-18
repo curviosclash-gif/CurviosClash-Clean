@@ -5,6 +5,7 @@
 export const MAP_PRESET_CATALOG_LARGE_DATA = {
     die_festung: {
         name: 'Die Festung',
+        hiddenFromMapPicker: true,
         size: [300, 80, 300],
         obstacles: [
             { pos: [0, 40, 0], size: [16, 80, 16], tunnel: { radius: 5.5, axis: 'y' } },

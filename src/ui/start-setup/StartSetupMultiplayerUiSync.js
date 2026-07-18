@@ -99,14 +99,23 @@ function renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePrevie
             title: mapPreview.name,
             badges: [
                 mapPreview.renderMode,
+                mapPreview.hasParcours ? 'Parcours' : null,
                 humanizePreviewCategory(mapPreview.category),
                 mapPreview.portalLevelCount > 1 ? `${mapPreview.portalLevelCount} Ebenen` : mapPreview.sizeText,
-            ],
+            ].filter(Boolean),
             facts: [
                 { label: 'Größe', value: mapPreview.sizeText },
                 { label: 'Hindernisse', value: String(mapPreview.obstacleCount) },
-                { label: 'Portale', value: String(mapPreview.portalCount) },
-            ],
+                {
+                    label: 'Portal-Paare',
+                    value: mapPreview.portalMode === 'dynamic' ? 'Dynamisch' : String(mapPreview.portalCount),
+                },
+                mapPreview.gateCount > 0 ? { label: 'Tore', value: String(mapPreview.gateCount) } : null,
+                mapPreview.tunnelCount > 0 ? { label: 'Tunnel', value: String(mapPreview.tunnelCount) } : null,
+                mapPreview.spawnCount > 0 ? { label: 'Startpunkte', value: String(mapPreview.spawnCount) } : null,
+                mapPreview.itemAnchorCount > 0 ? { label: 'Items', value: String(mapPreview.itemAnchorCount) } : null,
+                mapPreview.aircraftCount > 0 ? { label: 'Deko-Flieger', value: String(mapPreview.aircraftCount) } : null,
+            ].filter(Boolean),
         });
     }
     if (ui.vehiclePreviewP1 && !ui.vehiclePreview3dMount) {

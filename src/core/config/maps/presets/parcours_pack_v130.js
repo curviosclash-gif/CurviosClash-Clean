@@ -44,8 +44,8 @@ const V130_BOT_SPAWNS = Object.freeze({
         { x: -62, y: 16, z: 0 },
     ]),
     chrono_spillway: Object.freeze([
-        { x: -140, y: 72, z: -38 },
-        { x: -140, y: 72, z: -18 },
+        { x: -138, y: 72, z: -38 },
+        { x: -138, y: 72, z: -18 },
         { x: -124, y: 72, z: -28 },
     ]),
 });
@@ -53,7 +53,8 @@ const V130_BOT_SPAWNS = Object.freeze({
 export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     micro_maw: {
         name: 'Mikro-Maul',
-        size: [110, 50, 120],
+        size: [120, 50, 120],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [12, 18, 24],
         obstacles: [
@@ -117,7 +118,8 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     mirror_docks: {
         name: 'Spiegelwerft',
-        size: [190, 65, 150],
+        size: [204, 65, 150],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [16, 24, 34],
         obstacles: [
@@ -206,6 +208,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     glass_serpent: {
         name: 'Glasschlange',
         size: [260, 80, 160],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [20, 36, 48],
         obstacles: [
@@ -249,7 +252,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
                 params: { duration: 0.9, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.8 },
             },
         ],
-        playerSpawn: { x: -130, y: 20, z: -38 },
+        playerSpawn: { x: -128, y: 20, z: -38 },
         botSpawns: V130_BOT_SPAWNS.glass_serpent,
         items: [
             { id: 'gs_speed_entry', type: 'item_battery', pickupType: 'SPEED_UP', x: -82, y: 23, z: -16, weight: 1.3 },
@@ -309,7 +312,8 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     storm_switchyard: {
         name: 'Sturmweiche',
-        size: [240, 70, 180],
+        size: [248, 70, 180],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [14, 28, 42],
         obstacles: [
@@ -408,6 +412,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     wind_cathedral: {
         name: 'Windkathedrale',
         size: [180, 120, 180],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [18, 42, 68, 92],
         obstacles: [
@@ -494,7 +499,8 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     chrono_spillway: {
         name: 'Chrono-Abfluss',
-        size: [280, 95, 150],
+        size: [280, 95, 160],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [16, 32, 52, 72],
         obstacles: [
@@ -542,7 +548,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
                 params: { duration: 1.0, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.9 },
             },
         ],
-        playerSpawn: { x: -142, y: 72, z: -28 },
+        playerSpawn: { x: -138, y: 72, z: -28 },
         botSpawns: V130_BOT_SPAWNS.chrono_spillway,
         items: [
             { id: 'cs_speed_upper', type: 'item_battery', pickupType: 'SPEED_UP', x: -76, y: 64, z: 24, weight: 1.2 },

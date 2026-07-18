@@ -211,6 +211,18 @@ export class ParcoursMinimapRenderer {
 
             ctx.restore();
         }
+
+        const nextTarget = routeSnapshot.checkpoints.find((entry) => entry.routeIndex === nextIdx)
+            || (nextIdx >= routeSnapshot.totalCheckpoints ? routeSnapshot.finish : null);
+        if (playerPos && nextTarget?.pos) {
+            const heightDelta = Math.round((Number(nextTarget.pos[1]) || 0) - (Number(playerPos.y) || 0));
+            if (Math.abs(heightDelta) >= 1) {
+                ctx.font = '12px sans-serif';
+                ctx.textAlign = 'right';
+                ctx.fillStyle = '#ffffff';
+                ctx.fillText(`${heightDelta > 0 ? '\u2191' : '\u2193'} ${Math.abs(heightDelta)} m`, W - 8, H - 7);
+            }
+        }
     }
 
     dispose() {

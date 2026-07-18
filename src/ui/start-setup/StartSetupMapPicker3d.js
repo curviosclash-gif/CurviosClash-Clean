@@ -67,11 +67,16 @@ function collectPortalPoints(mapDefinition) {
     return points;
 }
 
-function collectSpawnPoints(mapDefinition) {
+export function collectSpawnPoints(mapDefinition) {
     const points = [];
     const append = (spawn) => {
         const position = Array.isArray(spawn) ? spawn : (spawn?.position || spawn?.pos);
-        if (Array.isArray(position) && position.length >= 3) points.push(normalizeVector3(position));
+        if (Array.isArray(position) && position.length >= 3) {
+            points.push(normalizeVector3(position));
+        } else if (spawn && typeof spawn === 'object') {
+            const xyz = [Number(spawn.x), Number(spawn.y), Number(spawn.z)];
+            if (xyz.every(Number.isFinite)) points.push(xyz);
+        }
     };
     append(mapDefinition?.playerSpawn);
     (Array.isArray(mapDefinition?.botSpawns) ? mapDefinition.botSpawns : []).forEach(append);
@@ -266,7 +271,13 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
         scene.add(mapRoot);
         mount.dataset.previewMapKey = String(mapKey || '');
         mount.dataset.previewObstacleCount = String(obstacleBoxes.length);
-        if (renderer) setStatus('ready', '3D-Kartenansicht bereit');
+        if (renderer) {
+            const isSchematicGlbPreview = typeof definition.glbModel === 'string'
+                || (Array.isArray(definition.glbModels) && definition.glbModels.length > 0);
+            setStatus('ready', isSchematicGlbPreview
+                ? 'Schematische Vorschau - 3D-Art wird im Spiel geladen'
+                : '3D-Kartenansicht bereit');
+        }
     }
 
     function syncRendererSize(force = false) {

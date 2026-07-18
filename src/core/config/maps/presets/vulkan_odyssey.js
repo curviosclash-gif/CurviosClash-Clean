@@ -10,7 +10,8 @@
 export const VULKAN_ODYSSEY_MAP = {
     vulkan_odyssey: {
         name: 'Vulkan Odyssey',
-        size: [320, 110, 200],
+        size: [380, 114, 200],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [15, 35, 55, 75, 95],
         obstacles: [

@@ -42,3 +42,18 @@ test('Vulkan Odyssey precision hop keeps playable landing footprints', () => {
         assert.ok(gap <= 8, `precision hop edge gap too wide: ${gap.toFixed(2)}`);
     }
 });
+
+test('Vulkan Odyssey finale stays fully inside the arena', () => {
+    const map = VULKAN_ODYSSEY_MAP.vulkan_odyssey;
+    const [width, height, depth] = map.size;
+    const finaleEntries = [...map.parcours.checkpoints.slice(-2), map.parcours.finish];
+
+    assert.deepEqual(map.size, [380, 114, 200]);
+    assert.equal(map.scaleAuthoredAnchors, true);
+    for (const entry of finaleEntries) {
+        const [x, y, z] = entry.pos;
+        assert.ok(Math.abs(x) + entry.radius <= width / 2, `${entry.id} fits in X`);
+        assert.ok(y - entry.radius >= 0 && y + entry.radius <= height, `${entry.id} fits in Y`);
+        assert.ok(Math.abs(z) + entry.radius <= depth / 2, `${entry.id} fits in Z`);
+    }
+});

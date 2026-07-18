@@ -27,6 +27,7 @@ const BASE_MAP_KEYS = [
     'the_loop',
     'upgrade_showcase',
     'showcase_nexus',
+    'tutorial_classic',
     'parcours_assault',
     'parcours_rift',
     'parcours_rift_sprint',

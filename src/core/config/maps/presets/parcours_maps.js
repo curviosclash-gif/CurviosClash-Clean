@@ -124,6 +124,8 @@ export const PARCOURS_MAPS = Object.freeze({
     tutorial_classic: {
         name: 'Classic Tutorial-Parcours',
         size: [230, 70, 150],
+        hiddenFromMapPicker: true,
+        scaleAuthoredAnchors: true,
         singlePlayerScenario: {
             enabled: true,
             id: 'classic_tutorial',
@@ -245,6 +247,7 @@ export const PARCOURS_MAPS = Object.freeze({
     parcours_rift: {
         name: 'Parcours Rift',
         size: [260, 84, 180],
+        scaleAuthoredAnchors: true,
         obstacles: RIFT_OBSTACLES,
         portals: RIFT_PORTALS,
         gates: RIFT_GATES,
@@ -311,6 +314,7 @@ export const PARCOURS_MAPS = Object.freeze({
     parcours_rift_sprint: {
         name: 'Parcours Rift Sprint',
         size: [260, 84, 180],
+        scaleAuthoredAnchors: true,
         obstacles: RIFT_OBSTACLES,
         portals: RIFT_PORTALS,
         gates: RIFT_GATES,
@@ -349,6 +353,7 @@ export const PARCOURS_MAPS = Object.freeze({
     parcours_rift_precision: {
         name: 'Parcours Rift Precision',
         size: [260, 84, 180],
+        scaleAuthoredAnchors: true,
         obstacles: RIFT_OBSTACLES,
         portals: RIFT_PORTALS,
         gates: RIFT_GATES,

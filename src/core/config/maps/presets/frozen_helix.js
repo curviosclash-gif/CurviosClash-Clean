@@ -8,6 +8,7 @@ export const FROZEN_HELIX_MAP = {
     frozen_helix: {
         name: 'Frozen Helix',
         size: [180, 110, 180],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [10, 30, 50, 70, 90],
         obstacles: [

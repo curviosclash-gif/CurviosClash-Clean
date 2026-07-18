@@ -2,7 +2,9 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
+import { CONFIG } from '../src/core/Config.js';
 import { PARCOURS_MAPS } from '../src/core/config/maps/presets/parcours_maps.js';
+import { resolveArenaMapSelection } from '../src/entities/CustomMapLoader.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import {
     evaluateFightHangarParts,
@@ -116,4 +118,8 @@ test('Classic tutorial is a bot-free Classic parcours with versioned completion'
     assert.equal(completion.schemaVersion, CLASSIC_TUTORIAL_CONTRACT_VERSION);
     assert.equal(completion.completed, true);
     assert.equal(completion.completedAtMs, 1234);
+    assert.equal(CONFIG.MAPS.tutorial_classic, map);
+    assert.equal(resolveArenaMapSelection('tutorial_classic').effectiveMapKey, 'tutorial_classic');
+    assert.equal(map.hiddenFromMapPicker, true);
+    assert.equal(map.scaleAuthoredAnchors, true);
 });

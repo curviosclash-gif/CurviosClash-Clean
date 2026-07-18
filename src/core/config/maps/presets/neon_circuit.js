@@ -7,6 +7,7 @@ export const NEON_CIRCUIT_MAP = {
     neon_circuit: {
         name: 'Neon Circuit',
         size: [200, 60, 160],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [12, 25, 40],
         obstacles: [

@@ -69,6 +69,7 @@ test('V130 parcours routes build with stable ghost and finish contracts', () => 
         assert.ok(Array.isArray(mapDef?.botSpawns) && mapDef.botSpawns.length > 0, `${mapKey} has bot spawns`);
         assert.ok(Array.isArray(mapDef?.items) && mapDef.items.length > 0, `${mapKey} has item anchors`);
         assert.ok(Array.isArray(mapDef?.missions) && mapDef.missions.some((entry) => entry?.type === 'TIME_TRIAL'), `${mapKey} has a target-time mission`);
+        assert.equal(mapDef.scaleAuthoredAnchors, true, `${mapKey} scales authored anchors with its route`);
 
         assert.equal(routeIds.has(route.routeId), false, `${mapKey} routeId is unique`);
         routeIds.add(route.routeId);

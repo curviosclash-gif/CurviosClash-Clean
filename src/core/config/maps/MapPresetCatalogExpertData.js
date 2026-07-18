@@ -8,6 +8,7 @@ export const MAP_PRESET_CATALOG_EXPERT_DATA = {
     expert_gauntlet: {
         ...MAP_PRESET_CATALOG_LARGE_DATA.die_festung,
         name: 'Expert Gauntlet',
+        hiddenFromMapPicker: false,
     },
     mega_maze: {
         name: 'Mega-Labyrinth',

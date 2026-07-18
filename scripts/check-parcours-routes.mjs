@@ -1,11 +1,14 @@
 #!/usr/bin/env node
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
+import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
 
 const MIN_STAGE_STEP_DISTANCE = 0.35;
 const BASE_MAX_STAGE_STEP_DISTANCE = 80;
 const MAX_STAGE_STEP_RATIO_OF_MAP_DIAGONAL = 0.55;
 const MAX_BRANCH_SPREAD_DISTANCE = 120;
+const MAP_SCALE = Math.max(0.001, Number(CONFIG_SECTIONS.ARENA.MAP_SCALE) || 1);
+const AUTHORED_SPAWN_CLEARANCE = 3 / MAP_SCALE;
 
 function asVec3(input, fallback = [0, 0, 0]) {
     if (!Array.isArray(input) || input.length < 3) return [...fallback];
@@ -175,6 +178,53 @@ function evaluateStageJumpHeuristics(findings, route) {
     }
 }
 
+function evaluateSpatialContract(findings, mapDef, route) {
+    const size = asVec3(mapDef?.size);
+    const [sx, sy, sz] = size;
+    if (!(sx > 0 && sy > 0 && sz > 0)) {
+        findings.errors.push('invalid-map-size');
+        return;
+    }
+    if (mapDef?.scaleAuthoredAnchors !== true) {
+        findings.errors.push('authored-anchors-do-not-use-map-scale');
+    }
+
+    const routeEntries = [...(route.checkpoints || []), route.finish].filter(Boolean);
+    for (const entry of routeEntries) {
+        const [x, y, z] = asVec3(entry.pos);
+        const id = String(entry.id || 'unknown');
+        if (Math.abs(x) > sx / 2 || y < 0 || y > sy || Math.abs(z) > sz / 2) {
+            findings.errors.push(`${id} center-outside-arena`);
+            continue;
+        }
+        const radius = Math.max(0, Number(entry.radius) || 0);
+        if (Math.abs(x) + radius > sx / 2 || y - radius < 0 || y + radius > sy || Math.abs(z) + radius > sz / 2) {
+            findings.warnings.push(`${id} trigger-clips-arena-boundary`);
+        }
+    }
+
+    const spawnEntries = [
+        ...(mapDef?.playerSpawn ? [['playerSpawn', mapDef.playerSpawn]] : []),
+        ...(Array.isArray(mapDef?.botSpawns)
+            ? mapDef.botSpawns.map((entry, index) => [`botSpawns[${index}]`, entry])
+            : []),
+    ];
+    for (const [label, entry] of spawnEntries) {
+        const x = Number(entry?.x);
+        const y = Number(entry?.y);
+        const z = Number(entry?.z);
+        if (!Number.isFinite(x) || !Number.isFinite(y) || !Number.isFinite(z)
+            || x - AUTHORED_SPAWN_CLEARANCE < -sx / 2
+            || x + AUTHORED_SPAWN_CLEARANCE > sx / 2
+            || y - AUTHORED_SPAWN_CLEARANCE < 0
+            || y + AUTHORED_SPAWN_CLEARANCE > sy
+            || z - AUTHORED_SPAWN_CLEARANCE < -sz / 2
+            || z + AUTHORED_SPAWN_CLEARANCE > sz / 2) {
+            findings.errors.push(`${label} outside-safe-arena-bounds`);
+        }
+    }
+}
+
 function evaluateRoute(mapKey, mapDef) {
     const findings = {
         mapKey,
@@ -202,6 +252,7 @@ function evaluateRoute(mapKey, mapDef) {
     }
     evaluateStageDistanceHeuristics(findings, mapDef, route, byStage);
     evaluateStageJumpHeuristics(findings, route);
+    evaluateSpatialContract(findings, mapDef, route);
 
     const requiresDirectionalCrossing = route.rules?.bidirectionalCheckpoints === false;
     if (!requiresDirectionalCrossing) {

@@ -8,6 +8,7 @@ export const SKY_ISLANDS_MAP = {
     sky_islands: {
         name: 'Sky Islands',
         size: [200, 110, 200],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [20, 40, 60, 80],
         obstacles: [

@@ -7,6 +7,7 @@ export const ABYSSAL_DESCENT_MAP = {
     abyssal_descent: {
         name: 'Abyssal Descent',
         size: [80, 200, 80],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [20, 60, 100, 140, 180],
         obstacles: [

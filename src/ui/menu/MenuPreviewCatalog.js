@@ -1,6 +1,7 @@
 import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { resolvePortalMode } from '../../shared/contracts/PortalAuthoringContract.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -48,6 +49,7 @@ export function listMapPreviewEntries() {
         const spawnCount = (mapDefinition?.playerSpawn ? 1 : 0)
             + (Array.isArray(mapDefinition?.botSpawns) ? mapDefinition.botSpawns.length : 0);
         const hasGlbModel = hasGLBMapSource(mapDefinition);
+        const hasParcours = mapDefinition?.parcours?.enabled === true;
         const glbFootprint = hasGlbModel
             ? resolveGLBMapSourceFootprint(mapDefinition)
             : null;
@@ -58,6 +60,7 @@ export function listMapPreviewEntries() {
             sizeText: `${toNumber(size[0], 80)} x ${toNumber(size[1], 30)} x ${toNumber(size[2], 80)}`,
             obstacleCount: obstacles,
             portalCount: portals,
+            portalMode: resolvePortalMode(mapDefinition),
             gateCount: gates,
             tunnelCount: countTunnelFeatures(mapDefinition?.obstacles),
             spawnCount,
@@ -65,6 +68,9 @@ export function listMapPreviewEntries() {
             aircraftCount: aircraft,
             portalLevelCount: portalLevels,
             category: resolveMapCategory(mapDefinition),
+            filterTags: [hasParcours ? 'parcours' : '', hasGlbModel ? 'glb' : ''].filter(Boolean),
+            hiddenFromMapPicker: mapDefinition?.hiddenFromMapPicker === true,
+            hasParcours,
             hasGlbModel,
             usesFallbackColliders,
             glbSourceKind: glbFootprint?.sourceKind || 'none',
@@ -85,6 +91,7 @@ export function resolveMapPreview(mapKey) {
         sizeText: 'n/a',
         obstacleCount: 0,
         portalCount: 0,
+        portalMode: 'dynamic',
         gateCount: 0,
         tunnelCount: 0,
         spawnCount: 0,
@@ -92,6 +99,9 @@ export function resolveMapPreview(mapKey) {
         aircraftCount: 0,
         portalLevelCount: 0,
         category: 'medium',
+        filterTags: [],
+        hiddenFromMapPicker: false,
+        hasParcours: false,
         hasGlbModel: false,
         usesFallbackColliders: false,
         glbSourceKind: 'none',

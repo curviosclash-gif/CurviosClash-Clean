@@ -16,6 +16,17 @@ export function resolveArcadeGhostDuelModeLabel(mode) {
 }
 
 function syncFilterControls(ui, startSetup) {
+    if (ui.mapFilterSelect) {
+        const allMapsOption = Array.from(ui.mapFilterSelect.options || []).find((option) => option.value === 'all');
+        if (allMapsOption) allMapsOption.textContent = 'Alle Karten';
+        for (const [value, label] of [['parcours', 'Parcours'], ['glb', '3D-Art']]) {
+            if (Array.from(ui.mapFilterSelect.options || []).some((option) => option.value === value)) continue;
+            const option = document.createElement('option');
+            option.value = value;
+            option.textContent = label;
+            ui.mapFilterSelect.appendChild(option);
+        }
+    }
     if (ui.mapSearchInput && ui.mapSearchInput.value !== startSetup.mapSearch) {
         ui.mapSearchInput.value = startSetup.mapSearch;
     }
@@ -104,10 +115,13 @@ function syncMapSelect({
     ui.mapSelect.replaceChildren();
     mapPreviewEntries
         .filter((entry) => {
+            if (entry.hiddenFromMapPicker === true) return false;
             const matchesSearch = !startSetupFilters.mapSearch
                 || entry.name.toLowerCase().includes(startSetupFilters.mapSearch)
                 || entry.key.toLowerCase().includes(startSetupFilters.mapSearch);
-            const matchesFilter = startSetupFilters.mapFilter === 'all' || entry.category === startSetupFilters.mapFilter;
+            const matchesFilter = startSetupFilters.mapFilter === 'all'
+                || entry.category === startSetupFilters.mapFilter
+                || entry.filterTags?.includes(startSetupFilters.mapFilter);
             const mapDefinition = runtimeMaps?.[entry.key];
             const matchesModePath = isMapEligibleForModePath(mapDefinition, modePath);
             const matchesSurfacePolicy = surfacePolicyPort.isMapAllowed(entry.key, modePath);

@@ -3,12 +3,14 @@ import test from 'node:test';
 
 import { ParcoursMinimapRenderer } from '../src/ui/arcade/ParcoursMinimapRenderer.js';
 
-function createRecordingCanvasContext(recordedArcs) {
+function createRecordingCanvasContext(recordedArcs, recordedText = []) {
     let currentArc = null;
     return {
         fillStyle: '',
         strokeStyle: '',
         lineWidth: 0,
+        font: '',
+        textAlign: '',
         clearRect() {},
         beginPath() {
             currentArc = null;
@@ -36,6 +38,9 @@ function createRecordingCanvasContext(recordedArcs) {
         rotate() {},
         closePath() {},
         restore() {},
+        fillText(text, x, y) {
+            recordedText.push({ text, x, y, fillStyle: this.fillStyle });
+        },
     };
 }
 
@@ -96,6 +101,39 @@ test('ParcoursMinimapRenderer keeps untaken branch siblings unpassed', () => {
         assert.equal(cp03a.fillStyle, '#00cc00');
         assert.equal(cp03b.fillStyle, '#00e5ff');
         assert.equal(cp04.fillStyle, '#aaff00');
+    } finally {
+        globalThis.document = originalDocument;
+        globalThis.window = originalWindow;
+    }
+});
+
+test('ParcoursMinimapRenderer shows vertical distance to the next checkpoint', () => {
+    const recordedText = [];
+    const fakeCanvas = {
+        style: {},
+        getContext() {
+            return createRecordingCanvasContext([], recordedText);
+        },
+    };
+    const originalDocument = globalThis.document;
+    const originalWindow = globalThis.window;
+    globalThis.document = {
+        body: { appendChild() {} },
+        createElement: () => fakeCanvas,
+    };
+    globalThis.window = { addEventListener() {}, removeEventListener() {} };
+
+    try {
+        const renderer = new ParcoursMinimapRenderer();
+        renderer.update({
+            enabled: true,
+            routeId: 'vertical_probe',
+            totalCheckpoints: 1,
+            checkpoints: [{ id: 'CP01', routeIndex: 0, pos: [0, 42, 0], nextCheckpointIds: [] }],
+            finish: { id: 'FINISH', pos: [10, 42, 0] },
+        }, 0, [], { x: 0, y: 12, z: 0 }, null);
+
+        assert.equal(recordedText.at(-1)?.text, '\u2191 30 m');
     } finally {
         globalThis.document = originalDocument;
         globalThis.window = originalWindow;

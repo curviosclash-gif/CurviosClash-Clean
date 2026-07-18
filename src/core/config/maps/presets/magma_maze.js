@@ -8,6 +8,7 @@ export const MAGMA_MAZE_MAP = {
     magma_maze: {
         name: 'Magma Maze',
         size: [200, 50, 200],
+        scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [10, 20, 35],
         obstacles: [
