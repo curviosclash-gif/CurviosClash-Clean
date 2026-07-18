@@ -47,6 +47,7 @@ const MAX_MESSAGES_PER_IP = 600;
 const MAX_LOBBIES = 1_000;
 const MAX_CONNECTIONS_PER_IP = 32;
 const MAX_LOBBIES_PER_IP = 8;
+const MAX_PUBLIC_LOBBIES = 50;
 const UNASSIGNED_SOCKET_TIMEOUT_MS = 10_000;
 
 let nextPeerId = 1;
@@ -200,6 +201,27 @@ function buildLobbyState(lobby) {
         members,
         players: members,
     };
+}
+
+function buildOpenLobbyList() {
+    return [...lobbies.values()]
+        .filter((lobby) => (
+            !lobby.pendingMatchStart
+            && lobby.players.length < lobby.maxPlayers
+            && lobby.players.some((player) => (
+                player.peerId === lobby.hostPeerId
+                && player.ws?.readyState === 1
+            ))
+        ))
+        .sort((left, right) => Number(right.updatedAt || 0) - Number(left.updatedAt || 0))
+        .slice(0, MAX_PUBLIC_LOBBIES)
+        .map((lobby) => ({
+            lobbyCode: lobby.code,
+            memberCount: lobby.players.length,
+            maxPlayers: lobby.maxPlayers,
+            createdAt: lobby.createdAt,
+            updatedAt: lobby.updatedAt,
+        }));
 }
 
 function setReconnectLease(lobbyCode, player) {
@@ -403,6 +425,12 @@ export function createSignalingServer(port = 9090, options = {}) {
             }
 
             switch (envelope.type) {
+            case SIGNALING_COMMAND_TYPES.LIST_LOBBIES:
+                sendSignaling(ws, SIGNALING_EVENT_TYPES.LOBBY_LIST, {
+                    lobbies: buildOpenLobbyList(),
+                });
+                break;
+
             case SIGNALING_COMMAND_TYPES.CREATE_LOBBY: {
                 if (lobbies.size >= MAX_LOBBIES) {
                     sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby capacity reached' });

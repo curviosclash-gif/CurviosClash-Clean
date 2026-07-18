@@ -226,6 +226,21 @@ export function syncStartSetupMultiplayerUi({
             ? 'Auswahl: Online | nicht konfiguriert, bitte LAN verwenden'
             : `Produktiver Transport: ${multiplayerTransportUiState.selectedTransportLabel}`;
     }
+    const showOpenOnlineLobbies = isMultiplayerSession
+        && multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE;
+    const canBrowseOpenOnlineLobbies = showOpenOnlineLobbies
+        && !hasActiveLobbySession
+        && !multiplayerTransportUiState.isOnlineUnconfigured;
+    if (ui.multiplayerOpenLobbiesControls) {
+        ui.multiplayerOpenLobbiesControls.classList.toggle('hidden', !showOpenOnlineLobbies);
+    }
+    if (ui.multiplayerOpenLobbiesSelect) {
+        ui.multiplayerOpenLobbiesSelect.disabled = !canBrowseOpenOnlineLobbies
+            || Number(ui.multiplayerOpenLobbiesSelect.options?.length || 0) <= 1;
+    }
+    if (ui.multiplayerOpenLobbiesRefreshButton) {
+        ui.multiplayerOpenLobbiesRefreshButton.disabled = !canBrowseOpenOnlineLobbies;
+    }
     if (ui.multiplayerLobbyCodeInput) {
         if (hasActiveLobbySession) {
             ui.multiplayerLobbyCodeInput.value = String(resolvedMultiplayerSessionState.lobbyCode || '');

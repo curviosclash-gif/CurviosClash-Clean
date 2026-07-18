@@ -8,6 +8,7 @@ import {
     deleteMenuPresetAction,
 } from './MenuRuntimePresetConfigService.js';
 import {
+    handleMultiplayerLobbyListRefreshAction,
     handleMultiplayerLeaveAction,
     handleMultiplayerReadyToggleAction,
 } from './MenuRuntimeMultiplayerService.js';
@@ -156,6 +157,13 @@ export class GameRuntimeMenuActionHandler {
         return this._facade?.joinLobby?.({
             lobbyCode: String(event?.lobbyCode || '').trim(),
             signalingUrl: String(event?.signalingUrl || '').trim(),
+        });
+    }
+
+    handleMultiplayerLobbyListRefresh() {
+        return handleMultiplayerLobbyListRefreshAction({
+            game: this._facade?.game,
+            menuMultiplayerBridge: this._facade?.menuMultiplayerBridge,
         });
     }
 

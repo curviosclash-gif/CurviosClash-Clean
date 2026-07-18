@@ -281,6 +281,65 @@ export function invalidateMultiplayerReadyIfHostChangedSettings({
     }).catch(() => null);
 }
 
+function renderOpenOnlineLobbyOptions(game, lobbies = []) {
+    const select = game?.ui?.multiplayerOpenLobbiesSelect;
+    const doc = select?.ownerDocument;
+    if (!select || typeof doc?.createElement !== 'function') return;
+
+    const placeholder = doc.createElement('option');
+    placeholder.value = '';
+    placeholder.textContent = lobbies.length > 0
+        ? 'Offene Lobby auswaehlen'
+        : 'Keine offenen Lobbys gefunden';
+    const options = [placeholder, ...lobbies.map((lobby) => {
+        const option = doc.createElement('option');
+        option.value = lobby.lobbyCode;
+        option.textContent = `${lobby.lobbyCode} · ${lobby.memberCount}/${lobby.maxPlayers} Spieler`;
+        return option;
+    })];
+    select.replaceChildren(...options);
+    select.value = '';
+    select.disabled = lobbies.length === 0;
+}
+
+export async function handleMultiplayerLobbyListRefreshAction({
+    game,
+    menuMultiplayerBridge,
+}) {
+    if (!game) return null;
+    const selectedTransport = normalizeRuntimeMultiplayerTransport(
+        game?.settings?.localSettings?.multiplayerTransport,
+        MULTIPLAYER_TRANSPORTS.LAN
+    );
+    if (selectedTransport !== MULTIPLAYER_TRANSPORTS.ONLINE) {
+        return { ok: false, message: 'Offene Lobbys sind nur fuer Online verfuegbar.' };
+    }
+    if (typeof menuMultiplayerBridge?.listOpenLobbies !== 'function') {
+        return { ok: false, message: 'Die Online-Lobby-Suche ist nicht verfuegbar.' };
+    }
+
+    const refreshButton = game.ui?.multiplayerOpenLobbiesRefreshButton;
+    const wasDisabled = refreshButton?.disabled === true;
+    if (refreshButton) refreshButton.disabled = true;
+    setMultiplayerStatus(game, 'Offene Online-Lobbys werden gesucht ...');
+    try {
+        const lobbies = await Promise.resolve(menuMultiplayerBridge.listOpenLobbies());
+        renderOpenOnlineLobbyOptions(game, lobbies);
+        setMultiplayerStatus(game, lobbies.length === 1
+            ? '1 offene Online-Lobby gefunden.'
+            : `${lobbies.length} offene Online-Lobbys gefunden.`);
+        return { ok: true, lobbies };
+    } catch (error) {
+        const message = error instanceof Error ? error.message : 'Lobby-Suche fehlgeschlagen.';
+        renderOpenOnlineLobbyOptions(game, []);
+        setMultiplayerStatus(game, `Lobby-Suche fehlgeschlagen: ${message}`);
+        game._showStatusToast?.(message, 1800, 'error');
+        return { ok: false, message };
+    } finally {
+        if (refreshButton) refreshButton.disabled = wasDisabled;
+    }
+}
+
 export async function handleMultiplayerHostAction({
     game,
     event,

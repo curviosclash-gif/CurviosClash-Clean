@@ -3,6 +3,7 @@ export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
 
 export const SIGNALING_COMMAND_TYPES = Object.freeze({
+    LIST_LOBBIES: 'list_lobbies',
     CREATE_LOBBY: 'create_lobby',
     JOIN_LOBBY: 'join_lobby',
     RESUME_CONNECTION: 'resume_connection',
@@ -17,6 +18,7 @@ export const SIGNALING_COMMAND_TYPES = Object.freeze({
 });
 
 export const SIGNALING_EVENT_TYPES = Object.freeze({
+    LOBBY_LIST: 'lobby_list',
     LOBBY_CREATED: 'lobby_created',
     LOBBY_JOINED: 'lobby_joined',
     CONNECTION_RESUMED: 'connection_resumed',
@@ -58,6 +60,7 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
  * ICE candidates are exchanged in both directions.
  */
 export const SIGNALING_COMMAND_ROLE_MAP = Object.freeze({
+    [SIGNALING_COMMAND_TYPES.LIST_LOBBIES]: 'both',
     [SIGNALING_COMMAND_TYPES.CREATE_LOBBY]: 'host',
     [SIGNALING_COMMAND_TYPES.JOIN_LOBBY]: 'client',
     [SIGNALING_COMMAND_TYPES.RESUME_CONNECTION]: 'both',

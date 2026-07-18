@@ -24,6 +24,21 @@ export function bindMenuMultiplayerActionButtons({
         });
     }
 
+    if (ui.multiplayerOpenLobbiesRefreshButton) {
+        bind(ui.multiplayerOpenLobbiesRefreshButton, 'click', () => {
+            emit(eventTypes.MULTIPLAYER_LOBBY_LIST_REFRESH);
+        });
+    }
+
+    if (ui.multiplayerOpenLobbiesSelect) {
+        bind(ui.multiplayerOpenLobbiesSelect, 'change', () => {
+            const lobbyCode = String(ui.multiplayerOpenLobbiesSelect.value || '').trim();
+            if (lobbyCode && ui.multiplayerLobbyCodeInput) {
+                ui.multiplayerLobbyCodeInput.value = lobbyCode;
+            }
+        });
+    }
+
     if (ui.multiplayerLeaveLobbyButton) {
         bind(ui.multiplayerLeaveLobbyButton, 'click', () => {
             emit(eventTypes.MULTIPLAYER_LEAVE_LOBBY);

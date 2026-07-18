@@ -5,6 +5,7 @@ import test from 'node:test';
 import { WebSocket } from 'ws';
 
 import { createSignalingServer } from '../server/signaling-server.js';
+import { listOpenOnlineLobbies } from '../src/network/OnlineLobbyDirectoryClient.js';
 import {
     SIGNALING_COMMAND_TYPES,
     SIGNALING_EVENT_TYPES,
@@ -42,6 +43,44 @@ function sendAndReceive(socket, type, payload = null) {
         socket.send(JSON.stringify(createSignalingEnvelope(type, payload)));
     });
 }
+
+test('online signaling lists only joinable lobby summaries', async () => {
+    const { wss, url } = await startServer();
+    try {
+        const host = await openClient(url);
+        const created = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.CREATE_LOBBY, {
+            maxPlayers: 2,
+        });
+
+        const openLobbies = await listOpenOnlineLobbies(url, {
+            WebSocketImpl: WebSocket,
+            timeoutMs: 2_000,
+        });
+        assert.equal(openLobbies.length, 1);
+        assert.deepEqual(Object.keys(openLobbies[0]).sort(), [
+            'createdAt',
+            'lobbyCode',
+            'maxPlayers',
+            'memberCount',
+            'updatedAt',
+        ]);
+        assert.equal(openLobbies[0].lobbyCode, created.lobbyCode);
+        assert.equal(openLobbies[0].memberCount, 1);
+        assert.equal(openLobbies[0].maxPlayers, 2);
+
+        const client = await openClient(url);
+        await sendAndReceive(client, SIGNALING_COMMAND_TYPES.JOIN_LOBBY, {
+            lobbyCode: created.lobbyCode,
+        });
+        const fullLobbyList = await listOpenOnlineLobbies(url, {
+            WebSocketImpl: WebSocket,
+            timeoutMs: 2_000,
+        });
+        assert.deepEqual(fullLobbyList, []);
+    } finally {
+        await stopServer(wss);
+    }
+});
 
 test('online signaling rejects a second lobby assignment on the same socket', async () => {
     const { wss, url } = await startServer();

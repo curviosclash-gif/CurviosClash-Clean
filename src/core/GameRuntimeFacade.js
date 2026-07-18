@@ -28,9 +28,7 @@ import { GameRuntimeSessionHandler } from './runtime/GameRuntimeSessionHandler.j
 import { GameRuntimeSettingsHandler } from './runtime/GameRuntimeSettingsHandler.js';
 import { createSessionRuntimeCommandBackends } from './runtime/SessionRuntimeCommandBackendFactory.js';
 import { createMenuEventHandlerRegistry } from './runtime/menu-handlers/CreateMenuEventHandlerRegistry.js';
-import {
-    createMenuMultiplayerBridge,
-} from './runtime/MenuRuntimeMultiplayerService.js';
+import { createMenuMultiplayerBridge } from './runtime/MenuRuntimeMultiplayerService.js';
 import { ProfileLifecycleController } from './runtime/ProfileLifecycleController.js';
 import {
     createGameRuntimeRecordingFacadeSupport,
@@ -173,8 +171,7 @@ export class GameRuntimeFacade {
         runtimeState?.arena?.toggleBeams?.(runtimeConfig.gameplay.portalBeams);
         runtimeState?.entityManager?.setBotDifficulty?.(runtimeConfig.bot.activeDifficulty);
 
-        // Live-apply updated player tuning (speed, turnSpeed, modelScale, ...)
-        // to existing Player instances so slider changes take effect without restart.
+        // Live-apply updated player tuning to existing players without a restart.
         if (typeof runtimeState?.entityManager?.applyLiveRuntimeConfig === 'function') {
             const liveErc = createEntityRuntimeConfig(runtimeConfig, compatibilityConfig);
             runtimeState.entityManager.applyLiveRuntimeConfig(liveErc, runtimeConfig);
@@ -452,6 +449,7 @@ export class GameRuntimeFacade {
     _invalidateMultiplayerReadyIfHostChangedSettings(changedKeys) { return this.settingsHandler.invalidateMultiplayerReadyIfHostChangedSettings(changedKeys); }
     handleMultiplayerHost(event) { return this.menuActionHandler.handleMultiplayerHost(event); }
     handleMultiplayerJoin(event) { return this.menuActionHandler.handleMultiplayerJoin(event); }
+    handleMultiplayerLobbyListRefresh(event) { return this.menuActionHandler.handleMultiplayerLobbyListRefresh(event); }
     handleMultiplayerLeaveLobby(event) { return this.menuActionHandler.handleMultiplayerLeaveLobby(event); }
     handleMultiplayerReadyToggle(event) { return this.menuActionHandler.handleMultiplayerReadyToggle(event); }
     handleDeveloperModeToggle(event) { return this.menuActionHandler.handleDeveloperModeToggle(event); }

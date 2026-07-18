@@ -445,6 +445,17 @@
                                     <button type="button" id="btn-multiplayer-transport-online" class="secondary-btn"
                                         data-multiplayer-transport="online" aria-pressed="false">Online</button>
                                 </div>
+                                <div id="multiplayer-open-lobbies-controls" class="hidden">
+                                    <label for="multiplayer-open-lobbies">Offene Online-Lobbys</label>
+                                    <div class="btn-group secondary-btn-spaced">
+                                        <select id="multiplayer-open-lobbies" disabled>
+                                            <option value="">Aktualisieren, um Lobbys zu suchen</option>
+                                        </select>
+                                        <button type="button" id="btn-multiplayer-lobbies-refresh" class="secondary-btn">
+                                            Aktualisieren
+                                        </button>
+                                    </div>
+                                </div>
                                 <label for="multiplayer-lobby-code">Lobby Code</label>
                                 <input type="text" id="multiplayer-lobby-code" maxlength="32" placeholder="z. B. TEST-1234">
                                 <label for="multiplayer-host-address">Host-Adresse</label>

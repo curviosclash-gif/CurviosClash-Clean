@@ -1,3 +1,4 @@
+import { listOpenOnlineLobbies } from '../../network/OnlineLobbyDirectoryClient.js';
 import { OnlineMatchLobby } from '../../network/OnlineMatchLobby.js';
 import { resolveOnlineSignalingUrl } from '../../network/OnlineSignalingSupport.js';
 import { LOBBY_SERVICE_TRANSPORTS } from '../../shared/contracts/LobbyServiceContract.js';
@@ -32,5 +33,14 @@ export class OnlineLobbyService extends NetworkLobbyService {
                     signalingUrl: joinOptions.signalingUrl,
                 }),
         });
+        this._resolveConfiguredUrl = resolveConfiguredUrl;
+        this._listOpenLobbies = typeof options.listOpenLobbies === 'function'
+            ? options.listOpenLobbies
+            : listOpenOnlineLobbies;
+    }
+
+    listOpenLobbies(options = {}) {
+        const signalingUrl = this._resolveConfiguredUrl(options.signalingUrl);
+        return this._listOpenLobbies(signalingUrl, options);
     }
 }
