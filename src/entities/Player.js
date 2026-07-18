@@ -75,6 +75,8 @@ export class Player {
 
         // Powerup effects
         this.activeEffects = [];
+        this._speedEffectBaseSpeed = null;
+        this._pickupShieldOwned = false;
         this.inventory = [];
         this.selectedItemIndex = 0;
         this.hasShield = false;
@@ -170,6 +172,10 @@ export class Player {
         const gameplaySection = this.gameplayConfig.GAMEPLAY;
         this.position.copy(position);
         this.alive = true;
+        if (Number.isFinite(this._speedEffectBaseSpeed)) {
+            this.baseSpeed = this._speedEffectBaseSpeed;
+        }
+        this._speedEffectBaseSpeed = null;
         this.speed = this.baseSpeed;
         this.boostCharge = playerConfig.BOOST_DURATION;
         this.boostTimer = this.boostCharge;
@@ -177,6 +183,7 @@ export class Player {
         this.manualBoostActive = false;
         this.isBoosting = false;
         this.activeEffects = [];
+        this._pickupShieldOwned = false;
         this.hasShield = false;
         this.isGhost = false;
         this.hasSlowTime = false;
@@ -279,9 +286,32 @@ export class Player {
             this.cameraMode = gameplayCameraState.cameraModeIndex;
         }
         if (typeof options.speed === 'number' && Number.isFinite(options.speed) && options.speed > 0) {
-            this.baseSpeed = options.speed;
+            const currentPermanentSpeed = Number.isFinite(this._speedEffectBaseSpeed)
+                ? this._speedEffectBaseSpeed
+                : this.baseSpeed;
+            let strategyMultiplier = 1;
+            if (Number.isFinite(this._arcadeBaseSpeed) && this._arcadeBaseSpeed > 0) {
+                strategyMultiplier = currentPermanentSpeed / this._arcadeBaseSpeed;
+                this._arcadeBaseSpeed = options.speed;
+            } else if (Number.isFinite(this._fightBaseSpeed) && this._fightBaseSpeed > 0) {
+                strategyMultiplier = currentPermanentSpeed / this._fightBaseSpeed;
+                this._fightBaseSpeed = options.speed;
+            }
+            if (!Number.isFinite(strategyMultiplier) || strategyMultiplier <= 0) {
+                strategyMultiplier = 1;
+            }
+            const nextPermanentSpeed = options.speed * strategyMultiplier;
+            if (Number.isFinite(this._speedEffectBaseSpeed)) {
+                const activeMultiplier = this._speedEffectBaseSpeed > 0
+                    ? (this.baseSpeed / this._speedEffectBaseSpeed)
+                    : 1;
+                this._speedEffectBaseSpeed = nextPermanentSpeed;
+                this.baseSpeed = nextPermanentSpeed * (Number.isFinite(activeMultiplier) ? activeMultiplier : 1);
+            } else {
+                this.baseSpeed = nextPermanentSpeed;
+            }
             if (!this.isBoosting) {
-                this.speed = options.speed;
+                this.speed = this.baseSpeed;
             }
         }
         if (typeof options.turnSpeed === 'number' && Number.isFinite(options.turnSpeed) && options.turnSpeed > 0) {

@@ -8,9 +8,15 @@ import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeS
 import { resolveArcadeSectorRuntimeProfile } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 import { Arena } from '../src/entities/Arena.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
+import { Player } from '../src/entities/Player.js';
 import { Trail } from '../src/entities/Trail.js';
+import {
+    applyPlayerPowerup,
+    updatePlayerEffects,
+} from '../src/entities/player/PlayerEffectOps.js';
 import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/PlayerInteractionPhase.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
 import { GAMEPLAY_CAMERA_MODE_ID } from '../src/shared/contracts/CameraModeContract.js';
 import {
@@ -459,6 +465,124 @@ test('Portal Line adds ten percentage points to intermission shield conversion',
 
     assert.equal(base.shieldGranted, 6);
     assert.equal(portal.shieldGranted, 7);
+});
+
+test('temporary speed effects preserve Arcade vehicle and Fight loadout speed bonuses', () => {
+    const strategy = new ArcadeModeStrategy();
+    strategy.applyVehicleUpgrades({ speedBonusPct: 25, turningBonusPct: 0, maxHpBonus: 0 });
+    const player = {
+        entityRuntimeConfig: {
+            PLAYER: { SPEED: 35 },
+            POWERUP: {},
+            TRAIL: {},
+            HUNT: { ENABLED: true, ACTIVE_MODE: 'ARCADE', DEFAULT_MODE: 'ARCADE' },
+        },
+        activeEffects: [],
+        baseSpeed: 35,
+        speed: 35,
+        hasShield: false,
+        shieldHP: 0,
+        trail: null,
+    };
+
+    strategy.applySpawnStatBonuses(player);
+    assert.equal(player.baseSpeed, 43.75);
+    strategy.applySpawnStatBonuses(player);
+    assert.equal(player.baseSpeed, 43.75);
+
+    updatePlayerEffects(player, 1 / 60);
+    assert.equal(player.baseSpeed, 43.75);
+
+    applyPlayerPowerup(player, 'SLOW_DOWN');
+    assert.equal(player.baseSpeed, 21.875);
+    player.activeEffects.find((effect) => effect.type === 'SLOW_DOWN').remaining = 0;
+    updatePlayerEffects(player, 1 / 60);
+
+    assert.equal(player.baseSpeed, 43.75);
+    assert.equal(player._speedEffectBaseSpeed, null);
+
+    strategy.applyVehicleUpgrades(null);
+    strategy.applySpawnStatBonuses(player);
+    assert.equal(player.baseSpeed, 35);
+
+    const liveConfigPlayer = {
+        _arcadeBaseSpeed: 35,
+        _speedEffectBaseSpeed: 43.75,
+        baseSpeed: 21.875,
+        speed: 21.875,
+        isBoosting: false,
+        controlRampRates: {},
+        controller: null,
+    };
+    Player.prototype.setControlOptions.call(liveConfigPlayer, { speed: 40 });
+    assert.equal(liveConfigPlayer._arcadeBaseSpeed, 40);
+    assert.equal(liveConfigPlayer._speedEffectBaseSpeed, 50);
+    assert.equal(liveConfigPlayer.baseSpeed, 25);
+    assert.equal(liveConfigPlayer.speed, 25);
+
+    const huntStrategy = new HuntModeStrategy();
+    const huntPlayer = {
+        ...player,
+        entityRuntimeConfig: {
+            ...player.entityRuntimeConfig,
+            HUNT: { ENABLED: true, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT' },
+        },
+        activeEffects: [],
+        baseSpeed: 35,
+        speed: 35,
+        maxHp: 100,
+        hp: 100,
+        fightLoadout: { speedBonusPct: 25, turningBonusPct: 0, maxHpBonus: 0 },
+    };
+    huntStrategy.applySpawnStatBonuses(huntPlayer);
+    updatePlayerEffects(huntPlayer, 1 / 60);
+    assert.equal(huntPlayer.baseSpeed, 43.75);
+});
+
+test('direct Arcade shields survive effect updates while pickup shields still expire', () => {
+    const strategy = new ArcadeModeStrategy();
+    const createPlayer = () => ({
+        entityRuntimeConfig: {
+            PLAYER: { SPEED: 35 },
+            POWERUP: {},
+            TRAIL: {},
+            HUNT: { ENABLED: true, ACTIVE_MODE: 'ARCADE', DEFAULT_MODE: 'ARCADE', SHIELD_MAX_HP: 40 },
+        },
+        activeEffects: [],
+        baseSpeed: 35,
+        speed: 35,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        hasShield: false,
+        shieldHP: 0,
+        maxShieldHp: 40,
+        shieldHitFeedback: 0,
+        trail: null,
+    });
+    const intermissionPlayer = createPlayer();
+
+    const intermission = strategy.applyIntermissionHealing(intermissionPlayer, {});
+    assert.ok(intermission.shieldGranted > 0);
+    updatePlayerEffects(intermissionPlayer, 1 / 60);
+    assert.equal(intermissionPlayer.hasShield, true);
+    assert.equal(intermissionPlayer.shieldHP, intermission.shieldGranted);
+
+    const recoveryShieldPlayer = createPlayer();
+    recoveryShieldPlayer.entityRuntimeConfig.HUNT.ACTIVE_MODE = 'HUNT';
+    recoveryShieldPlayer.entityRuntimeConfig.HUNT.DEFAULT_MODE = 'HUNT';
+    recoveryShieldPlayer.hasShield = true;
+    recoveryShieldPlayer.shieldHP = 18;
+    updatePlayerEffects(recoveryShieldPlayer, 1 / 60);
+    assert.equal(recoveryShieldPlayer.hasShield, true);
+    assert.equal(recoveryShieldPlayer.shieldHP, 18);
+
+    const pickupPlayer = createPlayer();
+    applyPlayerPowerup(pickupPlayer, 'SHIELD');
+    pickupPlayer.activeEffects.find((effect) => effect.type === 'SHIELD').remaining = 0;
+    updatePlayerEffects(pickupPlayer, 1 / 60);
+    assert.equal(pickupPlayer.hasShield, false);
+    assert.equal(pickupPlayer.shieldHP, 0);
 });
 
 test('Arcade support binds the productive entity gameplay-event seam', () => {

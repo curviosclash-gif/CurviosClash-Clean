@@ -62,9 +62,22 @@ export function recomputePlayerEffectState(player) {
     const speedEffect = findLatestAllowedEffect(player, SPEED_EFFECT_TYPES, modeType);
     const speedDef = speedEffect ? getPickupDefinition(speedEffect.type) : null;
     const speedMultiplier = Number(speedDef?.multiplier);
-    player.baseSpeed = Number.isFinite(speedMultiplier)
-        ? playerConfig.SPEED * speedMultiplier
-        : playerConfig.SPEED;
+    if (Number.isFinite(speedMultiplier)) {
+        if (!Number.isFinite(player._speedEffectBaseSpeed)) {
+            const currentBaseSpeed = Number(player.baseSpeed);
+            player._speedEffectBaseSpeed = Number.isFinite(currentBaseSpeed)
+                ? currentBaseSpeed
+                : playerConfig.SPEED;
+        }
+        player.baseSpeed = player._speedEffectBaseSpeed * speedMultiplier;
+    } else {
+        if (Number.isFinite(player._speedEffectBaseSpeed)) {
+            player.baseSpeed = player._speedEffectBaseSpeed;
+        } else if (!Number.isFinite(Number(player.baseSpeed))) {
+            player.baseSpeed = playerConfig.SPEED;
+        }
+        player._speedEffectBaseSpeed = null;
+    }
     player.speed = player.baseSpeed;
 
     // Trail: latest-wins among THICK/THIN, trailWidth from registry
@@ -91,10 +104,14 @@ export function recomputePlayerEffectState(player) {
 
     // Shield: mode-specific - in HUNT expires by HP, in CLASSIC/ARCADE by timer
     const shieldEffectActive = hasAllowedEffect(player, 'SHIELD', modeType);
-    if (!shieldEffectActive) {
+    if (shieldEffectActive) {
+        player._pickupShieldOwned = true;
+        if (modeType !== 'HUNT' && !player.hasShield) {
+            grantShield(player, runtimeConfig);
+        }
+    } else if (player._pickupShieldOwned === true) {
         resetShieldState(player);
-    } else if (modeType !== 'HUNT' && !player.hasShield) {
-        grantShield(player, runtimeConfig);
+        player._pickupShieldOwned = false;
     }
 }
 
@@ -184,6 +201,7 @@ export function applyPlayerPowerup(player, type) {
 
     if (type === 'SHIELD') {
         const runtimeConfig = resolveEntityRuntimeConfig(player);
+        player._pickupShieldOwned = true;
         grantShield(player, runtimeConfig);
     }
 

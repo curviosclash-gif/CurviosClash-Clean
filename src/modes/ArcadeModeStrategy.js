@@ -424,10 +424,9 @@ export class ArcadeModeStrategy extends GameModeContract {
     applySpawnStatBonuses(player) {
         if (!player) return;
         const speedMult = this.getSpeedMultiplier();
-        if (speedMult > 1.0) {
-            player.baseSpeed = player.baseSpeed * speedMult;
-            player.speed = player.baseSpeed;
-        }
+        if (!Number.isFinite(player._arcadeBaseSpeed)) player._arcadeBaseSpeed = player.baseSpeed;
+        player.baseSpeed = player._arcadeBaseSpeed * speedMult;
+        player.speed = player.baseSpeed;
     }
 
     // 61.4.1: portal_storm — multiplier for item/portal spawn frequency
