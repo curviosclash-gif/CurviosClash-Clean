@@ -345,6 +345,23 @@ test('Hunt bot leads a moving target while approaching from outside its attack w
     assert.equal(action.yawRight, true);
 });
 
+test('Hunt bot boosts while safely aligned with a distant target', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -120);
+    const policy = new HeuristicBotPolicy({ difficulty: 'NORMAL', profile: 'aggressive' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(action.boost, true);
+});
+
 test('Hunt bot tracks the current target position inside the hitscan attack window', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
@@ -414,7 +431,7 @@ test('precision Hunt steering converges on a moving target across update ticks',
     assert.equal(fired, true);
 });
 
-test('Hunt bot keeps MG and rockets behind blocked fight corridors', () => {
+test('Hunt bot shoots destructible trails but keeps all fire behind walls', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
     enemy.position.set(0, 0, -48);
@@ -451,7 +468,7 @@ test('Hunt bot keeps MG and rockets behind blocked fight corridors', () => {
 
     assert.equal(arenaAction.shootMG, false);
     assert.equal(arenaAction.shootItem, false);
-    assert.equal(trailAction.shootMG, false);
+    assert.equal(trailAction.shootMG, true);
     assert.equal(trailAction.shootItem, false);
 });
 
@@ -477,6 +494,24 @@ test('Hunt movement commits briefly, then uses a lateral close-range breakaway',
     const breakaway = policy.update(1, player, context);
     assert.equal(policy.getDecisionSnapshot().intent, 'breakaway');
     assert.equal(breakaway.yawLeft || breakaway.yawRight, true);
+});
+
+test('Hunt movement keeps tracking targets outside the collision breakaway range', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -24);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(policy.getDecisionSnapshot().intent, 'strafe');
+    assert.equal(action.boost, false);
 });
 
 test('Hunt pursuit bends toward arena center near a boundary', () => {

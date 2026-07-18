@@ -34,12 +34,16 @@ import {
 } from './HeuristicBotPolicyOps.js';
 
 const PRECISION_AIM_STEERING = Object.freeze({ precision: true, gain: 12 });
+const FIGHT_CORRIDOR_BLOCKED = 0;
+const FIGHT_CORRIDOR_TRAIL = 1;
+const FIGHT_CORRIDOR_CLEAR = 2;
+const HUNT_BREAKAWAY_DISTANCE_SQ = 18 * 18;
 
-function isFightCorridorClear(policy, player, targetPosition, runtimeContext) {
-    if (!policy || !player?.position || !targetPosition) return false;
+function probeFightCorridor(policy, player, targetPosition, runtimeContext) {
+    if (!policy || !player?.position || !targetPosition) return FIGHT_CORRIDOR_BLOCKED;
     policy._tmpGate.subVectors(targetPosition, player.position);
     const distance = policy._tmpGate.length();
-    if (!(distance > 0.000001)) return false;
+    if (!(distance > 0.000001)) return FIGHT_CORRIDOR_BLOCKED;
     policy._tmpGate.multiplyScalar(1 / distance);
     const sampleCount = Math.min(
         HEURISTIC_SAFETY_CONFIG.shotProbeMaxSamples,
@@ -47,15 +51,20 @@ function isFightCorridorClear(policy, player, targetPosition, runtimeContext) {
     );
     const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
         * HEURISTIC_SAFETY_CONFIG.shotProbeRadiusMultiplier;
+    let trailBlocked = false;
     for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
         policy._tmpTarget.copy(player.position).addScaledVector(
             policy._tmpGate,
             distance * sampleIndex / sampleCount
         );
-        if (checkArenaCollision(runtimeContext?.arena, policy._tmpTarget, radius)) return false;
-        if (checkTrailCollision(runtimeContext?.trailSpatialIndex, policy._tmpTarget, radius, player)) return false;
+        if (checkArenaCollision(runtimeContext?.arena, policy._tmpTarget, radius)) {
+            return FIGHT_CORRIDOR_BLOCKED;
+        }
+        if (!trailBlocked && checkTrailCollision(runtimeContext?.trailSpatialIndex, policy._tmpTarget, radius, player)) {
+            trailBlocked = true;
+        }
     }
-    return true;
+    return trailBlocked ? FIGHT_CORRIDOR_TRAIL : FIGHT_CORRIDOR_CLEAR;
 }
 
 function applyRetreatSteering(policy, input, player, enemy) {
@@ -234,21 +243,25 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         && targetInFront
         && targetAlignment >= policy.difficulty.aimDot
         && (targetDistanceRatio < attackWindow || (rocketIndex >= 0 && rocketWindow) || itemAction.shootItem === true);
-    const clearShot = shouldProbeShot ? isFightCorridorClear(policy, player, enemy.position, runtimeContext) : false;
+    const fightCorridor = shouldProbeShot
+        ? probeFightCorridor(policy, player, enemy.position, runtimeContext)
+        : FIGHT_CORRIDOR_BLOCKED;
+    const clearMgShot = fightCorridor !== FIGHT_CORRIDOR_BLOCKED;
+    const clearProjectileShot = fightCorridor === FIGHT_CORRIDOR_CLEAR;
     if (enemy && targetInFront && targetAlignment >= mgAimDot
         && survivalPressure < 0.84 && aggression >= 0.38
-        && targetDistanceRatio < attackWindow && clearShot) {
+        && targetDistanceRatio < attackWindow && clearMgShot) {
         input.shootMG = true;
     }
     if (rocketIndex >= 0 && enemy && targetInFront && targetAlignment >= policy.difficulty.aimDot
         && rocketWindow && pressureLevel < 0.9
         && (aggression >= 0.32 || enemyVitalityRatio > 0.55 || survivalPressure > 0.72)
-        && clearShot) {
+        && clearProjectileShot) {
         input.shootItem = true;
         input.shootItemIndex = rocketIndex;
     }
     if (itemAction.useItem >= 0) input.useItem = itemAction.useItem;
-    else if (clearShot && rocketIndex < 0 && itemAction.shootItem === true && itemAction.shootItemIndex >= 0) {
+    else if (clearProjectileShot && rocketIndex < 0 && itemAction.shootItem === true && itemAction.shootItemIndex >= 0) {
         input.shootItem = true;
         input.shootItemIndex = itemAction.shootItemIndex;
     }
@@ -259,7 +272,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         ? 'retreat'
         : (targetDistanceRatio > policy.profile.strafeDistance
             ? 'approach'
-            : (targetDistanceRatio > policy.profile.preferredRange ? 'strafe' : 'breakaway'));
+            : (targetDistanceSq > HUNT_BREAKAWAY_DISTANCE_SQ ? 'strafe' : 'breakaway'));
     const movementIntent = resolveMovementIntent(policy, dt, enemy ? requestedMovementIntent : 'search');
 
     if (enemy && movementIntent === 'retreat') {
@@ -298,6 +311,9 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
                 policy._tmpTarget,
                 targetDistanceRatio < attackWindow ? PRECISION_AIM_STEERING : null
             );
+            input.boost = targetAlignment >= 0.82
+                && wallFront > Math.max(policy.profile.safetyDistance, 0.34)
+                && survivalPressure < 0.72;
             intent = aggression > 0.5 ? 'attack-approach' : 'approach';
         } else if (movementIntent === 'strafe') {
             policy._tmpTarget.copy(policy._tmpAimTarget);
@@ -306,6 +322,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
             const strafeRight = resolveStableStrafeRight(player);
             input.rollRight = strafeRight;
             input.rollLeft = !strafeRight;
+            input.boost = false;
             intent = 'strafe';
         } else {
             applyBreakawaySteering(policy, input, player, enemy, runtimeContext?.arena);
