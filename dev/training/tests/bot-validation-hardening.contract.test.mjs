@@ -212,6 +212,7 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(runnerSource, /if \(typeof g\._returnToMenu !== 'function'\) throw new Error\('_returnToMenu missing'\)/);
     assert.match(runnerSource, /survival observations produced outcomes/);
     assert.match(runnerSource, /bot count contract mismatched/);
+    assert.match(runnerSource, /buildScenarioMetrics\(allRounds, validationRuntimeSamples, validationSurvivalObservations\)/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
     assert.match(runnerSource, /if \(raw === 'dev'\) return 'dev';\s+return 'preview';/);

@@ -12,6 +12,7 @@ import {
     isSurvivalObservationScenario,
 } from '../src/state/validation/BotValidationOutcomeSemantics.js';
 import { buildBotValidationSurvivalMetrics } from '../src/state/validation/BotValidationSurvivalMetrics.js';
+import { buildBotValidationRuntimeMetrics } from '../src/state/validation/BotValidationRuntimeMetrics.js';
 
 const CLI_ARGS = parseArgMap(process.argv.slice(2));
 const HOST = '127.0.0.1';
@@ -960,8 +961,8 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         durationMs: Date.now() - roundStartedAt,
     });
     return [
-        { ...startRuntimeSample, round: roundNumber, checkpoint: 'start' },
-        { ...endRuntimeSample, round: roundNumber, checkpoint: 'end' },
+        { ...startRuntimeSample, scenarioId: scenario.id, round: roundNumber, checkpoint: 'start' },
+        { ...endRuntimeSample, scenarioId: scenario.id, round: roundNumber, checkpoint: 'end' },
     ];
 }
 
@@ -987,12 +988,12 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
     const played = rounds.length;
     const outcomeRounds = rounds.filter((round) => round?.forced !== true);
     const outcomePlayed = outcomeRounds.length;
-    const totalDuration = sumBy(rounds, (r) => r.duration);
+    const survivalMetrics = buildBotValidationSurvivalMetrics(rounds, survivalObservations);
+    const totalDuration = sumBy(rounds, (r) => r.duration) + survivalMetrics.observationDuration;
     const botWins = outcomeRounds.filter((r) => !!r.winnerIsBot).length;
     const stuckEvents = sumBy(rounds, (r) => r.stuckEvents);
     const wallHits = sumBy(rounds, (r) => r.bounceWallEvents);
     const trailHits = sumBy(rounds, (r) => r.bounceTrailEvents);
-    const survivalMetrics = buildBotValidationSurvivalMetrics(rounds, survivalObservations);
     const survivalSamples = survivalMetrics.botSurvivalSeconds;
     const avgBotSurvival = survivalSamples.length > 0
         ? sumBy(survivalSamples, (value) => value) / survivalSamples.length
@@ -1008,41 +1009,7 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
     const projectileShots = sumBy(rounds, (round) => round?.itemUseModeCounts?.shoot);
     const parcoursCompletions = rounds.filter((round) => round?.parcoursCompleted === true).length;
     const parcoursCheckpointCount = sumBy(rounds, (round) => round.parcoursCheckpointCount);
-    const decisionSnapshots = runtimeSamples.flatMap((sample) => (
-        Array.isArray(sample?.botDecisions)
-            ? sample.botDecisions.map((entry) => entry?.snapshot).filter(Boolean)
-            : []
-    ));
-    const intentCounts = {};
-    const safetyStateCounts = {};
-    for (const snapshot of decisionSnapshots) {
-        const intent = String(snapshot?.intent || 'unknown');
-        const safetyState = String(snapshot?.safetyState || 'unknown');
-        intentCounts[intent] = (intentCounts[intent] || 0) + 1;
-        safetyStateCounts[safetyState] = (safetyStateCounts[safetyState] || 0) + 1;
-    }
-    const startCounters = new Map();
-    let steeringChanges = 0;
-    let intentChanges = 0;
-    let safetyRatioSum = 0;
-    let safetyRatioSamples = 0;
-    for (const sample of runtimeSamples) {
-        const decisions = Array.isArray(sample?.botDecisions) ? sample.botDecisions : [];
-        for (const entry of decisions) {
-            const snapshot = entry?.snapshot;
-            if (!snapshot) continue;
-            const key = `${sample.round}:${entry.playerIndex}`;
-            if (sample.checkpoint === 'start') {
-                startCounters.set(key, snapshot);
-            } else if (sample.checkpoint === 'end') {
-                const start = startCounters.get(key);
-                steeringChanges += Math.max(0, Number(snapshot.steeringChanges) - Number(start?.steeringChanges || 0));
-                intentChanges += Math.max(0, Number(snapshot.intentChanges) - Number(start?.intentChanges || 0));
-                safetyRatioSum += Math.max(0, Math.min(1, Number(snapshot.safetyActiveRatio) || 0));
-                safetyRatioSamples += 1;
-            }
-        }
-    }
+    const runtimeMetrics = buildBotValidationRuntimeMetrics(runtimeSamples, totalDuration);
     return {
         rounds: played,
         outcomeRounds: outcomePlayed,
@@ -1072,12 +1039,7 @@ function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations 
         projectileHitRate: projectileShots > 0 ? rocketHits / projectileShots : 0,
         parcoursCompletionRate: played > 0 ? parcoursCompletions / played : 0,
         parcoursCheckpointsPerRound: played > 0 ? parcoursCheckpointCount / played : 0,
-        decisionSampleCount: decisionSnapshots.length,
-        intentCounts,
-        safetyStateCounts,
-        steeringChangesPerSecond: totalDuration > 0 ? steeringChanges / totalDuration : 0,
-        intentChangesPerSecond: totalDuration > 0 ? intentChanges / totalDuration : 0,
-        averageSafetyActiveRatio: safetyRatioSamples > 0 ? safetyRatioSum / safetyRatioSamples : 0,
+        ...runtimeMetrics,
     };
 }
 
@@ -1389,6 +1351,7 @@ async function run() {
 
         const scenarioResults = [];
         const validationRounds = [];
+        const validationRuntimeSamples = [];
         const validationSurvivalObservations = [];
         const runnerStats = {
             forcedRounds: 0,
@@ -1488,6 +1451,7 @@ async function run() {
             );
             const scenarioRounds = outcomeSemantics.rounds;
             validationRounds.push(...scenarioRounds);
+            validationRuntimeSamples.push(...runtimeSamples);
             validationSurvivalObservations.push(...localStats.survivalObservations);
 
             runnerStats.forcedRounds += localStats.forcedRounds;
@@ -1544,7 +1508,7 @@ async function run() {
         diagnostics.stageTimingsMs.scenarioEvalMs = Math.max(0, Date.now() - scenarioEvalStartedAt);
 
         const allRounds = validationRounds;
-        const overall = buildScenarioMetrics(allRounds, [], validationSurvivalObservations);
+        const overall = buildScenarioMetrics(allRounds, validationRuntimeSamples, validationSurvivalObservations);
         const generatedAt = new Date().toISOString().slice(0, 10);
         const report = {
             generatedAt,

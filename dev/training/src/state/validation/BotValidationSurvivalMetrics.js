@@ -33,5 +33,9 @@ export function buildBotValidationSurvivalMetrics(rounds = [], observations = []
             ? observationSamples.every((observation) => observation?.observationCompleted === true)
             : null,
         observationSampleCount: observationSamples.length,
+        observationDuration: observationSamples.reduce(
+            (total, observation) => total + Math.max(0, Number(observation?.observationSeconds) || 0),
+            0
+        ),
     };
 }
