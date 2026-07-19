@@ -95,6 +95,7 @@ export async function initRuntimeSession(facade) {
 
     if (sessionContract.isNetworkSession) {
         applyRuntimeNetworkPlayerSlotContext(facade);
+        game?.entityManager?.setNetworkReplica?.(facade.session.isHost !== true);
     }
 
     if (facade.session.isHost && sessionContract.isNetworkSession) {
@@ -429,6 +430,7 @@ export function teardownRuntimeSession(facade) {
     if (facade?.game?.entityManager) {
         facade.game.entityManager.isFightOutcomeAuthority = true;
         facade.game.entityManager.onAuthoritativeFightStateChanged = null;
+        facade.game.entityManager.setNetworkReplica?.(false);
     }
     stopRuntimeStateBroadcast(facade);
     clearRuntimeClientArenaLoadedNotifier(facade);

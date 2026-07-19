@@ -185,6 +185,7 @@ export class StateReconciler {
             this._reconcileEffects(localPlayer, serverPlayer);
             this._reconcileAuthoritativeFields(localPlayer, serverPlayer);
         }
+        entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
         applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
     }
 

@@ -33,10 +33,41 @@ export class SessionAdapterBase extends SessionAdapter {
         this._clientDisconnectedPeers = new Set();
         this._clientReconnectGeneration = 0;
         this._isDisconnecting = false;
+        this._nextInputSequence = 1;
+        this._nextSnapshotSequence = 1;
+        this._lastInputSequenceByPeer = new Map();
+        this._lastSnapshotSequence = 0;
     }
 
     _createStateMessage(type, payload = null) {
         return buildMultiplayerSessionMessage(type, payload);
+    }
+
+    _createInputSequence() {
+        return this._nextInputSequence++;
+    }
+
+    _createSnapshotSequence() {
+        return this._nextSnapshotSequence++;
+    }
+
+    _acceptInputSequence(peerId, value) {
+        const sequence = Number(value);
+        if (!Number.isSafeInteger(sequence) || sequence < 1) return true;
+        const normalizedPeerId = normalizePeerId(peerId);
+        if (!normalizedPeerId) return false;
+        const previous = this._lastInputSequenceByPeer.get(normalizedPeerId) || 0;
+        if (sequence <= previous) return false;
+        this._lastInputSequenceByPeer.set(normalizedPeerId, sequence);
+        return true;
+    }
+
+    _acceptSnapshotSequence(value) {
+        const sequence = Number(value);
+        if (!Number.isSafeInteger(sequence) || sequence < 1) return true;
+        if (sequence <= this._lastSnapshotSequence) return false;
+        this._lastSnapshotSequence = sequence;
+        return true;
     }
 
     _sendStateToAll(_message, _excludePeerId = null) {
@@ -282,5 +313,7 @@ export class SessionAdapterBase extends SessionAdapter {
         }
         this._disconnectedPeers.clear();
         this._clientDisconnectedPeers.clear();
+        this._lastInputSequenceByPeer.clear();
+        this._lastSnapshotSequence = 0;
     }
 }

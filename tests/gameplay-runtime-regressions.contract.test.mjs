@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
 
+import { CONFIG } from '../src/core/Config.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
@@ -9,12 +10,14 @@ import { resolveArcadeSectorRuntimeProfile } from '../src/entities/directors/Arc
 import { Arena } from '../src/entities/Arena.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { Player } from '../src/entities/Player.js';
+import { PowerupManager } from '../src/entities/Powerup.js';
 import { Trail } from '../src/entities/Trail.js';
 import {
     applyPlayerPowerup,
     updatePlayerEffects,
 } from '../src/entities/player/PlayerEffectOps.js';
 import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/PlayerInteractionPhase.js';
+import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
@@ -92,6 +95,93 @@ test('network snapshot reconciles Player hp, shield, inventory, alive state and 
     assert.equal(clientPlayer.alive, false);
     assert.deepEqual(visibility, [false]);
     assert.equal(clientPlayer.quaternion.w, 0);
+});
+
+test('network snapshot serializes and applies authoritative projectiles and powerups', () => {
+    const snapshot = createGameStateSnapshot({
+        players: [],
+        projectiles: [{
+            traversalId: 'projectile:7',
+            position: new THREE.Vector3(1, 2, 3),
+            velocity: new THREE.Vector3(4, 0, 0),
+            owner: { index: 2 },
+            type: 'SPEED_UP',
+            ttl: 3,
+            radius: 0.5,
+        }],
+        powerupManager: {
+            items: [{
+                networkId: 'powerup:4',
+                mesh: { position: new THREE.Vector3(8, 9, 10) },
+                baseY: 7,
+                type: 'SHIELD',
+            }],
+        },
+    }, null);
+
+    assert.deepEqual(snapshot.projectiles[0], {
+        id: 'projectile:7',
+        pos: [1, 2, 3],
+        vel: [4, 0, 0],
+        owner: 2,
+        type: 'SPEED_UP',
+        ttl: 3,
+        radius: 0.5,
+    });
+    assert.deepEqual(snapshot.powerups[0], {
+        id: 'powerup:4',
+        pos: [8, 7, 10],
+        type: 'SHIELD',
+    });
+
+    const applied = [];
+    const reconciler = new StateReconciler();
+    reconciler.receiveServerState({ state: snapshot });
+    reconciler.reconcile([], {
+        applyNetworkSnapshot(value) { applied.push(value); },
+    });
+    assert.equal(applied[0], snapshot);
+});
+
+test('network replica managers spawn, update and remove authoritative entities', () => {
+    const added = [];
+    const removed = [];
+    const renderer = {
+        addToScene(mesh) { added.push(mesh); },
+        removeFromScene(mesh) { removed.push(mesh); },
+    };
+    const projectileSystem = new ProjectileSystem({ renderer, entityRuntimeConfig: CONFIG });
+    projectileSystem.applyNetworkSnapshot([{
+        id: 'projectile:1',
+        pos: [1, 0, 0],
+        vel: [2, 0, 0],
+        owner: 0,
+        type: 'SPEED_UP',
+        ttl: 2,
+        radius: 0.5,
+    }], [{ index: 0 }]);
+    projectileSystem.update(0.5);
+    assert.equal(projectileSystem.projectiles.length, 1);
+    assert.equal(projectileSystem.projectiles[0].position.x, 2);
+    projectileSystem.applyNetworkSnapshot([]);
+    assert.equal(projectileSystem.projectiles.length, 0);
+
+    const powerupManager = new PowerupManager(renderer, {}, CONFIG);
+    powerupManager.applyNetworkSnapshot([{
+        id: 'powerup:1',
+        pos: [3, 4, 5],
+        type: 'SHIELD',
+    }]);
+    assert.equal(powerupManager.items.length, 1);
+    assert.deepEqual(powerupManager.items[0].mesh.position.toArray(), [3, 4, 5]);
+    assert.equal(powerupManager.checkPickup(new THREE.Vector3(3, 4, 5), 1), null);
+    assert.equal(powerupManager.items.length, 1);
+    powerupManager.applyNetworkSnapshot([]);
+    assert.equal(powerupManager.items.length, 0);
+    assert.equal(added.length, 2);
+    assert.equal(removed.length, 2);
+    projectileSystem.dispose();
+    powerupManager.dispose();
 });
 
 test('round snapshots and HUD consumers preserve a valid quaternion w of zero', () => {

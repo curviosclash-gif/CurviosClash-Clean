@@ -298,7 +298,8 @@ function removePeerFromLobby(ws, options = {}) {
         sessionState: buildLobbyState(lobby),
     });
 
-    if (lobby.players.length === 0) {
+    const hostLease = reconnectLeases.get(buildReconnectLeaseKey(lobbyCode, lobby.hostPeerId));
+    if (lobby.players.length === 0 && !hostLease) {
         clearLobbyReconnectLeases(lobbyCode);
         lobbies.delete(lobbyCode);
     }
@@ -335,6 +336,7 @@ export function createSignalingServer(port = 9090, options = {}) {
         ? Math.max(1, Math.floor(Number(options.unassignedSocketTimeoutMs)))
         : UNASSIGNED_SOCKET_TIMEOUT_MS;
     const ipConnectionCounts = new Map();
+    const serverLobbyCodes = new Set();
     const wss = new WebSocketServer({
         port,
         maxPayload: MAX_SIGNALING_PAYLOAD_BYTES,
@@ -470,6 +472,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     ownerAddress: ws._remoteAddress,
                 };
                 lobbies.set(code, lobby);
+                serverLobbyCodes.add(code);
                 peerToLobby.set(ws, code);
                 sendSignaling(ws, SIGNALING_EVENT_TYPES.LOBBY_CREATED, {
                     lobbyCode: code,
@@ -790,6 +793,15 @@ export function createSignalingServer(port = 9090, options = {}) {
 
     wss.on('close', () => {
         clearInterval(heartbeatInterval);
+        for (const code of serverLobbyCodes) {
+            const lobby = lobbies.get(code);
+            for (const player of lobby?.players || []) {
+                peerToLobby.delete(player.ws);
+                if (player.transportWs) peerToLobby.delete(player.transportWs);
+            }
+            clearLobbyReconnectLeases(code);
+            lobbies.delete(code);
+        }
     });
 
     console.log(`Signaling Server running on ws://0.0.0.0:${port}`);

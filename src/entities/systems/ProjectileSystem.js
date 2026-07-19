@@ -66,6 +66,7 @@ export class ProjectileSystem {
         this._statePool = new ProjectileStatePool();
         this._projectileStatePool = this._statePool.pool;
         this._nextTraversalId = 1;
+        this.networkReplica = false;
         this._simulationOps = new ProjectileSimulationOps(this);
         this._hitResolver = new ProjectileHitResolver(this);
 
@@ -392,7 +393,78 @@ export class ProjectileSystem {
         return this._simulationOps.acquireHomingTarget(projectile, players, trailSpatialIndex);
     }
 
+    setNetworkReplica(enabled) {
+        this.networkReplica = enabled === true;
+    }
+
+    applyNetworkSnapshot(entries, players = []) {
+        if (!Array.isArray(entries)) return;
+        this.networkReplica = true;
+        const incomingById = new Map();
+        for (const entry of entries) {
+            const id = String(entry?.id ?? '').trim();
+            if (id) incomingById.set(id, entry);
+        }
+
+        const existingById = new Map();
+        for (let i = this.projectiles.length - 1; i >= 0; i -= 1) {
+            const projectile = this.projectiles[i];
+            const id = String(projectile?.networkId || '').trim();
+            if (!id || !incomingById.has(id)) {
+                this._removeProjectileAt(i);
+            } else {
+                existingById.set(id, projectile);
+            }
+        }
+
+        for (const [id, entry] of incomingById) {
+            const type = String(entry?.type || 'mg').trim();
+            let projectile = existingById.get(id) || null;
+            if (!projectile || projectile.type !== type) {
+                if (projectile) {
+                    this._removeProjectileAt(this.projectiles.indexOf(projectile));
+                }
+                const power = this.entityRuntimeConfig?.POWERUP?.TYPES?.[type];
+                const mesh = this._acquireProjectileMesh(type, power?.color ?? 0xffaa00);
+                projectile = this._acquireProjectileState();
+                projectile.mesh = mesh;
+                projectile.flame = mesh.userData.flame || null;
+                projectile.poolKey = type;
+                projectile.type = type;
+                projectile.networkId = id;
+                projectile.traversalId = id;
+                this.projectiles.push(projectile);
+            }
+
+            const pos = Array.isArray(entry.pos) ? entry.pos : [];
+            const vel = Array.isArray(entry.vel) ? entry.vel : [];
+            projectile.previousPosition.copy(projectile.position);
+            projectile.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
+            projectile.velocity.set(Number(vel[0]) || 0, Number(vel[1]) || 0, Number(vel[2]) || 0);
+            projectile.owner = players.find((player) => player?.index === entry.owner) || null;
+            projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
+            projectile.radius = Math.max(0, Number(entry.radius) || 0);
+            projectile.mesh.position.copy(projectile.position);
+            if (projectile.velocity.lengthSq() > 0.000001) {
+                this._tmpVec.copy(projectile.position).add(projectile.velocity);
+                projectile.mesh.lookAt(this._tmpVec);
+            }
+        }
+    }
+
     update(dt) {
+        if (this.networkReplica) {
+            for (const projectile of this.projectiles) {
+                projectile.previousPosition.copy(projectile.position);
+                projectile.position.addScaledVector(projectile.velocity, dt);
+                projectile.mesh?.position.copy(projectile.position);
+                if (projectile.mesh && projectile.velocity.lengthSq() > 0.000001) {
+                    this._tmpVec.copy(projectile.position).add(projectile.velocity);
+                    projectile.mesh.lookAt(this._tmpVec);
+                }
+            }
+            return;
+        }
         const arena = this.getArena();
         const players = this.getPlayers();
         const trailSpatialIndex = this.getTrailSpatialIndex();

@@ -79,6 +79,11 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             this._handleDataMessage(peerId, channel, data);
         });
 
+        this._dataChannelManager.on('protocolError', ({ peerId, reason }) => {
+            this._closePeerConnection(peerId);
+            this._emit('peerProtocolError', { peerId, reason });
+        });
+
         this._dataChannelManager.on('channelClose', ({ peerId }) => {
             this._registerPeerDisconnect(peerId, 'channel-close');
         });
@@ -366,6 +371,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             ...this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.INPUT),
             playerId: this.localPlayerId || (this.isHost ? 'host' : ''),
             inputs: inputData,
+            inputSeq: this._createInputSequence(),
             timestamp: this._now(),
         };
         if (this.isHost) {
@@ -380,7 +386,10 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
 
     broadcastState(stateSnapshot) {
         if (!this.isHost) return;
-        this._sendStateToAll(this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT, stateSnapshot));
+        this._dataChannelManager.sendToAll('snapshots', this._createStateMessage(
+            MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
+            { ...stateSnapshot, snapshotSeq: this._createSnapshotSequence() }
+        ));
     }
 
     sendStateToPeer(peerId, stateSnapshot) {
@@ -394,6 +403,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         if (!isMultiplayerMessageAllowedForSender(message.type, senderIsHost)) return;
         switch (message.type) {
         case MULTIPLAYER_MESSAGE_TYPES.INPUT:
+            if (!this._acceptInputSequence(peerId, data.inputSeq)) break;
             this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED:
@@ -409,12 +419,16 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT:
+            if (!this._acceptSnapshotSequence(data.snapshotSeq)) break;
             this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, {
                 messageType: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
             }));
             break;
         case MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC:
             this._emit('fullStateSync', { state: data });
+            this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, {
+                messageType: MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC,
+            }));
             break;
         case MULTIPLAYER_MESSAGE_TYPES.PING:
             this._dataChannelManager.send(

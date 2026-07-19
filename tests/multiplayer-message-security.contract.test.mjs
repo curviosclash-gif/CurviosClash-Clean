@@ -73,3 +73,45 @@ test('LAN data messages reject client host-authority and bind leave to the chann
     assert.equal(events[1].payload.peerId, 'player-1');
     host.dispose();
 });
+
+test('unordered multiplayer messages reject stale input and snapshot sequences', () => {
+    const host = new OnlineSessionAdapter({ isHost: true });
+    host._hostPeerId = 'host-peer';
+    const hostEvents = captureEvents(host);
+    host._handleDataMessage('client-peer', 'inputs', {
+        type: MULTIPLAYER_MESSAGE_TYPES.INPUT,
+        inputSeq: 2,
+        inputs: { boost: true },
+    });
+    host._handleDataMessage('client-peer', 'inputs', {
+        type: MULTIPLAYER_MESSAGE_TYPES.INPUT,
+        inputSeq: 1,
+        inputs: { boost: false },
+    });
+    assert.deepEqual(
+        hostEvents.filter((entry) => entry.type === 'remoteInput').map((entry) => entry.payload.input),
+        [{ boost: true }]
+    );
+
+    const client = new LANSessionAdapter({ isHost: false });
+    const clientEvents = captureEvents(client);
+    client._handleMessage('host', 'snapshots', {
+        type: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
+        snapshotSeq: 4,
+        players: [],
+    });
+    client._handleMessage('host', 'snapshots', {
+        type: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
+        snapshotSeq: 3,
+        players: [],
+    });
+    assert.equal(clientEvents.filter((entry) => entry.type === 'stateUpdate').length, 1);
+    client._handleMessage('host', 'state', {
+        type: MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC,
+        players: [],
+    });
+    assert.equal(clientEvents.filter((entry) => entry.type === 'fullStateSync').length, 1);
+    assert.equal(clientEvents.filter((entry) => entry.type === 'stateUpdate').length, 2);
+    host.dispose();
+    client.dispose();
+});

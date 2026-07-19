@@ -66,6 +66,8 @@ export class LANSessionAdapter extends SessionAdapterBase {
             this._handleMessage(peerId, channel, data);
         });
 
+        this._dataChannelManager.on('protocolError', ({ peerId, reason }) => { this._closePeerConnection(peerId); this._emit('peerProtocolError', { peerId, reason }); });
+
         this._dataChannelManager.on('channelClose', ({ peerId }) => {
             this._registerPeerDisconnect(peerId, 'channel-close');
         });
@@ -425,7 +427,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
         const payload = {
             ...this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.INPUT),
             playerId: this.localPlayerId || (this.isHost ? 'host' : ''),
-            inputs: inputData,
+            inputs: inputData, inputSeq: this._createInputSequence(),
             timestamp: this._now(),
         };
         if (this.isHost) {
@@ -437,7 +439,8 @@ export class LANSessionAdapter extends SessionAdapterBase {
 
     broadcastState(stateSnapshot) {
         if (!this.isHost) return;
-        this._sendStateToAll(this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT, stateSnapshot));
+        const payload = { ...stateSnapshot, snapshotSeq: this._createSnapshotSequence() };
+        this._dataChannelManager.sendToAll('snapshots', this._createStateMessage(MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT, payload));
     }
 
     sendStateToPeer(peerId, stateSnapshot) {
@@ -450,7 +453,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
         if (!isMultiplayerMessageAllowedForSender(message.type, peerId === 'host')) return;
         switch (message.type) {
         case MULTIPLAYER_MESSAGE_TYPES.INPUT:
-            this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
+            if (this._acceptInputSequence(peerId, data.inputSeq)) this._emit('remoteInput', { peerId, input: data.inputs, playerId: peerId });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.PLAYER_ARENA_LOADED:
             // Client signals that its arena is fully loaded.  Host collects these
@@ -465,12 +468,11 @@ export class LANSessionAdapter extends SessionAdapterBase {
             });
             break;
         case MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT:
-            this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, {
-                messageType: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT,
-            }));
+            if (this._acceptSnapshotSequence(data.snapshotSeq)) this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, { messageType: MULTIPLAYER_MESSAGE_TYPES.STATE_SNAPSHOT }));
             break;
         case MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC:
             this._emit('fullStateSync', { state: data });
+            this._emit('stateUpdate', buildMultiplayerStateUpdateEvent(data, { messageType: MULTIPLAYER_MESSAGE_TYPES.FULL_STATE_SYNC }));
             break;
         case MULTIPLAYER_MESSAGE_TYPES.PING:
             this._dataChannelManager.send(

@@ -23,14 +23,17 @@ const PRIORITY_STATE_MESSAGE_TYPES = new Set([
     MULTIPLAYER_MESSAGE_TYPES.ROUND_START_GATE,
 ]);
 
+const MAX_DATA_CHANNEL_MESSAGE_CHARS = 128 * 1024;
+
 function isPriorityStateMessage(channelName, data) {
     return channelName === 'state' && PRIORITY_STATE_MESSAGE_TYPES.has(data?.type);
 }
 
 /**
- * Manages two data channels per peer:
+ * Manages three data channels per peer:
+ * - "snapshots" (unreliable, unordered) - Host to Client, 10/s
  * - "inputs" (unreliable, unordered) — Client → Host, 60/s
- * - "state"  (reliable, ordered)     — Host → Client, 10/s
+ * - "state"  (reliable, ordered)     — Lifecycle and control messages
  */
 export class DataChannelManager {
     constructor(options = {}) {
@@ -57,14 +60,19 @@ export class DataChannelManager {
         const stateChannel = peerConnection.createDataChannel('state', {
             ordered: true,
         });
+        const snapshotChannel = peerConnection.createDataChannel('snapshots', {
+            ordered: false,
+            maxRetransmits: 0,
+        });
 
         this._setupChannel(peerId, 'inputs', inputChannel);
         this._setupChannel(peerId, 'state', stateChannel);
+        this._setupChannel(peerId, 'snapshots', snapshotChannel);
     }
 
     handleIncomingChannel(peerId, channel) {
         const name = channel.label;
-        if (name === 'inputs' || name === 'state') {
+        if (name === 'inputs' || name === 'state' || name === 'snapshots') {
             this._setupChannel(peerId, name, channel);
         }
     }
@@ -83,10 +91,19 @@ export class DataChannelManager {
             this._emit('channelError', { peerId, channel: name, error: err });
         };
         channel.onmessage = (event) => {
+            if (typeof event.data !== 'string' || event.data.length > MAX_DATA_CHANNEL_MESSAGE_CHARS) {
+                this._emit('protocolError', { peerId, channel: name, reason: 'invalid_message_size' });
+                return;
+            }
             let data;
             try {
                 data = JSON.parse(event.data);
             } catch {
+                this._emit('protocolError', { peerId, channel: name, reason: 'invalid_json' });
+                return;
+            }
+            if (!data || typeof data !== 'object' || Array.isArray(data)) {
+                this._emit('protocolError', { peerId, channel: name, reason: 'invalid_message_shape' });
                 return;
             }
             this._emit('message', { peerId, channel: name, data });

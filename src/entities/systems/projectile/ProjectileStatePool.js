@@ -34,6 +34,7 @@ export class ProjectileStatePool {
             foamBounces: 0,
             foamBounceCooldown: 0,
             traversalId: '',
+            networkId: '',
         };
     }
 
@@ -61,6 +62,7 @@ export class ProjectileStatePool {
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
         projectile.traversalId = '';
+        projectile.networkId = '';
         this.pool.push(projectile);
     }
 

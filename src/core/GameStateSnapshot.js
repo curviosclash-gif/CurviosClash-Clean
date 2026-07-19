@@ -25,24 +25,30 @@ export function createGameStateSnapshot(entityManager, roundState) {
     const allProjectiles = entityManager?.projectiles || [];
     for (let i = 0; i < allProjectiles.length; i++) {
         const proj = allProjectiles[i];
-        if (!proj?.active) continue;
+        if (!proj || proj.active === false) continue;
         projectiles.push({
-            id: proj.id || i,
+            id: proj.id || proj.traversalId || i,
             pos: vecToArray(proj.position),
             vel: vecToArray(proj.velocity),
-            owner: proj.ownerIndex ?? -1,
+            owner: proj.ownerIndex ?? proj.owner?.index ?? -1,
             type: proj.type || 'mg',
+            ttl: toFiniteNumber(proj.ttl, 0),
+            radius: toFiniteNumber(proj.radius, 0),
         });
     }
 
     const powerups = [];
-    const allPowerups = entityManager?.powerups || [];
+    const allPowerups = entityManager?.powerups || entityManager?.powerupManager?.items || [];
     for (let i = 0; i < allPowerups.length; i++) {
         const pu = allPowerups[i];
-        if (!pu?.active) continue;
+        if (!pu || pu.active === false) continue;
         powerups.push({
-            id: pu.id || i,
-            pos: vecToArray(pu.position),
+            id: pu.id || pu.networkId || i,
+            pos: [
+                toFiniteNumber(pu.position?.x ?? pu.mesh?.position?.x, 0),
+                toFiniteNumber(pu.baseY ?? pu.position?.y ?? pu.mesh?.position?.y, 0),
+                toFiniteNumber(pu.position?.z ?? pu.mesh?.position?.z, 0),
+            ],
             type: pu.type || '',
         });
     }

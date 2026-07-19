@@ -91,6 +91,8 @@ export class PowerupManager {
         this._sharedGeo = new THREE.BoxGeometry(size, size, size);
         this._sharedWireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
         this._occupiedAnchorKeys = new Set();
+        this._nextNetworkId = 1;
+        this.networkReplica = false;
     }
 
     update(dt) {
@@ -108,14 +110,14 @@ export class PowerupManager {
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
             : 0;
-        if (authoredItemTarget > 0) {
+        if (!this.networkReplica && authoredItemTarget > 0) {
             while (this.items.length < authoredItemTarget) {
                 const previousCount = this.items.length;
                 this._spawnRandom();
                 if (this.items.length === previousCount) break;
             }
             this.spawnTimer = 0;
-        } else if (this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
+        } else if (!this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
             this.spawnTimer = 0;
             this._spawnRandom();
         }
@@ -212,6 +214,7 @@ export class PowerupManager {
             mesh,
             type,
             box,
+            networkId: `powerup:${this._nextNetworkId++}`,
             baseY: pos.y,
             phase: Math.random() * Math.PI * 2,
             anchorKey: authoredAnchor?.key || null,
@@ -253,6 +256,7 @@ export class PowerupManager {
 
     /** Prueft ob ein Spieler ein Item einsammelt */
     checkPickup(playerPosition, radius) {
+        if (this.networkReplica) return null;
         this._pickupSphere.center.copy(playerPosition);
         this._pickupSphere.radius = radius + this.entityRuntimeConfig.POWERUP.PICKUP_RADIUS;
 
@@ -348,6 +352,63 @@ export class PowerupManager {
                 }
             }
         });
+    }
+
+    setNetworkReplica(enabled) {
+        this.networkReplica = enabled === true;
+    }
+
+    applyNetworkSnapshot(entries) {
+        if (!Array.isArray(entries)) return;
+        this.networkReplica = true;
+        const pickupSize = this.entityRuntimeConfig.POWERUP.PICKUP_RADIUS * 2;
+        this._pickupBoxSize.set(pickupSize, pickupSize, pickupSize);
+        const incomingById = new Map();
+        for (const entry of entries) {
+            const id = String(entry?.id ?? '').trim();
+            if (id) incomingById.set(id, entry);
+        }
+
+        const existingById = new Map();
+        for (let i = this.items.length - 1; i >= 0; i -= 1) {
+            const item = this.items[i];
+            const id = String(item?.networkId || '').trim();
+            if (!id || !incomingById.has(id)) {
+                this.items.splice(i, 1);
+                this._disposeSpawnedItem(item);
+            } else {
+                existingById.set(id, item);
+            }
+        }
+
+        for (const [id, entry] of incomingById) {
+            const type = normalizePickupType(entry?.type);
+            const powerupConfig = this.entityRuntimeConfig?.POWERUP?.TYPES?.[type];
+            if (!type || !powerupConfig) continue;
+            let item = existingById.get(id) || null;
+            if (item?.type !== type) {
+                if (item) {
+                    this.items.splice(this.items.indexOf(item), 1);
+                    this._disposeSpawnedItem(item);
+                }
+                const mesh = this._createPowerupMesh(type, powerupConfig);
+                this.renderer.addToScene(mesh);
+                item = {
+                    mesh,
+                    type,
+                    networkId: id,
+                    box: new THREE.Box3(),
+                    baseY: 0,
+                    phase: 0,
+                    anchorKey: null,
+                };
+                this.items.push(item);
+            }
+            const pos = Array.isArray(entry.pos) ? entry.pos : [];
+            item.mesh.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
+            item.baseY = item.mesh.position.y;
+            item.box.setFromCenterAndSize(item.mesh.position, this._pickupBoxSize);
+        }
     }
 
     _applyAuthoredItemModel(item, anchor, config) {

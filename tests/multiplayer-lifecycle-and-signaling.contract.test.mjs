@@ -176,6 +176,30 @@ test('OnlineSessionAdapter rejects missing signaling message type', async () => 
     assert.equal(result?.code, 'signaling_payload_invalid');
 });
 
+test('OnlineMatchLobby resumes automatically after a transient signaling drop', async () => {
+    const wss = createSignalingServer(0);
+    const signalingUrl = `ws://127.0.0.1:${wss.address().port}`;
+    const lobby = new OnlineMatchLobby({ signalingUrl });
+    try {
+        await lobby.create({ maxPlayers: 4 });
+        const lobbyCode = lobby.lobbyCode;
+        const previousSocket = lobby._ws;
+        const resumed = waitForEvent(lobby, 'connectionResumed');
+        const serverSocket = Array.from(wss.clients)[0];
+        serverSocket.terminate();
+
+        await resumed;
+        assert.equal(lobby.lobbyCode, lobbyCode);
+        assert.notEqual(lobby._ws, previousSocket);
+        assert.equal(lobby.sessionState.members.length, 1);
+    } finally {
+        lobby.leave();
+        await new Promise((resolve) => setTimeout(resolve, 20));
+        for (const socket of wss.clients) socket.terminate();
+        await new Promise((resolve) => wss.close(() => resolve()));
+    }
+});
+
 test('online match handoff attaches transports to the SAME lobby and completes the offer/answer round-trip', async () => {
     const wss = createSignalingServer(0);
     const port = wss.address().port;
@@ -306,7 +330,7 @@ test('PeerConnectionManager buffers remote ICE candidates until the remote descr
     }
 });
 
-test('DataChannelManager creates a fully reliable state channel', () => {
+test('DataChannelManager separates unreliable snapshots from reliable state', () => {
     const created = [];
     const fakePc = {
         createDataChannel(label, options) {
@@ -319,9 +343,27 @@ test('DataChannelManager creates a fully reliable state channel', () => {
 
     const stateChannel = created.find((entry) => entry.label === 'state');
     const inputChannel = created.find((entry) => entry.label === 'inputs');
+    const snapshotChannel = created.find((entry) => entry.label === 'snapshots');
     assert.equal(stateChannel.options.ordered, true);
     assert.equal('maxRetransmits' in stateChannel.options, false, 'state channel must be fully reliable');
     assert.equal(inputChannel.options.maxRetransmits, 0);
+    assert.equal(snapshotChannel.options.ordered, false);
+    assert.equal(snapshotChannel.options.maxRetransmits, 0);
+});
+
+test('DataChannelManager rejects malformed and oversized peer payloads', () => {
+    const manager = new DataChannelManager();
+    const channel = { label: 'inputs', close() {} };
+    const errors = [];
+    manager.on('protocolError', (event) => errors.push(event.reason));
+    manager.handleIncomingChannel('peer-1', channel);
+
+    channel.onmessage({ data: '{broken' });
+    channel.onmessage({ data: JSON.stringify([]) });
+    channel.onmessage({ data: 'x'.repeat(128 * 1024 + 1) });
+
+    assert.deepEqual(errors, ['invalid_json', 'invalid_message_shape', 'invalid_message_size']);
+    manager.dispose();
 });
 
 test('DataChannelManager preserves lifecycle messages under backpressure', () => {

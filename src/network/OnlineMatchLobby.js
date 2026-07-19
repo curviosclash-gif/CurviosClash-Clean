@@ -46,6 +46,7 @@ export class OnlineMatchLobby extends MatchLobby {
         this._lastHandledMatchCommandId = '';
         this._pendingMutationAcks = new Map();
         this._closedByClient = false;
+        this._cancelReconnect = false; this._reconnectPromise = null;
         this.sessionState = createInitialLobbySessionState();
     }
 
@@ -163,6 +164,11 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     _handleSocketClosed(event = null) {
+        const reconnectContext = {
+            lobbyCode: this.sessionState.lobbyCode || this.lobbyCode || '',
+            playerId: this._playerId || '',
+            sessionToken: this._sessionToken || '',
+        };
         this._closeSocket();
         if (this._closedByClient) {
             this._closedByClient = false;
@@ -172,11 +178,32 @@ export class OnlineMatchLobby extends MatchLobby {
         const closeError = createSocketLifecycleError('close', buildSocketCloseDetails(event, this._signalingUrl));
         this._rejectAllPendingMutationAcks(closeError);
         this._emit('error', toErrorPayload(closeError));
+        if (reconnectContext.lobbyCode && reconnectContext.playerId && reconnectContext.sessionToken) {
+            this._scheduleReconnect(reconnectContext, closeError);
+            return;
+        }
+        this._finalizeUnexpectedClose(closeError);
+    }
+
+    _scheduleReconnect(reconnectContext, closeError) {
+        if (this._reconnectPromise) return this._reconnectPromise;
+        this._cancelReconnect = false;
+        this._emit('reconnecting', { sessionState: this.sessionState });
+        this._reconnectPromise = this.reconnect(reconnectContext)
+            .catch((error) => {
+                if (!this._cancelReconnect) {
+                    this._finalizeUnexpectedClose(error || closeError);
+                }
+            })
+            .finally(() => {
+                this._reconnectPromise = null;
+            });
+        return this._reconnectPromise;
+    }
+
+    _finalizeUnexpectedClose(error) {
         this._applySessionState(createInitialLobbySessionState());
-        this._emit('closed', {
-            reason: 'signaling_socket_closed',
-            error: toErrorPayload(closeError),
-        });
+        this._emit('closed', { reason: 'signaling_unavailable', error: toErrorPayload(error) });
     }
 
     _handleSocketError() {
@@ -195,13 +222,14 @@ export class OnlineMatchLobby extends MatchLobby {
         let lastError = null;
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+            if (this._cancelReconnect) break;
             try {
                 await this._makeConnectAttempt(setupFn, timeoutMs);
                 return;
             } catch (err) {
                 lastError = err;
                 this._closeSocket();
-                if (attempt >= maxAttempts || !isRetryableSignalingError(err)) {
+                if (this._cancelReconnect || attempt >= maxAttempts || !isRetryableSignalingError(err)) {
                     break;
                 }
                 const retryDelayMs = retryDelays[Math.min(attempt - 1, retryDelays.length - 1)] || 0;
@@ -274,6 +302,7 @@ export class OnlineMatchLobby extends MatchLobby {
         this.settings = { ...options };
         this._signalingUrl = resolveOnlineSignalingUrl(options.signalingUrl, this._signalingUrl);
         this._closedByClient = false;
+        this._cancelReconnect = false;
 
         return this._makeConnectPromise((ws, connectResolve, connectReject, connectState) => {
             ws.onopen = () => {
@@ -300,6 +329,7 @@ export class OnlineMatchLobby extends MatchLobby {
         this.isHost = false;
         this._signalingUrl = resolveOnlineSignalingUrl(options.signalingUrl, this._signalingUrl);
         this._closedByClient = false;
+        this._cancelReconnect = false;
 
         return this._makeConnectPromise((ws, connectResolve, connectReject, connectState) => {
             ws.onopen = () => {
@@ -324,19 +354,25 @@ export class OnlineMatchLobby extends MatchLobby {
         if (options.signalingUrl) {
             this._signalingUrl = resolveOnlineSignalingUrl(options.signalingUrl, this._signalingUrl);
         }
-        const lobbyCode = this.sessionState.lobbyCode || this.lobbyCode;
-        const playerId = this._playerId;
+        const lobbyCode = String(options.lobbyCode || this.sessionState.lobbyCode || this.lobbyCode || '').trim();
+        const playerId = String(options.playerId || this._playerId || '').trim();
+        const sessionToken = String(options.sessionToken || this._sessionToken || '').trim();
         this._closedByClient = false;
 
         return this._makeConnectPromise((ws, connectResolve, connectReject, connectState) => {
             ws.onopen = () => {
+                if (this._cancelReconnect) {
+                    ws.close();
+                    return;
+                }
                 this._send(createResumeSignalingEnvelope({
                     lobbyCode,
                     playerId,
-                    sessionToken: this._sessionToken,
+                    sessionToken,
                 }));
             };
             ws.onmessage = (event) => {
+                if (this._cancelReconnect) return;
                 try {
                     const msg = this._parseSocketMessage(event.data);
                     this._handleMessage(msg, connectResolve, connectReject, connectState);
@@ -402,6 +438,7 @@ export class OnlineMatchLobby extends MatchLobby {
 
     leave() {
         this._closedByClient = true;
+        this._cancelReconnect = true;
         this._send(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.LEAVE));
         this._rejectAllPendingMutationAcks(createNetworkUnavailableSignalingError({
             signalingUrl: this._signalingUrl,
