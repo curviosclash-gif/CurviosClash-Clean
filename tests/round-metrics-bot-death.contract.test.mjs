@@ -22,6 +22,7 @@ test('RoundMetricsStore preserves per-bot death causes without classifying survi
 
     assert.equal(firstRound.botSurvivalAverage, 4);
     assert.deepEqual(firstRound.botSurvivalSeconds, [4]);
+    assert.deepEqual(firstRound.botDeathSurvivalSeconds, [4]);
     assert.deepEqual(firstRound.botDeathCauseCounts, { TRAIL_SELF: 1 });
     assert.deepEqual(store.getAggregateMetrics().botDeathCauseTotals, { TRAIL_SELF: 1 });
     assert.deepEqual(store.getRoundSummaries()[0].botDeathCauseCounts, { TRAIL_SELF: 1 });
@@ -33,5 +34,26 @@ test('RoundMetricsStore preserves per-bot death causes without classifying survi
 
     assert.deepEqual(secondRound.botDeathCauseCounts, {});
     assert.deepEqual(secondRound.botSurvivalSeconds, [8]);
+    assert.deepEqual(secondRound.botDeathSurvivalSeconds, []);
     assert.deepEqual(store.getAggregateMetrics().botDeathCauseTotals, { TRAIL_SELF: 1 });
+});
+
+test('RoundMetricsStore separates real deaths from bots alive at observation end', () => {
+    let now = 0;
+    const store = new RoundMetricsStore({ timeProvider: () => now });
+    const human = createPlayer(0, false);
+    const deadBot = { ...createPlayer(1, true), alive: true };
+    const livingBot = { ...createPlayer(2, true), alive: true };
+    store.startRound([human, deadBot, livingBot]);
+
+    now = 4;
+    deadBot.alive = false;
+    store.markPlayerDeath(deadBot, 'WALL');
+    now = 10;
+    const observation = store.getActiveSurvivalObservation([human, deadBot, livingBot]);
+
+    assert.deepEqual(observation.botDeathSurvivalSeconds, [4]);
+    assert.deepEqual(observation.censoredBotSurvivalSeconds, [10]);
+    assert.equal(observation.aliveAtObservationEnd, 1);
+    assert.deepEqual(observation.botDeathCauseCounts, { WALL: 1 });
 });

@@ -11,6 +11,7 @@ import {
     buildBotValidationOutcomeSemantics,
     isSurvivalObservationScenario,
 } from '../src/state/validation/BotValidationOutcomeSemantics.js';
+import { buildBotValidationSurvivalMetrics } from '../src/state/validation/BotValidationSurvivalMetrics.js';
 
 const CLI_ARGS = parseArgMap(process.argv.slice(2));
 const HOST = '127.0.0.1';
@@ -872,6 +873,7 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     const startRuntimeSample = await captureBotRuntimeSample(page, roundLabel, deadlines);
 
     let forced = false;
+    let observationCompleted = false;
     if (isSurvivalObservationScenario(scenario)) {
         stats.observationRuns += 1;
         const observationMs = Math.max(1000, Number(scenario.observationSeconds) * 1000);
@@ -886,7 +888,8 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
             resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-observation-end-state`, deadlines),
             () => window.GAME_INSTANCE?.state || null
         );
-        if (stateAtObservationEnd === 'PLAYING') stats.completedObservations += 1;
+        observationCompleted = stateAtObservationEnd === 'PLAYING';
+        if (observationCompleted) stats.completedObservations += 1;
     } else if (stateAfterStart !== 'ROUND_END' && stateAfterStart !== 'MATCH_END') {
         try {
             await waitForGameState(
@@ -906,6 +909,27 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     }
 
     const endRuntimeSample = await captureBotRuntimeSample(page, `${roundLabel}:end`, deadlines);
+    if (isSurvivalObservationScenario(scenario)) {
+        const observation = await evaluatePhase(
+            page,
+            `${roundLabel}:capture-survival-observation`,
+            resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:capture-survival-observation`, deadlines),
+            () => {
+                const g = window.GAME_INSTANCE;
+                const players = Array.isArray(g?.entityManager?.players) ? g.entityManager.players : [];
+                if (!g?.recorder?.getActiveSurvivalObservation) {
+                    throw new Error('recorder.getActiveSurvivalObservation missing');
+                }
+                return g.recorder.getActiveSurvivalObservation(players);
+            }
+        );
+        stats.survivalObservations.push({
+            ...observation,
+            scenarioId: scenario.id,
+            round: roundNumber,
+            observationCompleted,
+        });
+    }
 
     await evaluatePhase(
         page,
@@ -959,7 +983,7 @@ function quantile(sortedValues, ratio) {
     return sortedValues[lowerIndex] * (1 - weight) + sortedValues[upperIndex] * weight;
 }
 
-function buildScenarioMetrics(rounds, runtimeSamples = []) {
+function buildScenarioMetrics(rounds, runtimeSamples = [], survivalObservations = []) {
     const played = rounds.length;
     const outcomeRounds = rounds.filter((round) => round?.forced !== true);
     const outcomePlayed = outcomeRounds.length;
@@ -968,16 +992,11 @@ function buildScenarioMetrics(rounds, runtimeSamples = []) {
     const stuckEvents = sumBy(rounds, (r) => r.stuckEvents);
     const wallHits = sumBy(rounds, (r) => r.bounceWallEvents);
     const trailHits = sumBy(rounds, (r) => r.bounceTrailEvents);
-    const survivalSamples = outcomeRounds
-        .flatMap((round) => Array.isArray(round?.botSurvivalSeconds) ? round.botSurvivalSeconds : [])
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value) && value >= 0)
-        .sort((left, right) => left - right);
+    const survivalMetrics = buildBotValidationSurvivalMetrics(rounds, survivalObservations);
+    const survivalSamples = survivalMetrics.botSurvivalSeconds;
     const avgBotSurvival = survivalSamples.length > 0
         ? sumBy(survivalSamples, (value) => value) / survivalSamples.length
-        : (outcomePlayed > 0
-            ? sumBy(outcomeRounds, (round) => round.botSurvivalAverage) / outcomePlayed
-            : null);
+        : null;
     const survivalP25 = quantile(survivalSamples, 0.25);
     const survivalP75 = quantile(survivalSamples, 0.75);
     const stuckPerMinute = totalDuration > 0 ? stuckEvents / (totalDuration / 60) : 0;
@@ -1032,10 +1051,17 @@ function buildScenarioMetrics(rounds, runtimeSamples = []) {
         wallHits,
         trailHits,
         averageBotSurvival: avgBotSurvival,
-        botSurvivalMedian: outcomePlayed > 0 ? quantile(survivalSamples, 0.5) : null,
-        botSurvivalP10: outcomePlayed > 0 ? quantile(survivalSamples, 0.1) : null,
-        botSurvivalIqr: outcomePlayed > 0 ? Math.max(0, survivalP75 - survivalP25) : null,
+        botSurvivalMedian: survivalSamples.length > 0 ? quantile(survivalSamples, 0.5) : null,
+        botSurvivalP10: survivalSamples.length > 0 ? quantile(survivalSamples, 0.1) : null,
+        botSurvivalIqr: survivalSamples.length > 0 ? Math.max(0, survivalP75 - survivalP25) : null,
         botSurvivalSampleCount: survivalSamples.length,
+        botSurvivalSeconds: survivalSamples,
+        censoredBotSurvivalSeconds: survivalMetrics.censoredBotSurvivalSeconds,
+        aliveAtObservationEnd: survivalMetrics.aliveAtObservationEnd,
+        survivedAtLeastSeconds: survivalMetrics.survivedAtLeastSeconds,
+        censoredBotSurvivalSampleCount: survivalMetrics.censoredBotSurvivalSampleCount,
+        observationCompleted: survivalMetrics.observationCompleted,
+        observationSampleCount: survivalMetrics.observationSampleCount,
         stuckPerMinute,
         totalDuration,
         itemUsePerRound: played > 0 ? itemUseEvents / played : 0,
@@ -1361,6 +1387,7 @@ async function run() {
 
         const scenarioResults = [];
         const validationRounds = [];
+        const validationSurvivalObservations = [];
         const runnerStats = {
             forcedRounds: 0,
             timeoutRounds: 0,
@@ -1382,6 +1409,7 @@ async function run() {
                 timeoutRounds: 0,
                 observationRuns: 0,
                 completedObservations: 0,
+                survivalObservations: [],
             };
             const runtimeSamples = [];
             const browserErrorStart = countBrowserRuntimeErrors(diagnostics.browser);
@@ -1457,6 +1485,7 @@ async function run() {
             );
             const scenarioRounds = outcomeSemantics.rounds;
             validationRounds.push(...scenarioRounds);
+            validationSurvivalObservations.push(...localStats.survivalObservations);
 
             runnerStats.forcedRounds += localStats.forcedRounds;
             runnerStats.timeoutRounds += localStats.timeoutRounds;
@@ -1474,7 +1503,7 @@ async function run() {
                 runnerStats.unexpectedSurvivalOutcomeRounds += outcomeSemantics.unexpectedOutcomeRounds;
             }
 
-            const metrics = buildScenarioMetrics(scenarioRounds, runtimeSamples);
+            const metrics = buildScenarioMetrics(scenarioRounds, runtimeSamples, localStats.survivalObservations);
             const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
             if (!runtimeVerification.policy.ok) runnerStats.policyMismatches += 1;
             if (!runtimeVerification.mode.ok) runnerStats.modeMismatches += 1;
@@ -1483,6 +1512,7 @@ async function run() {
                 metrics,
                 runtimeVerification,
                 outcomeSemantics,
+                survivalObservations: localStats.survivalObservations,
                 decisionEvidence: runtimeSamples.map((sample, sampleIndex) => ({
                     sample: sampleIndex + 1,
                     round: sample.round,
@@ -1510,7 +1540,7 @@ async function run() {
         diagnostics.stageTimingsMs.scenarioEvalMs = Math.max(0, Date.now() - scenarioEvalStartedAt);
 
         const allRounds = validationRounds;
-        const overall = buildScenarioMetrics(allRounds);
+        const overall = buildScenarioMetrics(allRounds, [], validationSurvivalObservations);
         const generatedAt = new Date().toISOString().slice(0, 10);
         const report = {
             generatedAt,

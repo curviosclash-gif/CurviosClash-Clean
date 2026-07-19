@@ -71,6 +71,7 @@ function createRoundSummary() {
         humanCount: 0,
         botSurvivalAverage: 0,
         botSurvivalSeconds: [],
+        botDeathSurvivalSeconds: [],
         botDeathCauseCounts: {},
         selfCollisions: 0,
         stuckEvents: 0,
@@ -168,6 +169,8 @@ export class RoundMetricsStore {
         this._roundRocketHits = 0;
         this._roundShieldAbsorb = 0;
         this._roundHpDamage = 0;
+        this._roundBotDeathSurvivalSeconds = [];
+        this._roundBotDeathCauseCounts = {};
         for (let i = 0; i < this.maxTrackedPlayers; i++) {
             this.playerSpawnTime[i] = -1;
             this.playerDeathTime[i] = -1;
@@ -182,7 +185,9 @@ export class RoundMetricsStore {
         const idx = player.index;
         this.playerSeen[idx] = 1;
         this.playerIsBot[idx] = player.isBot ? 1 : 0;
-        if (this.playerSpawnTime[idx] < 0) {
+        if (resetForSpawn) {
+            this.playerSpawnTime[idx] = this._elapsedSeconds();
+        } else if (this.playerSpawnTime[idx] < 0) {
             this.playerSpawnTime[idx] = this._elapsedSeconds();
         }
         if (resetForSpawn) {
@@ -260,6 +265,12 @@ export class RoundMetricsStore {
         if (this.playerDeathTime[idx] < 0) {
             this.playerDeathTime[idx] = this._elapsedSeconds();
             this.playerDeathCause[idx] = normalizeItemUseType(cause);
+            if (player.isBot) {
+                const spawnTime = this.playerSpawnTime[idx] >= 0 ? this.playerSpawnTime[idx] : 0;
+                this._roundBotDeathSurvivalSeconds.push(Math.max(0, this.playerDeathTime[idx] - spawnTime));
+                const deathCause = this.playerDeathCause[idx];
+                this._roundBotDeathCauseCounts[deathCause] = (this._roundBotDeathCauseCounts[deathCause] || 0) + 1;
+            }
         }
         if (normalizeItemUseType(cause) === 'TRAIL_SELF') {
             this._roundSelfCollisions++;
@@ -284,7 +295,7 @@ export class RoundMetricsStore {
         let humanCount = 0;
         let botSurvivalSum = 0;
         const botSurvivalSeconds = [];
-        const botDeathCauseCounts = {};
+        const botDeathCauseCounts = { ...this._roundBotDeathCauseCounts };
 
         if (Array.isArray(players)) {
             for (let i = 0; i < players.length; i++) {
@@ -292,7 +303,6 @@ export class RoundMetricsStore {
                 if (!p || p.index < 0 || p.index >= this.maxTrackedPlayers) continue;
                 this._trackPlayer(p, false);
                 const idx = p.index;
-                const diedDuringRound = this.playerDeathTime[idx] >= 0;
                 if (this.playerDeathTime[idx] < 0) {
                     this.playerDeathTime[idx] = roundDuration;
                 }
@@ -302,10 +312,6 @@ export class RoundMetricsStore {
                     botCount++;
                     botSurvivalSum += survival;
                     botSurvivalSeconds.push(survival);
-                    if (diedDuringRound) {
-                        const deathCause = normalizeItemUseType(this.playerDeathCause[idx]);
-                        botDeathCauseCounts[deathCause] = (botDeathCauseCounts[deathCause] || 0) + 1;
-                    }
                 } else {
                     humanCount++;
                 }
@@ -323,6 +329,7 @@ export class RoundMetricsStore {
         round.humanCount = humanCount;
         round.botSurvivalAverage = botCount > 0 ? botSurvivalSum / botCount : 0;
         round.botSurvivalSeconds = botSurvivalSeconds;
+        round.botDeathSurvivalSeconds = [...this._roundBotDeathSurvivalSeconds];
         round.botDeathCauseCounts = botDeathCauseCounts;
         round.selfCollisions = this._roundSelfCollisions;
         round.stuckEvents = this._roundStuckEvents;
@@ -400,6 +407,7 @@ export class RoundMetricsStore {
             humanCount: round.humanCount,
             botSurvivalAverage: round.botSurvivalAverage,
             botSurvivalSeconds: [...round.botSurvivalSeconds],
+            botDeathSurvivalSeconds: [...round.botDeathSurvivalSeconds],
             botDeathCauseCounts: { ...round.botDeathCauseCounts },
             selfCollisions: round.selfCollisions,
             stuckEvents: round.stuckEvents,
@@ -479,6 +487,28 @@ export class RoundMetricsStore {
         return { ...this._aggregate };
     }
 
+    getActiveSurvivalObservation(players = []) {
+        const observationSeconds = Math.max(0, this._elapsedSeconds());
+        const censoredBotSurvivalSeconds = [];
+        let aliveAtObservationEnd = 0;
+        for (const player of Array.isArray(players) ? players : []) {
+            if (!player?.isBot || player.alive === false) continue;
+            aliveAtObservationEnd += 1;
+            const spawnTime = player.index >= 0 && player.index < this.maxTrackedPlayers
+                && this.playerSpawnTime[player.index] >= 0
+                ? this.playerSpawnTime[player.index]
+                : 0;
+            censoredBotSurvivalSeconds.push(Math.max(0, observationSeconds - spawnTime));
+        }
+        return {
+            observationSeconds,
+            botDeathSurvivalSeconds: [...this._roundBotDeathSurvivalSeconds],
+            botDeathCauseCounts: { ...this._roundBotDeathCauseCounts },
+            censoredBotSurvivalSeconds,
+            aliveAtObservationEnd,
+        };
+    }
+
     getRoundSummaries(limit = null) {
         const count = this.roundSummaryCount;
         if (count <= 0) return [];
@@ -504,6 +534,7 @@ export class RoundMetricsStore {
                 humanCount: round.humanCount,
                 botSurvivalAverage: round.botSurvivalAverage,
                 botSurvivalSeconds: [...round.botSurvivalSeconds],
+                botDeathSurvivalSeconds: [...round.botDeathSurvivalSeconds],
                 botDeathCauseCounts: { ...round.botDeathCauseCounts },
                 selfCollisions: round.selfCollisions,
                 stuckEvents: round.stuckEvents,

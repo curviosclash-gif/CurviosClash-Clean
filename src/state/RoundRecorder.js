@@ -208,6 +208,10 @@ export class RoundRecorder {
         return this._metricsStore.getRoundSummaries(limit);
     }
 
+    getActiveSurvivalObservation(players = []) {
+        return this._metricsStore.getActiveSurvivalObservation(players);
+    }
+
     resetAggregateMetrics() {
         this._metricsStore.resetAggregateMetrics();
     }
