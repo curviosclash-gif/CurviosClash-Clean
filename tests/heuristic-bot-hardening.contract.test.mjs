@@ -138,6 +138,7 @@ test('final safety arbiter vetoes Hunt combat and boost when a trail blocks the 
     enemy.position.set(0, 0, -30);
     player.inventory = ['ROCKET_HEAVY'];
     const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    policy._huntState.movementIntent = 'strafe';
     const action = policy.update(1 / 60, player, {
         mode: 'HUNT',
         players: [player, enemy],
@@ -154,6 +155,8 @@ test('final safety arbiter vetoes Hunt combat and boost when a trail blocks the 
     assert.equal(action.boost, false);
     assert.equal(action.shootMG, false);
     assert.equal(action.shootItem, false);
+    assert.equal(player.fightTargetLockRemaining, 0);
+    assert.equal(policy._huntState.commitTimer, 0);
     assert.equal(snapshot.safetyState, 'evade');
     assert.equal(snapshot.safetyReason, 'trail-ahead');
     assert.ok(snapshot.frontClearance < 1);
@@ -288,6 +291,7 @@ test('Hunt bot waits for the shared shoot cooldown before firing MG or rockets',
     player.inventory = ['ROCKET_HEAVY'];
     player.shootCooldown = 0.2;
     const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'aggressive' });
+    policy._huntState.movementIntent = 'strafe';
     const context = {
         mode: 'HUNT',
         players: [player, enemy],
@@ -300,11 +304,13 @@ test('Hunt bot waits for the shared shoot cooldown before firing MG or rockets',
     const coolingDown = policy.update(1 / 60, player, context);
     assert.equal(coolingDown.shootMG, false);
     assert.equal(coolingDown.shootItem, false);
+    assert.equal(policy._huntState.commitTimer, 0);
 
     player.shootCooldown = 0;
     const ready = policy.update(1 / 60, player, context);
     assert.equal(ready.shootMG, true);
     assert.equal(ready.shootItem, true);
+    assert.equal(policy._huntState.commitTimer, 0.24);
 });
 
 test('Hunt bot turns toward a target directly behind instead of flying straight', () => {
@@ -431,6 +437,36 @@ test('precision Hunt steering converges on a moving target across update ticks',
     assert.equal(fired, true);
 });
 
+test('Hunt burst keeps the target and movement intent stable while a target moves', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    const distractor = createPlayer(3, false);
+    enemy.position.set(0, 0, -48);
+    distractor.position.set(8, 0, -52);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const context = {
+        mode: 'HUNT',
+        players: [player, enemy, distractor],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        observationContext: { targetDistanceMax: 120 },
+    };
+
+    const first = policy.update(1 / 60, player, context);
+    const intent = policy.getDecisionSnapshot().intent;
+    assert.equal(first.shootMG, true);
+    assert.equal(player.fightTargetPlayerIndex, enemy.index);
+
+    for (let tick = 0; tick < 8; tick += 1) {
+        enemy.position.x += 0.35;
+        distractor.position.x -= 0.2;
+        policy.update(1 / 60, player, context);
+        assert.equal(player.fightTargetPlayerIndex, enemy.index);
+        assert.equal(policy.getDecisionSnapshot().intent, intent);
+    }
+});
+
 test('Hunt bot shoots destructible trails but keeps all fire behind walls', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
@@ -442,6 +478,7 @@ test('Hunt bot shoots destructible trails but keeps all fire behind walls', () =
         },
     };
     const arenaPolicy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    arenaPolicy._huntState.movementIntent = 'strafe';
     const arenaAction = arenaPolicy.update(1 / 60, player, {
         mode: 'HUNT',
         players: [player, enemy],
@@ -450,6 +487,7 @@ test('Hunt bot shoots destructible trails but keeps all fire behind walls', () =
         observation: createSafeObservation(),
         observationContext: { targetDistanceMax: 120 },
     });
+    assert.equal(player.fightTargetLockRemaining, 0);
 
     const trailPolicy = new HeuristicBotPolicy({ difficulty: 'HARD' });
     const trailAction = trailPolicy.update(1 / 60, player, {
@@ -468,6 +506,7 @@ test('Hunt bot shoots destructible trails but keeps all fire behind walls', () =
 
     assert.equal(arenaAction.shootMG, false);
     assert.equal(arenaAction.shootItem, false);
+    assert.equal(arenaPolicy._huntState.commitTimer, 0);
     assert.equal(trailAction.shootMG, true);
     assert.equal(trailAction.shootItem, false);
 });

@@ -335,6 +335,8 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         intent,
         retreatReason,
         targetDistanceRatio,
+        targetPlayerIndex: Number.isInteger(enemy?.index) ? enemy.index : -1,
+        targetReachable: !shouldProbeShot || fightCorridor !== FIGHT_CORRIDOR_BLOCKED,
         selectedItemReason: itemAction.type || (rocketIndex >= 0 ? 'rocket' : ''),
     };
 }

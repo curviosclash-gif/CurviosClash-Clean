@@ -139,10 +139,52 @@ test('Fight target selection spreads bots and prioritizes retaliation', () => {
     const target = getPreferredFightEnemy(bot, players, new THREE.Vector3());
     assert.equal(target.enemy.index, 2);
     players[0].position.set(1, 0, 0);
-    assert.equal(getPreferredFightEnemy(bot, players, new THREE.Vector3(), 0.1).enemy.index, 2);
+    assert.equal(getPreferredFightEnemy(bot, players, new THREE.Vector3(), 0.1).enemy.index, 0);
     assert.equal(getPreferredFightEnemy(bot, players, new THREE.Vector3(), 1).enemy.index, 0);
-    bot.fightLastAttackerIndex = 0;
-    assert.equal(getPreferredFightEnemy(bot, players, new THREE.Vector3()).enemy.index, 0);
+});
+
+test('Fight target lock stays stable, expires, and yields immediately to retaliation', () => {
+    const bot = player(1, { isBot: true });
+    const locked = player(2, { x: 10 });
+    const challenger = player(3, { x: 6.5 });
+    const attacker = player(0, { x: 8 });
+    const scratch = new THREE.Vector3();
+
+    assert.equal(getPreferredFightEnemy(bot, [bot, locked], scratch).enemy, locked);
+    assert.equal(getPreferredFightEnemy(bot, [bot, locked, challenger], scratch, 0.25).enemy, locked);
+    assert.equal(getPreferredFightEnemy(bot, [bot, locked, challenger], scratch, 0.25).enemy, locked);
+    assert.equal(getPreferredFightEnemy(bot, [bot, locked, challenger], scratch, 0.26).enemy, challenger);
+
+    bot.fightLastAttackerIndex = attacker.index;
+    assert.equal(getPreferredFightEnemy(bot, [bot, challenger, attacker], scratch).enemy, attacker);
+});
+
+test('Fight target lock releases for death, invalid targets, and clearly better enemies', () => {
+    const bot = player(1, { isBot: true });
+    const locked = player(2, { x: 10 });
+    const challenger = player(3, { x: 12 });
+    const players = [bot, locked, challenger];
+    const scratch = new THREE.Vector3();
+
+    assert.equal(getPreferredFightEnemy(bot, players, scratch).enemy, locked);
+    challenger.position.set(8, 0, 0);
+    assert.equal(getPreferredFightEnemy(bot, players, scratch, 0.1).enemy, locked);
+
+    challenger.position.set(2, 0, 0);
+    assert.equal(getPreferredFightEnemy(bot, players, scratch, 0.1).enemy, challenger);
+
+    challenger.alive = false;
+    assert.equal(getPreferredFightEnemy(bot, players, scratch).enemy, locked);
+
+    locked.position.x = Number.NaN;
+    challenger.alive = true;
+    assert.equal(getPreferredFightEnemy(bot, players, scratch).enemy, challenger);
+
+    challenger.position.x = Number.NaN;
+    const empty = getPreferredFightEnemy(bot, players, scratch);
+    assert.equal(empty.enemy, null);
+    assert.equal(bot.fightTargetPlayerIndex, -1);
+    assert.equal(bot.fightTargetLockRemaining, 0);
 });
 
 test('Fight spawns avoid visible enemies, recent deaths and recent spawn points', () => {

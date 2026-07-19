@@ -11,6 +11,7 @@ import {
     resolveFightMachineGunConfig,
 } from '../src/shared/contracts/FightMachineGunContract.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { GAMEPLAY_ACTION_RESULT_CODES } from '../src/shared/contracts/GameplayActionResultContract.js';
 import {
     areHangarBuildsEqual,
     createDefaultHangarBuild,
@@ -90,6 +91,14 @@ test('Combat firing resolves the selected machine-gun model per player', () => {
     assert.equal(result.machineGunId, 'raptor_r9');
     assert.equal(player.shootCooldown, 0.07);
     assert.equal(firedConfig.DAMAGE, 7.5);
+    assert.equal(system.getOverheatValue(0), 10);
+
+    player.shootCooldown = 0;
+    system._lockoutByPlayer[0] = 0.5;
+    const overheated = system.tryFire(player);
+    assert.equal(overheated.ok, false);
+    assert.equal(overheated.code, GAMEPLAY_ACTION_RESULT_CODES.MG_SHOOT_OVERHEATED);
+    assert.equal(player.shootCooldown, 0);
     assert.equal(system.getOverheatValue(0), 10);
 });
 

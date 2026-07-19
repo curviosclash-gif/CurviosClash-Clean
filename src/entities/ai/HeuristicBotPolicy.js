@@ -10,6 +10,7 @@ import {
     applySteeringTowardPosition,
     clearSteeringInput,
 } from '../../hunt/HuntBotPolicy.js';
+import { FIGHT_TARGET_LOCK_SECONDS } from '../../hunt/FightTargetSelector.js';
 import { clamp } from '../../utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
 import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
@@ -22,6 +23,8 @@ import {
     resetHeuristicSafetyState,
     resolveBoostPressureCeiling,
 } from './HeuristicBotSafetyOps.js';
+
+const FIGHT_BURST_COMMIT_SECONDS = 0.24;
 
 export class HeuristicBotPolicy {
     constructor(options = {}) {
@@ -266,6 +269,8 @@ export class HeuristicBotPolicy {
             retreatReason: '',
             selectedItemReason: '',
             targetDistanceRatio: clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1),
+            targetPlayerIndex: -1,
+            targetReachable: true,
         };
         if (mode === 'HUNT') {
             decision = applyHeuristicHuntBehavior(this, input, dt, player, runtimeContext, observation);
@@ -281,6 +286,24 @@ export class HeuristicBotPolicy {
             input.useItem = -1;
         }
         applyHeuristicSafetyArbiter(this, input, dt, player, runtimeContext, observation, decision);
+        if (mode === 'HUNT' && Number.isInteger(decision.targetPlayerIndex) && decision.targetPlayerIndex >= 0) {
+            const safetyVeto = this._safetyState.state === 'evade' || this._safetyState.state === 'recover';
+            if (safetyVeto || decision.targetReachable === false) {
+                if (player.fightTargetPlayerIndex === decision.targetPlayerIndex) {
+                    player.fightTargetLockRemaining = 0;
+                }
+            } else if (input.shootMG === true || input.shootItem === true) {
+                player.fightTargetPlayerIndex = decision.targetPlayerIndex;
+                player.fightTargetLockRemaining = Math.max(
+                    Math.max(0, Number(player.fightTargetLockRemaining) || 0),
+                    FIGHT_TARGET_LOCK_SECONDS
+                );
+                this._huntState.commitTimer = Math.max(
+                    this._huntState.commitTimer,
+                    FIGHT_BURST_COMMIT_SECONDS
+                );
+            }
+        }
         this._updateSnapshot(
             mode,
             decision.intent,
