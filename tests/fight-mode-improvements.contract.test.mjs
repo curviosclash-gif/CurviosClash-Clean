@@ -338,8 +338,9 @@ test('Fight HUD keeps HP, objective, score and respawn accessible outside fighte
     assert.equal(hpText.textContent, '35 / 100');
     assert.match(objective.textContent, /10 Abschüsse/);
     assert.match(objective.textContent, /2:58/);
-    assert.match(scoreboard.textContent, /P1 2\/10/);
-    assert.match(scoreboard.textContent, /T1/);
+    assert.match(scoreboard.textContent, /P1 2/);
+    assert.match(scoreboard.attributes['aria-label'], /P1: 2\/10 Abschüsse/);
+    assert.match(scoreboard.attributes['aria-label'], /1 Tode/);
     assert.match(respawn.textContent, /1\.6 s/);
 
     hud.runtime.activeGameMode = 'CLASSIC';

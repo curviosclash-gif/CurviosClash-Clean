@@ -6,7 +6,7 @@ const HOTPATH_INTERVAL_FALLBACKS = Object.freeze({
     killFeed: 0.12,
     indicator: 0.04,
 });
-const KILL_FEED_SLOT_COUNT = 5;
+const KILL_FEED_SLOT_COUNT = 3;
 const MIN_BOOST_CAPACITY = 0.001;
 const OVERHEAT_CAP = 100;
 const INDICATOR_DEFAULT_INTENSITY = 0.6;
@@ -90,6 +90,7 @@ export class HuntHUD {
         ];
         this._objectiveText = null;
         this._scoreboardText = null;
+        this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
         this._localKills = -1;
@@ -149,6 +150,7 @@ export class HuntHUD {
         }
         this._objectiveText = null;
         this._scoreboardText = null;
+        this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
         this._localKills = -1;
@@ -288,6 +290,7 @@ export class HuntHUD {
         if (refs.boostFill) {
             if (boostW !== cache?.boostW) {
                 refs.boostFill.style.width = boostW;
+                refs.boostFill.style.setProperty?.('--hunt-angle', `${(boostRatio * 78).toFixed(1)}deg`);
                 if (cache) cache.boostW = boostW;
             }
             if (isBoostCooldown !== cache?.boostCooldown) {
@@ -310,6 +313,7 @@ export class HuntHUD {
         const overheatTxt = `${Math.round(overheatValue)}%`;
         if (refs.overheatFill && overheatW !== cache?.overheatW) {
             refs.overheatFill.style.width = overheatW;
+            refs.overheatFill.style.setProperty?.('--hunt-angle', `${(overheatRatio * 78).toFixed(1)}deg`);
             if (cache) cache.overheatW = overheatW;
         }
         if (refs.overheatText && overheatTxt !== cache?.overheatTxt) {
@@ -343,9 +347,14 @@ export class HuntHUD {
         const objectiveText = respawnEnabled
             ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
             : 'Elimination · letzter Überlebender gewinnt';
-        const scoreboardText = rows.length > 0
-            ? rows.map((row) => `${row.playerIndex === localPlayerIndex ? '▶ ' : ''}${row.label} ${row.kills}/${killLimit} · T${row.deaths} · A${row.assists}`).join(' | ')
+        const visibleRows = rows.slice(0, 3);
+        if (localRow && !visibleRows.includes(localRow)) visibleRows.push(localRow);
+        const scoreboardText = visibleRows.length > 0
+            ? visibleRows.map((row) => `${row.playerIndex === localPlayerIndex ? '▶ ' : ''}${row.label} ${row.kills}`).join('   |   ')
             : String(huntProjection?.scoreboardSummary || 'Noch keine Abschüsse');
+        const scoreboardDetails = rows.length > 0
+            ? rows.map((row) => `${row.label}: ${row.kills}/${killLimit} Abschüsse, ${row.deaths} Tode, ${row.assists} Assists`).join('. ')
+            : scoreboardText;
         if (leader && this._leaderIndex !== null && leader.playerIndex !== this._leaderIndex) {
             this.runtime?.audio?.play?.('FIGHT_LEAD');
         } else if (leader && leader.kills === killLimit - 1 && leader.kills !== this._leaderKills) {
@@ -368,6 +377,10 @@ export class HuntHUD {
         if (this.scoreboard && scoreboardText !== this._scoreboardText) {
             this.scoreboard.textContent = scoreboardText;
             this._scoreboardText = scoreboardText;
+        }
+        if (this.scoreboard && scoreboardDetails !== this._scoreboardDetails) {
+            this.scoreboard.setAttribute?.('aria-label', scoreboardDetails);
+            this._scoreboardDetails = scoreboardDetails;
         }
     }
 
