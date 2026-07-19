@@ -14,6 +14,7 @@ const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'models', 'jets', 'cc0', 'funky_aircraft_control.obj'],
     ['assets', 'models', 'jets', 'cc0', 'pinnace_lo.obj'],
     ['assets', 'models', 'jets', 'cc0', 'spaceship_pack', 'dist', 'obj_mtl'],
+    ['assets', 'maps', 'chrono_forge', 'glb'],
 ];
 const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'downloaded_cc0');
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];

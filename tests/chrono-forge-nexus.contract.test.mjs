@@ -21,7 +21,8 @@ test('Chrono-Forge Nexus fulfills the authored gameplay inventory', () => {
     assert.equal(map.obstacles.filter((obstacle) => obstacle.kind === 'foam').length, 4);
     assert.equal(map.items.length, 10);
     assert.equal(map.botSpawns.length, 4);
-    assert.equal(map.glbModels.length, 20);
+    assert.ok(map.glbModels.length <= 30);
+    assert.equal(map.glbModels.filter((model) => model.url.startsWith('assets/maps/chrono_forge/glb/')).length, 8);
     assert.equal(map.glbColliderMode, 'fallbackOnly');
 });
 

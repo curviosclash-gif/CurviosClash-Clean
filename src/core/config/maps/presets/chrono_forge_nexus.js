@@ -8,26 +8,36 @@ function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     };
 }
 
+function animatedLandmark(id, file, position, targetSize, rotateY = 0) {
+    return {
+        id: `chrono-forge-${id}`,
+        url: `assets/maps/chrono_forge/glb/${file}.glb`,
+        position,
+        rotation: [0, rotateY, 0],
+        targetSize,
+    };
+}
+
 const CHRONO_FORGE_LANDMARKS = [
     // Zone 1: arrival dock
     landmark('dock-station', 'pm-aero-system', 'Aero_Station_01_Art', [-164, 0, -38], 38, 0.4),
-    landmark('dock-airship', 'pm-aero-system', 'Aero_Airship_01', [-132, 34, 42], 34, 1.2),
+    animatedLandmark('dock-crane', '01_hangar_crane', [-132, 8, 42], 28, 1.2),
     landmark('dock-door', 'pm-aero-system', 'Aero_Door_01', [-101, 0, 0], 20, Math.PI / 2),
 
     // Zone 2: machine cathedral
     landmark('machine-ring-low', 'pm-aero-system', 'Aero_Station_YellowRing_Art', [-58, 24, 0], 28),
-    landmark('machine-ring-high', 'pm-aero-system', 'Aero_Station_PinkRing_Art', [-38, 47, 0], 24, Math.PI / 2),
+    animatedLandmark('machine-core', '02_machine_core', [-38, 40, 0], 24, Math.PI / 2),
     landmark('machine-column-left', 'pm-chromatic-chaos', 'Column_Vapor_02', [-72, 0, -42], 30),
     landmark('machine-column-right', 'pm-chromatic-chaos', 'Column_Vapor_03', [-72, 0, 42], 30),
 
     // Zone 3: crystal rift
     landmark('rift-arch', 'pm-crystal-crossroads', 'Arc', [13, 38, -8], 28, Math.PI / 2),
     landmark('rift-cluster', 'pm-crystal-crossroads', 'Crystal_ClusterSurrounded', [42, 28, 9], 24, 0.6),
-    landmark('rift-shards', 'pm-crystal-crossroads', 'Crystal_Cluster', [68, 42, 52], 20, -0.5),
+    animatedLandmark('rift-shards', '03_crystal_shards', [68, 42, 52], 20, -0.5),
 
     // Zone 4: reversal temple
-    landmark('temple-gate', 'pm-lunar-year', 'ArchBanner', [83, 45, 54], 32, Math.PI / 2),
-    landmark('temple-clock-outer', 'pm-aero-system', 'Aero_Station_Ring_Art', [104, 65, 78], 34),
+    animatedLandmark('temple-gates', '05_temple_gates', [83, 45, 54], 32, Math.PI / 2),
+    animatedLandmark('temple-chronometer', '04_chronometer', [104, 65, 78], 34),
     landmark('temple-clock-inner', 'pm-aero-system', 'Aero_Station_PinkRing_Art', [104, 65, 78], 22, Math.PI / 2),
     landmark('temple-door', 'pm-abm', 'EntranceDoor01_Art', [126, 63, 45], 22, -Math.PI / 2),
 
@@ -35,10 +45,11 @@ const CHRONO_FORGE_LANDMARKS = [
     landmark('sky-island-one', 'pm-aero-system', 'Floating_Island_01_Art', [95, 77, 10], 36, 0.4),
     landmark('sky-island-two', 'pm-aero-system', 'Floating_Island_01_Art', [55, 89, -25], 34, -0.7),
     landmark('sky-island-three', 'pm-aero-system', 'Floating_Island_01_Art', [20, 95, -10], 30, 1.1),
-    landmark('sky-airship', 'pm-aero-system', 'Aero_Airship_01', [58, 104, 35], 38, 2.4),
+    animatedLandmark('sky-airship', '06_airship', [58, 104, 35], 38, 2.4),
+    animatedLandmark('sky-drones', '07_drone_swarm', [72, 98, 24], 18, -0.8),
 
     // Zone 6: time core
-    landmark('time-core', 'pm-aero-system', 'Aero_Station_01_Art', [0, 26, 0], 42),
+    animatedLandmark('time-core', '08_time_core', [0, 26, 0], 42),
     landmark('finish-ring', 'pm-aero-system', 'Aero_Station_Ring_Art', [0, 74, -20], 24, Math.PI / 2),
 ];
 
