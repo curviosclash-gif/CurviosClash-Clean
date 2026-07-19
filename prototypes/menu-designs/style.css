@@ -1,0 +1,1210 @@
+:root {
+    color-scheme: dark;
+    font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    font-synthesis: none;
+    --accent: #63eaff;
+    --accent-2: #9b7dff;
+    --ink: #f5f8ff;
+    --muted: #8c9ab4;
+    --line: rgba(183, 220, 255, 0.18);
+    --panel: rgba(8, 14, 27, 0.78);
+    --soft: rgba(255, 255, 255, 0.055);
+}
+
+* {
+    box-sizing: border-box;
+}
+
+html,
+body {
+    min-width: 320px;
+    min-height: 100%;
+    margin: 0;
+}
+
+button {
+    font: inherit;
+}
+
+body {
+    min-height: 100vh;
+    overflow: hidden;
+    background: #03060d;
+    color: var(--ink);
+}
+
+button:focus-visible {
+    outline: 2px solid var(--accent);
+    outline-offset: 3px;
+}
+
+.concept-dock {
+    position: fixed;
+    z-index: 100;
+    top: 50%;
+    left: 18px;
+    display: grid;
+    width: 92px;
+    padding: 10px;
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 18px;
+    background: rgba(3, 6, 13, 0.82);
+    box-shadow: 0 18px 60px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(18px);
+    transform: translateY(-50%);
+}
+
+.concept-dock-title {
+    padding: 8px 6px 12px;
+    color: #fff;
+    font-size: 0.66rem;
+    font-weight: 900;
+    letter-spacing: 0.16em;
+    line-height: 1.25;
+}
+
+.concept-switch {
+    display: grid;
+    gap: 2px;
+    min-height: 54px;
+    padding: 8px 7px;
+    border: 0;
+    border-top: 1px solid rgba(255, 255, 255, 0.09);
+    background: transparent;
+    color: #778198;
+    cursor: pointer;
+    text-align: left;
+}
+
+.concept-switch span {
+    font: 700 0.63rem/1 ui-monospace, Consolas, monospace;
+}
+
+.concept-switch strong {
+    font-size: 0.71rem;
+}
+
+.concept-switch:hover,
+.concept-switch.is-active {
+    color: #fff;
+}
+
+.concept-switch.is-active span {
+    color: var(--accent);
+}
+
+.concept-dock-hint {
+    margin: 9px 0 2px;
+    color: #4e586c;
+    font: 700 0.6rem/1 ui-monospace, Consolas, monospace;
+    text-align: center;
+}
+
+.showcase {
+    position: relative;
+    display: grid;
+    min-height: 100vh;
+    padding: 28px 44px 86px 132px;
+    isolation: isolate;
+}
+
+.scene,
+.scene::before,
+.scene::after {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+}
+
+.scene {
+    z-index: -2;
+    overflow: hidden;
+    background:
+        linear-gradient(90deg, rgba(3, 7, 16, 0.97) 0%, rgba(4, 8, 18, 0.72) 48%, rgba(4, 8, 18, 0.24) 100%),
+        url('../../assets/ui/menu_bg.png') center / cover;
+}
+
+.scene::before {
+    content: '';
+    background:
+        radial-gradient(circle at 68% 34%, rgba(76, 191, 255, 0.19), transparent 26%),
+        linear-gradient(105deg, transparent 52%, rgba(83, 210, 255, 0.08) 52.2%, transparent 52.7%);
+    mix-blend-mode: screen;
+}
+
+.scene::after {
+    content: '';
+    opacity: 0.25;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 220 220' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.92' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E");
+}
+
+.scene-grid {
+    position: absolute;
+    inset: 0;
+    opacity: 0.16;
+    background-image:
+        linear-gradient(rgba(107, 218, 255, 0.2) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(107, 218, 255, 0.2) 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: linear-gradient(90deg, #000, transparent 72%);
+}
+
+.scene-orbit {
+    position: absolute;
+    border: 1px solid rgba(108, 220, 255, 0.17);
+    border-radius: 50%;
+}
+
+.scene-orbit-one {
+    top: -36vw;
+    right: -17vw;
+    width: 86vw;
+    height: 86vw;
+}
+
+.scene-orbit-two {
+    top: -22vw;
+    right: -3vw;
+    width: 59vw;
+    height: 59vw;
+}
+
+.scene-horizon {
+    position: absolute;
+    right: -10%;
+    bottom: -36%;
+    width: 72%;
+    aspect-ratio: 1;
+    border-radius: 50%;
+    background: radial-gradient(circle at 50% 0, rgba(73, 176, 255, 0.28), rgba(4, 8, 18, 0.82) 29%, #02050c 53%);
+    box-shadow: 0 -2px 28px rgba(89, 203, 255, 0.25);
+}
+
+.menu-frame {
+    position: relative;
+    display: grid;
+    grid-template-columns: minmax(520px, 1.5fr) minmax(270px, 0.72fr);
+    grid-template-areas:
+        "system system"
+        "brand flight"
+        "launch flight"
+        "modes flight"
+        "utility utility"
+        "footer footer";
+    align-self: center;
+    width: min(1160px, 100%);
+    max-height: 820px;
+    margin: auto;
+    padding: 22px 24px 18px;
+    gap: 18px 28px;
+    border: 1px solid var(--line);
+    border-radius: 26px;
+    background: linear-gradient(140deg, rgba(7, 13, 26, 0.9), rgba(6, 11, 23, 0.64));
+    box-shadow: 0 40px 100px rgba(0, 0, 0, 0.48), inset 0 1px rgba(255, 255, 255, 0.06);
+    backdrop-filter: blur(24px) saturate(1.2);
+}
+
+.system-bar {
+    grid-area: system;
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 13px;
+    border-bottom: 1px solid var(--line);
+    color: var(--muted);
+    font: 700 0.64rem/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.13em;
+}
+
+.system-state {
+    color: #b8ffc8;
+}
+
+.system-state i {
+    display: inline-block;
+    width: 6px;
+    height: 6px;
+    margin-right: 7px;
+    border-radius: 50%;
+    background: #5cff86;
+    box-shadow: 0 0 10px #5cff86;
+}
+
+.brand-block {
+    grid-area: brand;
+    align-self: end;
+    padding: 10px 6px 2px;
+}
+
+.brand-kicker {
+    margin: 0 0 7px;
+    color: var(--accent);
+    font: 800 0.66rem/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.19em;
+}
+
+.brand-block h1 {
+    margin: 0;
+    color: #fff;
+    font-size: clamp(2.4rem, 4.8vw, 4.6rem);
+    font-weight: 950;
+    letter-spacing: -0.065em;
+    line-height: 0.9;
+    text-transform: uppercase;
+}
+
+.brand-block h1 span {
+    color: transparent;
+    -webkit-text-stroke: 1px rgba(238, 250, 255, 0.72);
+}
+
+.brand-copy {
+    margin: 13px 0 0;
+    color: var(--muted);
+    font-size: 0.84rem;
+}
+
+.launch-card {
+    grid-area: launch;
+    display: grid;
+    grid-template-columns: 1fr auto;
+    align-items: stretch;
+    min-height: 92px;
+    overflow: hidden;
+    border: 1px solid color-mix(in srgb, var(--accent) 35%, transparent);
+    border-radius: 17px;
+    background: linear-gradient(100deg, rgba(79, 209, 255, 0.16), rgba(86, 73, 205, 0.1));
+}
+
+.launch-copy {
+    display: grid;
+    align-content: center;
+    gap: 3px;
+    padding: 16px 20px;
+}
+
+.launch-eyebrow {
+    color: var(--accent);
+    font: 800 0.59rem/1.2 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.14em;
+}
+
+.launch-copy strong {
+    font-size: 1.15rem;
+}
+
+.launch-copy small {
+    color: var(--muted);
+    font-size: 0.72rem;
+}
+
+.launch-button {
+    display: flex;
+    align-items: center;
+    gap: 20px;
+    min-width: 150px;
+    padding: 0 22px;
+    border: 0;
+    background: var(--accent);
+    color: #06101a;
+    cursor: pointer;
+    font-weight: 950;
+    letter-spacing: 0.08em;
+}
+
+.launch-button:hover {
+    filter: brightness(1.14);
+}
+
+.launch-button b {
+    font-size: 1.5rem;
+}
+
+.mode-list {
+    grid-area: modes;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 10px;
+}
+
+.mode-card {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    grid-template-areas: "icon copy arrow";
+    align-items: center;
+    min-height: 104px;
+    padding: 14px;
+    overflow: hidden;
+    border: 1px solid var(--line);
+    border-radius: 15px;
+    background: var(--soft);
+    color: var(--ink);
+    cursor: pointer;
+    text-align: left;
+}
+
+.mode-card:hover {
+    border-color: color-mix(in srgb, var(--accent) 60%, transparent);
+    background: color-mix(in srgb, var(--accent) 11%, transparent);
+    transform: translateY(-2px);
+}
+
+.mode-index {
+    position: absolute;
+    top: 8px;
+    right: 9px;
+    color: var(--muted);
+    font: 700 0.56rem/1 ui-monospace, Consolas, monospace;
+}
+
+.mode-icon {
+    grid-area: icon;
+    margin-right: 10px;
+    color: var(--accent);
+    font-size: 1.45rem;
+}
+
+.mode-copy {
+    grid-area: copy;
+    display: grid;
+    gap: 4px;
+}
+
+.mode-copy strong {
+    font-size: 0.82rem;
+}
+
+.mode-copy small {
+    color: var(--muted);
+    font-size: 0.63rem;
+}
+
+.mode-arrow {
+    grid-area: arrow;
+    align-self: end;
+    color: var(--muted);
+}
+
+.flight-card {
+    grid-area: flight;
+    display: grid;
+    align-content: space-between;
+    min-height: 350px;
+    padding: 18px;
+    border: 1px solid var(--line);
+    border-radius: 19px;
+    background: rgba(255, 255, 255, 0.035);
+}
+
+.flight-card-heading {
+    display: flex;
+    justify-content: space-between;
+    color: var(--muted);
+    font: 800 0.6rem/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.11em;
+}
+
+.flight-card-heading b {
+    color: var(--accent);
+}
+
+.aircraft-silhouette {
+    position: relative;
+    width: 160px;
+    height: 120px;
+    margin: 0 auto;
+    filter: drop-shadow(0 0 18px color-mix(in srgb, var(--accent) 28%, transparent));
+}
+
+.aircraft-silhouette span {
+    position: absolute;
+    display: block;
+    background: linear-gradient(180deg, #e9fbff, #667b96);
+}
+
+.fuselage {
+    top: 6px;
+    left: 68px;
+    width: 24px;
+    height: 108px;
+    clip-path: polygon(50% 0, 92% 52%, 69% 100%, 31% 100%, 8% 52%);
+}
+
+.wing {
+    top: 47px;
+    width: 70px;
+    height: 49px;
+}
+
+.wing-left {
+    left: 3px;
+    clip-path: polygon(100% 0, 100% 100%, 0 64%);
+}
+
+.wing-right {
+    right: 3px;
+    clip-path: polygon(0 0, 100% 64%, 0 100%);
+}
+
+.flight-card dl {
+    display: grid;
+    gap: 8px;
+    margin: 0;
+}
+
+.flight-card dl div {
+    display: flex;
+    justify-content: space-between;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--line);
+}
+
+.flight-card dt {
+    color: var(--muted);
+    font-size: 0.67rem;
+}
+
+.flight-card dd {
+    margin: 0;
+    font-size: 0.71rem;
+    font-weight: 750;
+}
+
+.flight-progress {
+    height: 3px;
+    overflow: hidden;
+    background: var(--line);
+}
+
+.flight-progress i {
+    display: block;
+    width: 86%;
+    height: 100%;
+    background: var(--accent);
+}
+
+.flight-card > small {
+    color: var(--muted);
+    font-size: 0.58rem;
+}
+
+.utility-list {
+    grid-area: utility;
+    display: flex;
+    gap: 8px;
+    justify-content: flex-end;
+}
+
+.utility-list button {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    font-size: 0.66rem;
+}
+
+.utility-list button:hover {
+    background: var(--soft);
+    color: var(--ink);
+}
+
+.utility-list i {
+    color: var(--accent);
+    font-style: normal;
+}
+
+.menu-footer {
+    grid-area: footer;
+    display: flex;
+    justify-content: space-between;
+    padding-top: 12px;
+    border-top: 1px solid var(--line);
+    color: var(--muted);
+    font: 600 0.54rem/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.08em;
+}
+
+.menu-footer kbd {
+    padding: 2px 5px;
+    border: 1px solid var(--line);
+    border-radius: 4px;
+    background: var(--soft);
+    color: var(--ink);
+}
+
+.concept-caption {
+    position: fixed;
+    z-index: 5;
+    right: 42px;
+    bottom: 20px;
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    max-width: 560px;
+}
+
+.concept-caption > span {
+    color: var(--accent);
+    font: 800 0.62rem/1 ui-monospace, Consolas, monospace;
+}
+
+.concept-caption h2,
+.concept-caption p {
+    margin: 0;
+}
+
+.concept-caption h2 {
+    margin-bottom: 3px;
+    font-size: 0.84rem;
+}
+
+.concept-caption p {
+    color: var(--muted);
+    font-size: 0.7rem;
+}
+
+/* 01 — cinematic orbital command glass */
+body[data-concept="orbital"] {
+    --accent: #63eaff;
+    --accent-2: #9b7dff;
+}
+
+/* 02 — industrial deployment terminal */
+body[data-concept="hangar"] {
+    --accent: #ffb52e;
+    --accent-2: #ff5b27;
+    --ink: #fff5dc;
+    --muted: #a99b80;
+    --line: rgba(255, 180, 46, 0.25);
+    --panel: rgba(16, 15, 12, 0.92);
+    --soft: rgba(255, 181, 46, 0.065);
+}
+
+body[data-concept="hangar"] .scene {
+    background:
+        linear-gradient(90deg, rgba(8, 8, 7, 0.98) 0%, rgba(10, 9, 7, 0.92) 54%, rgba(14, 12, 8, 0.58)),
+        url('../../assets/models/jets/cc0/spaceship_pack/dist/preview_633.png') 85% center / cover;
+    filter: saturate(0.65) contrast(1.1);
+}
+
+body[data-concept="hangar"] .scene::before {
+    background:
+        linear-gradient(115deg, transparent 0 69%, rgba(255, 173, 35, 0.26) 69.1% 69.3%, transparent 69.4%),
+        repeating-linear-gradient(90deg, transparent 0 119px, rgba(255, 181, 46, 0.06) 120px);
+}
+
+body[data-concept="hangar"] .scene-grid {
+    opacity: 0.25;
+    background-image: repeating-linear-gradient(135deg, rgba(255, 181, 46, 0.13) 0 2px, transparent 2px 24px);
+    background-size: auto;
+    mask-image: linear-gradient(90deg, #000, transparent 65%);
+}
+
+body[data-concept="hangar"] .scene-orbit,
+body[data-concept="hangar"] .scene-horizon {
+    display: none;
+}
+
+body[data-concept="hangar"] .menu-frame {
+    grid-template-columns: minmax(420px, 0.88fr) minmax(330px, 1.12fr);
+    grid-template-areas:
+        "system system"
+        "brand flight"
+        "modes flight"
+        "launch flight"
+        "utility flight"
+        "footer footer";
+    max-width: 1120px;
+    padding: 0;
+    gap: 0;
+    border: 0;
+    border-left: 6px solid var(--accent);
+    border-radius: 0;
+    background: rgba(10, 10, 8, 0.9);
+    box-shadow: 24px 34px 90px rgba(0, 0, 0, 0.62);
+    backdrop-filter: blur(18px);
+}
+
+body[data-concept="hangar"] .system-bar,
+body[data-concept="hangar"] .brand-block,
+body[data-concept="hangar"] .mode-list,
+body[data-concept="hangar"] .launch-card,
+body[data-concept="hangar"] .utility-list,
+body[data-concept="hangar"] .menu-footer {
+    margin-right: 26px;
+    margin-left: 26px;
+}
+
+body[data-concept="hangar"] .system-bar {
+    padding-top: 20px;
+}
+
+body[data-concept="hangar"] .brand-block {
+    padding: 34px 0 26px;
+    border-bottom: 1px solid var(--line);
+}
+
+body[data-concept="hangar"] .brand-block h1 {
+    font-family: "Arial Narrow", Impact, sans-serif;
+    font-size: clamp(2.8rem, 5vw, 5.4rem);
+    letter-spacing: -0.035em;
+}
+
+body[data-concept="hangar"] .brand-block h1 span {
+    color: var(--ink);
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="hangar"] .brand-copy {
+    display: none;
+}
+
+body[data-concept="hangar"] .mode-list {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0;
+}
+
+body[data-concept="hangar"] .mode-card {
+    min-height: 58px;
+    padding: 10px 5px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    border-radius: 0;
+    background: transparent;
+}
+
+body[data-concept="hangar"] .mode-card:hover {
+    padding-left: 13px;
+    background: linear-gradient(90deg, rgba(255, 181, 46, 0.16), transparent);
+    transform: none;
+}
+
+body[data-concept="hangar"] .mode-index {
+    position: static;
+    grid-area: icon;
+    margin-right: 15px;
+    color: var(--accent);
+    font-size: 0.68rem;
+}
+
+body[data-concept="hangar"] .mode-icon {
+    display: none;
+}
+
+body[data-concept="hangar"] .mode-copy strong {
+    font-size: 0.95rem;
+    text-transform: uppercase;
+}
+
+body[data-concept="hangar"] .launch-card {
+    min-height: 66px;
+    margin-top: 20px;
+    border-radius: 0;
+}
+
+body[data-concept="hangar"] .launch-copy {
+    padding: 10px 14px;
+}
+
+body[data-concept="hangar"] .launch-button {
+    min-width: 110px;
+}
+
+body[data-concept="hangar"] .flight-card {
+    min-height: 590px;
+    padding: 28px;
+    border: 0;
+    border-left: 1px solid var(--line);
+    border-radius: 0;
+    background: linear-gradient(155deg, rgba(255, 181, 46, 0.09), rgba(0, 0, 0, 0.17));
+}
+
+body[data-concept="hangar"] .aircraft-silhouette {
+    transform: scale(1.25) rotate(-6deg);
+}
+
+body[data-concept="hangar"] .utility-list {
+    justify-content: flex-start;
+    padding: 16px 0;
+}
+
+body[data-concept="hangar"] .utility-list button {
+    padding: 5px;
+}
+
+body[data-concept="hangar"] .utility-list button i {
+    display: none;
+}
+
+body[data-concept="hangar"] .menu-footer {
+    padding: 14px 0 18px;
+}
+
+/* 03 — warm, premium cockpit lounge */
+body[data-concept="pilot"] {
+    --accent: #ffce7a;
+    --accent-2: #c39052;
+    --ink: #fffaf0;
+    --muted: #b8aa95;
+    --line: rgba(255, 225, 180, 0.18);
+    --panel: rgba(20, 17, 16, 0.77);
+    --soft: rgba(255, 241, 216, 0.055);
+}
+
+body[data-concept="pilot"] .scene {
+    background:
+        radial-gradient(circle at 78% 16%, rgba(255, 186, 103, 0.18), transparent 30%),
+        linear-gradient(100deg, rgba(12, 12, 15, 0.97), rgba(18, 15, 16, 0.75)),
+        url('../../assets/ui/menu_bg.png') center / cover;
+    filter: sepia(0.22) saturate(0.8);
+}
+
+body[data-concept="pilot"] .scene-grid,
+body[data-concept="pilot"] .scene-orbit {
+    display: none;
+}
+
+body[data-concept="pilot"] .scene-horizon {
+    right: -6%;
+    bottom: -48%;
+    background: radial-gradient(circle at 45% 0, rgba(255, 190, 110, 0.24), rgba(30, 18, 15, 0.92) 38%, #09090c 58%);
+    box-shadow: 0 -2px 34px rgba(255, 166, 86, 0.17);
+}
+
+body[data-concept="pilot"] .menu-frame {
+    grid-template-columns: minmax(280px, 0.62fr) minmax(480px, 1.38fr);
+    grid-template-areas:
+        "system system"
+        "brand brand"
+        "flight launch"
+        "flight modes"
+        "utility utility"
+        "footer footer";
+    max-width: 1050px;
+    padding: 32px 36px 22px;
+    border-color: rgba(255, 226, 186, 0.16);
+    border-radius: 42px 12px 42px 12px;
+    background: linear-gradient(145deg, rgba(29, 24, 23, 0.9), rgba(13, 13, 17, 0.8));
+    box-shadow: 0 42px 120px rgba(0, 0, 0, 0.58), inset 0 1px rgba(255, 244, 222, 0.08);
+}
+
+body[data-concept="pilot"] .brand-block {
+    padding: 22px 0 18px;
+    text-align: center;
+}
+
+body[data-concept="pilot"] .brand-kicker {
+    color: var(--accent);
+    letter-spacing: 0.35em;
+}
+
+body[data-concept="pilot"] .brand-block h1 {
+    font-family: Georgia, "Times New Roman", serif;
+    font-size: clamp(3rem, 5vw, 5rem);
+    font-weight: 500;
+    letter-spacing: 0.02em;
+}
+
+body[data-concept="pilot"] .brand-block h1 span {
+    color: var(--ink);
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="pilot"] .brand-copy {
+    color: #d0c4b1;
+    font-family: Georgia, "Times New Roman", serif;
+    font-style: italic;
+}
+
+body[data-concept="pilot"] .launch-card {
+    min-height: 105px;
+    border-radius: 8px 24px 8px 8px;
+    background: linear-gradient(100deg, rgba(255, 210, 139, 0.13), rgba(255, 255, 255, 0.025));
+}
+
+body[data-concept="pilot"] .launch-button {
+    min-width: 140px;
+    background: #ead4ad;
+    color: #221b16;
+}
+
+body[data-concept="pilot"] .mode-card {
+    min-height: 112px;
+    border-radius: 8px 20px 8px 8px;
+}
+
+body[data-concept="pilot"] .flight-card {
+    min-height: 280px;
+    border-radius: 24px 8px 8px 8px;
+    background: linear-gradient(160deg, rgba(255, 232, 194, 0.09), rgba(255, 255, 255, 0.025));
+}
+
+body[data-concept="pilot"] .aircraft-silhouette {
+    transform: scale(0.8);
+}
+
+/* 04 — bright competitive retro arcade */
+body[data-concept="arcade"] {
+    --accent: #55fff0;
+    --accent-2: #ff4dd8;
+    --ink: #fffaff;
+    --muted: #bbb4dd;
+    --line: rgba(85, 255, 240, 0.28);
+    --panel: rgba(14, 4, 31, 0.88);
+    --soft: rgba(138, 73, 255, 0.12);
+}
+
+body[data-concept="arcade"] .scene {
+    background:
+        radial-gradient(circle at 50% 15%, rgba(255, 56, 208, 0.22), transparent 27%),
+        linear-gradient(180deg, #10052a, #060214 64%);
+}
+
+body[data-concept="arcade"] .scene::before {
+    top: 58%;
+    background-image:
+        linear-gradient(rgba(85, 255, 240, 0.25) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(85, 255, 240, 0.25) 1px, transparent 1px);
+    background-size: 55px 34px;
+    transform: perspective(300px) rotateX(62deg) scale(1.6);
+    transform-origin: top;
+}
+
+body[data-concept="arcade"] .scene::after {
+    opacity: 0.2;
+    background: repeating-linear-gradient(0deg, rgba(255, 255, 255, 0.06) 0 1px, transparent 1px 4px);
+}
+
+body[data-concept="arcade"] .scene-grid,
+body[data-concept="arcade"] .scene-orbit {
+    display: none;
+}
+
+body[data-concept="arcade"] .scene-horizon {
+    top: 4%;
+    right: 10%;
+    bottom: auto;
+    width: 28vw;
+    background: linear-gradient(180deg, #ff58db 0 48%, #6523aa 49% 52%, #16042d 53%);
+    box-shadow: 0 0 80px rgba(255, 67, 210, 0.44);
+}
+
+body[data-concept="arcade"] .menu-frame {
+    grid-template-columns: minmax(520px, 1.35fr) minmax(260px, 0.65fr);
+    max-width: 1100px;
+    padding: 22px;
+    border: 2px solid var(--accent);
+    border-radius: 4px;
+    background: rgba(13, 4, 31, 0.9);
+    box-shadow: 10px 10px 0 var(--accent-2), 0 0 75px rgba(85, 255, 240, 0.18);
+}
+
+body[data-concept="arcade"] .system-bar,
+body[data-concept="arcade"] .menu-footer {
+    font-family: "Courier New", monospace;
+}
+
+body[data-concept="arcade"] .brand-block h1 {
+    color: #fff;
+    font-family: Impact, "Arial Black", sans-serif;
+    font-style: italic;
+    letter-spacing: 0.01em;
+    text-shadow: 4px 4px 0 var(--accent-2), -2px -2px 0 #4f3fff;
+}
+
+body[data-concept="arcade"] .brand-block h1 span {
+    color: #fff;
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="arcade"] .launch-card,
+body[data-concept="arcade"] .mode-card,
+body[data-concept="arcade"] .flight-card {
+    border-radius: 2px;
+}
+
+body[data-concept="arcade"] .launch-card {
+    border: 2px solid var(--accent-2);
+    background: rgba(255, 77, 216, 0.12);
+}
+
+body[data-concept="arcade"] .launch-button {
+    background: linear-gradient(135deg, #55fff0, #55d9ff);
+}
+
+body[data-concept="arcade"] .mode-card {
+    border-width: 2px;
+    background: #170737;
+}
+
+body[data-concept="arcade"] .mode-card:hover {
+    box-shadow: 4px 4px 0 var(--accent-2);
+    transform: translate(-2px, -2px);
+}
+
+body[data-concept="arcade"] .mode-copy strong,
+body[data-concept="arcade"] .launch-copy strong {
+    text-transform: uppercase;
+}
+
+body[data-concept="arcade"] .flight-card {
+    background: linear-gradient(160deg, rgba(138, 73, 255, 0.18), rgba(255, 77, 216, 0.08));
+}
+
+/* 05 — light, disciplined and editorial */
+body[data-concept="tactical"] {
+    color-scheme: light;
+    --accent: #ea4d2f;
+    --accent-2: #15242f;
+    --ink: #17242d;
+    --muted: #68757c;
+    --line: rgba(22, 38, 48, 0.18);
+    --panel: rgba(244, 242, 233, 0.96);
+    --soft: rgba(17, 36, 48, 0.045);
+}
+
+body[data-concept="tactical"] .scene {
+    background:
+        linear-gradient(90deg, rgba(241, 239, 230, 0.99), rgba(244, 242, 233, 0.94)),
+        url('../../assets/ui/menu_bg.png') center / cover;
+}
+
+body[data-concept="tactical"] .scene::before {
+    inset: 0 0 0 54%;
+    background:
+        linear-gradient(145deg, transparent 30%, rgba(234, 77, 47, 0.09) 30.2% 30.7%, transparent 31%),
+        repeating-radial-gradient(circle at 100% 50%, transparent 0 42px, rgba(22, 38, 48, 0.06) 43px 44px);
+}
+
+body[data-concept="tactical"] .scene::after {
+    opacity: 0.09;
+}
+
+body[data-concept="tactical"] .scene-grid {
+    opacity: 0.25;
+    background-image:
+        linear-gradient(rgba(22, 38, 48, 0.12) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(22, 38, 48, 0.12) 1px, transparent 1px);
+    background-size: 96px 96px;
+}
+
+body[data-concept="tactical"] .scene-orbit,
+body[data-concept="tactical"] .scene-horizon {
+    display: none;
+}
+
+body[data-concept="tactical"] .menu-frame {
+    grid-template-columns: minmax(520px, 1.45fr) minmax(250px, 0.55fr);
+    max-width: 1120px;
+    padding: 28px 32px 20px;
+    border: 0;
+    border-radius: 0;
+    background: rgba(246, 244, 235, 0.94);
+    box-shadow: 0 28px 80px rgba(36, 43, 45, 0.16);
+    backdrop-filter: blur(20px);
+}
+
+body[data-concept="tactical"] .system-bar {
+    color: var(--muted);
+}
+
+body[data-concept="tactical"] .system-state {
+    color: #40704c;
+}
+
+body[data-concept="tactical"] .brand-block h1 {
+    color: var(--ink);
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: clamp(2.7rem, 5vw, 5rem);
+    font-weight: 900;
+    letter-spacing: -0.07em;
+}
+
+body[data-concept="tactical"] .brand-block h1 span {
+    color: var(--ink);
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="tactical"] .launch-card {
+    border-radius: 0;
+    background: #182832;
+    color: #fff;
+}
+
+body[data-concept="tactical"] .launch-copy small {
+    color: #aab6bb;
+}
+
+body[data-concept="tactical"] .launch-button {
+    background: var(--accent);
+    color: #fff;
+}
+
+body[data-concept="tactical"] .mode-card {
+    min-height: 98px;
+    border-width: 0 0 2px;
+    border-radius: 0;
+    background: transparent;
+}
+
+body[data-concept="tactical"] .mode-card:hover {
+    background: rgba(234, 77, 47, 0.06);
+    transform: none;
+}
+
+body[data-concept="tactical"] .mode-icon {
+    color: var(--accent);
+}
+
+body[data-concept="tactical"] .flight-card {
+    border-radius: 0;
+    background: #e7e5dc;
+}
+
+body[data-concept="tactical"] .aircraft-silhouette {
+    filter: none;
+}
+
+body[data-concept="tactical"] .aircraft-silhouette span {
+    background: var(--ink);
+}
+
+body[data-concept="tactical"] .utility-list button {
+    color: var(--muted);
+}
+
+body[data-concept="tactical"] .utility-list button:hover {
+    color: var(--ink);
+}
+
+body[data-concept="tactical"] .menu-footer kbd {
+    color: var(--ink);
+}
+
+@media (max-width: 1050px) {
+    body {
+        overflow: auto;
+    }
+
+    .showcase {
+        padding: 24px 24px 100px 116px;
+    }
+
+    .menu-frame,
+    body[data-concept="hangar"] .menu-frame,
+    body[data-concept="pilot"] .menu-frame,
+    body[data-concept="arcade"] .menu-frame,
+    body[data-concept="tactical"] .menu-frame {
+        grid-template-columns: 1fr;
+        grid-template-areas:
+            "system"
+            "brand"
+            "launch"
+            "modes"
+            "flight"
+            "utility"
+            "footer";
+        max-height: none;
+    }
+
+    body[data-concept="hangar"] .system-bar,
+    body[data-concept="hangar"] .brand-block,
+    body[data-concept="hangar"] .mode-list,
+    body[data-concept="hangar"] .launch-card,
+    body[data-concept="hangar"] .utility-list,
+    body[data-concept="hangar"] .menu-footer {
+        margin-right: 26px;
+        margin-left: 26px;
+    }
+
+    body[data-concept="hangar"] .flight-card {
+        min-height: 360px;
+        border-top: 1px solid var(--line);
+        border-left: 0;
+    }
+}
+
+@media (max-width: 700px) {
+    .concept-dock {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        grid-template-columns: repeat(5, 1fr);
+        width: auto;
+        transform: none;
+    }
+
+    .concept-dock-title,
+    .concept-switch strong,
+    .concept-dock-hint {
+        display: none;
+    }
+
+    .concept-switch {
+        min-height: 40px;
+        border-top: 0;
+        border-left: 1px solid rgba(255, 255, 255, 0.09);
+        text-align: center;
+    }
+
+    .showcase {
+        padding: 70px 12px 110px;
+    }
+
+    .menu-frame,
+    body[data-concept="pilot"] .menu-frame,
+    body[data-concept="arcade"] .menu-frame,
+    body[data-concept="tactical"] .menu-frame {
+        padding: 18px;
+        border-radius: 12px;
+    }
+
+    .system-location,
+    .flight-card,
+    .footer-help {
+        display: none;
+    }
+
+    .mode-list {
+        grid-template-columns: 1fr;
+    }
+
+    .launch-card {
+        grid-template-columns: 1fr;
+    }
+
+    .launch-button {
+        justify-content: space-between;
+        min-height: 54px;
+    }
+
+    .utility-list {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+    }
+
+    .concept-caption {
+        right: 16px;
+        bottom: 18px;
+        left: 16px;
+        padding: 10px;
+        border-radius: 12px;
+        background: rgba(3, 6, 13, 0.82);
+        backdrop-filter: blur(12px);
+    }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    *,
+    *::before,
+    *::after {
+        scroll-behavior: auto !important;
+        transition: none !important;
+    }
+}

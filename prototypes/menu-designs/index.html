@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="de">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="color-scheme" content="dark light">
+    <title>Curvios Clash – Menüdesigns</title>
+    <link rel="stylesheet" href="./style.css">
+    <script src="./main.js" defer></script>
+</head>
+
+<body data-concept="orbital">
+    <aside class="concept-dock" aria-label="Menüdesign auswählen">
+        <div class="concept-dock-title" aria-hidden="true">MENÜ<br>LAB</div>
+        <button type="button" class="concept-switch is-active" data-concept-target="orbital"
+            aria-pressed="true">
+            <span>01</span><strong>Orbital</strong>
+        </button>
+        <button type="button" class="concept-switch" data-concept-target="hangar" aria-pressed="false">
+            <span>02</span><strong>Hangar</strong>
+        </button>
+        <button type="button" class="concept-switch" data-concept-target="pilot" aria-pressed="false">
+            <span>03</span><strong>Pilot</strong>
+        </button>
+        <button type="button" class="concept-switch" data-concept-target="arcade" aria-pressed="false">
+            <span>04</span><strong>Arcade</strong>
+        </button>
+        <button type="button" class="concept-switch" data-concept-target="tactical" aria-pressed="false">
+            <span>05</span><strong>Tactical</strong>
+        </button>
+        <p class="concept-dock-hint">1–5</p>
+    </aside>
+
+    <main class="showcase">
+        <div class="scene" aria-hidden="true">
+            <div class="scene-grid"></div>
+            <div class="scene-orbit scene-orbit-one"></div>
+            <div class="scene-orbit scene-orbit-two"></div>
+            <div class="scene-horizon"></div>
+        </div>
+
+        <section class="menu-frame" aria-labelledby="game-title">
+            <header class="system-bar">
+                <span class="system-brand">CC // FLIGHT SYSTEM</span>
+                <span class="system-location">EU CENTRAL · 20:41</span>
+                <span class="system-state"><i></i> ONLINE</span>
+            </header>
+
+            <div class="brand-block">
+                <p class="brand-kicker">AERIAL COMBAT / ZERO GRAVITY</p>
+                <h1 id="game-title"><span>CURVIOS</span> CLASH</h1>
+                <p class="brand-copy">Beherrsche den Luftraum. Hinterlasse deine Spur.</p>
+            </div>
+
+            <section class="launch-card" aria-label="Schnellstart">
+                <div class="launch-copy">
+                    <span class="launch-eyebrow">READY FOR DEPARTURE</span>
+                    <strong>Letzte Runde starten</strong>
+                    <small>Klassisch · Standard Arena · Star-Cruiser</small>
+                </div>
+                <button type="button" class="launch-button" aria-label="Letzte Runde starten">
+                    <span>START</span><b aria-hidden="true">→</b>
+                </button>
+            </section>
+
+            <nav class="mode-list" aria-label="Spielmodus">
+                <button type="button" class="mode-card mode-card-primary">
+                    <span class="mode-index">01</span>
+                    <span class="mode-icon" aria-hidden="true">△</span>
+                    <span class="mode-copy"><strong>Einzelspieler</strong><small>Solo gegen Bots</small></span>
+                    <span class="mode-arrow" aria-hidden="true">→</span>
+                </button>
+                <button type="button" class="mode-card">
+                    <span class="mode-index">02</span>
+                    <span class="mode-icon" aria-hidden="true">◇</span>
+                    <span class="mode-copy"><strong>Mehrspieler</strong><small>Online und LAN</small></span>
+                    <span class="mode-arrow" aria-hidden="true">→</span>
+                </button>
+                <button type="button" class="mode-card">
+                    <span class="mode-index">03</span>
+                    <span class="mode-icon" aria-hidden="true">◫</span>
+                    <span class="mode-copy"><strong>Split Screen</strong><small>Lokales Duell</small></span>
+                    <span class="mode-arrow" aria-hidden="true">→</span>
+                </button>
+            </nav>
+
+            <aside class="flight-card" aria-label="Letzte Konfiguration">
+                <div class="flight-card-heading">
+                    <span>AKTUELLES SETUP</span><b>CC-07</b>
+                </div>
+                <div class="aircraft-silhouette" aria-hidden="true">
+                    <span class="wing wing-left"></span>
+                    <span class="fuselage"></span>
+                    <span class="wing wing-right"></span>
+                </div>
+                <dl>
+                    <div><dt>Airframe</dt><dd>Star-Cruiser</dd></div>
+                    <div><dt>Arena</dt><dd>Standard</dd></div>
+                    <div><dt>Siege</dt><dd>12</dd></div>
+                </dl>
+                <div class="flight-progress"><i></i></div>
+                <small>Hangar-Synchronisierung abgeschlossen</small>
+            </aside>
+
+            <nav class="utility-list" aria-label="Weitere Bereiche">
+                <button type="button"><i aria-hidden="true">⌁</i><span>Einstellungen</span></button>
+                <button type="button"><i aria-hidden="true">⌘</i><span>Steuerung</span></button>
+                <button type="button"><i aria-hidden="true">◎</i><span>Profile</span></button>
+                <button type="button"><i aria-hidden="true">◇</i><span>Werkzeuge</span></button>
+                <button type="button"><i aria-hidden="true">+</i><span>Experten</span></button>
+            </nav>
+
+            <footer class="menu-footer">
+                <span>v1.0.0 / BUILD 0719</span>
+                <span class="footer-help"><kbd>ESC</kbd> Zurück <kbd>↵</kbd> Auswählen</span>
+                <span>© CURVIOS FLIGHT DIVISION</span>
+            </footer>
+        </section>
+
+        <section class="concept-caption" aria-live="polite">
+            <span id="concept-number">01 / 05</span>
+            <div>
+                <h2 id="concept-name">Orbital Glass</h2>
+                <p id="concept-note">Kinoreif, räumlich und klar auf den Schnellstart fokussiert.</p>
+            </div>
+        </section>
+    </main>
+</body>
+
+</html>
