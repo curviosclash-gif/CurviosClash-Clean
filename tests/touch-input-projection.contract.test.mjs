@@ -80,3 +80,35 @@ test('match projections resolve only needed config sections while preserving fal
         assert.equal(projectedPlayer.planarMode, true);
     }
 });
+
+test('runtime projection reuses scoreboard rows when formatting the Hunt summary', () => {
+    const rows = [{ playerIndex: 0, label: 'P1', kills: 2, deaths: 1, assists: 0 }];
+    let scoreboardBuilds = 0;
+    let summaryRows = null;
+    const entityManager = {
+        players: [],
+        activeGameMode: 'HUNT',
+        getHuntScoreboard() {
+            scoreboardBuilds += 1;
+            return rows;
+        },
+        getHuntScoreboardSummary(_maxEntries, passedRows) {
+            summaryRows = passedRows;
+            return 'P1 K2/T1/A0';
+        },
+    };
+
+    const projection = buildMatchRuntimeProjection({
+        game: { entityManager, huntState: {} },
+        runtimeState: { entityManager, activeGameMode: 'HUNT' },
+        facade: {
+            session: { getPlayers: () => [] },
+            isNetworkSession: () => false,
+        },
+        sessionRuntime: { lifecycle: { gameStateId: 'PLAYING' } },
+    });
+
+    assert.equal(scoreboardBuilds, 1);
+    assert.equal(summaryRows, rows);
+    assert.equal(projection.hunt.scoreboardSummary, 'P1 K2/T1/A0');
+});

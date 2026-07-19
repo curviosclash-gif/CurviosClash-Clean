@@ -155,7 +155,10 @@ export class HuntScoring {
 
     formatSummary(players = [], options = {}) {
         const maxEntries = Math.max(1, Number(options.maxEntries) || 3);
-        const rows = this.getScoreboard(players).slice(0, maxEntries);
+        const scoreboard = Array.isArray(options.rows)
+            ? options.rows
+            : this.getScoreboard(players);
+        const rows = scoreboard.slice(0, maxEntries);
         if (rows.length === 0) return '';
         return rows
             .map((entry) => `${entry.label} K${entry.kills}/T${entry.deaths}/A${entry.assists}`)

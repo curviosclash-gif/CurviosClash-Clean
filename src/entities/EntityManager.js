@@ -270,8 +270,8 @@ export class EntityManager {
         return this._huntScoring.getScoreboard(this.players);
     }
 
-    getHuntScoreboardSummary(maxEntries = 3) {
-        return this._huntScoring.formatSummary(this.players, { maxEntries });
+    getHuntScoreboardSummary(maxEntries = 3, rows = null) {
+        return this._huntScoring.formatSummary(this.players, { maxEntries, rows });
     }
 
     getHuntRespawnRemainingByPlayer() { return this._respawnSystem.getRemainingByPlayer(); }

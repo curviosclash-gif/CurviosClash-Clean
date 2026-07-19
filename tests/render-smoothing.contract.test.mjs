@@ -34,6 +34,8 @@ test('render-only trail head follows the visible pose without registering collis
         },
     };
     const trail = new Trail(renderer, 0x33aaff, 0, entityManager);
+    assert.equal(trail.mesh.count, 0);
+    assert.equal(trail.glowMesh.count, 0);
     trail.setVisualRearOffset(1);
     trail._setLastPosition(new THREE.Vector3(0, 0, 0), new THREE.Vector3(1, 0, 0));
 
@@ -54,6 +56,8 @@ test('render-only trail head follows the visible pose without registering collis
     assert.equal(collisionRegistrations, 0);
 
     trail._addSegment(0, 0, 0, 2, 0, 0);
+    assert.deepEqual(trail.mesh.instanceMatrix.updateRanges, [{ start: 0, count: 16 }]);
+    assert.deepEqual(trail.glowMesh.instanceMatrix.updateRanges, [{ start: 0, count: 16 }]);
     const visualMatrix = new THREE.Matrix4();
     const visualMidpoint = new THREE.Vector3();
     trail.mesh.getMatrixAt(0, visualMatrix);
@@ -65,6 +69,10 @@ test('render-only trail head follows the visible pose without registering collis
 
     trail.forceGap(0.5);
     assert.equal(trail.headMesh.visible, false);
+    trail.clear();
+    assert.equal(trail.mesh.count, 0);
+    assert.deepEqual(trail.mesh.instanceMatrix.updateRanges, []);
+    assert.deepEqual(trail.glowMesh.instanceMatrix.updateRanges, []);
     trail.dispose();
     assert.equal(added.length, 4);
     assert.equal(removed.length, 4);

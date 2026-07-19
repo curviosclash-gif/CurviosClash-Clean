@@ -234,6 +234,9 @@ test('Fight scoring exposes K/T/A and runtime projection keeps deathmatch state'
     assert.deepEqual(elimination, { killerIndex: 0, assistIndices: [1] });
     assert.match(scoring.formatSummary([attacker, helper, target, weakHelper]), /K1\/T0\/A0/);
     assert.match(scoring.formatSummary([attacker, helper, target, weakHelper]), /K0\/T0\/A1/);
+    const precomputedRows = scoring.getScoreboard([attacker, helper, target, weakHelper]);
+    scoring.getScoreboard = () => { throw new Error('scoreboard must not be rebuilt'); };
+    assert.match(scoring.formatSummary([], { rows: precomputedRows }), /K1\/T0\/A0/);
 
     const feed = [];
     emitHuntEliminationFeed({ emitHuntFeed: (message) => feed.push(message) }, [attacker, helper, target], target, attacker, elimination.assistIndices);

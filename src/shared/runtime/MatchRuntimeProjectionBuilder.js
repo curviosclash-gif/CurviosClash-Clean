@@ -164,6 +164,9 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
     const modeId = String(runtimeState?.activeGameMode || entityManager?.activeGameMode || game?.activeGameMode || '');
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
     const parcoursHudState = entityManager?.getParcoursHudState?.(localPlayerIndex) || null;
+    const scoreboardRows = authoritativeFightState?.scoreboardRows
+        || entityManager?.getHuntScoreboard?.()
+        || [];
 
     return createMatchRuntimeProjection({
         updatedAt: Date.now(),
@@ -185,8 +188,8 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             respawnEnabled: entityManager?.gameModeStrategy?.isRespawnEnabled?.() === true,
             deathmatchKillLimit: authoritativeFightState?.killLimit || entityManager?.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
             respawnRemainingByPlayer: entityManager?.getHuntRespawnRemainingByPlayer?.() || {},
-            scoreboardRows: authoritativeFightState?.scoreboardRows || entityManager?.getHuntScoreboard?.() || [],
-            scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4) || '',
+            scoreboardRows,
+            scoreboardSummary: entityManager?.getHuntScoreboardSummary?.(4, scoreboardRows) || '',
             elapsedSeconds: deathmatchState.elapsedSeconds || 0,
             timeLimitSeconds: deathmatchState.timeLimitSeconds || 0,
             timeRemainingSeconds: deathmatchState.timeRemainingSeconds || 0,

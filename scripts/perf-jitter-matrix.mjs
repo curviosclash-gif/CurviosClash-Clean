@@ -1,4 +1,4 @@
-import { execSync, spawn } from 'node:child_process';
+import { execFileSync, execSync, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import process from 'node:process';
@@ -6,6 +6,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 import { getBotValidationMatrix } from '../dev/training/src/state/validation/BotValidationMatrix.js';
+import { selectBenchmarkScenarios } from './perf-jitter-scenario-selection.mjs';
 
 const HOST = '127.0.0.1';
 const PORT = parsePositiveInt(process.env.PERF_RUCKLER_PORT, 4286, 1024, 65_535);
@@ -39,6 +40,7 @@ const SCENARIO_FILTER = String(process.env.PERF_RUCKLER_SCENARIOS || '')
     .split(/[,\s;]+/)
     .map((entry) => entry.trim().toUpperCase())
     .filter((entry) => entry.length > 0);
+const PERF_RUN_TAG = String(process.env.PW_RUN_TAG || `perf-jitter-${process.pid}`);
 
 function parsePositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
     const numeric = Number.parseInt(String(rawValue || ''), 10);
@@ -80,6 +82,7 @@ function startViteDevServer() {
     const viteBin = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
     return spawn(process.execPath, [viteBin, 'dev', '--host', HOST, '--port', String(PORT), '--strictPort'], {
         cwd: process.cwd(),
+        env: { ...process.env, PW_RUN_TAG: PERF_RUN_TAG },
         stdio: ['ignore', 'pipe', 'pipe'],
         shell: false,
         windowsHide: true,
@@ -98,13 +101,18 @@ function startVitePreviewServer() {
 
 function ensureDistBuild() {
     const distIndexPath = fileURLToPath(new URL('../dist/index.html', import.meta.url));
-    if (existsSync(distIndexPath)) {
+    if (!AUTO_BUILD) {
+        if (!existsSync(distIndexPath)) {
+            throw new Error('dist/index.html missing and PERF_RUCKLER_AUTO_BUILD=0');
+        }
         return;
     }
-    if (!AUTO_BUILD) {
-        throw new Error('dist/index.html missing and PERF_RUCKLER_AUTO_BUILD=0');
-    }
-    execSync('npm run build', { stdio: 'inherit' });
+    const viteBin = fileURLToPath(new URL('../node_modules/vite/bin/vite.js', import.meta.url));
+    execFileSync(process.execPath, [viteBin, 'build'], {
+        cwd: process.cwd(),
+        env: { ...process.env, PW_RUN_TAG: PERF_RUN_TAG },
+        stdio: 'inherit',
+    });
     if (!existsSync(distIndexPath)) {
         throw new Error('dist/index.html missing after build');
     }
@@ -569,6 +577,11 @@ async function runSingleMatrixCase(page, scenario, options) {
 }
 
 async function run() {
+    const scenarios = selectBenchmarkScenarios(getBotValidationMatrix(), SCENARIO_FILTER, 4);
+    if (scenarios.length === 0) {
+        throw new Error(`No benchmark scenarios matched: ${SCENARIO_FILTER.join(', ') || '(empty matrix)'}`);
+    }
+
     forceKillPort(PORT);
     const server = startAppServer();
     let browser = null;
@@ -596,12 +609,6 @@ async function run() {
         await ensureMenuState(page);
         logVerbose('browser:ready');
 
-        const scenarios = getBotValidationMatrix()
-            .slice(0, 4)
-            .filter((scenario) => {
-                if (SCENARIO_FILTER.length === 0) return true;
-                return SCENARIO_FILTER.includes(String(scenario.id || '').toUpperCase());
-            });
         const runs = [];
         const matrixVariants = [
             { cinematicEnabled: false, recordingEnabled: false },
@@ -631,6 +638,9 @@ async function run() {
                     );
                 }
             }
+        }
+        if (runs.length === 0) {
+            throw new Error('Benchmark completed without producing any runs');
         }
 
         const interactiveFrameTimes = runs

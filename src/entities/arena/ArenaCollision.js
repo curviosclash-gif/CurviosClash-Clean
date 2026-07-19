@@ -7,6 +7,14 @@ const NORMAL_NX = Object.freeze(new THREE.Vector3(-1, 0, 0));
 const NORMAL_PY = Object.freeze(new THREE.Vector3(0, 1, 0));
 const NORMAL_NY = Object.freeze(new THREE.Vector3(0, -1, 0));
 const NORMAL_PZ = Object.freeze(new THREE.Vector3(0, 0, 1));
+const OBSTACLE_GRID_SIZE = 16;
+const OBSTACLE_GRID_MIN_COUNT = 12;
+const OBSTACLE_GRID_MAX_CELLS = 2048;
+const OBSTACLE_QUERY_MAX_CELLS = 512;
+
+function getObstacleGridKey(x, y, z) {
+    return ((x * 73856093) ^ (y * 19349663) ^ (z * 83492791));
+}
 
 function normalizeTunnelAxis(axis) {
     if (axis === 'x' || axis === 'y' || axis === 'z') return axis;
@@ -110,6 +118,94 @@ export class ArenaCollision {
         this._tmpSphere = new THREE.Sphere();
         this._tmpNormal = new THREE.Vector3();
         this._collisionResult = { hit: false, kind: '', isWall: false, normal: new THREE.Vector3() };
+        this._obstacleGrid = new Map();
+        this._obstacleGridSource = null;
+        this._obstacleGridSourceCount = -1;
+        this._obstacleGridGlobal = [];
+        this._obstacleCandidates = [];
+        this._obstacleSeenAt = new WeakMap();
+        this._obstacleQueryId = 0;
+    }
+
+    _rebuildObstacleGrid(obstacles) {
+        this._obstacleGrid.clear();
+        this._obstacleGridGlobal.length = 0;
+        this._obstacleGridSource = obstacles;
+        this._obstacleGridSourceCount = obstacles.length;
+
+        for (const obstacle of obstacles) {
+            const box = obstacle?.box;
+            if (!box?.min || !box?.max) {
+                this._obstacleGridGlobal.push(obstacle);
+                continue;
+            }
+            const minX = Math.floor(box.min.x / OBSTACLE_GRID_SIZE);
+            const maxX = Math.floor(box.max.x / OBSTACLE_GRID_SIZE);
+            const minY = Math.floor(box.min.y / OBSTACLE_GRID_SIZE);
+            const maxY = Math.floor(box.max.y / OBSTACLE_GRID_SIZE);
+            const minZ = Math.floor(box.min.z / OBSTACLE_GRID_SIZE);
+            const maxZ = Math.floor(box.max.z / OBSTACLE_GRID_SIZE);
+            const cellCount = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+            if (!Number.isFinite(cellCount) || cellCount > OBSTACLE_GRID_MAX_CELLS) {
+                this._obstacleGridGlobal.push(obstacle);
+                continue;
+            }
+            for (let x = minX; x <= maxX; x++) {
+                for (let y = minY; y <= maxY; y++) {
+                    for (let z = minZ; z <= maxZ; z++) {
+                        const key = getObstacleGridKey(x, y, z);
+                        let bucket = this._obstacleGrid.get(key);
+                        if (!bucket) {
+                            bucket = [];
+                            this._obstacleGrid.set(key, bucket);
+                        }
+                        bucket.push(obstacle);
+                    }
+                }
+            }
+        }
+    }
+
+    _getFastCollisionObstacles(position, radius) {
+        const obstacles = Array.isArray(this.arena?.obstacles) ? this.arena.obstacles : [];
+        if (obstacles.length < OBSTACLE_GRID_MIN_COUNT) return obstacles;
+        if (this._obstacleGridSource !== obstacles || this._obstacleGridSourceCount !== obstacles.length) {
+            this._rebuildObstacleGrid(obstacles);
+        }
+
+        const minX = Math.floor((position.x - radius) / OBSTACLE_GRID_SIZE);
+        const maxX = Math.floor((position.x + radius) / OBSTACLE_GRID_SIZE);
+        const minY = Math.floor((position.y - radius) / OBSTACLE_GRID_SIZE);
+        const maxY = Math.floor((position.y + radius) / OBSTACLE_GRID_SIZE);
+        const minZ = Math.floor((position.z - radius) / OBSTACLE_GRID_SIZE);
+        const maxZ = Math.floor((position.z + radius) / OBSTACLE_GRID_SIZE);
+        const cellCount = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+        if (!Number.isFinite(cellCount) || cellCount > OBSTACLE_QUERY_MAX_CELLS) return obstacles;
+
+        const candidates = this._obstacleCandidates;
+        candidates.length = 0;
+        const queryId = ++this._obstacleQueryId;
+        for (const obstacle of this._obstacleGridGlobal) {
+            this._appendObstacleCandidate(obstacle, queryId, candidates);
+        }
+        for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+                for (let z = minZ; z <= maxZ; z++) {
+                    const bucket = this._obstacleGrid.get(getObstacleGridKey(x, y, z));
+                    if (!bucket) continue;
+                    for (const obstacle of bucket) {
+                        this._appendObstacleCandidate(obstacle, queryId, candidates);
+                    }
+                }
+            }
+        }
+        return candidates;
+    }
+
+    _appendObstacleCandidate(obstacle, queryId, candidates) {
+        if (!obstacle || this._obstacleSeenAt.get(obstacle) === queryId) return;
+        this._obstacleSeenAt.set(obstacle, queryId);
+        candidates.push(obstacle);
     }
 
     _computeBoxCollisionNormal(box, point) {
@@ -210,7 +306,7 @@ export class ArenaCollision {
 
         this._tmpSphere.center.copy(position);
         this._tmpSphere.radius = radius;
-        for (const obs of this.arena.obstacles) {
+        for (const obs of this._getFastCollisionObstacles(position, radius)) {
             if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
             if (obs.meshCollider && sphereIntersectsStaticMeshCollider(obs.meshCollider, position, radius)) return true;
             if (obs.meshCollider) continue;
