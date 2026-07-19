@@ -6,6 +6,11 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { chromium } from '@playwright/test';
 import { selectBotValidationScenarios } from '../src/state/validation/BotValidationMatrix.js';
 import { buildBotValidationRuntimeVerification } from '../src/state/validation/BotValidationService.js';
+import {
+    BOT_VALIDATION_TARGETS,
+    buildBotValidationOutcomeSemantics,
+    isSurvivalObservationScenario,
+} from '../src/state/validation/BotValidationOutcomeSemantics.js';
 
 const CLI_ARGS = parseArgMap(process.argv.slice(2));
 const HOST = '127.0.0.1';
@@ -867,7 +872,22 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
     const startRuntimeSample = await captureBotRuntimeSample(page, roundLabel, deadlines);
 
     let forced = false;
-    if (stateAfterStart !== 'ROUND_END' && stateAfterStart !== 'MATCH_END') {
+    if (isSurvivalObservationScenario(scenario)) {
+        stats.observationRuns += 1;
+        const observationMs = Math.max(1000, Number(scenario.observationSeconds) * 1000);
+        await withTimeout(
+            () => sleep(observationMs),
+            resolveTimeout(observationMs + 1000, `${roundLabel}:observe-survival`, deadlines),
+            `${roundLabel}:observe-survival`
+        );
+        const stateAtObservationEnd = await evaluatePhase(
+            page,
+            `${roundLabel}:read-observation-end-state`,
+            resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:read-observation-end-state`, deadlines),
+            () => window.GAME_INSTANCE?.state || null
+        );
+        if (stateAtObservationEnd === 'PLAYING') stats.completedObservations += 1;
+    } else if (stateAfterStart !== 'ROUND_END' && stateAfterStart !== 'MATCH_END') {
         try {
             await waitForGameState(
                 page,
@@ -1347,6 +1367,9 @@ async function run() {
             policyMismatches: 0,
             modeMismatches: 0,
             runtimeErrors: 0,
+            missingNaturalDuelOutcomes: 0,
+            incompleteSurvivalObservations: 0,
+            unexpectedSurvivalOutcomeRounds: 0,
         };
         const scenarioEvalStartedAt = Date.now();
 
@@ -1357,6 +1380,8 @@ async function run() {
                 forcedRounds: 0,
                 forcedRoundNumbers: [],
                 timeoutRounds: 0,
+                observationRuns: 0,
+                completedObservations: 0,
             };
             const runtimeSamples = [];
             const browserErrorStart = countBrowserRuntimeErrors(diagnostics.browser);
@@ -1425,10 +1450,12 @@ async function run() {
                 },
                 startCount
             );
-            const scenarioRounds = recordedScenarioRounds.map((round, roundIndex) => ({
-                ...round,
-                forced: localStats.forcedRoundNumbers.includes(roundIndex + 1),
-            }));
+            const outcomeSemantics = buildBotValidationOutcomeSemantics(
+                scenario,
+                recordedScenarioRounds,
+                localStats
+            );
+            const scenarioRounds = outcomeSemantics.rounds;
             validationRounds.push(...scenarioRounds);
 
             runnerStats.forcedRounds += localStats.forcedRounds;
@@ -1438,6 +1465,14 @@ async function run() {
                 countBrowserRuntimeErrors(diagnostics.browser) - browserErrorStart
             );
             runnerStats.runtimeErrors += localStats.runtimeErrors;
+            if (outcomeSemantics.target === BOT_VALIDATION_TARGETS.DUEL
+                && outcomeSemantics.naturalOutcomeRounds === 0) {
+                runnerStats.missingNaturalDuelOutcomes += 1;
+            }
+            if (outcomeSemantics.target === BOT_VALIDATION_TARGETS.SURVIVAL) {
+                if (!outcomeSemantics.observationCompleted) runnerStats.incompleteSurvivalObservations += 1;
+                runnerStats.unexpectedSurvivalOutcomeRounds += outcomeSemantics.unexpectedOutcomeRounds;
+            }
 
             const metrics = buildScenarioMetrics(scenarioRounds, runtimeSamples);
             const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
@@ -1447,6 +1482,7 @@ async function run() {
                 scenario,
                 metrics,
                 runtimeVerification,
+                outcomeSemantics,
                 decisionEvidence: runtimeSamples.map((sample, sampleIndex) => ({
                     sample: sampleIndex + 1,
                     round: sample.round,
@@ -1457,6 +1493,8 @@ async function run() {
                     forcedRounds: localStats.forcedRounds,
                     timeoutRounds: localStats.timeoutRounds,
                     runtimeErrors: localStats.runtimeErrors,
+                    observationRuns: localStats.observationRuns,
+                    completedObservations: localStats.completedObservations,
                     elapsedMs: scenarioDeadline.elapsedMs(),
                 },
                 failureTaxonomy: buildFailureTaxonomy(scenarioRounds, localStats),
@@ -1500,6 +1538,9 @@ async function run() {
                 policyMismatches: runnerStats.policyMismatches,
                 modeMismatches: runnerStats.modeMismatches,
                 runtimeErrors: runnerStats.runtimeErrors,
+                missingNaturalDuelOutcomes: runnerStats.missingNaturalDuelOutcomes,
+                incompleteSurvivalObservations: runnerStats.incompleteSurvivalObservations,
+                unexpectedSurvivalOutcomeRounds: runnerStats.unexpectedSurvivalOutcomeRounds,
                 failOnForcedRound: FAIL_ON_FORCED_ROUND,
                 maxForcedRounds: MAX_FORCED_ROUNDS,
                 serverMode: SERVER_MODE,
@@ -1612,6 +1653,15 @@ async function run() {
         }
         if (runnerStats.runtimeErrors > 0) {
             policyErrors.push(`browser runtime errors encountered (${runnerStats.runtimeErrors})`);
+        }
+        if (runnerStats.missingNaturalDuelOutcomes > 0) {
+            policyErrors.push(`duel scenarios without a natural outcome (${runnerStats.missingNaturalDuelOutcomes})`);
+        }
+        if (runnerStats.incompleteSurvivalObservations > 0) {
+            policyErrors.push(`incomplete survival observations (${runnerStats.incompleteSurvivalObservations})`);
+        }
+        if (runnerStats.unexpectedSurvivalOutcomeRounds > 0) {
+            policyErrors.push(`survival observations produced outcomes (${runnerStats.unexpectedSurvivalOutcomeRounds})`);
         }
         if (policyErrors.length > 0) {
             throw new Error(`[bot-validation-policy] ${policyErrors.join('; ')}`);

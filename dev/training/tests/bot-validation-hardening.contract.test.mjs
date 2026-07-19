@@ -10,6 +10,7 @@ import {
     BotValidationService,
     buildBotValidationRuntimeVerification,
 } from '../src/state/validation/BotValidationService.js';
+import { buildBotValidationOutcomeSemantics } from '../src/state/validation/BotValidationOutcomeSemantics.js';
 
 test('heuristic validation selection filters before limiting and rejects unknown ids', () => {
     const matrix = getBotValidationMatrix();
@@ -73,7 +74,7 @@ test('Fight validation uses a one-kill deathmatch objective that fits the runner
         _onSettingsChanged() {},
     };
 
-    const applied = service.applyScenario(game, 'H-FIGHT');
+    const applied = service.applyScenario(game, 'H-FIGHT-DUEL');
     assert.equal(applied.respawnEnabled, true);
     assert.equal(applied.deathmatchKillLimit, 1);
     assert.equal(game.settings.hunt.respawnEnabled, true);
@@ -81,6 +82,47 @@ test('Fight validation uses a one-kill deathmatch objective that fits the runner
     assert.equal(game.settings.gameplay.fightPlayerHp, 80);
     assert.equal(game.settings.gameplay.fightMgDamage, 20);
     assert.equal(game.settings.gameplay.mgTrailAimRadius, 0.2);
+});
+
+test('Fight validation separates natural Duel outcomes from fixed Survival observations', () => {
+    const matrix = getBotValidationMatrix();
+    const alias = matrix.find((entry) => entry.id === 'H-FIGHT');
+    const duel = matrix.find((entry) => entry.id === 'H-FIGHT-DUEL');
+    const survival = matrix.find((entry) => entry.id === 'H-FIGHT-SURVIVAL');
+    assert.equal(alias.validationTarget, 'duel');
+    assert.equal(duel.deathmatchKillLimit, 1);
+    assert.equal(duel.validationTarget, 'duel');
+    assert.equal(survival.deathmatchKillLimit, 100);
+    assert.equal(survival.validationTarget, 'survival');
+    assert.equal(survival.observationSeconds, 40);
+
+    const duelOutcomes = buildBotValidationOutcomeSemantics(duel, [
+        { winnerIndex: 1, winnerIsBot: true },
+        { winnerIndex: 0, winnerIsBot: false },
+    ], { forcedRoundNumbers: [2] });
+    assert.equal(duelOutcomes.outcomeRounds, 2);
+    assert.equal(duelOutcomes.naturalOutcomeRounds, 1);
+    assert.equal(duelOutcomes.forcedRounds, 1);
+
+    const survivalOutcomes = buildBotValidationOutcomeSemantics(survival, [
+        { winnerIndex: 1, winnerIsBot: true },
+    ], { observationRuns: 1, completedObservations: 1 });
+    assert.deepEqual(survivalOutcomes.rounds, []);
+    assert.equal(survivalOutcomes.outcomeRounds, 0);
+    assert.equal(survivalOutcomes.unexpectedOutcomeRounds, 1);
+    assert.equal(survivalOutcomes.observationCompleted, true);
+});
+
+test('Survival scenario applies without changing production Fight defaults', () => {
+    const service = new BotValidationService();
+    const game = {
+        settings: { localSettings: {}, gameplay: {}, hunt: {}, winsNeeded: 1 },
+        _onSettingsChanged() {},
+    };
+    const applied = service.applyScenario(game, 'H-FIGHT-SURVIVAL');
+    assert.equal(applied.validationTarget, 'survival');
+    assert.equal(game.settings.hunt.respawnEnabled, true);
+    assert.equal(game.settings.hunt.deathmatchKillLimit, 100);
 });
 
 test('runtime verification checks policy instances and separates semantic from internal mode', () => {
@@ -128,17 +170,20 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(runnerSource, /scenario-base-plus-round-index/);
     assert.match(runnerSource, /const outcomeRounds = rounds\.filter\(\(round\) => round\?\.forced !== true\)/);
     assert.match(runnerSource, /botWinRate: outcomePlayed > 0 \? botWins \/ outcomePlayed : null/);
-    assert.match(runnerSource, /forced: localStats\.forcedRoundNumbers\.includes\(roundIndex \+ 1\)/);
+    assert.match(runnerSource, /buildBotValidationOutcomeSemantics\(\s*scenario,\s*recordedScenarioRounds,\s*localStats\s*\)/);
     assert.match(analysisSource, /outcomeRounds > 0 \? toNumber\(metrics\.botWinRate, 0\) : null/);
     assert.match(runnerSource, /round\?\.botDeathCauseCounts/);
+    assert.match(runnerSource, /isSurvivalObservationScenario\(scenario\)/);
+    assert.match(runnerSource, /if \(typeof g\._returnToMenu !== 'function'\) throw new Error\('_returnToMenu missing'\)/);
+    assert.match(runnerSource, /survival observations produced outcomes/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
     assert.match(runnerSource, /if \(raw === 'dev'\) return 'dev';\s+return 'preview';/);
     assert.match(analysisSource, /readOption\(\['policy', 'policy-type'\], 'heuristic'\)/);
     assert.match(analysisSource, /runnerArgs\.push\('--fail-on-forced-round', 'true'\)/);
-    assert.match(packageSource, /"bot:validate:fight".*H-FIGHT.*--rounds 8.*--headless true.*--fail-on-forced-round true/);
+    assert.match(packageSource, /"bot:validate:fight".*H-FIGHT-DUEL.*--rounds 8.*--headless true.*--fail-on-forced-round true/);
     assert.match(
         packageSource,
-        /"bot:validate:flight".*H-FIGHT,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL.*--policy heuristic.*--rounds 2.*--headless true/
+        /"bot:validate:flight".*H-FIGHT-DUEL,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL.*--policy heuristic.*--rounds 2.*--headless true/
     );
 });
