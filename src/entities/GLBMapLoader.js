@@ -184,6 +184,9 @@ export async function loadGLBMap(glbModel, options = {}) {
     }
 
     scene.name = String(options.sceneName || 'glbMapScene');
+    const clips = Array.isArray(gltf.animations) ? gltf.animations : [];
+    const animationMixer = clips.length > 0 ? new THREE.AnimationMixer(scene) : null;
+    animationMixer?.clipAction(clips[0]).play();
     const { colliders, bounds } = collectSceneColliders(scene, {
         collectColliders: options.collectColliders !== false,
     });
@@ -193,6 +196,7 @@ export async function loadGLBMap(glbModel, options = {}) {
             colliderMode: options.collectColliders === false ? 'fallbackOnly' : 'scene',
         }),
         scene,
+        animationMixers: animationMixer ? [animationMixer] : [],
         colliders,
         bounds,
     };
@@ -237,6 +241,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
 
     const scene = new THREE.Group();
     scene.name = String(options.sceneName || 'glbMapCollection');
+    const animationMixers = [];
     let loadedCount = 0;
     for (const loaded of loadedModels) {
         if (!loaded) continue;
@@ -246,6 +251,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             loaded.descriptor,
             placementScale,
         ));
+        animationMixers.push(...loaded.result.animationMixers);
         loadedCount += 1;
     }
 
@@ -265,6 +271,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             loadedCount,
         }),
         scene,
+        animationMixers,
         colliders,
         bounds,
         warnings: resolvedWarnings,

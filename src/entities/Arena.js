@@ -62,6 +62,7 @@ export class Arena {
         this._mergedObstacleEdges = null;
         this._mergedFoamEdges = null;
         this._glbScene = null;
+        this._glbAnimationMixers = [];
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
         this._glbFootprint = null;
@@ -77,6 +78,12 @@ export class Arena {
     }
 
     _clearLoadedGlbScene() {
+        for (const mixer of this._glbAnimationMixers) {
+            const root = mixer.getRoot();
+            mixer.stopAllAction();
+            mixer.uncacheRoot(root);
+        }
+        this._glbAnimationMixers.length = 0;
         if (!this._glbScene) return;
         this.renderer.removeFromScene(this._glbScene);
         disposeObject3DResources(this._glbScene);
@@ -252,6 +259,7 @@ export class Arena {
 
         return glbLoad.then((glbResult) => {
             this._glbScene = glbResult.scene;
+            this._glbAnimationMixers = glbResult.animationMixers;
             this._glbFootprint = glbResult.footprint || this._glbFootprint;
             this._glbLoadWarnings = Array.isArray(glbResult.warnings) ? [...glbResult.warnings] : [];
             this.renderer.addToScene(this._glbScene);
@@ -350,6 +358,9 @@ export class Arena {
 
     update(dt) {
         this._portalGateSystem.update(dt);
+        for (const mixer of this._glbAnimationMixers) {
+            mixer.update(dt);
+        }
         for (const entry of this._aircraftDecorations) {
             entry?.mesh?.tick?.(dt);
         }

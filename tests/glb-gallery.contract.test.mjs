@@ -15,6 +15,7 @@ import {
     loadGLBMapCollection,
     resolveGLBCollectionFootprint,
 } from '../src/entities/GLBMapLoader.js';
+import { Arena } from '../src/entities/Arena.js';
 import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
 import { disposeObject3DResources } from '../src/shared/rendering/ThreeDisposal.js';
 import { listRuntimeMapPresetDescriptors } from '../src/shared/contracts/RuntimeMapCatalogContract.js';
@@ -75,7 +76,12 @@ test('GLB collection loader limits concurrency, normalizes slots and tolerates p
             );
             mesh.position.y = 2;
             scene.add(mesh);
-            return { scene };
+            return {
+                scene,
+                animations: [new THREE.AnimationClip('rise', 1, [
+                    new THREE.NumberKeyframeTrack(`${mesh.uuid}.position[y]`, [0, 1], [2, 3]),
+                ])],
+            };
         },
     };
 
@@ -97,6 +103,7 @@ test('GLB collection loader limits concurrency, normalizes slots and tolerates p
     assert.equal(result.scene.children.length, 2);
     assert.deepEqual(result.scene.children.map((entry) => entry.userData.glbModelId), ['first', 'third']);
     assert.equal(result.scene.children[0].position.x, 6);
+    assert.equal(result.animationMixers.length, 2);
 
     const firstBounds = new THREE.Box3().setFromObject(result.scene.children[0]);
     const firstSize = firstBounds.getSize(new THREE.Vector3());
@@ -104,6 +111,48 @@ test('GLB collection loader limits concurrency, normalizes slots and tolerates p
     assert.equal(firstSize.y, 30);
     assert.equal(result.colliders.length, 0);
     disposeObject3DResources(result.scene);
+});
+
+test('GLB animation playback uses the first exported clip and is owned by the arena lifecycle', async () => {
+    const scene = new THREE.Group();
+    const animatedNode = new THREE.Object3D();
+    animatedNode.name = 'animated-node';
+    scene.add(animatedNode);
+    const loader = {
+        async loadAsync() {
+            return {
+                scene,
+                animations: [
+                    new THREE.AnimationClip('move-x', 1, [
+                        new THREE.NumberKeyframeTrack('animated-node.position[x]', [0, 1], [0, 4]),
+                    ]),
+                    new THREE.AnimationClip('move-y', 1, [
+                        new THREE.NumberKeyframeTrack('animated-node.position[y]', [0, 1], [0, 8]),
+                    ]),
+                ],
+            };
+        },
+    };
+    const result = await loadGLBMap('/animated.glb', {
+        loader,
+        collectColliders: false,
+    });
+    const arena = new Arena({
+        addToScene() {},
+        removeFromScene() {},
+    });
+    arena._portalGateSystem.update = () => {};
+    arena._glbScene = result.scene;
+    arena._glbAnimationMixers = result.animationMixers;
+
+    assert.equal(result.animationMixers.length, 1);
+    arena.update(0.5);
+    assert.equal(animatedNode.position.x, 2);
+    assert.equal(animatedNode.position.y, 0);
+
+    arena._clearLoadedGlbScene();
+    assert.equal(arena._glbAnimationMixers.length, 0);
+    assert.equal(arena._glbScene, null);
 });
 
 test('GLB mesh colliders follow triangle geometry instead of the enclosing box', async () => {
