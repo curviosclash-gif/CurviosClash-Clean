@@ -851,26 +851,26 @@ body[data-concept="pilot"] .aircraft-silhouette {
 
 /* 04 — bright competitive retro arcade */
 body[data-concept="arcade"] {
-    --accent: #55fff0;
-    --accent-2: #ff4dd8;
-    --ink: #fffaff;
-    --muted: #bbb4dd;
-    --line: rgba(85, 255, 240, 0.28);
-    --panel: rgba(14, 4, 31, 0.88);
-    --soft: rgba(138, 73, 255, 0.12);
+    --accent: #76ff9f;
+    --accent-2: #0b8f4d;
+    --ink: #f1fff5;
+    --muted: #9fc8aa;
+    --line: rgba(118, 255, 159, 0.3);
+    --panel: rgba(2, 19, 10, 0.9);
+    --soft: rgba(25, 170, 89, 0.12);
 }
 
 body[data-concept="arcade"] .scene {
     background:
-        radial-gradient(circle at 50% 15%, rgba(255, 56, 208, 0.22), transparent 27%),
-        linear-gradient(180deg, #10052a, #060214 64%);
+        radial-gradient(circle at 50% 15%, rgba(85, 255, 139, 0.2), transparent 27%),
+        linear-gradient(180deg, #062816, #010a05 64%);
 }
 
 body[data-concept="arcade"] .scene::before {
     top: 58%;
     background-image:
-        linear-gradient(rgba(85, 255, 240, 0.25) 1px, transparent 1px),
-        linear-gradient(90deg, rgba(85, 255, 240, 0.25) 1px, transparent 1px);
+        linear-gradient(rgba(118, 255, 159, 0.25) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(118, 255, 159, 0.25) 1px, transparent 1px);
     background-size: 55px 34px;
     transform: perspective(300px) rotateX(62deg) scale(1.6);
     transform-origin: top;
@@ -891,8 +891,13 @@ body[data-concept="arcade"] .scene-horizon {
     right: 10%;
     bottom: auto;
     width: 28vw;
-    background: linear-gradient(180deg, #ff58db 0 48%, #6523aa 49% 52%, #16042d 53%);
-    box-shadow: 0 0 80px rgba(255, 67, 210, 0.44);
+    background: linear-gradient(180deg, #a3ffb9 0 48%, #21a95e 49% 52%, #062b17 53%);
+    box-shadow: 0 0 80px rgba(57, 255, 126, 0.38);
+    animation: arcadeSunPulse 4s ease-in-out infinite;
+}
+
+body[data-concept="arcade"] .showcase {
+    perspective: 1600px;
 }
 
 body[data-concept="arcade"] .menu-frame {
@@ -901,8 +906,10 @@ body[data-concept="arcade"] .menu-frame {
     padding: 22px;
     border: 2px solid var(--accent);
     border-radius: 4px;
-    background: rgba(13, 4, 31, 0.9);
-    box-shadow: 10px 10px 0 var(--accent-2), 0 0 75px rgba(85, 255, 240, 0.18);
+    background: rgba(2, 18, 9, 0.92);
+    box-shadow: 10px 10px 0 var(--accent-2), 0 0 75px rgba(72, 255, 130, 0.16);
+    transform-style: preserve-3d;
+    animation: arcadeCabinetFloat 7s ease-in-out infinite;
 }
 
 body[data-concept="arcade"] .system-bar,
@@ -915,7 +922,8 @@ body[data-concept="arcade"] .brand-block h1 {
     font-family: Impact, "Arial Black", sans-serif;
     font-style: italic;
     letter-spacing: 0.01em;
-    text-shadow: 4px 4px 0 var(--accent-2), -2px -2px 0 #4f3fff;
+    text-shadow: 4px 4px 0 var(--accent-2), -2px -2px 0 #76ff9f;
+    transform: translateZ(24px);
 }
 
 body[data-concept="arcade"] .brand-block h1 span {
@@ -931,21 +939,23 @@ body[data-concept="arcade"] .flight-card {
 
 body[data-concept="arcade"] .launch-card {
     border: 2px solid var(--accent-2);
-    background: rgba(255, 77, 216, 0.12);
+    background: rgba(24, 154, 76, 0.15);
+    transform: translateZ(18px);
 }
 
 body[data-concept="arcade"] .launch-button {
-    background: linear-gradient(135deg, #55fff0, #55d9ff);
+    background: linear-gradient(135deg, #a3ffb9, #3ddd78);
 }
 
 body[data-concept="arcade"] .mode-card {
     border-width: 2px;
-    background: #170737;
+    background: #062816;
+    transform: translateZ(10px);
 }
 
 body[data-concept="arcade"] .mode-card:hover {
     box-shadow: 4px 4px 0 var(--accent-2);
-    transform: translate(-2px, -2px);
+    transform: translate3d(-2px, -2px, 28px);
 }
 
 body[data-concept="arcade"] .mode-copy strong,
@@ -954,7 +964,35 @@ body[data-concept="arcade"] .launch-copy strong {
 }
 
 body[data-concept="arcade"] .flight-card {
-    background: linear-gradient(160deg, rgba(138, 73, 255, 0.18), rgba(255, 77, 216, 0.08));
+    background: linear-gradient(160deg, rgba(32, 171, 90, 0.2), rgba(50, 255, 123, 0.06));
+    transform: translateZ(26px);
+}
+
+body[data-concept="arcade"] .aircraft-silhouette {
+    transform-style: preserve-3d;
+    filter: drop-shadow(0 0 16px #76ff9f);
+    animation: arcadeJetOrbit 8s linear infinite;
+}
+
+body[data-concept="arcade"] .aircraft-silhouette span {
+    background: linear-gradient(180deg, #eaffef, #35c66f);
+    box-shadow: inset 0 0 0 1px rgba(118, 255, 159, 0.6);
+}
+
+@keyframes arcadeCabinetFloat {
+    0%, 100% { transform: rotateX(0.6deg) rotateY(-0.8deg) translateY(0); }
+    50% { transform: rotateX(-0.5deg) rotateY(0.8deg) translateY(-7px); }
+}
+
+@keyframes arcadeJetOrbit {
+    0% { transform: rotateX(58deg) rotateZ(0deg) translateZ(6px); }
+    50% { transform: rotateX(68deg) rotateZ(180deg) translateZ(34px); }
+    100% { transform: rotateX(58deg) rotateZ(360deg) translateZ(6px); }
+}
+
+@keyframes arcadeSunPulse {
+    0%, 100% { transform: scale(1); filter: brightness(0.9); }
+    50% { transform: scale(1.045); filter: brightness(1.15); }
 }
 
 /* 05 — light, disciplined and editorial */

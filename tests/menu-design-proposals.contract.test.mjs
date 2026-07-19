@@ -26,4 +26,9 @@ test('menu design prototype exposes ten distinct, switchable concepts', async ()
     assert.match(js, /1234567890/);
     assert.match(css, /perspective:/);
     assert.match(css, /@keyframes holoAirframe/);
+
+    const arcadeCss = css.slice(css.indexOf('body[data-concept="arcade"]'), css.indexOf('/* 05'));
+    assert.match(arcadeCss, /--accent: #76ff9f/);
+    assert.match(arcadeCss, /transform-style: preserve-3d/);
+    assert.match(arcadeCss, /@keyframes arcadeCabinetFloat/);
 });
