@@ -627,6 +627,28 @@ test('directional projectile sensing ignores fly-bys and evades an actual collis
     assert.equal(collision.yawRight, false);
 });
 
+test('directional projectile sensing reacts to a collision course 1.5 seconds ahead', () => {
+    const player = createPlayer(1);
+    player.speed = 0;
+    player.baseSpeed = 0;
+    const policy = new HeuristicBotPolicy();
+    const action = policy.update(1 / 60, player, {
+        mode: 'CLASSIC',
+        players: [player],
+        projectiles: [{
+            position: new THREE.Vector3(2, 0, 30),
+            velocity: new THREE.Vector3(0, 0, -20),
+            owner: null,
+        }],
+        arena: {},
+        observation: createSafeObservation(),
+    });
+
+    assert.equal(policy.getDecisionSnapshot().safetyReason, 'projectile');
+    assert.equal(action.yawLeft || action.yawRight || action.pitchUp || action.pitchDown, true);
+    assert.equal(action.boost, false);
+});
+
 test('Classic bot commits to an interception target in safe open space', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);

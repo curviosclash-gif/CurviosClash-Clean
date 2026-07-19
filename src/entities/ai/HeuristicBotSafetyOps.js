@@ -48,7 +48,7 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     stuckProgressSpeedScale: 0.12,
     maximumTimerStep: 0.12,
     projectileThreatRange: 32,
-    projectileImpactHorizon: 1.25,
+    projectileImpactHorizon: 1.6,
     projectileSafetyRadius: 3.2,
     shotProbeStep: 5,
     shotProbeMaxSamples: 20,
