@@ -47,6 +47,7 @@ const BASE_MAP_KEYS = [
     'sky_islands',
     'abyssal_descent',
     'magma_maze',
+    'chrono_forge_nexus',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
