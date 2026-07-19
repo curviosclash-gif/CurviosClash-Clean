@@ -6,10 +6,14 @@ function cloneScenario(entry) {
     const normalizedMode = requestedMode === 'HUNT' || requestedMode === 'ARCADE' ? requestedMode : 'CLASSIC';
     const rawStrategy = String(entry.botPolicyStrategy || '').trim().toLowerCase();
     const strategy = rawStrategy || 'auto';
+    const bots = Math.max(0, Math.trunc(Number(entry.bots) || 0));
     return {
         id: String(entry.id || ''),
         mode: entry.mode === '2p' ? '2p' : '1p',
-        bots: Math.max(0, Math.trunc(Number(entry.bots) || 0)),
+        bots,
+        expectedRuntimeBotCount: Number.isFinite(Number(entry.expectedRuntimeBotCount))
+            ? Math.max(0, Math.trunc(Number(entry.expectedRuntimeBotCount)))
+            : bots,
         mapKey: String(entry.mapKey || 'standard'),
         gameMode: normalizedMode,
         botPolicyStrategy: strategy,
@@ -198,6 +202,7 @@ export function getBotValidationMatrix() {
             id: 'H-ARCADE-VERTICAL',
             mode: '1p',
             bots: 1,
+            expectedRuntimeBotCount: 3,
             mapKey: 'vertical_maze',
             gameMode: 'ARCADE',
             botPolicyStrategy: 'heuristic',

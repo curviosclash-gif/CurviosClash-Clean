@@ -1162,7 +1162,7 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push(`- Failure-Codes: player-dead=${failureTaxonomy?.['player-dead'] ?? 0}, match-loss=${failureTaxonomy?.['match-loss'] ?? 0}, forced-round=${failureTaxonomy?.['forced-round'] ?? 0}, timeout-round=${failureTaxonomy?.['timeout-round'] ?? 0}, runtime-error=${failureTaxonomy?.['runtime-error'] ?? 0}`);
     if (runner) {
         lines.push(`- Runner-Modus: ${runner.serverMode || 'unbekannt'}; Publish-Evidence: ${runner.publishEvidence === true ? 'ja' : 'nein'}`);
-        lines.push(`- Runtime-Vertrag: Policy-Mismatches=${runner.policyMismatches || 0}; Mode-Mismatches=${runner.modeMismatches || 0}`);
+        lines.push(`- Runtime-Vertrag: Policy-Mismatches=${runner.policyMismatches || 0}; Mode-Mismatches=${runner.modeMismatches || 0}; Botanzahl-Mismatches=${runner.botCountMismatches || 0}`);
     }
     const diagnostics = runner?.diagnostics && typeof runner.diagnostics === 'object'
         ? runner.diagnostics
@@ -1184,7 +1184,9 @@ function buildMarkdownReport({ generatedAt, roundsPerScenario, scenarioResults, 
     lines.push('|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|');
     for (const result of scenarioResults) {
         const m = result.metrics;
-        const contractOk = result.runtimeVerification?.policy?.ok === true && result.runtimeVerification?.mode?.ok === true;
+        const contractOk = result.runtimeVerification?.policy?.ok === true
+            && result.runtimeVerification?.mode?.ok === true
+            && result.runtimeVerification?.botCount?.ok === true;
         lines.push(`| ${result.scenario.id} (${result.scenario.mapKey}) | ${m.rounds} | ${contractOk ? 'ok' : 'FEHLER'} | ${formatPercent(m.botWinRate)} | ${m.stuckEvents} | ${m.wallHits}/${m.trailHits} | ${formatSeconds(m.averageBotSurvival)} / ${formatSeconds(m.botSurvivalMedian)} / ${formatSeconds(m.botSurvivalP10)} | ${formatNumber(m.itemUsePerRound)} / ${formatPercent(m.itemUseFailureRate)} | ${formatPercent(m.mgHitRate)} / ${formatPercent(m.projectileHitRate)} | ${formatPercent(m.averageSafetyActiveRatio)} / ${formatNumber(m.steeringChangesPerSecond)} | ${formatPercent(m.parcoursCompletionRate)} |`);
     }
     lines.push('');
@@ -1393,6 +1395,7 @@ async function run() {
             timeoutRounds: 0,
             policyMismatches: 0,
             modeMismatches: 0,
+            botCountMismatches: 0,
             runtimeErrors: 0,
             missingNaturalDuelOutcomes: 0,
             incompleteSurvivalObservations: 0,
@@ -1507,6 +1510,7 @@ async function run() {
             const runtimeVerification = buildBotValidationRuntimeVerification(scenario, runtimeSamples);
             if (!runtimeVerification.policy.ok) runnerStats.policyMismatches += 1;
             if (!runtimeVerification.mode.ok) runnerStats.modeMismatches += 1;
+            runnerStats.botCountMismatches += runtimeVerification.botCount.mismatchSamples;
             scenarioResults.push({
                 scenario,
                 metrics,
@@ -1567,6 +1571,7 @@ async function run() {
                 timeoutRounds: runnerStats.timeoutRounds,
                 policyMismatches: runnerStats.policyMismatches,
                 modeMismatches: runnerStats.modeMismatches,
+                botCountMismatches: runnerStats.botCountMismatches,
                 runtimeErrors: runnerStats.runtimeErrors,
                 missingNaturalDuelOutcomes: runnerStats.missingNaturalDuelOutcomes,
                 incompleteSurvivalObservations: runnerStats.incompleteSurvivalObservations,
@@ -1680,6 +1685,9 @@ async function run() {
         }
         if (runnerStats.modeMismatches > 0) {
             policyErrors.push(`mode contract mismatched in ${runnerStats.modeMismatches} scenario(s)`);
+        }
+        if (runnerStats.botCountMismatches > 0) {
+            policyErrors.push(`bot count contract mismatched in ${runnerStats.botCountMismatches} sample(s)`);
         }
         if (runnerStats.runtimeErrors > 0) {
             policyErrors.push(`browser runtime errors encountered (${runnerStats.runtimeErrors})`);

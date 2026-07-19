@@ -53,6 +53,7 @@ function expectedRuntimeGameMode(gameMode) {
 export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamples = []) {
     const samples = Array.isArray(runtimeSamples) ? runtimeSamples.filter(Boolean) : [];
     const expectedPolicyType = normalizePolicyType(scenario.expectedPolicyType);
+    const expectedRuntimeBotCount = Math.max(0, Math.trunc(Number(scenario.expectedRuntimeBotCount) || 0));
     const expectedGameMode = normalizeGameMode(scenario.gameMode) || 'CLASSIC';
     const requiredModePath = expectedModePath(expectedGameMode);
     const requiredRuntimeGameMode = expectedRuntimeGameMode(expectedGameMode);
@@ -69,6 +70,26 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
             : 0;
         return botCount <= 0 || policyCount !== botCount;
     }).length;
+    let missingBots = 0;
+    let additionalBots = 0;
+    let policylessBots = 0;
+    let botCountMismatchSamples = 0;
+    let botlessSamples = 0;
+    for (const sample of samples) {
+        const botCount = Math.max(0, Math.trunc(Number(sample.botCount) || 0));
+        const policyCount = Array.isArray(sample.botPolicyTypes)
+            ? sample.botPolicyTypes.filter((type) => !!normalizePolicyType(type)).length
+            : 0;
+        missingBots += Math.max(0, expectedRuntimeBotCount - botCount);
+        additionalBots += Math.max(0, botCount - expectedRuntimeBotCount);
+        policylessBots += Math.max(0, botCount - policyCount);
+        if (botCount !== expectedRuntimeBotCount) botCountMismatchSamples += 1;
+        if (botCount === 0) botlessSamples += 1;
+    }
+    const botCountMatches = samples.length > 0
+        && expectedRuntimeBotCount > 0
+        && botCountMismatchSamples === 0
+        && botlessSamples === 0;
     const policyMatches = samples.length > 0
         && !!expectedPolicyType
         && runtimePolicyTypes.length === 1
@@ -121,6 +142,15 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
 
     return {
         sampleCount: samples.length,
+        botCount: {
+            ok: botCountMatches,
+            expectedRuntimeBotCount,
+            mismatchSamples: botCountMismatchSamples,
+            missingBots,
+            additionalBots,
+            policylessBots,
+            botlessSamples,
+        },
         policy: {
             ok: policyMatches && heuristicConfigMatches,
             expectedPolicyType,

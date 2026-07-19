@@ -59,6 +59,7 @@ test('vertical Arcade bot validation avoids parcours-only maps', () => {
     const scenario = getBotValidationMatrix().find((entry) => entry.id === 'H-ARCADE-VERTICAL');
     assert.equal(scenario.mapKey, 'vertical_maze');
     assert.equal(scenario.bots, 1);
+    assert.equal(scenario.expectedRuntimeBotCount, 3);
     assert.equal(scenario.expectedPolicyType, 'heuristic');
 });
 
@@ -156,6 +157,40 @@ test('runtime verification checks policy instances and separates semantic from i
     assert.equal(invalid.policy.ok, false);
 });
 
+test('runtime verification reports missing, additional, policyless, and botless samples separately', () => {
+    const scenario = getBotValidationMatrix().find((entry) => entry.id === 'H-ARCADE-VERTICAL');
+    const sample = {
+        runtimePolicyType: 'heuristic',
+        entityPolicyType: 'heuristic',
+        botPolicyTypes: ['heuristic', 'heuristic', 'heuristic'],
+        botCount: 3,
+        botDecisions: [1, 2, 3].map(() => ({
+            policyType: 'heuristic',
+            snapshot: { profile: 'balanced', difficulty: 'hard' },
+        })),
+        runtimeGameMode: 'CLASSIC',
+        entityGameMode: 'CLASSIC',
+        semanticGameMode: 'ARCADE',
+        modePath: 'arcade',
+        arcadeEnabled: true,
+        arcadeSeed: 1337,
+    };
+    assert.equal(buildBotValidationRuntimeVerification(scenario, [sample]).botCount.ok, true);
+
+    const invalid = buildBotValidationRuntimeVerification(scenario, [
+        { ...sample, botCount: 2, botPolicyTypes: ['heuristic', 'heuristic'] },
+        { ...sample, botCount: 4, botPolicyTypes: ['heuristic', 'heuristic', 'heuristic', 'heuristic'] },
+        { ...sample, botPolicyTypes: ['heuristic', 'heuristic'] },
+        { ...sample, botCount: 0, botPolicyTypes: [] },
+    ]).botCount;
+    assert.equal(invalid.ok, false);
+    assert.equal(invalid.mismatchSamples, 3);
+    assert.equal(invalid.missingBots, 4);
+    assert.equal(invalid.additionalBots, 1);
+    assert.equal(invalid.policylessBots, 1);
+    assert.equal(invalid.botlessSamples, 1);
+});
+
 test('runner applies selected ids, records real bot deaths, and analysis defaults to heuristic policy', async () => {
     const [runnerSource, analysisSource, packageSource] = await Promise.all([
         readFile(new URL('../scripts/bot-validation-runner.mjs', import.meta.url), 'utf8'),
@@ -176,6 +211,7 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(runnerSource, /isSurvivalObservationScenario\(scenario\)/);
     assert.match(runnerSource, /if \(typeof g\._returnToMenu !== 'function'\) throw new Error\('_returnToMenu missing'\)/);
     assert.match(runnerSource, /survival observations produced outcomes/);
+    assert.match(runnerSource, /bot count contract mismatched/);
     assert.match(runnerSource, /browser runtime errors encountered/);
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
     assert.match(runnerSource, /if \(raw === 'dev'\) return 'dev';\s+return 'preview';/);
