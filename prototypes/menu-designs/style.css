@@ -1087,6 +1087,640 @@ body[data-concept="tactical"] .menu-footer kbd {
     color: var(--ink);
 }
 
+/* 06–10 intentionally avoid the rounded glass-card language of the first set. */
+body[data-concept="matrix"] .menu-frame,
+body[data-concept="grid72"] .menu-frame,
+body[data-concept="avionics"] .menu-frame,
+body[data-concept="broadcast"] .menu-frame,
+body[data-concept="holobay"] .menu-frame,
+body[data-concept="matrix"] .launch-card,
+body[data-concept="grid72"] .launch-card,
+body[data-concept="avionics"] .launch-card,
+body[data-concept="broadcast"] .launch-card,
+body[data-concept="holobay"] .launch-card,
+body[data-concept="matrix"] .mode-card,
+body[data-concept="grid72"] .mode-card,
+body[data-concept="avionics"] .mode-card,
+body[data-concept="broadcast"] .mode-card,
+body[data-concept="holobay"] .mode-card,
+body[data-concept="matrix"] .flight-card,
+body[data-concept="grid72"] .flight-card,
+body[data-concept="avionics"] .flight-card,
+body[data-concept="broadcast"] .flight-card,
+body[data-concept="holobay"] .flight-card {
+    border-radius: 0;
+}
+
+/* 06 — black operator terminal */
+body[data-concept="matrix"] {
+    --accent: #27ff6a;
+    --accent-2: #9dffb5;
+    --ink: #caffd7;
+    --muted: #5ea06e;
+    --line: rgba(39, 255, 106, 0.3);
+    --soft: rgba(39, 255, 106, 0.045);
+    font-family: "Courier New", Consolas, monospace;
+}
+
+body[data-concept="matrix"] .scene {
+    background: #000;
+}
+
+body[data-concept="matrix"] .scene::before {
+    content: '01000110 01001100 01011001 00100000 01000011 01010101 01010010 01010110 01001001 01001111 01010011 00001010 11010010 00110101 01001110 10010100 01010101 00001010 00110011 01000011 01001100 01000001 01010011 01001000 00001010 01110010 01100101 01100100 00100000 01110000 01101001 01101100 01101100 00001010 01001110 01000101 01001111 00100000 01001100 01001001 01010110 01000101 01010011';
+    inset: -55% -2% 0 42%;
+    overflow-wrap: anywhere;
+    color: rgba(39, 255, 106, 0.19);
+    font: 700 clamp(0.58rem, 1vw, 0.9rem)/1.7 "Courier New", monospace;
+    letter-spacing: 0.65em;
+    text-shadow: 0 0 8px rgba(39, 255, 106, 0.7);
+    animation: matrixRain 14s linear infinite;
+}
+
+body[data-concept="matrix"] .scene::after {
+    opacity: 0.18;
+    background: repeating-linear-gradient(0deg, transparent 0 3px, rgba(39, 255, 106, 0.16) 4px);
+}
+
+body[data-concept="matrix"] .scene-grid {
+    opacity: 0.2;
+    background: linear-gradient(90deg, transparent 49.8%, rgba(39, 255, 106, 0.18) 50%, transparent 50.2%) 0 0 / 180px 100%;
+    mask-image: none;
+}
+
+body[data-concept="matrix"] .scene-orbit,
+body[data-concept="matrix"] .scene-horizon {
+    display: none;
+}
+
+body[data-concept="matrix"] .menu-frame {
+    grid-template-columns: minmax(500px, 1.5fr) minmax(270px, 0.5fr);
+    grid-template-areas: "system system" "brand flight" "modes flight" "launch flight" "utility utility" "footer footer";
+    width: min(1080px, 100%);
+    border-color: #27ff6a;
+    background: rgba(0, 5, 1, 0.96);
+    box-shadow: 0 0 0 4px #000, 0 0 45px rgba(39, 255, 106, 0.14);
+    backdrop-filter: none;
+}
+
+body[data-concept="matrix"] .system-bar,
+body[data-concept="matrix"] .brand-kicker,
+body[data-concept="matrix"] .brand-block h1 {
+    color: #27ff6a;
+}
+
+body[data-concept="matrix"] .brand-block h1 {
+    font: 800 clamp(2.6rem, 5.5vw, 5.8rem)/0.86 "Courier New", monospace;
+    letter-spacing: -0.09em;
+    text-shadow: 0 0 14px rgba(39, 255, 106, 0.34);
+}
+
+body[data-concept="matrix"] .brand-block h1 span {
+    color: #27ff6a;
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="matrix"] .brand-block h1::after {
+    content: '_';
+    animation: terminalCursor 1s steps(1) infinite;
+}
+
+body[data-concept="matrix"] .mode-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+    border-top: 1px solid var(--line);
+}
+
+body[data-concept="matrix"] .mode-card {
+    min-height: 58px;
+    padding: 8px 4px;
+    border: 0;
+    border-bottom: 1px solid var(--line);
+    background: transparent;
+}
+
+body[data-concept="matrix"] .mode-card:hover {
+    padding-left: 14px;
+    background: #27ff6a;
+    color: #000;
+    transform: none;
+}
+
+body[data-concept="matrix"] .mode-index {
+    position: static;
+    grid-area: icon;
+    margin-right: 12px;
+    color: #27ff6a;
+}
+
+body[data-concept="matrix"] .mode-icon {
+    display: none;
+}
+
+body[data-concept="matrix"] .launch-card,
+body[data-concept="matrix"] .flight-card {
+    border-color: #27ff6a;
+    background: #020904;
+}
+
+body[data-concept="matrix"] .launch-button,
+body[data-concept="matrix"] .aircraft-silhouette span {
+    background: #27ff6a;
+    color: #000;
+}
+
+body[data-concept="matrix"] .utility-list {
+    justify-content: flex-start;
+}
+
+@keyframes matrixRain {
+    to { transform: translateY(38%); }
+}
+
+@keyframes terminalCursor {
+    50% { opacity: 0; }
+}
+
+/* 07 — editorial modernist grid */
+body[data-concept="grid72"] {
+    color-scheme: light;
+    --accent: #ed351f;
+    --accent-2: #1747d1;
+    --ink: #101010;
+    --muted: #5b5b57;
+    --line: rgba(16, 16, 16, 0.28);
+    --soft: rgba(16, 16, 16, 0.04);
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+body[data-concept="grid72"] .scene {
+    background: #f1efdf;
+}
+
+body[data-concept="grid72"] .scene::before {
+    inset: 0 0 0 68%;
+    background: #1747d1;
+}
+
+body[data-concept="grid72"] .scene::after {
+    inset: auto 10% 0 0;
+    height: 13%;
+    opacity: 1;
+    background: #f3cb27;
+}
+
+body[data-concept="grid72"] .scene-grid {
+    opacity: 0.12;
+    background-image: linear-gradient(#101010 1px, transparent 1px), linear-gradient(90deg, #101010 1px, transparent 1px);
+    background-size: 72px 72px;
+    mask-image: none;
+}
+
+body[data-concept="grid72"] .scene-orbit,
+body[data-concept="grid72"] .scene-horizon {
+    display: none;
+}
+
+body[data-concept="grid72"] .menu-frame {
+    width: min(1140px, 100%);
+    padding: 0;
+    gap: 0;
+    border: 4px solid #101010;
+    background: #f1efdf;
+    box-shadow: 18px 18px 0 #101010;
+    backdrop-filter: none;
+}
+
+body[data-concept="grid72"] .system-bar {
+    padding: 14px 18px;
+    border-bottom: 4px solid #101010;
+}
+
+body[data-concept="grid72"] .brand-block {
+    padding: 22px 20px 16px;
+}
+
+body[data-concept="grid72"] .brand-block h1 {
+    color: #101010;
+    font-size: clamp(3.2rem, 6vw, 6.8rem);
+    letter-spacing: -0.085em;
+}
+
+body[data-concept="grid72"] .brand-block h1 span {
+    color: #101010;
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="grid72"] .launch-card {
+    margin: 0 20px 16px;
+    border: 4px solid #101010;
+    background: #101010;
+    color: #fff;
+}
+
+body[data-concept="grid72"] .launch-button {
+    background: #ed351f;
+    color: #fff;
+}
+
+body[data-concept="grid72"] .mode-list {
+    gap: 0;
+    padding: 0 20px 18px;
+}
+
+body[data-concept="grid72"] .mode-card {
+    border: 3px solid #101010;
+    border-right-width: 0;
+    background: #f1efdf;
+}
+
+body[data-concept="grid72"] .mode-card:last-child {
+    border-right-width: 3px;
+}
+
+body[data-concept="grid72"] .mode-card:nth-child(2) {
+    background: #f3cb27;
+}
+
+body[data-concept="grid72"] .mode-card:hover {
+    background: #1747d1;
+    color: #fff;
+    transform: none;
+}
+
+body[data-concept="grid72"] .flight-card {
+    min-height: 420px;
+    border: 0;
+    border-left: 4px solid #101010;
+    background: #1747d1;
+    color: #fff;
+}
+
+body[data-concept="grid72"] .flight-card-heading,
+body[data-concept="grid72"] .flight-card dt,
+body[data-concept="grid72"] .flight-card > small {
+    color: #cfdbff;
+}
+
+body[data-concept="grid72"] .utility-list,
+body[data-concept="grid72"] .menu-footer {
+    padding: 13px 18px;
+    border-top: 4px solid #101010;
+}
+
+/* 08 — monochrome avionics computer */
+body[data-concept="avionics"] {
+    --accent: #ffb928;
+    --accent-2: #ffe09a;
+    --ink: #ffd782;
+    --muted: #967632;
+    --line: rgba(255, 185, 40, 0.36);
+    --soft: rgba(255, 185, 40, 0.04);
+    font-family: Consolas, "Courier New", monospace;
+}
+
+body[data-concept="avionics"] .scene {
+    background: #070602;
+}
+
+body[data-concept="avionics"] .scene::before {
+    inset: 6%;
+    border: 1px dashed rgba(255, 185, 40, 0.18);
+    background: linear-gradient(90deg, transparent 49.9%, rgba(255, 185, 40, 0.12) 50%, transparent 50.1%), linear-gradient(transparent 49.9%, rgba(255, 185, 40, 0.12) 50%, transparent 50.1%);
+}
+
+body[data-concept="avionics"] .scene::after {
+    opacity: 0.24;
+    background: repeating-linear-gradient(0deg, rgba(0, 0, 0, 0.5) 0 2px, transparent 2px 5px);
+}
+
+body[data-concept="avionics"] .scene-grid {
+    opacity: 0.12;
+    background: radial-gradient(circle, #ffb928 1px, transparent 1px) 0 0 / 24px 24px;
+    mask-image: none;
+}
+
+body[data-concept="avionics"] .scene-orbit,
+body[data-concept="avionics"] .scene-horizon {
+    display: none;
+}
+
+body[data-concept="avionics"] .menu-frame {
+    width: min(1180px, 100%);
+    border: 3px double #ffb928;
+    background: rgba(11, 9, 3, 0.97);
+    box-shadow: inset 0 0 48px rgba(255, 185, 40, 0.055);
+    backdrop-filter: none;
+}
+
+body[data-concept="avionics"] .brand-block h1 {
+    color: #ffb928;
+    font: 700 clamp(2.7rem, 5vw, 5rem)/0.9 Consolas, monospace;
+    letter-spacing: 0.02em;
+}
+
+body[data-concept="avionics"] .brand-block h1 span {
+    color: transparent;
+    -webkit-text-stroke: 1px #ffb928;
+}
+
+body[data-concept="avionics"] .launch-card,
+body[data-concept="avionics"] .flight-card {
+    border-color: #ffb928;
+    background: #080702;
+}
+
+body[data-concept="avionics"] .launch-button,
+body[data-concept="avionics"] .aircraft-silhouette span {
+    background: #ffb928;
+    color: #100d05;
+}
+
+body[data-concept="avionics"] .mode-card {
+    border-color: var(--line);
+    background: transparent;
+}
+
+body[data-concept="avionics"] .mode-card:hover {
+    border-color: #ffb928;
+    background: rgba(255, 185, 40, 0.1);
+    transform: none;
+}
+
+body[data-concept="avionics"] .flight-card {
+    background: radial-gradient(circle at 50% 38%, transparent 0 30%, rgba(255, 185, 40, 0.08) 30.4% 31%, transparent 31.4%), #080702;
+}
+
+/* 09 — live sports broadcast package */
+body[data-concept="broadcast"] {
+    color-scheme: light;
+    --accent: #ef2b2d;
+    --accent-2: #111;
+    --ink: #111;
+    --muted: #626262;
+    --line: rgba(0, 0, 0, 0.2);
+    --soft: #f1f1ee;
+    font-family: Arial, Helvetica, sans-serif;
+}
+
+body[data-concept="broadcast"] .scene {
+    background: #111;
+}
+
+body[data-concept="broadcast"] .scene::before {
+    inset: 0 0 0 63%;
+    background: #ef2b2d;
+    clip-path: polygon(38% 0, 100% 0, 100% 100%, 0 100%);
+}
+
+body[data-concept="broadcast"] .scene::after {
+    inset: 12% 4% 12% auto;
+    width: 26%;
+    opacity: 0.12;
+    background: repeating-linear-gradient(90deg, #fff 0 3px, transparent 3px 13px);
+    transform: skewX(-18deg);
+}
+
+body[data-concept="broadcast"] .scene-grid,
+body[data-concept="broadcast"] .scene-orbit,
+body[data-concept="broadcast"] .scene-horizon {
+    display: none;
+}
+
+body[data-concept="broadcast"] .menu-frame {
+    grid-template-areas: "system system" "brand flight" "modes flight" "launch flight" "utility utility" "footer footer";
+    width: min(1120px, 100%);
+    padding: 0;
+    gap: 0;
+    border: 0;
+    background: #fff;
+    box-shadow: 22px 22px 0 rgba(0, 0, 0, 0.28);
+    backdrop-filter: none;
+}
+
+body[data-concept="broadcast"] .system-bar {
+    padding: 13px 20px;
+    border-bottom: 7px solid #111;
+    background: #ef2b2d;
+    color: #fff;
+}
+
+body[data-concept="broadcast"] .brand-block {
+    padding: 22px 24px;
+}
+
+body[data-concept="broadcast"] .brand-block h1 {
+    color: #111;
+    font: 950 clamp(3.2rem, 6vw, 6.4rem)/0.78 Arial, sans-serif;
+    letter-spacing: -0.095em;
+}
+
+body[data-concept="broadcast"] .brand-block h1 span {
+    color: #111;
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="broadcast"] .mode-list {
+    grid-template-columns: 1fr;
+    gap: 0;
+    padding: 0 24px 18px;
+}
+
+body[data-concept="broadcast"] .mode-card {
+    min-height: 58px;
+    padding: 8px 10px 8px 74px;
+    border: 0;
+    border-top: 2px solid #111;
+    background: #fff;
+}
+
+body[data-concept="broadcast"] .mode-card:last-child {
+    border-bottom: 2px solid #111;
+}
+
+body[data-concept="broadcast"] .mode-card:hover {
+    background: #ef2b2d;
+    color: #fff;
+    transform: none;
+}
+
+body[data-concept="broadcast"] .mode-index {
+    top: 50%;
+    right: auto;
+    left: 8px;
+    color: #ef2b2d;
+    font-size: 1.6rem;
+    transform: translateY(-50%);
+}
+
+body[data-concept="broadcast"] .launch-card {
+    margin: 0 24px 22px;
+    border: 0;
+    background: #111;
+    color: #fff;
+}
+
+body[data-concept="broadcast"] .launch-button {
+    background: #ef2b2d;
+    color: #fff;
+}
+
+body[data-concept="broadcast"] .flight-card {
+    min-height: 500px;
+    border: 0;
+    border-left: 7px solid #111;
+    background: #f1f1ee;
+}
+
+body[data-concept="broadcast"] .utility-list,
+body[data-concept="broadcast"] .menu-footer {
+    padding: 12px 20px;
+    border-top: 7px solid #111;
+}
+
+/* 10 — native CSS 3D inspection bay */
+body[data-concept="holobay"] {
+    --accent: #41e5ff;
+    --accent-2: #b4f5ff;
+    --ink: #dffbff;
+    --muted: #6f98a0;
+    --line: rgba(65, 229, 255, 0.3);
+    --soft: rgba(65, 229, 255, 0.045);
+    font-family: "Arial Narrow", Arial, sans-serif;
+}
+
+body[data-concept="holobay"] .scene {
+    background: linear-gradient(180deg, #071316 0 62%, #020708 100%);
+}
+
+body[data-concept="holobay"] .scene::before {
+    top: 48%;
+    background-image: linear-gradient(rgba(65, 229, 255, 0.2) 1px, transparent 1px), linear-gradient(90deg, rgba(65, 229, 255, 0.2) 1px, transparent 1px);
+    background-size: 58px 44px;
+    transform: perspective(330px) rotateX(62deg) scale(1.5);
+    transform-origin: top;
+}
+
+body[data-concept="holobay"] .scene::after {
+    inset: 8% 9%;
+    opacity: 1;
+    border: 1px solid rgba(65, 229, 255, 0.14);
+    background: linear-gradient(90deg, rgba(65, 229, 255, 0.12) 1px, transparent 1px) 50% / 25% 100%;
+}
+
+body[data-concept="holobay"] .scene-grid,
+body[data-concept="holobay"] .scene-orbit {
+    display: none;
+}
+
+body[data-concept="holobay"] .menu-frame {
+    grid-template-columns: minmax(420px, 0.86fr) minmax(390px, 1.14fr);
+    grid-template-areas: "system system" "brand flight" "launch flight" "modes flight" "utility flight" "footer footer";
+    width: min(1140px, 100%);
+    background: rgba(3, 11, 13, 0.91);
+    box-shadow: 0 0 70px rgba(65, 229, 255, 0.08);
+}
+
+body[data-concept="holobay"] .brand-block h1 {
+    color: #dffbff;
+    font: 800 clamp(2.9rem, 5.4vw, 5.8rem)/0.84 "Arial Narrow", Arial, sans-serif;
+    letter-spacing: -0.07em;
+}
+
+body[data-concept="holobay"] .brand-block h1 span {
+    color: #dffbff;
+    -webkit-text-stroke: 0;
+}
+
+body[data-concept="holobay"] .launch-card,
+body[data-concept="holobay"] .mode-card {
+    background: transparent;
+}
+
+body[data-concept="holobay"] .mode-list {
+    grid-template-columns: 1fr;
+    gap: 5px;
+}
+
+body[data-concept="holobay"] .mode-card {
+    min-height: 58px;
+}
+
+body[data-concept="holobay"] .mode-card:hover {
+    background: rgba(65, 229, 255, 0.09);
+    transform: translateX(5px);
+}
+
+body[data-concept="holobay"] .flight-card {
+    position: relative;
+    min-height: 520px;
+    overflow: hidden;
+    perspective: 850px;
+    background-image: linear-gradient(rgba(65, 229, 255, 0.04) 1px, transparent 1px), linear-gradient(90deg, rgba(65, 229, 255, 0.04) 1px, transparent 1px);
+    background-size: 28px 28px;
+}
+
+body[data-concept="holobay"] .flight-card::before {
+    content: '3D AIRFRAME // LIVE INSPECTION';
+    position: absolute;
+    top: 52px;
+    left: 50%;
+    color: rgba(65, 229, 255, 0.46);
+    font: 700 0.58rem/1 ui-monospace, Consolas, monospace;
+    letter-spacing: 0.2em;
+    transform: translateX(-50%);
+    white-space: nowrap;
+}
+
+body[data-concept="holobay"] .aircraft-silhouette {
+    width: 220px;
+    height: 150px;
+    transform-style: preserve-3d;
+    filter: drop-shadow(0 0 18px #41e5ff);
+    animation: holoAirframe 9s linear infinite;
+}
+
+body[data-concept="holobay"] .aircraft-silhouette::before,
+body[data-concept="holobay"] .aircraft-silhouette::after {
+    content: '';
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    width: 270px;
+    height: 92px;
+    border: 1px solid rgba(65, 229, 255, 0.54);
+    border-radius: 50%;
+    transform: translate(-50%, -50%) translateZ(-30px);
+}
+
+body[data-concept="holobay"] .aircraft-silhouette::after {
+    width: 210px;
+    height: 210px;
+    border-style: dashed;
+    transform: translate(-50%, -50%) rotateX(78deg) translateZ(36px);
+    animation: holoRing 4s linear infinite reverse;
+}
+
+body[data-concept="holobay"] .aircraft-silhouette span {
+    background: linear-gradient(180deg, rgba(223, 251, 255, 0.94), rgba(65, 229, 255, 0.34));
+    box-shadow: inset 0 0 0 1px rgba(65, 229, 255, 0.6);
+}
+
+body[data-concept="holobay"] .fuselage { left: 98px; }
+body[data-concept="holobay"] .wing-left { left: 33px; }
+body[data-concept="holobay"] .wing-right { right: 33px; }
+body[data-concept="holobay"] .utility-list { justify-content: flex-start; }
+
+@keyframes holoAirframe {
+    0% { transform: rotateX(58deg) rotateZ(0deg) translateZ(10px); }
+    50% { transform: rotateX(68deg) rotateZ(180deg) translateZ(42px); }
+    100% { transform: rotateX(58deg) rotateZ(360deg) translateZ(10px); }
+}
+
+@keyframes holoRing {
+    to { transform: translate(-50%, -50%) rotateX(78deg) rotateZ(360deg) translateZ(36px); }
+}
+
 @media (max-width: 1050px) {
     body {
         overflow: auto;
@@ -1100,7 +1734,12 @@ body[data-concept="tactical"] .menu-footer kbd {
     body[data-concept="hangar"] .menu-frame,
     body[data-concept="pilot"] .menu-frame,
     body[data-concept="arcade"] .menu-frame,
-    body[data-concept="tactical"] .menu-frame {
+    body[data-concept="tactical"] .menu-frame,
+    body[data-concept="matrix"] .menu-frame,
+    body[data-concept="grid72"] .menu-frame,
+    body[data-concept="avionics"] .menu-frame,
+    body[data-concept="broadcast"] .menu-frame,
+    body[data-concept="holobay"] .menu-frame {
         grid-template-columns: 1fr;
         grid-template-areas:
             "system"
@@ -1154,13 +1793,18 @@ body[data-concept="tactical"] .menu-footer kbd {
     }
 
     .showcase {
-        padding: 70px 12px 110px;
+        padding: 108px 12px 110px;
     }
 
     .menu-frame,
     body[data-concept="pilot"] .menu-frame,
     body[data-concept="arcade"] .menu-frame,
-    body[data-concept="tactical"] .menu-frame {
+    body[data-concept="tactical"] .menu-frame,
+    body[data-concept="matrix"] .menu-frame,
+    body[data-concept="grid72"] .menu-frame,
+    body[data-concept="avionics"] .menu-frame,
+    body[data-concept="broadcast"] .menu-frame,
+    body[data-concept="holobay"] .menu-frame {
         padding: 18px;
         border-radius: 12px;
     }
@@ -1206,5 +1850,7 @@ body[data-concept="tactical"] .menu-footer kbd {
     *::after {
         scroll-behavior: auto !important;
         transition: none !important;
+        animation-duration: 0.01ms !important;
+        animation-iteration-count: 1 !important;
     }
 }
