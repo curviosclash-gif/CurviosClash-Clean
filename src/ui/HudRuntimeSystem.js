@@ -5,10 +5,7 @@
 import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
-import {
-    getPickupDefinition,
-} from '../entities/PickupRegistry.js';
-import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
+import { updateItemBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
@@ -392,79 +389,7 @@ export class HudRuntimeSystem {
     }
 
     _updateItemBar(container, player, projection = null) {
-        const powerupConfig = resolveGameplayConfig(this.game).POWERUP;
-        this._ensureItemSlots(container);
-        const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
-        const inventoryLength = inventory.length;
-        const selectedIndex = inventoryLength > 0
-            ? Math.max(0, Math.min(Number(player?.selectedItemIndex) || 0, inventoryLength - 1))
-            : -1;
-        const modeType = String(projection?.modeId || 'CLASSIC').trim().toUpperCase();
-        const useCooldownRemaining = Math.max(0, Number(player?.itemUseCooldownRemaining || 0));
-        const shootCooldownRemaining = Math.max(0, Number(player?.shootCooldown || 0));
-
-        for (let i = 0; i < powerupConfig.MAX_INVENTORY; i++) {
-            const slot = container.children[i];
-            const rawType = i < inventoryLength ? inventory[i] : '';
-            const slotAction = resolvePickupActionAvailability({
-                type: rawType,
-                fallbackType: rawType,
-                modeType,
-                useCooldownRemaining,
-                shootCooldownRemaining,
-            });
-            const type = slotAction.type;
-            const config = getPickupDefinition(type) || powerupConfig.TYPES?.[type] || null;
-            const isSelected = !!type && i === selectedIndex;
-            const titleParts = [];
-            if (type) {
-                titleParts.push(type.replace(/_/g, ' '));
-                if (slotAction.canUse && slotAction.canShoot) titleParts.push('Use oder Shoot');
-                else if (slotAction.canShoot) titleParts.push('Verschiessbar');
-                else if (slotAction.canUse) titleParts.push('Direkt nutzbar');
-                else titleParts.push('Nur kontextbasiert');
-                if (slotAction.useOnCooldown) titleParts.push(`Use-CD ${slotAction.useCooldownRemaining.toFixed(1)}s`);
-                if (slotAction.shootOnCooldown) titleParts.push(`Shoot-CD ${slotAction.shootCooldownRemaining.toFixed(1)}s`);
-            }
-
-            slot.dataset.type = rawType;
-            slot.dataset.pickupType = type || '';
-            slot.dataset.actionHint = slotAction.actionHintLabel.toLowerCase();
-            slot.dataset.actionHintLabel = slotAction.actionHintLabel;
-            slot.dataset.selected = isSelected ? '1' : '0';
-            slot.dataset.cooldown = slotAction.hasCooldown ? '1' : '0';
-            slot.textContent = type ? (config?.icon || '?') : '';
-            slot.title = titleParts.join(' | ');
-            slot.classList.toggle('active', !!type);
-            slot.classList.toggle('selected', isSelected);
-            slot.classList.toggle('projectile-only', !!type && slotAction.canShoot && !slotAction.canUse);
-            slot.classList.toggle('use-only', !!type && slotAction.canUse && !slotAction.canShoot);
-            slot.classList.toggle('dual-action', !!type && slotAction.canUse && slotAction.canShoot);
-            slot.classList.toggle('cooldown', slotAction.hasCooldown);
-            slot.style.borderColor = type && Number.isFinite(config?.color)
-                ? '#' + config.color.toString(16).padStart(6, '0')
-                : '';
-        }
-    }
-
-    _ensureItemSlots(container) {
-        const desired = resolveGameplayConfig(this.game).POWERUP.MAX_INVENTORY;
-
-        while (container.children.length < desired) {
-            const slot = document.createElement('div');
-            slot.className = 'item-slot';
-            slot.dataset.type = '';
-            slot.dataset.pickupType = '';
-            slot.dataset.actionHint = '';
-            slot.dataset.actionHintLabel = '';
-            slot.dataset.selected = '0';
-            slot.dataset.cooldown = '0';
-            container.appendChild(slot);
-        }
-
-        while (container.children.length > desired) {
-            container.removeChild(container.lastChild);
-        }
+        updateItemBar(container, player, projection, resolveGameplayConfig(this.game));
     }
 
     _setHudP2Visibility(isVisible) {

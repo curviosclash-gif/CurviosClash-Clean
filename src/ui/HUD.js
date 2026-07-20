@@ -31,6 +31,10 @@ export class HUD {
         this.headingValue = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-heading');
         this.lockReticle = this.container.querySelector('.hud-lock-reticle');
         this.lockDist = this.lockReticle.querySelector('.lock-dist');
+        this.lockBox = this.lockReticle.querySelector('.lock-box');
+        this.lockArrow = document.createElement('div');
+        this.lockArrow.className = 'lock-arrow hidden';
+        this.lockReticle.appendChild(this.lockArrow);
         this.boostFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-boost-fill');
         this.lifeBar = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-bar');
         this.lifeFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-fill');
@@ -40,8 +44,16 @@ export class HUD {
         this.altScale = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-alt-scale');
         this.headingScale = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-heading-scale');
 
+        this._tapeSpeedMax = 0;
+        this._tapeAltMax = 0;
+
         this._createPitchLadder();
-        this._createTapeScales();
+        this._createHeadingScale();
+        const initialRanges = this._resolveConfiguredTapeRanges(
+            resolveGameplayConfig({ config: this.configSource })
+        );
+        this._ensureSpeedTapeRange(initialRanges.speedMax);
+        this._ensureAltTapeRange(initialRanges.altMax);
 
         this.visible = false;
 
@@ -91,48 +103,68 @@ export class HUD {
         }
     }
 
-    _createTapeScales() {
-        this._fillScale(this.speedScale, 0, 100, 10, 20);
-        this._fillScale(this.altScale, 0, 200, 10, 20);
-
+    // Heading ticks cover -120°..480° so the tape has no blank side near
+    // the 0°/360° wrap. Tick i sits at left = i*4 px; update() shifts the
+    // scale by -heading*4 px, which places tick `heading` exactly at the
+    // tape center marker.
+    _createHeadingScale() {
         const dirs = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
-        for (let i = 0; i <= 360; i += 15) {
+        for (let i = -120; i <= 480; i += 15) {
             const tick = document.createElement('div');
-            tick.style.position = 'absolute';
+            tick.className = 'tape-tick tape-tick-heading';
             tick.style.left = `${i * 4}px`;
             tick.style.height = i % 90 === 0 ? '10px' : '5px';
-            tick.style.borderLeft = '1px solid #0f0';
-            tick.style.bottom = '0';
 
             if (i % 45 === 0) {
                 const label = document.createElement('div');
-                label.textContent = dirs[(i / 45) % 8];
-                label.style.position = 'absolute';
-                label.style.left = '-10px';
-                label.style.top = '-15px';
-                label.style.fontSize = '10px';
+                label.className = 'tape-tick-label tape-tick-label-heading';
+                label.textContent = dirs[(((i / 45) % 8) + 8) % 8];
                 tick.appendChild(label);
             }
             this.headingScale.appendChild(tick);
         }
     }
 
+    _resolveConfiguredTapeRanges(gameplayConfig) {
+        const playerConfig = gameplayConfig?.PLAYER || {};
+        const arenaConfig = gameplayConfig?.ARENA || {};
+        const baseSpeed = Math.max(0, Number(playerConfig.SPEED)) || 35;
+        const boostMultiplier = Math.max(1, Number(playerConfig.BOOST_MULTIPLIER)) || 1;
+        // HUD speed readout is speed * 10; boost marks the upper end.
+        const speedMax = Math.max(100, Math.ceil((baseSpeed * boostMultiplier * 10) / 50) * 50);
+        const arenaTop = Math.max(0, Number(arenaConfig.WALL_HEIGHT) || 0)
+            * Math.max(1, Number(arenaConfig.MAP_SCALE) || 1);
+        const altMax = Math.max(200, Math.ceil(arenaTop / 50) * 50);
+        return { speedMax, altMax };
+    }
+
+    _ensureSpeedTapeRange(speedMax) {
+        const required = Math.max(100, Math.ceil(Number(speedMax) || 0));
+        if (required <= this._tapeSpeedMax) return;
+        this._tapeSpeedMax = required;
+        this._fillScale(this.speedScale, 0, required, 10, 20);
+    }
+
+    _ensureAltTapeRange(altMax) {
+        const required = Math.max(200, Math.ceil(Number(altMax) || 0));
+        if (required <= this._tapeAltMax) return;
+        this._tapeAltMax = required;
+        this._fillScale(this.altScale, 0, required, 10, 20);
+    }
+
     _fillScale(container, min, max, step, pxPerStep) {
+        if (!container) return;
+        container.replaceChildren();
         for (let v = min; v <= max; v += step) {
             const tick = document.createElement('div');
-            tick.style.position = 'absolute';
+            tick.className = 'tape-tick tape-tick-vertical';
             tick.style.top = `${-(v * (pxPerStep / step))}px`;
-            tick.style.right = '0';
             tick.style.width = '8px';
-            tick.style.borderTop = '1px solid #0f0';
 
             if (v % (step * 2) === 0) {
                 const label = document.createElement('div');
+                label.className = 'tape-tick-label tape-tick-label-vertical';
                 label.textContent = v;
-                label.style.position = 'absolute';
-                label.style.right = '12px';
-                label.style.top = '-6px';
-                label.style.fontSize = '9px';
                 tick.appendChild(label);
             }
             container.appendChild(tick);
@@ -217,8 +249,11 @@ export class HUD {
         const yawDeg = THREE.MathUtils.radToDeg(this._euler.y);
         const rollDeg = THREE.MathUtils.radToDeg(this._euler.z);
 
-        this._setStyle(this.horizon, 'transform', 'translate(-50%, -50%)');
-        this._setStyle(this.pitchLadder, 'transform', `translate(-50%, -50%) translateY(${pitchDeg * 8}px)`);
+        // Artificial horizon: rotate with roll and shift with pitch so the
+        // horizon line and pitch ladder stay world-referenced.
+        const attitudeTransform = `translate(-50%, -50%) rotate(${rollDeg}deg) translateY(${pitchDeg * 8}px)`;
+        this._setStyle(this.horizon, 'transform', attitudeTransform);
+        this._setStyle(this.pitchLadder, 'transform', attitudeTransform);
 
         if (this.bankLine) {
             this._setStyle(this.bankLine, 'transform', `translate(-50%, -50%) rotate(${rollDeg}deg)`);
@@ -236,6 +271,12 @@ export class HUD {
         const speed = Math.round((Number(player?.speed) || 0) * 10);
         const alt = Math.round(Number(player?.position?.y) || 0);
 
+        // Grow tape ranges when config or live values exceed the built scales
+        // (rebuilds only on range growth, never per frame).
+        const tapeRanges = this._resolveConfiguredTapeRanges(fallbackGameplayConfig);
+        this._ensureSpeedTapeRange(Math.max(tapeRanges.speedMax, speed));
+        this._ensureAltTapeRange(Math.max(tapeRanges.altMax, alt));
+
         this._setText(this.speedValue, String(speed));
         this._setText(this.altValue, String(alt));
         this._setStyle(this.speedScale, 'transform', `translateY(0) translateY(${speed * 2}px)`);
@@ -244,10 +285,11 @@ export class HUD {
         let heading = -yawDeg;
         if (heading < 0) heading += 360;
         heading = heading % 360;
-        const headingInt = Math.round(heading);
+        // 359.5°..359.99° rounds to 360, which must display as 000.
+        const headingInt = Math.round(heading) % 360;
 
         this._setText(this.headingValue, headingInt.toString().padStart(3, '0'));
-        this._setStyle(this.headingScale, 'transform', `translateX(-50%) translateX(${-heading * 4}px)`);
+        this._setStyle(this.headingScale, 'transform', `translateX(${-heading * 4}px)`);
 
         const lockTarget = context?.lockTarget || null;
         if (lockTarget && lockTarget.alive) {
@@ -272,15 +314,68 @@ export class HUD {
                 this._vec.copy(this._targetPosition);
                 this._vec.project(camera);
 
-                const x = (this._vec.x * 0.5 + 0.5) * this.container.clientWidth;
-                const y = (-(this._vec.y * 0.5) + 0.5) * this.container.clientHeight;
-
-                if (this._vec.z < 1) {
-                    this._setStyle(this.lockReticle, 'left', `${x}px`);
-                    this._setStyle(this.lockReticle, 'top', `${y}px`);
-                } else {
-                    this._setClassFlag(this.lockReticle, 'hidden', true);
+                const width = this.container.clientWidth;
+                const height = this.container.clientHeight;
+                let x = (this._vec.x * 0.5 + 0.5) * width;
+                let y = (-(this._vec.y * 0.5) + 0.5) * height;
+                const behindCamera = this._vec.z >= 1;
+                if (behindCamera) {
+                    // NDC is mirrored for targets behind the camera; flip the
+                    // projected point so the bearing points the right way.
+                    x = width - x;
+                    y = height - y;
                 }
+
+                const margin = 28;
+                const offscreen = behindCamera
+                    || x < margin || x > width - margin
+                    || y < margin || y > height - margin;
+
+                if (offscreen) {
+                    // Clamp an arrow to the screen edge, pointing at the target.
+                    const centerX = width * 0.5;
+                    const centerY = height * 0.5;
+                    const dx = x - centerX;
+                    const dy = y - centerY;
+                    let edgeX = centerX;
+                    let edgeY = margin;
+                    let arrowDeg = 0;
+                    if (dx !== 0 || dy !== 0) {
+                        let t = Infinity;
+                        if (dx > 0) t = Math.min(t, (width - margin - centerX) / dx);
+                        else if (dx < 0) t = Math.min(t, (margin - centerX) / dx);
+                        if (dy > 0) t = Math.min(t, (height - margin - centerY) / dy);
+                        else if (dy < 0) t = Math.min(t, (margin - centerY) / dy);
+                        if (Number.isFinite(t)) {
+                            edgeX = centerX + dx * t;
+                            edgeY = centerY + dy * t;
+                        }
+                        arrowDeg = (Math.atan2(dy, dx) * 180) / Math.PI + 90;
+                    }
+                    this._setStyle(
+                        this.lockReticle,
+                        'transform',
+                        `translate(${edgeX}px, ${edgeY}px) translate(-50%, -50%)`
+                    );
+                    this._setStyle(
+                        this.lockArrow,
+                        'transform',
+                        `translate(-50%, -50%) rotate(${arrowDeg}deg)`
+                    );
+                    this._setClassFlag(this.lockBox, 'hidden', true);
+                    this._setClassFlag(this.lockArrow, 'hidden', false);
+                } else {
+                    this._setStyle(
+                        this.lockReticle,
+                        'transform',
+                        `translate(${x}px, ${y}px) translate(-50%, -50%)`
+                    );
+                    this._setClassFlag(this.lockBox, 'hidden', false);
+                    this._setClassFlag(this.lockArrow, 'hidden', true);
+                }
+                this._setClassFlag(this.lockReticle, 'hidden', false);
+            } else {
+                this._setClassFlag(this.lockReticle, 'hidden', true);
             }
         } else {
             this._setClassFlag(this.lockReticle, 'hidden', true);

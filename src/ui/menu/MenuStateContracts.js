@@ -8,6 +8,7 @@ import {
 } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { normalizeMobileClassicControlSettings } from '../../shared/contracts/MobileClassicControlsContract.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
+import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import {
     createMenuEventPlaylistStateDefaults,
     createMenuLocalSettingsDefaults,
@@ -208,6 +209,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
+        hud: normalizeHudAppearance(source.hud, defaults.hud),
         startSetup,
         toolsState,
         mobileControls,

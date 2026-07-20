@@ -1,6 +1,7 @@
 import { SETTINGS_CHANGE_KEYS, normalizeSettingsChangeKeys } from './SettingsChangeKeys.js';
 import { addChangedKeys, changedKeySetToArray } from './SettingsChangeSetOps.js';
 import { setupMenuGameplayBindings } from './menu/MenuGameplayBindings.js';
+import { bindMenuHudAppearanceControls } from './menu/MenuHudAppearanceBindings.js';
 import { setupMenuProfileBindings } from './menu/MenuProfileBindings.js';
 import { setupMenuControlBindings } from './menu/MenuControlBindings.js';
 import { setupMenuDevPanelBindings } from './menu/MenuDevPanelBindings.js';
@@ -139,6 +140,7 @@ export class MenuController {
         };
 
         setupMenuGameplayBindings(bindingContext);
+        bindMenuHudAppearanceControls(bindingContext);
         setupMenuProfileBindings(bindingContext);
         setupMenuControlBindings(bindingContext);
         setupMenuDevPanelBindings(bindingContext);

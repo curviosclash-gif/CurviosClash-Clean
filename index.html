@@ -704,6 +704,24 @@
                                     <p id="recording-profile-hint" class="field-hint">Aufnahmeprofil: Standard – ohne HUD</p>
                                 </div>
                             </details>
+
+                            <details id="level4-group-hud" class="level4-option-group">
+                                <summary>HUD</summary>
+                                <div class="level4-option-group-body">
+                                    <label for="hud-scale-slider">HUD-Größe: <span id="hud-scale-label">100%</span></label>
+                                    <input type="range" id="hud-scale-slider" min="60" max="140" step="5" value="100">
+                                    <label for="hud-opacity-slider">HUD-Deckkraft: <span id="hud-opacity-label">100%</span></label>
+                                    <input type="range" id="hud-opacity-slider" min="40" max="100" step="5" value="100">
+                                    <label for="hud-color-preset-select">HUD-Farbschema</label>
+                                    <select id="hud-color-preset-select">
+                                        <option value="green" selected>Grün (klassisch)</option>
+                                        <option value="amber">Amber</option>
+                                        <option value="cyan">Cyan</option>
+                                        <option value="white">Weiß (hoher Kontrast)</option>
+                                    </select>
+                                    <p id="hud-appearance-hint" class="field-hint">HUD: 100% – 100% – Grün</p>
+                                </div>
+                            </details>
                         </div>
                         </section>
 

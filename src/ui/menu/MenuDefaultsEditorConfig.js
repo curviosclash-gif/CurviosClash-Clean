@@ -4,6 +4,7 @@ import { createDefaultRecordingCaptureSettings } from '../../shared/contracts/Re
 import { createDefaultCameraPerspectiveSettings } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { DEFAULT_MOBILE_CLASSIC_CONTROLS } from '../../shared/contracts/MobileClassicControlsContract.js';
 import { GRAPHICS_STYLES } from '../../shared/contracts/GraphicsStyleContract.js';
+import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 
 export const MENU_DEFAULT_EDITOR_SCHEMA_VERSION = 'menu-default-editor.v1';
 export const MENU_DEFAULT_EVENT_PLAYLIST_ID = 'fun_rotation';
@@ -101,6 +102,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         shadowQuality: DEFAULT_SHADOW_QUALITY,
         mouseSteering: false,
+        hud: createDefaultHudAppearance(),
         startSetup: {
             mapSearch: '',
             mapFilter: 'all',

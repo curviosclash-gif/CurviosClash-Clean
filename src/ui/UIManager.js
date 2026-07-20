@@ -19,6 +19,8 @@ import {
     RECORDING_CAPTURE_PROFILE,
     RECORDING_HUD_MODE,
 } from '../shared/contracts/RecordingCaptureContract.js';
+import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
+import { applyHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
@@ -519,6 +521,19 @@ export class UIManager {
             ui.recordingProfileHint.textContent = `Aufnahmeprofil: ${profileLabel} - HUD: ${hudLabel}`;
         }
         syncNormalCameraPerspectiveUi(ui, settings?.cameraPerspective);
+
+        const hudAppearance = normalizeHudAppearance(settings?.localSettings?.hud);
+        const hudScalePercent = Math.round(hudAppearance.scale * 100);
+        const hudOpacityPercent = Math.round(hudAppearance.opacity * 100);
+        if (ui.hudScaleSlider) ui.hudScaleSlider.value = String(hudScalePercent);
+        if (ui.hudScaleLabel) ui.hudScaleLabel.textContent = `${hudScalePercent}%`;
+        if (ui.hudOpacitySlider) ui.hudOpacitySlider.value = String(hudOpacityPercent);
+        if (ui.hudOpacityLabel) ui.hudOpacityLabel.textContent = `${hudOpacityPercent}%`;
+        if (ui.hudColorPresetSelect) ui.hudColorPresetSelect.value = hudAppearance.colorPreset;
+        if (ui.hudAppearanceHint) {
+            ui.hudAppearanceHint.textContent = `HUD: ${hudScalePercent}% – ${hudOpacityPercent}% – ${resolveHudColorPresetLabel(hudAppearance.colorPreset)}`;
+        }
+        applyHudAppearance(ui.hud, hudAppearance);
 
         if (ui.planarModeToggle) ui.planarModeToggle.checked = !!gp.planarMode;
         if (Array.isArray(ui.dimensionModeButtons)) {
