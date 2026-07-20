@@ -390,6 +390,29 @@ export class HudRuntimeSystem {
 
     _updateItemBar(container, player, projection = null) {
         updateItemBar(container, player, projection, resolveGameplayConfig(this.game));
+        this._updateCooldownIndicator(container, player);
+    }
+
+    _updateCooldownIndicator(container, player) {
+        if (!this._cooldownIndicators) this._cooldownIndicators = new WeakMap();
+        let indicator = this._cooldownIndicators.get(container);
+        if (!indicator) {
+            indicator = document.createElement('div');
+            indicator.className = 'item-cooldown-global hidden';
+            container.parentNode?.insertBefore(indicator, container.nextSibling);
+            this._cooldownIndicators.set(container, indicator);
+        }
+        const remaining = Math.max(
+            0,
+            Number(player?.shootCooldown) || 0,
+            Number(player?.itemUseCooldownRemaining) || 0
+        );
+        if (remaining > 0.001) {
+            indicator.textContent = remaining.toFixed(1) + 's';
+            indicator.classList.remove('hidden');
+        } else {
+            indicator.classList.add('hidden');
+        }
     }
 
     _setHudP2Visibility(isVisible) {

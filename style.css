@@ -1885,6 +1885,16 @@ input[type="range"]::-webkit-slider-thumb {
     pointer-events: none;
 }
 
+.item-cooldown-global {
+    font-family: var(--menu-theme-display-font);
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: #ff7777;
+    text-align: center;
+    margin-top: 3px;
+    letter-spacing: 0.5px;
+}
+
 .item-cooldown-text {
     position: absolute;
     left: 0;

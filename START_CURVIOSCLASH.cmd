@@ -10,8 +10,21 @@ if errorlevel 1 (
 )
 
 call :package_is_valid
-if not errorlevel 1 goto :launch_package
+if errorlevel 1 goto :package_missing
+call :package_is_stale
+if errorlevel 1 goto :package_outdated
+goto :launch_package
 
+:package_outdated
+echo ==================================================
+echo   CurviosClash - Paket wird aktualisiert
+echo ==================================================
+echo.
+echo Quellcode ist neuer als das Paket. Das Paket wird jetzt aktualisiert.
+echo.
+goto :ensure_build_tools
+
+:package_missing
 echo ==================================================
 echo   CurviosClash - fertige Windows-Paketversion
 echo ==================================================
@@ -19,6 +32,7 @@ echo.
 echo Kein gueltiges Paket gefunden. Die Paketversion wird jetzt gebaut.
 echo.
 
+:ensure_build_tools
 where node >nul 2>nul
 if errorlevel 1 (
     echo FEHLER: Node.js wurde nicht gefunden. Benoetigt wird Node.js gemaess .nvmrc.
@@ -82,3 +96,11 @@ if not exist "%ROOT%release\win-unpacked\resources\dist-app\index.html" exit /b 
 if not exist "%ROOT%release\win-unpacked\resources\server\lan-signaling.js" exit /b 1
 if not exist "%ROOT%release\win-unpacked\resources\package.json" exit /b 1
 exit /b 0
+
+:package_is_stale
+rem Exit 1 = Paket veraltet (Rebuild noetig), Exit 0 = aktuell oder nicht pruefbar.
+if not exist "%ROOT%scripts\check-release-package-fresh.mjs" exit /b 0
+where node >nul 2>nul
+if errorlevel 1 exit /b 0
+node "%ROOT%scripts\check-release-package-fresh.mjs" "%ROOT%release\win-unpacked\resources\dist-app\index.html" "%ROOT%index.html" "%ROOT%hangar.html" "%ROOT%style.css" "%ROOT%app-shell.css" "%ROOT%package.json" "%ROOT%vite.config.js" "%ROOT%src" "%ROOT%electron" "%ROOT%server"
+exit /b %errorlevel%

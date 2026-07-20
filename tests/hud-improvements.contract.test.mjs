@@ -48,6 +48,8 @@ function createStubElement(className = '') {
         clientWidth: 800,
         clientHeight: 450,
         classList: createStubClassList(),
+        parentNode: null,
+        nextSibling: null,
         appendChild(child) {
             this.children.push(child);
             this.childNodes.push(child);
@@ -462,6 +464,30 @@ test('item slots stay empty and cooldown-free with an empty inventory', () => {
         assert.equal(iconEl.textContent, '');
         assert.equal(sweepEl.style.transform, 'scaleY(0)');
         assert.equal(cooldownTextEl.textContent, '');
+    } finally {
+        documentStub.restore();
+    }
+});
+
+test('cooldown indicator shows player shoot and use cooldowns independently of inventory slots', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const runtime = new HudRuntimeSystem({ game: {}, ports: null });
+        const container = createStubElement('item-bar');
+        const sibling = createStubElement();
+        container.parentNode = { insertBefore(child) { sibling._inserted = child; return child; } };
+        container.nextSibling = sibling;
+        // Player has a global shoot cooldown but empty inventory (item was
+        // consumed by takeInventoryItem, so no per-slot indicator would show).
+        runtime._updateItemBar(container, { inventory: [], shootCooldown: 1.25, itemUseCooldownRemaining: 0 }, { modeId: 'HUNT' });
+        const indicator = runtime._cooldownIndicators.get(container);
+        assert.ok(indicator, 'global cooldown indicator was created');
+        assert.equal(indicator.textContent, '1.3s');
+        assert.equal(indicator.classList.contains('hidden'), false);
+
+        // Cooldown ended.
+        runtime._updateItemBar(container, { inventory: [], shootCooldown: 0, itemUseCooldownRemaining: 0 }, { modeId: 'HUNT' });
+        assert.equal(indicator.classList.contains('hidden'), true);
     } finally {
         documentStub.restore();
     }
