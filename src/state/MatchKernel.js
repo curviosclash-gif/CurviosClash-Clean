@@ -64,6 +64,7 @@ function readPressedInput(inputAdapter, key) {
  */
 export function createHeadlessInputAdapter(inputFrame) {
     const players = Array.isArray(inputFrame?.players) ? inputFrame.players : [];
+    const commands = Array.isArray(inputFrame?.commands) ? inputFrame.commands : [];
     return {
         getPlayerInput(playerIndex, _options = {}) {
             const player = players[playerIndex];
@@ -76,9 +77,8 @@ export function createHeadlessInputAdapter(inputFrame) {
             inputState.isDown = (key) => actions[key] === true;
             return inputState;
         },
-        // headless: no global key events
-        wasPressed: () => false,
-        isDown: () => false,
+        wasPressed: (key) => commands.includes(key),
+        isDown: (key) => commands.includes(key),
     };
 }
 

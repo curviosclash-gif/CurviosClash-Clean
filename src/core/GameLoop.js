@@ -49,6 +49,7 @@ export class GameLoop {
     }
 
     start() {
+        if (this.running) return;
         this.running = true;
         this.lastTime = performance.now();
         this._errorShown = false;
@@ -187,7 +188,7 @@ export class GameLoop {
         }
 
         try {
-            while (this.accumulator >= this.fixedStep) {
+            while (this.running && this.accumulator >= this.fixedStep) {
                 const updateStart = runtimePerfProfiler?.startSample?.();
                 this.updateFn(this.fixedStep);
                 runtimePerfProfiler?.endSample?.('update', updateStart);

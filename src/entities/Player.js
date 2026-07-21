@@ -97,10 +97,11 @@ export class Player {
         this.spawnProtectionTimer = 0;
         this.planarAimOffset = 0;
         this.steeringLockTimer = 0;
+        this.currentPlanarY = 0;
         this.controlRampEnabled = false;
         this.controlRampRates = {
-            attack: 12.0,
-            release: 8.5,
+            attackRate: 12.0,
+            releaseRate: 8.5,
         };
         this.controlProfileId = '';
         this.dynamicActionAdapterEnabled = false;
@@ -293,9 +294,11 @@ export class Player {
             if (Number.isFinite(this._arcadeBaseSpeed) && this._arcadeBaseSpeed > 0) {
                 strategyMultiplier = currentPermanentSpeed / this._arcadeBaseSpeed;
                 this._arcadeBaseSpeed = options.speed;
+                this._fightBaseSpeed = null;
             } else if (Number.isFinite(this._fightBaseSpeed) && this._fightBaseSpeed > 0) {
                 strategyMultiplier = currentPermanentSpeed / this._fightBaseSpeed;
                 this._fightBaseSpeed = options.speed;
+                this._arcadeBaseSpeed = null;
             }
             if (!Number.isFinite(strategyMultiplier) || strategyMultiplier <= 0) {
                 strategyMultiplier = 1;
@@ -324,10 +327,10 @@ export class Player {
             this.controlRampEnabled = options.controlRampEnabled;
         }
         if (typeof options.controlRampAttackRate === 'number' && Number.isFinite(options.controlRampAttackRate) && options.controlRampAttackRate > 0) {
-            this.controlRampRates.attack = options.controlRampAttackRate;
+            this.controlRampRates.attackRate = options.controlRampAttackRate;
         }
         if (typeof options.controlRampReleaseRate === 'number' && Number.isFinite(options.controlRampReleaseRate) && options.controlRampReleaseRate > 0) {
-            this.controlRampRates.release = options.controlRampReleaseRate;
+            this.controlRampRates.releaseRate = options.controlRampReleaseRate;
         }
         this.controller?.setRampRates?.(this.controlRampRates);
     }
@@ -495,6 +498,7 @@ export class Player {
 
     dispose() {
         this.trail.dispose();
+        this.trail = null;
         this.view?.dispose();
 
         this.vehicleMesh = null;
@@ -506,6 +510,9 @@ export class Player {
         this.controller = null;
         this.particleSystem = null;
         this.view = null;
+        this.activeEffects = [];
+        this.gameplayConfig = null;
+        this.entityRuntimeConfig = null;
     }
 
     isSphereInOBB(worldCenter, radius) {
