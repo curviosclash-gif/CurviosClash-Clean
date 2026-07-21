@@ -19,7 +19,7 @@
 14. Stage ausschließlich Dateien der aktuellen Aufgabe und niemals pauschal mit `git add -A` oder `git add .`.
 15. Übernimm keine bereits vorhandenen oder fremden Änderungen. Bei Überschneidungen erstelle keinen Commit und melde den Konflikt.
 16. Ändere, squash oder rebase keine bestehenden Commits ohne ausdrücklichen Auftrag.
-17. Lösche KEINE untracked-Dateien ohne explizite Nutzerfreigabe. Bei `git status`-Bereinigung: zuerst Nutzer fragen, welche untracked-Dateien entfernt werden sollen. Niemals eigenständig `Remove-Item` auf untracked-Dateien ausführen.
+17. Lösche KEINE untracked-Dateien ohne explizite Nutzerfreigabe. Bei `git status`-Bereinigung: zuerst Nutzer fragen, welche untracked-Dateien entfernt werden sollen. Niemals eigenständig `Remove-Item` auf untracked-Dateien ausführen. Falls Löschung freigegeben: Dateien müssen wiederherstellbar sein (Recycle Bin via `Remove-Item` OHNE `-Force`, oder vorher nach `$env:TEMP\opencode-trash\` verschieben). Niemals `-Force`-Flag bei `Remove-Item` verwenden.
 18. Räume temporäre Test-Artefakte nur nach expliziter Nutzerfreigabe auf; dokumentiere vorher was gelöscht werden soll.
 
 ## Coding
