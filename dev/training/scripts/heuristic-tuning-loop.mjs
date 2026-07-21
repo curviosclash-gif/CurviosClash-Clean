@@ -8,9 +8,11 @@ import {
 import {
     HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
+import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
 
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
 const MAX_TICKS = 3600;
+const TUNING_SEEDS = Object.freeze([3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113]);
 
 function fightSettings(profile) {
     return {
@@ -34,50 +36,52 @@ function detectWinner(em) {
     return null;
 }
 
-async function runMatch(settings) {
-    const runtimeConfig = createRuntimeConfigSnapshot(settings);
-    const runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
-        settings, runtimeConfig,
-        requestedMapKey: runtimeConfig.session.mapKey,
-        profile: { sessionId: 'tuning-run', fixedStepSeconds: FIXED_STEP, deterministic: true },
-    }));
+async function runMatch(settings, seed) {
+    const originalRandom = Math.random;
+    const seededRandom = createRuntimeRng({ seed });
+    let runtime = null;
+    Math.random = seededRandom.next;
+    try {
+        const runtimeConfig = createRuntimeConfigSnapshot(settings);
+        runtime = await Promise.resolve(createHeadlessMatchKernelRuntime({
+            settings, runtimeConfig,
+            requestedMapKey: runtimeConfig.session.mapKey,
+            profile: { sessionId: `tuning-run-${seed}`, fixedStepSeconds: FIXED_STEP, deterministic: true },
+        }));
 
-    const em = runtime.session.entityManager;
-    const bots = em.players.filter((p) => p.isBot);
-    const prevAlive = em.players.map(() => true);
-    const deathTicks = {};
-    let winner = null, endTick = MAX_TICKS;
+        const em = runtime.session.entityManager;
+        let winner = null, endTick = MAX_TICKS;
 
-    for (let frame = 1; frame <= MAX_TICKS; frame++) {
-        runtime.step(
-            { players: [{ actions: {} }] },
-            { tickIndex: runtime.kernel.tickIndex, fixedStepSeconds: FIXED_STEP, frameId: frame, wallClockMs: frame * 16, highResTimestampMs: frame * 16 }
-        );
-        for (const p of em.players) { if (prevAlive[p.index] && !p.alive) deathTicks[p.index] = frame; prevAlive[p.index] = p.alive; }
-        winner = detectWinner(em);
-        if (winner) { endTick = frame; break; }
+        for (let frame = 1; frame <= MAX_TICKS; frame++) {
+            runtime.step(
+                { players: [{ actions: {} }] },
+                { tickIndex: runtime.kernel.tickIndex, fixedStepSeconds: FIXED_STEP, frameId: frame, wallClockMs: frame * 16, highResTimestampMs: frame * 16 }
+            );
+            winner = detectWinner(em);
+            if (winner) { endTick = frame; break; }
+        }
+        if (!winner && em.players.some((p) => p.alive)) { const a = em.players.filter((p) => p.alive); winner = { winner: a[0].index, isBot: a[0].isBot }; }
+        if (!winner) winner = { winner: -1, isBot: false };
+
+        return { durationSeconds: endTick * FIXED_STEP, forced: endTick >= MAX_TICKS };
+    } finally {
+        runtime?.dispose();
+        Math.random = originalRandom;
     }
-    if (!winner && em.players.some((p) => p.alive)) { const a = em.players.filter((p) => p.alive); winner = { winner: a[0].index, isBot: a[0].isBot }; }
-    if (!winner) winner = { winner: -1, isBot: false };
-
-    const survival = {};
-    for (const bot of bots) survival[`bot_${bot.index}`] = (deathTicks[bot.index] || endTick) * FIXED_STEP;
-    runtime.dispose();
-    return { winnerIsBot: winner.isBot, winnerIndex: winner.winner, endTick, survival, forced: endTick >= MAX_TICKS };
 }
 
 function avg(arr) { return arr.reduce((a, b) => a + b, 0) / arr.length; }
 function med(arr) { const s = [...arr].sort((a, b) => a - b); return s[Math.floor(s.length / 2)]; }
 
-async function runBattery(settingsFn, rounds) {
+async function runBattery(settingsFn, seeds) {
     const profiles = Object.keys(HEURISTIC_PROFILES);
-    const data = {}; for (const p of profiles) data[p] = { wins: 0, rounds: 0, survivals: [], forced: 0 };
-    for (let r = 0; r < rounds; r++) {
+    const data = {}; for (const p of profiles) data[p] = { rounds: 0, durations: [], forced: 0 };
+    for (const seed of seeds) {
         for (const profile of profiles) {
-            const res = await runMatch(settingsFn(profile));
-            data[profile].rounds++; if (res.winnerIsBot) data[profile].wins++;
+            const res = await runMatch(settingsFn(profile), seed);
+            data[profile].rounds++;
             if (res.forced) data[profile].forced++;
-            Object.values(res.survival).forEach((s) => data[profile].survivals.push(s));
+            data[profile].durations.push(res.durationSeconds);
         }
     }
     return data;
@@ -85,11 +89,11 @@ async function runBattery(settingsFn, rounds) {
 
 function printTable(title, data) {
     console.log(`\n### ${title} ###\n`);
-    console.log('| Profil     | Runden | Bot-Wins | Forced | Survival O | Median |');
-    console.log('|------------|--------|----------|--------|------------|--------|');
+    console.log('| Profil     | Runden | Forced | Dauer O | Median |');
+    console.log('|------------|--------|--------|---------|--------|');
     for (const profile of Object.keys(HEURISTIC_PROFILES)) {
         const d = data[profile];
-        console.log(`| ${profile.padEnd(10)} | ${String(d.rounds).padEnd(6)} | ${String(d.wins).padEnd(8)} | ${String(d.forced).padEnd(6)} | ${avg(d.survivals).toFixed(1).padEnd(10)}s | ${med(d.survivals).toFixed(1).padEnd(6)}s |`);
+        console.log(`| ${profile.padEnd(10)} | ${String(d.rounds).padEnd(6)} | ${String(d.forced).padEnd(6)} | ${avg(d.durations).toFixed(1).padEnd(7)}s | ${med(d.durations).toFixed(1).padEnd(6)}s |`);
     }
 }
 
@@ -102,20 +106,18 @@ function printDelta(label, def, agg, fn) {
 async function main() {
     console.log('=== HEADLESS KERNEL TUNING LOOP ===');
     console.log('Fight: 2 bots, 100 HP, 15 MG, no respawn\n');
-    const ROUNDS = 12;
-    console.log(`Running ${ROUNDS} rounds per profile...`);
+    console.log(`Running ${TUNING_SEEDS.length} seeded rounds per profile...`);
 
-    const fight = await runBattery(fightSettings, ROUNDS);
+    const fight = await runBattery(fightSettings, TUNING_SEEDS);
     printTable('FIGHT MODE', fight);
 
     console.log('\n=== DELTA ANALYSIS (defensive vs aggressive) ===\n');
     const d = fight.defensive, a = fight.aggressive;
-    printDelta('Fight Survival O', d, a, (x) => avg(x.survivals));
-    printDelta('Fight Survival Med', d, a, (x) => med(x.survivals));
-    printDelta('Fight Winrate %', d, a, (x) => x.wins / x.rounds * 100);
+    printDelta('Fight Duration O', d, a, (x) => avg(x.durations));
+    printDelta('Fight Duration Med', d, a, (x) => med(x.durations));
     printDelta('Fight Forced %', d, a, (x) => x.forced / x.rounds * 100);
 
-    const dA = avg(d.survivals), aA = avg(a.survivals);
+    const dA = avg(d.durations), aA = avg(a.durations);
     const spread = ((dA - aA) / Math.max(0.01, (dA + aA) / 2)) * 100;
     console.log(`\nProfile spread: ${spread.toFixed(1)}%`);
     if (spread < 10) console.log('NARROW -- widen safetyDistance gap');

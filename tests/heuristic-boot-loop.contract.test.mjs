@@ -341,5 +341,5 @@ test('boot loop: multi-enemy scene picks nearest valid target', () => {
     const ctx = classicCtx(player); ctx.players = [player, near, far];
     let target = -1;
     for (let t = 0; t < 10; t++) { policy.update(DT, player, ctx); target = policy._classicState.targetIndex; }
-    assert.ok(target === near.index || target === far.index);
+    assert.equal(target, near.index);
 });
