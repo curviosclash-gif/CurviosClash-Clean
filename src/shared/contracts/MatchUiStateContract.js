@@ -37,6 +37,8 @@ export function deriveMatchLoadingUiState(inputs = {}) {
 
 export function deriveReturnToMenuUiState() {
     return {
+        splitScreenEnabled: false,
+        p2HudVisible: false,
         visibility: {
             mainMenuHidden: false,
             hudHidden: true,

@@ -150,6 +150,7 @@ export class MatchFlowUiController {
         }
 
         if (typeof uiState?.splitScreenEnabled === 'boolean') {
+            game.ui.hud?.classList.toggle('split-screen', uiState.splitScreenEnabled);
             if (this.runtimePort?.setSplitScreen) {
                 this.runtimePort.setSplitScreen(uiState.splitScreenEnabled);
             } else {

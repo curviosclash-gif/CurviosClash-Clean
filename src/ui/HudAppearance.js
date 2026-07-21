@@ -88,3 +88,18 @@ export function applyHudAppearance(rootElement, appearance) {
     setHudStyleVar(style, '--hud-glow', presetVars.glow);
     setHudStyleVar(style, '--hud-bg', presetVars.bg);
 }
+
+/**
+ * Applies appearance to the main HUD and the document root. Arcade overlays
+ * are mounted under document.body, so they cannot inherit variables from
+ * #hud alone.
+ */
+export function applyRuntimeHudAppearance(hudElement, appearance) {
+    applyHudAppearance(hudElement, appearance);
+    const documentElement = hudElement?.ownerDocument?.documentElement
+        || globalThis.document?.documentElement
+        || null;
+    if (documentElement && documentElement !== hudElement) {
+        applyHudAppearance(documentElement, appearance);
+    }
+}

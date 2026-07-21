@@ -20,7 +20,7 @@ import {
     RECORDING_HUD_MODE,
 } from '../shared/contracts/RecordingCaptureContract.js';
 import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
-import { applyHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
+import { applyRuntimeHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
@@ -533,7 +533,7 @@ export class UIManager {
         if (ui.hudAppearanceHint) {
             ui.hudAppearanceHint.textContent = `HUD: ${hudScalePercent}% – ${hudOpacityPercent}% – ${resolveHudColorPresetLabel(hudAppearance.colorPreset)}`;
         }
-        applyHudAppearance(ui.hud, hudAppearance);
+        applyRuntimeHudAppearance(ui.hud, hudAppearance);
 
         if (ui.planarModeToggle) ui.planarModeToggle.checked = !!gp.planarMode;
         if (Array.isArray(ui.dimensionModeButtons)) {

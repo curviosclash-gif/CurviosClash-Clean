@@ -23,6 +23,10 @@ import {
     resolveRuntimeNetworkPlayerSlots,
 } from '../src/core/runtime/RuntimeNetworkPlayerSlots.js';
 import { MatchFlowUiController } from '../src/ui/MatchFlowUiController.js';
+import {
+    deriveMatchStartUiState,
+    deriveReturnToMenuUiState,
+} from '../src/shared/contracts/MatchUiStateContract.js';
 import { RECORDING_CAPTURE_PROFILE } from '../src/shared/contracts/RecordingCaptureContract.js';
 import {
     classifyMatchRuntimeProjectionVersion,
@@ -117,6 +121,47 @@ test('MatchFlow UI controller port forwards runtime projections when provided', 
 
     assert.equal(port.getSessionRuntimeSnapshot(), runtimeSnapshot);
     assert.equal(port.getMatchRuntimeProjection(), runtimeProjection);
+});
+
+test('MatchFlowUiController projects split-screen layout state and clears it on menu return', () => {
+    const createClassList = () => {
+        const values = new Set();
+        return {
+            contains: (value) => values.has(value),
+            toggle(value, force) {
+                if (force) values.add(value);
+                else values.delete(value);
+            },
+        };
+    };
+    const splitCalls = [];
+    const hudClassList = createClassList();
+    const p2ClassList = createClassList();
+    const controller = new MatchFlowUiController({
+        game: {
+            ui: {
+                hud: { classList: hudClassList },
+                p2Hud: { classList: p2ClassList },
+            },
+        },
+        runtimePort: {
+            setSplitScreen: (enabled) => splitCalls.push(enabled),
+        },
+        sessionOrchestrator: {},
+    });
+    controller._syncArcadeOverlayPanel = () => {};
+
+    controller.applyMatchUiState(deriveMatchStartUiState({ numHumans: 2 }));
+    assert.equal(hudClassList.contains('split-screen'), true);
+    assert.equal(p2ClassList.contains('hidden'), false);
+
+    controller.applyMatchUiState({ visibility: { pauseOverlayHidden: true } });
+    assert.equal(hudClassList.contains('split-screen'), true, 'partial states preserve match layout');
+
+    controller.applyMatchUiState(deriveReturnToMenuUiState());
+    assert.equal(hudClassList.contains('split-screen'), false);
+    assert.equal(p2ClassList.contains('hidden'), true);
+    assert.deepEqual(splitCalls, [true, false]);
 });
 
 test('MatchFlowUiController assigns the start inflight guard before reentrant work', async () => {

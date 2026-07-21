@@ -456,7 +456,7 @@ export class HuntHUD {
         const intensity = clamp01(indicator.intensity || INDICATOR_DEFAULT_INTENSITY);
         element.classList.remove('hidden');
         element.style.opacity = String(Math.max(INDICATOR_MIN_OPACITY, intensity));
-        element.style.transform = `translate(-50%, -50%) rotate(${angle.toFixed(1)}deg)`;
+        element.style.transform = `translate(-50%, -50%) rotate(${angle.toFixed(1)}deg) scale(var(--hud-scale, 1))`;
     }
 
     _updateDamageIndicators(dt, humans = [], huntProjection = null) {

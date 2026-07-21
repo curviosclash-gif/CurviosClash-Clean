@@ -13,7 +13,11 @@ import {
     normalizeHudColorPreset,
 } from '../src/shared/contracts/HudAppearanceContract.js';
 import { HUD } from '../src/ui/HUD.js';
-import { applyHudAppearance, resolveHudColorPresetLabel } from '../src/ui/HudAppearance.js';
+import {
+    applyHudAppearance,
+    applyRuntimeHudAppearance,
+    resolveHudColorPresetLabel,
+} from '../src/ui/HudAppearance.js';
 import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
 
@@ -211,6 +215,30 @@ test('applyHudAppearance keeps the HUD visible for invalid input and missing ele
     assert.doesNotThrow(() => applyHudAppearance(null, null));
 });
 
+test('applyRuntimeHudAppearance reaches body-mounted HUD overlays through the document root', () => {
+    const hudProperties = new Map();
+    const documentProperties = new Map();
+    const documentElement = {
+        style: {
+            setProperty(name, value) { documentProperties.set(name, value); },
+        },
+    };
+    const hud = {
+        ownerDocument: { documentElement },
+        style: {
+            setProperty(name, value) { hudProperties.set(name, value); },
+        },
+    };
+
+    applyRuntimeHudAppearance(hud, { scale: 1.4, opacity: 0.4, colorPreset: 'cyan' });
+
+    for (const properties of [hudProperties, documentProperties]) {
+        assert.equal(properties.get('--hud-scale'), '1.4');
+        assert.equal(properties.get('--hud-opacity'), '0.4');
+        assert.equal(properties.get('--hud-color'), '#8ddcff');
+    }
+});
+
 test('resolveHudColorPresetLabel returns German labels with fallback', () => {
     assert.equal(resolveHudColorPresetLabel('green'), 'Grün');
     assert.equal(resolveHudColorPresetLabel('white'), 'Weiß');
@@ -307,7 +335,7 @@ test('HUD update rotates the artificial horizon with roll and shifts it with pit
         });
         hud.update(player, 0.05, {});
         const transform = String(hud.horizon.style.transform || '');
-        const match = /^translate\(-50%, -50%\) rotate\((-?[\d.e+-]+)deg\) translateY\((-?[\d.e+-]+)px\)$/.exec(transform);
+        const match = /^translate\(-50%, -50%\) rotate\((-?[\d.e+-]+)deg\) translateY\((-?[\d.e+-]+)px\) scale\(var\(--hud-scale, 1\)\)$/.exec(transform);
         assert.ok(match, `horizon transform carries roll and pitch: ${transform}`);
         assert.ok(Math.abs(Number(match[1]) - 90) < 0.01, `roll term ~90deg, got ${match[1]}`);
         assert.ok(Math.abs(Number(match[2])) < 0.01, `pitch term ~0px, got ${match[2]}`);
@@ -362,6 +390,7 @@ test('HUD lock reticle uses transforms and clamps an arrow for off-screen target
         assert.equal(hud.lockBox.classList.contains('hidden'), false);
         assert.equal(hud.lockArrow.classList.contains('hidden'), true);
         assert.match(hud.lockReticle.style.transform, /^translate\(400px, 225px\)/);
+        assert.match(hud.lockReticle.style.transform, /scale\(var\(--hud-scale, 1\)\)$/);
         assert.equal(hud.lockReticle.style.left, undefined);
 
         const behindTarget = { alive: true, position: { x: 5, y: 12, z: 30 } };

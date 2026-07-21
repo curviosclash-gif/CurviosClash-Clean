@@ -251,12 +251,12 @@ export class HUD {
 
         // Artificial horizon: rotate with roll and shift with pitch so the
         // horizon line and pitch ladder stay world-referenced.
-        const attitudeTransform = `translate(-50%, -50%) rotate(${rollDeg}deg) translateY(${pitchDeg * 8}px)`;
+        const attitudeTransform = `translate(-50%, -50%) rotate(${rollDeg}deg) translateY(${pitchDeg * 8}px) scale(var(--hud-scale, 1))`;
         this._setStyle(this.horizon, 'transform', attitudeTransform);
         this._setStyle(this.pitchLadder, 'transform', attitudeTransform);
 
         if (this.bankLine) {
-            this._setStyle(this.bankLine, 'transform', `translate(-50%, -50%) rotate(${rollDeg}deg)`);
+            this._setStyle(this.bankLine, 'transform', `translate(-50%, -50%) rotate(${rollDeg}deg) scale(var(--hud-scale, 1))`);
         }
         if (this.bankAngle) {
             const rollInt = Math.round(rollDeg);
@@ -355,7 +355,7 @@ export class HUD {
                     this._setStyle(
                         this.lockReticle,
                         'transform',
-                        `translate(${edgeX}px, ${edgeY}px) translate(-50%, -50%)`
+                        `translate(${edgeX}px, ${edgeY}px) translate(-50%, -50%) scale(var(--hud-scale, 1))`
                     );
                     this._setStyle(
                         this.lockArrow,
@@ -368,7 +368,7 @@ export class HUD {
                     this._setStyle(
                         this.lockReticle,
                         'transform',
-                        `translate(${x}px, ${y}px) translate(-50%, -50%)`
+                        `translate(${x}px, ${y}px) translate(-50%, -50%) scale(var(--hud-scale, 1))`
                     );
                     this._setClassFlag(this.lockBox, 'hidden', false);
                     this._setClassFlag(this.lockArrow, 'hidden', true);
