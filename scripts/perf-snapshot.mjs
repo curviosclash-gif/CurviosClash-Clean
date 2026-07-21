@@ -31,6 +31,9 @@ function parseArgs() {
             case '--raw':
                 result.raw = true;
                 break;
+            case '--subsystem-stats':
+                result.subsystemStats = true;
+                break;
         }
     }
     return result;
@@ -86,11 +89,22 @@ async function main() {
     for (let i = 0; i < opts.ticks; i++) {
         const frameStartMs = performance.now();
         profiler.beginFrame(0, timestampMs);
+
+        const updateStart = profiler.startSample();
         runtime.step(emptyFrame, {
             tickIndex: runtime.kernel.tickIndex,
             fixedStepSeconds: MATCH_KERNEL_FIXED_STEP_SECONDS,
             frameId: opts.warmup + i,
         });
+        profiler.endSample('update', updateStart);
+
+        if (opts.subsystemStats) {
+            const session = runtime.session;
+            if (session?.entityManager?.lastCollisionMs !== undefined) {
+                profiler.recordSubsystemDuration('collision', session.entityManager.lastCollisionMs);
+            }
+        }
+
         profiler.endFrame(performance.now() - frameStartMs, timestampMs);
         timestampMs += MATCH_KERNEL_FIXED_STEP_SECONDS * 1000;
     }
