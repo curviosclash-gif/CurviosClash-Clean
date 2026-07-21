@@ -137,7 +137,7 @@ test('final safety arbiter vetoes Hunt combat and boost when a trail blocks the 
     const enemy = createPlayer(2, false);
     enemy.position.set(0, 0, -30);
     player.inventory = ['ROCKET_HEAVY'];
-    const policy = new HeuristicBotPolicy({ difficulty: 'HARD' });
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
     policy._huntState.movementIntent = 'strafe';
     const action = policy.update(1 / 60, player, {
         mode: 'HUNT',

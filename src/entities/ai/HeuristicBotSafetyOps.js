@@ -32,7 +32,7 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     probeSideSpread: 0.82,
     probeRadiusMultiplier: 1.6,
     trailSkipRecentSegments: 20,
-    minimumDangerClearance: 0.34,
+    minimumDangerClearance: 0.22,
     turnTieThreshold: 0.06,
     turnSwitchMargin: 0.14,
     verticalPreferenceMargin: 0.05,
