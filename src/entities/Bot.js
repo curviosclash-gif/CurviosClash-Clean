@@ -192,11 +192,11 @@ export class BotAI {
         this._checkStuckTimer -= dt;
         this._recentBouncePressure = Math.max(0, this._recentBouncePressure - dt * 1.35);
         this._bounceStreakTimer = Math.max(0, this._bounceStreakTimer - dt);
-        if (this._bounceStreakTimer === 0) {
+        if (this._bounceStreakTimer <= 0) {
             this._bounceStreak = 0;
         }
         this._recoveryChainTimer = Math.max(0, this._recoveryChainTimer - dt);
-        if (this._recoveryChainTimer === 0) {
+        if (this._recoveryChainTimer <= 0) {
             this._recoveryChainCount = 0;
             this._lastRecoveryReason = '';
         }
@@ -208,7 +208,7 @@ export class BotAI {
         this.state.itemShootCooldown = Math.max(0, this.state.itemShootCooldown - dt);
         this.state.portalIntentTimer = Math.max(0, this.state.portalIntentTimer - dt);
 
-        if (this.state.portalIntentTimer === 0) {
+        if (this.state.portalIntentTimer <= 0) {
             this.state.portalIntentActive = false;
             this.state.portalIntentScore = 0;
             this._portalTarget = null;
