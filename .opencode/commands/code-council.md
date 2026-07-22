@@ -200,14 +200,16 @@ Starte council-verify ZWEIMAL parallel mit allen 🔴-Findings und 🟠-Findings
 - **verify-run-2**: Unabhängige Zweitmeinung
 Nur Findings mit BEIDE TRUE gelten als bestätigt. Disagree → "nicht verifizierbar".
 
-### 8. FEEDBACK-LOOP (eine Iteration)
+### 8. BEGRENZTER REPAIR-LOOP (maximal zwei Reparaturrunden)
 Falls nach Verifikation BESTÄTIGTE 🔴- oder 🟠-Findings existieren:
 1. Ordne jedes Finding dem verantwortlichen Scope zu
-2. Starte die betroffenen Scopes EINMALIG neu mit dem Finding als Zusatzkontext:
+2. Starte ausschließlich die betroffenen Scopes mit dem Finding als Zusatzkontext:
    "Zusätzlich zu deinem Scope-Auftrag: Behebe dieses von council-verify bestätigte Problem: <Finding>"
 3. Nur 1 Agent pro Scope (keine 3-Wege-Selektion), direkt implementieren
 4. Erneut Build & Test Gate (Schritt 4)
-5. KEINE weitere Iteration — nicht behobene Findings als "offen" dokumentieren
+5. Fokussiertes Re-Review durch den zuständigen Fach-Reviewer und danach `council-verify` erneut ZWEIMAL unabhängig
+6. Wiederhole höchstens einmal (maximal zwei Reparaturrunden insgesamt). Keine neue Architekturentscheidung, keine parallelen Schreibzugriffe.
+7. Bleibt dasselbe Finding bestehen, entstehen neue Regressionen oder widersprechen sich die Verify-Läufe: STOP und als "offen/nicht verifizierbar" dokumentieren
 
 ### 9. ABSCHLUSS
 Präsentiere den konsolidierten Report:

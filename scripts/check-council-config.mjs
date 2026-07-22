@@ -109,10 +109,13 @@ for (const file of ['code-council.md', 'code-council-loop.md', 'code-council-sco
 }
 
 const loopCommand = read(join(COMMAND_DIR, 'code-council-loop.md'));
-expect(/Build PASSED UND Tests PASSED UND critical == 0/.test(loopCommand), 'code-council-loop.md: early pass must require build, tests, and zero critical findings');
+expect(/Build PASSED UND Tests PASSED UND keine doppelt bestätigten/.test(loopCommand), 'code-council-loop.md: early pass must require build, tests, and no doubly confirmed actionable findings');
+expect(/maximal zwei Reparaturrunden/.test(loopCommand), 'code-council-loop.md: repair loop must have a hard two-round limit');
+expect(/zuständige Fach-Reviewer/.test(loopCommand), 'code-council-loop.md: repair rounds must use focused specialist review');
 
 const codeCouncilCommand = read(join(COMMAND_DIR, 'code-council.md'));
 expect(/council-verify ZWEIMAL parallel/.test(codeCouncilCommand), 'code-council.md: redundant verification must run twice in parallel');
+expect(/BEGRENZTER REPAIR-LOOP \(maximal zwei Reparaturrunden\)/.test(codeCouncilCommand), 'code-council.md: bounded repair loop is required');
 
 const preflightText = read(join(AGENT_DIR, 'council-preflight.md'));
 for (const model of configuredFreeModels) {

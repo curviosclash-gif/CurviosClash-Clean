@@ -6,9 +6,13 @@ import process from 'node:process';
 
 const STATE_DIR = join(tmpdir(), 'opencode');
 const STATE_FILE = join(STATE_DIR, 'code-council-loop-state.json');
-const MAX_ITERATIONS = process.env.COUNCIL_MAX_ITERATIONS
-    ? parseInt(process.env.COUNCIL_MAX_ITERATIONS, 10)
+const requestedIterations = process.env.COUNCIL_MAX_ITERATIONS
+    ? Number.parseInt(process.env.COUNCIL_MAX_ITERATIONS, 10)
     : 3;
+const MAX_REPAIR_ROUNDS = Number.isInteger(requestedIterations)
+    ? Math.min(2, Math.max(0, requestedIterations - 1))
+    : 2;
+const MAX_ITERATIONS = MAX_REPAIR_ROUNDS + 1;
 
 const SCOPES = ['arch', 'refactor', 'review', 'sec', 'test', 'perf'];
 
@@ -89,6 +93,17 @@ function parseOpenFindings(value) {
     }
 }
 
+function isConfirmedFinding(finding) {
+    return finding.verified === true
+        || (finding.verifyRun1 === 'TRUE' && finding.verifyRun2 === 'TRUE');
+}
+
+function confirmedActionableFindings(entry) {
+    return (entry.openFindings || []).filter((finding) =>
+        (finding.severity === '🔴' || finding.severity === '🟠')
+        && isConfirmedFinding(finding));
+}
+
 function buildFeedbackContext(history) {
     if (history.length === 0) return '';
     const prev = history[history.length - 1];
@@ -96,16 +111,11 @@ function buildFeedbackContext(history) {
         `## Feedback aus Iteration ${prev.iteration}`,
         `### Build: ${prev.buildPassed ? 'PASSED' : 'FAILED'}`,
     ];
-    if (prev.findings.critical > 0) {
-        lines.push('### Offene 🔴-Findings:');
-        for (const f of (prev.openFindings || [])) {
-            if (f.severity === '🔴') lines.push(`- [${f.file}:${f.line}] ${f.problem}`);
-        }
-    }
-    if (prev.findings.major > 0) {
-        lines.push('### 🟠-Warnungen:');
-        for (const f of (prev.openFindings || [])) {
-            if (f.severity === '🟠') lines.push(`- [${f.file}:${f.line}] ${f.problem}`);
+    const confirmed = confirmedActionableFindings(prev);
+    if (confirmed.length > 0) {
+        lines.push('### Doppelt bestätigte 🔴/🟠-Findings:');
+        for (const f of confirmed) {
+            lines.push(`- [${f.scope}] [${f.file}:${f.line}] ${f.problem}`);
         }
     }
     lines.push(`### Änderungsstatistik: ${prev.filesChanged} Dateien, +${prev.linesAdded}/-${prev.linesRemoved} Lines`);
@@ -128,12 +138,14 @@ function checkConvergence(history) {
     const last = history[history.length - 1];
     if (!last) return { exit: false };
 
-    if (last.buildPassed && last.testsPassed && last.findings.critical === 0) {
+    const actionable = confirmedActionableFindings(last);
+    if (last.buildPassed && last.testsPassed && actionable.length === 0) {
         return { exit: true, reason: 'early_pass' };
     }
     if (history.length >= 2) {
         const prev = history[history.length - 2];
-        if (last.findings.critical >= prev.findings.critical && last.findings.critical > 0) {
+        const previousActionableCount = confirmedActionableFindings(prev).length;
+        if (actionable.length >= previousActionableCount && actionable.length > 0) {
             return { exit: true, reason: 'stagnation' };
         }
     }
@@ -148,10 +160,12 @@ function printPrompt(iteration, feedbackContext, activeScopes) {
     const skipNote = skipList.length > 0
         ? `\nÜBERSPRINGE Scopes (0 Delta in Vorrunde): ${skipList.join(', ')}`
         : '';
-    const reviewCount = iteration === 1 ? 30 : 10;
+    const reviewInstruction = iteration === 1
+        ? 'Vollständiges Council-Review (30 Reviews).'
+        : 'Fokussiertes Re-Review: je aktivem Scope nur der zuständige Fach-Reviewer; danach council-verify zweimal unabhängig.';
     const planFocus = iteration === 1
         ? 'Erstelle einen vollständigen Plan.'
-        : 'Plane NUR für die offenen 🔴-Findings aus dem Feedback-Kontext.';
+        : 'Plane und repariere NUR die doppelt bestätigten 🔴/🟠-Findings aus dem Feedback-Kontext.';
 
     process.stdout.write(`
 === CODING COUNCIL ITERATION ${iteration} ===
@@ -161,7 +175,8 @@ ${'-'.repeat(40)}
 INSTRUKTIONEN:
 - ${planFocus}
 - Fokussiere auf Dateien aus vorherigen Findings.
-- ${reviewCount}x Council-Review.
+- ${reviewInstruction}
+- Reparaturrunde ${Math.max(0, iteration - 1)} von ${MAX_REPAIR_ROUNDS}; keine neue Architekturentscheidung und keine parallelen Schreibzugriffe.
 ${skipNote}
 AKTIVE SCOPES: ${activeScopes.join(' → ')}
 ${'-'.repeat(40)}
@@ -275,10 +290,13 @@ switch (command) {
             timestamp: nowISO(),
         });
 
-        const criticalScopes = [...new Set(openFindings
-            .filter((finding) => finding.severity === '🔴' && SCOPES.includes(finding.scope))
+        const repairScopes = [...new Set(openFindings
+            .filter((finding) =>
+                (finding.severity === '🔴' || finding.severity === '🟠')
+                && isConfirmedFinding(finding)
+                && SCOPES.includes(finding.scope))
             .map((finding) => finding.scope))];
-        if (critical > 0 && criticalScopes.length > 0) state.activeScopes = criticalScopes;
+        if (repairScopes.length > 0) state.activeScopes = repairScopes;
 
         const conv = checkConvergence(state.history);
         if (conv.exit) {
@@ -319,12 +337,12 @@ switch (command) {
 Verwendung:
   node scripts/council-runner.mjs init "<Aufgabenbeschreibung>"
   node scripts/council-runner.mjs next
-  node scripts/council-runner.mjs record <critical> <major> <minor> '[{"severity":"🔴","scope":"review","file":"src/example.js","line":1,"problem":"..."}]'
+  node scripts/council-runner.mjs record <critical> <major> <minor> '[{"severity":"🔴","scope":"review","file":"src/example.js","line":1,"problem":"...","verifyRun1":"TRUE","verifyRun2":"TRUE"}]'
   node scripts/council-runner.mjs report
   node scripts/council-runner.mjs reset
 
 Umgebungsvariablen:
-  COUNCIL_MAX_ITERATIONS=3  (default)
+  COUNCIL_MAX_ITERATIONS=3  (default: Erstdurchlauf + 2 Reparaturrunden)
   COUNCIL_FINDINGS_JSON='[...]'  (Alternative zum letzten record-Argument)
 `);
     }

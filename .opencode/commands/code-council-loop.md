@@ -10,10 +10,10 @@ $ARGUMENTS
 
 | Parameter | Default | Beschreibung |
 |-----------|---------|--------------|
-| MAX_ITERATIONS | 3 | Maximale Anzahl Iterationen |
-| CONVERGENCE_THRESHOLD | 0 | Keine neuen 🔴-Findings mehr |
+| MAX_ITERATIONS | 3 | Erstdurchlauf plus maximal zwei Reparaturrunden |
+| CONVERGENCE_THRESHOLD | 0 | Keine doppelt bestätigten 🔴/🟠-Findings mehr |
 | MIN_IMPROVEMENT | 1 | Mindest-Reduktion an Findings pro Iteration |
-| EARLY_EXIT_ON_PASS | true | Beenden, wenn Build+Test+0🔴 in einer Iteration |
+| EARLY_EXIT_ON_PASS | true | Beenden, wenn Build+Test grün und keine bestätigten 🔴/🟠 offen sind |
 
 ## State-Tracking (Datei)
 
@@ -45,8 +45,7 @@ Initial:
 
 #### 2. FEEDBACK-KONTEXT BAUEN
 Sammle aus den vorherigen Iterationen (`history`):
-- Alle 🔴-Findings aus der vorherigen Iteration (als "zu behebende Probleme")
-- Alle 🟠-Findings aus der vorherigen Iteration (als "Warnungen")
+- Nur 🔴- und 🟠-Findings, die in beiden unabhängigen Verify-Läufen TRUE erhielten
 - Änderungs-Statistik (wie viele Dateien geändert, Lines Added/Removed)
 - Build/Test-Ergebnis der vorherigen Iteration
 
@@ -54,10 +53,8 @@ Erzeuge einen FEEDBACK-KONTEXT-String:
 ```
 ## Feedback aus Iteration N-1
 ### Build & Test: <PASSED/FAILED>
-### Offene 🔴-Findings:
-- [Datei:Zeile] Beschreibung
-### 🟠-Warnungen:
-- [Datei:Zeile] Beschreibung
+### Doppelt bestätigte 🔴/🟠-Findings:
+- [Scope] [Datei:Zeile] Beschreibung
 ### Änderungsstatistik vorherige Iteration: N Dateien, +X/-Y Lines
 ```
 
@@ -73,10 +70,11 @@ $FEEDBACK_KONTEXT
 
 Der code-council erhält die vorherigen Findings als Teil seiner $ARGUMENTS. 
 ABWEICHUNG vom Standard-Code-Council:
-- **Schritt 1 (Planung)**: Plane NUR für die offenen 🔴-Findings, nicht das gesamte $ARGUMENTS neu
+- **Schritt 1 (Planung)**: Plane NUR für die doppelt bestätigten 🔴/🟠-Findings, nicht das gesamte $ARGUMENTS neu
 - **Schritt 2 (Datei-Inventar)**: Fokussiere auf Dateien aus vorherigen Findings
 - **Schritt 3 (Implementierung)**: Überspringe Scopes die in der vorherigen Iteration KEINE Änderungen produziert haben
-- **Schritt 5 (Review)**: Reduziere auf 2× pro Scope (10 statt 30 Reviews) um Durchsatz zu erhöhen
+- **Schritt 5 (Review)**: Pro aktivem Scope nur der zuständige Fach-Reviewer; anschließend `council-verify` weiterhin zweimal unabhängig
+- Keine neue Architekturentscheidung in einer Reparaturrunde und niemals parallele Schreibzugriffe
 
 #### 4. METRIKEN SAMMELN
 Nach Abschluss des code-council-Kommando:
@@ -104,13 +102,10 @@ Hänge an `history`:
 
 #### 6. KONVERGENZ PRÜFEN
 
-**EARLY_EXIT_ON_PASS**: Wenn Build PASSED UND Tests PASSED UND critical == 0:
+**EARLY_EXIT_ON_PASS**: Wenn Build PASSED UND Tests PASSED UND keine doppelt bestätigten 🔴/🟠-Findings offen sind:
   → EXIT mit "early_pass"
 
-**CONVERGENCE_THRESHOLD**: Wenn critical == 0:
-  → EXIT mit "converged_zero_critical"
-
-**STAGNATION**: Wenn `diffScore <= 0` (keine Verbesserung oder Verschlechterung):
+**STAGNATION**: Wenn die Anzahl doppelt bestätigter 🔴/🟠-Findings nicht sinkt:
   → EXIT mit "stagnation"
 
 **OSCILLATION**: Wenn die letzten 2 Iterationen abwechselnd Findings erzeugen und beheben (Ping-Pong):
@@ -130,7 +125,6 @@ Vergleiche `history[N-1]` mit `history[N-2]`:
 |-----------|-----------|--------|
 | max_iterations | Limit erreicht | Report mit verbleibenden Findings |
 | early_pass | Alle Gates grün | Erfolgs-Report |
-| converged_zero_critical | Keine 🔴 mehr | Erfolgs-Report |
 | stagnation | Keine Verbesserung | Report mit Blockade-Analyse |
 | oscillation_detected | Ping-Pong | Report mit Konflikt-Bereichen |
 
