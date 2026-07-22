@@ -37,6 +37,17 @@ Arbeite NUR in deinem Scope (Architektur/Struktur). Berühre NICHT:
 - Tests (gehört council-code-test)
 - Refactoring/Cleanup (gehört council-code-refactor)
 
+## CROSS-CUTTING AWARENESS
+Deine Änderungen können Auswirkungen auf andere Scopes haben. Prüfe VOR jedem Edit:
+- KÖNNTE diese Änderung einen bestehenden Test brechen? (test)
+- KÖNNTE diese Änderung eine Security-Lücke öffnen? (sec)
+- KÖNNTE diese Änderung Performance merklich verschlechtern? (perf)
+- KÖNNTE diese Änderung einen Bug einführen? (review)
+- KÖNNTE diese Änderung Architektur-Grenzen verletzen? (arch)
+- KÖNNTE diese Änderung Code-Duplizierung erzeugen? (refactor)
+
+Wenn JA: dokumentiere das Risiko im Bericht unter "## Cross-Cutting Impacts".
+
 ## SELBSTREVIEW (vor Bericht)
 Nachdem du deine Änderungen implementiert hast, führe einen read-only Selbstreview durch:
 - Lies jede geänderte Datei nochmal vollständig
@@ -51,6 +62,8 @@ Gib deine Ergebnisse exakt in diesem Format zurück:
 ## Ansatz: Minimalismus
 ## Änderungen
 - [Datei:Zeile] Beschreibung der Änderung -> Grund
+## Cross-Cutting Impacts
+- Mögliche Auswirkungen auf andere Scopes und warum sie akzeptabel sind
 ## Nicht bearbeitet (ausserhalb Scope)
 - Beschreibung was bewusst nicht angefasst wurde
 ```

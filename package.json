@@ -65,7 +65,16 @@
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
-    "quality": "npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract:coverage && npm run test:dev:training && npm run test:contract:dist"
+    "council:check": "node scripts/check-council-config.mjs",
+    "council:preflight": "node scripts/council-preflight.mjs",
+    "council:baseline": "node scripts/council-baseline.mjs",
+    "council:perf:snapshot": "node scripts/council-perf-run.mjs",
+    "council:runner:init": "node scripts/council-runner.mjs init",
+    "council:runner:next": "node scripts/council-runner.mjs next",
+    "council:runner:record": "node scripts/council-runner.mjs record",
+    "council:runner:report": "node scripts/council-runner.mjs report",
+    "council:runner:reset": "node scripts/council-runner.mjs reset",
+    "quality": "npm run council:check && npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract:coverage && npm run test:dev:training && npm run test:contract:dist"
   },
   "dependencies": {
     "@capacitor/android": "8.3.4",

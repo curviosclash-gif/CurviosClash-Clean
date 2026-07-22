@@ -36,6 +36,17 @@ Arbeite NUR in deinem Scope (Bugfixes). Berühre NICHT:
 - Security-Fixes (gehört council-code-sec)
 - Tests (gehört council-code-test)
 
+## CROSS-CUTTING AWARENESS
+Deine Änderungen können Auswirkungen auf andere Scopes haben. Prüfe VOR jedem Edit:
+- KÖNNTE diese Änderung einen bestehenden Test brechen? (test)
+- KÖNNTE diese Änderung eine Security-Lücke öffnen? (sec)
+- KÖNNTE diese Änderung Performance merklich verschlechtern? (perf)
+- KÖNNTE diese Änderung einen Bug einführen? (review)
+- KÖNNTE diese Änderung Architektur-Grenzen verletzen? (arch)
+- KÖNNTE diese Änderung Code-Duplizierung erzeugen? (refactor)
+
+Wenn JA: dokumentiere das Risiko im Bericht unter "## Cross-Cutting Impacts".
+
 ## SELBSTREVIEW (vor Bericht)
 Nachdem du deine Änderungen implementiert hast, führe einen read-only Selbstreview durch:
 - Lies jede geänderte Datei nochmal vollständig
@@ -47,8 +58,11 @@ Nachdem du deine Änderungen implementiert hast, führe einen read-only Selbstre
 Gib deine Ergebnisse exakt in diesem Format zurück:
 ```
 ## Scope: review
+## Ansatz: Ausgewogen
 ## Änderungen
 - [Datei:Zeile] Beschreibung der Änderung -> Grund
+## Cross-Cutting Impacts
+- Mögliche Auswirkungen auf andere Scopes und warum sie akzeptabel sind
 ## Nicht bearbeitet (ausserhalb Scope)
 - Beschreibung was bewusst nicht angefasst wurde
 ```

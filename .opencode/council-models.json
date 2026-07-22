@@ -1,0 +1,80 @@
+{
+  "description": "Zentrale Modell-Zuweisung fuer alle Council-Agenten. Wird durch npm run council:check validiert.",
+  "updated": "2026-07-22",
+
+  "readOnlyCouncil": {
+    "primary": {
+      "description": "Read-only primaries (mode: primary). Werden mit opencode run --agent gestartet.",
+      "council-review": { "model": "default", "note": "Standard-Modell des Hauptmodells" },
+      "council-arch": { "model": "default" },
+      "council-sec": { "model": "default" },
+      "council-perf": { "model": "default" },
+      "council-test": { "model": "default" },
+      "council-refactor": { "model": "default" },
+      "council-lead": { "model": "premium", "note": "Einziger Council-Agent mit Premium-Modell (AGENTS.md Rule 19)" },
+      "council-verify": { "model": "default" }
+    },
+    "fbSiblings": {
+      "description": "FB-Geschwister (mode: all). 4 pro Scope, je ein anderes kostenloses Modell. Werden direkt oder via task() gestartet.",
+      "council-review": {
+        "fb": "deepseek-v4-flash-free",
+        "fb2": "laguna-s-2.1-free",
+        "fb3": "mimo-v2.5-free",
+        "fb4": "nemotron-3-ultra-free"
+      },
+      "council-arch": {
+        "fb": "deepseek-v4-flash-free",
+        "fb2": "laguna-s-2.1-free",
+        "fb3": "mimo-v2.5-free",
+        "fb4": "nemotron-3-ultra-free"
+      },
+      "council-sec": {
+        "fb": "deepseek-v4-flash-free",
+        "fb2": "laguna-s-2.1-free",
+        "fb3": "mimo-v2.5-free",
+        "fb4": "nemotron-3-ultra-free"
+      },
+      "council-perf": {
+        "fb": "deepseek-v4-flash-free",
+        "fb2": "laguna-s-2.1-free",
+        "fb3": "mimo-v2.5-free",
+        "fb4": "nemotron-3-ultra-free"
+      },
+      "council-test": {
+        "fb": "deepseek-v4-flash-free",
+        "fb2": "laguna-s-2.1-free",
+        "fb3": "mimo-v2.5-free",
+        "fb4": "nemotron-3-ultra-free"
+      },
+      "council-refactor": {
+        "fb": "deepseek-v4-flash-free",
+        "fb2": "laguna-s-2.1-free",
+        "fb3": "mimo-v2.5-free",
+        "fb4": "nemotron-3-ultra-free"
+      }
+    }
+  },
+
+  "codingCouncil": {
+    "description": "Coding-Council-Agenten (mode: subagent). 6 Scopes × 3 Varianten = 18 Agenten. Keine FB-Geschwister.",
+    "model": "default",
+    "note": "Alle Coding-Council-Agenten nutzen das Standard-Modell. FB-Geschwister sind hier nicht vorgesehen (Merge-Konflikt-Risiko, AGENTS.md Rule 27)."
+  },
+
+  "supportAgents": {
+    "plan": { "mode": "all", "model": "default" },
+    "council-baseline": { "mode": "subagent", "model": "default", "bash": "allow" },
+    "council-preflight": { "mode": "subagent", "model": "default", "bash": "allow", "task": "allow" }
+  },
+
+  "freeModels": {
+    "description": "Verfuegbare kostenlose Modelle fuer FB-Geschwister",
+    "models": [
+      "deepseek-v4-flash-free",
+      "laguna-s-2.1-free",
+      "mimo-v2.5-free",
+      "nemotron-3-ultra-free",
+      "big-pickle"
+    ]
+  }
+}

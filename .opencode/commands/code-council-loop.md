@@ -1,0 +1,191 @@
+---
+description: Coding Council Loop: iterative Verbesserungsschleife mit Konvergenz-Tracking und Learning-Feedback
+---
+
+Führe den Coding Council iterativ aus, bis Konvergenz-Kriterien erreicht sind oder die maximale Anzahl von Iterationen überschritten wurde.
+
+$ARGUMENTS
+
+## Loop-Parameter
+
+| Parameter | Default | Beschreibung |
+|-----------|---------|--------------|
+| MAX_ITERATIONS | 3 | Maximale Anzahl Iterationen |
+| CONVERGENCE_THRESHOLD | 0 | Keine neuen 🔴-Findings mehr |
+| MIN_IMPROVEMENT | 1 | Mindest-Reduktion an Findings pro Iteration |
+| EARLY_EXIT_ON_PASS | true | Beenden, wenn Build+Test+0🔴 in einer Iteration |
+
+## State-Tracking (Datei)
+
+Lege zu Beginn eine State-Datei an:
+
+```
+$env:TEMP\opencode\code-council-loop-state.json
+```
+
+Initial:
+```json
+{
+  "task": "$ARGUMENTS",
+  "iteration": 0,
+  "history": [],
+  "converged": false,
+  "exitReason": ""
+}
+```
+
+## Iterations-Schleife
+
+### PRO ITERATION:
+
+#### 1. PRE-CHECK
+- Lade State-Datei
+- Wenn `iteration >= MAX_ITERATIONS`: EXIT mit "max_iterations"
+- Inkrementiere `iteration`
+
+#### 2. FEEDBACK-KONTEXT BAUEN
+Sammle aus den vorherigen Iterationen (`history`):
+- Alle 🔴-Findings aus der vorherigen Iteration (als "zu behebende Probleme")
+- Alle 🟠-Findings aus der vorherigen Iteration (als "Warnungen")
+- Änderungs-Statistik (wie viele Dateien geändert, Lines Added/Removed)
+- Build/Test-Ergebnis der vorherigen Iteration
+
+Erzeuge einen FEEDBACK-KONTEXT-String:
+```
+## Feedback aus Iteration N-1
+### Build & Test: <PASSED/FAILED>
+### Offene 🔴-Findings:
+- [Datei:Zeile] Beschreibung
+### 🟠-Warnungen:
+- [Datei:Zeile] Beschreibung
+### Änderungsstatistik vorherige Iteration: N Dateien, +X/-Y Lines
+```
+
+#### 3. CODE-COUNCIL AUSFÜHREN
+Starte den vollständigen code-council Command MIT dem Feedback-Kontext:
+
+```
+/code-council $ARGUMENTS
+
+ZUSATZKONTEXT:
+$FEEDBACK_KONTEXT
+```
+
+Der code-council erhält die vorherigen Findings als Teil seiner $ARGUMENTS. 
+ABWEICHUNG vom Standard-Code-Council:
+- **Schritt 1 (Planung)**: Plane NUR für die offenen 🔴-Findings, nicht das gesamte $ARGUMENTS neu
+- **Schritt 2 (Datei-Inventar)**: Fokussiere auf Dateien aus vorherigen Findings
+- **Schritt 3 (Implementierung)**: Überspringe Scopes die in der vorherigen Iteration KEINE Änderungen produziert haben
+- **Schritt 5 (Review)**: Reduziere auf 2× pro Scope (10 statt 30 Reviews) um Durchsatz zu erhöhen
+
+#### 4. METRIKEN SAMMELN
+Nach Abschluss des code-council-Kommando:
+- Zähle 🔴, 🟠, 🟡 Findings aus dem konsolidierten Report
+- Erfasse Build-Ergebnis
+- Erfasse Test-Ergebnis
+- Zähle geänderte Dateien (`git diff --stat HEAD`)
+- Berechne DIFF_SCORE = (vorherige 🔴 - aktuelle 🔴) - (neue 🔴)
+
+#### 5. STATE AKTUALISIEREN
+Hänge an `history`:
+```json
+{
+  "iteration": N,
+  "buildPassed": true/false,
+  "testsPassed": true/false,
+  "findings": { "critical": N, "major": N, "minor": N },
+  "filesChanged": N,
+  "linesAdded": N,
+  "linesRemoved": N,
+  "diffScore": N,
+  "timestamp": "ISO"
+}
+```
+
+#### 6. KONVERGENZ PRÜFEN
+
+**EARLY_EXIT_ON_PASS**: Wenn Build PASSED UND Tests PASSED UND critical == 0:
+  → EXIT mit "early_pass"
+
+**CONVERGENCE_THRESHOLD**: Wenn critical == 0:
+  → EXIT mit "converged_zero_critical"
+
+**STAGNATION**: Wenn `diffScore <= 0` (keine Verbesserung oder Verschlechterung):
+  → EXIT mit "stagnation"
+
+**OSCILLATION**: Wenn die letzten 2 Iterationen abwechselnd Findings erzeugen und beheben (Ping-Pong):
+  → EXIT mit "oscillation_detected"
+
+Sonst: nächste Iteration (zurück zu 1)
+
+#### 7. OSZILLATIONS-ERKENNUNG (Detail)
+Vergleiche `history[N-1]` mit `history[N-2]`:
+- Gleiche Dateien geändert aber Findings-Typ wechselt (z.B. war 🔴 in N-2, wurde in N-1 behoben, ist in N wieder 🔴)
+- Gleiche Codezeilen werden hin- und her-geändert
+→ Hash über die betroffenen Dateien+Zeilen der letzten Iterationen bilden und auf Wiederholung prüfen.
+
+## Exit-Handling
+
+| Exit-Code | Bedeutung | Aktion |
+|-----------|-----------|--------|
+| max_iterations | Limit erreicht | Report mit verbleibenden Findings |
+| early_pass | Alle Gates grün | Erfolgs-Report |
+| converged_zero_critical | Keine 🔴 mehr | Erfolgs-Report |
+| stagnation | Keine Verbesserung | Report mit Blockade-Analyse |
+| oscillation_detected | Ping-Pong | Report mit Konflikt-Bereichen |
+
+## Abschluss-Report
+
+```
+## Coding Council Loop — Abschluss nach N Iterationen
+### Grund: <exitReason>
+### Metriken über alle Iterationen
+| Iteration | 🔴 | 🟠 | 🟡 | Build | Tests | Files | ±Lines |
+|-----------|---|---|----|----|-------|-------|-------|--------|
+
+### Trend
+🔴: Start → Ende (Delta: -X)
+🟠: Start → Ende (Delta: -Y)
+🟡: Start → Ende (Delta: -Z)
+
+### Verbleibende Findings (falls vorhanden)
+| Severity | Datei:Zeile | Beschreibung | Seit Iteration |
+|----------|-------------|--------------|----------------|
+
+### Empfehlung
+- Bei Stagnation: Welcher Scope produziert keine Verbesserung mehr?
+- Bei Oszillation: Welche Dateien wechseln hin und her?
+- Bei early_pass: Code ist bereit für Commit
+```
+
+## Zusätzliche Verbesserungen am Code-Council (strukturell)
+
+Diese Änderungen gelten für JEDEN code-council-Durchlauf (auch ausserhalb des Loops):
+
+### A. PER-SCOPE BUILD GATE
+Statt Build+Test NUR am Ende (Schritt 4), führe NACH jedem Scope einen inkrementellen Check aus:
+
+1. Nach Scope-Abschluss (3 Read-only-Vorschläge + Lead-Selektion + einmalige Implementierung der gewählten Variante):
+   ```
+   npm run build --if-present 2>&1
+   ```
+2. Bei Build-Fehler: Sofort den verantwortlichen Scope MIT Fehlerlog neu starten (nicht bis zum Ende warten)
+3. Bei Build-Erfolg: Weiter zum nächsten Scope
+
+### B. CROSS-CUTTING AWARENESS
+Jeder Coding-Agent erhält zusätzlich zu seinem Scope-Prompt:
+```
+## CROSS-CUTTING AWARENESS
+Deine Änderungen können Auswirkungen auf andere Scopes haben. Prüfe VOR jedem Edit:
+- KÖNNTE diese Änderung einen Test brechen? (test)
+- KÖNNTE diese Änderung eine Security-Lücke öffnen? (sec)
+- KÖNNTE diese Änderung Performance verschlechtern? (perf)
+- KÖNNTE diese Änderung einen Bug einführen? (review)
+- KÖNNTE diese Änderung Architektur-Grenzen verletzen? (arch)
+- KÖNNTE diese Änderung Code-Duplizierung erzeugen? (refactor)
+
+Wenn JA: dokumentiere das Risiko im Bericht unter "Cross-Cutting Impacts".
+```
+
+### C. DELTA-BASIERTE SCOPE-AUSWAHL
+Statt ALLE 6 Scopes in jeder Iteration: überspringe Scopes die in der vorherigen Iteration 0 Änderungen produziert haben (Scope war zufrieden). Nur Scopes mit tatsächlichen Änderungen in der vorherigen Runde erneut ausführen.
