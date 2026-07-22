@@ -3,7 +3,7 @@ import path from 'node:path';
 
 export const COUNCIL_SCOPES = Object.freeze(['arch', 'refactor', 'review', 'sec', 'test', 'perf']);
 export const FINDING_SEVERITIES = Object.freeze(['🔴', '🟠', '🟡']);
-export const VERIFY_RESULTS = Object.freeze(['TRUE', 'FALSE', 'UNCERTAIN']);
+export const VERIFY_RESULTS = Object.freeze(['BUG', 'DEFENSIVE', 'INTENTIONAL', 'FALSE', 'UNCERTAIN']);
 export const EVIDENCE_TYPES = Object.freeze(['test', 'reproduction', 'contract', 'invariant', 'static-rule']);
 export const MAX_REPAIR_ROUNDS = 2;
 export const MAX_ADDITIONAL_REPAIR_FILES = 5;
@@ -43,7 +43,7 @@ function stableFindingId(finding) {
 }
 
 export function isConfirmedFinding(finding) {
-    return finding.verifyRun1 === 'TRUE' && finding.verifyRun2 === 'TRUE';
+    return finding.verifyRun1 === 'BUG' && finding.verifyRun2 === 'BUG';
 }
 
 export function validateFinding(input, { repositoryRoot } = {}) {
@@ -61,7 +61,7 @@ export function validateFinding(input, { repositoryRoot } = {}) {
     assert(typeof input.problem === 'string' && input.problem.trim().length >= 8, 'finding.problem muss eine konkrete Beschreibung enthalten.');
 
     for (const field of ['verifyRun1', 'verifyRun2']) {
-        assert(VERIFY_SET.has(input[field]), `${field} muss TRUE, FALSE oder UNCERTAIN sein.`);
+        assert(VERIFY_SET.has(input[field]), `${field} muss BUG, DEFENSIVE, INTENTIONAL, FALSE oder UNCERTAIN sein.`);
     }
 
     const finding = {

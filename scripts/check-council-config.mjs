@@ -76,6 +76,11 @@ for (const scope of SCOPES) {
         expect(/\n\s*task:\s*deny\b/.test(text), `${path}: task permission must be deny`);
     }
     expect(distinctModels.size === SIBLINGS.length, `${CONFIG_PATH}: council-${scope} siblings must use four distinct models`);
+
+    const baseAgent = read(join(AGENT_DIR, `council-${scope}.md`));
+    expect(/VERBINDLICHES FINDING-GATE/.test(baseAgent), `council-${scope}.md: adversarial finding gate missing`);
+    expect(/Ausgangszustand → Aufrufstelle → fehlerhafte Operation → sichtbare Produktauswirkung/.test(baseAgent), `council-${scope}.md: reachable product path evidence missing`);
+    expect(/DEFENSIVE/.test(baseAgent) && /INTENTIONAL/.test(baseAgent), `council-${scope}.md: defensive and intentional classifications missing`);
 }
 
 const planPath = join(AGENT_DIR, 'plan.md');
@@ -125,10 +130,15 @@ expect(/fünf Minuten/.test(scopeLoopCommand) && /15 Minuten/.test(scopeLoopComm
 const leadAgent = read(join(AGENT_DIR, 'council-lead.md'));
 expect(/Die allererste Ausgabezeile MUSS exakt/.test(leadAgent), 'council-lead.md: first-line VERDICT contract missing');
 expect(/VERDICT: CLEAN\|ISSUES_FOUND\|NEEDS_DATA\|UNCERTAIN/.test(leadAgent), 'council-lead.md: VERDICT values missing');
+expect(/weniger als 4 gültigen Läufen/.test(leadAgent), 'council-lead.md: incomplete redundancy must keep findings as candidates');
+expect(/Nur `BUG \+ BUG`/.test(leadAgent), 'council-lead.md: final severity must require two BUG verifications');
 
 const verifyAgent = read(join(AGENT_DIR, 'council-verify.md'));
 expect(/Die allererste Ausgabezeile MUSS exakt/.test(verifyAgent), 'council-verify.md: first-line VERDICT contract missing');
 expect(/VERDICT: VERIFIED\|REJECTED\|UNCERTAIN/.test(verifyAgent), 'council-verify.md: VERDICT values missing');
+expect(/BUG\/DEFENSIVE\/INTENTIONAL\/FALSE\/UNCERTAIN/.test(verifyAgent), 'council-verify.md: adversarial result classes missing');
+expect(/alle produktiven Caller/.test(verifyAgent), 'council-verify.md: caller traversal missing');
+expect(/Initialisierungs-, Restart- und Dispose-Reihenfolge/.test(verifyAgent), 'council-verify.md: lifecycle traversal missing');
 
 const codeCouncilCommand = read(join(COMMAND_DIR, 'code-council.md'));
 expect(/council-verify ZWEIMAL parallel/.test(codeCouncilCommand), 'code-council.md: redundant verification must run twice in parallel');
@@ -144,6 +154,8 @@ expect(
     agentsInstructions.includes('opencode run --dir "<repo-root>" --agent'),
     'AGENTS.md: direct Council invocation must pin the repository with --dir',
 );
+expect(/ZWEIMAL unabhängig und adversarial/.test(agentsInstructions), 'AGENTS.md: analysis verification must run twice adversarially');
+expect(/BEIDE unabhängigen Verify-Läufe `BUG`/.test(agentsInstructions), 'AGENTS.md: only double BUG may confirm a finding');
 
 if (errors.length > 0) {
     process.stderr.write(`Council configuration check failed (${errors.length}):\n`);

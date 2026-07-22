@@ -51,8 +51,8 @@ Jedes Finding wird strikt validiert. Seine ID entsteht deterministisch aus `scop
   "category": "null-guard",
   "symbol": "resolveExample",
   "problem": "Konkrete Fehlerbeschreibung",
-  "verifyRun1": "TRUE",
-  "verifyRun2": "TRUE",
+  "verifyRun1": "BUG",
+  "verifyRun2": "BUG",
   "evidence": { "type": "test|reproduction|contract|invariant|static-rule", "detail": "Konkreter Ursachenbeleg" }
 }
 ```
@@ -70,7 +70,7 @@ Absolute Pfade, `..`, unbekannte Enum-Werte, doppelte IDs, inkonsistente Zähler
 
 #### 2. FEEDBACK-KONTEXT BAUEN
 Sammle aus den vorherigen Iterationen (`history`):
-- Nur 🔴- und 🟠-Findings, die in beiden unabhängigen Verify-Läufen TRUE erhielten
+- Nur 🔴- und 🟠-Findings, die in beiden unabhängigen adversarialen Verify-Läufen BUG erhielten
 - Änderungs-Statistik (wie viele Dateien geändert, Lines Added/Removed)
 - Build/Test-Ergebnis der vorherigen Iteration
 

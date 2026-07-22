@@ -25,8 +25,8 @@ function finding(overrides = {}) {
         category: 'null-guard',
         symbol: 'resolveExample',
         problem: 'A missing null guard crashes the runtime.',
-        verifyRun1: 'TRUE',
-        verifyRun2: 'TRUE',
+        verifyRun1: 'BUG',
+        verifyRun2: 'BUG',
         evidence: { type: 'test', detail: 'runtime-null-guard test fails before the fix' },
         ...overrides,
     };
@@ -61,8 +61,10 @@ test('finding schema rejects traversal, invalid enums, duplicate IDs, and missin
 
 test('unconfirmed and minor findings never activate repair scopes', () => {
     const unconfirmed = validateFinding(finding({ verifyRun2: 'UNCERTAIN', evidence: undefined }), { repositoryRoot: ROOT });
+    const defensive = validateFinding(finding({ verifyRun1: 'DEFENSIVE', verifyRun2: 'DEFENSIVE', evidence: undefined }), { repositoryRoot: ROOT });
+    const intentional = validateFinding(finding({ verifyRun1: 'INTENTIONAL', verifyRun2: 'INTENTIONAL', evidence: undefined }), { repositoryRoot: ROOT });
     const minor = validateFinding(finding({ severity: '🟡', evidence: undefined }), { repositoryRoot: ROOT });
-    assert.deepEqual(selectRepairScopes([unconfirmed, minor]), []);
+    assert.deepEqual(selectRepairScopes([unconfirmed, defensive, intentional, minor]), []);
 });
 
 test('confirmed critical and major findings activate only their responsible scopes', () => {

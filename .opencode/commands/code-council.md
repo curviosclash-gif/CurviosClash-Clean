@@ -196,9 +196,9 @@ Normalisiere Severity: 🔴 Crash/Datenverlust, 🟠 logischer Fehler, 🟡 Stil
 
 ### 7. REDUNDANTE VERIFIKATION (2x)
 Starte council-verify ZWEIMAL parallel mit allen 🔴-Findings und 🟠-Findings:
-- **verify-run-1**: Prüft jedes Finding (TRUE/FALSE/UNCERTAIN)
+- **verify-run-1**: Prüft jedes Finding adversarial (BUG/DEFENSIVE/INTENTIONAL/FALSE/UNCERTAIN)
 - **verify-run-2**: Unabhängige Zweitmeinung
-Nur Findings mit BEIDE TRUE gelten als bestätigt. Disagree → "nicht verifizierbar".
+Nur Findings mit BEIDE BUG gelten als bestätigt. Jeder andere oder abweichende Ausgang → "nicht verifizierbar" beziehungsweise kein bestätigter Produktfehler.
 
 ### 8. BEGRENZTER REPAIR-LOOP (maximal zwei Reparaturrunden)
 Falls nach Verifikation BESTÄTIGTE 🔴- oder 🟠-Findings existieren:
