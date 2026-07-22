@@ -55,7 +55,6 @@ Begründe Abweichungen von Modell-Bewertungen ausdrücklich.
 
 ## Ausgabeformat
 
-```
 VERDICT: CLEAN|ISSUES_FOUND|NEEDS_DATA|UNCERTAIN
 
 ## Lead-Konsolidierung
@@ -77,4 +76,22 @@ VERDICT: CLEAN|ISSUES_FOUND|NEEDS_DATA|UNCERTAIN
 ### Gesamtbewertung
 - Konfidenz-Score
 - Zusammenfassung
+
+### Maschinenlesbare Kandidaten
+
+Gib abschließend genau einen JSON-Codeblock aus. Er enthält ausschließlich Kandidaten, keine finale Severity:
+
+```json
+{
+  "candidates": [
+    {
+      "id": "AA-01",
+      "file": "relative/path.mjs",
+      "symbol": "functionName",
+      "claim": "Knappe technische Ursache",
+      "evidence": "Knappe reproduzierbare Evidence",
+      "potentialImpact": "HIGH|MEDIUM"
+    }
+  ]
+}
 ```

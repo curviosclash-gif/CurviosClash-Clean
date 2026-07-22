@@ -14,6 +14,8 @@ export const RESEARCH_SCOPES = Object.freeze(['review', 'arch', 'test', 'perf'])
 export const AGENT_SUFFIXES = Object.freeze(['', '-fb', '-fb2', '-fb3', '-fb4']);
 
 const RESEARCH_VERDICTS = new Set(['CLEAN', 'ISSUES_FOUND', 'NEEDS_DATA', 'UNCERTAIN']);
+const VERIFY_CLASSIFICATIONS = new Set(['BUG', 'DEFENSIVE', 'INTENTIONAL', 'FALSE', 'UNCERTAIN']);
+const VERIFY_VERDICTS = new Set(['VERIFIED', 'REJECTED', 'UNCERTAIN']);
 const RUNTIME_FAILURE = /fallback warning|default agent|streaming response failed/i;
 
 export function resolveOpenCodeExecutable({ platform = process.platform, env = process.env } = {}) {
@@ -26,23 +28,36 @@ export function resolveOpenCodeExecutable({ platform = process.platform, env = p
     return 'opencode.exe';
 }
 
-export function extractFinalText(jsonLines) {
-    let finalText = '';
+function extractTextEvents(jsonLines) {
+    const texts = [];
     for (const line of String(jsonLines).split(/\r?\n/)) {
         if (!line.trim()) continue;
-        let event;
         try {
-            event = JSON.parse(line);
+            const event = JSON.parse(line);
+            const text = event?.part?.type === 'text' ? event.part.text : event?.type === 'text' ? event.text : '';
+            if (typeof text === 'string' && text.trim()) texts.push(text);
         } catch {
-            continue;
+            // Non-JSON diagnostic lines are ignored; stderr carries runtime diagnostics.
         }
-        const text = event?.part?.type === 'text' ? event.part.text : event?.type === 'text' ? event.text : '';
-        if (typeof text === 'string' && text.trim()) finalText = text;
     }
-    return finalText;
+    return texts;
+}
+
+export function extractFinalText(jsonLines, allowedVerdicts = RESEARCH_VERDICTS) {
+    let lastText = '';
+    let verdictReport = '';
+    for (const text of extractTextEvents(jsonLines)) {
+        lastText = text;
+        const firstLine = text.split(/\r?\n/, 1)[0]?.trim() || '';
+        if (firstLine.startsWith('VERDICT: ') && allowedVerdicts.has(firstLine.slice('VERDICT: '.length))) {
+            verdictReport = text;
+        }
+    }
+    return verdictReport || lastText;
 }
 
 export function validateResearchReport({ stdout, stderr = '', exitCode = 0, timedOut = false }) {
+    const texts = extractTextEvents(stdout);
     const report = extractFinalText(stdout);
     const firstLine = report.split(/\r?\n/, 1)[0]?.trim() || '';
     const verdict = firstLine.startsWith('VERDICT: ') ? firstLine.slice('VERDICT: '.length) : '';
@@ -50,8 +65,149 @@ export function validateResearchReport({ stdout, stderr = '', exitCode = 0, time
     if (timedOut) reasons.push('timeout');
     if (exitCode !== 0) reasons.push(`exit:${exitCode}`);
     if (RUNTIME_FAILURE.test(stderr)) reasons.push('runtime-fallback');
-    if (!RESEARCH_VERDICTS.has(verdict)) reasons.push('missing-verdict');
+    if (!RESEARCH_VERDICTS.has(verdict)) {
+        const allText = texts.join('\n');
+        if (/```[^\n]*\n\s*VERDICT:/i.test(allText)) reasons.push('verdict-inside-code-fence');
+        else if (/^VERDICT:\s*(CLEAN|ISSUES_FOUND|NEEDS_DATA|UNCERTAIN)\s*$/im.test(allText)) reasons.push('verdict-not-first-line');
+        else reasons.push('no-verdict-event');
+    }
+    const selectedIndex = texts.lastIndexOf(report);
+    const warnings = RESEARCH_VERDICTS.has(verdict) && selectedIndex >= 0 && selectedIndex < texts.length - 1
+        ? ['post-report-summary']
+        : [];
+    return { valid: reasons.length === 0, verdict, report, reasons, warnings };
+}
+
+export function validateVerifyReport({ stdout, stderr = '', exitCode = 0, timedOut = false }) {
+    const report = extractFinalText(stdout, VERIFY_VERDICTS);
+    const firstLine = report.split(/\r?\n/, 1)[0]?.trim() || '';
+    const verdict = firstLine.startsWith('VERDICT: ') ? firstLine.slice('VERDICT: '.length) : '';
+    const reasons = [];
+    if (timedOut) reasons.push('timeout');
+    if (exitCode !== 0) reasons.push(`exit:${exitCode}`);
+    if (RUNTIME_FAILURE.test(stderr)) reasons.push('runtime-fallback');
+    if (!VERIFY_VERDICTS.has(verdict)) reasons.push('invalid-verify-verdict');
+    if (reasons.length === 0) {
+        try {
+            extractVerifyManifest(report);
+        } catch (error) {
+            reasons.push(`invalid-verify-manifest:${error.message}`);
+        }
+    }
     return { valid: reasons.length === 0, verdict, report, reasons };
+}
+
+export function extractCandidateManifest(report) {
+    const blocks = [...String(report).matchAll(/```json\s*([\s\S]*?)```/gi)];
+    for (const block of blocks.reverse()) {
+        let parsed;
+        try {
+            parsed = JSON.parse(block[1]);
+        } catch {
+            continue;
+        }
+        if (!parsed || !Array.isArray(parsed.candidates)) continue;
+        const candidates = parsed.candidates.map((candidate) => {
+            if (!candidate || typeof candidate !== 'object') throw new TypeError('candidate must be an object');
+            for (const field of ['id', 'file', 'symbol', 'claim', 'evidence', 'potentialImpact']) {
+                if (typeof candidate[field] !== 'string' || !candidate[field].trim()) {
+                    throw new TypeError(`candidate.${field} is required`);
+                }
+            }
+            if (!['HIGH', 'MEDIUM'].includes(candidate.potentialImpact)) throw new TypeError('candidate.potentialImpact must be HIGH or MEDIUM');
+            return candidate;
+        });
+        return { candidates };
+    }
+    throw new TypeError('lead report has no valid candidates JSON block');
+}
+
+export function extractResearchManifest(report) {
+    const blocks = [...String(report).matchAll(/```json\s*([\s\S]*?)```/gi)];
+    for (const block of blocks.reverse()) {
+        let parsed;
+        try {
+            parsed = JSON.parse(block[1]);
+        } catch {
+            continue;
+        }
+        if (!parsed || !Array.isArray(parsed.findings)) continue;
+        const findings = parsed.findings.map((finding) => {
+            for (const field of ['file', 'symbol', 'category', 'claim', 'evidence', 'confidence', 'impact']) {
+                if (typeof finding?.[field] !== 'string' || !finding[field].trim()) throw new TypeError(`finding.${field} is required`);
+            }
+            if (!/^[a-z0-9][a-z0-9-]*$/.test(finding.category)) throw new TypeError('finding.category must be kebab-case');
+            if (!['HIGH', 'MEDIUM', 'LOW'].includes(finding.confidence)) throw new TypeError('finding.confidence is invalid');
+            if (!['HIGH', 'MEDIUM', 'LOW'].includes(finding.impact)) throw new TypeError('finding.impact is invalid');
+            return finding;
+        });
+        return { findings };
+    }
+    throw new TypeError('research report has no valid findings JSON block');
+}
+
+export function calculateScopeAgreement(scopeResult) {
+    const validResults = scopeResult.results.filter((result) => result.validation.valid);
+    const groups = new Map();
+    for (const result of validResults) {
+        let manifest;
+        try {
+            manifest = extractResearchManifest(result.validation.report);
+        } catch {
+            continue;
+        }
+        for (const finding of manifest.findings) {
+            const key = [scopeResult.scope, finding.file.toLowerCase(), finding.symbol.toLowerCase(), finding.category].join(':');
+            const group = groups.get(key) || { key, finding, agreeingModels: new Set() };
+            group.agreeingModels.add(result.agent);
+            groups.set(key, group);
+        }
+    }
+    const validRuns = new Set(validResults.map((result) => result.agent)).size;
+    return {
+        scope: scopeResult.scope,
+        validRuns,
+        findings: [...groups.values()].map((group) => ({
+            key: group.key,
+            ...group.finding,
+            agreeingModels: [...group.agreeingModels].sort(),
+            agreementCount: group.agreeingModels.size,
+            highConfidence: validRuns >= 4 && group.agreeingModels.size >= 4,
+        })),
+    };
+}
+
+export async function persistCandidateManifest(roundRoot, report) {
+    const manifest = extractCandidateManifest(report);
+    const file = path.join(roundRoot, 'candidates.json');
+    await writeFile(file, `${JSON.stringify(manifest, null, 2)}\n`, 'utf8');
+    return { file, manifest };
+}
+
+export function buildVerifyPrompt({ manifestFile, fixtureRoot }) {
+    return `Verifiziere adversarial alle Kandidaten aus ${manifestFile}. Lies zusaetzlich ausschliesslich die drei Fixture-Kopien unter ${fixtureRoot}. Lies keinen Lead-Bericht, keine Ground Truth, keine andere Runde und keinen anderen Verify-Bericht. Benchmark-Grenze: Die exportierten Fixture-APIs sind die zu pruefende Contract-Oberflaeche; direkte unabhaengige Aufrufe sind erreichbare Caller und ein reproduzierbar falscher Rueckgabewert, State, Seiteneffekt oder Lifecycle ist eine sichtbare Auswirkung. Verwirf einen Kandidaten daher nicht allein wegen fehlender Importe aus Produktverzeichnissen. Pruefe fuer jeden Kandidaten Datei, Caller, nachfolgende Verwendungen, Guards, Fehlerbehandlung, Lifecycle, Contracts, Tests und den vollstaendigen Contract-Pfad. Klassifiziere jeden Kandidaten als BUG|DEFENSIVE|INTENTIONAL|FALSE|UNCERTAIN. Erste finale Zeile exakt VERDICT: VERIFIED|REJECTED|UNCERTAIN. Halte jede Ergebniszeile knapp und gib abschliessend den vorgeschriebenen kompakten results-JSON-Block aus.`;
+}
+
+export function extractVerifyManifest(report) {
+    const blocks = [...String(report).matchAll(/```json\s*([\s\S]*?)```/gi)];
+    for (const block of blocks.reverse()) {
+        let parsed;
+        try {
+            parsed = JSON.parse(block[1]);
+        } catch {
+            continue;
+        }
+        if (!parsed || !Array.isArray(parsed.results)) continue;
+        const results = parsed.results.map((result) => {
+            if (typeof result?.id !== 'string' || !result.id.trim()) throw new TypeError('verify result id is required');
+            if (!VERIFY_CLASSIFICATIONS.has(result.classification)) throw new TypeError('verify classification is invalid');
+            if (typeof result.productPath !== 'string' || !result.productPath.trim()) throw new TypeError('verify productPath is required');
+            if (typeof result.counterEvidence !== 'string' || !result.counterEvidence.trim()) throw new TypeError('verify counterEvidence is required');
+            return result;
+        });
+        return { results };
+    }
+    throw new TypeError('verify report has no valid results JSON block');
 }
 
 export async function createRoundFixtures({ repositoryRoot, runId, round }) {
@@ -197,7 +353,10 @@ export async function persistResearchResults(roundRoot, scopeResults) {
     }
     const summaryFile = path.join(roundRoot, 'research-summary.json');
     await writeFile(summaryFile, `${JSON.stringify(summary, null, 2)}\n`, 'utf8');
-    return { reportRoot, summaryFile, summary };
+    const agreement = scopeResults.map(calculateScopeAgreement);
+    const agreementFile = path.join(roundRoot, 'research-agreement.json');
+    await writeFile(agreementFile, `${JSON.stringify(agreement, null, 2)}\n`, 'utf8');
+    return { reportRoot, summaryFile, summary, agreementFile, agreement };
 }
 
 async function main(argv) {

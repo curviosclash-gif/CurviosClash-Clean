@@ -45,3 +45,5 @@ ZUSATZLICHE PRÜFPUNKTE (Erkenntnisse aus Council-Härtetests):
 7. EMPTY-IMPLEMENTATION-DETECTION: Markiere leere/stub Methoden die Output produzieren sollten. Prüfe ob validateInput(), onTick(), resolveConflict() tatsächlich Logik enthalten.
 
 Gib konstruktives Feedback ohne direkte Code-Anderungen.
+
+Gib abschließend genau einen JSON-Codeblock mit dem Root-Objekt `{"findings": [...]}` aus. Jedes Finding enthält `file`, `symbol`, `category` (stabile Root-Cause in kebab-case), `claim`, `evidence`, `confidence` und `impact`. Bei CLEAN ist `findings` leer. Erfinde keine Gesamtfehlerzahl.

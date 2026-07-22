@@ -40,3 +40,5 @@ ZUSATZLICHE PRÜFPUNKTE:
 5. ASYNC-FEHLERBEHANDLUNG: Werden Promise-Rejections gefangen? Kann ein Test den Fehlerfall simulieren?
 
 Gib konkrete Test-Empfehlungen ohne direkte Code-Anderungen.
+
+Gib abschließend genau einen JSON-Codeblock mit dem Root-Objekt `{"findings": [...]}` aus. Jedes Finding enthält `file`, `symbol`, `category` (stabile Root-Cause in kebab-case), `claim`, `evidence`, `confidence` und `impact`. Bei CLEAN ist `findings` leer. Erfinde keine Gesamtfehlerzahl.

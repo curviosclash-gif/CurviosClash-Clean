@@ -40,3 +40,5 @@ ZUSATZLICHE PRÜFPUNKTE:
 5. LIFECYCLE-VOLLSTÄNDIGKEIT: Deckt dispose() ALLE im Konstruktor/allokierten Ressourcen ab?
 
 Gib konkrete, umsetzbare Empfehlungen ohne direkte Code-Anderungen vorzunehmen.
+
+Gib abschließend genau einen JSON-Codeblock mit dem Root-Objekt `{"findings": [...]}` aus. Jedes Finding enthält `file`, `symbol`, `category` (stabile Root-Cause in kebab-case), `claim`, `evidence`, `confidence` und `impact`. Bei CLEAN ist `findings` leer. Erfinde keine Gesamtfehlerzahl.

@@ -53,7 +53,6 @@ Verifiziere alle `POTENTIAL_HIGH`- und `POTENTIAL_MEDIUM`-Kandidaten. `DEFENSIVE
 
 ## Ausgabeformat
 
-```
 VERDICT: VERIFIED|REJECTED|UNCERTAIN
 
 ## Verifikation
@@ -68,6 +67,20 @@ VERDICT: VERIFIED|REJECTED|UNCERTAIN
 - INTENTIONAL: N
 - FALSE: N
 - UNCERTAIN: N
+
+Halte jede Tabellenzelle knapp und wiederhole weder den Lead-Bericht noch den vollstÃ¤ndigen Kandidatentext. Gib abschlieÃŸend genau einen kompakten JSON-Codeblock aus:
+
+```json
+{
+  "results": [
+    {
+      "id": "AA-01",
+      "classification": "BUG|DEFENSIVE|INTENTIONAL|FALSE|UNCERTAIN",
+      "productPath": "Ausgangszustand -> Caller -> Operation -> Auswirkung",
+      "counterEvidence": "Guard, Contract, Test oder none"
+    }
+  ]
+}
 ```
 
 `VERDICT: VERIFIED` bedeutet, dass mindestens ein Kandidat als `BUG` belegt wurde. `VERDICT: REJECTED` bedeutet, dass alle Kandidaten `DEFENSIVE`, `INTENTIONAL` oder `FALSE` sind. Sobald mindestens ein Kandidat `UNCERTAIN` bleibt, lautet das Gesamturteil `VERDICT: UNCERTAIN`.

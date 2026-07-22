@@ -8,13 +8,18 @@ import test from 'node:test';
 import {
     createRoundFixtures,
     buildResearchPrompt,
+    buildVerifyPrompt,
+    calculateScopeAgreement,
     extractFinalText,
+    extractCandidateManifest,
+    extractVerifyManifest,
     FIXTURE_NAMES,
     runAgent,
     resolveOpenCodeExecutable,
     runResearchScope,
     runResearchRound,
     validateResearchReport,
+    validateVerifyReport,
 } from '../scripts/council-hardening-runner.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
@@ -38,16 +43,62 @@ test('hardening fixtures are isolated below repository tmp and preserve bytes', 
 });
 
 test('only the final JSON text event is validated and VERDICT must be first', () => {
-    const stdout = `${reportEvent('working')}\n${reportEvent('VERDICT: ISSUES_FOUND\nFinding')}`;
+    const stdout = `${reportEvent('working')}\n${reportEvent('VERDICT: ISSUES_FOUND\nFinding')}\n${reportEvent('report complete')}`;
     assert.equal(extractFinalText(stdout), 'VERDICT: ISSUES_FOUND\nFinding');
-    assert.equal(validateResearchReport({ stdout }).valid, true);
-    assert.equal(validateResearchReport({ stdout: reportEvent('Intro\nVERDICT: CLEAN') }).valid, false);
+    assert.deepEqual(validateResearchReport({ stdout }).warnings, ['post-report-summary']);
+    assert.deepEqual(validateResearchReport({ stdout: reportEvent('Intro\nVERDICT: CLEAN') }).reasons, ['verdict-not-first-line']);
+    assert.deepEqual(validateResearchReport({ stdout: reportEvent('```text\nVERDICT: CLEAN\n```') }).reasons, ['verdict-inside-code-fence']);
+    assert.deepEqual(validateResearchReport({ stdout: reportEvent('No verdict') }).reasons, ['no-verdict-event']);
 });
 
 test('finding prose containing fallback stays valid but runtime fallback does not', () => {
     const stdout = reportEvent('VERDICT: ISSUES_FOUND\nOptions fallback is incorrect');
     assert.equal(validateResearchReport({ stdout }).valid, true);
     assert.equal(validateResearchReport({ stdout, stderr: 'Fallback warning: using default agent' }).valid, false);
+});
+
+test('lead candidate manifest is extracted from the final JSON block and validated', () => {
+    const report = `VERDICT: ISSUES_FOUND\n\n\`\`\`json\n${JSON.stringify({ candidates: [{
+        id: 'AA-01', file: 'fixture.mjs', symbol: 'acquire', claim: 'pending remains poisoned',
+        evidence: 'second call returns rejected promise', potentialImpact: 'HIGH',
+    }] })}\n\`\`\``;
+    const manifest = extractCandidateManifest(report);
+    assert.equal(manifest.candidates[0].id, 'AA-01');
+    assert.throws(() => extractCandidateManifest('```json\n{"candidates":[{"id":"AA"}]}\n```'), /candidate\.file/);
+});
+
+test('verify uses compact candidate context and emits validated classifications', () => {
+    const prompt = buildVerifyPrompt({ manifestFile: 'round/candidates.json', fixtureRoot: 'round/fixtures' });
+    assert.match(prompt, /candidates\.json/);
+    assert.doesNotMatch(prompt, /lead\.report/);
+    assert.match(prompt, /Fixture-APIs sind die zu pruefende Contract-Oberflaeche/);
+    assert.match(prompt, /nicht allein wegen fehlender Importe/);
+    assert.ok(prompt.length < 1_500);
+    const report = `VERDICT: VERIFIED\n\n\`\`\`json\n${JSON.stringify({ results: [{
+        id: 'AA-01', classification: 'BUG', productPath: 'state -> call -> fault -> impact', counterEvidence: 'none',
+    }] })}\n\`\`\``;
+    assert.equal(extractVerifyManifest(report).results[0].classification, 'BUG');
+    const stdout = `${reportEvent(report)}\n${reportEvent('verification complete')}`;
+    assert.equal(validateVerifyReport({ stdout }).valid, true);
+    assert.throws(() => extractVerifyManifest('```json\n{"results":[{"id":"AA","classification":"TRUE"}]}\n```'), /classification/);
+});
+
+test('scope agreement is deterministic and requires four valid agreeing models', () => {
+    const finding = { file: 'fixture.mjs', symbol: 'acquire', category: 'pending-rejection', claim: 'claim', evidence: 'evidence', confidence: 'HIGH', impact: 'HIGH' };
+    const result = (agent, valid = true) => ({
+        agent,
+        validation: { valid, report: `VERDICT: ISSUES_FOUND\n\n\`\`\`json\n${JSON.stringify({ findings: [finding] })}\n\`\`\`` },
+    });
+    const agreement = calculateScopeAgreement({ scope: 'perf', results: [
+        result('council-perf'), result('council-perf-fb'), result('council-perf-fb2'), result('council-perf-fb3'), result('council-perf-fb4', false),
+    ] });
+    assert.equal(agreement.validRuns, 4);
+    assert.equal(agreement.findings[0].agreementCount, 4);
+    assert.equal(agreement.findings[0].highConfidence, true);
+    const insufficient = calculateScopeAgreement({ scope: 'perf', results: [
+        result('council-perf'), result('council-perf-fb'), result('council-perf-fb2'), result('council-perf-fb3', false), result('council-perf-fb4', false),
+    ] });
+    assert.equal(insufficient.findings[0].highConfidence, false);
 });
 
 test('research scope runs five siblings in parallel with one provider-only retry', async () => {

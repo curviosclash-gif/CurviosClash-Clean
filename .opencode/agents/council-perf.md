@@ -56,3 +56,5 @@ Gib eine priorisierte Liste von Optimierungsempfehlungen:
 3. Konkreter Fix-Vorschlag
 
 Ohne Snapshot: Analysiere den Code statisch auf bekannte Performance-Antipattern (wie oben, aber ohne Messwerte — kennzeichne Funde als "statisch, unbestätigt").
+
+Gib abschließend genau einen JSON-Codeblock mit dem Root-Objekt `{"findings": [...]}` aus. Jedes Finding enthält `file`, `symbol`, `category` (stabile Root-Cause in kebab-case), `claim`, `evidence`, `confidence` und `impact`. Bei CLEAN ist `findings` leer. Erfinde keine Gesamtfehlerzahl.
