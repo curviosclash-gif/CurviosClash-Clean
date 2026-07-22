@@ -34,6 +34,31 @@ Initial:
 }
 ```
 
+Beim Start wird außerdem ein Hash-Snapshot aller bereits geänderten Dateien gespeichert. Reviews, Budgets und Metriken verwenden danach nur Dateien, deren Arbeitsbaum-Hash sich gegenüber dem letzten Snapshot geändert hat. Vorhandene Nutzeränderungen bleiben außerhalb des Council-Deltas.
+
+## Verbindliches Finding-Schema
+
+Jedes Finding wird strikt validiert. Seine ID entsteht deterministisch aus `scope`, `file`, `category` und dem stabilen Contract-/Funktions-/Regel-`symbol`; Zeilenverschiebungen ändern sie nicht. Eine mitgelieferte ID muss exakt entsprechen.
+
+```json
+{
+  "id": "review:null-guard:<12-stelliger-hash>",
+  "severity": "🟠",
+  "scope": "review",
+  "file": "src/runtime/example.js",
+  "line": 12,
+  "endLine": 15,
+  "category": "null-guard",
+  "symbol": "resolveExample",
+  "problem": "Konkrete Fehlerbeschreibung",
+  "verifyRun1": "TRUE",
+  "verifyRun2": "TRUE",
+  "evidence": { "type": "test|reproduction|contract|invariant|static-rule", "detail": "Konkreter Ursachenbeleg" }
+}
+```
+
+Absolute Pfade, `..`, unbekannte Enum-Werte, doppelte IDs, inkonsistente Zähler oder bestätigte 🔴/🟠-Findings ohne Evidence stoppen die Eingabevalidierung.
+
 ## Iterations-Schleife
 
 ### PRO ITERATION:
@@ -81,8 +106,18 @@ Nach Abschluss des code-council-Kommando:
 - Zähle 🔴, 🟠, 🟡 Findings aus dem konsolidierten Report
 - Erfasse Build-Ergebnis
 - Erfasse Test-Ergebnis
-- Zähle geänderte Dateien (`git diff --stat HEAD`)
+- Zähle nur Dateien mit geändertem Hash gegenüber dem letzten Arbeitsbaum-Snapshot
 - Berechne DIFF_SCORE = (vorherige 🔴 - aktuelle 🔴) - (neue 🔴)
+- Wähle die betroffenen Gates aus dem Council-Delta. Das finale Gate enthält immer Desktop-App-Build und schnelle Contracts.
+
+#### 4a. REPARATURBUDGET
+
+Ab Reparaturrunde 1 gelten maschinell:
+- Finding-Zieldateien, Testdateien und maximal fünf weitere Dateien
+- keine neuen Abhängigkeiten oder öffentlichen Contract-Änderungen
+- keine Löschungen oder Umbenennungen
+
+Eine Verletzung beendet den Loop mit `repair_budget_exceeded`.
 
 #### 5. STATE AKTUALISIEREN
 Hänge an `history`:
@@ -103,10 +138,10 @@ Hänge an `history`:
 #### 6. KONVERGENZ PRÜFEN
 
 **EARLY_EXIT_ON_PASS**: Wenn Build PASSED UND Tests PASSED UND keine doppelt bestätigten 🔴/🟠-Findings offen sind:
-  → EXIT mit "early_pass"
+  → EXIT mit "passed"
 
-**STAGNATION**: Wenn die Anzahl doppelt bestätigter 🔴/🟠-Findings nicht sinkt:
-  → EXIT mit "stagnation"
+**PERSISTENZ**: Wenn dieselbe stabile Finding-ID nach einer Reparatur weiter besteht:
+  → EXIT mit "finding_persisted"
 
 **OSCILLATION**: Wenn die letzten 2 Iterationen abwechselnd Findings erzeugen und beheben (Ping-Pong):
   → EXIT mit "oscillation_detected"
@@ -114,6 +149,7 @@ Hänge an `history`:
 Sonst: nächste Iteration (zurück zu 1)
 
 #### 7. OSZILLATIONS-ERKENNUNG (Detail)
+Verbindlich ist der Vergleich der stabilen Finding-IDs der letzten drei Iterationen: War eine ID offen, danach verschwunden und erscheint erneut, endet der Loop mit `oscillation_detected`. Eine neue bestätigte ID in einer Reparaturrunde endet mit `regression_introduced`. Die nachfolgenden Datei-/Zeilenvergleiche dienen nur als Diagnosehinweis und entscheiden den Exit nicht.
 Vergleiche `history[N-1]` mit `history[N-2]`:
 - Gleiche Dateien geändert aber Findings-Typ wechselt (z.B. war 🔴 in N-2, wurde in N-1 behoben, ist in N wieder 🔴)
 - Gleiche Codezeilen werden hin- und her-geändert
@@ -124,8 +160,13 @@ Vergleiche `history[N-1]` mit `history[N-2]`:
 | Exit-Code | Bedeutung | Aktion |
 |-----------|-----------|--------|
 | max_iterations | Limit erreicht | Report mit verbleibenden Findings |
-| early_pass | Alle Gates grün | Erfolgs-Report |
-| stagnation | Keine Verbesserung | Report mit Blockade-Analyse |
+| passed | Alle Gates grün, keine bestätigten Findings | Erfolgs-Report |
+| build_failed | Passender Build fehlgeschlagen | Stop mit Build-Evidence |
+| tests_failed | Betroffene Tests fehlgeschlagen | Stop mit Test-Evidence |
+| finding_persisted | Stabile Finding-ID besteht weiter | Eskalation statt dritter Reparatur |
+| regression_introduced | Reparatur erzeugte neue bestätigte ID | Stop und Neuplanung |
+| verification_disagreed | Verify-Läufe widersprechen sich | Als nicht verifizierbar stoppen |
+| repair_budget_exceeded | Reparatur verließ ihr Budget | Stop und Scope prüfen |
 | oscillation_detected | Ping-Pong | Report mit Konflikt-Bereichen |
 
 ## Abschluss-Report

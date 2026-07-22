@@ -202,14 +202,17 @@ Nur Findings mit BEIDE TRUE gelten als bestätigt. Disagree → "nicht verifizie
 
 ### 8. BEGRENZTER REPAIR-LOOP (maximal zwei Reparaturrunden)
 Falls nach Verifikation BESTÄTIGTE 🔴- oder 🟠-Findings existieren:
-1. Ordne jedes Finding dem verantwortlichen Scope zu
-2. Starte ausschließlich die betroffenen Scopes mit dem Finding als Zusatzkontext:
+1. Validiere das Finding-Schema, erzeuge die stabile Finding-ID und fordere einen Ursachenbeleg (`test`, `reproduction`, `contract`, `invariant` oder `static-rule`)
+2. Ordne jedes Finding dem verantwortlichen Scope zu
+3. Starte ausschließlich die betroffenen Scopes mit dem Finding als Zusatzkontext:
    "Zusätzlich zu deinem Scope-Auftrag: Behebe dieses von council-verify bestätigte Problem: <Finding>"
-3. Nur 1 Agent pro Scope (keine 3-Wege-Selektion), direkt implementieren
-4. Erneut Build & Test Gate (Schritt 4)
-5. Fokussiertes Re-Review durch den zuständigen Fach-Reviewer und danach `council-verify` erneut ZWEIMAL unabhängig
-6. Wiederhole höchstens einmal (maximal zwei Reparaturrunden insgesamt). Keine neue Architekturentscheidung, keine parallelen Schreibzugriffe.
-7. Bleibt dasselbe Finding bestehen, entstehen neue Regressionen oder widersprechen sich die Verify-Läufe: STOP und als "offen/nicht verifizierbar" dokumentieren
+4. Nur 1 Agent pro Scope (keine 3-Wege-Selektion), direkt implementieren
+5. Erzwinge das Reparaturbudget: keine Dependencies, Contracts, Deletes/Renames; maximal fünf zusätzliche Nicht-Testdateien
+6. Führe die aus dem Datei-Delta gewählten Tests und Builds aus; im finalen Gate immer Desktop-App-Build und schnelle Contracts
+7. Fokussiertes Re-Review durch den zuständigen Fach-Reviewer und danach `council-verify` erneut ZWEIMAL unabhängig
+8. Wiederhole höchstens einmal (maximal zwei Reparaturrunden insgesamt). Keine neue Architekturentscheidung, keine parallelen Schreibzugriffe.
+9. Bleibt dieselbe Finding-ID bestehen, erscheint eine behobene ID erneut, entstehen neue Regressionen oder widersprechen sich die Verify-Läufe: STOP mit spezifischem Exit-Zustand
+10. Wenn reproduzierbar, ergänze zuerst einen Regressionstest und behebe danach die gemeinsame Ursache
 
 ### 9. ABSCHLUSS
 Präsentiere den konsolidierten Report:

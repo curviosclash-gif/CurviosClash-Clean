@@ -112,6 +112,9 @@ const loopCommand = read(join(COMMAND_DIR, 'code-council-loop.md'));
 expect(/Build PASSED UND Tests PASSED UND keine doppelt bestätigten/.test(loopCommand), 'code-council-loop.md: early pass must require build, tests, and no doubly confirmed actionable findings');
 expect(/maximal zwei Reparaturrunden/.test(loopCommand), 'code-council-loop.md: repair loop must have a hard two-round limit');
 expect(/zuständige Fach-Reviewer/.test(loopCommand), 'code-council-loop.md: repair rounds must use focused specialist review');
+expect(/Verbindliches Finding-Schema/.test(loopCommand), 'code-council-loop.md: validated finding schema is required');
+expect(/repair_budget_exceeded/.test(loopCommand), 'code-council-loop.md: repair budget exit must be documented');
+expect(/regression_introduced/.test(loopCommand), 'code-council-loop.md: regression exit must be documented');
 
 const codeCouncilCommand = read(join(COMMAND_DIR, 'code-council.md'));
 expect(/council-verify ZWEIMAL parallel/.test(codeCouncilCommand), 'code-council.md: redundant verification must run twice in parallel');
