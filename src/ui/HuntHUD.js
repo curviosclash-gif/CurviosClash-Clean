@@ -156,11 +156,20 @@ export class HuntHUD {
         this._localKills = -1;
         this._localAssists = -1;
         this._indicatorP2Visible = null;
+        this._cameraModeId = null;
     }
 
     _setVisible(visible) {
         this.root?.classList.toggle('hidden', !visible);
         this.root?.setAttribute?.('aria-hidden', String(!visible));
+    }
+
+    _syncCameraMode(player = null) {
+        const cameraModeId = String(player?.cameraModeId || 'THIRD_PERSON').trim().toUpperCase()
+            || 'THIRD_PERSON';
+        if (cameraModeId === this._cameraModeId) return;
+        this._cameraModeId = cameraModeId;
+        this.root?.setAttribute?.('data-camera-mode', cameraModeId);
     }
 
     update(dt, runtimeProjection = null) {
@@ -182,6 +191,7 @@ export class HuntHUD {
             : null;
         const humans = projectedHumans
             || (this.runtime.entityManager ? this.runtime.entityManager.getHumanPlayers() : []);
+        this._syncCameraMode(humans[0]);
         const huntActive = huntProjection
             ? huntProjection.active === true
             : this._isHuntActive(this.runtime);
@@ -291,6 +301,7 @@ export class HuntHUD {
             if (boostW !== cache?.boostW) {
                 refs.boostFill.style.width = boostW;
                 refs.boostFill.style.setProperty?.('--hunt-angle', `${(boostRatio * 78).toFixed(1)}deg`);
+                refs.boostFill.style.setProperty?.('--hunt-level', boostW);
                 if (cache) cache.boostW = boostW;
             }
             if (isBoostCooldown !== cache?.boostCooldown) {
@@ -314,6 +325,7 @@ export class HuntHUD {
         if (refs.overheatFill && overheatW !== cache?.overheatW) {
             refs.overheatFill.style.width = overheatW;
             refs.overheatFill.style.setProperty?.('--hunt-angle', `${(overheatRatio * 78).toFixed(1)}deg`);
+            refs.overheatFill.style.setProperty?.('--hunt-level', overheatW);
             if (cache) cache.overheatW = overheatW;
         }
         if (refs.overheatText && overheatTxt !== cache?.overheatTxt) {
