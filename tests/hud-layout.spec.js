@@ -69,6 +69,16 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
 
                 const hunt = document.querySelector('#hunt-hud');
                 hunt.classList.remove('hidden');
+                const itemBar = document.querySelector('#p1-items');
+                if (itemBar.children.length === 0) {
+                    for (let index = 0; index < 5; index += 1) {
+                        const slot = document.createElement('div');
+                        slot.className = 'item-slot active';
+                        slot.dataset.actionHintLabel = 'SHOT';
+                        slot.innerHTML = '<span class="item-icon">🚀</span>';
+                        itemBar.appendChild(slot);
+                    }
+                }
                 document.querySelector('#hunt-p2-panel')?.classList.remove('hidden');
                 document.querySelector('#hunt-p1-respawn')?.classList.remove('hidden');
                 document.querySelector('#parcours-hud')?.classList.remove('hidden');
@@ -96,6 +106,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 const boost = rect(document.querySelector('.hunt-arc-boost'));
                 const overheat = rect(document.querySelector('.hunt-arc-overheat'));
                 const p2Panel = rect(document.querySelector('#hunt-p2-panel'));
+                const itemSlots = [...itemBar.children].map(rect);
 
                 return {
                     localX,
@@ -108,6 +119,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     boost,
                     overheat,
                     p2Panel,
+                    itemSlots,
                     arcOverlap: overlaps(boost, overheat),
                     p2Overlap: overlaps(overheat, p2Panel),
                     tapes: [...p1.querySelectorAll('.hud-tape'), ...p2.querySelectorAll('.hud-tape')]
@@ -158,6 +170,20 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             }
             expect(layout.arcOverlap).toBe(false);
             expect(layout.p2Overlap).toBe(false);
+            expect(layout.itemSlots).toHaveLength(5);
+            for (const [index, slot] of layout.itemSlots.entries()) {
+                expect(
+                    slot.left,
+                    `item slot ${index + 1} escaped at ${viewport.width}x${viewport.height}, scale ${scale}`
+                ).toBeGreaterThanOrEqual(layout.p1Root.left - 1);
+                expect(slot.right).toBeLessThanOrEqual(layout.p1Root.right + 1);
+                expect(slot.bottom).toBeLessThanOrEqual(viewport.height + 1);
+                expect(slot.bottom).toBeGreaterThan(viewport.height - 80);
+                if (index > 0) {
+                    expectNear(slot.top, layout.itemSlots[0].top);
+                    expect(slot.left).toBeGreaterThan(layout.itemSlots[index - 1].right);
+                }
+            }
             expect(Object.values(layout.opacity)).toEqual(Array(6).fill('0.4'));
             expect(layout.colors).toEqual({
                 parcours: 'rgb(141, 220, 255)',
