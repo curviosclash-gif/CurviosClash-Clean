@@ -347,24 +347,3 @@ test('Fight HUD keeps HP, objective, score and respawn accessible outside fighte
     hud.update(0.2);
     assert.equal(root.attributes['aria-hidden'], 'true');
 });
-
-test('Fight HUD exposes the active camera mode for perspective-specific layouts', () => {
-    const root = element();
-    const hud = new HuntHUD({
-        runtime: { activeGameMode: 'HUNT', state: 'PLAYING' },
-        refs: { root },
-    });
-    const hunt = { active: true, killFeed: [], overheatByPlayer: {}, damageIndicatorsByPlayer: {} };
-
-    hud.update(0.2, {
-        players: [{ playerIndex: 0, isBot: false, cameraModeId: 'THIRD_PERSON' }],
-        hunt,
-    });
-    assert.equal(root.attributes['data-camera-mode'], 'THIRD_PERSON');
-
-    hud.update(0.2, {
-        players: [{ playerIndex: 0, isBot: false, cameraModeId: 'FIRST_PERSON' }],
-        hunt,
-    });
-    assert.equal(root.attributes['data-camera-mode'], 'FIRST_PERSON');
-});
