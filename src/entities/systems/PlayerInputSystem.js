@@ -519,6 +519,9 @@ export class PlayerInputSystem {
         const includeSecondaryBindings = entityManager.humanPlayers.length === 1 && player.index === 0;
         const inputState = inputManager.getPlayerInput(player.index, { includeSecondaryBindings });
         if (inputState) {
+            input.pitchAxis = inputState.pitchAxis;
+            input.yawAxis = inputState.yawAxis;
+            input.rollAxis = inputState.rollAxis;
             input.pitchUp = inputState.pitchUp;
             input.pitchDown = inputState.pitchDown;
             input.yawLeft = inputState.yawLeft;

@@ -6,6 +6,7 @@ import {
     createPreferredMatchInputSource,
 } from '../src/ui/MatchInputSourceResolver.js';
 import { createDefaultSettingsSnapshot } from '../src/core/settings/SettingsDefaultsFacade.js';
+import { PlayerInputSystem } from '../src/entities/systems/PlayerInputSystem.js';
 import { ensureMenuContractState } from '../src/ui/menu/MenuStateContracts.js';
 
 function createEventTarget(rect = null) {
@@ -55,6 +56,16 @@ test('mouse steering maps canvas position to analog axes and preserves keyboard 
         assert.equal(input.boost, true);
         assert.equal(input.shootMG, true);
         assert.equal(input.rollLeft, true);
+
+        inputManager.getPlayerInput = () => source.poll();
+        const player = { index: 0, isBot: false, inventory: [] };
+        const playerInputSystem = new PlayerInputSystem({
+            humanPlayers: [player],
+            renderer: { cameraModes: [], cycleCamera() {} },
+        });
+        const resolvedInput = playerInputSystem.resolvePlayerInput(player, 1 / 60, inputManager);
+        assert.equal(resolvedInput.yawAxis, -1);
+        assert.equal(resolvedInput.pitchAxis, 1);
 
         canvas.dispatch('pointermove', { clientX: 110, clientY: 70, pointerType: 'mouse' });
         assert.equal(source.poll().yawAxis, 0);
