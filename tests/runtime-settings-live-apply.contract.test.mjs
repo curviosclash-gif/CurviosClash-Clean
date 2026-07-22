@@ -22,6 +22,7 @@ import {
     validateSettingsOverrideDraft,
 } from '../src/core/settings/SettingsOverrideContract.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
+import { createSettingsPort } from '../src/shared/runtime/GameRuntimePorts.js';
 import { MENU_CONTROLLER_EVENT_TYPES } from '../src/shared/contracts/MenuControllerContract.js';
 import { SETTINGS_CHANGE_KEYS } from '../src/composition/core-ui/CoreUiMenuPorts.js';
 
@@ -207,6 +208,41 @@ test('EntityManager live runtime apply propagates updated config to runtime cach
     assert.equal(players[0].gameplayConfig?.PLAYER, nextErc.PLAYER);
     assert.equal(players[0].maxHp, 100);
     assert.equal(players[0].hp, 100);
+});
+
+test('Pause auto-roll setting reaches the entity runtime config used by player motion', () => {
+    const previousErc = createEntityRuntimeConfigFixture({
+        PLAYER: { AUTO_ROLL: true },
+    });
+    const runtimeConfig = {
+        player: {
+            autoRoll: true,
+        },
+    };
+    const liveApplyCalls = [];
+    const entityManager = {
+        entityRuntimeConfig: previousErc,
+        applyLiveRuntimeConfig(entityRuntimeConfig, appliedRuntimeConfig) {
+            liveApplyCalls.push({ entityRuntimeConfig, appliedRuntimeConfig });
+        },
+    };
+    const game = {
+        settings: { autoRoll: true },
+        runtimeBundle: {
+            state: {
+                runtimeConfig,
+                entityManager,
+            },
+        },
+    };
+
+    createSettingsPort(game).applyAutoRoll(false);
+
+    assert.equal(game.settings.autoRoll, false);
+    assert.equal(runtimeConfig.player.autoRoll, false);
+    assert.equal(liveApplyCalls.length, 1);
+    assert.equal(liveApplyCalls[0].entityRuntimeConfig.PLAYER.AUTO_ROLL, false);
+    assert.equal(liveApplyCalls[0].appliedRuntimeConfig, runtimeConfig);
 });
 
 test('Settings override validation reports explicit limit-rule errors only once per path/code', () => {

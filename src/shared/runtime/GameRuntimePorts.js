@@ -5,6 +5,7 @@ import {
     createRuntimeObservabilitySnapshot,
     createSessionRuntimeSnapshot,
 } from '../contracts/SessionRuntimeSnapshotContract.js';
+import { createEntityRuntimeConfig } from '../contracts/EntityRuntimeConfig.js';
 import { createArcadePort, createRecordingPort } from './GameRuntimeFeaturePorts.js';
 import { buildMatchRenderProjection as buildMatchRenderProjectionSnapshot } from './MatchRenderProjectionBuilder.js';
 import { buildMatchRuntimeProjection as buildMatchRuntimeProjectionSnapshot } from './MatchRuntimeProjectionBuilder.js';
@@ -191,6 +192,13 @@ export function createSettingsPort(game) {
             }
             if (runtimeState?.runtimeConfig?.player) {
                 runtimeState.runtimeConfig.player.autoRoll = checked;
+            }
+            const entityManager = runtimeState?.entityManager;
+            if (runtimeState?.runtimeConfig && typeof entityManager?.applyLiveRuntimeConfig === 'function') {
+                entityManager.applyLiveRuntimeConfig(
+                    createEntityRuntimeConfig(runtimeState.runtimeConfig, entityManager.entityRuntimeConfig),
+                    runtimeState.runtimeConfig
+                );
             }
         },
         setBindings(bindings) {
