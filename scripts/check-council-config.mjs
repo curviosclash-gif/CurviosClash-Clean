@@ -122,6 +122,14 @@ expect(/--auto --dir/.test(scopeLoopCommand), 'code-council-scope-loop.md: temp-
 expect(/Fallback-Warnungen/.test(scopeLoopCommand), 'code-council-scope-loop.md: default-agent fallbacks must invalidate the run');
 expect(/fünf Minuten/.test(scopeLoopCommand) && /15 Minuten/.test(scopeLoopCommand), 'code-council-scope-loop.md: phase and total timeouts must be bounded');
 
+const leadAgent = read(join(AGENT_DIR, 'council-lead.md'));
+expect(/Die allererste Ausgabezeile MUSS exakt/.test(leadAgent), 'council-lead.md: first-line VERDICT contract missing');
+expect(/VERDICT: CLEAN\|ISSUES_FOUND\|NEEDS_DATA\|UNCERTAIN/.test(leadAgent), 'council-lead.md: VERDICT values missing');
+
+const verifyAgent = read(join(AGENT_DIR, 'council-verify.md'));
+expect(/Die allererste Ausgabezeile MUSS exakt/.test(verifyAgent), 'council-verify.md: first-line VERDICT contract missing');
+expect(/VERDICT: VERIFIED\|REJECTED\|UNCERTAIN/.test(verifyAgent), 'council-verify.md: VERDICT values missing');
+
 const codeCouncilCommand = read(join(COMMAND_DIR, 'code-council.md'));
 expect(/council-verify ZWEIMAL parallel/.test(codeCouncilCommand), 'code-council.md: redundant verification must run twice in parallel');
 expect(/BEGRENZTER REPAIR-LOOP \(maximal zwei Reparaturrunden\)/.test(codeCouncilCommand), 'code-council.md: bounded repair loop is required');
