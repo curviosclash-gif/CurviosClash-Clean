@@ -241,23 +241,33 @@ export class GameRuntimeCoordinator {
         const game = this.runtime;
         const runtimeBundle = this.runtimeBundle || game?.runtimeBundle;
         const runtimeFacade = this.getRuntimeFacade();
-        this.getRuntimeHandle('gameLoop')?.stop?.();
+        let firstError = null;
+        const disposeSafely = async (callback) => {
+            try {
+                await Promise.resolve(callback?.());
+            } catch (error) {
+                firstError ||= error;
+            }
+        };
+
+        await disposeSafely(() => this.getRuntimeHandle('gameLoop')?.stop?.());
         try {
-            await Promise.resolve(runtimeFacade?.dispose?.());
+            await disposeSafely(() => runtimeFacade?.dispose?.());
         } finally {
-            this.getRuntimeHandle('matchFlowUiController')?.dispose?.();
-            this.getRuntimeHandle('huntHud')?.dispose?.();
-            this.getRuntimeHandle('hudRuntimeSystem')?.dispose?.();
-            this.getUiManager()?.dispose?.();
-            this.getRuntimeHandle('runtimeDiagnosticsSystem')?.dispose?.();
-            this.getRuntimeHandle('mediaRecorderSystem')?.dispose?.();
-            this.getRuntimeHandle('input')?.dispose?.();
-            this.getRuntimeHandle('audio')?.dispose?.();
-            this.getRuntimeHandle('renderer')?.dispose?.();
+            await disposeSafely(() => this.getRuntimeHandle('matchFlowUiController')?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('huntHud')?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('hudRuntimeSystem')?.dispose?.());
+            await disposeSafely(() => this.getUiManager()?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('runtimeDiagnosticsSystem')?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('mediaRecorderSystem')?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('input')?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('audio')?.dispose?.());
+            await disposeSafely(() => this.getRuntimeHandle('renderer')?.dispose?.());
             clearGameRuntimeState(runtimeBundle);
             this.runtimeBundle = null;
             this.runtimeFacade = null;
             this.uiManager = null;
         }
+        if (firstError) throw firstError;
     }
 }

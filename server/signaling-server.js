@@ -301,6 +301,7 @@ function removePeerFromLobby(ws, options = {}) {
     const hostLease = reconnectLeases.get(buildReconnectLeaseKey(lobbyCode, lobby.hostPeerId));
     if (lobby.players.length === 0 && !hostLease) {
         clearLobbyReconnectLeases(lobbyCode);
+        lobby.serverLobbyCodes?.delete(lobbyCode);
         lobbies.delete(lobbyCode);
     }
 }
@@ -470,6 +471,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     revision: 1,
                     pendingMatchStart: null,
                     ownerAddress: ws._remoteAddress,
+                    serverLobbyCodes,
                 };
                 lobbies.set(code, lobby);
                 serverLobbyCodes.add(code);
@@ -782,11 +784,14 @@ export function createSignalingServer(port = 9090, options = {}) {
             for (const player of lobby.players) {
                 sendSignaling(player.ws, SIGNALING_EVENT_TYPES.ERROR, { message: closeMessage });
                 peerToLobby.delete(player.ws);
+                player.ws.close(1001, closeMessage);
                 if (player.transportWs) {
                     peerToLobby.delete(player.transportWs);
+                    player.transportWs.close(1001, closeMessage);
                 }
             }
             clearLobbyReconnectLeases(code);
+            serverLobbyCodes.delete(code);
             lobbies.delete(code);
         }
     }, HEARTBEAT_INTERVAL);

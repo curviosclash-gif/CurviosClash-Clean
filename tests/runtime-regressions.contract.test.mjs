@@ -9,6 +9,7 @@ import {
 import { SessionRuntimeCommandExecutor } from '../src/application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { GameRuntimeCoordinator } from '../src/core/runtime/GameRuntimeCoordinator.js';
+import { createGameRuntimeBundle } from '../src/core/runtime/GameRuntimeBundle.js';
 import { InputManager } from '../src/core/InputManager.js';
 import { toggleCinematicRecordingFromHotkey } from '../src/core/runtime/GameRuntimeRecordingSupport.js';
 import { GameRuntimeSessionHandler } from '../src/core/runtime/GameRuntimeSessionHandler.js';
@@ -1222,6 +1223,45 @@ test('MatchKernel signalRoundEnd stays idempotent during round-end lifecycle', (
 
     assert.equal(kernel.lifecycle, 'round_end');
     assert.equal(kernel.roundPause, 1);
+});
+
+test('GameRuntimeCoordinator completes resource cleanup when an earlier disposer fails', async () => {
+    const calls = [];
+    const disposeError = new Error('facade dispose failed');
+    const components = {
+        gameLoop: { stop: () => calls.push('gameLoop') },
+        runtimeFacade: { dispose: () => { calls.push('runtimeFacade'); throw disposeError; } },
+        matchFlowUiController: { dispose: () => calls.push('matchFlowUiController') },
+        huntHud: { dispose: () => calls.push('huntHud') },
+        hudRuntimeSystem: { dispose: () => calls.push('hudRuntimeSystem') },
+        runtimeDiagnosticsSystem: { dispose: () => calls.push('runtimeDiagnosticsSystem') },
+        mediaRecorderSystem: { dispose: () => calls.push('mediaRecorderSystem') },
+        input: { dispose: () => calls.push('input') },
+        audio: { dispose: () => calls.push('audio') },
+        renderer: { dispose: () => calls.push('renderer') },
+    };
+    const runtime = {};
+    const coordinator = new GameRuntimeCoordinator({ runtime });
+    coordinator.runtimeBundle = createGameRuntimeBundle({ components });
+    coordinator.runtimeFacade = components.runtimeFacade;
+    coordinator.uiManager = { dispose: () => calls.push('uiManager') };
+
+    await assert.rejects(coordinator.disposeRuntime(), disposeError);
+
+    assert.deepEqual(calls, [
+        'gameLoop',
+        'runtimeFacade',
+        'matchFlowUiController',
+        'huntHud',
+        'hudRuntimeSystem',
+        'uiManager',
+        'runtimeDiagnosticsSystem',
+        'mediaRecorderSystem',
+        'input',
+        'audio',
+        'renderer',
+    ]);
+    assert.equal(coordinator.runtimeBundle, null);
 });
 
 test('interactive MatchKernel adapter reuses a minimal envelope and skips unused tick results', () => {

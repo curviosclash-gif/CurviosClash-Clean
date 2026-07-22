@@ -204,6 +204,7 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
             };
             socket.onclose = (event) => {
                 if (this._ws !== socket) return;
+                this._ws = null;
                 const closeError = createSocketLifecycleError('close', buildSocketCloseDetails(event, this._signalingUrl));
                 if (!settled) {
                     fail(closeError);

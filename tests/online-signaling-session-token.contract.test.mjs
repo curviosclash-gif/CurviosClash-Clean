@@ -248,6 +248,19 @@ test('online signaling declares IP message and global lobby resource ceilings', 
     assert.match(source, /lobbies\.size >= MAX_LOBBIES/);
 });
 
+test('online signaling releases expired lobby sockets and server-owned lobby codes', () => {
+    const source = readFileSync(new URL('../server/signaling-server.js', import.meta.url), 'utf8');
+    assert.match(source, /player\.ws\.close\(1001, closeMessage\)/);
+    assert.match(source, /player\.transportWs\.close\(1001, closeMessage\)/);
+    assert.match(source, /serverLobbyCodes\.delete\(code\)/);
+    assert.match(source, /lobby\.serverLobbyCodes\?\.delete\(lobbyCode\)/);
+});
+
+test('OnlineSessionAdapter clears a closed signaling socket before publishing disconnect', () => {
+    const source = readFileSync(new URL('../src/network/OnlineSessionAdapter.js', import.meta.url), 'utf8');
+    assert.match(source, /socket\.onclose = \(event\) => \{\s*if \(this\._ws !== socket\) return;\s*this\._ws = null;/);
+});
+
 test('OnlineSessionAdapter retains the server token and sends it on resume', async () => {
     const adapter = new OnlineSessionAdapter({ isHost: true, signalingUrl: 'ws://localhost:1' });
     adapter._latencyMonitor.start = () => {};

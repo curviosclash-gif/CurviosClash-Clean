@@ -410,8 +410,8 @@ export class Game {
     }
 
     _updatePausedState(_dt) {
-        if (this.input.wasPressed('Escape')) {
-            this.matchFlowUiController.resumeFromPause();
+        if (this.input?.wasPressed?.('Escape')) {
+            this.matchFlowUiController?.resumeFromPause?.();
         }
     }
 

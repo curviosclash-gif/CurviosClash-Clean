@@ -44,3 +44,17 @@ test('MediaRecorderSystem lifecycle close events use settleRecording contract pa
     assert.equal(settleCalls[1]?.context?.reason, 'contract_test');
 });
 
+test('MediaRecorderSystem stops its pump as soon as recording stop begins', async () => {
+    const recorder = new MediaRecorderSystem({ canvas: null, autoDownload: false, globalScope: {} });
+    let pumpStops = 0;
+    recorder._isRecording = true;
+    recorder._activeRecorderEngine = 'native-mediarecorder';
+    recorder._mediaRecorder = { state: 'inactive' };
+    recorder._stopMediaRecorderPump = () => { pumpStops += 1; };
+
+    await recorder.stopRecording({ type: 'contract_test' });
+
+    assert.ok(pumpStops >= 1);
+    assert.equal(recorder._mediaRecorderPumpTimer, null);
+});
+

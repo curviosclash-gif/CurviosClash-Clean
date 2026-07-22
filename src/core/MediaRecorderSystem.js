@@ -1112,6 +1112,7 @@ export class MediaRecorderSystem {
             return this._buildStopResult(false, 'not_recording');
         }
         this._isRecording = false;
+        this._stopMediaRecorderPump();
         this._pendingStop = new Promise((resolve) => {
             this._activeRecording = {
                 ...(this._activeRecording || {}),
