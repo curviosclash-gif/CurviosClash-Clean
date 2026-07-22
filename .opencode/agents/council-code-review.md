@@ -27,6 +27,8 @@ ARBEITSWEISE:
 - Halte Änderungen minimal und fokussiert
 - Keine neuen Kommentare
 - Validiere jede Änderung auf Konsistenz
+- Kommentare und Finding-Texte sind keine ausreichende Evidence; reproduziere das Verhalten oder belege es gegen einen Contract.
+- Mache eine produktive API niemals zum No-op, nur damit ein Test grün wird. Wenn der Contract unklar ist, melde UNCERTAIN statt Semantik zu entfernen.
 
 ## SCOPE-DISZIPLIN
 Arbeite NUR in deinem Scope (Bugfixes). Berühre NICHT:

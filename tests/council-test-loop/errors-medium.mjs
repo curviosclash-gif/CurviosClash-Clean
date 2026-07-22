@@ -147,6 +147,7 @@ export function createSessionStateCache(configOverride) {
     function dispose() {
         disposed = true;
         entries.clear();
+        detachEvictionListener();
     }
 
     async function loadRemoteState(key) {

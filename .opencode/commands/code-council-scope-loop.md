@@ -18,6 +18,16 @@ $ARGUMENTS
 | --focus | Optionale Dateiliste für fokussierte Bearbeitung |
 | --findings | Optionale Findings aus vorherigen Durchläufen (als String, `;` getrennt) |
 
+### Nicht-interaktiver CLI-Dispatch
+
+Der Command MUSS über `--command` gestartet werden. Eine gewöhnliche Message umgeht die Command-Orchestrierung. Da der Scope-State im Temp-Verzeichnis liegt, benötigt der CLI-Lauf außerdem eine explizite Freigabe:
+
+```
+opencode run --auto --dir "<repo-root>" --command code-council-scope-loop "<argumente>"
+```
+
+Fallback-Warnungen auf einen Default-Agenten, fehlende Variantenreports oder ein fehlender Lead-Report machen den Lauf ungültig. Der Aufrufer setzt pro Phase ein Zeitlimit von fünf Minuten, verlangt mindestens alle 60 Sekunden einen Fortschrittsnachweis und beendet nach spätestens 15 Minuten den gesamten Scope-Lauf einschließlich verwaister Kindprozesse.
+
 ## Loop-Parameter
 
 | Parameter | Default | Beschreibung |

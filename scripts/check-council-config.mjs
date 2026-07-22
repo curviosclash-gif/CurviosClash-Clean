@@ -116,6 +116,12 @@ expect(/Verbindliches Finding-Schema/.test(loopCommand), 'code-council-loop.md: 
 expect(/repair_budget_exceeded/.test(loopCommand), 'code-council-loop.md: repair budget exit must be documented');
 expect(/regression_introduced/.test(loopCommand), 'code-council-loop.md: regression exit must be documented');
 
+const scopeLoopCommand = read(join(COMMAND_DIR, 'code-council-scope-loop.md'));
+expect(/--command code-council-scope-loop/.test(scopeLoopCommand), 'code-council-scope-loop.md: non-interactive dispatch must use --command');
+expect(/--auto --dir/.test(scopeLoopCommand), 'code-council-scope-loop.md: temp-state dispatch must document explicit permission');
+expect(/Fallback-Warnungen/.test(scopeLoopCommand), 'code-council-scope-loop.md: default-agent fallbacks must invalidate the run');
+expect(/fünf Minuten/.test(scopeLoopCommand) && /15 Minuten/.test(scopeLoopCommand), 'code-council-scope-loop.md: phase and total timeouts must be bounded');
+
 const codeCouncilCommand = read(join(COMMAND_DIR, 'code-council.md'));
 expect(/council-verify ZWEIMAL parallel/.test(codeCouncilCommand), 'code-council.md: redundant verification must run twice in parallel');
 expect(/BEGRENZTER REPAIR-LOOP \(maximal zwei Reparaturrunden\)/.test(codeCouncilCommand), 'code-council.md: bounded repair loop is required');
