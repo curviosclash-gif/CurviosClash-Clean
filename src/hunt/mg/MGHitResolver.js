@@ -10,6 +10,7 @@ import {
 } from '../HuntTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { clamp } from '../../utils/MathOps.js';
+import { applyFightHumanAimAssist } from '../FightAimAssist.js';
 
 export class MGHitResolver {
     constructor(runtimeContext) {
@@ -70,7 +71,11 @@ export class MGHitResolver {
 
     resolveAimDirection(player, out, mg = null) {
         player.getAimDirection(out).normalize();
-        if (!player?.isBot || !player?.position) return out;
+        if (!player?.position) return out;
+        if (!player.isBot) {
+            applyFightHumanAimAssist(player, this.runtime?.players || [], out, mg, this._tmpHit);
+            return out;
+        }
         const maxRangeSq = Math.max(10, Number(mg?.RANGE || 95)) ** 2;
         const aimDotMin = clamp(Number(mg?.AIM_DOT_MIN) || 0.965, -1, 1);
         let bestDot = aimDotMin;

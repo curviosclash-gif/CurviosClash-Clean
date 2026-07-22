@@ -96,6 +96,8 @@ export class Player {
         this.cockpitCamera = gameplayCameraState.cockpitCamera;
         this.spawnProtectionTimer = 0;
         this.planarAimOffset = 0;
+        this.fightAimAssistTargetIndex = -1;
+        this.fightAimAssistLockRemaining = 0;
         this.steeringLockTimer = 0;
         this.currentPlanarY = 0;
         this.controlRampEnabled = false;
@@ -192,6 +194,8 @@ export class Player {
         this.invertControls = false;
         this.spawnProtectionTimer = playerConfig.SPAWN_PROTECTION || 0;
         this.planarAimOffset = 0;
+        this.fightAimAssistTargetIndex = -1;
+        this.fightAimAssistLockRemaining = 0;
         this.steeringLockTimer = 0;
         this.itemUseCooldownRemaining = 0;
         resetPlayerHealth(this);
@@ -239,6 +243,10 @@ export class Player {
         this._obbCollisionPrepared = false;
 
         this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dt);
+        this.fightAimAssistLockRemaining = Math.max(
+            0,
+            Number(this.fightAimAssistLockRemaining || 0) - dt
+        );
         this.steeringLockTimer = Math.max(0, (this.steeringLockTimer || 0) - dt);
         this.shieldHitFeedback = Math.max(0, (this.shieldHitFeedback || 0) - dt * 3.2);
         this.itemUseCooldownRemaining = Math.max(0, Number(this.itemUseCooldownRemaining || 0) - dt);

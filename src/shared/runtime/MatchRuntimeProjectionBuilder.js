@@ -137,7 +137,9 @@ function buildLockTargetProjection(entityManager, playerIndex) {
     }
     return {
         playerIndex,
-        targetPlayerIndex: Number.isInteger(target?.index) ? target.index : -1,
+        targetPlayerIndex: Number.isInteger(target?.index)
+            ? target.index
+            : (Number.isInteger(target?.playerIndex) ? target.playerIndex : -1),
         alive: target?.alive !== false,
         position: toVector3Projection(target?.position),
     };

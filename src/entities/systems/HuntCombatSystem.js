@@ -23,6 +23,8 @@ import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
+import { applyFightHumanAimAssist } from '../../hunt/FightAimAssist.js';
+import { resolveFightMachineGunConfig } from '../../shared/contracts/FightMachineGunContract.js';
 
 function resolveActionResultCodes(action = 'use') {
     return action === 'shoot'
@@ -269,22 +271,27 @@ export class HuntCombatSystem {
             return legacyTarget;
         }
 
+        const mg = resolveFightMachineGunConfig(
+            config?.HUNT?.MG || {},
+            player?.fightLoadout?.machineGunId
+        );
+        applyFightHumanAimAssist(player, runtime.players, tmpDir, mg, tmpVec);
         const muzzle = this._fallbackMuzzle;
         const muzzleOffset = Math.max(0, Number(config?.HUNT?.TARGETING?.MUZZLE_OFFSET || 2.1));
         muzzle.copy(player.position).addScaledVector(tmpDir, muzzleOffset);
 
-        const mgRange = Math.max(10, Number(config?.HUNT?.MG?.RANGE || 95));
+        const mgRange = Math.max(10, Number(mg.RANGE || 95));
         const descriptor = resolveHuntLineTarget({
             sourcePlayer: player,
             players: runtime.players,
             trailSpatialIndex: runtime.getTrailSpatialIndex?.() || runtime.trails?.spatialIndex || null,
             origin: muzzle,
             direction: tmpDir,
-            playerRange: Math.max(10, Number(config?.HOMING?.MAX_LOCK_RANGE || 100)),
+            playerRange: mgRange,
             trailRange: mgRange,
-            trailSampleStep: Number(config?.HUNT?.MG?.TRAIL_SAMPLE_STEP),
-            trailHitRadius: Number(config?.HUNT?.MG?.TRAIL_HIT_RADIUS),
-            trailSelfSkipRecent: Number(config?.HUNT?.MG?.TRAIL_SELF_SKIP_RECENT),
+            trailSampleStep: Number(mg.TRAIL_SAMPLE_STEP),
+            trailHitRadius: Number(mg.TRAIL_HIT_RADIUS),
+            trailSelfSkipRecent: Number(mg.TRAIL_SELF_SKIP_RECENT),
             allowSelfTrailFallback: false,
             runtimeProfiler: runtime?.services?.runtimeProfiler || runtime?.runtimeProfiler || null,
             targetingTelemetry: this._targetingTelemetry,

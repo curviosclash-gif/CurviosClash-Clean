@@ -12,6 +12,7 @@ import {
 } from '../src/shared/contracts/FightMachineGunContract.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { GAMEPLAY_ACTION_RESULT_CODES } from '../src/shared/contracts/GameplayActionResultContract.js';
+import { HuntCombatSystem } from '../src/entities/systems/HuntCombatSystem.js';
 import {
     areHangarBuildsEqual,
     createDefaultHangarBuild,
@@ -127,4 +128,85 @@ test('Bot MG aim assist stays inside the configured targeting cone', () => {
     player.isBot = false;
     target.position.set(5, 0, -30);
     assert.equal(resolver.resolveHit(player, mg).target, null);
+});
+
+test('Human Fight MG aim assist acquires, holds, and releases targets without steering the player', () => {
+    const player = {
+        alive: true,
+        isBot: false,
+        index: 0,
+        position: new THREE.Vector3(),
+        fightAimAssistTargetIndex: -1,
+        fightAimAssistLockRemaining: 0,
+        getAimDirection: (out) => out.set(0, 0, -1),
+    };
+    const target = {
+        alive: true,
+        index: 1,
+        position: new THREE.Vector3(3.5, 0, -30),
+        hitboxRadius: 0.8,
+    };
+    const resolver = new MGHitResolver({ players: [player, target] });
+    const mg = {
+        RANGE: 95,
+        HUMAN_AIM_ASSIST_ACQUIRE_ANGLE_DEG: 7,
+        HUMAN_AIM_ASSIST_RELEASE_ANGLE_DEG: 10,
+        HUMAN_AIM_ASSIST_LOCK_SECONDS: 0.25,
+    };
+
+    assert.equal(resolver.resolveHit(player, mg).target?.playerIndex, target.index);
+    assert.equal(player.fightAimAssistTargetIndex, target.index);
+    assert.equal(player.fightAimAssistLockRemaining, 0.25);
+
+    target.position.set(5.2, 0, -30);
+    assert.equal(resolver.resolveHit(player, mg).target?.playerIndex, target.index);
+
+    target.position.set(5.4, 0, -30);
+    assert.equal(resolver.resolveHit(player, mg).target, null);
+    assert.equal(player.fightAimAssistTargetIndex, -1);
+});
+
+test('Fight HUD lock-on uses the same assisted MG direction and weapon range as firing', () => {
+    const player = {
+        alive: true,
+        isBot: false,
+        index: 0,
+        position: new THREE.Vector3(),
+        fightLoadout: { machineGunId: 'raptor_r9' },
+        fightAimAssistTargetIndex: -1,
+        fightAimAssistLockRemaining: 0,
+        getAimDirection: (out) => out.set(0, 0, -1),
+    };
+    const target = {
+        alive: true,
+        index: 1,
+        position: new THREE.Vector3(3.5, 0, -30),
+        hitboxRadius: 0.8,
+    };
+    const entityRuntimeConfig = {
+        ...DEFAULT_ENTITY_RUNTIME_CONFIG,
+        HUNT: {
+            ...DEFAULT_ENTITY_RUNTIME_CONFIG.HUNT,
+            TARGETING: { MUZZLE_OFFSET: 2.1 },
+            MG: {
+                RANGE: 95,
+                TRAIL_SAMPLE_STEP: 0.45,
+                TRAIL_HIT_RADIUS: 0.78,
+                TRAIL_SELF_SKIP_RECENT: 8,
+                HUMAN_AIM_ASSIST_ACQUIRE_ANGLE_DEG: 7,
+                HUMAN_AIM_ASSIST_RELEASE_ANGLE_DEG: 10,
+                HUMAN_AIM_ASSIST_LOCK_SECONDS: 0.25,
+            },
+        },
+    };
+    const runtime = {
+        players: [player, target],
+        entityRuntimeConfig,
+        cache: { lockOn: new Map() },
+        callbacks: { getStrategy: () => ({ hasMachineGun: () => true }) },
+    };
+
+    const lockTarget = new HuntCombatSystem(runtime).checkLockOn(player);
+    assert.equal(lockTarget?.playerIndex, target.index);
+    assert.equal(player.fightAimAssistTargetIndex, target.index);
 });
