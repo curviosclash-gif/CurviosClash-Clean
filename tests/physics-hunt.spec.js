@@ -1793,4 +1793,27 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.shieldTextAfterChange).toBe('25 / 100');
     });
 
+    test('T89l: HuntHUD-Boegen bestehen aus exakt 100 horizontalen Segmenten', async ({ page }) => {
+        await startHuntGame(page);
+        const result = await page.evaluate(() => {
+            const boostFill = document.querySelector('#hunt-p1-boost-fill');
+            const overheatFill = document.querySelector('#hunt-p1-overheat-fill');
+            const inspect = (fill) => {
+                const paths = [...fill.querySelectorAll('.hunt-segmented-arc path')];
+                return {
+                    pathCount: paths.length,
+                    segmentCounts: paths.map((path) => (path.getAttribute('d').match(/M/g) || []).length),
+                    diagonalCommands: paths.some((path) => /[vVlL]/.test(path.getAttribute('d'))),
+                };
+            };
+            return { boost: inspect(boostFill), overheat: inspect(overheatFill) };
+        });
+
+        for (const gauge of [result.boost, result.overheat]) {
+            expect(gauge.pathCount).toBe(2);
+            expect(gauge.segmentCounts).toEqual([100, 100]);
+            expect(gauge.diagonalCommands).toBe(false);
+        }
+    });
+
 });

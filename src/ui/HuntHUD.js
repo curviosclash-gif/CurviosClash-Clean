@@ -12,6 +12,43 @@ const OVERHEAT_CAP = 100;
 const INDICATOR_DEFAULT_INTENSITY = 0.6;
 const INDICATOR_MIN_OPACITY = 0.2;
 const DEFAULT_BOOST_CAPACITY = 1;
+const HUNT_ARC_SEGMENT_COUNT = 100;
+const HUNT_ARC_SVG_NS = 'http://www.w3.org/2000/svg';
+
+function buildHuntArcSegmentPath() {
+    const commands = [];
+    for (let index = 0; index < HUNT_ARC_SEGMENT_COUNT; index += 1) {
+        const progress = index / (HUNT_ARC_SEGMENT_COUNT - 1);
+        const y = 268.65 - (progress * 267.3);
+        const normalizedY = (y - 135) / 120;
+        const x = 60 + (normalizedY * normalizedY * 60);
+        commands.push(`M${x.toFixed(2)} ${y.toFixed(2)}h14`);
+    }
+    return commands.join(' ');
+}
+
+const HUNT_ARC_SEGMENT_PATH = buildHuntArcSegmentPath();
+
+function initializeSegmentedArc(fill) {
+    const doc = fill?.ownerDocument;
+    if (!doc?.createElementNS || fill.querySelector?.('.hunt-segmented-arc')) return;
+
+    const svg = doc.createElementNS(HUNT_ARC_SVG_NS, 'svg');
+    svg.classList.add('hunt-segmented-arc');
+    svg.setAttribute('viewBox', '0 0 170 270');
+    svg.setAttribute('aria-hidden', 'true');
+
+    const track = doc.createElementNS(HUNT_ARC_SVG_NS, 'path');
+    track.classList.add('hunt-segment-track');
+    track.setAttribute('d', HUNT_ARC_SEGMENT_PATH);
+
+    const active = doc.createElementNS(HUNT_ARC_SVG_NS, 'path');
+    active.classList.add('hunt-segment-active');
+    active.setAttribute('d', HUNT_ARC_SEGMENT_PATH);
+
+    svg.append(track, active);
+    fill.replaceChildren(svg);
+}
 
 function toPercent(value) {
     return `${(clamp01(value) * 100).toFixed(1)}%`;
@@ -102,6 +139,9 @@ export class HuntHUD {
         this._getBoostCapacity = typeof options.getBoostCapacity === 'function'
             ? options.getBoostCapacity
             : () => DEFAULT_BOOST_CAPACITY;
+
+        initializeSegmentedArc(this.p1BoostFill);
+        initializeSegmentedArc(this.p1OverheatFill);
     }
 
     _getMatchRuntimeProjection() {
@@ -290,7 +330,7 @@ export class HuntHUD {
         if (refs.boostFill) {
             if (boostW !== cache?.boostW) {
                 refs.boostFill.style.width = boostW;
-                refs.boostFill.style.setProperty?.('--hunt-angle', `${(boostRatio * 78).toFixed(1)}deg`);
+                refs.boostFill.style.setProperty?.('--hunt-segments-filled', `${Math.round(boostRatio * HUNT_ARC_SEGMENT_COUNT)}%`);
                 if (cache) cache.boostW = boostW;
             }
             if (isBoostCooldown !== cache?.boostCooldown) {
@@ -313,7 +353,7 @@ export class HuntHUD {
         const overheatTxt = `${Math.round(overheatValue)}%`;
         if (refs.overheatFill && overheatW !== cache?.overheatW) {
             refs.overheatFill.style.width = overheatW;
-            refs.overheatFill.style.setProperty?.('--hunt-angle', `${(overheatRatio * 78).toFixed(1)}deg`);
+            refs.overheatFill.style.setProperty?.('--hunt-segments-filled', `${Math.round(overheatRatio * HUNT_ARC_SEGMENT_COUNT)}%`);
             if (cache) cache.overheatW = overheatW;
         }
         if (refs.overheatText && overheatTxt !== cache?.overheatTxt) {

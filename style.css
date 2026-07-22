@@ -3097,7 +3097,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hunt-arc-meter {
-    --hunt-angle: 0deg;
+    --hunt-segments-filled: 0%;
     position: absolute;
     top: 52%;
     width: 170px;
@@ -3154,11 +3154,31 @@ input[type="range"]::-webkit-slider-thumb {
     inset: 0;
     width: 100% !important;
     height: 100%;
-    background: conic-gradient(from 220deg at 100% 50%, var(--hunt-arc-color) 0 var(--hunt-angle), var(--hunt-arc-track) var(--hunt-angle) 78deg, transparent 78deg);
-    -webkit-mask: radial-gradient(circle at 100% 50%, transparent 0 108px, #000 110px 124px, transparent 126px);
-    mask: radial-gradient(circle at 100% 50%, transparent 0 108px, #000 110px 124px, transparent 126px);
-    filter: drop-shadow(0 0 5px color-mix(in srgb, var(--hunt-arc-color) 55%, transparent));
-    transition: --hunt-angle 0.1s linear;
+    background: transparent;
+}
+
+.hunt-segmented-arc {
+    display: block;
+    width: 100%;
+    height: 100%;
+    overflow: visible;
+}
+
+.hunt-segmented-arc path {
+    fill: none;
+    stroke-width: 1.2;
+    vector-effect: non-scaling-stroke;
+}
+
+.hunt-segment-track {
+    stroke: var(--hunt-arc-track);
+}
+
+.hunt-segment-active {
+    stroke: var(--hunt-arc-color);
+    clip-path: inset(calc(100% - var(--hunt-segments-filled)) 0 0 0);
+    filter: drop-shadow(0 0 3px color-mix(in srgb, var(--hunt-arc-color) 65%, transparent));
+    transition: clip-path 0.1s linear;
 }
 
 .hunt-arc-meter .hunt-label,
