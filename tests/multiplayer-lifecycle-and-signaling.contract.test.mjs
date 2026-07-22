@@ -330,6 +330,44 @@ test('PeerConnectionManager buffers remote ICE candidates until the remote descr
     }
 });
 
+test('PeerConnectionManager emits peerConnected once per connection cycle', () => {
+    const connections = [];
+    class FakeRTCPeerConnection {
+        constructor() {
+            this.connectionState = 'new';
+            connections.push(this);
+        }
+        close() { this.connectionState = 'closed'; }
+    }
+    const originalPeerConnection = globalThis.RTCPeerConnection;
+    globalThis.RTCPeerConnection = FakeRTCPeerConnection;
+    try {
+        const manager = new PeerConnectionManager({});
+        const connected = [];
+        manager.on('peerConnected', ({ peerId }) => connected.push(peerId));
+
+        const first = manager._createPeerConnection('peer-1');
+        first.connectionState = 'connected';
+        first.onconnectionstatechange();
+        first.onconnectionstatechange();
+        assert.deepEqual(connected, ['peer-1']);
+
+        const replacement = manager._createPeerConnection('peer-1');
+        replacement.connectionState = 'connected';
+        replacement.onconnectionstatechange();
+        assert.deepEqual(connected, ['peer-1', 'peer-1']);
+
+        replacement.connectionState = 'failed';
+        replacement.onconnectionstatechange();
+        replacement.connectionState = 'connected';
+        replacement.onconnectionstatechange();
+        assert.deepEqual(connected, ['peer-1', 'peer-1', 'peer-1']);
+        manager.dispose();
+    } finally {
+        globalThis.RTCPeerConnection = originalPeerConnection;
+    }
+});
+
 test('DataChannelManager separates unreliable snapshots from reliable state', () => {
     const created = [];
     const fakePc = {

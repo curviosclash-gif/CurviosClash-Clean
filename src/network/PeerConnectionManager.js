@@ -76,6 +76,7 @@ export class PeerConnectionManager {
          * @type {Map<string, any[]>}
          */
         this._pendingRemoteCandidates = new Map();
+        this._connectedPeers = new Set();
     }
 
     async createOffer(peerId) {
@@ -151,6 +152,7 @@ export class PeerConnectionManager {
     _createPeerConnection(peerId) {
         if (this._peers.has(peerId)) {
             this._peers.get(peerId).close();
+            this._connectedPeers.delete(peerId);
             this._stopHeartbeat(peerId);
         }
 
@@ -167,10 +169,14 @@ export class PeerConnectionManager {
             const state = pc.connectionState;
             this._emit('connectionStateChange', { peerId, state });
             if (state === 'connected') {
-                this._emit('peerConnected', { peerId });
+                if (!this._connectedPeers.has(peerId)) {
+                    this._emit('peerConnected', { peerId });
+                    this._connectedPeers.add(peerId);
+                }
                 this._startHeartbeat(peerId);
             }
             if (state === 'failed' || state === 'closed') {
+                this._connectedPeers.delete(peerId);
                 this._stopHeartbeat(peerId);
                 this._emit('peerDisconnected', { peerId, state });
             }
@@ -252,6 +258,7 @@ export class PeerConnectionManager {
             this._peers.delete(peerId);
         }
         this._pendingRemoteCandidates.delete(peerId);
+        this._connectedPeers.delete(peerId);
         this._stopHeartbeat(peerId);
         if (this._dataChannelManager) {
             this._dataChannelManager.closeChannels(peerId);
@@ -289,6 +296,7 @@ export class PeerConnectionManager {
             pc.close();
         }
         this._peers.clear();
+        this._connectedPeers.clear();
         this._pendingRemoteCandidates.clear();
         this._listeners.clear();
     }
