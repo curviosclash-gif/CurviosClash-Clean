@@ -1,5 +1,5 @@
 // ============================================
-// SettingsManager.js - business logic for settings
+// SettingsManager.js - public settings facade and dependency composition
 // ============================================
 
 import { CONFIG } from './Config.js';
@@ -34,6 +34,13 @@ import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
 export class SettingsManager {
     constructor(options = {}) {
         this.runtimeGlobal = options.runtimeGlobal || globalThis;
+        this._initializeStores(options);
+        this._initializeFacades();
+        this._initializePorts();
+        this._initializeDiagnosticsFacade();
+    }
+
+    _initializeStores(options) {
         const storeOptions = {
             storagePlatform: options.storagePlatform,
             storage: options.storage,
@@ -53,7 +60,9 @@ export class SettingsManager {
         this.menuTextOverrideStore = new MenuTextOverrideStore(storeOptions);
         this.menuTelemetryStore = new MenuTelemetryStore(storeOptions);
         this.telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
+    }
 
+    _initializeFacades() {
         this.sessionDraftFacade = createSettingsSessionDraftFacade({
             menuDraftStore: this.menuDraftStore,
         });
@@ -70,7 +79,9 @@ export class SettingsManager {
             telemetryHistoryStore: this.telemetryHistoryStore,
         });
         this.botPolicyFacade = createSettingsBotPolicyFacade();
+    }
 
+    _initializePorts() {
         this.profileStorePort = Object.freeze({
             loadProfiles: () => this.settingsStore.loadProfiles(),
             saveProfiles: (profiles) => this.settingsStore.saveProfiles(profiles),
@@ -88,8 +99,31 @@ export class SettingsManager {
             getOverride: (textId) => this.menuTextOverrideStore.getOverride(textId),
         });
         this.settingsDefaultsPort = createSettingsDefaultsPortForRuntime(this.runtimeGlobal);
-        this.diagnosticsFacade = createSettingsDiagnosticsFacade(this);
     }
+
+    _initializeDiagnosticsFacade() {
+        this.diagnosticsFacade = createSettingsDiagnosticsFacade({
+            sanitizeSettings: (snapshot) => this.sanitizeSettings(snapshot),
+            applyMenuCompatibilityRules: (snapshot, options = {}) => (
+                this.applyMenuCompatibilityRules(snapshot, options)
+            ),
+            loadSettings: () => this.loadSettings(),
+            recordStorePort: this.settingsRecordStorePort,
+            profileStorePort: this.profileStorePort,
+            menuTextOverridePort: this.menuTextOverridePort,
+            listMenuPresets: () => this.listMenuPresets(),
+            telemetryFacade: this.telemetryFacade,
+            getPersistenceStatus: () => ({
+                ...this.settingsStore.getPersistenceStatus(),
+                presets: this.menuPresetStore.getPersistenceStatus(),
+                drafts: this.menuDraftStore.getPersistenceStatus(),
+                textOverrides: this.menuTextOverrideStore.getPersistenceStatus(),
+                telemetry: this.menuTelemetryStore.getPersistenceStatus(),
+            }),
+        });
+    }
+
+    // Core persistence and defaults
 
     createDefaultSettings() {
         return createDefaultSettingsSnapshotForRuntime(this.runtimeGlobal);
@@ -119,6 +153,15 @@ export class SettingsManager {
         }
         return result;
     }
+
+    createRuntimeConfig(settings) {
+        return createRuntimeConfigSnapshot(settings, {
+            baseConfig: CONFIG,
+            settingsDefaultsPort: this.getSettingsDefaultsPort(),
+        });
+    }
+
+    // Session and presets
 
     listMenuPresets() {
         return this.presetFacade.listMenuPresets();
@@ -152,6 +195,8 @@ export class SettingsManager {
     deleteMenuPreset(presetId, settings, accessContext = null) {
         return this.presetFacade.deleteMenuPreset(presetId, settings, accessContext);
     }
+
+    // Developer tools and text overrides
 
     setDeveloperMode(settings, enabled, accessContext = null) {
         return this.developerFacade.setDeveloperMode(settings, enabled, accessContext);
@@ -189,6 +234,8 @@ export class SettingsManager {
         return this.textOverrideFacade.clearMenuTextOverride(textId);
     }
 
+    // Telemetry and bot policy
+
     getMenuTelemetrySnapshot(settings = null) {
         return this.telemetryFacade.getMenuTelemetrySnapshot(settings);
     }
@@ -205,12 +252,7 @@ export class SettingsManager {
         return this.telemetryFacade.getTelemetryHistorySummary();
     }
 
-    createRuntimeConfig(settings) {
-        return createRuntimeConfigSnapshot(settings, {
-            baseConfig: CONFIG,
-            settingsDefaultsPort: this.getSettingsDefaultsPort(),
-        });
-    }
+    // Diagnostics
 
     diffSettings(before, after) {
         return this.diagnosticsFacade.diffSettings(before, after);
@@ -223,6 +265,8 @@ export class SettingsManager {
     getSettingsHealthSnapshot(settings = null) {
         return this.diagnosticsFacade.getSettingsHealthSnapshot(settings);
     }
+
+    // Runtime ports
 
     getProfileStorePort() {
         return this.profileStorePort;

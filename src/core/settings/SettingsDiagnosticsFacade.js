@@ -2,7 +2,17 @@ import { createSettingsHealthSnapshot } from './SettingsHealthSnapshot.js';
 import { diffSettingsSnapshots } from './SettingsDiffOps.js';
 import { previewMenuConfigImport } from './SettingsImportPreviewOps.js';
 
-export function createSettingsDiagnosticsFacade(manager) {
+export function createSettingsDiagnosticsFacade({
+    sanitizeSettings,
+    applyMenuCompatibilityRules,
+    loadSettings,
+    recordStorePort,
+    profileStorePort,
+    menuTextOverridePort,
+    listMenuPresets,
+    telemetryFacade,
+    getPersistenceStatus,
+} = {}) {
     function diffSettings(before, after) {
         return diffSettingsSnapshots(before, after);
     }
@@ -12,27 +22,21 @@ export function createSettingsDiagnosticsFacade(manager) {
             settings,
             inputValue,
             accessContext,
-            sanitizeSettings: (snapshot) => manager.sanitizeSettings(snapshot),
-            applyMenuCompatibilityRules: (snapshot, options = {}) => manager.applyMenuCompatibilityRules(snapshot, options),
+            sanitizeSettings,
+            applyMenuCompatibilityRules,
             diffSettings,
         });
     }
 
     function getHealthSnapshot(settings = null) {
         return createSettingsHealthSnapshot({
-            settings: settings && typeof settings === 'object' ? settings : manager.loadSettings(),
-            recordStorePort: manager.settingsRecordStorePort,
-            profileStorePort: manager.profileStorePort,
-            menuTextOverridePort: manager.menuTextOverridePort,
-            listMenuPresets: () => manager.listMenuPresets(),
-            telemetryFacade: manager.telemetryFacade,
-            getPersistenceStatus: () => ({
-                ...manager.settingsStore.getPersistenceStatus(),
-                presets: manager.menuPresetStore.getPersistenceStatus(),
-                drafts: manager.menuDraftStore.getPersistenceStatus(),
-                textOverrides: manager.menuTextOverrideStore.getPersistenceStatus(),
-                telemetry: manager.menuTelemetryStore.getPersistenceStatus(),
-            }),
+            settings: settings && typeof settings === 'object' ? settings : loadSettings(),
+            recordStorePort,
+            profileStorePort,
+            menuTextOverridePort,
+            listMenuPresets,
+            telemetryFacade,
+            getPersistenceStatus,
         });
     }
 
