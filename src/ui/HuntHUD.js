@@ -13,6 +13,8 @@ const HOTPATH_INTERVAL_FALLBACKS = Object.freeze({
 const KILL_FEED_SLOT_COUNT = 3;
 const MIN_BOOST_CAPACITY = 0.001;
 const OVERHEAT_CAP = 100;
+const OVERHEAT_WARNING_RESERVE = 0.6;
+const OVERHEAT_DANGER_RESERVE = 0.3;
 const INDICATOR_DEFAULT_INTENSITY = 0.6;
 const INDICATOR_MIN_OPACITY = 0.2;
 const DEFAULT_BOOST_CAPACITY = 1;
@@ -88,8 +90,8 @@ export class HuntHUD {
         this._indicatorTickTimer = 0;
         this._wasHuntActive = false;
         this._panelCache = [
-            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatTxt: null, respawnTxt: null },
-            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatTxt: null, respawnTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null },
         ];
         this._objectiveText = null;
         this._scoreboardText = null;
@@ -151,6 +153,7 @@ export class HuntHUD {
             cache.boostCooldown = null;
             cache.boostTxt = null;
             cache.overheatW = null;
+            cache.overheatState = null;
             cache.overheatTxt = null;
             cache.respawnTxt = null;
         }
@@ -315,12 +318,23 @@ export class HuntHUD {
             Number(huntProjection?.overheatByPlayer?.[player?.playerIndex ?? player?.index] || this.runtime?.huntState?.overheatByPlayer?.[player?.index] || 0)
         );
         const overheatRatio = clamp01(overheatValue / OVERHEAT_CAP);
-        const overheatW = toPercent(overheatRatio);
+        const overheatReserve = 1 - overheatRatio;
+        const overheatW = toPercent(overheatReserve);
+        const overheatState = overheatReserve <= OVERHEAT_DANGER_RESERVE
+            ? 'danger'
+            : (overheatReserve <= OVERHEAT_WARNING_RESERVE ? 'warning' : 'ready');
         const overheatTxt = `${Math.round(overheatValue)}%`;
-        if (refs.overheatFill && overheatW !== cache?.overheatW) {
-            refs.overheatFill.style.width = overheatW;
-            refs.overheatFill.style.setProperty?.('--hunt-segments-filled', `${Math.round(overheatRatio * HUD_ARC_SEGMENT_COUNT)}%`);
-            if (cache) cache.overheatW = overheatW;
+        if (refs.overheatFill) {
+            if (overheatW !== cache?.overheatW) {
+                refs.overheatFill.style.width = overheatW;
+                refs.overheatFill.style.setProperty?.('--hunt-segments-filled', `${Math.round(overheatReserve * HUD_ARC_SEGMENT_COUNT)}%`);
+                if (cache) cache.overheatW = overheatW;
+            }
+            if (overheatState !== cache?.overheatState) {
+                refs.overheatFill.classList.toggle('warning', overheatState === 'warning');
+                refs.overheatFill.classList.toggle('danger', overheatState === 'danger');
+                if (cache) cache.overheatState = overheatState;
+            }
         }
         if (refs.overheatText && overheatTxt !== cache?.overheatTxt) {
             refs.overheatText.textContent = overheatTxt;

@@ -347,3 +347,45 @@ test('Fight HUD keeps HP, objective, score and respawn accessible outside fighte
     hud.update(0.2);
     assert.equal(root.attributes['aria-hidden'], 'true');
 });
+
+test('Fight HUD shows overheat as a full reserve that shrinks from green through orange to red', () => {
+    const root = element();
+    const overheatFill = element();
+    overheatFill.style.setProperty = (name, value) => {
+        overheatFill.style[name] = value;
+    };
+    const overheatText = element();
+    const hud = new HuntHUD({
+        runtime: { activeGameMode: 'HUNT', state: 'PLAYING' },
+        refs: { root, p1OverheatFill: overheatFill, p1OverheatText: overheatText },
+    });
+    const projection = (overheat) => ({
+        players: [{ playerIndex: 0, isBot: false }],
+        hunt: {
+            active: true,
+            overheatByPlayer: { 0: overheat },
+            killFeed: [],
+        },
+    });
+
+    hud.update(0.2, projection(0));
+    assert.equal(overheatFill.style.width, '100.0%');
+    assert.equal(overheatFill.style['--hunt-segments-filled'], '100%');
+    assert.equal(overheatText.textContent, '0%');
+    assert.equal(overheatFill.classList.contains('warning'), false);
+    assert.equal(overheatFill.classList.contains('danger'), false);
+
+    hud.update(0.2, projection(50));
+    assert.equal(overheatFill.style.width, '50.0%');
+    assert.equal(overheatFill.style['--hunt-segments-filled'], '50%');
+    assert.equal(overheatText.textContent, '50%');
+    assert.equal(overheatFill.classList.contains('warning'), true);
+    assert.equal(overheatFill.classList.contains('danger'), false);
+
+    hud.update(0.2, projection(80));
+    assert.equal(overheatFill.style.width, '20.0%');
+    assert.equal(overheatFill.style['--hunt-segments-filled'], '20%');
+    assert.equal(overheatText.textContent, '80%');
+    assert.equal(overheatFill.classList.contains('warning'), false);
+    assert.equal(overheatFill.classList.contains('danger'), true);
+});

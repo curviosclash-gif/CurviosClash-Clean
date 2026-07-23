@@ -2119,7 +2119,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hunt-bar-overheat .hunt-fill {
-    background: linear-gradient(90deg, #5ac8ff, #ffb347, #ff4f4f);
+    background: linear-gradient(90deg, #00b45c, #70ff45);
+}
+
+.hunt-bar-overheat .hunt-fill.warning {
+    background: linear-gradient(90deg, #e87b00, #ffad19);
+}
+
+.hunt-bar-overheat .hunt-fill.danger {
+    background: linear-gradient(90deg, #b91532, #ff3b4f);
 }
 
 .hunt-value {
@@ -3133,7 +3141,15 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hunt-bar-overheat .hunt-fill {
-    background: linear-gradient(90deg, #ffff00, #ff0000);
+    background: linear-gradient(90deg, #00b45c, #70ff45);
+}
+
+.hunt-bar-overheat .hunt-fill.warning {
+    background: linear-gradient(90deg, #e87b00, #ffad19);
+}
+
+.hunt-bar-overheat .hunt-fill.danger {
+    background: linear-gradient(90deg, #b91532, #ff3b4f);
 }
 
 .hunt-fill {
@@ -3172,9 +3188,19 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hunt-arc-overheat {
+    --hunt-arc-color: #70ff45;
+    --hunt-arc-track: rgba(80, 255, 90, 0.16);
+    right: 22%;
+}
+
+.hunt-arc-overheat:has(.warning) {
     --hunt-arc-color: #ffad19;
     --hunt-arc-track: rgba(255, 173, 25, 0.15);
-    right: 22%;
+}
+
+.hunt-arc-overheat:has(.danger) {
+    --hunt-arc-color: #ff3b4f;
+    --hunt-arc-track: rgba(255, 59, 79, 0.16);
 }
 
 #hud.split-screen .hunt-arc-boost {
