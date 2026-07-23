@@ -92,12 +92,22 @@ export class HUD {
             if (i === 0) continue;
             const deg = i * 5;
             const line = document.createElement('div');
-            line.className = 'pitch-line';
+            const isMajor = deg % 10 === 0;
+            line.className = `pitch-line ${isMajor ? 'pitch-line-major' : 'pitch-line-minor'}`;
             line.dataset.deg = deg;
             line.style.top = `${-deg * 8}px`;
             line.style.width = `${120 - Math.abs(deg) * 0.5}px`;
             if (deg < 0) {
                 line.style.borderTopStyle = 'dashed';
+            }
+            if (isMajor) {
+                const label = String(deg);
+                for (const side of ['left', 'right']) {
+                    const labelElement = document.createElement('span');
+                    labelElement.className = `pitch-label ${side}`;
+                    labelElement.textContent = label;
+                    line.appendChild(labelElement);
+                }
             }
             this.pitchLadder.appendChild(line);
         }
@@ -262,6 +272,7 @@ export class HUD {
             const rollInt = Math.round(rollDeg);
             const sign = rollInt > 0 ? '+' : '';
             this._setText(this.bankAngle, `${sign}${rollInt} deg`);
+            this._setClassFlag(this.bankAngle, 'hidden', Math.abs(rollDeg) < 3);
         }
 
         if (this.centerCrosshair) {

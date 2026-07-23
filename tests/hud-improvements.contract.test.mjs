@@ -354,6 +354,24 @@ test('HUD heading tape covers -120°..480° so the 0°/360° wrap has no blank s
     }
 });
 
+test('HUD pitch ladder labels major angles and keeps minor steps compact', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const { hud } = createHudInstance(documentStub);
+        const lines = hud.pitchLadder.children;
+        assert.equal(lines.length, 36);
+
+        const plusTen = lines.find((line) => line.dataset.deg === 10);
+        const minusFive = lines.find((line) => line.dataset.deg === -5);
+        assert.equal(plusTen.className, 'pitch-line pitch-line-major');
+        assert.deepEqual(plusTen.children.map((child) => child.textContent), ['10', '10']);
+        assert.equal(minusFive.className, 'pitch-line pitch-line-minor');
+        assert.equal(minusFive.children.length, 0);
+    } finally {
+        documentStub.restore();
+    }
+});
+
 test('HUD builds speed and altitude tapes from the gameplay config ranges', () => {
     const documentStub = installDocumentStub();
     try {
@@ -384,6 +402,24 @@ test('HUD update rotates the artificial horizon with roll and shifts it with pit
         assert.ok(Math.abs(Number(match[1]) - 90) < 0.01, `roll term ~90deg, got ${match[1]}`);
         assert.ok(Math.abs(Number(match[2])) < 0.01, `pitch term ~0px, got ${match[2]}`);
         assert.equal(hud.pitchLadder.style.transform, hud.horizon.style.transform);
+    } finally {
+        documentStub.restore();
+    }
+});
+
+test('HUD hides the redundant bank readout near level flight', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const { hud } = createHudInstance(documentStub);
+        hud.update(createAlivePlayer(), 0.05, {});
+        assert.equal(hud.bankAngle.classList.contains('hidden'), true);
+
+        const rollRad = (10 * Math.PI) / 180;
+        hud.update(createAlivePlayer({
+            quaternion: { x: 0, y: 0, z: Math.sin(rollRad / 2), w: Math.cos(rollRad / 2) },
+        }), 0.05, {});
+        assert.equal(hud.bankAngle.classList.contains('hidden'), false);
+        assert.equal(hud.bankAngle.textContent, '+10 deg');
     } finally {
         documentStub.restore();
     }

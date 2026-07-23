@@ -1567,8 +1567,11 @@ input[type="range"]::-webkit-slider-thumb {
     color: var(--hud-color, #8dff9f);
     font-family: var(--menu-theme-display-font);
     text-shadow: 0 0 8px var(--hud-glow, rgba(20, 255, 120, 0.5));
-    opacity: var(--hud-opacity, 1);
     z-index: 12;
+}
+
+.fighter-hud > :not(.hud-lock-reticle) {
+    opacity: var(--hud-opacity, 1);
 }
 
 .fighter-hud.p2 {
@@ -1586,7 +1589,6 @@ input[type="range"]::-webkit-slider-thumb {
     top: 50%;
     transform: translate(-50%, -50%) scale(var(--hud-scale, 1));
     font-size: 18px;
-    opacity: 0.9;
 }
 
 .hud-bank-line {
@@ -1597,7 +1599,6 @@ input[type="range"]::-webkit-slider-thumb {
     border-top: 2px solid var(--hud-line-strong, rgba(141, 255, 159, 0.95));
     transform: translate(-50%, -50%) scale(var(--hud-scale, 1));
     transform-origin: center center;
-    opacity: 0.9;
 }
 
 .hud-bank-angle {
@@ -1626,7 +1627,13 @@ input[type="range"]::-webkit-slider-thumb {
     left: 0;
     right: 0;
     top: 50%;
-    border-top: 2px solid var(--hud-line-strong, rgba(141, 255, 159, 0.95));
+    height: 2px;
+    background: linear-gradient(
+        to right,
+        var(--hud-line-strong, rgba(141, 255, 159, 0.95)) 0 42%,
+        transparent 42% 58%,
+        var(--hud-line-strong, rgba(141, 255, 159, 0.95)) 58% 100%
+    );
 }
 
 .hud-pitch-ladder {
@@ -1643,7 +1650,33 @@ input[type="range"]::-webkit-slider-thumb {
     left: 50%;
     transform: translateX(-50%);
     border-top: 1px solid var(--hud-line, rgba(141, 255, 159, 0.85));
+}
+
+.pitch-line-major {
     opacity: 0.9;
+}
+
+.pitch-line-minor {
+    opacity: 0.48;
+}
+
+.pitch-label {
+    position: absolute;
+    top: -6px;
+    min-width: 22px;
+    color: var(--hud-text, #c8ffd0);
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 12px;
+    text-align: center;
+}
+
+.pitch-label.left {
+    right: calc(100% + 6px);
+}
+
+.pitch-label.right {
+    left: calc(100% + 6px);
 }
 
 .hud-tape {
@@ -1673,7 +1706,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hud-tape.top {
     left: 50%;
-    top: 20px;
+    top: clamp(92px, 12vh, 124px);
     width: 44%;
     height: 46px;
     transform: translateX(-50%) scale(var(--hud-scale, 1));
@@ -1774,6 +1807,7 @@ input[type="range"]::-webkit-slider-thumb {
     left: 0;
     top: 0;
     transform: translate(-50%, -50%) scale(var(--hud-scale, 1));
+    opacity: max(0.85, var(--hud-opacity, 1));
 }
 
 .lock-box {

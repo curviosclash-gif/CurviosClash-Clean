@@ -102,6 +102,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                 const p2Rect = rect(p2);
                 const p1Reticle = rect(document.querySelector('#p1-lock-reticle'));
                 const p2Reticle = rect(document.querySelector('#p2-lock-reticle'));
+                const headingTape = rect(p1.querySelector('.hud-tape.top'));
+                const matchStatus = rect(document.querySelector('.hunt-match-status'));
                 const p1Root = rect(document.querySelector('#hunt-p1-panel'));
                 const vitals = rect(document.querySelector('.hunt-vitals'));
                 const boost = rect(document.querySelector('.hunt-arc-boost'));
@@ -116,6 +118,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     p2Rect,
                     p1Reticle,
                     p2Reticle,
+                    headingMatchOverlap: overlaps(headingTape, matchStatus),
                     p1Root,
                     vitals,
                     boost,
@@ -131,6 +134,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                         })),
                     opacity: {
                         fighter: getComputedStyle(p1).opacity,
+                        fighterTape: getComputedStyle(p1.querySelector('.hud-tape.top')).opacity,
+                        fighterLock: getComputedStyle(document.querySelector('#p1-lock-reticle')).opacity,
                         player: getComputedStyle(document.querySelector('#p1-hud')).opacity,
                         hunt: getComputedStyle(hunt).opacity,
                         parcours: getComputedStyle(document.querySelector('#parcours-hud')).opacity,
@@ -155,6 +160,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expectNear(layout.p1Reticle.centerY, layout.p1Rect.top + layout.localY);
             expectNear(layout.p2Reticle.centerX, layout.p2Rect.left + layout.localX);
             expectNear(layout.p2Reticle.centerY, layout.p2Rect.top + layout.localY);
+            expect(layout.headingMatchOverlap).toBe(false);
 
             for (const tape of layout.tapes) {
                 const owner = tape.owner === 'p1' ? layout.p1Rect : layout.p2Rect;
@@ -188,7 +194,16 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
                     expect(slot.left).toBeGreaterThan(layout.itemSlots[index - 1].right);
                 }
             }
-            expect(Object.values(layout.opacity)).toEqual(Array(6).fill('0.4'));
+            expect(layout.opacity).toEqual({
+                fighter: '1',
+                fighterTape: '0.4',
+                fighterLock: '0.85',
+                player: '0.4',
+                hunt: '0.4',
+                parcours: '0.4',
+                arcadeScore: '0.4',
+                arcadeMission: '0.4',
+            });
             expect(layout.colors).toEqual({
                 parcours: 'rgb(141, 220, 255)',
                 hunt: 'rgb(141, 220, 255)',
