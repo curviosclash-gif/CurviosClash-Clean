@@ -8,9 +8,12 @@ import {
 } from './settings-studio-form-renderer.js';
 import {
     applyMenuEditorItemValue,
+    captureMenuEditorFocus,
     countMenuPanelDirty,
+    countMenuResettableItems,
     renderMenuEditor,
     resetMenuEditorItems,
+    restoreMenuEditorFocus,
 } from './settings-studio-menu-renderer.js';
 import { createMenuEditorModel } from '../../../src/ui/menu/MenuEditorModel.js';
 import {
@@ -43,6 +46,7 @@ const state = {
     activeMenuPanelId: '',
     selectedMenuItemId: '',
     menuSearchQuery: '',
+    menuPreviewRoot: true,
 };
 
 const refs = {
@@ -356,6 +360,8 @@ function renderFormContent() {
             selectedItemId: state.selectedMenuItemId,
             searchQuery: state.menuSearchQuery,
             language: state.language,
+            previewRoot: state.menuPreviewRoot,
+            t: translator,
         });
     } else if (state.activeSection === 'limits') {
         html = renderLimitsSection(state.schema, state.draft, state.baseDraft, translator);
@@ -1097,6 +1103,13 @@ function onBrowserDemoPolicyChange(eventOrTarget, options = {}) {
     }
 }
 
+function rerenderMenuEditorPreservingFocus() {
+    const focusSnapshot = captureMenuEditorFocus(refs.formContent);
+    renderFormContent();
+    renderSidebar();
+    restoreMenuEditorFocus(refs.formContent, focusSnapshot);
+}
+
 function onMenuEditorMutation(target) {
     if (!target) return;
     const model = rebuildMenuEditorModel();
@@ -1121,8 +1134,7 @@ function onMenuEditorMutation(target) {
     } else {
         return;
     }
-    renderFormContent();
-    renderSidebar();
+    rerenderMenuEditorPreservingFocus();
 }
 
 function resetMenuEditorItem(itemId) {
@@ -1140,6 +1152,11 @@ function resetMenuEditorItem(itemId) {
 
 function resetMenuEditorPanel() {
     const model = rebuildMenuEditorModel();
+    const panel = model.panels.find((entry) => entry.id === state.activeMenuPanelId);
+    const resetCount = countMenuResettableItems(model, state.activeMenuPanelId);
+    if (!resetCount || !window.confirm(t('menuConfirmResetPanel', resetCount, panel?.effectiveLabel || ''))) {
+        return;
+    }
     resetMenuEditorItems({
         draft: state.draft,
         textOverrides: state.menuTextOverrides,
@@ -1151,6 +1168,8 @@ function resetMenuEditorPanel() {
 
 function resetWholeMenuEditor() {
     const model = rebuildMenuEditorModel();
+    const resetCount = countMenuResettableItems(model);
+    if (!resetCount || !window.confirm(t('menuConfirmResetAll', resetCount))) return;
     resetMenuEditorItems({
         draft: state.draft,
         textOverrides: state.menuTextOverrides,
@@ -1295,18 +1314,15 @@ async function onRestoreBackup(backupFileName) {
 
 function bindEvents() {
     const handleFormMutation = (event) => {
+        if (event.type === 'input' && event.target.dataset?.menuSettingPath
+            && event.target.matches?.('input[type="number"]')) return;
         if (event.target.dataset?.menuTextId || event.target.dataset?.menuSettingPath) {
             onMenuEditorMutation(event.target);
             return;
         }
         if (event.target.matches?.('[data-menu-search]')) {
             state.menuSearchQuery = event.target.value;
-            renderFormContent();
-            const search = refs.formContent.querySelector('[data-menu-search]');
-            if (search) {
-                search.focus();
-                search.setSelectionRange(search.value.length, search.value.length);
-            }
+            rerenderMenuEditorPreservingFocus();
             return;
         }
         if (event.target.dataset?.browserDemoGroup || event.target.dataset?.browserDemoCapability) {
@@ -1325,6 +1341,7 @@ function bindEvents() {
         if (panelBtn) {
             state.activeMenuPanelId = panelBtn.dataset.menuPanelId;
             state.selectedMenuItemId = '';
+            state.menuPreviewRoot = false;
             renderFormContent();
             return;
         }
@@ -1332,6 +1349,31 @@ function bindEvents() {
         const menuItemBtn = event.target.closest('[data-menu-item-id]');
         if (menuItemBtn && !menuItemBtn.matches('[data-menu-action="reset-item"]')) {
             state.selectedMenuItemId = menuItemBtn.dataset.menuItemId;
+            const model = rebuildMenuEditorModel();
+            const item = model.items.find((entry) => entry.id === state.selectedMenuItemId);
+            if (item) {
+                state.activeMenuPanelId = item.panelId;
+                state.menuPreviewRoot = false;
+                state.menuSearchQuery = '';
+            }
+            renderFormContent();
+            return;
+        }
+
+        const previewPanelBtn = event.target.closest('[data-menu-preview-panel-id]');
+        if (previewPanelBtn) {
+            state.activeMenuPanelId = previewPanelBtn.dataset.menuPreviewPanelId;
+            state.selectedMenuItemId = '';
+            state.menuPreviewRoot = false;
+            state.menuSearchQuery = '';
+            renderFormContent();
+            return;
+        }
+
+        if (event.target.closest('[data-menu-preview-root]')) {
+            state.menuPreviewRoot = true;
+            state.selectedMenuItemId = '';
+            state.menuSearchQuery = '';
             renderFormContent();
             return;
         }
@@ -1341,7 +1383,6 @@ function bindEvents() {
             const action = menuAction.dataset.menuAction;
             if (action === 'reset-item') resetMenuEditorItem(menuAction.dataset.menuItemId);
             else if (action === 'reset-panel') resetMenuEditorPanel();
-            else if (action === 'reset-menu') resetWholeMenuEditor();
             return;
         }
 

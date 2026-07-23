@@ -14,10 +14,13 @@ import { MenuTextRuntime } from '../src/ui/menu/MenuTextRuntime.js';
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import {
     applyMenuEditorItemValue,
+    captureMenuEditorFocus,
     countMenuPanelDirty,
     renderMenuEditor,
     resetMenuEditorItems,
+    restoreMenuEditorFocus,
 } from '../electron/settings-studio/ui/settings-studio-menu-renderer.js';
+import { createTranslator } from '../electron/settings-studio/ui/settings-studio-i18n.js';
 
 function createFixture() {
     const draft = createSettingsOverrideDraft();
@@ -116,6 +119,91 @@ test('menu editor renders typed controls and preview buttons contain no product 
     }
 });
 
+test('menu editor localizes its chrome and renders safe hierarchical navigation', () => {
+    const { draft, baseDraft, model } = createFixture();
+    const html = renderMenuEditor({
+        model,
+        draft,
+        baseDraft,
+        textOverrides: {},
+        baseTextOverrides: {},
+        activePanelId: model.panels[0].id,
+        selectedItemId: '',
+        previewRoot: true,
+        language: 'en',
+        t: createTranslator('en'),
+    });
+
+    assert.match(html, />Game Menu</u);
+    assert.match(html, /aria-label="Menu navigation"/u);
+    assert.match(html, /aria-label="Properties editor"/u);
+    assert.match(html, /data-menu-preview-root/u);
+    assert.match(html, /data-menu-preview-panel-id=/u);
+    assert.doesNotMatch(html, /data-menu-action="reset-menu"/u);
+    assert.doesNotMatch(html, />Eigenschaften</u);
+});
+
+test('menu editor search groups and highlights matches from every panel', () => {
+    const { draft, baseDraft, model } = createFixture();
+    const activePanel = model.panels[0];
+    const remoteItem = model.items.find((item) => item.panelId !== activePanel.id
+        && item.settingsPath);
+    assert.ok(remoteItem);
+    const query = remoteItem.settingsPath.split('.').at(-1);
+    const html = renderMenuEditor({
+        model,
+        draft,
+        baseDraft,
+        textOverrides: {},
+        baseTextOverrides: {},
+        activePanelId: activePanel.id,
+        selectedItemId: '',
+        searchQuery: query,
+        t: createTranslator('en'),
+    });
+
+    assert.match(html, /search result/u);
+    assert.match(html, new RegExp(`data-menu-preview-panel-id="${remoteItem.panelId}"`, 'u'));
+    assert.match(html, new RegExp(`data-menu-item-id="${remoteItem.id.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}"`, 'u'));
+    assert.match(html, /<mark>/u);
+    assert.doesNotMatch(html, /<small>0<\/small>/u);
+});
+
+test('menu editor focus snapshot restores the active property input and selection', () => {
+    const original = {
+        dataset: { menuTextId: 'menu.level3.start.label' },
+        selectionStart: 4,
+        selectionEnd: 7,
+    };
+    const replacement = {
+        dataset: { menuTextId: 'menu.level3.start.label' },
+        focusCalled: false,
+        selection: null,
+        focus() {
+            this.focusCalled = true;
+        },
+        setSelectionRange(start, end) {
+            this.selection = [start, end];
+        },
+    };
+    const root = {
+        ownerDocument: { activeElement: original },
+        contains: (entry) => entry === original,
+        querySelectorAll: () => [replacement],
+    };
+
+    const snapshot = captureMenuEditorFocus(root);
+    assert.deepEqual(snapshot, {
+        identity: 'menuTextId',
+        value: 'menu.level3.start.label',
+        selectionStart: 4,
+        selectionEnd: 7,
+    });
+    assert.equal(restoreMenuEditorFocus(root, snapshot), true);
+    assert.equal(replacement.focusCalled, true);
+    assert.deepEqual(replacement.selection, [4, 7]);
+});
+
 test('menu editor enforces values, dirty state, and single/panel/all reset operations', () => {
     const { draft, baseDraft, model } = createFixture();
     const numberItem = model.items.find((item) => item.kind === 'setting'
@@ -154,8 +242,18 @@ test('menu editor enforces values, dirty state, and single/panel/all reset opera
         draft,
         textOverrides: overrides,
         item: textItem,
-        value: 'Neu',
+        value: 'Neue Beschriftung ',
     }), true);
+    assert.equal(overrides[textItem.textId], 'Neue Beschriftung ');
+    const spacedTextModel = createMenuEditorModel({
+        fields: createSettingsOverrideFieldRegistry(),
+        draft,
+        textOverrides: overrides,
+    });
+    assert.equal(
+        spacedTextModel.items.find((item) => item.id === textItem.id).activeTextOverride,
+        'Neue Beschriftung '
+    );
 
     const dirtyModel = createMenuEditorModel({
         fields: createSettingsOverrideFieldRegistry(),

@@ -104,7 +104,8 @@ function resolveSettingsPanelId(field, schema) {
 }
 
 function createTextItem(textId, defaultText, overrides, schema, order) {
-    const activeOverride = String(overrides?.[textId] || '').trim();
+    const rawOverride = String(overrides?.[textId] || '');
+    const activeOverride = rawOverride.trim() ? rawOverride : '';
     return Object.freeze({
         id: `text:${textId}`,
         kind: 'text',
@@ -182,7 +183,8 @@ export function createMenuEditorModel(options = {}) {
             .sort((left, right) => Number(left.order || 0) - Number(right.order || 0))
             .map((panel) => {
                 const defaultLabel = MENU_TEXT_CATALOG[panel.textId] || panel.label;
-                const activeOverride = String(textOverrides?.[panel.textId] || '').trim();
+                const rawOverride = String(textOverrides?.[panel.textId] || '');
+                const activeOverride = rawOverride.trim() ? rawOverride : '';
                 const panelItems = items.filter((item) => item.panelId === panel.id);
                 return Object.freeze({
                     id: panel.id,
