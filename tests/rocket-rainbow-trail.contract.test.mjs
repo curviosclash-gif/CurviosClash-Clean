@@ -175,3 +175,55 @@ test('fight rockets leave persistent colliding trails without hitting their own 
     assert.equal(spatialIndex.spatialGrid.size, 0);
     projectiles.dispose();
 });
+
+test('fight rockets turn aggressively toward off-axis targets', () => {
+    const renderer = createRenderer();
+    const owner = {
+        index: 0,
+        alive: true,
+        position: new THREE.Vector3(0, 0, 0),
+    };
+    const target = {
+        index: 1,
+        alive: true,
+        position: new THREE.Vector3(0, 0, 40),
+    };
+    const players = [owner, target];
+    const spatialIndex = new TrailSpatialIndex({ players });
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const strategy = new HuntModeStrategy({ entityRuntimeConfig });
+    const projectiles = new ProjectileSystem({
+        renderer,
+        entityRuntimeConfig,
+        players,
+        trailSpatialIndex: spatialIndex,
+        arena: {
+            getCollisionInfo() {
+                return null;
+            },
+        },
+        getStrategy: () => strategy,
+    });
+
+    const homing = strategy.resolveRocketProjectileParams('ROCKET_WEAK', entityRuntimeConfig);
+    assert.equal(homing.homingTurnRate, 10);
+    assert.equal(homing.homingLockOnAngle, 48);
+    assert.equal(homing.homingRange, 140);
+    assert.equal(homing.homingReacquireInterval, 0.08);
+
+    const projectile = projectiles.spawnExternalProjectile({
+        owner,
+        target,
+        type: 'ROCKET_WEAK',
+        position: owner.position,
+        direction: new THREE.Vector3(1, 0, 0),
+    });
+    assert.ok(projectile);
+
+    projectiles.update(1 / 60);
+
+    const direction = projectile.velocity.clone().normalize();
+    assert.ok(direction.z > 0.18, `expected aggressive homing turn, received z=${direction.z}`);
+    assert.ok(direction.x < 0.99);
+    projectiles.dispose();
+});

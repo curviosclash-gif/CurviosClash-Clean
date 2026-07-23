@@ -263,9 +263,9 @@ export class ProjectileSystem {
         projectile.radius = Math.max(0.05, Number(config?.PROJECTILE?.RADIUS) || 0.5) * collisionRadiusMultiplier;
         projectile.ttl = Math.max(0.1, Number(config?.PROJECTILE?.LIFE_TIME) || 5);
         projectile.traveled = 0;
-        projectile.homingTurnRate = Math.max(0.1, Number(rocketParams.homingTurnRate) || 6.2);
-        projectile.homingLockOnAngle = Math.max(5, Number(rocketParams.homingLockOnAngle) || 32);
-        projectile.homingRange = Math.max(10, Number(rocketParams.homingRange) || 130);
+        projectile.homingTurnRate = Math.max(0.1, Number(rocketParams.homingTurnRate) || 10);
+        projectile.homingLockOnAngle = Math.max(5, Number(rocketParams.homingLockOnAngle) || 48);
+        projectile.homingRange = Math.max(10, Number(rocketParams.homingRange) || 140);
         projectile.homingReacquireInterval = Math.max(
             0.04,
             Number(rocketParams.homingReacquireInterval)

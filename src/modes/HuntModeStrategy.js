@@ -329,10 +329,10 @@ export class HuntModeStrategy extends GameModeContract {
         return {
             visualScale: Math.max(1, Number(visualScaleMap[normalized] || 1)),
             collisionRadiusMultiplier: Math.max(1, Number(rocketConfig.COLLISION_RADIUS_MULTIPLIER || 1.65)),
-            homingTurnRate: Math.max(0.1, Number(rocketConfig.HOMING_TURN_RATE || 6.2)),
-            homingLockOnAngle: Math.max(5, Number(rocketConfig.HOMING_LOCK_ON_ANGLE || 32)),
-            homingRange: Math.max(10, Number(rocketConfig.HOMING_RANGE || 130)),
-            homingReacquireInterval: Math.max(0.04, Number(rocketConfig.HOMING_REACQUIRE_INTERVAL || 0.12)),
+            homingTurnRate: Math.max(0.1, Number(rocketConfig.HOMING_TURN_RATE || 10)),
+            homingLockOnAngle: Math.max(5, Number(rocketConfig.HOMING_LOCK_ON_ANGLE || 48)),
+            homingRange: Math.max(10, Number(rocketConfig.HOMING_RANGE || 140)),
+            homingReacquireInterval: Math.max(0.04, Number(rocketConfig.HOMING_REACQUIRE_INTERVAL || 0.08)),
         };
     }
 
