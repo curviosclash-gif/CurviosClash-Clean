@@ -1806,13 +1806,28 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
                     diagonalCommands: paths.some((path) => /[vVlL]/.test(path.getAttribute('d'))),
                 };
             };
-            return { boost: inspect(boostFill), overheat: inspect(overheatFill) };
+            const overheatBackgrounds = ['warning', 'danger'].map((state) => {
+                overheatFill.classList.add(state);
+                const computed = getComputedStyle(overheatFill);
+                const background = {
+                    state,
+                    image: computed.backgroundImage,
+                    color: computed.backgroundColor,
+                };
+                overheatFill.classList.remove(state);
+                return background;
+            });
+            return { boost: inspect(boostFill), overheat: inspect(overheatFill), overheatBackgrounds };
         });
 
         for (const gauge of [result.boost, result.overheat]) {
             expect(gauge.pathCount).toBe(2);
             expect(gauge.segmentCounts).toEqual([100, 100]);
             expect(gauge.diagonalCommands).toBe(false);
+        }
+        for (const background of result.overheatBackgrounds) {
+            expect(background.image, background.state).toBe('none');
+            expect(background.color, background.state).toBe('rgba(0, 0, 0, 0)');
         }
     });
 

@@ -3230,7 +3230,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hunt-arc-meter .hunt-fill,
-.hunt-arc-meter .hunt-fill.cooldown {
+.hunt-arc-meter .hunt-fill.cooldown,
+.hunt-arc-meter .hunt-fill.warning,
+.hunt-arc-meter .hunt-fill.danger {
     position: absolute;
     inset: 0;
     width: 100% !important;
