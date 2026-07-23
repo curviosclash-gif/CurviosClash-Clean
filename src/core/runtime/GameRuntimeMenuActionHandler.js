@@ -70,7 +70,7 @@ export class GameRuntimeMenuActionHandler {
     }
 
     handleQuickStartLastStart() {
-        handleQuickStartLastStartAction(this._createSessionContext());
+        return handleQuickStartLastStartAction(this._createSessionContext());
     }
 
     handleQuickStartEventPlaylistStart() {

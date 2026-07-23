@@ -154,10 +154,11 @@ test('handleSessionTypeChangeAction keeps desktop splitscreen instead of browser
     assert.match(calls.toasts[0]?.message || '', /Geteilter Bildschirm/);
 });
 
-test('handleQuickStartLastStartAction allows desktop default-full quickstart', () => {
+test('handleQuickStartLastStartAction preserves the last desktop mode', async () => {
     const { game, calls } = createQuickStartGame(PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP);
+    game.settings.localSettings.modePath = 'arcade';
 
-    handleQuickStartLastStartAction({
+    const started = await handleQuickStartLastStartAction({
         game,
         onSettingsChanged(payload) {
             calls.settingsChanged.push(payload);
@@ -167,13 +168,36 @@ test('handleQuickStartLastStartAction allows desktop default-full quickstart', (
         },
         startMatch() {
             calls.startMatch += 1;
+            return true;
         },
     });
 
-    assert.equal(game.settings.localSettings.modePath, 'quick_action');
-    assert.equal(calls.settingsChanged.length, 1);
+    assert.equal(started, true);
+    assert.equal(game.settings.localSettings.modePath, 'arcade');
+    assert.equal(calls.settingsChanged.length, 0);
     assert.equal(calls.telemetry[0]?.type, 'quickstart');
     assert.equal(calls.startMatch, 1);
+    assert.match(calls.toasts[0]?.message || '', /letzte Einstellungen/);
+});
+
+test('handleQuickStartLastStartAction reports no success when match start is rejected', async () => {
+    const { game, calls } = createQuickStartGame(PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP);
+
+    const started = await handleQuickStartLastStartAction({
+        game,
+        recordMenuTelemetry(type, payload) {
+            calls.telemetry.push({ type, payload });
+        },
+        startMatch() {
+            calls.startMatch += 1;
+            return false;
+        },
+    });
+
+    assert.equal(started, false);
+    assert.equal(calls.startMatch, 1);
+    assert.deepEqual(calls.telemetry, []);
+    assert.deepEqual(calls.toasts, []);
 });
 
 test('handleLevel4ResetAction resets only the options shown in the gameplay panel', () => {

@@ -302,21 +302,26 @@ export function handleModePathChangeAction(ctx) {
     }
 }
 
-export function handleQuickStartLastStartAction(ctx) {
-    const { game, onSettingsChanged, recordMenuTelemetry, startMatch } = ctx;
+export async function handleQuickStartLastStartAction(ctx) {
+    const { game, recordMenuTelemetry, startMatch } = ctx;
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Direktstart');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
-        return;
+        return false;
     }
-    game.settings.localSettings.modePath = 'quick_action';
-    onSettingsChanged({ changedKeys: [SETTINGS_CHANGE_KEYS.MODE_PATH] });
+    let started = false;
+    try {
+        started = await Promise.resolve(startMatch());
+    } catch {
+        started = false;
+    }
+    if (!started) return false;
     recordMenuTelemetry('quickstart', {
         variant: 'last_settings',
         sessionType: game?.settings?.localSettings?.sessionType || 'single',
     });
     game._showStatusToast('Schnellstart: letzte Einstellungen', 1000, 'info');
-    startMatch();
+    return true;
 }
 
 export async function handleQuickStartEventPlaylistStartAction(ctx) {
