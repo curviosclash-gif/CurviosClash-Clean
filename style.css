@@ -6355,11 +6355,7 @@ html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-metrics 
 }
 
 html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-breakdown {
-    display: grid !important;
-}
-
-html[data-graphics-style="classic"] #arcade-score-hud .arcade-score-hud-modifier {
-    display: flex !important;
+    gap: 4px 8px;
 }
 
 html[data-graphics-style="classic"] #arcade-mission-hud {
@@ -6372,4 +6368,276 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     padding: 4px 10px !important;
     background: rgba(0, 0, 0, 0.7) !important;
     backdrop-filter: none !important;
+}
+
+/* =========================================
+   Unified mode HUD shell
+   ========================================= */
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud {
+    inset: 0;
+    width: auto;
+    height: auto;
+    padding: 0;
+    box-sizing: border-box;
+    scale: 1;
+}
+
+#hud.split-screen:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) #p1-hud {
+    right: 50%;
+}
+
+#hud.split-screen:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) #p2-hud {
+    left: 50%;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud-summary {
+    position: absolute;
+    top: 20px;
+    display: block;
+    width: 280px;
+    min-height: 94px;
+    padding: 14px 20px 12px;
+    box-sizing: border-box;
+    scale: var(--hud-scale, 1);
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud.left .player-hud-summary {
+    left: 20px;
+    transform-origin: left top;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud.right .player-hud-summary {
+    right: 20px;
+    transform-origin: right top;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud-summary::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    border: 1px solid rgba(0, 229, 255, 0.78);
+    background: linear-gradient(115deg, rgba(3, 16, 30, 0.94), rgba(2, 12, 24, 0.72));
+    clip-path: polygon(0 0, 88% 0, 100% 24%, 92% 100%, 0 100%);
+    box-shadow: inset 0 -4px 0 rgba(255, 38, 78, 0.85), 0 0 18px rgba(0, 214, 255, 0.16);
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud.right .player-hud-summary::before {
+    clip-path: polygon(12% 0, 100% 0, 100% 100%, 8% 100%, 0 24%);
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-name {
+    color: #33e5ff;
+    font-size: 0.86rem;
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    opacity: 1;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-score {
+    color: #fff;
+    font-size: 3.25rem;
+    font-style: italic;
+    line-height: 1;
+    text-shadow: 0 0 12px rgba(39, 220, 255, 0.72);
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud-summary > .hud-boost-bar {
+    width: 100%;
+    margin-top: 8px;
+    border-radius: 0;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud-summary > .hud-boost-bar .boost-label {
+    right: auto;
+    bottom: auto;
+    left: 6px;
+    z-index: 2;
+    color: #e8fbff;
+    text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 20px;
+    width: min(760px, 62vw);
+    margin: 0;
+    display: grid;
+    grid-auto-flow: column;
+    grid-auto-columns: minmax(0, 1fr);
+    gap: 8px;
+    counter-reset: mode-item-slot;
+    transform: translateX(-50%) scale(var(--hud-scale, 1));
+    transform-origin: center bottom;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot {
+    width: auto;
+    min-width: 0;
+    height: 46px;
+    box-sizing: border-box;
+    justify-content: flex-start;
+    padding: 0 10px 0 44px;
+    border-color: rgba(0, 220, 255, 0.5) !important;
+    border-radius: 0;
+    background: linear-gradient(90deg, rgba(3, 19, 34, 0.9), rgba(3, 15, 27, 0.52));
+    clip-path: polygon(0 0, 93% 0, 100% 50%, 93% 100%, 0 100%, 3% 50%);
+    counter-increment: mode-item-slot;
+    opacity: 0.58;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot::before {
+    content: counter(mode-item-slot);
+    position: absolute;
+    left: 8px;
+    top: 50%;
+    width: 30px;
+    transform: translateY(-50%);
+    color: #20dcff;
+    font: 800 italic 1rem var(--menu-theme-display-font);
+    text-align: center;
+    border-right: 1px solid rgba(0, 220, 255, 0.55);
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot::after {
+    position: static;
+    margin-left: 8px;
+    transform: none;
+    font-size: 0.58rem;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot.active {
+    opacity: 0.9;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot.selected {
+    transform: translateY(-5px);
+    opacity: 1;
+    background: linear-gradient(90deg, rgba(4, 50, 72, 0.96), rgba(3, 18, 31, 0.7));
+    box-shadow: inset 4px 0 0 #2ce5ff, 0 0 18px rgba(0, 213, 255, 0.28);
+}
+
+#hud[data-hud-mode="arcade"] #p1-hud .player-name,
+#hud[data-hud-mode="arcade"] #p1-hud .player-score {
+    display: none;
+}
+
+#hud[data-hud-mode="arcade"] #p1-hud .player-hud-summary {
+    top: 112px;
+    width: 280px;
+    min-height: 38px;
+    padding: 13px 20px 10px;
+}
+
+#hud[data-hud-mode="arcade"] #p1-traversal-status {
+    display: none !important;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-score-hud {
+    top: 20px !important;
+    left: 20px !important;
+    min-width: 280px !important;
+    max-width: 280px !important;
+    padding: 12px 20px !important;
+    box-sizing: border-box;
+    border: 1px solid rgba(0, 229, 255, 0.78) !important;
+    border-radius: 0 !important;
+    background: linear-gradient(115deg, rgba(3, 16, 30, 0.94), rgba(2, 12, 24, 0.72)) !important;
+    clip-path: polygon(0 0, 88% 0, 100% 24%, 92% 100%, 0 100%);
+    box-shadow: inset 0 -4px 0 rgba(255, 38, 78, 0.85), 0 0 18px rgba(0, 214, 255, 0.16) !important;
+    font-family: var(--menu-theme-display-font) !important;
+    font-style: italic;
+    transform-origin: left top;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-score-hud .arcade-score-hud-scoreline {
+    text-transform: uppercase;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-score-hud .arcade-score-hud-metric {
+    border-radius: 0 !important;
+    background: rgba(0, 229, 255, 0.06) !important;
+}
+
+#hud[data-hud-mode="arcade"] .parcours-hud {
+    top: 14px;
+    min-width: 500px;
+    max-width: min(48vw, 720px);
+    padding: 8px 34px 10px;
+    border: 0;
+    border-top: 1px solid rgba(0, 229, 255, 0.78);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.5);
+    border-radius: 0;
+    background: linear-gradient(90deg, transparent, rgba(2, 14, 27, 0.92) 9%, rgba(2, 14, 27, 0.92) 91%, transparent);
+    clip-path: polygon(4% 0, 96% 0, 100% 50%, 96% 100%, 4% 100%, 0 50%);
+    box-shadow: none;
+    font-style: italic;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-mission-hud {
+    top: 224px !important;
+    right: 28px !important;
+    gap: 2px !important;
+    font-family: var(--menu-theme-display-font) !important;
+    font-style: italic;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-card {
+    position: relative;
+    min-width: 220px !important;
+    padding: 5px 0 7px 24px !important;
+    border: 0 !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    backdrop-filter: none !important;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-card::before {
+    content: '◆';
+    position: absolute;
+    left: 2px;
+    color: var(--hud-color, #2ce5ff);
+    text-shadow: 0 0 8px currentColor;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-progress-wrap {
+    height: 3px !important;
+    border-radius: 0 !important;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-mission-hud .arcade-mission-progress-bar {
+    background: var(--hud-color, #2ce5ff) !important;
+}
+
+#parcours-minimap {
+    border: 1px solid var(--hud-line-soft, rgba(0, 229, 255, 0.5)) !important;
+    border-radius: 0 !important;
+    background: rgba(2, 14, 27, 0.82) !important;
+    clip-path: polygon(0 0, 92% 0, 100% 8%, 100% 100%, 8% 100%, 0 92%);
+    box-shadow: 0 0 18px rgba(0, 214, 255, 0.12) !important;
+}
+
+@media (max-width: 900px) {
+    #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar {
+        bottom: 12px;
+        width: min(70vw, 560px);
+        gap: 5px;
+    }
+
+    #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot {
+        height: 42px;
+        padding-right: 6px;
+        padding-left: 38px;
+    }
+
+    #hud[data-hud-mode="arcade"] .parcours-hud {
+        min-width: min(46vw, 420px);
+    }
+
+    #hud[data-hud-mode="arcade"] #arcade-mission-hud {
+        right: 10px !important;
+    }
 }

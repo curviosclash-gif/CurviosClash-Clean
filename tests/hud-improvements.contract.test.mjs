@@ -19,6 +19,7 @@ import {
     resolveHudColorPresetLabel,
 } from '../src/ui/HudAppearance.js';
 import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
+import { ArcadeScoreHUD } from '../src/ui/arcade/ArcadeScoreHUD.js';
 import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
 
 // ---------------------------------------------------------------------------
@@ -84,6 +85,49 @@ function createStubElement(className = '') {
     };
     return element;
 }
+
+test('HudRuntimeSystem exposes the active menu mode to the shared HUD shell', () => {
+    const hud = createStubElement('hud');
+    const game = {
+        ui: { hud },
+        settings: { localSettings: { modePath: 'arcade' } },
+    };
+    const runtime = new HudRuntimeSystem({ game });
+
+    runtime._syncHudMode();
+    assert.equal(hud.dataset.hudMode, 'arcade');
+
+    game.settings.localSettings.modePath = 'fight';
+    runtime._syncHudMode();
+    assert.equal(hud.dataset.hudMode, 'fight');
+
+    game.settings.localSettings.modePath = 'quick_action';
+    runtime._syncHudMode();
+    assert.equal(hud.dataset.hudMode, 'normal');
+});
+
+test('Arcade score keeps breakdown details out of active play', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const parent = createStubElement('hud');
+        const hud = new ArcadeScoreHUD(parent);
+        const activeState = {
+            phase: 'sector_active',
+            nowMs: 1000,
+            sectorIndex: 1,
+            score: { total: 100, combo: 2, multiplier: 1.5, breakdown: { base: 100 } },
+        };
+
+        hud.update(activeState);
+        assert.equal(hud._breakdownWrap.style.display, 'none');
+        assert.equal(hud._modifierWrap.style.display, 'none');
+
+        hud.update({ ...activeState, phase: 'paused' });
+        assert.equal(hud._breakdownWrap.style.display, 'grid');
+    } finally {
+        documentStub.restore();
+    }
+});
 
 function installDocumentStub() {
     const previousDocument = globalThis.document;

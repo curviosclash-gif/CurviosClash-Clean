@@ -197,3 +197,77 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
         }
     }
 });
+
+test('Klassik and Arcade use the Fight HUD shell without duplicate Arcade score', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    const layout = await page.evaluate(() => {
+        const hud = document.querySelector('#hud');
+        const p1 = document.querySelector('#p1-hud');
+        const itemBar = document.querySelector('#p1-items');
+        document.querySelector('#main-menu')?.classList.add('hidden');
+        hud.classList.remove('hidden');
+
+        if (itemBar.children.length === 0) {
+            for (let index = 0; index < 5; index += 1) {
+                const slot = document.createElement('div');
+                slot.className = 'item-slot active';
+                slot.dataset.actionHintLabel = 'SHOT';
+                itemBar.appendChild(slot);
+            }
+        }
+
+        hud.dataset.hudMode = 'normal';
+        const normalSummary = p1.querySelector('.player-hud-summary');
+        const normalItemRect = itemBar.getBoundingClientRect();
+        const normal = {
+            summaryWidth: normalSummary.getBoundingClientRect().width,
+            scoreVisible: getComputedStyle(p1.querySelector('.player-score')).display !== 'none',
+            itemBottom: normalItemRect.bottom,
+            itemDisplay: getComputedStyle(itemBar).display,
+            panelPosition: getComputedStyle(normalSummary).position,
+        };
+
+        let arcadeScore = document.querySelector('#arcade-score-hud');
+        if (!arcadeScore) {
+            arcadeScore = document.createElement('section');
+            arcadeScore.id = 'arcade-score-hud';
+            arcadeScore.className = 'arcade-score-hud';
+            arcadeScore.style.cssText = 'position:fixed;display:flex';
+            arcadeScore.innerHTML = `
+                <div class="arcade-score-hud-scoreline"><span>Score</span><strong class="arcade-score-hud-score">0</strong></div>
+                <div class="arcade-score-hud-metrics"><div class="arcade-score-hud-metric">Combo 0</div></div>
+            `;
+            hud.appendChild(arcadeScore);
+        }
+        hud.dataset.hudMode = 'arcade';
+        const arcadeScoreRect = arcadeScore.getBoundingClientRect();
+        const arcade = {
+            playerScoreVisible: getComputedStyle(p1.querySelector('.player-score')).display !== 'none',
+            playerNameVisible: getComputedStyle(p1.querySelector('.player-name')).display !== 'none',
+            boostVisible: getComputedStyle(p1.querySelector('.hud-boost-bar:not(.hud-life-bar)')).display !== 'none',
+            scoreRect: {
+                left: arcadeScoreRect.left,
+                top: arcadeScoreRect.top,
+                width: arcadeScoreRect.width,
+            },
+            scoreClip: getComputedStyle(arcadeScore).clipPath,
+        };
+        return { normal, arcade, viewportHeight: window.innerHeight };
+    });
+
+    expect(layout.normal.summaryWidth).toBe(280);
+    expect(layout.normal.scoreVisible).toBe(true);
+    expect(layout.normal.itemDisplay).toBe('grid');
+    expect(layout.normal.panelPosition).toBe('absolute');
+    expectNear(layout.normal.itemBottom, layout.viewportHeight - 20);
+
+    expect(layout.arcade.playerScoreVisible).toBe(false);
+    expect(layout.arcade.playerNameVisible).toBe(false);
+    expect(layout.arcade.boostVisible).toBe(true);
+    expectNear(layout.arcade.scoreRect.left, 20);
+    expectNear(layout.arcade.scoreRect.top, 20);
+    expect(layout.arcade.scoreRect.width).toBe(280);
+    expect(layout.arcade.scoreClip).not.toBe('none');
+});

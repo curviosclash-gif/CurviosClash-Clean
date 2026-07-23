@@ -72,8 +72,6 @@ export class ArcadeScoreHUD {
         this._transitionBanner = null;
         this._transitionVisibleUntilMs = 0;
         this._comboPopUntilMs = 0;
-        this._detailsVisibleUntilMs = 0;
-        this._lastScore = 0;
         this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._build();
@@ -231,10 +229,6 @@ export class ArcadeScoreHUD {
         const phase = String(hudState.phase || '');
         const sectorIndex = Math.max(0, Math.floor(toSafeNumber(hudState.sectorIndex, 0)));
         const totalScore = Math.max(0, Math.round(toSafeNumber(score.total, 0)));
-        if (totalScore !== this._lastScore) {
-            this._detailsVisibleUntilMs = nowMs + 1200;
-        }
-        this._lastScore = totalScore;
         setNodeText(this._scoreValue, `${totalScore}`);
         setNodeText(this._comboValue, formatRounded(combo));
         setNodeText(this._multiplierValue, formatMultiplier(score.multiplier));
@@ -283,19 +277,18 @@ export class ArcadeScoreHUD {
 
         if (sectorIndex > 0 && sectorIndex !== this._lastSectorIndex) {
             this._transitionVisibleUntilMs = nowMs + 1400;
-            this._detailsVisibleUntilMs = nowMs + 1400;
             const mapKey = String(hudState.currentMapKey || '').trim() || 'unknown';
             setNodeText(this._transitionBanner, `Sektor ${sectorIndex} | ${mapKey}`);
         }
         this._lastSectorIndex = sectorIndex;
         const transitionVisible = nowMs < this._transitionVisibleUntilMs;
         this._transitionBanner?.classList?.toggle('hidden', !transitionVisible);
-        const showDetails = nowMs < this._detailsVisibleUntilMs || phase === 'paused' || phase === 'round_end';
+        const showDetails = phase === 'paused' || phase === 'round_end';
         if (this._breakdownWrap) {
             this._breakdownWrap.style.display = showDetails ? 'grid' : 'none';
         }
         if (this._modifierWrap) {
-            this._modifierWrap.style.display = modifierMeta || showDetails ? 'flex' : 'none';
+            this._modifierWrap.style.display = modifierMeta ? 'flex' : 'none';
         }
     }
 
@@ -320,8 +313,6 @@ export class ArcadeScoreHUD {
         this._transitionBanner = null;
         this._transitionVisibleUntilMs = 0;
         this._comboPopUntilMs = 0;
-        this._detailsVisibleUntilMs = 0;
-        this._lastScore = 0;
         this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._visible = false;

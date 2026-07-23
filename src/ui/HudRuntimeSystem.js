@@ -36,6 +36,7 @@ export class HudRuntimeSystem {
         this._lastArcadeSectorIndex = 0;
         this._parcoursOverlay = null;
         this._tutorialCompletionPersisted = false;
+        this._hudMode = null;
     }
 
     _getMatchRuntimeProjection() {
@@ -81,6 +82,20 @@ export class HudRuntimeSystem {
             return projection.isNetworkSession;
         }
         return !!this.game?.runtimeConfig?.session?.networkEnabled;
+    }
+
+    _syncHudMode() {
+        const hud = this.game?.ui?.hud;
+        if (!hud) return;
+        const requestedMode = String(this.game?.settings?.localSettings?.modePath || 'normal')
+            .trim()
+            .toLowerCase();
+        const mode = requestedMode === 'fight' || requestedMode === 'arcade'
+            ? requestedMode
+            : 'normal';
+        if (mode === this._hudMode) return;
+        hud.dataset.hudMode = mode;
+        this._hudMode = mode;
     }
 
     updateScoreHud(projection = null) {
@@ -211,11 +226,12 @@ export class HudRuntimeSystem {
     }
 
     _ensureArcadeHud() {
+        const parent = this.game?.ui?.hud || document.body;
         if (!this._arcadeMissionHud) {
-            this._arcadeMissionHud = new ArcadeMissionHUD(document.body);
+            this._arcadeMissionHud = new ArcadeMissionHUD(parent);
         }
         if (!this._arcadeScoreHud) {
-            this._arcadeScoreHud = new ArcadeScoreHUD(document.body);
+            this._arcadeScoreHud = new ArcadeScoreHUD(parent);
         }
     }
 
@@ -455,6 +471,7 @@ export class HudRuntimeSystem {
         const game = this.game;
         if (!game.entityManager) return;
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
+        this._syncHudMode();
         this._updateParcoursHud(projection);
 
         // Score/Inventory laufen auf eigener, konservativer Tick-Frequenz.
@@ -525,5 +542,9 @@ export class HudRuntimeSystem {
         this._lastArcadeSectorIndex = 0;
         this._parcoursOverlay?.dispose?.();
         this._parcoursOverlay = null;
+        if (this.game?.ui?.hud?.dataset) {
+            delete this.game.ui.hud.dataset.hudMode;
+        }
+        this._hudMode = null;
     }
 }
