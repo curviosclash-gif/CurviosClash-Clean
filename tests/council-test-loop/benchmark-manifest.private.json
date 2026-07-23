@@ -1,0 +1,126 @@
+{
+  "schemaVersion": "1.0.0",
+  "splitSeed": "curvios-council-benchmark-v1",
+  "cases": [
+    {
+      "id": "local-v2-easy-detection",
+      "groupId": "local-v2-easy",
+      "corpus": "curvios-local-fixture",
+      "corpusVersion": "542d9d431a2d3c6e5dd19d5e1d7c41a5720af3f5",
+      "integrityHash": "4966e7b8e563f232e213827b3e794e58a40b2f80c65448ac9455aa83580e08f7",
+      "license": "LicenseRef-CurviosClash",
+      "language": "javascript",
+      "scope": "review",
+      "taskType": "production-bug-detection",
+      "buggyRevision": "sha256:4966e7b8e563f232e213827b3e794e58a40b2f80c65448ac9455aa83580e08f7",
+      "fixedRevision": "sha256:908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174",
+      "problemStatement": "Inspect the visible telemetry utility and report only reproducible contract defects with concrete evidence.",
+      "expectedClassification": "BUG",
+      "expectedFiles": ["fixture.mjs"],
+      "expectedSymbols": ["normalizeSampleWindow", "decodeSampleWindow", "clearSnapshot"],
+      "requiredEvidence": ["file", "symbol", "cause", "reachable-path", "reproduction"],
+      "visibleTestCommands": ["node --check fixture.mjs"],
+      "hiddenTestCommands": ["node --test tests/council-test-loop/fixture-behavior.test.mjs"],
+      "allowedChanges": ["fixture.mjs", "tests"],
+      "forbiddenChanges": ["package.json", "package-lock.json"],
+      "timeoutSeconds": 300,
+      "difficulty": "easy",
+      "split": "development",
+      "negativeControl": false,
+      "visibleFiles": [
+        {
+          "source": "tests/council-test-loop/errors-v2-easy.mjs",
+          "target": "fixture.mjs",
+          "sha256": "4966e7b8e563f232e213827b3e794e58a40b2f80c65448ac9455aa83580e08f7"
+        }
+      ],
+      "fixedFiles": [
+        {
+          "source": "tests/council-test-loop/errors-easy.mjs",
+          "target": "fixture.mjs",
+          "sha256": "908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174"
+        }
+      ]
+    },
+    {
+      "id": "local-v2-medium-repair",
+      "groupId": "local-v2-medium",
+      "corpus": "curvios-local-fixture",
+      "corpusVersion": "542d9d431a2d3c6e5dd19d5e1d7c41a5720af3f5",
+      "integrityHash": "ec7af76b9deba533ac534a978f8768c0ae72f5bdd675fd7cf8ae0fc5e1d0e894",
+      "license": "LicenseRef-CurviosClash",
+      "language": "javascript",
+      "scope": "repair",
+      "taskType": "production-bug-repair",
+      "buggyRevision": "sha256:ec7af76b9deba533ac534a978f8768c0ae72f5bdd675fd7cf8ae0fc5e1d0e894",
+      "fixedRevision": "sha256:aec6f5f7af567e87ec04fd85237bfcedf426fc20a753b0f374b5221cc70ffb1b",
+      "problemStatement": "Repair the visible lease registry so its public async and lifecycle contracts hold, keeping the patch minimal.",
+      "expectedClassification": "BUG",
+      "expectedFiles": ["fixture.mjs"],
+      "expectedSymbols": ["acquire", "invalidate", "dispose"],
+      "requiredEvidence": ["visible-test", "hidden-test", "minimal-diff"],
+      "visibleTestCommands": ["node --check fixture.mjs"],
+      "hiddenTestCommands": ["node --test tests/council-test-loop/fixture-behavior.test.mjs"],
+      "allowedChanges": ["fixture.mjs", "tests"],
+      "forbiddenChanges": ["package.json", "package-lock.json"],
+      "timeoutSeconds": 300,
+      "difficulty": "medium",
+      "split": "development",
+      "negativeControl": false,
+      "visibleFiles": [
+        {
+          "source": "tests/council-test-loop/errors-v2-medium.mjs",
+          "target": "fixture.mjs",
+          "sha256": "ec7af76b9deba533ac534a978f8768c0ae72f5bdd675fd7cf8ae0fc5e1d0e894"
+        }
+      ],
+      "fixedFiles": [
+        {
+          "source": "tests/council-test-loop/errors-medium.mjs",
+          "target": "fixture.mjs",
+          "sha256": "aec6f5f7af567e87ec04fd85237bfcedf426fc20a753b0f374b5221cc70ffb1b"
+        }
+      ]
+    },
+    {
+      "id": "local-easy-negative-control",
+      "groupId": "local-easy-clean",
+      "corpus": "curvios-local-fixture",
+      "corpusVersion": "542d9d431a2d3c6e5dd19d5e1d7c41a5720af3f5",
+      "integrityHash": "908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174",
+      "license": "LicenseRef-CurviosClash",
+      "language": "javascript",
+      "scope": "review",
+      "taskType": "clean-negative-control",
+      "buggyRevision": "sha256:908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174",
+      "fixedRevision": "sha256:908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174",
+      "problemStatement": "Inspect the visible telemetry utility and report a finding only if a contract defect is reproducible; otherwise return clean.",
+      "expectedClassification": "FALSE",
+      "expectedFiles": [],
+      "expectedSymbols": [],
+      "requiredEvidence": ["reproduction-or-clean-verdict"],
+      "visibleTestCommands": ["node --check fixture.mjs"],
+      "hiddenTestCommands": ["node --test tests/council-test-loop/fixture-behavior.test.mjs"],
+      "allowedChanges": ["fixture.mjs", "tests"],
+      "forbiddenChanges": ["package.json", "package-lock.json"],
+      "timeoutSeconds": 300,
+      "difficulty": "easy",
+      "split": "development",
+      "negativeControl": true,
+      "visibleFiles": [
+        {
+          "source": "tests/council-test-loop/errors-easy.mjs",
+          "target": "fixture.mjs",
+          "sha256": "908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174"
+        }
+      ],
+      "fixedFiles": [
+        {
+          "source": "tests/council-test-loop/errors-easy.mjs",
+          "target": "fixture.mjs",
+          "sha256": "908c14c9ae5e5e5e403d14cdddff136b14c14604f9a23f6d4829918889e9e174"
+        }
+      ]
+    }
+  ]
+}

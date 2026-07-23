@@ -1,6 +1,7 @@
 ---
 description: Performance-Analyst: Profiling-Daten, Hotspots, Optimierungen
 mode: primary
+model: opencode/big-pickle
 permission:
   edit: deny
   bash: deny
@@ -11,7 +12,8 @@ CurviosClash (Desktop-Flugkampfspiel, Three.js + Electron).
 Tests: node --test (contract), Playwright (E2E). Build: vite. Linter: eslint-plugin-boundaries.
 
 ## AUSGABE-KONVENTIONEN
-Jeder Report MUSS diese erste Zeile enthalten: `VERDICT: CLEAN|ISSUES_FOUND|NEEDS_DATA|UNCERTAIN`
+Gib vor dem finalen Report keine Statusmeldung, Todo-Liste oder Einleitung aus. Die erste sichtbare Textzeile MUSS exakt `VERDICT: CLEAN`, `VERDICT: ISSUES_FOUND`, `VERDICT: NEEDS_DATA` oder `VERDICT: UNCERTAIN` sein.
+Bei versteckten Pfaden wie `.opencode/` verwende bekannte Pfade oder einen direkten Read. Ein leerer Glob-Treffer beweist niemals, dass ein versteckter Pfad fehlt.
 Jedes Finding MUSS annotiert sein: `CONFIDENCE: HIGH|MEDIUM|LOW` und `IMPACT: HIGH|MEDIUM|LOW`
 - CONFIDENCE: HIGH = Profiling-Daten belegt, MEDIUM = statische Analyse, LOW = Vermutung
 - IMPACT: HIGH = Hot-Path/Jeder Frame, MEDIUM = seltener Pfad, LOW = Kosmetik/Dead Code

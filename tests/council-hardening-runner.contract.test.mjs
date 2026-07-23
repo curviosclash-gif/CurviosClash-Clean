@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import { readFile } from 'node:fs/promises';
 import { PassThrough } from 'node:stream';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
@@ -15,15 +16,21 @@ import {
     extractVerifyManifest,
     FIXTURE_NAMES,
     runAgent,
+    runAgentWithRetry,
+    runCouncilAgentCli,
     resolveOpenCodeExecutable,
     runResearchScope,
     runResearchRound,
     validateResearchReport,
+    validateLeadReport,
+    validateSpecialistReport,
     validateVerifyReport,
 } from '../scripts/council-hardening-runner.mjs';
+import { runCouncilLiveSmoke } from '../scripts/council-live-smoke.mjs';
 
 const ROOT = path.resolve(import.meta.dirname, '..');
 const reportEvent = (text) => JSON.stringify({ type: 'text', text });
+const specialistReport = (verdict = 'CLEAN', findings = []) => `VERDICT: ${verdict}\n\n\`\`\`json\n${JSON.stringify({ findings })}\n\`\`\``;
 
 test('Windows resolves the native OpenCode executable instead of spawning a cmd wrapper', () => {
     if (process.platform !== 'win32') return;
@@ -31,15 +38,17 @@ test('Windows resolves the native OpenCode executable instead of spawning a cmd 
     assert.match(executable, /opencode\.exe$/i);
 });
 
-test('hardening fixtures are isolated below repository tmp and preserve bytes', async () => {
+test('hardening fixtures are isolated below the OpenCode system temp root and preserve bytes', async () => {
     const prepared = await createRoundFixtures({ repositoryRoot: ROOT, runId: 'contract-fixtures', round: 1 });
-    assert.ok(prepared.fixtureRoot.startsWith(path.join(ROOT, 'tmp', 'council-hardening')));
+    assert.ok(prepared.fixtureRoot.startsWith(path.join(tmpdir(), 'opencode', 'council-hardening')));
+    assert.equal(prepared.fixtureRoot.startsWith(ROOT), false);
     for (const name of FIXTURE_NAMES) {
         assert.deepEqual(
             await readFile(path.join(prepared.fixtureRoot, name)),
             await readFile(path.join(ROOT, 'tests', 'council-test-loop', name)),
         );
     }
+    await assert.rejects(() => createRoundFixtures({ repositoryRoot: ROOT, runId: '../escape', round: 1 }), /runId/);
 });
 
 test('only the final JSON text event is validated and VERDICT must be first', () => {
@@ -57,6 +66,11 @@ test('finding prose containing fallback stays valid but runtime fallback does no
     assert.equal(validateResearchReport({ stdout, stderr: 'Fallback warning: using default agent' }).valid, false);
 });
 
+test('specialist validation requires the machine-readable findings manifest', () => {
+    assert.equal(validateSpecialistReport({ stdout: reportEvent(specialistReport()) }).valid, true);
+    assert.match(validateSpecialistReport({ stdout: reportEvent('VERDICT: CLEAN') }).reasons[0], /invalid-research-manifest/);
+});
+
 test('lead candidate manifest is extracted from the final JSON block and validated', () => {
     const report = `VERDICT: ISSUES_FOUND\n\n\`\`\`json\n${JSON.stringify({ candidates: [{
         id: 'AA-01', file: 'fixture.mjs', symbol: 'acquire', claim: 'pending remains poisoned',
@@ -64,6 +78,8 @@ test('lead candidate manifest is extracted from the final JSON block and validat
     }] })}\n\`\`\``;
     const manifest = extractCandidateManifest(report);
     assert.equal(manifest.candidates[0].id, 'AA-01');
+    assert.equal(validateLeadReport({ stdout: reportEvent(report) }).valid, true);
+    assert.match(validateLeadReport({ stdout: reportEvent('VERDICT: CLEAN') }).reasons[0], /invalid-candidate-manifest/);
     assert.throws(() => extractCandidateManifest('```json\n{"candidates":[{"id":"AA"}]}\n```'), /candidate\.file/);
 });
 
@@ -101,7 +117,7 @@ test('scope agreement is deterministic and requires four valid agreeing models',
     assert.equal(insufficient.findings[0].highConfidence, false);
 });
 
-test('research scope runs five siblings in parallel with one provider-only retry', async () => {
+test('research scope runs five siblings in parallel with one bounded retry', async () => {
     let active = 0;
     let maxActive = 0;
     const attempts = new Map();
@@ -117,13 +133,94 @@ test('research scope runs five siblings in parallel with one provider-only retry
         if (agent === 'council-test-fb2' && count === 1) {
             return { agent, stdout: '', stderr: 'Streaming response failed', exitCode: 1, timedOut: false };
         }
-        return { agent, stdout: reportEvent('VERDICT: CLEAN'), stderr: '', exitCode: 0, timedOut: false };
+        return { agent, stdout: reportEvent(specialistReport()), stderr: '', exitCode: 0, timedOut: false };
     };
     const result = await runResearchScope({ repositoryRoot: ROOT, scope: 'test', prompt: 'same', timeoutMs: 1_000, run });
     assert.equal(maxActive, 5);
     assert.equal(prompts.every((prompt) => prompt === 'same'), true);
     assert.equal(attempts.get('council-test-fb2'), 2);
     assert.equal(result.results.every(({ validation }) => validation.valid), true);
+});
+
+test('invalid Council output is retried once with the identical frozen prompt', async () => {
+    const prompts = [];
+    const result = await runAgentWithRetry({
+        repositoryRoot: ROOT,
+        agent: 'council-review',
+        prompt: 'frozen benchmark prompt',
+        timeoutMs: 1_000,
+    }, async ({ agent, prompt }) => {
+        prompts.push(prompt);
+        return {
+            agent,
+            stdout: reportEvent(prompts.length === 1 ? 'summary without verdict' : specialistReport()),
+            stderr: '',
+            exitCode: 0,
+            timedOut: false,
+        };
+    });
+    assert.deepEqual(prompts, ['frozen benchmark prompt', 'frozen benchmark prompt']);
+    assert.equal(result.attempts.length, 2);
+    assert.equal(result.validation.valid, true);
+});
+
+test('timed-out Council output receives one retry within the shared deadline', async () => {
+    const attemptTimeouts = [];
+    const result = await runAgentWithRetry({
+        repositoryRoot: ROOT,
+        agent: 'council-review',
+        prompt: 'same prompt',
+        timeoutMs: 1_000,
+    }, async ({ agent, timeoutMs }) => {
+        attemptTimeouts.push(timeoutMs);
+        return {
+            agent,
+            stdout: reportEvent(attemptTimeouts.length === 1 ? 'partial' : specialistReport()),
+            stderr: '',
+            exitCode: attemptTimeouts.length === 1 ? 1 : 0,
+            timedOut: attemptTimeouts.length === 1,
+        };
+    });
+    assert.equal(result.attempts.length, 2);
+    assert.ok(attemptTimeouts[0] <= 500);
+    assert.ok(attemptTimeouts[1] > attemptTimeouts[0]);
+    assert.equal(result.validation.valid, true);
+});
+
+test('bounded Council CLI selects the correct validator and rejects unknown agents', async () => {
+    const report = `VERDICT: REJECTED\n\n\`\`\`json\n${JSON.stringify({ results: [] })}\n\`\`\``;
+    const result = await runCouncilAgentCli({
+        repositoryRoot: ROOT,
+        agent: 'council-verify',
+        prompt: 'verify',
+        timeoutMs: 1_000,
+        run: async ({ agent }) => ({ agent, stdout: reportEvent(report), stderr: '', exitCode: 0, timedOut: false }),
+    });
+    assert.equal(result.valid, true);
+    assert.equal(result.verdict, 'REJECTED');
+    await assert.rejects(() => runCouncilAgentCli({ repositoryRoot: ROOT, agent: 'default', prompt: 'no', run: async () => ({}) }), /unsupported/);
+});
+
+test('live smoke requires four structured CLEAN reports from real-agent adapters', async () => {
+    let calls = 0;
+    const report = `VERDICT: CLEAN\n\n\`\`\`json\n${JSON.stringify({ findings: [] })}\n\`\`\``;
+    const result = await runCouncilLiveSmoke({
+        repositoryRoot: ROOT,
+        timeoutMs: 1_000,
+        run: async ({ agent }) => {
+            calls += 1;
+            return {
+                agent,
+                stdout: reportEvent(calls === 5 ? 'VERDICT: NEEDS_DATA\n```json\n{"findings":[]}\n```' : report),
+                stderr: '',
+                exitCode: 0,
+                timedOut: false,
+            };
+        },
+    });
+    assert.equal(calls, 5);
+    assert.equal(result.validRuns, 4);
+    assert.equal(result.passed, true);
 });
 
 test('research round keeps scopes sequential and supplies scope-specific prompts', async () => {
@@ -136,7 +233,7 @@ test('research round keeps scopes sequential and supplies scope-specific prompts
         seenPrompts.add(prompt);
         await new Promise((resolve) => setTimeout(resolve, 2));
         active -= 1;
-        return { stdout: reportEvent('VERDICT: CLEAN'), stderr: '', exitCode: 0, timedOut: false };
+        return { stdout: reportEvent(specialistReport()), stderr: '', exitCode: 0, timedOut: false };
     };
     const results = await runResearchRound({
         repositoryRoot: ROOT,

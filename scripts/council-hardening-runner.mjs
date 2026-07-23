@@ -1,6 +1,7 @@
 import { spawn as spawnProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
@@ -17,6 +18,7 @@ const RESEARCH_VERDICTS = new Set(['CLEAN', 'ISSUES_FOUND', 'NEEDS_DATA', 'UNCER
 const VERIFY_CLASSIFICATIONS = new Set(['BUG', 'DEFENSIVE', 'INTENTIONAL', 'FALSE', 'UNCERTAIN']);
 const VERIFY_VERDICTS = new Set(['VERIFIED', 'REJECTED', 'UNCERTAIN']);
 const RUNTIME_FAILURE = /fallback warning|default agent|streaming response failed/i;
+const COUNCIL_AGENT_NAME = /^(?:council-(?:review|arch|sec|perf|test|refactor)(?:-fb[2-4]?)?|council-(?:lead|verify))$/;
 
 export function resolveOpenCodeExecutable({ platform = process.platform, env = process.env } = {}) {
     if (platform !== 'win32') return 'opencode';
@@ -76,6 +78,36 @@ export function validateResearchReport({ stdout, stderr = '', exitCode = 0, time
         ? ['post-report-summary']
         : [];
     return { valid: reasons.length === 0, verdict, report, reasons, warnings };
+}
+
+export function validateSpecialistReport(result) {
+    const validation = validateResearchReport(result);
+    if (!validation.valid) return validation;
+    try {
+        extractResearchManifest(validation.report);
+        return validation;
+    } catch (error) {
+        return {
+            ...validation,
+            valid: false,
+            reasons: [...validation.reasons, `invalid-research-manifest:${error.message}`],
+        };
+    }
+}
+
+export function validateLeadReport(result) {
+    const validation = validateResearchReport(result);
+    if (!validation.valid) return validation;
+    try {
+        extractCandidateManifest(validation.report);
+        return validation;
+    } catch (error) {
+        return {
+            ...validation,
+            valid: false,
+            reasons: [...validation.reasons, `invalid-candidate-manifest:${error.message}`],
+        };
+    }
 }
 
 export function validateVerifyReport({ stdout, stderr = '', exitCode = 0, timedOut = false }) {
@@ -212,11 +244,12 @@ export function extractVerifyManifest(report) {
 
 export async function createRoundFixtures({ repositoryRoot, runId, round }) {
     if (!Number.isInteger(round) || round < 1) throw new TypeError('round must be a positive integer');
-    const tempRoot = path.resolve(repositoryRoot, 'tmp', 'council-hardening', String(runId));
+    if (!/^[a-zA-Z0-9_-]+$/.test(String(runId))) throw new TypeError('runId must contain only letters, digits, underscores, or hyphens');
+    const tempRoot = path.join(tmpdir(), 'opencode', 'council-hardening', String(runId));
     const roundRoot = path.join(tempRoot, `round-${round}`);
     const fixtureRoot = path.join(roundRoot, 'fixtures');
-    const relative = path.relative(path.resolve(repositoryRoot), fixtureRoot);
-    if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('fixture directory escaped repository tmp');
+    const relative = path.relative(path.join(tmpdir(), 'opencode'), fixtureRoot);
+    if (relative.startsWith('..') || path.isAbsolute(relative)) throw new Error('fixture directory escaped OpenCode temp root');
     await mkdir(fixtureRoot, { recursive: true });
     await Promise.all(FIXTURE_NAMES.map((name) => copyFile(
         path.join(repositoryRoot, 'tests', 'council-test-loop', name),
@@ -243,13 +276,14 @@ export async function runAgent({
     agent,
     prompt,
     timeoutMs = 300_000,
+    env = process.env,
     spawn = spawnProcess,
     terminate = terminateProcessTree,
 }) {
     const startedAt = Date.now();
     const child = spawn(resolveOpenCodeExecutable(), [
         'run', '--auto', '--format', 'json', '--dir', repositoryRoot, '--agent', agent, prompt,
-    ], { cwd: repositoryRoot, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'] });
+    ], { cwd: repositoryRoot, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env });
     let stdout = '';
     let stderr = '';
     child.stdout?.setEncoding('utf8');
@@ -269,23 +303,27 @@ export async function runAgent({
     return { agent, stdout, stderr, exitCode, timedOut, durationMs: Date.now() - startedAt };
 }
 
-function isRetryableProviderFailure(result) {
-    return !result.timedOut && (
-        result.exitCode !== 0
-        || /streaming response failed|rate.?limit|temporarily unavailable/i.test(result.stderr)
-    );
-}
-
 export async function runAgentWithRetry(options, run = runAgent) {
-    const deadline = Date.now() + (options.timeoutMs ?? 300_000);
+    const timeoutMs = options.timeoutMs ?? 300_000;
+    if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('timeoutMs must be a positive integer');
+    const deadline = Date.now() + timeoutMs;
     const attempts = [];
-    const first = await run({ ...options, timeoutMs: Math.max(1, deadline - Date.now()) });
-    attempts.push(first);
-    if (isRetryableProviderFailure(first) && Date.now() < deadline) {
-        attempts.push(await run({ ...options, timeoutMs: Math.max(1, deadline - Date.now()) }));
+    const validate = options.agent === 'council-verify'
+        ? validateVerifyReport
+        : options.agent === 'council-lead'
+            ? validateLeadReport
+            : validateSpecialistReport;
+    let result;
+    let validation;
+    for (let index = 0; index < 2 && Date.now() < deadline; index += 1) {
+        const remainingAttempts = 2 - index;
+        const remainingMs = Math.max(1, deadline - Date.now());
+        result = await run({ ...options, timeoutMs: Math.max(1, Math.floor(remainingMs / remainingAttempts)) });
+        attempts.push(result);
+        validation = validate(result);
+        if (validation.valid) break;
     }
-    const result = attempts.at(-1);
-    return { ...result, attempts, validation: validateResearchReport(result) };
+    return { ...result, attempts, validation };
 }
 
 export async function runResearchScope({
@@ -359,10 +397,50 @@ export async function persistResearchResults(roundRoot, scopeResults) {
     return { reportRoot, summaryFile, summary, agreementFile, agreement };
 }
 
+export async function runCouncilAgentCli({
+    repositoryRoot,
+    agent,
+    prompt,
+    timeoutMs = 300_000,
+    run = runAgent,
+}) {
+    if (!COUNCIL_AGENT_NAME.test(String(agent))) throw new TypeError(`unsupported Council agent: ${agent}`);
+    if (!String(prompt).trim()) throw new TypeError('Council prompt is required');
+    const result = await runAgentWithRetry({ repositoryRoot, agent, prompt, timeoutMs }, run);
+    return {
+        agent,
+        valid: result.validation.valid,
+        verdict: result.validation.verdict,
+        report: result.validation.report,
+        reasons: result.validation.reasons,
+        attempts: result.attempts.length,
+        timedOut: result.timedOut,
+        durationMs: result.attempts.reduce((sum, attempt) => sum + Number(attempt.durationMs || 0), 0),
+    };
+}
+
 async function main(argv) {
-    const [command, runId, roundText] = argv;
+    const [command, firstArgument, ...remaining] = argv;
+    if (command === 'agent') {
+        const timeoutMs = Number.parseInt(process.env.COUNCIL_AGENT_TIMEOUT_MS || '300000', 10);
+        if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('COUNCIL_AGENT_TIMEOUT_MS must be a positive integer');
+        const result = await runCouncilAgentCli({
+            repositoryRoot: process.cwd(),
+            agent: firstArgument,
+            prompt: remaining.join(' '),
+            timeoutMs,
+        });
+        if (result.valid) {
+            process.stdout.write(`${result.report.trim()}\n`);
+        } else {
+            process.stderr.write(`${JSON.stringify({ agent: result.agent, reasons: result.reasons, attempts: result.attempts, timedOut: result.timedOut })}\n`);
+            process.exitCode = 1;
+        }
+        return;
+    }
+    const [runId, roundText] = [firstArgument, remaining[0]];
     if (!['prepare', 'research'].includes(command) || !runId) {
-        throw new Error('Usage: council-hardening-runner.mjs <prepare|research> <run-id> <round>');
+        throw new Error('Usage: council-hardening-runner.mjs agent <agent> <prompt> | <prepare|research> <run-id> <round>');
     }
     const result = await createRoundFixtures({
         repositoryRoot: process.cwd(),

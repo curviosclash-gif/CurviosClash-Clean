@@ -4,15 +4,15 @@
 
   "readOnlyCouncil": {
     "primary": {
-      "description": "Read-only primaries (mode: primary). Werden mit opencode run --agent gestartet.",
-      "council-review": { "model": "default", "note": "Standard-Modell des Hauptmodells" },
-      "council-arch": { "model": "default" },
-      "council-sec": { "model": "default" },
-      "council-perf": { "model": "default" },
-      "council-test": { "model": "default" },
-      "council-refactor": { "model": "default" },
-      "council-lead": { "model": "premium", "note": "Einziger Council-Agent mit Premium-Modell (AGENTS.md Rule 19)" },
-      "council-verify": { "model": "default" }
+      "description": "Read-only primaries (mode: primary). Werden mit dem begrenzten council:agent-Wrapper gestartet.",
+      "council-review": { "model": "opencode/big-pickle" },
+      "council-arch": { "model": "opencode/big-pickle" },
+      "council-sec": { "model": "opencode/big-pickle" },
+      "council-perf": { "model": "opencode/big-pickle" },
+      "council-test": { "model": "opencode/big-pickle" },
+      "council-refactor": { "model": "opencode/big-pickle" },
+      "council-lead": { "model": "opencode-go/deepseek-v4-pro", "note": "Einziger Council-Agent mit Premium-Modell (AGENTS.md Rule 19)" },
+      "council-verify": { "model": "opencode/deepseek-v4-flash-free" }
     },
     "fbSiblings": {
       "description": "FB-Geschwister (mode: all). 4 pro Scope, je ein anderes kostenloses Modell. Werden direkt oder via task() gestartet.",
@@ -64,7 +64,13 @@
   "supportAgents": {
     "plan": { "mode": "all", "model": "default" },
     "council-baseline": { "mode": "subagent", "model": "default", "bash": "allow" },
-    "council-preflight": { "mode": "subagent", "model": "default", "bash": "allow", "task": "allow" }
+    "council-preflight": { "mode": "subagent", "model": "default", "bash": "allow", "task": "allow" },
+    "deepseek-v4-pro": {
+      "mode": "all",
+      "model": "opencode-go/deepseek-v4-pro",
+      "task": "deny",
+      "note": "Single-agent benchmark worker; direct OpenCode transport with no Council delegation."
+    }
   },
 
   "freeModels": {

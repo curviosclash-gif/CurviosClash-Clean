@@ -46,9 +46,11 @@ for (const name of primaryAgents) {
     const metadata = frontmatter(path);
     const text = read(path);
     expect(metadata.mode === 'primary', `${path}: directly invoked Council agent must use mode primary`);
+    expect(metadata.model === config.readOnlyCouncil.primary[name].model, `${path}: model ${metadata.model ?? '<missing>'} does not match central route ${config.readOnlyCouncil.primary[name].model}`);
     expect(/\n\s*edit:\s*deny\b/.test(text), `${path}: edit permission must be deny`);
     expect(/\n\s*bash:\s*deny\b/.test(text), `${path}: bash permission must be deny`);
     expect(/\n\s*task:\s*deny\b/.test(text), `${path}: task permission must be deny`);
+    expect(/Ein leerer Glob-Treffer beweist niemals/.test(text), `${path}: hidden-path discovery guard missing`);
 }
 
 const configuredFreeModels = new Set(config.freeModels?.models ?? []);
@@ -85,6 +87,17 @@ for (const scope of SCOPES) {
 
 const planPath = join(AGENT_DIR, 'plan.md');
 expect(frontmatter(planPath).mode === 'all', `${planPath}: mode must be all for CLI and task dispatch`);
+
+const deepSeekPath = join(AGENT_DIR, 'deepseek-v4-pro.md');
+const deepSeekMetadata = frontmatter(deepSeekPath);
+const deepSeekText = read(deepSeekPath);
+const deepSeekConfig = config.supportAgents?.['deepseek-v4-pro'];
+expect(deepSeekMetadata.mode === 'all', `${deepSeekPath}: mode must be all for isolated OpenCode dispatch`);
+expect(deepSeekMetadata.model === 'opencode-go/deepseek-v4-pro', `${deepSeekPath}: exact DeepSeek V4 Pro route is required`);
+expect(deepSeekConfig?.model === deepSeekMetadata.model, `${CONFIG_PATH}: DeepSeek route must match its agent frontmatter`);
+expect(deepSeekConfig?.task === 'deny', `${CONFIG_PATH}: DeepSeek may not delegate to another LLM`);
+expect(/\n\s*task:\s*deny\b/.test(deepSeekText), `${deepSeekPath}: task permission must be deny`);
+expect(!/council-(?:review|arch|sec|perf|test|refactor|lead|verify)/i.test(deepSeekText), `${deepSeekPath}: DeepSeek worker may not reference Council agents`);
 
 const allowedApproaches = {
     primary: new Set(['Ausgewogen']),
@@ -151,9 +164,10 @@ for (const model of configuredFreeModels) {
 
 const agentsInstructions = read(join(ROOT, 'AGENTS.md'));
 expect(
-    agentsInstructions.includes('opencode run --dir "<repo-root>" --agent'),
-    'AGENTS.md: direct Council invocation must pin the repository with --dir',
+    agentsInstructions.includes('npm run --silent council:agent -- <council-agent>'),
+    'AGENTS.md: direct Council invocation must use the bounded wrapper',
 );
+expect(agentsInstructions.includes('npm run council:validate'), 'AGENTS.md: Council changes must require the live validation gate');
 expect(/ZWEIMAL unabhängig und adversarial/.test(agentsInstructions), 'AGENTS.md: analysis verification must run twice adversarially');
 expect(/BEIDE unabhängigen Verify-Läufe `BUG`/.test(agentsInstructions), 'AGENTS.md: only double BUG may confirm a finding');
 
