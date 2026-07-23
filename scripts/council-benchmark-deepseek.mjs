@@ -1,14 +1,19 @@
-import { spawn as spawnProcess, execFile as execFileCallback } from 'node:child_process';
+import { execFile as execFileCallback, spawn as spawnProcess } from 'node:child_process';
 import { createHash } from 'node:crypto';
-import { copyFile, lstat, mkdir, readFile, readdir } from 'node:fs/promises';
+import { copyFile, lstat, mkdir, readFile, readdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { promisify } from 'node:util';
 
-import { resolveOpenCodeExecutable, terminateProcessTree } from './council-hardening-runner.mjs';
+import {
+    inspectOpenCodeSession,
+    resolveOpenCodeExecutable,
+    terminateProcessTree,
+} from './council-hardening-runner.mjs';
 
 export const DEEPSEEK_MODEL = 'deepseek-v4-pro';
 export const DEEPSEEK_OPENCODE_MODEL = 'opencode-go/deepseek-v4-pro';
 export const DEEPSEEK_AGENT = 'deepseek-v4-pro';
+export const DEEPSEEK_COMMAND = 'deepseek-v4-pro';
 
 const execFile = promisify(execFileCallback);
 const VERDICTS = new Set(['CLEAN', 'ISSUES_FOUND', 'UNCERTAIN']);
@@ -83,7 +88,14 @@ function extractStructuredOutput(report) {
     return { valid: false, reason: 'INVALID_STRUCTURED_OUTPUT' };
 }
 
-export function parseOpenCodeAgentRun({ stdout = '', stderr = '', exitCode = 0, timedOut = false } = {}) {
+export function parseOpenCodeAgentRun({
+    stdout = '',
+    stderr = '',
+    exitCode = 0,
+    timedOut = false,
+    sessionExport = null,
+    routeEvidenceRequired = false,
+} = {}) {
     const events = extractJsonEvents(stdout);
     const sessionId = events.find((event) => typeof event?.sessionID === 'string')?.sessionID || null;
     const texts = events
@@ -106,13 +118,48 @@ export function parseOpenCodeAgentRun({ stdout = '', stderr = '', exitCode = 0, 
         }
     }
     const toolCalls = events.filter((event) => event?.type === 'tool_use').length;
-    if (timedOut) return { status: 'MODEL_TIMEOUT', reason: 'OPENCODE_RUN_TIMEOUT', sessionId, report, usage, costUsd: hasCost ? costUsd : null, modelCalls, toolCalls };
+    const runtime = inspectOpenCodeSession(sessionExport);
+    const modelStarted = runtime.modelStarted || modelCalls > 0;
+    const fallbackDetected = RUNTIME_FAILURE.test(stderr);
+    const routeMismatch = runtime.modelRoutes.some((route) => route !== DEEPSEEK_OPENCODE_MODEL);
+    const forbiddenAgent = runtime.agents.some((agent) => agent !== DEEPSEEK_AGENT);
+    const forbiddenTool = runtime.tools.includes('task');
+    const missingChildSession = routeEvidenceRequired && !runtime.parentId;
+    const missingModelEvidence = routeEvidenceRequired && !runtime.modelRoutes.includes(DEEPSEEK_OPENCODE_MODEL);
+    if (fallbackDetected || routeMismatch || forbiddenAgent || forbiddenTool || missingChildSession || missingModelEvidence) {
+        return {
+            status: 'INFRASTRUCTURE_ERROR',
+            reason: fallbackDetected ? 'MODEL_FALLBACK_OR_PROVIDER_FAILURE' : 'DEEPSEEK_ROUTE_CONTRACT_VIOLATION',
+            sessionId,
+            report,
+            usage,
+            costUsd: hasCost ? costUsd : null,
+            modelCalls,
+            toolCalls,
+            runtime,
+            fallbackDetected,
+        };
+    }
+    if (timedOut) {
+        return {
+            status: modelStarted ? 'MODEL_TIMEOUT' : 'INFRASTRUCTURE_ERROR',
+            reason: modelStarted ? 'OPENCODE_RUN_TIMEOUT' : 'PROVIDER_NO_MODEL_RESPONSE',
+            sessionId,
+            report,
+            usage,
+            costUsd: hasCost ? costUsd : null,
+            modelCalls,
+            toolCalls,
+            runtime,
+            fallbackDetected,
+        };
+    }
     if (exitCode !== 0 || RUNTIME_FAILURE.test(stderr)) {
-        return { status: 'INFRASTRUCTURE_ERROR', reason: RUNTIME_FAILURE.test(stderr) ? 'MODEL_FALLBACK_OR_PROVIDER_FAILURE' : `OPENCODE_EXIT_${exitCode}`, sessionId, report, usage, costUsd: hasCost ? costUsd : null, modelCalls, toolCalls };
+        return { status: 'INFRASTRUCTURE_ERROR', reason: RUNTIME_FAILURE.test(stderr) ? 'MODEL_FALLBACK_OR_PROVIDER_FAILURE' : `OPENCODE_EXIT_${exitCode}`, sessionId, report, usage, costUsd: hasCost ? costUsd : null, modelCalls, toolCalls, runtime, fallbackDetected };
     }
     const structured = extractStructuredOutput(report);
     if (!structured.valid) return { status: 'INVALID_OUTPUT', reason: structured.reason, sessionId, report, usage, costUsd: hasCost ? costUsd : null, modelCalls, toolCalls };
-    return { status: 'COMPLETED', output: structured.output, sessionId, report, usage, costUsd: hasCost ? costUsd : null, modelCalls, toolCalls };
+    return { status: 'COMPLETED', output: structured.output, sessionId, report, usage, costUsd: hasCost ? costUsd : null, modelCalls, toolCalls, runtime, fallbackDetected };
 }
 
 function combineParsedRuns(first, second) {
@@ -167,33 +214,167 @@ async function installAgentConfig({ repositoryRoot, snapshotRoot }) {
     await copyFile(source, target);
 }
 
-async function defaultRunOpenCode({ snapshotRoot, prompt, stateRoot, timeoutMs, sessionId = null, spawn = spawnProcess, terminate = terminateProcessTree }) {
-    const executable = resolveOpenCodeExecutable();
-    const args = ['run', '--auto', '--format', 'json', '--dir', snapshotRoot];
-    if (sessionId) args.push('--session', sessionId);
-    args.push('--agent', DEEPSEEK_AGENT, '--model', DEEPSEEK_OPENCODE_MODEL, prompt);
-    const child = spawn(executable, args, {
-        cwd: snapshotRoot,
+async function installDeepSeekCommand({ repositoryRoot, snapshotRoot }) {
+    const commandSource = path.join(repositoryRoot, '.opencode', 'commands', `${DEEPSEEK_COMMAND}.md`);
+    const commandTarget = path.join(snapshotRoot, '.opencode', 'commands', `${DEEPSEEK_COMMAND}.md`);
+    await mkdir(path.dirname(commandTarget), { recursive: true });
+    await copyFile(commandSource, commandTarget);
+    await copyFile(
+        path.join(repositoryRoot, '.opencode', 'council-models.json'),
+        path.join(snapshotRoot, '.opencode', 'council-models.json'),
+    );
+}
+
+async function configureRepairPermission(snapshotRoot, scope) {
+    if (scope !== 'repair') return;
+    const agentPath = path.join(snapshotRoot, '.opencode', 'agents', `${DEEPSEEK_AGENT}.md`);
+    const source = await readFile(agentPath, 'utf8');
+    if (!/\n\s*edit:\s*deny\b/.test(source)) throw new TypeError('DeepSeek repair agent has no deny-by-default edit permission');
+    await writeFile(agentPath, source.replace(/\n(\s*)edit:\s*deny\b/, '\n$1edit: allow'), 'utf8');
+}
+
+async function readDeepSeekCommand(snapshotRoot) {
+    const source = await readFile(path.join(snapshotRoot, '.opencode', 'commands', `${DEEPSEEK_COMMAND}.md`), 'utf8');
+    const block = source.match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+    if (!block) throw new TypeError('DeepSeek command has no frontmatter');
+    const fields = {};
+    for (const line of block.split(/\r?\n/)) {
+        const match = line.match(/^([a-zA-Z][\w-]*):\s*(.+)$/);
+        if (match) fields[match[1]] = match[2].trim();
+    }
+    if (fields.agent !== DEEPSEEK_AGENT || fields.subtask !== 'true' || fields.model !== DEEPSEEK_OPENCODE_MODEL) {
+        throw new TypeError('DeepSeek command route contract does not match the pinned subtask');
+    }
+    return fields;
+}
+
+async function startOpenCodeServer({ stateRoot, signal }) {
+    const child = spawnProcess(resolveOpenCodeExecutable(), ['serve', '--hostname=127.0.0.1', '--port=0'], {
         windowsHide: true,
         stdio: ['ignore', 'pipe', 'pipe'],
         env: { ...process.env, TEMP: stateRoot, TMP: stateRoot, COUNCIL_STATE_DIR: stateRoot },
     });
-    let stdout = '';
-    let stderr = '';
-    child.stdout?.setEncoding('utf8');
-    child.stderr?.setEncoding('utf8');
-    child.stdout?.on('data', (chunk) => { stdout += chunk; });
-    child.stderr?.on('data', (chunk) => { stderr += chunk; });
+    let diagnostics = '';
+    const url = await new Promise((resolve, reject) => {
+        const timeout = setTimeout(() => reject(new Error('OpenCode server startup timeout')), 10_000);
+        const inspect = (chunk) => {
+            diagnostics += String(chunk);
+            const match = diagnostics.match(/opencode server listening on\s+(https?:\/\/[^\s]+)/);
+            if (!match) return;
+            clearTimeout(timeout);
+            resolve(match[1]);
+        };
+        child.stdout?.on('data', inspect);
+        child.stderr?.on('data', inspect);
+        child.once('error', (error) => {
+            clearTimeout(timeout);
+            reject(error);
+        });
+        child.once('exit', (code) => {
+            clearTimeout(timeout);
+            reject(new Error(`OpenCode server exited before startup (${code ?? 1})`));
+        });
+        signal.addEventListener('abort', () => {
+            clearTimeout(timeout);
+            reject(signal.reason);
+        }, { once: true });
+    });
+    return { child, url };
+}
+
+async function openCodeJson(url, { method = 'GET', body, signal } = {}) {
+    const response = await fetch(url, {
+        method,
+        headers: body ? { 'content-type': 'application/json' } : undefined,
+        body: body ? JSON.stringify(body) : undefined,
+        signal,
+    });
+    if (!response.ok) throw new Error(`OpenCode HTTP ${response.status}`);
+    return response.json();
+}
+
+async function defaultRunOpenCode({ snapshotRoot, prompt, stateRoot, timeoutMs, sessionId = null }) {
+    const command = await readDeepSeekCommand(snapshotRoot);
+    const controller = new AbortController();
     let timedOut = false;
-    const timeout = setTimeout(async () => {
+    const timer = setTimeout(() => {
         timedOut = true;
-        await terminate(child);
+        controller.abort();
     }, timeoutMs);
-    const exitCode = await new Promise((resolve, reject) => {
-        child.once('error', reject);
-        child.once('exit', (code) => resolve(code ?? 1));
-    }).finally(() => clearTimeout(timeout));
-    return { stdout, stderr, exitCode, timedOut };
+    let server;
+    try {
+        server = await startOpenCodeServer({ stateRoot, signal: controller.signal });
+        const query = `?directory=${encodeURIComponent(snapshotRoot)}`;
+        let childSessionId = sessionId;
+        if (!childSessionId) {
+            const parent = await openCodeJson(`${server.url}/session${query}`, {
+                method: 'POST',
+                signal: controller.signal,
+                body: {
+                    title: 'DeepSeek benchmark parent (no model)',
+                },
+            });
+            const child = await openCodeJson(`${server.url}/session${query}`, {
+                method: 'POST',
+                signal: controller.signal,
+                body: {
+                    parentID: parent.id,
+                    title: 'DeepSeek V4 Pro benchmark child',
+                    agent: command.agent,
+                    model: { id: 'deepseek-v4-pro', providerID: 'opencode-go' },
+                },
+            });
+            childSessionId = child.id;
+        }
+        const assistant = await openCodeJson(`${server.url}/session/${childSessionId}/message${query}`, {
+            method: 'POST',
+            signal: controller.signal,
+            body: {
+                agent: command.agent,
+                model: { providerID: 'opencode-go', modelID: 'deepseek-v4-pro' },
+                parts: [{ type: 'text', text: prompt }],
+            },
+        });
+        const messages = await openCodeJson(`${server.url}/session/${childSessionId}/message${query}`, {
+            signal: controller.signal,
+        });
+        const child = await openCodeJson(`${server.url}/session/${childSessionId}${query}`, {
+            signal: controller.signal,
+        });
+        const sessionExport = { info: child, messages };
+        const events = (assistant.parts ?? [])
+            .filter((part) => part.type === 'text')
+            .map((part) => JSON.stringify({ type: 'text', sessionID: childSessionId, part }));
+        events.push(JSON.stringify({
+            type: 'step_finish',
+            sessionID: childSessionId,
+            part: {
+                type: 'step-finish',
+                tokens: assistant.info?.tokens ?? {},
+                cost: assistant.info?.cost,
+            },
+        }));
+        return {
+            stdout: events.join('\n'),
+            stderr: '',
+            exitCode: 0,
+            timedOut: false,
+            sessionExport,
+            routeEvidenceRequired: true,
+        };
+    } catch (error) {
+        return {
+            stdout: '',
+            stderr: maskDeepSeekSecrets(error?.message),
+            exitCode: timedOut ? 1 : 2,
+            timedOut,
+            sessionExport: null,
+            routeEvidenceRequired: true,
+        };
+    } finally {
+        clearTimeout(timer);
+        if (server?.child) await terminateProcessTree(server.child);
+    }
 }
 
 function buildPrompt(publicCase) {
@@ -222,6 +403,8 @@ export async function runDeepSeekV4ProAgent({
     try {
         await mkdir(stateRoot, { recursive: true });
         await installAgentConfig({ repositoryRoot, snapshotRoot: snapshot.root });
+        await installDeepSeekCommand({ repositoryRoot, snapshotRoot: snapshot.root });
+        await configureRepairPermission(snapshot.root, snapshot.publicCase.scope);
         const before = await captureBenchmarkSnapshotFiles(snapshot.root);
         const execution = await runOpenCode({
             snapshotRoot: snapshot.root,

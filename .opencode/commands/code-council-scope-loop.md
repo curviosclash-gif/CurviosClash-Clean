@@ -110,7 +110,8 @@ Wichtig: Die Vorschlagsphase ist vollständig read-only. Dadurch gibt es keine �
 
 ### 5. LEAD-SELEKTION
 
-Übergib die 3 Reports an council-lead mit erweiterten Kriterien:
+Übergib die 3 Reports ausschliesslich über
+`npm run --silent council:agent -- council-lead "<eingefrorener Auftrag>"` an council-lead mit erweiterten Kriterien:
 
 ```
 Vergleiche 3 Implementierungen für Scope <scope> (Iteration <N>).

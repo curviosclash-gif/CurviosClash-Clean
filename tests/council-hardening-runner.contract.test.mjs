@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { PassThrough } from 'node:stream';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -15,10 +15,12 @@ import {
     extractCandidateManifest,
     extractVerifyManifest,
     FIXTURE_NAMES,
+    loadCouncilAgentRoutes,
     runAgent,
     runAgentWithRetry,
     runCouncilAgentCli,
     resolveOpenCodeExecutable,
+    resolveCouncilAgentRoute,
     runResearchScope,
     runResearchRound,
     validateResearchReport,
@@ -36,6 +38,33 @@ test('Windows resolves the native OpenCode executable instead of spawning a cmd 
     if (process.platform !== 'win32') return;
     const executable = resolveOpenCodeExecutable();
     assert.match(executable, /opencode\.exe$/i);
+});
+
+test('Council process receives the resolved model route explicitly', async () => {
+    const child = new EventEmitter();
+    child.exitCode = null;
+    child.stdout = new PassThrough();
+    child.stderr = new PassThrough();
+    let args;
+    const resultPromise = runAgent({
+        repositoryRoot: ROOT,
+        agent: 'council-review',
+        model: 'opencode/big-pickle',
+        prompt: 'health',
+        spawn: (_executable, receivedArgs) => {
+            args = receivedArgs;
+            queueMicrotask(() => {
+                child.exitCode = 0;
+                child.emit('exit', 0);
+            });
+            return child;
+        },
+        inspectSession: null,
+    });
+    await resultPromise;
+    assert.deepEqual(args.slice(args.indexOf('--agent'), args.indexOf('--agent') + 4), [
+        '--agent', 'council-review', '--model', 'opencode/big-pickle',
+    ]);
 });
 
 test('hardening fixtures are isolated below the OpenCode system temp root and preserve bytes', async () => {
@@ -64,6 +93,64 @@ test('finding prose containing fallback stays valid but runtime fallback does no
     const stdout = reportEvent('VERDICT: ISSUES_FOUND\nOptions fallback is incorrect');
     assert.equal(validateResearchReport({ stdout }).valid, true);
     assert.equal(validateResearchReport({ stdout, stderr: 'Fallback warning: using default agent' }).valid, false);
+});
+
+test('Council routes resolve from the central matrix and match every agent frontmatter', async () => {
+    const { routes } = await loadCouncilAgentRoutes(ROOT);
+    const siblings = ['council-review', 'council-review-fb', 'council-review-fb2', 'council-review-fb3', 'council-review-fb4'];
+    assert.equal(new Set(siblings.map((agent) => routes.get(agent))).size, 5);
+    for (const agent of [...siblings, 'council-lead', 'council-verify', 'council-verify-fb']) {
+        assert.equal(await resolveCouncilAgentRoute({ repositoryRoot: ROOT, agent }), routes.get(agent));
+    }
+    assert.equal(routes.get('council-lead'), 'opencode-go/deepseek-v4-pro');
+    assert.notEqual(routes.get('council-verify'), routes.get('council-verify-fb'));
+});
+
+test('frontmatter and matrix drift is rejected before an agent process can start', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'council-route-drift-'));
+    await mkdir(path.join(tempRoot, '.opencode', 'agents'), { recursive: true });
+    await writeFile(
+        path.join(tempRoot, '.opencode', 'council-models.json'),
+        await readFile(path.join(ROOT, '.opencode', 'council-models.json')),
+    );
+    const agentPath = path.join(tempRoot, '.opencode', 'agents', 'council-review.md');
+    const source = await readFile(path.join(ROOT, '.opencode', 'agents', 'council-review.md'), 'utf8');
+    await writeFile(agentPath, source.replace('model: opencode/big-pickle', 'model: opencode/other-model'), 'utf8');
+    let started = false;
+    await assert.rejects(() => runCouncilAgentCli({
+        repositoryRoot: tempRoot,
+        agent: 'council-review',
+        prompt: 'must not start',
+        run: async () => {
+            started = true;
+            return {};
+        },
+    }), /route mismatch/);
+    assert.equal(started, false);
+});
+
+test('runtime model mismatch and fallback events invalidate a Council report', () => {
+    const sessionExport = {
+        info: { id: 'child', parentID: 'parent' },
+        messages: [{
+            info: {
+                role: 'assistant',
+                agent: 'council-review',
+                providerID: 'opencode',
+                modelID: 'unexpected-model',
+                tokens: { total: 1 },
+            },
+            parts: [],
+        }],
+    };
+    const validation = validateResearchReport({
+        stdout: reportEvent(specialistReport()),
+        expectedModel: 'opencode/big-pickle',
+        sessionExport,
+        requireRouteEvidence: true,
+    });
+    assert.equal(validation.valid, false);
+    assert.deepEqual(validation.reasons, ['model-route-mismatch', 'missing-model-route-evidence']);
 });
 
 test('specialist validation requires the machine-readable findings manifest', () => {
@@ -182,9 +269,30 @@ test('timed-out Council output receives one retry within the shared deadline', a
         };
     });
     assert.equal(result.attempts.length, 2);
-    assert.ok(attemptTimeouts[0] <= 500);
+    assert.deepEqual(result.attemptBudgetsMs, attemptTimeouts);
+    assert.equal(result.retryBudgetMs, attemptTimeouts[1]);
+    assert.ok(attemptTimeouts[0] >= 700);
     assert.ok(attemptTimeouts[1] > attemptTimeouts[0]);
     assert.equal(result.validation.valid, true);
+});
+
+test('provider failures are infrastructure errors and are never reported as model timeouts', async () => {
+    const result = await runAgentWithRetry({
+        repositoryRoot: ROOT,
+        agent: 'council-review',
+        model: 'opencode/big-pickle',
+        prompt: 'same',
+        timeoutMs: 100,
+    }, async () => ({
+        stdout: '',
+        stderr: 'Provider transport unavailable',
+        exitCode: 1,
+        timedOut: false,
+        durationMs: 1,
+    }));
+    assert.equal(result.attempts.length, 2);
+    assert.equal(result.exitReason, 'INFRASTRUCTURE_ERROR');
+    assert.equal(result.timedOut, false);
 });
 
 test('bounded Council CLI accepts both independent verify routes and rejects unknown agents', async () => {
@@ -211,18 +319,59 @@ test('live smoke requires four structured CLEAN reports from real-agent adapters
         timeoutMs: 1_000,
         run: async ({ agent }) => {
             calls += 1;
+            if (agent === 'council-lead') {
+                return {
+                    agent,
+                    stdout: reportEvent('VERDICT: CLEAN\n```json\n{"candidates":[]}\n```'),
+                    stderr: '',
+                    exitCode: 0,
+                    timedOut: false,
+                };
+            }
             return {
                 agent,
-                stdout: reportEvent(calls === 5 ? 'VERDICT: NEEDS_DATA\n```json\n{"findings":[]}\n```' : report),
+                stdout: reportEvent(agent === 'council-review-fb4' ? 'VERDICT: NEEDS_DATA\n```json\n{"findings":[]}\n```' : report),
                 stderr: '',
                 exitCode: 0,
                 timedOut: false,
             };
         },
     });
-    assert.equal(calls, 5);
+    assert.equal(calls, 6);
     assert.equal(result.validRuns, 4);
+    assert.equal(result.distinctValidRoutes, 4);
+    assert.equal(result.leadHealthy, true);
     assert.equal(result.passed, true);
+});
+
+test('live smoke rejects unregistered routes before invoking their agents', async () => {
+    const called = [];
+    const result = await runCouncilLiveSmoke({
+        repositoryRoot: ROOT,
+        timeoutMs: 1_000,
+        listModels: async () => ({ stdout: 'opencode/big-pickle\n' }),
+        run: async ({ agent }) => {
+            called.push(agent);
+            return {
+                agent,
+                stdout: reportEvent(specialistReport()),
+                stderr: '',
+                exitCode: 0,
+                timedOut: false,
+            };
+        },
+    });
+    assert.deepEqual(called, ['council-review']);
+    assert.equal(result.passed, false);
+    assert.equal(result.results.filter(({ exitReason }) => exitReason === 'INFRASTRUCTURE_ERROR').length, 4);
+});
+
+test('benchmark and live-smoke Council paths cannot bypass the bounded wrapper', async () => {
+    const benchmark = await readFile(path.join(ROOT, 'scripts', 'council-benchmark-opencode.mjs'), 'utf8');
+    const liveSmoke = await readFile(path.join(ROOT, 'scripts', 'council-live-smoke.mjs'), 'utf8');
+    assert.doesNotMatch(benchmark, /runAgentWithRetry/);
+    assert.match(benchmark, /runCouncilAgentCli/);
+    assert.match(liveSmoke, /runCouncilAgentCli/);
 });
 
 test('research round keeps scopes sequential and supplies scope-specific prompts', async () => {
@@ -264,10 +413,12 @@ test('agent timeout drains streams and terminates the process', async () => {
     const promise = runAgent({
         repositoryRoot: ROOT,
         agent: 'council-test',
+        model: 'opencode/big-pickle',
         prompt: 'test',
         timeoutMs: 10,
         spawn: () => child,
         terminate,
+        inspectSession: null,
     });
     child.stdout.write(`${reportEvent('partial')}\n`);
     const result = await promise;

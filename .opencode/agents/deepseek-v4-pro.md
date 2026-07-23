@@ -1,9 +1,9 @@
 ---
 description: Isolated single-agent benchmark worker pinned to DeepSeek V4 Pro.
-mode: all
+mode: subagent
 model: opencode-go/deepseek-v4-pro
 permission:
-  edit: allow
+  edit: deny
   bash: allow
   task: deny
 ---

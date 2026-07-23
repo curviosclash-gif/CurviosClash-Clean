@@ -7,6 +7,7 @@ import test from 'node:test';
 
 import {
     DEEPSEEK_AGENT,
+    DEEPSEEK_COMMAND,
     DEEPSEEK_MODEL,
     DEEPSEEK_OPENCODE_MODEL,
     maskDeepSeekSecrets,
@@ -147,6 +148,55 @@ test('DeepSeek preflight requires the exact OpenCode model route and never falls
     assert.equal(DEEPSEEK_OPENCODE_MODEL, 'opencode-go/deepseek-v4-pro');
 });
 
+test('DeepSeek is a pinned native subtask command with deny-by-default delegation and edits', async () => {
+    const agent = await readFile(path.join(ROOT, '.opencode', 'agents', 'deepseek-v4-pro.md'), 'utf8');
+    const command = await readFile(path.join(ROOT, '.opencode', 'commands', `${DEEPSEEK_COMMAND}.md`), 'utf8');
+    assert.match(agent, /^---[\s\S]*\nmode: subagent\n/m);
+    assert.match(agent, /\nmodel: opencode-go\/deepseek-v4-pro\n/);
+    assert.match(agent, /\n\s*edit: deny\n/);
+    assert.match(agent, /\n\s*task: deny\n/);
+    assert.doesNotMatch(agent, /council-(?:review|arch|sec|perf|test|refactor|lead|verify)/i);
+    assert.match(command, /\nagent: deepseek-v4-pro\n/);
+    assert.match(command, /\nsubtask: true\n/);
+    assert.match(command, /\nmodel: opencode-go\/deepseek-v4-pro\n/);
+    const adapter = await readFile(path.join(ROOT, 'scripts', 'council-benchmark-deepseek.mjs'), 'utf8');
+    assert.match(adapter, /\['serve', '--hostname=127\.0\.0\.1', '--port=0'\]/);
+    assert.match(adapter, /parentID: parent\.id/);
+    assert.match(adapter, /\/message\$\{query\}/);
+    assert.doesNotMatch(adapter, /@opencode-ai\/sdk/);
+    assert.doesNotMatch(adapter, /args\.push\('--agent'/);
+});
+
+test('DeepSeek route evidence requires one child-session model and no task or Council agent', () => {
+    const report = 'VERDICT: CLEAN\n```json\n{"verdict":"CLEAN","summary":"ok","findings":[]}\n```';
+    const stdout = [
+        JSON.stringify({ type: 'text', sessionID: 'child', part: { type: 'text', text: report } }),
+        JSON.stringify({ type: 'step_finish', sessionID: 'child', part: { type: 'step-finish', tokens: { input: 1, output: 1, total: 2 } } }),
+    ].join('\n');
+    const sessionExport = {
+        info: { id: 'child', parentID: 'parent', agent: DEEPSEEK_AGENT },
+        messages: [{
+            info: {
+                role: 'assistant',
+                agent: DEEPSEEK_AGENT,
+                providerID: 'opencode-go',
+                modelID: 'deepseek-v4-pro',
+                tokens: { total: 2 },
+            },
+            parts: [],
+        }],
+    };
+    const valid = parseOpenCodeAgentRun({ stdout, sessionExport, routeEvidenceRequired: true });
+    assert.equal(valid.status, 'COMPLETED');
+    assert.deepEqual(valid.runtime.modelRoutes, [DEEPSEEK_OPENCODE_MODEL]);
+    assert.equal(valid.runtime.parentId, 'parent');
+
+    sessionExport.messages[0].parts.push({ type: 'tool', tool: 'task' });
+    const rejected = parseOpenCodeAgentRun({ stdout, sessionExport, routeEvidenceRequired: true });
+    assert.equal(rejected.status, 'INFRASTRUCTURE_ERROR');
+    assert.equal(rejected.reason, 'DEEPSEEK_ROUTE_CONTRACT_VIOLATION');
+});
+
 test('DeepSeek OpenCode adapter records tokens, validates output, and masks diagnostics', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'council-benchmark-deepseek-'));
     const manifest = await loadLocalBenchmarkManifest(ROOT);
@@ -180,6 +230,19 @@ test('DeepSeek OpenCode adapter records tokens, validates output, and masks diag
     const fallback = parseOpenCodeAgentRun({ stdout, stderr: 'default agent fallback warning', exitCode: 0 });
     assert.equal(fallback.status, 'INFRASTRUCTURE_ERROR');
     assert.equal(fallback.reason, 'MODEL_FALLBACK_OR_PROVIDER_FAILURE');
+});
+
+test('OpenCode timeout after streamed model steps is classified as model timeout', () => {
+    const parsed = parseOpenCodeAgentRun({
+        stdout: `${JSON.stringify({
+            type: 'step_finish',
+            part: { type: 'step-finish', tokens: { input: 1, output: 1, total: 2 } },
+        })}\n`,
+        timedOut: true,
+    });
+    assert.equal(parsed.status, 'MODEL_TIMEOUT');
+    assert.equal(parsed.reason, 'OPENCODE_RUN_TIMEOUT');
+    assert.equal(parsed.modelCalls, 1);
 });
 
 test('DeepSeek OpenCode repair is rejected when the isolated agent changes a forbidden path', async () => {

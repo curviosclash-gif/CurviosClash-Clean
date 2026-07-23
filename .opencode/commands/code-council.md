@@ -92,7 +92,8 @@ Jeder Agent liefert Report im Pflichtformat:
 ```
 
 **d) Lead-Selektion**
-Übergib die 3 Reports an council-lead:
+Übergib die 3 Reports ausschliesslich über
+`npm run --silent council:agent -- council-lead "<eingefrorener Auftrag>"` an council-lead:
 "Vergleiche 3 Implementierungen für Scope <X>. Kriterien:
 - QUALITÄT: Welche Lösung ist korrekt und vollständig?
 - KONFLIKTFREIHEIT: Welche Lösung kollidiert am wenigsten mit anderen Scopes?
@@ -155,10 +156,13 @@ Der Plan koppelt Reviews an das Risiko der geänderten Dateien, nicht an den Age
 - `perf` prüft Render-, Update-, Physik-, Kamera-, Bot-, Worker- und Profilingpfade.
 - `refactor` wird bei breiterem strukturellem Delta aktiviert.
 
-Starte für jeden im Plan enthaltenen Review-Scope die fünf read-only Geschwister mit exakt demselben scope-spezifischen Diff und Prompt. Eine Datei darf mehreren Review-Scopes zugeordnet sein. Dadurch prüft beispielsweise `sec` auch eine sicherheitsrelevante Änderung, die ursprünglich vom `review`-Apply-Agenten stammt.
+Starte für jeden im Plan enthaltenen Review-Scope die fünf read-only Geschwister mit exakt demselben scope-spezifischen Diff und Prompt, jeweils ausschliesslich über
+`npm run --silent council:agent -- <council-agent> "<eingefrorener Auftrag>"`.
+Eine Datei darf mehreren Review-Scopes zugeordnet sein. Dadurch prüft beispielsweise `sec` auch eine sicherheitsrelevante Änderung, die ursprünglich vom `review`-Apply-Agenten stammt.
 
 ### 6. LEAD-KONSOLIDIERUNG
-Sammle alle gewählten Coding-Reports, Selektion-Begründungen und risikobasiert aktivierten Council-Reviews und übergib sie an council-lead:
+Sammle alle gewählten Coding-Reports, Selektion-Begründungen und risikobasiert aktivierten Council-Reviews und übergib sie ausschliesslich über
+`npm run --silent council:agent -- council-lead "<eingefrorener Auftrag>"` an council-lead:
 "Konsolidiere:
 - Coding-Reports der aktiven Implementierungs-Scopes
 - 5 Reviews pro aktivem Risiko-Scope
@@ -174,7 +178,8 @@ Starte `council-verify` und `council-verify-fb` parallel mit allen POTENTIAL_HIG
 - **council-verify**: beweisorientierte adversariale Prüfung mit DeepSeek
 - **council-verify-fb**: widerlegungsorientierte Zweitprüfung mit einer anderen Modellfamilie
 
-Beide erhalten dieselben Kandidaten, aber niemals den Bericht oder das Ergebnis des jeweils anderen Laufs. Verwende für beide den begrenzten `council:agent`-Wrapper.
+Beide erhalten dieselben Kandidaten, aber niemals den Bericht oder das Ergebnis des jeweils anderen Laufs. Verwende für beide parallel
+`npm run --silent council:agent -- <council-verify|council-verify-fb> "<eingefrorener Auftrag>"`.
 Nur Findings mit BEIDE BUG gelten als bestätigt. Jeder andere oder abweichende Ausgang → "nicht verifizierbar" beziehungsweise kein bestätigter Produktfehler.
 
 ### 8. BEGRENZTER REPAIR-LOOP (maximal zwei Reparaturrunden)

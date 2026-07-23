@@ -74,10 +74,10 @@
     "council-baseline": { "mode": "subagent", "model": "default", "bash": "allow" },
     "council-preflight": { "mode": "subagent", "model": "default", "bash": "allow", "task": "allow" },
     "deepseek-v4-pro": {
-      "mode": "all",
+      "mode": "subagent",
       "model": "opencode-go/deepseek-v4-pro",
       "task": "deny",
-      "note": "Single-agent benchmark worker; direct OpenCode transport with no Council delegation."
+      "note": "Single-agent benchmark worker; native subtask command with no Council delegation."
     }
   },
 

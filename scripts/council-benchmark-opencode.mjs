@@ -5,7 +5,7 @@ import path from 'node:path';
 import {
     AGENT_SUFFIXES,
     extractCandidateManifest,
-    runAgentWithRetry,
+    runCouncilAgentCli,
     resolveOpenCodeExecutable,
     terminateProcessTree,
 } from './council-hardening-runner.mjs';
@@ -50,6 +50,17 @@ async function installCouncilConfiguration(repositoryRoot, snapshotRoot) {
     await mkdir(path.join(snapshotRoot, '.opencode'), { recursive: true });
     await cp(path.join(repositoryRoot, '.opencode', 'agents'), path.join(snapshotRoot, '.opencode', 'agents'), { recursive: true });
     await cp(path.join(repositoryRoot, '.opencode', 'commands'), path.join(snapshotRoot, '.opencode', 'commands'), { recursive: true });
+    await cp(path.join(repositoryRoot, '.opencode', 'council-models.json'), path.join(snapshotRoot, '.opencode', 'council-models.json'));
+    await mkdir(path.join(snapshotRoot, 'scripts'), { recursive: true });
+    await cp(
+        path.join(repositoryRoot, 'scripts', 'council-hardening-runner.mjs'),
+        path.join(snapshotRoot, 'scripts', 'council-hardening-runner.mjs'),
+    );
+    await writeFile(path.join(snapshotRoot, 'package.json'), `${JSON.stringify({
+        private: true,
+        type: 'module',
+        scripts: { 'council:agent': 'node scripts/council-hardening-runner.mjs agent' },
+    }, null, 2)}\n`, 'utf8');
     const compactAgents = new Map([
         ['plan', COMPACT_PLAN_BODY],
         ['council-lead', COMPACT_LEAD_BODY],
@@ -81,7 +92,7 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
         const prompt = publicPrompt(scope, snapshot.publicCase, visibleSource);
         const results = await Promise.all(AGENT_SUFFIXES.map(async (suffix) => {
             const agent = `council-${scope}${suffix}`;
-            const result = await runAgentWithRetry({
+            const result = await runCouncilAgentCli({
                 repositoryRoot: snapshot.root,
                 agent,
                 prompt,
@@ -117,7 +128,7 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
         'End with one fenced JSON object {"candidates":[]} using the repository candidate schema.',
         JSON.stringify(scopeResults),
     ].join('\n');
-    const lead = await runAgentWithRetry({
+    const lead = await runCouncilAgentCli({
         repositoryRoot: snapshot.root,
         agent: 'council-lead',
         prompt: leadPrompt,
@@ -144,7 +155,7 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
             visibleSource,
         ].join('\n');
         const verifyAgents = ['council-verify', 'council-verify-fb'];
-        const verifies = await Promise.all(verifyAgents.map((agent, index) => runAgentWithRetry({
+        const verifies = await Promise.all(verifyAgents.map((agent, index) => runCouncilAgentCli({
             repositoryRoot: snapshot.root,
             agent,
             prompt: `${verifyPrompt}\nIndependent verify run: ${index}`,

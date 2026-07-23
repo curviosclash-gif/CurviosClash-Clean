@@ -92,12 +92,19 @@ const deepSeekPath = join(AGENT_DIR, 'deepseek-v4-pro.md');
 const deepSeekMetadata = frontmatter(deepSeekPath);
 const deepSeekText = read(deepSeekPath);
 const deepSeekConfig = config.supportAgents?.['deepseek-v4-pro'];
-expect(deepSeekMetadata.mode === 'all', `${deepSeekPath}: mode must be all for isolated OpenCode dispatch`);
+expect(deepSeekMetadata.mode === 'subagent', `${deepSeekPath}: mode must be subagent for isolated OpenCode dispatch`);
 expect(deepSeekMetadata.model === 'opencode-go/deepseek-v4-pro', `${deepSeekPath}: exact DeepSeek V4 Pro route is required`);
 expect(deepSeekConfig?.model === deepSeekMetadata.model, `${CONFIG_PATH}: DeepSeek route must match its agent frontmatter`);
+expect(deepSeekConfig?.mode === deepSeekMetadata.mode, `${CONFIG_PATH}: DeepSeek mode must match its agent frontmatter`);
 expect(deepSeekConfig?.task === 'deny', `${CONFIG_PATH}: DeepSeek may not delegate to another LLM`);
+expect(/\n\s*edit:\s*deny\b/.test(deepSeekText), `${deepSeekPath}: detection must be read-only by default`);
 expect(/\n\s*task:\s*deny\b/.test(deepSeekText), `${deepSeekPath}: task permission must be deny`);
 expect(!/council-(?:review|arch|sec|perf|test|refactor|lead|verify)/i.test(deepSeekText), `${deepSeekPath}: DeepSeek worker may not reference Council agents`);
+const deepSeekCommandPath = join(COMMAND_DIR, 'deepseek-v4-pro.md');
+const deepSeekCommandMetadata = frontmatter(deepSeekCommandPath);
+expect(deepSeekCommandMetadata.agent === 'deepseek-v4-pro', `${deepSeekCommandPath}: exact DeepSeek agent is required`);
+expect(deepSeekCommandMetadata.subtask === 'true', `${deepSeekCommandPath}: subtask must be true`);
+expect(deepSeekCommandMetadata.model === 'opencode-go/deepseek-v4-pro', `${deepSeekCommandPath}: exact DeepSeek command route is required`);
 
 const allowedApproaches = {
     primary: new Set(['Ausgewogen']),
@@ -172,6 +179,9 @@ expect(/council:runner:scope-start/.test(codeCouncilCommand) && /council:runner:
 expect(/council:runner:implementation-plan/.test(codeCouncilCommand), 'code-council.md: risk-based implementation plan is required');
 expect(/council:runner:review-plan/.test(codeCouncilCommand), 'code-council.md: risk-based review plan is required');
 expect(/BEGRENZTER REPAIR-LOOP \(maximal zwei Reparaturrunden\)/.test(codeCouncilCommand), 'code-council.md: bounded repair loop is required');
+expect((codeCouncilCommand.match(/npm run --silent council:agent/g) ?? []).length >= 4, 'code-council.md: every direct Council phase must use the bounded wrapper');
+const benchmarkCodingCommand = read(join(COMMAND_DIR, 'council-benchmark-coding.md'));
+expect((benchmarkCodingCommand.match(/npm run --silent council:agent/g) ?? []).length >= 2, 'council-benchmark-coding.md: read-only Council and lead must use the bounded wrapper');
 
 const baselineScript = read(join(ROOT, 'scripts', 'council-baseline.mjs'));
 const perfScript = read(join(ROOT, 'scripts', 'council-perf-run.mjs'));
@@ -191,6 +201,14 @@ expect(
 expect(agentsInstructions.includes('npm run council:validate'), 'AGENTS.md: Council changes must require the live validation gate');
 expect(/`@council-verify` und `@council-verify-fb`/.test(agentsInstructions), 'AGENTS.md: both independent verify routes are required');
 expect(/`BUG \+ BUG`/.test(agentsInstructions), 'AGENTS.md: only double BUG may confirm a finding');
+
+const hardeningRunner = read(join(ROOT, 'scripts', 'council-hardening-runner.mjs'));
+expect(/'--agent', agent, '--model', model/.test(hardeningRunner), 'council-hardening-runner.mjs: OpenCode Council process must receive explicit --model');
+const benchmarkCouncil = read(join(ROOT, 'scripts', 'council-benchmark-opencode.mjs'));
+expect(!/runAgentWithRetry/.test(benchmarkCouncil), 'council-benchmark-opencode.mjs: benchmark must not bypass the Council wrapper');
+expect(/runCouncilAgentCli/.test(benchmarkCouncil), 'council-benchmark-opencode.mjs: benchmark must use the Council wrapper');
+const liveSmoke = read(join(ROOT, 'scripts', 'council-live-smoke.mjs'));
+expect(/runCouncilAgentCli/.test(liveSmoke), 'council-live-smoke.mjs: live smoke must use the Council wrapper');
 
 if (errors.length > 0) {
     process.stderr.write(`Council configuration check failed (${errors.length}):\n`);

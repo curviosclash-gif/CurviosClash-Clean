@@ -15,20 +15,24 @@ Only `review` and `test` are relevant scopes for this local repair fixture.
 2. For `review`, start `council-code-proposal` three times in parallel with variants
    `primary`, `alt1`, and `alt2`. Repeat the same for `test`. The proposal agent is
    technically read-only; no apply agent may run in this phase.
-3. Give all six proposals to `council-lead`. Require a strict first-line VERDICT and
-   select exactly one proposal per scope. An invalid or missing VERDICT ends the run.
+3. Give all six proposals to `council-lead` only through
+   `npm run --silent council:agent -- council-lead "<frozen prompt>"`. Require a
+   strict first-line VERDICT and select exactly one proposal per scope. An invalid
+   or missing VERDICT ends the run.
 4. Run only each selected variant once more, sequentially, with write permission.
    It may change only `allowedChanges` and must not touch `forbiddenChanges`.
 5. Run every visible test command from `case.public.json`. Do not run hidden tests or
    generic repository tests/builds that are not listed in the public case.
 6. Self-review the final changes against the public case.
-7. Run the relevant read-only Council redundantly: five `council-review` siblings and
-   five `council-test` siblings receive the same final snapshot and frozen prompt.
-   Retry an invalid response once with the identical prompt. Fewer than four valid
-   responses in either scope makes the arm `UNCERTAIN`.
-8. Give the valid reports to `council-lead` for candidate-only consolidation. For
-   every potential HIGH or MEDIUM candidate, run `council-verify` and
-   `council-verify-fb` independently and adversarially without sharing either result.
+7. Run the relevant read-only Council redundantly through
+   `npm run --silent council:agent -- <council-agent> "<frozen prompt>"`: five
+   `council-review` siblings and five `council-test` siblings receive the same final
+   snapshot and frozen prompt. Fewer than four valid responses in either scope makes
+   the arm `UNCERTAIN`; retry is owned only by the wrapper.
+8. Give the valid reports to `council-lead` through that same wrapper for
+   candidate-only consolidation. For every potential HIGH or MEDIUM candidate, run
+   `council-verify` and `council-verify-fb` independently, adversarially, and through
+   the wrapper without sharing either result.
    Only `BUG` plus `BUG` is confirmed. Do not let a reviewer or verifier edit the
    snapshot.
 

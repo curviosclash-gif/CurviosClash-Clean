@@ -1,9 +1,10 @@
-import { spawn as spawnProcess } from 'node:child_process';
+import { execFile as execFileCallback, spawn as spawnProcess } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { copyFile, mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, readFile, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
+import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
 export const FIXTURE_NAMES = Object.freeze([
@@ -17,8 +18,118 @@ export const AGENT_SUFFIXES = Object.freeze(['', '-fb', '-fb2', '-fb3', '-fb4'])
 const RESEARCH_VERDICTS = new Set(['CLEAN', 'ISSUES_FOUND', 'NEEDS_DATA', 'UNCERTAIN']);
 const VERIFY_CLASSIFICATIONS = new Set(['BUG', 'DEFENSIVE', 'INTENTIONAL', 'FALSE', 'UNCERTAIN']);
 const VERIFY_VERDICTS = new Set(['VERIFIED', 'REJECTED', 'UNCERTAIN']);
-const RUNTIME_FAILURE = /fallback warning|default agent|streaming response failed/i;
+const execFile = promisify(execFileCallback);
+const RUNTIME_FAILURE = /fallback warning|default agent|default model|streaming response failed/i;
+const PROVIDER_FAILURE = /authentication|unauthorized|forbidden|provider|transport|network|econn|fetch failed|rate limit|service unavailable/i;
 const COUNCIL_AGENT_NAME = /^(?:council-(?:review|arch|sec|perf|test|refactor)(?:-fb[2-4]?)?|council-lead|council-verify(?:-fb)?)$/;
+let registeredModelsPromise;
+
+function parseFrontmatter(text) {
+    const block = String(text).match(/^---\r?\n([\s\S]*?)\r?\n---/)?.[1];
+    if (!block) throw new TypeError('agent has no YAML frontmatter');
+    const values = {};
+    for (const line of block.split(/\r?\n/)) {
+        const field = line.match(/^([a-zA-Z][\w-]*):\s*(.+)$/);
+        if (field) values[field[1]] = field[2].trim();
+    }
+    return values;
+}
+
+export async function loadCouncilAgentRoutes(repositoryRoot) {
+    const matrixPath = path.join(repositoryRoot, '.opencode', 'council-models.json');
+    const matrix = JSON.parse(await readFile(matrixPath, 'utf8'));
+    const routes = new Map();
+    for (const [agent, entry] of Object.entries(matrix.readOnlyCouncil?.primary ?? {})) {
+        if (entry && typeof entry === 'object' && typeof entry.model === 'string') routes.set(agent, entry.model);
+    }
+    for (const [baseAgent, siblings] of Object.entries(matrix.readOnlyCouncil?.fbSiblings ?? {})) {
+        if (!siblings || typeof siblings !== 'object') continue;
+        for (const suffix of ['fb', 'fb2', 'fb3', 'fb4']) {
+            if (typeof siblings[suffix] === 'string') routes.set(`${baseAgent}-${suffix}`, `opencode/${siblings[suffix]}`);
+        }
+    }
+    return { matrix, routes };
+}
+
+export async function resolveCouncilAgentRoute({ repositoryRoot, agent }) {
+    if (!COUNCIL_AGENT_NAME.test(String(agent))) throw new TypeError(`unsupported Council agent: ${agent}`);
+    const { routes } = await loadCouncilAgentRoutes(repositoryRoot);
+    const model = routes.get(agent);
+    if (!model) throw new TypeError(`Council model route is missing for ${agent}`);
+    const agentPath = path.join(repositoryRoot, '.opencode', 'agents', `${agent}.md`);
+    const frontmatter = parseFrontmatter(await readFile(agentPath, 'utf8'));
+    if (frontmatter.model !== model) {
+        throw new TypeError(`Council model route mismatch for ${agent}: matrix=${model}, frontmatter=${frontmatter.model ?? '<missing>'}`);
+    }
+    return model;
+}
+
+async function listRegisteredModels() {
+    if (!registeredModelsPromise) {
+        registeredModelsPromise = execFile(resolveOpenCodeExecutable(), ['models'], {
+            encoding: 'utf8',
+            timeout: 15_000,
+            windowsHide: true,
+        }).then((execution) => new Set(String(execution.stdout).split(/\r?\n/).map((line) => line.trim()).filter(Boolean)));
+    }
+    return registeredModelsPromise;
+}
+
+function extractSessionId(stdout) {
+    for (const line of String(stdout).split(/\r?\n/)) {
+        try {
+            const event = JSON.parse(line);
+            if (typeof event?.sessionID === 'string') return event.sessionID;
+        } catch {
+            // Ignore non-JSON diagnostics.
+        }
+    }
+    return null;
+}
+
+async function exportOpenCodeSession({ sessionId, env, timeoutMs = 15_000 }) {
+    if (!sessionId) return null;
+    const execution = await execFile(resolveOpenCodeExecutable({ env }), ['export', sessionId, '--sanitize'], {
+        encoding: 'utf8',
+        env,
+        timeout: timeoutMs,
+        windowsHide: true,
+        maxBuffer: 20 * 1024 * 1024,
+    });
+    return JSON.parse(execution.stdout);
+}
+
+export function inspectOpenCodeSession(sessionExport) {
+    const modelRoutes = new Set();
+    const agents = new Set();
+    const tools = new Set();
+    let modelStarted = false;
+    for (const message of sessionExport?.messages ?? []) {
+        const info = message?.info ?? {};
+        if (info.role === 'assistant') {
+            const provider = info.providerID ?? info.model?.providerID;
+            const model = info.modelID ?? info.model?.modelID ?? info.model?.id;
+            const tokens = Number(info.tokens?.total ?? 0);
+            if (provider && model && tokens > 0) {
+                modelRoutes.add(`${provider}/${model}`);
+                modelStarted = true;
+            }
+            if (typeof info.agent === 'string') agents.add(info.agent);
+        }
+        for (const part of message?.parts ?? []) {
+            if (part?.type === 'tool' && typeof part.tool === 'string') tools.add(part.tool);
+            if (part?.type === 'subtask' && typeof part.agent === 'string') agents.add(part.agent);
+        }
+    }
+    return {
+        modelRoutes: [...modelRoutes].sort(),
+        agents: [...agents].sort(),
+        tools: [...tools].sort(),
+        modelStarted,
+        sessionId: sessionExport?.info?.id ?? null,
+        parentId: sessionExport?.info?.parentID ?? null,
+    };
+}
 
 export function resolveOpenCodeExecutable({ platform = process.platform, env = process.env } = {}) {
     if (platform !== 'win32') return 'opencode';
@@ -58,7 +169,23 @@ export function extractFinalText(jsonLines, allowedVerdicts = RESEARCH_VERDICTS)
     return verdictReport || lastText;
 }
 
-export function validateResearchReport({ stdout, stderr = '', exitCode = 0, timedOut = false }) {
+function appendRuntimeReasons(reasons, { stderr = '', expectedModel, sessionExport, requireRouteEvidence = false }) {
+    if (RUNTIME_FAILURE.test(stderr)) reasons.push('runtime-fallback');
+    const evidence = inspectOpenCodeSession(sessionExport);
+    if (expectedModel && evidence.modelRoutes.some((route) => route !== expectedModel)) reasons.push('model-route-mismatch');
+    if (expectedModel && requireRouteEvidence && !evidence.modelRoutes.includes(expectedModel)) reasons.push('missing-model-route-evidence');
+    return evidence;
+}
+
+export function validateResearchReport({
+    stdout,
+    stderr = '',
+    exitCode = 0,
+    timedOut = false,
+    expectedModel,
+    sessionExport,
+    requireRouteEvidence = false,
+}) {
     const texts = extractTextEvents(stdout);
     const report = extractFinalText(stdout);
     const firstLine = report.split(/\r?\n/, 1)[0]?.trim() || '';
@@ -66,7 +193,7 @@ export function validateResearchReport({ stdout, stderr = '', exitCode = 0, time
     const reasons = [];
     if (timedOut) reasons.push('timeout');
     if (exitCode !== 0) reasons.push(`exit:${exitCode}`);
-    if (RUNTIME_FAILURE.test(stderr)) reasons.push('runtime-fallback');
+    const runtime = appendRuntimeReasons(reasons, { stderr, expectedModel, sessionExport, requireRouteEvidence });
     if (!RESEARCH_VERDICTS.has(verdict)) {
         const allText = texts.join('\n');
         if (/```[^\n]*\n\s*VERDICT:/i.test(allText)) reasons.push('verdict-inside-code-fence');
@@ -77,7 +204,7 @@ export function validateResearchReport({ stdout, stderr = '', exitCode = 0, time
     const warnings = RESEARCH_VERDICTS.has(verdict) && selectedIndex >= 0 && selectedIndex < texts.length - 1
         ? ['post-report-summary']
         : [];
-    return { valid: reasons.length === 0, verdict, report, reasons, warnings };
+    return { valid: reasons.length === 0, verdict, report, reasons, warnings, runtime };
 }
 
 export function validateSpecialistReport(result) {
@@ -110,14 +237,22 @@ export function validateLeadReport(result) {
     }
 }
 
-export function validateVerifyReport({ stdout, stderr = '', exitCode = 0, timedOut = false }) {
+export function validateVerifyReport({
+    stdout,
+    stderr = '',
+    exitCode = 0,
+    timedOut = false,
+    expectedModel,
+    sessionExport,
+    requireRouteEvidence = false,
+}) {
     const report = extractFinalText(stdout, VERIFY_VERDICTS);
     const firstLine = report.split(/\r?\n/, 1)[0]?.trim() || '';
     const verdict = firstLine.startsWith('VERDICT: ') ? firstLine.slice('VERDICT: '.length) : '';
     const reasons = [];
     if (timedOut) reasons.push('timeout');
     if (exitCode !== 0) reasons.push(`exit:${exitCode}`);
-    if (RUNTIME_FAILURE.test(stderr)) reasons.push('runtime-fallback');
+    const runtime = appendRuntimeReasons(reasons, { stderr, expectedModel, sessionExport, requireRouteEvidence });
     if (!VERIFY_VERDICTS.has(verdict)) reasons.push('invalid-verify-verdict');
     if (reasons.length === 0) {
         try {
@@ -126,7 +261,7 @@ export function validateVerifyReport({ stdout, stderr = '', exitCode = 0, timedO
             reasons.push(`invalid-verify-manifest:${error.message}`);
         }
     }
-    return { valid: reasons.length === 0, verdict, report, reasons };
+    return { valid: reasons.length === 0, verdict, report, reasons, runtime };
 }
 
 export function extractCandidateManifest(report) {
@@ -274,15 +409,19 @@ export async function terminateProcessTree(child, platform = process.platform) {
 export async function runAgent({
     repositoryRoot,
     agent,
+    model,
     prompt,
     timeoutMs = 300_000,
     env = process.env,
     spawn = spawnProcess,
     terminate = terminateProcessTree,
+    inspectSession = exportOpenCodeSession,
 }) {
+    if (!model) throw new TypeError(`explicit model route is required for ${agent}`);
     const startedAt = Date.now();
     const child = spawn(resolveOpenCodeExecutable(), [
-        'run', '--auto', '--format', 'json', '--dir', repositoryRoot, '--agent', agent, prompt,
+        'run', '--auto', '--format', 'json', '--dir', repositoryRoot,
+        '--agent', agent, '--model', model, prompt,
     ], { cwd: repositoryRoot, windowsHide: true, stdio: ['ignore', 'pipe', 'pipe'], env });
     let stdout = '';
     let stderr = '';
@@ -296,18 +435,53 @@ export async function runAgent({
         timedOut = true;
         await terminate(child);
     }, timeoutMs);
-    const exitCode = await new Promise((resolve, reject) => {
-        child.once('error', reject);
+    let spawnError = null;
+    const exitCode = await new Promise((resolve) => {
+        child.once('error', (error) => {
+            spawnError = error;
+            resolve(1);
+        });
         child.once('exit', (code) => resolve(code ?? 1));
     }).finally(() => clearTimeout(timeout));
-    return { agent, stdout, stderr, exitCode, timedOut, durationMs: Date.now() - startedAt };
+    const sessionId = extractSessionId(stdout);
+    let sessionExport = null;
+    let sessionInspectionError = null;
+    if (sessionId && inspectSession) {
+        try {
+            sessionExport = await inspectSession({ sessionId, env, timeoutMs: Math.min(15_000, timeoutMs) });
+        } catch (error) {
+            sessionInspectionError = error?.message || String(error);
+        }
+    }
+    return {
+        agent,
+        model,
+        stdout,
+        stderr,
+        exitCode,
+        timedOut,
+        durationMs: Date.now() - startedAt,
+        sessionId,
+        sessionExport,
+        sessionInspectionError,
+        spawnErrorCode: spawnError?.code ?? null,
+    };
 }
 
 export async function runAgentWithRetry(options, run = runAgent) {
     const timeoutMs = options.timeoutMs ?? 300_000;
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('timeoutMs must be a positive integer');
+    const defaultFirstAttemptMaxMs = timeoutMs >= 120_000
+        ? Math.min(240_000, timeoutMs - 60_000)
+        : Math.max(1, Math.floor(timeoutMs * 0.75));
+    const firstAttemptMaxMs = options.firstAttemptMaxMs ?? defaultFirstAttemptMaxMs;
+    if (!Number.isInteger(firstAttemptMaxMs) || firstAttemptMaxMs < 1 || firstAttemptMaxMs >= timeoutMs) {
+        throw new TypeError('firstAttemptMaxMs must be a positive integer below timeoutMs');
+    }
+    const startedAt = Date.now();
     const deadline = Date.now() + timeoutMs;
     const attempts = [];
+    const attemptBudgetsMs = [];
     const validate = options.agent.startsWith('council-verify')
         ? validateVerifyReport
         : options.agent === 'council-lead'
@@ -316,14 +490,36 @@ export async function runAgentWithRetry(options, run = runAgent) {
     let result;
     let validation;
     for (let index = 0; index < 2 && Date.now() < deadline; index += 1) {
-        const remainingAttempts = 2 - index;
         const remainingMs = Math.max(1, deadline - Date.now());
-        result = await run({ ...options, timeoutMs: Math.max(1, Math.floor(remainingMs / remainingAttempts)) });
+        const attemptBudgetMs = index === 0 ? Math.min(firstAttemptMaxMs, remainingMs) : remainingMs;
+        attemptBudgetsMs.push(attemptBudgetMs);
+        result = await run({ ...options, timeoutMs: attemptBudgetMs });
         attempts.push(result);
-        validation = validate(result);
+        validation = validate({
+            ...result,
+            expectedModel: options.model,
+            requireRouteEvidence: options.requireRouteEvidence ?? false,
+        });
         if (validation.valid) break;
     }
-    return { ...result, attempts, validation };
+    const totalDurationMs = Date.now() - startedAt;
+    const runtime = validation?.runtime ?? inspectOpenCodeSession(result?.sessionExport);
+    let exitReason = 'INVALID_OUTPUT';
+    if (validation?.valid) exitReason = 'COMPLETED';
+    else if (result?.timedOut) exitReason = runtime.modelStarted ? 'MODEL_TIMEOUT' : 'INFRASTRUCTURE_ERROR';
+    else if (RUNTIME_FAILURE.test(result?.stderr ?? '')) exitReason = 'INFRASTRUCTURE_ERROR';
+    else if (PROVIDER_FAILURE.test(result?.stderr ?? '')) exitReason = 'INFRASTRUCTURE_ERROR';
+    else if (result?.exitCode !== 0) exitReason = 'INFRASTRUCTURE_ERROR';
+    return {
+        ...result,
+        attempts,
+        validation,
+        exitReason,
+        totalDurationMs,
+        firstAttemptMaxMs,
+        attemptBudgetsMs,
+        retryBudgetMs: attemptBudgetsMs[1] ?? Math.max(0, deadline - Date.now()),
+    };
 }
 
 export async function runResearchScope({
@@ -337,15 +533,19 @@ export async function runResearchScope({
 }) {
     if (!RESEARCH_SCOPES.includes(scope)) throw new TypeError(`unsupported research scope: ${scope}`);
     const agents = AGENT_SUFFIXES.map((suffix) => `council-${scope}${suffix}`);
+    const prepared = await Promise.all(agents.map(async (agent) => ({
+        agent,
+        model: await resolveCouncilAgentRoute({ repositoryRoot, agent }),
+    })));
     const startedAt = Date.now();
     const pending = new Set(agents);
     const progress = setInterval(() => {
         onProgress({ scope, completed: agents.length - pending.size, total: agents.length, elapsedMs: Date.now() - startedAt });
     }, progressIntervalMs);
     try {
-        const results = await Promise.all(agents.map(async (agent) => {
+        const results = await Promise.all(prepared.map(async ({ agent, model }) => {
             try {
-                return await runAgentWithRetry({ repositoryRoot, agent, prompt, timeoutMs }, run);
+                return await runResolvedCouncilAgent({ repositoryRoot, agent, model, prompt, timeoutMs, run });
             } finally {
                 pending.delete(agent);
             }
@@ -402,20 +602,107 @@ export async function runCouncilAgentCli({
     agent,
     prompt,
     timeoutMs = 300_000,
+    firstAttemptMaxMs,
+    env = process.env,
     run = runAgent,
+    listModels,
 }) {
     if (!COUNCIL_AGENT_NAME.test(String(agent))) throw new TypeError(`unsupported Council agent: ${agent}`);
     if (!String(prompt).trim()) throw new TypeError('Council prompt is required');
-    const result = await runAgentWithRetry({ repositoryRoot, agent, prompt, timeoutMs }, run);
+    const model = await resolveCouncilAgentRoute({ repositoryRoot, agent });
+    if (run === runAgent || listModels) {
+        let registered;
+        try {
+            registered = listModels
+                ? new Set(String((await listModels())?.stdout ?? '').split(/\r?\n/).map((line) => line.trim()).filter(Boolean))
+                : await listRegisteredModels();
+        } catch {
+            return infrastructureResult({ agent, model, reason: 'model-registry-unavailable' });
+        }
+        if (!registered.has(model)) return infrastructureResult({ agent, model, reason: 'model-not-registered' });
+    }
+    return runResolvedCouncilAgent({
+        repositoryRoot,
+        agent,
+        model,
+        prompt,
+        timeoutMs,
+        firstAttemptMaxMs,
+        env,
+        run,
+    });
+}
+
+function infrastructureResult({ agent, model, reason }) {
     return {
         agent,
+        model,
+        valid: false,
+        verdict: '',
+        report: '',
+        reasons: [reason],
+        attempts: [],
+        attemptCount: 0,
+        timedOut: false,
+        durationMs: 0,
+        exitReason: 'INFRASTRUCTURE_ERROR',
+        attemptDurationsMs: [],
+        totalDurationMs: 0,
+        validation: {
+            valid: false,
+            verdict: '',
+            report: '',
+            reasons: [reason],
+            runtime: { modelRoutes: [], agents: [], tools: [], modelStarted: false },
+        },
+    };
+}
+
+async function runResolvedCouncilAgent({
+    repositoryRoot,
+    agent,
+    model,
+    prompt,
+    timeoutMs,
+    firstAttemptMaxMs,
+    env = process.env,
+    run = runAgent,
+    registeredModels,
+}) {
+    if (run === runAgent) {
+        let registered;
+        try {
+            registered = registeredModels ?? await listRegisteredModels();
+        } catch {
+            return infrastructureResult({ agent, model, reason: 'model-registry-unavailable' });
+        }
+        if (!registered.has(model)) return infrastructureResult({ agent, model, reason: 'model-not-registered' });
+    }
+    const result = await runAgentWithRetry({
+        repositoryRoot,
+        agent,
+        model,
+        prompt,
+        timeoutMs,
+        firstAttemptMaxMs,
+        env,
+        requireRouteEvidence: run === runAgent,
+    }, run);
+    return {
+        ...result,
+        agent,
+        model,
         valid: result.validation.valid,
         verdict: result.validation.verdict,
         report: result.validation.report,
         reasons: result.validation.reasons,
-        attempts: result.attempts.length,
+        attempts: result.attempts,
+        attemptCount: result.attempts.length,
         timedOut: result.timedOut,
         durationMs: result.attempts.reduce((sum, attempt) => sum + Number(attempt.durationMs || 0), 0),
+        exitReason: result.exitReason,
+        attemptDurationsMs: result.attempts.map((attempt) => Number(attempt.durationMs || 0)),
+        totalDurationMs: result.totalDurationMs,
     };
 }
 
@@ -433,7 +720,18 @@ async function main(argv) {
         if (result.valid) {
             process.stdout.write(`${result.report.trim()}\n`);
         } else {
-            process.stderr.write(`${JSON.stringify({ agent: result.agent, reasons: result.reasons, attempts: result.attempts, timedOut: result.timedOut })}\n`);
+            process.stderr.write(`${JSON.stringify({
+                agent: result.agent,
+                model: result.model,
+                reasons: result.reasons,
+                attempts: result.attemptCount,
+                timedOut: result.timedOut,
+                exitReason: result.exitReason,
+                attemptDurationsMs: result.attemptDurationsMs,
+                totalDurationMs: result.totalDurationMs,
+                modelStarted: result.validation.runtime?.modelStarted ?? false,
+                fallbackDetected: result.reasons.includes('runtime-fallback') || result.reasons.includes('model-route-mismatch'),
+            })}\n`);
             process.exitCode = 1;
         }
         return;
