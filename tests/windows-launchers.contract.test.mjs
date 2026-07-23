@@ -67,6 +67,7 @@ test('development and Settings launchers keep package and source paths explicit'
 
     assert.match(settings, /START_CURVIOSCLASH\.cmd" --settings-studio %\*/);
     assert.match(settings, /if \/i "%~1"=="--development"/);
+    assert.match(settings, /if exist "%~dp0release\\win-unpacked\.tmp" goto :incomplete_package/);
     assert.match(settings, /start_development\.bat" --settings-studio/);
 });
 
