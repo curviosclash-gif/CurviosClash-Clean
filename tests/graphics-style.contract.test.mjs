@@ -97,7 +97,7 @@ test('classic particles and trails restore the original non-glow rendering', () 
     assert.equal(trail.material.emissiveIntensity, 0.48);
     assert.equal(trail.glowMesh, null);
     assert.equal(trail.glowHeadMesh, null);
-    assert.equal(added.length, 3);
+    assert.equal(added.length, 5);
 
     trail.dispose();
     particles.dispose();

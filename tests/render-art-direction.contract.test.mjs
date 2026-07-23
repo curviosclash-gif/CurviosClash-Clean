@@ -39,7 +39,42 @@ test('particle pass uses an additive low-poly glow without adding a dependency',
     assert.equal(particles.mesh.geometry.type, 'OctahedronGeometry');
     assert.equal(particles.mesh.material.blending, THREE.AdditiveBlending);
     assert.equal(particles.mesh.material.depthWrite, false);
+    assert.equal(particles.rocketBlastEffect.coreMesh.material.blending, THREE.AdditiveBlending);
+    assert.equal(particles.rocketBlastEffect.waveMesh.material.wireframe, true);
     particles.dispose();
-    assert.equal(added.length, 1);
-    assert.equal(removed.length, 1);
+    assert.equal(added.length, 3);
+    assert.equal(removed.length, 3);
+});
+
+test('rocket impacts animate a tier-scaled fireball and expanding shockwave', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+    });
+    const impact = new THREE.Vector3(3, 4, 5);
+
+    particles.spawnRocketImpact(impact, 'ROCKET_MEGA');
+
+    assert.equal(particles.rocketBlastEffect.count, 1);
+    assert.equal(particles.rocketBlastEffect.coreMesh.count, 1);
+    assert.equal(particles.rocketBlastEffect.waveMesh.count, 1);
+    assert.ok(Math.abs(particles.rocketBlastEffect.radii[0] - 4.8) < 0.001);
+
+    const initialMatrix = new THREE.Matrix4();
+    const animatedMatrix = new THREE.Matrix4();
+    const initialScale = new THREE.Vector3();
+    const animatedScale = new THREE.Vector3();
+    particles.rocketBlastEffect.waveMesh.getMatrixAt(0, initialMatrix);
+    initialScale.setFromMatrixScale(initialMatrix);
+
+    particles.update(0.2);
+    particles.rocketBlastEffect.waveMesh.getMatrixAt(0, animatedMatrix);
+    animatedScale.setFromMatrixScale(animatedMatrix);
+
+    assert.ok(animatedScale.x > initialScale.x);
+    particles.update(1);
+    assert.equal(particles.rocketBlastEffect.count, 0);
+    assert.equal(particles.rocketBlastEffect.coreMesh.count, 0);
+    assert.equal(particles.rocketBlastEffect.waveMesh.count, 0);
+    particles.dispose();
 });

@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
+import { RocketBlastEffect } from './effects/RocketBlastEffect.js';
 
 const MAX_PARTICLES = 1000;
 const DUMMY = new THREE.Object3D();
@@ -54,11 +55,13 @@ export class ParticleSystem {
         this.mesh.count = 0;
 
         this.renderer.addToScene(this.mesh);
+
         this._tmpColor = new THREE.Color();
         this._tmpDirection = new THREE.Vector3();
         this._tmpRight = new THREE.Vector3();
         this._tmpUp = new THREE.Vector3();
         this._tmpVelocity = new THREE.Vector3();
+        this.rocketBlastEffect = new RocketBlastEffect(renderer, { modernGraphics });
     }
 
     _recordDebugEvent(type, count, color) {
@@ -279,11 +282,14 @@ export class ParticleSystem {
         if (type === 'ROCKET_WEAK') fallbackColor = feedback.weakColor;
         if (type === 'ROCKET_HEAVY') fallbackColor = feedback.heavyColor;
         if (type === 'ROCKET_MEGA') fallbackColor = feedback.megaColor;
+        const impactColor = Number.isFinite(Number(color))
+            ? Number(color)
+            : Number(fallbackColor) || 0xff8844;
 
         this.spawn(
             position,
             Math.max(1, Number(feedback.count) || 42),
-            Number.isFinite(Number(color)) ? Number(color) : Number(fallbackColor) || 0xff8844,
+            impactColor,
             Math.max(0.1, Number(feedback.speed) || 13.5),
             Math.max(0.05, Number(feedback.size) || 0.92),
             Math.max(0.05, Number(feedback.life) || 0.68),
@@ -292,6 +298,7 @@ export class ParticleSystem {
                 type: 'rocket-impact',
             }
         );
+        this.rocketBlastEffect?.spawn(position, type, impactColor);
     }
 
     spawnTrailExplosion(points, trailColor = null) {
@@ -318,6 +325,7 @@ export class ParticleSystem {
 
     update(dt) {
         if (!this.mesh) return;
+        this.rocketBlastEffect?.update(dt);
         if (this.count === 0) {
             this.mesh.count = 0;
             return;
@@ -396,6 +404,7 @@ export class ParticleSystem {
 
     clear() {
         this.count = 0;
+        this.rocketBlastEffect?.clear();
         if (this.mesh) {
             this.mesh.count = 0;
         }
@@ -408,6 +417,8 @@ export class ParticleSystem {
             disposeObject3DResources(this.mesh);
             this.mesh = null;
         }
+        this.rocketBlastEffect?.dispose();
+        this.rocketBlastEffect = null;
         this.renderer = null;
         this.positions = null;
         this.velocities = null;
