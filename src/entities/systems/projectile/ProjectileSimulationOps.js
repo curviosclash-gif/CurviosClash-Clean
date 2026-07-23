@@ -206,6 +206,7 @@ export class ProjectileSimulationOps {
             projectile.position.add(this._tmpVec);
             projectile.previousPosition?.copy?.(projectile.position);
             projectile.mesh.position.copy(projectile.position);
+            this.system?._rocketTrailSystem?.resetProjectileSample?.(projectile);
             projectile.target = null;
             projectile.homingReacquireTimer = Math.max(
                 rocketRuntime.homingMinReacquireInterval,

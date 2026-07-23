@@ -160,6 +160,7 @@ export function applyTrailDamageFromProjectile(trailSpatialIndex, projectile, op
     const hit = trailSpatialIndex.checkProjectileTrailCollision(projectile.position, projectile.radius, {
         excludePlayerIndex: ownerIndex,
         skipRecent,
+        excludeRocketTrailId: projectile.rocketTrailHandle?.id,
     });
     if (!hit?.entry) return null;
 

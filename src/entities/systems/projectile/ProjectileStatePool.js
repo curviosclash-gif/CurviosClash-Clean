@@ -33,6 +33,9 @@ export class ProjectileStatePool {
             homingReacquireTimer: 0,
             foamBounces: 0,
             foamBounceCooldown: 0,
+            rocketTrailHandle: null,
+            rocketTrailAccumulator: 0,
+            rocketTrailLastPosition: new THREE.Vector3(),
             traversalId: '',
             networkId: '',
         };
@@ -61,6 +64,9 @@ export class ProjectileStatePool {
         projectile.homingReacquireTimer = 0;
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
+        projectile.rocketTrailHandle = null;
+        projectile.rocketTrailAccumulator = 0;
+        projectile.rocketTrailLastPosition.set(0, 0, 0);
         projectile.traversalId = '';
         projectile.networkId = '';
         this.pool.push(projectile);

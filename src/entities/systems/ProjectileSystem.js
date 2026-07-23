@@ -6,8 +6,10 @@ import * as THREE from 'three';
 import { ProjectileStatePool } from './projectile/ProjectileStatePool.js';
 import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js';
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
+import { RocketTrailSystem } from './projectile/RocketTrailSystem.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { isPickupTypeShootable } from '../PickupRegistry.js';
+import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
@@ -69,6 +71,7 @@ export class ProjectileSystem {
         this.networkReplica = false;
         this._simulationOps = new ProjectileSimulationOps(this);
         this._hitResolver = new ProjectileHitResolver(this);
+        this._rocketTrailSystem = RocketTrailSystem.forProjectileSystem(this);
 
         this._tmpVec = new THREE.Vector3();
         this._tmpVec2 = new THREE.Vector3();
@@ -196,6 +199,7 @@ export class ProjectileSystem {
         }
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
+        this._rocketTrailSystem.initializeProjectile(projectile);
         this.projectiles.push(projectile);
 
         player.shootCooldown = config.PROJECTILE.COOLDOWN;
@@ -272,6 +276,7 @@ export class ProjectileSystem {
         projectile.target = options.target?.alive ? options.target : null;
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
+        this._rocketTrailSystem.initializeProjectile(projectile);
         this.projectiles.push(projectile);
         this.onShoot(owner, type, projectile);
         return projectile;
@@ -431,6 +436,7 @@ export class ProjectileSystem {
                 projectile.flame = mesh.userData.flame || null;
                 projectile.poolKey = type;
                 projectile.type = type;
+                projectile.huntRocket = isRocketTierType(type);
                 projectile.networkId = id;
                 projectile.traversalId = id;
                 this.projectiles.push(projectile);
@@ -445,6 +451,10 @@ export class ProjectileSystem {
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
             projectile.mesh.position.copy(projectile.position);
+            if (projectile.huntRocket && !projectile.rocketTrailHandle) {
+                this._rocketTrailSystem.initializeProjectile(projectile);
+            }
+            this._rocketTrailSystem.resetProjectileSample(projectile);
             if (projectile.velocity.lengthSq() > 0.000001) {
                 this._tmpVec.copy(projectile.position).add(projectile.velocity);
                 projectile.mesh.lookAt(this._tmpVec);
@@ -462,6 +472,7 @@ export class ProjectileSystem {
                     this._tmpVec.copy(projectile.position).add(projectile.velocity);
                     projectile.mesh.lookAt(this._tmpVec);
                 }
+                this._rocketTrailSystem.updateProjectile(projectile, dt, this.entityRuntimeConfig?.TRAIL?.UPDATE_INTERVAL);
             }
             return;
         }
@@ -479,6 +490,7 @@ export class ProjectileSystem {
                 trailSpatialIndex,
                 simulationResult
             );
+            this._rocketTrailSystem.updateProjectile(projectile, dt, this.entityRuntimeConfig?.TRAIL?.UPDATE_INTERVAL, shouldRemove);
             if (shouldRemove) {
                 this._removeProjectileAt(i);
             }
@@ -518,6 +530,7 @@ export class ProjectileSystem {
             this._releaseProjectileState(projectile);
         }
         this.projectiles.length = 0;
+        this._rocketTrailSystem.clear();
     }
 
     dispose() {
@@ -537,5 +550,6 @@ export class ProjectileSystem {
         this._projectileAssets.clear();
         this._projectilePools.clear();
         this._statePool.clear();
+        this._rocketTrailSystem.dispose();
     }
 }

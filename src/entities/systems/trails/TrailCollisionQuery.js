@@ -101,6 +101,7 @@ export class TrailCollisionQuery {
         if (!position || !registry) return null;
 
         const excludePlayerIndex = Number.isInteger(options.excludePlayerIndex) ? options.excludePlayerIndex : -1;
+        const excludeRocketTrailId = String(options.excludeRocketTrailId || '');
         const skipRecent = Math.max(0, Number(options.skipRecent) || 0);
         const cellX = Math.floor(position.x / registry.gridSize);
         const cellZ = Math.floor(position.z / registry.gridSize);
@@ -118,13 +119,14 @@ export class TrailCollisionQuery {
 
                 for (const seg of cell) {
                     if (!seg || seg.destroyed) continue;
+                    if (excludeRocketTrailId && seg.rocketTrailId === excludeRocketTrailId) continue;
                     if (seg._projectileTrailQueryStamp === queryStamp) continue;
                     seg._projectileTrailQueryStamp = queryStamp;
 
                     if (seg.playerIndex === excludePlayerIndex && skipRecent > 0) {
                         const player = players[seg.playerIndex];
                         const trail = player?.trail;
-                        if (trail) {
+                        if (trail && seg.ownerTrail === trail) {
                             const dist = (trail.writeIndex - 1 - seg.segmentIdx + trail.maxSegments) % trail.maxSegments;
                             if (dist < skipRecent) {
                                 continue;
@@ -173,7 +175,7 @@ export class TrailCollisionQuery {
                     if (seg.playerIndex === excludePlayerIndex) {
                         const player = players[seg.playerIndex];
                         const trail = player?.trail;
-                        if (trail) {
+                        if (trail && seg.ownerTrail === trail) {
                             const dist = (trail.writeIndex - 1 - seg.segmentIdx + trail.maxSegments) % trail.maxSegments;
                             if (dist < skipRecent) {
                                 if (this._shouldLogSkipRecentCandidate(dist, skipRecent)) {
