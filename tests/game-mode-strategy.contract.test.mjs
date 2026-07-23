@@ -90,6 +90,47 @@ test('Projectile, collision and shield contracts stay stable across strategies',
     assert.equal(huntShieldPlayer.shieldHP, 40);
 });
 
+test('Fight enemy trail collisions kill and credit the trail owner', () => {
+    const hunt = new HuntModeStrategy();
+    const trailOwner = { index: 1 };
+    const target = {
+        index: 0,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 40,
+        maxShieldHp: 40,
+        hasShield: true,
+        shieldHitFeedback: 0,
+        lastDamageTimestamp: 0,
+        position: {},
+        takeDamage(amount) {
+            return hunt.applyDamage(this, amount, {});
+        },
+    };
+    const kills = [];
+    const damageEvents = [];
+    const entityManager = {
+        _emitHuntDamageEvent(event) {
+            damageEvents.push(event);
+        },
+        _killPlayer(player, cause, options) {
+            kills.push({ player, cause, killer: options?.killer || null });
+        },
+    };
+
+    assert.equal(hunt.handleTrailCollision(
+        target,
+        { playerIndex: trailOwner.index },
+        'TRAIL_OTHER',
+        trailOwner,
+        entityManager
+    ), true);
+    assert.equal(target.hp, 0);
+    assert.equal(target.shieldHP, 0);
+    assert.equal(damageEvents[0].sourcePlayer, trailOwner);
+    assert.deepEqual(kills, [{ player: target, cause: 'TRAIL_OTHER', killer: trailOwner }]);
+});
+
 test('Fight rocket tiers use triple damage and trail destruction', () => {
     const fightConfig = { HUNT: HUNT_CONFIG };
     const rocketTypes = ['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA'];

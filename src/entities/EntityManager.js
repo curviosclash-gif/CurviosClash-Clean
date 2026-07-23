@@ -320,7 +320,7 @@ export class EntityManager {
         if (!player || !player.alive) return;
         rememberFightDeath(player);
         this._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
-        player.kill();
+        player.kill(); this._projectileSystem?.clearRocketTrailsForOwner?.(player);
         if (this.gameModeStrategy?.hasScoring() && this.isFightOutcomeAuthority !== false) {
             const scoringResult = this._huntScoring.registerElimination(player, { killer: options?.killer || null, spawnAgeSeconds: (Math.max(0, Number(this._simulationClockMs) || 0) * 0.001) - (Number(player.fightSpawnedAtSeconds) || 0) });
             emitHuntEliminationFeed(this._eventBus, this.players, player, options?.killer, scoringResult?.assistIndices, this.audio);

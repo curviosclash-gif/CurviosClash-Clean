@@ -288,7 +288,11 @@ export class HuntModeStrategy extends GameModeContract {
     }
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
-        const damageResult = player.takeDamage(this.resolveCollisionDamage('TRAIL'));
+        const collisionDamage = this.resolveCollisionDamage('TRAIL');
+        const damage = sourcePlayer && sourcePlayer !== player
+            ? Math.max(collisionDamage, toSafeNumber(player.hp, 0) + toSafeNumber(player.shieldHP, 0))
+            : collisionDamage;
+        const damageResult = player.takeDamage(damage);
         entityManager._emitHuntDamageEvent({
             target: player,
             sourcePlayer,

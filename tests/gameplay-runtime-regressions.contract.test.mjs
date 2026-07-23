@@ -696,6 +696,7 @@ test('Arcade support binds the productive entity gameplay-event seam', () => {
 
 test('entity gameplay sources emit damage, kill, self-collision, trail and interaction events', () => {
     const events = [];
+    const clearedRocketTrailOwners = [];
     const target = {
         index: 0,
         isBot: false,
@@ -722,6 +723,11 @@ test('entity gameplay sources emit damage, kill, self-collision, trail and inter
         },
         _parcoursProgressSystem: null,
         _respawnSystem: { onPlayerDied() {} },
+        _projectileSystem: {
+            clearRocketTrailsForOwner(player) {
+                clearedRocketTrailOwners.push(player);
+            },
+        },
     });
 
     manager._emitHuntDamageEvent({
@@ -779,6 +785,7 @@ test('entity gameplay sources emit damage, kill, self-collision, trail and inter
         'collect',
         'trail_extend',
     ]);
+    assert.deepEqual(clearedRocketTrailOwners, [target, target]);
 });
 
 test('Arena forwards exit-portal checks through its portal system', () => {

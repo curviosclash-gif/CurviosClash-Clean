@@ -34,6 +34,7 @@ export class RocketTrailSystem {
         this.nextTrailId = 1;
         this.segmentRefs = new Array(this.capacity).fill(null);
         this.segmentSlots = new Map();
+        this.handlesByOwner = new Map();
 
         this.geometry = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
         this.material = new THREE.MeshBasicMaterial({
@@ -80,15 +81,21 @@ export class RocketTrailSystem {
     createTrailHandle(owner = null) {
         this._attach();
         const id = `rocket-trail:${this.nextTrailId++}`;
-        return {
+        const handle = {
             id,
             kind: 'rocket-trail',
+            active: true,
             ownerPlayerIndex: Number.isInteger(owner?.index) ? owner.index : -1,
             latestSequence: -1,
             nextSequence: 0,
             maxSegments: 0,
             destroySegmentByEntry: (entry) => this.destroySegmentByEntry(entry),
         };
+        if (!this.handlesByOwner.has(handle.ownerPlayerIndex)) {
+            this.handlesByOwner.set(handle.ownerPlayerIndex, new Set());
+        }
+        this.handlesByOwner.get(handle.ownerPlayerIndex).add(handle);
+        return handle;
     }
 
     _attach() {
@@ -125,7 +132,7 @@ export class RocketTrailSystem {
     }
 
     appendSegment(trailHandle, from, to) {
-        if (!trailHandle || !from || !to) return null;
+        if (!trailHandle?.active || !from || !to) return null;
 
         const dx = Number(to.x) - Number(from.x);
         const dy = Number(to.y) - Number(from.y);
@@ -135,6 +142,7 @@ export class RocketTrailSystem {
 
         const slot = this.writeIndex;
         const oldRef = this.segmentRefs[slot];
+        const replacingActiveSegment = !!oldRef;
         if (oldRef) {
             this.getTrailSpatialIndex()?.unregisterTrailSegment?.(oldRef.key, oldRef.entry);
             this.segmentSlots.delete(oldRef.entry);
@@ -195,7 +203,9 @@ export class RocketTrailSystem {
         }
 
         this.writeIndex = (slot + 1) % this.capacity;
-        this.segmentCount = Math.min(this.capacity, this.segmentCount + 1);
+        if (!replacingActiveSegment) {
+            this.segmentCount = Math.min(this.capacity, this.segmentCount + 1);
+        }
         this.mesh.count = Math.max(this.mesh.count, slot + 1);
         this.glowMesh.count = this.mesh.count;
         this.mesh.instanceMatrix.needsUpdate = true;
@@ -219,7 +229,31 @@ export class RocketTrailSystem {
         this.glowMesh.instanceMatrix.needsUpdate = true;
         this.segmentRefs[slot] = null;
         this.segmentSlots.delete(entry);
+        this.segmentCount = Math.max(0, this.segmentCount - 1);
         return true;
+    }
+
+    clearOwner(owner = null) {
+        const ownerPlayerIndex = Number.isInteger(owner?.index) ? owner.index : Number(owner);
+        if (!Number.isInteger(ownerPlayerIndex)) return 0;
+        const handles = this.handlesByOwner.get(ownerPlayerIndex);
+        if (handles) {
+            for (const handle of handles) handle.active = false;
+            this.handlesByOwner.delete(ownerPlayerIndex);
+        }
+
+        const trailSpatialIndex = this.getTrailSpatialIndex();
+        let removed = 0;
+        for (let slot = 0; slot < this.segmentRefs.length; slot++) {
+            const ref = this.segmentRefs[slot];
+            if (!ref || ref.entry?.playerIndex !== ownerPlayerIndex) continue;
+            trailSpatialIndex?.unregisterTrailSegment?.(ref.key, ref.entry);
+            ref.entry.destroyed = true;
+            ref.entry.hp = 0;
+            this.destroySegmentByEntry(ref.entry);
+            removed++;
+        }
+        return removed;
     }
 
     clear() {
@@ -232,6 +266,7 @@ export class RocketTrailSystem {
             }
         }
         this.segmentSlots.clear();
+        this.handlesByOwner.clear();
         this.writeIndex = 0;
         this.segmentCount = 0;
         this.mesh.count = 0;

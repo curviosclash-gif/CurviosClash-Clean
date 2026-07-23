@@ -288,9 +288,9 @@ export class ProjectileSystem {
         return projectile;
     }
 
-    _releaseProjectileState(projectile) {
-        this._statePool.release(projectile);
-    }
+    _releaseProjectileState(projectile) { this._statePool.release(projectile); }
+
+    clearRocketTrailsForOwner(owner) { this._rocketTrailSystem.clearOwner(owner); }
 
     _acquireProjectileMesh(type, color) {
         const pool = this._getProjectilePool(type);

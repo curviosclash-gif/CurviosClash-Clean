@@ -9,21 +9,18 @@ const CELL_OFFSETS_3X3 = [
     [-1, 1], [0, 1], [1, 1],
 ];
 
-function isRecentOwnerSegment(seg, players, excludePlayerIndex, skipRecent) {
-    if (seg.playerIndex !== excludePlayerIndex || skipRecent <= 0) return false;
+function shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent) {
+    if (seg.playerIndex !== excludePlayerIndex) return false;
     const ownerTrail = seg.ownerTrail;
+    if (ownerTrail?.kind === 'rocket-trail') return true;
+    if (skipRecent <= 0) return false;
     const playerTrail = players[seg.playerIndex]?.trail;
     if (ownerTrail && ownerTrail === playerTrail) {
         const distance = (playerTrail.writeIndex - 1 - seg.segmentIdx + playerTrail.maxSegments)
             % playerTrail.maxSegments;
         return distance < skipRecent;
     }
-    if (ownerTrail?.kind !== 'rocket-trail') return false;
-    const sequence = Number(seg.rocketTrailSequence);
-    const latestSequence = Number(ownerTrail.latestSequence);
-    return Number.isInteger(sequence)
-        && Number.isInteger(latestSequence)
-        && latestSequence - sequence < skipRecent;
+    return false;
 }
 
 export class TrailCollisionQuery {
@@ -140,7 +137,7 @@ export class TrailCollisionQuery {
                     if (seg._projectileTrailQueryStamp === queryStamp) continue;
                     seg._projectileTrailQueryStamp = queryStamp;
 
-                    if (isRecentOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
+                    if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
 
                     if (!this._segmentIntersectsSphere(seg, position, radius, this._tmpClosestPointData)) continue;
 
@@ -202,7 +199,7 @@ export class TrailCollisionQuery {
                                 continue;
                             }
                         }
-                        if (isRecentOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
+                        if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
                     }
 
                     if (!this._segmentIntersectsSphere(seg, position, radius, this._tmpClosestPointData)) continue;

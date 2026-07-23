@@ -23,7 +23,7 @@ function createRenderer() {
 }
 
 test('rocket rainbow trail renders distinct segment colors and registers collision', () => {
-    const players = [{ index: 1 }];
+    const players = [{ index: 1 }, { index: 2 }];
     const renderer = createRenderer();
     const spatialIndex = new TrailSpatialIndex({ players });
     const rocketTrails = new RocketTrailSystem({
@@ -42,6 +42,7 @@ test('rocket rainbow trail renders distinct segment colors and registers collisi
         new THREE.Vector3(0, 0, 0),
         new THREE.Vector3(4, 0, 0)
     );
+    const otherHandle = rocketTrails.createTrailHandle(players[1]);
     rocketTrails.appendSegment(
         handle,
         new THREE.Vector3(10, 0, 0),
@@ -74,26 +75,42 @@ test('rocket rainbow trail renders distinct segment colors and registers collisi
     );
     assert.equal(ownProjectileHit, null);
 
-    const immediateOwnerHit = spatialIndex.checkGlobalCollision(
+    const ownerHit = spatialIndex.checkGlobalCollision(
         new THREE.Vector3(2, 0, 0),
         0.2,
         players[0].index,
         2
     );
-    assert.equal(immediateOwnerHit, null);
+    assert.equal(ownerHit, null);
 
     rocketTrails.appendSegment(
         handle,
         new THREE.Vector3(20, 0, 0),
         new THREE.Vector3(24, 0, 0)
     );
-    assert.equal(
-        spatialIndex.checkGlobalCollision(new THREE.Vector3(2, 0, 0), 0.2, players[0].index, 2)?.hit,
-        true
-    );
+    assert.equal(spatialIndex.checkGlobalCollision(
+        new THREE.Vector3(2, 0, 0),
+        0.2,
+        players[0].index,
+        2
+    ), null);
 
-    assert.equal(spatialIndex.destroySegment(firstEntry), true);
-    assert.equal(spatialIndex.checkGlobalCollision(new THREE.Vector3(2, 0, 0), 0.2), null);
+    rocketTrails.appendSegment(
+        otherHandle,
+        new THREE.Vector3(30, 0, 0),
+        new THREE.Vector3(34, 0, 0)
+    );
+    assert.equal(rocketTrails.clearOwner(players[0]), 3);
+    assert.equal(handle.active, false);
+    assert.equal(spatialIndex.checkGlobalCollision(new THREE.Vector3(22, 0, 0), 0.2), null);
+    assert.equal(spatialIndex.checkGlobalCollision(new THREE.Vector3(32, 0, 0), 0.2)?.playerIndex, 2);
+    assert.equal(rocketTrails.appendSegment(
+        handle,
+        new THREE.Vector3(40, 0, 0),
+        new THREE.Vector3(44, 0, 0)
+    ), null);
+
+    assert.equal(spatialIndex.destroySegment(firstEntry), false);
 
     rocketTrails.dispose();
     assert.equal(renderer.sceneObjects.size, 0);
@@ -146,6 +163,12 @@ test('fight rockets leave persistent colliding trails without hitting their own 
     projectiles.update(0.08);
     assert.equal(projectiles.projectiles.length, 1);
     assert.ok(projectiles._rocketTrailSystem.segmentCount >= 2);
+
+    projectiles.clearRocketTrailsForOwner(owner);
+    assert.equal(projectiles._rocketTrailSystem.segmentCount, 0);
+    assert.equal(spatialIndex.spatialGrid.size, 0);
+    projectiles.update(0.08);
+    assert.equal(projectiles._rocketTrailSystem.segmentCount, 0);
 
     projectiles.clear();
     assert.equal(projectiles._rocketTrailSystem.segmentCount, 0);
