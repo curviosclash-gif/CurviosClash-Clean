@@ -17,13 +17,16 @@ $ARGUMENTS
 
 ## State-Tracking (Datei)
 
-Lege zu Beginn eine State-Datei an:
+Setze zu Beginn eine eindeutige Lauf-ID und initialisiere den repository- und laufisolierten Runner-State:
 
-```
-$env:TEMP\opencode\code-council-loop-state.json
+```powershell
+$env:COUNCIL_RUN_ID = [guid]::NewGuid().ToString('N')
+npm run council:runner:init -- "$ARGUMENTS"
 ```
 
-Initial:
+Der State liegt unter `$env:TEMP\opencode\council\<repository-hash>\<run-id>\state.json` und enthält zusätzlich Base-Commit, Task-Hash, Start-Snapshot sowie maschinell erfasste Scope-Deltas. Ein geänderter Base-Commit oder eine Überschneidung mit bereits vorhandenen Nutzeränderungen stoppt den Lauf.
+
+Inhalt:
 ```json
 {
   "task": "$ARGUMENTS",
@@ -98,7 +101,7 @@ ABWEICHUNG vom Standard-Code-Council:
 - **Schritt 1 (Planung)**: Plane NUR für die doppelt bestätigten 🔴/🟠-Findings, nicht das gesamte $ARGUMENTS neu
 - **Schritt 2 (Datei-Inventar)**: Fokussiere auf Dateien aus vorherigen Findings
 - **Schritt 3 (Implementierung)**: Überspringe Scopes die in der vorherigen Iteration KEINE Änderungen produziert haben
-- **Schritt 5 (Review)**: Pro aktivem Scope nur der zuständige Fach-Reviewer; anschließend `council-verify` weiterhin zweimal unabhängig
+- **Schritt 5 (Review)**: Reviews anhand des maschinellen Risiko-Plans; anschließend `council-verify` und `council-verify-fb` unabhängig
 - Keine neue Architekturentscheidung in einer Reparaturrunde und niemals parallele Schreibzugriffe
 
 #### 4. METRIKEN SAMMELN
@@ -197,15 +200,13 @@ Vergleiche `history[N-1]` mit `history[N-2]`:
 
 Diese Änderungen gelten für JEDEN code-council-Durchlauf (auch ausserhalb des Loops):
 
-### A. PER-SCOPE BUILD GATE
-Statt Build+Test NUR am Ende (Schritt 4), führe NACH jedem Scope einen inkrementellen Check aus:
+### A. PER-SCOPE DELTA UND GATE
+Statt eines pauschalen Web-Builds führt der Runner NACH jedem Scope die aus dem echten Vorher-/Nachher-Dateidelta abgeleiteten Gates aus:
 
-1. Nach Scope-Abschluss (3 Read-only-Vorschläge + Lead-Selektion + einmalige Implementierung der gewählten Variante):
-   ```
-   npm run build --if-present 2>&1
-   ```
-2. Bei Build-Fehler: Sofort den verantwortlichen Scope MIT Fehlerlog neu starten (nicht bis zum Ende warten)
-3. Bei Build-Erfolg: Weiter zum nächsten Scope
+1. Vor Apply: `npm run council:runner:scope-start -- <scope> '<planned-files-json>'`
+2. Nach Apply: `npm run council:runner:scope-record -- <scope>`
+3. Bei Gate-Fehler: Sofort den verantwortlichen Scope mit Fehlerlog einmal neu starten
+4. Im Abschluss: `npm run council:runner:gates -- final` erzwingt Desktop-Build und schnelle Contracts
 
 ### B. CROSS-CUTTING AWARENESS
 Jeder Coding-Agent erhält zusätzlich zu seinem Scope-Prompt:

@@ -13,12 +13,15 @@ import {
     detectNewRegression,
     diffSnapshotFiles,
     evaluateRepairBudget,
+    findProtectedFileOverlaps,
     parseFindingsJson,
     selectGateCommands,
+    selectImplementationScopes,
     selectRepairScopes,
+    selectReviewPlan,
 } from './council-loop-policy.mjs';
 
-const DEFAULT_STATE_DIR = join(tmpdir(), 'opencode');
+const DEFAULT_STATE_DIR = join(tmpdir(), 'opencode', 'council');
 
 function nowISO() { return new Date().toISOString(); }
 
@@ -32,6 +35,22 @@ function parseRequestedIterations(value) {
 
 function defaultGit(args, options = {}) {
     return execFileSync('git', args, { encoding: 'utf8', ...options });
+}
+
+function shortHash(value) {
+    return createHash('sha256').update(String(value)).digest('hex').slice(0, 12);
+}
+
+function normalizeRunId(value) {
+    const runId = String(value || '').trim();
+    if (!/^[a-zA-Z0-9_-]{1,80}$/.test(runId)) {
+        throw new TypeError('COUNCIL_RUN_ID muss 1-80 Buchstaben, Ziffern, Unterstriche oder Bindestriche enthalten.');
+    }
+    return runId;
+}
+
+function readHead(repositoryRoot, git = defaultGit) {
+    return git(['rev-parse', 'HEAD'], { cwd: repositoryRoot }).trim();
 }
 
 function hashFile(file, repositoryRoot, git = defaultGit) {
@@ -124,7 +143,7 @@ function printPrompt(state, write) {
 ${buildFeedbackContext(state.history)}
 INSTRUKTIONEN:
 - ${isInitial ? 'Vollständiger Plan und vollständiges Council-Review.' : 'Nur die gelisteten, doppelt bestätigten Findings an ihrer belegten Ursache reparieren.'}
-- ${isInitial ? '30 read-only Reviews.' : 'Je aktivem Scope ein Fach-Reviewer, danach zwei unabhängige Verify-Läufe.'}
+- ${isInitial ? 'Risikobasiert aktivierte 5x-Reviews.' : 'Je aktivem Risiko-Scope ein Fach-Review, danach zwei unabhängige Verify-Läufe.'}
 - Reparaturrunde ${repairRound} von ${MAX_REPAIR_ROUNDS}; keine neue Architektur, Abhängigkeit, Contract-Änderung, Löschung oder Umbenennung.
 AKTIVE SCOPES: ${state.activeScopes.join(' → ')}
 `);
@@ -140,17 +159,22 @@ function printReport(state, write) {
 export function createCouncilRunner({
     repositoryRoot = process.cwd(),
     stateDir = process.env.COUNCIL_STATE_DIR || DEFAULT_STATE_DIR,
+    runId = process.env.COUNCIL_RUN_ID || 'default',
     maxIterations = parseRequestedIterations(process.env.COUNCIL_MAX_ITERATIONS),
     git = defaultGit,
     execute = execSync,
     write = (value) => process.stdout.write(value),
     storage,
 } = {}) {
-    const stateFile = join(stateDir, 'code-council-loop-state.json');
+    const resolvedRoot = path.resolve(repositoryRoot);
+    const repositoryId = shortHash(resolvedRoot.toLowerCase());
+    const normalizedRunId = normalizeRunId(runId);
+    const stateFile = join(stateDir, repositoryId, normalizedRunId, 'state.json');
     const defaultStorage = {
         load: () => existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : null,
         save: (state) => {
-            if (!existsSync(stateDir)) mkdirSync(stateDir, { recursive: true });
+            const parent = path.dirname(stateFile);
+            if (!existsSync(parent)) mkdirSync(parent, { recursive: true });
             writeFileSync(stateFile, JSON.stringify(state, null, 2), 'utf8');
         },
         reset: () => { if (existsSync(stateFile)) unlinkSync(stateFile); },
@@ -158,12 +182,38 @@ export function createCouncilRunner({
     const stateStorage = storage || defaultStorage;
     const load = () => stateStorage.load();
     const save = (state) => stateStorage.save(state);
+    const assertCurrentRun = (state) => {
+        if (state.repositoryId !== repositoryId || state.runId !== normalizedRunId) {
+            throw new Error('Council-State gehört zu einem anderen Repository oder Lauf.');
+        }
+        if (state.baseCommit !== readHead(resolvedRoot, git)) {
+            throw new Error('Repository-HEAD hat sich seit Council-Start geändert; starte einen neuen Lauf.');
+        }
+    };
 
     return function run(argv) {
         const [command, ...args] = argv;
         if (command === 'init') {
-            const snapshot = captureWorkingTreeSnapshot(repositoryRoot, git);
-            save({ task: args[0] || '', startedAt: nowISO(), iteration: 0, history: [], converged: false, exitReason: '', activeScopes: [...COUNCIL_SCOPES], baselineSnapshot: snapshot, lastSnapshot: snapshot });
+            const task = args[0] || '';
+            const snapshot = captureWorkingTreeSnapshot(resolvedRoot, git);
+            save({
+                repositoryId,
+                runId: normalizedRunId,
+                baseCommit: readHead(resolvedRoot, git),
+                task,
+                taskHash: shortHash(task),
+                startedAt: nowISO(),
+                iteration: 0,
+                history: [],
+                converged: false,
+                exitReason: '',
+                activeScopes: [...COUNCIL_SCOPES],
+                baselineSnapshot: snapshot,
+                lastSnapshot: snapshot,
+                scopeFiles: {},
+                scopeRuns: [],
+                activeScopeSnapshots: {},
+            });
             write(`State initialisiert: ${stateFile}\n`);
             return 0;
         }
@@ -175,9 +225,84 @@ export function createCouncilRunner({
 
         const state = load();
         if (!state) throw new Error('Kein State. Führe zuerst "init" aus.');
+        assertCurrentRun(state);
         if (command === 'report') {
             printReport(state, write);
             return 0;
+        }
+        if (command === 'scope-start') {
+            const scope = args[0];
+            if (!COUNCIL_SCOPES.includes(scope)) throw new TypeError(`Unbekannter Scope: ${scope || '<fehlt>'}`);
+            const plannedFiles = args[1] ? JSON.parse(args[1]) : [];
+            if (!Array.isArray(plannedFiles)) throw new TypeError('Geplante Scope-Dateien müssen ein JSON-Array sein.');
+            const overlaps = findProtectedFileOverlaps(plannedFiles, state.baselineSnapshot);
+            if (overlaps.length > 0) {
+                throw new Error(`Scope ${scope} überschneidet vorhandene Nutzeränderungen: ${overlaps.join(', ')}`);
+            }
+            state.activeScopeSnapshots[scope] = captureWorkingTreeSnapshot(resolvedRoot, git);
+            save(state);
+            write(`Scope ${scope} gestartet; ${plannedFiles.length} geplante Dateien ohne Nutzerkonflikt.\n`);
+            return 0;
+        }
+        if (command === 'implementation-plan') {
+            const plannedFiles = args[0] ? JSON.parse(args[0]) : [];
+            if (!Array.isArray(plannedFiles)) throw new TypeError('Datei-Inventar muss ein JSON-Array sein.');
+            const overlaps = findProtectedFileOverlaps(plannedFiles, state.baselineSnapshot);
+            if (overlaps.length > 0) {
+                throw new Error(`Datei-Inventar überschneidet vorhandene Nutzeränderungen: ${overlaps.join(', ')}`);
+            }
+            state.plannedFiles = [...new Set(plannedFiles.map((file) =>
+                file.trim().replaceAll('\\', '/').replace(/^\.\//, '')))].sort();
+            state.activeScopes = args[1] === 'full' ? [...COUNCIL_SCOPES] : selectImplementationScopes(state.plannedFiles);
+            save(state);
+            write(`${JSON.stringify({ files: state.plannedFiles, scopes: state.activeScopes }, null, 2)}\n`);
+            return 0;
+        }
+        if (command === 'scope-record') {
+            const scope = args[0];
+            if (!COUNCIL_SCOPES.includes(scope)) throw new TypeError(`Unbekannter Scope: ${scope || '<fehlt>'}`);
+            const before = state.activeScopeSnapshots[scope];
+            if (!before) throw new Error(`Scope ${scope} wurde nicht mit scope-start begonnen.`);
+            const current = captureWorkingTreeSnapshot(resolvedRoot, git);
+            const changedFiles = diffSnapshotFiles(before, current);
+            const protectedOverlaps = findProtectedFileOverlaps(changedFiles, state.baselineSnapshot);
+            if (protectedOverlaps.length > 0) {
+                throw new Error(`Scope ${scope} hat vorhandene Nutzeränderungen berührt: ${protectedOverlaps.join(', ')}`);
+            }
+            const previousFiles = state.scopeFiles[scope] || [];
+            state.scopeFiles[scope] = [...new Set([...previousFiles, ...changedFiles])].sort();
+            const gates = runSelectedGates(selectGateCommands(changedFiles), resolvedRoot, execute);
+            state.scopeRuns.push({ scope, changedFiles, gates: gates.results, timestamp: nowISO() });
+            delete state.activeScopeSnapshots[scope];
+            save(state);
+            write(`Scope ${scope} aufgezeichnet: ${changedFiles.length} Dateien, Gates ${gates.buildPassed && gates.testsPassed ? 'PASS' : 'FAIL'}.\n`);
+            return gates.buildPassed && gates.testsPassed ? 0 : 1;
+        }
+        if (command === 'review-plan') {
+            const current = captureWorkingTreeSnapshot(resolvedRoot, git);
+            const councilFiles = diffSnapshotFiles(state.baselineSnapshot, current);
+            const protectedOverlaps = findProtectedFileOverlaps(councilFiles, state.baselineSnapshot);
+            if (protectedOverlaps.length > 0) {
+                throw new Error(`Council-Delta enthält vorhandene Nutzeränderungen: ${protectedOverlaps.join(', ')}`);
+            }
+            const reviewPlan = selectReviewPlan(councilFiles);
+            state.reviewPlan = reviewPlan;
+            save(state);
+            write(`${JSON.stringify({ files: councilFiles, reviews: reviewPlan }, null, 2)}\n`);
+            return 0;
+        }
+        if (command === 'gates') {
+            const current = captureWorkingTreeSnapshot(resolvedRoot, git);
+            const councilFiles = diffSnapshotFiles(state.baselineSnapshot, current);
+            const protectedOverlaps = findProtectedFileOverlaps(councilFiles, state.baselineSnapshot);
+            if (protectedOverlaps.length > 0) {
+                throw new Error(`Council-Delta enthält vorhandene Nutzeränderungen: ${protectedOverlaps.join(', ')}`);
+            }
+            const gates = runSelectedGates(selectGateCommands(councilFiles, { final: args[0] === 'final' }), resolvedRoot, execute);
+            state.lastGateRun = { final: args[0] === 'final', files: councilFiles, results: gates.results, timestamp: nowISO() };
+            save(state);
+            for (const result of gates.results) write(`${result.passed ? 'PASS' : 'FAIL'} ${result.command}\n`);
+            return gates.buildPassed && gates.testsPassed ? 0 : 1;
         }
         if (command === 'next') {
             if (state.converged) {
@@ -236,12 +361,15 @@ export function createCouncilRunner({
             write(`Iteration ${state.iteration} aufgezeichnet: ${state.exitReason || 'repair_required'}\n`);
             return gates.buildPassed && gates.testsPassed && budget.passed ? 0 : 1;
         }
-        throw new Error('Verwendung: council-runner.mjs <init|next|record|report|reset>');
+        throw new Error('Verwendung: council-runner.mjs <init|implementation-plan|scope-start|scope-record|review-plan|gates|next|record|report|reset>');
     };
 }
 
 export function runCouncilCli(argv = process.argv.slice(2)) {
     try {
+        if (!process.env.COUNCIL_RUN_ID) {
+            throw new Error('Setze vor dem Runner-Aufruf eine eindeutige COUNCIL_RUN_ID.');
+        }
         return createCouncilRunner()(argv);
     } catch (error) {
         process.stderr.write(`${error.message}\n`);

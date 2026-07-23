@@ -31,6 +31,57 @@ function normalizeRepositoryPath(file, repositoryRoot) {
     return normalized;
 }
 
+function normalizeFileList(files) {
+    assert(Array.isArray(files), 'Dateiliste muss ein Array sein.');
+    return [...new Set(files.map((file) => {
+        assert(typeof file === 'string' && file.trim(), 'Dateiliste darf nur nichtleere Pfade enthalten.');
+        const normalized = file.trim().replaceAll('\\', '/').replace(/^\.\//, '');
+        assert(!path.posix.isAbsolute(normalized) && !path.win32.isAbsolute(normalized), `Dateiliste darf keinen absoluten Pfad enthalten: ${file}`);
+        assert(!normalized.split('/').includes('..'), `Dateiliste darf das Repository nicht verlassen: ${file}`);
+        return normalized;
+    }))].sort();
+}
+
+export function findProtectedFileOverlaps(files, baselineSnapshot = {}) {
+    const protectedFiles = new Map(Object.keys(baselineSnapshot)
+        .map((file) => [file.replaceAll('\\', '/').toLowerCase(), file.replaceAll('\\', '/')]));
+    return normalizeFileList(files)
+        .filter((file) => protectedFiles.has(file.toLowerCase()))
+        .map((file) => protectedFiles.get(file.toLowerCase()))
+        .sort();
+}
+
+export function selectReviewPlan(files) {
+    const normalized = normalizeFileList(files);
+    if (normalized.length === 0) return [];
+
+    const sourceFiles = normalized.filter((file) =>
+        /^(?:src|electron|server|editor|prototypes\/vehicle-lab|scripts|tests)\//i.test(file)
+        || /\.(?:[cm]?[jt]sx?|ts|json)$/i.test(file));
+    const select = (pattern) => normalized.filter((file) => pattern.test(file));
+    const plan = [
+        { scope: 'review', files: normalized },
+        { scope: 'test', files: normalized },
+    ];
+
+    const architectureFiles = select(/^(?:src|electron|server|editor|prototypes\/vehicle-lab|\.opencode|scripts)\/|^(?:package(?:-lock)?\.json|vite\.config|tsconfig)/i);
+    if (architectureFiles.length > 0) plan.push({ scope: 'arch', files: architectureFiles });
+
+    const securityFiles = select(/^(?:electron|server|\.opencode\/agents)\/|(?:auth|permission|ipc|network|socket|storage|save|load|secret|token|session|trust)/i);
+    if (securityFiles.length > 0) plan.push({ scope: 'sec', files: securityFiles });
+
+    const performanceFiles = select(/(?:render|update|tick|loop|physics|collision|camera|bot|perf|profil|worker)/i);
+    if (performanceFiles.length > 0) plan.push({ scope: 'perf', files: performanceFiles });
+
+    if (sourceFiles.length >= 3) plan.push({ scope: 'refactor', files: sourceFiles });
+    return plan;
+}
+
+export function selectImplementationScopes(files) {
+    const selected = new Set(selectReviewPlan(files).map(({ scope }) => scope));
+    return COUNCIL_SCOPES.filter((scope) => selected.has(scope));
+}
+
 function stableFindingId(finding) {
     const fingerprint = [
         finding.scope,

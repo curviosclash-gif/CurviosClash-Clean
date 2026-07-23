@@ -1,6 +1,6 @@
 {
   "description": "Zentrale Modell-Zuweisung fuer alle Council-Agenten. Wird durch npm run council:check validiert.",
-  "updated": "2026-07-22",
+  "updated": "2026-07-23",
 
   "readOnlyCouncil": {
     "primary": {
@@ -12,7 +12,8 @@
       "council-test": { "model": "opencode/big-pickle" },
       "council-refactor": { "model": "opencode/big-pickle" },
       "council-lead": { "model": "opencode-go/deepseek-v4-pro", "note": "Einziger Council-Agent mit Premium-Modell (AGENTS.md Rule 19)" },
-      "council-verify": { "model": "opencode/deepseek-v4-flash-free" }
+      "council-verify": { "model": "opencode/deepseek-v4-flash-free" },
+      "council-verify-fb": { "model": "opencode/laguna-s-2.1-free", "note": "Unabhängiger Zweitverifizierer; erhält niemals das Ergebnis des ersten Laufs" }
     },
     "fbSiblings": {
       "description": "FB-Geschwister (mode: all). 4 pro Scope, je ein anderes kostenloses Modell. Werden direkt oder via task() gestartet.",
@@ -56,7 +57,14 @@
   },
 
   "codingCouncil": {
-    "description": "Coding-Council-Agenten (mode: subagent). 6 Scopes × 3 Varianten = 18 Agenten. Keine FB-Geschwister.",
+    "description": "Coding-Council-Agenten (mode: subagent). Ein technisch read-only Proposal-Agent und 6 Scopes × 3 schreibende Apply-Varianten. Keine FB-Geschwister.",
+    "proposalAgent": {
+      "name": "council-code-proposal",
+      "mode": "subagent",
+      "edit": "deny",
+      "bash": "deny",
+      "task": "deny"
+    },
     "model": "default",
     "note": "Alle Coding-Council-Agenten nutzen das Standard-Modell. FB-Geschwister sind hier nicht vorgesehen (Merge-Konflikt-Risiko, AGENTS.md Rule 27)."
   },

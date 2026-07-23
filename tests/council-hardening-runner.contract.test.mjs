@@ -187,17 +187,19 @@ test('timed-out Council output receives one retry within the shared deadline', a
     assert.equal(result.validation.valid, true);
 });
 
-test('bounded Council CLI selects the correct validator and rejects unknown agents', async () => {
+test('bounded Council CLI accepts both independent verify routes and rejects unknown agents', async () => {
     const report = `VERDICT: REJECTED\n\n\`\`\`json\n${JSON.stringify({ results: [] })}\n\`\`\``;
-    const result = await runCouncilAgentCli({
-        repositoryRoot: ROOT,
-        agent: 'council-verify',
-        prompt: 'verify',
-        timeoutMs: 1_000,
-        run: async ({ agent }) => ({ agent, stdout: reportEvent(report), stderr: '', exitCode: 0, timedOut: false }),
-    });
-    assert.equal(result.valid, true);
-    assert.equal(result.verdict, 'REJECTED');
+    for (const agent of ['council-verify', 'council-verify-fb']) {
+        const result = await runCouncilAgentCli({
+            repositoryRoot: ROOT,
+            agent,
+            prompt: 'verify',
+            timeoutMs: 1_000,
+            run: async ({ agent: selectedAgent }) => ({ agent: selectedAgent, stdout: reportEvent(report), stderr: '', exitCode: 0, timedOut: false }),
+        });
+        assert.equal(result.valid, true);
+        assert.equal(result.verdict, 'REJECTED');
+    }
     await assert.rejects(() => runCouncilAgentCli({ repositoryRoot: ROOT, agent: 'default', prompt: 'no', run: async () => ({}) }), /unsupported/);
 });
 

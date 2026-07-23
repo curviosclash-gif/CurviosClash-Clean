@@ -1,12 +1,17 @@
 import { execSync } from 'node:child_process';
+import { createHash } from 'node:crypto';
 import { existsSync, mkdirSync, readdirSync, statSync, writeFileSync } from 'node:fs';
 import { join, resolve } from 'node:path';
 import { tmpdir } from 'node:os';
 import process from 'node:process';
 
-const STATE_DIR = join(tmpdir(), 'opencode');
-const SNAPSHOT_FILE = join(STATE_DIR, 'council-perf-snapshot.json');
 const ROOT = resolve(import.meta.dirname || '.', '..');
+const RUN_ID = process.env.COUNCIL_RUN_ID || 'standalone';
+if (!/^[a-zA-Z0-9_-]{1,80}$/.test(RUN_ID)) throw new TypeError('COUNCIL_RUN_ID ist ungültig.');
+const REPOSITORY_ID = createHash('sha256').update(ROOT.toLowerCase()).digest('hex').slice(0, 12);
+const STATE_ROOT = process.env.COUNCIL_STATE_DIR || join(tmpdir(), 'opencode', 'council');
+const STATE_DIR = join(STATE_ROOT, REPOSITORY_ID, RUN_ID);
+const SNAPSHOT_FILE = join(STATE_DIR, 'perf-snapshot.json');
 
 function ensureDir() { if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true }); }
 

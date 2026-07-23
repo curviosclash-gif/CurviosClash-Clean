@@ -6,9 +6,12 @@ import {
     detectFindingOscillation,
     diffSnapshotFiles,
     evaluateRepairBudget,
+    findProtectedFileOverlaps,
     parseFindingsJson,
     selectGateCommands,
+    selectImplementationScopes,
     selectRepairScopes,
+    selectReviewPlan,
     validateFinding,
 } from '../scripts/council-loop-policy.mjs';
 import { captureWorkingTreeSnapshot, createCouncilRunner } from '../scripts/council-runner.mjs';
@@ -97,6 +100,24 @@ test('baseline snapshot isolates unchanged pre-existing worktree files', () => {
     assert.deepEqual(deleted, { 'missing-file.js': '__deleted__' });
 });
 
+test('protected user files are case-insensitive and review routing follows file risk', () => {
+    assert.deepEqual(
+        findProtectedFileOverlaps(['SRC/User.js', 'src/new.js'], { 'src/user.js': 'before' }),
+        ['src/user.js'],
+    );
+    assert.throws(() => findProtectedFileOverlaps(['../outside.js'], {}), /nicht verlassen/);
+    const plan = selectReviewPlan([
+        'server/session.mjs',
+        'src/physics/collision.js',
+        'tests/session.contract.test.mjs',
+    ]);
+    const scopes = plan.map(({ scope }) => scope);
+    assert.deepEqual(scopes, ['review', 'test', 'arch', 'sec', 'perf', 'refactor']);
+    assert.deepEqual(plan.find(({ scope }) => scope === 'sec').files, ['server/session.mjs', 'tests/session.contract.test.mjs']);
+    assert.deepEqual(plan.find(({ scope }) => scope === 'perf').files, ['src/physics/collision.js']);
+    assert.deepEqual(selectImplementationScopes(['server/session.mjs']), ['arch', 'review', 'sec', 'test']);
+});
+
 test('repair budget rejects dependency, contract, delete/rename, and excessive file expansion', () => {
     const confirmed = validateFinding(finding(), { repositoryRoot: ROOT });
     const result = evaluateRepairBudget({
@@ -133,6 +154,7 @@ function memoryStorage() {
 
 function fakeGit(snapshotRef) {
     return (args) => {
+        if (args[0] === 'rev-parse') return `${snapshotRef.head || 'abc123'}\n`;
         if (args[0] === 'ls-files') return `${Object.keys(snapshotRef.current).join('\n')}\n`;
         if (args[0] === 'hash-object') return `${snapshotRef.current[args.at(-1)]}\n`;
         if (args[0] === 'diff' && args[1] === '--name-status') return '';
@@ -140,6 +162,34 @@ function fakeGit(snapshotRef) {
         throw new Error(`Unexpected git call: ${args.join(' ')}`);
     };
 }
+
+test('runner blocks protected files and records exact per-scope deltas with selected gates', () => {
+    const snapshots = { current: { 'src/user.js': 'user-v1' } };
+    const storage = memoryStorage();
+    const commands = [];
+    const output = [];
+    const run = createCouncilRunner({
+        repositoryRoot: ROOT,
+        runId: 'scope-contract',
+        storage,
+        git: fakeGit(snapshots),
+        execute: (command) => { commands.push(command); return ''; },
+        write: (text) => output.push(text),
+    });
+
+    run(['init', 'scope tracking']);
+    assert.match(output[0], /scope-contract[\\/]state\.json/);
+    assert.equal(run(['implementation-plan', '["src/runtime/new.js"]']), 0);
+    assert.deepEqual(storage.read().activeScopes, ['arch', 'review', 'test']);
+    assert.throws(() => run(['scope-start', 'review', '["src/user.js"]']), /Nutzeränderungen/);
+    assert.equal(run(['scope-start', 'review', '["src/runtime/new.js"]']), 0);
+    snapshots.current = { 'src/user.js': 'user-v1', 'src/runtime/new.js': 'council-v1' };
+    assert.equal(run(['scope-record', 'review']), 0);
+    assert.deepEqual(storage.read().scopeFiles.review, ['src/runtime/new.js']);
+    assert.deepEqual(commands, ['npm run test:contract:fast']);
+    snapshots.head = 'changed-head';
+    assert.throws(() => run(['review-plan']), /HEAD hat sich/);
+});
 
 test('runner performs initial pass, focused repair, and hard two-round cap without filesystem artifacts', () => {
     assert.equal(MAX_REPAIR_ROUNDS, 2);

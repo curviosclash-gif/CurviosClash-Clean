@@ -7,7 +7,7 @@ Analysiere den abgeschlossenen Coding-Council-Loop und erstelle Verbesserungsvor
 ## METHODIK
 
 ### 1. State-Datei laden
-Lies `$env:TEMP\opencode\code-council-loop-state.json` und analysiere:
+Lies den durch `COUNCIL_RUN_ID` ausgewählten State unter `$env:TEMP\opencode\council\<repository-hash>\<run-id>\state.json` und analysiere:
 - Welche Scopes produzierten die meisten Findings?
 - Welche Scopes wurden übersprungen (keine Änderungen)?
 - Gab es Oszillationen (gleiche Findings in aufeinanderfolgenden Iterationen)?

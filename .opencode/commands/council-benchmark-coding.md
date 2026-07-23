@@ -12,9 +12,9 @@ Only `review` and `test` are relevant scopes for this local repair fixture.
 
 1. Start `plan` twice in parallel with the identical case input: one minimal plan and
    one robust/isolation-focused plan. Merge them without adding new scope.
-2. For `review`, start `council-code-review`, `council-code-review-alt1`, and
-   `council-code-review-alt2` in parallel. Explicitly require read-only proposals in
-   the repository proposal format. Repeat the same with the three `test` variants.
+2. For `review`, start `council-code-proposal` three times in parallel with variants
+   `primary`, `alt1`, and `alt2`. Repeat the same for `test`. The proposal agent is
+   technically read-only; no apply agent may run in this phase.
 3. Give all six proposals to `council-lead`. Require a strict first-line VERDICT and
    select exactly one proposal per scope. An invalid or missing VERDICT ends the run.
 4. Run only each selected variant once more, sequentially, with write permission.
@@ -27,9 +27,10 @@ Only `review` and `test` are relevant scopes for this local repair fixture.
    Retry an invalid response once with the identical prompt. Fewer than four valid
    responses in either scope makes the arm `UNCERTAIN`.
 8. Give the valid reports to `council-lead` for candidate-only consolidation. For
-   every potential HIGH or MEDIUM candidate, run `council-verify` twice independently
-   and adversarially. Only `BUG` plus `BUG` is confirmed. Do not let a reviewer or
-   verifier edit the snapshot.
+   every potential HIGH or MEDIUM candidate, run `council-verify` and
+   `council-verify-fb` independently and adversarially without sharing either result.
+   Only `BUG` plus `BUG` is confirmed. Do not let a reviewer or verifier edit the
+   snapshot.
 
 The final response must begin with exactly `VERDICT: ISSUES_FOUND` when the repair and
 visible tests succeed, otherwise `VERDICT: UNCERTAIN`. Then emit exactly one fenced

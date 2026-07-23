@@ -18,6 +18,7 @@ import {
 
 const REVIEW_SCOPES = Object.freeze(['review', 'test']);
 const COMPACT_RESEARCH_BODY = `You are one read-only benchmark Council specialist. Use only the public case and source text embedded in the caller prompt. Do not call tools, inspect files or parent directories, edit, use bash, delegate, or infer hidden data. Follow the requested scope. Your only response must start at the first character with VERDICT: CLEAN, VERDICT: ISSUES_FOUND, VERDICT: NEEDS_DATA, or VERDICT: UNCERTAIN. Then emit exactly one fenced JSON object {"findings":[]} using file, symbol, category, claim, evidence, confidence, and impact. Emit nothing before the verdict or after the JSON block.`;
+const COMPACT_PROPOSAL_BODY = `You are the technically read-only Coding-Council proposal agent. Read only case.public.json and its visible files. Never edit, use bash, delegate, inspect parent directories, hidden data, patches, or history. Return the requested primary, alt1, or alt2 edit specification with exact allowed paths and visible verification.`;
 const COMPACT_CODING_BODY = `You are one isolated Coding-Council variant. Read case.public.json and only its visible files. Never inspect parent directories, hidden data, patches, or repository history. Never delegate. When the prompt requests a proposal, remain read-only and return a concise edit specification. Only when the prompt explicitly marks your proposal as selected may you edit paths in allowedChanges and run visibleTestCommands. Never touch forbiddenChanges, install dependencies, or delete untracked files. Keep the final response concise and follow the exact format requested by the caller.`;
 const COMPACT_PLAN_BODY = `Plan only for the isolated case in case.public.json. Read only visible files, do not edit, run commands, inspect parent directories, or delegate. Return a concise ordered plan with affected visible paths, risks, and visible verification.`;
 const COMPACT_LEAD_BODY = `Act only as the benchmark Council lead. Do not read beyond the current snapshot, edit, run bash, or delegate. Consolidate only the reports supplied by the caller. Enforce at least four valid sibling reports per scope. Follow the caller's requested schema. Your final response must begin at the first character with VERDICT: CLEAN, VERDICT: ISSUES_FOUND, VERDICT: NEEDS_DATA, or VERDICT: UNCERTAIN and end with exactly one fenced JSON block. Emit nothing after it.`;
@@ -53,6 +54,8 @@ async function installCouncilConfiguration(repositoryRoot, snapshotRoot) {
         ['plan', COMPACT_PLAN_BODY],
         ['council-lead', COMPACT_LEAD_BODY],
         ['council-verify', COMPACT_VERIFY_BODY],
+        ['council-verify-fb', COMPACT_VERIFY_BODY],
+        ['council-code-proposal', COMPACT_PROPOSAL_BODY],
     ]);
     for (const scope of REVIEW_SCOPES) {
         for (const suffix of AGENT_SUFFIXES) compactAgents.set(`council-${scope}${suffix}`, COMPACT_RESEARCH_BODY);
@@ -140,9 +143,10 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
             JSON.stringify({ candidates }),
             visibleSource,
         ].join('\n');
-        const verifies = await Promise.all([1, 2].map((index) => runAgentWithRetry({
+        const verifyAgents = ['council-verify', 'council-verify-fb'];
+        const verifies = await Promise.all(verifyAgents.map((agent, index) => runAgentWithRetry({
             repositoryRoot: snapshot.root,
-            agent: 'council-verify',
+            agent,
             prompt: `${verifyPrompt}\nIndependent verify run: ${index}`,
             timeoutMs,
             env: { ...process.env, TEMP: stateRoot, TMP: stateRoot, COUNCIL_STATE_DIR: path.join(stateRoot, `verify-${index}`) },

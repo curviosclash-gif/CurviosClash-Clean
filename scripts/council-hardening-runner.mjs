@@ -18,7 +18,7 @@ const RESEARCH_VERDICTS = new Set(['CLEAN', 'ISSUES_FOUND', 'NEEDS_DATA', 'UNCER
 const VERIFY_CLASSIFICATIONS = new Set(['BUG', 'DEFENSIVE', 'INTENTIONAL', 'FALSE', 'UNCERTAIN']);
 const VERIFY_VERDICTS = new Set(['VERIFIED', 'REJECTED', 'UNCERTAIN']);
 const RUNTIME_FAILURE = /fallback warning|default agent|streaming response failed/i;
-const COUNCIL_AGENT_NAME = /^(?:council-(?:review|arch|sec|perf|test|refactor)(?:-fb[2-4]?)?|council-(?:lead|verify))$/;
+const COUNCIL_AGENT_NAME = /^(?:council-(?:review|arch|sec|perf|test|refactor)(?:-fb[2-4]?)?|council-lead|council-verify(?:-fb)?)$/;
 
 export function resolveOpenCodeExecutable({ platform = process.platform, env = process.env } = {}) {
     if (platform !== 'win32') return 'opencode';
@@ -308,7 +308,7 @@ export async function runAgentWithRetry(options, run = runAgent) {
     if (!Number.isInteger(timeoutMs) || timeoutMs < 1) throw new TypeError('timeoutMs must be a positive integer');
     const deadline = Date.now() + timeoutMs;
     const attempts = [];
-    const validate = options.agent === 'council-verify'
+    const validate = options.agent.startsWith('council-verify')
         ? validateVerifyReport
         : options.agent === 'council-lead'
             ? validateLeadReport

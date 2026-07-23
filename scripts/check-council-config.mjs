@@ -119,6 +119,15 @@ for (const scope of SCOPES) {
     }
 }
 
+const proposalPath = join(AGENT_DIR, 'council-code-proposal.md');
+const proposalMetadata = frontmatter(proposalPath);
+const proposalText = read(proposalPath);
+expect(proposalMetadata.mode === 'subagent', `${proposalPath}: proposal agent must use mode subagent`);
+expect(/\n\s*edit:\s*deny\b/.test(proposalText), `${proposalPath}: proposal edit permission must be deny`);
+expect(/\n\s*bash:\s*deny\b/.test(proposalText), `${proposalPath}: proposal bash permission must be deny`);
+expect(/\n\s*task:\s*deny\b/.test(proposalText), `${proposalPath}: proposal task permission must be deny`);
+expect(config.codingCouncil?.proposalAgent?.name === 'council-code-proposal', `${CONFIG_PATH}: proposal agent mapping is missing`);
+
 for (const file of ['code-council.md', 'code-council-loop.md', 'code-council-scope-loop.md']) {
     const path = join(COMMAND_DIR, file);
     const text = read(path);
@@ -129,7 +138,7 @@ for (const file of ['code-council.md', 'code-council-loop.md', 'code-council-sco
 const loopCommand = read(join(COMMAND_DIR, 'code-council-loop.md'));
 expect(/Build PASSED UND Tests PASSED UND keine doppelt bestätigten/.test(loopCommand), 'code-council-loop.md: early pass must require build, tests, and no doubly confirmed actionable findings');
 expect(/maximal zwei Reparaturrunden/.test(loopCommand), 'code-council-loop.md: repair loop must have a hard two-round limit');
-expect(/zuständige Fach-Reviewer/.test(loopCommand), 'code-council-loop.md: repair rounds must use focused specialist review');
+expect(/Reviews anhand des maschinellen Risiko-Plans/.test(loopCommand), 'code-council-loop.md: repair rounds must use risk-based specialist review');
 expect(/Verbindliches Finding-Schema/.test(loopCommand), 'code-council-loop.md: validated finding schema is required');
 expect(/repair_budget_exceeded/.test(loopCommand), 'code-council-loop.md: repair budget exit must be documented');
 expect(/regression_introduced/.test(loopCommand), 'code-council-loop.md: regression exit must be documented');
@@ -152,10 +161,22 @@ expect(/VERDICT: VERIFIED\|REJECTED\|UNCERTAIN/.test(verifyAgent), 'council-veri
 expect(/BUG\/DEFENSIVE\/INTENTIONAL\/FALSE\/UNCERTAIN/.test(verifyAgent), 'council-verify.md: adversarial result classes missing');
 expect(/alle produktiven Caller/.test(verifyAgent), 'council-verify.md: caller traversal missing');
 expect(/Initialisierungs-, Restart- und Dispose-Reihenfolge/.test(verifyAgent), 'council-verify.md: lifecycle traversal missing');
+const verifyFbAgent = read(join(AGENT_DIR, 'council-verify-fb.md'));
+expect(/BUG.*DEFENSIVE.*INTENTIONAL.*FALSE.*UNCERTAIN/s.test(verifyFbAgent), 'council-verify-fb.md: adversarial result classes missing');
+expect(config.readOnlyCouncil.primary['council-verify'].model !== config.readOnlyCouncil.primary['council-verify-fb'].model, `${CONFIG_PATH}: verify routes must use different models`);
 
 const codeCouncilCommand = read(join(COMMAND_DIR, 'code-council.md'));
-expect(/council-verify ZWEIMAL parallel/.test(codeCouncilCommand), 'code-council.md: redundant verification must run twice in parallel');
+expect(/council-verify` und `council-verify-fb` parallel/.test(codeCouncilCommand), 'code-council.md: independent verification routes must run in parallel');
+expect(/council-code-proposal/.test(codeCouncilCommand), 'code-council.md: read-only proposal agent is required');
+expect(/council:runner:scope-start/.test(codeCouncilCommand) && /council:runner:scope-record/.test(codeCouncilCommand), 'code-council.md: machine-tracked scope deltas are required');
+expect(/council:runner:implementation-plan/.test(codeCouncilCommand), 'code-council.md: risk-based implementation plan is required');
+expect(/council:runner:review-plan/.test(codeCouncilCommand), 'code-council.md: risk-based review plan is required');
 expect(/BEGRENZTER REPAIR-LOOP \(maximal zwei Reparaturrunden\)/.test(codeCouncilCommand), 'code-council.md: bounded repair loop is required');
+
+const baselineScript = read(join(ROOT, 'scripts', 'council-baseline.mjs'));
+const perfScript = read(join(ROOT, 'scripts', 'council-perf-run.mjs'));
+expect(/COUNCIL_RUN_ID/.test(baselineScript) && /REPOSITORY_ID/.test(baselineScript), 'council-baseline.mjs: performance snapshots must be isolated by repository and run');
+expect(/RAW_JSON/.test(perfScript) && /JSON\.stringify\(report\)/.test(perfScript), 'council-perf-run.mjs: --raw must emit parseable JSON');
 
 const preflightText = read(join(AGENT_DIR, 'council-preflight.md'));
 for (const model of configuredFreeModels) {
@@ -168,8 +189,8 @@ expect(
     'AGENTS.md: direct Council invocation must use the bounded wrapper',
 );
 expect(agentsInstructions.includes('npm run council:validate'), 'AGENTS.md: Council changes must require the live validation gate');
-expect(/ZWEIMAL unabhängig und adversarial/.test(agentsInstructions), 'AGENTS.md: analysis verification must run twice adversarially');
-expect(/BEIDE unabhängigen Verify-Läufe `BUG`/.test(agentsInstructions), 'AGENTS.md: only double BUG may confirm a finding');
+expect(/`@council-verify` und `@council-verify-fb`/.test(agentsInstructions), 'AGENTS.md: both independent verify routes are required');
+expect(/`BUG \+ BUG`/.test(agentsInstructions), 'AGENTS.md: only double BUG may confirm a finding');
 
 if (errors.length > 0) {
     process.stderr.write(`Council configuration check failed (${errors.length}):\n`);

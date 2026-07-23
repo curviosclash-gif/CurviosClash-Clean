@@ -51,7 +51,7 @@ Sammle Reports aus mehreren Quellen (Coding-Agenten, Council-Reviews) und konsol
 | POTENTIAL_MEDIUM | möglicher Logikfehler, Ressourcen-Leak oder falsche State-Transition; noch nicht bestätigt |
 | DEFENSIVE | fehlender Guard oder Hygieneproblem ohne belegten erreichbaren Produktfehler |
 
-Finale 🔴/🟠/🟡-Severity darf erst nach zwei unabhängigen `council-verify`-Läufen vergeben werden. Nur `BUG + BUG` darf als bestätigter Produktfehler erscheinen.
+Finale 🔴/🟠/🟡-Severity darf erst nach den unabhängigen Läufen von `council-verify` und `council-verify-fb` vergeben werden. Nur `BUG + BUG` darf als bestätigter Produktfehler erscheinen.
 
 Begründe Abweichungen von Modell-Bewertungen ausdrücklich.
 

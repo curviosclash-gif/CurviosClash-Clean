@@ -38,9 +38,9 @@ git status --porcelain
 - Bei uncommitteten Änderungen: Warnung aber kein Block
 - Bei Merge-Konflikten: BLOCK
 
-### 3. Build-Status
+### 3. Desktop-Build-Status
 ```
-npm run build --if-present 2>&1
+npm run build:app --if-present 2>&1
 ```
 - Bei Fehler: `VERDICT: BLOCKED (Build broken before Council start)`
 

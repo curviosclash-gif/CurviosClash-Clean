@@ -38,10 +38,10 @@ Fallback-Warnungen auf einen Default-Agenten, fehlende Variantenreports oder ein
 
 ## State-Tracking
 
-Lege eine Scope-State-Datei an:
+Nutze die beim Council-Start gesetzte `COUNCIL_RUN_ID`. Ein optionaler Scope-State liegt ausschließlich im Laufverzeichnis:
 
 ```
-$env:TEMP\opencode\code-council-scope-state-<scope>.json
+$env:TEMP\opencode\council\<repository-hash>\<run-id>\scope-<scope>.json
 ```
 
 ```json
@@ -86,20 +86,9 @@ $env:TEMP\opencode\code-council-scope-state-<scope>.json
 ## ANWEISUNG: Behebe ALLE oben genannten Probleme. Keine neuen Features.
 ```
 
-### 3. 3-AGENTEN-PARALLEL-LAUF (READ-ONLY-VORSCHLÄGE)
+### 3. 3-AGENTEN-PARALLEL-LAUF (TECHNISCH READ-ONLY)
 
-Starte die 3 Scope-Varianten parallel:
-
-| Scope | Ausgewogen (primary) | Robustheit (alt1) | Minimalismus (alt2) |
-|-------|---------------------|-------------------|---------------------|
-| arch | council-code-arch | council-code-arch-alt1 | council-code-arch-alt2 |
-| refactor | council-code-refactor | council-code-refactor-alt1 | council-code-refactor-alt2 |
-| review | council-code-review | council-code-review-alt1 | council-code-review-alt2 |
-| sec | council-code-sec | council-code-sec-alt1 | council-code-sec-alt2 |
-| test | council-code-test | council-code-test-alt1 | council-code-test-alt2 |
-| perf | council-code-perf | council-code-perf-alt1 | council-code-perf-alt2 |
-
-Jeder Agent erhält den KONTEXT (Schritt 2). In diesem Lauf darf kein Agent Dateien ändern oder Shell-Befehle mit Seiteneffekten ausführen. Die drei Varianten liefern ausschließlich konkrete Änderungsvorschläge.
+Starte `council-code-proposal` dreimal parallel mit dem KONTEXT aus Schritt 2, dem Scope und jeweils einer Variante `primary`, `alt1` oder `alt2`. Der Proposal-Agent erzwingt `edit: deny`, `bash: deny` und `task: deny`; schreibberechtigte Apply-Agenten dürfen in dieser Phase nicht gestartet werden.
 
 ### 4. REPORTS EINSAMMELN
 
@@ -136,17 +125,18 @@ Wähle die BESTE Variante. Bei Gleichstand: bevorzuge die kleinste vollständige
 
 ### 6. GEWÄHLTE VARIANTE IMPLEMENTIEREN UND SELBSTREVIEWEN
 
-Starte ausschließlich den gewählten Agenten erneut. Dieser zweite Lauf darf den ausgewählten Vorschlag implementieren und muss anschließend die eigenen Änderungen read-only selbstreviewen. Die beiden nicht gewählten Varianten werden nicht erneut gestartet und haben keine Dateien verändert.
+Extrahiere zuerst die geplanten Dateien und starte `npm run council:runner:scope-start -- <scope> '<planned-files-json>'`. Starte anschließend ausschließlich den zur gewählten Variante gehörenden Apply-Agenten (`council-code-<scope>`, `-alt1` oder `-alt2`). Dieser Lauf darf den ausgewählten Vorschlag implementieren und muss anschließend die eigenen Änderungen read-only selbstreviewen.
 
 Der Implementierungslauf liefert `## Änderungen` und `## Selbstreview-Findings`; diese Felder werden für die folgenden Schritte verwendet.
 
-### 7. SCOPE-BUILD-GATE
+### 7. SCOPE-DELTA-GATE
 
 ```
-npm run build 2>&1
+npm run council:runner:scope-record -- <scope>
 ```
-- Bei Fehler: Gewählten Agenten EINMALIG mit Fehlerlog neu starten
-- Bei erneutem Fehlschlag: Scope als "build_blocked" markieren → EXIT
+- Der Runner ordnet nur das echte Vorher-/Nachher-Delta diesem Scope zu und wählt passende Tests beziehungsweise Builds.
+- Bei Fehler: Scope erneut starten und den gewählten Apply-Agenten EINMALIG mit Fehlerlog nachbessern lassen.
+- Bei erneutem Fehlschlag: Scope als "build_blocked" markieren → EXIT.
 
 ### 8. SELBSTREVIEW-ANALYSE
 
@@ -229,8 +219,8 @@ ABWEICHUNG: Der code-council-loop verwendet diesen inneren Loop NUR für Scopes,
 
 | Aspekt | code-council-loop (äusser) | code-council-scope-loop (inner) |
 |--------|---------------------------|-------------------------------|
-| Granularität | Alle 6 Scopes | Ein einzelner Scope |
-| Review-Quelle | 30 externe Council-Reviews | Selbstreview des Agenten |
+| Granularität | Alle risikobasiert aktiven Scopes | Ein einzelner Scope |
+| Review-Quelle | Risikobasiert aktivierte externe Council-Reviews | Selbstreview des Agenten |
 | Verbesserungs-Quelle | Extern gefundene Probleme | Selbst erkannte Probleme |
 | Abbruchkriterium | 0 🔴 extern | 0 Selbstreview-Issues |
 | Max Iterationen | 3 | 2 |

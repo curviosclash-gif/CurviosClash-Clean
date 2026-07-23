@@ -4,7 +4,8 @@ import process from 'node:process';
 
 const TICKS = process.argv.includes('--quick') ? 180 : 600;
 const WARMUP = process.argv.includes('--quick') ? 30 : 120;
-const RAW = process.argv.includes('--compact');
+const RAW_JSON = process.argv.includes('--raw');
+const COMPACT = process.argv.includes('--compact');
 
 const scriptPath = resolve(import.meta.dirname || '.', 'perf-snapshot.mjs');
 const args = ['--ticks', String(TICKS), '--warmup', String(WARMUP), '--raw'];
@@ -26,7 +27,9 @@ PERFORMANCE SNAPSHOT (${config.ticks} ticks, p95 threshold: 16ms)
   subsystems: update=${snapshot.subsystems.update?.avg?.toFixed(2) || '0.00'}ms collision=${snapshot.subsystems.collision?.avg?.toFixed(2) || '0.00'}ms render=${snapshot.subsystems.render?.avg?.toFixed(2) || '0.00'}ms
 `.trim();
 
-if (RAW) {
+if (RAW_JSON) {
+    process.stdout.write(JSON.stringify(report));
+} else if (COMPACT) {
     process.stdout.write(promptBlock);
 } else {
     process.stdout.write('=== Council-Perf Snapshot ===\n');

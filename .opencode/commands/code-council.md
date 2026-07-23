@@ -1,11 +1,22 @@
 ---
-description: Coding Council: 18 Coding-Experten in 3 Varianten pro Scope, Lead selektiert beste Lösung
+description: Coding Council: technisch getrennte Vorschlags-, Apply-, Review- und Verify-Phasen
 ---
-Orchestriere einen vollständigen Coding-Council-Durchlauf mit 3-Wege-Redundanz pro Scope.
+Orchestriere einen Coding-Council-Durchlauf mit 3-Wege-Redundanz pro relevantem Scope.
 
 $ARGUMENTS
 
 ## Ablauf
+
+### 0. ISOLIERTER RUN-STATE
+
+Erzeuge eine eindeutige Lauf-ID und initialisiere den maschinengeprüften State:
+
+```powershell
+$env:COUNCIL_RUN_ID = [guid]::NewGuid().ToString('N')
+npm run council:runner:init -- "$ARGUMENTS"
+```
+
+Der State liegt repository- und laufisoliert unter `$env:TEMP\opencode\council\<repository-hash>\<run-id>\state.json`. Er enthält Base-Commit, Task-Hash und den unveränderten Start-Snapshot. Ändert sich `HEAD`, wird der Lauf abgebrochen.
 
 ### 1. REDUNDANTE PLANUNG (2x)
 Starte den plan-Agenten ZWEIMAL parallel:
@@ -14,26 +25,29 @@ Starte den plan-Agenten ZWEIMAL parallel:
 Warte auf beide Pläne. Merge zu einem Master-Plan: übernimm aus plan-minimal die effizientesten Ansätze, aus plan-robust die notwendigen Safety-Netze.
 
 ### 2. DATEI-INVENTAR
-Ermittle alle potenziell betroffenen Dateien:
+Analysiere den Master-Plan und liste alle potenziell betroffenen Dateien. Bereits vor Council-Start veränderte oder untracked Dateien sind geschützte Nutzerdateien und kein Council-Inventar.
+
+Gruppiere die geplanten Dateien nach Modul und Risiko. Wähle standardmäßig nur relevante Implementierungs-Scopes. `review` ist für Bugfixes, `test` für Teständerungen, `sec` für Vertrauensgrenzen, `perf` für Hot Paths, `arch` für Runtime-/Modulgrenzen und `refactor` nur für belegte Strukturarbeit aktiv. Nur ein ausdrücklich als vollständig angeforderter Lauf aktiviert alle sechs Scopes.
+
+```powershell
+npm run council:runner:implementation-plan -- '["src/example.js"]'
 ```
-git diff --name-only HEAD       (falls bereits Änderungen existieren)
-```
-ODER: Analysiere den Master-Plan und liste alle referenzierten Dateien.
-Gruppiere die Dateien nach Modul/Zuständigkeit. Diese Liste dient als Orientierung für die Scope-Agenten.
+
+Der Runner validiert das Inventar gegen geschützte Nutzerdateien und gibt die aktiven Scopes in ihrer verbindlichen Reihenfolge aus. Nur für einen ausdrücklich vollständig angeforderten Lauf wird als zweites Argument `full` übergeben.
 
 ### 2.5 BASELINE-SNAPSHOT (vor allen Scopes)
 Sammle Profiling-Daten VOR jeglichen Code-Änderungen — dies ist die echte Baseline (unveränderter Ausgangszustand):
 ```
 Starte council-baseline: "Sammle Profiling-Snapshot vor Coding-Council-Start"
 ```
-Der Baseline-Agent schreibt nach `$env:TEMP\opencode\council-perf-snapshot.json`.
+Der Baseline-Agent schreibt nach `$env:TEMP\opencode\council\<repository-hash>\<run-id>\perf-snapshot.json`.
 Diese Baseline dient als Referenz für spätere Vergleiche und wird an den perf-Scope weitergegeben.
 
-### 3. SEQUENTIELLE IMPLEMENTIERUNG (6 Scopes nacheinander)
+### 3. SEQUENTIELLE IMPLEMENTIERUNG (relevante Scopes)
 
 **WICHTIG: Scopes laufen SEQUENTIELL, nicht parallel.** Jeder Scope startet mit dem bereinigten Code des vorherigen Scopes. Das eliminiert Cross-Scope-Merge-Konflikte.
 
-Reihenfolge: **arch → refactor → review → sec → test → perf**
+Reihenfolge der aktivierten Scopes: **arch → refactor → review → sec → test → perf**
 
 Der Grund für diese Reihenfolge:
 - **arch** zuerst: strukturelle Änderungen bilden die Basis
@@ -57,28 +71,22 @@ Falls kein Profiler existiert: Vermerk im Prompt "Kein Snapshot verfügbar — s
 
 Der perf-Scope erhält sowohl den Baseline-Snapshot (Schritt 2.5, unveränderter Ausgangszustand) als auch diesen aktuellen Snapshot, um das Delta zu messen.
 
-**b) 3 Agenten parallel als Read-only-Vorschlagsphase starten**
+**b) 3 technisch read-only Vorschläge parallel starten**
 
-| Scope | Ausgewogen (primary) | Robustheit (alt1) | Minimalismus (alt2) |
-|-------|---------------------|-------------------|---------------------|
-| arch | council-code-arch | council-code-arch-alt1 | council-code-arch-alt2 |
-| refactor | council-code-refactor | council-code-refactor-alt1 | council-code-refactor-alt2 |
-| review | council-code-review | council-code-review-alt1 | council-code-review-alt2 |
-| sec | council-code-sec | council-code-sec-alt1 | council-code-sec-alt2 |
-| test | council-code-test | council-code-test-alt1 | council-code-test-alt2 |
-| perf | council-code-perf | council-code-perf-alt1 | council-code-perf-alt2 |
-
-Jeder Agent erhält: Master-Plan + Datei-Inventar + $ARGUMENTS + seinen Scope + (nur perf: Profiling-Snapshot) + CROSS-CUTTING-AWARENESS-Prompt (siehe unten).
-
-WICHTIG: In dieser Phase darf KEIN Agent Dateien ändern oder Shell-Befehle mit Seiteneffekten ausführen. Alle drei Varianten liefern ausschließlich einen konkreten Änderungsvorschlag. So bleiben die Varianten vergleichbar, ohne gleichzeitig denselben Arbeitsbaum zu verändern.
+Starte `council-code-proposal` dreimal parallel mit demselben Master-Plan, Datei-Inventar, Auftrag und Scope, aber den Varianten `primary`, `alt1` und `alt2`. Dieser Agent erzwingt `edit: deny`, `bash: deny` und `task: deny`. Die schreibberechtigten `council-code-<scope>*`-Agenten dürfen in dieser Phase nicht gestartet werden.
 
 **c) Reports einsammeln**
 Jeder Agent liefert Report im Pflichtformat:
 ```
 ## Scope: <name>
-## Ansatz: <Ausgewogen|Robustheit|Defensiv|Stabilität|Durchsatz|Minimalismus|Pragmatisch|Kritische Pfade|Vollständig>
+## Variante: <primary|alt1|alt2>
+## Ansatz: <Ausgewogen|Robustheit|Minimalismus>
+## Geplante Dateien
+- <relativer Repository-Pfad>
 ## Vorgeschlagene Änderungen
-- [Datei:Zeile] Beschreibung der vorgeschlagenen Änderung -> Grund
+- [Datei:Symbol] Beschreibung der vorgeschlagenen Änderung -> Grund
+## Verifikation
+- Kleinster passender Test oder Build
 ## Nicht bearbeitet (ausserhalb Scope)
 - Was bewusst nicht angefasst wurde
 ```
@@ -91,102 +99,69 @@ Jeder Agent liefert Report im Pflichtformat:
 - AUFWAND/NUTZEN: Welches Verhältnis?
 Wähle die BESTE. Begründe die Wahl."
 
-**e) Gewählte Variante einmalig implementieren**
-Starte ausschließlich den vom Lead gewählten Agenten erneut. Dieser zweite Lauf erhält den gewählten Vorschlag und die ausdrückliche Erlaubnis, ihn jetzt im gemeinsamen Arbeitsbaum zu implementieren. Die beiden nicht gewählten Varianten werden nicht erneut gestartet und haben keine Dateien verändert.
+**e) Nutzerkonflikt-Gate und einmalige Implementierung**
 
-**f) PER-SCOPE BUILD GATE**
-Nach der Implementierung führe einen inkrementellen Build-Check aus:
-```
-npm run build 2>&1
-```
-- Bei Build-Erfolg: Weiter mit Schritt g (Scope-File-Tracking)
-- Bei Build-Fehler:
-  1. Analysiere den Fehler (welche Datei/Zeile)
-  2. Ordne ihn dem gewählten Agenten zu
-  3. Starte diesen Agenten EINMALIG neu mit dem Build-Fehler als Zusatzkontext
-  4. Erneut Build-Check
-  5. Bei erneutem Fehlschlag: Stoppe den Ablauf und melde die betroffenen Dateien. Setze keine Dateien zurück und lösche keine untracked-Dateien ohne ausdrückliche Nutzerfreigabe.
+Extrahiere `Geplante Dateien` aus dem gewählten Vorschlag und starte den Scope-Snapshot:
 
-**g) Scope-File-Tracking**
-Ermittle die vom GEWÄHLTEN Agenten geänderten Dateien:
-```
-git diff --name-only HEAD
-```
-Speichere diese Dateiliste pro Scope für Step 5 (scope-gefilterte Reviews). Schreibe/aktualisiere:
-```
-$env:TEMP\opencode\code-council-scope-files.json
-```
-Format:
-```json
-{
-  "scopes": {
-    "arch": ["src/core/engine.js", "src/ui/panel.js"],
-    "refactor": ["src/utils/helpers.js"],
-    "...": []
-  }
-}
+```powershell
+npm run council:runner:scope-start -- <scope> '["src/example.js"]'
 ```
 
-**h) Weiter zum nächsten Scope** (zurück zu Schritt a)
+Der Runner stoppt, wenn eine geplante Datei bereits vor Council-Start verändert oder untracked war. Starte danach ausschließlich die gewählte schreibberechtigte Variante:
 
-### 4. BUILD & TEST GATE
-Nachdem ALLE 6 Scopes abgeschlossen sind (je 1 Gewinner-Implementierung):
+| Variante | Apply-Agent |
+|----------|-------------|
+| primary | `council-code-<scope>` |
+| alt1 | `council-code-<scope>-alt1` |
+| alt2 | `council-code-<scope>-alt2` |
 
-1. Führe den Build aus:
-   ```
-   npm run build
-   ```
-2. Falls erfolgreich, führe Tests aus:
-   ```
-   npm test
-   ```
-3. **Fehlschlag-Behandlung**:
-   - Bei Build-Fehler: `git diff` analysieren, fehlerhaften Scope identifizieren
-   - Bei Test-Fehler: `git diff` + Fehlerlog analysieren, verantwortlichen Scope identifizieren
-   - Betroffenen Scope EINMALIG mit dem Fehler als Zusatzkontext neu starten (3 Read-only-Vorschläge → Lead-Selektion → genau eine Implementierung)
-   - Erneut Build & Test
+Der Apply-Agent erhält den ausgewählten Vorschlag und darf nur diesen umsetzen.
 
-### 5. REDUNDANTE CODE-REVIEW (30x, scope-gefiltert)
-Erzeuge den vollständigen git Diff der bereinigten Änderungen:
-```
-git diff HEAD
+**f) MASCHINELLES SCOPE-DELTA UND GATE**
+
+```powershell
+npm run council:runner:scope-record -- <scope>
 ```
 
-Lade die pro-Scope Dateiliste aus `$env:TEMP\opencode\code-council-scope-files.json`.
+Der Runner berechnet das echte Hash-Delta zwischen Scope-Start und Scope-Ende, ordnet nur diese Dateien dem Scope zu und führt die aus diesem Delta abgeleiteten Tests beziehungsweise Builds aus. Er stoppt auch bei einer unerwarteten Berührung geschützter Nutzerdateien.
 
-JEDER Reviewer erhält NUR den Diff der Dateien seines eigenen Scopes (nicht den Gesamtdiff). Konstruiere für jeden Review-Scope:
+Bei einem Gate-Fehler darf der gewählte Apply-Agent genau einmal mit dem Fehlerlog nachbessern. Vor der Nachbesserung wird erneut `scope-start` aufgerufen; danach erneut `scope-record`. Schlägt das Gate wieder fehl, stoppt der Ablauf ohne Revert, Löschung oder Bereinigung.
+
+**g) Weiter zum nächsten aktiven Scope** (zurück zu Schritt a)
+
+### 4. ZENTRALES DESKTOP-GATE
+
+Nach allen aktiven Scopes:
+
+```powershell
+npm run council:runner:gates -- final
 ```
-git diff HEAD -- <dateien aus scope-files.json für diesen scope>
+
+Der Runner wählt die Gates aus dem tatsächlichen Council-Delta und erzwingt im finalen Lauf immer `npm run build:app` sowie `npm run test:contract:fast`. Bei einem Fehler wird nur der anhand des Scope-Deltas verantwortliche Scope einmal nachgebessert.
+
+### 5. RISIKOBASIERTE REDUNDANTE CODE-REVIEWS
+
+Erzeuge den maschinenlesbaren Review-Plan:
+
+```powershell
+npm run council:runner:review-plan
 ```
-Falls ein Scope keine Dateien geändert hat: überspringe die Review für diesen Scope (0 statt 5 Reviewer).
 
-Starte den read-only Council mit 5x-Parallel-Review pro Scope (jeder fb-Agent mit anderem Perspektiv-Prompt):
+Der Plan koppelt Reviews an das Risiko der geänderten Dateien, nicht an den Agenten, der sie bearbeitet hat:
 
-| Review-Scope | Agenten (5x) | fb-Perspektive | Scope-Diff |
-|-------------|--------------|----------------|------------|
-| review | council-review + fb + fb2 + fb3 + fb4 | fb: Standard / fb2: Neues Teammitglied / fb3: QA-Ingenieur / fb4: Spieler-Perspektive | Nur review-geänderte Dateien |
-| arch | council-arch + fb + fb2 + fb3 + fb4 | fb: Standard / fb2: Microservices-Erfahrung / fb3: Monolith-Verfechter / fb4: Plattform-übergreifend | Nur arch-geänderte Dateien |
-| sec | council-sec + fb + fb2 + fb3 + fb4 | fb: Standard / fb2: OWASP-Spezialist / fb3: Penetration-Tester / fb4: Angreifer-Perspektive | Nur sec-geänderte Dateien |
-| perf | council-perf + fb + fb2 + fb3 + fb4 | fb: Standard / fb2: Mobile/Embedded / fb3: High-End-GPU / fb4: GC-Analyst | Nur perf-geänderte Dateien |
-| test | council-test + fb + fb2 + fb3 + fb4 | fb: Standard / fb2: E2E-Spezialist / fb3: Unit-Test-Purist / fb4: Chaos-Engineer | Nur test-geänderte Dateien |
-| refactor | council-refactor + fb + fb2 + fb3 + fb4 | fb: Standard / fb2: Clean-Code-Evangelist / fb3: Pragmatiker / fb4: Performance-fokussiert | Nur refactor-geänderte Dateien |
+- `review` und `test` prüfen das gesamte Council-Delta.
+- `arch` prüft Änderungen an Runtime-, Modul-, Tooling- und Konfigurationsgrenzen.
+- `sec` prüft Vertrauensgrenzen, IPC, Netzwerk, Persistenz, Berechtigungen und Agentenkonfiguration.
+- `perf` prüft Render-, Update-, Physik-, Kamera-, Bot-, Worker- und Profilingpfade.
+- `refactor` wird bei breiterem strukturellem Delta aktiviert.
 
-Jeder fb-Agent erhält ZUSÄTZLICH zum Basis-Prompt: `PERSPEKTIVE: <fb-Perspektive>. Bewerte den Code aus dieser Sicht.`
-
-Jeder Reviewer erhält: "Review den scope-spezifischen Diff (nur <scope>-Änderungen) auf $ARGUMENTS. Finde Regressionen, unerwünschte Seiteneffekte, übersehene Probleme."
-
-**Cross-Scope-Impact-Erkennung**: Zusätzlich erhält JEDER Reviewer den GESAMTDIFF zur Kenntnis (read-only, nicht im Fokus), damit Cross-Scope-Auswirkungen nicht übersehen werden. Der Prompt lautet:
-```
-HINWEIS: Der folgende Diff enthält NUR die Änderungen deines Scopes (<scope>).
-Zur Orientierung hier der Gesamtdiff aller Scopes (nur zur Kenntnis, nicht im Review-Fokus):
-<gesamtdiff>
-```
+Starte für jeden im Plan enthaltenen Review-Scope die fünf read-only Geschwister mit exakt demselben scope-spezifischen Diff und Prompt. Eine Datei darf mehreren Review-Scopes zugeordnet sein. Dadurch prüft beispielsweise `sec` auch eine sicherheitsrelevante Änderung, die ursprünglich vom `review`-Apply-Agenten stammt.
 
 ### 6. LEAD-KONSOLIDIERUNG
-Sammle ALLE Ergebnisse (6 gewählte Coding-Reports + 6 Selektion-Begründungen + 30 Council-Reviews) und übergib an council-lead:
+Sammle alle gewählten Coding-Reports, Selektion-Begründungen und risikobasiert aktivierten Council-Reviews und übergib sie an council-lead:
 "Konsolidiere:
-- 6 Coding-Reports (mit Auswahlbegründung warum dieser Ansatz gewann)
-- 30 Council-Reviews
+- Coding-Reports der aktiven Implementierungs-Scopes
+- 5 Reviews pro aktivem Risiko-Scope
 Identifiziere:
 - Widersprüche (Coding-Agent vs Council-Review)
 - Lücken (kein Scope hat Aspekt X bearbeitet)
@@ -195,9 +170,11 @@ Identifiziere:
 Normalisiere Severity: 🔴 Crash/Datenverlust, 🟠 logischer Fehler, 🟡 Stil/Wartbarkeit."
 
 ### 7. REDUNDANTE VERIFIKATION (2x)
-Starte council-verify ZWEIMAL parallel mit allen 🔴-Findings und 🟠-Findings:
-- **verify-run-1**: Prüft jedes Finding adversarial (BUG/DEFENSIVE/INTENTIONAL/FALSE/UNCERTAIN)
-- **verify-run-2**: Unabhängige Zweitmeinung
+Starte `council-verify` und `council-verify-fb` parallel mit allen POTENTIAL_HIGH- und POTENTIAL_MEDIUM-Kandidaten:
+- **council-verify**: beweisorientierte adversariale Prüfung mit DeepSeek
+- **council-verify-fb**: widerlegungsorientierte Zweitprüfung mit einer anderen Modellfamilie
+
+Beide erhalten dieselben Kandidaten, aber niemals den Bericht oder das Ergebnis des jeweils anderen Laufs. Verwende für beide den begrenzten `council:agent`-Wrapper.
 Nur Findings mit BEIDE BUG gelten als bestätigt. Jeder andere oder abweichende Ausgang → "nicht verifizierbar" beziehungsweise kein bestätigter Produktfehler.
 
 ### 8. BEGRENZTER REPAIR-LOOP (maximal zwei Reparaturrunden)
@@ -209,7 +186,7 @@ Falls nach Verifikation BESTÄTIGTE 🔴- oder 🟠-Findings existieren:
 4. Nur 1 Agent pro Scope (keine 3-Wege-Selektion), direkt implementieren
 5. Erzwinge das Reparaturbudget: keine Dependencies, Contracts, Deletes/Renames; maximal fünf zusätzliche Nicht-Testdateien
 6. Führe die aus dem Datei-Delta gewählten Tests und Builds aus; im finalen Gate immer Desktop-App-Build und schnelle Contracts
-7. Fokussiertes Re-Review durch den zuständigen Fach-Reviewer und danach `council-verify` erneut ZWEIMAL unabhängig
+7. Fokussiertes Re-Review durch den risikobasiert zuständigen Fach-Reviewer und danach `council-verify` und `council-verify-fb` erneut unabhängig
 8. Wiederhole höchstens einmal (maximal zwei Reparaturrunden insgesamt). Keine neue Architekturentscheidung, keine parallelen Schreibzugriffe.
 9. Bleibt dieselbe Finding-ID bestehen, erscheint eine behobene ID erneut, entstehen neue Regressionen oder widersprechen sich die Verify-Läufe: STOP mit spezifischem Exit-Zustand
 10. Wenn reproduzierbar, ergänze zuerst einen Regressionstest und behebe danach die gemeinsame Ursache
@@ -218,7 +195,7 @@ Falls nach Verifikation BESTÄTIGTE 🔴- oder 🟠-Findings existieren:
 Präsentiere den konsolidierten Report:
 - Pro Scope: welcher Ansatz gewann und warum
 - Zusammenfassung aller umgesetzten Änderungen
-- Konfidenz-Score (wie viele der 30 Reviews fanden KEINE neuen Probleme)
+- Konfidenz-Score je aktivem Risiko-Scope (gültige Läufe und 4-von-5-Übereinstimmung)
 - 🔴-Findings: bestätigt / behoben / offen
 - 🟠-Findings: bestätigt / behoben / offen
 - Build & Test: bestanden / fehlgeschlagen
