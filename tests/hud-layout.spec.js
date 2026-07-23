@@ -262,6 +262,7 @@ test('Klassik and Arcade use the Fight HUD shell without duplicate Arcade score'
             || classicBoost.getBoundingClientRect().bottom;
         const scaledItemTop = itemBar.getBoundingClientRect().top;
         normal.scaledBoostClearsItems = scaledArcBottom <= scaledItemTop;
+        normal.scaledBoostClearsCrosshair = scaledArcBottom <= window.innerHeight / 2 - 20;
         hud.style.setProperty('--hud-scale', '1');
 
         let arcadeScore = document.querySelector('#arcade-score-hud');
@@ -298,10 +299,12 @@ test('Klassik and Arcade use the Fight HUD shell without duplicate Arcade score'
     expect(layout.normal.classicBoostVisible).toBe(true);
     expectNear(layout.normal.classicBoostCenterX, 640);
     expect(layout.normal.classicBoostArcBottom).toBeLessThanOrEqual(layout.normal.itemTop);
+    expect(layout.normal.classicBoostArcBottom).toBeLessThanOrEqual(layout.viewportHeight / 2 - 20);
     expect(layout.normal.classicBoostPathCount).toBe(2);
     expect(layout.normal.classicBoostSegmentCounts).toEqual([100, 100]);
     expect(layout.normal.classicBoostViewBox).toBe('0 0 270 170');
     expect(layout.normal.scaledBoostClearsItems).toBe(true);
+    expect(layout.normal.scaledBoostClearsCrosshair).toBe(true);
     expect(layout.normal.itemDisplay).toBe('grid');
     expect(layout.normal.panelPosition).toBe('absolute');
     expectNear(layout.normal.itemBottom, layout.viewportHeight - 20);

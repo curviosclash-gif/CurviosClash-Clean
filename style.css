@@ -6506,7 +6506,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     --hunt-arc-track: rgba(80, 255, 90, 0.16);
     position: absolute;
     left: 50%;
-    bottom: 140px;
+    top: calc(50% - 210px);
+    bottom: auto;
     display: block;
     width: 270px;
     height: 132px;
