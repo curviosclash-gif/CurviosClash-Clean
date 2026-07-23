@@ -6493,6 +6493,79 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9);
 }
 
+.classic-boost-widget {
+    display: none;
+}
+
+#hud[data-hud-mode="normal"] .player-hud-summary > .hud-boost-bar:not(.hud-life-bar) {
+    display: none;
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-widget {
+    --hunt-arc-color: #70ff45;
+    --hunt-arc-track: rgba(80, 255, 90, 0.16);
+    position: absolute;
+    left: 50%;
+    bottom: 140px;
+    display: block;
+    width: 270px;
+    height: 132px;
+    color: var(--hunt-arc-color);
+    font-family: var(--menu-theme-display-font);
+    pointer-events: none;
+    transform: translateX(-50%) scale(var(--hud-scale, 1));
+    transform-origin: center bottom;
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-widget.cooldown {
+    --hunt-arc-color: #4db8ee;
+    --hunt-arc-track: rgba(77, 184, 238, 0.16);
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-arc,
+#hud[data-hud-mode="normal"] .classic-boost-fill {
+    position: absolute;
+    inset: 0;
+    width: 270px;
+    height: 132px;
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-fill {
+    --hunt-segments-filled: 100%;
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-fill .hunt-segmented-arc {
+    width: 270px;
+    height: 170px;
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-fill .hunt-segment-active {
+    clip-path: inset(0 calc(100% - var(--hunt-segments-filled)) 0 0);
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-label,
+#hud[data-hud-mode="normal"] .classic-boost-value {
+    position: absolute;
+    top: 54px;
+    left: 50%;
+    width: 110px;
+    margin: 0;
+    color: var(--hunt-arc-color);
+    font-size: 0.68rem;
+    font-style: italic;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-align: center;
+    text-transform: uppercase;
+    transform: translateX(-50%);
+}
+
+#hud[data-hud-mode="normal"] .classic-boost-value {
+    top: 70px;
+    font-size: 1.25rem;
+    letter-spacing: 0;
+}
+
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar {
     position: absolute;
     left: 50%;

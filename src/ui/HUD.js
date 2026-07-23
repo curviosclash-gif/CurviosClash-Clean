@@ -4,6 +4,10 @@
 import * as THREE from 'three';
 import { GAMEPLAY_CAMERA_MODE_ID, resolveGameplayCameraModeId } from '../shared/contracts/CameraModeContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import {
+    HUD_ARC_SEGMENT_COUNT,
+    initializeHudSegmentedArc,
+} from './HudSegmentedArc.js';
 
 function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -36,8 +40,12 @@ export class HUD {
         this.lockArrow.className = 'lock-arrow hidden';
         this.lockReticle.appendChild(this.lockArrow);
         this.boostFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-boost-fill');
+        this.classicBoostWidget = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost');
+        this.classicBoostFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost-fill');
+        this.classicBoostText = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost-text');
         this.lifeBar = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-bar');
         this.lifeFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-fill');
+        initializeHudSegmentedArc(this.classicBoostFill, 'horizontal');
 
         // Tapes (Scales)
         this.speedScale = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-speed-scale');
@@ -72,11 +80,27 @@ export class HUD {
         }
     }
 
+    _setCustomProperty(element, property, value) {
+        if (!element?.style) return;
+        const currentValue = element.style.getPropertyValue?.(property) || element.style[property];
+        if (currentValue === value) return;
+        if (element.style.setProperty) {
+            element.style.setProperty(property, value);
+        } else {
+            element.style[property] = value;
+        }
+    }
+
     _setText(element, value) {
         if (!element) return;
         if (element.textContent !== value) {
             element.textContent = value;
         }
+    }
+
+    _setAttribute(element, name, value) {
+        if (!element?.setAttribute || element.getAttribute?.(name) === value) return;
+        element.setAttribute(name, value);
     }
 
     _setClassFlag(element, className, enabled) {
@@ -224,6 +248,14 @@ export class HUD {
             const pct = (boostCharge / boostCapacity) * 100;
             this._setStyle(this.boostFill, 'width', `${pct.toFixed(1)}%`);
             this._setClassFlag(this.boostFill, 'cooldown', isBoostRecharging);
+            this._setCustomProperty(
+                this.classicBoostFill,
+                '--hunt-segments-filled',
+                `${Math.round((pct / 100) * HUD_ARC_SEGMENT_COUNT)}%`
+            );
+            this._setText(this.classicBoostText, `${Math.round(pct)}%`);
+            this._setClassFlag(this.classicBoostWidget, 'cooldown', isBoostRecharging);
+            this._setAttribute(this.classicBoostWidget, 'aria-valuenow', String(Math.round(pct)));
         }
 
         if (this.lifeBar && this.lifeFill) {

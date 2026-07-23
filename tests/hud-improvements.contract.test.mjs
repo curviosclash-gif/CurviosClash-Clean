@@ -386,6 +386,33 @@ test('HUD builds speed and altitude tapes from the gameplay config ranges', () =
     }
 });
 
+test('HUD keeps the classic boost arc percentage and cooldown state in sync', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const { hud } = createHudInstance(documentStub);
+        hud.update(createAlivePlayer({
+            boostCharge: 2,
+            boostCapacity: 4,
+            boostRecharging: true,
+        }), 0.05, {});
+
+        assert.equal(hud.classicBoostFill.style['--hunt-segments-filled'], '50%');
+        assert.equal(hud.classicBoostText.textContent, '50%');
+        assert.equal(hud.classicBoostWidget.classList.contains('cooldown'), true);
+
+        hud.update(createAlivePlayer({
+            boostCharge: 4,
+            boostCapacity: 4,
+            boostRecharging: false,
+        }), 0.05, {});
+        assert.equal(hud.classicBoostFill.style['--hunt-segments-filled'], '100%');
+        assert.equal(hud.classicBoostText.textContent, '100%');
+        assert.equal(hud.classicBoostWidget.classList.contains('cooldown'), false);
+    } finally {
+        documentStub.restore();
+    }
+});
+
 test('HUD update rotates the artificial horizon with roll and shifts it with pitch', () => {
     const documentStub = installDocumentStub();
     try {
