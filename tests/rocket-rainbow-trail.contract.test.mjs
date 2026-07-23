@@ -32,6 +32,9 @@ test('rocket rainbow trail renders distinct segment colors and registers collisi
         maxSegments: 8,
         width: 0.4,
     });
+    assert.ok(rocketTrails.mesh.instanceColor);
+    assert.deepEqual(Array.from(rocketTrails.mesh.instanceColor.array.slice(0, 3)), [1, 1, 1]);
+    assert.equal(rocketTrails.material.vertexColors, false);
     const handle = rocketTrails.createTrailHandle(players[0]);
 
     const firstEntry = rocketTrails.appendSegment(
@@ -55,6 +58,7 @@ test('rocket rainbow trail renders distinct segment colors and registers collisi
     rocketTrails.mesh.getColorAt(0, firstColor);
     rocketTrails.mesh.getColorAt(1, secondColor);
     assert.notDeepEqual(firstColor.toArray(), secondColor.toArray());
+    assert.ok(Math.max(...firstColor.toArray()) > 0.5);
 
     const playerHit = spatialIndex.checkGlobalCollision(
         new THREE.Vector3(2, 0, 0),
@@ -69,6 +73,24 @@ test('rocket rainbow trail renders distinct segment colors and registers collisi
         { excludeRocketTrailId: handle.id }
     );
     assert.equal(ownProjectileHit, null);
+
+    const immediateOwnerHit = spatialIndex.checkGlobalCollision(
+        new THREE.Vector3(2, 0, 0),
+        0.2,
+        players[0].index,
+        2
+    );
+    assert.equal(immediateOwnerHit, null);
+
+    rocketTrails.appendSegment(
+        handle,
+        new THREE.Vector3(20, 0, 0),
+        new THREE.Vector3(24, 0, 0)
+    );
+    assert.equal(
+        spatialIndex.checkGlobalCollision(new THREE.Vector3(2, 0, 0), 0.2, players[0].index, 2)?.hit,
+        true
+    );
 
     assert.equal(spatialIndex.destroySegment(firstEntry), true);
     assert.equal(spatialIndex.checkGlobalCollision(new THREE.Vector3(2, 0, 0), 0.2), null);

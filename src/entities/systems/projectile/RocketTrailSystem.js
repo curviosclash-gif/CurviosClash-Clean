@@ -38,12 +38,10 @@ export class RocketTrailSystem {
         this.geometry = new THREE.CylinderGeometry(1, 1, 1, 8, 1, true);
         this.material = new THREE.MeshBasicMaterial({
             color: 0xffffff,
-            vertexColors: true,
             toneMapped: false,
         });
         this.glowMaterial = new THREE.MeshBasicMaterial({
             color: 0xffffff,
-            vertexColors: true,
             transparent: true,
             opacity: 0.22,
             blending: THREE.AdditiveBlending,
@@ -53,6 +51,9 @@ export class RocketTrailSystem {
         });
         this.mesh = new THREE.InstancedMesh(this.geometry, this.material, this.capacity);
         this.glowMesh = new THREE.InstancedMesh(this.geometry, this.glowMaterial, this.capacity);
+        const initialColors = new Float32Array(this.capacity * 3).fill(1);
+        this.mesh.instanceColor = new THREE.InstancedBufferAttribute(initialColors, 3);
+        this.glowMesh.instanceColor = new THREE.InstancedBufferAttribute(initialColors.slice(), 3);
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.mesh.frustumCulled = false;
@@ -81,7 +82,10 @@ export class RocketTrailSystem {
         const id = `rocket-trail:${this.nextTrailId++}`;
         return {
             id,
+            kind: 'rocket-trail',
             ownerPlayerIndex: Number.isInteger(owner?.index) ? owner.index : -1,
+            latestSequence: -1,
+            nextSequence: 0,
             maxSegments: 0,
             destroySegmentByEntry: (entry) => this.destroySegmentByEntry(entry),
         };
@@ -155,6 +159,8 @@ export class RocketTrailSystem {
         this.glowMesh.instanceMatrix.addUpdateRange(slot * 16, 16);
 
         const segmentId = this.nextSegmentId++;
+        const trailSequence = trailHandle.nextSequence++;
+        trailHandle.latestSequence = trailSequence;
         this._color.setHSL((segmentId * 0.083) % 1, 1, 0.58);
         this.mesh.setColorAt(slot, this._color);
         this.glowMesh.setColorAt(slot, this._color);
@@ -177,12 +183,14 @@ export class RocketTrailSystem {
                 maxHp: this.segmentHp,
                 ownerTrail: trailHandle,
                 rocketTrailId: trailHandle.id,
+                rocketTrailSequence: trailSequence,
             },
             oldRef
         ) || null;
         this.segmentRefs[slot] = ref;
         if (ref?.entry) {
             ref.entry.rocketTrailId = trailHandle.id;
+            ref.entry.rocketTrailSequence = trailSequence;
             this.segmentSlots.set(ref.entry, slot);
         }
 
