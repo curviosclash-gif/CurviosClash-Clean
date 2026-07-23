@@ -23,6 +23,17 @@ function readPath(source, path) {
     return cursor;
 }
 
+function writePath(target, path, value) {
+    const segments = String(path || '').split('.');
+    let cursor = target;
+    for (let index = 0; index < segments.length - 1; index += 1) {
+        const segment = segments[index];
+        if (!cursor[segment] || typeof cursor[segment] !== 'object') cursor[segment] = {};
+        cursor = cursor[segment];
+    }
+    cursor[segments.at(-1)] = value;
+}
+
 function equal(left, right) {
     return JSON.stringify(left) === JSON.stringify(right);
 }
@@ -140,6 +151,33 @@ function createSettingsItem(field, draft, schema, order) {
         : field.type;
     const panelId = resolveSettingsPanelId(field, schema);
     const label = formatPathLabel(field.path);
+    const limitOverride = field.type === 'number' && draft?.limitOverrides?.[field.path]
+        ? draft.limitOverrides[field.path]
+        : {};
+    const productLimits = field.type === 'number' ? (field.limits || {}) : {};
+    const valueRange = field.type === 'number' && field.limits
+        ? Object.freeze({
+            product: Object.freeze({
+                default: defaultValue,
+                min: productLimits.min ?? null,
+                max: productLimits.max ?? null,
+                step: productLimits.step ?? null,
+            }),
+            override: Object.freeze({
+                default: equal(currentValue, defaultValue) ? null : clone(currentValue),
+                min: Object.prototype.hasOwnProperty.call(limitOverride, 'min') ? limitOverride.min : null,
+                max: Object.prototype.hasOwnProperty.call(limitOverride, 'max') ? limitOverride.max : null,
+                step: Object.prototype.hasOwnProperty.call(limitOverride, 'step') ? limitOverride.step : null,
+            }),
+            effective: Object.freeze({
+                default: clone(currentValue === undefined ? defaultValue : currentValue),
+                min: limitOverride.min ?? productLimits.min ?? null,
+                max: limitOverride.max ?? productLimits.max ?? null,
+                step: limitOverride.step ?? productLimits.step ?? null,
+            }),
+            integer: productLimits.integer === true,
+        })
+        : null;
     return Object.freeze({
         id: `setting:${field.path}`,
         kind: 'setting',
@@ -157,11 +195,122 @@ function createSettingsItem(field, draft, schema, order) {
         effectiveValue: clone(currentValue === undefined ? defaultValue : currentValue),
         options: clone(field.options || descriptor?.options || []),
         limits: clone(field.limits),
+        valueRange,
         help: clone(field.help),
         riskLevel: field.riskLevel || 'low',
         editable: ['boolean', 'enum', 'number', 'string'].includes(fieldType),
         visibility: 'visible',
     });
+}
+
+function createRangeError(component, code) {
+    return Object.freeze({ component, code });
+}
+
+export function validateMenuEditorNumericRange(range) {
+    const errors = [];
+    if (!range) return errors;
+    const { default: defaultValue, min, max, step } = range.effective || {};
+    if (!Number.isFinite(min)) errors.push(createRangeError('min', 'LIMIT_MIN_INVALID'));
+    if (!Number.isFinite(max)) errors.push(createRangeError('max', 'LIMIT_MAX_INVALID'));
+    if (!Number.isFinite(step)) errors.push(createRangeError('step', 'LIMIT_STEP_INVALID'));
+    if (Number.isFinite(step) && step <= 0) {
+        errors.push(createRangeError('step', 'LIMIT_STEP_NON_POSITIVE'));
+    }
+    if (Number.isFinite(min) && Number.isFinite(max) && min > max) {
+        errors.push(createRangeError('min', 'LIMIT_RANGE_INVALID'));
+        errors.push(createRangeError('max', 'LIMIT_RANGE_INVALID'));
+    }
+    if (!Number.isFinite(defaultValue)) {
+        errors.push(createRangeError('default', 'FIELD_NUMBER_INVALID'));
+    } else {
+        if (Number.isFinite(min) && defaultValue < min) {
+            errors.push(createRangeError('default', 'FIELD_NUMBER_BELOW_MIN'));
+        }
+        if (Number.isFinite(max) && defaultValue > max) {
+            errors.push(createRangeError('default', 'FIELD_NUMBER_ABOVE_MAX'));
+        }
+        if (Number.isFinite(min) && Number.isFinite(step) && step > 0) {
+            const steps = (defaultValue - min) / step;
+            if (Math.abs(steps - Math.round(steps)) > 1e-6) {
+                errors.push(createRangeError('default', 'FIELD_NUMBER_STEP_MISALIGN'));
+            }
+        }
+    }
+    if (range.integer) {
+        for (const component of ['default', 'min', 'max', 'step']) {
+            if (Number.isFinite(range.effective?.[component])
+                && !Number.isInteger(range.effective[component])) {
+                errors.push(createRangeError(
+                    component,
+                    component === 'default' ? 'FIELD_INTEGER_REQUIRED' : 'LIMIT_INTEGER_REQUIRED'
+                ));
+            }
+        }
+    }
+    return errors;
+}
+
+export function applyMenuEditorNumericRangeValue({ draft, item, component, value }) {
+    if (!draft || item?.fieldType !== 'number' || !item.valueRange
+        || !['default', 'min', 'max', 'step'].includes(component)) {
+        return { valid: false, errors: [createRangeError(component, 'FIELD_NUMBER_INVALID')] };
+    }
+    const numericValue = Number(value);
+    if (!Number.isFinite(numericValue)) {
+        return {
+            valid: false,
+            errors: [createRangeError(
+                component,
+                component === 'default'
+                    ? 'FIELD_NUMBER_INVALID'
+                    : `LIMIT_${component.toUpperCase()}_INVALID`
+            )],
+        };
+    }
+    const effective = { ...item.valueRange.effective, [component]: numericValue };
+    const errors = validateMenuEditorNumericRange({ ...item.valueRange, effective });
+    if (errors.length) return { valid: false, errors };
+
+    if (component === 'default') {
+        writePath(draft, item.settingsPath, numericValue);
+    } else {
+        if (!draft.limitOverrides || typeof draft.limitOverrides !== 'object') {
+            draft.limitOverrides = {};
+        }
+        const productValue = item.valueRange.product[component];
+        if (numericValue === productValue) {
+            delete draft.limitOverrides[item.settingsPath]?.[component];
+        } else {
+            if (!draft.limitOverrides[item.settingsPath]) draft.limitOverrides[item.settingsPath] = {};
+            draft.limitOverrides[item.settingsPath][component] = numericValue;
+        }
+        if (draft.limitOverrides[item.settingsPath]
+            && !Object.keys(draft.limitOverrides[item.settingsPath]).length) {
+            delete draft.limitOverrides[item.settingsPath];
+        }
+    }
+    return { valid: true, errors: [] };
+}
+
+export function resetMenuEditorNumericRangeComponent({ draft, item, component }) {
+    if (!draft || item?.fieldType !== 'number' || !item.valueRange) return false;
+    if (component === 'default') {
+        writePath(draft, item.settingsPath, clone(item.valueRange.product.default));
+        return true;
+    }
+    if (component === 'range') {
+        if (draft.limitOverrides) delete draft.limitOverrides[item.settingsPath];
+        return true;
+    }
+    if (!['min', 'max', 'step'].includes(component)) return false;
+    if (draft.limitOverrides?.[item.settingsPath]) {
+        delete draft.limitOverrides[item.settingsPath][component];
+        if (!Object.keys(draft.limitOverrides[item.settingsPath]).length) {
+            delete draft.limitOverrides[item.settingsPath];
+        }
+    }
+    return true;
 }
 
 export function createMenuEditorModel(options = {}) {

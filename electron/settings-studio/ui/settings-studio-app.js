@@ -15,7 +15,11 @@ import {
     resetMenuEditorItems,
     restoreMenuEditorFocus,
 } from './settings-studio-menu-renderer.js';
-import { createMenuEditorModel } from '../../../src/ui/menu/MenuEditorModel.js';
+import {
+    applyMenuEditorNumericRangeValue,
+    createMenuEditorModel,
+    resetMenuEditorNumericRangeComponent,
+} from '../../../src/ui/menu/MenuEditorModel.js';
 import {
     createBrowserDemoSurfacePolicyOverrideDraft,
     mergeBrowserDemoSurfacePolicyWithOverride,
@@ -47,6 +51,8 @@ const state = {
     selectedMenuItemId: '',
     menuSearchQuery: '',
     menuPreviewRoot: true,
+    menuRangeInputs: {},
+    menuRangeErrors: {},
 };
 
 const refs = {
@@ -97,7 +103,9 @@ function t(key, ...args) {
 }
 
 function setStatus(msg) {
-    refs.status.textContent = typeof msg === 'string' ? msg : t(msg);
+    const raw = String(msg ?? '');
+    const translated = t(raw);
+    refs.status.textContent = translated === raw ? raw : translated;
 }
 
 function publishDirtyState() {
@@ -361,6 +369,8 @@ function renderFormContent() {
             searchQuery: state.menuSearchQuery,
             language: state.language,
             previewRoot: state.menuPreviewRoot,
+            rangeInputs: state.menuRangeInputs,
+            rangeErrors: state.menuRangeErrors,
             t: translator,
         });
     } else if (state.activeSection === 'limits') {
@@ -721,6 +731,10 @@ function renderSavePreviewBody(dirtyFields, paths, options = {}) {
 
 function showSavePreview() {
     syncRenderedFormDraft();
+    if (Object.keys(state.menuRangeErrors).length) {
+        setStatus('statusInvalid');
+        return;
+    }
     const dirtyFields = collectDirtyFields();
     const includeBackupNote = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
 
@@ -756,6 +770,7 @@ async function loadState() {
     state.menuTextOverrides = deepClone(response?.menuTextOverrides || {});
     state.menuTextOverridesBase = deepClone(state.menuTextOverrides);
     state.menuEditorModel = response?.menuEditorModel || null;
+    clearMenuRangeEditState();
 
     const loadedBrowserDemoPolicy = response?.browserDemoPolicy || null;
     if (loadedBrowserDemoPolicy?.draft) {
@@ -782,6 +797,10 @@ async function loadState() {
 async function validateState() {
     if (!state.draft) return;
     syncRenderedFormDraft();
+    if (Object.keys(state.menuRangeErrors).length) {
+        setStatus('statusInvalid');
+        return;
+    }
     if (state.activeSection === 'browserDemoPolicy') {
         const browserDemoValidation = validateBrowserDemoPolicyDraft();
         renderFormContent();
@@ -800,6 +819,10 @@ async function validateState() {
 async function saveState() {
     if (!state.draft) return;
     syncRenderedFormDraft();
+    if (Object.keys(state.menuRangeErrors).length) {
+        setStatus('statusInvalid');
+        return;
+    }
 
     const mainDraftDirty = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
     const browserDemoDirty = JSON.stringify(state.browserDemoPolicyDraft || {}) !== JSON.stringify(state.browserDemoPolicyBaseDraft || {});
@@ -1113,7 +1136,35 @@ function rerenderMenuEditorPreservingFocus() {
 function onMenuEditorMutation(target) {
     if (!target) return;
     const model = rebuildMenuEditorModel();
-    if (target.dataset?.menuTextId) {
+    if (target.dataset?.menuRangePath) {
+        const path = String(target.dataset.menuRangePath || '').trim();
+        const component = String(target.dataset.menuRangeComponent || '').trim();
+        const identity = `${path}:${component}`;
+        const item = model.items.find((entry) => entry.settingsPath === path);
+        const rawValue = String(target.value ?? '').trim();
+        state.menuRangeInputs[identity] = rawValue;
+        for (const key of Object.keys(state.menuRangeErrors)) {
+            if (key.startsWith(`${path}:`)) delete state.menuRangeErrors[key];
+        }
+        if (!rawValue) {
+            resetMenuEditorNumericRangeComponent({ draft: state.draft, item, component });
+            delete state.menuRangeInputs[identity];
+        } else {
+            const result = applyMenuEditorNumericRangeValue({
+                draft: state.draft,
+                item,
+                component,
+                value: rawValue,
+            });
+            if (!result.valid) {
+                for (const error of result.errors) {
+                    const errorIdentity = `${path}:${error.component}`;
+                    if (!state.menuRangeErrors[errorIdentity]) state.menuRangeErrors[errorIdentity] = [];
+                    state.menuRangeErrors[errorIdentity].push(error);
+                }
+            }
+        }
+    } else if (target.dataset?.menuTextId) {
         const textId = String(target.dataset.menuTextId || '').trim();
         const item = model.items.find((entry) => entry.textId === textId);
         if (!applyMenuEditorItemValue({
@@ -1146,6 +1197,29 @@ function resetMenuEditorItem(itemId) {
         textOverrides: state.menuTextOverrides,
         items: [item],
     });
+    clearMenuRangeEditState(item.settingsPath);
+    renderFormContent();
+    renderSidebar();
+}
+
+function clearMenuRangeEditState(settingsPath = '') {
+    for (const source of [state.menuRangeInputs, state.menuRangeErrors]) {
+        for (const key of Object.keys(source)) {
+            if (!settingsPath || key.startsWith(`${settingsPath}:`)) delete source[key];
+        }
+    }
+}
+
+function resetMenuEditorRange(itemId, component = 'range') {
+    const model = rebuildMenuEditorModel();
+    const item = model.items.find((entry) => entry.id === itemId);
+    if (!item) return;
+    resetMenuEditorNumericRangeComponent({ draft: state.draft, item, component });
+    if (component === 'range') clearMenuRangeEditState(item.settingsPath);
+    else {
+        delete state.menuRangeInputs[`${item.settingsPath}:${component}`];
+        delete state.menuRangeErrors[`${item.settingsPath}:${component}`];
+    }
     renderFormContent();
     renderSidebar();
 }
@@ -1162,6 +1236,9 @@ function resetMenuEditorPanel() {
         textOverrides: state.menuTextOverrides,
         items: model.items.filter((item) => item.panelId === state.activeMenuPanelId),
     });
+    for (const item of model.items.filter((entry) => entry.panelId === state.activeMenuPanelId)) {
+        clearMenuRangeEditState(item.settingsPath);
+    }
     renderFormContent();
     renderSidebar();
 }
@@ -1175,6 +1252,7 @@ function resetWholeMenuEditor() {
         textOverrides: state.menuTextOverrides,
         items: model.items,
     });
+    clearMenuRangeEditState();
     renderFormContent();
     renderSidebar();
 }
@@ -1233,6 +1311,7 @@ function onResetAll() {
     state.browserDemoPolicyDraft = deepClone(state.browserDemoPolicyBaseDraft || createBrowserDemoPolicySeed());
     state.browserDemoPolicyValidation = null;
     state.menuTextOverrides = deepClone(state.menuTextOverridesBase || {});
+    clearMenuRangeEditState();
     renderAll();
 }
 
@@ -1316,7 +1395,8 @@ function bindEvents() {
     const handleFormMutation = (event) => {
         if (event.type === 'input' && event.target.dataset?.menuSettingPath
             && event.target.matches?.('input[type="number"]')) return;
-        if (event.target.dataset?.menuTextId || event.target.dataset?.menuSettingPath) {
+        if (event.target.dataset?.menuTextId || event.target.dataset?.menuSettingPath
+            || event.target.dataset?.menuRangePath) {
             onMenuEditorMutation(event.target);
             return;
         }
@@ -1347,7 +1427,7 @@ function bindEvents() {
         }
 
         const menuItemBtn = event.target.closest('[data-menu-item-id]');
-        if (menuItemBtn && !menuItemBtn.matches('[data-menu-action="reset-item"]')) {
+        if (menuItemBtn && !menuItemBtn.closest('[data-menu-action]')) {
             state.selectedMenuItemId = menuItemBtn.dataset.menuItemId;
             const model = rebuildMenuEditorModel();
             const item = model.items.find((entry) => entry.id === state.selectedMenuItemId);
@@ -1382,6 +1462,13 @@ function bindEvents() {
         if (menuAction) {
             const action = menuAction.dataset.menuAction;
             if (action === 'reset-item') resetMenuEditorItem(menuAction.dataset.menuItemId);
+            else if (action === 'reset-range') resetMenuEditorRange(menuAction.dataset.menuItemId);
+            else if (action === 'reset-range-component') {
+                resetMenuEditorRange(
+                    menuAction.dataset.menuItemId,
+                    menuAction.dataset.menuRangeComponent
+                );
+            }
             else if (action === 'reset-panel') resetMenuEditorPanel();
             return;
         }

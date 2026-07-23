@@ -311,6 +311,87 @@ test('validateSettingsOverrideDraft accepts a fresh default draft', () => {
     assert.equal(result.errors.length, 0);
 });
 
+test('numeric range contract rejects unknown paths and invalid finite/order/step/default rules', () => {
+    const unknown = createSettingsOverrideDraft();
+    unknown.baseSettings.unknownSetting = 1;
+    assert.equal(
+        validateSettingsOverrideDraft(unknown).errors.some((error) => error.code === 'FIELD_PATH_UNKNOWN'),
+        true
+    );
+
+    const cases = [
+        [{ min: Number.NaN }, 'LIMIT_MIN_INVALID'],
+        [{ max: Number.POSITIVE_INFINITY }, 'LIMIT_MAX_INVALID'],
+        [{ min: 2, max: 1 }, 'LIMIT_RANGE_INVALID'],
+        [{ step: 0 }, 'LIMIT_STEP_NON_POSITIVE'],
+    ];
+    for (const [override, expectedCode] of cases) {
+        const draft = createSettingsOverrideDraft();
+        draft.limitOverrides['baseSettings.gameplay.speed'] = override;
+        assert.equal(
+            validateSettingsOverrideDraft(draft).errors.some((error) => error.code === expectedCode),
+            true,
+            expectedCode
+        );
+    }
+
+    const outside = createSettingsOverrideDraft();
+    outside.limitOverrides['baseSettings.gameplay.speed'] = { max: 0.5 };
+    outside.baseSettings.gameplay.speed = 1;
+    assert.equal(
+        validateSettingsOverrideDraft(outside).errors.some((error) => error.code === 'FIELD_NUMBER_ABOVE_MAX'),
+        true
+    );
+});
+
+test('v1 limit snapshots migrate to sparse v2 overrides and preserve effective runtime values', () => {
+    const product = createSettingsOverrideFieldRegistry()
+        .find((field) => field.path === 'baseSettings.gameplay.speed');
+    const v1 = createSettingsOverrideDraft();
+    v1.schemaVersion = 'menu-defaults-override.v1';
+    v1.limitOverrides[product.path] = {
+        min: product.limits.min,
+        max: 40,
+        step: product.limits.step,
+        integer: false,
+    };
+    const migration = classifyOverrideDraftMigration(v1);
+    const migrated = migrateOverrideDraft(v1, migration);
+    assert.equal(migrated.schemaVersion, SETTINGS_OVERRIDE_SCHEMA_VERSION);
+    assert.deepEqual(migrated.limitOverrides[product.path], { max: 40 });
+    assert.equal(validateSettingsOverrideDraft(migrated).valid, true);
+});
+
+test('Settings Studio persistence reloads validated effective defaults and sparse limits after restart', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    const loaded = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
+    const draft = structuredClone(loaded.draft);
+    draft.baseSettings.gameplay.speed = 22;
+    draft.limitOverrides['baseSettings.gameplay.speed'] = {
+        min: 10,
+        max: 40,
+        step: 0.5,
+    };
+
+    const saved = await harness.invoke(SETTINGS_STUDIO_CHANNELS.save, draft);
+    assert.equal(saved.ok, true);
+    assert.equal(saved.draft.baseSettings.gameplay.speed, 22);
+    assert.deepEqual(saved.draft.limitOverrides['baseSettings.gameplay.speed'], {
+        min: 10,
+        max: 40,
+        step: 0.5,
+    });
+
+    const reloaded = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
+    assert.equal(reloaded.validation.valid, true);
+    assert.equal(reloaded.draft.baseSettings.gameplay.speed, 22);
+    assert.deepEqual(
+        reloaded.draft.limitOverrides['baseSettings.gameplay.speed'],
+        saved.draft.limitOverrides['baseSettings.gameplay.speed']
+    );
+    assert.equal(createDefaultSettingsSnapshotWithOverride(reloaded.draft).gameplay.speed, 22);
+});
+
 test('V98.5.2 settings studio keeps browser-demo section and save-preview risk hints wired', async () => {
     assert.equal(SECTIONS.some((entry) => entry.key === 'browserDemoPolicy'), true);
 
@@ -379,8 +460,8 @@ test('V98.5.2 restore hygiene keeps browser-demo override untouched while restor
     const loadResponse = await harness.invoke(SETTINGS_STUDIO_CHANNELS.load);
     const firstMainDraft = JSON.parse(JSON.stringify(loadResponse.draft));
     const secondMainDraft = JSON.parse(JSON.stringify(loadResponse.draft));
-    firstMainDraft.baseSettings.gameplay.speed = 0.84;
-    secondMainDraft.baseSettings.gameplay.speed = 1.04;
+    firstMainDraft.baseSettings.gameplay.speed = 0.8;
+    secondMainDraft.baseSettings.gameplay.speed = 1;
 
     const firstBrowserDraft = JSON.parse(JSON.stringify(createBrowserDemoSurfacePolicyOverrideDraft()));
     firstBrowserDraft.policy = {

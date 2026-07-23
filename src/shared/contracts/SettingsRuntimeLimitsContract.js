@@ -1,7 +1,10 @@
 import { SETTINGS_LIMITS } from './SettingsRuntimeContract.js';
 import { cloneJsonValue } from '../utils/JsonClone.js';
 
-const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v1';
+const SETTINGS_OVERRIDE_SCHEMA_VERSIONS = new Set([
+    'menu-defaults-override.v1',
+    'menu-defaults-override.v2',
+]);
 
 function isPlainObject(value) {
     if (!value || typeof value !== 'object') return false;
@@ -89,7 +92,7 @@ function resolveLimitOverridesForRuntime(rawOverrideDraft) {
         return null;
     }
     const schemaVersion = String(rawOverrideDraft.schemaVersion || '').trim();
-    if (schemaVersion !== SETTINGS_OVERRIDE_SCHEMA_VERSION) {
+    if (!SETTINGS_OVERRIDE_SCHEMA_VERSIONS.has(schemaVersion)) {
         return null;
     }
     if (!isPlainObject(rawOverrideDraft.limitOverrides)) {

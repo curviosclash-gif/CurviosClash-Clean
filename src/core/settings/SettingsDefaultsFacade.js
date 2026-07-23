@@ -17,7 +17,11 @@ import {
     normalizeCameraPerspectiveSettings,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { deepClone } from './SettingsDomainUtils.js';
-import { validateSettingsOverrideDraft } from './SettingsOverrideContract.js';
+import {
+    classifyOverrideDraftMigration,
+    migrateOverrideDraft,
+    validateSettingsOverrideDraft,
+} from './SettingsOverrideContract.js';
 import {
     collectPrimitiveLeafPaths,
     deepMergeKnownShape,
@@ -69,7 +73,11 @@ export function createDefaultSettingsSnapshotWithOverride(rawOverrideDraft, migr
     if (!isPlainObject(rawOverrideDraft)) {
         return base;
     }
-    const result = validateSettingsOverrideDraft(rawOverrideDraft);
+    const resolvedMigration = migrationInfo || classifyOverrideDraftMigration(rawOverrideDraft);
+    const migratedDraft = resolvedMigration.status === 'upgrade'
+        ? migrateOverrideDraft(rawOverrideDraft, resolvedMigration)
+        : rawOverrideDraft;
+    const result = validateSettingsOverrideDraft(migratedDraft);
     if (!result.valid) {
         base.__overrideSkipped = true;
         base.__overrideSkippedReason = result.errors.map((e) => e.code).join(', ');
@@ -78,15 +86,15 @@ export function createDefaultSettingsSnapshotWithOverride(rawOverrideDraft, migr
             reason: 'VALIDATION_FAILED',
             errorCodes: result.errors.map((e) => e.code),
             details: result.errors.map((e) => e.message).join('; '),
-            migrationCode: migrationInfo?.code || null,
+            migrationCode: resolvedMigration?.code || null,
         };
         return base;
     }
-    if (migrationInfo && migrationInfo.status !== 'current') {
+    if (resolvedMigration && resolvedMigration.status !== 'current') {
         base.__overrideDiagnostics = {
             status: 'applied_with_migration',
-            migrationCode: migrationInfo.code,
-            migrationReason: migrationInfo.reason || null,
+            migrationCode: resolvedMigration.code,
+            migrationReason: resolvedMigration.reason || null,
         };
     }
     return applySettingsOverrideToDefaults(base, result.normalizedDraft);

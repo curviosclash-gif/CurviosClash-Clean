@@ -7,7 +7,11 @@ import {
     createSettingsOverrideFieldRegistry,
     validateSettingsOverrideDraft,
 } from '../src/core/settings/SettingsOverrideContract.js';
-import { createMenuEditorModel } from '../src/ui/menu/MenuEditorModel.js';
+import {
+    applyMenuEditorNumericRangeValue,
+    createMenuEditorModel,
+    resetMenuEditorNumericRangeComponent,
+} from '../src/ui/menu/MenuEditorModel.js';
 import { createMenuSchema } from '../src/ui/menu/MenuSchema.js';
 import { MENU_TEXT_CATALOG } from '../src/ui/menu/MenuTextCatalog.js';
 import { MenuTextRuntime } from '../src/ui/menu/MenuTextRuntime.js';
@@ -16,6 +20,7 @@ import {
     applyMenuEditorItemValue,
     captureMenuEditorFocus,
     countMenuPanelDirty,
+    countMenuResettableItems,
     renderMenuEditor,
     resetMenuEditorItems,
     restoreMenuEditorFocus,
@@ -202,6 +207,179 @@ test('menu editor focus snapshot restores the active property input and selectio
     assert.equal(restoreMenuEditorFocus(root, snapshot), true);
     assert.equal(replacement.focusCalled, true);
     assert.deepEqual(replacement.selection, [4, 7]);
+});
+
+test('numeric menu properties show product, override, and effective default/min/max/step in German and English', () => {
+    const { draft, baseDraft, model } = createFixture();
+    const item = model.items.find((entry) => entry.settingsPath
+        === 'baseSettings.cameraPerspective.speedFovIntensity');
+    assert.ok(item?.valueRange);
+    assert.deepEqual(item.valueRange.product, {
+        default: 1,
+        min: 0,
+        max: 1.5,
+        step: 0.05,
+    });
+    assert.deepEqual(item.valueRange.override, {
+        default: null,
+        min: null,
+        max: null,
+        step: null,
+    });
+    assert.deepEqual(item.valueRange.effective, item.valueRange.product);
+
+    for (const [language, expected] of [['de', 'Wertebereich'], ['en', 'Value range']]) {
+        const html = renderMenuEditor({
+            model,
+            draft,
+            baseDraft,
+            textOverrides: {},
+            baseTextOverrides: {},
+            activePanelId: item.panelId,
+            selectedItemId: item.id,
+            language,
+            t: createTranslator(language),
+        });
+        assert.match(html, new RegExp(expected, 'u'));
+        assert.match(html, /data-menu-range-component="default"[^>]*min="0" max="1.5"/u);
+        assert.match(html, /data-menu-range-component="step"[^>]*min="0\.000000000001"/u);
+        assert.match(html, language === 'de' ? /Produkt-Schrittweite/u : /Product step/u);
+    }
+});
+
+test('numeric menu range edits validate atomically and update the preview model immediately', () => {
+    const { draft, model } = createFixture();
+    let item = model.items.find((entry) => entry.settingsPath
+        === 'baseSettings.cameraPerspective.speedFovIntensity');
+
+    for (const [component, value] of [
+        ['min', 0.5],
+        ['max', 1.4],
+        ['step', 0.1],
+        ['default', 1.1],
+    ]) {
+        const result = applyMenuEditorNumericRangeValue({ draft, item, component, value });
+        assert.equal(result.valid, true, `${component}: ${JSON.stringify(result.errors)}`);
+        item = createMenuEditorModel({
+            fields: createSettingsOverrideFieldRegistry(),
+            draft,
+            textOverrides: {},
+        }).items.find((entry) => entry.id === item.id);
+    }
+
+    assert.deepEqual(item.valueRange.override, {
+        default: 1.1,
+        min: 0.5,
+        max: 1.4,
+        step: 0.1,
+    });
+    assert.deepEqual(item.valueRange.effective, item.valueRange.override);
+    assert.deepEqual(draft.limitOverrides[item.settingsPath], { min: 0.5, max: 1.4, step: 0.1 });
+    assert.equal(validateSettingsOverrideDraft(draft).valid, true);
+
+    for (const [component, value, code] of [
+        ['min', 2, 'LIMIT_RANGE_INVALID'],
+        ['step', 0, 'LIMIT_STEP_NON_POSITIVE'],
+        ['step', Number.NaN, 'LIMIT_STEP_INVALID'],
+        ['max', Number.POSITIVE_INFINITY, 'LIMIT_MAX_INVALID'],
+        ['default', 2, 'FIELD_NUMBER_ABOVE_MAX'],
+    ]) {
+        const before = structuredClone(draft);
+        const result = applyMenuEditorNumericRangeValue({ draft, item, component, value });
+        assert.equal(result.valid, false);
+        assert.equal(result.errors.some((error) => error.code === code), true, component);
+        assert.deepEqual(draft, before, `${component} mutated the draft`);
+    }
+});
+
+test('integer range rules, granular dirty state, and component/field/panel/menu resets stay intact', () => {
+    const { draft, baseDraft, model } = createFixture();
+    let item = model.items.find((entry) => entry.settingsPath === 'baseSettings.numBots');
+    assert.equal(item.valueRange.integer, true);
+    assert.equal(
+        applyMenuEditorNumericRangeValue({ draft, item, component: 'default', value: 2.5 })
+            .errors.some((error) => error.code === 'FIELD_INTEGER_REQUIRED'),
+        true
+    );
+    assert.equal(
+        applyMenuEditorNumericRangeValue({ draft, item, component: 'step', value: 0.5 })
+            .errors.some((error) => error.code === 'LIMIT_INTEGER_REQUIRED'),
+        true
+    );
+
+    assert.equal(applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 7 }).valid, true);
+    const dirtyModel = createMenuEditorModel({
+        fields: createSettingsOverrideFieldRegistry(),
+        draft,
+        textOverrides: {},
+    });
+    item = dirtyModel.items.find((entry) => entry.id === item.id);
+    assert.equal(countMenuPanelDirty(
+        dirtyModel,
+        item.panelId,
+        draft,
+        baseDraft,
+        {},
+        {}
+    ), 1);
+    assert.equal(countMenuResettableItems(dirtyModel, item.panelId), 1);
+
+    resetMenuEditorNumericRangeComponent({ draft, item, component: 'max' });
+    assert.equal(draft.limitOverrides[item.settingsPath], undefined);
+    applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 7 });
+    resetMenuEditorNumericRangeComponent({ draft, item, component: 'range' });
+    assert.equal(draft.limitOverrides[item.settingsPath], undefined);
+
+    applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 7 });
+    resetMenuEditorItems({ draft, textOverrides: {}, items: [item] });
+    assert.equal(draft.limitOverrides[item.settingsPath], undefined, 'field reset');
+    applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 7 });
+    resetMenuEditorItems({
+        draft,
+        textOverrides: {},
+        items: dirtyModel.items.filter((entry) => entry.panelId === item.panelId),
+    });
+    assert.equal(draft.limitOverrides[item.settingsPath], undefined, 'panel reset');
+    applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 7 });
+    resetMenuEditorItems({ draft, textOverrides: {}, items: dirtyModel.items });
+    assert.equal(draft.limitOverrides[item.settingsPath], undefined, 'menu reset');
+
+    applyMenuEditorNumericRangeValue({ draft, item, component: 'default', value: 2 });
+    resetMenuEditorNumericRangeComponent({ draft, item, component: 'default' });
+    const resetModel = createMenuEditorModel({
+        fields: createSettingsOverrideFieldRegistry(),
+        draft,
+        textOverrides: {},
+    });
+    assert.equal(resetModel.items.find((entry) => entry.id === item.id).valueRange.override.default, null);
+});
+
+test('range focus identity survives rerenders for multi-digit numeric input', () => {
+    const identity = 'baseSettings.botBridge.timeoutMs:default';
+    const original = {
+        dataset: { menuRangeEdit: identity },
+        selectionStart: 2,
+        selectionEnd: 2,
+    };
+    const replacement = {
+        dataset: { menuRangeEdit: identity },
+        focus() {
+            this.focusCalled = true;
+        },
+        setSelectionRange(start, end) {
+            this.selection = [start, end];
+        },
+    };
+    const root = {
+        ownerDocument: { activeElement: original },
+        contains: (entry) => entry === original,
+        querySelectorAll: () => [replacement],
+    };
+    const snapshot = captureMenuEditorFocus(root);
+    assert.equal(snapshot.identity, 'menuRangeEdit');
+    assert.equal(restoreMenuEditorFocus(root, snapshot), true);
+    assert.equal(replacement.focusCalled, true);
+    assert.deepEqual(replacement.selection, [2, 2]);
 });
 
 test('menu editor enforces values, dirty state, and single/panel/all reset operations', () => {

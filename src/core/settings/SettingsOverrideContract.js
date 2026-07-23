@@ -12,8 +12,14 @@ import {
     readPathValue,
     writePathValue,
 } from './SettingsOverrideMergeOps.js';
+import {
+    normalizeLimitOverrides,
+    resolveEffectiveLimits,
+    validateLimitRule,
+} from './SettingsOverrideRangeContract.js';
 
-export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v1';
+export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v2';
+export const LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v1';
 export const SETTINGS_STUDIO_SCHEMA_CONTRACT_VERSION = 'settings-studio-schema.v1';
 
 export const SCHEMA_MIGRATION_CODES = Object.freeze({
@@ -238,68 +244,6 @@ export function createSettingsOverrideFieldRegistry() {
 const FIELD_REGISTRY = createSettingsOverrideFieldRegistry();
 const FIELD_REGISTRY_BY_PATH = new Map(FIELD_REGISTRY.map((entry) => [entry.path, entry]));
 
-function createLimitRule(rule, fallbackLimits = null) {
-    const fallback = isPlainObject(fallbackLimits) ? fallbackLimits : {};
-    const source = isPlainObject(rule) ? rule : {};
-    const min = toFiniteNumber(source.min, toFiniteNumber(fallback.min, null));
-    const max = toFiniteNumber(source.max, toFiniteNumber(fallback.max, null));
-    const step = toFiniteNumber(source.step, toFiniteNumber(fallback.step, null));
-    const integer = source.integer === true || fallback.integer === true;
-    return {
-        min,
-        max,
-        step,
-        integer,
-    };
-}
-
-function validateLimitRule(path, limits, errors) {
-    if (!Number.isFinite(limits.min)) {
-        errors.push(createError(path, 'LIMIT_MIN_INVALID', `Limit min ist ungueltig fuer ${path}.`));
-    }
-    if (!Number.isFinite(limits.max)) {
-        errors.push(createError(path, 'LIMIT_MAX_INVALID', `Limit max ist ungueltig fuer ${path}.`));
-    }
-    if (!Number.isFinite(limits.step)) {
-        errors.push(createError(path, 'LIMIT_STEP_INVALID', `Limit step ist ungueltig fuer ${path}.`));
-    }
-    if (Number.isFinite(limits.step) && limits.step <= 0) {
-        errors.push(createError(path, 'LIMIT_STEP_NON_POSITIVE', `Limit step muss groesser als 0 sein fuer ${path}.`));
-    }
-    if (Number.isFinite(limits.min)
-        && Number.isFinite(limits.max)
-        && limits.min > limits.max) {
-        errors.push(createError(path, 'LIMIT_RANGE_INVALID', `Limit min darf nicht groesser als max sein fuer ${path}.`));
-    }
-}
-
-function normalizeLimitOverrides(rawLimitOverrides, errors) {
-    const overrides = {};
-    const source = isPlainObject(rawLimitOverrides) ? rawLimitOverrides : {};
-
-    for (const [path, rawRule] of Object.entries(source)) {
-        const field = FIELD_REGISTRY_BY_PATH.get(path);
-        if (!field || field.type !== 'number') {
-            errors.push(createError(path, 'LIMIT_FIELD_UNKNOWN', `Limit-Override verweist auf unbekanntes Feld: ${path}.`));
-            continue;
-        }
-
-        const limits = createLimitRule(rawRule, field.limits || null);
-        validateLimitRule(path, limits, errors);
-        overrides[path] = limits;
-    }
-
-    return overrides;
-}
-
-function resolveEffectiveLimits(field, limitOverrides) {
-    if (!field || field.type !== 'number') return null;
-    const fallback = field.limits || null;
-    const override = limitOverrides[field.path] || null;
-    if (!fallback && !override) return null;
-    return createLimitRule(override, fallback);
-}
-
 function mergeDraftCandidate(candidate) {
     const baseDraft = createSettingsOverrideDraft();
     const source = isPlainObject(candidate) ? candidate : {};
@@ -327,6 +271,35 @@ function mergeDraftCandidate(candidate) {
     return merged;
 }
 
+function validateKnownDraftPaths(candidateDraft, errors) {
+    if (!isPlainObject(candidateDraft)) {
+        errors.push(createError('', 'DRAFT_TYPE_INVALID', 'Override-Draft muss ein Objekt sein.'));
+        return;
+    }
+    const allowedRootKeys = new Set([
+        'schemaVersion',
+        'sourceSchemaVersion',
+        'language',
+        'limitOverrides',
+        ...SECTION_DEFINITIONS.map((section) => section.key),
+    ]);
+    for (const key of Object.keys(candidateDraft)) {
+        if (!allowedRootKeys.has(key)) {
+            errors.push(createError(key, 'FIELD_PATH_UNKNOWN', `Unbekannter Settings-Pfad: ${key}.`));
+        }
+    }
+    for (const section of SECTION_DEFINITIONS) {
+        if (section.key === 'fixedPresets' || candidateDraft[section.key] === undefined) continue;
+        for (const path of collectPrimitiveLeafPaths(candidateDraft[section.key], section.key)) {
+            if (path === section.key && isPlainObject(candidateDraft[section.key])
+                && !Object.keys(candidateDraft[section.key]).length) continue;
+            if (!FIELD_REGISTRY_BY_PATH.has(path)) {
+                errors.push(createError(path, 'FIELD_PATH_UNKNOWN', `Unbekannter Settings-Pfad: ${path}.`));
+            }
+        }
+    }
+}
+
 export function createSettingsStudioSchemaDescriptor() {
     const fieldRegistry = createSettingsOverrideFieldRegistry();
     return {
@@ -341,6 +314,7 @@ export function createSettingsStudioSchemaDescriptor() {
 export function validateSettingsOverrideDraft(candidateDraft) {
     const errors = [];
     const warnings = [];
+    validateKnownDraftPaths(candidateDraft, errors);
     const normalizedDraft = mergeDraftCandidate(candidateDraft);
 
     if (normalizedDraft.schemaVersion !== SETTINGS_OVERRIDE_SCHEMA_VERSION) {
@@ -351,7 +325,12 @@ export function validateSettingsOverrideDraft(candidateDraft) {
         ));
     }
 
-    normalizedDraft.limitOverrides = normalizeLimitOverrides(candidateDraft?.limitOverrides, errors);
+    normalizedDraft.limitOverrides = normalizeLimitOverrides(
+        candidateDraft?.limitOverrides,
+        FIELD_REGISTRY_BY_PATH,
+        errors,
+        createError
+    );
 
     for (const field of FIELD_REGISTRY) {
         const value = readPathValue(normalizedDraft, field.path);
@@ -374,7 +353,7 @@ export function validateSettingsOverrideDraft(candidateDraft) {
                 field.path
             );
             if (!hasExplicitLimitOverride) {
-                validateLimitRule(field.path, limits, errors);
+                validateLimitRule(field.path, limits, errors, field, createError);
             }
             if (Number.isFinite(limits.min) && asNumber < limits.min) {
                 errors.push(createError(
@@ -398,7 +377,7 @@ export function validateSettingsOverrideDraft(candidateDraft) {
                 const nearest = Math.round(rawSteps);
                 const delta = Math.abs(rawSteps - nearest);
                 if (delta > 1e-6) {
-                    warnings.push(createError(
+                    errors.push(createError(
                         field.path,
                         'FIELD_NUMBER_STEP_MISALIGN',
                         `${field.path} liegt nicht auf dem erwarteten step-Raster.`
@@ -474,7 +453,13 @@ export function applyLimitOverrideToDraft(draft, path, rule) {
         };
     }
 
-    source.limitOverrides[path] = createLimitRule(rule, field.limits || null);
+    const normalizedOverride = normalizeLimitOverrides(
+        { [path]: rule },
+        FIELD_REGISTRY_BY_PATH,
+        [],
+        createError
+    );
+    source.limitOverrides[path] = normalizedOverride[path] || {};
     return {
         draft: source,
         result: validateSettingsOverrideDraft(source),
@@ -498,15 +483,35 @@ export function classifyOverrideDraftMigration(rawDraft) {
     if (schemaVersion === SETTINGS_OVERRIDE_SCHEMA_VERSION) {
         return { status: 'current', code: SCHEMA_MIGRATION_CODES.CURRENT, reason: null };
     }
+    if (schemaVersion === LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION) {
+        return { status: 'upgrade', code: SCHEMA_MIGRATION_CODES.UPGRADE, reason: 'Schema v1 wird verlustfrei auf v2 migriert.' };
+    }
     return { status: 'fallback', code: SCHEMA_MIGRATION_CODES.FALLBACK, reason: `Unbekannte Schema-Version: ${schemaVersion}. Standard-Werte werden verwendet.` };
 }
 
 export function migrateOverrideDraft(rawDraft, migration) {
     if (!migration || migration.status === 'current') return rawDraft;
     if (migration.status === 'upgrade') {
-        return isPlainObject(rawDraft)
-            ? { ...rawDraft, schemaVersion: SETTINGS_OVERRIDE_SCHEMA_VERSION }
-            : rawDraft;
+        if (!isPlainObject(rawDraft)) return rawDraft;
+        const migrated = { ...rawDraft, schemaVersion: SETTINGS_OVERRIDE_SCHEMA_VERSION };
+        if (isPlainObject(rawDraft.limitOverrides)) {
+            migrated.limitOverrides = {};
+            for (const [path, rule] of Object.entries(rawDraft.limitOverrides)) {
+                if (!isPlainObject(rule)) continue;
+                const productLimits = FIELD_REGISTRY_BY_PATH.get(path)?.limits || {};
+                const partialRule = {};
+                for (const key of ['min', 'max', 'step']) {
+                    const value = toFiniteNumber(rule[key], null);
+                    if (Number.isFinite(value) && value !== productLimits[key]) {
+                        partialRule[key] = value;
+                    }
+                }
+                if (Object.keys(partialRule).length) {
+                    migrated.limitOverrides[path] = partialRule;
+                }
+            }
+        }
+        return migrated;
     }
     return rawDraft;
 }

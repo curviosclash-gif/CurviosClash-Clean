@@ -51,6 +51,14 @@ function writePath(target, path, value) {
     cursor[segments.at(-1)] = value;
 }
 
+function readPath(source, path) {
+    return String(path || '').split('.').reduce((value, segment) => value?.[segment], source);
+}
+
+function hasOwn(source, key) {
+    return Object.prototype.hasOwnProperty.call(source || {}, key);
+}
+
 export function applyMenuEditorItemValue({ draft, textOverrides, item, value }) {
     if (!item?.editable) return false;
     if (item.kind === 'text') {
@@ -85,6 +93,7 @@ export function resetMenuEditorItems({ draft, textOverrides, items }) {
             delete textOverrides[item.textId];
         } else if (item.editable) {
             writePath(draft, item.settingsPath, JSON.parse(JSON.stringify(item.defaultValue)));
+            if (draft.limitOverrides) delete draft.limitOverrides[item.settingsPath];
         }
     }
 }
@@ -119,23 +128,76 @@ export function isMenuEditorItemDirty(item, draft, baseDraft, textOverrides, bas
     if (item.kind === 'text') {
         return String(textOverrides?.[item.textId] || '') !== String(baseTextOverrides?.[item.textId] || '');
     }
-    const read = (source) => String(item.settingsPath || '').split('.')
-        .reduce((value, segment) => value?.[segment], source);
-    return JSON.stringify(read(draft)) !== JSON.stringify(read(baseDraft));
+    return JSON.stringify(readPath(draft, item.settingsPath)) !== JSON.stringify(readPath(baseDraft, item.settingsPath))
+        || JSON.stringify(draft?.limitOverrides?.[item.settingsPath] || {})
+            !== JSON.stringify(baseDraft?.limitOverrides?.[item.settingsPath] || {});
 }
 
 export function isMenuEditorItemResettable(item) {
     return item?.kind === 'text'
         ? Boolean(item.activeTextOverride)
-        : item?.currentOverride !== null;
+        : item?.currentOverride !== null
+            || Object.values(item?.valueRange?.override || {}).some((value) => value !== null);
 }
 
 export function countMenuResettableItems(model, panelId = null) {
-    return model.items.filter((item) => (!panelId || item.panelId === panelId)
-        && isMenuEditorItemResettable(item)).length;
+    return model.items
+        .filter((item) => !panelId || item.panelId === panelId)
+        .reduce((count, item) => {
+            if (item.kind === 'text') return count + (item.activeTextOverride ? 1 : 0);
+            if (!item.valueRange) return count + (item.currentOverride !== null ? 1 : 0);
+            return count + Object.values(item.valueRange.override)
+                .filter((value) => value !== null).length;
+        }, 0);
 }
 
-function renderProperties(item, language, t, dirty) {
+function renderRangeInput(item, component, rangeInputs, rangeErrors, t) {
+    const range = item.valueRange;
+    const identity = `${item.settingsPath}:${component}`;
+    const rawValue = hasOwn(rangeInputs, identity)
+        ? rangeInputs[identity]
+        : (range.override[component] ?? '');
+    const effective = range.effective;
+    const integerStep = range.integer ? 1 : 'any';
+    let attributes = ` step="${component === 'step' ? integerStep : effective.step}"`;
+    if (component === 'default') {
+        attributes += ` min="${effective.min}" max="${effective.max}"`;
+    } else if (component === 'min') {
+        attributes += ` max="${effective.max}"`;
+    } else if (component === 'max') {
+        attributes += ` min="${effective.min}"`;
+    } else {
+        attributes += ' min="0.000000000001"';
+    }
+    const errors = rangeErrors?.[identity] || [];
+    return `<input type="number" data-menu-range-edit="${esc(identity)}" data-menu-range-path="${esc(item.settingsPath)}" data-menu-range-component="${component}" value="${esc(rawValue)}" placeholder="${esc(range.product[component])}"${attributes} aria-invalid="${errors.length ? 'true' : 'false'}">
+        ${errors.map((error) => `<span class="menu-range-error">${esc(t(`error${error.code}`, effective[component]))}</span>`).join('')}`;
+}
+
+function renderValueRange(item, rangeInputs, rangeErrors, t) {
+    const range = item.valueRange;
+    const rows = [
+        ['default', 'menuProductDefault', 'menuDefaultOverride', 'menuEffectiveDefault', 'menuResetDefault'],
+        ['min', 'menuProductMin', 'menuMinOverride', 'menuEffectiveMin', 'menuResetMin'],
+        ['max', 'menuProductMax', 'menuMaxOverride', 'menuEffectiveMax', 'menuResetMax'],
+        ['step', 'menuProductStep', 'menuStepOverride', 'menuEffectiveStep', 'menuResetStep'],
+    ];
+    return `<section class="menu-value-range">
+        <div class="menu-value-range__heading">
+            <h4>${esc(t('menuValueRange'))}</h4>
+            <button class="btn btn--ghost" type="button" data-menu-action="reset-range" data-menu-item-id="${esc(item.id)}">${esc(t('menuResetRange'))}</button>
+        </div>
+        ${rows.map(([component, productKey, overrideKey, effectiveKey, resetKey]) => `
+            <div class="menu-range-row ${range.override[component] !== null ? 'dirty' : ''}">
+                <label>${esc(t(productKey))}<output>${esc(formatValue(range.product[component]))}</output></label>
+                <label>${esc(t(overrideKey))}${renderRangeInput(item, component, rangeInputs, rangeErrors, t)}</label>
+                <label>${esc(t(effectiveKey))}<output>${esc(formatValue(range.effective[component]))}</output></label>
+                <button class="btn btn--ghost" type="button" data-menu-action="reset-range-component" data-menu-item-id="${esc(item.id)}" data-menu-range-component="${component}" ${range.override[component] === null ? 'disabled' : ''}>${esc(t(resetKey))}</button>
+            </div>`).join('')}
+    </section>`;
+}
+
+function renderProperties(item, language, t, dirty, rangeInputs, rangeErrors) {
     if (!item) {
         return `<p class="menu-editor-empty">${esc(t('menuSelectItem'))}</p>`;
     }
@@ -159,6 +221,17 @@ function renderProperties(item, language, t, dirty) {
             </dl>
             <button class="btn btn--ghost" type="button" data-menu-action="reset-item" data-menu-item-id="${esc(item.id)}"${resetDisabled}>${esc(t('menuResetLabel'))}</button>`;
     }
+    if (item.valueRange) {
+        return `
+            ${dirtyState}
+            ${renderValueRange(item, rangeInputs, rangeErrors, t)}
+            <dl class="menu-property-meta">
+                <dt>${esc(t('menuSettingsPath'))}</dt><dd>${esc(item.settingsPath)}</dd>
+                <dt>${esc(t('menuFieldType'))}</dt><dd>${esc(item.fieldType)}</dd>
+                <dt>${esc(t('menuRiskLevel'))}</dt><dd>${risk}</dd>
+            </dl>
+            ${help ? `<p class="menu-property-help">${esc(help)}</p>` : ''}`;
+    }
     return `
         ${dirtyState}
         <div class="menu-property-grid">
@@ -177,21 +250,44 @@ function renderProperties(item, language, t, dirty) {
 }
 
 export function countMenuPanelDirty(model, panelId, draft, baseDraft, textOverrides, baseTextOverrides) {
-    return model.items.filter((item) => item.panelId === panelId
-        && isMenuEditorItemDirty(item, draft, baseDraft, textOverrides, baseTextOverrides)).length;
+    return model.items.filter((item) => item.panelId === panelId).reduce((count, item) => {
+        if (item.kind === 'text') {
+            return count + (isMenuEditorItemDirty(
+                item,
+                draft,
+                baseDraft,
+                textOverrides,
+                baseTextOverrides
+            ) ? 1 : 0);
+        }
+        let result = JSON.stringify(readPath(draft, item.settingsPath))
+            !== JSON.stringify(readPath(baseDraft, item.settingsPath)) ? 1 : 0;
+        if (item.valueRange) {
+            for (const key of ['min', 'max', 'step']) {
+                const current = draft?.limitOverrides?.[item.settingsPath] || {};
+                const base = baseDraft?.limitOverrides?.[item.settingsPath] || {};
+                if (hasOwn(current, key) !== hasOwn(base, key)
+                    || (hasOwn(current, key) && current[key] !== base[key])) result += 1;
+            }
+        }
+        return count + result;
+    }, 0);
 }
 
 export function captureMenuEditorFocus(root) {
     const target = root?.ownerDocument?.activeElement;
     if (!target || !root.contains(target)) return null;
-    const identity = ['menuSearch', 'menuTextId', 'menuSettingPath']
+    const identity = ['menuSearch', 'menuTextId', 'menuSettingPath', 'menuRangeEdit']
         .find((key) => target.dataset?.[key] !== undefined);
     if (!identity) return null;
+    const fallbackCaret = String(target.tagName || '').toUpperCase() === 'INPUT'
+        ? String(target.value ?? '').length
+        : null;
     return {
         identity,
         value: target.dataset[identity],
-        selectionStart: Number.isInteger(target.selectionStart) ? target.selectionStart : null,
-        selectionEnd: Number.isInteger(target.selectionEnd) ? target.selectionEnd : null,
+        selectionStart: Number.isInteger(target.selectionStart) ? target.selectionStart : fallbackCaret,
+        selectionEnd: Number.isInteger(target.selectionEnd) ? target.selectionEnd : fallbackCaret,
     };
 }
 
@@ -203,7 +299,14 @@ export function restoreMenuEditorFocus(root, snapshot) {
     if (!target) return false;
     target.focus();
     if (snapshot.selectionStart != null && typeof target.setSelectionRange === 'function') {
-        target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+        try {
+            target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+        } catch {
+            const inputType = target.type;
+            target.type = 'text';
+            target.setSelectionRange(snapshot.selectionStart, snapshot.selectionEnd);
+            target.type = inputType;
+        }
     }
     return true;
 }
@@ -258,6 +361,8 @@ export function renderMenuEditor({
     searchQuery = '',
     language = 'de',
     previewRoot = false,
+    rangeInputs = {},
+    rangeErrors = {},
     t = (key) => key,
 }) {
     const normalizedQuery = normalizeSearchQuery(searchQuery);
@@ -355,7 +460,7 @@ export function renderMenuEditor({
             </section>
             <section class="menu-editor-properties" aria-label="${esc(t('menuPropertiesEditor'))}">
                 <h3>${esc(t('menuProperties'))}</h3>
-                ${renderProperties(selectedItem, language, t, selectedDirty)}
+                ${renderProperties(selectedItem, language, t, selectedDirty, rangeInputs, rangeErrors)}
             </section>
         </div>`;
 }

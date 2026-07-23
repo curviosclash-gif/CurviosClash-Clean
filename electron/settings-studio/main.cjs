@@ -163,13 +163,18 @@ const windowShell = createWindowShellCapability();
 
 async function startSettingsStudio() {
     if (!disposeIpc) {
+        const configuredProjectRootPath = String(
+            process.env.CURVIOS_SETTINGS_STUDIO_PROJECT_ROOT || ''
+        ).trim();
         disposeIpc = registerSettingsStudioIpc({
             ipcMain,
             app: settingsDataApp,
             getWindow: () => mainWindow,
             browserDemoProjectRootPath: app.isPackaged
                 ? settingsDataPath
-                : path.resolve(__dirname, '..', '..'),
+                : (configuredProjectRootPath
+                    ? path.resolve(configuredProjectRootPath)
+                    : path.resolve(__dirname, '..', '..')),
         });
     }
     await windowShell.start();

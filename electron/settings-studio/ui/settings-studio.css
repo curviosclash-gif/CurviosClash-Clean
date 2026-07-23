@@ -1130,6 +1130,70 @@ textarea:focus-visible {
     overflow-wrap: anywhere;
 }
 
+.menu-value-range {
+    display: grid;
+    gap: 10px;
+}
+
+.menu-value-range__heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+}
+
+.menu-value-range__heading h4 {
+    margin: 0;
+}
+
+.menu-range-row {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) auto;
+    gap: 8px;
+    padding: 9px;
+    border: 1px solid var(--line);
+    border-radius: 7px;
+}
+
+.menu-range-row.dirty {
+    border-color: var(--dirty);
+    background: var(--dirty-soft);
+}
+
+.menu-range-row label {
+    display: grid;
+    align-content: start;
+    gap: 5px;
+    color: var(--muted);
+    font-size: 11px;
+    font-weight: 600;
+}
+
+.menu-range-row input,
+.menu-range-row output {
+    width: 100%;
+    min-height: 32px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 6px 8px;
+    background: var(--bg);
+    color: var(--text);
+}
+
+.menu-range-row output {
+    overflow-wrap: anywhere;
+}
+
+.menu-range-row input[aria-invalid="true"] {
+    border-color: var(--danger);
+}
+
+.menu-range-error {
+    color: var(--danger);
+    font-size: 11px;
+    font-weight: 600;
+}
+
 .menu-property-meta {
     display: grid;
     grid-template-columns: auto minmax(0, 1fr);
@@ -1170,6 +1234,10 @@ textarea:focus-visible {
 
     .menu-editor-properties {
         grid-column: auto;
+    }
+
+    .menu-range-row {
+        grid-template-columns: 1fr;
     }
 
     .menu-preview-panel-grid {
