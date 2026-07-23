@@ -136,22 +136,29 @@ export function syncMenuSurfacePolicyUi({
         const titleNode = ui.multiplayerInlineState.querySelector('.section-title');
         const copyNode = ui.multiplayerInlineState.querySelector('.menu-accordion-copy');
         if (titleNode) {
-            titleNode.textContent = surfaceEntryCopy?.multiplayerTitle || 'Lobby & Bereitschaft';
+            titleNode.textContent = surfaceEntryCopy?.multiplayerTitle
+                || resolveMenuText('menu.multiplayer.inline.title', 'Lobby & Bereitschaft');
         }
         if (copyNode) {
-            copyNode.textContent = surfaceEntryCopy?.multiplayerSubtitle || 'Session-Code, echte Lobby-Verbindung und Ready-Status.';
+            copyNode.textContent = surfaceEntryCopy?.multiplayerSubtitle
+                || resolveMenuText(
+                    'menu.multiplayer.inline.subtitle',
+                    'Session-Code, echte Lobby-Verbindung und Ready-Status.'
+                );
         }
     }
     if (ui.multiplayerLobbyCodeInput) {
         ui.multiplayerLobbyCodeInput.placeholder = surfaceEntryCopy?.lobbyCodePlaceholder || 'z. B. TEST-1234';
     }
     if (ui.multiplayerHostButton) {
-        ui.multiplayerHostButton.textContent = surfaceEntryCopy?.hostButtonLabel || 'Host';
+        ui.multiplayerHostButton.textContent = surfaceEntryCopy?.hostButtonLabel
+            || resolveMenuText('menu.multiplayer.inline.host.label', 'Host');
         ui.multiplayerHostButton.title = surfaceEntryCopy?.hostButtonTitle || '';
         ui.multiplayerHostButton.disabled = surfaceEntryCopy?.hostActionAvailable === false;
     }
     if (ui.multiplayerJoinButton) {
-        ui.multiplayerJoinButton.textContent = surfaceEntryCopy?.joinButtonLabel || 'Join';
+        ui.multiplayerJoinButton.textContent = surfaceEntryCopy?.joinButtonLabel
+            || resolveMenuText('menu.multiplayer.inline.join.label', 'Join');
         ui.multiplayerJoinButton.title = surfaceEntryCopy?.joinButtonTitle || '';
     }
 

@@ -103,6 +103,7 @@ const DESKTOP_RENDERER_DIST_DIR_NAME = 'dist-app';
 const LEGACY_RENDERER_DIST_DIR_NAME = 'dist';
 const DESKTOP_STATIC_SERVER_DEFAULT_PORT = 38765;
 const MENU_DEFAULTS_OVERRIDE_FILE_NAME = 'menu-defaults.override.json';
+const MENU_TEXT_OVERRIDES_FILE_NAME = 'menu-text-overrides.json';
 let markSessionExitClean = () => {};
 
 if (!hasSingleInstanceLock) {
@@ -693,7 +694,34 @@ function readMenuDefaultsOverrideSnapshotSync() {
         readError,
         parseError,
         draft,
+        menuTextOverrides: readMenuTextOverridesSnapshotSync(),
     };
+}
+
+function readMenuTextOverridesSnapshotSync() {
+    const filePath = path.join(
+        app.getPath('appData'),
+        SHARED_USER_DATA_DIR_NAME,
+        MENU_TEXT_OVERRIDES_FILE_NAME
+    );
+    try {
+        const parsed = JSON.parse(readFileSync(filePath, 'utf8'));
+        return {
+            exists: true,
+            filePath,
+            schemaVersion: String(parsed?.schemaVersion || ''),
+            overrides: parsed?.overrides && typeof parsed.overrides === 'object' && !Array.isArray(parsed.overrides)
+                ? parsed.overrides
+                : {},
+        };
+    } catch (error) {
+        return {
+            exists: error?.code !== 'ENOENT',
+            filePath,
+            schemaVersion: 'menu-text-overrides.v1',
+            overrides: {},
+        };
+    }
 }
 
 const desktopWindowShellCapability = createDesktopWindowShellCapability();

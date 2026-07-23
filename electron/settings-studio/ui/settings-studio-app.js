@@ -7,6 +7,13 @@ import {
     countSectionDirtyFields,
 } from './settings-studio-form-renderer.js';
 import {
+    applyMenuEditorItemValue,
+    countMenuPanelDirty,
+    renderMenuEditor,
+    resetMenuEditorItems,
+} from './settings-studio-menu-renderer.js';
+import { createMenuEditorModel } from '../../../src/ui/menu/MenuEditorModel.js';
+import {
     createBrowserDemoSurfacePolicyOverrideDraft,
     mergeBrowserDemoSurfacePolicyWithOverride,
     validateBrowserDemoSurfacePolicyOverrideDraft,
@@ -30,6 +37,12 @@ const state = {
     backups: [],
     activeSection: 'baseSettings',
     activeInfoPath: null,
+    menuTextOverrides: {},
+    menuTextOverridesBase: {},
+    menuEditorModel: null,
+    activeMenuPanelId: '',
+    selectedMenuItemId: '',
+    menuSearchQuery: '',
 };
 
 const refs = {
@@ -163,10 +176,37 @@ function validateBrowserDemoPolicyDraft() {
 }
 
 function countSectionDirty(sectionKey) {
+    if (sectionKey === 'gameMenu') {
+        const model = rebuildMenuEditorModel();
+        return model.panels.reduce((count, panel) => count + countMenuPanelDirty(
+            model,
+            panel.id,
+            state.draft,
+            state.baseDraft,
+            state.menuTextOverrides,
+            state.menuTextOverridesBase
+        ), 0);
+    }
     if (sectionKey === 'browserDemoPolicy') {
         return JSON.stringify(state.browserDemoPolicyDraft || {}) !== JSON.stringify(state.browserDemoPolicyBaseDraft || {}) ? 1 : 0;
     }
     return countSectionDirtyFields(sectionKey, state.schema, state.draft, state.baseDraft);
+}
+
+function rebuildMenuEditorModel() {
+    state.menuEditorModel = createMenuEditorModel({
+        fields: state.schema?.fields || [],
+        draft: state.draft,
+        textOverrides: state.menuTextOverrides,
+    });
+    if (!state.menuEditorModel.panels.some((panel) => panel.id === state.activeMenuPanelId)) {
+        state.activeMenuPanelId = state.menuEditorModel.panels[0]?.id || '';
+    }
+    const activeItems = state.menuEditorModel.items.filter((item) => item.panelId === state.activeMenuPanelId);
+    if (!activeItems.some((item) => item.id === state.selectedMenuItemId)) {
+        state.selectedMenuItemId = activeItems[0]?.id || '';
+    }
+    return state.menuEditorModel;
 }
 
 function readPath(obj, path) {
@@ -285,6 +325,7 @@ function renderFormContent() {
     const section = SECTIONS.find((s) => s.key === state.activeSection);
     refs.sectionTitle.textContent = section ? t(section.labelKey) : state.activeSection;
     const hintKeyBySection = {
+        gameMenu: 'sectionHintGameMenu',
         baseSettings: 'sectionHintBaseSettings',
         configShare: 'sectionHintConfigShare',
         limits: 'sectionHintLimits',
@@ -304,7 +345,19 @@ function renderFormContent() {
     const translator = createTranslator(state.language);
     const validationErrors = state.validation?.errors || [];
     let html;
-    if (state.activeSection === 'limits') {
+    if (state.activeSection === 'gameMenu') {
+        html = renderMenuEditor({
+            model: rebuildMenuEditorModel(),
+            draft: state.draft,
+            baseDraft: state.baseDraft,
+            textOverrides: state.menuTextOverrides,
+            baseTextOverrides: state.menuTextOverridesBase,
+            activePanelId: state.activeMenuPanelId,
+            selectedItemId: state.selectedMenuItemId,
+            searchQuery: state.menuSearchQuery,
+            language: state.language,
+        });
+    } else if (state.activeSection === 'limits') {
         html = renderLimitsSection(state.schema, state.draft, state.baseDraft, translator);
     } else if (state.activeSection === 'browserDemoPolicy') {
         html = renderBrowserDemoPolicySection(
@@ -557,6 +610,26 @@ function collectDirtyFields() {
         });
     });
 
+    const textIds = new Set([
+        ...Object.keys(state.menuTextOverridesBase || {}),
+        ...Object.keys(state.menuTextOverrides || {}),
+    ]);
+    textIds.forEach((textId) => {
+        const current = String(state.menuTextOverrides?.[textId] || '');
+        const base = String(state.menuTextOverridesBase?.[textId] || '');
+        if (current === base) return;
+        dirty.push({
+            field: {
+                path: textId,
+                section: 'gameMenu',
+                riskLevel: 'low',
+                previewLabel: textId,
+            },
+            current,
+            base,
+        });
+    });
+
     return dirty;
 }
 
@@ -674,6 +747,9 @@ async function loadState() {
     state.validation = response?.validation || null;
     state.paths = response?.paths || null;
     state.backups = Array.isArray(response?.backups) ? response.backups : [];
+    state.menuTextOverrides = deepClone(response?.menuTextOverrides || {});
+    state.menuTextOverridesBase = deepClone(state.menuTextOverrides);
+    state.menuEditorModel = response?.menuEditorModel || null;
 
     const loadedBrowserDemoPolicy = response?.browserDemoPolicy || null;
     if (loadedBrowserDemoPolicy?.draft) {
@@ -721,7 +797,15 @@ async function saveState() {
 
     const mainDraftDirty = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
     const browserDemoDirty = JSON.stringify(state.browserDemoPolicyDraft || {}) !== JSON.stringify(state.browserDemoPolicyBaseDraft || {});
-    if (!mainDraftDirty && !browserDemoDirty) {
+    const menuTextDirty = JSON.stringify(state.menuTextOverrides || {}) !== JSON.stringify(state.menuTextOverridesBase || {});
+    if (!mainDraftDirty && !browserDemoDirty && !menuTextDirty) {
+        setStatus('statusSaved');
+        return;
+    }
+
+    if (!mainDraftDirty && !browserDemoDirty && menuTextDirty) {
+        await persistMenuTextOverrides();
+        renderAll();
         setStatus('statusSaved');
         return;
     }
@@ -729,6 +813,7 @@ async function saveState() {
     setStatus('statusLoading');
     const apiResponse = await window.settingsStudioApi.save(state.draft, state.browserDemoPolicyDraft);
     if (apiResponse?.ok) {
+        if (menuTextDirty) await persistMenuTextOverrides();
         const savedDraft = apiResponse?.draft ? deepClone(apiResponse.draft) : deepClone(state.draft);
         state.draft = deepClone(savedDraft);
         state.baseDraft = deepClone(savedDraft);
@@ -767,6 +852,30 @@ async function saveState() {
     }
     renderAll();
     setStatus('statusInvalid');
+}
+
+async function persistMenuTextOverrides() {
+    if (!Object.keys(state.menuTextOverrides || {}).length
+        && Object.keys(state.menuTextOverridesBase || {}).length) {
+        await window.settingsStudioApi.resetMenuTextOverrides();
+        state.menuTextOverridesBase = {};
+        return;
+    }
+    const textIds = new Set([
+        ...Object.keys(state.menuTextOverridesBase || {}),
+        ...Object.keys(state.menuTextOverrides || {}),
+    ]);
+    for (const textId of textIds) {
+        const current = String(state.menuTextOverrides?.[textId] || '').trim();
+        const base = String(state.menuTextOverridesBase?.[textId] || '').trim();
+        if (current === base) continue;
+        if (current) {
+            await window.settingsStudioApi.setMenuTextOverride(textId, current);
+        } else {
+            await window.settingsStudioApi.clearMenuTextOverride(textId);
+        }
+    }
+    state.menuTextOverridesBase = deepClone(state.menuTextOverrides);
 }
 
 function onFieldChange(eventOrTarget, options = {}) {
@@ -988,6 +1097,69 @@ function onBrowserDemoPolicyChange(eventOrTarget, options = {}) {
     }
 }
 
+function onMenuEditorMutation(target) {
+    if (!target) return;
+    const model = rebuildMenuEditorModel();
+    if (target.dataset?.menuTextId) {
+        const textId = String(target.dataset.menuTextId || '').trim();
+        const item = model.items.find((entry) => entry.textId === textId);
+        if (!applyMenuEditorItemValue({
+            draft: state.draft,
+            textOverrides: state.menuTextOverrides,
+            item,
+            value: target.value,
+        })) return;
+    } else if (target.dataset?.menuSettingPath) {
+        const path = target.dataset.menuSettingPath;
+        const item = model.items.find((entry) => entry.settingsPath === path);
+        if (!applyMenuEditorItemValue({
+            draft: state.draft,
+            textOverrides: state.menuTextOverrides,
+            item,
+            value: readValueFromTarget(target),
+        })) return;
+    } else {
+        return;
+    }
+    renderFormContent();
+    renderSidebar();
+}
+
+function resetMenuEditorItem(itemId) {
+    const model = rebuildMenuEditorModel();
+    const item = model.items.find((entry) => entry.id === itemId);
+    if (!item) return;
+    resetMenuEditorItems({
+        draft: state.draft,
+        textOverrides: state.menuTextOverrides,
+        items: [item],
+    });
+    renderFormContent();
+    renderSidebar();
+}
+
+function resetMenuEditorPanel() {
+    const model = rebuildMenuEditorModel();
+    resetMenuEditorItems({
+        draft: state.draft,
+        textOverrides: state.menuTextOverrides,
+        items: model.items.filter((item) => item.panelId === state.activeMenuPanelId),
+    });
+    renderFormContent();
+    renderSidebar();
+}
+
+function resetWholeMenuEditor() {
+    const model = rebuildMenuEditorModel();
+    resetMenuEditorItems({
+        draft: state.draft,
+        textOverrides: state.menuTextOverrides,
+        items: model.items,
+    });
+    renderFormContent();
+    renderSidebar();
+}
+
 function onResetField(target) {
     const path = target.dataset?.path;
     if (!path || !state.draft || !state.baseDraft) return;
@@ -1016,7 +1188,10 @@ function onResetSection() {
     if (!state.draft || !state.baseDraft) return;
     const sectionKey = state.activeSection;
 
-    if (sectionKey === 'limits') {
+    if (sectionKey === 'gameMenu') {
+        resetWholeMenuEditor();
+        return;
+    } else if (sectionKey === 'limits') {
         state.draft.limitOverrides = deepClone(state.baseDraft.limitOverrides || {});
     } else if (sectionKey === 'browserDemoPolicy') {
         state.browserDemoPolicyDraft = deepClone(state.browserDemoPolicyBaseDraft || createBrowserDemoPolicySeed());
@@ -1038,6 +1213,7 @@ function onResetAll() {
     state.draft = deepClone(state.baseDraft);
     state.browserDemoPolicyDraft = deepClone(state.browserDemoPolicyBaseDraft || createBrowserDemoPolicySeed());
     state.browserDemoPolicyValidation = null;
+    state.menuTextOverrides = deepClone(state.menuTextOverridesBase || {});
     renderAll();
 }
 
@@ -1119,6 +1295,20 @@ async function onRestoreBackup(backupFileName) {
 
 function bindEvents() {
     const handleFormMutation = (event) => {
+        if (event.target.dataset?.menuTextId || event.target.dataset?.menuSettingPath) {
+            onMenuEditorMutation(event.target);
+            return;
+        }
+        if (event.target.matches?.('[data-menu-search]')) {
+            state.menuSearchQuery = event.target.value;
+            renderFormContent();
+            const search = refs.formContent.querySelector('[data-menu-search]');
+            if (search) {
+                search.focus();
+                search.setSelectionRange(search.value.length, search.value.length);
+            }
+            return;
+        }
         if (event.target.dataset?.browserDemoGroup || event.target.dataset?.browserDemoCapability) {
             return onBrowserDemoPolicyChange(event);
         }
@@ -1131,6 +1321,30 @@ function bindEvents() {
     refs.formContent.addEventListener('change', handleFormMutation);
 
     refs.formContent.addEventListener('click', (event) => {
+        const panelBtn = event.target.closest('[data-menu-panel-id]');
+        if (panelBtn) {
+            state.activeMenuPanelId = panelBtn.dataset.menuPanelId;
+            state.selectedMenuItemId = '';
+            renderFormContent();
+            return;
+        }
+
+        const menuItemBtn = event.target.closest('[data-menu-item-id]');
+        if (menuItemBtn && !menuItemBtn.matches('[data-menu-action="reset-item"]')) {
+            state.selectedMenuItemId = menuItemBtn.dataset.menuItemId;
+            renderFormContent();
+            return;
+        }
+
+        const menuAction = event.target.closest('[data-menu-action]');
+        if (menuAction) {
+            const action = menuAction.dataset.menuAction;
+            if (action === 'reset-item') resetMenuEditorItem(menuAction.dataset.menuItemId);
+            else if (action === 'reset-panel') resetMenuEditorPanel();
+            else if (action === 'reset-menu') resetWholeMenuEditor();
+            return;
+        }
+
         const resetBtn = event.target.closest('[data-action="reset-field"]');
         if (resetBtn) { onResetField(resetBtn); return; }
 
@@ -1216,7 +1430,8 @@ function isDraftDirty() {
     if (!state.draft || !state.baseDraft) return false;
     const mainDraftDirty = JSON.stringify(state.draft) !== JSON.stringify(state.baseDraft);
     const browserDemoDirty = JSON.stringify(state.browserDemoPolicyDraft || {}) !== JSON.stringify(state.browserDemoPolicyBaseDraft || {});
-    return mainDraftDirty || browserDemoDirty;
+    const menuTextDirty = JSON.stringify(state.menuTextOverrides || {}) !== JSON.stringify(state.menuTextOverridesBase || {});
+    return mainDraftDirty || browserDemoDirty || menuTextDirty;
 }
 
 function bootstrap() {

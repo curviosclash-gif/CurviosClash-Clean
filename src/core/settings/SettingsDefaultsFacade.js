@@ -30,6 +30,7 @@ import {
     readSettingsOverrideDraftFromPort,
     readSettingsOverrideDraftFromRuntime,
 } from './SettingsRuntimeLimits.js';
+import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
 
 export function cloneDefaultControlsSnapshot() {
     const base = deepClone(CONFIG.KEYS);
@@ -92,7 +93,8 @@ export function createDefaultSettingsSnapshotWithOverride(rawOverrideDraft, migr
 }
 
 export function createSettingsDefaultsPortForRuntime(runtimeGlobal = globalThis) {
-    return createSettingsDefaultsRuntimePort(runtimeGlobal);
+    const electronContract = resolveElectronRuntimeSnapshot(runtimeGlobal).settingsDefaultsContract;
+    return createSettingsDefaultsRuntimePort(electronContract || runtimeGlobal);
 }
 
 export function createDefaultSettingsSnapshotForRuntime(runtimeGlobal = globalThis) {

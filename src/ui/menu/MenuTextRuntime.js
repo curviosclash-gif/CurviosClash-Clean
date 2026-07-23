@@ -27,8 +27,7 @@ export class MenuTextRuntime {
         const allowOverrides = options.allowOverrides !== false;
         const releasePreviewEnabled = options.releasePreviewEnabled === true;
         const featureFlagEnabled = options.developerFeatureEnabled !== false;
-        const developerModeEnabled = options.developerModeEnabled === true;
-        const overridesEnabled = allowOverrides && developerModeEnabled && featureFlagEnabled && !releasePreviewEnabled;
+        const overridesEnabled = allowOverrides && featureFlagEnabled && !releasePreviewEnabled;
 
         if (!overridesEnabled) {
             return defaultText;

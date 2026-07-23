@@ -54,6 +54,7 @@ export class SettingsManager {
      */
     constructor(options = {}) {
         this.runtimeGlobal = options.runtimeGlobal || globalThis;
+        this.settingsDefaultsPort = createSettingsDefaultsPortForRuntime(this.runtimeGlobal);
         this.#initializeStores(options);
         this.#initializeFacades();
         this.#initializePorts();
@@ -67,6 +68,8 @@ export class SettingsManager {
             onQuotaExceeded: options.onQuotaExceeded,
             onMigrationResult: options.onMigrationResult,
         };
+        const settingsDefaultsSnapshot = this.settingsDefaultsPort?.getOverrideSnapshot?.();
+        const desktopMenuTextOverrides = settingsDefaultsSnapshot?.menuTextOverrides;
         this.#settingsStore = new SettingsStore({
             ...storeOptions,
             sanitizeSettings: (settings) => this.sanitizeSettings(settings),
@@ -77,7 +80,12 @@ export class SettingsManager {
             fixedCatalog: getFixedMenuPresetCatalog(),
         });
         this.#menuDraftStore = new MenuDraftStore(storeOptions);
-        this.#menuTextOverrideStore = new MenuTextOverrideStore(storeOptions);
+        this.#menuTextOverrideStore = new MenuTextOverrideStore({
+            ...storeOptions,
+            initialOverrides: desktopMenuTextOverrides?.exists === true
+                ? desktopMenuTextOverrides.overrides
+                : null,
+        });
         this.#menuTelemetryStore = new MenuTelemetryStore(storeOptions);
         this.#telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
     }
@@ -124,7 +132,6 @@ export class SettingsManager {
             listOverrides: () => this.textOverrideFacade.listMenuTextOverrides(),
             getOverride: (textId) => this.#menuTextOverrideStore.getOverride(textId),
         });
-        this.settingsDefaultsPort = createSettingsDefaultsPortForRuntime(this.runtimeGlobal);
     }
 
     #initializeDiagnosticsFacade() {

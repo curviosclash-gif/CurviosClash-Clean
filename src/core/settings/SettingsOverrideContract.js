@@ -1,6 +1,7 @@
 import {
     MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     createMenuDefaultsEditorConfigSnapshot,
+    getSettingsFieldDescriptorForOverridePath,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
 import { SETTINGS_LIMITS } from '../../shared/contracts/SettingsRuntimeContract.js';
 import {
@@ -190,6 +191,7 @@ export function createSettingsOverrideFieldRegistry() {
                 ? deepCloneJson(DEFAULT_FIELD_LIMITS[path])
                 : null;
             const meta = resolveFieldHelpMetadata(path);
+            const runtimeField = getSettingsFieldDescriptorForOverridePath(path);
             entries.push({
                 path,
                 section: section.key,
@@ -203,6 +205,7 @@ export function createSettingsOverrideFieldRegistry() {
                 example: meta.example,
                 help: meta.help,
                 impact: meta.impact,
+                options: deepCloneJson(runtimeField?.options || []),
             });
         }
     }
@@ -211,6 +214,7 @@ export function createSettingsOverrideFieldRegistry() {
         if (pathSet.has(path)) continue;
         pathSet.add(path);
         const meta = resolveFieldHelpMetadata(path);
+        const runtimeField = getSettingsFieldDescriptorForOverridePath(path);
         entries.push({
             path,
             section: path.split('.')[0],
@@ -224,6 +228,7 @@ export function createSettingsOverrideFieldRegistry() {
             example: meta.example,
             help: meta.help,
             impact: meta.impact,
+            options: deepCloneJson(runtimeField?.options || []),
         });
     }
 
@@ -408,6 +413,13 @@ export function validateSettingsOverrideDraft(candidateDraft) {
                     `${field.path} erwartet eine ganze Zahl.`
                 ));
             }
+            if (field.options.length && !field.options.some((option) => option === asNumber)) {
+                errors.push(createError(
+                    field.path,
+                    'FIELD_ENUM_INVALID',
+                    `${field.path} enthaelt einen unbekannten Enum-Wert.`
+                ));
+            }
             continue;
         }
 
@@ -418,6 +430,15 @@ export function validateSettingsOverrideDraft(candidateDraft) {
 
         if (field.type === 'string' && typeof value !== 'string') {
             errors.push(createError(field.path, 'FIELD_STRING_INVALID', `String erwartet fuer ${field.path}.`));
+            continue;
+        }
+
+        if (field.type === 'string' && field.options.length && !field.options.includes(value)) {
+            errors.push(createError(
+                field.path,
+                'FIELD_ENUM_INVALID',
+                `${field.path} enthaelt einen unbekannten Enum-Wert.`
+            ));
         }
     }
 

@@ -4,6 +4,7 @@ export {
     SETTINGS_CHANGE_PATH_ENTRIES,
     SETTINGS_CHANGE_PATHS,
 } from '../../ui/SettingsChangeKeys.js';
+export { getSettingsFieldDescriptorForOverridePath } from '../../ui/SettingsFieldRegistry.js';
 export { ensureMenuContractState, MENU_SESSION_TYPES } from '../../ui/menu/MenuStateContracts.js';
 export { resolveMenuAccessContext } from '../../ui/menu/MenuAccessPolicy.js';
 export {

@@ -3,6 +3,7 @@ const { SettingsOverrideFileService } = require('../services/SettingsOverrideFil
 const { SettingsBackupService } = require('../services/SettingsBackupService.cjs');
 const { SettingsPrefsService } = require('../services/SettingsPrefsService.cjs');
 const { SettingsBrowserDemoPolicyService } = require('../services/SettingsBrowserDemoPolicyService.cjs');
+const { SettingsMenuTextOverrideService } = require('../services/SettingsMenuTextOverrideService.cjs');
 const { assertTrustedWindowSender } = require('../../ipc-sender-guard.cjs');
 
 const CHANNELS = Object.freeze({
@@ -13,6 +14,10 @@ const CHANNELS = Object.freeze({
     restoreBackup: 'settings-studio:restore-backup',
     getSchema: 'settings-studio:get-schema',
     setLanguage: 'settings-studio:set-language',
+    listMenuTextOverrides: 'settings-studio:menu-text-overrides:list',
+    setMenuTextOverride: 'settings-studio:menu-text-overrides:set',
+    clearMenuTextOverride: 'settings-studio:menu-text-overrides:clear',
+    resetMenuTextOverrides: 'settings-studio:menu-text-overrides:reset',
 });
 
 const SUPPORTED_LANGUAGES = new Set(['de', 'en']);
@@ -39,6 +44,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, g
         app,
         projectRootPath: browserDemoProjectRootPath,
     });
+    const menuTextOverrideService = new SettingsMenuTextOverrideService({ app });
     const registerTrustedHandler = (channel, handler) => {
         ipcMain.handle(channel, (event, ...args) => {
             assertTrustedWindowSender(event, getWindow?.());
@@ -68,6 +74,11 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, g
             ? browserDemoFallbackDraft
             : browserDemoMigration.migrated;
         const browserDemoValidation = await browserDemoPolicyService.validateDraft(browserDemoDraftToValidate);
+        const menuTextOverrides = await menuTextOverrideService.listOverrides();
+        const menuEditorModel = await schemaService.createMenuEditorModel(
+            validation.normalizedDraft,
+            menuTextOverrides
+        );
 
         return {
             ok: true,
@@ -79,6 +90,7 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, g
                 browserDemoPolicyOverrideFilePath: browserDemoPolicyService.getOverrideFilePath(),
                 browserDemoPolicyExportFilePath: browserDemoPolicyService.getExportFilePath(),
                 backupDirectoryPath: backupService.getBackupDirectoryPath(),
+                menuTextOverrideFilePath: menuTextOverrideService.getFilePath(),
             },
             fileState: {
                 exists: loaded.exists,
@@ -102,6 +114,8 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, g
                     reason: browserDemoMigration.reason || null,
                 },
             },
+            menuTextOverrides,
+            menuEditorModel,
             backups,
         };
     });
@@ -255,6 +269,26 @@ function registerSettingsStudioIpc({ ipcMain, app, browserDemoProjectRootPath, g
             language: normalized,
         };
     });
+
+    registerTrustedHandler(CHANNELS.listMenuTextOverrides, async () => ({
+        ok: true,
+        overrides: await menuTextOverrideService.listOverrides(),
+    }));
+
+    registerTrustedHandler(CHANNELS.setMenuTextOverride, async (textId, value) => ({
+        ok: true,
+        ...(await menuTextOverrideService.setOverride(textId, value)),
+    }));
+
+    registerTrustedHandler(CHANNELS.clearMenuTextOverride, async (textId) => ({
+        ok: true,
+        ...(await menuTextOverrideService.clearOverride(textId)),
+    }));
+
+    registerTrustedHandler(CHANNELS.resetMenuTextOverrides, async () => ({
+        ok: true,
+        ...(await menuTextOverrideService.resetOverrides()),
+    }));
 
     return () => {
         for (const channel of Object.values(CHANNELS)) {

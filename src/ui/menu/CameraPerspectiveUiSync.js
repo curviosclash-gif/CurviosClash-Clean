@@ -4,6 +4,7 @@ import {
     createDefaultCameraPerspectiveSettings,
     normalizeCameraPerspectiveSettings,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
+import { resolveMenuCatalogText } from './MenuTextCatalog.js';
 
 export function syncNormalCameraPerspectiveUi(ui, cameraPerspectiveSettingsSource) {
     const cameraPerspectiveSettings = normalizeCameraPerspectiveSettings(
@@ -46,8 +47,11 @@ export function syncNormalCameraPerspectiveUi(ui, cameraPerspectiveSettingsSourc
     }
 
     if (ui.normalCameraPerspectiveHint) {
-        const perspectiveLabel = cameraPerspectiveSettings.normal === CAMERA_PERSPECTIVE_MODE.CINEMATIC_SOFT ? 'Cinematic Soft'
-            : cameraPerspectiveSettings.normal === CAMERA_PERSPECTIVE_MODE.CINEMATIC_ACTION ? 'Cinematic Action' : 'Klassisch';
+        const perspectiveLabel = cameraPerspectiveSettings.normal === CAMERA_PERSPECTIVE_MODE.CINEMATIC_SOFT
+            ? resolveMenuCatalogText('menu.camera.perspective.cinematic_soft.label', 'Cinematic Soft')
+            : cameraPerspectiveSettings.normal === CAMERA_PERSPECTIVE_MODE.CINEMATIC_ACTION
+                ? resolveMenuCatalogText('menu.camera.perspective.cinematic_action.label', 'Cinematic Action')
+                : resolveMenuCatalogText('menu.camera.perspective.classic.label', 'Klassisch');
         const reduceMotionLabel = cameraPerspectiveSettings.reduceMotion ? 'an' : 'aus';
         const speedFovLabel = cameraPerspectiveSettings.speedFovEnabled !== false ? `${speedFovIntensityPercent}%` : 'aus';
         const thrusterExhaustLabel = cameraPerspectiveSettings.thrusterExhaustEnabled !== false ? `${thrusterExhaustIntensityPercent}%` : 'aus';

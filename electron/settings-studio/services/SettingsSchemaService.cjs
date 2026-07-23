@@ -2,6 +2,7 @@ const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 
 let cachedContractModulePromise = null;
+let cachedMenuEditorModulePromise = null;
 
 function loadContractModule() {
     if (cachedContractModulePromise) {
@@ -14,6 +15,15 @@ function loadContractModule() {
 
     cachedContractModulePromise = import(contractModuleUrl);
     return cachedContractModulePromise;
+}
+
+function loadMenuEditorModule() {
+    if (!cachedMenuEditorModulePromise) {
+        cachedMenuEditorModulePromise = import(pathToFileURL(
+            path.resolve(__dirname, '..', '..', '..', 'src', 'ui', 'menu', 'MenuEditorModel.js')
+        ).href);
+    }
+    return cachedMenuEditorModulePromise;
 }
 
 async function getSchemaDescriptor() {
@@ -38,9 +48,22 @@ async function classifyMigration(draft) {
     return { ...migration, migrated };
 }
 
+async function createMenuEditorModel(draft, textOverrides = {}) {
+    const [contractModule, menuEditorModule] = await Promise.all([
+        loadContractModule(),
+        loadMenuEditorModule(),
+    ]);
+    return menuEditorModule.createMenuEditorModel({
+        draft,
+        textOverrides,
+        fields: contractModule.createSettingsOverrideFieldRegistry(),
+    });
+}
+
 module.exports = {
     createDraft,
     getSchemaDescriptor,
     validateDraft,
     classifyMigration,
+    createMenuEditorModel,
 };

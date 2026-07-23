@@ -16,6 +16,10 @@ const settingsStudioApi = Object.freeze({
     restoreBackup: (backupFileName) => invoke('settings-studio:restore-backup', backupFileName),
     getSchema: () => invoke('settings-studio:get-schema'),
     setLanguage: (language) => invoke('settings-studio:set-language', language),
+    listMenuTextOverrides: () => invoke('settings-studio:menu-text-overrides:list'),
+    setMenuTextOverride: (textId, value) => invoke('settings-studio:menu-text-overrides:set', textId, value),
+    clearMenuTextOverride: (textId) => invoke('settings-studio:menu-text-overrides:clear', textId),
+    resetMenuTextOverrides: () => invoke('settings-studio:menu-text-overrides:reset'),
     setDirtyState: (isDirty) => ipcRenderer.send('settings-studio:set-dirty-state', isDirty === true),
 });
 

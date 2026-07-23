@@ -35,6 +35,10 @@ const SETTINGS_STUDIO_CHANNELS = Object.freeze({
     save: 'settings-studio:save',
     listBackups: 'settings-studio:list-backups',
     restoreBackup: 'settings-studio:restore-backup',
+    listMenuTextOverrides: 'settings-studio:menu-text-overrides:list',
+    setMenuTextOverride: 'settings-studio:menu-text-overrides:set',
+    clearMenuTextOverride: 'settings-studio:menu-text-overrides:clear',
+    resetMenuTextOverrides: 'settings-studio:menu-text-overrides:reset',
 });
 
 function createIpcHarness() {
@@ -114,6 +118,39 @@ test('Settings Studio IPC rejects foreign windows and subframes', async (t) => {
             SETTINGS_STUDIO_CHANNELS.load
         ),
         (error) => error?.code === 'ERR_CURVIOS_UNTRUSTED_IPC_SENDER'
+    );
+    assert.throws(
+        () => harness.invokeFrom(
+            { sender: {}, senderFrame: {} },
+            SETTINGS_STUDIO_CHANNELS.listMenuTextOverrides
+        ),
+        (error) => error?.code === 'ERR_CURVIOS_UNTRUSTED_IPC_SENDER'
+    );
+});
+
+test('Settings Studio text override IPC saves, loads, deletes, resets, and rejects unknown IDs', async (t) => {
+    const harness = await createSettingsStudioTestHarness(t);
+    const textId = 'menu.level3.start.label';
+
+    const saved = await harness.invoke(SETTINGS_STUDIO_CHANNELS.setMenuTextOverride, textId, 'Los');
+    assert.equal(saved.ok, true);
+    assert.equal(saved.overrides[textId], 'Los');
+
+    const listed = await harness.invoke(SETTINGS_STUDIO_CHANNELS.listMenuTextOverrides);
+    assert.deepEqual(listed.overrides, { [textId]: 'Los' });
+
+    const cleared = await harness.invoke(SETTINGS_STUDIO_CHANNELS.clearMenuTextOverride, textId);
+    assert.equal(cleared.ok, true);
+    assert.deepEqual(cleared.overrides, {});
+
+    await harness.invoke(SETTINGS_STUDIO_CHANNELS.setMenuTextOverride, textId, 'Noch einmal');
+    const reset = await harness.invoke(SETTINGS_STUDIO_CHANNELS.resetMenuTextOverrides);
+    assert.equal(reset.ok, true);
+    assert.deepEqual(reset.overrides, {});
+
+    await assert.rejects(
+        harness.invoke(SETTINGS_STUDIO_CHANNELS.setMenuTextOverride, 'menu.unknown.id', 'Nope'),
+        (error) => error?.code === 'ERR_CURVIOS_UNKNOWN_MENU_TEXT_ID'
     );
 });
 

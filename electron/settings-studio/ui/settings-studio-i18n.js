@@ -25,6 +25,8 @@ const DICTIONARY = Object.freeze({
         sectionLimits: 'Grenzen (min/max/step)',
         sectionBrowserDemoPolicy: 'Browser-Demo-Grenzen',
         sectionBackups: 'Backups & Restore',
+        sectionGameMenu: 'Spielmenü',
+        sectionHintGameMenu: 'Struktur, Beschriftungen und registrierte Menüwerte mit sicherer Vorschau.',
         buttonRestore: 'Wiederherstellen',
         restoreConfirm: 'Backup wirklich wiederherstellen? Aktuelle Daten werden vorher gesichert.',
         unsavedChangesWarning: 'Es gibt ungespeicherte Aenderungen. Seite wirklich verlassen?',
@@ -163,6 +165,8 @@ const DICTIONARY = Object.freeze({
         sectionLimits: 'Limits (min/max/step)',
         sectionBrowserDemoPolicy: 'Browser Demo Limits',
         sectionBackups: 'Backups & Restore',
+        sectionGameMenu: 'Game Menu',
+        sectionHintGameMenu: 'Structure, labels, and registered menu values with a safe preview.',
         buttonRestore: 'Restore',
         restoreConfirm: 'Restore this backup? Current data will be backed up first.',
         unsavedChangesWarning: 'There are unsaved changes. Leave page?',
@@ -292,6 +296,7 @@ export function createTranslator(language) {
 }
 
 export const SECTIONS = Object.freeze([
+    { key: 'gameMenu', labelKey: 'sectionGameMenu' },
     { key: 'baseSettings', labelKey: 'sectionBaseSettings' },
     { key: 'localSettings', labelKey: 'sectionLocalSettings' },
     { key: 'fixedPresets', labelKey: 'sectionFixedPresets' },

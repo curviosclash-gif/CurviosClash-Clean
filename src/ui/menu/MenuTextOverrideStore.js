@@ -36,6 +36,9 @@ export class MenuTextOverrideStore extends PersistentStore {
             ...options,
             ...resolveStorePlatformOptions(options, MENU_TEXT_OVERRIDE_STORAGE_KEY, MENU_TEXT_OVERRIDE_STORAGE_LEGACY_KEYS),
         });
+        if (options.initialOverrides && typeof options.initialOverrides === 'object') {
+            this._saveRaw(options.initialOverrides);
+        }
     }
 
     _loadRaw() {

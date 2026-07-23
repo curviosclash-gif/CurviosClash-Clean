@@ -53,6 +53,18 @@ const PRESET_FIELD_NORMALIZER_BY_CHANGE_KEY = new Map([
     [SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_THRUSTER_EXHAUST_INTENSITY, SETTINGS_FIELD_NORMALIZERS.NUMBER],
 ]);
 
+const ENUM_OPTIONS_BY_CHANGE_KEY = new Map([
+    [SETTINGS_CHANGE_KEYS.MODE, ['1p', '2p']],
+    [SETTINGS_CHANGE_KEYS.GAME_MODE, ['CLASSIC', 'HUNT', 'ARCADE']],
+    [SETTINGS_CHANGE_KEYS.BOTS_DIFFICULTY, ['EASY', 'NORMAL', 'HARD']],
+    [SETTINGS_CHANGE_KEYS.BOTS_POLICY_STRATEGY, ['auto', 'heuristic', 'rule-based', 'bridge']],
+    [SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY, [0, 1, 2, 3]],
+    [SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE, ['off', 'self_longest_ghost']],
+    [SETTINGS_CHANGE_KEYS.RECORDING_PROFILE, ['standard', 'youtube_short', 'cinematic']],
+    [SETTINGS_CHANGE_KEYS.RECORDING_HUD_MODE, ['clean', 'with_hud']],
+    [SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_NORMAL, ['classic', 'cinematic_soft', 'cinematic_action']],
+]);
+
 export const SETTINGS_FIELD_DESCRIPTORS = Object.freeze(
     SETTINGS_CHANGE_PATH_ENTRIES.map(([path, changeKey]) => Object.freeze({
         path,
@@ -60,6 +72,7 @@ export const SETTINGS_FIELD_DESCRIPTORS = Object.freeze(
         changeKey,
         normalizer: PRESET_FIELD_NORMALIZER_BY_CHANGE_KEY.get(changeKey)
             || SETTINGS_FIELD_NORMALIZERS.CONTRACT,
+        options: Object.freeze([...(ENUM_OPTIONS_BY_CHANGE_KEY.get(changeKey) || [])]),
         presetEligible: PRESET_FIELD_NORMALIZER_BY_CHANGE_KEY.has(changeKey),
     }))
 );
@@ -79,6 +92,15 @@ export const SETTINGS_PRESET_VALUE_PATHS = Object.freeze(
 export function getSettingsFieldDescriptor(path) {
     const normalizedPath = typeof path === 'string' ? path.trim() : '';
     return normalizedPath ? SETTINGS_FIELD_DESCRIPTOR_BY_PATH.get(normalizedPath) || null : null;
+}
+
+export function getSettingsFieldDescriptorForOverridePath(path) {
+    const normalizedPath = typeof path === 'string' ? path.trim() : '';
+    if (!normalizedPath) return null;
+    return getSettingsFieldDescriptor(normalizedPath)
+        || getSettingsFieldDescriptor(
+            normalizedPath.replace(/^(baseSettings|configShare|level3Reset)\./, '')
+        );
 }
 
 export function readSettingsFieldValue(source, path) {
