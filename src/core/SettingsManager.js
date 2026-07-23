@@ -31,77 +31,103 @@ import { createSettingsBotPolicyFacade } from './settings/SettingsBotPolicyFacad
 import { createSettingsDiagnosticsFacade } from './settings/SettingsDiagnosticsFacade.js';
 import { reconcileSettingsSnapshot } from './settings/SettingsDomainUtils.js';
 
+/**
+ * @typedef {object} SettingsManagerOptions
+ * @property {object} [runtimeGlobal] Runtime globals used to resolve platform-specific defaults.
+ * @property {object} [storagePlatform] Storage adapter shared by settings and sidecar stores.
+ * @property {Storage} [storage] Browser-compatible storage fallback.
+ * @property {(details: object) => void} [onQuotaExceeded] Storage quota failure callback.
+ * @property {(result: object) => void} [onMigrationResult] Settings migration result callback.
+ * @property {TelemetryHistoryStore} [telemetryHistoryStore] Optional telemetry history dependency.
+ */
+
 export class SettingsManager {
+    #settingsStore;
+    #menuPresetStore;
+    #menuDraftStore;
+    #menuTextOverrideStore;
+    #menuTelemetryStore;
+    #telemetryHistoryStore;
+
+    /**
+     * @param {SettingsManagerOptions} [options]
+     */
     constructor(options = {}) {
         this.runtimeGlobal = options.runtimeGlobal || globalThis;
-        this._initializeStores(options);
-        this._initializeFacades();
-        this._initializePorts();
-        this._initializeDiagnosticsFacade();
+        this.#initializeStores(options);
+        this.#initializeFacades();
+        this.#initializePorts();
+        this.#initializeDiagnosticsFacade();
     }
 
-    _initializeStores(options) {
+    #initializeStores(options) {
         const storeOptions = {
             storagePlatform: options.storagePlatform,
             storage: options.storage,
             onQuotaExceeded: options.onQuotaExceeded,
             onMigrationResult: options.onMigrationResult,
         };
-        this.settingsStore = new SettingsStore({
+        this.#settingsStore = new SettingsStore({
             ...storeOptions,
             sanitizeSettings: (settings) => this.sanitizeSettings(settings),
             createDefaultSettings: () => this.createDefaultSettings(),
         });
-        this.menuPresetStore = new MenuPresetStore({
+        this.#menuPresetStore = new MenuPresetStore({
             ...storeOptions,
             fixedCatalog: getFixedMenuPresetCatalog(),
         });
-        this.menuDraftStore = new MenuDraftStore(storeOptions);
-        this.menuTextOverrideStore = new MenuTextOverrideStore(storeOptions);
-        this.menuTelemetryStore = new MenuTelemetryStore(storeOptions);
-        this.telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
+        this.#menuDraftStore = new MenuDraftStore(storeOptions);
+        this.#menuTextOverrideStore = new MenuTextOverrideStore(storeOptions);
+        this.#menuTelemetryStore = new MenuTelemetryStore(storeOptions);
+        this.#telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
     }
 
-    _initializeFacades() {
+    #initializeFacades() {
         this.sessionDraftFacade = createSettingsSessionDraftFacade({
-            menuDraftStore: this.menuDraftStore,
+            menuDraftStore: this.#menuDraftStore,
         });
         this.presetFacade = createSettingsPresetFacade({
-            menuPresetStore: this.menuPresetStore,
+            menuPresetStore: this.#menuPresetStore,
             applyMenuCompatibilityRules: (settings, options = {}) => this.applyMenuCompatibilityRules(settings, options),
         });
         this.developerFacade = createSettingsDeveloperFacade();
         this.textOverrideFacade = createSettingsTextOverrideFacade({
-            menuTextOverrideStore: this.menuTextOverrideStore,
+            menuTextOverrideStore: this.#menuTextOverrideStore,
         });
         this.telemetryFacade = createSettingsTelemetryFacade({
-            menuTelemetryStore: this.menuTelemetryStore,
-            telemetryHistoryStore: this.telemetryHistoryStore,
+            menuTelemetryStore: this.#menuTelemetryStore,
+            telemetryHistoryStore: this.#telemetryHistoryStore,
         });
         this.botPolicyFacade = createSettingsBotPolicyFacade();
     }
 
-    _initializePorts() {
+    #initializePorts() {
         this.profileStorePort = Object.freeze({
-            loadProfiles: () => this.settingsStore.loadProfiles(),
-            saveProfiles: (profiles) => this.settingsStore.saveProfiles(profiles),
+            loadProfiles: () => this.#settingsStore.loadProfiles(),
+            saveProfiles: (profiles) => this.#settingsStore.saveProfiles(profiles),
             sanitizeSettings: (settings) => this.sanitizeSettings(settings),
-            normalizeProfileName: (rawName) => this.settingsStore.normalizeProfileName(rawName),
-            findProfileIndexByName: (profiles, profileName) => this.settingsStore.findProfileIndexByName(profiles, profileName),
-            findProfileByName: (profiles, profileName) => this.settingsStore.findProfileByName(profiles, profileName),
+            normalizeProfileName: (rawName) => this.#settingsStore.normalizeProfileName(rawName),
+            findProfileIndexByName: (profiles, profileName) => (
+                this.#settingsStore.findProfileIndexByName(profiles, profileName)
+            ),
+            findProfileByName: (profiles, profileName) => (
+                this.#settingsStore.findProfileByName(profiles, profileName)
+            ),
         });
         this.settingsRecordStorePort = Object.freeze({
-            loadJsonRecord: (storageKey, fallbackValue = null) => this.settingsStore.loadJsonRecord(storageKey, fallbackValue),
-            saveJsonRecord: (storageKey, value) => this.settingsStore.saveJsonRecord(storageKey, value),
+            loadJsonRecord: (storageKey, fallbackValue = null) => (
+                this.#settingsStore.loadJsonRecord(storageKey, fallbackValue)
+            ),
+            saveJsonRecord: (storageKey, value) => this.#settingsStore.saveJsonRecord(storageKey, value),
         });
         this.menuTextOverridePort = Object.freeze({
             listOverrides: () => this.textOverrideFacade.listMenuTextOverrides(),
-            getOverride: (textId) => this.menuTextOverrideStore.getOverride(textId),
+            getOverride: (textId) => this.#menuTextOverrideStore.getOverride(textId),
         });
         this.settingsDefaultsPort = createSettingsDefaultsPortForRuntime(this.runtimeGlobal);
     }
 
-    _initializeDiagnosticsFacade() {
+    #initializeDiagnosticsFacade() {
         this.diagnosticsFacade = createSettingsDiagnosticsFacade({
             sanitizeSettings: (snapshot) => this.sanitizeSettings(snapshot),
             applyMenuCompatibilityRules: (snapshot, options = {}) => (
@@ -113,14 +139,18 @@ export class SettingsManager {
             menuTextOverridePort: this.menuTextOverridePort,
             listMenuPresets: () => this.listMenuPresets(),
             telemetryFacade: this.telemetryFacade,
-            getPersistenceStatus: () => ({
-                ...this.settingsStore.getPersistenceStatus(),
-                presets: this.menuPresetStore.getPersistenceStatus(),
-                drafts: this.menuDraftStore.getPersistenceStatus(),
-                textOverrides: this.menuTextOverrideStore.getPersistenceStatus(),
-                telemetry: this.menuTelemetryStore.getPersistenceStatus(),
-            }),
+            getPersistenceStatus: () => this.#getPersistenceStatus(),
         });
+    }
+
+    #getPersistenceStatus() {
+        return {
+            ...this.#settingsStore.getPersistenceStatus(),
+            presets: this.#menuPresetStore.getPersistenceStatus(),
+            drafts: this.#menuDraftStore.getPersistenceStatus(),
+            textOverrides: this.#menuTextOverrideStore.getPersistenceStatus(),
+            telemetry: this.#menuTelemetryStore.getPersistenceStatus(),
+        };
     }
 
     // Core persistence and defaults
@@ -143,11 +173,11 @@ export class SettingsManager {
     }
 
     loadSettings() {
-        return this.settingsStore.loadSettings();
+        return this.#settingsStore.loadSettings();
     }
 
     saveSettings(settings) {
-        const result = this.settingsStore.saveSettings(settings);
+        const result = this.#settingsStore.saveSettings(settings);
         if (result?.success === true) {
             reconcileSettingsSnapshot(settings, result.canonicalSettings);
         }
