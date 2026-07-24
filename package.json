@@ -62,6 +62,7 @@
     "bot:validate:fight": "node dev/training/scripts/bot-play-analysis.mjs --scenario-ids H-FIGHT-DUEL --policy heuristic --rounds 8 --headless true --fail-on-forced-round true",
     "bot:validate:flight": "node dev/training/scripts/bot-play-analysis.mjs --scenario-ids H-FIGHT-DUEL,H-CLASSIC-3D-HARD,H-ARCADE-VERTICAL --policy heuristic --rounds 2 --headless true",
     "bot:analyze": "node dev/training/scripts/bot-play-analysis.mjs",
+    "bot:improve": "node dev/training/scripts/heuristic-improvement-loop.mjs",
     "benchmark:baseline": "node dev/training/scripts/bot-benchmark-baseline.mjs",
     "benchmark:lifecycle": "node scripts/perf-lifecycle-measure.mjs",
     "benchmark:jitter": "node scripts/perf-jitter-matrix.mjs",
