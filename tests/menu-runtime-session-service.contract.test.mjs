@@ -4,6 +4,7 @@ import test from 'node:test';
 import {
     handleLevel4ResetAction,
     handleQuickStartLastStartAction,
+    handleQuickStartRandomStartAction,
     handleSessionTypeChangeAction,
     resolveProductiveMultiplayerTransport,
 } from '../src/core/runtime/MenuRuntimeSessionService.js';
@@ -197,7 +198,85 @@ test('handleQuickStartLastStartAction reports no success when match start is rej
     assert.equal(started, false);
     assert.equal(calls.startMatch, 1);
     assert.deepEqual(calls.telemetry, []);
-    assert.deepEqual(calls.toasts, []);
+    assert.equal(calls.toasts.length, 1);
+    assert.match(calls.toasts[0]?.message || '', /Schnellstart fehlgeschlagen/);
+    assert.equal(calls.toasts[0]?.tone, 'error');
+});
+
+test('handleQuickStartRandomStartAction awaits match start before telemetry and success toast', async () => {
+    const { game, calls } = createQuickStartGame(PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP);
+
+    const started = await handleQuickStartRandomStartAction({
+        game,
+        onSettingsChanged(payload) {
+            calls.settingsChanged.push(payload);
+        },
+        recordMenuTelemetry(type, payload) {
+            calls.telemetry.push({ type, payload });
+        },
+        startMatch() {
+            calls.startMatch += 1;
+            return true;
+        },
+    });
+
+    assert.equal(started, true);
+    assert.equal(game.settings.localSettings.modePath, 'quick_action');
+    assert.equal(calls.settingsChanged.length, 1);
+    assert.equal(calls.startMatch, 1);
+    assert.equal(calls.telemetry[0]?.type, 'quickstart');
+    assert.equal(calls.telemetry[0]?.payload?.variant, 'random_map');
+    assert.equal(calls.telemetry[0]?.payload?.mapKey, game.settings.mapKey);
+    assert.match(calls.toasts[0]?.message || '', /Random Map/);
+});
+
+test('handleQuickStartRandomStartAction reports no success when match start is rejected', async () => {
+    const { game, calls } = createQuickStartGame(PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP);
+
+    const started = await handleQuickStartRandomStartAction({
+        game,
+        onSettingsChanged(payload) {
+            calls.settingsChanged.push(payload);
+        },
+        recordMenuTelemetry(type, payload) {
+            calls.telemetry.push({ type, payload });
+        },
+        startMatch() {
+            calls.startMatch += 1;
+            return false;
+        },
+    });
+
+    assert.equal(started, false);
+    assert.equal(calls.startMatch, 1);
+    assert.deepEqual(calls.telemetry, []);
+    assert.equal(calls.toasts.length, 1);
+    assert.match(calls.toasts[0]?.message || '', /Schnellstart fehlgeschlagen/);
+    assert.equal(calls.toasts[0]?.tone, 'error');
+});
+
+test('handleQuickStartRandomStartAction handles a rejecting match start without unhandled rejection', async () => {
+    const { game, calls } = createQuickStartGame(PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP);
+
+    const started = await handleQuickStartRandomStartAction({
+        game,
+        onSettingsChanged(payload) {
+            calls.settingsChanged.push(payload);
+        },
+        recordMenuTelemetry(type, payload) {
+            calls.telemetry.push({ type, payload });
+        },
+        startMatch() {
+            calls.startMatch += 1;
+            return Promise.reject(new Error('boom'));
+        },
+    });
+
+    assert.equal(started, false);
+    assert.equal(calls.startMatch, 1);
+    assert.deepEqual(calls.telemetry, []);
+    assert.match(calls.toasts[0]?.message || '', /Interner Fehler/);
+    assert.equal(calls.toasts[0]?.tone, 'error');
 });
 
 test('handleLevel4ResetAction resets only the options shown in the gameplay panel', () => {

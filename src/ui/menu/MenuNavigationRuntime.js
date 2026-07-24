@@ -495,13 +495,22 @@ export class MenuNavigationRuntime {
 
     _pollGamepadButtons() {
         if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return;
+        // Skip the hardware poll while the menu is hidden: the rAF loop runs for the
+        // whole app lifetime, so polling gamepads during gameplay would waste one
+        // getGamepads() call plus an array allocation per frame.
+        if (!this._isMenuInteractive()) return;
         const gamepads = navigator.getGamepads();
-        const gamepad = Array.from(gamepads || []).find((entry) => !!entry);
+        let gamepad = null;
+        for (let index = 0; index < (gamepads?.length || 0); index += 1) {
+            if (gamepads[index]) {
+                gamepad = gamepads[index];
+                break;
+            }
+        }
         if (!gamepad) {
             this._gamepadButtonStateByIndex.clear();
             return;
         }
-        if (!this._isMenuInteractive()) return;
 
         const consumePress = (index) => {
             const isPressed = !!gamepad.buttons?.[index]?.pressed;
