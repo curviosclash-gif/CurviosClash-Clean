@@ -3,13 +3,25 @@ import {
     createHuntTargetingScratch,
     createHuntTargetingTelemetry,
     createPlayerTargetDescriptor,
+    isPlayerTargetDescriptor,
+    isTrailTargetDescriptor,
     resolveHuntLineTarget,
+    resolveHuntTargetOwnerPlayer,
     resolveHuntTargetPosition,
 } from '../../../hunt/HuntTargetingOps.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
 
+function clamp01(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    if (numeric <= 0) return 0;
+    if (numeric >= 1) return 1;
+    return numeric;
+}
+
 function resolveRocketRuntime(config) {
     const rocket = config?.HUNT?.ROCKET || {};
+    const homing = config?.HOMING || {};
     return {
         homingMinRange: Math.max(0.000001, Number(rocket.HOMING_MIN_RANGE) || 10),
         homingMinLockOnAngle: Math.max(0.000001, Number(rocket.HOMING_MIN_LOCK_ON_ANGLE) || 5),
@@ -17,6 +29,19 @@ function resolveRocketRuntime(config) {
         homingMinReacquireInterval: Math.max(0.000001, Number(rocket.HOMING_MIN_REACQUIRE_INTERVAL) || 0.04),
         homingReacquireInterval: Math.max(0.000001, Number(rocket.HOMING_REACQUIRE_INTERVAL) || 0.08),
         homingSpeedEpsilon: Math.max(0.0000001, Number(rocket.HOMING_SPEED_EPSILON) || 0.0001),
+        homingLeadTimeMax: Math.max(
+            0,
+            Number(rocket.HOMING_LEAD_TIME_MAX ?? homing.LEAD_TIME_MAX) || 0.35
+        ),
+        homingFallbackAngleScale: Math.max(1, Number(rocket.HOMING_FALLBACK_ANGLE_SCALE) || 1.75),
+        homingFallbackAngleMax: Math.max(5, Number(rocket.HOMING_FALLBACK_ANGLE_MAX) || 90),
+        homingTrailPriorityRatio: Math.min(
+            1,
+            Math.max(0.1, Number(rocket.HOMING_TRAIL_PRIORITY_RATIO) || 0.85)
+        ),
+        homingTurnDotBlend: clamp01(
+            Number(rocket.HOMING_TURN_DOT_BLEND ?? homing.TURN_DOT_BLEND) || 0.35
+        ),
         portalExitForwardOffset: Math.max(0, Number(rocket.PORTAL_EXIT_FORWARD_OFFSET) || 1.5),
         foamBounceMaxCount: Math.max(0, Math.floor(Number(rocket.FOAM_BOUNCE_MAX_COUNT) || 3)),
         foamBounceNormalBias: Math.max(0, Number(rocket.FOAM_BOUNCE_NORMAL_BIAS) || 0.08),
@@ -65,19 +90,25 @@ export class ProjectileSimulationOps {
             Number(projectile.homingLockOnAngle || config?.HOMING?.LOCK_ON_ANGLE || 15)
         );
         const minDot = Math.cos(THREE.MathUtils.degToRad(lockOnAngle));
+        const fallbackAngle = Math.min(
+            rocketRuntime.homingFallbackAngleMax,
+            lockOnAngle * rocketRuntime.homingFallbackAngleScale
+        );
+        const fallbackMinDot = Math.cos(THREE.MathUtils.degToRad(fallbackAngle));
 
         this._tmpVec2.copy(projectile.velocity);
         const speed = this._tmpVec2.length();
         if (speed <= rocketRuntime.homingSpeedEpsilon) return null;
         this._tmpVec2.divideScalar(speed);
 
+        let lineTarget = null;
         if (projectile.huntRocket) {
             const trailHitRadius = Math.max(
                 Number(projectile.radius) || 0,
                 Number(config?.HUNT?.MG?.TRAIL_HIT_RADIUS || 0.78)
             );
             const mgTrailRange = Math.max(rocketRuntime.homingMinRange, Number(config?.HUNT?.MG?.RANGE || 95));
-            const sharedTarget = resolveHuntLineTarget({
+            lineTarget = resolveHuntLineTarget({
                 sourcePlayer: owner,
                 players,
                 trailSpatialIndex,
@@ -93,13 +124,10 @@ export class ProjectileSimulationOps {
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
             });
-            if (sharedTarget) {
-                return sharedTarget;
-            }
         }
 
-        let bestTarget = null;
-        let bestDistSq = Infinity;
+        let bestConeTarget = null;
+        let bestConeDistSq = Infinity;
         let bestFallbackTarget = null;
         let bestFallbackDistSq = Infinity;
         for (const target of players) {
@@ -108,24 +136,47 @@ export class ProjectileSimulationOps {
             this._tmpVec.subVectors(target.position, projectile.position);
             const distSq = this._tmpVec.lengthSq();
             if (distSq <= 1 || distSq > maxRangeSq) continue;
-            if (distSq < bestFallbackDistSq) {
-                bestFallbackDistSq = distSq;
-                bestFallbackTarget = target;
-            }
 
             const distance = Math.sqrt(distSq);
             this._tmpDir.copy(this._tmpVec).multiplyScalar(1 / distance);
-            if (this._tmpVec2.dot(this._tmpDir) < minDot) continue;
+            const facingDot = this._tmpVec2.dot(this._tmpDir);
 
-            if (distSq < bestDistSq) {
-                bestDistSq = distSq;
-                bestTarget = target;
+            if (facingDot >= minDot && distSq < bestConeDistSq) {
+                bestConeDistSq = distSq;
+                bestConeTarget = target;
+            } else if (
+                projectile.huntRocket
+                && facingDot >= fallbackMinDot
+                && distSq < bestFallbackDistSq
+            ) {
+                bestFallbackDistSq = distSq;
+                bestFallbackTarget = target;
             }
         }
-        if (bestTarget) {
+
+        if (lineTarget) {
+            if (isPlayerTargetDescriptor(lineTarget)) {
+                return lineTarget;
+            }
+            if (isTrailTargetDescriptor(lineTarget)) {
+                if (bestConeTarget) {
+                    const playerDist = Math.sqrt(bestConeDistSq);
+                    const trailDist = Number.isFinite(lineTarget.distance)
+                        ? lineTarget.distance
+                        : Infinity;
+                    if (!(trailDist < playerDist * rocketRuntime.homingTrailPriorityRatio)) {
+                        return createPlayerTargetDescriptor(bestConeTarget, playerDist);
+                    }
+                }
+                return lineTarget;
+            }
+            return lineTarget;
+        }
+
+        if (bestConeTarget) {
             return projectile.huntRocket
-                ? createPlayerTargetDescriptor(bestTarget, Math.sqrt(bestDistSq))
-                : bestTarget;
+                ? createPlayerTargetDescriptor(bestConeTarget, Math.sqrt(bestConeDistSq))
+                : bestConeTarget;
         }
         if (projectile.huntRocket && bestFallbackTarget) {
             return createPlayerTargetDescriptor(bestFallbackTarget, Math.sqrt(bestFallbackDistSq));
@@ -240,19 +291,46 @@ export class ProjectileSimulationOps {
             { scratch: this._targetingScratch }
         );
         if (targetPosition) {
+            const targetPlayer = resolveHuntTargetOwnerPlayer(projectile.target, players);
+            const leadOnPlayer = !!targetPlayer?.velocity && (
+                isPlayerTargetDescriptor(projectile.target)
+                || projectile.target === targetPlayer
+            );
+            if (leadOnPlayer && rocketRuntime.homingLeadTimeMax > 0) {
+                this._tmpVec2.copy(projectile.velocity);
+                const rocketSpeed = this._tmpVec2.length();
+                if (rocketSpeed > rocketRuntime.homingSpeedEpsilon) {
+                    const distance = this._tmpVec.subVectors(targetPosition, projectile.position).length();
+                    const leadTime = Math.min(
+                        rocketRuntime.homingLeadTimeMax,
+                        distance / rocketSpeed
+                    );
+                    targetPosition.addScaledVector(targetPlayer.velocity, leadTime);
+                }
+            }
+
             this._tmpVec.subVectors(targetPosition, projectile.position);
             if (this._tmpVec.lengthSq() > 0.000001) {
                 this._tmpVec.normalize();
                 this._tmpVec2.copy(projectile.velocity);
                 const speed = this._tmpVec2.length();
-                const turnRate = Math.max(
-                    rocketRuntime.homingMinTurnRate,
-                    Number(projectile.homingTurnRate || config?.HOMING?.TURN_RATE)
-                );
-                this._tmpVec2.normalize().lerp(this._tmpVec, Math.min(turnRate * dt, 1.0)).normalize();
-                projectile.velocity.copy(this._tmpVec2.multiplyScalar(speed));
-                this._tmpVec.addVectors(projectile.position, projectile.velocity);
-                projectile.mesh.lookAt(this._tmpVec);
+                if (speed > rocketRuntime.homingSpeedEpsilon) {
+                    this._tmpVec2.divideScalar(speed);
+                    const turnRate = Math.max(
+                        rocketRuntime.homingMinTurnRate,
+                        Number(projectile.homingTurnRate || config?.HOMING?.TURN_RATE)
+                    );
+                    const align = THREE.MathUtils.clamp(this._tmpVec2.dot(this._tmpVec), -1, 1);
+                    const align01 = align * 0.5 + 0.5;
+                    const effectiveTurnRate = turnRate * (
+                        1 - rocketRuntime.homingTurnDotBlend
+                        + rocketRuntime.homingTurnDotBlend * align01
+                    );
+                    this._tmpVec2.lerp(this._tmpVec, Math.min(effectiveTurnRate * dt, 1.0)).normalize();
+                    projectile.velocity.copy(this._tmpVec2.multiplyScalar(speed));
+                    this._tmpVec.addVectors(projectile.position, projectile.velocity);
+                    projectile.mesh.lookAt(this._tmpVec);
+                }
             }
         }
 

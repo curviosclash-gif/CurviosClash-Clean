@@ -178,11 +178,8 @@ export function resolveHuntTargetPosition(target, players = [], trailSpatialInde
     if (isTrailTargetDescriptor(target)) {
         const entry = resolveTrailTargetEntry(trailSpatialIndex, target, options);
         if (!entry) return null;
-        return destination.set(
-            toFiniteNumber(target.point?.x, 0),
-            toFiniteNumber(target.point?.y, 0),
-            toFiniteNumber(target.point?.z, 0)
-        );
+        const liveMidpoint = resolveTrailMidpoint(entry);
+        return destination.set(liveMidpoint.x, liveMidpoint.y, liveMidpoint.z);
     }
 
     if (target?.alive && target.position) {

@@ -300,6 +300,8 @@ export const CONFIG_SECTIONS = {
         LOCK_ON_ANGLE: 11,       // Grad – Lock-On-Kegel
         TURN_RATE: 3.0,          // Wie schnell Rakete zum Ziel lenkt (Rad/s)
         MAX_LOCK_RANGE: 100,     // Maximale Lock-On-Entfernung
+        LEAD_TIME_MAX: 0.35,     // Sekunden Vorhalt auf Zielgeschwindigkeit
+        TURN_DOT_BLEND: 0.35,    // 0=konstante Turn-Rate, 1=stark winkelabhaengig
     },
 
     // ---- Farben ----

@@ -67,6 +67,8 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
         TURN_RATE: 3,
         LOCK_ON_ANGLE: 15,
         MAX_LOCK_RANGE: 100,
+        LEAD_TIME_MAX: 0.35,
+        TURN_DOT_BLEND: 0.35,
     }),
     HUNT: Object.freeze({
         ENABLED: false,

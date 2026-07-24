@@ -87,6 +87,8 @@ export const GAMEPLAY_CONFIG_DEFAULTS = Object.freeze({
         LOCK_ON_ANGLE: 11,
         TURN_RATE: 3.0,
         MAX_LOCK_RANGE: 100,
+        LEAD_TIME_MAX: 0.35,
+        TURN_DOT_BLEND: 0.35,
     }),
     HUNT: Object.freeze({
         ENABLED: true,
