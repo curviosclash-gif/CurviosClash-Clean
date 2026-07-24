@@ -22,7 +22,7 @@ export class PlayerInteractionPhase {
 
         if (gateType === 'boost') {
             player.activateBoostPortal(gateResult.params, gateResult.forward);
-            if (entityManager.audio && !player.isBot) entityManager.audio.play('POWERUP');
+            if (entityManager.audio && !player.isBot) entityManager.audio.play('BOOST');
             entityManager.recorder?.logEvent?.('GATE_TRIGGER', player.index, encodeGameplayActionResultForLog(buildGameplayActionResult({
                 ok: true,
                 code: gateResult.code || GAMEPLAY_ACTION_RESULT_CODES.GATE_TRIGGER_BOOST,
@@ -97,7 +97,7 @@ export class PlayerInteractionPhase {
             count: 1,
             itemType: pickedUp.type,
         });
-        if (entityManager.audio) entityManager.audio.play('POWERUP');
+        if (entityManager.audio && !player.isBot) entityManager.audio.play('POWERUP');
         if (entityManager.particles) entityManager.particles.spawnHit(player.position, 0x00ff00);
         entityManager.recorder?.logEvent?.('ITEM_PICKUP', player.index, encodeGameplayActionResultForLog(buildGameplayActionResult({
             ok: true,

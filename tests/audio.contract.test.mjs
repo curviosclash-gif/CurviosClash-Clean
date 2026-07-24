@@ -58,16 +58,15 @@ function withMockWindow(run) {
         });
 }
 
-test('AudioManager registers and disposes init/mute listeners', async () => {
+test('AudioManager registers and disposes init listeners without KeyM mute binding', async () => {
     await withMockWindow(async (mockWindow) => {
         const audio = new AudioManager();
         const initHandler = audio._onInitInteraction;
-        const muteHandler = audio._onMuteToggle;
 
         audio.dispose();
 
         assert.deepEqual(mockWindow.getRemovedTypesForListener(initHandler), ['click', 'keydown', 'touchstart']);
-        assert.deepEqual(mockWindow.getRemovedTypesForListener(muteHandler), ['keydown']);
+        assert.equal(audio._onMuteToggle, undefined);
     });
 });
 
@@ -101,7 +100,7 @@ test('AudioManager init failure enables silent fallback and warning', async () =
     });
 });
 
-test('AudioManager mute toggle uses debug path instead of console.log', async () => {
+test('AudioManager mute toggle uses API instead of KeyM', async () => {
     await withMockWindow(async () => {
         const originalLog = console.log;
         const originalDebug = console.debug;
@@ -116,17 +115,66 @@ test('AudioManager mute toggle uses debug path instead of console.log', async ()
 
         const audio = new AudioManager();
         try {
-            const initialEnabled = audio.enabled;
-            globalThis.window.dispatchEvent({ type: 'keydown', code: 'KeyM' });
-
-            assert.equal(initialEnabled, true);
+            assert.equal(audio.isMuted(), false);
+            assert.equal(audio.toggleMute(), true);
+            assert.equal(audio.isMuted(), true);
             assert.equal(audio.enabled, false);
+            assert.equal(audio.setMuted(false), false);
+            assert.equal(audio.isMuted(), false);
             assert.equal(logCalls, 0);
             assert.equal(debugCalls, 0);
         } finally {
             audio.dispose();
             console.log = originalLog;
             console.debug = originalDebug;
+        }
+    });
+});
+
+test('AudioManager master volume clamps and applies to bus', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = class MockAudioContext {
+            constructor() {
+                this.sampleRate = 44_100;
+                this.currentTime = 0;
+                this.state = 'running';
+                this.destination = {};
+            }
+
+            createGain() {
+                return { gain: { value: 1 }, connect() {} };
+            }
+
+            createBuffer(channels, bufferSize) {
+                return {
+                    numberOfChannels: channels,
+                    length: bufferSize,
+                    getChannelData() {
+                        return new Float32Array(bufferSize);
+                    },
+                };
+            }
+
+            close() {
+                return Promise.resolve();
+            }
+        };
+
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            assert.ok(audio._masterGain);
+            assert.equal(audio.setMasterVolume(0.4), 0.4);
+            assert.equal(audio.getMasterVolume(), 0.4);
+            assert.equal(audio._masterGain.gain.value, 0.4);
+            audio.setMuted(true);
+            assert.equal(audio._masterGain.gain.value, 0);
+            audio.setMuted(false);
+            assert.equal(audio._masterGain.gain.value, 0.4);
+            assert.equal(audio.setMasterVolume(2), 1);
+            assert.equal(audio.setMasterVolume(-1), 0);
+        } finally {
+            audio.dispose();
         }
     });
 });
@@ -164,7 +212,7 @@ test('AudioManager respects cooldown throttling', async () => {
     });
 });
 
-test('AudioManager supports dedicated parcours sound families with distinct cooldowns', async () => {
+test('AudioManager supports dedicated parcours and fight sound families', async () => {
     await withMockWindow(async () => {
         const audio = new AudioManager();
         try {
@@ -180,18 +228,32 @@ test('AudioManager supports dedicated parcours sound families with distinct cool
             audio._playParcoursCheckpoint = () => played.push('PARCOURS_CP');
             audio._playParcoursBranch = () => played.push('PARCOURS_BRANCH');
             audio._playParcoursFinish = () => played.push('PARCOURS_FINISH');
+            audio._playFightKill = () => played.push('FIGHT_KILL');
+            audio._playFightAssist = () => played.push('FIGHT_ASSIST');
+            audio._playFightLead = () => played.push('FIGHT_LEAD');
 
             audio.play('PARCOURS_CP');
             audio.play('PARCOURS_BRANCH');
             audio.play('PARCOURS_FINISH');
+            audio.play('FIGHT_KILL');
+            audio.play('FIGHT_ASSIST');
+            audio.play('FIGHT_LEAD');
 
             assert.equal(audio.cooldowns.PARCOURS_CP, 80);
             assert.equal(audio.cooldowns.PARCOURS_BRANCH, 140);
             assert.equal(audio.cooldowns.PARCOURS_FINISH, 650);
-            assert.deepEqual(played, ['PARCOURS_CP', 'PARCOURS_BRANCH', 'PARCOURS_FINISH']);
+            assert.equal(audio.cooldowns.FIGHT_KILL, 120);
+            assert.deepEqual(played, [
+                'PARCOURS_CP',
+                'PARCOURS_BRANCH',
+                'PARCOURS_FINISH',
+                'FIGHT_KILL',
+                'FIGHT_ASSIST',
+                'FIGHT_LEAD',
+            ]);
             assert.deepEqual(
-                audio.getRecentEvents(5).map((entry) => entry.type),
-                ['PARCOURS_CP', 'PARCOURS_BRANCH', 'PARCOURS_FINISH']
+                audio.getRecentEvents(10).map((entry) => entry.type),
+                ['PARCOURS_CP', 'PARCOURS_BRANCH', 'PARCOURS_FINISH', 'FIGHT_KILL', 'FIGHT_ASSIST', 'FIGHT_LEAD']
             );
         } finally {
             audio.dispose();
@@ -210,6 +272,10 @@ test('AudioManager initializes once on first interaction and removes init listen
                 this.currentTime = 0;
                 this.state = 'running';
                 this.destination = {};
+            }
+
+            createGain() {
+                return { gain: { value: 1 }, connect() {} };
             }
 
             createBuffer(channels, bufferSize) {
@@ -235,9 +301,39 @@ test('AudioManager initializes once on first interaction and removes init listen
 
         assert.equal(constructorCalls, 1);
         assert.equal(Boolean(audio.buffers.explosion), true);
+        assert.ok(audio._masterGain);
         assert.deepEqual(mockWindow.getRemovedTypesForListener(initHandler), ['click', 'keydown', 'touchstart']);
 
         audio.dispose();
         assert.ok(closeCalls >= 1);
+    });
+});
+
+test('AudioManager HIT and SHOOT pass intensity into synth helpers', async () => {
+    await withMockWindow(async () => {
+        const audio = new AudioManager();
+        try {
+            const seen = [];
+            audio.ctx = {
+                state: 'running',
+                resume() {},
+                close() {
+                    return Promise.resolve();
+                },
+            };
+            audio._resolveTime = () => 1_000;
+            audio._playHit = (options) => seen.push(['HIT', options.intensity]);
+            audio._playShoot = (options) => seen.push(['SHOOT', options.intensity]);
+
+            audio.play('HIT', { intensity: 0.55 });
+            audio.play('SHOOT', { intensity: 1.1 });
+
+            assert.deepEqual(seen, [
+                ['HIT', 0.55],
+                ['SHOOT', 1.1],
+            ]);
+        } finally {
+            audio.dispose();
+        }
     });
 });

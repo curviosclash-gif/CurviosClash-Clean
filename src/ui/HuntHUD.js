@@ -98,8 +98,6 @@ export class HuntHUD {
         this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
-        this._localKills = -1;
-        this._localAssists = -1;
         this._indicatorP2Visible = null;
         this._isHuntActive = typeof options.isHuntActive === 'function'
             ? options.isHuntActive
@@ -162,8 +160,6 @@ export class HuntHUD {
         this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
-        this._localKills = -1;
-        this._localAssists = -1;
         this._indicatorP2Visible = null;
     }
 
@@ -380,16 +376,8 @@ export class HuntHUD {
         } else if (leader && leader.kills === killLimit - 1 && leader.kills !== this._leaderKills) {
             this.runtime?.audio?.play?.('FIGHT_LEAD');
         }
-        if (huntProjection?.authoritativeClient && this._localKills >= 0 && Number(localRow?.kills) > this._localKills) {
-            this.runtime?.audio?.play?.('FIGHT_KILL');
-        }
-        if (huntProjection?.authoritativeClient && this._localAssists >= 0 && Number(localRow?.assists) > this._localAssists) {
-            this.runtime?.audio?.play?.('FIGHT_ASSIST');
-        }
         this._leaderIndex = leader?.playerIndex ?? null;
         this._leaderKills = Number(leader?.kills) || 0;
-        this._localKills = Number(localRow?.kills) || 0;
-        this._localAssists = Number(localRow?.assists) || 0;
         if (this.objective && objectiveText !== this._objectiveText) {
             this.objective.textContent = objectiveText;
             this._objectiveText = objectiveText;

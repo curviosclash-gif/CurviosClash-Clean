@@ -327,7 +327,9 @@ export class EntityManager {
         }
         this._respawnSystem.onPlayerDied(player);
         if (this.particles) this.particles.spawnExplosion(player.position, player.color);
-        if (this.audio) this.audio.play('EXPLOSION');
+        const killer = options?.killer || null;
+        const playExplosion = !player.isBot || (killer && !killer.isBot);
+        if (this.audio && playExplosion) this.audio.play('EXPLOSION');
         if (this.recorder) {
             const killerIndex = Number.isInteger(options?.killer?.index) ? options.killer.index : -1;
             this.recorder.markPlayerDeath(player, cause);
