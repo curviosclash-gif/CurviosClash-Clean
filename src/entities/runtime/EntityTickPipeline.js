@@ -24,12 +24,20 @@ export class EntityTickPipeline {
                 owner._playerLifecycleSystem.updatePlayer(player, dt, input, renderFrameId, simulationNowMs);
             }
 
-            if (owner._roundEnded) return;
+            if (owner._roundEnded) {
+                owner.audio?.stopEngine?.();
+                return;
+            }
+
+            owner.audio?.syncEngineFromPlayers?.(owner.players, {
+                localPlayerIndex: owner.renderer?.viewportSystem?.localPlayerIndex,
+            });
 
             const outcome = owner._roundOutcomeSystem.resolve();
             if (outcome.shouldEnd) {
                 owner._roundEnded = true;
                 owner._lastRoundOutcome = outcome;
+                owner.audio?.stopEngine?.();
                 owner.onAuthoritativeFightStateChanged?.();
                 owner._eventBus.emitRoundEnd(outcome.winner, outcome);
             }

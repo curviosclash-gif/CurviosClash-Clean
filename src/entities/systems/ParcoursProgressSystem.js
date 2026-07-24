@@ -313,6 +313,7 @@ export class ParcoursProgressSystem {
             player,
             `expected=${state.nextCheckpointIndex + 1} got=${entry.id} penaltyMs=${penaltyMs} totalPenaltyMs=${state.penaltyTimeMs}`
         );
+        this._playProgressAudio('PARCOURS_WRONG', player, { intensity: 0.95 });
     }
 
     _registerSegmentTimeout(player, state, now) {
@@ -325,6 +326,7 @@ export class ParcoursProgressSystem {
             });
             this._notifyPlayer(player, 'Segment-Zeitfenster verpasst (Rueckfall)');
             this._logRecorderEvent('PARCOURS_TIMEOUT', player, 'segment-timeout mode=last-valid');
+            this._playProgressAudio('PARCOURS_TIMEOUT', player, { intensity: 0.9 });
             return;
         }
 
@@ -337,6 +339,7 @@ export class ParcoursProgressSystem {
         });
         this._notifyPlayer(player, 'Segment-Zeitfenster verpasst');
         this._logRecorderEvent('PARCOURS_TIMEOUT', player, 'segment-timeout mode=full-reset');
+        this._playProgressAudio('PARCOURS_TIMEOUT', player, { intensity: 0.9 });
     }
 
     _completeParcours(player, state, now) {

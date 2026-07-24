@@ -109,6 +109,23 @@ test('ParcoursProgressSystem plays checkpoint and finish audio only for accepted
     );
 });
 
+test('ParcoursProgressSystem plays wrong-order audio for invalid human progress', () => {
+    const harness = createHarness(createParcoursDefinition());
+    const route = harness.system.getRouteSnapshot();
+    const cp01 = route.checkpoints.find((entry) => entry.id === 'CP01');
+    const cp03 = route.checkpoints.find((entry) => entry.id === 'CP03');
+
+    harness.nowRef.value = 100;
+    assert.equal(crossCheckpoint(harness.system, harness.player, cp01, harness.nowRef.value)?.type, 'checkpoint');
+    harness.nowRef.value = 300;
+    crossCheckpoint(harness.system, harness.player, cp03, harness.nowRef.value);
+
+    assert.deepEqual(
+        harness.audioEvents.map((entry) => entry.type),
+        ['PARCOURS_CP', 'PARCOURS_WRONG']
+    );
+});
+
 test('ParcoursProgressSystem uses branch audio for branch checkpoints and suppresses bot-local spam', () => {
     const branchHarness = createHarness(createParcoursDefinition({
         checkpoints: [

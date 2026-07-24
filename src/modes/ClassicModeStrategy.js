@@ -91,14 +91,16 @@ export class ClassicModeStrategy extends GameModeContract {
     // --- Collision Response ---
     handleWallCollision(player, arenaCollision, entityManager) {
         if (player.hasShield) {
-            if (entityManager.audio) entityManager.audio.play('HIT');
+            if (entityManager.audio && !player.isBot) {
+                entityManager.audio.play('SHIELD_HIT', { intensity: 1, depleted: true });
+            }
             if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
             player.hasShield = false;
             player.getDirection(entityManager._tmpDir).multiplyScalar(2.2);
             player.position.sub(entityManager._tmpDir);
             return false;
         }
-        if (entityManager.audio) entityManager.audio.play('HIT');
+        if (entityManager.audio && !player.isBot) entityManager.audio.play('HIT');
         if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
         entityManager._killPlayer(player, 'WALL');
         return true;
@@ -106,12 +108,14 @@ export class ClassicModeStrategy extends GameModeContract {
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
         if (player.hasShield) {
-            if (entityManager.audio) entityManager.audio.play('HIT');
+            if (entityManager.audio && !player.isBot) {
+                entityManager.audio.play('SHIELD_HIT', { intensity: 1, depleted: true });
+            }
             if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
             player.hasShield = false;
             return false;
         }
-        if (entityManager.audio) entityManager.audio.play('HIT');
+        if (entityManager.audio && !player.isBot) entityManager.audio.play('HIT');
         if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
         entityManager._killPlayer(player, trailCause);
         return true;

@@ -6,25 +6,37 @@ import { createLogger } from '../shared/logging/Logger.js';
 
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
-const DEFAULT_MASTER_VOLUME = 0.15;
+const DEFAULT_MASTER_VOLUME = 0.18;
+const DEFAULT_SFX_VOLUME = 1;
+const DEFAULT_ENGINE_VOLUME = 0.55;
+const MAX_ACTIVE_VOICES = 18;
+const ENGINE_IDLE_GAIN = 0.0001;
 
 const SOUND_COOLDOWNS_MS = Object.freeze({
     SHOOT: 100,
-    MG_SHOOT: 50,
+    MG_SHOOT: 45,
     ROCKET_SHOOT: 180,
     EXPLOSION: 200,
-    HIT: 100,
-    MG_HIT: 70,
+    HIT: 90,
+    MG_HIT: 65,
     ROCKET_IMPACT: 160,
     SHIELD_HIT: 70,
-    POWERUP: 500,
-    BOOST: 200,
+    POWERUP: 420,
+    PICKUP: 280,
+    PORTAL: 320,
+    SLINGSHOT: 260,
+    BOOST: 180,
     PARCOURS_CP: 80,
     PARCOURS_BRANCH: 140,
     PARCOURS_FINISH: 650,
+    PARCOURS_WRONG: 420,
+    PARCOURS_TIMEOUT: 500,
     FIGHT_KILL: 120,
     FIGHT_ASSIST: 180,
     FIGHT_LEAD: 800,
+    UI_DROP: 40,
+    UI_PICKUP: 40,
+    UI_REJECT: 80,
 });
 
 const AUDIO_INIT_EVENT_TYPES = ['click', 'keydown', 'touchstart'];
@@ -42,19 +54,23 @@ export class AudioManager {
         this.ctx = null;
         this.enabled = true;
         this.volume = DEFAULT_MASTER_VOLUME;
+        this.sfxVolume = DEFAULT_SFX_VOLUME;
+        this.engineVolume = DEFAULT_ENGINE_VOLUME;
         this.buffers = {};
         this._masterGain = null;
+        this._sfxGain = null;
+        this._engineGain = null;
+        this._engine = null;
+        this._activeVoices = 0;
         this._isDevEnvironment = isDevEnvironment();
         this._audioInitFailed = false;
         this._debugEvents = [];
         this._maxDebugEvents = 24;
         this._registeredWindowListeners = [];
 
-        // Throttling Logic
-        this.lastPlayTime = {}; // { 'EXPLOSION': 123456789 }
+        this.lastPlayTime = {};
         this.cooldowns = { ...SOUND_COOLDOWNS_MS };
 
-        // Initialize on first user interaction (browser policy)
         this._onInitInteraction = () => {
             this._init();
             this._removeInitListeners();
@@ -109,13 +125,19 @@ export class AudioManager {
         try {
             this.ctx = new AudioContext();
             this._masterGain = this.ctx.createGain();
-            this._applyMasterGain();
+            this._sfxGain = this.ctx.createGain();
+            this._engineGain = this.ctx.createGain();
+            this._sfxGain.connect(this._masterGain);
+            this._engineGain.connect(this._masterGain);
             this._masterGain.connect(this.ctx.destination);
+            this._applyBusGains();
             this._generateBuffers();
         } catch (error) {
             this.enabled = false;
             this.ctx = null;
             this._masterGain = null;
+            this._sfxGain = null;
+            this._engineGain = null;
             this.buffers = {};
             this._audioInitFailed = true;
             logger.warn('AudioContext initialization failed; audio muted.', error);
@@ -126,14 +148,16 @@ export class AudioManager {
     }
 
     _generateBuffers() {
-        // Explosion Buffer (Noise)
-        const duration = 0.3;
-        const bufferSize = this.ctx.sampleRate * duration;
+        const duration = 0.42;
+        const bufferSize = Math.max(1, Math.floor(this.ctx.sampleRate * duration));
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
-
+        let prev = 0;
         for (let i = 0; i < bufferSize; i++) {
-            data[i] = Math.random() * 2 - 1;
+            const white = Math.random() * 2 - 1;
+            prev = (prev * 0.96) + (white * 0.04);
+            const envelope = 1 - (i / bufferSize);
+            data[i] = (white * 0.55 + prev * 0.45) * envelope;
         }
         this.buffers.explosion = buffer;
     }
@@ -142,14 +166,15 @@ export class AudioManager {
         return Math.min(Math.max(value, min), max);
     }
 
-    _applyMasterGain() {
-        if (!this._masterGain) return;
-        const level = this.enabled ? this._clamp(this.volume, 0, 1) : 0;
-        this._masterGain.gain.value = level;
+    _applyBusGains() {
+        const master = this.enabled ? this._clamp(this.volume, 0, 1) : 0;
+        if (this._masterGain) this._masterGain.gain.value = master;
+        if (this._sfxGain) this._sfxGain.gain.value = this._clamp(this.sfxVolume, 0, 1);
+        if (this._engineGain) this._engineGain.gain.value = this._clamp(this.engineVolume, 0, 1);
     }
 
-    _output() {
-        return this._masterGain || this.ctx.destination;
+    _sfxOut() {
+        return this._sfxGain || this._masterGain || this.ctx.destination;
     }
 
     _resolveTime() {
@@ -157,6 +182,117 @@ export class AudioManager {
             return performance.now();
         }
         return Date.now();
+    }
+
+    _intensity(options = {}, fallback = 1, min = 0.2, max = 1.5) {
+        return this._clamp(Number(options.intensity) || fallback, min, max);
+    }
+
+    _distanceAttenuation(options = {}) {
+        const distance = Number(options.distance);
+        if (!Number.isFinite(distance) || distance <= 0) return 1;
+        return this._clamp(1 / (1 + distance * 0.045), 0.18, 1);
+    }
+
+    _createVoiceGraph(options = {}) {
+        if (this._activeVoices >= MAX_ACTIVE_VOICES) return null;
+        const gain = this.ctx.createGain();
+        let tail = gain;
+        const pan = Number(options.pan);
+        if (Number.isFinite(pan) && typeof this.ctx.createStereoPanner === 'function') {
+            const panner = this.ctx.createStereoPanner();
+            panner.pan.value = this._clamp(pan, -1, 1);
+            gain.connect(panner);
+            tail = panner;
+        }
+        tail.connect(this._sfxOut());
+        this._activeVoices += 1;
+        return gain;
+    }
+
+    _releaseVoice(duration = 0.2) {
+        const ms = Math.max(50, Math.ceil((Number(duration) || 0.2) * 1000) + 30);
+        setTimeout(() => {
+            this._activeVoices = Math.max(0, this._activeVoices - 1);
+        }, ms);
+    }
+
+    _envGain(gainNode, peak, duration, options = {}) {
+        const t = this.ctx.currentTime;
+        const attack = Math.max(0.003, Number(options.attack) || 0.01);
+        const hold = Math.max(0, Number(options.hold) || 0);
+        const level = Math.max(0.0001, peak);
+        gainNode.gain.cancelScheduledValues(t);
+        gainNode.gain.setValueAtTime(0.0001, t);
+        gainNode.gain.exponentialRampToValueAtTime(level, t + attack);
+        if (hold > 0) {
+            gainNode.gain.setValueAtTime(level, t + attack + hold);
+        }
+        gainNode.gain.exponentialRampToValueAtTime(0.0001, t + duration);
+    }
+
+    _startOsc(type, startFreq, endFreq, duration, gainNode, ramp = 'exp') {
+        const osc = this.ctx.createOscillator();
+        const t = this.ctx.currentTime;
+        osc.type = type;
+        const safeStart = Math.max(20, startFreq);
+        const safeEnd = Math.max(20, endFreq);
+        osc.frequency.setValueAtTime(safeStart, t);
+        if (ramp === 'linear') {
+            osc.frequency.linearRampToValueAtTime(safeEnd, t + duration);
+        } else {
+            osc.frequency.exponentialRampToValueAtTime(safeEnd, t + duration);
+        }
+        osc.connect(gainNode);
+        osc.start(t);
+        osc.stop(t + duration + 0.02);
+        return osc;
+    }
+
+    _playTone({
+        type = 'sine',
+        startFreq = 440,
+        endFreq = 440,
+        duration = 0.15,
+        peak = 0.3,
+        attack = 0.01,
+        hold = 0,
+        ramp = 'exp',
+        options = {},
+    }) {
+        const gain = this._createVoiceGraph(options);
+        if (!gain) return;
+        const atten = this._distanceAttenuation(options);
+        this._envGain(gain, peak * atten, duration, { attack, hold });
+        this._startOsc(type, startFreq, endFreq, duration, gain, ramp);
+        this._releaseVoice(duration);
+    }
+
+    _playLayered(layers, options = {}) {
+        const gain = this._createVoiceGraph(options);
+        if (!gain) return;
+        const atten = this._distanceAttenuation(options);
+        const duration = Math.max(...layers.map((layer) => layer.duration || 0.15), 0.08);
+        const peak = Math.max(...layers.map((layer) => layer.peak || 0.2), 0.1) * atten;
+        this._envGain(gain, peak, duration, {
+            attack: layers[0]?.attack || 0.01,
+            hold: layers[0]?.hold || 0,
+        });
+        for (const layer of layers) {
+            const layerGain = this.ctx.createGain();
+            const layerPeak = Math.max(0.0001, (layer.peak || 0.2) * atten);
+            layerGain.gain.value = layerPeak / Math.max(peak, 0.0001);
+            layerGain.connect(gain);
+            this._startOsc(
+                layer.type || 'sine',
+                layer.startFreq || 440,
+                layer.endFreq || layer.startFreq || 440,
+                layer.duration || duration,
+                layerGain,
+                layer.ramp || 'exp'
+            );
+        }
+        this._releaseVoice(duration);
     }
 
     _recordDebugEvent(type, options = {}) {
@@ -183,7 +319,7 @@ export class AudioManager {
 
     setMasterVolume(volume) {
         this.volume = this._clamp(Number(volume) || 0, 0, 1);
-        this._applyMasterGain();
+        this._applyBusGains();
         return this.volume;
     }
 
@@ -191,9 +327,22 @@ export class AudioManager {
         return this.volume;
     }
 
+    setSfxVolume(volume) {
+        this.sfxVolume = this._clamp(Number(volume) || 0, 0, 1);
+        this._applyBusGains();
+        return this.sfxVolume;
+    }
+
+    setEngineVolume(volume) {
+        this.engineVolume = this._clamp(Number(volume) || 0, 0, 1);
+        this._applyBusGains();
+        return this.engineVolume;
+    }
+
     setMuted(muted) {
         this.enabled = muted !== true;
-        this._applyMasterGain();
+        this._applyBusGains();
+        if (!this.enabled) this.stopEngine();
         this._debugLog(`Audio ${this.enabled ? 'ENABLED' : 'DISABLED'}`);
         return !this.enabled;
     }
@@ -210,11 +359,9 @@ export class AudioManager {
         if (!this.enabled || !this.ctx) return;
         if (this.ctx.state === 'suspended') this.ctx.resume();
 
-        // Check Cooldown
         const now = this._resolveTime();
         const last = this.lastPlayTime[type] || 0;
         const cooldown = this.cooldowns[type] || DEFAULT_COOLDOWN_MS;
-
         if (now - last < cooldown) return;
         this.lastPlayTime[type] = now;
         this._recordDebugEvent(type, options);
@@ -229,396 +376,413 @@ export class AudioManager {
             case 'ROCKET_IMPACT': this._playRocketImpact(options); break;
             case 'SHIELD_HIT': this._playShieldHit(options); break;
             case 'POWERUP': this._playPowerup(options); break;
+            case 'PICKUP': this._playPickup(options); break;
+            case 'PORTAL': this._playPortal(options); break;
+            case 'SLINGSHOT': this._playSlingshot(options); break;
             case 'BOOST': this._playBoost(options); break;
             case 'PARCOURS_CP': this._playParcoursCheckpoint(options); break;
             case 'PARCOURS_BRANCH': this._playParcoursBranch(options); break;
             case 'PARCOURS_FINISH': this._playParcoursFinish(options); break;
+            case 'PARCOURS_WRONG': this._playParcoursWrong(options); break;
+            case 'PARCOURS_TIMEOUT': this._playParcoursTimeout(options); break;
             case 'FIGHT_KILL': this._playFightKill(options); break;
             case 'FIGHT_ASSIST': this._playFightAssist(options); break;
             case 'FIGHT_LEAD': this._playFightLead(options); break;
+            case 'UI_DROP': this._playUiDrop(options); break;
+            case 'UI_PICKUP': this._playUiPickup(options); break;
+            case 'UI_REJECT': this._playUiReject(options); break;
+            default: break;
         }
     }
 
     _playShoot(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.85, 0.2, 1.3);
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(800, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(100, this.ctx.currentTime + 0.1);
-
-        gain.gain.setValueAtTime(0.5 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.1);
+        const intensity = this._intensity(options, 0.85, 0.2, 1.3);
+        this._playLayered([
+            { type: 'square', startFreq: 760, endFreq: 140, duration: 0.09, peak: 0.28 * intensity, attack: 0.004 },
+            { type: 'triangle', startFreq: 420, endFreq: 90, duration: 0.11, peak: 0.16 * intensity },
+        ], options);
     }
 
     _playMgShoot(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.75, 0.2, 1.2);
-
-        osc.type = 'square';
-        osc.frequency.setValueAtTime(1450, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(260, this.ctx.currentTime + 0.06);
-
-        gain.gain.setValueAtTime(0.22 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.06);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.06);
+        const intensity = this._intensity(options, 0.75, 0.2, 1.2);
+        this._playTone({
+            type: 'square',
+            startFreq: 1500,
+            endFreq: 280,
+            duration: 0.05,
+            peak: 0.16 * intensity,
+            attack: 0.003,
+            options,
+        });
     }
 
     _playRocketShoot(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.9, 0.25, 1.3);
-
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(220, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(72, this.ctx.currentTime + 0.22);
-
-        gain.gain.setValueAtTime(0.42 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.22);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.22);
+        const intensity = this._intensity(options, 0.9, 0.25, 1.3);
+        this._playLayered([
+            { type: 'sawtooth', startFreq: 240, endFreq: 64, duration: 0.26, peak: 0.3 * intensity, attack: 0.02 },
+            { type: 'triangle', startFreq: 110, endFreq: 48, duration: 0.3, peak: 0.18 * intensity },
+        ], options);
     }
 
     _playExplosion(options = {}) {
         if (!this.buffers.explosion) return;
-
+        const gain = this._createVoiceGraph(options);
+        if (!gain) return;
+        const intensity = this._intensity(options, 1, 0.25, 1.5);
+        const atten = this._distanceAttenuation(options);
         const noise = this.ctx.createBufferSource();
         noise.buffer = this.buffers.explosion;
-        const intensity = this._clamp(Number(options.intensity) || 1, 0.25, 1.5);
 
         const filter = this.ctx.createBiquadFilter();
         filter.type = 'lowpass';
-        filter.frequency.setValueAtTime(1000, this.ctx.currentTime);
-        filter.frequency.linearRampToValueAtTime(100, this.ctx.currentTime + 0.3);
+        filter.Q.value = 0.7;
+        filter.frequency.setValueAtTime(1400, this.ctx.currentTime);
+        filter.frequency.exponentialRampToValueAtTime(90, this.ctx.currentTime + 0.38);
 
-        const gain = this.ctx.createGain();
-        gain.gain.setValueAtTime(intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-
+        this._envGain(gain, 0.85 * intensity * atten, 0.4, { attack: 0.004 });
         noise.connect(filter);
         filter.connect(gain);
-        gain.connect(this._output());
-
         noise.start();
+        this._releaseVoice(0.42);
+
+        this._playTone({
+            type: 'triangle',
+            startFreq: 180,
+            endFreq: 45,
+            duration: 0.28,
+            peak: 0.22 * intensity * atten,
+            attack: 0.01,
+            options,
+        });
     }
 
     _playHit(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.9, 0.2, 1.4);
-
-        osc.type = 'sawtooth';
-        osc.frequency.setValueAtTime(200 * (0.85 + intensity * 0.2), this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(50, this.ctx.currentTime + 0.1);
-
-        gain.gain.setValueAtTime(0.8 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.1);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.1);
+        const intensity = this._intensity(options, 0.9, 0.2, 1.4);
+        this._playLayered([
+            { type: 'sawtooth', startFreq: 210 * (0.9 + intensity * 0.15), endFreq: 48, duration: 0.11, peak: 0.42 * intensity, attack: 0.004 },
+            { type: 'triangle', startFreq: 320, endFreq: 80, duration: 0.09, peak: 0.18 * intensity },
+        ], options);
     }
 
     _playMgHit(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.8, 0.2, 1.4);
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(920, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(280, this.ctx.currentTime + 0.08);
-
-        gain.gain.setValueAtTime(0.32 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.08);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.08);
+        const intensity = this._intensity(options, 0.8, 0.2, 1.4);
+        this._playTone({
+            type: 'triangle',
+            startFreq: 980,
+            endFreq: 260,
+            duration: 0.07,
+            peak: 0.24 * intensity,
+            attack: 0.004,
+            options,
+        });
     }
 
     _playRocketImpact(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 1, 0.3, 1.6);
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(140, this.ctx.currentTime);
-        osc.frequency.exponentialRampToValueAtTime(42, this.ctx.currentTime + 0.28);
-
-        gain.gain.setValueAtTime(0.52 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.28);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.28);
-        this._playExplosion({ intensity: intensity * 0.85 });
+        const intensity = this._intensity(options, 1, 0.3, 1.6);
+        this._playTone({
+            type: 'triangle',
+            startFreq: 150,
+            endFreq: 38,
+            duration: 0.3,
+            peak: 0.36 * intensity,
+            attack: 0.008,
+            options,
+        });
+        this._playExplosion({ ...options, intensity: intensity * 0.9 });
     }
 
     _playShieldHit(options = {}) {
-        const primary = this.ctx.createOscillator();
-        const secondary = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.9, 0.2, 1.3);
-        const endFrequency = options.depleted ? 180 : 260;
-
-        primary.type = 'sine';
-        primary.frequency.setValueAtTime(760, this.ctx.currentTime);
-        primary.frequency.exponentialRampToValueAtTime(endFrequency, this.ctx.currentTime + 0.16);
-
-        secondary.type = 'triangle';
-        secondary.frequency.setValueAtTime(1180, this.ctx.currentTime);
-        secondary.frequency.exponentialRampToValueAtTime(Math.max(endFrequency * 1.8, 320), this.ctx.currentTime + 0.12);
-
-        gain.gain.setValueAtTime(0.26 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
-
-        primary.connect(gain);
-        secondary.connect(gain);
-        gain.connect(this._output());
-
-        primary.start();
-        secondary.start();
-        primary.stop(this.ctx.currentTime + 0.18);
-        secondary.stop(this.ctx.currentTime + 0.16);
+        const intensity = this._intensity(options, 0.9, 0.2, 1.3);
+        const depleted = options.depleted === true;
+        this._playLayered([
+            {
+                type: 'sine',
+                startFreq: depleted ? 640 : 820,
+                endFreq: depleted ? 140 : 280,
+                duration: depleted ? 0.28 : 0.16,
+                peak: 0.22 * intensity,
+                attack: 0.006,
+            },
+            {
+                type: 'triangle',
+                startFreq: depleted ? 980 : 1240,
+                endFreq: depleted ? 220 : 420,
+                duration: depleted ? 0.22 : 0.12,
+                peak: 0.14 * intensity,
+            },
+        ], options);
     }
 
     _playPowerup(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 1, 0.3, 1.3);
+        const intensity = this._intensity(options, 1, 0.3, 1.3);
+        this._playTone({
+            type: 'sine',
+            startFreq: 420,
+            endFreq: 1180,
+            duration: 0.2,
+            peak: 0.34 * intensity,
+            attack: 0.012,
+            ramp: 'linear',
+            options,
+        });
+    }
 
-        osc.type = 'sine';
-        osc.frequency.setValueAtTime(400, this.ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(1200, this.ctx.currentTime + 0.2);
+    _playPickup(options = {}) {
+        const intensity = this._intensity(options, 1, 0.3, 1.3);
+        this._playLayered([
+            { type: 'sine', startFreq: 520, endFreq: 880, duration: 0.1, peak: 0.22 * intensity, attack: 0.008, ramp: 'linear' },
+            { type: 'triangle', startFreq: 780, endFreq: 1240, duration: 0.14, peak: 0.16 * intensity, ramp: 'linear' },
+        ], options);
+    }
 
-        gain.gain.setValueAtTime(0.6 * intensity, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.2);
+    _playPortal(options = {}) {
+        const intensity = this._intensity(options, 1, 0.3, 1.3);
+        this._playLayered([
+            { type: 'sine', startFreq: 220, endFreq: 660, duration: 0.24, peak: 0.24 * intensity, attack: 0.02, ramp: 'linear' },
+            { type: 'triangle', startFreq: 880, endFreq: 240, duration: 0.28, peak: 0.14 * intensity },
+        ], options);
+    }
 
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.2);
+    _playSlingshot(options = {}) {
+        const intensity = this._intensity(options, 1, 0.3, 1.4);
+        this._playLayered([
+            { type: 'sawtooth', startFreq: 90, endFreq: 260, duration: 0.22, peak: 0.26 * intensity, attack: 0.015, ramp: 'linear' },
+            { type: 'triangle', startFreq: 180, endFreq: 420, duration: 0.18, peak: 0.14 * intensity, ramp: 'linear' },
+        ], options);
     }
 
     _playBoost(options = {}) {
-        const osc = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 1, 0.3, 1.4);
-
-        osc.type = 'triangle';
-        osc.frequency.setValueAtTime(100, this.ctx.currentTime);
-        osc.frequency.linearRampToValueAtTime(300, this.ctx.currentTime + 0.3);
-
-        gain.gain.setValueAtTime(0.4 * intensity, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-
-        osc.connect(gain);
-        gain.connect(this._output());
-
-        osc.start();
-        osc.stop(this.ctx.currentTime + 0.3);
+        const intensity = this._intensity(options, 1, 0.3, 1.4);
+        this._playLayered([
+            { type: 'triangle', startFreq: 90, endFreq: 320, duration: 0.28, peak: 0.28 * intensity, attack: 0.02, ramp: 'linear' },
+            { type: 'sawtooth', startFreq: 60, endFreq: 180, duration: 0.32, peak: 0.12 * intensity, ramp: 'linear' },
+        ], options);
     }
 
     _playParcoursCheckpoint(options = {}) {
-        const primary = this.ctx.createOscillator();
-        const overtone = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.9, 0.25, 1.3);
-
-        primary.type = 'sine';
-        primary.frequency.setValueAtTime(1420, this.ctx.currentTime);
-        primary.frequency.exponentialRampToValueAtTime(980, this.ctx.currentTime + 0.12);
-
-        overtone.type = 'triangle';
-        overtone.frequency.setValueAtTime(2120, this.ctx.currentTime);
-        overtone.frequency.exponentialRampToValueAtTime(1560, this.ctx.currentTime + 0.09);
-
-        gain.gain.setValueAtTime(0.2 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.14);
-
-        primary.connect(gain);
-        overtone.connect(gain);
-        gain.connect(this._output());
-
-        primary.start();
-        overtone.start();
-        primary.stop(this.ctx.currentTime + 0.14);
-        overtone.stop(this.ctx.currentTime + 0.1);
+        const intensity = this._intensity(options, 0.9, 0.25, 1.3);
+        this._playLayered([
+            { type: 'sine', startFreq: 1420, endFreq: 980, duration: 0.12, peak: 0.16 * intensity, attack: 0.006 },
+            { type: 'triangle', startFreq: 2120, endFreq: 1560, duration: 0.09, peak: 0.1 * intensity },
+        ], options);
     }
 
     _playParcoursBranch(options = {}) {
-        const primary = this.ctx.createOscillator();
-        const accent = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 1.0, 0.3, 1.4);
-
-        primary.type = 'triangle';
-        primary.frequency.setValueAtTime(960, this.ctx.currentTime);
-        primary.frequency.exponentialRampToValueAtTime(720, this.ctx.currentTime + 0.2);
-
-        accent.type = 'square';
-        accent.frequency.setValueAtTime(1480, this.ctx.currentTime);
-        accent.frequency.exponentialRampToValueAtTime(1180, this.ctx.currentTime + 0.16);
-
-        gain.gain.setValueAtTime(0.28 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.22);
-
-        primary.connect(gain);
-        accent.connect(gain);
-        gain.connect(this._output());
-
-        primary.start();
-        accent.start();
-        primary.stop(this.ctx.currentTime + 0.22);
-        accent.stop(this.ctx.currentTime + 0.17);
+        const intensity = this._intensity(options, 1, 0.3, 1.4);
+        this._playLayered([
+            { type: 'triangle', startFreq: 960, endFreq: 720, duration: 0.2, peak: 0.2 * intensity, attack: 0.01 },
+            { type: 'square', startFreq: 1480, endFreq: 1180, duration: 0.15, peak: 0.1 * intensity },
+        ], options);
     }
 
     _playParcoursFinish(options = {}) {
-        const low = this.ctx.createOscillator();
-        const mid = this.ctx.createOscillator();
-        const high = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 1.05, 0.35, 1.6);
+        const intensity = this._intensity(options, 1.05, 0.35, 1.6);
+        this._playLayered([
+            { type: 'triangle', startFreq: 240, endFreq: 360, duration: 0.5, peak: 0.22 * intensity, attack: 0.02, hold: 0.08, ramp: 'linear' },
+            { type: 'sine', startFreq: 480, endFreq: 720, duration: 0.46, peak: 0.18 * intensity, ramp: 'linear' },
+            { type: 'triangle', startFreq: 720, endFreq: 1080, duration: 0.34, peak: 0.14 * intensity, ramp: 'linear' },
+        ], options);
+    }
 
-        low.type = 'triangle';
-        low.frequency.setValueAtTime(240, this.ctx.currentTime);
-        low.frequency.linearRampToValueAtTime(360, this.ctx.currentTime + 0.34);
+    _playParcoursWrong(options = {}) {
+        const intensity = this._intensity(options, 0.95, 0.3, 1.3);
+        this._playLayered([
+            { type: 'sawtooth', startFreq: 280, endFreq: 120, duration: 0.18, peak: 0.22 * intensity, attack: 0.008 },
+            { type: 'square', startFreq: 190, endFreq: 90, duration: 0.22, peak: 0.12 * intensity },
+        ], options);
+    }
 
-        mid.type = 'sine';
-        mid.frequency.setValueAtTime(480, this.ctx.currentTime);
-        mid.frequency.linearRampToValueAtTime(720, this.ctx.currentTime + 0.34);
-
-        high.type = 'triangle';
-        high.frequency.setValueAtTime(720, this.ctx.currentTime);
-        high.frequency.linearRampToValueAtTime(1080, this.ctx.currentTime + 0.28);
-
-        gain.gain.setValueAtTime(0.34 * intensity, this.ctx.currentTime);
-        gain.gain.linearRampToValueAtTime(0.12 * intensity, this.ctx.currentTime + 0.18);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.58);
-
-        low.connect(gain);
-        mid.connect(gain);
-        high.connect(gain);
-        gain.connect(this._output());
-
-        low.start();
-        mid.start();
-        high.start();
-        low.stop(this.ctx.currentTime + 0.58);
-        mid.stop(this.ctx.currentTime + 0.5);
-        high.stop(this.ctx.currentTime + 0.36);
+    _playParcoursTimeout(options = {}) {
+        const intensity = this._intensity(options, 0.9, 0.3, 1.3);
+        this._playTone({
+            type: 'triangle',
+            startFreq: 360,
+            endFreq: 140,
+            duration: 0.28,
+            peak: 0.2 * intensity,
+            attack: 0.02,
+            options,
+        });
     }
 
     _playFightKill(options = {}) {
-        const body = this.ctx.createOscillator();
-        const snap = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 1, 0.35, 1.5);
-
-        body.type = 'sawtooth';
-        body.frequency.setValueAtTime(320, this.ctx.currentTime);
-        body.frequency.exponentialRampToValueAtTime(70, this.ctx.currentTime + 0.28);
-
-        snap.type = 'square';
-        snap.frequency.setValueAtTime(880, this.ctx.currentTime);
-        snap.frequency.exponentialRampToValueAtTime(220, this.ctx.currentTime + 0.09);
-
-        gain.gain.setValueAtTime(0.38 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.3);
-
-        body.connect(gain);
-        snap.connect(gain);
-        gain.connect(this._output());
-
-        body.start();
-        snap.start();
-        body.stop(this.ctx.currentTime + 0.3);
-        snap.stop(this.ctx.currentTime + 0.1);
+        const intensity = this._intensity(options, 1, 0.35, 1.5);
+        this._playLayered([
+            { type: 'sawtooth', startFreq: 340, endFreq: 68, duration: 0.3, peak: 0.3 * intensity, attack: 0.008 },
+            { type: 'square', startFreq: 920, endFreq: 210, duration: 0.1, peak: 0.16 * intensity, attack: 0.003 },
+        ], options);
     }
 
     _playFightAssist(options = {}) {
-        const low = this.ctx.createOscillator();
-        const high = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.85, 0.3, 1.3);
-
-        low.type = 'triangle';
-        low.frequency.setValueAtTime(420, this.ctx.currentTime);
-        low.frequency.linearRampToValueAtTime(560, this.ctx.currentTime + 0.12);
-
-        high.type = 'sine';
-        high.frequency.setValueAtTime(640, this.ctx.currentTime);
-        high.frequency.linearRampToValueAtTime(820, this.ctx.currentTime + 0.14);
-
-        gain.gain.setValueAtTime(0.24 * intensity, this.ctx.currentTime);
-        gain.gain.exponentialRampToValueAtTime(0.01, this.ctx.currentTime + 0.18);
-
-        low.connect(gain);
-        high.connect(gain);
-        gain.connect(this._output());
-
-        low.start();
-        high.start();
-        low.stop(this.ctx.currentTime + 0.16);
-        high.stop(this.ctx.currentTime + 0.18);
+        const intensity = this._intensity(options, 0.85, 0.3, 1.3);
+        this._playLayered([
+            { type: 'triangle', startFreq: 420, endFreq: 560, duration: 0.14, peak: 0.16 * intensity, attack: 0.01, ramp: 'linear' },
+            { type: 'sine', startFreq: 640, endFreq: 820, duration: 0.16, peak: 0.12 * intensity, ramp: 'linear' },
+        ], options);
     }
 
     _playFightLead(options = {}) {
+        const intensity = this._intensity(options, 0.95, 0.35, 1.4);
+        const t = this.ctx.currentTime;
+        const gain = this._createVoiceGraph(options);
+        if (!gain) return;
+        this._envGain(gain, 0.24 * intensity, 0.44, { attack: 0.015, hold: 0.08 });
         const root = this.ctx.createOscillator();
         const fifth = this.ctx.createOscillator();
-        const gain = this.ctx.createGain();
-        const intensity = this._clamp(Number(options.intensity) || 0.95, 0.35, 1.4);
-        const t = this.ctx.currentTime;
-
         root.type = 'triangle';
+        fifth.type = 'sine';
         root.frequency.setValueAtTime(330, t);
         root.frequency.setValueAtTime(415, t + 0.12);
         root.frequency.setValueAtTime(494, t + 0.24);
-
-        fifth.type = 'sine';
         fifth.frequency.setValueAtTime(494, t);
         fifth.frequency.setValueAtTime(622, t + 0.12);
         fifth.frequency.setValueAtTime(740, t + 0.24);
-
-        gain.gain.setValueAtTime(0.3 * intensity, t);
-        gain.gain.setValueAtTime(0.22 * intensity, t + 0.2);
-        gain.gain.exponentialRampToValueAtTime(0.01, t + 0.42);
-
         root.connect(gain);
         fifth.connect(gain);
-        gain.connect(this._output());
+        root.start(t);
+        fifth.start(t);
+        root.stop(t + 0.44);
+        fifth.stop(t + 0.4);
+        this._releaseVoice(0.44);
+    }
 
-        root.start();
-        fifth.start();
-        root.stop(t + 0.42);
-        fifth.stop(t + 0.38);
+    _playUiDrop(options = {}) {
+        this._playTone({
+            type: 'sine',
+            startFreq: 520,
+            endFreq: 700,
+            duration: 0.09,
+            peak: 0.12,
+            attack: 0.006,
+            ramp: 'linear',
+            options,
+        });
+    }
+
+    _playUiPickup(options = {}) {
+        this._playTone({
+            type: 'sine',
+            startFreq: 260,
+            endFreq: 360,
+            duration: 0.09,
+            peak: 0.11,
+            attack: 0.006,
+            ramp: 'linear',
+            options,
+        });
+    }
+
+    _playUiReject(options = {}) {
+        this._playTone({
+            type: 'sawtooth',
+            startFreq: 140,
+            endFreq: 70,
+            duration: 0.11,
+            peak: 0.12,
+            attack: 0.005,
+            options,
+        });
+    }
+
+    _ensureEngineNodes() {
+        if (!this.ctx || this._engine) return;
+        const body = this.ctx.createOscillator();
+        const hum = this.ctx.createOscillator();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+        body.type = 'sawtooth';
+        hum.type = 'triangle';
+        filter.type = 'lowpass';
+        filter.frequency.value = 420;
+        filter.Q.value = 0.6;
+        gain.gain.value = ENGINE_IDLE_GAIN;
+        body.frequency.value = 70;
+        hum.frequency.value = 140;
+        body.connect(filter);
+        hum.connect(filter);
+        filter.connect(gain);
+        gain.connect(this._engineGain || this._masterGain || this.ctx.destination);
+        const t = this.ctx.currentTime;
+        body.start(t);
+        hum.start(t);
+        this._engine = { body, hum, filter, gain, active: true };
+    }
+
+    updateEngine(state = {}) {
+        if (!this.enabled || !this.ctx) {
+            this.stopEngine();
+            return;
+        }
+        if (this.ctx.state === 'suspended') this.ctx.resume();
+
+        const alive = state.alive !== false;
+        const speed = Math.max(0, Number(state.speed) || 0);
+        const baseSpeed = Math.max(1, Number(state.baseSpeed) || 18);
+        const boosting = state.boosting === true;
+        if (!alive || speed < 0.35) {
+            this.stopEngine();
+            return;
+        }
+
+        this._ensureEngineNodes();
+        const engine = this._engine;
+        if (!engine) return;
+
+        const ratio = this._clamp(speed / baseSpeed, 0.35, 2.4);
+        const targetBody = 58 + ratio * 78 + (boosting ? 36 : 0);
+        const targetHum = targetBody * 2.05;
+        const targetFilter = 280 + ratio * 260 + (boosting ? 180 : 0);
+        const targetGain = (0.018 + ratio * 0.04) * (boosting ? 1.35 : 1);
+        const t = this.ctx.currentTime;
+        engine.body.frequency.setTargetAtTime(targetBody, t, 0.05);
+        engine.hum.frequency.setTargetAtTime(targetHum, t, 0.05);
+        engine.filter.frequency.setTargetAtTime(targetFilter, t, 0.08);
+        engine.gain.gain.setTargetAtTime(targetGain, t, 0.06);
+        engine.active = true;
+    }
+
+    stopEngine() {
+        const engine = this._engine;
+        if (!engine || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        engine.gain.gain.cancelScheduledValues(t);
+        engine.gain.gain.setTargetAtTime(ENGINE_IDLE_GAIN, t, 0.04);
+        engine.active = false;
+    }
+
+    syncEngineFromPlayers(players = [], options = {}) {
+        if (!this.enabled) {
+            this.stopEngine();
+            return;
+        }
+        const list = Array.isArray(players) ? players : [];
+        const localIndex = Number(options.localPlayerIndex);
+        let source = null;
+        if (Number.isInteger(localIndex)) {
+            source = list.find((player) => player && player.index === localIndex && player.isBot !== true) || null;
+        }
+        if (!source) {
+            source = list.find((player) => player && player.isBot !== true && player.alive !== false) || null;
+        }
+        if (!source || source.alive === false) {
+            this.stopEngine();
+            return;
+        }
+        this.updateEngine({
+            alive: true,
+            speed: source.speed,
+            baseSpeed: source.baseSpeed,
+            boosting: source.isBoosting === true || (Number(source.boostPortalTimer) || 0) > 0,
+        });
     }
 
     dispose() {
+        this.stopEngine();
+        if (this._engine) {
+            try { this._engine.body.stop(); } catch { /* ignore */ }
+            try { this._engine.hum.stop(); } catch { /* ignore */ }
+            this._engine = null;
+        }
         this._removeInitListeners();
         this._removeAllWindowListeners();
         this._onInitInteraction = null;
@@ -627,8 +791,11 @@ export class AudioManager {
         }
         this.ctx = null;
         this._masterGain = null;
+        this._sfxGain = null;
+        this._engineGain = null;
         this.buffers = {};
         this._debugEvents = [];
         this._registeredWindowListeners = [];
+        this._activeVoices = 0;
     }
 }
