@@ -728,11 +728,11 @@ export class AudioManager {
         const engine = this._engine;
         if (!engine) return;
 
-        const ratio = this._clamp(speed / baseSpeed, 0.35, 2.4);
+        const ratio = this._clamp(speed / baseSpeed, 0.35, 3.0);
         const targetBody = 58 + ratio * 78 + (boosting ? 36 : 0);
         const targetHum = targetBody * 2.05;
         const targetFilter = 280 + ratio * 260 + (boosting ? 180 : 0);
-        const targetGain = (0.018 + ratio * 0.04) * (boosting ? 1.35 : 1);
+        const targetGain = (0.018 + ratio * 0.06) * (boosting ? 1.55 : 1);
         const t = this.ctx.currentTime;
         engine.body.frequency.setTargetAtTime(targetBody, t, 0.05);
         engine.hum.frequency.setTargetAtTime(targetHum, t, 0.05);

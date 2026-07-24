@@ -42,8 +42,8 @@ function stepAxisToward(current, target, attackRate, releaseRate, dt) {
     return current + Math.sign(diff) * step;
 }
 
-const DEFAULT_AXIS_ATTACK_RATE = 12.0;
-const DEFAULT_AXIS_RELEASE_RATE = 8.5;
+const DEFAULT_AXIS_ATTACK_RATE = 18.0;
+const DEFAULT_AXIS_RELEASE_RATE = 12.0;
 const AXIS_RELEASE_DEADZONE = 0.0005;
 
 export class PlayerController {

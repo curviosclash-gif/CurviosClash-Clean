@@ -224,7 +224,7 @@ export class CameraRigSystem {
         const easedSpeed = Math.pow(normalizedSpeed, 0.8);
         const boostBias = playerState?.isBoosting === true ? 0.14 : 0;
         const motionMultiplier = reduceMotion ? 0.38 : 1;
-        const targetOffset = Math.min(1.2, easedSpeed + boostBias) * 8.5 * modeMultiplier * motionMultiplier * speedFovIntensity;
+        const targetOffset = Math.min(1.2, easedSpeed + boostBias) * 16 * modeMultiplier * motionMultiplier * speedFovIntensity;
         const blendAlpha = 1 - Math.exp(-Math.max(0, Number(dt) || 0) * 6.5);
         const previousOffset = this.cameraSpeedFovOffsets[playerIndex] || 0;
         const nextOffset = THREE.MathUtils.lerp(previousOffset, targetOffset, blendAlpha);

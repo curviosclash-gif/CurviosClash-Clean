@@ -321,7 +321,7 @@ export class PlayerView {
         );
         const reduceMotion = perspectiveSettings?.reduceMotion === true;
         const emissionIntensity = thrusterExhaustIntensity * (reduceMotion ? 0.72 : 1);
-        const emissionRate = THREE.MathUtils.lerp(10, 32, speedBlend) * (this.player.isBoosting ? 1.15 : 1) * emissionIntensity;
+        const emissionRate = THREE.MathUtils.lerp(14, 42, speedBlend) * (this.player.isBoosting ? 1.15 : 1) * emissionIntensity;
         this._exhaustAccumulator += Math.max(0, Number(dt) || 0) * emissionRate;
 
         const burstCount = Math.min(4, Math.floor(this._exhaustAccumulator));
@@ -332,10 +332,10 @@ export class PlayerView {
         this._resolveExhaustOrigin(this._tmpExhaustOrigin);
 
         const color = this.player.isBoosting ? 0xfff0b3 : 0xff9a3c;
-        const speed = THREE.MathUtils.lerp(2.4, 6.8, speedBlend);
-        const size = THREE.MathUtils.lerp(0.16, 0.3, speedBlend) * Math.max(0.6, Math.sqrt(emissionIntensity));
+        const speed = THREE.MathUtils.lerp(3.0, 9.5, speedBlend);
+        const size = THREE.MathUtils.lerp(0.16, 0.36, speedBlend) * Math.max(0.6, Math.sqrt(emissionIntensity));
         const life = THREE.MathUtils.lerp(0.16, 0.28, speedBlend) * THREE.MathUtils.clamp(0.8 + emissionIntensity * 0.2, 0.65, 1.15);
-        const jitter = 0.08 * (this.player.modelScale || 1);
+        const jitter = 0.12 * (this.player.modelScale || 1);
 
         for (let i = 0; i < burstCount; i++) {
             this._tmpExhaustSample.copy(this._tmpExhaustOrigin);
@@ -373,7 +373,7 @@ export class PlayerView {
 
         const time = this._visualTime;
         if (this.flames.length > 0) {
-            const boostFactor = this.player.isBoosting ? 3.0 : 1.0;
+            const boostFactor = this.player.isBoosting ? 4.5 : 1.0;
             const flicker = Math.sin(time * 25) * 0.15 + Math.sin(time * 37) * 0.1;
 
             for (let i = 0; i < this.flames.length; i++) {

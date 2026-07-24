@@ -87,7 +87,7 @@ const DUEL_PROXIMITY_SQ = DUEL_PROXIMITY_THRESHOLD * DUEL_PROXIMITY_THRESHOLD;
 // --- Dynamic FOV ----------------------------------------------------------
 
 const BASE_FOV_OFFSET = 0;
-const FOV_BOOST_OFFSET = 15;       // degrees wider on boost
+const FOV_BOOST_OFFSET = 22;       // degrees wider on boost
 const FOV_HIT_OFFSET = -10;        // degrees narrower on hit (dolly zoom)
 const FOV_HIT_SNAP_BACK = 5;       // overshoot on recovery
 const FOV_DUEL_OFFSET = 8;         // slightly wider for duel framing

@@ -5,7 +5,7 @@ const SIDE_MIN_LENGTH_SQ = 1e-6;
 const BLEND_EPSILON = 0.0001;
 const SWAY_PLAYER_PHASE_OFFSET = 0.7;
 const MAX_PLAYER_INDEX = 7;
-const DEFAULT_REFERENCE_SPEED = 18;
+const DEFAULT_REFERENCE_SPEED = 25;
 
 export class CinematicCameraSystem {
     constructor({
@@ -13,11 +13,11 @@ export class CinematicCameraSystem {
         enterSpeed = 5.5,
         exitSpeed = 8.0,
         boostOffset = 0.85,
-        baseLookAhead = 1.6,
+        baseLookAhead = 2.5,
         swayFrequency = 0.8,
-        swayAmount = 0.5,
+        swayAmount = 1.0,
         liftAmount = 0.35,
-        referenceSpeed = DEFAULT_REFERENCE_SPEED,
+        referenceSpeed = 25,
     } = {}) {
         this.enabled = enabled !== false;
         this.enterSpeed = Math.max(0.001, Number(enterSpeed) || 5.5);

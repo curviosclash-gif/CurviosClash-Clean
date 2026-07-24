@@ -27,10 +27,10 @@ export const CONFIG_SECTIONS = {
 
     // ---- Spieler ----
     PLAYER: {
-        SPEED: 35,
+        SPEED: 45,
         TURN_SPEED: 3.4,
-        ROLL_SPEED: 2.0,
-        BOOST_MULTIPLIER: 1.8,
+        ROLL_SPEED: 3.0,
+        BOOST_MULTIPLIER: 2.3,
         BOOST_DURATION: 4.0,
         BOOST_COOLDOWN: 5.0,
         SPAWN_PROTECTION: 1.0,
@@ -66,7 +66,7 @@ export const CONFIG_SECTIONS = {
     // ---- Trail (Schweifspur) ----
     TRAIL: {
         WIDTH: 0.6,
-        UPDATE_INTERVAL: 0.07,
+        UPDATE_INTERVAL: 0.045,
         GAP_CHANCE: 0.02,
         GAP_DURATION: 0.3,
         MAX_SEGMENTS: 5000,
@@ -320,15 +320,15 @@ export const CONFIG_SECTIONS = {
         NEAR: 0.1,
         FAR: 200,
         CINEMATIC_ENABLED: true,
-        FOLLOW_DISTANCE: 12,
-        FOLLOW_HEIGHT: 6,
-        LOOK_AHEAD: 5,
-        SMOOTHING: 0.08,
+        FOLLOW_DISTANCE: 9,
+        FOLLOW_HEIGHT: 5,
+        LOOK_AHEAD: 7,
+        SMOOTHING: 0.05,
         MODES: ['THIRD_PERSON', 'FIRST_PERSON', 'TOP_DOWN'],
         FIRST_PERSON_LOCK_TO_NOSE: true,
         FIRST_PERSON_NOSE_CLEARANCE: 0.3,
         FIRST_PERSON_OFFSET: 4.0, // Kamera vor dem Flugzeug
-        FIRST_PERSON_BOOST_OFFSET: 1.45, // waehrend Boost naeher an die Nase
+        FIRST_PERSON_BOOST_OFFSET: 0.85, // waehrend Boost naeher an die Nase
         FIRST_PERSON_BOOST_BLEND_SPEED: 8.5,
         COLLISION_RADIUS: 0.45,
         COLLISION_BACKOFF: 0.04,

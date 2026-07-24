@@ -67,13 +67,13 @@ export class RenderQualityController {
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 0.8));
             this.renderer.toneMapping = THREE.NoToneMapping;
             this.scene.environment = null;
-            this.scene.fog.near = 30;
+            this.scene.fog.near = 25;
             this.scene.fog.far = 120;
         } else {
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
             this.scene.environment = this.highQualityEnvironment;
-            this.scene.fog.near = 50;
+            this.scene.fog.near = 35;
             this.scene.fog.far = 200;
         }
 
