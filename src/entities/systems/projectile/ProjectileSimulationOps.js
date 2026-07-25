@@ -80,6 +80,7 @@ export class ProjectileSimulationOps {
         if (!projectile || !Array.isArray(players) || players.length === 0) return null;
 
         const owner = projectile.owner;
+        const homingEnabled = projectile.homingEnabled || projectile.huntRocket;
         const maxRange = Math.max(
             rocketRuntime.homingMinRange,
             Number(projectile.homingRange || config?.HOMING?.MAX_LOCK_RANGE || 100)
@@ -102,7 +103,7 @@ export class ProjectileSimulationOps {
         this._tmpVec2.divideScalar(speed);
 
         let lineTarget = null;
-        if (projectile.huntRocket) {
+        if (homingEnabled) {
             const trailHitRadius = Math.max(
                 Number(projectile.radius) || 0,
                 Number(config?.HUNT?.MG?.TRAIL_HIT_RADIUS || 0.78)
@@ -145,7 +146,7 @@ export class ProjectileSimulationOps {
                 bestConeDistSq = distSq;
                 bestConeTarget = target;
             } else if (
-                projectile.huntRocket
+                homingEnabled
                 && facingDot >= fallbackMinDot
                 && distSq < bestFallbackDistSq
             ) {
@@ -174,11 +175,11 @@ export class ProjectileSimulationOps {
         }
 
         if (bestConeTarget) {
-            return projectile.huntRocket
+            return homingEnabled
                 ? createPlayerTargetDescriptor(bestConeTarget, Math.sqrt(bestConeDistSq))
                 : bestConeTarget;
         }
-        if (projectile.huntRocket && bestFallbackTarget) {
+        if (homingEnabled && bestFallbackTarget) {
             return createPlayerTargetDescriptor(bestFallbackTarget, Math.sqrt(bestFallbackDistSq));
         }
         return null;
@@ -224,6 +225,7 @@ export class ProjectileSimulationOps {
     stepProjectile(projectile, index, dt, arena, players, trailSpatialIndex, time) {
         const config = resolveEntityRuntimeConfig(this.system);
         const rocketRuntime = resolveRocketRuntime(config);
+        const homingEnabled = projectile.homingEnabled || projectile.huntRocket;
         projectile.foamBounceCooldown = Math.max(0, (projectile.foamBounceCooldown || 0) - dt);
         projectile.previousPosition?.copy?.(projectile.position);
 
@@ -265,7 +267,7 @@ export class ProjectileSimulationOps {
             );
         }
 
-        if (projectile.huntRocket) {
+        if (homingEnabled) {
             projectile.homingReacquireTimer = Math.max(0, (projectile.homingReacquireTimer || 0) - dt);
             const currentTarget = resolveHuntTargetPosition(
                 projectile.target,

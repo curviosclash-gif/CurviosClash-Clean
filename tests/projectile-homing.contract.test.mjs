@@ -2,6 +2,8 @@ import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import * as THREE from 'three';
 
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { ProjectileSimulationOps } from '../src/entities/systems/projectile/ProjectileSimulationOps.js';
 import {
     createPlayerTargetDescriptor,
@@ -10,6 +12,8 @@ import {
     resolveHuntTargetPosition,
 } from '../src/hunt/HuntTargetingOps.js';
 import { HUNT_TARGET_KIND } from '../src/shared/contracts/HuntTargetingContract.js';
+import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 function createRuntimeConfig(overrides = {}) {
     return {
@@ -235,6 +239,54 @@ test('homing steering applies lead toward moving player targets', () => {
         projectile.velocity.z > beforeVz,
         `expected positive lead steer on Z, got vz=${projectile.velocity.z}`
     );
+});
+
+test('all fired hunt items acquire and pursue targets without becoming rockets', () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const owner = {
+        index: 0,
+        alive: true,
+        position: new THREE.Vector3(0, 0, 0),
+        shootCooldown: 0,
+        getAimDirection(out) {
+            return out.set(1, 0, 0);
+        },
+    };
+    const target = createPlayer({ index: 1, position: [30, 0, 6] });
+    const players = [owner, target];
+    const projectiles = new ProjectileSystem({
+        entityRuntimeConfig,
+        players,
+        arena: {
+            getCollisionInfo() {
+                return null;
+            },
+        },
+        peekInventoryItem: () => ({ ok: true, type: 'SLOW_DOWN' }),
+        takeInventoryItem: () => ({ ok: true, type: 'SLOW_DOWN' }),
+        resolveLockOn: () => null,
+        getStrategy: () => new HuntModeStrategy({ entityRuntimeConfig }),
+    });
+
+    const shot = projectiles.shootItemProjectile(owner, 0);
+    assert.equal(shot.ok, true);
+    assert.equal(projectiles.projectiles.length, 1);
+
+    const projectile = projectiles.projectiles[0];
+    assert.equal(projectile.homingEnabled, true);
+    assert.equal(projectile.huntRocket, false);
+    assert.equal(isPlayerTargetDescriptor(projectile.target), true);
+    assert.equal(projectile.target.playerIndex, target.index);
+
+    const beforeVz = projectile.velocity.z;
+    projectiles.update(1 / 60);
+    assert.ok(
+        projectile.velocity.z > beforeVz,
+        `expected fired hunt item to steer toward target, got vz=${projectile.velocity.z}`
+    );
+    assert.equal(projectile.rocketTrailHandle, null);
+
+    projectiles.dispose();
 });
 
 test('resolveHuntTargetPosition uses live trail midpoint', () => {

@@ -140,20 +140,15 @@ export class ProjectileSystem {
         }
         const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
         const huntRocket = !!rocketParams;
+        const homingEnabled = modeType === 'HUNT';
         const visualScale = huntRocket ? rocketParams.visualScale : 1;
         const collisionRadiusMultiplier = huntRocket ? rocketParams.collisionRadiusMultiplier : 1;
         const baseTurnRate = Math.max(homingMinTurnRate, Number(config?.HOMING?.TURN_RATE || 3));
-        const homingTurnRate = huntRocket
-            ? Math.max(baseTurnRate, rocketParams.homingTurnRate)
-            : baseTurnRate;
+        const homingTurnRate = huntRocket ? Math.max(baseTurnRate, rocketParams.homingTurnRate) : baseTurnRate;
         const baseLockOnAngle = Math.max(homingMinLockOnAngle, Number(config?.HOMING?.LOCK_ON_ANGLE || 15));
-        const homingLockOnAngle = huntRocket
-            ? Math.max(baseLockOnAngle, rocketParams.homingLockOnAngle)
-            : baseLockOnAngle;
+        const homingLockOnAngle = huntRocket ? Math.max(baseLockOnAngle, rocketParams.homingLockOnAngle) : baseLockOnAngle;
         const baseHomingRange = Math.max(homingMinRange, Number(config?.HOMING?.MAX_LOCK_RANGE || 100));
-        const homingRange = huntRocket
-            ? Math.max(baseHomingRange, rocketParams.homingRange)
-            : baseHomingRange;
+        const homingRange = huntRocket ? Math.max(baseHomingRange, rocketParams.homingRange) : baseHomingRange;
         const homingReacquireInterval = huntRocket
             ? rocketParams.homingReacquireInterval
             : fallbackReacquireInterval;
@@ -182,6 +177,7 @@ export class ProjectileSystem {
         projectile.owner = player;
         projectile.type = type;
         projectile.huntRocket = huntRocket;
+        projectile.homingEnabled = homingEnabled;
         projectile.visualScale = visualScale;
         projectile.position.copy(this._tmpVec);
         projectile.velocity.copy(this._tmpDir).multiplyScalar(speed);
@@ -194,7 +190,7 @@ export class ProjectileSystem {
         projectile.homingReacquireInterval = homingReacquireInterval;
         projectile.homingReacquireTimer = 0;
         projectile.target = this.resolveLockOn(player);
-        if (huntRocket && (!projectile.target || !projectile.target.alive)) {
+        if (homingEnabled && (!projectile.target || !projectile.target.alive)) {
             projectile.target = this._acquireHomingTarget(projectile, this.getPlayers(), this.getTrailSpatialIndex());
         }
         projectile.foamBounces = 0;
@@ -255,6 +251,7 @@ export class ProjectileSystem {
         projectile.owner = owner;
         projectile.type = type;
         projectile.huntRocket = true;
+        projectile.homingEnabled = true;
         projectile.visualScale = visualScale;
         projectile.position.copy(this._tmpVec);
         projectile.velocity.copy(this._tmpDir).multiplyScalar(

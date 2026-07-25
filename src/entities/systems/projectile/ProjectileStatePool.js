@@ -25,6 +25,7 @@ export class ProjectileStatePool {
             traveled: 0,
             target: null,
             huntRocket: false,
+            homingEnabled: false,
             visualScale: 1,
             homingTurnRate: 0,
             homingLockOnAngle: 0,
@@ -56,6 +57,7 @@ export class ProjectileStatePool {
         projectile.traveled = 0;
         projectile.target = null;
         projectile.huntRocket = false;
+        projectile.homingEnabled = false;
         projectile.visualScale = 1;
         projectile.homingTurnRate = 0;
         projectile.homingLockOnAngle = 0;
