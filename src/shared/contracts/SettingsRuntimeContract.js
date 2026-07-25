@@ -16,7 +16,7 @@ export const SETTINGS_LIMITS = Object.freeze({
         trailLength: Object.freeze({ min: 200, max: 12000, integer: true }),
         gapSize: Object.freeze({ min: 0.05, max: 1.5 }),
         gapFrequency: Object.freeze({ min: 0, max: 0.25 }),
-        itemAmount: Object.freeze({ min: 1, max: 20, integer: true }),
+        itemAmount: Object.freeze({ min: 1, max: 60, integer: true }),
         fireRate: Object.freeze({ min: 0.1, max: 2 }),
         lockOnAngle: Object.freeze({ min: 5, max: 45, integer: true }),
         nextCheckpointGlowIntensity: Object.freeze({ min: 0, max: 3 }),

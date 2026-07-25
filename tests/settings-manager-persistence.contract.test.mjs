@@ -130,6 +130,22 @@ test('V103 SettingsManager sanitizeSettings applies runtime-specific limit overr
     assert.equal(sanitized.gameplay.speed, 12);
 });
 
+test('SettingsManager accepts up to 60 simultaneous items and clamps larger values', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+
+    const maximum = manager.sanitizeSettings({
+        gameplay: { itemAmount: 60 },
+    });
+    const clamped = manager.sanitizeSettings({
+        gameplay: { itemAmount: 61 },
+    });
+    const runtimeConfig = manager.createRuntimeConfig(maximum);
+
+    assert.equal(maximum.gameplay.itemAmount, 60);
+    assert.equal(clamped.gameplay.itemAmount, 60);
+    assert.equal(runtimeConfig.powerup.maxOnField, 60);
+});
+
 test('V96.7 SettingsManager exposes defaults port for runtime limit overrides', () => {
     const runtimeGlobal = {
         settingsDefaultsContract: {
