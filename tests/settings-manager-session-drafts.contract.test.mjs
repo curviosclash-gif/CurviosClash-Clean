@@ -41,10 +41,11 @@ test('V103 Settings session draft facade preserves store failure reasons', () =>
     assert.equal(result.metadata.persistedDraftState, false);
 });
 
-test('Menu session drafts preserve local, recording and camera runtime fields', () => {
+test('Menu session drafts preserve session fields without replacing the local display theme', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const settings = manager.createDefaultSettings();
     settings.localSettings.sessionType = 'single';
+    settings.localSettings.themeMode = 'dunkel';
     settings.localSettings.shadowQuality = 1;
     settings.localSettings.startSetup.arcadeGhostDuelMode = 'self_longest_ghost';
     settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = true;
@@ -58,6 +59,7 @@ test('Menu session drafts preserve local, recording and camera runtime fields', 
     const store = new MenuDraftStore({ storagePlatform: createMemoryStoragePlatform() });
     assert.equal(store.saveDraft('single', settings).success, true);
 
+    settings.localSettings.themeMode = 'hell';
     settings.localSettings.shadowQuality = 3;
     settings.localSettings.startSetup.arcadeGhostDuelMode = 'off';
     settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = false;
@@ -71,6 +73,7 @@ test('Menu session drafts preserve local, recording and camera runtime fields', 
     const applyResult = store.applyDraft(settings, 'single');
 
     assert.equal(applyResult.success, true);
+    assert.equal(settings.localSettings.themeMode, 'hell');
     assert.equal(settings.localSettings.shadowQuality, 1);
     assert.equal(settings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
     assert.equal(settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, true);
@@ -80,4 +83,31 @@ test('Menu session drafts preserve local, recording and camera runtime fields', 
     assert.equal(settings.cameraPerspective.normal, 'cinematic_action');
     assert.equal(settings.cameraPerspective.reduceMotion, false);
     assert.equal(settings.cameraPerspective.speedFovIntensity, 0.35);
+});
+
+test('Legacy session draft themes are canonicalized away and never reported as changed', () => {
+    const storagePlatform = createMemoryStoragePlatform({
+        [STORAGE_KEYS.menuDrafts]: {
+            schemaVersion: 'menu-draft-store.v1',
+            drafts: {
+                splitscreen: {
+                    sessionType: 'splitscreen',
+                    mode: '2p',
+                    modePath: 'normal',
+                    themeMode: 'dunkel',
+                },
+            },
+        },
+    });
+    const manager = new SettingsManager({ storagePlatform });
+    const settings = manager.createDefaultSettings();
+    settings.localSettings.themeMode = 'hell';
+
+    const result = manager.applySessionDraft(settings, 'splitscreen');
+    const canonicalDraft = storagePlatform.readJson(STORAGE_KEYS.menuDrafts, [], null);
+
+    assert.equal(result.success, true);
+    assert.equal(settings.localSettings.themeMode, 'hell');
+    assert.equal(result.changedKeys.includes(SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE), false);
+    assert.equal('themeMode' in canonicalDraft.drafts.splitscreen, false);
 });

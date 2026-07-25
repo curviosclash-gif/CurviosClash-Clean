@@ -52,7 +52,6 @@ function createSessionDraftSnapshot(settings, sessionType) {
         multiplayerTransport: normalizeString(localSettings.multiplayerTransport, ''),
         mode: resolveModeFromSessionType(sessionType),
         modePath: normalizeString(localSettings.modePath, defaults.modePath),
-        themeMode: normalizeString(localSettings.themeMode, defaults.themeMode),
         shadowQuality: localSettings.shadowQuality ?? localDefaults.shadowQuality,
         startSetup: cloneObject(localSettings.startSetup, localDefaults.startSetup),
         mapKey: String(source.mapKey || defaults.mapKey),
@@ -83,7 +82,6 @@ function normalizeStoredSessionDraftSnapshot(snapshot, sessionType) {
             sessionType: source.sessionType,
             multiplayerTransport: source.multiplayerTransport,
             modePath: source.modePath,
-            themeMode: source.themeMode,
             shadowQuality: source.shadowQuality,
             startSetup: source.startSetup,
         },
@@ -155,7 +153,6 @@ function applySnapshotToSettings(settings, snapshot) {
         settings.localSettings.multiplayerTransport = '';
     }
     settings.localSettings.modePath = normalizeString(snapshot.modePath, settings.localSettings.modePath || defaults.modePath);
-    settings.localSettings.themeMode = normalizeString(snapshot.themeMode, settings.localSettings.themeMode || defaults.themeMode);
     const localDefaults = createMenuLocalSettingsDefaults();
     settings.localSettings.shadowQuality = snapshot.shadowQuality ?? settings.localSettings.shadowQuality ?? localDefaults.shadowQuality;
     settings.localSettings.startSetup = {
