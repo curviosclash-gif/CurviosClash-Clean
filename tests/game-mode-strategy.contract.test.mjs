@@ -7,6 +7,11 @@ import { createGameModeStrategy, registerGameModeStrategy } from '../src/modes/G
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import {
+    getPickupTypes,
+    isPickupTypeAllowedForMode,
+    isRocketPickupType,
+} from '../src/entities/PickupRegistry.js';
+import {
     isRocketTierType,
     normalizeRocketPickupType,
     pickWeightedRocketTierType,
@@ -136,6 +141,27 @@ test('Fight rocket tiers use triple damage and trail destruction', () => {
     const rocketTypes = ['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA'];
     assert.deepEqual(rocketTypes.map((type) => resolveRocketTierDamage(type, fightConfig)), [30, 60, 120, 210]);
     assert.deepEqual(rocketTypes.map((type) => resolveRocketTrailBlastMeters(type, fightConfig)), [6, 12, 30, 90]);
+});
+
+test('Fight random pickups use 70 percent rockets, 10 percent turrets and equal other shares', () => {
+    const nonRocketTypes = getPickupTypes().filter((type) => (
+        isPickupTypeAllowedForMode(type, 'HUNT')
+        && !isRocketPickupType(type)
+    ));
+    const otherTypes = nonRocketTypes.filter((type) => type !== 'MG_TURRET');
+    const weights = HUNT_CONFIG.PICKUP_WEIGHTS;
+    const turretWeight = weights.MG_TURRET;
+    const otherWeights = otherTypes.map((type) => weights[type] ?? 1);
+    const totalNonRocketWeight = turretWeight
+        + otherWeights.reduce((total, weight) => total + weight, 0);
+    const nonRocketChance = 1 - HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE;
+    const turretChance = nonRocketChance * turretWeight / totalNonRocketWeight;
+    const otherChance = nonRocketChance - turretChance;
+
+    assert.equal(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE, 0.70);
+    assert.ok(otherWeights.every((weight) => weight === otherWeights[0]));
+    assert.ok(Math.abs(turretChance - 0.10) < Number.EPSILON);
+    assert.ok(Math.abs(otherChance - 0.20) < Number.EPSILON);
 });
 
 test('Rocket pickup normalization, weighted selection and allowlists stay deterministic', () => {
