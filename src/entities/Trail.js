@@ -240,16 +240,65 @@ export class Trail {
 
         this._storePreviousStepVisualFromSample();
 
-        // needsUpdate nur einmal pro Frame
-        if (this._dirty) {
-            this.mesh.count = Math.min(this.segmentCount, this.maxSegments);
-            this.mesh.instanceMatrix.needsUpdate = true;
-            if (this.glowMesh) {
-                this.glowMesh.count = this.mesh.count;
-                this.glowMesh.instanceMatrix.needsUpdate = true;
-            }
-            this._dirty = false;
+        this._flushDirtyMatrices();
+    }
+
+    updateReplayVisual(dt, position, direction, {
+        inGap = false,
+        discontinuity = false,
+    } = {}) {
+        if (!position) return false;
+        const config = resolveEntityRuntimeConfig(this.entityManager);
+        if (discontinuity) {
+            this.hasLastPosition = false;
+            this._hasPreviousStepVisual = false;
+            this.timeSinceUpdate = 0;
         }
+
+        this.inGap = inGap === true;
+        if (this.inGap) {
+            this._setLastPosition(position, direction);
+            this.hideVisualHead();
+            return false;
+        }
+
+        this._resolveVisualSample(position, direction);
+        this.timeSinceUpdate += Math.max(0, Number(dt) || 0);
+        if (this.timeSinceUpdate >= config.TRAIL.UPDATE_INTERVAL) {
+            this.timeSinceUpdate -= config.TRAIL.UPDATE_INTERVAL;
+            const visualToX = this._hasPreviousStepVisual ? this._previousStepVisualX : this._sampleVisualX;
+            const visualToY = this._hasPreviousStepVisual ? this._previousStepVisualY : this._sampleVisualY;
+            const visualToZ = this._hasPreviousStepVisual ? this._previousStepVisualZ : this._sampleVisualZ;
+            if (this.hasLastPosition) {
+                this._addSegment(
+                    this.lastX,
+                    this.lastY,
+                    this.lastZ,
+                    position.x,
+                    position.y,
+                    position.z,
+                    visualToX,
+                    visualToY,
+                    visualToZ,
+                    { visualOnly: true }
+                );
+            }
+            this._storeLastPositionFromSample(position, visualToX, visualToY, visualToZ);
+        }
+        this._storePreviousStepVisualFromSample();
+        this._flushDirtyMatrices();
+        return this.updateVisualHead(position, direction);
+    }
+
+    _flushDirtyMatrices() {
+        if (!this._dirty) return;
+        this.mesh.count = Math.min(this.segmentCount, this.maxSegments);
+        this.mesh.instanceMatrix.needsUpdate = true;
+        if (this.glowMesh) {
+            this.glowMesh.count = this.mesh.count;
+            this.glowMesh.instanceMatrix.needsUpdate = true;
+        }
+        this._dirty = false;
     }
 
     _resolveVisualSample(position, direction = null) {
@@ -305,15 +354,17 @@ export class Trail {
         toZ,
         visualToX = this._sampleVisualX,
         visualToY = this._sampleVisualY,
-        visualToZ = this._sampleVisualZ
+        visualToZ = this._sampleVisualZ,
+        options = null
     ) {
+        const visualOnly = options?.visualOnly === true;
         const dx = toX - fromX;
         const dy = toY - fromY;
         const dz = toZ - fromZ;
         const length = Math.sqrt(dx * dx + dy * dy + dz * dz);
 
         if (length < 0.01) return;
-        if (typeof this.entityManager?.onArcadeGameplayEvent === 'function') {
+        if (!visualOnly && typeof this.entityManager?.onArcadeGameplayEvent === 'function') {
             this.entityManager._emitArcadeGameplayEvent?.({
                 type: 'trail_extend',
                 playerIndex: this.playerIndex,
@@ -375,7 +426,7 @@ export class Trail {
 
         // Register in global grid
         const segmentHp = getTrailSegmentHp(this.entityManager);
-        if (this.trailSpatialIndex) {
+        if (!visualOnly && this.trailSpatialIndex) {
             this.segmentRefs[this.writeIndex] = this.trailSpatialIndex.registerTrailSegment(this.playerIndex, this.writeIndex, {
                 midX,
                 midZ,
@@ -390,6 +441,8 @@ export class Trail {
                 maxHp: segmentHp,
                 ownerTrail: this,
             }, reusableRef);
+        } else {
+            this.segmentRefs[this.writeIndex] = null;
         }
 
         this.writeIndex = (this.writeIndex + 1) % this.maxSegments;

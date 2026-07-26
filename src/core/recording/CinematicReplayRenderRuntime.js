@@ -5,9 +5,17 @@ function toFiniteNumber(value, fallback = 0) {
     return Number.isFinite(numeric) ? numeric : fallback;
 }
 
-function applyProjectionToPlayers(entityManager, projection) {
+function clearReplayTrails(entityManager) {
+    const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
+    for (let index = 0; index < players.length; index++) {
+        players[index]?.trail?.clear?.();
+    }
+}
+
+function applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted) {
     const livePlayers = Array.isArray(entityManager?.players) ? entityManager.players : [];
     const projectedPlayers = Array.isArray(projection?.players) ? projection.players : [];
+    const safeDt = Math.max(1 / 240, Math.min(0.05, toFiniteNumber(dt, 1 / 60)));
     for (let liveIndex = 0; liveIndex < livePlayers.length; liveIndex++) {
         const player = livePlayers[liveIndex];
         if (!player) continue;
@@ -41,9 +49,21 @@ function applyProjectionToPlayers(entityManager, projection) {
         player.score = Math.max(0, Math.round(toFiniteNumber(projected.score, player.score)));
         player.speed = Math.max(0, toFiniteNumber(projected.speed, player.speed));
         player.isBoosting = projected.isBoosting === true;
+        const previousAlive = replayAliveState.get(player.index);
+        player.trail?.setWidth?.(Math.max(0.01, toFiniteNumber(projected.trailWidth, player.trail?.width || 0.6)));
+        player.trail?.updateReplayVisual?.(
+            safeDt,
+            player.position,
+            projected.direction,
+            {
+                inGap: !player.alive || projected.trailInGap === true,
+                discontinuity: replayRestarted || previousAlive !== player.alive,
+            }
+        );
+        replayAliveState.set(player.index, player.alive);
         player.view?.setVisible?.(true);
         player.view?.syncFromState?.();
-        player.view?.updateVisuals?.(1 / 60);
+        player.view?.updateVisuals?.(safeDt);
     }
 }
 
@@ -121,12 +141,17 @@ function applySnapshotToParticles(particles, leftSnapshot) {
 
 export function createCinematicReplayFrameRenderer({ game, renderer } = {}) {
     const projectileProxies = [];
+    const replayAliveState = new Map();
+    let activeReplay = null;
     return async ({
+        replay = null,
         projection = null,
         leftSnapshot = null,
+        frameIndex = 0,
         dt = 1 / 60,
         reset = false,
     } = {}) => {
+        const entityManager = game?.entityManager || game?.runtimeBundle?.runtimeState?.entityManager || null;
         if (reset) {
             for (const proxy of projectileProxies) {
                 renderer?.removeFromScene?.(proxy);
@@ -134,13 +159,21 @@ export function createCinematicReplayFrameRenderer({ game, renderer } = {}) {
                 proxy.material?.dispose?.();
             }
             projectileProxies.length = 0;
+            clearReplayTrails(entityManager);
+            replayAliveState.clear();
+            activeReplay = null;
             renderer?.setRecordingActive?.(false);
             renderer?.setRecordingQualityLock?.(false, 'cinematic-replay-render');
             return null;
         }
-        const entityManager = game?.entityManager || game?.runtimeBundle?.runtimeState?.entityManager || null;
         if (!renderer || !entityManager || !projection) return null;
-        applyProjectionToPlayers(entityManager, projection);
+        const replayRestarted = replay !== activeReplay || Number(frameIndex) === 0;
+        if (replayRestarted) {
+            clearReplayTrails(entityManager);
+            replayAliveState.clear();
+            activeReplay = replay;
+        }
+        applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted);
         applySnapshotToProjectiles(renderer, projectileProxies, leftSnapshot);
         applySnapshotToParticles(game?.particles, leftSnapshot);
         renderer.setRecordingActive?.(true);

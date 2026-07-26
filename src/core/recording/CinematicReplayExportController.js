@@ -48,6 +48,8 @@ function ensureProjectionPlayer(outPlayers, index) {
             isBoosting: false,
             hp: 100,
             maxHp: 100,
+            trailWidth: 0.6,
+            trailInGap: false,
             cockpitCamera: false,
             planarMode: false,
             cameraModeId: 'THIRD_PERSON',
@@ -100,6 +102,12 @@ function updateProjectionPlayer(out, left, right, alpha, fallbackIndex) {
         alpha
     );
     out.maxHp = Math.max(1, toFiniteNumber(left?.maxHealth, 100));
+    out.trailWidth = Math.max(0.01, lerp(
+        toFiniteNumber(left?.trailWidth, 0.6),
+        toFiniteNumber(right?.trailWidth, toFiniteNumber(left?.trailWidth, 0.6)),
+        alpha
+    ));
+    out.trailInGap = alpha < 0.5 ? left?.trailInGap === true : right?.trailInGap === true;
     out.position.x = lerp(toFiniteNumber(leftPos[0]), toFiniteNumber(rightPos[0]), alpha);
     out.position.y = lerp(toFiniteNumber(leftPos[1]), toFiniteNumber(rightPos[1]), alpha);
     out.position.z = lerp(toFiniteNumber(leftPos[2]), toFiniteNumber(rightPos[2]), alpha);

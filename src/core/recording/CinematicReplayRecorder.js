@@ -72,6 +72,8 @@ function enrichPlayerVisualState(snapshotPlayers, livePlayers) {
         snapshot.skinId = String(player.skinId || player.selectedSkin || '');
         snapshot.animation = String(player.animationState || player.activeAnimation || '');
         snapshot.weapon = String(player.activeWeapon || player.weaponType || '');
+        snapshot.trailWidth = Math.max(0.01, toFiniteNumber(player.trail?.width, 0.6));
+        snapshot.trailInGap = player.trail?.inGap === true;
     }
 }
 

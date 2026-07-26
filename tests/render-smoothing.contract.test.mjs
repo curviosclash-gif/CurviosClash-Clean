@@ -78,6 +78,50 @@ test('render-only trail head follows the visible pose without registering collis
     assert.equal(removed.length, 4);
 });
 
+test('cinematic replay trail rebuilds visible segments without collision or gameplay side effects', () => {
+    let collisionRegistrations = 0;
+    let gameplayEvents = 0;
+    const trail = new Trail({
+        addToScene() {},
+        removeFromScene() {},
+    }, 0x33aaff, 0, {
+        entityRuntimeConfig: {
+            TRAIL: { WIDTH: 0.6, MAX_SEGMENTS: 4, UPDATE_INTERVAL: 0.07, GAP_CHANCE: 0, GAP_DURATION: 0.5 },
+            HUNT: { TRAIL_SEGMENT_HP: 3 },
+        },
+        onArcadeGameplayEvent() {},
+        _emitArcadeGameplayEvent() {
+            gameplayEvents += 1;
+        },
+        getTrailSpatialIndex() {
+            return {
+                registerTrailSegment() {
+                    collisionRegistrations += 1;
+                    return { key: 'segment', entry: {} };
+                },
+                unregisterTrailSegment() {},
+            };
+        },
+    });
+    const forward = new THREE.Vector3(1, 0, 0);
+
+    trail.updateReplayVisual(
+        0.07,
+        new THREE.Vector3(0, 0, 0),
+        forward,
+        { discontinuity: true }
+    );
+    trail.updateReplayVisual(0.07, new THREE.Vector3(2, 0, 0), forward);
+
+    assert.equal(trail.segmentCount, 1);
+    assert.equal(trail.mesh.count, 1);
+    assert.equal(trail.headMesh.visible, true);
+    assert.equal(collisionRegistrations, 0);
+    assert.equal(gameplayEvents, 0);
+
+    trail.dispose();
+});
+
 test('render-only trail head stays continuous across a sharp visual direction change', () => {
     const trail = new Trail({
         addToScene() {},

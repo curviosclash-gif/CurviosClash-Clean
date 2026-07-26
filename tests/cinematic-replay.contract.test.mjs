@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 
 import {
     CINEMATIC_REPLAY_CONTRACT_VERSION,
     CinematicReplayRecorder,
 } from '../src/core/recording/CinematicReplayRecorder.js';
 import { CinematicReplayExportController } from '../src/core/recording/CinematicReplayExportController.js';
+import { createCinematicReplayFrameRenderer } from '../src/core/recording/CinematicReplayRenderRuntime.js';
 import { MediaRecorderSystem } from '../src/core/MediaRecorderSystem.js';
 
 function createEntityManager() {
@@ -26,6 +28,10 @@ function createEntityManager() {
             isBoosting: true,
             color: 0xff00ff,
             activeEffects: [{ type: 'shield', remaining: 1.5 }],
+            trail: {
+                width: 0.85,
+                inGap: true,
+            },
         }],
         projectiles: [{
             id: 'rocket-1',
@@ -68,6 +74,8 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
     assert.equal(replay.matchId, 'match-contract');
     assert.ok(replay.snapshotCount >= 29 && replay.snapshotCount <= 31);
     assert.equal(replay.snapshots[0].players[0].isBoosting, true);
+    assert.equal(replay.snapshots[0].players[0].trailWidth, 0.85);
+    assert.equal(replay.snapshots[0].players[0].trailInGap, true);
     assert.equal(replay.snapshots[0].projectiles[0].type, 'rocket');
     assert.deepEqual(replay.metadata, { mapKey: 'arena', seed: 42 });
     assert.equal(replay.audioWarning, 'audio_capture_unavailable');
@@ -105,6 +113,7 @@ test('cinematic profile starts from match lifecycle and continues across round f
 test('cinematic export streams frames once and propagates partial metadata', async () => {
     const frameBytes = new Uint8ClampedArray(1920 * 1080 * 4);
     const calls = [];
+    let firstProjectionTrail = null;
     const saveContract = {
         contractVersion: 'preload.save.v2',
         beginCinematicReplayExport: async () => ({ started: true, exportId: 'export-1' }),
@@ -135,13 +144,20 @@ test('cinematic export streams frames once and propagates partial metadata', asy
     };
     const controller = new CinematicReplayExportController({
         runtimeGlobal,
-        renderFrame: async ({ reset }) => reset ? null : ({
-            width: 1920,
-            height: 1080,
-            getContext: () => ({
-                getImageData: () => ({ data: frameBytes }),
-            }),
-        }),
+        renderFrame: async ({ reset, projection }) => {
+            if (reset) return null;
+            firstProjectionTrail ||= {
+                width: projection.players[0].trailWidth,
+                inGap: projection.players[0].trailInGap,
+            };
+            return {
+                width: 1920,
+                height: 1080,
+                getContext: () => ({
+                    getImageData: () => ({ data: frameBytes }),
+                }),
+            };
+        },
     });
     const baseSnapshot = {
         timeMs: 0,
@@ -151,6 +167,8 @@ test('cinematic export streams frames once and propagates partial metadata', asy
             rot: [0, 0, 0, 1],
             alive: true,
             health: 100,
+            trailWidth: 0.85,
+            trailInGap: true,
         }],
     };
     const result = await controller.export({
@@ -170,4 +188,87 @@ test('cinematic export streams frames once and propagates partial metadata', asy
     assert.equal(result.partial, true);
     assert.equal(result.partialReason, 'audio_stop_timeout');
     assert.deepEqual(calls, [0, 1]);
+    assert.deepEqual(firstProjectionTrail, { width: 0.85, inGap: true });
+});
+
+test('cinematic replay frame renderer rebuilds and resets player trails', async () => {
+    const calls = [];
+    const trail = {
+        width: 0.6,
+        clear() { calls.push(['clear']); },
+        setWidth(width) {
+            this.width = width;
+            calls.push(['width', width]);
+        },
+        updateReplayVisual(dt, position, direction, options) {
+            calls.push(['update', dt, position.x, direction.x, { ...options }]);
+        },
+    };
+    const player = {
+        index: 0,
+        position: new THREE.Vector3(),
+        previousPosition: new THREE.Vector3(),
+        quaternion: new THREE.Quaternion(),
+        previousQuaternion: new THREE.Quaternion(),
+        hp: 100,
+        score: 0,
+        speed: 0,
+        trail,
+        view: {
+            setVisible() {},
+            syncFromState() {},
+            updateVisuals() {},
+        },
+    };
+    const captureCanvas = { width: 1920, height: 1080 };
+    const renderer = {
+        setRecordingActive() {},
+        setRecordingQualityLock() {},
+        prepareRecordingCaptureFrame() {},
+        getRecordingCaptureCanvas() { return captureCanvas; },
+    };
+    const replay = { matchId: 'trail-replay' };
+    const renderFrame = createCinematicReplayFrameRenderer({
+        game: { entityManager: { players: [player] } },
+        renderer,
+    });
+    const projection = {
+        players: [{
+            playerIndex: 0,
+            alive: true,
+            hp: 100,
+            score: 0,
+            speed: 8,
+            trailWidth: 0.85,
+            trailInGap: false,
+            position: { x: 2, y: 0, z: 0 },
+            quaternion: { x: 0, y: 0, z: 0, w: 1 },
+            direction: { x: 1, y: 0, z: 0 },
+        }],
+    };
+
+    assert.equal(await renderFrame({
+        replay,
+        projection,
+        leftSnapshot: { projectiles: [] },
+        frameIndex: 0,
+        dt: 1 / 60,
+    }), captureCanvas);
+    await renderFrame({
+        replay,
+        projection,
+        leftSnapshot: { projectiles: [] },
+        frameIndex: 1,
+        dt: 1 / 60,
+    });
+    await renderFrame({ reset: true });
+
+    assert.deepEqual(calls, [
+        ['clear'],
+        ['width', 0.85],
+        ['update', 1 / 60, 2, 1, { inGap: false, discontinuity: true }],
+        ['width', 0.85],
+        ['update', 1 / 60, 2, 1, { inGap: false, discontinuity: false }],
+        ['clear'],
+    ]);
 });
