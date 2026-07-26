@@ -165,7 +165,7 @@ export function createMultiplayerMatchSettingsSnapshot(settings = {}) {
         numBots: settings?.numBots ?? 1,
         botDifficulty: settings?.botDifficulty || 'NORMAL',
         winsNeeded: settings?.winsNeeded ?? 5,
-        autoRoll: settings?.autoRoll !== false,
+        autoRoll: settings?.autoRoll === true,
         portalsEnabled: settings?.portalsEnabled !== false,
         hunt: settings?.hunt ? { ...settings.hunt } : { respawnEnabled: false },
         gameplay: settings?.gameplay ? { ...settings.gameplay } : {},

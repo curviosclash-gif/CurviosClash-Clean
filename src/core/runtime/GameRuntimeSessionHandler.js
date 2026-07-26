@@ -240,7 +240,11 @@ export class GameRuntimeSessionHandler {
                 });
             }
             const startResult = facade?.getPorts?.()?.matchUiPort?.applyStartMatchProjection?.();
-            if (startResult && typeof startResult.then === 'function') {
+            if (startResult === undefined || startResult === null) {
+                facade?.game?._showStatusToast?.('Start nicht moeglich: Match-Controller nicht verfuegbar.', 2000, 'error');
+                return false;
+            }
+            if (typeof startResult.then === 'function') {
                 return Promise.resolve(startResult).then((resolvedResult) => resolvedResult !== false);
             }
             return startResult !== false;

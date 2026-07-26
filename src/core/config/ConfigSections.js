@@ -40,7 +40,7 @@ export const CONFIG_SECTIONS = {
         NOSE_CAMERA_LOCAL_Y: 0.05,
         NOSE_CAMERA_LOCAL_Z: -1.95,
         START_Y: 10,
-        AUTO_ROLL: true,
+        AUTO_ROLL: false,
         AUTO_ROLL_SPEED: 1.5,
         DEFAULT_VEHICLE_ID: 'ship5',
     },

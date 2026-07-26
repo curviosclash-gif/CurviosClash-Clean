@@ -2,6 +2,7 @@ import {
     HANGAR_SELECTION_PLAYER_SLOTS,
     readHangarMapSelection,
     readHangarVehicleSelection,
+    writeHangarMapSelection,
     writeHangarVehicleSelection,
 } from '../hangar/HangarSelectionWritebackContract.js';
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
@@ -148,6 +149,7 @@ function syncMapSelect({
     const canRetainPreviousMap = previousValue === 'custom'
         ? hasStoredCustomMap()
         : !!previousMapDefinition
+            && previousMapDefinition.hiddenFromMapPicker !== true
             && isMapEligibleForModePath(previousMapDefinition, modePath)
             && surfacePolicyPort.isMapAllowed(previousValue, modePath);
     if (!hasPreviousOption && canRetainPreviousMap) {
@@ -171,6 +173,11 @@ function syncMapSelect({
         ? previousValue
         : ui.mapSelect.options[0].value;
     ui.mapSelect.value = resolvedMapKey;
+    if (previousMapDefinition?.hiddenFromMapPicker === true && previousValue !== resolvedMapKey) {
+        writeHangarMapSelection(settings, resolvedMapKey, resolvedMapKey, {
+            modePath: hangarSelectionModePath,
+        });
+    }
     return resolvedMapKey;
 }
 

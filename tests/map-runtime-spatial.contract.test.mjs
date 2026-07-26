@@ -11,7 +11,7 @@ test('runtime parcours keep authored spawns and routes in one scaled world space
     const mapScale = CONFIG.ARENA.MAP_SCALE;
     const parcoursMaps = Object.entries(CONFIG.MAPS).filter(([, map]) => map?.parcours?.enabled === true);
 
-    assert.equal(parcoursMaps.length, 18);
+    assert.equal(parcoursMaps.length, 19);
     for (const [mapKey, map] of parcoursMaps) {
         assert.equal(map.scaleAuthoredAnchors, true, `${mapKey} scales authored anchors`);
         const route = buildRouteFromParcours(map.parcours, { positionScale: mapScale });
@@ -38,6 +38,82 @@ test('map preview metadata hides aliases without breaking direct runtime preview
     assert.equal(fortressAlias.hiddenFromMapPicker, true);
     assert.equal(expert.hiddenFromMapPicker, false);
     assert.equal(resolveMapPreview('tutorial_classic').name, 'Classic Tutorial-Parcours');
+});
+
+test('map picker repairs hidden selections in both active and per-mode settings', () => {
+    class FakeOption {
+        constructor() {
+            this.value = '';
+            this.textContent = '';
+            this.dataset = {};
+        }
+    }
+    class FakeSelect {
+        constructor() {
+            this.options = [];
+            this.value = '';
+        }
+        appendChild(option) {
+            this.options.push(option);
+            if (!this.value) this.value = option.value;
+        }
+        replaceChildren() {
+            this.options = [];
+            this.value = '';
+        }
+    }
+
+    const originalDocument = globalThis.document;
+    globalThis.document = { createElement: () => new FakeOption() };
+    try {
+        const startSetup = {
+            mapSearch: '',
+            mapFilter: 'all',
+            vehicleSearch: '',
+            vehicleFilter: 'all',
+            favoriteMaps: [],
+            recentMaps: [],
+            favoriteVehicles: [],
+            recentVehicles: [],
+            modeSelections: {
+                fight: { mapKey: 'hidden', vehicles: {} },
+            },
+        };
+        const settings = {
+            mapKey: 'hidden',
+            vehicles: {},
+            localSettings: { modePath: 'fight', startSetup },
+        };
+        const result = syncStartSetupSelectionState({
+            ui: { mapSelect: new FakeSelect() },
+            settings,
+            startSetup,
+            runtimeMaps: {
+                hidden: { hiddenFromMapPicker: true },
+                visible: {},
+            },
+            surfaceMenuState: { mapKey: 'hidden' },
+            mapPreviewEntries: [
+                { key: 'hidden', name: 'Hidden', hiddenFromMapPicker: true },
+                { key: 'visible', name: 'Visible' },
+            ],
+            vehiclePreviewEntries: [],
+            modePath: 'fight',
+            hangarSelectionModePath: 'fight',
+            surfacePolicyPort: { isMapAllowed: () => true },
+            formatMapLabel: (entry) => entry.name,
+            resolveSurfaceFallbackMapKey: () => 'visible',
+            hasStoredCustomMap: () => false,
+            ghostDuelState: {},
+        });
+
+        assert.equal(result.effectiveMapKey, 'visible');
+        assert.equal(settings.mapKey, 'visible');
+        assert.equal(startSetup.modeSelections.fight.mapKey, 'visible');
+    } finally {
+        if (originalDocument === undefined) delete globalThis.document;
+        else globalThis.document = originalDocument;
+    }
 });
 
 test('map preview accepts authored xyz spawn objects', () => {

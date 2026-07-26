@@ -501,6 +501,7 @@ export class GameRuntimeFacade {
     dispose() {
         if (this._disposePromise) return this._disposePromise;
         this._disposed = true;
+        this.settingsHandler?.dispose?.();
         const runtimeState = this.getRuntimeState();
         runtimeState?.menuController?.dispose?.();
         if (runtimeState && runtimeState.menuController) {

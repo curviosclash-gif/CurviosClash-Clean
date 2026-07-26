@@ -36,7 +36,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         botDifficulty: 'HARD',
         botPolicyStrategy: 'auto',
         winsNeeded: 5,
-        autoRoll: true,
+        autoRoll: false,
         invertPitch: {
             PLAYER_1: true,
             PLAYER_2: true,
@@ -149,7 +149,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         botDifficulty: 'NORMAL',
         botPolicyStrategy: 'auto',
         winsNeeded: 5,
-        autoRoll: true,
+        autoRoll: false,
         portalsEnabled: true,
         vehicles: {
             PLAYER_1: 'ship5',
@@ -351,7 +351,9 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             winsNeeded: Number.isFinite(Number(source.winsNeeded))
                 ? Number(source.winsNeeded)
                 : MENU_DEFAULT_EDITOR_CONFIG.baseSettings.winsNeeded,
-            autoRoll: source.autoRoll !== false,
+            autoRoll: typeof source.autoRoll === 'boolean'
+                ? source.autoRoll
+                : MENU_DEFAULT_EDITOR_CONFIG.baseSettings.autoRoll,
             invertPitch: deepClone(source.invertPitch || MENU_DEFAULT_EDITOR_CONFIG.baseSettings.invertPitch),
             cockpitCamera: deepClone(source.cockpitCamera || MENU_DEFAULT_EDITOR_CONFIG.baseSettings.cockpitCamera),
             vehicles: deepClone(source.vehicles || MENU_DEFAULT_EDITOR_CONFIG.baseSettings.vehicles),

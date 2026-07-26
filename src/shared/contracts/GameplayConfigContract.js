@@ -41,7 +41,7 @@ export const GAMEPLAY_CONFIG_DEFAULTS = Object.freeze({
         HITBOX_RADIUS: 0.8,
         MODEL_SCALE: 1.0,
         START_Y: 10,
-        AUTO_ROLL: true,
+        AUTO_ROLL: false,
         AUTO_ROLL_SPEED: 1.5,
         DEFAULT_VEHICLE_ID: 'ship5',
     }),

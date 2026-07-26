@@ -23,6 +23,7 @@ import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shar
 export class GameRuntimeSettingsHandler {
     constructor({ facade = null } = {}) {
         this._facade = facade || null;
+        this._pendingAutoSaveId = null;
     }
 
     captureMultiplayerMatchSettings() {
@@ -220,7 +221,27 @@ export class GameRuntimeSettingsHandler {
         });
         this._facade?.applySettingsToRuntime?.({ schedulePrewarm: false });
         this._facade?._syncMultiplayerRuntimeContext?.(changedKeys);
+        this._scheduleSettingsAutoSave();
         return changedKeys;
+    }
+
+    _scheduleSettingsAutoSave() {
+        if (this._pendingAutoSaveId != null) {
+            clearTimeout(this._pendingAutoSaveId);
+        }
+        this._pendingAutoSaveId = setTimeout(() => {
+            this._pendingAutoSaveId = null;
+            if (this._facade?._disposed === true) return;
+            this._facade?.game?._saveSettings?.();
+        }, 400);
+    }
+
+    dispose() {
+        if (this._pendingAutoSaveId != null) {
+            clearTimeout(this._pendingAutoSaveId);
+            this._pendingAutoSaveId = null;
+        }
+        this._facade = null;
     }
 
     markSettingsDirty(isDirty) {
