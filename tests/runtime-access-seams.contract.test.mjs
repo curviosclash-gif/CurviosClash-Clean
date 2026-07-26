@@ -411,3 +411,32 @@ test('V104.2 runtime diagnostics handles KeyP/KeyO and blocks both while key-cap
         }
     });
 });
+
+test('runtime diagnostics restores quality only after an automatic downgrade', async () => {
+    await withMockBrowserGlobals(async () => {
+        const qualityCalls = [];
+        const runtimeAccess = {
+            getRenderer: () => ({ setQuality: (quality) => qualityCalls.push(quality) }),
+            getMediaRecorderSystem: () => null,
+            getEntityManager: () => null,
+            getRenderDelta: () => 1 / 60,
+            getState: () => 'PLAYING',
+            actionShowStatusToast() {},
+        };
+        const diagnostics = new RuntimeDiagnosticsSystem(runtimeAccess);
+        diagnostics._fpsTracker.update = () => {};
+
+        try {
+            diagnostics._fpsTracker.avg = 20;
+            diagnostics.update(3.1);
+            diagnostics._fpsTracker.avg = 60;
+            diagnostics.update(3.1);
+
+            assert.deepEqual(qualityCalls, ['LOW', 'HIGH']);
+            assert.equal(diagnostics._isLowQuality, false);
+            assert.equal(diagnostics._autoLowActive, false);
+        } finally {
+            diagnostics.dispose();
+        }
+    });
+});

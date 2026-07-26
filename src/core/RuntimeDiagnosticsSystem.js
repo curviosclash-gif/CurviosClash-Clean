@@ -81,6 +81,7 @@ export class RuntimeDiagnosticsSystem {
         this._adaptiveTimer = 0;
         this._statsTimer = 0;
         this._isLowQuality = false;
+        this._autoLowActive = false;
         this._statsElement = null;
         this._fpsTracker = createFpsTracker();
 
@@ -95,6 +96,7 @@ export class RuntimeDiagnosticsSystem {
 
         if (event.code === 'KeyP') {
             this._isLowQuality = !this._isLowQuality;
+            this._autoLowActive = false;
             const quality = this._isLowQuality ? 'LOW' : 'HIGH';
             renderer?.setQuality?.(quality);
             if (quality === 'LOW' && isCinematicRecordingActive(recorder)) {
@@ -171,15 +173,30 @@ export class RuntimeDiagnosticsSystem {
         this._adaptiveTimer += dt;
         if (this._adaptiveTimer >= 3.0) {
             this._adaptiveTimer = 0;
+            const avgFps = this._fpsTracker.avg;
+            const isPlaying = this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING;
+            const isRecording = isCinematicRecordingActive(recorder);
             if (
-                this._fpsTracker.avg < 30
+                avgFps < 30
                 && !this._isLowQuality
-                && this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING
-                && !isCinematicRecordingActive(recorder)
+                && isPlaying
+                && !isRecording
             ) {
                 this._isLowQuality = true;
+                this._autoLowActive = true;
                 renderer?.setQuality?.('LOW');
                 this.runtimeAccess.actionShowStatusToast?.('Grafik automatisch reduziert');
+            } else if (
+                this._isLowQuality
+                && this._autoLowActive
+                && avgFps > 50
+                && isPlaying
+                && !isRecording
+            ) {
+                this._isLowQuality = false;
+                this._autoLowActive = false;
+                renderer?.setQuality?.('HIGH');
+                this.runtimeAccess.actionShowStatusToast?.('Grafik automatisch erhoeht');
             }
         }
     }
