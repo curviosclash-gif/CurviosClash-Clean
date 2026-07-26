@@ -91,10 +91,10 @@ test('cinematic replay partial state is preserved through stop', async () => {
     assert.equal(replay.partialReason, 'snapshot_budget_exhausted');
 });
 
-test('cinematic profile starts from match lifecycle and continues across round finalization', async () => {
+test('cinematic profile waits for manual F9 start and continues across round finalization', async () => {
     const recorder = new MediaRecorderSystem({
         canvas: null,
-        autoRecordingEnabled: false,
+        autoRecordingEnabled: true,
         globalScope: {},
         recordingCaptureSettings: {
             profile: 'cinematic',
@@ -103,6 +103,9 @@ test('cinematic profile starts from match lifecycle and continues across round f
         },
     });
     recorder.notifyLifecycleEvent('match_started', { sessionId: 'lifecycle-match' });
+    assert.equal(recorder.isCinematicReplayRecording(), false);
+    const startResult = await recorder.startRecording({ type: 'cinematic_manual_start' });
+    assert.equal(startResult.started, true);
     assert.equal(recorder.isCinematicReplayRecording(), true);
     const roundResult = await recorder.settleRecording({ type: 'round_finalize' });
     assert.equal(roundResult.deferred, true);

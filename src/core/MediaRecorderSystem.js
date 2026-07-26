@@ -854,10 +854,11 @@ export class MediaRecorderSystem {
         if (this._lifecycleEvents.length > 24) {
             this._lifecycleEvents.shift();
         }
-        if (eventType === LIFECYCLE_EVENT_TYPES.MATCH_STARTED && (
-            this.autoRecordingEnabled
-            || isCinematicCaptureProfile(this.recordingCaptureSettings?.profile)
-        )) {
+        if (
+            eventType === LIFECYCLE_EVENT_TYPES.MATCH_STARTED
+            && this.autoRecordingEnabled
+            && !isCinematicCaptureProfile(this.recordingCaptureSettings?.profile)
+        ) {
             this.startRecording(event);
             return event;
         }
