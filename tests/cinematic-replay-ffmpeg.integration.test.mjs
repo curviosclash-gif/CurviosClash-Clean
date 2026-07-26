@@ -30,10 +30,11 @@ test('real FFmpeg output is playable H.264 MP4 at 1080p60 with synchronized audi
     }
     const tempDirectory = await mkdtemp(path.join(os.tmpdir(), 'curvios-replay-ffmpeg-'));
     const outputPath = path.join(tempDirectory, 'cinematic-integration.mp4');
+    const shortAudioOutputPath = path.join(tempDirectory, 'cinematic-short-audio.mp4');
     try {
         const encode = spawnSync(ffmpeg, [
             '-hide_banner', '-loglevel', 'error', '-y',
-            '-f', 'lavfi', '-i', 'color=c=0x203050:s=1920x1080:r=60:d=1',
+            '-f', 'lavfi', '-i', 'testsrc2=s=1920x1080:r=60:d=1',
             '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=1',
             '-map', '0:v:0', '-map', '1:a:0',
             '-c:v', 'libx264', '-preset', 'ultrafast', '-crf', '18',
@@ -80,6 +81,36 @@ test('real FFmpeg output is playable H.264 MP4 at 1080p60 with synchronized audi
             '-f', 'null', '-',
         ], { encoding: 'utf8', timeout: 120000 });
         assert.equal(decode.status, 0, decode.stderr || 'FFmpeg decode failed');
+
+        const shortAudioEncode = spawnSync(ffmpeg, [
+            '-hide_banner', '-loglevel', 'error', '-y',
+            '-f', 'lavfi', '-i', 'testsrc2=s=1920x1080:r=60:d=1',
+            '-f', 'lavfi', '-i', 'sine=frequency=440:sample_rate=48000:duration=0.25',
+            '-map', '0:v:0', '-map', '1:a:0',
+            '-c:v', 'libx264', '-preset', 'veryfast', '-crf', '18',
+            '-pix_fmt', 'yuv420p', '-r', '60', '-fps_mode', 'cfr',
+            '-video_track_timescale', '60000',
+            '-af', 'apad', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000',
+            '-t', '1',
+            '-movflags', '+faststart',
+            shortAudioOutputPath,
+        ], { encoding: 'utf8', timeout: 120000 });
+        assert.equal(
+            shortAudioEncode.status,
+            0,
+            shortAudioEncode.stderr || 'FFmpeg short-audio encode failed'
+        );
+        const shortAudioValidation = await validateMp4({
+            ffprobeCommand: ffprobe,
+            filePath: shortAudioOutputPath,
+            width: 1920,
+            height: 1080,
+            fps: 60,
+            expectedDurationMs: 1000,
+            audioExpected: true,
+        });
+        assert.equal(shortAudioValidation.valid, true, JSON.stringify(shortAudioValidation));
+        assert.ok(Math.abs(shortAudioValidation.durationSeconds - 1) < 0.1);
     } finally {
         await rm(tempDirectory, { recursive: true });
     }

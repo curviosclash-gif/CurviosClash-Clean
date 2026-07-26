@@ -27,6 +27,21 @@ class MockEncoderProcess extends EventEmitter {
     }
 }
 
+class FailingEncoderProcess extends MockEncoderProcess {
+    constructor() {
+        super();
+        this.stdin.write = (_bytes, callback) => {
+            queueMicrotask(() => {
+                const error = Object.assign(new Error('write EPIPE'), { code: 'EPIPE' });
+                this.stdin.emit('error', error);
+                callback?.(error);
+                this.emit('close', 1, null);
+            });
+            return true;
+        };
+    }
+}
+
 test('cinematic exporter enforces 1080p60 and uses correct temporary container extensions', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'curvios-export-contract-'));
     const videoDirectory = path.join(root, 'videos');
@@ -59,6 +74,7 @@ test('cinematic exporter enforces 1080p60 and uses correct temporary container e
             width: 1920,
             height: 1080,
             fps: 60,
+            expectedDurationMs: 1000,
             audioBytes: new Uint8Array([1, 2, 3]),
             audioMimeType: 'audio/webm;codecs=opus',
         });
@@ -69,6 +85,10 @@ test('cinematic exporter enforces 1080p60 and uses correct temporary container e
         assert.equal(spawnedArgs.includes('libx264'), true);
         assert.equal(spawnedArgs.includes('yuv420p'), true);
         assert.equal(spawnedArgs.includes('60000'), true);
+        assert.equal(spawnedArgs[spawnedArgs.indexOf('-preset') + 1], 'veryfast');
+        assert.equal(spawnedArgs[spawnedArgs.indexOf('-af') + 1], 'apad');
+        assert.equal(spawnedArgs[spawnedArgs.indexOf('-t') + 1], '1');
+        assert.equal(spawnedArgs.includes('-shortest'), false);
 
         const rejected = await job.appendFrame({
             exportId: started.exportId,
@@ -90,6 +110,46 @@ test('cinematic exporter reports frame-rate fractions exactly', () => {
     assert.equal(parseFrameRate('60/1'), 60);
     assert.equal(parseFrameRate('60000/1000'), 60);
     assert.equal(parseFrameRate('0/0'), 0);
+});
+
+test('cinematic exporter reports an early encoder pipe close without an unhandled stream error', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'curvios-export-epipe-'));
+    const child = new FailingEncoderProcess();
+    const job = createCinematicReplayVideoExportJob({
+        app: {
+            getPath(name) {
+                return name === 'videos' ? path.join(root, 'videos') : root;
+            },
+        },
+        dialog: {
+            async showSaveDialog() {
+                return { canceled: false, filePath: path.join(root, 'videos', 'match.mp4') };
+            },
+        },
+        spawnProcess: () => child,
+        probeCapability: async () => ({ available: true, command: 'ffmpeg', source: 'test' }),
+        executeCommand: async () => ({ ok: true, stdout: ' V..... libx264 H.264 encoder', stderr: '' }),
+    });
+    try {
+        const started = await job.begin({
+            matchId: 'match-epipe',
+            width: 1920,
+            height: 1080,
+            fps: 60,
+            expectedDurationMs: 1000,
+        });
+        assert.equal(started.started, true);
+        const appendResult = await job.appendFrame({
+            exportId: started.exportId,
+            frameIndex: 0,
+            frameBytes: new Uint8Array(1920 * 1080 * 4),
+        });
+        assert.equal(appendResult.accepted, false);
+        assert.match(appendResult.reason, /EPIPE/);
+        await job.cancel({ exportId: started.exportId });
+    } finally {
+        await rm(root, { recursive: true });
+    }
 });
 
 test('desktop shutdown asks before aborting an active export and has no three-second cutoff', async () => {

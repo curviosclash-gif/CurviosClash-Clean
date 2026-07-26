@@ -55,6 +55,12 @@ function parseFfmpegDurationSeconds(output) {
     return (Number(match[1]) * 3600) + (Number(match[2]) * 60) + Number(match[3]);
 }
 
+function formatDurationSeconds(durationMs) {
+    const seconds = Math.max(0, Number(durationMs) || 0) / 1000;
+    if (seconds <= 0) return '';
+    return seconds.toFixed(6).replace(/0+$/, '').replace(/\.$/, '');
+}
+
 async function validateMp4WithFfmpeg({
     ffmpegCommand,
     filePath,
@@ -120,6 +126,7 @@ function resolveFfprobeCommand(ffmpegCommand) {
 }
 
 function buildFfmpegArgs(job) {
+    const expectedDurationSeconds = formatDurationSeconds(job.expectedDurationMs);
     const args = [
         '-hide_banner',
         '-loglevel', 'warning',
@@ -137,7 +144,7 @@ function buildFfmpegArgs(job) {
     }
     args.push(
         '-c:v', 'libx264',
-        '-preset', 'medium',
+        '-preset', 'veryfast',
         '-crf', '18',
         '-pix_fmt', 'yuv420p',
         '-r', String(job.fps),
@@ -148,7 +155,13 @@ function buildFfmpegArgs(job) {
         '-metadata', `comment=match:${job.matchId}`
     );
     if (job.audioPath) {
-        args.push('-c:a', 'aac', '-b:a', '192k', '-ar', '48000', '-shortest');
+        // The replay timeline is authoritative. MediaRecorder audio may start late
+        // or contain less wall-clock time than the deterministic replay. Pad short
+        // audio and cap long audio instead of truncating the video via -shortest.
+        args.push('-af', 'apad', '-c:a', 'aac', '-b:a', '192k', '-ar', '48000');
+        if (expectedDurationSeconds) {
+            args.push('-t', expectedDurationSeconds);
+        }
     } else {
         args.push('-an');
     }
@@ -183,32 +196,32 @@ function waitForChildClose(child) {
 
 async function writeStdin(child, bytes) {
     return new Promise((resolve, reject) => {
-        if (!child?.stdin || child.stdin.destroyed || child.stdin.writableEnded) {
+        const stream = child?.stdin;
+        if (!stream || stream.destroyed || stream.writableEnded) {
             reject(new Error('encoder_input_closed'));
             return;
         }
         const buffer = Buffer.from(bytes.buffer, bytes.byteOffset, bytes.byteLength);
-        const accepted = child.stdin.write(buffer, (error) => {
-            if (error) reject(error);
-        });
-        if (accepted) {
-            resolve();
-            return;
-        }
-        const onDrain = () => {
+        let settled = false;
+        const finish = (error = null) => {
+            if (settled) return;
+            settled = true;
             cleanup();
-            resolve();
+            if (error) reject(error);
+            else resolve();
         };
         const onError = (error) => {
-            cleanup();
-            reject(error);
+            finish(error);
         };
         const cleanup = () => {
-            child.stdin.off('drain', onDrain);
-            child.stdin.off('error', onError);
+            stream.off('error', onError);
         };
-        child.stdin.once('drain', onDrain);
-        child.stdin.once('error', onError);
+        stream.once('error', onError);
+        try {
+            stream.write(buffer, (error) => finish(error || null));
+        } catch (error) {
+            finish(error);
+        }
     });
 }
 
@@ -439,6 +452,12 @@ function createCinematicReplayVideoExportJob({
             });
             job.child.stderr?.on('data', (chunk) => {
                 job.stderr = `${job.stderr}${String(chunk || '')}`.slice(-MAX_DIAGNOSTIC_LENGTH);
+            });
+            // A child that exits early can emit EPIPE on stdin independently of
+            // the write callback. Keep the stream error observed for the entire
+            // job so it can never terminate the Electron main process unhandled.
+            job.child.stdin?.on('error', (error) => {
+                job.stdinError = normalizeString(error?.message, 'encoder_input_closed');
             });
             job.closePromise = waitForChildClose(job.child);
         } catch (error) {
