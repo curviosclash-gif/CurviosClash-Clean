@@ -1,5 +1,5 @@
 // ============================================
-// KillcamSystem.js - cinematic replay of the last ~2.5s before a player death
+// KillcamSystem.js - cinematic replay of the last 2s before a player death
 // Features: 3-shot killer follow -> impact zoom -> explosion orbit, slow-mo, letterbox
 // ============================================
 
@@ -9,7 +9,8 @@ import {
     restoreKillcamLivePresentation,
 } from './KillcamPresentationOps.js';
 
-const KILLCAM_WINDOW_SECONDS = 2.5;
+const KILLCAM_SOURCE_WINDOW_SECONDS = 2;
+const KILLCAM_MAX_DISPLAY_SECONDS = 2.5;
 const KILLCAM_CAMERA_INDEX = 0;
 const KILLCAM_ORBIT_SMOOTH_SPEED = 9.5;
 const KILLCAM_MIN_DURATION = 0.6;
@@ -185,8 +186,8 @@ export class KillcamSystem {
 
         const respawnDelay = resolveRespawnDelaySeconds(respawnSystem, player);
         const displayDuration = respawnDelay > 0
-            ? Math.min(KILLCAM_WINDOW_SECONDS, respawnDelay - 0.05)
-            : KILLCAM_WINDOW_SECONDS;
+            ? Math.min(KILLCAM_MAX_DISPLAY_SECONDS, respawnDelay - 0.05)
+            : KILLCAM_MAX_DISPLAY_SECONDS;
         if (displayDuration < KILLCAM_MIN_DURATION) return false;
 
         const cameras = this.renderer?.cameras;
@@ -199,7 +200,7 @@ export class KillcamSystem {
         try {
             clip = recorder.getLastRoundGhostClip(players, {
                 includeBots: true,
-                maxSourceDuration: KILLCAM_WINDOW_SECONDS,
+                maxSourceDuration: KILLCAM_SOURCE_WINDOW_SECONDS,
                 displayDuration,
             });
         } catch {

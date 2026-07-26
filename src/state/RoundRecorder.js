@@ -266,21 +266,23 @@ export class RoundRecorder {
         let startIndex = 0;
         while (
             startIndex < orderedSnapshots.length - 2
-            && Number(orderedSnapshots[startIndex + 1]?.time) < minTime
+            && Number(orderedSnapshots[startIndex + 1]?.time) <= minTime
         ) {
             startIndex++;
         }
 
         const selectedCount = orderedSnapshots.length - startIndex;
-        const startTime = Number(orderedSnapshots[startIndex]?.time) || 0;
+        const firstSelectedTime = Number(orderedSnapshots[startIndex]?.time) || 0;
+        const startTime = Math.max(firstSelectedTime, minTime);
+        const hasUsableSourceTimeline = finalTime - startTime > 0.000001;
         const normalizedFrames = new Array(selectedCount);
         for (let index = 0; index < selectedCount; index++) {
             const snapshot = orderedSnapshots[startIndex + index];
             const rawTime = Math.max(0, (Number(snapshot?.time) || 0) - startTime);
             const previousTime = index > 0 ? normalizedFrames[index - 1].time : 0;
-            const normalizedTime = index > 0 && rawTime < (previousTime + fallbackSnapshotStep * 0.5)
+            const normalizedTime = index > 0 && !hasUsableSourceTimeline
                 ? previousTime + fallbackSnapshotStep
-                : rawTime;
+                : Math.max(previousTime, rawTime);
             const srcPlayers = Array.isArray(snapshot?.players) ? snapshot.players : [];
             const framePlayers = [];
             for (let j = 0; j < srcPlayers.length; j++) {

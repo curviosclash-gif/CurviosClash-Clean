@@ -14,6 +14,7 @@ function createKillcamFixture({
 } = {}) {
     const playbackCalls = [];
     const seekCalls = [];
+    const clipRequests = [];
     const camera = {
         fov: 75,
         position: new THREE.Vector3(0, 4, 12),
@@ -86,7 +87,12 @@ function createKillcamFixture({
             },
         },
         entityManager,
-        recorder: { getLastRoundGhostClip: () => clip },
+        recorder: {
+            getLastRoundGhostClip(_players, options) {
+                clipRequests.push(options);
+                return clip;
+            },
+        },
         respawnSystem: {
             isEnabled: () => true,
             isRespawnPending: () => true,
@@ -95,14 +101,26 @@ function createKillcamFixture({
         },
         ghostSystem,
     });
-    return { camera, entityManager, ghostSystem, killcam, killer, player, playbackCalls, seekCalls };
+    return {
+        camera,
+        clipRequests,
+        entityManager,
+        ghostSystem,
+        killcam,
+        killer,
+        player,
+        playbackCalls,
+        seekCalls,
+    };
 }
 
 test('killcam keeps visible ghost playback aligned with its source-time camera pose', () => {
-    const { killcam, killer, player, playbackCalls, seekCalls } = createKillcamFixture();
+    const { clipRequests, killcam, killer, player, playbackCalls, seekCalls } = createKillcamFixture();
     assert.equal(killcam.onPlayerDied(player, { killer }), true);
     assert.equal(playbackCalls[0]?.options?.loop, false);
     assert.equal(playbackCalls[0]?.options?.useLivePlayerViews, true);
+    assert.equal(clipRequests[0]?.maxSourceDuration, 2);
+    assert.equal(clipRequests[0]?.displayDuration, 2.5);
 
     while (killcam._elapsed < killcam._displayDuration * 0.86) {
         const dt = 0.005;
