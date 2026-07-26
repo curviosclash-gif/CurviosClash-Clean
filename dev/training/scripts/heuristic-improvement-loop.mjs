@@ -24,8 +24,15 @@ import {
     HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DEFAULT_REPORT_DIR = path.resolve(__dirname, '..', 'reports', 'bot-trainingsloop');
 
 const DEFAULT_SEEDS = [3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113];
 const DEFAULT_PASSES = [0.20, 0.10, 0.05];
@@ -86,6 +93,7 @@ const MAX_TICKS = Number.parseInt(process.env.HEURISTIC_LOOP_MAX_TICKS, 10) || D
 const PROFILES = parseCsvStr(process.env.HEURISTIC_LOOP_PROFILES, DEFAULT_PROFILES);
 const NUM_BOTS = Number.parseInt(process.env.HEURISTIC_LOOP_NUM_BOTS, 10) || DEFAULT_NUM_BOTS;
 const TIMEOUT_MS = Number.parseInt(process.env.HEURISTIC_LOOP_TIMEOUT_MS, 10) || DEFAULT_TIMEOUT_MS;
+const REPORT_DIR = process.env.HEURISTIC_LOOP_REPORT_DIR || DEFAULT_REPORT_DIR;
 
 function fightSettings(profile) {
     return {
@@ -106,6 +114,36 @@ function clampScalar(field, value) {
     return Math.max(lo, Math.min(hi, n));
 }
 
+function mergeDeathCauseCounts(target, source) {
+    if (!source || typeof source !== 'object') return target;
+    for (const [cause, rawCount] of Object.entries(source)) {
+        const count = Math.max(0, Number(rawCount) || 0);
+        if (count <= 0) continue;
+        target[cause] = (target[cause] || 0) + count;
+    }
+    return target;
+}
+
+function trailDeathShare(counts) {
+    const entries = Object.entries(counts || {});
+    let total = 0;
+    let trail = 0;
+    for (const [cause, rawCount] of entries) {
+        const count = Math.max(0, Number(rawCount) || 0);
+        total += count;
+        if (cause === 'TRAIL_SELF' || cause === 'TRAIL_OTHER') trail += count;
+    }
+    return total > 0 ? trail / total : 0;
+}
+
+function formatDeathCauseCounts(counts) {
+    const entries = Object.entries(counts || {})
+        .filter(([, count]) => Number(count) > 0)
+        .sort((a, b) => Number(b[1]) - Number(a[1]));
+    if (entries.length === 0) return 'none';
+    return entries.map(([cause, count]) => `${cause}=${count}`).join(', ');
+}
+
 async function runMatch(settings, seed, candidateProfile, candidateFields) {
     const originalRandom = Math.random;
     const seededRandom = createRuntimeRng({ seed });
@@ -122,7 +160,14 @@ async function runMatch(settings, seed, candidateProfile, candidateFields) {
         const em = runtime.session.entityManager;
         const bots = em.bots || [];
         if (bots.length === 0) {
-            return { survivalSeconds: 0, kills: 0, forced: true, ticks: 0 };
+            return {
+                survivalSeconds: 0,
+                kills: 0,
+                forced: true,
+                ticks: 0,
+                testDeathCause: '',
+                botDeathCauseCounts: {},
+            };
         }
         const testBot = bots[0];
         const testPlayer = testBot.player;
@@ -138,8 +183,18 @@ async function runMatch(settings, seed, candidateProfile, candidateFields) {
         }
         const testIndex = testPlayer.index;
         let testDiedAtTick = MAX_TICKS;
+        let testDeathCause = '';
         let endTick = MAX_TICKS;
         let forced = true;
+        const botDeathCauseCounts = {};
+        em.onPlayerDied = (deadPlayer, rawCause) => {
+            if (!deadPlayer?.isBot) return;
+            const cause = String(rawCause || 'UNKNOWN').trim().toUpperCase() || 'UNKNOWN';
+            botDeathCauseCounts[cause] = (botDeathCauseCounts[cause] || 0) + 1;
+            if (deadPlayer.index === testIndex && !testDeathCause) {
+                testDeathCause = cause;
+            }
+        };
 
         for (let frame = 1; frame <= MAX_TICKS; frame++) {
             runtime.step(
@@ -164,7 +219,14 @@ async function runMatch(settings, seed, candidateProfile, candidateFields) {
         const scoreboard = em.getHuntScoreboard ? em.getHuntScoreboard() : [];
         const row = scoreboard.find((r) => r.playerIndex === testIndex);
         const kills = Math.max(0, Number(row?.kills) || 0);
-        return { survivalSeconds, kills, forced, ticks: endTick };
+        return {
+            survivalSeconds,
+            kills,
+            forced,
+            ticks: endTick,
+            testDeathCause,
+            botDeathCauseCounts,
+        };
     } finally {
         runtime?.dispose?.();
         Math.random = originalRandom;
@@ -174,11 +236,13 @@ async function runMatch(settings, seed, candidateProfile, candidateFields) {
 async function evaluateVariant(profile, candidateFields) {
     const settings = fightSettings(profile);
     let sumSurvival = 0, sumKills = 0, forcedCount = 0;
+    const botDeathCauseCounts = {};
     for (const seed of SEEDS) {
         const res = await runMatch(settings, seed, profile, candidateFields);
         sumSurvival += res.survivalSeconds;
         sumKills += res.kills;
         if (res.forced) forcedCount += 1;
+        mergeDeathCauseCounts(botDeathCauseCounts, res.botDeathCauseCounts);
     }
     const meanSurvival = sumSurvival / SEEDS.length;
     const meanKills = sumKills / SEEDS.length;
@@ -189,6 +253,8 @@ async function evaluateVariant(profile, candidateFields) {
         meanSurvivalSeconds: meanSurvival,
         meanKills,
         forcedRate: forcedCount / SEEDS.length,
+        botDeathCauseCounts,
+        trailDeathShare: trailDeathShare(botDeathCauseCounts),
         score,
     };
 }
@@ -205,8 +271,10 @@ async function climbProfile(profileName, log) {
     const current = Object.assign({}, base);
     log(`--- baseline ${profileName} ---`);
     const baselineEval = await evaluateVariant(profileName, null);
-    log(`baseline: surv=${baselineEval.meanSurvivalSeconds.toFixed(1)}s kills=${baselineEval.meanKills.toFixed(2)} score=${baselineEval.score.toFixed(3)}`);
+    log(`baseline: surv=${baselineEval.meanSurvivalSeconds.toFixed(1)}s kills=${baselineEval.meanKills.toFixed(2)} trailDeaths=${(baselineEval.trailDeathShare * 100).toFixed(1)}% score=${baselineEval.score.toFixed(3)}`);
+    log(`  causes: ${formatDeathCauseCounts(baselineEval.botDeathCauseCounts)}`);
     let bestScore = baselineEval.score;
+    let bestEval = baselineEval;
     const history = [{ phase: 'baseline', ...baselineEval, fields: { ...current } }];
 
     for (let passIndex = 0; passIndex < PASSES.length; passIndex++) {
@@ -222,7 +290,7 @@ async function climbProfile(profileName, log) {
             let bestDirScore = bestScore;
             for (const cand of candidates) {
                 if (Math.abs(cand.value - Number(current[field])) < 1e-6) continue;
-                const candidateFields = { [field]: cand.value };
+                const candidateFields = { ...current, [field]: cand.value };
                 const evalRes = await evaluateVariant(profileName, candidateFields);
                 if (evalRes.score > bestDirScore + 1e-5) {
                     bestDirScore = evalRes.score;
@@ -232,8 +300,9 @@ async function climbProfile(profileName, log) {
             if (bestDir) {
                 current[field] = bestDir.value;
                 bestScore = bestDirScore;
+                bestEval = bestDir.eval;
                 improvedThisPass = true;
-                log(`  ${field.padEnd(32)} -> ${bestDir.value.toFixed(3)} (score=${bestScore.toFixed(3)} surv=${bestDir.eval.meanSurvivalSeconds.toFixed(1)}s kills=${bestDir.eval.meanKills.toFixed(2)})`);
+                log(`  ${field.padEnd(32)} -> ${bestDir.value.toFixed(3)} (score=${bestScore.toFixed(3)} surv=${bestDir.eval.meanSurvivalSeconds.toFixed(1)}s kills=${bestDir.eval.meanKills.toFixed(2)} trailDeaths=${(bestDir.eval.trailDeathShare * 100).toFixed(1)}%)`);
             }
         }
         history.push({ phase: `pass-${passIndex + 1}`, step, score: bestScore, fields: { ...current }, improved: improvedThisPass });
@@ -242,7 +311,16 @@ async function climbProfile(profileName, log) {
             break;
         }
     }
-    return { profile: profileName, baseline: base, improved: current, baselineScore: baselineEval.score, improvedScore: bestScore, history };
+    return {
+        profile: profileName,
+        baseline: base,
+        improved: current,
+        baselineScore: baselineEval.score,
+        improvedScore: bestScore,
+        baselineEvaluation: baselineEval,
+        improvedEvaluation: bestEval,
+        history,
+    };
 }
 
 function printDelta(field, baseValue, improvedValue) {
@@ -253,13 +331,84 @@ function printDelta(field, baseValue, improvedValue) {
     return `${field.padEnd(32)} base ${b.toFixed(3)}  new ${i.toFixed(3)}  ${arrow}${Math.abs(pct).toFixed(1)}%`;
 }
 
+function timestampStamp() {
+    const d = new Date();
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}${pad(d.getMonth() + 1)}${pad(d.getDate())}-${pad(d.getHours())}${pad(d.getMinutes())}${pad(d.getSeconds())}`;
+}
+
+function isoStamp() {
+    return new Date().toISOString();
+}
+
+function buildReport({ results, elapsedSec, runLog, t0 }) {
+    const lines = [];
+    lines.push('# Heuristic Bot Trainingsloop - Bericht');
+    lines.push('');
+    lines.push(`- Datum: ${isoStamp()}`);
+    lines.push(`- Dauer: ${elapsedSec}s`);
+    lines.push(`- Profile: ${PROFILES.join(', ')}`);
+    lines.push(`- Seeds: ${SEEDS.join(', ')}`);
+    lines.push(`- Pass-Schrittweiten: ${PASSES.join(', ')}`);
+    lines.push(`- MaxTicks/Match: ${MAX_TICKS} (≈ ${(MAX_TICKS * FIXED_STEP).toFixed(1)}s)`);
+    lines.push(`- Bots/Match: ${NUM_BOTS}`);
+    lines.push(`- Score-Gewichtung: survival=${SURVIVAL_WEIGHT} (ref=${SURVIVAL_REF_SECONDS}s) + kills=${KILLS_WEIGHT} (ref=${KILL_REF})`);
+    lines.push(`- Modus: read-only coordinate ascent (HeuristicBotPolicyOps.js wurde NICHT veraendert)`);
+    lines.push('');
+    lines.push('## Empfehlungen');
+    lines.push('');
+    for (const res of results) {
+        lines.push(`### ${res.profile}`);
+        lines.push('');
+        lines.push(`| Metrik        | Baseline | Verbessert | Delta |`);
+        lines.push(`|---------------|----------|------------|-------|`);
+        lines.push(`| Score         | ${res.baselineScore.toFixed(3)} | ${res.improvedScore.toFixed(3)} | ${(res.improvedScore - res.baselineScore).toFixed(3)} |`);
+        lines.push(`| Survival      | ${res.baselineEvaluation.meanSurvivalSeconds.toFixed(1)}s | ${res.improvedEvaluation.meanSurvivalSeconds.toFixed(1)}s | ${(res.improvedEvaluation.meanSurvivalSeconds - res.baselineEvaluation.meanSurvivalSeconds).toFixed(1)}s |`);
+        lines.push(`| Kills         | ${res.baselineEvaluation.meanKills.toFixed(2)} | ${res.improvedEvaluation.meanKills.toFixed(2)} | ${(res.improvedEvaluation.meanKills - res.baselineEvaluation.meanKills).toFixed(2)} |`);
+        lines.push(`| Trail-Tode    | ${(res.baselineEvaluation.trailDeathShare * 100).toFixed(1)}% | ${(res.improvedEvaluation.trailDeathShare * 100).toFixed(1)}% | ${((res.improvedEvaluation.trailDeathShare - res.baselineEvaluation.trailDeathShare) * 100).toFixed(1)}pp |`);
+        lines.push('');
+        lines.push(`- Baseline-Todesursachen: ${formatDeathCauseCounts(res.baselineEvaluation.botDeathCauseCounts)}`);
+        lines.push(`- Verbesserte Todesursachen: ${formatDeathCauseCounts(res.improvedEvaluation.botDeathCauseCounts)}`);
+        lines.push('');
+        lines.push(`| Feld                            | Base    | Neu     | Aenderung |`);
+        lines.push(`|---------------------------------|---------|---------|-----------|`);
+        for (const field of TUNABLE_FIELDS) {
+            const b = Number(res.baseline[field]);
+            const i = Number(res.improved[field]);
+            const delta = i - b;
+            const pct = b !== 0 ? (delta / b) * 100 : 0;
+            const arrow = delta > 0 ? '+' : delta < 0 ? '-' : '=';
+            lines.push(`| ${field.padEnd(31)} | ${b.toFixed(3)} | ${i.toFixed(3)} | ${arrow}${Math.abs(pct).toFixed(1)}% |`);
+        }
+        lines.push('');
+        lines.push('**Vorschlag fuer HeuristicBotPolicyOps.js:**');
+        lines.push('');
+        lines.push('```js');
+        lines.push(`${res.profile}: Object.freeze({`);
+        for (const field of TUNABLE_FIELDS) {
+            lines.push(`    ${field}: ${Number(res.improved[field]).toFixed(3)},`);
+        }
+        lines.push('}),');
+        lines.push('```');
+        lines.push('');
+    }
+    lines.push('## Verlauf');
+    lines.push('');
+    lines.push('```');
+    for (const line of runLog) lines.push(line);
+    lines.push('```');
+    lines.push('');
+    return lines.join('\n');
+}
+
 async function main() {
-    const log = (msg) => console.log(msg);
-    console.log('=== HEURISTIC IMPROVEMENT LOOP ===');
-    console.log(`mode: read-only coordinate ascent over HEURISTIC_PROFILES`);
-    console.log(`profiles=${PROFILES.join(',')} seeds=${SEEDS.join(',')} passes=${PASSES.join(',')} maxTicks=${MAX_TICKS} numBots=${NUM_BOTS}`);
-    console.log(`weights: survival=${SURVIVAL_WEIGHT} kills=${KILLS_WEIGHT} (survival ref=${SURVIVAL_REF_SECONDS}s kills ref=${KILL_REF})`);
-    console.log(`(product file HeuristicBotPolicyOps.js is NOT modified)\n`);
+    const runLog = [];
+    const log = (msg) => { console.log(msg); runLog.push(msg); };
+    log('=== HEURISTIC IMPROVEMENT LOOP ===');
+    log(`mode: read-only coordinate ascent over HEURISTIC_PROFILES`);
+    log(`profiles=${PROFILES.join(',')} seeds=${SEEDS.join(',')} passes=${PASSES.join(',')} maxTicks=${MAX_TICKS} numBots=${NUM_BOTS}`);
+    log(`weights: survival=${SURVIVAL_WEIGHT} kills=${KILLS_WEIGHT} (survival ref=${SURVIVAL_REF_SECONDS}s kills ref=${KILL_REF})`);
+    log(`(product file HeuristicBotPolicyOps.js is NOT modified)\n`);
     const t0 = Date.now();
 
     const results = [];
@@ -269,16 +418,27 @@ async function main() {
     }
 
     const elapsedSec = ((Date.now() - t0) / 1000).toFixed(1);
-    console.log(`\n=== RECOMMENDATIONS (elapsed ${elapsedSec}s) ===\n`);
+    log(`\n=== RECOMMENDATIONS (elapsed ${elapsedSec}s) ===\n`);
     for (const res of results) {
-        console.log(`### ${res.profile} ###`);
-        console.log(`baseline score ${res.baselineScore.toFixed(3)} -> improved score ${res.improvedScore.toFixed(3)} (delta ${(res.improvedScore - res.baselineScore).toFixed(3)})`);
+        log(`### ${res.profile} ###`);
+        log(`baseline score ${res.baselineScore.toFixed(3)} -> improved score ${res.improvedScore.toFixed(3)} (delta ${(res.improvedScore - res.baselineScore).toFixed(3)})`);
+        log(`survival ${res.baselineEvaluation.meanSurvivalSeconds.toFixed(1)}s -> ${res.improvedEvaluation.meanSurvivalSeconds.toFixed(1)}s; trail deaths ${(res.baselineEvaluation.trailDeathShare * 100).toFixed(1)}% -> ${(res.improvedEvaluation.trailDeathShare * 100).toFixed(1)}%`);
+        log(`death causes: ${formatDeathCauseCounts(res.improvedEvaluation.botDeathCauseCounts)}`);
         for (const field of TUNABLE_FIELDS) {
-            console.log(`  ${printDelta(field, res.baseline[field], res.improved[field])}`);
+            log(`  ${printDelta(field, res.baseline[field], res.improved[field])}`);
         }
-        console.log('');
+        log('');
     }
-    console.log('=== END ===');
+    log('=== END ===');
+
+    try {
+        fs.mkdirSync(REPORT_DIR, { recursive: true });
+        const reportPath = path.join(REPORT_DIR, `report-${timestampStamp()}.md`);
+        fs.writeFileSync(reportPath, buildReport({ results, elapsedSec, runLog, t0 }), 'utf8');
+        console.log(`\nBericht gespeichert: ${reportPath}`);
+    } catch (err) {
+        console.error(`Bericht konnte nicht geschrieben werden: ${err?.message || err}`);
+    }
 }
 
 const TIMER = setTimeout(() => { console.error('timeout'); process.exit(2); }, TIMEOUT_MS);

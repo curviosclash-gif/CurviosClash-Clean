@@ -6,6 +6,7 @@ import { createBotRuntimeContext } from '../src/entities/ai/BotRuntimeContextFac
 import { HeuristicBotPolicy } from '../src/entities/ai/HeuristicBotPolicy.js';
 import { sanitizeBotAction } from '../src/entities/ai/actions/BotActionContract.js';
 import {
+    applyHeuristicSafetyArbiter,
     resolveBoostPressureCeiling,
 } from '../src/entities/ai/HeuristicBotSafetyOps.js';
 import {
@@ -132,53 +133,96 @@ test('bot action sanitization preserves bounded analog steering axes', () => {
     assert.equal(action.rollAxis, undefined);
 });
 
-test('final safety arbiter vetoes Hunt combat and boost when a trail blocks the look-ahead', () => {
-    const player = createPlayer(1);
-    const enemy = createPlayer(2, false);
-    enemy.position.set(0, 0, -30);
-    player.inventory = ['ROCKET_HEAVY'];
-    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
-    policy._huntState.movementIntent = 'strafe';
-    const action = policy.update(1 / 60, player, {
-        mode: 'HUNT',
-        players: [player, enemy],
-        arena: {},
-        trailSpatialIndex: {
-            checkGlobalCollision: () => ({ hit: true }),
-        },
-        rules: { huntEnabled: true },
-        observation: createSafeObservation(),
-        observationContext: { targetDistanceMax: 120 },
-    });
-    const snapshot = policy.getDecisionSnapshot();
+test('final safety arbiter vetoes Hunt combat and boost at the first trail sample for every profile', () => {
+    for (const profile of Object.keys(HEURISTIC_PROFILES)) {
+        const player = createPlayer(1);
+        const enemy = createPlayer(2, false);
+        enemy.position.set(0, 0, -30);
+        player.inventory = ['ROCKET_HEAVY'];
+        const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile });
+        policy._huntState.movementIntent = 'strafe';
+        const action = policy.update(1 / 60, player, {
+            mode: 'HUNT',
+            players: [player, enemy],
+            arena: {},
+            trailSpatialIndex: {
+                checkGlobalCollision: () => ({ hit: true }),
+            },
+            rules: { huntEnabled: true },
+            observation: createSafeObservation(),
+            observationContext: { targetDistanceMax: 120 },
+        });
+        const snapshot = policy.getDecisionSnapshot();
 
-    assert.equal(action.boost, false);
-    assert.equal(action.shootMG, false);
-    assert.equal(action.shootItem, false);
-    assert.equal(player.fightTargetLockRemaining, 0);
-    assert.equal(policy._huntState.commitTimer, 0);
-    assert.equal(snapshot.safetyState, 'evade');
-    assert.equal(snapshot.safetyReason, 'trail-ahead');
-    assert.ok(snapshot.frontClearance < 1);
+        assert.equal(action.boost, false, profile);
+        assert.equal(action.shootMG, false, profile);
+        assert.equal(action.shootItem, false, profile);
+        assert.equal(player.fightTargetLockRemaining, 0, profile);
+        assert.equal(policy._huntState.commitTimer, 0, profile);
+        assert.equal(snapshot.safetyState, 'evade', profile);
+        assert.equal(snapshot.safetyReason, 'trail-ahead', profile);
+        assert.equal(snapshot.frontClearance, 0, profile);
+    }
 });
 
-test('predictive trail probes avoid current-position OBB refinement', () => {
+test('predictive trail probes match the runtime collision radius and self-trail grace', () => {
     const player = createPlayer(1);
-    let receivedPlayerRef = 'not-called';
+    const calls = [];
     const policy = new HeuristicBotPolicy();
     policy.update(1 / 60, player, {
         mode: 'CLASSIC',
         players: [player],
         arena: {},
+        entityManager: {
+            constructor: {
+                deriveSelfTrailSkipRecentSegments: () => 7,
+            },
+        },
         trailSpatialIndex: {
-            checkGlobalCollision(_position, _radius, _playerIndex, _skipRecent, playerRef) {
-                receivedPlayerRef = playerRef;
+            checkGlobalCollision(_position, radius, _playerIndex, skipRecent, playerRef) {
+                calls.push({ radius, skipRecent, playerRef });
                 return null;
             },
         },
         observation: createSafeObservation(),
     });
-    assert.equal(receivedPlayerRef, null);
+    assert.ok(calls.length > 0);
+    assert.ok(calls.every((call) => call.radius === player.hitboxRadius * 2));
+    assert.ok(calls.every((call) => call.skipRecent === 7));
+    assert.ok(calls.every((call) => call.playerRef === null));
+});
+
+test('safety arbiter vetoes a steering command that points into a side trail', () => {
+    const player = createPlayer(1);
+    const policy = new HeuristicBotPolicy({ profile: 'balanced' });
+    const input = {
+        yawLeft: true,
+        yawRight: false,
+        pitchUp: false,
+        pitchDown: false,
+        boost: true,
+        shootMG: true,
+        shootItem: true,
+        shootItemIndex: 0,
+    };
+
+    applyHeuristicSafetyArbiter(policy, input, 1 / 60, player, {
+        projectiles: [],
+        arena: {},
+        trailSpatialIndex: {
+            checkGlobalCollision(position) {
+                return position.x < -0.1 ? { hit: true } : null;
+            },
+        },
+    }, createSafeObservation(), {});
+
+    assert.equal(policy._safetyState.state, 'evade');
+    assert.equal(policy._safetyState.reason, 'trail-on-path');
+    assert.equal(policy._safetyState.frontTrailClearance, 1);
+    assert.equal(policy._safetyState.leftTrailClearance, 0);
+    assert.equal(input.yawLeft, false);
+    assert.equal(input.yawRight, true);
+    assert.equal(input.boost, false);
 });
 
 test('projectile pressure vetoes boost even when both side paths are cramped', () => {

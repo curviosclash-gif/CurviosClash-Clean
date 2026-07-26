@@ -25,6 +25,7 @@ import {
     HEURISTIC_SAFETY_CONFIG,
     checkArenaCollision,
     checkTrailCollision,
+    resolveHeuristicSelfTrailSkipRecentSegments,
 } from './HeuristicBotSafetyOps.js';
 import {
     WORLD_UP,
@@ -51,6 +52,7 @@ function probeFightCorridor(policy, player, targetPosition, runtimeContext) {
     );
     const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
         * HEURISTIC_SAFETY_CONFIG.shotProbeRadiusMultiplier;
+    const skipRecent = resolveHeuristicSelfTrailSkipRecentSegments(runtimeContext, player);
     let trailBlocked = false;
     for (let sampleIndex = 1; sampleIndex < sampleCount; sampleIndex += 1) {
         policy._tmpTarget.copy(player.position).addScaledVector(
@@ -60,7 +62,13 @@ function probeFightCorridor(policy, player, targetPosition, runtimeContext) {
         if (checkArenaCollision(runtimeContext?.arena, policy._tmpTarget, radius)) {
             return FIGHT_CORRIDOR_BLOCKED;
         }
-        if (!trailBlocked && checkTrailCollision(runtimeContext?.trailSpatialIndex, policy._tmpTarget, radius, player)) {
+        if (!trailBlocked && checkTrailCollision(
+            runtimeContext?.trailSpatialIndex,
+            policy._tmpTarget,
+            radius,
+            player,
+            skipRecent
+        )) {
             trailBlocked = true;
         }
     }
