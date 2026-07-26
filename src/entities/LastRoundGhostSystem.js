@@ -181,6 +181,7 @@ export class LastRoundGhostSystem {
         this._sourceDuration = 0;
         this._playbackRate = 1;
         this._loopPlayback = true;
+        this._forcedSourceTime = null;
         this._routeId = '';
         this._tmpQuatA = new THREE.Quaternion();
         this._tmpQuatB = new THREE.Quaternion();
@@ -226,6 +227,7 @@ export class LastRoundGhostSystem {
         this._sourceDuration = 0;
         this._playbackRate = 1;
         this._loopPlayback = true;
+        this._forcedSourceTime = null;
         this.root.visible = false;
         this._routeId = '';
         this._clearEntries();
@@ -280,7 +282,10 @@ export class LastRoundGhostSystem {
                 ? this._elapsed % this._displayDuration
                 : Math.min(this._elapsed, this._displayDuration))
             : this._elapsed;
-        const playbackTime = Math.min(this._sourceDuration, cycleTime * this._playbackRate);
+        const playbackTime = this._forcedSourceTime == null
+            ? Math.min(this._sourceDuration, cycleTime * this._playbackRate)
+            : THREE.MathUtils.clamp(this._forcedSourceTime, 0, this._sourceDuration);
+        this._forcedSourceTime = null;
         const loopedPlayback = playbackTime < this._lastPlaybackTime;
         if (loopedPlayback) {
             this._frameCursor = Math.min(1, Math.max(0, this._frames.length - 1));
@@ -350,6 +355,29 @@ export class LastRoundGhostSystem {
             this._tmpTrailDirection.set(0, 0, -1).applyQuaternion(entry.group.quaternion).normalize();
             entry.trail?.update?.(Math.max(0, Number(dt) || 0), currentPosition, this._tmpTrailDirection);
         }
+    }
+
+    seekSourceTime(sourceTime, visualDt = 0) {
+        if (!this._active) return false;
+        this._forcedSourceTime = THREE.MathUtils.clamp(
+            Number(sourceTime) || 0,
+            0,
+            this._sourceDuration
+        );
+        this.update(visualDt);
+        return true;
+    }
+
+    copyPlayerPose(playerIdx, positionOut, quaternionOut) {
+        if (!this._active || !positionOut || !quaternionOut) return false;
+        for (let i = 0; i < this._entries.length; i++) {
+            const entry = this._entries[i];
+            if (entry?.idx !== playerIdx || entry?.group?.visible !== true) continue;
+            positionOut.copy(entry.group.position);
+            quaternionOut.copy(entry.group.quaternion);
+            return true;
+        }
+        return false;
     }
 
     getState() {

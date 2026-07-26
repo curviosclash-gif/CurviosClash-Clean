@@ -8,7 +8,9 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     if (!player || !player.alive) return;
     rememberFightDeath(player);
     entityManager._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
+    entityManager.recorder?.captureSnapshotNow?.(entityManager.players);
     player.kill();
+    entityManager.recorder?.captureSnapshotNow?.(entityManager.players);
     entityManager._projectileSystem?.clearRocketTrailsForOwner?.(player);
     if (entityManager.gameModeStrategy?.hasScoring() && entityManager.isFightOutcomeAuthority !== false) {
         const scoringResult = entityManager._huntScoring.registerElimination(player, {
@@ -28,7 +30,12 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     entityManager._respawnSystem.onPlayerDied(player);
     const killcamStarted = entityManager._killcamSystem?.onPlayerDied?.(
         player,
-        { killer: options?.killer || null }
+        {
+            killer: options?.killer || null,
+            cause,
+            impactPoint: options?.impactPoint || player.position,
+            projectileType: options?.projectileType || null,
+        }
     ) === true;
     if (!killcamStarted) entityManager.particles?.spawnExplosion?.(player.position, player.color);
     const killer = options?.killer || null;

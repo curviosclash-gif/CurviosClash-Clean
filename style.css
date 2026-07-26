@@ -6825,3 +6825,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 .killcam-letterbox:not(.hidden) .killcam-letterbox-label {
     opacity: 0.92;
 }
+
+.killcam-letterbox.reduced-motion .killcam-letterbox-bar,
+.killcam-letterbox.reduced-motion .killcam-letterbox-label {
+    transition: none;
+}

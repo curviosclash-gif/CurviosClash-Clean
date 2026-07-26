@@ -154,7 +154,11 @@ export class MGHitResolver {
             impactPoint: impactPoint || target.position,
         });
         if (damageResult.isDead) {
-            this.runtime?.lifecycle?.killPlayer?.(target, 'PROJECTILE', { killer: attacker });
+            this.runtime?.lifecycle?.killPlayer?.(target, 'PROJECTILE', {
+                killer: attacker,
+                impactPoint: impactPoint || target.position,
+                projectileType: 'MG_BULLET',
+            });
         }
     }
 }

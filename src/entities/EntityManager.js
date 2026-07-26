@@ -118,6 +118,7 @@ export class EntityManager {
         });
         this._killcamSystem = new KillcamSystem({
             renderer, entityManager: this, recorder, respawnSystem: this._respawnSystem,
+            ghostSystem: this._lastRoundGhostSystem,
         });
         this.projectiles = this.runtime.systems.projectileSystem.projectiles;
         this.botPolicyRegistry = new BotPolicyRegistry();
@@ -437,6 +438,7 @@ export class EntityManager {
                     updateEntityCameraContext(this._cameraContext, projectedPlayer, otherPlayerPosition)
                 );
             }
+            this._killcamSystem?.applyCinematicCamera?.(dt);
             return;
         }
 
@@ -476,6 +478,7 @@ export class EntityManager {
                 );
             }
         }
+        this._killcamSystem?.applyCinematicCamera?.(dt);
     }
 
     playLastRoundGhost(clip, options = undefined) {
@@ -487,6 +490,13 @@ export class EntityManager {
     }
 
     updateLastRoundGhostPlayback(dt) {
+        const killcam = this._killcamSystem;
+        if (killcam?.isActive?.()) {
+            const scaledDt = Math.max(0, Number(dt) || 0) * killcam.getTimeScale();
+            killcam.advanceGhostPlayback(scaledDt);
+            killcam.update(dt);
+            return;
+        }
         this._lastRoundGhostSystem?.update?.(dt);
     }
 

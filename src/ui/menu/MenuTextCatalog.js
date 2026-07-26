@@ -223,6 +223,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.arcade.mastery.title': 'Vehicle Mastery',
     'menu.arcade.mastery.current.label': 'Aktives Airframe',
     'menu.arcade.mastery.progress.label': 'Mastery',
+    'game.killcam.label': 'KILLCAM',
 });
 
 export function listMenuTextCatalogEntries() {

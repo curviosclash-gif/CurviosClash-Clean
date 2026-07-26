@@ -243,6 +243,10 @@ export class Renderer {
         this.cameraRigSystem.triggerCameraShake(playerIndex, intensity, duration);
     }
 
+    resolveCameraCollision(playerIndex, mode, origin, desiredPosition, arena) {
+        this.cameraRigSystem.collisionSolver.resolve(playerIndex, mode, origin, desiredPosition, arena);
+    }
+
     setCinematicEnabled(enabled) {
         this.cameraRigSystem.setCinematicEnabled(enabled);
     }

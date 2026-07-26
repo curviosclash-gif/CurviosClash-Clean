@@ -70,7 +70,11 @@ export function createEntityRuntimeSupport(owner) {
                 impactPoint: projectile?.position || target?.position || null,
             });
             if (damageResult?.isDead) {
-                owner._killPlayer(target, 'PROJECTILE', { killer: projectileOwner || null });
+                owner._killPlayer(target, 'PROJECTILE', {
+                    killer: projectileOwner || null,
+                    impactPoint: projectile?.position || target?.position || null,
+                    projectileType: type || projectile?.type || null,
+                });
             }
         },
         runtimeProfiler: owner.runtimeProfiler || null,

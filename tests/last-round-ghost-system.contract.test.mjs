@@ -143,6 +143,21 @@ test('LastRoundGhostSystem holds the final frame when looping is disabled', () =
     system.dispose();
 });
 
+test('LastRoundGhostSystem seeks explicit source time without display-time remapping', () => {
+    const system = new LastRoundGhostSystem(createRendererStub());
+    assert.equal(system.playClip({
+        ...createPlayableClip(),
+        displayDuration: 2.5,
+    }, { loop: false }), true);
+
+    assert.equal(system.seekSourceTime(0.8), true);
+    assert.equal(system.getState().ghosts[0]?.x, 3.2);
+
+    assert.equal(system.seekSourceTime(0.2), true);
+    assert.equal(system.getState().ghosts[0]?.x, 0.8);
+    system.dispose();
+});
+
 test('LastRoundGhostSystem preserves a valid 180-degree quaternion with w zero', () => {
     const system = new LastRoundGhostSystem(createRendererStub());
     assert.equal(system.playClip({

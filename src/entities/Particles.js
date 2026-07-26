@@ -18,6 +18,7 @@ export class ParticleSystem {
         this.count = 0;
         this._debugEvents = [];
         this._maxDebugEvents = 24;
+        this._presentationSuppressed = false;
 
         // Data arrays (Structure of Arrays for cache locality)
         this.positions = new Float32Array(MAX_PARTICLES * 3);
@@ -87,8 +88,16 @@ export class ParticleSystem {
         this._debugEvents.length = 0;
     }
 
+    setPresentationSuppressed(suppressed) {
+        this._presentationSuppressed = suppressed === true;
+    }
+
+    isPresentationSuppressed() {
+        return this._presentationSuppressed;
+    }
+
     spawn(position, count, color, speed = 1.0, size = 0.5, life = 1.0, options = {}) {
-        if (!this.mesh) return;
+        if (!this.mesh || (this._presentationSuppressed && options?.presentationOverride !== true)) return;
         const gravity = Number.isFinite(Number(options.gravity)) ? Number(options.gravity) : -5.0;
         const debugType = options.type || 'generic-impact';
         this._tmpColor.setHex(color);
@@ -140,7 +149,10 @@ export class ParticleSystem {
     }
 
     spawnDirectional(position, direction, count, color, speed = 1.0, size = 0.5, life = 1.0, options = {}) {
-        if (!this.mesh || !position || !direction) return;
+        if (!this.mesh
+            || !position
+            || !direction
+            || (this._presentationSuppressed && options?.presentationOverride !== true)) return;
         const gravity = Number.isFinite(Number(options.gravity)) ? Number(options.gravity) : 0;
         const spread = THREE.MathUtils.clamp(
             Number.isFinite(Number(options.spread)) ? Number(options.spread) : 0.25,
@@ -211,10 +223,11 @@ export class ParticleSystem {
         if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
     }
 
-    spawnExplosion(position, color) {
+    spawnExplosion(position, color, options = {}) {
         this.spawn(position, 30, color, 12.0, 0.7, 0.6, {
             gravity: -6.0,
             type: 'explosion',
+            presentationOverride: options?.presentationOverride === true,
         });
     }
 
@@ -276,6 +289,7 @@ export class ParticleSystem {
     }
 
     spawnRocketImpact(position, rocketType = '', color = null) {
+        if (this._presentationSuppressed) return;
         const feedback = resolveGameplayConfig(this.configSource).HUNT?.FEEDBACK?.ROCKET_IMPACT || {};
         const type = String(rocketType || '').toUpperCase();
         let fallbackColor = feedback.mediumColor;
@@ -433,5 +447,6 @@ export class ParticleSystem {
         this._tmpUp = null;
         this._tmpVelocity = null;
         this._debugEvents = [];
+        this._presentationSuppressed = false;
     }
 }

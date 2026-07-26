@@ -72,6 +72,14 @@ export class RespawnSystem {
         return snapshot;
     }
 
+    getRemainingForPlayer(playerOrIndex) {
+        const playerIndex = Number.isInteger(playerOrIndex)
+            ? playerOrIndex
+            : playerOrIndex?.index;
+        if (!Number.isInteger(playerIndex)) return 0;
+        return Math.max(0, Number(this.pendingByPlayer.get(playerIndex)?.remaining) || 0);
+    }
+
     getPendingCountForPlayers(players) {
         if (!Array.isArray(players) || players.length === 0) return 0;
         let count = 0;

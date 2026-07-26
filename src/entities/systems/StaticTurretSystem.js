@@ -219,7 +219,11 @@ export class StaticTurretSystem {
         });
         owner.particles?.spawnHit?.(target.position, TURRET_MG_COLOR);
         if (damageResult?.isDead) {
-            owner._killPlayer?.(target, 'STATIC_TURRET_MG', { killer: turret.source });
+            owner._killPlayer?.(target, 'STATIC_TURRET_MG', {
+                killer: turret.source,
+                impactPoint: target.position,
+                projectileType: 'STATIC_TURRET_MG',
+            });
         }
     }
 

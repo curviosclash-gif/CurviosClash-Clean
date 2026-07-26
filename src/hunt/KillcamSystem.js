@@ -4,6 +4,10 @@
 // ============================================
 
 import * as THREE from 'three';
+import {
+    hideKillcamLivePresentation,
+    restoreKillcamLivePresentation,
+} from './KillcamPresentationOps.js';
 
 const KILLCAM_WINDOW_SECONDS = 2.5;
 const KILLCAM_CAMERA_INDEX = 0;
@@ -89,47 +93,28 @@ function computeGhostRateCalibration(displayDuration, sourceDuration, triggerRat
     return baseConsumed > 1e-6 ? safeSource / baseConsumed : 1;
 }
 
-function resolveRespawnDelaySeconds(respawnSystem) {
+function resolveRespawnDelaySeconds(respawnSystem, player) {
+    const directRemaining = respawnSystem?.getRemainingForPlayer?.(player);
+    if (Number.isFinite(Number(directRemaining))) {
+        return Math.max(0, Number(directRemaining));
+    }
     const remaining = respawnSystem?.getRemainingByPlayer?.() || {};
-    let maxRemaining = 0;
-    for (const key of Object.keys(remaining)) {
-        const value = Math.max(0, Number(remaining[key]) || 0);
-        if (value > maxRemaining) maxRemaining = value;
-    }
-    return maxRemaining;
+    return Math.max(0, Number(remaining[player?.index]) || 0);
 }
 
-function findFrameForTime(frames, playbackTime) {
-    if (!Array.isArray(frames) || frames.length === 0) return null;
-    let lastIndex = frames.length - 1;
-    while (lastIndex > 0 && (Number(frames[lastIndex]?.time) || 0) > playbackTime) {
-        lastIndex -= 1;
-    }
-    const nextIndex = Math.min(frames.length - 1, lastIndex + 1);
-    const prev = frames[lastIndex];
-    const next = frames[nextIndex];
-    const prevTime = Number(prev?.time) || 0;
-    const nextTime = Number(next?.time) || prevTime;
-    const alpha = nextTime > prevTime
-        ? THREE.MathUtils.clamp((playbackTime - prevTime) / (nextTime - prevTime), 0, 1)
-        : 0;
-    return { prev, next, alpha };
-}
-
-function resolvePoseInFrame(frame, playerIdx) {
-    const players = Array.isArray(frame?.players) ? frame.players : [];
-    for (const pose of players) {
-        if (Number(pose?.idx) === playerIdx) return pose;
-    }
-    return null;
+function hasFinitePosition(value) {
+    return Number.isFinite(Number(value?.x))
+        && Number.isFinite(Number(value?.y))
+        && Number.isFinite(Number(value?.z));
 }
 
 export class KillcamSystem {
-    constructor({ renderer, entityManager, recorder, respawnSystem } = {}) {
+    constructor({ renderer, entityManager, recorder, respawnSystem, ghostSystem } = {}) {
         this.renderer = renderer || null;
         this.entityManager = entityManager || null;
         this.recorder = recorder || null;
         this.respawnSystem = respawnSystem || null;
+        this.ghostSystem = ghostSystem || null;
 
         this._active = false;
         this._elapsed = 0;
@@ -153,19 +138,22 @@ export class KillcamSystem {
         this._baseFov = 75;
         this._explosionTriggered = false;
         this._deadPlayerColor = 0xffffff;
-        this._frames = [];
         this._ghostSourceDuration = 0;
         this._ghostElapsed = 0;
         this._ghostRateCalibration = 1;
-        this._visualGhostRateCalibration = 1;
+        this._hasKillerPose = false;
+        this._reduceMotion = false;
+        this._presentationEntries = [];
         this._letterboxEl = null;
+        this._ownsLetterboxEl = false;
     }
 
-    configure({ renderer, entityManager, recorder, respawnSystem } = {}) {
+    configure({ renderer, entityManager, recorder, respawnSystem, ghostSystem } = {}) {
         if (renderer !== undefined) this.renderer = renderer;
         if (entityManager !== undefined) this.entityManager = entityManager;
         if (recorder !== undefined) this.recorder = recorder;
         if (respawnSystem !== undefined) this.respawnSystem = respawnSystem;
+        if (ghostSystem !== undefined) this.ghostSystem = ghostSystem;
     }
 
     isActive() {
@@ -178,9 +166,12 @@ export class KillcamSystem {
         return Number.isFinite(shotScale) && shotScale > 0 ? shotScale : 1;
     }
 
-    onPlayerDied(player, { killer = null } = {}) {
-        if (this._active) this.clear();
-
+    onPlayerDied(player, {
+        killer = null,
+        impactPoint = null,
+        cause = 'UNKNOWN',
+        projectileType = null,
+    } = {}) {
         const entityManager = this.entityManager;
         if (!isSingleNodeSession(entityManager)) return false;
         if (!player || player.isBot === true) return false;
@@ -192,11 +183,16 @@ export class KillcamSystem {
         const recorder = this.recorder;
         if (!recorder || typeof recorder.getLastRoundGhostClip !== 'function') return false;
 
-        const respawnDelay = resolveRespawnDelaySeconds(respawnSystem);
+        const respawnDelay = resolveRespawnDelaySeconds(respawnSystem, player);
         const displayDuration = respawnDelay > 0
             ? Math.min(KILLCAM_WINDOW_SECONDS, respawnDelay - 0.05)
             : KILLCAM_WINDOW_SECONDS;
         if (displayDuration < KILLCAM_MIN_DURATION) return false;
+
+        const cameras = this.renderer?.cameras;
+        const camera = Array.isArray(cameras) ? cameras[KILLCAM_CAMERA_INDEX] : null;
+        if (!camera) return false;
+        if (this._active) this.clear();
 
         const players = Array.isArray(entityManager.players) ? entityManager.players : [];
         let clip = null;
@@ -212,67 +208,41 @@ export class KillcamSystem {
         if (!clip) return false;
 
         const played = entityManager.playLastRoundGhost?.(clip, { loop: false });
-        if (played === false) return false;
+        if (played !== true) return false;
 
-        this._hideLivePlayerViewsForKillcam(players);
+        hideKillcamLivePresentation(this, players);
+        entityManager.particles?.clear?.();
+        entityManager.particles?.setPresentationSuppressed?.(true);
 
         this._active = true;
         this._elapsed = 0;
         this._displayDuration = displayDuration;
         this._deadPlayerIndex = Number.isInteger(player.index) ? player.index : -1;
         this._killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
-        this._focusPoint.copy(player.position || this._focusPoint);
+        const focusSource = hasFinitePosition(impactPoint) ? impactPoint : player.position;
+        this._focusPoint.set(
+            Number(focusSource?.x) || 0,
+            Number(focusSource?.y) || 0,
+            Number(focusSource?.z) || 0
+        );
         this._explosionTriggered = false;
-        this._deadPlayerColor = Number(player?.color) || 0xffffff;
-        this._frames = Array.isArray(clip?.frames) ? clip.frames : [];
+        this._deadPlayerColor = Number.isFinite(Number(player?.color)) ? Number(player.color) : 0xffffff;
         this._ghostSourceDuration = Math.max(0.001, Number(clip?.sourceDuration) || displayDuration);
         this._ghostElapsed = 0;
+        this._hasKillerPose = false;
         this._ghostRateCalibration = computeGhostRateCalibration(
             this._displayDuration,
             this._ghostSourceDuration,
             KILLCAM_EXPLOSION_TRIGGER_RATIO
         );
-        this._visualGhostRateCalibration = computeGhostRateCalibration(
-            this._displayDuration,
-            this._displayDuration,
-            KILLCAM_EXPLOSION_TRIGGER_RATIO
-        );
+        this._reduceMotion = this.renderer?.getCameraPerspectiveSettings?.()?.reduceMotion === true;
+        this._deathMetadata = { cause: String(cause || 'UNKNOWN'), projectileType: projectileType || null };
 
-        const cameras = this.renderer?.cameras;
-        const camera = Array.isArray(cameras) ? cameras[KILLCAM_CAMERA_INDEX] : null;
-        if (camera) {
-            this._baseFov = Number.isFinite(camera.fov) ? camera.fov : 75;
-        }
+        this._baseFov = Number.isFinite(camera.fov) ? camera.fov : 75;
 
         this._initializeShot(0);
         this._showLetterbox(true);
         return true;
-    }
-
-    _hideLivePlayerViewsForKillcam(players) {
-        const entityManager = this.entityManager;
-        if (!entityManager) return;
-        for (const p of players) {
-            if (!p) continue;
-            try {
-                p?.view?.setVisible?.(false);
-            } catch {
-                // best-effort hide; restore on clear
-            }
-        }
-    }
-
-    _restoreLivePlayerViews() {
-        const entityManager = this.entityManager;
-        const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
-        for (const p of players) {
-            if (!p) continue;
-            try {
-                p?.view?.setVisible?.(!!p?.alive);
-            } catch {
-                // best-effort restore
-            }
-        }
     }
 
     _initializeShot(shotIndex) {
@@ -291,6 +261,8 @@ export class KillcamSystem {
         if (!this._active) return;
         const safeDt = Math.max(0, Number(dt) || 0);
         this._elapsed += safeDt;
+        const players = Array.isArray(this.entityManager?.players) ? this.entityManager.players : [];
+        hideKillcamLivePresentation(this, players);
 
         const remaining = this._getRemaining();
         if ((remaining <= 0 && this._deadPlayerIndex >= 0) || this._elapsed >= this._displayDuration) {
@@ -318,38 +290,16 @@ export class KillcamSystem {
             this._ghostSourceDuration,
             this._ghostElapsed + calibratedDt
         );
-        if (this._killerIndex < 0 || this._frames.length === 0) return;
-
-        const frame = findFrameForTime(this._frames, this._ghostElapsed);
-        if (!frame) return;
-        const poseA = resolvePoseInFrame(frame.prev, this._killerIndex);
-        const poseB = resolvePoseInFrame(frame.next, this._killerIndex);
-        if (!poseA && !poseB) return;
-
-        const pose1 = poseA || poseB;
-        const pose2 = poseB || poseA;
-        const a = frame.alpha;
-
-        this._killerPosition.set(
-            THREE.MathUtils.lerp(Number(pose1.x) || 0, Number(pose2.x) || 0, a),
-            THREE.MathUtils.lerp(Number(pose1.y) || 0, Number(pose2.y) || 0, a),
-            THREE.MathUtils.lerp(Number(pose1.z) || 0, Number(pose2.z) || 0, a)
-        );
-        const qx = THREE.MathUtils.lerp(Number(pose1.qx) || 0, Number(pose2.qx) || 0, a);
-        const qy = THREE.MathUtils.lerp(Number(pose1.qy) || 0, Number(pose2.qy) || 0, a);
-        const qz = THREE.MathUtils.lerp(Number(pose1.qz) || 0, Number(pose2.qz) || 0, a);
-        const qw = THREE.MathUtils.lerp(Number(pose1.qw) || 1, Number(pose2.qw) || 1, a);
-        this._killerQuaternion.set(qx, qy, qz, qw);
-        if (this._killerQuaternion.lengthSq() > 0.000001) {
-            this._killerQuaternion.normalize();
-        } else {
-            this._killerQuaternion.identity();
-        }
+        const ghostSystem = this.ghostSystem;
+        ghostSystem?.seekSourceTime?.(this._ghostElapsed, Math.max(0, Number(scaledDt) || 0));
+        if (this._killerIndex < 0) return;
+        this._hasKillerPose = ghostSystem?.copyPlayerPose?.(
+            this._killerIndex,
+            this._killerPosition,
+            this._killerQuaternion
+        ) === true;
+        if (!this._hasKillerPose) return;
         this._killerDirection.set(0, 0, -1).applyQuaternion(this._killerQuaternion).normalize();
-    }
-
-    getVisualGhostPlaybackDelta(scaledDt) {
-        return Math.max(0, Number(scaledDt) || 0) * this._visualGhostRateCalibration;
     }
 
     _triggerDeathExplosion() {
@@ -358,7 +308,9 @@ export class KillcamSystem {
         const focus = this._focusPoint;
         if (typeof particles?.spawnExplosion === 'function') {
             try {
-                particles.spawnExplosion(focus, this._deadPlayerColor);
+                particles.spawnExplosion(focus, this._deadPlayerColor, {
+                    presentationOverride: true,
+                });
             } catch {
                 // best-effort particle effect
             }
@@ -377,8 +329,12 @@ export class KillcamSystem {
     _deadPlayerIndexIsBot() {
         const entityManager = this.entityManager;
         const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
-        const deadPlayer = players[this._deadPlayerIndex];
-        return deadPlayer?.isBot === true || this._deadPlayerIndex < 0;
+        for (let i = 0; i < players.length; i++) {
+            if (players[i]?.index === this._deadPlayerIndex) {
+                return players[i]?.isBot === true;
+            }
+        }
+        return true;
     }
 
     applyCinematicCamera(dt) {
@@ -391,7 +347,9 @@ export class KillcamSystem {
         const shot = this._currentShot;
         const shotAlpha = THREE.MathUtils.clamp(this._shotElapsed / Math.max(0.001, this._shotDuration), 0, 1);
 
-        if (shot.id === 'killer_chase' && this._killerIndex >= 0 && this._killerPosition.lengthSq() > 0) {
+        if (this._reduceMotion) {
+            this._applyReducedMotionShot(camera, safeDt);
+        } else if (shot.id === 'killer_chase' && this._killerIndex >= 0 && this._hasKillerPose) {
             this._applyKillerChaseShot(camera, shot, shotAlpha, safeDt);
         } else if (shot.id === 'impact_zoom') {
             this._applyImpactZoomShot(camera, shot, shotAlpha, safeDt);
@@ -399,13 +357,34 @@ export class KillcamSystem {
             this._applyExplosionOrbitShot(camera, shot, shotAlpha, safeDt);
         }
 
-        if (Number.isFinite(shot.fov) && Math.abs(camera.fov - shot.fov) > 0.05) {
+        const targetFov = this._reduceMotion ? this._baseFov : shot.fov;
+        if (Number.isFinite(targetFov) && Math.abs(camera.fov - targetFov) > 0.05) {
             const fovBlendAlpha = 1 - Math.exp(-6.5 * Math.max(safeDt, 1 / 240));
-            camera.fov = THREE.MathUtils.lerp(camera.fov, shot.fov, fovBlendAlpha);
+            camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, fovBlendAlpha);
             camera.updateProjectionMatrix();
         }
 
         return true;
+    }
+
+    _resolveCameraCollision(mode, origin) {
+        this.renderer?.resolveCameraCollision?.(
+            KILLCAM_CAMERA_INDEX,
+            mode,
+            origin,
+            this._tmpPosition,
+            this.entityManager?.arena
+        );
+    }
+
+    _applyReducedMotionShot(camera, safeDt) {
+        this._tmpLookAt.copy(this._focusPoint);
+        this._tmpLookAt.y += 0.6;
+        this._tmpPosition.copy(this._focusPoint).add(this._tmpVec.set(7.5, 4.5, 7.5));
+        this._resolveCameraCollision('killcam-reduced-motion', this._tmpLookAt);
+        const smoothAlpha = 1 - Math.exp(-4 * Math.max(safeDt, 1 / 240));
+        camera.position.lerp(this._tmpPosition, smoothAlpha);
+        camera.lookAt(this._tmpLookAt);
     }
 
     _applyKillerChaseShot(camera, shot, shotAlpha, safeDt) {
@@ -428,6 +407,7 @@ export class KillcamSystem {
         this._tmpVec.set(killerDir.z, 0, -killerDir.x).normalize().multiplyScalar(lateral);
         this._tmpPosition.add(this._tmpVec);
 
+        this._resolveCameraCollision('killcam-killer-chase', this._tmpLookAt);
         const smoothAlpha = 1 - Math.exp(-KILLCAM_ORBIT_SMOOTH_SPEED * Math.max(safeDt, 1 / 240));
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
@@ -452,6 +432,7 @@ export class KillcamSystem {
             this._focusPoint.z
         );
 
+        this._resolveCameraCollision('killcam-impact-zoom', this._tmpLookAt);
         const smoothAlpha = 1 - Math.exp(-KILLCAM_ORBIT_SMOOTH_SPEED * Math.max(safeDt, 1 / 240));
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
@@ -474,6 +455,7 @@ export class KillcamSystem {
             this._focusPoint.z
         );
 
+        this._resolveCameraCollision('killcam-explosion-orbit', this._tmpLookAt);
         // slower smoothing for slow-mo feel
         const slowSmooth = KILLCAM_ORBIT_SMOOTH_SPEED * 0.7;
         const smoothAlpha = 1 - Math.exp(-slowSmooth * Math.max(safeDt, 1 / 240));
@@ -484,6 +466,10 @@ export class KillcamSystem {
     _getRemaining() {
         const respawnSystem = this.respawnSystem;
         if (!respawnSystem || this._deadPlayerIndex < 0) return 0;
+        const directRemaining = respawnSystem.getRemainingForPlayer?.(this._deadPlayerIndex);
+        if (Number.isFinite(Number(directRemaining))) {
+            return Math.max(0, Number(directRemaining));
+        }
         const remainingByPlayer = respawnSystem.getRemainingByPlayer?.() || {};
         return Math.max(0, Number(remainingByPlayer[this._deadPlayerIndex]) || 0);
     }
@@ -498,6 +484,7 @@ export class KillcamSystem {
         let el = doc.getElementById(KILLCAM_LETTERBOX_DOM_ID);
         if (!el) {
             el = doc.createElement('div');
+            this._ownsLetterboxEl = true;
             el.id = KILLCAM_LETTERBOX_DOM_ID;
             el.className = 'killcam-letterbox hidden';
             el.setAttribute('aria-hidden', 'true');
@@ -507,6 +494,7 @@ export class KillcamSystem {
             bottom.className = 'killcam-letterbox-bar killcam-letterbox-bottom';
             const label = doc.createElement('div');
             label.className = 'killcam-letterbox-label';
+            label.setAttribute('data-menu-text-id', 'game.killcam.label');
             label.textContent = 'KILLCAM';
             el.appendChild(top);
             el.appendChild(bottom);
@@ -518,10 +506,11 @@ export class KillcamSystem {
     }
 
     _showLetterbox(show) {
-        const el = this._resolveLetterboxEl();
+        const el = show ? this._resolveLetterboxEl() : this._letterboxEl;
         if (!el) return;
         try {
             el.classList.toggle('hidden', !show);
+            el.classList.toggle('reduced-motion', show && this._reduceMotion);
             el.setAttribute('aria-hidden', String(!show));
         } catch {
             // best-effort toggle
@@ -530,6 +519,10 @@ export class KillcamSystem {
 
     clear() {
         const wasActive = this._active;
+        if (wasActive) {
+            this.entityManager?.particles?.setPresentationSuppressed?.(false);
+            restoreKillcamLivePresentation(this);
+        }
         this._active = false;
         this._elapsed = 0;
         this._displayDuration = 0;
@@ -540,11 +533,12 @@ export class KillcamSystem {
         this._shotDuration = 0;
         this._currentShot = null;
         this._startAngle = 0;
-        this._frames = [];
         this._ghostSourceDuration = 0;
         this._ghostElapsed = 0;
         this._ghostRateCalibration = 1;
-        this._visualGhostRateCalibration = 1;
+        this._hasKillerPose = false;
+        this._reduceMotion = false;
+        this._deathMetadata = null;
         this._explosionTriggered = false;
 
         this._showLetterbox(false);
@@ -564,17 +558,22 @@ export class KillcamSystem {
                     // best-effort reset; caller owns camera state
                 }
             }
-            this._restoreLivePlayerViews();
             this.entityManager?.clearLastRoundGhost?.();
         }
     }
 
     dispose() {
         this.clear();
+        if (this._ownsLetterboxEl) {
+            this._letterboxEl?.remove?.();
+        }
         this.renderer = null;
         this.entityManager = null;
         this.recorder = null;
         this.respawnSystem = null;
+        this.ghostSystem = null;
+        this._presentationEntries.length = 0;
         this._letterboxEl = null;
+        this._ownsLetterboxEl = false;
     }
 }
