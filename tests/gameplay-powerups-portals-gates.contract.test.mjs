@@ -383,6 +383,59 @@ test('Portal layout counts endpoints, prefers authored pairs, and keeps editor v
     assert.ok(arena.portalLayoutWarnings.length > 0);
 });
 
+test('Planar portal layout honors menu counts and puts a portal on the spawn level', () => {
+    const scene = new THREE.Scene();
+    const renderer = {
+        addToScene(object) { scene.add(object); },
+        removeFromScene(object) { scene.remove(object); },
+    };
+    const arena = {
+        renderer,
+        portalsEnabled: true,
+        currentMapKey: 'standard',
+        bounds: { minX: -100, maxX: 100, minY: 0, maxY: 120, minZ: -100, maxZ: 100 },
+        checkCollision: () => false,
+        entityRuntimeConfig: createEntityRuntimeConfig({
+            gameplay: { portalCount: 2, planarMode: true, planarLevelCount: 6 },
+        }, CONFIG_BASE),
+    };
+    const builder = new PortalLayoutBuilder(arena);
+    const authoredMap = {
+        preferAuthoredPortals: true,
+        portalLevels: [10, 30, 50],
+        portals: [{
+            a: [-20, 10, 0],
+            b: [20, 10, 0],
+            modelA: 'portal_triangle',
+            modelB: 'portal_star',
+        }],
+    };
+
+    builder.build(authoredMap, 2);
+
+    const levels = builder.getPortalLevels();
+    assert.equal(levels.length, 6);
+    assert.deepEqual(levels, [20, 36, 52, 68, 84, 100]);
+    assert.equal(arena.portals.length, 1);
+    assert.equal(
+        arena.portals[0].posA.y === 52 || arena.portals[0].posB.y === 52,
+        true,
+        'the first dynamic pair must touch the level nearest the arena midpoint'
+    );
+    assert.notEqual(arena.portals[0].meshA.userData.visualType, 'portal_triangle');
+
+    arena.entityRuntimeConfig = createEntityRuntimeConfig({
+        gameplay: { portalCount: 6, planarMode: true, planarLevelCount: 2 },
+    }, CONFIG_BASE);
+    builder.build(authoredMap, 2);
+
+    assert.deepEqual(builder.getPortalLevels(), [20, 100]);
+    assert.equal(arena.portals.length, 3);
+    assert.ok(arena.portals.every((portal) => (
+        [20, 100].includes(portal.posA.y) && [20, 100].includes(portal.posB.y)
+    )));
+});
+
 test('Oriented portals rotate traversal direction and require a plane crossing', () => {
     const arena = {
         portalsEnabled: true,

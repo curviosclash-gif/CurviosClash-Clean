@@ -49,6 +49,48 @@ export function getMapPlanarAnchors(currentMapKey) {
     return anchors[currentMapKey] || anchors.standard;
 }
 
+export function resolvePlanarLevels(portalLevels, requestedLevelCount, bounds, mapScale = 1) {
+    const levelCount = Math.max(2, Math.round(Number(requestedLevelCount) || 5));
+    const minY = Number(bounds?.minY) || 0;
+    const maxY = Number(bounds?.maxY) || 0;
+    const height = maxY - minY;
+    if (height <= 0) return [minY + 3];
+
+    const scale = Number(mapScale) > 0 ? Number(mapScale) : 1;
+    const authoredLevels = [...new Set(
+        (Array.isArray(portalLevels) ? portalLevels : [])
+            .map((y) => Number(y) * scale)
+            .filter(Number.isFinite)
+    )].sort((a, b) => a - b);
+    const rangeMin = authoredLevels.length >= 2 ? authoredLevels[0] : minY;
+    const rangeMax = authoredLevels.length >= 2 ? authoredLevels[authoredLevels.length - 1] : maxY;
+    if (authoredLevels.length === levelCount) return authoredLevels;
+
+    const step = (rangeMax - rangeMin) / (authoredLevels.length >= 2 ? levelCount - 1 : levelCount);
+    return Array.from({ length: levelCount }, (_, index) => (
+        rangeMin + step * index + (authoredLevels.length >= 2 ? 0 : step * 0.5)
+    ));
+}
+
+export function resolvePlanarTransitionOrder(levels, bounds) {
+    const transitionCount = Math.max(0, (Array.isArray(levels) ? levels.length : 0) - 1);
+    const arenaMidY = ((Number(bounds?.minY) || 0) + (Number(bounds?.maxY) || 0)) * 0.5;
+    let spawnLevelIndex = 0;
+    let spawnLevelDistance = Infinity;
+    for (let i = 0; i < levels.length; i++) {
+        const distance = Math.abs(levels[i] - arenaMidY);
+        if (distance >= spawnLevelDistance) continue;
+        spawnLevelIndex = i;
+        spawnLevelDistance = distance;
+    }
+    const distanceFromSpawn = (band) => Math.min(
+        Math.abs(band - spawnLevelIndex),
+        Math.abs(band + 1 - spawnLevelIndex)
+    );
+    return Array.from({ length: transitionCount }, (_, index) => index)
+        .sort((left, right) => distanceFromSpawn(left) - distanceFromSpawn(right) || left - right);
+}
+
 export function portalPositionFromSlot(slot, seed, arena, portalConfig) {
     const b = arena.bounds;
     const margin = portalConfig.RING_SIZE + 2.5;

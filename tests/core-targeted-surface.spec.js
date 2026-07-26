@@ -1359,6 +1359,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.click('#submenu-custom:not(.hidden) [data-mode-path=\"fight\"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
         await openStartSetupSection(page, 'match');
+        await page.evaluate(() => {
+            const toggle = document.getElementById('portals-toggle');
+            if (!toggle) return;
+            toggle.checked = false;
+            toggle.dispatchEvent(new Event('change', { bubbles: true }));
+        });
 
         await page.click('#btn-dimension-planar');
         await waitForRenderFrames(page, 3);
@@ -1368,11 +1374,13 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 modePath: String(game?.settings?.localSettings?.modePath || ''),
                 gameMode: String(game?.settings?.gameMode || ''),
                 planarMode: !!game?.settings?.gameplay?.planarMode,
+                portalsEnabled: game?.settings?.portalsEnabled === true,
             };
         });
         expect(state.modePath).toBe('fight');
         expect(state.gameMode).toBe('HUNT');
         expect(state.planarMode).toBeTruthy();
+        expect(state.portalsEnabled).toBeTruthy();
 
         await page.click('#btn-dimension-classic-3d');
         await waitForRenderFrames(page, 3);

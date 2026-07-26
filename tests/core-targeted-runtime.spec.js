@@ -2631,23 +2631,33 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(probe.nonWallObstacleCount).toBeGreaterThan(0);
     });
 
-    test('T10d: Portal-Layout folgt geaenderter Portal-Anzahl im Prewarm-Pfad', async ({ page }) => {
+    test('T10d: Ebenen- und Portal-Anzahl steuern das planare Prewarm-Layout', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
+        await openStartSetupSection(page, 'match');
+        await page.click('#btn-dimension-planar');
+        await openLevel4Drawer(page, { section: 'advanced_map' });
         await page.evaluate(() => {
             const toggle = document.getElementById('portals-toggle');
-            const slider = document.getElementById('portal-count-slider');
+            const portalSlider = document.getElementById('portal-count-slider');
+            const levelSlider = document.getElementById('planar-level-count-slider');
             if (toggle && !toggle.checked) {
                 toggle.checked = true;
                 toggle.dispatchEvent(new Event('change', { bubbles: true }));
             }
-            if (slider) {
-                slider.value = '4';
-                slider.dispatchEvent(new Event('input', { bubbles: true }));
-                slider.dispatchEvent(new Event('change', { bubbles: true }));
+            if (portalSlider) {
+                portalSlider.value = '6';
+                portalSlider.dispatchEvent(new Event('input', { bubbles: true }));
+                portalSlider.dispatchEvent(new Event('change', { bubbles: true }));
+            }
+            if (levelSlider) {
+                levelSlider.value = '4';
+                levelSlider.dispatchEvent(new Event('input', { bubbles: true }));
+                levelSlider.dispatchEvent(new Event('change', { bubbles: true }));
             }
         });
         await waitForRenderFrames(page, 15);
+        await page.click('#btn-close-level4');
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {
             const hud = document.getElementById('hud');
@@ -2655,8 +2665,28 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             return hud && !hud.classList.contains('hidden') && g?.entityManager?.players?.length > 0;
         }, null, { timeout: 15000 });
 
-        const portalCount = await page.evaluate(() => window.GAME_INSTANCE?.arena?.portals?.length ?? 0);
-        expect(portalCount).toBe(4);
+        const probe = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const arena = game?.arena;
+            const player = game?.entityManager?.players?.[0];
+            const portalLevels = arena?.getPortalLevels?.() || [];
+            const spawnLevelHasPortal = (arena?.portals || []).some((portal) => (
+                Math.abs(Number(portal?.posA?.y) - Number(player?.position?.y)) < 0.001
+                || Math.abs(Number(portal?.posB?.y) - Number(player?.position?.y)) < 0.001
+            ));
+            return {
+                configuredPortalEntries: game?.runtimeConfig?.gameplay?.portalCount,
+                configuredLevelCount: game?.runtimeConfig?.gameplay?.planarLevelCount,
+                portalPairCount: arena?.portals?.length ?? 0,
+                portalLevelCount: portalLevels.length,
+                spawnLevelHasPortal,
+            };
+        });
+        expect(probe.configuredPortalEntries).toBe(6);
+        expect(probe.configuredLevelCount).toBe(4);
+        expect(probe.portalPairCount).toBe(3);
+        expect(probe.portalLevelCount).toBe(4);
+        expect(probe.spawnLevelHasPortal).toBeTruthy();
     });
 
     test('T10e: Custom-Map-Aenderungen mit gleichem Key laden neues Layout', async ({ page }) => {

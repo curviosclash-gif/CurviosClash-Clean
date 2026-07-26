@@ -15,7 +15,9 @@ import {
     getMapPlanarAnchors,
     getMapPortalSlots3D,
     portalPositionFromSlot,
+    resolvePlanarLevels,
     resolvePlanarElevatorPair,
+    resolvePlanarTransitionOrder,
     resolvePortalPosition,
 } from '../PortalPlacementOps.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
@@ -94,6 +96,7 @@ export class PortalLayoutBuilder {
     build(map, scale) {
         this._resetExistingPortalGateVisuals();
         this._mapDefinition = map || null;
+        this._mapScale = asPositiveNumber(scale, 1);
         this._visualRegistry = createPortalGateVisualRegistry(this.arena.renderer);
         this._checkpointRingSpinEnabled = true;
         this._buildPortals(map, scale);
@@ -327,9 +330,12 @@ export class PortalLayoutBuilder {
         this._portalMeshCompactMode = false;
         if (!this.arena.portalsEnabled) return;
 
+        const planarMode = config.GAMEPLAY.PLANAR_MODE === true;
         const hasAuthoredPortals = Array.isArray(map?.portals) && map.portals.length > 0;
         const portalMode = resolvePortalMode(map);
-        const wantsAuthoredPortals = hasAuthoredPortals && (portalMode === 'authored' || portalMode === 'hybrid');
+        const wantsAuthoredPortals = !planarMode
+            && hasAuthoredPortals
+            && (portalMode === 'authored' || portalMode === 'hybrid');
         if (wantsAuthoredPortals) {
             this._portalMeshCompactMode = map.portals.length >= 2;
             for (const def of map.portals) {
@@ -338,9 +344,10 @@ export class PortalLayoutBuilder {
         }
 
         const pairCount = resolvePortalPairCount(config.GAMEPLAY.PORTAL_COUNT);
-        if (pairCount > 0 && (portalMode === 'dynamic' || portalMode === 'hybrid')) {
+        const wantsDynamicPortals = planarMode || portalMode === 'dynamic' || portalMode === 'hybrid';
+        if (pairCount > 0 && wantsDynamicPortals) {
             this._portalMeshCompactMode = pairCount >= 2;
-            const remainingPairs = portalMode === 'hybrid'
+            const remainingPairs = !planarMode && portalMode === 'hybrid'
                 ? Math.max(0, pairCount - this.arena.portals.length)
                 : pairCount;
             if (remainingPairs > 0) {
@@ -426,10 +433,10 @@ export class PortalLayoutBuilder {
         const levels = this.getPortalLevels();
         if (anchors.length === 0 || levels.length < 2) return;
 
-        const transitionCount = levels.length - 1;
+        const transitionOrder = resolvePlanarTransitionOrder(levels, this.arena.bounds);
         for (let i = 0; i < pairCount; i++) {
             const anchor = anchors[i % anchors.length];
-            const levelBand = (i + Math.floor(i / Math.max(1, anchors.length))) % transitionCount;
+            const levelBand = transitionOrder[i % transitionOrder.length];
             const lowY = levels[levelBand];
             const highY = levels[levelBand + 1];
             const pair = resolvePlanarElevatorPair(anchor[0], anchor[1], lowY, highY, i * 29 + 7, this.arena, config.PORTAL);
@@ -523,29 +530,21 @@ export class PortalLayoutBuilder {
 
     getPortalLevelsFallback() {
         const config = resolveEntityRuntimeConfig(this.arena);
-        const b = this.arena.bounds;
-        const height = b.maxY - b.minY;
-        if (height <= 0) return [b.minY + 3];
-
-        const levels = [];
-        const levelCount = config.GAMEPLAY.PLANAR_LEVEL_COUNT || 5;
-        const step = height / levelCount;
-        for (let i = 0; i < levelCount; i++) {
-            levels.push(b.minY + step * i + step * 0.5);
-        }
-        return levels;
+        return resolvePlanarLevels(
+            [],
+            config.GAMEPLAY.PLANAR_LEVEL_COUNT,
+            this.arena.bounds
+        );
     }
 
     getPortalLevels() {
         const config = resolveEntityRuntimeConfig(this.arena);
-        const b = this.arena.bounds;
-        const height = b.maxY - b.minY;
-        if (height <= 0) return this.getPortalLevelsFallback();
-
         const map = this._mapDefinition || this.arena.runtimeMapDefinition || config.MAPS[this.arena.currentMapKey];
-        if (map && Array.isArray(map.portalLevels) && map.portalLevels.length >= 2) {
-            return map.portalLevels.map((y) => Number(y)).filter(Number.isFinite);
-        }
-        return this.getPortalLevelsFallback();
+        return resolvePlanarLevels(
+            map?.portalLevels,
+            config.GAMEPLAY.PLANAR_LEVEL_COUNT,
+            this.arena.bounds,
+            this._mapScale
+        );
     }
 }

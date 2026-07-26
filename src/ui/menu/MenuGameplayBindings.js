@@ -63,12 +63,12 @@ export function setupMenuGameplayBindings(ctx) {
         if (!settings.gameplay) settings.gameplay = {};
         settings.gameplay.planarMode = !!enabled;
         const changedKeys = [keys.GAMEPLAY_PLANAR_MODE];
+        if (settings.gameplay.planarMode && settings.portalsEnabled !== true) {
+            settings.portalsEnabled = true; changedKeys.push(keys.RULES_PORTALS_ENABLED);
+        }
         if (settings.gameplay.planarMode && (settings.gameplay.portalCount || 0) === 0) {
-            settings.gameplay.portalCount = 4;
-            changedKeys.push(keys.GAMEPLAY_PORTAL_COUNT);
-            emit(eventTypes.SHOW_STATUS_TOAST, {
-                message: 'Ebenen-Modus: 4 Portale aktiviert',
-            });
+            settings.gameplay.portalCount = 4; changedKeys.push(keys.GAMEPLAY_PORTAL_COUNT);
+            emit(eventTypes.SHOW_STATUS_TOAST, { message: 'Ebenen-Modus: 4 Portal-Eingänge aktiviert' });
         }
         emitSettingsChangedImmediate(changedKeys);
     };
