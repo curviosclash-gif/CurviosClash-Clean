@@ -39,12 +39,22 @@ export function bindMenuRecordingCameraControls({
     settingsChangeKeys: keys,
 }) {
     if (ui.recordingProfileSelect) {
+        if (!ui.recordingProfileSelect.querySelector?.(`option[value="${RECORDING_CAPTURE_PROFILE.CINEMATIC}"]`)) {
+            const option = document.createElement('option');
+            option.value = RECORDING_CAPTURE_PROFILE.CINEMATIC;
+            option.textContent = 'Cinematic Replay Render (MP4)';
+            ui.recordingProfileSelect.appendChild(option);
+        }
         bind(ui.recordingProfileSelect, 'change', () => {
             const recordingSettings = ensureRecordingSettings(settings);
             const profile = String(ui.recordingProfileSelect.value || '').trim().toLowerCase();
-            recordingSettings.profile = profile === RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT
-                ? RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT
-                : RECORDING_CAPTURE_PROFILE.STANDARD;
+            if (profile === RECORDING_CAPTURE_PROFILE.CINEMATIC) {
+                recordingSettings.profile = RECORDING_CAPTURE_PROFILE.CINEMATIC;
+            } else if (profile === RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT) {
+                recordingSettings.profile = RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT;
+            } else {
+                recordingSettings.profile = RECORDING_CAPTURE_PROFILE.STANDARD;
+            }
             emitSettingsChangedImmediate([keys.RECORDING_PROFILE]);
             emit(eventTypes.SHOW_STATUS_TOAST, {
                 message: `Recording-Profil: ${resolveRecordingProfileLabel(recordingSettings.profile)} (${resolveRecordingHudLabel(recordingSettings.hudMode)})`,

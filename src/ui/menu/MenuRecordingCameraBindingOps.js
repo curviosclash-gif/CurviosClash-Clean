@@ -7,9 +7,10 @@ import { RECORDING_CAPTURE_PROFILE, RECORDING_HUD_MODE } from '../../shared/cont
 import { clamp } from '../../utils/MathOps.js';
 
 export function resolveRecordingProfileLabel(profile) {
+    if (profile === RECORDING_CAPTURE_PROFILE.CINEMATIC) return 'Cinematic Replay Render';
     return profile === RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT
         ? 'YouTube Shorts'
-        : 'Standard';
+        : 'Standard-Live-Aufnahme';
 }
 
 export function resolveRecordingHudLabel(hudMode) {

@@ -67,6 +67,7 @@ export class AudioManager {
         this._debugEvents = [];
         this._maxDebugEvents = 24;
         this._registeredWindowListeners = [];
+        this._recordingDestinations = new Map();
 
         this.lastPlayTime = {};
         this.cooldowns = { ...SOUND_COOLDOWNS_MS };
@@ -175,6 +176,36 @@ export class AudioManager {
 
     _sfxOut() {
         return this._sfxGain || this._masterGain || this.ctx.destination;
+    }
+
+    acquireRecordingStream() {
+        this._init();
+        if (!this.ctx || !this._masterGain || typeof this.ctx.createMediaStreamDestination !== 'function') {
+            return null;
+        }
+        try {
+            const destination = this.ctx.createMediaStreamDestination();
+            this._masterGain.connect(destination);
+            const stream = destination.stream;
+            const release = () => {
+                const activeDestination = this._recordingDestinations.get(stream);
+                if (!activeDestination) return;
+                this._recordingDestinations.delete(stream);
+                try {
+                    this._masterGain?.disconnect?.(activeDestination);
+                } catch {
+                    // The AudioContext may already be closing.
+                }
+                for (const track of stream?.getTracks?.() || []) {
+                    try { track.stop(); } catch { /* best effort */ }
+                }
+            };
+            this._recordingDestinations.set(stream, destination);
+            return { stream, release };
+        } catch (error) {
+            logger.warn('Recording audio stream unavailable.', error);
+            return null;
+        }
     }
 
     _resolveTime() {
@@ -778,6 +809,13 @@ export class AudioManager {
 
     dispose() {
         this.stopEngine();
+        for (const [stream, destination] of this._recordingDestinations) {
+            try { this._masterGain?.disconnect?.(destination); } catch { /* best effort */ }
+            for (const track of stream?.getTracks?.() || []) {
+                try { track.stop(); } catch { /* best effort */ }
+            }
+        }
+        this._recordingDestinations.clear();
         if (this._engine) {
             try { this._engine.body.stop(); } catch { /* ignore */ }
             try { this._engine.hum.stop(); } catch { /* ignore */ }

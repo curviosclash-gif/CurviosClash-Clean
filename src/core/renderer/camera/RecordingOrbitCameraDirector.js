@@ -149,6 +149,7 @@ export class RecordingOrbitCameraDirector {
         this._fovOffset = [];
         this._fovTarget = [];
         this._fovSnapBackTimer = [];
+        this._baseFovByPlayer = [];
 
         // Letterbox transition per player.
         this._letterboxTimer = [];
@@ -184,6 +185,7 @@ export class RecordingOrbitCameraDirector {
         this._fovOffset.length = 0;
         this._fovTarget.length = 0;
         this._fovSnapBackTimer.length = 0;
+        this._baseFovByPlayer.length = 0;
         this._letterboxTimer.length = 0;
         this._collisionSolver.reset();
     }
@@ -532,12 +534,19 @@ export class RecordingOrbitCameraDirector {
         slotStyle = SLOT_STYLE.CINEMATIC,
         playerState = null,
         otherPlayerPosition = null,
-        baseFov = 0,
+        baseFov = null,
     }) {
         if (!camera || !playerPosition || !playerDirection) return;
         if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
 
         const safeDt = Math.max(0, Number(dt) || 0);
+        if (!Number.isFinite(this._baseFovByPlayer[playerIndex])) {
+            const explicitBaseFov = Number(baseFov);
+            this._baseFovByPlayer[playerIndex] = Number.isFinite(explicitBaseFov) && explicitBaseFov > 0
+                ? explicitBaseFov
+                : Math.max(1, Number(camera.fov) || 60);
+        }
+        const immutableBaseFov = this._baseFovByPlayer[playerIndex];
         const cfg = getStyleConfig(slotStyle);
         const effectiveOrbitSpeed = this.orbitSpeed * cfg.orbitSpeedMul;
         const previousPhase = this._phaseByPlayer[playerIndex] || 0;
@@ -613,7 +622,7 @@ export class RecordingOrbitCameraDirector {
         const fallbackLookAt = fallbackTarget?.lookAt || playerPosition;
         if (!useOrbitShot || blend <= 0.0001) {
             camera.lookAt(fallbackLookAt);
-            this._updateFov(playerIndex, camera, safeDt, baseFov || camera.fov, isDuel);
+            this._updateFov(playerIndex, camera, safeDt, immutableBaseFov, isDuel);
             return;
         }
 
@@ -629,6 +638,6 @@ export class RecordingOrbitCameraDirector {
         this._applyShake(camera, playerIndex, phase);
 
         // Apply dynamic FOV.
-        this._updateFov(playerIndex, camera, safeDt, baseFov || camera.fov, isDuel);
+        this._updateFov(playerIndex, camera, safeDt, immutableBaseFov, isDuel);
     }
 }

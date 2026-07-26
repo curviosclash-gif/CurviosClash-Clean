@@ -800,7 +800,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         expect(result.captureSourceHeight).toBe(1080);
     });
 
-    test('T20aj1d: Cinematic-Capture orientiert sich an der sichtbaren Viewport-Groesse statt am gedrosselten Backbuffer', async ({ page }) => {
+    test('T20aj1d: Cinematic-Capture nutzt den festen 1080p-Exportvertrag unabhaengig vom Backbuffer', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
             const { RecordingCapturePipeline } = await window.__curviosImport('/src/core/renderer/RecordingCapturePipeline.js');
@@ -825,11 +825,8 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 hudMode: 'clean',
             });
             const captureCanvas = pipeline.getCaptureCanvas();
-            const supersampleScale = Number(RECORDING_CINEMATIC_QUALITY_PROFILE?.supersampleScale || 1);
             const maxWidth = Math.max(2, Math.floor(Number(RECORDING_CINEMATIC_QUALITY_PROFILE?.maxWidth || 1920)));
             const maxHeight = Math.max(2, Math.floor(Number(RECORDING_CINEMATIC_QUALITY_PROFILE?.maxHeight || 1080)));
-            const expectedWidth = Math.max(2, Math.floor(Math.min(maxWidth, sourceCanvas.clientWidth * supersampleScale)));
-            const expectedHeight = Math.max(2, Math.floor(Math.min(maxHeight, sourceCanvas.clientHeight * supersampleScale)));
             const snapshot = {
                 sourceWidth: sourceCanvas.width,
                 sourceHeight: sourceCanvas.height,
@@ -837,8 +834,8 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 clientHeight: sourceCanvas.clientHeight,
                 captureWidth: captureCanvas?.width || 0,
                 captureHeight: captureCanvas?.height || 0,
-                expectedWidth: expectedWidth - (expectedWidth % 2),
-                expectedHeight: expectedHeight - (expectedHeight % 2),
+                expectedWidth: maxWidth - (maxWidth % 2),
+                expectedHeight: maxHeight - (maxHeight % 2),
             };
             pipeline.dispose();
             sourceCanvas.remove();

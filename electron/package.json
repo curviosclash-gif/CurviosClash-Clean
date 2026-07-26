@@ -28,6 +28,7 @@
       "tuning-console/**/*",
       "settings-studio/**/*",
       "recording-video-export-job.cjs",
+      "cinematic-replay-video-export-job.cjs",
       "static-server.cjs",
       "node_modules/ffmpeg-static/**/*"
     ],

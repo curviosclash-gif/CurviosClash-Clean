@@ -75,6 +75,13 @@ export function toggleCinematicRecordingFromHotkey({ game, getRuntimeHandle, sho
         recorder.notifyLifecycleEvent(MATCH_LIFECYCLE_EVENT_TYPES.RECORDING_REQUESTED, { command: 'toggle' });
         return true;
     }
+    if (recorder.isCinematicReplayExporting?.() === true) {
+        showStatusToast('Cinematic Replay Render wird abgebrochen...', 1400, 'warning');
+        recorder.cancelCinematicReplayExport?.()
+            .then(() => showStatusToast('Cinematic Replay Render wurde abgebrochen', 1800, 'info'))
+            .catch(() => showStatusToast('Cinematic Replay Render konnte nicht abgebrochen werden', 2000, 'error'));
+        return true;
+    }
     const wasRecording = !!recorder.isRecording?.();
     const isCinematicRecording = wasRecording
         && isCinematicCaptureProfile(recorder.getRecordingCaptureSettings?.()?.profile);

@@ -395,11 +395,63 @@ export async function attemptAutoDownload({
                     transcodeFailureCode: appResult.transcodeFailureCode || null,
                 });
             }
+            const desktopCancelled = appResult?.cancelled === true
+                || appResult?.code === 'RECORDING_SAVE_CANCELLED';
+            if (appResult?.code) {
+                pushStatusWarning(`Desktop-Speicheradapter meldete ${appResult.code}.`);
+            }
+            if (desktopCancelled || saveRequest.browserFallbackAllowed !== true) {
+                const containers = resolveResultContainers(appResult);
+                return createDownloadStatus({
+                    requested: true,
+                    transport: 'app',
+                    status: desktopCancelled ? 'cancelled' : 'desktop_save_failed',
+                    fallbackReason: desktopCancelled ? 'cancelled' : 'desktop-save-failed',
+                    failureReason: desktopCancelled ? 'cancelled' : (appResult?.failureReason || 'desktop-save-failed'),
+                    message: desktopCancelled
+                        ? 'Speicherdialog wurde abgebrochen; es wurde kein Fallback gestartet.'
+                        : 'Desktop-Speichern ist fehlgeschlagen; Browser-Fallback ist fuer dieses Profil nicht erlaubt.',
+                    warnings: [
+                        ...statusWarnings,
+                        ...(Array.isArray(appResult?.warnings) ? appResult.warnings : []),
+                    ],
+                    surfaceClassification: videoFeatureClassification.classification,
+                    container: containers.deliveryContainer,
+                    masterContainer: containers.masterContainer,
+                    deliveryContainer: containers.deliveryContainer,
+                    transcodeApplied: containers.transcodeApplied,
+                    masterPath: containers.masterPath,
+                    deliveryPath: containers.deliveryPath,
+                    saveCapabilityId: appResult?.capabilityId || saveRequest.capabilityId || null,
+                    saveCode: appResult?.code || '',
+                    exportMatrix: saveRequest.exportMatrix,
+                });
+            }
             if (appResult?.code) {
                 pushStatusWarning(`Desktop-Speicheradapter meldete ${appResult.code}.`);
             }
         } catch (error) {
             logger?.warn?.('[DownloadService] recording export app save failed', error);
+            if (saveRequest.browserFallbackAllowed !== true) {
+                const containers = resolveResultContainers();
+                return createDownloadStatus({
+                    requested: true,
+                    transport: 'app',
+                    status: 'desktop_save_failed',
+                    fallbackReason: 'desktop-save-failed',
+                    failureReason: 'desktop-save-failed',
+                    message: 'Desktop-Speichern ist fehlgeschlagen; Browser-Fallback ist nicht erlaubt.',
+                    warnings: [...statusWarnings, 'Desktop-App konnte die Aufnahme nicht speichern.'],
+                    surfaceClassification: videoFeatureClassification.classification,
+                    container: containers.deliveryContainer,
+                    masterContainer: containers.masterContainer,
+                    deliveryContainer: containers.deliveryContainer,
+                    transcodeApplied: containers.transcodeApplied,
+                    masterPath: containers.masterPath,
+                    deliveryPath: containers.deliveryPath,
+                    exportMatrix: saveRequest.exportMatrix,
+                });
+            }
             pushStatusWarning('Desktop-App konnte die Aufnahme nicht direkt speichern; Dateipfad-Fallback wird versucht.');
         }
     }

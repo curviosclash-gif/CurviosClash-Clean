@@ -20,6 +20,7 @@ const {
     initSessionDataSelfHeal,
 } = require('./session-data-runtime.cjs');
 const { createRecordingVideoExportJob } = require('./recording-video-export-job.cjs');
+const { createCinematicReplayVideoExportJob } = require('./cinematic-replay-video-export-job.cjs');
 const { createTuningWindowController } = require('./tuning-window.cjs');
 const { registerTuningIpc } = require('./tuning-ipc.cjs');
 const { createHangarWindowController } = require('./hangar-window.cjs');
@@ -60,7 +61,7 @@ function withTrustedHangarWindowSender(handler) {
 }
 
 const SIGNALING_PORTS = [9090, 9091, 9093, 9094];
-const GRACEFUL_CLOSE_TIMEOUT_MS = 3000;
+const GRACEFUL_CLOSE_TIMEOUT_MS = 30000;
 const SIGNALING_PORT_FALLBACK = 0;
 const DISCOVERY_PORT = 9092;
 const DISCOVERY_INTERVAL = 2000;
@@ -526,13 +527,42 @@ async function createWindow() {
     // to any connected multiplayer peers).  A GRACEFUL_CLOSE_TIMEOUT_MS timeout
     // ensures the window always closes even if the renderer is unresponsive.
     let gracefulCloseReady = false;
+    let exportCloseDecisionPending = false;
+    let exportCloseApproved = false;
     mainWindow.on('close', (event) => {
         if (gracefulCloseReady) return;
         event.preventDefault();
+        if (cinematicReplayVideoExportJob?.getStatus?.().active === true && !exportCloseApproved) {
+            if (exportCloseDecisionPending) return;
+            exportCloseDecisionPending = true;
+            void dialog.showMessageBox(mainWindow, {
+                type: 'warning',
+                title: 'Videoexport laeuft',
+                message: 'Ein Cinematic Replay wird noch als MP4 exportiert.',
+                detail: 'Du kannst den Export sauber abwarten, kontrolliert abbrechen oder zur Anwendung zurueckkehren.',
+                buttons: ['Export abwarten', 'Export abbrechen', 'Zurueck'],
+                defaultId: 0,
+                cancelId: 2,
+                noLink: true,
+            }).then(async (result) => {
+                exportCloseDecisionPending = false;
+                if (result.response === 2) return;
+                exportCloseApproved = true;
+                if (result.response === 1) {
+                    await cinematicReplayVideoExportJob.cancel({
+                        reason: 'application_close_confirmed',
+                    });
+                }
+                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+            }).catch(() => {
+                exportCloseDecisionPending = false;
+            });
+            return;
+        }
 
         const onGracefulCloseReady = (ipcEvent) => {
             if (!isTrustedMainWindowSender(ipcEvent)) return;
-            clearTimeout(timeoutId);
+            if (timeoutId !== null) clearTimeout(timeoutId);
             finish();
         };
         const finish = () => {
@@ -544,14 +574,16 @@ async function createWindow() {
             }
         };
 
-        const timeoutId = setTimeout(finish, GRACEFUL_CLOSE_TIMEOUT_MS);
+        const timeoutId = exportCloseApproved
+            ? null
+            : setTimeout(finish, GRACEFUL_CLOSE_TIMEOUT_MS);
         ipcMain.on('graceful-close-ready', onGracefulCloseReady);
 
         try {
             mainWindow.webContents.send('request-graceful-close');
         } catch {
             // Renderer already gone — proceed immediately.
-            clearTimeout(timeoutId);
+            if (timeoutId !== null) clearTimeout(timeoutId);
             finish();
         }
     });
@@ -748,6 +780,37 @@ const recordingVideoExportJob = createRecordingVideoExportJob({
     contractVersion: RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION,
     capabilityId: RECORDING_VIDEO_EXPORT_CAPABILITY_ID,
 });
+const cinematicReplayVideoExportJob = createCinematicReplayVideoExportJob({
+    app,
+    dialog,
+    resolveWindow: () => desktopWindowShellCapability.getWindow(),
+});
+
+async function offerOrphanedCinematicReplayExports() {
+    const orphans = await cinematicReplayVideoExportJob.listOrphans();
+    if (orphans.length <= 0) return;
+    const result = await dialog.showMessageBox(desktopWindowShellCapability.getWindow(), {
+        type: 'warning',
+        title: 'Unvollstaendige Videoexporte gefunden',
+        message: `${orphans.length} verwaiste Cinematic-Exportdatei(en) wurden erkannt.`,
+        detail: 'Die Dateien werden nicht automatisch geloescht. Du kannst sie fuer eine spaetere Wiederherstellung behalten oder jetzt bestaetigt bereinigen.',
+        buttons: ['Wiederherstellen', 'Behalten', 'Bestaetigt bereinigen'],
+        defaultId: 1,
+        cancelId: 1,
+        noLink: true,
+    });
+    if (result.response === 0) {
+        const recovery = await cinematicReplayVideoExportJob.recoverOrphans(orphans);
+        await dialog.showMessageBox(desktopWindowShellCapability.getWindow(), {
+            type: recovery.failed > 0 ? 'warning' : 'info',
+            title: 'Cinematic Exporte wiederhergestellt',
+            message: `${recovery.recovered} Export(e) wiederhergestellt, ${recovery.failed} nicht wiederhergestellt.`,
+            buttons: ['OK'],
+        });
+    } else if (result.response === 2) {
+        await cinematicReplayVideoExportJob.cleanupOrphans(orphans);
+    }
+}
 
 function registerTuningShortcut() {
     globalShortcut.unregister(TUNING_CONSOLE_HOTKEY);
@@ -968,6 +1031,30 @@ ipcMain.handle('get-recording-video-export-capability', withTrustedMainWindowSen
     recordingVideoExportJob.getCapabilityStatus(options)
 )));
 
+ipcMain.handle('cinematic-replay-export:begin', withTrustedMainWindowSender(async (payload = null) => (
+    cinematicReplayVideoExportJob.begin(payload)
+)));
+
+ipcMain.handle('cinematic-replay-export:append-frame', withTrustedMainWindowSender(async (payload = null) => (
+    cinematicReplayVideoExportJob.appendFrame(payload)
+)));
+
+ipcMain.handle('cinematic-replay-export:finish', withTrustedMainWindowSender(async (payload = null) => (
+    cinematicReplayVideoExportJob.finish(payload)
+)));
+
+ipcMain.handle('cinematic-replay-export:cancel', withTrustedMainWindowSender(async (payload = null) => (
+    cinematicReplayVideoExportJob.cancel(payload)
+)));
+
+ipcMain.handle('cinematic-replay-export:status', withTrustedMainWindowSender(() => (
+    cinematicReplayVideoExportJob.getStatus()
+)));
+
+ipcMain.handle('cinematic-replay-export:list-orphans', withTrustedMainWindowSender(() => (
+    cinematicReplayVideoExportJob.listOrphans()
+)));
+
 ipcMain.handle('save-video', withTrustedMainWindowSender(async (videoBytes, defaultName, mimeType) => (
     handleRecordingVideoExport({
         contractVersion: RECORDING_VIDEO_EXPORT_REQUEST_CONTRACT_VERSION,
@@ -1013,6 +1100,7 @@ app.whenReady().then(async () => {
     }
     try {
         await startDesktopShell();
+        await offerOrphanedCinematicReplayExports();
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Unbekannter Startfehler';
         dialog.showErrorBox('CurviosClash Startfehler', message);

@@ -76,6 +76,12 @@ function createHostContract() {
 function createSaveContract() {
     const saveRecordingVideoExport = createInvokeBridge('save-recording-video-export');
     const getRecordingVideoExportCapability = createInvokeBridge('get-recording-video-export-capability');
+    const beginCinematicReplayExport = createInvokeBridge('cinematic-replay-export:begin');
+    const appendCinematicReplayFrame = createInvokeBridge('cinematic-replay-export:append-frame');
+    const finishCinematicReplayExport = createInvokeBridge('cinematic-replay-export:finish');
+    const cancelCinematicReplayExport = createInvokeBridge('cinematic-replay-export:cancel');
+    const getCinematicReplayExportStatus = createInvokeBridge('cinematic-replay-export:status');
+    const listCinematicReplayExportOrphans = createInvokeBridge('cinematic-replay-export:list-orphans');
     return createNamedContract('save', PRELOAD_CONTRACT_VERSIONS.save, {
         saveReplay: createInvokeBridge('save-replay'),
         saveVideo: (videoBytes, defaultName, mimeType) => saveRecordingVideoExport({
@@ -92,6 +98,12 @@ function createSaveContract() {
         }),
         getRecordingVideoExportCapability,
         saveRecordingVideoExport,
+        beginCinematicReplayExport,
+        appendCinematicReplayFrame,
+        finishCinematicReplayExport,
+        cancelCinematicReplayExport,
+        getCinematicReplayExportStatus,
+        listCinematicReplayExportOrphans,
     });
 }
 
@@ -286,6 +298,12 @@ const curviosApp = Object.freeze({
     saveVideo: saveContract.saveVideo,
     getRecordingVideoExportCapability: saveContract.getRecordingVideoExportCapability,
     saveRecordingVideoExport: saveContract.saveRecordingVideoExport,
+    beginCinematicReplayExport: saveContract.beginCinematicReplayExport,
+    appendCinematicReplayFrame: saveContract.appendCinematicReplayFrame,
+    finishCinematicReplayExport: saveContract.finishCinematicReplayExport,
+    cancelCinematicReplayExport: saveContract.cancelCinematicReplayExport,
+    getCinematicReplayExportStatus: saveContract.getCinematicReplayExportStatus,
+    listCinematicReplayExportOrphans: saveContract.listCinematicReplayExportOrphans,
     startDiscovery: discoveryContract.start,
     stopDiscovery: discoveryContract.stop,
     getDiscoveredHosts: discoveryContract.listHosts,

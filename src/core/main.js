@@ -377,6 +377,20 @@ export class Game {
 
     _onRoundEnd(winner = null, outcome = null) {
         this.matchFlowUiController?.onRoundEnd?.(winner, outcome);
+        if (
+            outcome?.state === GAME_STATE_IDS.MATCH_END
+            && this.mediaRecorderSystem?.isCinematicReplayRecording?.() === true
+        ) {
+            this.mediaRecorderSystem.stopRecording({
+                type: 'match_completed',
+                context: {
+                    winnerIndex: Number.isInteger(winner?.index) ? winner.index : null,
+                    outcome,
+                },
+            }).catch((error) => {
+                console.warn('[Game] automatic cinematic replay export failed', error);
+            });
+        }
     }
 
     _getPlanarAimAxis(playerIndex) {
@@ -420,7 +434,10 @@ export class Game {
             this.recorder.recordFrame(this.entityManager.players);
         }
 
-        if (this.state === GAME_STATE_IDS.PLAYING && hasInteractiveMatchRuntime) {
+        const replayCaptureStateActive = this.state === GAME_STATE_IDS.PLAYING
+            || this.state === GAME_STATE_IDS.PAUSED
+            || this.state === GAME_STATE_IDS.ROUND_END;
+        if (replayCaptureStateActive && hasInteractiveMatchRuntime && this.entityManager) {
             this._updatePlayingState(dt);
         } else if (this.state === GAME_STATE_IDS.PAUSED && hasInteractiveMatchRuntime) {
             this._updatePausedState(dt);
@@ -428,6 +445,33 @@ export class Game {
             this._updateRoundEndState(dt);
         } else if (this.state === GAME_STATE_IDS.MATCH_END) {
             this._updateMatchEndState(dt);
+        }
+
+        if (this.state === GAME_STATE_IDS.PLAYING && hasInteractiveMatchRuntime) {
+            this.mediaRecorderSystem?.captureReplayState?.({
+                entityManager: this.entityManager,
+                roundState: this.roundStateController,
+                particles: this.particles,
+                dt,
+                metadata: {
+                    gameStateId: this.state,
+                    mapKey: this.mapKey,
+                    activeGameMode: this.activeGameMode,
+                    numHumans: this.numHumans,
+                    numBots: this.numBots,
+                    winsNeeded: this.winsNeeded,
+                    randomSeed: this.runtimeConfig?.session?.seed
+                        ?? this.runtimeConfig?.seed
+                        ?? this.settings?.seed
+                        ?? null,
+                    settings: {
+                        recording: this.settings?.recording || null,
+                        cameraPerspective: this.settings?.cameraPerspective || null,
+                        graphicsStyle: this.settings?.localSettings?.graphicsStyle || null,
+                        shadowQuality: this.settings?.localSettings?.shadowQuality || null,
+                    },
+                },
+            });
         }
 
         if (this.huntHud) {
@@ -456,7 +500,7 @@ export class Game {
         }
         const renderStart = this.runtimePerfProfiler?.startSample?.();
         this.renderer.render();
-        if (this.mediaRecorderSystem?.isRecording?.() === true) {
+        if (this.mediaRecorderSystem?.isLiveRecording?.() === true) {
             this.renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
                 renderProjection: matchRenderProjection,

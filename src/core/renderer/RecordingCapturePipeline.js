@@ -30,11 +30,6 @@ function toPositiveEven(value, fallback) {
     return Math.max(2, safe - (safe % 2));
 }
 
-function toPositiveFloor(value, fallback = 0) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric > 0 ? Math.floor(numeric) : fallback;
-}
-
 function toRatio(value, fallback) {
     const numeric = Number(value);
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
@@ -108,6 +103,8 @@ export class RecordingCapturePipeline {
         this._cinematicCanvas = null;
         this._cinematicRenderer = null;
         this._cinematicRendererUnavailable = false;
+        this._cinematicBaseFov = Math.max(1, Number(CONFIG?.CAMERA?.FOV) || 60);
+        this._cinematicSubjectElapsed = 0;
         this._cinematicCameraRig = new CameraRigSystem({
             cinematicEnabled: true,
             livePerspectiveEnabled: false,
@@ -128,11 +125,13 @@ export class RecordingCapturePipeline {
         if (!next) {
             // Retry shorts-renderer creation on the next recording session.
             this._shortsRendererUnavailable = false;
+            this._cinematicRendererUnavailable = false;
         }
         this._orbitDirector.reset();
         this._shortsCameraRig.resetCameras();
         this._cinematicOrbitDirector.reset();
         this._cinematicCameraRig.resetCameras();
+        this._cinematicSubjectElapsed = 0;
     }
 
     setSettings(settings = null) {
@@ -571,7 +570,13 @@ export class RecordingCapturePipeline {
 
 
     _ensureCinematicRenderer(width, height) {
-        if (this._cinematicRendererUnavailable) return null;
+        if (this._cinematicRendererUnavailable) {
+            // A single transient WebGL failure must only skip one frame. The
+            // next frame gets a clean creation attempt instead of disabling
+            // cinematic capture for the rest of the application session.
+            this._cinematicRendererUnavailable = false;
+            return null;
+        }
         const safeWidth = toPositiveEven(width, 2);
         const safeHeight = toPositiveEven(height, 2);
         if (!this._cinematicCanvas) {
@@ -595,6 +600,7 @@ export class RecordingCapturePipeline {
             } catch {
                 this._cinematicRendererUnavailable = true;
                 this._cinematicRenderer = null;
+                this._cinematicCanvas = null;
                 return null;
             }
         }
@@ -606,38 +612,25 @@ export class RecordingCapturePipeline {
             this._cinematicRenderer.setClearColor(CONFIG.COLORS.BACKGROUND);
             this._cinematicRenderer.setSize(safeWidth, safeHeight, false);
         } catch {
+            try {
+                this._cinematicRenderer?.dispose?.();
+            } catch {
+                // The failed context is discarded below.
+            }
             this._cinematicRendererUnavailable = true;
             this._cinematicRenderer = null;
+            this._cinematicCanvas = null;
             return null;
         }
         return this._cinematicRenderer;
     }
 
     _resolveCinematicCaptureSize() {
-        // Use the visible viewport as baseline so cinematic export does not
-        // inherit a throttled live backbuffer size.
-        const sourceWidth = toPositiveFloor(this.sourceCanvas?.width, 0);
-        const sourceHeight = toPositiveFloor(this.sourceCanvas?.height, 0);
-        const clientWidth = toPositiveFloor(this.sourceCanvas?.clientWidth, 0);
-        const clientHeight = toPositiveFloor(this.sourceCanvas?.clientHeight, 0);
-        const rawWidth = toPositiveEven(Math.max(sourceWidth, clientWidth), 2);
-        const rawHeight = toPositiveEven(Math.max(sourceHeight, clientHeight), 2);
-        const supersampleScale = toRatio(
-            RECORDING_CINEMATIC_QUALITY_PROFILE?.supersampleScale,
-            1
-        );
         const maxW = toPositiveEven(RECORDING_CINEMATIC_QUALITY_PROFILE?.maxWidth, 1920);
         const maxH = toPositiveEven(RECORDING_CINEMATIC_QUALITY_PROFILE?.maxHeight, 1080);
-        const supersampledWidth = toPositiveEven(Math.floor(rawWidth * supersampleScale), 2);
-        const supersampledHeight = toPositiveEven(Math.floor(rawHeight * supersampleScale), 2);
-        const scale = Math.min(
-            1,
-            maxW / Math.max(1, supersampledWidth),
-            maxH / Math.max(1, supersampledHeight)
-        );
         return {
-            width: toPositiveEven(Math.floor(supersampledWidth * scale), 2),
-            height: toPositiveEven(Math.floor(supersampledHeight * scale), 2),
+            width: maxW,
+            height: maxH,
         };
     }
 
@@ -656,8 +649,43 @@ export class RecordingCapturePipeline {
         }
 
         const players = this._resolveRecordingPlayers(renderProjection);
-        const player = players[0] || null;
-        const otherPlayer = players[1] || null;
+        let aliveCount = 0;
+        for (let index = 0; index < players.length; index++) {
+            if (players[index]?.alive !== false) aliveCount++;
+        }
+        const subjectCount = aliveCount > 0 ? aliveCount : players.length;
+        this._cinematicSubjectElapsed += Math.max(0, Number(renderDelta) || 0);
+        const subjectIndex = subjectCount > 0
+            ? Math.floor(this._cinematicSubjectElapsed / 6) % subjectCount
+            : 0;
+        let player = null;
+        let subjectCursor = 0;
+        for (let index = 0; index < players.length; index++) {
+            const candidate = players[index];
+            if (aliveCount > 0 && candidate?.alive === false) continue;
+            if (subjectCursor === subjectIndex) {
+                player = candidate || null;
+                break;
+            }
+            subjectCursor++;
+        }
+        let otherPlayer = null;
+        if (player && subjectCount > 1) {
+            let nearestDistanceSq = Number.POSITIVE_INFINITY;
+            for (let index = 0; index < players.length; index++) {
+                const candidate = players[index];
+                if (!candidate || candidate === player) continue;
+                if (aliveCount > 0 && candidate.alive === false) continue;
+                const dx = (Number(candidate?.position?.x) || 0) - (Number(player?.position?.x) || 0);
+                const dy = (Number(candidate?.position?.y) || 0) - (Number(player?.position?.y) || 0);
+                const dz = (Number(candidate?.position?.z) || 0) - (Number(player?.position?.z) || 0);
+                const distanceSq = dx * dx + dy * dy + dz * dz;
+                if (distanceSq < nearestDistanceSq) {
+                    nearestDistanceSq = distanceSq;
+                    otherPlayer = candidate;
+                }
+            }
+        }
 
         const aspect = toRatio(width / Math.max(1, height), 16 / 9);
         while (this._cinematicCameraRig.cameras.length < 1) {
@@ -697,7 +725,7 @@ export class RecordingCapturePipeline {
             }
 
             this._cinematicOrbitDirector.apply({
-                playerIndex: 0,
+                playerIndex: Number.isInteger(player?.playerIndex) ? player.playerIndex : 0,
                 camera,
                 fallbackTarget: this._cinematicCameraRig.cameraTargets[0],
                 playerPosition: this._tmpPosition,
@@ -713,7 +741,7 @@ export class RecordingCapturePipeline {
                     isBoosting: player?.isBoosting === true,
                 },
                 otherPlayerPosition: otherPos,
-                baseFov: camera.fov || CONFIG.CAMERA.FOV,
+                baseFov: this._cinematicBaseFov,
             });
         }
 
@@ -727,14 +755,32 @@ export class RecordingCapturePipeline {
         }
         captureCtx.drawImage(this._cinematicCanvas, 0, 0, width, height);
 
+        const hudEnabled = /** @type {string} */ (this._settings.hudMode) === RECORDING_HUD_MODE.WITH_HUD;
+        const segments = player
+            ? [{ x: 0, y: 0, width, height, player, label: 'CINEMATIC', slotIndex: Number(player?.playerIndex) || 0 }]
+            : [];
+        if (hudEnabled) {
+            drawHudOverlay({
+                ctx: captureCtx,
+                width,
+                height,
+                segments,
+                tmpColor: this._tmpColor,
+            });
+        }
+        drawLetterboxOverlay({
+            ctx: captureCtx,
+            segments,
+            resolveLetterboxProgress: (slotIndex) => this._cinematicOrbitDirector.getLetterboxProgress(slotIndex),
+        });
         this._storeMeta({
             profile: RECORDING_CAPTURE_PROFILE.CINEMATIC,
-            hudMode: RECORDING_HUD_MODE.CLEAN,
-            overlay: 'clean',
+            hudMode: hudEnabled ? RECORDING_HUD_MODE.WITH_HUD : RECORDING_HUD_MODE.CLEAN,
+            overlay: hudEnabled ? 'hud' : 'clean',
             layout: 'cinematic_single',
             width,
             height,
-        }, player ? [{ x: 0, y: 0, width, height, player, label: 'CINEMATIC' }] : []);
+        }, segments);
     }
 
     dispose() {
@@ -748,6 +794,7 @@ export class RecordingCapturePipeline {
         this._cinematicRenderer = null;
         this._cinematicRendererUnavailable = false;
         this._cinematicCanvas = null;
+        this._cinematicSubjectElapsed = 0;
         this._captureCanvas = null;
         this._captureCtx = null;
         this._shortsCameraRig.resetCameras();

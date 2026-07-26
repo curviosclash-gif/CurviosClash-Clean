@@ -937,7 +937,10 @@ module.exports = Object.freeze({
     buildRecordingVideoTempPath,
     createRecordingVideoExportJob,
     createUnavailableNativeTranscodeCapability,
+    executeProcess,
     normalizeRecordingVideoExportRequest,
+    probeNativeTranscodeCapability,
     resolveRecordingVideoExportTranscodeIntent,
     resolveRecordingVideoSaveCapabilityStatus,
+    terminateChildProcess,
 });

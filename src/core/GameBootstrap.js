@@ -9,6 +9,7 @@ import { PlanarAimAssistSystem } from './PlanarAimAssistSystem.js';
 import { MatchSessionRuntimeBridge } from './MatchSessionRuntimeBridge.js';
 import { BuildInfoController } from './BuildInfoController.js';
 import { MediaRecorderSystem } from './MediaRecorderSystem.js';
+import { createCinematicReplayFrameRenderer } from './recording/CinematicReplayRenderRuntime.js';
 import { createRuntimePorts } from '../shared/runtime/GameRuntimePorts.js';
 import { GAME_MODE_TYPES } from '../hunt/HuntMode.js';
 import { CONFIG } from './Config.js';
@@ -83,6 +84,7 @@ export function bootstrapGameRuntime(game, options = {}) {
         throw new Error('Cannot initialize game runtime: missing #game-canvas element.');
     }
     const renderer = new Renderer(canvas);
+    const audio = new AudioManager();
     renderer.setGraphicsStyle(game.settings?.localSettings?.graphicsStyle);
     renderer.setShadowQuality(game.settings?.localSettings?.shadowQuality);
     const recorderRuntimeConfig = resolveRecorderRuntimeConfig();
@@ -95,10 +97,28 @@ export function bootstrapGameRuntime(game, options = {}) {
         downloadDirectoryName: RECORDING_DOWNLOAD_DIRECTORY,
         captureSourceResolver: () => renderer.getRecordingCaptureCanvas?.() || canvas,
         recordingCaptureSettings: game.settings?.recording,
+        replayAudioSourceResolver: () => audio.acquireRecordingStream?.() || null,
+        offlineReplayFrameRenderer: createCinematicReplayFrameRenderer({ game, renderer }),
+        onReplayExportStatus: (status) => {
+            const phase = String(status?.phase || '');
+            if (phase === 'rendering' && Math.round((Number(status?.progress) || 0) * 100) % 5 !== 0) {
+                return;
+            }
+            const tone = phase === 'failed'
+                ? 'error'
+                : (phase === 'saved' ? 'success' : (phase === 'cancelled' ? 'warning' : 'info'));
+            game?._showStatusToast?.(status?.message || 'Cinematic Replay Export', 1800, tone);
+            const warning = Array.isArray(status?.warnings) ? status.warnings[0] : null;
+            if (warning) {
+                game?._showStatusToast?.(`Video gespeichert mit Warnung: ${warning}`, 3200, 'warning');
+            }
+        },
         onRecordingStateChange: (isRecording) => {
-            renderer.setRecordingActive?.(isRecording);
+            const liveRecordingActive = isRecording === true
+                && mediaRecorderSystem?.isLiveRecording?.() === true;
+            renderer.setRecordingActive?.(liveRecordingActive);
             const captureProfile = mediaRecorderSystem?.getRecordingCaptureSettings?.()?.profile;
-            const cinematicRecordingActive = isRecording === true
+            const cinematicRecordingActive = liveRecordingActive
                 && isCinematicCaptureProfile(captureProfile);
             renderer.setRecordingQualityLock?.(cinematicRecordingActive, 'cinematic-recording');
         },
@@ -136,7 +156,7 @@ export function bootstrapGameRuntime(game, options = {}) {
             renderer,
             mediaRecorderSystem,
             input: new InputManager(),
-            audio: new AudioManager(),
+            audio,
             ui,
         },
         lifecycle: {

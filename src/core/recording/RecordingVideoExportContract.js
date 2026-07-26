@@ -295,6 +295,7 @@ export function createRecordingVideoExportRequest(options = {}) {
         deliveryContainer: matrixEntry.deliveryContainer,
         transcodeApplied: false,
         transcodeRequested: matrixEntry.transcodeRequested,
+        browserFallbackAllowed: matrixEntry.browserFallbackAllowed === true,
         surfaceClassification: normalizeString(options.surfaceClassification, ''),
         exportMatrix: Object.freeze({
             runtimeKind: matrixEntry.runtimeKind,
@@ -306,6 +307,7 @@ export function createRecordingVideoExportRequest(options = {}) {
             masterContainer: matrixEntry.masterContainer,
             deliveryContainer: matrixEntry.deliveryContainer,
             transcodeRequested: matrixEntry.transcodeRequested,
+            browserFallbackAllowed: matrixEntry.browserFallbackAllowed === true,
         }),
         videoBytes: options.videoBytes ?? null,
     });

@@ -225,6 +225,42 @@ export function createElectronPreloadSaveAdapter(runtimeGlobal = globalThis) {
         appRuntime,
         appRuntime?.getRecordingVideoExportCapability
     );
+    const beginCinematicReplayExport = createCapabilityIntent(
+        saveContract,
+        saveContract?.beginCinematicReplayExport,
+        appRuntime,
+        appRuntime?.beginCinematicReplayExport
+    );
+    const appendCinematicReplayFrame = createCapabilityIntent(
+        saveContract,
+        saveContract?.appendCinematicReplayFrame,
+        appRuntime,
+        appRuntime?.appendCinematicReplayFrame
+    );
+    const finishCinematicReplayExport = createCapabilityIntent(
+        saveContract,
+        saveContract?.finishCinematicReplayExport,
+        appRuntime,
+        appRuntime?.finishCinematicReplayExport
+    );
+    const cancelCinematicReplayExport = createCapabilityIntent(
+        saveContract,
+        saveContract?.cancelCinematicReplayExport,
+        appRuntime,
+        appRuntime?.cancelCinematicReplayExport
+    );
+    const getCinematicReplayExportStatus = createCapabilityIntent(
+        saveContract,
+        saveContract?.getCinematicReplayExportStatus,
+        appRuntime,
+        appRuntime?.getCinematicReplayExportStatus
+    );
+    const listCinematicReplayExportOrphans = createCapabilityIntent(
+        saveContract,
+        saveContract?.listCinematicReplayExportOrphans,
+        appRuntime,
+        appRuntime?.listCinematicReplayExportOrphans
+    );
     const available = resolveCapabilityAvailability(
         [saveReplay, saveVideo, saveRecordingVideoExport],
         'any'
@@ -258,6 +294,12 @@ export function createElectronPreloadSaveAdapter(runtimeGlobal = globalThis) {
         saveVideo,
         saveRecordingVideoExport,
         getRecordingVideoExportCapability,
+        beginCinematicReplayExport,
+        appendCinematicReplayFrame,
+        finishCinematicReplayExport,
+        cancelCinematicReplayExport,
+        getCinematicReplayExportStatus,
+        listCinematicReplayExportOrphans,
     });
 }
 
@@ -381,4 +423,3 @@ export function isDesktopPlatformRuntime(runtimeGlobal = globalThis) {
 
 export const createElectronDiscoveryIntentBridge = createElectronPreloadDiscoveryAdapter;
 export const createElectronHostIntentBridge = createElectronPreloadHostAdapter;
-

@@ -4,6 +4,7 @@ import { NativeMediaRecorderEngine } from './recording/engines/NativeMediaRecord
 import {
     MATCH_LIFECYCLE_CONTRACT_VERSION,
     MATCH_LIFECYCLE_EVENT_TYPES,
+    SESSION_FINALIZE_TRIGGERS,
 } from '../shared/contracts/MatchLifecycleContract.js';
 import {
     defaultDownload,
@@ -45,6 +46,13 @@ import {
     attachDirectMediaRecorderStopHandler,
     finalizeMediaRecorderBlobExport,
 } from './recording/MediaRecorderExportFinalizeOps.js';
+import { CinematicReplayRecorder } from './recording/CinematicReplayRecorder.js';
+import { CinematicReplayExportController } from './recording/CinematicReplayExportController.js';
+import {
+    captureCinematicReplayState,
+    startCinematicReplay,
+    stopAndExportCinematicReplay,
+} from './recording/CinematicReplayMediaRecorderOps.js';
 const DEFAULT_CONTRACT_VERSION = MATCH_LIFECYCLE_CONTRACT_VERSION;
 export const LIFECYCLE_EVENT_TYPES = MATCH_LIFECYCLE_EVENT_TYPES;
 export class MediaRecorderSystem {
@@ -65,6 +73,9 @@ export class MediaRecorderSystem {
         recordingCaptureSettings = null,
         globalScope = null,
         runtimePerfProfiler = null,
+        replayAudioSourceResolver = null,
+        offlineReplayFrameRenderer = null,
+        onReplayExportStatus = null,
     } = {}) {
         this.canvas = canvas || null;
         this.autoRecordingEnabled = autoRecordingEnabled !== false;
@@ -87,6 +98,20 @@ export class MediaRecorderSystem {
         this._globalScope = resolveGlobalScope(globalScope);
         this._perfNow = resolvePerfNow(this._globalScope);
         this.runtimePerfProfiler = runtimePerfProfiler || null;
+        this.replayAudioSourceResolver = typeof replayAudioSourceResolver === 'function'
+            ? replayAudioSourceResolver
+            : null;
+        this._cinematicReplayRecorder = new CinematicReplayRecorder({
+            now: this.now,
+            globalScope: this._globalScope,
+            logger: this.logger,
+        });
+        this._cinematicReplayExporter = new CinematicReplayExportController({
+            runtimeGlobal: this._globalScope,
+            renderFrame: offlineReplayFrameRenderer,
+            onStatus: onReplayExportStatus,
+            logger: this.logger,
+        });
         this._muxer = null;
         this._videoEncoder = null;
         this._mediaRecorder = null;
@@ -250,7 +275,18 @@ export class MediaRecorderSystem {
         this.autoRecordingEnabled = !!enabled;
     }
     isRecording() {
+        return this._isRecording
+            || this._cinematicReplayRecorder.isRecording
+            || this._cinematicReplayExporter.isExporting;
+    }
+    isLiveRecording() {
         return this._isRecording;
+    }
+    isCinematicReplayRecording() {
+        return this._cinematicReplayRecorder.isRecording;
+    }
+    isCinematicReplayExporting() {
+        return this._cinematicReplayExporter.isExporting;
     }
     setCaptureFps(fps) {
         const nextFps = Math.max(1, Math.floor(Number(fps) || 0));
@@ -266,10 +302,10 @@ export class MediaRecorderSystem {
         }
         return this.captureFps;
     }
-    _notifyRecordingStateChange(isRecording) {
+    _notifyRecordingStateChange(isRecording, details = null) {
         if (typeof this.onRecordingStateChange !== 'function') return;
         try {
-            this.onRecordingStateChange(!!isRecording);
+            this.onRecordingStateChange(!!isRecording, details);
         } catch (error) {
             this.logger?.warn?.('[MediaRecorderSystem] recording state callback failed', error);
         }
@@ -818,7 +854,10 @@ export class MediaRecorderSystem {
         if (this._lifecycleEvents.length > 24) {
             this._lifecycleEvents.shift();
         }
-        if (eventType === LIFECYCLE_EVENT_TYPES.MATCH_STARTED && this.autoRecordingEnabled) {
+        if (eventType === LIFECYCLE_EVENT_TYPES.MATCH_STARTED && (
+            this.autoRecordingEnabled
+            || isCinematicCaptureProfile(this.recordingCaptureSettings?.profile)
+        )) {
             this.startRecording(event);
             return event;
         }
@@ -1080,12 +1119,27 @@ export class MediaRecorderSystem {
             captureExportPreset: this._activeRecording.captureExportPreset,
         });
     }
+    _startCinematicReplay(trigger = null) {
+        return startCinematicReplay(this, trigger);
+    }
+    captureReplayState(options = null) {
+        return captureCinematicReplayState(this, options);
+    }
+    async _stopAndExportCinematicReplay(trigger = null) {
+        return stopAndExportCinematicReplay(this, trigger);
+    }
+    cancelCinematicReplayExport() {
+        return this._cinematicReplayExporter.cancel();
+    }
     async startRecording(trigger = null) {
         if (this._pendingStop) {
             return this._buildStartResult(false, 'stop_pending');
         }
         if (this.isRecording()) {
             return this._buildStartResult(false, 'already_recording');
+        }
+        if (isCinematicCaptureProfile(this.recordingCaptureSettings?.profile)) {
+            return this._startCinematicReplay(trigger);
         }
         this._resolveCaptureCanvas();
         const support = this.getSupportState();
@@ -1113,6 +1167,15 @@ export class MediaRecorderSystem {
     async stopRecording(trigger = null) {
         if (this._pendingStop) {
             return this._pendingStop;
+        }
+        if (this._cinematicReplayExporter.isExporting) {
+            if (trigger?.type === 'cancel_export' || trigger?.command === 'cancel') {
+                return this.cancelCinematicReplayExport();
+            }
+            return this._cinematicReplayExporter.settle();
+        }
+        if (this._cinematicReplayRecorder.isRecording) {
+            return this._stopAndExportCinematicReplay(trigger);
         }
         if (!this._isRecording) {
             return this._buildStopResult(false, 'not_recording');
@@ -1150,6 +1213,24 @@ export class MediaRecorderSystem {
                         if (typeof resolve === 'function') {
                             resolve(result);
                         }
+                        return result;
+                    }
+                    if (strategyStopResult.partial === true) {
+                        const result = this._buildStopResult(false, strategyStopResult.partialReason || 'partial_recording', {
+                            partial: true,
+                            partialReason: strategyStopResult.partialReason || 'partial_recording',
+                            replayRetained: false,
+                        });
+                        const resolve = this._activeRecording?.stopResolve;
+                        this._lastExport = {
+                            blob: strategyStopResult.blob,
+                            mimeType: strategyStopResult.mimeType || this._activeMimeType,
+                            partial: true,
+                            partialReason: result.partialReason,
+                        };
+                        this._cleanupRuntimeRecorder();
+                        this._pendingStop = null;
+                        if (typeof resolve === 'function') resolve(result);
                         return result;
                     }
                     this.logger?.info?.(
@@ -1214,6 +1295,24 @@ export class MediaRecorderSystem {
                     }
                     return result;
                 }
+                if (strategyStopResult.partial === true) {
+                    const result = this._buildStopResult(false, strategyStopResult.partialReason || 'partial_recording', {
+                        partial: true,
+                        partialReason: strategyStopResult.partialReason || 'partial_recording',
+                        replayRetained: false,
+                    });
+                    const resolve = this._activeRecording?.stopResolve;
+                    this._lastExport = {
+                        blob: strategyStopResult.blob,
+                        mimeType: strategyStopResult.mimeType || DEFAULT_MIME_TYPE,
+                        partial: true,
+                        partialReason: result.partialReason,
+                    };
+                    this._cleanupRuntimeRecorder();
+                    this._pendingStop = null;
+                    if (typeof resolve === 'function') resolve(result);
+                    return result;
+                }
                 this.logger?.info?.(
                     `[MediaRecorderSystem] muxer finalized (bufferSize=${strategyStopResult.bufferSize || strategyStopResult.blob.size || 0}, frameCount=${this._frameCount})`
                 );
@@ -1260,7 +1359,18 @@ export class MediaRecorderSystem {
         if (this._pendingStop) {
             return this._pendingStop;
         }
-        if (this._isRecording) {
+        if (
+            this._cinematicReplayRecorder.isRecording
+            && trigger?.type === SESSION_FINALIZE_TRIGGERS.ROUND_FINALIZE
+        ) {
+            return this._buildStopResult(false, 'cinematic_replay_continues_until_match_end', {
+                deferred: true,
+            });
+        }
+        if (this._cinematicReplayExporter.isExporting) {
+            return this._cinematicReplayExporter.settle();
+        }
+        if (this._cinematicReplayRecorder.isRecording || this._isRecording) {
             return this.stopRecording(trigger || { type: 'settle_recording' });
         }
         return this._buildStopResult(false, 'not_recording');
@@ -1309,11 +1419,15 @@ export class MediaRecorderSystem {
         this._activeRecorderEngine = RECORDER_ENGINE.NONE;
         this._notifyRecordingStateChange(false);
     }
-    dispose() {
-        if (this._pendingStop || this._isRecording) this.settleRecording({ type: 'dispose' }).catch(() => {
-            this._cleanupRuntimeRecorder();
-            this._pendingStop = null;
-        });
+    async dispose() {
+        if (this._pendingStop || this.isRecording()) {
+            try {
+                await this.settleRecording({ type: 'dispose' });
+            } catch {
+                this._cleanupRuntimeRecorder();
+                this._pendingStop = null;
+            }
+        }
         if (this._lastExport?.objectUrl) {
             URL.revokeObjectURL(this._lastExport.objectUrl);
         }
@@ -1323,5 +1437,6 @@ export class MediaRecorderSystem {
             this._cleanupRuntimeRecorder();
             this._pendingStop = null;
         }
+        this._cinematicReplayRecorder.reset();
     }
 }
