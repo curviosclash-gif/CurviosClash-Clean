@@ -137,6 +137,9 @@ export class MenuController {
             emitSettingsChangedImmediate: (changedKeys) => this._emitSettingsChangedImmediate(changedKeys),
             queueInputSettingsChanged: (changedKeys) => this._queueInputSettingsChanged(changedKeys),
             bind: (target, type, handler, options) => this._bind(target, type, handler, options),
+            registerDisposer: (disposer) => {
+                if (typeof disposer === 'function') this._disposers.push(disposer);
+            },
         };
 
         setupMenuGameplayBindings(bindingContext);

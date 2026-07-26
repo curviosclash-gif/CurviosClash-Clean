@@ -797,6 +797,66 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(result.message).not.toContain('WebM');
     });
 
+    test('T20l3: Cinematic-Renderliste rendert nur die ausgewaehlte Aufnahme', async ({ page }) => {
+        await page.goto('/', { waitUntil: 'commit' });
+        await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
+        const prepared = await page.evaluate(() => {
+            const recorder = window.GAME_INSTANCE?.mediaRecorderSystem;
+            const library = recorder?._cinematicReplayLibrary;
+            if (!recorder || !library) return null;
+            const createReplay = (matchId, startedAt) => ({
+                matchId,
+                startedAt,
+                endedAt: startedAt + 2000,
+                durationMs: 2000,
+                sampleFps: 30,
+                metadata: {},
+                snapshots: [{ timeMs: 0 }, { timeMs: 2000 }],
+                snapshotCount: 2,
+                estimatedBytes: 1024,
+                partial: false,
+                audioBlob: null,
+            });
+            const first = library.enqueue(createReplay('menu-first', 1000));
+            const second = library.enqueue(createReplay('menu-second', 2000));
+            recorder._cinematicReplayExporter.export = async (replay) => ({
+                saved: true,
+                fileName: `${replay.matchId}.mp4`,
+                filePath: `C:\\Videos\\${replay.matchId}.mp4`,
+            });
+            recorder._notifyCinematicReplayLibraryChange();
+            return {
+                firstId: first.recording?.recordingId || '',
+                secondId: second.recording?.recordingId || '',
+            };
+        });
+
+        expect(prepared?.firstId).toBeTruthy();
+        expect(prepared?.secondId).toBeTruthy();
+        await expect(page.locator('#cinematic-replay-recording-select option')).toHaveCount(2);
+        await page.evaluate((recordingId) => {
+            const select = document.getElementById('cinematic-replay-recording-select');
+            select.value = recordingId;
+            select.dispatchEvent(new Event('change', { bubbles: true }));
+        }, prepared.firstId);
+        await page.evaluate(() => document.getElementById('cinematic-replay-render-button')?.click());
+        await page.waitForFunction(
+            () => window.GAME_INSTANCE?.mediaRecorderSystem?.listCinematicReplayRecordings?.().length === 1
+        );
+
+        const result = await page.evaluate(() => ({
+            remaining: window.GAME_INSTANCE?.mediaRecorderSystem
+                ?.listCinematicReplayRecordings?.()
+                .map((recording) => recording.recordingId) || [],
+            options: Array.from(
+                document.querySelectorAll('#cinematic-replay-recording-select option'),
+                (option) => option.value
+            ),
+        }));
+        expect(result.remaining).toEqual([prepared.secondId]);
+        expect(result.options).toEqual([prepared.secondId]);
+    });
+
     test('T20m: Recording-AutoDownload ist aktiv und nutzt Videos-Ordnername', async ({ page }) => {
         await loadGame(page);
         const recorderState = await page.evaluate(() => {

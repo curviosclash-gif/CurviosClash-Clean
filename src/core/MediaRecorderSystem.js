@@ -48,10 +48,12 @@ import {
 } from './recording/MediaRecorderExportFinalizeOps.js';
 import { CinematicReplayRecorder } from './recording/CinematicReplayRecorder.js';
 import { CinematicReplayExportController } from './recording/CinematicReplayExportController.js';
+import { CinematicReplayLibrary } from './recording/CinematicReplayLibrary.js';
 import {
     captureCinematicReplayState,
+    renderQueuedCinematicReplay,
     startCinematicReplay,
-    stopAndExportCinematicReplay,
+    stopAndQueueCinematicReplay,
 } from './recording/CinematicReplayMediaRecorderOps.js';
 const DEFAULT_CONTRACT_VERSION = MATCH_LIFECYCLE_CONTRACT_VERSION;
 export const LIFECYCLE_EVENT_TYPES = MATCH_LIFECYCLE_EVENT_TYPES;
@@ -106,6 +108,8 @@ export class MediaRecorderSystem {
             globalScope: this._globalScope,
             logger: this.logger,
         });
+        this._cinematicReplayLibrary = new CinematicReplayLibrary({ now: this.now });
+        this._cinematicReplayLibraryListeners = new Set();
         this._cinematicReplayExporter = new CinematicReplayExportController({
             runtimeGlobal: this._globalScope,
             renderFrame: offlineReplayFrameRenderer,
@@ -287,6 +291,33 @@ export class MediaRecorderSystem {
     }
     isCinematicReplayExporting() {
         return this._cinematicReplayExporter.isExporting;
+    }
+    listCinematicReplayRecordings() {
+        return this._cinematicReplayLibrary.list();
+    }
+    subscribeCinematicReplayRecordings(listener) {
+        if (typeof listener !== 'function') return () => {};
+        this._cinematicReplayLibraryListeners.add(listener);
+        listener(this.listCinematicReplayRecordings());
+        return () => this._cinematicReplayLibraryListeners.delete(listener);
+    }
+    _notifyCinematicReplayLibraryChange() {
+        const recordings = this.listCinematicReplayRecordings();
+        for (const listener of this._cinematicReplayLibraryListeners) {
+            try {
+                listener(recordings);
+            } catch (error) {
+                this.logger?.warn?.('[MediaRecorderSystem] replay library listener failed', error);
+            }
+        }
+    }
+    renderCinematicReplayRecording(recordingId) {
+        return renderQueuedCinematicReplay(this, recordingId);
+    }
+    discardCinematicReplayRecording(recordingId) {
+        const result = this._cinematicReplayLibrary.remove(recordingId);
+        if (result.removed) this._notifyCinematicReplayLibraryChange();
+        return result;
     }
     setCaptureFps(fps) {
         const nextFps = Math.max(1, Math.floor(Number(fps) || 0));
@@ -1126,8 +1157,8 @@ export class MediaRecorderSystem {
     captureReplayState(options = null) {
         return captureCinematicReplayState(this, options);
     }
-    async _stopAndExportCinematicReplay(trigger = null) {
-        return stopAndExportCinematicReplay(this, trigger);
+    async _stopAndQueueCinematicReplay(trigger = null) {
+        return stopAndQueueCinematicReplay(this, trigger);
     }
     cancelCinematicReplayExport() {
         return this._cinematicReplayExporter.cancel();
@@ -1176,7 +1207,7 @@ export class MediaRecorderSystem {
             return this._cinematicReplayExporter.settle();
         }
         if (this._cinematicReplayRecorder.isRecording) {
-            return this._stopAndExportCinematicReplay(trigger);
+            return this._stopAndQueueCinematicReplay(trigger);
         }
         if (!this._isRecording) {
             return this._buildStopResult(false, 'not_recording');
@@ -1439,5 +1470,7 @@ export class MediaRecorderSystem {
             this._pendingStop = null;
         }
         this._cinematicReplayRecorder.reset();
+        this._cinematicReplayLibrary.clear();
+        this._cinematicReplayLibraryListeners.clear();
     }
 }

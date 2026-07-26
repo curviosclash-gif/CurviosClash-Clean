@@ -388,7 +388,7 @@ export class Game {
                     outcome,
                 },
             }).catch((error) => {
-                console.warn('[Game] automatic cinematic replay export failed', error);
+                console.warn('[Game] automatic cinematic replay queueing failed', error);
             });
         }
     }

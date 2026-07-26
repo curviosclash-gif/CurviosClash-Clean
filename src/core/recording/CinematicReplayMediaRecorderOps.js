@@ -1,6 +1,12 @@
 // @ts-nocheck
 
 export function startCinematicReplay(system, trigger = null) {
+    const capacity = system._cinematicReplayLibrary.getCapacityState();
+    if (!capacity.canRecord) {
+        return system._buildStartResult(false, capacity.reason || 'replay_library_full', {
+            capacity,
+        });
+    }
     let audioSource = null;
     try {
         audioSource = system.replayAudioSourceResolver?.() || null;
@@ -57,7 +63,7 @@ export function captureCinematicReplayState(system, options = null) {
     return system._cinematicReplayRecorder.capture(options || {});
 }
 
-export async function stopAndExportCinematicReplay(system, trigger = null) {
+export async function stopAndQueueCinematicReplay(system, trigger = null) {
     if (system._pendingStop) return system._pendingStop;
     const operation = (async () => {
         const replay = await system._cinematicReplayRecorder.stop();
@@ -66,38 +72,29 @@ export async function stopAndExportCinematicReplay(system, trigger = null) {
             ...(system._activeRecording || {}),
             stopTrigger: trigger || null,
         };
-        const exportResult = await system._cinematicReplayExporter.export(replay);
-        const saved = exportResult?.saved === true;
+        const queueResult = system._cinematicReplayLibrary.enqueue(replay);
+        const queued = queueResult?.queued === true;
         const result = system._buildStopResult(
-            saved,
-            saved ? 'stopped' : (exportResult?.reason || 'export_failed'),
+            queued,
+            queued ? 'queued_for_render' : (queueResult?.reason || 'replay_queue_failed'),
             {
-                ...exportResult,
+                ...queueResult,
                 mode: 'cinematic_replay',
                 recorderEngine: 'cinematic-replay',
                 captureProfile: system._activeRecording?.captureProfile || system.recordingCaptureSettings?.profile || null,
                 hudMode: system._activeRecording?.hudMode || system.recordingCaptureSettings?.hudMode || null,
                 captureExportPreset: system._activeRecording?.captureExportPreset || system.recordingCaptureSettings?.exportPreset || null,
+                recordingId: queueResult?.recording?.recordingId || null,
+                sizeBytes: queueResult?.recording?.estimatedBytes || replay.estimatedBytes || 0,
                 partial: replay.partial === true,
                 partialReason: replay.partialReason || null,
-                replayRetained: !saved,
+                queued,
+                replayRetained: queued,
             }
         );
-        if (saved) {
-            system._lastExport = {
-                ...result,
-                fileName: exportResult.fileName || null,
-                filePath: exportResult.filePath || null,
-                deliveryPath: exportResult.filePath || null,
-                masterContainer: 'replay',
-                deliveryContainer: 'mp4',
-                container: 'mp4',
-                mimeType: 'video/mp4',
-                warnings: Array.isArray(exportResult.warnings) ? exportResult.warnings.slice() : [],
-            };
-        }
         system._activeRecording = null;
-        system._notifyRecordingStateChange(false, { mode: 'cinematic_replay', saved });
+        system._notifyRecordingStateChange(false, { mode: 'cinematic_replay', queued });
+        if (queued) system._notifyCinematicReplayLibraryChange();
         return result;
     })();
     system._pendingStop = operation;
@@ -106,4 +103,34 @@ export async function stopAndExportCinematicReplay(system, trigger = null) {
     } finally {
         if (system._pendingStop === operation) system._pendingStop = null;
     }
+}
+
+export async function renderQueuedCinematicReplay(system, recordingId) {
+    if (system._cinematicReplayRecorder.isRecording || system._pendingStop) {
+        return { saved: false, reason: 'recording_active' };
+    }
+    const replay = system._cinematicReplayLibrary.getReplay(recordingId);
+    if (!replay) return { saved: false, reason: 'recording_not_found' };
+    const exportResult = await system._cinematicReplayExporter.export(replay);
+    if (exportResult?.saved !== true) {
+        return { ...exportResult, recordingId, replayRetained: true };
+    }
+    system._cinematicReplayLibrary.remove(recordingId);
+    system._lastExport = {
+        ...exportResult,
+        fileName: exportResult.fileName || null,
+        filePath: exportResult.filePath || null,
+        deliveryPath: exportResult.filePath || null,
+        masterContainer: 'replay',
+        deliveryContainer: 'mp4',
+        container: 'mp4',
+        mimeType: 'video/mp4',
+        warnings: Array.isArray(exportResult.warnings) ? exportResult.warnings.slice() : [],
+    };
+    system._notifyCinematicReplayLibraryChange();
+    return {
+        ...exportResult,
+        recordingId,
+        replayRetained: false,
+    };
 }

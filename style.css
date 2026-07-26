@@ -4318,6 +4318,17 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 5px;
 }
 
+.recording-render-actions {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+}
+
+.recording-render-actions .secondary-btn {
+    padding: 10px;
+    font-size: 0.9rem;
+}
+
 /* Productive desktop hangar workshop */
 .hangar-workshop-shell {
     --hangar-blue: #62b8ff;

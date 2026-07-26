@@ -243,12 +243,25 @@ export class GameRuntimeFacade {
     _createMenuRuntimeAccess() {
         const game = this.game;
         const settingsStore = game?.settingsManager?.getSettingsRecordStorePort?.() || null;
+        const getMediaRecorder = () => this.getRuntimeHandle('mediaRecorderSystem');
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
             requestArcadeReplayPlayback: () => this.requestArcadeReplayPlayback(),
             showStatusToast: (message, duration, tone) => game?._showStatusToast?.(message, duration, tone),
             getSettingsStore: () => settingsStore,
             arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(settingsStore),
+            listCinematicReplayRecordings: () => getMediaRecorder()?.listCinematicReplayRecordings?.() || [],
+            subscribeCinematicReplayRecordings: (listener) => (
+                getMediaRecorder()?.subscribeCinematicReplayRecordings?.(listener) || (() => {})
+            ),
+            renderCinematicReplayRecording: (recordingId) => (
+                getMediaRecorder()?.renderCinematicReplayRecording?.(recordingId)
+                || Promise.resolve({ saved: false, reason: 'recorder_unavailable' })
+            ),
+            discardCinematicReplayRecording: (recordingId) => (
+                getMediaRecorder()?.discardCinematicReplayRecording?.(recordingId)
+                || { removed: false, reason: 'recorder_unavailable' }
+            ),
         });
     }
 

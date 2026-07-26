@@ -7,6 +7,7 @@ import {
     CinematicReplayRecorder,
 } from '../src/core/recording/CinematicReplayRecorder.js';
 import { CinematicReplayExportController } from '../src/core/recording/CinematicReplayExportController.js';
+import { CinematicReplayLibrary } from '../src/core/recording/CinematicReplayLibrary.js';
 import { createCinematicReplayFrameRenderer } from '../src/core/recording/CinematicReplayRenderRuntime.js';
 import { MediaRecorderSystem } from '../src/core/MediaRecorderSystem.js';
 
@@ -91,6 +92,40 @@ test('cinematic replay partial state is preserved through stop', async () => {
     assert.equal(replay.partialReason, 'snapshot_budget_exhausted');
 });
 
+test('cinematic replay library keeps individual recordings selectable and bounded', () => {
+    let now = 1000;
+    const library = new CinematicReplayLibrary({
+        now: () => now,
+        maxEntries: 2,
+        maxEstimatedBytes: 1024 * 1024,
+    });
+    const first = library.enqueue({
+        matchId: 'first',
+        startedAt: 100,
+        durationMs: 5000,
+        estimatedBytes: 100,
+        snapshots: [{ timeMs: 0 }, { timeMs: 5000 }],
+    });
+    now = 2000;
+    const second = library.enqueue({
+        matchId: 'second',
+        startedAt: 200,
+        durationMs: 7000,
+        estimatedBytes: 200,
+        snapshots: [{ timeMs: 0 }, { timeMs: 7000 }],
+    });
+
+    assert.equal(first.queued, true);
+    assert.equal(second.queued, true);
+    assert.deepEqual(
+        library.list().map((recording) => recording.matchId),
+        ['second', 'first']
+    );
+    assert.equal(library.getCapacityState().canRecord, false);
+    assert.equal(library.remove(first.recording.recordingId).removed, true);
+    assert.equal(library.getCapacityState().canRecord, true);
+});
+
 test('cinematic profile waits for manual F9 start and continues across round finalization', async () => {
     const recorder = new MediaRecorderSystem({
         canvas: null,
@@ -111,6 +146,66 @@ test('cinematic profile waits for manual F9 start and continues across round fin
     assert.equal(roundResult.deferred, true);
     assert.equal(recorder.isCinematicReplayRecording(), true);
     await recorder.dispose();
+});
+
+test('stopping cinematic capture queues it without exporting and manual render removes only the selection', async () => {
+    const recorder = new MediaRecorderSystem({
+        canvas: null,
+        globalScope: {},
+        recordingCaptureSettings: {
+            profile: 'cinematic',
+            hudMode: 'clean',
+            exportPreset: 'youtube-mp4',
+        },
+    });
+    let exportCalls = 0;
+    recorder._cinematicReplayExporter.export = async (replay) => {
+        exportCalls += 1;
+        return {
+            saved: replay.matchId === 'manual-render',
+            reason: replay.matchId === 'manual-render' ? 'saved' : 'render_failed',
+            filePath: replay.matchId === 'manual-render' ? 'C:\\Videos\\manual-render.mp4' : null,
+        };
+    };
+
+    await recorder.startRecording({
+        type: 'cinematic_manual_start',
+        context: { sessionId: 'manual-render' },
+    });
+    const stopResult = await recorder.stopRecording({ type: 'cinematic_manual_stop' });
+
+    assert.equal(stopResult.stopped, true);
+    assert.equal(stopResult.queued, true);
+    assert.equal(exportCalls, 0);
+    assert.equal(recorder.listCinematicReplayRecordings().length, 1);
+
+    const renderResult = await recorder.renderCinematicReplayRecording(stopResult.recordingId);
+    assert.equal(renderResult.saved, true);
+    assert.equal(exportCalls, 1);
+    assert.equal(recorder.listCinematicReplayRecordings().length, 0);
+});
+
+test('failed manual cinematic render retains the selected recording', async () => {
+    const recorder = new MediaRecorderSystem({
+        canvas: null,
+        globalScope: {},
+        recordingCaptureSettings: { profile: 'cinematic' },
+    });
+    await recorder.startRecording({
+        type: 'cinematic_manual_start',
+        context: { sessionId: 'retained-render' },
+    });
+    const stopResult = await recorder.stopRecording({ type: 'cinematic_manual_stop' });
+    recorder._cinematicReplayExporter.export = async () => ({
+        saved: false,
+        reason: 'render_failed',
+    });
+
+    const renderResult = await recorder.renderCinematicReplayRecording(stopResult.recordingId);
+
+    assert.equal(renderResult.saved, false);
+    assert.equal(renderResult.replayRetained, true);
+    assert.equal(recorder.listCinematicReplayRecordings().length, 1);
 });
 
 test('cinematic export streams frames once and propagates partial metadata', async () => {

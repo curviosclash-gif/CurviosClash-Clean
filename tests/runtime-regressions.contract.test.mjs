@@ -1157,7 +1157,7 @@ test('Cinematic recording switch does not restart after stop failure', async () 
     assert.equal(toasts.at(-1)?.variant, 'error');
 });
 
-test('Cinematic recording stop toast includes engine and master-delivery diagnostics', async () => {
+test('Cinematic recording stop toast points to the manual render list', async () => {
     const toasts = [];
     const recorder = {
         notifyLifecycleEvent() {},
@@ -1170,14 +1170,9 @@ test('Cinematic recording stop toast includes engine and master-delivery diagnos
         stopRecording() {
             return Promise.resolve({
                 stopped: true,
+                queued: true,
                 sizeBytes: 1_048_576,
-                mimeType: 'video/webm',
-                captureExportPreset: 'youtube-mp4',
-                masterContainer: 'webm',
-                deliveryContainer: 'mp4',
-                transcodeApplied: true,
-                recorderEngine: 'mediarecorder-native',
-                deliveryPath: 'C:\\captures\\cinematic-export.mp4',
+                recordingId: 'cinematic-queued',
             });
         },
         isRecording() {
@@ -1209,9 +1204,8 @@ test('Cinematic recording stop toast includes engine and master-delivery diagnos
     const summaryToast = toasts.at(-1) || null;
     assert.ok(summaryToast);
     assert.equal(summaryToast.variant, 'success');
-    assert.match(summaryToast.message, /Engine: MediaRecorder/);
-    assert.match(summaryToast.message, /Master: WEBM -> Delivery: MP4/);
-    assert.match(summaryToast.message, /Ziel: cinematic-export\.mp4/);
+    assert.match(summaryToast.message, /bereit \(1\.0 MB\)/);
+    assert.match(summaryToast.message, /im Menü auswählen und rendern/);
 });
 
 test('MatchKernel signalRoundEnd stays idempotent during round-end lifecycle', () => {

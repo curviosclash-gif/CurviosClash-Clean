@@ -707,6 +707,15 @@
                                         <option value="with_hud">Mit HUD</option>
                                     </select>
                                     <p id="recording-profile-hint" class="field-hint">Aufnahmeprofil: Standard – ohne HUD</p>
+                                    <label for="cinematic-replay-recording-select">Aufnahmen zum Rendern</label>
+                                    <select id="cinematic-replay-recording-select" disabled>
+                                        <option value="">Keine Aufnahmen vorhanden</option>
+                                    </select>
+                                    <div class="recording-render-actions">
+                                        <button type="button" id="cinematic-replay-render-button" class="secondary-btn" disabled>Auswahl rendern</button>
+                                        <button type="button" id="cinematic-replay-discard-button" class="secondary-btn" disabled>Auswahl entfernen</button>
+                                    </div>
+                                    <p id="cinematic-replay-library-hint" class="field-hint">F9 beendet die Aufnahme und legt sie hier zum späteren Rendern ab.</p>
                                 </div>
                             </details>
 

@@ -517,7 +517,7 @@ export class UIManager {
         }
         if (ui.recordingProfileHint) {
             const profileLabel = recordingSettings.profile === RECORDING_CAPTURE_PROFILE.CINEMATIC
-                ? 'Cinematic Replay Render'
+                ? 'Cinematic-Aufnahme (manuell rendern)'
                 : (recordingSettings.profile === RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT
                     ? 'YouTube Shorts'
                     : 'Standard-Live-Aufnahme');
