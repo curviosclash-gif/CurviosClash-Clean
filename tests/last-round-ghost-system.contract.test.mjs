@@ -126,6 +126,23 @@ test('LastRoundGhostSystem normalizes broken time and pose data without destabil
     system.dispose();
 });
 
+test('LastRoundGhostSystem holds the final frame when looping is disabled', () => {
+    const system = new LastRoundGhostSystem(createRendererStub());
+    assert.equal(system.playClip(createPlayableClip(), { loop: false }), true);
+
+    system.update(1.25);
+    const finalState = system.getState();
+    assert.equal(finalState.loopPlayback, false);
+    assert.equal(finalState.frameCursor, 1);
+    assert.equal(finalState.ghosts[0]?.x, 4);
+
+    system.update(1);
+    const heldState = system.getState();
+    assert.equal(heldState.frameCursor, 1);
+    assert.equal(heldState.ghosts[0]?.x, 4);
+    system.dispose();
+});
+
 test('LastRoundGhostSystem preserves a valid 180-degree quaternion with w zero', () => {
     const system = new LastRoundGhostSystem(createRendererStub());
     assert.equal(system.playClip({

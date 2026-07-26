@@ -141,7 +141,16 @@ export class PlayingStateSystem {
         // Legacy runtime-access callers still expose the shorter alias during kernel migration.
         const updateLastRoundGhostPlayback = this.runtimeAccess.actionUpdateLastRoundGhostPlayback
             || this.runtimeAccess.updateLastRoundGhostPlayback;
-        updateLastRoundGhostPlayback?.(dt);
+        const killcam = entityManager?._killcamSystem;
+        const killcamActive = killcam?.isActive?.() === true;
+        const killcamTimeScale = killcamActive ? (killcam.getTimeScale?.() ?? 1) : 1;
+        const scaledDt = killcamActive ? dt * killcamTimeScale : dt;
+        const visualGhostDt = killcamActive
+            ? killcam.getVisualGhostPlaybackDelta?.(scaledDt) ?? scaledDt
+            : scaledDt;
+        updateLastRoundGhostPlayback?.(visualGhostDt);
+        if (killcamActive) killcam.advanceGhostPlayback(scaledDt);
+        entityManager?._killcamSystem?.update?.(dt);
         this._matchRuntimeProjection = this.runtimeAccess.getRuntimeProjectionPort?.()
             ?.getMatchRuntimeProjection?.() || null;
         this.runtimeAccess.actionUpdatePlayingHudTick?.(dt, this._matchRuntimeProjection);
@@ -187,6 +196,10 @@ export class PlayingStateSystem {
         const runtimePerfProfiler = this.runtimeAccess.getRuntimePerfProfiler?.() || null;
         const cameraStart = runtimePerfProfiler?.startSample?.();
         entityManager.updateCameras(cameraDt, renderAlpha, true, this._matchRenderProjection);
+        const killcam = entityManager?._killcamSystem;
+        if (killcam?.isActive?.()) {
+            killcam.applyCinematicCamera(cameraDt);
+        }
         runtimePerfProfiler?.endSample?.('camera', cameraStart);
         this.runtimeAccess.getCrosshairSystem?.()?.updateCrosshairs?.(this._matchRuntimeProjection);
     }

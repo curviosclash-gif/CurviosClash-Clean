@@ -180,6 +180,7 @@ export class LastRoundGhostSystem {
         this._displayDuration = 3;
         this._sourceDuration = 0;
         this._playbackRate = 1;
+        this._loopPlayback = true;
         this._routeId = '';
         this._tmpQuatA = new THREE.Quaternion();
         this._tmpQuatB = new THREE.Quaternion();
@@ -224,12 +225,13 @@ export class LastRoundGhostSystem {
         this._displayDuration = 0;
         this._sourceDuration = 0;
         this._playbackRate = 1;
+        this._loopPlayback = true;
         this.root.visible = false;
         this._routeId = '';
         this._clearEntries();
     }
 
-    playClip(clip = null) {
+    playClip(clip = null, options = {}) {
         this.clear();
         const clipValidation = validateGhostClip(clip);
         if (!clipValidation.valid || !clipValidation.clip) {
@@ -256,6 +258,7 @@ export class LastRoundGhostSystem {
         this._sourceDuration = Math.max(0.0001, Number(safeClip.sourceDuration) || Number(safeClip.frames[safeClip.frames.length - 1]?.time) || 0.0001);
         this._displayDuration = Math.max(0.35, Number(safeClip.displayDuration) || this._sourceDuration);
         this._playbackRate = this._sourceDuration / this._displayDuration;
+        this._loopPlayback = options?.loop !== false;
         this._active = true;
         this._frameCursor = Math.min(1, Math.max(0, this._frames.length - 1));
         this._lastPlaybackTime = 0;
@@ -273,7 +276,9 @@ export class LastRoundGhostSystem {
 
         this._elapsed += Math.max(0, Number(dt) || 0);
         const cycleTime = this._displayDuration > 0
-            ? (this._elapsed % this._displayDuration)
+            ? (this._loopPlayback
+                ? this._elapsed % this._displayDuration
+                : Math.min(this._elapsed, this._displayDuration))
             : this._elapsed;
         const playbackTime = Math.min(this._sourceDuration, cycleTime * this._playbackRate);
         const loopedPlayback = playbackTime < this._lastPlaybackTime;
@@ -387,6 +392,7 @@ export class LastRoundGhostSystem {
             elapsed: Number(this._elapsed.toFixed(3)),
             displayDuration: Number(this._displayDuration.toFixed(3)),
             sourceDuration: Number(this._sourceDuration.toFixed(3)),
+            loopPlayback: this._loopPlayback,
             ghosts,
         };
     }

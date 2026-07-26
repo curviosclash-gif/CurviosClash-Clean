@@ -7,15 +7,16 @@ import { DEFAULT_BOT_POLICY_TYPE } from './ai/BotPolicyTypes.js';
 import { createBotRuntimeContext } from './ai/BotRuntimeContextFactory.js';
 import { assembleEntityRuntime } from './runtime/EntityRuntimeAssembler.js';
 import { emitHuntDamageFeedback } from '../hunt/HuntDamageFeedback.js';
-import { emitHuntEliminationFeed, rememberFightAttacker, rememberFightDeath } from '../hunt/HuntEliminationFeed.js';
+import { rememberFightAttacker } from '../hunt/HuntEliminationFeed.js';
 import { createGameModeStrategy } from '../modes/GameModeRegistry.js';
 import { LastRoundGhostSystem } from './LastRoundGhostSystem.js';
+import { KillcamSystem } from '../hunt/KillcamSystem.js';
+import { killPlayer } from './EntityPlayerDeathOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { applyLiveRuntimeConfig as _applyLiveRuntimeConfig } from './EntityManagerLiveConfigOps.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import {
     emitArcadeDamageEvent,
-    emitArcadeEliminationEvents,
     emitArcadeGameplayEvent,
 } from './runtime/EntityArcadeGameplayEvents.js';
 import { updateEntityCameraContext } from './runtime/EntityCameraContext.js';
@@ -114,6 +115,9 @@ export class EntityManager {
         this._lastRoundGhostSystem = new LastRoundGhostSystem(renderer, {
             entityManager: this,
             ghostTrailCollisionEnabled: this.entityRuntimeConfig?.TRAIL?.GHOST_COLLISION_ENABLED === true,
+        });
+        this._killcamSystem = new KillcamSystem({
+            renderer, entityManager: this, recorder, respawnSystem: this._respawnSystem,
         });
         this.projectiles = this.runtime.systems.projectileSystem.projectiles;
         this.botPolicyRegistry = new BotPolicyRegistry();
@@ -317,26 +321,7 @@ export class EntityManager {
     }
 
     _killPlayer(player, cause = 'UNKNOWN', options = {}) {
-        if (!player || !player.alive) return;
-        rememberFightDeath(player);
-        this._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
-        player.kill(); this._projectileSystem?.clearRocketTrailsForOwner?.(player);
-        if (this.gameModeStrategy?.hasScoring() && this.isFightOutcomeAuthority !== false) {
-            const scoringResult = this._huntScoring.registerElimination(player, { killer: options?.killer || null, spawnAgeSeconds: (Math.max(0, Number(this._simulationClockMs) || 0) * 0.001) - (Number(player.fightSpawnedAtSeconds) || 0) });
-            emitHuntEliminationFeed(this._eventBus, this.players, player, options?.killer, scoringResult?.assistIndices, this.audio);
-        }
-        this._respawnSystem.onPlayerDied(player);
-        if (this.particles) this.particles.spawnExplosion(player.position, player.color);
-        const killer = options?.killer || null;
-        const playExplosion = !player.isBot || (killer && !killer.isBot);
-        if (this.audio && playExplosion) this.audio.play('EXPLOSION');
-        if (this.recorder) {
-            const killerIndex = Number.isInteger(options?.killer?.index) ? options.killer.index : -1;
-            this.recorder.markPlayerDeath(player, cause);
-            this.recorder.logEvent('KILL', player.index, `cause=${cause} killer=${killerIndex}`);
-        }
-        emitArcadeEliminationEvents(this, player, cause, options);
-        this._eventBus.emitPlayerDied(player, cause);
+        killPlayer(this, player, cause, options);
     }
 
     _isBotPositionSafe(player, position) {
@@ -493,8 +478,8 @@ export class EntityManager {
         }
     }
 
-    playLastRoundGhost(clip) {
-        return this._lastRoundGhostSystem?.playClip?.(clip) || false;
+    playLastRoundGhost(clip, options = undefined) {
+        return this._lastRoundGhostSystem?.playClip?.(clip, options) || false;
     }
 
     clearLastRoundGhost() {
@@ -552,6 +537,7 @@ export class EntityManager {
             this._projectileSystem.clear();
         }
         this._lastRoundGhostSystem?.clear?.();
+        this._killcamSystem?.clear?.();
         this._overheatGunSystem.reset();
         this._respawnSystem.reset();
         this._parcoursProgressSystem?.reset?.();
@@ -574,6 +560,7 @@ export class EntityManager {
         this.onArcadeGameplayEvent = null;
         if (disposeProjectileSystem) {
             this._lastRoundGhostSystem?.dispose?.();
+            this._killcamSystem?.dispose?.();
         }
     }
 }
