@@ -282,12 +282,6 @@ export class Game {
 
     _toggleRecordingFromGlobalHotkey() {
         return this.runtimeCoordinator?.toggleCinematicRecordingFromHotkey?.();
-
-        // Case 1: Cinematic recording is active → stop it
-
-        // Case 2: Non-cinematic (auto) recording is running → silently stop, then start cinematic
-
-        // Case 3: Nothing recording → start cinematic
     }
 
     _handleGlobalInputHotkeys() {

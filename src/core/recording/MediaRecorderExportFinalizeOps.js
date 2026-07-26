@@ -2,12 +2,49 @@
 import { toFiniteNumber } from '../../utils/MathOps.js';
 import { attemptAutoDownload, buildDownloadFileName } from './DownloadService.js';
 import {
+    DEFAULT_FALLBACK_MIME_TYPE,
     DEFAULT_MIME_TYPE,
     RECORDER_ENGINE,
     sanitizeFileToken,
     toSafeDatePart,
 } from './MediaRecorderSupport.js';
 import { resolveRecordingExportContainerFromMimeType } from './RecordingVideoExportContract.js';
+
+export function attachDirectMediaRecorderStopHandler(system) {
+    const recorder = system?._mediaRecorder;
+    if (!recorder) return false;
+    const handleStop = () => {
+        const mimeType = system._mediaRecorder?.mimeType
+            || system._mediaRecorderChunks?.[0]?.type
+            || system._activeMimeType
+            || DEFAULT_FALLBACK_MIME_TYPE;
+        const blob = new Blob(system._mediaRecorderChunks || [], { type: mimeType });
+        system._mediaRecorderChunks = null;
+        system.logger?.info?.(
+            `[MediaRecorderSystem] MediaRecorder direct stop: chunks collected, blob.size=${blob.size}, mimeType=${mimeType}`
+        );
+        system._finalizeBlobExport(blob, mimeType).catch((error) => {
+            system.logger?.warn?.('[MediaRecorderSystem] direct stop finalize failed', error);
+            const resolve = system._activeRecording?.stopResolve;
+            system._cleanupRuntimeRecorder();
+            system._pendingStop = null;
+            if (typeof resolve === 'function') {
+                resolve(system._buildStopResult(false, 'export_failed', { error }));
+            }
+        });
+    };
+    if (typeof recorder.addEventListener === 'function') {
+        recorder.addEventListener('stop', handleStop, { once: true });
+    } else {
+        const previousOnStop = recorder.onstop;
+        recorder.onstop = (...args) => {
+            recorder.onstop = previousOnStop || null;
+            if (typeof previousOnStop === 'function') previousOnStop.apply(recorder, args);
+            handleStop();
+        };
+    }
+    return true;
+}
 
 function buildFilename(system, activeRecording, endedAtMs, mimeType) {
     const startedAt = activeRecording?.startedAt || endedAtMs;

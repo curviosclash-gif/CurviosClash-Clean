@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { LIFECYCLE_EVENT_TYPES, MediaRecorderSystem } from '../src/core/MediaRecorderSystem.js';
+import { attachDirectMediaRecorderStopHandler } from '../src/core/recording/MediaRecorderExportFinalizeOps.js';
 
 test('MediaRecorderSystem lifecycle close events use settleRecording contract path', () => {
     const recorder = new MediaRecorderSystem({
@@ -56,5 +57,25 @@ test('MediaRecorderSystem stops its pump as soon as recording stop begins', asyn
 
     assert.ok(pumpStops >= 1);
     assert.equal(recorder._mediaRecorderPumpTimer, null);
+});
+
+test('direct MediaRecorder stop supports the onstop compatibility path', async () => {
+    const mediaRecorder = { mimeType: 'video/webm', onstop: null };
+    let exportedBlob = null;
+    const system = {
+        _mediaRecorder: mediaRecorder,
+        _mediaRecorderChunks: [new Blob(['frame'], { type: 'video/webm' })],
+        _activeMimeType: 'video/webm',
+        _finalizeBlobExport: async (blob) => { exportedBlob = blob; },
+        logger: null,
+    };
+
+    assert.equal(attachDirectMediaRecorderStopHandler(system), true);
+    assert.equal(typeof mediaRecorder.onstop, 'function');
+    mediaRecorder.onstop();
+    await Promise.resolve();
+
+    assert.equal(exportedBlob?.size, 5);
+    assert.equal(system._mediaRecorderChunks, null);
 });
 

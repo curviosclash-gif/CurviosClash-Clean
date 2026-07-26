@@ -45,6 +45,8 @@ export class WebCodecsRecorderEngine {
             hardwareAcceleration: 'prefer-hardware',
             bitrate: this.bitrate,
             framerate: this.frameRate,
+            bitrateMode: 'constant',
+            latencyMode: 'quality',
         };
         if (family === 'avc') {
             config.avc = { format: 'avc' };
@@ -115,6 +117,7 @@ export class WebCodecsRecorderEngine {
                     codec: muxerCodec,
                     width: this.width,
                     height: this.height,
+                    frameRate: this.frameRate,
                 },
                 fastStart: 'in-memory',
                 firstTimestampBehavior: 'offset',

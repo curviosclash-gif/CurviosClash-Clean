@@ -41,7 +41,10 @@ import {
     MEDIARECORDER_SYNTHETIC_QUEUE_SOFT_MS,
     toPositiveInt,
 } from './recording/MediaRecorderSystemOps.js';
-import { finalizeMediaRecorderBlobExport } from './recording/MediaRecorderExportFinalizeOps.js';
+import {
+    attachDirectMediaRecorderStopHandler,
+    finalizeMediaRecorderBlobExport,
+} from './recording/MediaRecorderExportFinalizeOps.js';
 const DEFAULT_CONTRACT_VERSION = MATCH_LIFECYCLE_CONTRACT_VERSION;
 export const LIFECYCLE_EVENT_TYPES = MATCH_LIFECYCLE_EVENT_TYPES;
 export class MediaRecorderSystem {
@@ -125,6 +128,7 @@ export class MediaRecorderSystem {
         this._captureTimestampHistoryWriteIndex = 0;
         this._lastFrameIntervalStats = null;
         this._frameIntervalStatsDirty = false;
+        this._lastRenderRequestFrameMs = 0;
     }
     getContractVersion() {
         return this.contractVersion;
@@ -240,7 +244,7 @@ export class MediaRecorderSystem {
         return resolvedCanvas;
     }
     _getCaptureCanvas() {
-        return this._resolvedCaptureCanvas || this._resolveCaptureCanvas();
+        return this._resolveCaptureCanvas();
     }
     setAutoRecordingEnabled(enabled) {
         this.autoRecordingEnabled = !!enabled;
@@ -288,6 +292,7 @@ export class MediaRecorderSystem {
         this._captureTimestampHistoryWriteIndex = 0;
         this._lastFrameIntervalStats = null;
         this._frameIntervalStatsDirty = false;
+        this._lastRenderRequestFrameMs = 0;
     }
     _stopMediaRecorderPump() {
         if (this._mediaRecorderPumpTimer != null && typeof clearInterval === 'function') {
@@ -309,6 +314,11 @@ export class MediaRecorderSystem {
                     this._ensureMediaRecorderCaptureSurface(this._mediaRecorderPumpResolutionScale);
                 }
                 if (this._mediaRecorderVideoTrack?.requestFrame) {
+                    const nowMs = this._perfNow();
+                    const sinceLastRender = nowMs - this._lastRenderRequestFrameMs;
+                    if (sinceLastRender < intervalMs * 0.6) {
+                        return;
+                    }
                     this._mediaRecorderVideoTrack.requestFrame();
                 }
             } catch {
@@ -618,6 +628,7 @@ export class MediaRecorderSystem {
             }
             if (this._mediaRecorderSupportsRequestFrame && this._mediaRecorderVideoTrack?.requestFrame) {
                 this._mediaRecorderVideoTrack.requestFrame();
+                this._lastRenderRequestFrameMs = encodeStart;
             }
             this._frameCount += 1;
             this._captureEncodedFrames += 1;
@@ -900,7 +911,9 @@ export class MediaRecorderSystem {
         return { width, height };
     }
     _resolveRecordingBitrate(width, height) {
-        const pixelCount = Math.max(1, toPositiveInt(width, 1) * toPositiveInt(height, 1));
+        const safeWidth = toPositiveInt(width, 1);
+        const safeHeight = toPositiveInt(height, 1);
+        const pixelCount = Math.max(1, safeWidth * safeHeight);
         if (isCinematicCaptureProfile(this.recordingCaptureSettings?.profile)) {
             const bitrate1080p = toPositiveInt(
                 RECORDING_CINEMATIC_QUALITY_PROFILE?.bitrate1080p,
@@ -928,24 +941,17 @@ export class MediaRecorderSystem {
             }
             return bitrateBase;
         }
-        return 8_000_000;
-    }
-    _buildWebCodecsEncoderConfig(width, height, candidate) {
-        const codec = typeof candidate === 'object' ? candidate.codec : candidate;
-        const family = typeof candidate === 'object' ? candidate.family : 'avc';
-        const config = {
-            codec,
-            width,
-            height,
-            hardwareAcceleration: 'prefer-hardware',
-            bitrate: this._resolveRecordingBitrate(width, height),
-            framerate: this._getActiveCaptureFps(),
-        };
-        // AVC-specific: annex-b format needed for mp4-muxer
-        if (family === 'avc') {
-            config.avc = { format: 'avc' };
+        const fps = this._resolveRecordingTargetFps();
+        if (pixelCount >= (1920 * 1080) && fps >= 50) {
+            return 20_000_000;
         }
-        return config;
+        if (pixelCount >= (1920 * 1080)) {
+            return 14_000_000;
+        }
+        if (pixelCount >= (1280 * 720)) {
+            return fps >= 50 ? 12_000_000 : 8_000_000;
+        }
+        return 5_000_000;
     }
     async _startWithWebCodecs(trigger, support) {
         const targetCaptureFps = this._resolveRecordingTargetFps();
@@ -1186,6 +1192,7 @@ export class MediaRecorderSystem {
                         // Ignore flush failures and still attempt final stop.
                     }
                 }
+                attachDirectMediaRecorderStopHandler(this);
                 this._mediaRecorder.stop();
                 return pendingStop;
             }
