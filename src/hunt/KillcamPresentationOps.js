@@ -19,7 +19,10 @@ export function hideKillcamLivePresentation(killcam, players = []) {
     if (!Array.isArray(entries)) return;
     for (const player of players) {
         if (!player) continue;
-        trackPresentationObject(entries, player?.view?.group, player);
+        const playerGroup = player?.view?.group;
+        if (!killcam?.ghostSystem?.usesReplayPresentationObject?.(playerGroup)) {
+            trackPresentationObject(entries, playerGroup, player);
+        }
         trackPresentationObject(entries, player?.trail?.mesh);
         trackPresentationObject(entries, player?.trail?.glowMesh);
         trackPresentationObject(entries, player?.trail?.headMesh);

@@ -101,7 +101,8 @@ function createKillcamFixture({
 test('killcam keeps visible ghost playback aligned with its source-time camera pose', () => {
     const { killcam, killer, player, playbackCalls, seekCalls } = createKillcamFixture();
     assert.equal(killcam.onPlayerDied(player, { killer }), true);
-    assert.deepEqual(playbackCalls[0]?.options, { loop: false });
+    assert.equal(playbackCalls[0]?.options?.loop, false);
+    assert.equal(playbackCalls[0]?.options?.useLivePlayerViews, true);
 
     while (killcam._elapsed < killcam._displayDuration * 0.86) {
         const dt = 0.005;
@@ -113,6 +114,21 @@ test('killcam keeps visible ghost playback aligned with its source-time camera p
     assert.ok(Math.abs(killcam._ghostElapsed - killcam._ghostSourceDuration) < 0.01);
     assert.ok(Math.abs(seekCalls.at(-1) - killcam._ghostSourceDuration) < 0.01);
     assert.equal(killcam._hasKillerPose, true);
+    killcam.dispose();
+});
+
+test('killcam requests real live vehicle views instead of ghost bodies', () => {
+    let playbackOptions = null;
+    const { killcam, entityManager, player } = createKillcamFixture();
+    entityManager.playLastRoundGhost = (_clip, options) => {
+        playbackOptions = options;
+        return true;
+    };
+
+    assert.equal(killcam.onPlayerDied(player), true);
+    assert.equal(playbackOptions?.useLivePlayerViews, true);
+    assert.equal(playbackOptions?.livePlayers, entityManager.players);
+    assert.equal(playbackOptions?.loop, false);
     killcam.dispose();
 });
 

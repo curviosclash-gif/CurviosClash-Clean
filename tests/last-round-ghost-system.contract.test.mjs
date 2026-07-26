@@ -2,6 +2,10 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { LastRoundGhostSystem } from '../src/entities/LastRoundGhostSystem.js';
+import {
+    hideKillcamLivePresentation,
+    restoreKillcamLivePresentation,
+} from '../src/hunt/KillcamPresentationOps.js';
 
 function createRendererStub() {
     return {
@@ -76,6 +80,53 @@ test('LastRoundGhostSystem renders ghost trails in white independent of player c
     assert.equal(trail?.material?.color?.getHex(), 0xffffff);
     assert.equal(trail?.material?.emissive?.getHex(), 0xffffff);
 
+    system.dispose();
+});
+
+test('LastRoundGhostSystem replays live vehicle views for the immediate killcam only', () => {
+    const system = new LastRoundGhostSystem(createRendererStub());
+    const liveGroup = new system.root.constructor();
+    liveGroup.visible = false;
+    let syncCount = 0;
+    const livePlayer = {
+        index: 0,
+        alive: false,
+        group: liveGroup,
+        view: {
+            group: liveGroup,
+            syncFromState() {
+                syncCount += 1;
+            },
+        },
+    };
+
+    assert.equal(system.playClip(createPlayableClip(), {
+        loop: false,
+        useLivePlayerViews: true,
+        livePlayers: [livePlayer],
+    }), true);
+    assert.equal(system._entries[0]?.group, liveGroup);
+    assert.equal(system._entries[0]?.usesLivePresentation, true);
+    assert.equal(system.usesReplayPresentationObject(liveGroup), true);
+    assert.equal(liveGroup.visible, true);
+
+    const liveTrail = { visible: true };
+    livePlayer.trail = { mesh: liveTrail };
+    const presentation = {
+        ghostSystem: system,
+        entityManager: { projectiles: [] },
+        _presentationEntries: [],
+    };
+    hideKillcamLivePresentation(presentation, [livePlayer]);
+    assert.equal(liveGroup.visible, true);
+    assert.equal(liveTrail.visible, false);
+    restoreKillcamLivePresentation(presentation);
+    assert.equal(liveTrail.visible, true);
+
+    system.clear();
+    assert.equal(syncCount, 1);
+    assert.equal(liveGroup.visible, false);
+    assert.equal(system.usesReplayPresentationObject(liveGroup), false);
     system.dispose();
 });
 

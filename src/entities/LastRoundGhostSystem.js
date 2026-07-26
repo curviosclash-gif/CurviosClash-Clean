@@ -73,7 +73,37 @@ function createGhostTrail(renderer, playerMeta = {}, options = {}) {
     return trail;
 }
 
+function findLiveReplayPlayer(playerMeta, livePlayers) {
+    const playerIdx = Number(playerMeta?.idx);
+    if (!Number.isInteger(playerIdx) || !Array.isArray(livePlayers)) return null;
+    for (let i = 0; i < livePlayers.length; i++) {
+        if (livePlayers[i]?.index === playerIdx) return livePlayers[i];
+    }
+    return null;
+}
+
+function buildLiveVehicleEntry(renderer, playerMeta, options) {
+    if (options?.useLivePlayerViews !== true) return null;
+    const player = findLiveReplayPlayer(playerMeta, options.livePlayers);
+    const group = player?.view?.group || player?.group || null;
+    if (!group) return null;
+    const trail = createGhostTrail(renderer, playerMeta, options);
+    return {
+        idx: Number(playerMeta?.idx),
+        group,
+        materials: [],
+        trail,
+        trailCollisionEnabled: trail?.mesh?.userData?.trailCollisionEnabled === true,
+        livePlayer: player,
+        livePlayerWasAlive: player.alive === true,
+        originalVisible: group.visible !== false,
+        usesLivePresentation: true,
+    };
+}
+
 function buildGhostEntry(renderer, playerMeta = {}, options = {}) {
+    const liveVehicleEntry = buildLiveVehicleEntry(renderer, playerMeta, options);
+    if (liveVehicleEntry) return liveVehicleEntry;
     ensureSharedGhostGeometries();
 
     const color = new THREE.Color(Number(playerMeta?.color) || 0xffffff);
@@ -132,6 +162,12 @@ function buildGhostEntry(renderer, playerMeta = {}, options = {}) {
 }
 
 function disposeEntry(entry) {
+    if (entry?.usesLivePresentation) {
+        entry.livePlayer?.view?.syncFromState?.();
+        entry.livePlayer?.view?.applyModelScale?.();
+        const respawned = entry.livePlayerWasAlive === false && entry.livePlayer?.alive === true;
+        entry.group.visible = respawned ? true : entry.originalVisible;
+    }
     const materials = Array.isArray(entry?.materials) ? entry.materials : [];
     for (let i = 0; i < materials.length; i++) {
         materials[i]?.dispose?.();
@@ -246,9 +282,11 @@ export class LastRoundGhostSystem {
             const entry = buildGhostEntry(this.renderer, playerMeta[i], {
                 entityManager: this.entityManager,
                 trailCollisionEnabled: this._ghostTrailCollisionEnabled,
+                useLivePlayerViews: options?.useLivePlayerViews === true,
+                livePlayers: options?.livePlayers,
             });
             this._entries.push(entry);
-            this.root.add(entry.group);
+            if (!entry.usesLivePresentation) this.root.add(entry.group);
         }
 
         if (this._entries.length === 0) {
@@ -376,6 +414,16 @@ export class LastRoundGhostSystem {
             positionOut.copy(entry.group.position);
             quaternionOut.copy(entry.group.quaternion);
             return true;
+        }
+        return false;
+    }
+
+    usesReplayPresentationObject(object) {
+        if (!object) return false;
+        for (let i = 0; i < this._entries.length; i++) {
+            if (this._entries[i]?.usesLivePresentation && this._entries[i].group === object) {
+                return true;
+            }
         }
         return false;
     }

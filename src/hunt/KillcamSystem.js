@@ -207,7 +207,11 @@ export class KillcamSystem {
         }
         if (!clip) return false;
 
-        const played = entityManager.playLastRoundGhost?.(clip, { loop: false });
+        const played = entityManager.playLastRoundGhost?.(clip, {
+            loop: false,
+            useLivePlayerViews: true,
+            livePlayers: players,
+        });
         if (played !== true) return false;
 
         hideKillcamLivePresentation(this, players);
