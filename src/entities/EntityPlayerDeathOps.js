@@ -37,10 +37,12 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
             projectileType: options?.projectileType || null,
         }
     ) === true;
-    if (!killcamStarted) entityManager.particles?.spawnExplosion?.(player.position, player.color);
+    const suppressLiveDeathEffects = killcamStarted
+        && entityManager._killcamSystem?.shouldSuppressLiveDeathEffects?.() !== false;
+    if (!suppressLiveDeathEffects) entityManager.particles?.spawnExplosion?.(player.position, player.color);
     const killer = options?.killer || null;
     const playExplosion = !player.isBot || (killer && !killer.isBot);
-    if (!killcamStarted && playExplosion) entityManager.audio?.play?.('EXPLOSION');
+    if (!suppressLiveDeathEffects && playExplosion) entityManager.audio?.play?.('EXPLOSION');
     if (entityManager.recorder) {
         const killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
         entityManager.recorder.markPlayerDeath(player, cause);

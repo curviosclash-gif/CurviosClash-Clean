@@ -11,6 +11,7 @@ function createKillcamFixture({
     remainingByPlayer = { 0: 2.55 },
     reduceMotion = false,
     arena = null,
+    pixelReplayBuffer = null,
 } = {}) {
     const playbackCalls = [];
     const seekCalls = [];
@@ -114,6 +115,7 @@ function createKillcamFixture({
             getRemainingByPlayer: () => remainingByPlayer,
         },
         replaySystem,
+        pixelReplayBuffer,
     });
     return {
         camera,
@@ -182,6 +184,42 @@ test('killcam keeps scene replay aligned with its source-time camera pose', () =
     killcam.dispose();
 });
 
+test('pixel killcam records the live death frame before starting lossless playback', async () => {
+    const calls = [];
+    const terminalFrame = { time: 2000, width: 8, height: 4 };
+    const pixelReplayBuffer = {
+        canReplay: () => true,
+        captureFrame: async (options) => {
+            calls.push(['capture', options]);
+            return terminalFrame;
+        },
+        beginPlayback: async (options) => {
+            calls.push(['begin', options]);
+            return { sourceDuration: 2, frameCount: 60, width: 8, height: 4 };
+        },
+        seekSourceTime: (time) => calls.push(['seek', time]),
+        clearPlayback: () => calls.push(['clear']),
+        getState: () => ({ supported: true, playbackFrameCount: 60 }),
+        dispose() {},
+    };
+    const { killcam, player } = createKillcamFixture({ pixelReplayBuffer });
+
+    assert.equal(killcam.onPlayerDied(player), true);
+    assert.equal(killcam.isActive(), false);
+    assert.equal(killcam.shouldSuppressLiveDeathEffects(), false);
+    await killcam.captureRenderedFrame();
+
+    assert.equal(killcam.isActive(), true);
+    assert.equal(killcam.getPixelReplayState().active, true);
+    assert.equal(calls[0]?.[0], 'capture');
+    assert.equal(calls[0]?.[1]?.force, true);
+    assert.equal(calls[1]?.[0], 'begin');
+
+    killcam.advanceReplayPlayback(0.5);
+    assert.deepEqual(calls.at(-1), ['seek', 0.4]);
+    killcam.dispose();
+});
+
 test('killcam requests full scene replay with all live vehicle views', () => {
     let playbackOptions = null;
     const { killcam, entityManager, player } = createKillcamFixture();
@@ -233,6 +271,44 @@ test('EntityManager suppresses immediate death effects when a killcam starts', (
     assert.equal(particleExplosions, 0);
     assert.equal(explosionSounds, 0);
     assert.equal(capturedSnapshots, 2);
+});
+
+test('pending pixel killcam preserves the live terminal explosion for framebuffer capture', () => {
+    let particleExplosions = 0;
+    let explosionSounds = 0;
+    const player = {
+        index: 0,
+        isBot: false,
+        alive: true,
+        color: 0x44aaff,
+        position: new THREE.Vector3(1, 2, 3),
+        kill() { this.alive = false; },
+    };
+    const owner = {
+        players: [player],
+        gameModeStrategy: { hasScoring: () => false },
+        isFightOutcomeAuthority: true,
+        _parcoursProgressSystem: null,
+        _projectileSystem: { clearRocketTrailsForOwner() {} },
+        _respawnSystem: { onPlayerDied() {} },
+        _killcamSystem: {
+            onPlayerDied: () => true,
+            shouldSuppressLiveDeathEffects: () => false,
+        },
+        particles: { spawnExplosion: () => { particleExplosions++; } },
+        audio: { play: () => { explosionSounds++; } },
+        recorder: {
+            captureSnapshotNow() {},
+            markPlayerDeath() {},
+            logEvent() {},
+        },
+        _eventBus: { emitPlayerDied() {} },
+        onArcadeGameplayEvent: null,
+    };
+
+    EntityManager.prototype._killPlayer.call(owner, player, 'WALL');
+    assert.equal(particleExplosions, 1);
+    assert.equal(explosionSounds, 1);
 });
 
 test('killcam stays disabled for network sessions', () => {

@@ -134,6 +134,7 @@ export function createMatchSessionPort(runtime) {
             for (const player of entityManager.players) {
                 player?.trail?.clear?.();
             }
+            entityManager.resetKillcamFrameCapture?.();
             powerupManager.clear();
 
             runtime?.recorder?.startRound?.(entityManager.players);

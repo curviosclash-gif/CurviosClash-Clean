@@ -543,6 +543,24 @@ export class EntityManager {
         };
     }
 
+    captureKillcamRenderedFrame() {
+        return this._killcamSystem?.captureRenderedFrame?.() || null;
+    }
+
+    getKillcamPixelReplayState() {
+        return this._killcamSystem?.getPixelReplayState?.() || {
+            supported: false,
+            pending: false,
+            active: false,
+            capturedFrameCount: 0,
+            playbackFrameCount: 0,
+        };
+    }
+
+    resetKillcamFrameCapture() {
+        this._killcamSystem?.resetPixelCapture?.();
+    }
+
     getHumanPlayers() { return this.humanPlayers; }
     getRuntimeContext() { return this.runtime?.context || this._runtimeContext; }
     getTrailSpatialIndex() { return this._trailSpatialIndex; }
@@ -582,7 +600,7 @@ export class EntityManager {
         }
         this._lastRoundGhostSystem?.clear?.();
         this._killcamReplaySystem?.clear?.();
-        this._killcamSystem?.clear?.();
+        this._killcamSystem?.resetPixelCapture?.();
         this._overheatGunSystem.reset();
         this._respawnSystem.reset();
         this._parcoursProgressSystem?.reset?.();

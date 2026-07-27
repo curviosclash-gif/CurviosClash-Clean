@@ -83,6 +83,7 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
 
         player.position.set(terminal.x, terminal.y, terminal.z);
         recorder.roundStartTime = performance.now() - 2000;
+        entityManager._killcamSystem.pixelReplayBuffer.canReplay = () => false;
         entityManager._killPlayer(player, 'WALL', {
             impactPoint: player.position.clone(),
         });

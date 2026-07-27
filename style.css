@@ -6799,6 +6799,20 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     z-index: 50;
     display: block;
 }
+
+.killcam-pixel-replay {
+    position: absolute;
+    inset: 0;
+    z-index: 40;
+    display: none;
+    width: 100%;
+    height: 100%;
+    pointer-events: none;
+}
+
+#game-container.killcam-pixel-replay-active #crosshair-container {
+    visibility: hidden;
+}
 .killcam-letterbox.hidden {
     display: none;
 }
@@ -6851,5 +6865,9 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 #hud.killcam-active #hunt-p2-panel,
 #hud.killcam-active .hunt-kill-feed,
 #hud.killcam-active .hunt-damage-indicator {
+    visibility: hidden;
+}
+
+#hud.killcam-active .hunt-respawn-status {
     visibility: hidden;
 }

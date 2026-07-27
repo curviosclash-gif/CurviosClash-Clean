@@ -497,6 +497,9 @@ export class Game {
         }
         const renderStart = this.runtimePerfProfiler?.startSample?.();
         this.renderer.render();
+        if (this.state === GAME_STATE_IDS.PLAYING) {
+            this.entityManager?.captureKillcamRenderedFrame?.();
+        }
         if (this.mediaRecorderSystem?.isLiveRecording?.() === true) {
             this.renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
