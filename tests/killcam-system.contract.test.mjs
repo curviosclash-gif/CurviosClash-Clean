@@ -18,6 +18,7 @@ function createKillcamFixture({
     const explosionCalls = [];
     const directionalCalls = [];
     const shakeCalls = [];
+    let replaySourceTime = 0;
     const camera = {
         fov: 75,
         position: new THREE.Vector3(0, 4, 12),
@@ -74,11 +75,17 @@ function createKillcamFixture({
     const replaySystem = {
         seekSourceTime(sourceTime) {
             seekCalls.push(sourceTime);
+            replaySourceTime = sourceTime;
             return true;
         },
         copyPlayerPose(playerIdx, positionOut, quaternionOut) {
+            if (playerIdx === player.index) {
+                positionOut.set(3, 2, 11 - replaySourceTime * 10);
+                quaternionOut.identity();
+                return true;
+            }
             if (playerIdx !== killer.index) return false;
-            positionOut.set(0, 0, 0);
+            positionOut.set(0, 2, 6 - replaySourceTime * 5);
             quaternionOut.identity();
             return true;
         },
@@ -141,6 +148,10 @@ test('killcam keeps scene replay aligned with its source-time camera pose', () =
     assert.equal(playbackCalls[0]?.options?.terminalDeathPlayerIndex, player.index);
     assert.equal(clipRequests[0]?.maxSourceDuration, 2);
     assert.equal(clipRequests[0]?.displayDuration, 2.5);
+    assert.equal(killcam._focusPoint.z, 11);
+
+    killcam.advanceReplayPlayback(0.1);
+    assert.ok(killcam._focusPoint.z > player.position.z);
 
     while (killcam._elapsed < killcam._displayDuration * 0.86) {
         const dt = 0.005;
@@ -151,6 +162,7 @@ test('killcam keeps scene replay aligned with its source-time camera pose', () =
 
     assert.ok(Math.abs(killcam._replayElapsed - killcam._replaySourceDuration) < 0.01);
     assert.ok(Math.abs(seekCalls.at(-1) - killcam._replaySourceDuration) < 0.01);
+    assert.ok(Math.abs(killcam._focusPoint.z - player.position.z) < 0.01);
     assert.equal(explosionCalls.length, 1);
     assert.equal(directionalCalls.length, 1);
     assert.deepEqual(shakeCalls, [[0, 0.32, 0.24]]);

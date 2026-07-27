@@ -132,6 +132,9 @@ export class KillcamSystem {
         this._startAngle = 0;
 
         this._focusPoint = new THREE.Vector3();
+        this._impactPoint = new THREE.Vector3();
+        this._deadPlayerPosition = new THREE.Vector3();
+        this._deadPlayerQuaternion = new THREE.Quaternion();
         this._killerPosition = new THREE.Vector3();
         this._killerQuaternion = new THREE.Quaternion();
         this._killerDirection = new THREE.Vector3(0, 0, -1);
@@ -234,6 +237,14 @@ export class KillcamSystem {
             Number(focusSource?.y) || 0,
             Number(focusSource?.z) || 0
         );
+        this._impactPoint.copy(this._focusPoint);
+        if (this._deadPlayerIndex >= 0 && this.replaySystem?.copyPlayerPose?.(
+            this._deadPlayerIndex,
+            this._deadPlayerPosition,
+            this._deadPlayerQuaternion
+        ) === true) {
+            this._focusPoint.copy(this._deadPlayerPosition);
+        }
         this._impactDirection.set(0, 0, -1);
         const playerQuaternion = player?.quaternion;
         if (playerQuaternion && Number.isFinite(Number(playerQuaternion.w))) {
@@ -306,6 +317,13 @@ export class KillcamSystem {
         );
         const replaySystem = this.replaySystem;
         replaySystem?.seekSourceTime?.(this._replayElapsed, Math.max(0, Number(scaledDt) || 0));
+        if (this._deadPlayerIndex >= 0 && replaySystem?.copyPlayerPose?.(
+            this._deadPlayerIndex,
+            this._deadPlayerPosition,
+            this._deadPlayerQuaternion
+        ) === true) {
+            this._focusPoint.copy(this._deadPlayerPosition);
+        }
         if (!this._explosionTriggered && this._replayElapsed >= this._replaySourceDuration) {
             this._triggerDeathExplosion();
         }
@@ -322,7 +340,7 @@ export class KillcamSystem {
     _triggerDeathExplosion() {
         this._explosionTriggered = true;
         const particles = this.entityManager?.particles;
-        const focus = this._focusPoint;
+        const focus = this._impactPoint;
         if (typeof particles?.spawnDirectional === 'function') {
             try {
                 this._tmpVec.copy(this._impactDirection).multiplyScalar(-1);

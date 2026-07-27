@@ -92,6 +92,11 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
             reason: '',
             playerIndex: player.index,
             playerColor: player.color,
+            initialReplayFocus: {
+                x: entityManager._killcamSystem?._focusPoint?.x,
+                y: entityManager._killcamSystem?._focusPoint?.y,
+                z: entityManager._killcamSystem?._focusPoint?.z,
+            },
             terminal,
             runtimeKind: window.curviosApp?.capabilities?.runtimeKind || null,
         };
@@ -99,14 +104,22 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
 
     expect(setup.ok, setup.reason).toBeTruthy();
     expect(setup.runtimeKind).toBe('electron');
+    expect(setup.initialReplayFocus?.z).toBeCloseTo(setup.terminal.z + 12, 1);
 
     const midpointState = await page.evaluate((playerIndex) => {
         const entityManager = window.GAME_INSTANCE?.entityManager;
-        entityManager?._killcamReplaySystem?.seekSourceTime?.(1, 0);
+        const killcam = entityManager?._killcamSystem;
+        killcam._replayElapsed = 1;
+        killcam.advanceReplayPlayback(0);
         entityManager?.renderInterpolatedTransforms?.(1, 1 / 60);
         const replayState = entityManager?.getKillcamReplayState?.();
         return {
             player: replayState?.ghosts?.find?.((entry) => entry.idx === playerIndex) || null,
+            cameraFocus: {
+                x: killcam?._focusPoint?.x,
+                y: killcam?._focusPoint?.y,
+                z: killcam?._focusPoint?.z,
+            },
             otherPlayersVisible: replayState?.ghosts?.filter?.(
                 (entry) => entry.idx !== playerIndex && entry.visible === true
             )?.length || 0,
@@ -120,6 +133,9 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
     expect(midpointState?.player?.x).toBeCloseTo(setup.terminal.x, 1);
     expect(midpointState?.player?.y).toBeCloseTo(setup.terminal.y, 1);
     expect(midpointState?.player?.z).toBeCloseTo(setup.terminal.z + 6, 1);
+    expect(midpointState?.cameraFocus?.x).toBeCloseTo(midpointState?.player?.x, 1);
+    expect(midpointState?.cameraFocus?.y).toBeCloseTo(midpointState?.player?.y, 1);
+    expect(midpointState?.cameraFocus?.z).toBeCloseTo(midpointState?.player?.z, 1);
     expect(midpointState?.player?.trailColor).toBe(setup.playerColor);
     expect(midpointState?.otherPlayersVisible).toBeGreaterThan(0);
     expect(midpointState?.projectileCount).toBe(1);
