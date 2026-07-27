@@ -12,6 +12,7 @@ function createPlayer(index, isBot, x, y, z) {
         alive: true,
         position: { x, y, z },
         quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        trail: { width: 0.7, inGap: false },
     };
 }
 
@@ -83,6 +84,66 @@ test('RoundRecorder kann Bot-Ghost-Clips nur explizit fuer Debug-Pfade einschlie
     assert.ok(clip, 'expected debug ghost clip');
     assert.equal(Array.isArray(clip.players) ? clip.players.length : 0, players.length);
     assert.deepEqual(clip.players.map((player) => player.idx), [0, 1]);
+});
+
+test('RoundRecorder captures the complete dynamic scene for killcam playback', () => {
+    const recorder = new RoundRecorder();
+    const player = createPlayer(0, false, 0, 2, 4);
+    player.color = 0x22aaff;
+    const projectile = {
+        traversalId: 'rocket:1',
+        type: 'ROCKET_MEDIUM',
+        owner: player,
+        position: { x: 1, y: 2, z: 3 },
+        velocity: { x: 0, y: 0, z: -10 },
+        radius: 0.4,
+    };
+    const entityManager = {
+        players: [player],
+        projectiles: [projectile],
+        powerupManager: {
+            items: [{
+                networkId: 'powerup:1',
+                type: 'SPEED_UP',
+                baseY: 2,
+                mesh: { visible: true, position: { x: 5, y: 2, z: 6 } },
+            }],
+        },
+        particles: {
+            count: 1,
+            positions: new Float32Array([7, 8, 9]),
+            velocities: new Float32Array([1, 2, 3]),
+            lifetimes: new Float32Array([0.5]),
+            maxLifetimes: new Float32Array([1]),
+            gravities: new Float32Array([-5]),
+            scales: new Float32Array([0.4]),
+            colors: new Float32Array([1, 0.5, 0.25]),
+        },
+        entityRuntimeConfig: {
+            POWERUP: { TYPES: { SPEED_UP: { color: 0x44ff88 } } },
+        },
+    };
+
+    recorder.startRound([player]);
+    recorder.captureSnapshotNow(entityManager);
+    player.position.z = 0;
+    projectile.position.z = -2;
+    recorder.captureSnapshotNow(entityManager);
+
+    const clip = recorder.getKillcamReplayClip(entityManager, {
+        includeBots: true,
+        maxSourceDuration: 2,
+        displayDuration: 2.5,
+    });
+
+    assert.ok(clip);
+    assert.equal(clip.frames.at(-1)?.players[0]?.trailWidth, 0.7);
+    assert.equal(clip.frames.at(-1)?.projectiles[0]?.id, 'rocket:1');
+    assert.equal(clip.frames.at(-1)?.projectiles[0]?.z, -2);
+    assert.equal(clip.frames.at(-1)?.powerups[0]?.id, 'powerup:1');
+    assert.equal(clip.frames.at(-1)?.powerups[0]?.color, 0x44ff88);
+    assert.equal(clip.frames.at(-1)?.particles?.count, 1);
+    assert.equal(clip.frames.at(-1)?.particles?.values?.length, 13);
 });
 
 test('RoundRecorder schneidet das Killcam-Quellfenster exakt am Todeszeitpunkt zu', () => {

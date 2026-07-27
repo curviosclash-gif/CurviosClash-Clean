@@ -36,14 +36,50 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
             z: Number(player.position.z) || 0,
         };
         recorder._snapshotStore?.reset?.();
+        const replayProjectile = {
+            id: 'killcam-projectile',
+            type: 'ROCKET_MEDIUM',
+            owner: player,
+            position: player.position.clone(),
+            velocity: player.position.clone().set(0, 0, -20),
+            radius: 0.4,
+        };
+        const replayPowerup = {
+            networkId: 'killcam-powerup',
+            type: 'SPEED_UP',
+            baseY: terminal.y,
+            mesh: {
+                visible: true,
+                position: player.position.clone().set(terminal.x + 3, terminal.y, terminal.z + 4),
+            },
+        };
+        const replayParticles = {
+            count: 1,
+            positions: new Float32Array([terminal.x + 1, terminal.y, terminal.z + 3]),
+            velocities: new Float32Array([0, 1, 0]),
+            lifetimes: new Float32Array([1]),
+            maxLifetimes: new Float32Array([1]),
+            gravities: new Float32Array([-5]),
+            scales: new Float32Array([0.4]),
+            colors: new Float32Array([1, 0.4, 0.1]),
+        };
+        const replayScene = {
+            players: entityManager.players,
+            projectiles: [replayProjectile],
+            powerupManager: { items: [replayPowerup] },
+            particles: replayParticles,
+            entityRuntimeConfig: entityManager.entityRuntimeConfig,
+        };
 
         player.position.set(terminal.x, terminal.y, terminal.z + 12);
+        replayProjectile.position.set(terminal.x, terminal.y, terminal.z + 10);
         recorder.roundStartTime = performance.now();
-        recorder.captureSnapshotNow(entityManager.players);
+        recorder.captureSnapshotNow(replayScene);
 
         player.position.set(terminal.x, terminal.y, terminal.z + 6);
+        replayProjectile.position.set(terminal.x, terminal.y, terminal.z + 5);
         recorder.roundStartTime = performance.now() - 1000;
-        recorder.captureSnapshotNow(entityManager.players);
+        recorder.captureSnapshotNow(replayScene);
 
         player.position.set(terminal.x, terminal.y, terminal.z);
         recorder.roundStartTime = performance.now() - 2000;
@@ -55,6 +91,7 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
             ok: entityManager._killcamSystem?.isActive?.() === true,
             reason: '',
             playerIndex: player.index,
+            playerColor: player.color,
             terminal,
             runtimeKind: window.curviosApp?.capabilities?.runtimeKind || null,
         };
@@ -65,16 +102,32 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
 
     const midpointState = await page.evaluate((playerIndex) => {
         const entityManager = window.GAME_INSTANCE?.entityManager;
-        entityManager?._lastRoundGhostSystem?.seekSourceTime?.(1, 0);
+        entityManager?._killcamReplaySystem?.seekSourceTime?.(1, 0);
         entityManager?.renderInterpolatedTransforms?.(1, 1 / 60);
-        return entityManager?.getLastRoundGhostState?.()
-            ?.ghosts?.find?.((entry) => entry.idx === playerIndex) || null;
+        const replayState = entityManager?.getKillcamReplayState?.();
+        return {
+            player: replayState?.ghosts?.find?.((entry) => entry.idx === playerIndex) || null,
+            otherPlayersVisible: replayState?.ghosts?.filter?.(
+                (entry) => entry.idx !== playerIndex && entry.visible === true
+            )?.length || 0,
+            projectileCount: replayState?.projectileCount || 0,
+            powerupCount: replayState?.powerupCount || 0,
+            particleCount: replayState?.particleCount || 0,
+        };
     }, setup.playerIndex);
 
-    expect(midpointState?.visible).toBeTruthy();
-    expect(midpointState?.x).toBeCloseTo(setup.terminal.x, 1);
-    expect(midpointState?.y).toBeCloseTo(setup.terminal.y, 1);
-    expect(midpointState?.z).toBeCloseTo(setup.terminal.z + 6, 1);
+    expect(midpointState?.player?.visible).toBeTruthy();
+    expect(midpointState?.player?.x).toBeCloseTo(setup.terminal.x, 1);
+    expect(midpointState?.player?.y).toBeCloseTo(setup.terminal.y, 1);
+    expect(midpointState?.player?.z).toBeCloseTo(setup.terminal.z + 6, 1);
+    expect(midpointState?.player?.trailColor).toBe(setup.playerColor);
+    expect(midpointState?.otherPlayersVisible).toBeGreaterThan(0);
+    expect(midpointState?.projectileCount).toBe(1);
+    expect(midpointState?.powerupCount).toBe(1);
+    expect(midpointState?.particleCount).toBe(1);
+    await page.screenshot({
+        path: testInfo.outputPath('desktop-killcam-scene-midpoint.png'),
+    });
 
     await page.evaluate(() => {
         const entityManager = window.GAME_INSTANCE?.entityManager;
@@ -89,8 +142,8 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
     const terminalState = await page.evaluate((playerIndex) => {
         const entityManager = window.GAME_INSTANCE?.entityManager;
         const killcam = entityManager?._killcamSystem;
-        const ghostState = entityManager?.getLastRoundGhostState?.();
-        const replayPlayer = ghostState?.ghosts?.find?.((entry) => entry.idx === playerIndex);
+        const replayState = entityManager?.getKillcamReplayState?.();
+        const replayPlayer = replayState?.ghosts?.find?.((entry) => entry.idx === playerIndex);
         return {
             killcamActive: killcam?.isActive?.() === true,
             explosionTriggered: killcam?._explosionTriggered === true,

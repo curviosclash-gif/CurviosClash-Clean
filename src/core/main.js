@@ -431,7 +431,7 @@ export class Game {
 
         // Debug Recording
         if (this.state === GAME_STATE_IDS.PLAYING && hasInteractiveMatchRuntime && this.entityManager && this.recorder?.shouldCaptureFrames?.()) {
-            this.recorder.recordFrame(this.entityManager.players);
+            this.recorder.recordFrame(this.entityManager);
         }
 
         const replayCaptureStateActive = this.state === GAME_STATE_IDS.PLAYING

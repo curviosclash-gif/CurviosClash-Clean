@@ -138,7 +138,7 @@ export function createMatchSessionPort(runtime) {
 
             runtime?.recorder?.startRound?.(entityManager.players);
             entityManager.spawnAll();
-            runtime?.recorder?.captureSnapshotNow?.(entityManager.players);
+            runtime?.recorder?.captureSnapshotNow?.(entityManager);
             applyPendingArcadeIntermissionEffects(entityManager.players);
             for (const player of entityManager.getHumanPlayers()) {
                 player.planarAimOffset = 0;

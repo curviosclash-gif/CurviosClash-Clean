@@ -20,7 +20,7 @@ export function hideKillcamLivePresentation(killcam, players = []) {
     for (const player of players) {
         if (!player) continue;
         const playerGroup = player?.view?.group;
-        if (!killcam?.ghostSystem?.usesReplayPresentationObject?.(playerGroup)) {
+        if (!killcam?.replaySystem?.usesReplayPresentationObject?.(playerGroup)) {
             trackPresentationObject(entries, playerGroup, player);
         }
         trackPresentationObject(entries, player?.trail?.mesh);
@@ -33,6 +33,12 @@ export function hideKillcamLivePresentation(killcam, players = []) {
         : [];
     for (let i = 0; i < projectiles.length; i++) {
         trackPresentationObject(entries, projectiles[i]?.mesh);
+    }
+    const powerups = Array.isArray(killcam?.entityManager?.powerupManager?.items)
+        ? killcam.entityManager.powerupManager.items
+        : [];
+    for (let i = 0; i < powerups.length; i++) {
+        trackPresentationObject(entries, powerups[i]?.mesh);
     }
 }
 

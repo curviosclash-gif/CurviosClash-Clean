@@ -232,28 +232,31 @@ export class RoundRecorder {
         return this._enabled && this.isFrameCaptureEnabled();
     }
 
-    recordFrame(players) {
+    recordFrame(source) {
+        const players = Array.isArray(source) ? source : source?.players;
         if (!this.shouldCaptureFrames() || !Array.isArray(players)) return;
         this._frameCounter++;
         if (this._frameCounter % this._snapshotInterval !== 0) return;
-        this.captureSnapshotNow(players);
+        this.captureSnapshotNow(source);
     }
 
-    captureSnapshotNow(players = []) {
+    captureSnapshotNow(source = []) {
+        const players = Array.isArray(source) ? source : source?.players;
         if (!this.shouldCaptureFrames() || !Array.isArray(players)) return false;
-        this._snapshotStore.capture(players);
+        this._snapshotStore.capture(source);
         return true;
     }
 
-    getLastRoundGhostClip(players = [], options = {}) {
+    getLastRoundGhostClip(source = [], options = {}) {
+        const players = Array.isArray(source) ? source : source?.players;
         const includeBots = options?.includeBots === true;
         let orderedSnapshots = this._snapshotStore.getOrderedSnapshots();
         if (orderedSnapshots.length < 2 && Array.isArray(players) && players.length > 0) {
-            this.captureSnapshotNow(players);
+            this.captureSnapshotNow(source);
             orderedSnapshots = this._snapshotStore.getOrderedSnapshots();
             if (orderedSnapshots.length < 2) {
                 // Keep a deterministic fallback clip even under severe frame throttling.
-                this.captureSnapshotNow(players);
+                this.captureSnapshotNow(source);
                 orderedSnapshots = this._snapshotStore.getOrderedSnapshots();
             }
         }
@@ -293,9 +296,29 @@ export class RoundRecorder {
                     x: p.x, y: p.y, z: p.z,
                     qx: p.qx, qy: p.qy, qz: p.qz, qw: p.qw,
                     bot: p.bot,
+                    trailWidth: p.trailWidth,
+                    trailInGap: p.trailInGap,
                 });
             }
-            normalizedFrames[index] = { time: normalizedTime, players: framePlayers };
+            const projectiles = Array.isArray(snapshot?.projectiles)
+                ? snapshot.projectiles.map((entry) => ({ ...entry }))
+                : [];
+            const powerups = Array.isArray(snapshot?.powerups)
+                ? snapshot.powerups.map((entry) => ({ ...entry }))
+                : [];
+            const particleValues = Array.isArray(snapshot?.particles?.values)
+                ? snapshot.particles.values.slice()
+                : [];
+            normalizedFrames[index] = {
+                time: normalizedTime,
+                players: framePlayers,
+                projectiles,
+                powerups,
+                particles: {
+                    count: Math.max(0, Number(snapshot?.particles?.count) || 0),
+                    values: particleValues,
+                },
+            };
         }
         const sourceDuration = Number(normalizedFrames[normalizedFrames.length - 1]?.time) || 0;
         if (normalizedFrames.length < 2 || sourceDuration <= 0) return null;
@@ -312,12 +335,33 @@ export class RoundRecorder {
                 .filter(Boolean)
             : [];
 
-        return normalizeGhostClip({
+        const normalizedClip = normalizeGhostClip({
             sourceDuration,
             displayDuration: Math.max(0.5, Number(options.displayDuration) || 3),
             frames: normalizedFrames,
             players: clipPlayers,
         });
+        if (!normalizedClip) return null;
+        for (let index = 0; index < normalizedClip.frames.length; index++) {
+            const sceneFrame = normalizedFrames[index];
+            normalizedClip.frames[index].projectiles = sceneFrame.projectiles;
+            normalizedClip.frames[index].powerups = sceneFrame.powerups;
+            normalizedClip.frames[index].particles = sceneFrame.particles;
+            const normalizedPlayers = normalizedClip.frames[index].players;
+            for (let playerIndex = 0; playerIndex < normalizedPlayers.length; playerIndex++) {
+                const normalizedPlayer = normalizedPlayers[playerIndex];
+                const sourcePlayer = sceneFrame.players.find(
+                    (entry) => Number(entry?.idx) === Number(normalizedPlayer?.idx)
+                );
+                normalizedPlayer.trailWidth = sourcePlayer?.trailWidth;
+                normalizedPlayer.trailInGap = sourcePlayer?.trailInGap === true;
+            }
+        }
+        return normalizedClip;
+    }
+
+    getKillcamReplayClip(source = [], options = {}) {
+        return this.getLastRoundGhostClip(source, options);
     }
 
     dump() {

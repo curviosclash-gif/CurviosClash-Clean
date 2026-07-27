@@ -67,7 +67,7 @@ function createPlayableClip() {
     };
 }
 
-test('LastRoundGhostSystem renders ghost trails in white independent of player color', () => {
+test('ReplayScenePresentationSystem renders replay trails in the recorded player color', () => {
     const system = new LastRoundGhostSystem(createRendererStub());
 
     assert.equal(system.playClip({
@@ -76,14 +76,86 @@ test('LastRoundGhostSystem renders ghost trails in white independent of player c
     }), true);
 
     const trail = system._entries[0]?.trail;
-    assert.equal(trail?.color, 0xffffff);
-    assert.equal(trail?.material?.color?.getHex(), 0xffffff);
-    assert.equal(trail?.material?.emissive?.getHex(), 0xffffff);
+    assert.equal(trail?.color, 0x00aaff);
+    assert.equal(trail?.material?.color?.getHex(), 0x00aaff);
+    assert.equal(trail?.material?.emissive?.getHex(), 0x00aaff);
 
     system.dispose();
 });
 
-test('LastRoundGhostSystem replays live vehicle views for the immediate killcam only', () => {
+test('ReplayScenePresentationSystem projects players, projectiles, powerups and particles from one scene frame', () => {
+    const particles = {
+        count: 0,
+        positions: new Float32Array(6),
+        velocities: new Float32Array(6),
+        lifetimes: new Float32Array(2),
+        maxLifetimes: new Float32Array(2),
+        gravities: new Float32Array(2),
+        scales: new Float32Array(2),
+        colors: new Float32Array(6),
+        clear() { this.count = 0; },
+        update() {},
+    };
+    const system = new LastRoundGhostSystem(createRendererStub(), {
+        particles,
+        presentationKind: 'killcam-replay',
+    });
+    const frameScene = {
+        projectiles: [{
+            id: 'rocket:1',
+            type: 'ROCKET_MEDIUM',
+            color: 0xff5500,
+            x: 2,
+            y: 3,
+            z: 4,
+            vx: 0,
+            vy: 0,
+            vz: -10,
+            radius: 0.4,
+        }],
+        powerups: [{
+            id: 'powerup:1',
+            type: 'SPEED_UP',
+            color: 0x44ff88,
+            x: 5,
+            y: 2,
+            z: 6,
+            visible: true,
+        }],
+        particles: {
+            count: 1,
+            values: [7, 8, 9, 1, 2, 3, 0.5, 1, -5, 0.4, 1, 0.5, 0.25],
+        },
+    };
+    assert.equal(system.playClip({
+        ...createPlayableClip(),
+        players: [{ idx: 0, color: 0x2299ff }],
+        frames: [
+            {
+                time: 0,
+                players: [{ idx: 0, alive: true, x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }],
+                ...frameScene,
+            },
+            {
+                time: 1,
+                players: [{ idx: 0, alive: true, x: 1, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }],
+                ...frameScene,
+            },
+        ],
+    }, { loop: false }), true);
+
+    system.seekSourceTime(0.5);
+    const state = system.getState();
+    assert.equal(state.entryCount, 1);
+    assert.equal(state.ghosts[0]?.trailColor, 0x2299ff);
+    assert.equal(state.projectileCount, 1);
+    assert.equal(state.powerupCount, 1);
+    assert.equal(state.particleCount, 1);
+    assert.deepEqual(Array.from(particles.positions.slice(0, 3)), [7, 8, 9]);
+    system.dispose();
+});
+
+test('ReplayScenePresentationSystem can reuse live vehicle views for immediate scene playback', () => {
     const system = new LastRoundGhostSystem(createRendererStub());
     const liveGroup = new system.root.constructor();
     liveGroup.visible = false;
@@ -113,7 +185,7 @@ test('LastRoundGhostSystem replays live vehicle views for the immediate killcam 
     const liveTrail = { visible: true };
     livePlayer.trail = { mesh: liveTrail };
     const presentation = {
-        ghostSystem: system,
+        replaySystem: system,
         entityManager: { projectiles: [] },
         _presentationEntries: [],
     };

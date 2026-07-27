@@ -63,12 +63,12 @@ function isSingleNodeSession(entityManager) {
     return humans.length === 1;
 }
 
-// Compute a uniform rate multiplier so that the cumulative ghost-time advance,
+// Compute a uniform rate multiplier so that the cumulative replay-time advance,
 // driven by per-shot `timeScale` values, reaches exactly `sourceDuration`
 // at the wall-clock instant the explosion is triggered (triggerRatio * displayDuration).
-// Without this calibration the slow-mo shots (timeScale < 1) leave the ghost
+// Without this calibration the slow-mo shots (timeScale < 1) leave the replay
 // replay stuck short of the death frame, so the orbit never shows the actual impact.
-function computeGhostRateCalibration(displayDuration, sourceDuration, triggerRatio) {
+function computeReplayRateCalibration(displayDuration, sourceDuration, triggerRatio) {
     const safeD = Math.max(0.001, Number(displayDuration) || 0);
     const safeSource = Math.max(0.001, Number(sourceDuration) || 0);
     const trigger = THREE.MathUtils.clamp(Number(triggerRatio) || 0, 0.001, 1);
@@ -112,12 +112,12 @@ function hasFinitePosition(value) {
 }
 
 export class KillcamSystem {
-    constructor({ renderer, entityManager, recorder, respawnSystem, ghostSystem } = {}) {
+    constructor({ renderer, entityManager, recorder, respawnSystem, replaySystem } = {}) {
         this.renderer = renderer || null;
         this.entityManager = entityManager || null;
         this.recorder = recorder || null;
         this.respawnSystem = respawnSystem || null;
-        this.ghostSystem = ghostSystem || null;
+        this.replaySystem = replaySystem || null;
 
         this._active = false;
         this._elapsed = 0;
@@ -142,9 +142,9 @@ export class KillcamSystem {
         this._baseFov = 75;
         this._explosionTriggered = false;
         this._deadPlayerColor = 0xffffff;
-        this._ghostSourceDuration = 0;
-        this._ghostElapsed = 0;
-        this._ghostRateCalibration = 1;
+        this._replaySourceDuration = 0;
+        this._replayElapsed = 0;
+        this._replayRateCalibration = 1;
         this._hasKillerPose = false;
         this._reduceMotion = false;
         this._cameraInitialized = false;
@@ -153,12 +153,12 @@ export class KillcamSystem {
         this._ownsLetterboxEl = false;
     }
 
-    configure({ renderer, entityManager, recorder, respawnSystem, ghostSystem } = {}) {
+    configure({ renderer, entityManager, recorder, respawnSystem, replaySystem } = {}) {
         if (renderer !== undefined) this.renderer = renderer;
         if (entityManager !== undefined) this.entityManager = entityManager;
         if (recorder !== undefined) this.recorder = recorder;
         if (respawnSystem !== undefined) this.respawnSystem = respawnSystem;
-        if (ghostSystem !== undefined) this.ghostSystem = ghostSystem;
+        if (replaySystem !== undefined) this.replaySystem = replaySystem;
     }
 
     isActive() {
@@ -186,7 +186,7 @@ export class KillcamSystem {
         if (!respawnSystem.isRespawnPending?.(player)) return false;
 
         const recorder = this.recorder;
-        if (!recorder || typeof recorder.getLastRoundGhostClip !== 'function') return false;
+        if (!recorder || typeof recorder.getKillcamReplayClip !== 'function') return false;
 
         const respawnDelay = resolveRespawnDelaySeconds(respawnSystem, player);
         const displayDuration = respawnDelay > 0
@@ -202,7 +202,7 @@ export class KillcamSystem {
         const players = Array.isArray(entityManager.players) ? entityManager.players : [];
         let clip = null;
         try {
-            clip = recorder.getLastRoundGhostClip(players, {
+            clip = recorder.getKillcamReplayClip(entityManager, {
                 includeBots: true,
                 maxSourceDuration: KILLCAM_SOURCE_WINDOW_SECONDS,
                 displayDuration,
@@ -212,7 +212,7 @@ export class KillcamSystem {
         }
         if (!clip) return false;
 
-        const played = entityManager.playLastRoundGhost?.(clip, {
+        const played = entityManager.playKillcamReplay?.(clip, {
             loop: false,
             useLivePlayerViews: true,
             livePlayers: players,
@@ -221,7 +221,6 @@ export class KillcamSystem {
         if (played !== true) return false;
 
         hideKillcamLivePresentation(this, players);
-        entityManager.particles?.clear?.();
         entityManager.particles?.setPresentationSuppressed?.(true);
 
         this._active = true;
@@ -248,13 +247,13 @@ export class KillcamSystem {
         }
         this._explosionTriggered = false;
         this._deadPlayerColor = Number.isFinite(Number(player?.color)) ? Number(player.color) : 0xffffff;
-        this._ghostSourceDuration = Math.max(0.001, Number(clip?.sourceDuration) || displayDuration);
-        this._ghostElapsed = 0;
+        this._replaySourceDuration = Math.max(0.001, Number(clip?.sourceDuration) || displayDuration);
+        this._replayElapsed = 0;
         this._hasKillerPose = false;
         this._cameraInitialized = false;
-        this._ghostRateCalibration = computeGhostRateCalibration(
+        this._replayRateCalibration = computeReplayRateCalibration(
             this._displayDuration,
-            this._ghostSourceDuration,
+            this._replaySourceDuration,
             KILLCAM_EXPLOSION_TRIGGER_RATIO
         );
         this._reduceMotion = this.renderer?.getCameraPerspectiveSettings?.()?.reduceMotion === true;
@@ -298,20 +297,20 @@ export class KillcamSystem {
         }
     }
 
-    advanceGhostPlayback(scaledDt) {
+    advanceReplayPlayback(scaledDt) {
         if (!this._active) return;
-        const calibratedDt = Math.max(0, Number(scaledDt) || 0) * this._ghostRateCalibration;
-        this._ghostElapsed = Math.min(
-            this._ghostSourceDuration,
-            this._ghostElapsed + calibratedDt
+        const calibratedDt = Math.max(0, Number(scaledDt) || 0) * this._replayRateCalibration;
+        this._replayElapsed = Math.min(
+            this._replaySourceDuration,
+            this._replayElapsed + calibratedDt
         );
-        const ghostSystem = this.ghostSystem;
-        ghostSystem?.seekSourceTime?.(this._ghostElapsed, Math.max(0, Number(scaledDt) || 0));
-        if (!this._explosionTriggered && this._ghostElapsed >= this._ghostSourceDuration) {
+        const replaySystem = this.replaySystem;
+        replaySystem?.seekSourceTime?.(this._replayElapsed, Math.max(0, Number(scaledDt) || 0));
+        if (!this._explosionTriggered && this._replayElapsed >= this._replaySourceDuration) {
             this._triggerDeathExplosion();
         }
         if (this._killerIndex < 0) return;
-        this._hasKillerPose = ghostSystem?.copyPlayerPose?.(
+        this._hasKillerPose = replaySystem?.copyPlayerPose?.(
             this._killerIndex,
             this._killerPosition,
             this._killerQuaternion
@@ -602,9 +601,9 @@ export class KillcamSystem {
         this._shotDuration = 0;
         this._currentShot = null;
         this._startAngle = 0;
-        this._ghostSourceDuration = 0;
-        this._ghostElapsed = 0;
-        this._ghostRateCalibration = 1;
+        this._replaySourceDuration = 0;
+        this._replayElapsed = 0;
+        this._replayRateCalibration = 1;
         this._hasKillerPose = false;
         this._reduceMotion = false;
         this._cameraInitialized = false;
@@ -628,7 +627,7 @@ export class KillcamSystem {
                     // best-effort reset; caller owns camera state
                 }
             }
-            this.entityManager?.clearLastRoundGhost?.();
+            this.entityManager?.clearKillcamReplay?.();
         }
     }
 
@@ -641,7 +640,7 @@ export class KillcamSystem {
         this.entityManager = null;
         this.recorder = null;
         this.respawnSystem = null;
-        this.ghostSystem = null;
+        this.replaySystem = null;
         this._presentationEntries.length = 0;
         this._letterboxEl = null;
         this._ownsLetterboxEl = false;

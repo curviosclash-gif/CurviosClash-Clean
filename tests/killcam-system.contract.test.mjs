@@ -65,13 +65,13 @@ function createKillcamFixture({
         audio: { play() {} },
         projectiles: [],
         arena,
-        playLastRoundGhost(nextClip, options) {
+        playKillcamReplay(nextClip, options) {
             playbackCalls.push({ clip: nextClip, options });
             return true;
         },
-        clearLastRoundGhost() {},
+        clearKillcamReplay() {},
     };
-    const ghostSystem = {
+    const replaySystem = {
         seekSourceTime(sourceTime) {
             seekCalls.push(sourceTime);
             return true;
@@ -94,7 +94,7 @@ function createKillcamFixture({
         },
         entityManager,
         recorder: {
-            getLastRoundGhostClip(_players, options) {
+            getKillcamReplayClip(_entityManager, options) {
                 clipRequests.push(options);
                 return clip;
             },
@@ -105,7 +105,7 @@ function createKillcamFixture({
             getRemainingForPlayer: () => humanRemaining,
             getRemainingByPlayer: () => remainingByPlayer,
         },
-        ghostSystem,
+        replaySystem,
     });
     return {
         camera,
@@ -113,7 +113,7 @@ function createKillcamFixture({
         directionalCalls,
         entityManager,
         explosionCalls,
-        ghostSystem,
+        replaySystem,
         killcam,
         killer,
         player,
@@ -123,7 +123,7 @@ function createKillcamFixture({
     };
 }
 
-test('killcam keeps visible ghost playback aligned with its source-time camera pose', () => {
+test('killcam keeps scene replay aligned with its source-time camera pose', () => {
     const {
         clipRequests,
         directionalCalls,
@@ -145,12 +145,12 @@ test('killcam keeps visible ghost playback aligned with its source-time camera p
     while (killcam._elapsed < killcam._displayDuration * 0.86) {
         const dt = 0.005;
         const scaledDt = dt * killcam.getTimeScale();
-        killcam.advanceGhostPlayback(scaledDt);
+        killcam.advanceReplayPlayback(scaledDt);
         killcam.update(dt);
     }
 
-    assert.ok(Math.abs(killcam._ghostElapsed - killcam._ghostSourceDuration) < 0.01);
-    assert.ok(Math.abs(seekCalls.at(-1) - killcam._ghostSourceDuration) < 0.01);
+    assert.ok(Math.abs(killcam._replayElapsed - killcam._replaySourceDuration) < 0.01);
+    assert.ok(Math.abs(seekCalls.at(-1) - killcam._replaySourceDuration) < 0.01);
     assert.equal(explosionCalls.length, 1);
     assert.equal(directionalCalls.length, 1);
     assert.deepEqual(shakeCalls, [[0, 0.32, 0.24]]);
@@ -160,10 +160,10 @@ test('killcam keeps visible ghost playback aligned with its source-time camera p
     killcam.dispose();
 });
 
-test('killcam requests real live vehicle views instead of ghost bodies', () => {
+test('killcam requests full scene replay with all live vehicle views', () => {
     let playbackOptions = null;
     const { killcam, entityManager, player } = createKillcamFixture();
-    entityManager.playLastRoundGhost = (_clip, options) => {
+    entityManager.playKillcamReplay = (_clip, options) => {
         playbackOptions = options;
         return true;
     };
@@ -341,7 +341,7 @@ test('EntityManager owns killcam playback and camera updates behind public seams
         _killcamSystem: {
             isActive: () => true,
             getTimeScale: () => 0.5,
-            advanceGhostPlayback: (dt) => calls.push(['ghost', dt]),
+            advanceReplayPlayback: (dt) => calls.push(['replay', dt]),
             update: (dt) => calls.push(['update', dt]),
             applyCinematicCamera: (dt) => calls.push(['camera', dt]),
         },
@@ -355,7 +355,7 @@ test('EntityManager owns killcam playback and camera updates behind public seams
     manager.updateCameras(0.1);
 
     assert.deepEqual(calls, [
-        ['ghost', 0.1],
+        ['replay', 0.1],
         ['update', 0.2],
         ['camera', 0.1],
     ]);
@@ -366,7 +366,7 @@ test('EntityManager render interpolation does not overwrite live vehicle killcam
     const calls = [];
     const manager = Object.assign(Object.create(EntityManager.prototype), {
         _killcamSystem: { isActive: () => true },
-        _lastRoundGhostSystem: {
+        _killcamReplaySystem: {
             usesReplayPresentationObject: (object) => object === replayGroup,
         },
         players: [

@@ -10,6 +10,7 @@ import { emitHuntDamageFeedback } from '../hunt/HuntDamageFeedback.js';
 import { rememberFightAttacker } from '../hunt/HuntEliminationFeed.js';
 import { createGameModeStrategy } from '../modes/GameModeRegistry.js';
 import { LastRoundGhostSystem } from './LastRoundGhostSystem.js';
+import { ReplayScenePresentationSystem } from '../core/recording/ReplayScenePresentationSystem.js';
 import { KillcamSystem } from '../hunt/KillcamSystem.js';
 import { killPlayer } from './EntityPlayerDeathOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -116,9 +117,15 @@ export class EntityManager {
             entityManager: this,
             ghostTrailCollisionEnabled: this.entityRuntimeConfig?.TRAIL?.GHOST_COLLISION_ENABLED === true,
         });
+        this._killcamReplaySystem = new ReplayScenePresentationSystem(renderer, {
+            entityManager: this,
+            particles,
+            presentationKind: 'killcam-replay',
+            ghostTrailCollisionEnabled: false,
+        });
         this._killcamSystem = new KillcamSystem({
             renderer, entityManager: this, recorder, respawnSystem: this._respawnSystem,
-            ghostSystem: this._lastRoundGhostSystem,
+            replaySystem: this._killcamReplaySystem,
         });
         this.projectiles = this.runtime.systems.projectileSystem.projectiles;
         this.botPolicyRegistry = new BotPolicyRegistry();
@@ -353,7 +360,7 @@ export class EntityManager {
             const playerGroup = player?.view?.group;
             if (
                 this._killcamSystem?.isActive?.() === true
-                && this._lastRoundGhostSystem?.usesReplayPresentationObject?.(playerGroup)
+                && this._killcamReplaySystem?.usesReplayPresentationObject?.(playerGroup)
             ) {
                 continue;
             }
@@ -492,15 +499,23 @@ export class EntityManager {
         return this._lastRoundGhostSystem?.playClip?.(clip, options) || false;
     }
 
+    playKillcamReplay(clip, options = undefined) {
+        return this._killcamReplaySystem?.playClip?.(clip, options) || false;
+    }
+
     clearLastRoundGhost() {
         this._lastRoundGhostSystem?.clear?.();
+    }
+
+    clearKillcamReplay() {
+        this._killcamReplaySystem?.clear?.();
     }
 
     updateLastRoundGhostPlayback(dt) {
         const killcam = this._killcamSystem;
         if (killcam?.isActive?.()) {
             const scaledDt = Math.max(0, Number(dt) || 0) * killcam.getTimeScale();
-            killcam.advanceGhostPlayback(scaledDt);
+            killcam.advanceReplayPlayback(scaledDt);
             killcam.update(dt);
             return;
         }
@@ -512,6 +527,18 @@ export class EntityManager {
             active: false,
             frameCount: 0,
             entryCount: 0,
+            ghosts: [],
+        };
+    }
+
+    getKillcamReplayState() {
+        return this._killcamReplaySystem?.getState?.() || {
+            active: false,
+            frameCount: 0,
+            entryCount: 0,
+            projectileCount: 0,
+            powerupCount: 0,
+            particleCount: 0,
             ghosts: [],
         };
     }
@@ -554,6 +581,7 @@ export class EntityManager {
             this._projectileSystem.clear();
         }
         this._lastRoundGhostSystem?.clear?.();
+        this._killcamReplaySystem?.clear?.();
         this._killcamSystem?.clear?.();
         this._overheatGunSystem.reset();
         this._respawnSystem.reset();
@@ -577,6 +605,7 @@ export class EntityManager {
         this.onArcadeGameplayEvent = null;
         if (disposeProjectileSystem) {
             this._lastRoundGhostSystem?.dispose?.();
+            this._killcamReplaySystem?.dispose?.();
             this._killcamSystem?.dispose?.();
         }
     }
