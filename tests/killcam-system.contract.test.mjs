@@ -15,6 +15,7 @@ function createKillcamFixture({
     const playbackCalls = [];
     const seekCalls = [];
     const clipRequests = [];
+    const explosionCalls = [];
     const camera = {
         fov: 75,
         position: new THREE.Vector3(0, 4, 12),
@@ -55,7 +56,7 @@ function createKillcamFixture({
             clear() {},
             setPresentationSuppressed(value) { this._suppressed = value === true; },
             isPresentationSuppressed() { return this._suppressed; },
-            spawnExplosion() {},
+            spawnExplosion(...args) { explosionCalls.push(args); },
         },
         audio: { play() {} },
         projectiles: [],
@@ -105,6 +106,7 @@ function createKillcamFixture({
         camera,
         clipRequests,
         entityManager,
+        explosionCalls,
         ghostSystem,
         killcam,
         killer,
@@ -115,7 +117,15 @@ function createKillcamFixture({
 }
 
 test('killcam keeps visible ghost playback aligned with its source-time camera pose', () => {
-    const { clipRequests, killcam, killer, player, playbackCalls, seekCalls } = createKillcamFixture();
+    const {
+        clipRequests,
+        explosionCalls,
+        killcam,
+        killer,
+        player,
+        playbackCalls,
+        seekCalls,
+    } = createKillcamFixture();
     assert.equal(killcam.onPlayerDied(player, { killer }), true);
     assert.equal(playbackCalls[0]?.options?.loop, false);
     assert.equal(playbackCalls[0]?.options?.useLivePlayerViews, true);
@@ -131,7 +141,10 @@ test('killcam keeps visible ghost playback aligned with its source-time camera p
 
     assert.ok(Math.abs(killcam._ghostElapsed - killcam._ghostSourceDuration) < 0.01);
     assert.ok(Math.abs(seekCalls.at(-1) - killcam._ghostSourceDuration) < 0.01);
+    assert.equal(explosionCalls.length, 1);
     assert.equal(killcam._hasKillerPose, true);
+    killcam.update(killcam._displayDuration * 0.1);
+    assert.equal(explosionCalls.length, 1);
     killcam.dispose();
 });
 

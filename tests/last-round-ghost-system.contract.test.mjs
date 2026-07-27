@@ -194,6 +194,25 @@ test('LastRoundGhostSystem holds the final frame when looping is disabled', () =
     system.dispose();
 });
 
+test('LastRoundGhostSystem applies the terminal death state at the exact impact time', () => {
+    const system = new LastRoundGhostSystem(createRendererStub());
+    assert.equal(system.playClip({
+        ...createPlayableClip(),
+        frames: [
+            { time: 0, players: [{ idx: 0, alive: true, x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }] },
+            { time: 1, players: [{ idx: 0, alive: true, x: 4, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }] },
+            { time: 1, players: [{ idx: 0, alive: false, x: 4, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }] },
+        ],
+    }, { loop: false }), true);
+
+    assert.equal(system.seekSourceTime(0.999), true);
+    assert.equal(system._entries[0]?.group?.visible, true);
+
+    assert.equal(system.seekSourceTime(1), true);
+    assert.equal(system._entries[0]?.group?.visible, false);
+    system.dispose();
+});
+
 test('LastRoundGhostSystem seeks explicit source time without display-time remapping', () => {
     const system = new LastRoundGhostSystem(createRendererStub());
     assert.equal(system.playClip({

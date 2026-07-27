@@ -275,13 +275,6 @@ export class KillcamSystem {
             return;
         }
 
-        if (!this._explosionTriggered) {
-            const elapsedRatio = this._elapsed / Math.max(0.001, this._displayDuration);
-            if (elapsedRatio >= KILLCAM_EXPLOSION_TRIGGER_RATIO) {
-                this._triggerDeathExplosion();
-            }
-        }
-
         this._shotElapsed += safeDt;
         if (this._shotElapsed >= this._shotDuration && this._shotIndex < SHOT_SEQUENCE.length - 1) {
             this._initializeShot(this._shotIndex + 1);
@@ -297,6 +290,9 @@ export class KillcamSystem {
         );
         const ghostSystem = this.ghostSystem;
         ghostSystem?.seekSourceTime?.(this._ghostElapsed, Math.max(0, Number(scaledDt) || 0));
+        if (!this._explosionTriggered && this._ghostElapsed >= this._ghostSourceDuration) {
+            this._triggerDeathExplosion();
+        }
         if (this._killerIndex < 0) return;
         this._hasKillerPose = ghostSystem?.copyPlayerPose?.(
             this._killerIndex,

@@ -333,7 +333,7 @@ export class LastRoundGhostSystem {
         }
         while (
             this._frameCursor < this._frames.length - 1
-            && playbackTime > (Number(this._frames[this._frameCursor]?.time) || 0)
+            && playbackTime >= (Number(this._frames[this._frameCursor]?.time) || 0)
         ) {
             this._frameCursor += 1;
         }
@@ -343,7 +343,7 @@ export class LastRoundGhostSystem {
         const nextTime = Number(nextFrame?.time) || previousTime;
         const alpha = nextTime > previousTime
             ? THREE.MathUtils.clamp((playbackTime - previousTime) / (nextTime - previousTime), 0, 1)
-            : 0;
+            : (playbackTime >= nextTime ? 1 : 0);
         const bobPhase = this._elapsed * 4;
         this._lastPlaybackTime = playbackTime;
 
@@ -353,8 +353,9 @@ export class LastRoundGhostSystem {
             const nextPose = nextFrame?.playerLookup?.[entry.idx] || null;
             const poseA = prevPose || nextPose;
             const poseB = nextPose || prevPose;
+            const playbackPose = alpha >= 1 ? poseB : poseA;
 
-            if (!poseA || !poseB || (!poseA.alive && !poseB.alive)) {
+            if (!poseA || !poseB || playbackPose?.alive === false) {
                 entry.group.visible = false;
                 continue;
             }
