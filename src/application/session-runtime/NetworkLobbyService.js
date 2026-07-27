@@ -313,6 +313,14 @@ export class NetworkLobbyService {
         if (!this._transportSession.hasLobby() || !sessionState.joined) {
             return this._fail('Noch keiner Lobby beigetreten.', 'not_in_lobby');
         }
+        if (sessionState.isHost) {
+            return {
+                ok: true,
+                event: null,
+                sessionState,
+                snapshot: this.getSnapshot(),
+            };
+        }
 
         const requestedReady = typeof options.ready === 'boolean'
             ? options.ready

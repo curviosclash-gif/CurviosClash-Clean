@@ -2047,6 +2047,10 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         setAttribute(name, value) {
             this.attributes.set(name, String(value));
         }
+
+        removeAttribute(name) {
+            this.attributes.delete(name);
+        }
     }
 
     const originalDocument = globalThis.document;
@@ -2064,18 +2068,34 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         const multiplayerHostButton = new FakeElement('button');
         const multiplayerJoinButton = new FakeElement('button');
         const multiplayerLeaveLobbyButton = new FakeElement('button');
+        const multiplayerStartMatchButton = new FakeElement('button');
         const multiplayerReadyToggle = new FakeElement('input');
+        const multiplayerReadyControl = new FakeElement('label');
         const multiplayerTransportHint = new FakeElement();
+        const multiplayerConnectionControls = new FakeElement();
+        const multiplayerSessionControls = new FakeElement();
+        const multiplayerMemberList = new FakeElement();
+        const multiplayerMemberCount = new FakeElement();
+        const multiplayerManualAddress = new FakeElement('details');
+        const startButton = new FakeElement('button');
         const ui = {
             menuSummary,
+            startButton,
             multiplayerLobbyState,
             multiplayerLobbyCodeInput,
             multiplayerHostAddressInput,
             multiplayerHostButton,
             multiplayerJoinButton,
             multiplayerLeaveLobbyButton,
+            multiplayerStartMatchButton,
             multiplayerReadyToggle,
+            multiplayerReadyControl,
             multiplayerTransportHint,
+            multiplayerConnectionControls,
+            multiplayerSessionControls,
+            multiplayerMemberList,
+            multiplayerMemberCount,
+            multiplayerManualAddress,
         };
         const surfaceEntryCopy = {
             sessionSummaryLabels: { multiplayer: 'Multiplayer' },
@@ -2094,8 +2114,13 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
             pendingMatchCommandId: 'cmd-1',
             connected: true,
             memberCount: 2,
-            readyCount: 1,
+            readyCount: 2,
             localReady: true,
+            canStart: false,
+            members: [
+                { peerId: 'peer-host', actorId: 'Host', isHost: true, isLocal: false, ready: true },
+                { peerId: 'peer-client', actorId: 'Client', isHost: false, isLocal: true, ready: true },
+            ],
         };
         const ghostDuelState = {
             effectiveMode: 'off',
@@ -2140,9 +2165,9 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
             block.children[1]?.textContent,
         ]));
         assert.equal(summaryByLabel.get('Session'), 'Multiplayer');
-        assert.equal(summaryByLabel.get('Lobby'), 'ABCD | Client | Startsignal gesendet | 1/2 ready');
+        assert.equal(summaryByLabel.get('Lobby'), 'ABCD | Client | Startsignal gesendet | 2/2 ready');
         assert.equal(summaryByLabel.get('Transport'), 'LAN');
-        assert.equal(multiplayerLobbyState.textContent, 'Lobbystatus: ABCD | Client | Startsignal gesendet | 2 Spieler | 1/2 ready');
+        assert.equal(multiplayerLobbyState.textContent, 'ABCD | Client | Startsignal gesendet | 2 Teilnehmer | 2/2 bereit');
         assert.equal(multiplayerLobbyCodeInput.value, 'ABCD');
         assert.equal(multiplayerLobbyCodeInput.readOnly, true);
         assert.equal(multiplayerHostAddressInput.readOnly, true);
@@ -2151,6 +2176,13 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         assert.equal(multiplayerLeaveLobbyButton.disabled, false);
         assert.equal(multiplayerReadyToggle.checked, true);
         assert.equal(multiplayerTransportHint.textContent, 'Produktiver Transport: LAN');
+        assert.equal(multiplayerMemberList.children.length, 2);
+        assert.equal(multiplayerMemberCount.textContent, '2 / 10');
+        assert.equal(multiplayerStartMatchButton.disabled, true);
+        assert.equal(multiplayerStartMatchButton.textContent, 'Match wird gestartet …');
+        assert.equal(startButton.classList.values.has('hidden'), true);
+        assert.equal(multiplayerConnectionControls.classList.values.has('hidden'), true);
+        assert.equal(multiplayerSessionControls.classList.values.has('hidden'), false);
     } finally {
         if (typeof originalDocument === 'undefined') {
             delete globalThis.document;

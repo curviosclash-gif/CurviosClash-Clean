@@ -198,7 +198,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
     const lobby = {
         code: generateLobbyCode(),
         hostToken: generateAccessToken('host'),
-        hostReady: false,
+        hostReady: true,
         maxPlayers: DEFAULT_MAX_PLAYERS,
         players: [],
         pendingPlayers: [],
@@ -359,7 +359,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             const requestedMaxPlayers = Number(body.maxPlayers);
             lobby.code = generateLobbyCode();
             lobby.hostToken = generateAccessToken('host');
-            lobby.hostReady = false;
+            lobby.hostReady = true;
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
                 : DEFAULT_MAX_PLAYERS;
@@ -436,7 +436,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
                     return;
                 }
-                lobby.hostReady = ready;
+                lobby.hostReady = true;
                 jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
                 return;
             }
@@ -477,7 +477,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 }
                 lobby.code = generateLobbyCode();
                 lobby.hostToken = generateAccessToken('host');
-                lobby.hostReady = false;
+                lobby.hostReady = true;
                 lobby.players = [];
                 lobby.pendingPlayers = [];
                 lobby.offers.clear();
@@ -525,7 +525,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
                 return;
             }
-            lobby.hostReady = false;
+            lobby.hostReady = true;
             lobby.players = lobby.players.map((entry) => ({
                 ...entry,
                 ready: false,

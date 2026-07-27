@@ -313,7 +313,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
             await page.waitForFunction(() => {
                 const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();
-                return state?.memberCount === 2 && state?.readyCount === 1;
+                return state?.memberCount === 2 && state?.readyCount === 2;
             }, null, { timeout: 5000 });
 
             const syncedState = await page.evaluate(() => ({
@@ -322,8 +322,9 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             }));
             expect(syncedState.sessionState?.isHost).toBeTruthy();
             expect(syncedState.sessionState?.memberCount).toBe(2);
-            expect(syncedState.sessionState?.readyCount).toBe(1);
-            expect(syncedState.lobbyStateText).toContain('2 Spieler');
+            expect(syncedState.sessionState?.readyCount).toBe(2);
+            expect(syncedState.lobbyStateText).toContain('2 Teilnehmer');
+            await expect(page.locator('#multiplayer-member-list .mp-player-card')).toHaveCount(2);
 
             await page.evaluate(() => {
                 const slider = document.getElementById('bot-count');
@@ -333,7 +334,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
             await secondPage.waitForFunction(() => {
                 const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();
-                return state?.joined === true && state?.localReady === false && state?.readyCount === 0;
+                return state?.joined === true && state?.localReady === false && state?.readyCount === 1;
             }, null, { timeout: 5000 });
 
             const invalidatedState = await secondPage.evaluate(() => ({
@@ -382,7 +383,6 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             await secondPage.click('#btn-multiplayer-join');
             await secondPage.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 
-            await page.check('#multiplayer-ready-toggle');
             await secondPage.check('#multiplayer-ready-toggle');
 
             await page.waitForFunction(() => {
@@ -390,7 +390,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
                 return state?.canStart === true && state?.allReady === true;
             }, null, { timeout: 5000 });
 
-            await page.click('#btn-start');
+            await page.click('#btn-multiplayer-start');
 
             await page.waitForFunction(() => {
                 const game = window.GAME_INSTANCE;

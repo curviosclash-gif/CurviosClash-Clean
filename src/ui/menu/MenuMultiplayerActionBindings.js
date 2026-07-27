@@ -5,6 +5,19 @@ export function bindMenuMultiplayerActionButtons({
     eventTypes,
     featureFlags,
 }) {
+    const clearFieldError = (field) => {
+        field?.removeAttribute?.('aria-invalid');
+        field?.classList?.remove?.('menu-field-error');
+    };
+
+    if (ui.multiplayerLobbyCodeInput) {
+        bind(ui.multiplayerLobbyCodeInput, 'input', () => clearFieldError(ui.multiplayerLobbyCodeInput));
+    }
+
+    if (ui.multiplayerHostAddressInput) {
+        bind(ui.multiplayerHostAddressInput, 'input', () => clearFieldError(ui.multiplayerHostAddressInput));
+    }
+
     if (ui.multiplayerHostButton) {
         bind(ui.multiplayerHostButton, 'click', () => {
             const canHost = featureFlags?.canHost === true;

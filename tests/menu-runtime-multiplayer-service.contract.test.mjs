@@ -10,6 +10,28 @@ import { MULTIPLAYER_TRANSPORTS } from '../src/shared/contracts/RuntimeSessionCo
 
 test('LAN join action forwards manual signalingUrl and writes failed joins into UI status', async () => {
     const calls = [];
+    const hostAddressInput = {
+        attributes: new Map(),
+        classNames: new Set(),
+        focused: false,
+        setAttribute(name, value) {
+            this.attributes.set(name, String(value));
+        },
+        removeAttribute(name) {
+            this.attributes.delete(name);
+        },
+        classList: {
+            add(value) {
+                hostAddressInput.classNames.add(value);
+            },
+            remove(value) {
+                hostAddressInput.classNames.delete(value);
+            },
+        },
+        focus() {
+            this.focused = true;
+        },
+    };
     const game = {
         settings: {
             localSettings: {
@@ -18,6 +40,7 @@ test('LAN join action forwards manual signalingUrl and writes failed joins into 
         },
         ui: {
             multiplayerStatus: { textContent: '' },
+            multiplayerHostAddressInput: hostAddressInput,
         },
         _showStatusToast(message, duration, tone) {
             calls.push(['toast', message, duration, tone]);
@@ -54,8 +77,77 @@ test('LAN join action forwards manual signalingUrl and writes failed joins into 
         signalingUrl: 'localhost:9090',
     }]);
     assert.equal(game.ui.multiplayerStatus.textContent, 'Join fehlgeschlagen: Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.');
+    assert.equal(hostAddressInput.attributes.get('aria-invalid'), 'true');
+    assert.equal(hostAddressInput.classNames.has('menu-field-error'), true);
+    assert.equal(hostAddressInput.focused, true);
     assert.deepEqual(calls[1], ['toast', 'Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.', 1800, 'error']);
     assert.equal(calls.some(([type]) => type === 'sync'), false);
+});
+
+test('join action exposes a busy state and restores controls after connecting', async () => {
+    let resolveJoin = null;
+    const joinPromise = new Promise((resolve) => {
+        resolveJoin = resolve;
+    });
+    const hostButton = { disabled: false };
+    const joinButton = { disabled: false };
+    const panelAttributes = new Map();
+    const game = {
+        settings: {
+            localSettings: {
+                multiplayerTransport: MULTIPLAYER_TRANSPORTS.LAN,
+            },
+        },
+        ui: {
+            multiplayerHostButton: hostButton,
+            multiplayerJoinButton: joinButton,
+            multiplayerStatus: { textContent: '' },
+            multiplayerLobbyCodeInput: {
+                value: 'LAN-QA',
+                removeAttribute() {},
+                classList: { remove() {} },
+            },
+            multiplayerInlineState: {
+                setAttribute(name, value) {
+                    panelAttributes.set(name, String(value));
+                },
+                removeAttribute(name) {
+                    panelAttributes.delete(name);
+                },
+            },
+        },
+    };
+    let syncCount = 0;
+    const actionPromise = handleMultiplayerJoinAction({
+        game,
+        event: {
+            lobbyCode: 'LAN-QA',
+            signalingUrl: '',
+        },
+        resolveMenuAccessContext: () => ({ actorId: 'Client' }),
+        menuMultiplayerBridge: {
+            transport: LOBBY_SERVICE_TRANSPORTS.LAN,
+            join: () => joinPromise,
+        },
+        syncUiState: () => {
+            syncCount += 1;
+        },
+        runtimeSource: null,
+    });
+
+    assert.equal(hostButton.disabled, true);
+    assert.equal(joinButton.disabled, true);
+    assert.equal(panelAttributes.get('aria-busy'), 'true');
+    assert.equal(game.ui.multiplayerStatus.textContent, 'Lobby wird gesucht …');
+
+    resolveJoin({ ok: true, lobbyCode: 'LAN-QA' });
+    const result = await actionPromise;
+
+    assert.equal(result.ok, true);
+    assert.equal(hostButton.disabled, false);
+    assert.equal(joinButton.disabled, false);
+    assert.equal(panelAttributes.has('aria-busy'), false);
+    assert.equal(syncCount, 1);
 });
 
 test('online lobby list action renders joinable lobby options and status', async () => {

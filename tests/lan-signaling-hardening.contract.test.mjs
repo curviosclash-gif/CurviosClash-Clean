@@ -192,6 +192,7 @@ test('LAN signaling requires host token for host-only mutating routes', async ()
         const hostToken = String(created.payload?.hostToken || '').trim();
         assert.equal(created.ok, true);
         assert.ok(hostToken.length > 0);
+        assert.equal(created.payload?.sessionState?.hostReady, true);
 
         const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
             lobbyCode: created.payload?.lobbyCode || '',
@@ -209,13 +210,6 @@ test('LAN signaling requires host token for host-only mutating routes', async ()
         });
         assert.equal(clientReady.ok, true);
 
-        const hostReady = await postJson(lanServer.baseUrl, '/lobby/ready', {
-            playerId: 'host',
-            hostToken,
-            ready: true,
-        });
-        assert.equal(hostReady.ok, true);
-
         const invalidateDenied = await postJson(lanServer.baseUrl, '/lobby/invalidate-ready', {
             hostPeerId: 'host',
         });
@@ -228,6 +222,8 @@ test('LAN signaling requires host token for host-only mutating routes', async ()
             hostToken,
         });
         assert.equal(invalidateAllowed.ok, true);
+        assert.equal(invalidateAllowed.payload?.sessionState?.hostReady, true);
+        assert.equal(invalidateAllowed.payload?.sessionState?.players?.[0]?.ready, false);
 
         const startDenied = await postJson(lanServer.baseUrl, '/lobby/match-start', {
             hostPeerId: 'host',

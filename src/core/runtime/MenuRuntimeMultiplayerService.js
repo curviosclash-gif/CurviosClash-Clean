@@ -29,6 +29,12 @@ import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSi
 import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeObservability.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
+import {
+    beginMultiplayerAction,
+    clearMultiplayerFieldError,
+    markMultiplayerFieldError,
+    setMultiplayerStatus,
+} from './MenuRuntimeMultiplayerUiFeedback.js';
 
 const ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE = 'Online ist nicht konfiguriert. Bitte VITE_SIGNALING_URL setzen oder LAN verwenden.';
 
@@ -50,13 +56,6 @@ function deepClone(value) {
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
-}
-
-function setMultiplayerStatus(game, message) {
-    const status = game?.ui?.multiplayerStatus;
-    if (status) {
-        status.textContent = normalizeString(message, 'Multiplayer-Aktion fehlgeschlagen.');
-    }
 }
 
 // NOTE: 'multiplayer' is a menu-layer coordination type, not a real network transport.
@@ -271,9 +270,6 @@ export function invalidateMultiplayerReadyIfHostChangedSettings({
 
     return Promise.resolve(invalidationResult).then((resolvedResult) => {
         if (!resolvedResult?.event) return null;
-        if (game?.ui?.multiplayerReadyToggle) {
-            game.ui.multiplayerReadyToggle.checked = false;
-        }
         onSettingsChanged?.({
             changedKeys: [settingsChangeKeys.MULTIPLAYER_STATUS],
         });
@@ -350,6 +346,8 @@ export async function handleMultiplayerHostAction({
     runtimeSource,
 }) {
     if (!game) return null;
+    clearMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
+    const finishPendingAction = beginMultiplayerAction(game, 'Lobby wird erstellt …');
     const selectedTransport = normalizeRuntimeMultiplayerTransport(
         game?.settings?.localSettings?.multiplayerTransport,
         MULTIPLAYER_TRANSPORTS.LAN
@@ -358,11 +356,15 @@ export async function handleMultiplayerHostAction({
         runtimeGlobal: typeof globalThis !== 'undefined' ? globalThis : null,
     });
     if (selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE && !onlineConfigured) {
+        finishPendingAction();
+        setMultiplayerStatus(game, ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE);
         game._showStatusToast(ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, 1800, 'warning');
         return { ok: false, message: ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, reason: 'online_signaling_unconfigured' };
     }
     const hostGate = resolveSurfaceMultiplayerGateAccess('host', resolveSurfaceResolverOptions());
     if (!hostGate.allowed) {
+        finishPendingAction();
+        setMultiplayerStatus(game, hostGate.message || 'Hosting ist nicht verfuegbar.');
         game._showStatusToast(hostGate.message || 'Hosting ist nicht verfuegbar.', hostGate.durationMs || 1800, 'error');
         return { ok: false, message: hostGate.message, reason: hostGate.reason };
     }
@@ -381,7 +383,10 @@ export async function handleMultiplayerHostAction({
         };
     }
     if (!result?.ok) {
-        game._showStatusToast(result?.message || 'Lobby konnte nicht erstellt werden.', 1800, 'error');
+        finishPendingAction();
+        const message = result?.message || 'Lobby konnte nicht erstellt werden.';
+        setMultiplayerStatus(game, `Erstellen fehlgeschlagen: ${message}`);
+        game._showStatusToast(message, 1800, 'error');
         return result;
     }
 
@@ -390,6 +395,7 @@ export async function handleMultiplayerHostAction({
         game.ui.multiplayerLobbyCodeInput.value = result.lobbyCode || '';
     }
     menuMultiplayerBridge?.publishHostSettings?.(captureSettingsSnapshot?.());
+    finishPendingAction();
     syncUiState?.();
     return result;
 }
@@ -403,6 +409,9 @@ export async function handleMultiplayerJoinAction({
     runtimeSource,
 }) {
     if (!game) return null;
+    clearMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
+    clearMultiplayerFieldError(game.ui?.multiplayerHostAddressInput);
+    const finishPendingAction = beginMultiplayerAction(game, 'Lobby wird gesucht …');
     const selectedTransport = normalizeRuntimeMultiplayerTransport(
         game?.settings?.localSettings?.multiplayerTransport,
         MULTIPLAYER_TRANSPORTS.LAN
@@ -411,6 +420,8 @@ export async function handleMultiplayerJoinAction({
         runtimeGlobal: typeof globalThis !== 'undefined' ? globalThis : null,
     });
     if (selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE && !onlineConfigured) {
+        finishPendingAction();
+        setMultiplayerStatus(game, ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE);
         game._showStatusToast(ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, 1800, 'warning');
         return { ok: false, message: ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, reason: 'online_signaling_unconfigured' };
     }
@@ -434,7 +445,13 @@ export async function handleMultiplayerJoinAction({
     }
     if (!result?.ok) {
         const message = result?.message || 'Lobby konnte nicht beigetreten werden.';
+        finishPendingAction();
         setMultiplayerStatus(game, `Join fehlgeschlagen: ${message}`);
+        if (result?.code === 'manual_signaling_url_invalid') {
+            markMultiplayerFieldError(game.ui?.multiplayerHostAddressInput);
+        } else if (result?.code === 'missing_lobby_code' || result?.code === 'lobby_not_found') {
+            markMultiplayerFieldError(game.ui?.multiplayerLobbyCodeInput);
+        }
         game._showStatusToast(message, 1800, 'error');
         return result;
     }
@@ -443,6 +460,7 @@ export async function handleMultiplayerJoinAction({
     if (game.ui?.multiplayerLobbyCodeInput) {
         game.ui.multiplayerLobbyCodeInput.value = result.lobbyCode || '';
     }
+    finishPendingAction();
     syncUiState?.();
     return result;
 }

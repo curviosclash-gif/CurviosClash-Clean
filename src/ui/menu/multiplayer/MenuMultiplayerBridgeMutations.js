@@ -51,7 +51,7 @@ export function hostMultiplayerLobby(bridge, options, helpers) {
                     peerId: bridge._peerId,
                     actorId,
                     role: 'host',
-                    ready: false,
+                    ready: true,
                     joinedAt: now,
                     lastSeenAt: now,
                 },
@@ -189,6 +189,10 @@ export function toggleReadyMultiplayerLobby(bridge, options, helpers) {
         }
 
         currentActorId = helpers.normalizeString(options.actorId, localMember.actorId || 'player');
+        if (localMember.peerId === existingSnapshot.hostPeerId) {
+            ready = true;
+            return SNAPSHOT_NOOP;
+        }
         ready = typeof options.ready === 'boolean' ? options.ready : !localMember.ready;
         return {
             ...existingSnapshot,
@@ -228,14 +232,16 @@ export function invalidateMultiplayerReadyForAll(bridge, reason, helpers) {
     let shouldEmit = false;
     const persistedSnapshot = bridge._updateActiveSnapshot((existingSnapshot) => {
         if (!existingSnapshot || existingSnapshot.hostPeerId !== bridge._peerId) return SNAPSHOT_NOOP;
-        const hadReady = existingSnapshot.members.some((member) => member.ready === true);
+        const hadReady = existingSnapshot.members.some((member) => (
+            member.peerId !== bridge._peerId && member.ready === true
+        ));
         if (!hadReady) return SNAPSHOT_NOOP;
         shouldEmit = true;
         return {
             ...existingSnapshot,
             members: existingSnapshot.members.map((member) => ({
                 ...member,
-                ready: false,
+                ready: member.peerId === bridge._peerId,
                 lastSeenAt: member.peerId === bridge._peerId ? bridge._now() : member.lastSeenAt,
             })),
         };

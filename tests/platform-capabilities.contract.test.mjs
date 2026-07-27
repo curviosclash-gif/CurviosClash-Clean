@@ -423,7 +423,7 @@ test('V77.3.3 surface entry copy cuts showcase, join-only and splitscreen access
     assert.equal(browserEntryCopy.hostButtonLabel, 'Nur Desktop');
     assert.equal(browserEntryCopy.joinButtonLabel, 'Beitreten');
     assert.match(browserEntryCopy.multiplayerSubtitle, /keine Lobby hosten/);
-    assert.equal(desktopEntryCopy.hostButtonLabel, 'Host');
+    assert.equal(desktopEntryCopy.hostButtonLabel, 'Lobby erstellen');
     assert.equal(desktopEntryCopy.sessionSummaryLabels.single, 'Einzelspieler');
 });
 

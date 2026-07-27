@@ -25,6 +25,65 @@ function resolveModeLabel(modePath) {
     return 'Klassisch';
 }
 
+function clearElementChildren(element) {
+    if (!element) return;
+    while (element.firstChild) {
+        element.removeChild(element.firstChild);
+    }
+}
+
+function renderMultiplayerMembers(ui, sessionState, hasActiveLobbySession) {
+    const memberList = ui?.multiplayerMemberList;
+    const memberCount = ui?.multiplayerMemberCount;
+    if (!memberList && !memberCount) return;
+
+    const members = hasActiveLobbySession && Array.isArray(sessionState?.members)
+        ? sessionState.members
+        : [];
+    if (memberCount) {
+        const resolvedMemberCount = hasActiveLobbySession
+            ? Math.max(members.length, Math.floor(Number(sessionState?.memberCount) || 0))
+            : 0;
+        memberCount.textContent = `${resolvedMemberCount} / 10`;
+    }
+    if (!memberList) return;
+
+    clearElementChildren(memberList);
+    const doc = memberList.ownerDocument
+        || (typeof document !== 'undefined' ? document : null);
+    if (!doc?.createElement) return;
+
+    for (const member of members) {
+        const row = doc.createElement('div');
+        row.className = [
+            'mp-player-card',
+            member?.isHost === true ? 'is-host' : '',
+            member?.isLocal === true ? 'is-local' : '',
+            member?.ready === true ? 'is-ready' : '',
+        ].filter(Boolean).join(' ');
+
+        const name = doc.createElement('span');
+        name.className = 'mp-player-name';
+        const actorId = String(member?.actorId || member?.peerId || 'Spieler').trim() || 'Spieler';
+        name.textContent = `${actorId}${member?.isHost === true ? ' · Host' : ''}${member?.isLocal === true ? ' · Du' : ''}`;
+
+        const ready = doc.createElement('span');
+        ready.className = `mp-ready-indicator${member?.ready === true ? ' is-ready' : ''}`;
+        ready.textContent = member?.ready === true ? 'Bereit' : 'Nicht bereit';
+
+        row.appendChild(name);
+        row.appendChild(ready);
+        memberList.appendChild(row);
+    }
+
+    if (members.length === 0) {
+        const waiting = doc.createElement('p');
+        waiting.className = 'mp-waiting-message';
+        waiting.textContent = 'Warte auf Teilnehmer …';
+        memberList.appendChild(waiting);
+    }
+}
+
 function createSummaryBlocks({
     ui,
     settings,
@@ -191,11 +250,22 @@ export function syncStartSetupMultiplayerUi({
     hasActiveLobbySession,
 }) {
     const isMultiplayerSession = sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
+    const isHost = hasActiveLobbySession && resolvedMultiplayerSessionState?.isHost === true;
     if (ui.multiplayerInlineState) {
         ui.multiplayerInlineState.classList.toggle('hidden', !isMultiplayerSession);
         if (typeof HTMLDetailsElement !== 'undefined' && ui.multiplayerInlineState instanceof HTMLDetailsElement) {
             ui.multiplayerInlineState.open = isMultiplayerSession;
         }
+    }
+    if (ui.startButton) {
+        ui.startButton.classList.toggle('hidden', isMultiplayerSession);
+        ui.startButton.setAttribute('aria-hidden', String(isMultiplayerSession));
+    }
+    if (ui.multiplayerConnectionControls) {
+        ui.multiplayerConnectionControls.classList.toggle('hidden', hasActiveLobbySession);
+    }
+    if (ui.multiplayerSessionControls) {
+        ui.multiplayerSessionControls.classList.toggle('hidden', !hasActiveLobbySession);
     }
     if (Array.isArray(ui.multiplayerTransportButtons)) {
         ui.multiplayerTransportButtons.forEach((button) => {
@@ -258,11 +328,21 @@ export function syncStartSetupMultiplayerUi({
             ? 'Host-Adresse ist fuer die aktive Session festgelegt.'
             : (isLanTransportSelected ? '' : 'Host-Adresse wird nur fuer LAN-Join verwendet.');
     }
+    if (ui.multiplayerManualAddress) {
+        const showManualAddress = isMultiplayerSession
+            && !hasActiveLobbySession
+            && multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.LAN;
+        ui.multiplayerManualAddress.classList.toggle('hidden', !showManualAddress);
+        if (!showManualAddress) ui.multiplayerManualAddress.open = false;
+    }
     if (ui.multiplayerHostButton) {
+        const hostActionAvailable = surfaceEntryCopy?.hostActionAvailable !== false;
+        ui.multiplayerHostButton.classList.toggle('hidden', !hostActionAvailable);
+        ui.multiplayerHostButton.setAttribute('aria-hidden', String(!hostActionAvailable));
         ui.multiplayerHostButton.disabled = !isMultiplayerSession
             || hasActiveLobbySession
             || multiplayerTransportUiState.isOnlineUnconfigured
-            || surfaceEntryCopy?.hostActionAvailable === false;
+            || !hostActionAvailable;
     }
     if (ui.multiplayerJoinButton) {
         ui.multiplayerJoinButton.disabled = !isMultiplayerSession
@@ -273,11 +353,33 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerLeaveLobbyButton.disabled = !hasActiveLobbySession;
     }
     if (ui.multiplayerReadyToggle) {
-        ui.multiplayerReadyToggle.disabled = !hasActiveLobbySession;
+        ui.multiplayerReadyToggle.disabled = !hasActiveLobbySession || isHost;
         ui.multiplayerReadyToggle.checked = isMultiplayerSession
             ? resolvedMultiplayerSessionState?.localReady === true
             : false;
     }
+    if (ui.multiplayerReadyControl) {
+        ui.multiplayerReadyControl.classList.toggle('hidden', !hasActiveLobbySession || isHost);
+    }
+    if (ui.multiplayerStartMatchButton) {
+        const pendingMatchStart = !!resolvedMultiplayerSessionState?.pendingMatchCommandId;
+        const canStart = isHost && resolvedMultiplayerSessionState?.canStart === true && !pendingMatchStart;
+        ui.multiplayerStartMatchButton.classList.toggle('hidden', !hasActiveLobbySession);
+        ui.multiplayerStartMatchButton.disabled = !canStart;
+        ui.multiplayerStartMatchButton.textContent = pendingMatchStart
+            ? 'Match wird gestartet …'
+            : (isHost
+                ? (canStart ? 'Match starten' : 'Warte auf Teilnehmer')
+                : 'Warte auf Host');
+        ui.multiplayerStartMatchButton.title = pendingMatchStart
+            ? 'Das Startsignal wurde an die Lobby gesendet.'
+            : (isHost
+                ? (resolvedMultiplayerSessionState?.memberCount < 2
+                    ? 'Mindestens ein weiterer Teilnehmer wird benoetigt.'
+                    : 'Alle Clients muessen bereit sein.')
+                : 'Der Host startet das Match.');
+    }
+    renderMultiplayerMembers(ui, resolvedMultiplayerSessionState, hasActiveLobbySession);
     if (ui.multiplayerLobbyState) {
         const lobbyCode = String(resolvedMultiplayerSessionState?.lobbyCode || ui.multiplayerLobbyCodeInput?.value || '').trim();
         if (!isMultiplayerSession) {
@@ -294,7 +396,7 @@ export function syncStartSetupMultiplayerUi({
             const transportSuffix = sessionContract.isLegacyTransport === true
                 ? ` | ${sessionContract.transportAudienceLabel}`
                 : '';
-            ui.multiplayerLobbyState.textContent = `Lobbystatus: ${lobbyCode} | ${roleLabel} | ${connectionLabel} | ${resolvedMultiplayerSessionState.memberCount} Spieler | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} ready${transportSuffix}`;
+            ui.multiplayerLobbyState.textContent = `${lobbyCode} | ${roleLabel} | ${connectionLabel} | ${resolvedMultiplayerSessionState.memberCount} Teilnehmer | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} bereit${transportSuffix}`;
         } else if (sessionContract.isLegacyTransport === true) {
             ui.multiplayerLobbyState.textContent = lobbyCode
                 ? `Lobbystatus: ${lobbyCode} | ${sessionContract.transportAudienceLabel}`

@@ -3598,6 +3598,49 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 6px;
 }
 
+#multiplayer-inline-stub > .menu-accordion-body,
+#multiplayer-connection-controls,
+#multiplayer-session-controls {
+    display: grid;
+    gap: 10px;
+}
+
+#multiplayer-inline-stub[aria-busy="true"] {
+    cursor: progress;
+}
+
+#multiplayer-status {
+    margin: 0;
+}
+
+.multiplayer-manual-address {
+    padding: 7px 9px;
+    border: 1px solid rgba(122, 177, 221, 0.18);
+    border-radius: 8px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.multiplayer-manual-address > summary {
+    color: var(--menu-theme-muted);
+    font-size: 0.72rem;
+    cursor: pointer;
+}
+
+.multiplayer-manual-address[open] > summary {
+    margin-bottom: 8px;
+}
+
+#multiplayer-member-list {
+    display: grid;
+    gap: 6px;
+}
+
+#multiplayer-session-controls > .start-btn,
+#multiplayer-session-controls > .secondary-btn {
+    width: 100%;
+    margin-top: 0;
+}
+
 .mp-player-list-header {
     display: flex;
     justify-content: space-between;
@@ -6362,11 +6405,20 @@ input[type="range"]::-webkit-slider-thumb {
     }
 
     #submenu-game .level3-body > #multiplayer-inline-stub:not(.hidden) {
+        position: sticky;
+        top: 8px;
         grid-column: 3;
-        grid-row: 2;
+        grid-row: 1;
         display: block;
+        max-height: calc(94vh - 32px);
+        overflow-y: auto;
         border-color: rgba(255, 153, 86, 0.32);
         background: linear-gradient(165deg, rgba(43, 28, 25, 0.9), rgba(20, 20, 34, 0.9));
+    }
+
+    #submenu-game .level3-body:has(> #multiplayer-inline-stub:not(.hidden)) > .start-rail {
+        position: static;
+        grid-row: 2;
     }
 
     #submenu-game .level3-body > #multiplayer-inline-stub > .menu-accordion-summary {

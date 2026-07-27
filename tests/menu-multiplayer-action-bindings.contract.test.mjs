@@ -19,6 +19,9 @@ function createButton() {
         change() {
             handlers.get('change')?.();
         },
+        input() {
+            handlers.get('input')?.();
+        },
     };
 }
 
@@ -28,8 +31,8 @@ test('LAN multiplayer join button forwards lobbyCode plus optional manual signal
     bindMenuMultiplayerActionButtons({
         ui: {
             multiplayerJoinButton: joinButton,
-            multiplayerLobbyCodeInput: { value: 'LAN-QA' },
-            multiplayerHostAddressInput: { value: 'localhost:9090' },
+            multiplayerLobbyCodeInput: { ...createButton(), value: 'LAN-QA' },
+            multiplayerHostAddressInput: { ...createButton(), value: 'localhost:9090' },
         },
         bind: (el, event, handler) => el.addEventListener(event, handler),
         emit: (eventType, payload) => emitted.push({ eventType, payload }),
@@ -54,7 +57,7 @@ test('online lobby browser refreshes and copies the selected lobby code', () => 
     const emitted = [];
     const refreshButton = createButton();
     const lobbySelect = { ...createButton(), value: '' };
-    const lobbyCodeInput = { value: '' };
+    const lobbyCodeInput = { ...createButton(), value: '' };
     bindMenuMultiplayerActionButtons({
         ui: {
             multiplayerOpenLobbiesRefreshButton: refreshButton,
@@ -78,6 +81,31 @@ test('online lobby browser refreshes and copies the selected lobby code', () => 
         payload: undefined,
     }]);
     assert.equal(lobbyCodeInput.value, 'ABCD1234');
+});
+
+test('lobby start button delegates to the shared match-start event', () => {
+    const emitted = [];
+    const startButton = createButton();
+    bindMenuMultiplayerActionButtons({
+        ui: {
+            multiplayerStartMatchButton: startButton,
+        },
+        bind: (el, event, handler) => el.addEventListener(event, handler),
+        emit: (eventType, payload) => emitted.push({ eventType, payload }),
+        eventTypes: {
+            START_MATCH: 'start_match',
+        },
+        featureFlags: {
+            canHost: true,
+        },
+    });
+
+    startButton.click();
+
+    assert.deepEqual(emitted, [{
+        eventType: 'start_match',
+        payload: undefined,
+    }]);
 });
 
 test('multiplayer leave event delegates through the runtime facade', () => {

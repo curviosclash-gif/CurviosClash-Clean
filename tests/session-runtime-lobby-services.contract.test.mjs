@@ -101,7 +101,7 @@ class FakeNetworkLobby {
                 {
                     peerId: 'peer-host',
                     actorId: 'Host',
-                    ready: false,
+                    ready: true,
                 },
             ],
         };
@@ -113,7 +113,7 @@ class FakeNetworkLobby {
             lobbyCode: options.lobbyCode || 'LAN-QA',
             hostPeerId: 'peer-host',
             members: [
-                { peerId: 'peer-host', actorId: 'Host', ready: false },
+                { peerId: 'peer-host', actorId: 'Host', ready: true },
                 { peerId: this.localPeerId, actorId: 'Client', ready: false },
             ],
         };
@@ -509,6 +509,7 @@ test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helper
     });
 
     const result = await service.host({ actorId: 'Host', maxPlayers: 2 });
+    const hostReadyResult = await service.toggleReady({ actorId: 'Host', ready: false });
 
     assert.equal(result.ok, true);
     assert.equal(result.event.eventType, LOBBY_SERVICE_EVENT_TYPES.HOST);
@@ -518,6 +519,9 @@ test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helper
     assert.equal(result.event.payload.lobbyCode, 'LAN-QA');
     assert.equal(result.sessionState.lobbyCode, 'LAN-QA');
     assert.equal(result.sessionState.isHost, true);
+    assert.equal(result.sessionState.localReady, true);
+    assert.equal(hostReadyResult.sessionState.localReady, true);
+    assert.equal(hostReadyResult.event, null);
     assert.equal(events.length, 1);
 });
 
@@ -676,6 +680,7 @@ test('V96.2 StorageLobbyService keeps host, join and ready mutations application
     assert.equal(hostResult.event.eventType, LOBBY_SERVICE_EVENT_TYPES.HOST);
     assert.equal(hostResult.event.contractVersion, LOBBY_LIFECYCLE_EVENT_CONTRACT_VERSION);
     assert.equal(hostResult.sessionState.isHost, true);
+    assert.equal(hostResult.sessionState.localReady, true);
     assert.equal(joinResult.ok, true);
     assert.equal(joinResult.event.eventType, LOBBY_SERVICE_EVENT_TYPES.JOIN);
     assert.equal(joinResult.sessionState.role, 'client');
@@ -683,4 +688,5 @@ test('V96.2 StorageLobbyService keeps host, join and ready mutations application
     assert.equal(readyResult.ok, true);
     assert.equal(readyResult.event.eventType, LOBBY_SERVICE_EVENT_TYPES.READY_TOGGLE);
     assert.equal(readyResult.sessionState.localReady, true);
+    assert.equal(readyResult.sessionState.readyCount, 2);
 });

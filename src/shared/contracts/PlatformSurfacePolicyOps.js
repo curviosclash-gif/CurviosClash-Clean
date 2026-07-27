@@ -539,7 +539,7 @@ export function resolveSurfaceEntryCopy(options = {}) {
             ? 'Die Demo kann Desktop-Lobbys beitreten, aber keine Lobby hosten.'
             : 'Session-Code, echte Lobby-Verbindung und Ready-Status.',
         hostButtonLabel: hostCapability.available === true
-            ? 'Host'
+            ? 'Lobby erstellen'
             : (isBrowserDemo ? 'Nur Desktop' : 'Nicht verfuegbar'),
         hostButtonTitle: hostCapability.available === true
             ? 'Desktop kann Lobbys erstellen und Matchstart besitzen.'

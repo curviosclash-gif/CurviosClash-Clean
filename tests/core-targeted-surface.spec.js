@@ -1353,14 +1353,14 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(sanitized.botBridgeResumeStrict).toBeTruthy();
     });
 
-    test('T20p: Start-Validierung zeigt Feldgrund und fokussiert Ziel', async ({ page }) => {
+    test('T20p: Multiplayer-Join zeigt Feldgrund und fokussiert den Lobby-Code', async ({ page }) => {
         await loadGame(page);
         await openMultiplayerSubmenu(page);
-        await page.click('#btn-start');
-        await expect(page.locator('#start-validation-status')).toContainText('Start nicht moeglich');
-        await expect(page.locator('#btn-start')).toHaveClass(/is-validation-blocked/);
-        await expect(page.locator('#btn-start')).toHaveAttribute('aria-disabled', 'true');
+        await expect(page.locator('#btn-start')).toBeHidden();
         await expect(page.locator('#multiplayer-inline-stub')).toHaveJSProperty('open', true);
+        await page.click('#btn-multiplayer-join');
+        await expect(page.locator('#multiplayer-status')).toContainText('Lobby-Code fehlt');
+        await expect(page.locator('#multiplayer-lobby-code')).toHaveAttribute('aria-invalid', 'true');
         const focusedElementId = await page.evaluate(() => document.activeElement?.id || '');
         expect(focusedElementId).toBe('multiplayer-lobby-code');
     });
