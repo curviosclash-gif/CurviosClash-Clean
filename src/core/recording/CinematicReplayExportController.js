@@ -166,6 +166,17 @@ function resolveExportErrorMessage(result) {
     return result?.message || 'Cinematic Replay Render wurde abgebrochen.';
 }
 
+function createReplayValidationFailure(replay) {
+    if (!replay || !Array.isArray(replay.snapshots) || replay.snapshots.length === 0) {
+        return {
+            saved: false,
+            reason: 'replay_too_short',
+            message: 'Die Aufnahme enthält keine renderbaren Szenenbilder.',
+        };
+    }
+    return null;
+}
+
 export class CinematicReplayExportController {
     constructor({
         runtimeGlobal = globalThis,
@@ -216,9 +227,14 @@ export class CinematicReplayExportController {
         if (this._activeExport) {
             return { saved: false, reason: 'export_already_running' };
         }
-        if (!replay || !Array.isArray(replay.snapshots) || replay.snapshots.length < 2) {
+        const validationFailure = createReplayValidationFailure(replay);
+        if (validationFailure) {
             this._lastFailedReplay = replay || null;
-            return { saved: false, reason: 'replay_too_short' };
+            this._emitStatus('failed', {
+                message: validationFailure.message,
+                code: validationFailure.reason,
+            });
+            return validationFailure;
         }
         if (!this.renderFrame) {
             this._lastFailedReplay = replay;
@@ -373,7 +389,15 @@ export class CinematicReplayExportController {
                 filePath: finishResult.filePath || null,
                 warnings,
             });
-            await this.renderFrame({ reset: true });
+            try {
+                await this.renderFrame({ reset: true });
+            } catch (error) {
+                warnings.push('replay_renderer_reset_failed');
+                this.logger?.warn?.(
+                    '[CinematicReplayExport] saved video renderer cleanup failed',
+                    error
+                );
+            }
             return {
                 ...finishResult,
                 partial: replay.partial === true,

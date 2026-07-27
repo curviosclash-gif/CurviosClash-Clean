@@ -183,9 +183,14 @@ export function bindMenuRecordingCameraControls({
                         tone: 'warning',
                     });
                 } else {
+                    const detail = String(result?.message || result?.reason || '').trim();
                     emit(eventTypes.SHOW_STATUS_TOAST, {
                         message: 'Rendern fehlgeschlagen – die Aufnahme bleibt in der Liste',
                         duration: 2600,
+                        ...(detail ? {
+                            message: `Rendern fehlgeschlagen: ${detail}`,
+                            duration: 4200,
+                        } : {}),
                         tone: 'error',
                     });
                 }

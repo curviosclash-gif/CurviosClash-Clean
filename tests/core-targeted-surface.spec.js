@@ -843,6 +843,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.waitForFunction(
             () => window.GAME_INSTANCE?.mediaRecorderSystem?.listCinematicReplayRecordings?.().length === 1
         );
+        await page.evaluate(() => document.getElementById('cinematic-replay-render-button')?.click());
+        await page.waitForFunction(
+            () => window.GAME_INSTANCE?.mediaRecorderSystem?.listCinematicReplayRecordings?.().length === 0
+        );
 
         const result = await page.evaluate(() => ({
             remaining: window.GAME_INSTANCE?.mediaRecorderSystem
@@ -853,8 +857,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 (option) => option.value
             ),
         }));
-        expect(result.remaining).toEqual([prepared.secondId]);
-        expect(result.options).toEqual([prepared.secondId]);
+        expect(result.remaining).toEqual([]);
+        expect(result.options).toEqual(['']);
     });
 
     test('T20l4: Menue-Render rekonstruiert eine Replay-Szene ohne aktive Match-Session', async ({ page }) => {
@@ -885,8 +889,8 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 trailInGap: false,
                 vehicleId: index < 2 ? game.settings?.vehicles?.[`PLAYER_${index + 1}`] : '',
             }));
-            const replay = {
-                matchId: 'menu-render-runtime',
+            const createReplay = (matchId, offset) => ({
+                matchId,
                 durationMs: 17,
                 metadata: {
                     mapKey: runtimeConfig?.session?.mapKey || game.settings?.mapKey || 'standard',
@@ -898,36 +902,51 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                     runtimeConfig,
                 },
                 snapshots: [
-                    { timeMs: 0, players: snapshotPlayers, projectiles: [] },
+                    {
+                        timeMs: 0,
+                        players: snapshotPlayers.map((player) => ({
+                            ...player,
+                            pos: [player.pos[0] + offset, player.pos[1], player.pos[2]],
+                        })),
+                        projectiles: [],
+                    },
                     {
                         timeMs: 17,
                         players: snapshotPlayers.map((player) => ({
                             ...player,
-                            pos: [player.pos[0] + 0.2, player.pos[1], player.pos[2]],
+                            pos: [player.pos[0] + offset + 0.2, player.pos[1], player.pos[2]],
                         })),
                         projectiles: [],
                     },
                 ],
                 audioBlob: null,
                 audioWarning: 'audio_capture_unavailable',
-            };
+            });
+            const replays = [
+                createReplay('menu-render-runtime-first', 0),
+                createReplay('menu-render-runtime-second', 2),
+            ];
             const hadActiveEntityManager = !!game.entityManager;
-            const streamedFrames = [];
-            let beginPayload = null;
+            const streamedFrames = new Map();
+            const beginPayloads = [];
+            let exportSequence = 0;
             const saveContract = {
                 contractVersion: 'preload.save.v2',
                 beginCinematicReplayExport: async (payload) => {
-                    beginPayload = payload;
-                    return { started: true, exportId: 'menu-render-export' };
+                    exportSequence++;
+                    const exportId = `menu-render-export-${exportSequence}`;
+                    beginPayloads.push(payload);
+                    streamedFrames.set(exportId, []);
+                    return { started: true, exportId };
                 },
                 appendCinematicReplayFrame: async (payload) => {
-                    streamedFrames.push(payload.frameIndex);
+                    streamedFrames.get(payload.exportId)?.push(payload.frameIndex);
                     return { accepted: true };
                 },
-                finishCinematicReplayExport: async () => ({
+                finishCinematicReplayExport: async ({ exportId }) => ({
                     saved: true,
-                    fileName: 'menu-render-runtime.mp4',
-                    filePath: 'C:\\Videos\\menu-render-runtime.mp4',
+                    fileName: `${exportId}.mp4`,
+                    filePath: `C:\\Videos\\${exportId}.mp4`,
                 }),
                 cancelCinematicReplayExport: async () => ({ cancelled: true }),
             };
@@ -949,13 +968,20 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 runtimeGlobal,
                 renderFrame,
             });
-            const exportResult = await controller.export(replay);
+            const firstExportResult = await controller.export(replays[0]);
+            await new Promise((resolve) => setTimeout(resolve, 80));
+            const secondExportResult = await controller.export(replays[1]);
             return {
                 hadActiveEntityManager,
-                saved: exportResult.saved === true,
-                width: Number(beginPayload?.width || 0),
-                height: Number(beginPayload?.height || 0),
-                streamedFrames,
+                saved: [
+                    firstExportResult.saved === true,
+                    secondExportResult.saved === true,
+                ],
+                sizes: beginPayloads.map((payload) => [
+                    Number(payload?.width || 0),
+                    Number(payload?.height || 0),
+                ]),
+                streamedFrames: Array.from(streamedFrames.values()),
                 settingsRestored: JSON.stringify(game.renderer?.getRecordingCaptureSettings?.() || null)
                     === JSON.stringify(initialRecordingSettings),
             };
@@ -963,10 +989,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         expect(result).toEqual({
             hadActiveEntityManager: false,
-            saved: true,
-            width: 1920,
-            height: 1080,
-            streamedFrames: [0, 1],
+            saved: [true, true],
+            sizes: [[1920, 1080], [1920, 1080]],
+            streamedFrames: [[0, 1], [0, 1]],
             settingsRestored: true,
         });
     });

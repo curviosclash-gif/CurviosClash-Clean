@@ -289,6 +289,91 @@ test('cinematic export streams frames once and propagates partial metadata', asy
     assert.deepEqual(firstProjectionTrail, { width: 0.85, inGap: true });
 });
 
+test('cinematic export keeps consecutive saved renders successful when scene cleanup fails', async () => {
+    const frameBytes = new Uint8ClampedArray(1920 * 1080 * 4);
+    const completedExports = [];
+    let exportSequence = 0;
+    let resetCalls = 0;
+    const runtimeGlobal = {
+        __CURVIOS_APP__: true,
+        curviosApp: {
+            contracts: {
+                save: {
+                    contractVersion: 'preload.save.v2',
+                    beginCinematicReplayExport: async () => {
+                        exportSequence++;
+                        return { started: true, exportId: `export-${exportSequence}` };
+                    },
+                    appendCinematicReplayFrame: async () => ({ accepted: true }),
+                    finishCinematicReplayExport: async ({ exportId }) => {
+                        completedExports.push(exportId);
+                        return {
+                            saved: true,
+                            filePath: `C:\\Videos\\${exportId}.mp4`,
+                            fileName: `${exportId}.mp4`,
+                        };
+                    },
+                    cancelCinematicReplayExport: async () => ({ cancelled: true }),
+                },
+            },
+            capabilities: {
+                save: {
+                    available: true,
+                    providerKind: 'electron-ipc',
+                    contractVersion: 'preload.save.v2',
+                },
+            },
+        },
+    };
+    const controller = new CinematicReplayExportController({
+        runtimeGlobal,
+        logger: { warn() {} },
+        renderFrame: async ({ reset }) => {
+            if (reset) {
+                resetCalls++;
+                if (resetCalls === 1) throw new Error('scene_cleanup_failed');
+                return null;
+            }
+            return {
+                width: 1920,
+                height: 1080,
+                getContext: () => ({
+                    getImageData: () => ({ data: frameBytes }),
+                }),
+            };
+        },
+    });
+    const snapshot = {
+        timeMs: 0,
+        players: [{
+            index: 0,
+            pos: [0, 0, 0],
+            rot: [0, 0, 0, 1],
+            alive: true,
+            health: 100,
+        }],
+    };
+
+    const first = await controller.export({
+        matchId: 'first',
+        durationMs: 1,
+        snapshots: [snapshot],
+        metadata: {},
+    });
+    const second = await controller.export({
+        matchId: 'second',
+        durationMs: 1,
+        snapshots: [snapshot],
+        metadata: {},
+    });
+
+    assert.equal(first.saved, true);
+    assert.deepEqual(first.warnings, ['replay_renderer_reset_failed']);
+    assert.equal(second.saved, true);
+    assert.deepEqual(completedExports, ['export-1', 'export-2']);
+    assert.equal(resetCalls, 2);
+});
+
 test('cinematic replay frame renderer rebuilds and resets player trails', async () => {
     const calls = [];
     const trail = {
