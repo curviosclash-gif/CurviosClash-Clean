@@ -14,9 +14,11 @@ const KILLCAM_MAX_DISPLAY_SECONDS = 2.5;
 const KILLCAM_CAMERA_INDEX = 0;
 const KILLCAM_ORBIT_SMOOTH_SPEED = 9.5;
 const KILLCAM_MIN_DURATION = 0.6;
-const KILLCAM_EXPLOSION_TRIGGER_RATIO = 0.86;
+const KILLCAM_EXPLOSION_TRIGGER_RATIO = 0.78;
 const KILLCAM_SLOWMO_TIMESCALE = 0.38;
 const KILLCAM_LETTERBOX_DOM_ID = 'killcam-letterbox';
+const KILLCAM_HUD_ACTIVE_CLASS = 'killcam-active';
+const KILLCAM_MIN_CAMERA_DISTANCE = 4;
 
 const SHOT_SEQUENCE = Object.freeze([
     Object.freeze({
@@ -133,6 +135,7 @@ export class KillcamSystem {
         this._killerPosition = new THREE.Vector3();
         this._killerQuaternion = new THREE.Quaternion();
         this._killerDirection = new THREE.Vector3(0, 0, -1);
+        this._impactDirection = new THREE.Vector3(0, 0, -1);
         this._tmpPosition = new THREE.Vector3();
         this._tmpLookAt = new THREE.Vector3();
         this._tmpVec = new THREE.Vector3();
@@ -144,6 +147,7 @@ export class KillcamSystem {
         this._ghostRateCalibration = 1;
         this._hasKillerPose = false;
         this._reduceMotion = false;
+        this._cameraInitialized = false;
         this._presentationEntries = [];
         this._letterboxEl = null;
         this._ownsLetterboxEl = false;
@@ -230,11 +234,23 @@ export class KillcamSystem {
             Number(focusSource?.y) || 0,
             Number(focusSource?.z) || 0
         );
+        this._impactDirection.set(0, 0, -1);
+        const playerQuaternion = player?.quaternion;
+        if (playerQuaternion && Number.isFinite(Number(playerQuaternion.w))) {
+            this._impactDirection.applyQuaternion(playerQuaternion);
+        }
+        this._impactDirection.y = 0;
+        if (this._impactDirection.lengthSq() <= 0.000001) {
+            this._impactDirection.set(0, 0, -1);
+        } else {
+            this._impactDirection.normalize();
+        }
         this._explosionTriggered = false;
         this._deadPlayerColor = Number.isFinite(Number(player?.color)) ? Number(player.color) : 0xffffff;
         this._ghostSourceDuration = Math.max(0.001, Number(clip?.sourceDuration) || displayDuration);
         this._ghostElapsed = 0;
         this._hasKillerPose = false;
+        this._cameraInitialized = false;
         this._ghostRateCalibration = computeGhostRateCalibration(
             this._displayDuration,
             this._ghostSourceDuration,
@@ -307,6 +323,28 @@ export class KillcamSystem {
         this._explosionTriggered = true;
         const particles = this.entityManager?.particles;
         const focus = this._focusPoint;
+        if (typeof particles?.spawnDirectional === 'function') {
+            try {
+                this._tmpVec.copy(this._impactDirection).multiplyScalar(-1);
+                particles.spawnDirectional(
+                    focus,
+                    this._tmpVec,
+                    24,
+                    this._deadPlayerColor,
+                    14,
+                    0.55,
+                    0.65,
+                    {
+                        gravity: -4,
+                        spread: 0.55,
+                        type: 'killcam-crash',
+                        presentationOverride: true,
+                    }
+                );
+            } catch {
+                // best-effort directional debris
+            }
+        }
         if (typeof particles?.spawnExplosion === 'function') {
             try {
                 particles.spawnExplosion(focus, this._deadPlayerColor, {
@@ -315,6 +353,9 @@ export class KillcamSystem {
             } catch {
                 // best-effort particle effect
             }
+        }
+        if (!this._reduceMotion) {
+            this.renderer?.triggerCameraShake?.(KILLCAM_CAMERA_INDEX, 0.32, 0.24);
         }
 
         const audio = this.entityManager?.audio;
@@ -360,11 +401,14 @@ export class KillcamSystem {
 
         const targetFov = this._reduceMotion ? this._baseFov : shot.fov;
         if (Number.isFinite(targetFov) && Math.abs(camera.fov - targetFov) > 0.05) {
-            const fovBlendAlpha = 1 - Math.exp(-6.5 * Math.max(safeDt, 1 / 240));
+            const fovBlendAlpha = this._cameraInitialized
+                ? (1 - Math.exp(-6.5 * Math.max(safeDt, 1 / 240)))
+                : 1;
             camera.fov = THREE.MathUtils.lerp(camera.fov, targetFov, fovBlendAlpha);
             camera.updateProjectionMatrix();
         }
 
+        this._cameraInitialized = true;
         return true;
     }
 
@@ -376,14 +420,35 @@ export class KillcamSystem {
             this._tmpPosition,
             this.entityManager?.arena
         );
+        if (this._tmpPosition.distanceToSquared(origin) >= KILLCAM_MIN_CAMERA_DISTANCE ** 2) {
+            return;
+        }
+        this._tmpPosition.copy(this._focusPoint)
+            .addScaledVector(this._impactDirection, -6);
+        this._tmpPosition.y += 6;
+        this.renderer?.resolveCameraCollision?.(
+            KILLCAM_CAMERA_INDEX,
+            `${mode}-fallback`,
+            origin,
+            this._tmpPosition,
+            this.entityManager?.arena
+        );
+    }
+
+    _resolveCameraBlend(speed, safeDt) {
+        return this._cameraInitialized
+            ? (1 - Math.exp(-speed * Math.max(safeDt, 1 / 240)))
+            : 1;
     }
 
     _applyReducedMotionShot(camera, safeDt) {
         this._tmpLookAt.copy(this._focusPoint);
         this._tmpLookAt.y += 0.6;
-        this._tmpPosition.copy(this._focusPoint).add(this._tmpVec.set(7.5, 4.5, 7.5));
+        this._tmpPosition.copy(this._focusPoint)
+            .addScaledVector(this._impactDirection, -8);
+        this._tmpPosition.y += 4;
         this._resolveCameraCollision('killcam-reduced-motion', this._tmpLookAt);
-        const smoothAlpha = 1 - Math.exp(-4 * Math.max(safeDt, 1 / 240));
+        const smoothAlpha = this._resolveCameraBlend(4, safeDt);
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
     }
@@ -409,7 +474,7 @@ export class KillcamSystem {
         this._tmpPosition.add(this._tmpVec);
 
         this._resolveCameraCollision('killcam-killer-chase', this._tmpLookAt);
-        const smoothAlpha = 1 - Math.exp(-KILLCAM_ORBIT_SMOOTH_SPEED * Math.max(safeDt, 1 / 240));
+        const smoothAlpha = this._resolveCameraBlend(KILLCAM_ORBIT_SMOOTH_SPEED, safeDt);
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
     }
@@ -434,7 +499,7 @@ export class KillcamSystem {
         );
 
         this._resolveCameraCollision('killcam-impact-zoom', this._tmpLookAt);
-        const smoothAlpha = 1 - Math.exp(-KILLCAM_ORBIT_SMOOTH_SPEED * Math.max(safeDt, 1 / 240));
+        const smoothAlpha = this._resolveCameraBlend(KILLCAM_ORBIT_SMOOTH_SPEED, safeDt);
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
     }
@@ -459,7 +524,7 @@ export class KillcamSystem {
         this._resolveCameraCollision('killcam-explosion-orbit', this._tmpLookAt);
         // slower smoothing for slow-mo feel
         const slowSmooth = KILLCAM_ORBIT_SMOOTH_SPEED * 0.7;
-        const smoothAlpha = 1 - Math.exp(-slowSmooth * Math.max(safeDt, 1 / 240));
+        const smoothAlpha = this._resolveCameraBlend(slowSmooth, safeDt);
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
     }
@@ -500,13 +565,15 @@ export class KillcamSystem {
             el.appendChild(top);
             el.appendChild(bottom);
             el.appendChild(label);
-            doc.body.appendChild(el);
+            (doc.getElementById('game-container') || doc.body).appendChild(el);
         }
         this._letterboxEl = el;
         return el;
     }
 
     _showLetterbox(show) {
+        const doc = typeof document !== 'undefined' ? document : null;
+        doc?.getElementById?.('hud')?.classList?.toggle?.(KILLCAM_HUD_ACTIVE_CLASS, show);
         const el = show ? this._resolveLetterboxEl() : this._letterboxEl;
         if (!el) return;
         try {
@@ -539,6 +606,7 @@ export class KillcamSystem {
         this._ghostRateCalibration = 1;
         this._hasKillerPose = false;
         this._reduceMotion = false;
+        this._cameraInitialized = false;
         this._deathMetadata = null;
         this._explosionTriggered = false;
 

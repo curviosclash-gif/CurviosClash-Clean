@@ -16,6 +16,8 @@ function createKillcamFixture({
     const seekCalls = [];
     const clipRequests = [];
     const explosionCalls = [];
+    const directionalCalls = [];
+    const shakeCalls = [];
     const camera = {
         fov: 75,
         position: new THREE.Vector3(0, 4, 12),
@@ -28,6 +30,7 @@ function createKillcamFixture({
         alive: false,
         color: 0xffffff,
         position: new THREE.Vector3(3, 2, 1),
+        quaternion: new THREE.Quaternion(),
         view: { group: { visible: false } },
         trail: {},
     };
@@ -57,6 +60,7 @@ function createKillcamFixture({
             setPresentationSuppressed(value) { this._suppressed = value === true; },
             isPresentationSuppressed() { return this._suppressed; },
             spawnExplosion(...args) { explosionCalls.push(args); },
+            spawnDirectional(...args) { directionalCalls.push(args); },
         },
         audio: { play() {} },
         projectiles: [],
@@ -83,6 +87,7 @@ function createKillcamFixture({
         renderer: {
             cameras: [camera],
             getCameraPerspectiveSettings: () => ({ reduceMotion }),
+            triggerCameraShake(...args) { shakeCalls.push(args); },
             resolveCameraCollision(_playerIndex, _mode, _origin, desiredPosition, collisionArena) {
                 collisionArena?.checkCollision?.(desiredPosition, 0.45);
             },
@@ -105,6 +110,7 @@ function createKillcamFixture({
     return {
         camera,
         clipRequests,
+        directionalCalls,
         entityManager,
         explosionCalls,
         ghostSystem,
@@ -113,18 +119,21 @@ function createKillcamFixture({
         player,
         playbackCalls,
         seekCalls,
+        shakeCalls,
     };
 }
 
 test('killcam keeps visible ghost playback aligned with its source-time camera pose', () => {
     const {
         clipRequests,
+        directionalCalls,
         explosionCalls,
         killcam,
         killer,
         player,
         playbackCalls,
         seekCalls,
+        shakeCalls,
     } = createKillcamFixture();
     assert.equal(killcam.onPlayerDied(player, { killer }), true);
     assert.equal(playbackCalls[0]?.options?.loop, false);
@@ -142,6 +151,8 @@ test('killcam keeps visible ghost playback aligned with its source-time camera p
     assert.ok(Math.abs(killcam._ghostElapsed - killcam._ghostSourceDuration) < 0.01);
     assert.ok(Math.abs(seekCalls.at(-1) - killcam._ghostSourceDuration) < 0.01);
     assert.equal(explosionCalls.length, 1);
+    assert.equal(directionalCalls.length, 1);
+    assert.deepEqual(shakeCalls, [[0, 0.32, 0.24]]);
     assert.equal(killcam._hasKillerPose, true);
     killcam.update(killcam._displayDuration * 0.1);
     assert.equal(explosionCalls.length, 1);
@@ -266,23 +277,60 @@ test('killcam restores exact live visibility and keeps newly visible objects hid
 
 test('reduced-motion killcam uses a stable collision-checked camera', () => {
     let collisionChecks = 0;
-    const arena = {
-        checkCollision() {
-            collisionChecks += 1;
-            return false;
-        },
-    };
     const { camera, killcam, killer, player } = createKillcamFixture({
         reduceMotion: true,
-        arena,
     });
+    killcam.renderer.resolveCameraCollision = (_playerIndex, mode, origin, desiredPosition) => {
+        collisionChecks += 1;
+        if (mode === 'killcam-reduced-motion') desiredPosition.copy(origin);
+    };
     assert.equal(killcam.onPlayerDied(player, { killer }), true);
     killcam.applyCinematicCamera(1 / 60);
 
     assert.equal(killcam._reduceMotion, true);
     assert.equal(camera.fov, 75);
-    assert.ok(collisionChecks > 0);
+    assert.ok(camera.position.distanceTo(killcam._focusPoint) > 8);
+    assert.equal(collisionChecks, 2);
     killcam.dispose();
+});
+
+test('killcam suppresses gameplay HUD only while replay presentation is active', () => {
+    const previousDocument = globalThis.document;
+    const hudClasses = new Set();
+    const overlayClasses = new Set(['killcam-letterbox', 'hidden']);
+    const createClassList = (classes) => ({
+        toggle(name, force) {
+            if (force) classes.add(name);
+            else classes.delete(name);
+        },
+    });
+    const hud = { classList: createClassList(hudClasses) };
+    const overlay = {
+        classList: createClassList(overlayClasses),
+        setAttribute() {},
+    };
+    globalThis.document = {
+        body: {},
+        getElementById(id) {
+            if (id === 'hud') return hud;
+            if (id === 'killcam-letterbox') return overlay;
+            return null;
+        },
+    };
+
+    try {
+        const { killcam, player } = createKillcamFixture();
+        assert.equal(killcam.onPlayerDied(player), true);
+        assert.equal(hudClasses.has('killcam-active'), true);
+        assert.equal(overlayClasses.has('hidden'), false);
+
+        killcam.clear();
+        assert.equal(hudClasses.has('killcam-active'), false);
+        assert.equal(overlayClasses.has('hidden'), true);
+        killcam.dispose();
+    } finally {
+        globalThis.document = previousDocument;
+    }
 });
 
 test('EntityManager owns killcam playback and camera updates behind public seams', () => {

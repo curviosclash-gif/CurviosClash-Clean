@@ -6841,3 +6841,15 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 .killcam-letterbox.reduced-motion .killcam-letterbox-label {
     transition: none;
 }
+
+#hud.killcam-active > .fighter-hud,
+#hud.killcam-active > .player-hud,
+#hud.killcam-active > .parcours-hud,
+#hud.killcam-active .hunt-match-status,
+#hud.killcam-active .hunt-vitals,
+#hud.killcam-active .hunt-arc-meter,
+#hud.killcam-active #hunt-p2-panel,
+#hud.killcam-active .hunt-kill-feed,
+#hud.killcam-active .hunt-damage-indicator {
+    visibility: hidden;
+}

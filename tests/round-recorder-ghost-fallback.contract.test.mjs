@@ -15,6 +15,18 @@ function createPlayer(index, isBot, x, y, z) {
     };
 }
 
+test('RoundRecorder captures replay poses densely enough for a smooth two-second killcam', () => {
+    const recorder = new RoundRecorder();
+    const players = [createPlayer(0, false, 0, 0, 0)];
+
+    recorder.startRound(players);
+    recorder.recordFrame(players);
+    recorder.recordFrame(players);
+    assert.equal(recorder.snapshotCount, 0);
+    recorder.recordFrame(players);
+    assert.equal(recorder.snapshotCount, 1);
+});
+
 test('RoundRecorder erzeugt Ghost-Clip auch bei stark gedrosselter Frame-Aufnahme', () => {
     const recorder = new RoundRecorder();
     recorder._snapshotInterval = 1000;

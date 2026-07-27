@@ -36,7 +36,7 @@ export class RoundRecorder {
         this._frameCaptureEnabled = false;
         this._replayCaptureEnabled = true;
         this._frameCounter = 0;
-        this._snapshotInterval = 10;
+        this._snapshotInterval = 3;
 
         this._eventStore = new RoundEventStore({
             maxEvents: MAX_EVENTS,
