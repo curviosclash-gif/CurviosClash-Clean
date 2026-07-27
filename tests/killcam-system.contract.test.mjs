@@ -138,6 +138,7 @@ test('killcam keeps visible ghost playback aligned with its source-time camera p
     assert.equal(killcam.onPlayerDied(player, { killer }), true);
     assert.equal(playbackCalls[0]?.options?.loop, false);
     assert.equal(playbackCalls[0]?.options?.useLivePlayerViews, true);
+    assert.equal(playbackCalls[0]?.options?.terminalDeathPlayerIndex, player.index);
     assert.equal(clipRequests[0]?.maxSourceDuration, 2);
     assert.equal(clipRequests[0]?.displayDuration, 2.5);
 
@@ -171,6 +172,7 @@ test('killcam requests real live vehicle views instead of ghost bodies', () => {
     assert.equal(playbackOptions?.useLivePlayerViews, true);
     assert.equal(playbackOptions?.livePlayers, entityManager.players);
     assert.equal(playbackOptions?.loop, false);
+    assert.equal(playbackOptions?.terminalDeathPlayerIndex, player.index);
     killcam.dispose();
 });
 
@@ -357,6 +359,39 @@ test('EntityManager owns killcam playback and camera updates behind public seams
         ['update', 0.2],
         ['camera', 0.1],
     ]);
+});
+
+test('EntityManager render interpolation does not overwrite live vehicle killcam poses', () => {
+    const replayGroup = {};
+    const calls = [];
+    const manager = Object.assign(Object.create(EntityManager.prototype), {
+        _killcamSystem: { isActive: () => true },
+        _lastRoundGhostSystem: {
+            usesReplayPresentationObject: (object) => object === replayGroup,
+        },
+        players: [
+            {
+                alive: false,
+                view: {
+                    group: replayGroup,
+                    applyRenderTransform: () => calls.push('replay-transform'),
+                    updateVisuals: () => calls.push('replay-visuals'),
+                },
+            },
+            {
+                alive: true,
+                view: {
+                    group: {},
+                    applyRenderTransform: () => calls.push('live-transform'),
+                    updateVisuals: () => calls.push('live-visuals'),
+                },
+            },
+        ],
+    });
+
+    manager.renderInterpolatedTransforms(0.5, 1 / 60);
+
+    assert.deepEqual(calls, ['live-transform', 'live-visuals']);
 });
 
 test('particle presentation suppression admits only the authored killcam effect', () => {

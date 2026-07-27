@@ -194,7 +194,7 @@ test('LastRoundGhostSystem holds the final frame when looping is disabled', () =
     system.dispose();
 });
 
-test('LastRoundGhostSystem applies the terminal death state at the exact impact time', () => {
+test('LastRoundGhostSystem hides the terminal death state outside killcam playback', () => {
     const system = new LastRoundGhostSystem(createRendererStub());
     assert.equal(system.playClip({
         ...createPlayableClip(),
@@ -210,6 +210,35 @@ test('LastRoundGhostSystem applies the terminal death state at the exact impact 
 
     assert.equal(system.seekSourceTime(1), true);
     assert.equal(system._entries[0]?.group?.visible, false);
+    system.dispose();
+});
+
+test('LastRoundGhostSystem holds the killed vehicle at its exact terminal impact pose for killcam playback', () => {
+    const system = new LastRoundGhostSystem(createRendererStub());
+    const liveGroup = new system.root.constructor();
+    const livePlayer = {
+        index: 0,
+        alive: false,
+        group: liveGroup,
+        view: { group: liveGroup },
+    };
+    assert.equal(system.playClip({
+        ...createPlayableClip(),
+        frames: [
+            { time: 0, players: [{ idx: 0, alive: true, x: 0, y: 2, z: 5, qx: 0, qy: 0, qz: 0, qw: 1 }] },
+            { time: 1, players: [{ idx: 0, alive: true, x: 0, y: 2, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }] },
+            { time: 1, players: [{ idx: 0, alive: false, x: 0, y: 2, z: 0, qx: 0, qy: 0, qz: 0, qw: 1 }] },
+        ],
+    }, {
+        loop: false,
+        useLivePlayerViews: true,
+        livePlayers: [livePlayer],
+        terminalDeathPlayerIndex: 0,
+    }), true);
+
+    assert.equal(system.seekSourceTime(1), true);
+    assert.equal(liveGroup.visible, true);
+    assert.deepEqual(liveGroup.position.toArray(), [0, 2, 0]);
     system.dispose();
 });
 

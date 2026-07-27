@@ -350,6 +350,13 @@ export class EntityManager {
     renderInterpolatedTransforms(renderAlpha = 1, visualDelta = 0) {
         const visualDt = Math.max(0, Math.min(0.05, Number(visualDelta) || 0));
         for (const player of this.players) {
+            const playerGroup = player?.view?.group;
+            if (
+                this._killcamSystem?.isActive?.() === true
+                && this._lastRoundGhostSystem?.usesReplayPresentationObject?.(playerGroup)
+            ) {
+                continue;
+            }
             player?.view?.applyRenderTransform?.(renderAlpha);
             player?.view?.updateVisuals?.(player?.alive ? visualDt : 0);
         }

@@ -218,6 +218,7 @@ export class LastRoundGhostSystem {
         this._playbackRate = 1;
         this._loopPlayback = true;
         this._forcedSourceTime = null;
+        this._terminalDeathPlayerIndex = -1;
         this._routeId = '';
         this._tmpQuatA = new THREE.Quaternion();
         this._tmpQuatB = new THREE.Quaternion();
@@ -264,6 +265,7 @@ export class LastRoundGhostSystem {
         this._playbackRate = 1;
         this._loopPlayback = true;
         this._forcedSourceTime = null;
+        this._terminalDeathPlayerIndex = -1;
         this.root.visible = false;
         this._routeId = '';
         this._clearEntries();
@@ -299,6 +301,9 @@ export class LastRoundGhostSystem {
         this._displayDuration = Math.max(0.35, Number(safeClip.displayDuration) || this._sourceDuration);
         this._playbackRate = this._sourceDuration / this._displayDuration;
         this._loopPlayback = options?.loop !== false;
+        this._terminalDeathPlayerIndex = Number.isInteger(options?.terminalDeathPlayerIndex)
+            ? options.terminalDeathPlayerIndex
+            : -1;
         this._active = true;
         this._frameCursor = Math.min(1, Math.max(0, this._frames.length - 1));
         this._lastPlaybackTime = 0;
@@ -354,8 +359,11 @@ export class LastRoundGhostSystem {
             const poseA = prevPose || nextPose;
             const poseB = nextPose || prevPose;
             const playbackPose = alpha >= 1 ? poseB : poseA;
+            const holdsTerminalDeathPose = playbackPose?.alive === false
+                && entry.idx === this._terminalDeathPlayerIndex
+                && playbackTime >= this._sourceDuration - 0.000001;
 
-            if (!poseA || !poseB || playbackPose?.alive === false) {
+            if (!poseA || !poseB || (playbackPose?.alive === false && !holdsTerminalDeathPose)) {
                 entry.group.visible = false;
                 continue;
             }
@@ -368,9 +376,9 @@ export class LastRoundGhostSystem {
             entry.group.visible = true;
             entry.group.position.set(
                 currentPosition.x,
-                currentPosition.y
-                    + 0.55
-                    + Math.sin(bobPhase + entry.idx) * 0.08,
+                entry.usesLivePresentation
+                    ? currentPosition.y
+                    : currentPosition.y + 0.55 + Math.sin(bobPhase + entry.idx) * 0.08,
                 currentPosition.z
             );
 

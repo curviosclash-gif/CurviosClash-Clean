@@ -216,6 +216,7 @@ export class KillcamSystem {
             loop: false,
             useLivePlayerViews: true,
             livePlayers: players,
+            terminalDeathPlayerIndex: Number.isInteger(player.index) ? player.index : -1,
         });
         if (played !== true) return false;
 
