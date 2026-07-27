@@ -126,7 +126,7 @@ test('cinematic replay library keeps individual recordings selectable and bounde
     assert.equal(library.getCapacityState().canRecord, true);
 });
 
-test('cinematic profile waits for manual F9 start and continues across round finalization', async () => {
+test('cinematic profile waits for manual F8 start and continues across round finalization', async () => {
     const recorder = new MediaRecorderSystem({
         canvas: null,
         autoRecordingEnabled: true,

@@ -14,6 +14,6 @@ export const KEY_BIND_ACTIONS = [
 ];
 
 export const GLOBAL_KEY_BIND_ACTIONS = [
-    { label: 'Cinematic Kamera (beide Spieler)', key: 'CINEMATIC_TOGGLE' },
-    { label: 'Videoaufnahme Start/Stopp', key: 'RECORDING_TOGGLE' },
+    { label: 'Cinematic-Kamera + Aufnahme starten', key: 'CINEMATIC_TOGGLE' },
+    { label: 'Cinematic-Aufnahme stoppen', key: 'RECORDING_TOGGLE' },
 ];

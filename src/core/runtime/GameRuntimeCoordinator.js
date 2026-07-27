@@ -156,8 +156,8 @@ export class GameRuntimeCoordinator {
         return this.getRuntimeFacade()?.requestArcadeReplayPlayback?.();
     }
 
-    toggleCinematicRecordingFromHotkey() {
-        return this.getRuntimeFacade()?.toggleCinematicRecordingFromHotkey?.();
+    toggleCinematicRecordingFromHotkey(command = 'toggle') {
+        return this.getRuntimeFacade()?.toggleCinematicRecordingFromHotkey?.(command);
     }
 
     finalizeRoundRecording(winner, players, options = undefined) {

@@ -39,9 +39,17 @@ async function startCinematicRecording({ game, getRuntimeHandle, showStatusToast
     return result;
 }
 
-export function toggleCinematicRecordingFromHotkey({ game, getRuntimeHandle, showStatusToast }) {
+export function toggleCinematicRecordingFromHotkey({
+    game,
+    getRuntimeHandle,
+    showStatusToast,
+    command = 'toggle',
+}) {
     const recorder = getRuntimeHandle('mediaRecorderSystem');
     if (!recorder || typeof recorder.notifyLifecycleEvent !== 'function') return undefined;
+    const requestedCommand = ['start', 'stop'].includes(String(command || '').toLowerCase())
+        ? String(command).toLowerCase()
+        : 'toggle';
     const support = recorder.getSupportState?.() || null;
     if (support && support.canRecord === false) {
         showStatusToast('Videoaufnahme nicht verfuegbar', 1600, 'error');
@@ -50,7 +58,9 @@ export function toggleCinematicRecordingFromHotkey({ game, getRuntimeHandle, sho
     const supportsDirectRecording = typeof recorder.startRecording === 'function'
         && typeof recorder.stopRecording === 'function';
     if (!supportsDirectRecording) {
-        recorder.notifyLifecycleEvent(MATCH_LIFECYCLE_EVENT_TYPES.RECORDING_REQUESTED, { command: 'toggle' });
+        recorder.notifyLifecycleEvent(MATCH_LIFECYCLE_EVENT_TYPES.RECORDING_REQUESTED, {
+            command: requestedCommand,
+        });
         return true;
     }
     if (recorder.isCinematicReplayExporting?.() === true) {
@@ -63,6 +73,10 @@ export function toggleCinematicRecordingFromHotkey({ game, getRuntimeHandle, sho
     const wasRecording = !!recorder.isRecording?.();
     const isCinematicRecording = wasRecording
         && isCinematicCaptureProfile(recorder.getRecordingCaptureSettings?.()?.profile);
+    if (requestedCommand === 'start' && isCinematicRecording) {
+        showStatusToast('Cinematic-Aufnahme läuft bereits', 1600, 'info');
+        return true;
+    }
     if (isCinematicRecording) {
         showStatusToast('Cinematic-Aufnahme: wird zur Renderliste hinzugefügt...', 1200, 'info');
         recorder.stopRecording({ type: 'cinematic_manual_stop' }).then((result) => {
@@ -77,6 +91,24 @@ export function toggleCinematicRecordingFromHotkey({ game, getRuntimeHandle, sho
                 showStatusToast('Cinematic-Aufnahme konnte nicht in die Renderliste übernommen werden', 2400, 'error');
             }
         }).catch(() => showStatusToast('Cinematic-Aufnahme: Fehler beim Ablegen', 2000, 'error'));
+        return true;
+    }
+    if (requestedCommand === 'stop') {
+        if (!wasRecording) {
+            showStatusToast('Keine Cinematic-Aufnahme aktiv', 1600, 'info');
+            return false;
+        }
+        recorder.stopRecording({ type: 'cinematic_manual_stop' })
+            .then((result) => {
+                showStatusToast(
+                    result?.stopped === false
+                        ? 'Cinematic-Aufnahme konnte nicht beendet werden'
+                        : 'Videoaufnahme wurde beendet',
+                    1800,
+                    result?.stopped === false ? 'error' : 'success'
+                );
+            })
+            .catch(() => showStatusToast('Cinematic-Aufnahme: Fehler beim Stoppen', 2000, 'error'));
         return true;
     }
     if (wasRecording) {
@@ -127,11 +159,12 @@ export function createGameRuntimeRecordingFacadeSupport({
     const notifyStatusToast = typeof showStatusToast === 'function' ? showStatusToast : () => undefined;
 
     return Object.freeze({
-        toggleCinematicRecordingFromHotkey() {
+        toggleCinematicRecordingFromHotkey(command = 'toggle') {
             return toggleCinematicRecordingFromHotkey({
                 game: resolveGame(),
                 getRuntimeHandle: resolveRuntimeHandle,
                 showStatusToast: notifyStatusToast,
+                command,
             });
         },
         finalizeRound(winner, players, options = undefined) {

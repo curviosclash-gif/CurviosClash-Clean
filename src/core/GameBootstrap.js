@@ -260,7 +260,7 @@ export function bootstrapGameRuntime(game, options = {}) {
         showStatusToast,
     }));
 
-    // F9 cinematic recording is handled exclusively via main.js _toggleRecordingFromGlobalHotkey()
+    // F8/F9 cinematic recording is handled exclusively via main.js global hotkeys.
     // to avoid double-trigger with InputManager's justPressed cache.
     return runtimeBundle;
 }

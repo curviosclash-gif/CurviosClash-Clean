@@ -264,13 +264,13 @@ export class Game {
         uiManager.showToast(message, durationMs, tone);
     }
 
-    _toggleCinematicCameraFromGlobalHotkey() {
+    _toggleCinematicCameraFromGlobalHotkey(enabled = null) {
         const renderer = this.renderer;
         if (!renderer || typeof renderer.getCinematicEnabled !== 'function' || typeof renderer.setCinematicEnabled !== 'function') {
             return;
         }
         const currentlyEnabled = !!renderer.getCinematicEnabled();
-        const nextEnabled = !currentlyEnabled;
+        const nextEnabled = typeof enabled === 'boolean' ? enabled : !currentlyEnabled;
         renderer.setCinematicEnabled(nextEnabled);
         this.gameLoop?.requestDeltaReset?.('cinematic-toggle');
         this._showStatusToast(
@@ -280,17 +280,18 @@ export class Game {
         );
     }
 
-    _toggleRecordingFromGlobalHotkey() {
-        return this.runtimeCoordinator?.toggleCinematicRecordingFromHotkey?.();
+    _toggleRecordingFromGlobalHotkey(command = 'toggle') {
+        return this.runtimeCoordinator?.toggleCinematicRecordingFromHotkey?.(command);
     }
 
     _handleGlobalInputHotkeys() {
         if (this.keyCapture) return;
         if (this.input?.wasGlobalActionPressed?.('CINEMATIC_TOGGLE')) {
-            this._toggleCinematicCameraFromGlobalHotkey();
+            this._toggleCinematicCameraFromGlobalHotkey(true);
+            this._toggleRecordingFromGlobalHotkey('start');
         }
         if (this.input?.wasGlobalActionPressed?.('RECORDING_TOGGLE')) {
-            this._toggleRecordingFromGlobalHotkey();
+            this._toggleRecordingFromGlobalHotkey('stop');
         }
     }
 

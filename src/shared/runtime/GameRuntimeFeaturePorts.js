@@ -35,9 +35,9 @@ export function createArcadePort({ getRuntimeCoordinator, getRuntimeFacade }) {
 
 export function createRecordingPort({ getRuntimeCoordinator, getRuntimeFacade }) {
     return {
-        toggleCinematicRecordingFromHotkey() {
-            return getRuntimeCoordinator()?.toggleCinematicRecordingFromHotkey?.()
-                ?? getRuntimeFacade()?.toggleCinematicRecordingFromHotkey?.();
+        toggleCinematicRecordingFromHotkey(command = 'toggle') {
+            return getRuntimeCoordinator()?.toggleCinematicRecordingFromHotkey?.(command)
+                ?? getRuntimeFacade()?.toggleCinematicRecordingFromHotkey?.(command);
         },
         finalizeRound(winner, players, options = undefined) {
             return getRuntimeCoordinator()?.finalizeRoundRecording?.(winner, players, options)

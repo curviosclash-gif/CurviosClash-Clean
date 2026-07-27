@@ -670,7 +670,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(globalBinding).toBe('KeyN');
     });
 
-    test('T20l: Globale Cinematic-Taste toggelt Kamera fuer beide Spieler', async ({ page }) => {
+    test('T20l: F8 startet Cinematic-Aufnahme und F9 legt sie in die Renderliste', async ({ page }) => {
         await startGame(page);
         await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -678,18 +678,29 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.input.setBindings(game.settings.controls);
         });
 
-        const before = await page.evaluate(() => window.GAME_INSTANCE?.renderer?.getCinematicEnabled?.());
         await page.keyboard.press('b');
-        await waitForRenderFrames(page, 2);
-        const after = await page.evaluate(() => window.GAME_INSTANCE?.renderer?.getCinematicEnabled?.());
-        expect(after).toBe(!before);
+        await page.waitForFunction(
+            () => window.GAME_INSTANCE?.mediaRecorderSystem?.isCinematicReplayRecording?.() === true
+        );
+        expect(await page.evaluate(
+            () => window.GAME_INSTANCE?.renderer?.getCinematicEnabled?.()
+        )).toBeTruthy();
+
+        await page.keyboard.press('F9');
+        await page.waitForFunction(() => {
+            const recorder = window.GAME_INSTANCE?.mediaRecorderSystem;
+            return recorder?.isCinematicReplayRecording?.() === false
+                && recorder?.listCinematicReplayRecordings?.().length === 1;
+        });
     });
 
-    test('T20l1: Globale Recording-Taste triggert lifecycle.v1 recording_requested toggle', async ({ page }) => {
+    test('T20l1: F8/F9 senden getrennte lifecycle.v1 Start- und Stoppbefehle', async ({ page }) => {
         test.setTimeout(60000);
-        await startGame(page);
+        await page.goto('/', { waitUntil: 'commit' });
+        await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
         await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
+            game.settings.controls.GLOBAL.CINEMATIC_TOGGLE = 'KeyB';
             game.settings.controls.GLOBAL.RECORDING_TOGGLE = 'KeyN';
             game.input.setBindings(game.settings.controls);
 
@@ -706,17 +717,17 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 getSupportState: () => ({ canRecord: true }),
                 isRecording: () => probe.recording,
                 notifyLifecycleEvent: (type, context) => {
-                    probe.events.push({ type, command: String(context?.command || '') });
-                    if (String(context?.command || '').toLowerCase() === 'toggle') {
-                        probe.recording = !probe.recording;
-                    }
+                    const command = String(context?.command || '').toLowerCase();
+                    probe.events.push({ type, command });
+                    if (command === 'start') probe.recording = true;
+                    if (command === 'stop') probe.recording = false;
                 },
             };
 
             window.__recordingHotkeyProbe = probe;
         });
 
-        await page.keyboard.press('n');
+        await page.keyboard.press('b');
         await waitForRenderFrames(page, 2);
         await page.keyboard.press('n');
         await waitForRenderFrames(page, 2);
@@ -732,9 +743,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         expect(probeState.events).toHaveLength(2);
         expect(probeState.events[0]?.type).toBe('recording_requested');
-        expect(probeState.events[0]?.command).toBe('toggle');
+        expect(probeState.events[0]?.command).toBe('start');
         expect(probeState.events[1]?.type).toBe('recording_requested');
-        expect(probeState.events[1]?.command).toBe('toggle');
+        expect(probeState.events[1]?.command).toBe('stop');
         expect(probeState.recording).toBeFalsy();
     });
 

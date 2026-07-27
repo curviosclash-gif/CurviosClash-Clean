@@ -1208,6 +1208,61 @@ test('Cinematic recording stop toast points to the manual render list', async ()
     assert.match(summaryToast.message, /im Menü auswählen und rendern/);
 });
 
+test('Cinematic F8 start and F9 stop commands cannot toggle in the wrong direction', async () => {
+    let recording = false;
+    let startCalls = 0;
+    let stopCalls = 0;
+    const recorder = {
+        notifyLifecycleEvent() {},
+        getSupportState() {
+            return { canRecord: true };
+        },
+        async startRecording() {
+            startCalls += 1;
+            recording = true;
+            return { started: true };
+        },
+        async stopRecording() {
+            stopCalls += 1;
+            recording = false;
+            return { stopped: true, queued: true, sizeBytes: 1024 };
+        },
+        isRecording() {
+            return recording;
+        },
+        getRecordingCaptureSettings() {
+            return { profile: RECORDING_CAPTURE_PROFILE.CINEMATIC };
+        },
+        setRecordingCaptureSettings() {},
+    };
+    const options = {
+        game: { render() {} },
+        getRuntimeHandle(key) {
+            if (key === 'mediaRecorderSystem') return recorder;
+            if (key === 'renderer') return { setRecordingCaptureSettings() {} };
+            return null;
+        },
+        showStatusToast() {},
+    };
+
+    assert.equal(toggleCinematicRecordingFromHotkey({ ...options, command: 'stop' }), false);
+    assert.equal(toggleCinematicRecordingFromHotkey({ ...options, command: 'start' }), true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(recording, true);
+    assert.equal(startCalls, 1);
+    assert.equal(stopCalls, 0);
+
+    assert.equal(toggleCinematicRecordingFromHotkey({ ...options, command: 'start' }), true);
+    assert.equal(startCalls, 1);
+    assert.equal(stopCalls, 0);
+
+    assert.equal(toggleCinematicRecordingFromHotkey({ ...options, command: 'stop' }), true);
+    await new Promise((resolve) => setTimeout(resolve, 0));
+    assert.equal(recording, false);
+    assert.equal(startCalls, 1);
+    assert.equal(stopCalls, 1);
+});
+
 test('MatchKernel signalRoundEnd stays idempotent during round-end lifecycle', () => {
     const kernel = new MatchKernel();
     kernel.boot({ roundIndex: 2 });

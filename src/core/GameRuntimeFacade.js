@@ -185,7 +185,9 @@ export class GameRuntimeFacade {
     }
 
     applySettingsToRuntime(options = {}) { return this.executeSessionRuntimeCommand(createApplySettingsCommand(options)); }
-    toggleCinematicRecordingFromHotkey() { return this._recordingSupport.toggleCinematicRecordingFromHotkey(); }
+    toggleCinematicRecordingFromHotkey(command = 'toggle') {
+        return this._recordingSupport.toggleCinematicRecordingFromHotkey(command);
+    }
 
     _syncArcadeRuntimeConfig() {
         this._arcadeSupport.syncRuntimeConfig();
