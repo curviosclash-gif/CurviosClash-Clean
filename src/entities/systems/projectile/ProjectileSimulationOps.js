@@ -350,7 +350,8 @@ export class ProjectileSimulationOps {
             arenaCollision = { hit: true, kind: 'wall', normal: null };
         }
 
-        const projectileExpired = projectile.ttl <= 0 || projectile.traveled >= (config?.PROJECTILE?.MAX_DISTANCE || Infinity);
+        const projectileExpired = projectile.ttl <= 0
+            || projectile.traveled >= (projectile.maxDistance ?? config?.PROJECTILE?.MAX_DISTANCE ?? Infinity);
         const projectileHitArena = !!arenaCollision?.hit;
         const arenaKind = String(arenaCollision?.kind || 'wall').toLowerCase();
         const bouncedOnFoam = projectileHitArena && arenaKind === 'foam'

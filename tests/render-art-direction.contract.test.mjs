@@ -78,3 +78,18 @@ test('rocket impacts animate a tier-scaled fireball and expanding shockwave', ()
     assert.equal(particles.rocketBlastEffect.waveMesh.count, 0);
     particles.dispose();
 });
+
+test('rocket blast saturation replaces an expiring blast instead of dropping the new impact', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+    });
+
+    for (let i = 0; i < 33; i++) {
+        particles.spawnRocketImpact(new THREE.Vector3(i, 0, 0), 'ROCKET_WEAK');
+    }
+
+    assert.equal(particles.rocketBlastEffect.count, 32);
+    assert.ok(Array.from(particles.rocketBlastEffect.positions).includes(32));
+    particles.dispose();
+});

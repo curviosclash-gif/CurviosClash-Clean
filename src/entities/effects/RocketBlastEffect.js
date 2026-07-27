@@ -50,7 +50,7 @@ export class RocketBlastEffect {
     }
 
     spawn(position, rocketType, color) {
-        if (!position || !this.coreMesh || !this.waveMesh || this.count >= MAX_ROCKET_BLASTS) return;
+        if (!position || !this.coreMesh || !this.waveMesh) return;
 
         let radius = 3.1;
         let lifetime = 0.56;
@@ -65,7 +65,15 @@ export class RocketBlastEffect {
             lifetime = 0.72;
         }
 
-        const index = this.count++;
+        let index = this.count;
+        if (this.count < MAX_ROCKET_BLASTS) {
+            this.count++;
+        } else {
+            index = 0;
+            for (let i = 1; i < this.count; i++) {
+                if (this.lifetimes[i] < this.lifetimes[index]) index = i;
+            }
+        }
         const index3 = index * 3;
         this.positions[index3] = position.x;
         this.positions[index3 + 1] = position.y;

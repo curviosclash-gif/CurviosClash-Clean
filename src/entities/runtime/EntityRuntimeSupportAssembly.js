@@ -38,7 +38,6 @@ export function createEntityRuntimeSupport(owner) {
             const color = isDestroyed ? 0x66ddff : 0x3388ff;
             if (owner.particles) {
                 if (isRocketTierType(projectile?.type)) {
-                    owner.particles.spawnRocketImpact(position, projectile?.type);
                     // Spawn explosion particles along all destroyed trail segments
                     if (trailHit?.explosionPoints?.length > 0) {
                         owner.particles.spawnTrailExplosion(trailHit.explosionPoints);
@@ -48,15 +47,11 @@ export function createEntityRuntimeSupport(owner) {
                 }
             }
             if (owner.audio && !projectileOwner?.isBot) {
-                owner.audio.play(isRocketTierType(projectile?.type) ? 'ROCKET_IMPACT' : 'HIT');
+                if (!isRocketTierType(projectile?.type)) owner.audio.play('HIT');
             }
         },
         onProjectilePowerup: (target, projectile) => {
-            if (isRocketTierType(projectile?.type)) {
-                if (owner.particles) owner.particles.spawnRocketImpact(target.position, projectile?.type);
-                if (owner.audio && !projectile?.owner?.isBot) owner.audio.play('ROCKET_IMPACT');
-                return;
-            }
+            if (isRocketTierType(projectile?.type)) return;
             if (owner.particles) owner.particles.spawnExplosion(target.position, 0xff0000);
             if (owner.audio) owner.audio.play('POWERUP');
         },

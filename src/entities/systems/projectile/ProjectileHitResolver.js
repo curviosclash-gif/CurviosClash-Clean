@@ -10,6 +10,13 @@ export class ProjectileHitResolver {
         this._tmpVec = this.system?._tmpVec || null;
     }
 
+    detonateProjectile(projectile, position = projectile?.position, color = 0xffff00) {
+        if (!isRocketTierType(projectile?.type) || projectile.detonated) return false;
+        projectile.detonated = true;
+        this.system?.onProjectileHit?.(position, color, projectile.owner, projectile);
+        return true;
+    }
+
     _resolveTrailHit(projectile, trailSpatialIndex) {
         const directHit = applyTrailDamageFromProjectile(trailSpatialIndex, projectile);
         const previousPosition = projectile.previousPosition;
@@ -93,7 +100,9 @@ export class ProjectileHitResolver {
         const bouncedOnFoam = !!simulationResult.bouncedOnFoam;
 
         if (projectileExpired || (projectileHitArena && !bouncedOnFoam)) {
-            this.system?.onProjectileHit?.(projectile.position, 0xffff00, projectile.owner, projectile);
+            if (!this.detonateProjectile(projectile)) {
+                this.system?.onProjectileHit?.(projectile.position, 0xffff00, projectile.owner, projectile);
+            }
             return true;
         }
 
@@ -117,6 +126,7 @@ export class ProjectileHitResolver {
             } else {
                 this.system?.onTrailSegmentHit?.(projectile.position, projectile.owner, projectile, trailHit);
             }
+            this.detonateProjectile(projectile, this._tmpVec || projectile.position);
 
             // Trail-overflow damage is disabled for rockets to keep trail impacts
             // isolated from direct HP damage in hunt lock-on scenarios.
@@ -145,6 +155,7 @@ export class ProjectileHitResolver {
             hit = this._isProjectileSweepTouchingTarget(projectile, target);
 
             if (!hit) continue;
+            this.detonateProjectile(projectile);
 
             const huntRocketHit = isHuntHealthActive(resolveEntityRuntimeConfig(this.system)) && isRocketTierType(projectile.type);
             if (huntRocketHit) {

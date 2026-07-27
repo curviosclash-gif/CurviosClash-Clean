@@ -3,13 +3,13 @@
 // ============================================
 
 import * as THREE from 'three';
-import { ProjectileStatePool } from './projectile/ProjectileStatePool.js';
+import { configureProjectileRange, ProjectileStatePool } from './projectile/ProjectileStatePool.js';
 import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js';
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
 import { RocketTrailSystem } from './projectile/RocketTrailSystem.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { isPickupTypeShootable } from '../PickupRegistry.js';
-import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
+import { isRocketTierType, ROCKET_RANGE_MULTIPLIER } from '../../hunt/RocketPickupSystem.js';
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
@@ -182,7 +182,7 @@ export class ProjectileSystem {
         projectile.position.copy(this._tmpVec);
         projectile.velocity.copy(this._tmpDir).multiplyScalar(speed);
         projectile.radius = radius * collisionRadiusMultiplier;
-        projectile.ttl = config.PROJECTILE.LIFE_TIME;
+        configureProjectileRange(projectile, config.PROJECTILE, huntRocket ? ROCKET_RANGE_MULTIPLIER : 1);
         projectile.traveled = 0;
         projectile.homingTurnRate = homingTurnRate;
         projectile.homingLockOnAngle = homingLockOnAngle;
@@ -258,7 +258,7 @@ export class ProjectileSystem {
             Math.max(1, Number(config?.PROJECTILE?.SPEED) || 45) * speedMultiplier
         );
         projectile.radius = Math.max(0.05, Number(config?.PROJECTILE?.RADIUS) || 0.5) * collisionRadiusMultiplier;
-        projectile.ttl = Math.max(0.1, Number(config?.PROJECTILE?.LIFE_TIME) || 5);
+        configureProjectileRange(projectile, config.PROJECTILE, ROCKET_RANGE_MULTIPLIER);
         projectile.traveled = 0;
         projectile.homingTurnRate = Math.max(0.1, Number(rocketParams.homingTurnRate) || 10);
         projectile.homingLockOnAngle = Math.max(5, Number(rocketParams.homingLockOnAngle) || 48);
@@ -413,6 +413,7 @@ export class ProjectileSystem {
             const projectile = this.projectiles[i];
             const id = String(projectile?.networkId || '').trim();
             if (!id || !incomingById.has(id)) {
+                this._hitResolver.detonateProjectile(projectile);
                 this._removeProjectileAt(i);
             } else {
                 existingById.set(id, projectile);

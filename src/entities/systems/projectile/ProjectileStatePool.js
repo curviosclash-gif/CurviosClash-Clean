@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 
+export function configureProjectileRange(projectile, config, multiplier = 1) {
+    projectile.ttl = config.LIFE_TIME * multiplier;
+    projectile.maxDistance = config.MAX_DISTANCE * multiplier;
+}
+
 export class ProjectileStatePool {
     constructor() {
         this.pool = [];
@@ -23,7 +28,9 @@ export class ProjectileStatePool {
             radius: 0,
             ttl: 0,
             traveled: 0,
+            maxDistance: Infinity,
             target: null,
+            detonated: false,
             huntRocket: false,
             homingEnabled: false,
             visualScale: 1,
@@ -55,7 +62,9 @@ export class ProjectileStatePool {
         projectile.radius = 0;
         projectile.ttl = 0;
         projectile.traveled = 0;
+        projectile.maxDistance = Infinity;
         projectile.target = null;
+        projectile.detonated = false;
         projectile.huntRocket = false;
         projectile.homingEnabled = false;
         projectile.visualScale = 1;

@@ -19,6 +19,8 @@ const ROCKET_WEIGHT_ORDER = Object.freeze([
     Object.freeze({ type: 'ROCKET_MEGA', tier: 'MEGA', fallbackWeight: 0.07 }),
 ]);
 
+export const ROCKET_RANGE_MULTIPLIER = 3;
+
 export function normalizeRocketPickupType(type, { fallback = '' } = {}) {
     return normalizePickupType(type, { fallback });
 }
