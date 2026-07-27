@@ -1,6 +1,6 @@
 // ============================================
 // KillcamSystem.js - cinematic replay of the last 2s before a player death
-// Features: 3-shot killer follow -> impact zoom -> explosion orbit, slow-mo, letterbox
+// Features: 3-shot death-flight follow -> impact zoom -> explosion orbit, slow-mo, letterbox
 // ============================================
 
 import * as THREE from 'three';
@@ -22,7 +22,7 @@ const KILLCAM_MIN_CAMERA_DISTANCE = 4;
 
 const SHOT_SEQUENCE = Object.freeze([
     Object.freeze({
-        id: 'killer_chase',
+        id: 'death_flight_chase',
         durationRatio: 0.42,
         radius: 7.5,
         offsetBack: 5.5,
@@ -123,7 +123,6 @@ export class KillcamSystem {
         this._elapsed = 0;
         this._displayDuration = 0;
         this._deadPlayerIndex = -1;
-        this._killerIndex = -1;
 
         this._shotIndex = 0;
         this._shotElapsed = 0;
@@ -135,9 +134,7 @@ export class KillcamSystem {
         this._impactPoint = new THREE.Vector3();
         this._deadPlayerPosition = new THREE.Vector3();
         this._deadPlayerQuaternion = new THREE.Quaternion();
-        this._killerPosition = new THREE.Vector3();
-        this._killerQuaternion = new THREE.Quaternion();
-        this._killerDirection = new THREE.Vector3(0, 0, -1);
+        this._deadPlayerDirection = new THREE.Vector3(0, 0, -1);
         this._impactDirection = new THREE.Vector3(0, 0, -1);
         this._tmpPosition = new THREE.Vector3();
         this._tmpLookAt = new THREE.Vector3();
@@ -148,7 +145,7 @@ export class KillcamSystem {
         this._replaySourceDuration = 0;
         this._replayElapsed = 0;
         this._replayRateCalibration = 1;
-        this._hasKillerPose = false;
+        this._hasDeadPlayerPose = false;
         this._reduceMotion = false;
         this._cameraInitialized = false;
         this._presentationEntries = [];
@@ -175,7 +172,6 @@ export class KillcamSystem {
     }
 
     onPlayerDied(player, {
-        killer = null,
         impactPoint = null,
         cause = 'UNKNOWN',
         projectileType = null,
@@ -230,7 +226,6 @@ export class KillcamSystem {
         this._elapsed = 0;
         this._displayDuration = displayDuration;
         this._deadPlayerIndex = Number.isInteger(player.index) ? player.index : -1;
-        this._killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
         const focusSource = hasFinitePosition(impactPoint) ? impactPoint : player.position;
         this._focusPoint.set(
             Number(focusSource?.x) || 0,
@@ -238,13 +233,7 @@ export class KillcamSystem {
             Number(focusSource?.z) || 0
         );
         this._impactPoint.copy(this._focusPoint);
-        if (this._deadPlayerIndex >= 0 && this.replaySystem?.copyPlayerPose?.(
-            this._deadPlayerIndex,
-            this._deadPlayerPosition,
-            this._deadPlayerQuaternion
-        ) === true) {
-            this._focusPoint.copy(this._deadPlayerPosition);
-        }
+        this._syncDeadPlayerPose();
         this._impactDirection.set(0, 0, -1);
         const playerQuaternion = player?.quaternion;
         if (playerQuaternion && Number.isFinite(Number(playerQuaternion.w))) {
@@ -260,7 +249,6 @@ export class KillcamSystem {
         this._deadPlayerColor = Number.isFinite(Number(player?.color)) ? Number(player.color) : 0xffffff;
         this._replaySourceDuration = Math.max(0.001, Number(clip?.sourceDuration) || displayDuration);
         this._replayElapsed = 0;
-        this._hasKillerPose = false;
         this._cameraInitialized = false;
         this._replayRateCalibration = computeReplayRateCalibration(
             this._displayDuration,
@@ -317,24 +305,24 @@ export class KillcamSystem {
         );
         const replaySystem = this.replaySystem;
         replaySystem?.seekSourceTime?.(this._replayElapsed, Math.max(0, Number(scaledDt) || 0));
-        if (this._deadPlayerIndex >= 0 && replaySystem?.copyPlayerPose?.(
-            this._deadPlayerIndex,
-            this._deadPlayerPosition,
-            this._deadPlayerQuaternion
-        ) === true) {
-            this._focusPoint.copy(this._deadPlayerPosition);
-        }
+        this._syncDeadPlayerPose();
         if (!this._explosionTriggered && this._replayElapsed >= this._replaySourceDuration) {
             this._triggerDeathExplosion();
         }
-        if (this._killerIndex < 0) return;
-        this._hasKillerPose = replaySystem?.copyPlayerPose?.(
-            this._killerIndex,
-            this._killerPosition,
-            this._killerQuaternion
-        ) === true;
-        if (!this._hasKillerPose) return;
-        this._killerDirection.set(0, 0, -1).applyQuaternion(this._killerQuaternion).normalize();
+    }
+
+    _syncDeadPlayerPose() {
+        this._hasDeadPlayerPose = this._deadPlayerIndex >= 0
+            && this.replaySystem?.copyPlayerPose?.(
+                this._deadPlayerIndex,
+                this._deadPlayerPosition,
+                this._deadPlayerQuaternion
+            ) === true;
+        if (!this._hasDeadPlayerPose) return;
+        this._focusPoint.copy(this._deadPlayerPosition);
+        this._deadPlayerDirection.set(0, 0, -1)
+            .applyQuaternion(this._deadPlayerQuaternion)
+            .normalize();
     }
 
     _triggerDeathExplosion() {
@@ -409,8 +397,8 @@ export class KillcamSystem {
 
         if (this._reduceMotion) {
             this._applyReducedMotionShot(camera, safeDt);
-        } else if (shot.id === 'killer_chase' && this._killerIndex >= 0 && this._hasKillerPose) {
-            this._applyKillerChaseShot(camera, shot, shotAlpha, safeDt);
+        } else if (shot.id === 'death_flight_chase' && this._hasDeadPlayerPose) {
+            this._applyDeathFlightChaseShot(camera, shot, shotAlpha, safeDt);
         } else if (shot.id === 'impact_zoom') {
             this._applyImpactZoomShot(camera, shot, shotAlpha, safeDt);
         } else {
@@ -471,28 +459,28 @@ export class KillcamSystem {
         camera.lookAt(this._tmpLookAt);
     }
 
-    _applyKillerChaseShot(camera, shot, shotAlpha, safeDt) {
-        // Position behind killer, offset along -forward vector
-        const killerPos = this._killerPosition;
-        const killerDir = this._killerDirection;
+    _applyDeathFlightChaseShot(camera, shot, shotAlpha, safeDt) {
+        const flightDirection = this._deadPlayerDirection;
+        const lookAhead = THREE.MathUtils.lerp(1.8, 3.2, shotAlpha);
+        this._tmpLookAt.copy(this._focusPoint)
+            .addScaledVector(flightDirection, lookAhead);
+        this._tmpLookAt.y += shot.lookLift;
 
-        // blend focus between killer (start) and dead player (end)
-        const focusBlend = THREE.MathUtils.clamp(shotAlpha * 1.2, 0, 1);
-        this._tmpLookAt.copy(killerPos).lerp(this._focusPoint, focusBlend);
-
-        // camera sits behind killer, slightly above
-        const backOffset = shot.offsetBack;
-        this._tmpPosition.copy(killerPos)
-            .addScaledVector(killerDir, -backOffset);
+        this._tmpPosition.copy(this._focusPoint)
+            .addScaledVector(flightDirection, -shot.offsetBack);
         this._tmpPosition.y += shot.offsetLift;
 
-        // small lateral drift during shot
-        const lateral = Math.sin(this._startAngle + shotAlpha * shot.orbitSpeed * Math.PI * 2) * 1.2;
-        this._tmpVec.set(killerDir.z, 0, -killerDir.x).normalize().multiplyScalar(lateral);
+        const lateral = Math.sin(
+            this._startAngle + shotAlpha * shot.orbitSpeed * Math.PI * 2
+        ) * 0.45;
+        this._tmpVec.set(flightDirection.z, 0, -flightDirection.x);
+        if (this._tmpVec.lengthSq() <= 0.000001) this._tmpVec.set(1, 0, 0);
+        else this._tmpVec.normalize();
+        this._tmpVec.multiplyScalar(lateral);
         this._tmpPosition.add(this._tmpVec);
 
-        this._resolveCameraCollision('killcam-killer-chase', this._tmpLookAt);
-        const smoothAlpha = this._resolveCameraBlend(KILLCAM_ORBIT_SMOOTH_SPEED, safeDt);
+        this._resolveCameraCollision('killcam-death-flight-chase', this._tmpLookAt);
+        const smoothAlpha = this._resolveCameraBlend(KILLCAM_ORBIT_SMOOTH_SPEED * 1.25, safeDt);
         camera.position.lerp(this._tmpPosition, smoothAlpha);
         camera.lookAt(this._tmpLookAt);
     }
@@ -613,7 +601,6 @@ export class KillcamSystem {
         this._elapsed = 0;
         this._displayDuration = 0;
         this._deadPlayerIndex = -1;
-        this._killerIndex = -1;
         this._shotIndex = 0;
         this._shotElapsed = 0;
         this._shotDuration = 0;
@@ -622,7 +609,7 @@ export class KillcamSystem {
         this._replaySourceDuration = 0;
         this._replayElapsed = 0;
         this._replayRateCalibration = 1;
-        this._hasKillerPose = false;
+        this._hasDeadPlayerPose = false;
         this._reduceMotion = false;
         this._cameraInitialized = false;
         this._deathMetadata = null;

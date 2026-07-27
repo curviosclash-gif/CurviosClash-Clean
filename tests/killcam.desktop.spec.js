@@ -86,9 +86,14 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
         entityManager._killPlayer(player, 'WALL', {
             impactPoint: player.position.clone(),
         });
+        const killcam = entityManager._killcamSystem;
+        killcam?._initializeShot?.(0);
+        killcam._cameraInitialized = false;
+        killcam?.applyCinematicCamera?.(1 / 60);
+        const camera = entityManager.renderer?.cameras?.[0];
 
         return {
-            ok: entityManager._killcamSystem?.isActive?.() === true,
+            ok: killcam?.isActive?.() === true,
             reason: '',
             playerIndex: player.index,
             playerColor: player.color,
@@ -96,6 +101,11 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
                 x: entityManager._killcamSystem?._focusPoint?.x,
                 y: entityManager._killcamSystem?._focusPoint?.y,
                 z: entityManager._killcamSystem?._focusPoint?.z,
+            },
+            initialCameraPosition: {
+                x: camera?.position?.x,
+                y: camera?.position?.y,
+                z: camera?.position?.z,
             },
             terminal,
             runtimeKind: window.curviosApp?.capabilities?.runtimeKind || null,
@@ -111,14 +121,23 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
         const killcam = entityManager?._killcamSystem;
         killcam._replayElapsed = 1;
         killcam.advanceReplayPlayback(0);
+        killcam._initializeShot(0);
+        killcam._cameraInitialized = false;
+        killcam.applyCinematicCamera(1 / 60);
         entityManager?.renderInterpolatedTransforms?.(1, 1 / 60);
         const replayState = entityManager?.getKillcamReplayState?.();
+        const camera = entityManager?.renderer?.cameras?.[0];
         return {
             player: replayState?.ghosts?.find?.((entry) => entry.idx === playerIndex) || null,
             cameraFocus: {
                 x: killcam?._focusPoint?.x,
                 y: killcam?._focusPoint?.y,
                 z: killcam?._focusPoint?.z,
+            },
+            cameraPosition: {
+                x: camera?.position?.x,
+                y: camera?.position?.y,
+                z: camera?.position?.z,
             },
             otherPlayersVisible: replayState?.ghosts?.filter?.(
                 (entry) => entry.idx !== playerIndex && entry.visible === true
@@ -136,6 +155,9 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
     expect(midpointState?.cameraFocus?.x).toBeCloseTo(midpointState?.player?.x, 1);
     expect(midpointState?.cameraFocus?.y).toBeCloseTo(midpointState?.player?.y, 1);
     expect(midpointState?.cameraFocus?.z).toBeCloseTo(midpointState?.player?.z, 1);
+    expect(Math.abs(
+        midpointState?.cameraPosition?.z - setup.initialCameraPosition?.z
+    )).toBeGreaterThan(2);
     expect(midpointState?.player?.trailColor).toBe(setup.playerColor);
     expect(midpointState?.otherPlayersVisible).toBeGreaterThan(0);
     expect(midpointState?.projectileCount).toBe(1);

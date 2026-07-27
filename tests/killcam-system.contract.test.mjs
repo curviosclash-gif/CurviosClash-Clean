@@ -19,10 +19,11 @@ function createKillcamFixture({
     const directionalCalls = [];
     const shakeCalls = [];
     let replaySourceTime = 0;
+    const cameraTargets = [];
     const camera = {
         fov: 75,
         position: new THREE.Vector3(0, 4, 12),
-        lookAt() {},
+        lookAt(target) { cameraTargets.push(target.clone()); },
         updateProjectionMatrix() {},
     };
     const player = {
@@ -116,6 +117,7 @@ function createKillcamFixture({
     });
     return {
         camera,
+        cameraTargets,
         clipRequests,
         directionalCalls,
         entityManager,
@@ -132,6 +134,8 @@ function createKillcamFixture({
 
 test('killcam keeps scene replay aligned with its source-time camera pose', () => {
     const {
+        camera,
+        cameraTargets,
         clipRequests,
         directionalCalls,
         explosionCalls,
@@ -149,9 +153,15 @@ test('killcam keeps scene replay aligned with its source-time camera pose', () =
     assert.equal(clipRequests[0]?.maxSourceDuration, 2);
     assert.equal(clipRequests[0]?.displayDuration, 2.5);
     assert.equal(killcam._focusPoint.z, 11);
+    killcam.applyCinematicCamera(1 / 60);
+    const initialCameraPosition = camera.position.clone();
+    assert.ok(camera.position.distanceTo(killcam._focusPoint) > 5);
+    assert.ok(cameraTargets.at(-1)?.z < killcam._focusPoint.z);
 
     killcam.advanceReplayPlayback(0.1);
     assert.ok(killcam._focusPoint.z > player.position.z);
+    killcam.applyCinematicCamera(1 / 60);
+    assert.ok(camera.position.z < initialCameraPosition.z);
 
     while (killcam._elapsed < killcam._displayDuration * 0.86) {
         const dt = 0.005;
@@ -166,7 +176,7 @@ test('killcam keeps scene replay aligned with its source-time camera pose', () =
     assert.equal(explosionCalls.length, 1);
     assert.equal(directionalCalls.length, 1);
     assert.deepEqual(shakeCalls, [[0, 0.32, 0.24]]);
-    assert.equal(killcam._hasKillerPose, true);
+    assert.equal(killcam._hasDeadPlayerPose, true);
     killcam.update(killcam._displayDuration * 0.1);
     assert.equal(explosionCalls.length, 1);
     killcam.dispose();
