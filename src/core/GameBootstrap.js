@@ -88,6 +88,7 @@ export function bootstrapGameRuntime(game, options = {}) {
     renderer.setGraphicsStyle(game.settings?.localSettings?.graphicsStyle);
     renderer.setShadowQuality(game.settings?.localSettings?.shadowQuality);
     const recorderRuntimeConfig = resolveRecorderRuntimeConfig();
+    let replaySessionPort = null;
     let mediaRecorderSystem = null;
     mediaRecorderSystem = new MediaRecorderSystem({
         canvas,
@@ -98,7 +99,19 @@ export function bootstrapGameRuntime(game, options = {}) {
         captureSourceResolver: () => renderer.getRecordingCaptureCanvas?.() || canvas,
         recordingCaptureSettings: game.settings?.recording,
         replayAudioSourceResolver: () => audio.acquireRecordingStream?.() || null,
-        offlineReplayFrameRenderer: createCinematicReplayFrameRenderer({ game, renderer }),
+        offlineReplayFrameRenderer: createCinematicReplayFrameRenderer({
+            game,
+            renderer,
+            prepareReplaySession: (options) => {
+                if (!replaySessionPort?.prepareReplayRenderSession) {
+                    return Promise.reject(new Error('replay_render_session_port_unavailable'));
+                }
+                return replaySessionPort.prepareReplayRenderSession(options);
+            },
+            disposeReplaySession: ({ session }) => (
+                replaySessionPort?.disposeReplayRenderSession?.(session)
+            ),
+        }),
         onReplayExportStatus: (status) => {
             const phase = String(status?.phase || '');
             if (phase === 'rendering' && Math.round((Number(status?.progress) || 0) * 100) % 5 !== 0) {
@@ -179,7 +192,8 @@ export function bootstrapGameRuntime(game, options = {}) {
         ports: runtimePorts,
         getCamera: (playerIndex) => renderer?.cameras?.[playerIndex] || null,
     }));
-    const matchSessionOrchestrator = new MatchLifecycleSessionOrchestrator(createMatchSessionPort(game));
+    replaySessionPort = createMatchSessionPort(game);
+    const matchSessionOrchestrator = new MatchLifecycleSessionOrchestrator(replaySessionPort);
     registerRuntimeHandle('matchSessionOrchestrator', matchSessionOrchestrator);
     registerRuntimeHandle('huntHud', new HuntHUD({
         runtime: game,

@@ -460,16 +460,12 @@ export class Game {
                     numHumans: this.numHumans,
                     numBots: this.numBots,
                     winsNeeded: this.winsNeeded,
+                    runtimeConfig: this.runtimeConfig,
                     randomSeed: this.runtimeConfig?.session?.seed
                         ?? this.runtimeConfig?.seed
                         ?? this.settings?.seed
                         ?? null,
-                    settings: {
-                        recording: this.settings?.recording || null,
-                        cameraPerspective: this.settings?.cameraPerspective || null,
-                        graphicsStyle: this.settings?.localSettings?.graphicsStyle || null,
-                        shadowQuality: this.settings?.localSettings?.shadowQuality || null,
-                    },
+                    settings: this.settings,
                 },
             });
         }

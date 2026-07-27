@@ -857,6 +857,120 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(result.options).toEqual([prepared.secondId]);
     });
 
+    test('T20l4: Menue-Render rekonstruiert eine Replay-Szene ohne aktive Match-Session', async ({ page }) => {
+        test.setTimeout(120000);
+        await page.goto('/', { waitUntil: 'commit' });
+        await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
+        const result = await page.evaluate(async () => {
+            const game = window.GAME_INSTANCE;
+            const recorder = game?.mediaRecorderSystem;
+            const renderFrame = recorder?._cinematicReplayExporter?.renderFrame;
+            if (!game || typeof renderFrame !== 'function') return null;
+            const initialRecordingSettings = game.renderer?.getRecordingCaptureSettings?.() || null;
+            const runtimeConfig = game.settingsManager?.createRuntimeConfig?.(game.settings) || {};
+            const numHumans = Math.max(1, Number(runtimeConfig?.session?.numHumans) || 1);
+            const numBots = Math.max(0, Number(runtimeConfig?.session?.numBots) || 0);
+            const playerCount = numHumans + numBots;
+            const snapshotPlayers = Array.from({ length: playerCount }, (_, index) => ({
+                index,
+                isBot: index >= numHumans,
+                alive: true,
+                pos: [index * 3, 1, -index * 2],
+                rot: [0, 0, 0, 1],
+                health: 100,
+                maxHealth: 100,
+                score: 0,
+                speed: 8,
+                trailWidth: 0.6,
+                trailInGap: false,
+                vehicleId: index < 2 ? game.settings?.vehicles?.[`PLAYER_${index + 1}`] : '',
+            }));
+            const replay = {
+                matchId: 'menu-render-runtime',
+                durationMs: 17,
+                metadata: {
+                    mapKey: runtimeConfig?.session?.mapKey || game.settings?.mapKey || 'standard',
+                    numHumans,
+                    numBots,
+                    winsNeeded: runtimeConfig?.session?.winsNeeded || 1,
+                    activeGameMode: runtimeConfig?.session?.activeGameMode || 'classic',
+                    settings: game.settings,
+                    runtimeConfig,
+                },
+                snapshots: [
+                    { timeMs: 0, players: snapshotPlayers, projectiles: [] },
+                    {
+                        timeMs: 17,
+                        players: snapshotPlayers.map((player) => ({
+                            ...player,
+                            pos: [player.pos[0] + 0.2, player.pos[1], player.pos[2]],
+                        })),
+                        projectiles: [],
+                    },
+                ],
+                audioBlob: null,
+                audioWarning: 'audio_capture_unavailable',
+            };
+            const hadActiveEntityManager = !!game.entityManager;
+            const streamedFrames = [];
+            let beginPayload = null;
+            const saveContract = {
+                contractVersion: 'preload.save.v2',
+                beginCinematicReplayExport: async (payload) => {
+                    beginPayload = payload;
+                    return { started: true, exportId: 'menu-render-export' };
+                },
+                appendCinematicReplayFrame: async (payload) => {
+                    streamedFrames.push(payload.frameIndex);
+                    return { accepted: true };
+                },
+                finishCinematicReplayExport: async () => ({
+                    saved: true,
+                    fileName: 'menu-render-runtime.mp4',
+                    filePath: 'C:\\Videos\\menu-render-runtime.mp4',
+                }),
+                cancelCinematicReplayExport: async () => ({ cancelled: true }),
+            };
+            const runtimeGlobal = {
+                __CURVIOS_APP__: true,
+                curviosApp: {
+                    contracts: { save: saveContract },
+                    capabilities: {
+                        save: {
+                            available: true,
+                            providerKind: 'electron-ipc',
+                            contractVersion: 'preload.save.v2',
+                        },
+                    },
+                },
+            };
+            const CinematicReplayExportController = recorder._cinematicReplayExporter.constructor;
+            const controller = new CinematicReplayExportController({
+                runtimeGlobal,
+                renderFrame,
+            });
+            const exportResult = await controller.export(replay);
+            return {
+                hadActiveEntityManager,
+                saved: exportResult.saved === true,
+                width: Number(beginPayload?.width || 0),
+                height: Number(beginPayload?.height || 0),
+                streamedFrames,
+                settingsRestored: JSON.stringify(game.renderer?.getRecordingCaptureSettings?.() || null)
+                    === JSON.stringify(initialRecordingSettings),
+            };
+        });
+
+        expect(result).toEqual({
+            hadActiveEntityManager: false,
+            saved: true,
+            width: 1920,
+            height: 1080,
+            streamedFrames: [0, 1],
+            settingsRestored: true,
+        });
+    });
+
     test('T20m: Recording-AutoDownload ist aktiv und nutzt Videos-Ordnername', async ({ page }) => {
         await loadGame(page);
         const recorderState = await page.evaluate(() => {

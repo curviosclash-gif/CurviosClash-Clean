@@ -326,9 +326,18 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         getRecordingCaptureCanvas() { return captureCanvas; },
     };
     const replay = { matchId: 'trail-replay' };
+    let preparedSessions = 0;
+    let disposedSessions = 0;
     const renderFrame = createCinematicReplayFrameRenderer({
-        game: { entityManager: { players: [player] } },
+        game: { entityManager: null },
         renderer,
+        prepareReplaySession: async () => {
+            preparedSessions += 1;
+            return { entityManager: { players: [player] }, particles: null, arena: null };
+        },
+        disposeReplaySession: async () => {
+            disposedSessions += 1;
+        },
     });
     const projection = {
         players: [{
@@ -361,6 +370,8 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
     });
     await renderFrame({ reset: true });
 
+    assert.equal(preparedSessions, 1);
+    assert.equal(disposedSessions, 1);
     assert.deepEqual(calls, [
         ['clear'],
         ['width', 0.85],

@@ -1,8 +1,10 @@
 import {
     disposeMatchSessionSystems,
     prepareInitializedMatchSession,
+    prewarmMatchArenaSession,
     wireInitializedMatchRuntime,
 } from './MatchSessionFactory.js';
+import { awaitActivePrewarmForRenderer } from './match-session/MatchSessionPrewarmStore.js';
 import { PLATFORM_PRODUCT_SURFACE_IDS } from '../shared/contracts/PlatformCapabilityData.js';
 import { recordSessionRuntimeEvent } from '../shared/runtime/SessionRuntimeObservability.js';
 
@@ -56,6 +58,45 @@ export function createMatchSessionPort(runtime) {
             isDesktopRuntime,
             ...handlers,
         }),
+        prepareReplayRenderSession: async (options = {}) => {
+            const renderer = runtimeHandles?.renderer || runtime?.renderer;
+            const settings = options.settings || runtime?.settings;
+            const runtimeConfig = options.runtimeConfig || runtime?.runtimeConfig;
+            const requestedMapKey = options.requestedMapKey
+                || runtimeConfig?.session?.mapKey
+                || sessionSettings?.mapKey
+                || runtime?.settings?.mapKey
+                || runtime?.mapKey;
+            await awaitActivePrewarmForRenderer(renderer);
+            await prewarmMatchArenaSession({
+                renderer,
+                settings,
+                runtimeConfig,
+                baseConfig: runtime?.config || null,
+                requestedMapKey,
+            });
+            const prepared = await prepareInitializedMatchSession({
+                renderer,
+                audio: runtimeHandles?.audio || runtime?.audio,
+                recorder: runtime?.recorder,
+                runtimeProfiler: runtime?.runtimePerfProfiler,
+                settings,
+                runtimeConfig,
+                baseConfig: runtime?.config || null,
+                requestedMapKey,
+                currentSession: null,
+                isDesktopRuntime: true,
+            });
+            return prepared?.session || null;
+        },
+        disposeReplayRenderSession: (session) => {
+            if (!session) return;
+            disposeMatchSessionSystems(
+                runtimeHandles?.renderer || runtime?.renderer,
+                session,
+                { clearScene: true }
+            );
+        },
         wireInitializedMatchRuntime: (initializedMatch, handlers = {}) => wireInitializedMatchRuntime({
             renderer: runtimeHandles?.renderer || runtime?.renderer,
             initializedMatch,
