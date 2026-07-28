@@ -64,6 +64,8 @@ export class ProjectileSimulationOps {
         this._tmpVec2 = new THREE.Vector3();
         this._tmpDir = new THREE.Vector3();
         this._tmpTargetPosition = new THREE.Vector3();
+        this._tmpCollisionProbe = new THREE.Vector3();
+        this._tmpCollisionEnd = new THREE.Vector3();
         this._targetingScratch = createHuntTargetingScratch();
         this._targetingTelemetry = createHuntTargetingTelemetry();
         this._stepResult = {
@@ -72,6 +74,32 @@ export class ProjectileSimulationOps {
             bouncedOnFoam: false,
             arenaCollision: null,
         };
+        this._fallbackArenaCollision = { hit: true, kind: 'wall', normal: null };
+    }
+
+    _resolveArenaCollision(projectile, arena) {
+        const hasCollisionInfo = typeof arena?.getCollisionInfo === 'function';
+        const hasCollisionCheck = typeof arena?.checkCollision === 'function';
+        if (!hasCollisionInfo && !hasCollisionCheck) return null;
+
+        const previousPosition = projectile.previousPosition || projectile.position;
+        this._tmpCollisionEnd.copy(projectile.position);
+        const distance = previousPosition?.distanceTo?.(this._tmpCollisionEnd) || 0;
+        const stepDistance = Math.max(0.1, (Number(projectile.radius) || 0.5) * 0.75);
+        const steps = Math.min(64, Math.max(1, Math.ceil(distance / stepDistance)));
+        for (let step = 1; step <= steps; step++) {
+            this._tmpCollisionProbe.lerpVectors(previousPosition, this._tmpCollisionEnd, step / steps);
+            const collision = hasCollisionInfo
+                ? arena.getCollisionInfo(this._tmpCollisionProbe, projectile.radius)
+                : (arena.checkCollision(this._tmpCollisionProbe, projectile.radius)
+                    ? this._fallbackArenaCollision
+                    : null);
+            if (!collision?.hit) continue;
+            projectile.position.copy(this._tmpCollisionProbe);
+            projectile.mesh?.position.copy(projectile.position);
+            return collision;
+        }
+        return null;
     }
 
     acquireHomingTarget(projectile, players, trailSpatialIndex = null) {
@@ -343,12 +371,7 @@ export class ProjectileSimulationOps {
             projectile.flame.scale.set(1, 1, flicker);
         }
 
-        let arenaCollision = null;
-        if (typeof arena?.getCollisionInfo === 'function') {
-            arenaCollision = arena.getCollisionInfo(projectile.position, projectile.radius);
-        } else if (typeof arena?.checkCollision === 'function' && arena.checkCollision(projectile.position, projectile.radius)) {
-            arenaCollision = { hit: true, kind: 'wall', normal: null };
-        }
+        const arenaCollision = this._resolveArenaCollision(projectile, arena);
 
         const projectileExpired = projectile.ttl <= 0
             || projectile.traveled >= (projectile.maxDistance ?? config?.PROJECTILE?.MAX_DISTANCE ?? Infinity);

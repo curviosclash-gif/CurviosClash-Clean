@@ -65,6 +65,8 @@ export class ProjectileHitResolver {
         for (let i = 1; i <= steps; i++) {
             this._tmpVec.lerpVectors(previousPosition, projectile.position, i / steps);
             if (this._isProjectileTouchingTarget(projectile, target, this._tmpVec)) {
+                projectile.position.copy(this._tmpVec);
+                projectile.mesh?.position.copy(projectile.position);
                 return true;
             }
         }

@@ -116,3 +116,59 @@ test('player impacts detonate before applying their hit outcome', () => {
     assert.deepEqual(events, ['detonation', 'hit-outcome']);
     system.dispose();
 });
+
+test('fast rockets sweep thin arena geometry and detonate at the impact point', () => {
+    const detonations = [];
+    const { owner, system } = createProjectileSystem({
+        onProjectileHit(position) {
+            detonations.push(position.clone());
+        },
+    });
+    system.getArena = () => ({
+        getCollisionInfo(position) {
+            return position.x >= 5 && position.x <= 5.2
+                ? { hit: true, kind: 'wall', normal: new THREE.Vector3(-1, 0, 0) }
+                : null;
+        },
+    });
+
+    system.shootItemProjectile(owner, 0);
+    system.update(0.1);
+
+    assert.equal(system.projectiles.length, 0);
+    assert.equal(detonations.length, 1);
+    assert.ok(detonations[0].x >= 5 && detonations[0].x <= 5.2);
+    system.dispose();
+});
+
+test('network rocket replacement detonates the removed projectile', () => {
+    const detonations = [];
+    const { owner, system } = createProjectileSystem({
+        onProjectileHit(position, color, projectileOwner, projectile) {
+            detonations.push(projectile.type);
+        },
+    });
+    system.applyNetworkSnapshot([{
+        id: 'rocket:replace',
+        pos: [6, 2, 1],
+        vel: [1, 0, 0],
+        owner: owner.index,
+        type: 'ROCKET_WEAK',
+        ttl: 2,
+        radius: 1,
+    }], [owner]);
+
+    system.applyNetworkSnapshot([{
+        id: 'rocket:replace',
+        pos: [7, 2, 1],
+        vel: [1, 0, 0],
+        owner: owner.index,
+        type: 'ROCKET_HEAVY',
+        ttl: 2,
+        radius: 1,
+    }], [owner]);
+
+    assert.deepEqual(detonations, ['ROCKET_WEAK']);
+    assert.equal(system.projectiles[0].type, 'ROCKET_HEAVY');
+    system.dispose();
+});

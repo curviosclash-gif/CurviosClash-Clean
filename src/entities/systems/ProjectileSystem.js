@@ -413,7 +413,6 @@ export class ProjectileSystem {
             const projectile = this.projectiles[i];
             const id = String(projectile?.networkId || '').trim();
             if (!id || !incomingById.has(id)) {
-                this._hitResolver.detonateProjectile(projectile);
                 this._removeProjectileAt(i);
             } else {
                 existingById.set(id, projectile);
@@ -499,6 +498,7 @@ export class ProjectileSystem {
         const projectile = this.projectiles[index];
         if (!projectile) return;
 
+        this._hitResolver.detonateProjectile(projectile);
         this._releaseProjectileMesh(projectile);
         const lastIndex = this.projectiles.length - 1;
         if (index !== lastIndex) {
