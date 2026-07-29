@@ -95,7 +95,9 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
 
             shooter.position.set(0, 50, 0);
             shooter.setLookAtWorld?.(0, 50, -120);
-            enemy.position.set(4.0, 50, -20);
+            // Keep the authored trail clearly closer than the player so the
+            // player-priority lock contract does not intentionally win.
+            enemy.position.set(4.0, 50, -60);
 
             const aim = shooter.position.clone().set(0, 0, 0);
             shooter.getAimDirection(aim).normalize();

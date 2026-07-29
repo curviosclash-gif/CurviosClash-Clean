@@ -35,7 +35,7 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
             y: Number(player.position.y) || 0,
             z: Number(player.position.z) || 0,
         };
-        recorder._snapshotStore?.reset?.();
+        recorder.startRound(entityManager.players);
         const replayProjectile = {
             id: 'killcam-projectile',
             type: 'ROCKET_MEDIUM',

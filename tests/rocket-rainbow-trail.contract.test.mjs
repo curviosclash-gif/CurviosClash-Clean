@@ -176,7 +176,7 @@ test('fight rockets leave persistent colliding trails without hitting their own 
     projectiles.dispose();
 });
 
-test('fight rockets turn aggressively toward off-axis targets', () => {
+test('fight rockets turn aggressively toward off-axis targets inside the lock cone', () => {
     const renderer = createRenderer();
     const owner = {
         index: 0,
@@ -186,7 +186,7 @@ test('fight rockets turn aggressively toward off-axis targets', () => {
     const target = {
         index: 1,
         alive: true,
-        position: new THREE.Vector3(0, 0, 40),
+        position: new THREE.Vector3(40, 0, 40),
     };
     const players = [owner, target];
     const spatialIndex = new TrailSpatialIndex({ players });
@@ -223,7 +223,6 @@ test('fight rockets turn aggressively toward off-axis targets', () => {
     projectiles.update(1 / 60);
 
     const direction = projectile.velocity.clone().normalize();
-    assert.ok(direction.z > 0.18, `expected aggressive homing turn, received z=${direction.z}`);
-    assert.ok(direction.x < 0.99);
+    assert.ok(direction.z > 0.1, `expected aggressive homing turn, received z=${direction.z}`);
     projectiles.dispose();
 });

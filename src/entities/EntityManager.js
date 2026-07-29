@@ -10,7 +10,6 @@ import { emitHuntDamageFeedback } from '../hunt/HuntDamageFeedback.js';
 import { rememberFightAttacker } from '../hunt/HuntEliminationFeed.js';
 import { createGameModeStrategy } from '../modes/GameModeRegistry.js';
 import { LastRoundGhostSystem } from './LastRoundGhostSystem.js';
-import { ReplayScenePresentationSystem } from '../core/recording/ReplayScenePresentationSystem.js';
 import { KillcamSystem } from '../hunt/KillcamSystem.js';
 import { killPlayer } from './EntityPlayerDeathOps.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -117,7 +116,7 @@ export class EntityManager {
             entityManager: this,
             ghostTrailCollisionEnabled: this.entityRuntimeConfig?.TRAIL?.GHOST_COLLISION_ENABLED === true,
         });
-        this._killcamReplaySystem = new ReplayScenePresentationSystem(renderer, {
+        this._killcamReplaySystem = new LastRoundGhostSystem(renderer, {
             entityManager: this,
             particles,
             presentationKind: 'killcam-replay',

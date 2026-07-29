@@ -11,7 +11,11 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
         id: 'desktop-flows',
         specs: [
             'tests/arcade-hangar-workshop.desktop.spec.js',
+            'tests/chrono-forge-nexus.desktop.spec.js',
             'tests/hangar-window.desktop.spec.js',
+            'tests/hud-layout.spec.js',
+            'tests/killcam-pixel.desktop.spec.js',
+            'tests/killcam.desktop.spec.js',
             'tests/parcours-assault.desktop.spec.js',
             'tests/render-smoothing.desktop.spec.js',
         ],

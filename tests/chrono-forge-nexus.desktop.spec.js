@@ -27,7 +27,19 @@ test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop',
     const before = await page.evaluate(() => (
         window.GAME_INSTANCE.arena._glbAnimationMixers.map((mixer) => mixer.time)
     ));
-    await page.waitForTimeout(350);
+    await expect.poll(
+        () => page.evaluate((baseline) => {
+            const game = window.GAME_INSTANCE;
+            const mixers = game?.arena?._glbAnimationMixers || [];
+            return game?.state === 'PLAYING'
+                && mixers.length === baseline.length
+                && mixers.every((mixer, index) => mixer.time > baseline[index]);
+        }, before),
+        {
+            message: 'all Chrono-Forge animation mixers should advance after match start',
+            timeout: 5000,
+        }
+    ).toBeTruthy();
     const state = await page.evaluate(() => {
         const arena = window.GAME_INSTANCE.arena;
         return {
