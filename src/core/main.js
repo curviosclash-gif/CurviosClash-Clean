@@ -29,6 +29,7 @@ import {
 import { installPlaytestReturnControl } from './PlaytestReturnControl.js';
 import { ensureInteractiveMatchRuntime } from './InteractiveMatchRuntimeGuard.js';
 import { GameRuntimeCoordinator } from './runtime/GameRuntimeCoordinator.js';
+import { dispatchGameStateUpdate } from './GameStateUpdateDispatch.js';
 import { isPersistenceSuccess } from './settings/SettingsDomainUtils.js';
 import {
     applyMobileClassicDocumentState,
@@ -435,41 +436,7 @@ export class Game {
             this.recorder.recordFrame(this.entityManager);
         }
 
-        const replayCaptureStateActive = this.state === GAME_STATE_IDS.PLAYING
-            || this.state === GAME_STATE_IDS.PAUSED
-            || this.state === GAME_STATE_IDS.ROUND_END;
-        if (replayCaptureStateActive && hasInteractiveMatchRuntime && this.entityManager) {
-            this._updatePlayingState(dt);
-        } else if (this.state === GAME_STATE_IDS.PAUSED && hasInteractiveMatchRuntime) {
-            this._updatePausedState(dt);
-        } else if (this.state === GAME_STATE_IDS.ROUND_END) {
-            this._updateRoundEndState(dt);
-        } else if (this.state === GAME_STATE_IDS.MATCH_END) {
-            this._updateMatchEndState(dt);
-        }
-
-        if (this.state === GAME_STATE_IDS.PLAYING && hasInteractiveMatchRuntime) {
-            this.mediaRecorderSystem?.captureReplayState?.({
-                entityManager: this.entityManager,
-                roundState: this.roundStateController,
-                particles: this.particles,
-                dt,
-                metadata: {
-                    gameStateId: this.state,
-                    mapKey: this.mapKey,
-                    activeGameMode: this.activeGameMode,
-                    numHumans: this.numHumans,
-                    numBots: this.numBots,
-                    winsNeeded: this.winsNeeded,
-                    runtimeConfig: this.runtimeConfig,
-                    randomSeed: this.runtimeConfig?.session?.seed
-                        ?? this.runtimeConfig?.seed
-                        ?? this.settings?.seed
-                        ?? null,
-                    settings: this.settings,
-                },
-            });
-        }
+        dispatchGameStateUpdate(this, dt, hasInteractiveMatchRuntime);
 
         if (this.huntHud) {
             const runtimeProjection = this.state === GAME_STATE_IDS.PLAYING || this.state === GAME_STATE_IDS.PAUSED
@@ -494,6 +461,36 @@ export class Game {
         if (this.state === GAME_STATE_IDS.PLAYING || this.state === GAME_STATE_IDS.PAUSED) {
             this.playingStateSystem.render(this._renderAlpha, this._renderDelta);
             matchRenderProjection = this.playingStateSystem.getMatchRenderProjection();
+        }
+        const replayCaptureStateActive = this.state === GAME_STATE_IDS.PLAYING
+            || this.state === GAME_STATE_IDS.PAUSED
+            || this.state === GAME_STATE_IDS.ROUND_END;
+        if (replayCaptureStateActive && this.entityManager) {
+            this.mediaRecorderSystem?.captureReplayState?.({
+                entityManager: this.entityManager,
+                roundState: this.roundStateController,
+                particles: this.particles,
+                cameras: this.renderer?.cameras,
+                renderProjection: matchRenderProjection,
+                dt: this._renderDelta,
+                metadata: {
+                    gameStateId: this.state,
+                    mapKey: this.mapKey,
+                    activeGameMode: this.activeGameMode,
+                    numHumans: this.numHumans,
+                    numBots: this.numBots,
+                    winsNeeded: this.winsNeeded,
+                    localPlayerIndex: this.renderer?.viewportSystem?.localPlayerIndex
+                        ?? this.runtimeConfig?.session?.localPlayerIndex
+                        ?? 0,
+                    runtimeConfig: this.runtimeConfig,
+                    randomSeed: this.runtimeConfig?.session?.seed
+                        ?? this.runtimeConfig?.seed
+                        ?? this.settings?.seed
+                        ?? null,
+                    settings: this.settings,
+                },
+            });
         }
         const renderStart = this.runtimePerfProfiler?.startSample?.();
         this.renderer.render();
