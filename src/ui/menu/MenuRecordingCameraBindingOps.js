@@ -22,7 +22,7 @@ export function resolveRecordingHudLabel(hudMode) {
 export function resolveNormalCameraPerspectiveLabel(mode) {
     if (mode === CAMERA_PERSPECTIVE_MODE.CINEMATIC_SOFT) return 'Cinematic Soft';
     if (mode === CAMERA_PERSPECTIVE_MODE.CINEMATIC_ACTION) return 'Cinematic Action';
-    return 'Klassisch';
+    return 'Spielgetreu';
 }
 
 function clampCameraPerspectiveIntensity(value, fallback = 1) {

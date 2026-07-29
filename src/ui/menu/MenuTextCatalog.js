@@ -24,7 +24,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.multiplayer.inline.subtitle': 'Session-Code, echte Lobby-Verbindung und Ready-Status.',
     'menu.multiplayer.inline.host.label': 'Host',
     'menu.multiplayer.inline.join.label': 'Join',
-    'menu.camera.perspective.classic.label': 'Klassisch',
+    'menu.camera.perspective.classic.label': 'Spielgetreu',
     'menu.camera.perspective.cinematic_soft.label': 'Cinematic Soft',
     'menu.camera.perspective.cinematic_action.label': 'Cinematic Action',
     'menu.panels.settings.open.label': 'Spieloptionen öffnen',

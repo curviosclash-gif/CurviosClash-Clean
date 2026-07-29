@@ -18,63 +18,19 @@ import {
     createDefaultCameraPerspectiveSettings,
     normalizeCameraPerspectiveSettings,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
+import {
+    applyProjectionQuaternion,
+    applyProjectionVector3,
+    CinematicCaptureSubjectSelector,
+    createCanvasClone,
+    toPositiveEven,
+    toRatio,
+} from './RecordingCaptureProjectionOps.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({
     width: 9,
     height: 16,
 });
-
-function toPositiveEven(value, fallback) {
-    const numeric = Number(value);
-    const safe = Number.isFinite(numeric) && numeric >= 2 ? Math.floor(numeric) : fallback;
-    return Math.max(2, safe - (safe % 2));
-}
-
-function toRatio(value, fallback) {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
-}
-
-function applyProjectionVector3(target, source, fallbackX = 0, fallbackY = 0, fallbackZ = 0) {
-    if (!target) return null;
-    const x = Number(source?.x);
-    const y = Number(source?.y);
-    const z = Number(source?.z);
-    target.set(
-        Number.isFinite(x) ? x : fallbackX,
-        Number.isFinite(y) ? y : fallbackY,
-        Number.isFinite(z) ? z : fallbackZ
-    );
-    return target;
-}
-
-function applyProjectionQuaternion(target, source) {
-    if (!target) return null;
-    const x = Number(source?.x);
-    const y = Number(source?.y);
-    const z = Number(source?.z);
-    const w = Number(source?.w);
-    target.set(
-        Number.isFinite(x) ? x : 0,
-        Number.isFinite(y) ? y : 0,
-        Number.isFinite(z) ? z : 0,
-        Number.isFinite(w) ? w : 1
-    );
-    return target;
-}
-
-function createCanvasClone(sourceCanvas, width, height) {
-    let canvasClone = null;
-    if (sourceCanvas && typeof sourceCanvas.cloneNode === 'function') {
-        canvasClone = sourceCanvas.cloneNode(false);
-    } else if (typeof OffscreenCanvas === 'function') {
-        canvasClone = new OffscreenCanvas(Math.max(2, Math.floor(width)), Math.max(2, Math.floor(height)));
-    }
-    if (!canvasClone) return null;
-    canvasClone.width = Math.max(2, Math.floor(width));
-    canvasClone.height = Math.max(2, Math.floor(height));
-    return canvasClone;
-}
 
 export class RecordingCapturePipeline {
     constructor({
@@ -104,7 +60,7 @@ export class RecordingCapturePipeline {
         this._cinematicRenderer = null;
         this._cinematicRendererUnavailable = false;
         this._cinematicBaseFov = Math.max(1, Number(CONFIG?.CAMERA?.FOV) || 60);
-        this._cinematicSubjectElapsed = 0;
+        this._cinematicSubjectSelector = new CinematicCaptureSubjectSelector();
         this._cinematicCameraRig = new CameraRigSystem({
             cinematicEnabled: true,
             livePerspectiveEnabled: false,
@@ -131,7 +87,7 @@ export class RecordingCapturePipeline {
         this._shortsCameraRig.resetCameras();
         this._cinematicOrbitDirector.reset();
         this._cinematicCameraRig.resetCameras();
-        this._cinematicSubjectElapsed = 0;
+        this._cinematicSubjectSelector.reset();
     }
 
     setSettings(settings = null) {
@@ -158,6 +114,14 @@ export class RecordingCapturePipeline {
     getLastMeta() {
         if (!this._lastMeta) return null;
         return cloneJsonValue(this._lastMeta);
+    }
+
+    _resolveProjectedPlayers(renderProjection) {
+        const players = Array.isArray(renderProjection?.players)
+            ? renderProjection.players.filter(Boolean)
+            : [];
+        players.sort((left, right) => (left.playerIndex || 0) - (right.playerIndex || 0));
+        return players;
     }
 
     _resolveRecordingPlayers(renderProjection) {
@@ -648,44 +612,21 @@ export class RecordingCapturePipeline {
             return;
         }
 
-        const players = this._resolveRecordingPlayers(renderProjection);
+        const players = this._resolveProjectedPlayers(renderProjection);
+        const humanPlayers = players.filter((candidate) => candidate?.isBot !== true);
+        const recordedCamera = renderProjection?.recordedCamera || null;
+        const perspectiveMode = /** @type {string} */ (
+            this._cameraPerspectiveSettings?.normal || CAMERA_PERSPECTIVE_MODE.CLASSIC
+        );
+        const usesRecordedCamera = perspectiveMode === CAMERA_PERSPECTIVE_MODE.CLASSIC
+            && recordedCamera?.position
+            && recordedCamera?.quaternion;
         let aliveCount = 0;
         for (let index = 0; index < players.length; index++) {
             if (players[index]?.alive !== false) aliveCount++;
         }
-        const subjectCount = aliveCount > 0 ? aliveCount : players.length;
-        this._cinematicSubjectElapsed += Math.max(0, Number(renderDelta) || 0);
-        const subjectIndex = subjectCount > 0
-            ? Math.floor(this._cinematicSubjectElapsed / 6) % subjectCount
-            : 0;
-        let player = null;
-        let subjectCursor = 0;
-        for (let index = 0; index < players.length; index++) {
-            const candidate = players[index];
-            if (aliveCount > 0 && candidate?.alive === false) continue;
-            if (subjectCursor === subjectIndex) {
-                player = candidate || null;
-                break;
-            }
-            subjectCursor++;
-        }
-        let otherPlayer = null;
-        if (player && subjectCount > 1) {
-            let nearestDistanceSq = Number.POSITIVE_INFINITY;
-            for (let index = 0; index < players.length; index++) {
-                const candidate = players[index];
-                if (!candidate || candidate === player) continue;
-                if (aliveCount > 0 && candidate.alive === false) continue;
-                const dx = (Number(candidate?.position?.x) || 0) - (Number(player?.position?.x) || 0);
-                const dy = (Number(candidate?.position?.y) || 0) - (Number(player?.position?.y) || 0);
-                const dz = (Number(candidate?.position?.z) || 0) - (Number(player?.position?.z) || 0);
-                const distanceSq = dx * dx + dy * dy + dz * dz;
-                if (distanceSq < nearestDistanceSq) {
-                    nearestDistanceSq = distanceSq;
-                    otherPlayer = candidate;
-                }
-            }
-        }
+        let player = this._cinematicSubjectSelector.select(players, aliveCount, renderDelta);
+        const otherPlayer = this._cinematicSubjectSelector.findNearest(players, player, aliveCount);
 
         const aspect = toRatio(width / Math.max(1, height), 16 / 9);
         while (this._cinematicCameraRig.cameras.length < 1) {
@@ -697,7 +638,18 @@ export class RecordingCapturePipeline {
         camera.updateProjectionMatrix();
         this._cinematicCameraRig.cameraModes[0] = 0;
 
-        if (player) {
+        if (usesRecordedCamera) {
+            applyProjectionVector3(camera.position, recordedCamera.position);
+            applyProjectionQuaternion(camera.quaternion, recordedCamera.quaternion);
+            camera.fov = Math.max(1, Number(recordedCamera.fov) || this._cinematicBaseFov);
+            camera.near = Math.max(0.001, Number(recordedCamera.near) || camera.near);
+            camera.far = Math.max(camera.near + 1, Number(recordedCamera.far) || camera.far);
+            camera.zoom = Math.max(0.01, Number(recordedCamera.zoom) || 1);
+            camera.updateProjectionMatrix();
+            player = humanPlayers.find(
+                (candidate) => Number(candidate?.playerIndex) === Number(recordedCamera.index)
+            ) || humanPlayers[0] || players[0] || null;
+        } else if (player) {
             applyProjectionVector3(this._tmpPosition, player?.position);
             applyProjectionQuaternion(this._tmpQuaternion, player?.quaternion);
             applyProjectionVector3(this._tmpDirection, player?.direction, 0, 0, -1);
@@ -724,15 +676,19 @@ export class RecordingCapturePipeline {
                 otherPos = applyProjectionVector3(this._tmpOtherPosition, otherPlayer.position);
             }
 
+            const slotStyle = perspectiveMode === CAMERA_PERSPECTIVE_MODE.CINEMATIC_ACTION
+                ? SLOT_STYLE.ACTION
+                : SLOT_STYLE.CINEMATIC;
+            const perspectiveDt = this._resolveShortsDt(renderDelta);
             this._cinematicOrbitDirector.apply({
                 playerIndex: Number.isInteger(player?.playerIndex) ? player.playerIndex : 0,
                 camera,
                 fallbackTarget: this._cinematicCameraRig.cameraTargets[0],
                 playerPosition: this._tmpPosition,
                 playerDirection: this._tmpDirection,
-                dt: Math.max(0, Number(renderDelta) || 0),
+                dt: perspectiveDt,
                 arena,
-                slotStyle: SLOT_STYLE.CINEMATIC,
+                slotStyle,
                 playerState: {
                     hp: Number(player?.hp) || 0,
                     maxHp: Number(player?.maxHp) || 1,
@@ -794,7 +750,7 @@ export class RecordingCapturePipeline {
         this._cinematicRenderer = null;
         this._cinematicRendererUnavailable = false;
         this._cinematicCanvas = null;
-        this._cinematicSubjectElapsed = 0;
+        this._cinematicSubjectSelector.reset();
         this._captureCanvas = null;
         this._captureCtx = null;
         this._shortsCameraRig.resetCameras();

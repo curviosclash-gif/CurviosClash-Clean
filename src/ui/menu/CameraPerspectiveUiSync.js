@@ -51,7 +51,7 @@ export function syncNormalCameraPerspectiveUi(ui, cameraPerspectiveSettingsSourc
             ? resolveMenuCatalogText('menu.camera.perspective.cinematic_soft.label', 'Cinematic Soft')
             : cameraPerspectiveSettings.normal === CAMERA_PERSPECTIVE_MODE.CINEMATIC_ACTION
                 ? resolveMenuCatalogText('menu.camera.perspective.cinematic_action.label', 'Cinematic Action')
-                : resolveMenuCatalogText('menu.camera.perspective.classic.label', 'Klassisch');
+                : resolveMenuCatalogText('menu.camera.perspective.classic.label', 'Spielgetreu');
         const reduceMotionLabel = cameraPerspectiveSettings.reduceMotion ? 'an' : 'aus';
         const speedFovLabel = cameraPerspectiveSettings.speedFovEnabled !== false ? `${speedFovIntensityPercent}%` : 'aus';
         const thrusterExhaustLabel = cameraPerspectiveSettings.thrusterExhaustEnabled !== false ? `${thrusterExhaustIntensityPercent}%` : 'aus';

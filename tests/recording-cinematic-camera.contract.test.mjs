@@ -6,6 +6,9 @@ globalThis.THREE = ThreeModule;
 const { RecordingOrbitCameraDirector } = await import(
     '../src/core/renderer/camera/RecordingOrbitCameraDirector.js'
 );
+const { CinematicCaptureSubjectSelector } = await import(
+    '../src/core/renderer/RecordingCaptureProjectionOps.js'
+);
 
 test('cinematic camera keeps immutable base FOV when caller passes mutated frame FOV', () => {
     const director = new RecordingOrbitCameraDirector();
@@ -54,4 +57,31 @@ test('cinematic camera keeps immutable base FOV when caller passes mutated frame
         baseFov: 72,
     });
     assert.ok(Math.abs(camera.fov - 72) < 0.5);
+});
+
+test('cinematic capture includes bots and follows recent combat activity', () => {
+    const selector = new CinematicCaptureSubjectSelector();
+    const human = {
+        playerIndex: 0,
+        isBot: false,
+        alive: true,
+        hp: 100,
+        score: 0,
+        isBoosting: false,
+        position: { x: 0, y: 0, z: 0 },
+    };
+    const bot = {
+        playerIndex: 1,
+        isBot: true,
+        alive: true,
+        hp: 100,
+        score: 0,
+        isBoosting: false,
+        position: { x: 4, y: 0, z: 0 },
+    };
+
+    assert.equal(selector.select([human, bot], 2, 1 / 60), human);
+    bot.hp = 60;
+    assert.equal(selector.select([human, bot], 2, 1 / 60), bot);
+    assert.equal(selector.findNearest([human, bot], human, 2), bot);
 });
