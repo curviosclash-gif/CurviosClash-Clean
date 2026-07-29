@@ -30,7 +30,7 @@ export class ProjectileSystem {
             : (() => options.arena || null);
         this.getPlayers = typeof options.getPlayers === 'function'
             ? options.getPlayers
-            : (() => options.players || []);
+            : (() => options.players || []); this.getTurrets = typeof options.getTurrets === 'function' ? options.getTurrets : (() => options.turrets || []);
         this.peekInventoryItem = typeof options.peekInventoryItem === 'function'
             ? options.peekInventoryItem
             : (() => buildGameplayActionResult({

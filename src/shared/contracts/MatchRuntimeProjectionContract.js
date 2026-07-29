@@ -180,6 +180,13 @@ function createPlayerProjection(value = null) {
         planarMode: value.planarMode === true,
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
         traversal: createTraversalProjection(value.traversal),
+        turret: value.turret && typeof value.turret === 'object' ? {
+            count: normalizeNonNegativeInt(value.turret.count, 0),
+            remainingSeconds: Math.max(0, normalizeNumber(value.turret.remainingSeconds, 0)),
+            hp: Math.max(0, normalizeNumber(value.turret.hp, 0)),
+            maxHp: Math.max(1, normalizeNumber(value.turret.maxHp, 1)),
+            range: Math.max(0, normalizeNumber(value.turret.range, 0)),
+        } : null,
     };
 }
 

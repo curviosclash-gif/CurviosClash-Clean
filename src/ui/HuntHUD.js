@@ -69,6 +69,7 @@ export class HuntHUD {
         this.p1BoostText = refs.p1BoostText ?? null;
         this.p1OverheatFill = refs.p1OverheatFill ?? null;
         this.p1OverheatText = refs.p1OverheatText ?? null;
+        this.p1Turret = refs.p1Turret ?? null;
         this.p2Panel = refs.p2Panel ?? null;
         this.p2HpFill = refs.p2HpFill ?? null;
         this.p2HpText = refs.p2HpText ?? null;
@@ -79,6 +80,7 @@ export class HuntHUD {
         this.p2BoostText = refs.p2BoostText ?? null;
         this.p2OverheatFill = refs.p2OverheatFill ?? null;
         this.p2OverheatText = refs.p2OverheatText ?? null;
+        this.p2Turret = refs.p2Turret ?? null;
         this.killFeedList = refs.killFeedList ?? null;
         this._killFeedSlots = [];
         this._killFeedCachedTexts = new Array(KILL_FEED_SLOT_COUNT).fill('');
@@ -90,8 +92,8 @@ export class HuntHUD {
         this._indicatorTickTimer = 0;
         this._wasHuntActive = false;
         this._panelCache = [
-            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null },
-            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null, turretTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null, turretTxt: null },
         ];
         this._objectiveText = null;
         this._scoreboardText = null;
@@ -140,8 +142,12 @@ export class HuntHUD {
         this.damageIndicatorP2?.classList.add('hidden');
         this.p1Respawn?.classList.add('hidden');
         this.p2Respawn?.classList.add('hidden');
+        this.p1Turret?.classList.add('hidden');
+        this.p2Turret?.classList.add('hidden');
         this.p1Respawn?.setAttribute?.('aria-hidden', 'true');
         this.p2Respawn?.setAttribute?.('aria-hidden', 'true');
+        this.p1Turret?.setAttribute?.('aria-hidden', 'true');
+        this.p2Turret?.setAttribute?.('aria-hidden', 'true');
         for (const cache of this._panelCache) {
             cache.hpW = null;
             cache.hpTxt = null;
@@ -154,6 +160,7 @@ export class HuntHUD {
             cache.overheatState = null;
             cache.overheatTxt = null;
             cache.respawnTxt = null;
+            cache.turretTxt = null;
         }
         this._objectiveText = null;
         this._scoreboardText = null;
@@ -222,6 +229,7 @@ export class HuntHUD {
                 boostText: this.p1BoostText,
                 overheatFill: this.p1OverheatFill,
                 overheatText: this.p1OverheatText,
+                turret: this.p1Turret,
             }, this._panelCache[0], huntProjection);
             if (this.p2Panel) {
                 const p2Visible = humans.length > 1;
@@ -238,6 +246,7 @@ export class HuntHUD {
                         boostText: this.p2BoostText,
                         overheatFill: this.p2OverheatFill,
                         overheatText: this.p2OverheatText,
+                        turret: this.p2Turret,
                     }, this._panelCache[1], huntProjection);
                 }
             }
@@ -347,6 +356,18 @@ export class HuntHUD {
             }
             refs.respawn.classList.toggle('hidden', !respawnTxt);
             refs.respawn.setAttribute?.('aria-hidden', String(!respawnTxt));
+        }
+        const turretState = player?.turret || null;
+        const turretTxt = turretState
+            ? `Geschütz ${Math.ceil(turretState.remainingSeconds)} s · ${Math.ceil(turretState.hp)}/${Math.ceil(turretState.maxHp)} HP`
+            : '';
+        if (refs.turret) {
+            if (turretTxt !== cache?.turretTxt) {
+                refs.turret.textContent = turretTxt;
+                if (cache) cache.turretTxt = turretTxt;
+            }
+            refs.turret.classList.toggle('hidden', !turretTxt);
+            refs.turret.setAttribute?.('aria-hidden', String(!turretTxt));
         }
     }
 

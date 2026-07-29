@@ -10,6 +10,8 @@ import {
 } from '../src/entities/PickupRegistry.js';
 import { HuntCombatSystem } from '../src/entities/systems/HuntCombatSystem.js';
 import { StaticTurretSystem } from '../src/entities/systems/StaticTurretSystem.js';
+import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
+import { ProjectileHitResolver } from '../src/entities/systems/projectile/ProjectileHitResolver.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 test('MG turret pickup is a Hunt-only deployable inventory item', () => {
@@ -119,4 +121,102 @@ test('deployed MG turret prioritizes a nearer enemy trail, then attacks the enem
     system.update(20);
     assert.equal(system.turrets.length, 0);
     system.dispose();
+});
+
+test('deployable turret enforces one per owner and can be destroyed', () => {
+    const ownerPlayer = { index: 0, alive: true, position: new THREE.Vector3(), color: 0x44aaff };
+    const events = [];
+    const system = new StaticTurretSystem({
+        renderer: null,
+        gameModeStrategy: { modeType: 'HUNT' },
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+        arena: { checkCollisionFast: () => false },
+        players: [ownerPlayer],
+        recorder: { logEvent: (...args) => events.push(args) },
+    });
+
+    const first = system.deployForPlayer(ownerPlayer);
+    const second = system.deployForPlayer(ownerPlayer);
+
+    assert.equal(system.turrets.length, 1);
+    assert.notEqual(second.id, first.id);
+    assert.equal(second.hp, 45);
+    const result = system.damageTurret(second, 45, { sourcePlayer: { index: 1, isBot: true } });
+    assert.equal(result.isDead, true);
+    assert.equal(system.turrets.length, 0);
+    assert.ok(events.some(([type]) => type === 'TURRET_DAMAGED'));
+    assert.ok(events.some(([type]) => type === 'TURRET_DESTROYED'));
+    system.dispose();
+});
+
+test('hand MG resolves an enemy deployable turret before targets behind it', () => {
+    const attacker = {
+        index: 0,
+        isBot: false,
+        position: new THREE.Vector3(),
+        getAimDirection: (out) => out.set(1, 0, 0),
+    };
+    const turret = {
+        deployed: true,
+        ownerIndex: 1,
+        hp: 45,
+        hitboxRadius: 2,
+        position: new THREE.Vector3(10, 0, 0),
+    };
+    let appliedDamage = 0;
+    const resolver = new MGHitResolver({
+        players: [attacker],
+        combat: {
+            getMgTurretTargets: () => [turret],
+            damageMgTurret: (_turret, damage) => { appliedDamage = damage; },
+        },
+        getTrailSpatialIndex: () => null,
+    });
+
+    const hit = resolver.resolveHit(attacker, { RANGE: 50, DAMAGE: 10, MIN_FALLOFF: 0.5 });
+    assert.equal(hit.turret, turret);
+    assert.equal(hit.distance, 5.9);
+    resolver.applyTurretHit(attacker, turret, hit.distance, { RANGE: 50, DAMAGE: 10, MIN_FALLOFF: 0.5 });
+    assert.ok(appliedDamage > 9 && appliedDamage < 10);
+});
+
+test('rocket sweep detonates on an enemy deployable turret', () => {
+    let damage = 0;
+    let impacts = 0;
+    const turret = {
+        deployed: true,
+        ownerIndex: 1,
+        hp: 45,
+        hitboxRadius: 2,
+        position: new THREE.Vector3(10, 0, 0),
+        takeDamage: (amount) => { damage += amount; },
+    };
+    const system = {
+        _tmpVec: new THREE.Vector3(),
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+        getTurrets: () => [turret],
+        onProjectileHit: () => { impacts += 1; },
+    };
+    const resolver = new ProjectileHitResolver(system);
+    const projectile = {
+        type: 'ROCKET_WEAK',
+        owner: { index: 0 },
+        radius: 0.5,
+        previousPosition: new THREE.Vector3(5, 0, 0),
+        position: new THREE.Vector3(11, 0, 0),
+        mesh: { position: new THREE.Vector3() },
+        detonated: false,
+    };
+
+    const hit = resolver.resolveProjectileOutcome(
+        projectile,
+        [],
+        null,
+        { projectileExpired: false, projectileHitArena: false, bouncedOnFoam: false }
+    );
+
+    assert.equal(hit, true);
+    assert.equal(projectile.detonated, true);
+    assert.equal(impacts, 1);
+    assert.ok(damage > 0);
 });

@@ -1,4 +1,5 @@
 import { parseGameplayActionResultLog } from '../../shared/contracts/GameplayActionResultContract.js';
+import { cloneRoundMetricsSummary } from './RoundMetricsSummaryOps.js';
 
 const ITEM_USE_MODES = Object.freeze(['use', 'shoot', 'mg', 'other']);
 const GAMEPLAY_RESULT_EVENTS = Object.freeze(['ITEM_USE', 'ITEM_PICKUP', 'PORTAL_USE', 'GATE_TRIGGER']);
@@ -88,6 +89,7 @@ function createRoundSummary() {
         rocketHits: 0,
         shieldAbsorb: 0,
         hpDamage: 0,
+        turretEventCounts: {},
         stuckPerMinute: 0,
         parcoursCompleted: false,
         parcoursRouteId: '',
@@ -118,6 +120,7 @@ function createAggregateSummary() {
         totalRocketHits: 0,
         totalShieldAbsorb: 0,
         totalHpDamage: 0,
+        totalTurretEventCounts: {},
         botWins: 0,
         parcoursCompletions: 0,
         totalParcoursCompletionTimeMs: 0,
@@ -169,6 +172,7 @@ export class RoundMetricsStore {
         this._roundRocketHits = 0;
         this._roundShieldAbsorb = 0;
         this._roundHpDamage = 0;
+        this._roundTurretEventCounts = {};
         this._roundBotDeathSurvivalSeconds = [];
         this._roundBotDeathCauseCounts = {};
         for (let i = 0; i < this.maxTrackedPlayers; i++) {
@@ -212,6 +216,9 @@ export class RoundMetricsStore {
         if (type === 'STUCK') this._roundStuckEvents++;
         if (type === 'BOUNCE_WALL') this._roundBounceWallEvents++;
         if (type === 'BOUNCE_TRAIL') this._roundBounceTrailEvents++;
+        if (typeof type === 'string' && type.startsWith('TURRET_')) {
+            this._roundTurretEventCounts[type] = (this._roundTurretEventCounts[type] || 0) + 1;
+        }
         if (GAMEPLAY_RESULT_EVENTS.includes(type)) {
             parsedItemUse = parseItemUseEventData(data);
             const codeKey = normalizeActionCode(parsedItemUse.code);
@@ -346,6 +353,7 @@ export class RoundMetricsStore {
         round.rocketHits = this._roundRocketHits;
         round.shieldAbsorb = this._roundShieldAbsorb;
         round.hpDamage = this._roundHpDamage;
+        round.turretEventCounts = { ...this._roundTurretEventCounts };
         round.stuckPerMinute = roundDuration > 0 ? this._roundStuckEvents / (roundDuration / 60) : 0;
         round.parcoursCompleted = parcoursCompleted;
         round.parcoursRouteId = parcoursRouteId;
@@ -391,45 +399,18 @@ export class RoundMetricsStore {
         this._aggregate.totalRocketHits += this._roundRocketHits;
         this._aggregate.totalShieldAbsorb += this._roundShieldAbsorb;
         this._aggregate.totalHpDamage += this._roundHpDamage;
+        for (const [eventType, eventCount] of Object.entries(this._roundTurretEventCounts)) {
+            this._aggregate.totalTurretEventCounts[eventType] = (
+                this._aggregate.totalTurretEventCounts[eventType] || 0
+            ) + eventCount;
+        }
         if (winner?.isBot) this._aggregate.botWins += 1;
         if (parcoursCompleted) {
             this._aggregate.parcoursCompletions += 1;
             this._aggregate.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
         }
 
-        this._lastRoundSummary = {
-            roundId: round.roundId,
-            duration: round.duration,
-            winnerIndex: round.winnerIndex,
-            winnerIsBot: round.winnerIsBot,
-            reason: round.reason,
-            botCount: round.botCount,
-            humanCount: round.humanCount,
-            botSurvivalAverage: round.botSurvivalAverage,
-            botSurvivalSeconds: [...round.botSurvivalSeconds],
-            botDeathSurvivalSeconds: [...round.botDeathSurvivalSeconds],
-            botDeathCauseCounts: { ...round.botDeathCauseCounts },
-            selfCollisions: round.selfCollisions,
-            stuckEvents: round.stuckEvents,
-            bounceWallEvents: round.bounceWallEvents,
-            bounceTrailEvents: round.bounceTrailEvents,
-            itemUseEvents: round.itemUseEvents,
-            itemUseModeCounts: { ...round.itemUseModeCounts },
-            itemUseTypeCounts: { ...round.itemUseTypeCounts },
-            actionResultCodeCounts: { ...round.actionResultCodeCounts },
-            failedItemActions: round.failedItemActions,
-            failedItemActionModeCounts: { ...round.failedItemActionModeCounts },
-            failedItemActionCodeCounts: { ...round.failedItemActionCodeCounts },
-            mgHits: round.mgHits,
-            rocketHits: round.rocketHits,
-            shieldAbsorb: round.shieldAbsorb,
-            hpDamage: round.hpDamage,
-            stuckPerMinute: round.stuckPerMinute,
-            parcoursCompleted: round.parcoursCompleted,
-            parcoursRouteId: round.parcoursRouteId,
-            parcoursCompletionTimeMs: round.parcoursCompletionTimeMs,
-            parcoursCheckpointCount: round.parcoursCheckpointCount,
-        };
+        this._lastRoundSummary = cloneRoundMetricsSummary(round);
 
         return this._lastRoundSummary;
     }
@@ -476,6 +457,7 @@ export class RoundMetricsStore {
             rocketHitsPerRound: rounds > 0 ? this._aggregate.totalRocketHits / rounds : 0,
             hpDamagePerRound: rounds > 0 ? this._aggregate.totalHpDamage / rounds : 0,
             shieldAbsorbPerRound: rounds > 0 ? this._aggregate.totalShieldAbsorb / rounds : 0,
+            turretEventTotals: { ...this._aggregate.totalTurretEventCounts },
             parcoursCompletionRate: rounds > 0 ? this._aggregate.parcoursCompletions / rounds : 0,
             averageParcoursCompletionTimeMs: this._aggregate.parcoursCompletions > 0
                 ? this._aggregate.totalParcoursCompletionTimeMs / this._aggregate.parcoursCompletions
@@ -524,39 +506,7 @@ export class RoundMetricsStore {
         for (let i = 0; i < max; i++) {
             const idx = (startIdx + offset + i) % this.maxRounds;
             const round = this.roundSummaries[idx];
-            items.push({
-                roundId: round.roundId,
-                duration: round.duration,
-                winnerIndex: round.winnerIndex,
-                winnerIsBot: round.winnerIsBot,
-                reason: round.reason,
-                botCount: round.botCount,
-                humanCount: round.humanCount,
-                botSurvivalAverage: round.botSurvivalAverage,
-                botSurvivalSeconds: [...round.botSurvivalSeconds],
-                botDeathSurvivalSeconds: [...round.botDeathSurvivalSeconds],
-                botDeathCauseCounts: { ...round.botDeathCauseCounts },
-                selfCollisions: round.selfCollisions,
-                stuckEvents: round.stuckEvents,
-                bounceWallEvents: round.bounceWallEvents,
-                bounceTrailEvents: round.bounceTrailEvents,
-                itemUseEvents: round.itemUseEvents,
-                itemUseModeCounts: { ...round.itemUseModeCounts },
-                itemUseTypeCounts: { ...round.itemUseTypeCounts },
-                actionResultCodeCounts: { ...round.actionResultCodeCounts },
-                failedItemActions: round.failedItemActions,
-                failedItemActionModeCounts: { ...round.failedItemActionModeCounts },
-                failedItemActionCodeCounts: { ...round.failedItemActionCodeCounts },
-                mgHits: round.mgHits,
-                rocketHits: round.rocketHits,
-                shieldAbsorb: round.shieldAbsorb,
-                hpDamage: round.hpDamage,
-                stuckPerMinute: round.stuckPerMinute,
-                parcoursCompleted: round.parcoursCompleted,
-                parcoursRouteId: round.parcoursRouteId,
-                parcoursCompletionTimeMs: round.parcoursCompletionTimeMs,
-                parcoursCheckpointCount: round.parcoursCheckpointCount,
-            });
+            items.push(cloneRoundMetricsSummary(round));
         }
         return items;
     }

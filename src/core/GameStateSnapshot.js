@@ -52,12 +52,14 @@ export function createGameStateSnapshot(entityManager, roundState) {
             type: pu.type || '',
         });
     }
+    const turrets = entityManager?._staticTurretSystem?.createNetworkSnapshot?.() || [];
 
     return {
         frame: roundState?.frame ?? 0,
         players,
         projectiles,
         powerups,
+        turrets,
         fight: createHuntNetworkState(entityManager),
         roundState: roundState ? {
             round: roundState.round ?? 0,

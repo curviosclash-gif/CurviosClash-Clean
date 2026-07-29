@@ -19,6 +19,7 @@ export class MGHitResolver {
         this._tmpHit = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
         this._tmpTargetAim = new THREE.Vector3();
+        this._tmpTurretOffset = new THREE.Vector3();
         this._targetingScratch = createHuntTargetingScratch();
         this._targetingTelemetry = createHuntTargetingTelemetry();
     }
@@ -48,6 +49,16 @@ export class MGHitResolver {
             scratch: this._targetingScratch,
         });
 
+        const targetDistance = Number(target?.distance);
+        const turretHit = this._resolveTurretHit(
+            player,
+            this._tmpMuzzle,
+            this._tmpAim,
+            maxRange,
+            Number.isFinite(targetDistance) ? targetDistance : maxRange
+        );
+        if (turretHit) return turretHit;
+
         if (isPlayerTargetDescriptor(target)) {
             return {
                 target,
@@ -66,7 +77,41 @@ export class MGHitResolver {
             };
         }
 
-        return { target: null, distance: Infinity, trail: null, point: null };
+        return { target: null, distance: Infinity, trail: null, turret: null, point: null };
+    }
+
+    _resolveTurretHit(attacker, origin, direction, maxRange, nearestDistance) {
+        const turrets = this.runtime?.combat?.getMgTurretTargets?.() || [];
+        let nearest = null;
+        let distance = Math.min(maxRange, nearestDistance);
+        for (const turret of turrets) {
+            if (
+                !turret?.deployed
+                || turret.hp <= 0
+                || turret.ownerPlayer === attacker
+                || turret.ownerIndex === attacker?.index
+                || !turret.position
+            ) continue;
+            this._tmpTurretOffset.subVectors(turret.position, origin);
+            const forward = this._tmpTurretOffset.dot(direction);
+            if (forward < 0 || forward > distance) continue;
+            const radius = Math.max(0.5, Number(turret.hitboxRadius) || 2.2);
+            const perpendicularSq = this._tmpTurretOffset.lengthSq() - forward * forward;
+            if (perpendicularSq > radius * radius) continue;
+            const entryDistance = Math.max(0, forward - Math.sqrt(Math.max(0, radius * radius - perpendicularSq)));
+            if (entryDistance >= distance) continue;
+            nearest = turret;
+            distance = entryDistance;
+        }
+        if (!nearest) return null;
+        this._tmpHit.copy(origin).addScaledVector(direction, distance);
+        return {
+            target: null,
+            trail: null,
+            turret: nearest,
+            distance,
+            point: { x: this._tmpHit.x, y: this._tmpHit.y, z: this._tmpHit.z },
+        };
     }
 
     resolveAimDirection(player, out, mg = null) {
@@ -160,5 +205,17 @@ export class MGHitResolver {
                 projectileType: 'MG_BULLET',
             });
         }
+    }
+
+    applyTurretHit(attacker, turret, distance, mg) {
+        if (!turret?.deployed || turret.hp <= 0) return;
+        const maxRange = Math.max(10, Number(mg.RANGE || 95));
+        const minFalloff = clamp(Number(mg.MIN_FALLOFF || 0.5), 0.2, 1);
+        const baseDamage = Math.max(1, Number(mg.DAMAGE || 9));
+        const damage = baseDamage * (1 - (1 - minFalloff) * clamp(distance / maxRange, 0, 1));
+        this.runtime?.combat?.damageMgTurret?.(turret, damage, {
+            sourcePlayer: attacker,
+            cause: 'MG_BULLET',
+        });
     }
 }

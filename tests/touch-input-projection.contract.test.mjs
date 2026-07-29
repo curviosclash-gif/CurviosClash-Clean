@@ -58,7 +58,18 @@ test('match projections resolve only needed config sections while preserving fal
             },
         },
     };
-    const entityManager = { players: [player] };
+    const entityManager = {
+        players: [player],
+        _staticTurretSystem: {
+            getHudStateForPlayer: () => ({
+                count: 1,
+                remainingSeconds: 12.4,
+                hp: 31,
+                maxHp: 45,
+                range: 58,
+            }),
+        },
+    };
     const args = {
         game: { entityManager, huntState: {} },
         runtimeState: {
@@ -79,6 +90,13 @@ test('match projections resolve only needed config sections while preserving fal
         assert.equal(projectedPlayer.cameraModeId, 'CUSTOM_CAMERA');
         assert.equal(projectedPlayer.planarMode, true);
     }
+    assert.deepEqual(runtimePlayer.turret, {
+        count: 1,
+        remainingSeconds: 12.4,
+        hp: 31,
+        maxHp: 45,
+        range: 58,
+    });
 });
 
 test('runtime projection reuses scoreboard rows when formatting the Hunt summary', () => {

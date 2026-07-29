@@ -39,6 +39,13 @@ export const HUNT_CONFIG = Object.freeze({
         COOLDOWN: 0.24,
         DAMAGE: 3,
         DURATION_SECONDS: 20,
+        MAX_HP: 45,
+        HIT_RADIUS: 2.2,
+        MAX_PER_OWNER: 1,
+        DEPLOY_OFFSET: 3.2,
+        TARGET_HOLD_SECONDS: 0.3,
+        TARGET_REACQUIRE_SECONDS: 0.12,
+        LOS_SAMPLE_STEP: 0.5,
     }),
     TARGETING: Object.freeze({
         MUZZLE_OFFSET: 2.1,

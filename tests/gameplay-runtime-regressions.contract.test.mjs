@@ -117,6 +117,17 @@ test('network snapshot serializes and applies authoritative projectiles and powe
                 type: 'SHIELD',
             }],
         },
+        _staticTurretSystem: {
+            createNetworkSnapshot: () => [{
+                id: 'turret:1',
+                pos: [12, 0, 4],
+                aim: [1, 0, 0],
+                owner: 0,
+                deployed: true,
+                hp: 45,
+                maxHp: 45,
+            }],
+        },
     }, null);
 
     assert.deepEqual(snapshot.projectiles[0], {
@@ -133,6 +144,8 @@ test('network snapshot serializes and applies authoritative projectiles and powe
         pos: [8, 7, 10],
         type: 'SHIELD',
     });
+    assert.equal(snapshot.turrets[0].id, 'turret:1');
+    assert.equal(snapshot.turrets[0].hp, 45);
 
     const applied = [];
     const reconciler = new StateReconciler();

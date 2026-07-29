@@ -205,6 +205,7 @@ function estimateSnapshotBytes(snapshot) {
         + ((snapshot?.players?.length || 0) * 256)
         + ((snapshot?.projectiles?.length || 0) * 160)
         + ((snapshot?.powerups?.length || 0) * 96)
+        + ((snapshot?.turrets?.length || 0) * 192)
         + ((snapshot?.cameras?.length || 0) * 128)
         + ((snapshot?.particles?.values?.length || 0) * 8);
 }

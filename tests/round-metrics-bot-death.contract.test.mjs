@@ -57,3 +57,18 @@ test('RoundMetricsStore separates real deaths from bots alive at observation end
     assert.equal(observation.aliveAtObservationEnd, 1);
     assert.deepEqual(observation.botDeathCauseCounts, { WALL: 1 });
 });
+
+test('RoundMetricsStore exposes dedicated turret event totals', () => {
+    const store = new RoundMetricsStore({ timeProvider: () => 10 });
+    store.startRound([]);
+    store.registerEventType('TURRET_DEPLOY');
+    store.registerEventType('TURRET_PLAYER_HIT');
+    store.registerEventType('TURRET_PLAYER_HIT');
+    const summary = store.finalizeRound(null, []);
+
+    assert.deepEqual(summary.turretEventCounts, {
+        TURRET_DEPLOY: 1,
+        TURRET_PLAYER_HIT: 2,
+    });
+    assert.deepEqual(store.getAggregateMetrics().turretEventTotals, summary.turretEventCounts);
+});

@@ -248,7 +248,7 @@ export class EntityManager {
         this._tickPipeline.update(dt, inputManager, renderFrameId);
     }
 
-    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); }
+    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); }
 
     _getPendingHumanRespawns(players = this.humanPlayers) {
         if (!this.gameModeStrategy?.isRespawnEnabled()) return 0;

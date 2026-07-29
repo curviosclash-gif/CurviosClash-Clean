@@ -54,7 +54,7 @@ export function emitHuntDamageFeedback(event, services = {}) {
     }
 
     const cause = String(event?.cause || '').toUpperCase();
-    if (cause === 'MG_BULLET') {
+    if (cause === 'MG_BULLET' || cause === 'STATIC_TURRET_MG') {
         particles?.spawnMgImpact(impactPoint, event?.sourcePlayer?.color);
         audio?.play('MG_HIT', { intensity: resolveAudioIntensity(totalDamage) });
         return;

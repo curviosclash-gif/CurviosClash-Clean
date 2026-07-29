@@ -15,6 +15,7 @@ export function createEntityRuntimeSupport(owner) {
         entityRuntimeConfig: owner.entityRuntimeConfig,
         getArena: () => owner.arena,
         getPlayers: () => owner.players,
+        getTurrets: () => owner._staticTurretSystem?.getDestructibleTargets?.() || [],
         getStrategy: () => owner.gameModeStrategy || null,
         peekInventoryItem: (player, preferredIndex, action) => owner._peekInventoryItem(player, preferredIndex, action),
         takeInventoryItem: (player, preferredIndex, action) => owner._takeInventoryItem(player, preferredIndex, action),
@@ -148,6 +149,10 @@ export function createEntityRuntimeSupport(owner) {
                 shootItemProjectile: (player, preferredIndex = -1) => projectileSystem.shootItemProjectile(player, preferredIndex),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
                 deployMgTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player) || null,
+                getMgTurretTargets: () => owner._staticTurretSystem?.getDestructibleTargets?.() || [],
+                damageMgTurret: (turret, amount, options = {}) => (
+                    owner._staticTurretSystem?.damageTurret?.(turret, amount, options) || null
+                ),
                 resetRespawnCombatState: (player) => owner._overheatGunSystem.resetPlayer(player?.index),
             },
             spawn: {

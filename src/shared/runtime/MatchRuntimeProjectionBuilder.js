@@ -124,6 +124,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         traversal: buildTraversalProjection(entityManager, player?.index),
+        turret: entityManager?._staticTurretSystem?.getHudStateForPlayer?.(player?.index) || null,
     };
 }
 

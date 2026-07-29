@@ -314,12 +314,28 @@ test('Fight HUD keeps HP, objective, score and respawn accessible outside fighte
     const hpFill = element();
     const hpText = element();
     const respawn = element();
+    const turret = element();
     const hud = new HuntHUD({
         runtime: { activeGameMode: 'HUNT', state: 'PLAYING' },
-        refs: { root, objective, scoreboard, p1HpFill: hpFill, p1HpText: hpText, p1Respawn: respawn },
+        refs: {
+            root,
+            objective,
+            scoreboard,
+            p1HpFill: hpFill,
+            p1HpText: hpText,
+            p1Respawn: respawn,
+            p1Turret: turret,
+        },
     });
     hud.update(0.2, {
-        players: [{ playerIndex: 0, isBot: false, alive: false, hp: 35, maxHp: 100 }],
+        players: [{
+            playerIndex: 0,
+            isBot: false,
+            alive: false,
+            hp: 35,
+            maxHp: 100,
+            turret: { remainingSeconds: 12.4, hp: 31, maxHp: 45 },
+        }],
         hunt: {
             active: true,
             respawnEnabled: true,
@@ -342,6 +358,7 @@ test('Fight HUD keeps HP, objective, score and respawn accessible outside fighte
     assert.match(scoreboard.attributes['aria-label'], /P1: 2\/10 Abschüsse/);
     assert.match(scoreboard.attributes['aria-label'], /1 Tode/);
     assert.match(respawn.textContent, /1\.6 s/);
+    assert.equal(turret.textContent, 'Geschütz 13 s · 31/45 HP');
 
     hud.runtime.activeGameMode = 'CLASSIC';
     hud.update(0.2);

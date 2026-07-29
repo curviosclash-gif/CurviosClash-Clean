@@ -155,8 +155,15 @@ export class OverheatGunSystem {
         if (hitResult.point) {
             this._tmpTracerEnd.set(hitResult.point.x, hitResult.point.y, hitResult.point.z);
         }
-        this._tracerFx.spawnTracer(this._tmpMuzzle, this._tmpTracerEnd, !!(hitResult.target || hitResult.trail), mg);
-        if (hitResult.target) {
+        this._tracerFx.spawnTracer(
+            this._tmpMuzzle,
+            this._tmpTracerEnd,
+            !!(hitResult.target || hitResult.trail || hitResult.turret),
+            mg
+        );
+        if (hitResult.turret) {
+            this._hitResolver.applyTurretHit(player, hitResult.turret, hitResult.distance, mg);
+        } else if (hitResult.target) {
             this._hitResolver.applyHit(player, hitResult.target, hitResult.distance, mg, hitResult.point);
         } else if (hitResult.trail) {
             this._hitResolver.applyTrailHit(player, hitResult.trail, mg);

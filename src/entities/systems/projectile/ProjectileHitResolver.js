@@ -94,6 +94,33 @@ export class ProjectileHitResolver {
         }
     }
 
+    _resolveTurretHit(projectile, players) {
+        const turrets = this.system?.getTurrets?.() || [];
+        for (const turret of turrets) {
+            if (
+                !turret?.deployed
+                || turret.hp <= 0
+                || turret.ownerPlayer === projectile.owner
+                || turret.ownerIndex === projectile.owner?.index
+                || !turret.position
+            ) continue;
+            if (!this._isProjectileSweepTouchingTarget(projectile, turret)) continue;
+            this.detonateProjectile(projectile);
+            const damage = isRocketTierType(projectile.type)
+                ? resolveRocketTierDamage(projectile.type, this.system)
+                : 1;
+            turret.takeDamage?.(damage, {
+                sourcePlayer: projectile.owner || null,
+                cause: projectile.type || 'PROJECTILE',
+            });
+            if (isRocketTierType(projectile.type)) {
+                this._applyRocketExplosion(projectile, players, null);
+            }
+            return true;
+        }
+        return false;
+    }
+
     resolveProjectileOutcome(projectile, players, trailSpatialIndex, simulationResult) {
         if (!projectile || !simulationResult) return false;
 
@@ -146,6 +173,10 @@ export class ProjectileHitResolver {
                 }
             }
 
+            return true;
+        }
+
+        if (this._resolveTurretHit(projectile, players)) {
             return true;
         }
 

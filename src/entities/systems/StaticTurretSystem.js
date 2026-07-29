@@ -1,10 +1,32 @@
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
+import { MGTracerFx } from '../../hunt/mg/MGTracerFx.js';
+import {
+    applyStaticTurretNetworkSnapshot,
+    createStaticTurretNetworkSnapshot,
+} from './static-turret/StaticTurretNetworkOps.js';
+import {
+    hasStaticTurretLineOfSight,
+    resolveStaticTurretTarget,
+} from './static-turret/StaticTurretTargetingOps.js';
 
 const TURRET_BASE_COLOR = 0x263746;
 const TURRET_MG_COLOR = 0xffb347;
 const TURRET_ROCKET_COLOR = 0xff4d6d;
+const TURRET_DESTROYED_COLOR = 0xff6b35;
+
+function clampFinite(value, fallback, min, max) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return fallback;
+    return Math.max(min, Math.min(max, numeric));
+}
+
+function resolveOwnerIndex(turret) {
+    return Number.isInteger(turret?.ownerIndex)
+        ? turret.ownerIndex
+        : (Number.isInteger(turret?.ownerPlayer?.index) ? turret.ownerPlayer.index : -1);
+}
 
 export class StaticTurretSystem {
     constructor(entityManager) {
@@ -14,19 +36,26 @@ export class StaticTurretSystem {
         this._tmpPoint = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
         this._trailQueryStamp = 0;
+        this._nextTurretId = 1;
+        this._nextCreatedSequence = 1;
+        this.networkReplica = false;
         this._baseGeometry = new THREE.CylinderGeometry(1.8, 2.4, 2.2, 10);
         this._headGeometry = new THREE.SphereGeometry(1.35, 10, 8);
         this._barrelGeometry = new THREE.CylinderGeometry(0.22, 0.3, 3.8, 8);
         this._barrelGeometry.rotateX(Math.PI / 2);
         this._flashGeometry = new THREE.SphereGeometry(0.38, 8, 6);
+        this._accentGeometry = new THREE.TorusGeometry(2.05, 0.12, 6, 20);
         this._baseMaterial = new THREE.MeshStandardMaterial({ color: TURRET_BASE_COLOR, roughness: 0.6, metalness: 0.65 });
         this._mgMaterial = new THREE.MeshStandardMaterial({ color: TURRET_MG_COLOR, emissive: TURRET_MG_COLOR, emissiveIntensity: 0.25 });
         this._rocketMaterial = new THREE.MeshStandardMaterial({ color: TURRET_ROCKET_COLOR, emissive: TURRET_ROCKET_COLOR, emissiveIntensity: 0.3 });
         this._flashMaterial = new THREE.MeshBasicMaterial({ color: 0xffe2a8 });
+        this._tracerFx = new MGTracerFx(entityManager);
     }
 
     startRound() {
         this.clear();
+        this._nextTurretId = 1;
+        this._nextCreatedSequence = 1;
         const owner = this.entityManager;
         if (!owner || String(owner.gameModeStrategy?.modeType || '').toUpperCase() !== 'HUNT') return 0;
         const mapDefinition = owner.arena?.currentMapDefinition;
@@ -44,6 +73,10 @@ export class StaticTurretSystem {
         const position = new THREE.Vector3(...definition.pos).multiplyScalar(authoredScale);
         const aimDirection = new THREE.Vector3(1, 0, 0);
         const root = this._createVisual(definition, position, authoredScale);
+        const deployed = definition.deployed === true;
+        const maxHp = deployed
+            ? clampFinite(definition.maxHp, 45, 1, 500)
+            : Number.POSITIVE_INFINITY;
         const source = {
             index: -1,
             isBot: true,
@@ -61,33 +94,122 @@ export class StaticTurretSystem {
             aimDirection,
             root,
             source,
+            deployed,
+            ownerIndex: Number.isInteger(definition.ownerIndex) ? definition.ownerIndex : -1,
+            maxHp,
+            hp: deployed ? clampFinite(definition.hp, maxHp, 0, maxHp) : maxHp,
+            hitboxRadius: clampFinite(definition.hitboxRadius, 2.2, 0.5, 8),
             cooldownRemaining: definition.phase,
             flashRemaining: 0,
             shotsFired: 0,
+            target: null,
+            targetHoldRemaining: 0,
+            targetReacquireRemaining: 0,
+            targetHoldSeconds: clampFinite(definition.targetHoldSeconds, 0.3, 0, 2),
+            targetReacquireSeconds: clampFinite(definition.targetReacquireSeconds, 0.12, 0.03, 1),
+            losSampleStep: clampFinite(definition.losSampleStep, 0.5, 0.2, 2),
+            createdSequence: this._nextCreatedSequence++,
         };
+    }
+
+    _resolveTurretConfig() {
+        const config = resolveGameplayConfig(this.entityManager).HUNT?.MG_TURRET || {};
+        return {
+            range: clampFinite(config.RANGE, 58, 8, 120),
+            cooldown: clampFinite(config.COOLDOWN, 0.24, 0.1, 2),
+            damage: clampFinite(config.DAMAGE, 3, 1, 20),
+            duration: clampFinite(config.DURATION_SECONDS, 20, 3, 60),
+            maxHp: clampFinite(config.MAX_HP, 45, 10, 200),
+            hitboxRadius: clampFinite(config.HIT_RADIUS, 2.2, 1, 5),
+            maxPerOwner: Math.round(clampFinite(config.MAX_PER_OWNER, 1, 1, 4)),
+            deployOffset: clampFinite(config.DEPLOY_OFFSET, 3.2, 0, 8),
+            targetHoldSeconds: clampFinite(config.TARGET_HOLD_SECONDS, 0.3, 0, 2),
+            targetReacquireSeconds: clampFinite(config.TARGET_REACQUIRE_SECONDS, 0.12, 0.03, 1),
+            losSampleStep: clampFinite(config.LOS_SAMPLE_STEP, 0.5, 0.2, 2),
+        };
+    }
+
+    _resolveDeploymentPosition(player, config) {
+        const arena = this.entityManager?.arena;
+        this._tmpMuzzle.copy(player.position);
+        if (config.deployOffset > 0) {
+            const getter = typeof player.getAimDirection === 'function'
+                ? player.getAimDirection
+                : player.getDirection;
+            if (typeof getter === 'function') {
+                getter.call(player, this._tmpAim);
+                if (this._tmpAim.lengthSq() > 0.000001) {
+                    this._tmpMuzzle.addScaledVector(this._tmpAim.normalize(), -config.deployOffset);
+                }
+            }
+        }
+        if (!arena?.checkCollisionFast || !arena.checkCollisionFast(this._tmpMuzzle, config.hitboxRadius)) {
+            return this._tmpMuzzle;
+        }
+        this._tmpMuzzle.copy(player.position);
+        return arena.checkCollisionFast(this._tmpMuzzle, config.hitboxRadius) ? null : this._tmpMuzzle;
+    }
+
+    _enforceOwnerLimit(player, maxPerOwner) {
+        let count = 0;
+        let oldestIndex = -1;
+        let oldestSequence = Infinity;
+        for (let i = 0; i < this.turrets.length; i += 1) {
+            const turret = this.turrets[i];
+            if (!turret?.deployed || resolveOwnerIndex(turret) !== player.index) continue;
+            count += 1;
+            if (turret.createdSequence < oldestSequence) {
+                oldestSequence = turret.createdSequence;
+                oldestIndex = i;
+            }
+        }
+        if (count >= maxPerOwner && oldestIndex >= 0) {
+            this._removeTurretAt(oldestIndex, 'replaced');
+        }
     }
 
     deployForPlayer(player) {
         const owner = this.entityManager;
-        if (!owner || String(owner.gameModeStrategy?.modeType || '').toUpperCase() !== 'HUNT' || !player?.alive || !player.position) {
+        if (
+            !owner
+            || this.networkReplica
+            || String(owner.gameModeStrategy?.modeType || '').toUpperCase() !== 'HUNT'
+            || !player?.alive
+            || !player.position
+        ) {
             return null;
         }
-        const config = resolveGameplayConfig(owner).HUNT?.MG_TURRET || {};
+        const config = this._resolveTurretConfig();
+        const position = this._resolveDeploymentPosition(player, config);
+        if (!position) return null;
+        this._enforceOwnerLimit(player, config.maxPerOwner);
         const definition = {
-            id: `player_${player.index}_${this.turrets.length + 1}`,
+            id: `player_${player.index}_${this._nextTurretId++}`,
             weapon: 'mg',
-            pos: [player.position.x, player.position.y, player.position.z],
-            range: Math.max(1, Number(config.RANGE) || 58),
-            cooldown: Math.max(0.05, Number(config.COOLDOWN) || 0.24),
-            damage: Math.max(1, Number(config.DAMAGE) || 3),
+            pos: [position.x, position.y, position.z],
+            range: config.range,
+            cooldown: config.cooldown,
+            damage: config.damage,
             phase: 0,
             rocketType: 'ROCKET_WEAK',
+            deployed: true,
+            ownerIndex: player.index,
+            ownerColor: player.color,
+            maxHp: config.maxHp,
+            hitboxRadius: config.hitboxRadius,
         };
         const turret = this._createTurret(definition);
         turret.ownerPlayer = player;
         turret.source = player;
-        turret.expiresRemaining = Math.max(1, Number(config.DURATION_SECONDS) || 20);
+        turret.expiresRemaining = config.duration;
+        turret.targetHoldSeconds = config.targetHoldSeconds;
+        turret.targetReacquireSeconds = config.targetReacquireSeconds;
+        turret.losSampleStep = config.losSampleStep;
+        turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
         this.turrets.push(turret);
+        owner.particles?.spawnHit?.(turret.position, player.color || TURRET_MG_COLOR);
+        if (!player.isBot) owner.audio?.play?.('POWERUP');
+        owner.recorder?.logEvent?.('TURRET_DEPLOY', player.index, turret.id);
         return turret;
     }
 
@@ -100,100 +222,30 @@ export class StaticTurretSystem {
         const base = new THREE.Mesh(this._baseGeometry, this._baseMaterial);
         base.position.y = -1.1;
         root.add(base);
+        const accentMaterial = new THREE.MeshBasicMaterial({
+            color: Number(definition.ownerColor) || (definition.weapon === 'rocket' ? TURRET_ROCKET_COLOR : TURRET_MG_COLOR),
+        });
+        const accent = new THREE.Mesh(this._accentGeometry, accentMaterial);
+        accent.rotation.x = Math.PI / 2;
+        accent.position.y = -0.95;
+        root.add(accent);
+        const headPivot = new THREE.Group();
+        root.add(headPivot);
         const weaponMaterial = definition.weapon === 'rocket' ? this._rocketMaterial : this._mgMaterial;
         const head = new THREE.Mesh(this._headGeometry, weaponMaterial);
-        root.add(head);
+        headPivot.add(head);
         const barrel = new THREE.Mesh(this._barrelGeometry, weaponMaterial);
-        barrel.position.z = -2.1;
-        root.add(barrel);
+        barrel.position.z = 2.1;
+        headPivot.add(barrel);
         const flash = new THREE.Mesh(this._flashGeometry, this._flashMaterial);
-        flash.position.z = -4.1;
+        flash.position.z = 4.1;
         flash.visible = false;
-        root.add(flash);
+        headPivot.add(flash);
         root.userData.muzzleFlash = flash;
+        root.userData.headPivot = headPivot;
+        root.userData.disposableMaterials = [accentMaterial];
         renderer.addToScene(root);
         return root;
-    }
-
-    _findTarget(turret) {
-        const candidates = turret.ownerPlayer
-            ? (this.entityManager?.players || [])
-            : (this.entityManager?.humanPlayers || []);
-        let nearest = null;
-        let nearestDistanceSq = turret.range * turret.range;
-        for (let i = 0; i < candidates.length; i += 1) {
-            const candidate = candidates[i];
-            if (candidate === turret.ownerPlayer) continue;
-            if (!candidate?.alive || !candidate.position) continue;
-            const distanceSq = turret.position.distanceToSquared(candidate.position);
-            if (distanceSq >= nearestDistanceSq) continue;
-            nearest = candidate;
-            nearestDistanceSq = distanceSq;
-        }
-        if (turret.ownerPlayer) {
-            const trailTarget = this._findTrailTarget(turret, nearestDistanceSq);
-            if (trailTarget) return trailTarget;
-        }
-        return nearest;
-    }
-
-    _findTrailTarget(turret, nearestDistanceSq) {
-        const trailSpatialIndex = this.entityManager?._trailSpatialIndex;
-        const grid = trailSpatialIndex?.spatialGrid;
-        const gridSize = Math.max(1, Number(trailSpatialIndex?.gridSize) || 10);
-        if (!(grid instanceof Map)) return null;
-
-        const range = turret.range;
-        const minCellX = Math.floor((turret.position.x - range) / gridSize);
-        const maxCellX = Math.floor((turret.position.x + range) / gridSize);
-        const minCellZ = Math.floor((turret.position.z - range) / gridSize);
-        const maxCellZ = Math.floor((turret.position.z + range) / gridSize);
-        const queryStamp = ++this._trailQueryStamp;
-        const target = turret.trailTarget || (turret.trailTarget = {
-            isTrail: true,
-            entry: null,
-            position: new THREE.Vector3(),
-        });
-        target.entry = null;
-
-        for (let cellX = minCellX; cellX <= maxCellX; cellX += 1) {
-            for (let cellZ = minCellZ; cellZ <= maxCellZ; cellZ += 1) {
-                const cell = grid.get((cellX + 1000) * 2000 + (cellZ + 1000));
-                if (!cell) continue;
-                for (const entry of cell) {
-                    if (!entry || entry.destroyed || entry.playerIndex === turret.ownerPlayer.index) continue;
-                    if (entry._turretTrailQueryStamp === queryStamp) continue;
-                    entry._turretTrailQueryStamp = queryStamp;
-                    const x = (entry.fromX + entry.toX) * 0.5;
-                    const y = (entry.fromY + entry.toY) * 0.5;
-                    const z = (entry.fromZ + entry.toZ) * 0.5;
-                    const dx = x - turret.position.x;
-                    const dy = y - turret.position.y;
-                    const dz = z - turret.position.z;
-                    const distanceSq = dx * dx + dy * dy + dz * dz;
-                    if (distanceSq >= nearestDistanceSq) continue;
-                    nearestDistanceSq = distanceSq;
-                    target.entry = entry;
-                    target.position.set(x, y, z);
-                }
-            }
-        }
-        return target.entry ? target : null;
-    }
-
-    _hasLineOfSight(turret, target) {
-        const arena = this.entityManager?.arena;
-        if (!arena?.checkCollisionFast) return true;
-        this._tmpAim.subVectors(target.position, turret.position);
-        const distance = this._tmpAim.length();
-        if (distance <= 4) return true;
-        const steps = Math.min(18, Math.max(2, Math.ceil(distance / 5)));
-        for (let i = 1; i < steps; i += 1) {
-            const alpha = i / steps;
-            this._tmpPoint.lerpVectors(turret.position, target.position, alpha);
-            if (arena.checkCollisionFast(this._tmpPoint, 0.18)) return false;
-        }
-        return true;
     }
 
     _applyMgHit(turret, target) {
@@ -205,6 +257,10 @@ export class StaticTurretSystem {
             owner.particles?.spawnTrailImpact?.(target.position, TURRET_MG_COLOR, {
                 destroyed: damageResult?.destroyed === true,
             });
+            if (damageResult?.hit) {
+                owner.recorder?.logEvent?.('TURRET_TRAIL_HIT', resolveOwnerIndex(turret), turret.id);
+                if (!turret.ownerPlayer?.isBot) owner.audio?.play?.('MG_HIT', { intensity: 0.5 });
+            }
             return;
         }
         if (!owner || typeof target?.takeDamage !== 'function') return;
@@ -217,8 +273,16 @@ export class StaticTurretSystem {
             projectileType: null,
             impactPoint: target.position,
         });
-        owner.particles?.spawnHit?.(target.position, TURRET_MG_COLOR);
+        const appliedDamage = Math.max(
+            0,
+            Number(damageResult?.hpApplied) || 0,
+            Number(damageResult?.absorbedByShield) || 0
+        );
+        if (appliedDamage > 0) {
+            owner.recorder?.logEvent?.('TURRET_PLAYER_HIT', resolveOwnerIndex(turret), turret.id);
+        }
         if (damageResult?.isDead) {
+            owner.recorder?.logEvent?.('TURRET_KILL', resolveOwnerIndex(turret), turret.id);
             owner._killPlayer?.(target, 'STATIC_TURRET_MG', {
                 killer: turret.source,
                 impactPoint: target.position,
@@ -227,12 +291,38 @@ export class StaticTurretSystem {
         }
     }
 
+    damageTurret(turret, amount, options = {}) {
+        if (!turret?.deployed || turret.hp <= 0 || this.networkReplica) {
+            return { applied: 0, hpApplied: 0, remainingHp: Math.max(0, Number(turret?.hp) || 0), isDead: turret?.hp <= 0 };
+        }
+        const requested = Math.max(0, Number(amount) || 0);
+        const hpBefore = turret.hp;
+        turret.hp = Math.max(0, hpBefore - requested);
+        const hpApplied = hpBefore - turret.hp;
+        if (hpApplied > 0) {
+            this.entityManager?.particles?.spawnHit?.(turret.position, TURRET_DESTROYED_COLOR);
+            this.entityManager?.recorder?.logEvent?.(
+                'TURRET_DAMAGED',
+                resolveOwnerIndex(turret),
+                `${turret.id}:${Math.round(hpApplied)}`
+            );
+        }
+        const isDead = turret.hp <= 0;
+        if (isDead) {
+            const index = this.turrets.indexOf(turret);
+            if (index >= 0) {
+                this._removeTurretAt(index, 'destroyed', options.sourcePlayer || null);
+            }
+        }
+        return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: turret.hp, isDead };
+    }
+
     _fire(turret, target) {
         turret.aimDirection.subVectors(target.position, turret.position);
         if (turret.aimDirection.lengthSq() <= 0.000001) return;
         turret.aimDirection.normalize();
+        this._tmpMuzzle.copy(turret.position).addScaledVector(turret.aimDirection, 4.2 * turret.authoredScale);
         if (turret.weapon === 'rocket') {
-            this._tmpMuzzle.copy(turret.position).addScaledVector(turret.aimDirection, 4.2 * turret.authoredScale);
             this.entityManager?._projectileSystem?.spawnExternalProjectile?.({
                 owner: turret.source,
                 type: turret.rocketType,
@@ -243,6 +333,14 @@ export class StaticTurretSystem {
             });
         } else {
             this._applyMgHit(turret, target);
+            this._tracerFx.spawnTracer(this._tmpMuzzle, target.position, true, {
+                TRACER_COLOR: Number(turret.ownerPlayer?.color) || TURRET_MG_COLOR,
+                TRACER_BEAM_RADIUS: 0.11,
+                TRACER_BULLET_RADIUS: 0.28,
+            });
+            if (!turret.ownerPlayer?.isBot) {
+                this.entityManager?.audio?.play?.('MG_SHOOT', { intensity: 0.35 });
+            }
         }
         turret.cooldownRemaining = turret.cooldown;
         turret.flashRemaining = 0.09;
@@ -252,12 +350,13 @@ export class StaticTurretSystem {
 
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        this._tracerFx.update(safeDt);
         for (let i = 0; i < this.turrets.length;) {
             const turret = this.turrets[i];
             if (Number.isFinite(turret.expiresRemaining)) {
                 turret.expiresRemaining -= safeDt;
-                if (turret.expiresRemaining <= 0 || !turret.ownerPlayer?.alive) {
-                    this._removeTurretAt(i);
+                if (!this.networkReplica && (turret.expiresRemaining <= 0 || !turret.ownerPlayer?.alive)) {
+                    this._removeTurretAt(i, turret.expiresRemaining <= 0 ? 'expired' : 'owner-dead');
                     continue;
                 }
             }
@@ -266,32 +365,92 @@ export class StaticTurretSystem {
             if (turret.root?.userData?.muzzleFlash && turret.flashRemaining <= 0) {
                 turret.root.userData.muzzleFlash.visible = false;
             }
-            const target = this._findTarget(turret);
+            if (this.networkReplica) {
+                i += 1;
+                continue;
+            }
+            const target = resolveStaticTurretTarget(this, turret, safeDt);
             if (!target) {
                 i += 1;
                 continue;
             }
-            turret.root?.lookAt?.(target.position);
-            if (turret.cooldownRemaining <= 0 && this._hasLineOfSight(turret, target)) {
+            turret.root?.userData?.headPivot?.lookAt?.(target.position);
+            if (turret.cooldownRemaining <= 0 && hasStaticTurretLineOfSight(this, turret, target)) {
                 this._fire(turret, target);
             }
             i += 1;
         }
     }
 
-    _removeTurretAt(index) {
+    _disposeTurretVisual(turret) {
+        const materials = turret?.root?.userData?.disposableMaterials;
+        if (Array.isArray(materials)) {
+            for (const material of materials) material?.dispose?.();
+        }
+    }
+
+    _removeTurretAt(index, reason = 'removed', sourcePlayer = null) {
         const turret = this.turrets[index];
         if (turret?.root) this.entityManager?.renderer?.removeFromScene?.(turret.root);
+        this._disposeTurretVisual(turret);
         this.turrets.splice(index, 1);
+        if (!turret?.deployed || this.networkReplica) return;
+        const ownerIndex = resolveOwnerIndex(turret);
+        this.entityManager?.recorder?.logEvent?.(
+            reason === 'destroyed' ? 'TURRET_DESTROYED' : 'TURRET_REMOVED',
+            ownerIndex,
+            `${turret.id}:${reason}`
+        );
+        if (reason === 'destroyed') {
+            this.entityManager?.particles?.spawnExplosion?.(turret.position, TURRET_DESTROYED_COLOR);
+            if (!sourcePlayer?.isBot) this.entityManager?.audio?.play?.('HIT', { intensity: 0.8 });
+        }
     }
 
     clear() {
         const renderer = this.entityManager?.renderer;
         for (let i = 0; i < this.turrets.length; i += 1) {
-            const root = this.turrets[i]?.root;
+            const turret = this.turrets[i];
+            const root = turret?.root;
             if (root) renderer?.removeFromScene?.(root);
+            this._disposeTurretVisual(turret);
         }
         this.turrets.length = 0;
+        this._tracerFx.clear();
+    }
+
+    getDestructibleTargets() {
+        return this.turrets;
+    }
+
+    getHudStateForPlayer(playerIndex) {
+        let active = null;
+        let count = 0;
+        for (const turret of this.turrets) {
+            if (!turret?.deployed || resolveOwnerIndex(turret) !== playerIndex) continue;
+            count += 1;
+            if (!active || turret.createdSequence > active.createdSequence) active = turret;
+        }
+        if (!active) return null;
+        return {
+            count,
+            remainingSeconds: Math.max(0, Number(active.expiresRemaining) || 0),
+            hp: Math.max(0, Number(active.hp) || 0),
+            maxHp: Math.max(1, Number(active.maxHp) || 1),
+            range: Math.max(0, Number(active.range) || 0),
+        };
+    }
+
+    setNetworkReplica(enabled) {
+        this.networkReplica = enabled === true;
+    }
+
+    createNetworkSnapshot() {
+        return createStaticTurretNetworkSnapshot(this.turrets);
+    }
+
+    applyNetworkSnapshot(entries, players = []) {
+        applyStaticTurretNetworkSnapshot(this, entries, players);
     }
 
     dispose() {
@@ -300,6 +459,7 @@ export class StaticTurretSystem {
         this._headGeometry.dispose();
         this._barrelGeometry.dispose();
         this._flashGeometry.dispose();
+        this._accentGeometry.dispose();
         this._baseMaterial.dispose();
         this._mgMaterial.dispose();
         this._rocketMaterial.dispose();
