@@ -7,7 +7,7 @@ const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
 const EDITOR_LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
 const EDITOR_AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
 
-async function loadEditorPage(page, { autosave = null } = {}) {
+async function loadEditorPage(page, { autosave = null, waitForDockVisible = true } = {}) {
     await page.addInitScript(({ storageKeys, autosaveStorageKey, autosaveValue }) => {
         try {
             storageKeys.forEach((storageKey) => window.localStorage.removeItem(storageKey));
@@ -36,8 +36,9 @@ async function loadEditorPage(page, { autosave = null } = {}) {
                 timeout: 30_000
             });
 
-            await page.waitForSelector('#dockCategoryTabs .dockCategoryTab', { timeout: 30_000 });
-            await page.waitForSelector('#dockCards [data-entry-id]', { timeout: 30_000 });
+            const dockElementState = waitForDockVisible ? 'visible' : 'attached';
+            await page.waitForSelector('#dockCategoryTabs .dockCategoryTab', { state: dockElementState, timeout: 30_000 });
+            await page.waitForSelector('#dockCards [data-entry-id]', { state: dockElementState, timeout: 30_000 });
             return;
         } catch (error) {
             lastError = error;
@@ -289,7 +290,9 @@ test.describe('V65: Editor Build Dock', () => {
         await expect.poll(() => folderOpenRequests).toBe(1);
         await page.locator('#btnExportClose').click();
 
+        await page.locator('#playtestMenu > summary').click();
         await page.locator('#selPlaytestSession').selectOption('splitscreen');
+        await expect(page.locator('#playtestSettingsSummary')).toHaveText('3D · Splitscreen');
         const popupPromise = page.waitForEvent('popup');
         await page.locator('#btnPlaytest').click();
         const popup = await popupPromise;
@@ -377,7 +380,8 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(layout.canvasWidth - layout.dockWidth).toBeGreaterThan(500);
         expect(layout.overlaps).toBeFalsy();
         await expect(page.locator('.editorTopbar')).toBeVisible();
-        await expect(page.locator('.inspectorTabs [role="tab"]')).toHaveCount(4);
+        await expect(page.locator('.inspectorTabs [role="tab"]')).toHaveCount(5);
+        await expect(page.locator('#dockPrefabSection')).not.toHaveAttribute('open', '');
         await expect(page.locator('#validationDetails')).not.toHaveAttribute('open', '');
         await expect(page.locator('#btnSaveToGame')).toHaveText('Im Spiel speichern...');
         await openFileMenu(page);
@@ -434,8 +438,11 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
         await expect.poll(() => page.evaluate(() => window.localStorage.getItem('curviosclash.editor.autosave.v1'))).not.toBeNull();
+        await expect(page.locator('#selectionTabBadge')).toBeVisible();
+        await activateInspectorTab(page, 'selection');
         await expect(page.locator('#propPanel')).toBeVisible();
-        await expect.poll(() => page.locator('#propPanel').evaluate((element) => element.previousElementSibling?.classList.contains('outlinerActions'))).toBeTruthy();
+        await expect.poll(() => page.locator('#propPanel').evaluate((element) => element.parentElement?.id)).toBe('editorPanelSelection');
+        await expect(page.locator('#propObjectType')).toHaveValue('Hartblock');
         await expect(page.getByLabel('X-Position')).toBeVisible();
         await expect(page.getByLabel('Rotation Y (Grad)')).toBeVisible();
         await expect(page.locator('#btnDuplicateSelected')).toBeEnabled();
@@ -457,13 +464,14 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#numArenaW').fill('-20');
         await page.locator('#numArenaW').press('Tab');
         await expect(page.locator('#numArenaW')).toHaveValue('2800');
-        await activateInspectorTab(page, 'objects');
+        await activateInspectorTab(page, 'selection');
 
         await page.locator('#propX').fill('1300');
         await page.locator('#propX').press('Tab');
         await page.locator('#propWidth').fill('500');
         await page.locator('#propWidth').press('Tab');
         await expect(page.locator('#validationList')).toContainText('Objekt(e) ausserhalb der Arena');
+        await activateInspectorTab(page, 'objects');
 
         await page.locator('#btnToggleSelectedLock').click();
         await expect(page.locator('#btnDelSelected')).toBeDisabled();
@@ -628,6 +636,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
             return { checkpoint: checkpoint.userData.id, item: item.userData.id };
         });
 
+        await activateInspectorTab(page, 'selection');
         await expect(page.locator('#propSizeLabel')).toHaveText('Groesse / Radius (gleichmaessig)');
         await expect(page.locator('#propSize')).toHaveValue('5.5');
         await page.locator('#propSize').fill('9');
@@ -811,6 +820,9 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
     test('Ebenen, Vorlagen, 3D-Vorschauen und orthografische Ansichten arbeiten zusammen', async ({ page }) => {
         await loadEditorPage(page);
         await expect(page.locator('#prefabList .prefabCard')).toHaveCount(4);
+        await expect(page.locator('#dockPrefabSection')).not.toHaveAttribute('open', '');
+        await page.locator('#dockPrefabSection > summary').click();
+        await expect(page.locator('#dockPrefabSection')).toHaveAttribute('open', '');
         await page.locator('#prefabList .prefabCard').first().getByRole('button', { name: 'Einsetzen' }).click();
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(4);
         await activateInspectorTab(page, 'layers');
@@ -858,6 +870,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         });
         await expect.poll(() => page.locator('#objectList .objectRow').count()).toBe(5);
         await page.evaluate((id) => window.CURVIOS_EDITOR.ui.selectObject(window.CURVIOS_EDITOR.mapManager.getObjectById(id)), ids[0]);
+        await activateInspectorTab(page, 'selection');
         await page.locator('#propPortalPartner').selectOption(ids[1]);
         const relation = await page.evaluate(([left, right]) => ({
             left: window.CURVIOS_EDITOR.mapManager.getObjectById(left).userData.portalPartnerId,
@@ -894,6 +907,44 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#objectList').evaluate((element) => { element.scrollTop = element.scrollHeight; });
         await page.locator('#objectSearch').fill('hard_260');
         await expect(page.getByRole('button', { name: 'Hartblock · hard_260', exact: true })).toBeVisible();
+    });
+});
+
+test.describe('Editor Small Desktop Layout', () => {
+    test.use({ viewport: { width: 1024, height: 768 } });
+
+    test('kompaktes Startlayout haelt Topbar und Arbeitsflaeche zugaenglich', async ({ page }) => {
+        await loadEditorPage(page, { waitForDockVisible: false });
+
+        await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
+        await expect(page.locator('#buildDock')).toBeHidden();
+        await expect(page.locator('#btnToggleDockFromScene')).toHaveText('Baukarten zeigen');
+        await expect(page.locator('#playtestSettingsSummary')).toHaveText('3D · Solo');
+
+        const topbarMetrics = await page.evaluate(() => {
+            const topbar = document.querySelector('.editorTopbar');
+            const fileMenu = document.querySelector('#fileMenu');
+            const topbarRect = topbar.getBoundingClientRect();
+            const fileMenuRect = fileMenu.getBoundingClientRect();
+            return {
+                clientWidth: topbar.clientWidth,
+                scrollWidth: topbar.scrollWidth,
+                fileMenuRight: fileMenuRect.right,
+                topbarRight: topbarRect.right,
+            };
+        });
+        expect(topbarMetrics.scrollWidth).toBeLessThanOrEqual(topbarMetrics.clientWidth);
+        expect(topbarMetrics.fileMenuRight).toBeLessThanOrEqual(topbarMetrics.topbarRight + 1);
+
+        await page.locator('#playtestMenu > summary').click();
+        await expect(page.locator('#selPlaytestMode')).toBeVisible();
+        await page.locator('#selPlaytestMode').selectOption('planar');
+        await page.locator('#selPlaytestSession').selectOption('splitscreen');
+        await expect(page.locator('#playtestSettingsSummary')).toHaveText('Planar · Splitscreen');
+
+        await page.locator('#btnToggleDockFromScene').click();
+        await expect(page.locator('#buildDock')).toBeVisible();
+        await expect(page.locator('#buildDock')).not.toHaveClass(/is-collapsed/);
     });
 });
 

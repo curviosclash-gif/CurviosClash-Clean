@@ -148,7 +148,7 @@
 
         .inspectorTabs {
             display: grid;
-            grid-template-columns: repeat(4, minmax(0, 1fr));
+            grid-template-columns: repeat(5, minmax(0, 1fr));
             gap: 4px;
             flex: 0 0 auto;
         }
@@ -329,6 +329,15 @@
             flex: 0 0 auto;
         }
 
+        .selectionEmpty {
+            padding: 12px;
+            border: 1px dashed rgba(148, 163, 184, 0.2);
+            border-radius: 10px;
+            color: var(--muted);
+            font-size: 12px;
+            line-height: 1.45;
+        }
+
         .splitActions {
             display: flex;
             gap: 6px;
@@ -442,6 +451,48 @@
 
         .dockCatalogControls input {
             grid-column: 1 / -1;
+        }
+
+        .dockPrefabSection {
+            flex: 0 0 auto;
+            border: 1px solid rgba(148, 163, 184, 0.16);
+            border-radius: 12px;
+            background: rgba(2, 6, 23, 0.46);
+        }
+
+        .dockPrefabSection > summary {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            padding: 8px 10px;
+            cursor: pointer;
+            list-style: none;
+            color: #cbd5e1;
+            font-size: 11px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .dockPrefabSection > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .dockPrefabSection > summary::after {
+            content: "+";
+            color: var(--accent);
+            font-size: 14px;
+        }
+
+        .dockPrefabSection[open] > summary::after {
+            content: "−";
+        }
+
+        .dockPrefabSection .prefabList {
+            max-height: 240px;
+            overflow-y: auto;
+            padding: 0 8px 8px;
         }
 
         .dockShortcutPanel {
@@ -724,12 +775,59 @@
         }
 
         .playtestMode {
-            display: inline-flex;
-            align-items: center;
-            gap: 5px;
+            display: grid;
+            gap: 4px;
             color: var(--muted);
             font-size: 11px;
+        }
+
+        .playtestActions {
+            display: inline-flex;
+            align-items: stretch;
+            gap: 4px;
+        }
+
+        .playtestMenu {
+            position: relative;
+        }
+
+        .playtestMenu > summary {
+            display: flex;
+            align-items: center;
+            min-height: 100%;
+            padding: 5px 8px;
+            border: 1px solid #25324a;
+            border-radius: 8px;
+            background: linear-gradient(180deg, #0f1b2f 0%, #020617 100%);
+            cursor: pointer;
+            list-style: none;
+            color: var(--text);
+            font-size: 11px;
+            font-weight: 600;
             white-space: nowrap;
+        }
+
+        .playtestMenu > summary::-webkit-details-marker {
+            display: none;
+        }
+
+        .playtestMenu__items {
+            position: absolute;
+            top: calc(100% + 8px);
+            right: 0;
+            z-index: 2;
+            display: grid;
+            gap: 10px;
+            width: 220px;
+            padding: 10px;
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            background: var(--panel-solid);
+            box-shadow: 0 14px 28px rgba(0, 0, 0, 0.45);
+        }
+
+        .playtestMenu__items select {
+            width: 100%;
         }
 
         .fileMenu {
@@ -1201,6 +1299,13 @@
                 grid-template-columns: 300px minmax(0, 1fr);
             }
 
+            .editorTopbar {
+                gap: 4px;
+            }
+
+            .editorTopbar__spacer {
+                min-width: 0;
+            }
         }
 
         @media (max-width: 960px) {
@@ -1322,6 +1427,10 @@
                     aria-controls="editorPanelObjects" aria-selected="true">Objekte</button>
                 <button id="editorTabLayers" type="button" role="tab" data-editor-tab="layers"
                     aria-controls="editorPanelLayers" aria-selected="false" tabindex="-1">Ebenen</button>
+                <button id="editorTabSelection" type="button" role="tab" data-editor-tab="selection"
+                    aria-controls="editorPanelSelection" aria-selected="false" aria-label="Auswahl: kein Objekt" tabindex="-1">
+                    Auswahl <span class="inspectorTabBadge" id="selectionTabBadge" hidden>1</span>
+                </button>
                 <button id="editorTabMap" type="button" role="tab" data-editor-tab="map"
                     aria-controls="editorPanelMap" aria-selected="false" tabindex="-1">Map</button>
                 <button id="editorTabValidation" type="button" role="tab" data-editor-tab="validation"
@@ -1360,10 +1469,79 @@
                         <button id="btnDelSelected" class="small dangerAction" disabled hidden>Ausgewähltes löschen</button>
                     </div>
                 </div>
+            </div>
 
-                <div class="panelSection">
-                    <strong class="sectionTitle">Vorlagen</strong>
-                    <div class="prefabList" id="prefabList"></div>
+            <div class="inspectorTabPanel" id="editorPanelSelection" role="tabpanel"
+                aria-labelledby="editorTabSelection" data-editor-tab-panel="selection" hidden>
+                <div class="selectionEmpty" id="selectionEmpty">
+                    Wähle ein Objekt in der Szene oder Objektliste aus, um seine Eigenschaften zu bearbeiten.
+                </div>
+                <div id="propPanel">
+                    <strong class="sectionTitle" style="color: #bfdbfe;">Eigenschaften</strong>
+                    <div class="row">
+                        <label for="propObjectId">Objekt-ID</label>
+                        <input id="propObjectId" type="text" readonly />
+                    </div>
+                    <div class="row">
+                        <label for="propObjectType">Objekttyp</label>
+                        <input id="propObjectType" type="text" readonly />
+                    </div>
+                    <div class="row" id="propObjectSubtypeRow" style="display: none;">
+                        <label for="propObjectSubtype">Variante</label>
+                        <input id="propObjectSubtype" type="text" readonly />
+                    </div>
+                    <div class="row" id="propContextRow" style="display: none;">
+                        <label for="propContext">Verknuepfung</label>
+                        <input id="propContext" type="text" readonly />
+                    </div>
+                    <div class="row" id="propPortalPartnerRow" style="display: none;">
+                        <label for="propPortalPartner">Portal-Partner</label>
+                        <select id="propPortalPartner"></select>
+                    </div>
+                    <div class="row" id="propCheckpointOrderRow" style="display: none;">
+                        <label for="propCheckpointOrder">Parcours-Reihenfolge</label>
+                        <input id="propCheckpointOrder" type="number" step="1" min="0" />
+                    </div>
+                    <div class="row">
+                        <label for="propX">X-Position</label>
+                        <input id="propX" type="number" step="10" />
+                    </div>
+                    <div class="row" id="propSizeRow" style="display: none;">
+                        <label id="propSizeLabel" for="propSize">Groesse / Radius</label>
+                        <input id="propSize" type="number" step="10" min="1" />
+                    </div>
+                    <div class="row" id="propWidthRow" style="display: none;">
+                        <label for="propWidth">Breite (X)</label>
+                        <input id="propWidth" type="number" step="10" min="1" />
+                    </div>
+                    <div class="row" id="propDepthRow" style="display: none;">
+                        <label for="propDepth">Tiefe (Z)</label>
+                        <input id="propDepth" type="number" step="10" min="1" />
+                    </div>
+                    <div class="row" id="propHeightRow" style="display: none;">
+                        <label for="propHeight">Hoehe (Y-Scale)</label>
+                        <input id="propHeight" type="number" step="10" min="1" />
+                    </div>
+                    <div class="row" id="propScaleRow" style="display: none;">
+                        <label for="propScale">Skalierung (gleichmaessig)</label>
+                        <input id="propScale" type="number" step="0.1" min="0.1" />
+                    </div>
+                    <div class="row">
+                        <label for="propY">Y-Position</label>
+                        <input id="propY" type="number" step="10" />
+                    </div>
+                    <div class="row">
+                        <label for="propZ">Z-Position</label>
+                        <input id="propZ" type="number" step="10" />
+                    </div>
+                    <div class="row">
+                        <label for="propRotationY">Rotation Y (Grad)</label>
+                        <input id="propRotationY" type="number" step="5" />
+                    </div>
+                    <div class="row">
+                        <label for="propGroup">Gruppe</label>
+                        <input id="propGroup" type="text" placeholder="Keine Gruppe" />
+                    </div>
                 </div>
             </div>
 
@@ -1545,70 +1723,6 @@
                 </div>
             </div>
 
-            <div id="propPanel">
-                <strong class="sectionTitle" style="color: #bfdbfe;">Eigenschaften</strong>
-                <div class="row">
-                    <label for="propObjectId">Objekt-ID</label>
-                    <input id="propObjectId" type="text" readonly />
-                </div>
-                <div class="row">
-                    <label for="propObjectType">Typ</label>
-                    <input id="propObjectType" type="text" readonly />
-                </div>
-                <div class="row" id="propContextRow" style="display: none;">
-                    <label for="propContext">Verknuepfung</label>
-                    <input id="propContext" type="text" readonly />
-                </div>
-                <div class="row" id="propPortalPartnerRow" style="display: none;">
-                    <label for="propPortalPartner">Portal-Partner</label>
-                    <select id="propPortalPartner"></select>
-                </div>
-                <div class="row" id="propCheckpointOrderRow" style="display: none;">
-                    <label for="propCheckpointOrder">Parcours-Reihenfolge</label>
-                    <input id="propCheckpointOrder" type="number" step="1" min="0" />
-                </div>
-                <div class="row">
-                    <label for="propX">X-Position</label>
-                    <input id="propX" type="number" step="10" />
-                </div>
-                <div class="row" id="propSizeRow" style="display: none;">
-                    <label id="propSizeLabel" for="propSize">Groesse / Radius</label>
-                    <input id="propSize" type="number" step="10" min="1" />
-                </div>
-                <div class="row" id="propWidthRow" style="display: none;">
-                    <label for="propWidth">Breite (X)</label>
-                    <input id="propWidth" type="number" step="10" min="1" />
-                </div>
-                <div class="row" id="propDepthRow" style="display: none;">
-                    <label for="propDepth">Tiefe (Z)</label>
-                    <input id="propDepth" type="number" step="10" min="1" />
-                </div>
-                <div class="row" id="propHeightRow" style="display: none;">
-                    <label for="propHeight">Hoehe (Y-Scale)</label>
-                    <input id="propHeight" type="number" step="10" min="1" />
-                </div>
-                <div class="row" id="propScaleRow" style="display: none;">
-                    <label for="propScale">Skalierung (gleichmaessig)</label>
-                    <input id="propScale" type="number" step="0.1" min="0.1" />
-                </div>
-                <div class="row">
-                    <label for="propY">Y-Position</label>
-                    <input id="propY" type="number" step="10" />
-                </div>
-                <div class="row">
-                    <label for="propZ">Z-Position</label>
-                    <input id="propZ" type="number" step="10" />
-                </div>
-                <div class="row">
-                    <label for="propRotationY">Rotation Y (Grad)</label>
-                    <input id="propRotationY" type="number" step="5" />
-                </div>
-                <div class="row">
-                    <label for="propGroup">Gruppe</label>
-                    <input id="propGroup" type="text" placeholder="Keine Gruppe" />
-                </div>
-            </div>
-
         </div>
 
         <div class="canvasShell">
@@ -1620,21 +1734,28 @@
                 <span class="badge" id="dirtyStateBadge">Gespeichert</span>
                 <div class="editorTopbar__spacer"></div>
                 <button id="btnSaveToGame" class="small editorTopbar__save">Im Spiel speichern...</button>
-                <label class="playtestMode" for="selPlaytestMode">
-                    Ansicht
-                    <select id="selPlaytestMode">
-                        <option value="3d" selected>3D</option>
-                        <option value="planar">Planar</option>
-                    </select>
-                </label>
-                <label class="playtestMode" for="selPlaytestSession">
-                    Spieler
-                    <select id="selPlaytestSession">
-                        <option value="single" selected>Einzelspieler</option>
-                        <option value="splitscreen">Splitscreen</option>
-                    </select>
-                </label>
-                <button id="btnPlaytest" class="small editorTopbar__primary">Playtest</button>
+                <div class="playtestActions">
+                    <button id="btnPlaytest" class="small editorTopbar__primary">Playtest</button>
+                    <details class="playtestMenu" id="playtestMenu">
+                        <summary id="playtestSettingsSummary" title="Playtest-Einstellungen">3D · Solo</summary>
+                        <div class="playtestMenu__items">
+                            <label class="playtestMode" for="selPlaytestMode">
+                                Ansicht
+                                <select id="selPlaytestMode">
+                                    <option value="3d" selected>3D</option>
+                                    <option value="planar">Planar</option>
+                                </select>
+                            </label>
+                            <label class="playtestMode" for="selPlaytestSession">
+                                Spieler
+                                <select id="selPlaytestSession">
+                                    <option value="single" selected>Solo</option>
+                                    <option value="splitscreen">Splitscreen</option>
+                                </select>
+                            </label>
+                        </div>
+                    </details>
+                </div>
                 <details class="fileMenu" id="fileMenu">
                     <summary>Datei</summary>
                     <div class="fileMenu__items">
@@ -1701,6 +1822,11 @@
                         <div class="dockMiniList" id="dockFavoriteList"></div>
                     </div>
                 </div>
+
+                <details class="dockPrefabSection" id="dockPrefabSection">
+                    <summary>Vorlagen <span class="badge">4</span></summary>
+                    <div class="prefabList" id="prefabList"></div>
+                </details>
 
                 <div class="dockCatalogControls">
                     <input id="dockSearch" type="search" placeholder="Baukarten suchen" aria-label="Baukarten suchen" />

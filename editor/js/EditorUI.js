@@ -83,9 +83,6 @@ export class EditorUI {
         this.historySuspendDepth = 0;
         this.pendingHistoryGestures = new Map();
         this.dom = createEditorDomRefs(document);
-        if (this.dom.objectList && this.dom.propPanel) {
-            this.dom.objectList.closest('.panelSection')?.append(this.dom.propPanel);
-        }
 
         this.core.setRuntimeStateAccessors?.({
             isFlyModeEnabled: () => this.flyModeEnabled,

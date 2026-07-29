@@ -1,5 +1,17 @@
 import { writePropertyFieldValue } from './EditorFormState.js';
 
+const OBJECT_TYPE_LABELS = Object.freeze({
+    hard: 'Hartblock',
+    foam: 'Schaumblock',
+    tunnel: 'Tunnel',
+    portal: 'Portal',
+    spawn: 'Spawn',
+    item: 'Pickup',
+    aircraft: 'Flugobjekt',
+    glb: 'GLB-Modell',
+    checkpoint: 'Parcours',
+});
+
 export function updateUndoRedoButtonsView(editor, state = null) {
     const historyState = state || editor.commandHistory?.getState?.();
     if (!historyState) return;
@@ -44,9 +56,14 @@ export function showPropertyPanelView(editor, obj) {
         propY,
         propObjectId,
         propObjectType,
+        propObjectSubtypeRow,
+        propObjectSubtype,
         propGroup,
         propContextRow,
-        propContext
+        propContext,
+        selectionEmpty,
+        selectionTabBadge,
+        editorTabSelection
     } = editor.dom;
 
     if (!propPanel || !propY) {
@@ -55,8 +72,15 @@ export function showPropertyPanelView(editor, obj) {
     }
 
     propPanel.style.display = "block";
+    if (selectionEmpty) selectionEmpty.hidden = true;
+    if (selectionTabBadge) selectionTabBadge.hidden = false;
     if (propObjectId) propObjectId.value = String(obj.userData?.id || '');
-    if (propObjectType) propObjectType.value = String(obj.userData?.subType || obj.userData?.type || '');
+    if (propObjectType) propObjectType.value = OBJECT_TYPE_LABELS[obj.userData?.type] || String(obj.userData?.type || '');
+    if (propObjectSubtypeRow) propObjectSubtypeRow.style.display = obj.userData?.subType ? 'grid' : 'none';
+    if (propObjectSubtype) propObjectSubtype.value = String(obj.userData?.subType || '');
+    if (editorTabSelection) {
+        editorTabSelection.setAttribute('aria-label', `Auswahl: ${obj.userData?.id || 'Objekt'}`);
+    }
     if (propGroup) propGroup.value = String(obj.userData?.groupId || '');
     writePropertyFieldValue(editor, 'x', Math.round(obj.position.x));
     writePropertyFieldValue(editor, 'y', Math.round(obj.position.y));
@@ -112,4 +136,9 @@ export function showPropertyPanelView(editor, obj) {
 
 export function hidePropertyPanelView(editor) {
     if (editor.dom.propPanel) editor.dom.propPanel.style.display = "none";
+    if (editor.dom.selectionEmpty) editor.dom.selectionEmpty.hidden = false;
+    if (editor.dom.selectionTabBadge) editor.dom.selectionTabBadge.hidden = true;
+    if (editor.dom.editorTabSelection) {
+        editor.dom.editorTabSelection.setAttribute('aria-label', 'Auswahl: kein Objekt');
+    }
 }

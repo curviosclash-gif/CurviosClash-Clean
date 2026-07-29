@@ -1,11 +1,18 @@
 const LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
-const INSPECTOR_PANELS = ['objects', 'layers', 'map', 'validation'];
+const INSPECTOR_PANELS = ['objects', 'layers', 'selection', 'map', 'validation'];
+
+function prefersCompactDesktopLayout() {
+    return typeof window.matchMedia === 'function'
+        && window.matchMedia('(max-width: 1200px)').matches;
+}
 
 function readLayoutState() {
     try {
         const parsed = JSON.parse(localStorage.getItem(LAYOUT_STORAGE_KEY) || '{}');
         return {
-            dockCollapsed: parsed.dockCollapsed === true,
+            dockCollapsed: typeof parsed.dockCollapsed === 'boolean'
+                ? parsed.dockCollapsed
+                : prefersCompactDesktopLayout(),
             dockDetailed: parsed.dockDetailed === true,
             dockCompact: parsed.dockCompact !== false,
             helpVisible: parsed.helpVisible === true,
@@ -14,7 +21,7 @@ function readLayoutState() {
         };
     } catch {
         return {
-            dockCollapsed: false,
+            dockCollapsed: prefersCompactDesktopLayout(),
             dockDetailed: false,
             dockCompact: true,
             helpVisible: false,

@@ -153,6 +153,13 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
     const dom = editor.dom;
     applyAuthoringContractHints(dom);
 
+    const syncPlaytestSummary = () => {
+        if (!dom.playtestSettingsSummary) return;
+        const modeLabel = dom.selPlaytestMode?.selectedOptions?.[0]?.textContent?.trim() || '3D';
+        const sessionLabel = dom.selPlaytestSession?.selectedOptions?.[0]?.textContent?.trim() || 'Solo';
+        dom.playtestSettingsSummary.textContent = `${modeLabel} · ${sessionLabel}`;
+    };
+
     const generateCurrentMapJson = () => {
         const jsonText = editor.mapManager.generateJSONExport(editor.getArenaSizeForExport());
         return {
@@ -241,6 +248,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         params.set('session', playtestSession);
         const playtestUrl = `../index.html?${params.toString()}`;
         const playtestWindow = window.open(playtestUrl, '_blank');
+        dom.playtestMenu?.removeAttribute('open');
         if (playtestWindow) {
             playtestWindow.focus?.();
             return;
@@ -446,6 +454,9 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
 
     dom.btnSaveToGame?.addEventListener('click', () => openExportDialog('install'));
     dom.btnPlaytest?.addEventListener('click', openPlaytest);
+    dom.selPlaytestMode?.addEventListener('change', syncPlaytestSummary);
+    dom.selPlaytestSession?.addEventListener('change', syncPlaytestSummary);
+    syncPlaytestSummary();
 
     dom.exportMapName?.addEventListener('input', updateExportDialog);
     dom.exportTarget?.addEventListener('change', updateExportDialog);
