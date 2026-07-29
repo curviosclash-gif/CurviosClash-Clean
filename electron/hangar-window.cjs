@@ -76,12 +76,12 @@ function createHangarWindowController({
             try {
                 response = dialog?.showMessageBoxSync?.(hangarWindow, {
                     type: 'warning',
-                    buttons: ['Verwerfen und schließen', 'Abbrechen'],
+                    buttons: ['Schließen · Entwurf behalten', 'Abbrechen'],
                     defaultId: 1,
                     cancelId: 1,
                     noLink: true,
-                    message: 'Es gibt ungespeicherte Änderungen.',
-                    detail: 'Willst du den Hangar wirklich verlassen?',
+                    message: 'Der aktuelle Entwurf ist noch kein Preset.',
+                    detail: 'Die automatische Sicherung bleibt erhalten und wird beim nächsten Öffnen wiederhergestellt.',
                 }) ?? 1;
             } catch {
                 response = 1;

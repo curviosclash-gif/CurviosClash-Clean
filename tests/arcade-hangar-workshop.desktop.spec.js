@@ -79,7 +79,7 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
     );
     await expect(infoHints.nth(2)).toHaveAttribute(
         'title',
-        'Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln'
+        'Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Vorschau: Pfeile wechseln das Fahrzeug'
     );
 
     const previousButton = page.getByRole('button', { name: 'Vorheriges Fahrzeug' });
@@ -94,6 +94,14 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
     await expect(page.locator('.arcade-vehicle-card[aria-selected="true"]')).not.toHaveAttribute('data-vehicle-id', selectedBefore);
     await previousButton.click();
     await expect(page.locator('.arcade-vehicle-card[aria-selected="true"]')).toHaveAttribute('data-vehicle-id', selectedBefore);
+
+    const categoryFilter = page.getByRole('button', { name: 'Alle', exact: true });
+    await categoryFilter.focus();
+    await categoryFilter.press('ArrowRight');
+    await expect(page.locator('.arcade-vehicle-card[aria-selected="true"]')).toHaveAttribute('data-vehicle-id', selectedBefore);
+    await page.locator('#arcade-vehicle-preview-stage').focus();
+    await page.keyboard.press('ArrowRight');
+    await expect(page.locator('.arcade-vehicle-card[aria-selected="true"]')).not.toHaveAttribute('data-vehicle-id', selectedBefore);
 
     await page.locator('.arcade-vehicle-search').fill('__keine_fahrzeuge__');
     await expect(previousButton).toBeDisabled();
@@ -159,31 +167,40 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-run-bonuses')).toContainText('Wende +4%');
 
     const violetCore = page.locator('.hangar-part-card[data-part-id="stone_violet_t1"]');
-    await violetCore.click();
-    await expect(violetCore).toHaveAttribute('aria-pressed', 'true');
+    await violetCore.locator('.hangar-part-select').click();
+    await expect(violetCore.locator('.hangar-part-select')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.hangar-part-preview')).toContainText('Fassung anklicken');
     await page.locator('[data-hangar-slot="core"]').click();
     await expect(page.locator('[data-hangar-slot-row="core"] .hangar-installed-part')).toContainText('Resonanzstein T1');
     await expect(page.locator('.hangar-status-message')).toContainText('eingesetzt');
 
+    await page.locator('[data-build-view="presets"]').click();
+    await expect(page.locator('[data-build-view-panel="presets"]')).toBeVisible();
     await page.locator('[data-starter-build="sprinter"]').click();
     await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toContainText('Wendestein T1');
     await expect(page.locator('.hangar-status-message')).toContainText('Sprinter Build geladen');
+    await page.locator('[data-build-view="workshop"]').click();
     await page.locator('[data-select-slot="wing_left"]').click();
     const wingPart = page.locator('.hangar-part-card[data-part-id="stone_green_t2"]');
     await wingPart.evaluate((node) => node.scrollIntoView({ block: 'center', inline: 'nearest' }));
     await waitForRenderFrames(page, 2);
     await expect(wingPart).toBeVisible();
     await expect(wingPart).not.toHaveAttribute('data-locked', 'true');
-    await expect(wingPart).toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
-    await wingPart.click();
-    await expect(wingPart).toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
-    await wingPart.click();
-    await expect(wingPart).not.toHaveAttribute('data-purchase-stone-id', 'stone_green_t2');
+    const purchaseButton = wingPart.locator('[data-purchase-stone-id="stone_green_t2"]');
+    await expect(purchaseButton).toBeVisible();
+    await wingPart.locator('.hangar-part-select').click();
+    await expect(purchaseButton).toBeVisible();
+    await expect(page.locator('.hangar-status-message')).toContainText('Kauf separat bestätigen');
+    await purchaseButton.click();
+    await expect(purchaseButton).toBeVisible();
+    await expect(purchaseButton).toContainText('1 Exemplar');
     await expect(page.locator('.hangar-status-message')).toContainText('gekauft');
-    await wingPart.hover();
+    await purchaseButton.click();
+    await expect(wingPart.locator('[data-purchase-stone-id="stone_green_t2"]')).toHaveCount(0);
+    await expect(page.locator('.hangar-status-message')).toContainText('gekauft');
+    await wingPart.locator('.hangar-part-select').hover();
     await page.mouse.down();
-    const wingPartPoint = await wingPart.evaluate((node) => {
+    const wingPartPoint = await wingPart.locator('.hangar-part-select').evaluate((node) => {
         const rect = node.getBoundingClientRect();
         return { x: rect.x + rect.width / 2, y: rect.y + rect.height / 2 };
     });
@@ -214,6 +231,7 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect.poll(() => readMetric(page, 'agility')).toBeGreaterThan(agilityBefore);
 
+    await page.locator('[data-build-view="presets"]').click();
     await page.locator('.arcade-vehicle-preset-input').fill(BUILD_NAME);
     await page.locator('.arcade-vehicle-preset-save').click();
     await expect(page.locator('.arcade-vehicle-preset-select option', { hasText: BUILD_NAME })).toHaveCount(1);

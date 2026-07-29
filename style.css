@@ -4397,8 +4397,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hangar-workshop-heading {
-    display: grid;
-    gap: 2px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
 }
 
 .hangar-workshop-kicker {
@@ -4409,6 +4410,10 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hangar-workshop-subtitle {
+    margin: 0;
+}
+
+.hangar-workshop-title {
     margin: 0;
 }
 
@@ -4457,6 +4462,41 @@ input[type="range"]::-webkit-slider-thumb {
     min-height: 0;
     overflow: auto;
     scrollbar-color: rgba(98, 184, 255, 0.45) transparent;
+}
+
+.hangar-build-view-switch {
+    position: sticky;
+    top: 0;
+    z-index: 6;
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+    padding-block: 4px;
+    background: rgba(6, 12, 22, 0.98);
+}
+
+.hangar-build-view-tab {
+    min-height: 34px;
+    border: 1px solid rgba(98, 184, 255, 0.22);
+    border-radius: 8px;
+    background: rgba(11, 23, 40, 0.78);
+    color: #b8cde2;
+}
+
+.hangar-build-view-tab.is-active {
+    border-color: rgba(98, 184, 255, 0.72);
+    color: #eef8ff;
+    background: linear-gradient(180deg, rgba(45, 113, 174, 0.44), rgba(24, 66, 105, 0.4));
+}
+
+.hangar-build-view-panel {
+    display: grid;
+    align-content: start;
+    gap: 8px;
+}
+
+.hangar-build-view-panel.hidden {
+    display: none;
 }
 
 .hangar-activation-dock {
@@ -4518,16 +4558,35 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-part-card {
     display: grid;
     gap: 5px;
-    padding: 9px;
+    padding: 0;
     border: 1px solid rgba(98, 184, 255, 0.22);
     border-radius: 9px;
     background: linear-gradient(150deg, rgba(18, 36, 58, 0.92), rgba(8, 18, 31, 0.9));
     color: #e6f3ff;
+    width: 100%;
+    overflow: hidden;
+}
+
+.hangar-part-select {
+    display: grid;
+    width: 100%;
+    gap: 5px;
+    padding: 9px;
+    border: 0;
+    background: transparent;
+    color: inherit;
     cursor: grab;
     touch-action: none;
     user-select: none;
     text-align: left;
-    width: 100%;
+}
+
+.hangar-part-purchase {
+    width: auto;
+    margin: 0 9px 9px;
+    border-color: rgba(246, 196, 83, 0.62);
+    color: #ffe19a;
+    background: rgba(112, 75, 16, 0.22);
 }
 
 .hangar-part-card.is-selected {
@@ -4539,7 +4598,11 @@ input[type="range"]::-webkit-slider-thumb {
     cursor: not-allowed;
 }
 
-.hangar-part-card:active,
+.hangar-part-card.is-locked .hangar-part-select {
+    cursor: not-allowed;
+}
+
+.hangar-part-select:active,
 .hangar-installed-part:active {
     cursor: grabbing;
 }
@@ -4822,6 +4885,13 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-detail-copy {
     min-width: 0;
+}
+
+.hangar-vehicle-description {
+    margin: 3px 0 0;
+    color: #9fb4c9;
+    font-size: 0.67rem;
+    line-height: 1.25;
 }
 
 .hangar-profile-summary {

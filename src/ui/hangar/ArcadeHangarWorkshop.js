@@ -65,6 +65,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const audio = createHangarWorkshopAudio();
     let profiles = profilePort.load();
     let catalogView = 'vehicles';
+    let buildView = 'workshop';
     let partFamily = 'all';
     let partTier = 'ALL';
     let partTrait = 'all';
@@ -91,6 +92,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
         presetRename, presetDuplicate, presetDelete, presetSort, presetTags, presetFavorite,
         presetExport, presetImport, buildCompareSelect, starterBuilds, machineGunSelect, activateButton, statusMessage,
+        buildViewSwitch,
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
@@ -152,7 +154,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
 
     function state() {
         return {
-            draft, savedBuild, baselineBuild, history, hydrated, profiles, catalogView, partFamily, partTier,
+            draft, savedBuild, baselineBuild, history, hydrated, profiles, catalogView, buildView, partFamily, partTier,
             partTrait, partAvailability, selectedSlotId, selectedPartId, previewPartId, buildFromProfile,
             xpToNextLevel: profilePort.xpToNextLevel,
             xpForLevel: profilePort.xpForLevel,
@@ -463,6 +465,40 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         search.value = catalogView === 'vehicles' ? selection.getSearchTerm() : '';
         syncDisplay();
     });
+    bind(viewSwitch, 'keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        const tabs = Array.from(viewSwitch.querySelectorAll('[data-catalog-view]'));
+        const currentIndex = tabs.findIndex((node) => node === event.target);
+        if (currentIndex < 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.key === 'ArrowRight' ? 1 : -1;
+        const next = tabs[(currentIndex + step + tabs.length) % tabs.length];
+        catalogView = next.dataset.catalogView === 'parts' ? 'parts' : 'vehicles';
+        if (catalogView === 'vehicles') { selectedPartId = ''; previewPartId = ''; }
+        search.value = catalogView === 'vehicles' ? selection.getSearchTerm() : '';
+        syncDisplay();
+        next.focus();
+    });
+    bind(buildViewSwitch, 'click', (event) => {
+        const view = event.target?.closest?.('[data-build-view]')?.dataset.buildView;
+        if (!['workshop', 'stats', 'presets'].includes(view)) return;
+        buildView = view;
+        syncDisplay({ preserveCatalog: true });
+    });
+    bind(buildViewSwitch, 'keydown', (event) => {
+        if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+        const tabs = Array.from(buildViewSwitch.querySelectorAll('[data-build-view]'));
+        const currentIndex = tabs.findIndex((node) => node === event.target);
+        if (currentIndex < 0) return;
+        event.preventDefault();
+        event.stopPropagation();
+        const step = event.key === 'ArrowRight' ? 1 : -1;
+        const next = tabs[(currentIndex + step + tabs.length) % tabs.length];
+        buildView = next.dataset.buildView;
+        syncDisplay({ preserveCatalog: true });
+        next.focus();
+    });
     bind(search, 'input', () => { if (catalogView === 'vehicles') selection.setSearchTerm(search.value); syncDisplay(); });
     bind(onlyFavBtn, 'click', () => { selection.setFavoritesOnly(!selection.isFavoritesOnly()); syncDisplay(); });
     bind(categoryTabs, 'click', (event) => { const value = event.target?.closest?.('[data-category]')?.dataset.category; if (value) { selection.setCategory(value); syncDisplay(); } });
@@ -475,22 +511,30 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(catalogList, 'click', (event) => {
         const vehicleId = event.target?.closest?.('[data-vehicle-id]')?.dataset.vehicleId;
         if (vehicleId) { selectVehicle(vehicleId); return; }
+        const purchaseButton = event.target?.closest?.('[data-purchase-stone-id]');
+        if (purchaseButton) {
+            purchaseStone(purchaseButton.dataset.purchaseStoneId);
+            return;
+        }
         const card = event.target?.closest?.('[data-part-id]');
         if (!card) return;
         if (card.dataset.hangarSuppressClick === 'true') return;
-        if (card.dataset.purchaseStoneId) {
-            purchaseStone(card.dataset.purchaseStoneId);
-            return;
-        }
         if (card.dataset.locked === 'true') {
             toast(card.dataset.lockedReason || 'Dieser Stein ist noch gesperrt.', 'warning');
+            return;
+        }
+        if (card.querySelector('[data-purchase-stone-id]')) {
+            selectedPartId = '';
+            previewPartId = card.dataset.partId;
+            toast(`${card.dataset.partLabel} als Vorschau geöffnet · Kauf separat bestätigen`);
+            syncDisplay({ preserveCatalog: true });
             return;
         }
         selectPart(card.dataset.partId);
     });
     bind(catalogList, 'pointerover', (event) => {
         const card = event.target?.closest?.('[data-part-id]');
-        if (!card || card.dataset.locked === 'true' || card.dataset.purchaseStoneId || previewPartId === card.dataset.partId) return;
+        if (!card || card.dataset.locked === 'true' || previewPartId === card.dataset.partId) return;
         previewPartId = card.dataset.partId;
         syncDisplay({ preserveCatalog: true });
     });
@@ -501,9 +545,22 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         syncDisplay({ preserveCatalog: true });
     });
     bind(quickRows, 'click', (event) => { const id = event.target?.closest?.('[data-quick-vehicle-id]')?.dataset.quickVehicleId; if (id) selectVehicle(id); });
+    bind(catalogList, 'keydown', (event) => {
+        const card = event.target?.closest?.('[data-vehicle-id]');
+        if (!card || !['ArrowUp', 'ArrowDown'].includes(event.key)) return;
+        event.preventDefault();
+        const id = selection.getNextVisibleVehicleId(event.key === 'ArrowDown' ? 1 : -1, profiles);
+        selectVehicle(id);
+        const nextCard = Array.from(catalogList.querySelectorAll('[data-vehicle-id]'))
+            .find((node) => node.dataset.vehicleId === id);
+        nextCard?.focus();
+    });
     bind(catalogList, 'pointerdown', (event) => {
-        const card = event.target?.closest?.('[data-part-id]');
-        if (card && card.dataset.locked !== 'true' && !card.dataset.purchaseStoneId) dragController.begin(event, { partId: card.dataset.partId, label: card.dataset.partLabel }, card);
+        const selectButton = event.target?.closest?.('[data-part-select]');
+        const card = selectButton?.closest?.('[data-part-id]');
+        if (card && card.dataset.locked !== 'true' && !card.querySelector('[data-purchase-stone-id]')) {
+            dragController.begin(event, { partId: card.dataset.partId, label: card.dataset.partLabel }, card);
+        }
     });
     bind(slotGrid, 'pointerdown', (event) => {
         const item = event.target?.closest?.('[data-installed-slot][data-part-id]');
@@ -623,7 +680,11 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
         else if (event.key === 'Delete' && !editing) { event.preventDefault(); applyRemoval(selectedSlotId); }
         else if (event.ctrlKey && event.key.toLowerCase() === 'z' && !editing) { event.preventDefault(); const value = history.undo(); if (value) setDraft(value, { recordHistory: false }); }
         else if (event.ctrlKey && event.key.toLowerCase() === 'y' && !editing) { event.preventDefault(); const value = history.redo(); if (value) setDraft(value, { recordHistory: false }); }
-        else if (!editing && ['ArrowLeft', 'ArrowRight'].includes(event.key)) { event.preventDefault(); selectVehicle(selection.getNextVisibleVehicleId(event.key === 'ArrowRight' ? 1 : -1, profiles)); }
+        else if (!editing && ['ArrowLeft', 'ArrowRight'].includes(event.key)
+            && (event.target === container || previewStage.contains(event.target))) {
+            event.preventDefault();
+            selectVehicle(selection.getNextVisibleVehicleId(event.key === 'ArrowRight' ? 1 : -1, profiles));
+        }
     });
     if (ui.vehicleSelectP1) bind(ui.vehicleSelectP1, 'change', () => { const id = norm(ui.vehicleSelectP1.value).toLowerCase(); if (id && draft && id !== draft.vehicleId) selectVehicle(id, { skipRecent: true }); });
 

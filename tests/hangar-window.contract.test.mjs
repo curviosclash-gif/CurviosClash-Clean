@@ -42,17 +42,25 @@ test('desktop hangar opens once in a maximized secure window', async () => {
     assert.equal(controller.closeHangarWindow(), true);
 });
 
-test('desktop hangar warns before discarding unsaved changes', async () => {
+test('desktop hangar explains that closing keeps the automatically saved draft', async () => {
     const responses = [1, 0];
+    const dialogs = [];
     const controller = createHangarWindowController({
         BrowserWindow: FakeBrowserWindow,
-        dialog: { showMessageBoxSync: () => responses.shift() },
+        dialog: {
+            showMessageBoxSync(_window, options) {
+                dialogs.push(options);
+                return responses.shift();
+            },
+        },
         resolveWindowUrl: () => 'http://127.0.0.1/hangar.html?mode=arcade',
     });
     await controller.openHangarWindow();
     assert.equal(controller.setUnsavedChanges(true), true);
     assert.equal(controller.closeHangarWindow(), false);
     assert.ok(controller.getWindow());
+    assert.equal(dialogs[0].buttons[0], 'Schließen · Entwurf behalten');
+    assert.match(dialogs[0].detail, /automatische Sicherung bleibt erhalten/);
     assert.equal(controller.closeHangarWindow(), true);
     assert.equal(controller.getWindow(), null);
 });

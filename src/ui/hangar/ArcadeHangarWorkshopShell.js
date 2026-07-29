@@ -38,7 +38,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const heading = el('div', 'hangar-workshop-heading');
     heading.append(
         el('span', 'hangar-workshop-kicker', mode === 'fight' ? 'FIGHT ENGINEERING' : 'ARCADE OPERATIONS'),
-        el('h3', 'arcade-surface-card-title hangar-workshop-title', 'Desktop Hangar'),
+        el('h3', 'arcade-surface-card-title hangar-workshop-title', 'Fahrzeug-Werkstatt'),
         infoHint(mode === 'fight'
             ? 'Faire Sidegrades bauen: Jeder Vorteil erzeugt einen Nachteil.'
             : 'Universelle Steine einsetzen und den nächsten Run vorbereiten.', 'hangar-workshop-subtitle')
@@ -53,10 +53,16 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const leftPanel = el('section', 'arcade-vehicle-panel arcade-vehicle-panel-list hangar-catalog-panel');
     leftPanel.setAttribute('aria-label', 'Fahrzeug- und Steinkatalog');
     const viewSwitch = el('div', 'hangar-catalog-view-switch');
+    viewSwitch.setAttribute('role', 'tablist');
+    viewSwitch.setAttribute('aria-label', 'Katalogansicht');
     const vehiclesViewButton = button('hangar-catalog-view is-active', 'Fahrzeuge');
     vehiclesViewButton.dataset.catalogView = 'vehicles';
+    vehiclesViewButton.setAttribute('role', 'tab');
+    vehiclesViewButton.setAttribute('aria-selected', 'true');
     const partsViewButton = button('hangar-catalog-view', 'Steine');
     partsViewButton.dataset.catalogView = 'parts';
+    partsViewButton.setAttribute('role', 'tab');
+    partsViewButton.setAttribute('aria-selected', 'false');
     viewSwitch.append(vehiclesViewButton, partsViewButton);
     const controls = el('div', 'arcade-vehicle-controls');
     const search = document.createElement('input');
@@ -65,10 +71,17 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     search.placeholder = 'Fahrzeuge durchsuchen …';
     search.setAttribute('aria-label', 'Katalog durchsuchen');
     const onlyFavBtn = button('secondary-btn arcade-vehicle-favorites-only', 'Nur Favoriten');
+    onlyFavBtn.setAttribute('aria-pressed', 'false');
     controls.append(search, onlyFavBtn);
     const categoryTabs = el('div', 'arcade-vehicle-category-tabs');
+    categoryTabs.setAttribute('role', 'group');
+    categoryTabs.setAttribute('aria-label', 'Fahrzeugklasse');
     const hitboxChips = el('div', 'arcade-vehicle-chip-row');
+    hitboxChips.setAttribute('role', 'group');
+    hitboxChips.setAttribute('aria-label', 'Hitboxklasse');
     const levelChips = el('div', 'arcade-vehicle-chip-row');
+    levelChips.setAttribute('role', 'group');
+    levelChips.setAttribute('aria-label', 'Fahrzeuglevel');
     const partFilters = el('div', 'hangar-part-filters hidden');
     const familySelect = document.createElement('select');
     familySelect.className = 'hangar-part-family-filter';
@@ -129,6 +142,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     cameraToolbar.appendChild(cameraReset);
     const previewStage = el('div', 'arcade-vehicle-preview-stage hangar-viewport-stage');
     previewStage.id = 'arcade-vehicle-preview-stage';
+    previewStage.tabIndex = 0;
+    previewStage.setAttribute('aria-label', 'Fahrzeugvorschau; Pfeiltasten wechseln das Fahrzeug');
     const previewOverlay = el('div', 'arcade-vehicle-preview-overlay hangar-hardpoint-overlay');
     previewOverlay.id = 'arcade-vehicle-preview-overlay';
     const vehiclePreviousButton = button(
@@ -167,7 +182,8 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const detailCopy = el('div', 'hangar-detail-copy');
     const detailTitle = el('p', 'arcade-vehicle-detail-title');
     const detailMeta = el('p', 'arcade-vehicle-detail-meta');
-    detailCopy.append(detailTitle, detailMeta);
+    const detailDescription = el('p', 'hangar-vehicle-description');
+    detailCopy.append(detailTitle, detailMeta, detailDescription);
     const favoriteBtn = button('secondary-btn arcade-vehicle-favorite-toggle', 'Favorit');
     detailHead.append(detailCopy, favoriteBtn);
     const profileBox = el('div', 'arcade-vehicle-profile hangar-profile-summary');
@@ -176,6 +192,28 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const xpFill = el('div', 'arcade-vehicle-xp-fill');
     xpBar.appendChild(xpFill);
     profileBox.append(levelLine, xpBar);
+    const buildViewSwitch = el('div', 'hangar-build-view-switch');
+    buildViewSwitch.setAttribute('role', 'tablist');
+    buildViewSwitch.setAttribute('aria-label', 'Werkstattbereich');
+    const workshopViewButton = button('hangar-build-view-tab is-active', 'Umbau');
+    workshopViewButton.id = 'hangar-build-view-workshop';
+    workshopViewButton.dataset.buildView = 'workshop';
+    workshopViewButton.setAttribute('role', 'tab');
+    workshopViewButton.setAttribute('aria-selected', 'true');
+    workshopViewButton.setAttribute('aria-controls', 'hangar-build-panel-workshop');
+    const statsViewButton = button('hangar-build-view-tab', 'Werte');
+    statsViewButton.id = 'hangar-build-view-stats';
+    statsViewButton.dataset.buildView = 'stats';
+    statsViewButton.setAttribute('role', 'tab');
+    statsViewButton.setAttribute('aria-selected', 'false');
+    statsViewButton.setAttribute('aria-controls', 'hangar-build-panel-stats');
+    const presetsViewButton = button('hangar-build-view-tab', 'Builds');
+    presetsViewButton.id = 'hangar-build-view-presets';
+    presetsViewButton.dataset.buildView = 'presets';
+    presetsViewButton.setAttribute('role', 'tab');
+    presetsViewButton.setAttribute('aria-selected', 'false');
+    presetsViewButton.setAttribute('aria-controls', 'hangar-build-panel-presets');
+    buildViewSwitch.append(workshopViewButton, statsViewButton, presetsViewButton);
     const machineGunPanel = el('section', `hangar-preset-panel hangar-machine-gun-panel${mode === 'fight' ? '' : ' hidden'}`);
     machineGunPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Maschinengewehr'));
     const machineGunSelect = document.createElement('select');
@@ -205,7 +243,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const budgetRows = el('div', 'hangar-budget-rows');
     const partPreviewBox = el('div', 'hangar-part-preview hidden');
     partPreviewBox.setAttribute('aria-live', 'polite');
-    comparePanel.append(compareHeader, statRows, budgetRows, partPreviewBox);
+    comparePanel.append(compareHeader, statRows, budgetRows);
     const slotsPanel = el('section', 'hangar-slot-panel');
     slotsPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Fassungen'));
     const slotGrid = el('div', 'arcade-vehicle-slots hangar-slot-grid');
@@ -263,9 +301,30 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     presetActions.append(presetSave, presetSaveAs, presetLoad, presetRename, presetDuplicate, presetFavorite, presetExport, presetImport, presetDelete);
     const activateButton = button('start-btn hangar-activate-build', mode === 'fight' ? 'Für nächsten Kampf aktivieren' : 'Für nächsten Run aktivieren');
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions);
+    const workshopViewPanel = el('div', 'hangar-build-view-panel');
+    workshopViewPanel.id = 'hangar-build-panel-workshop';
+    workshopViewPanel.dataset.buildViewPanel = 'workshop';
+    workshopViewPanel.setAttribute('role', 'tabpanel');
+    workshopViewPanel.setAttribute('aria-labelledby', workshopViewButton.id);
+    workshopViewPanel.append(machineGunPanel, partPreviewBox, slotsPanel, validationBox, historyBar);
+    const statsViewPanel = el('div', 'hangar-build-view-panel hidden');
+    statsViewPanel.id = 'hangar-build-panel-stats';
+    statsViewPanel.dataset.buildViewPanel = 'stats';
+    statsViewPanel.setAttribute('role', 'tabpanel');
+    statsViewPanel.setAttribute('aria-labelledby', statsViewButton.id);
+    statsViewPanel.appendChild(comparePanel);
+    const presetsViewPanel = el('div', 'hangar-build-view-panel hidden');
+    presetsViewPanel.id = 'hangar-build-panel-presets';
+    presetsViewPanel.dataset.buildViewPanel = 'presets';
+    presetsViewPanel.setAttribute('role', 'tabpanel');
+    presetsViewPanel.setAttribute('aria-labelledby', presetsViewButton.id);
+    presetsViewPanel.append(
+        starterPanel,
+        loadoutPanel,
+        infoHint('Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Vorschau: Pfeile wechseln das Fahrzeug', 'arcade-vehicle-shortcuts')
+    );
     buildScroll.append(
-        detailHead, profileBox, machineGunPanel, comparePanel, slotsPanel, validationBox, historyBar, starterPanel, loadoutPanel,
-        infoHint('Entf: Stein entfernen · Strg+Z/Y: Undo/Redo · Pfeile: Fahrzeug wechseln', 'arcade-vehicle-shortcuts')
+        detailHead, profileBox, buildViewSwitch, workshopViewPanel, statsViewPanel, presetsViewPanel
     );
     const activationDock = el('div', 'hangar-activation-dock');
     activationDock.appendChild(activateButton);
@@ -282,11 +341,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, traitSelect, availabilitySelect, quickRows,
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         vehiclePreviousButton, vehicleNextButton,
-        previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, favoriteBtn, levelLine,
+        previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine,
         xpFill, machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
         redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
-        presetFavorite, presetExport, presetImport, buildScroll, activationDock, activateButton,
+        presetFavorite, presetExport, presetImport, buildScroll, buildViewSwitch,
+        workshopViewButton, statsViewButton, presetsViewButton,
+        workshopViewPanel, statsViewPanel, presetsViewPanel, activationDock, activateButton,
         statusMessage, activeBuildLabel,
     };
 }

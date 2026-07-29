@@ -39,6 +39,16 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     await expect(hangarPage.locator('#arcade-vehicle-manager')).toBeVisible({ timeout: 10_000 });
     await expect(hangarPage.locator('.hangar-viewport-canvas-node')).toBeVisible();
     await expect(hangarPage.locator('.hangar-activation-dock .hangar-activate-build')).toBeVisible();
+    await expect(hangarPage.locator('[data-build-view="workshop"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(hangarPage.locator('[data-build-view-panel="workshop"]')).toBeVisible();
+    await expect(hangarPage.locator('[data-build-view-panel="stats"]')).toBeHidden();
+    await hangarPage.locator('[data-build-view="stats"]').click();
+    await expect(hangarPage.locator('[data-build-view-panel="stats"]')).toBeVisible();
+    await expect(hangarPage.locator('[data-build-view="stats"]')).toHaveAttribute('aria-selected', 'true');
+    await hangarPage.locator('[data-build-view="presets"]').click();
+    await expect(hangarPage.locator('[data-build-view-panel="presets"]')).toBeVisible();
+    await expect(hangarPage.locator('.hangar-starter-builds')).toBeVisible();
+    await hangarPage.locator('[data-build-view="workshop"]').click();
 
     const layout = await hangarPage.evaluate(() => {
         const shell = document.getElementById('arcade-vehicle-manager')?.getBoundingClientRect();

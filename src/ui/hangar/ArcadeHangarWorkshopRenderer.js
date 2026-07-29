@@ -1,10 +1,23 @@
-import { createUiNode as el, resolvePlayerColor, toVehicleLevelBand } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
+import {
+    HITBOX_LABELS,
+    LEVEL_LABELS,
+    createUiNode as el,
+    resolvePlayerColor,
+    toVehicleLevelBand,
+} from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { resolveFightPartTradeoff } from '../../shared/contracts/FightHangarBalanceContract.js';
 import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePartLockReason } from './HangarPartCatalog.js';
 import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
 import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
+
+const VEHICLE_CATEGORY_LABELS = Object.freeze({
+    jaeger: 'Jäger',
+    kreuzer: 'Kreuzer',
+    spezial: 'Spezial',
+    custom: 'Custom',
+});
 
 function button(className, text) {
     const node = el('button', className, text);
@@ -56,11 +69,13 @@ export function createArcadeHangarWorkshopRenderer(options) {
     const {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
-        resultLine, catalogList, detailTitle, detailMeta, favoriteBtn, levelLine, xpFill,
+        resultLine, catalogList, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine, xpFill,
         vehiclePreviousButton, vehicleNextButton,
         machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
         revertButton, activateButton, presetSelect, presetLoad, presetRename, presetDuplicate,
         presetDelete, presetSort, presetTags, presetFavorite, presetExport, activeBuildLabel,
+        workshopViewButton, statsViewButton, presetsViewButton,
+        workshopViewPanel, statsViewPanel, presetsViewPanel,
     } = shell;
 
     function renderQuickRow(node, label, ids) {
@@ -79,6 +94,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
     function renderVehicles(state) {
         const visible = selection.getVisibleEntries(state.profiles);
         const favorites = new Set(selection.getFavorites());
+        catalogList.setAttribute('role', 'listbox');
         resultLine.textContent = `${visible.length} Fahrzeuge sichtbar`;
         catalogList.replaceChildren();
         if (!visible.length) catalogList.appendChild(el('p', 'menu-hint hangar-empty-state', 'Keine Fahrzeuge für diese Filterung gefunden.'));
@@ -95,16 +111,24 @@ export function createArcadeHangarWorkshopRenderer(options) {
             card.setAttribute('aria-selected', String(entry.vehicleId === state.draft.vehicleId));
             card.append(
                 el('span', 'arcade-vehicle-card-title', entry.label),
-                el('span', 'arcade-vehicle-card-meta', `${entry.kategorie} · ${entry.hitboxKlasse} · Lv ${profile.level}`)
+                el(
+                    'span',
+                    'arcade-vehicle-card-meta',
+                    `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${HITBOX_LABELS[entry.hitboxKlasse] || entry.hitboxKlasse} · Lv ${profile.level}`
+                )
             );
             catalogList.appendChild(card);
         });
-        renderQuickRow(favRow, 'Favoriten', selection.getFavorites());
-        renderQuickRow(recentRow, 'Zuletzt', selection.getRecents());
+        const favoriteIds = selection.getFavorites();
+        const recentIds = selection.getRecents();
+        renderQuickRow(favRow, 'Favoriten', favoriteIds);
+        renderQuickRow(recentRow, 'Zuletzt', recentIds);
+        quickRows.classList.toggle('hidden', !favoriteIds.length && !recentIds.length);
     }
 
     function renderParts(state) {
         const profile = profileFor(state.draft.vehicleId);
+        catalogList.setAttribute('role', 'list');
         const records = listHangarParts({ search: search.value, color: state.partFamily, tier: state.partTier, trait: state.partTrait })
             .map((part) => {
                 const availability = resolveHangarStoneAvailability(part, profile, state.draft);
@@ -126,17 +150,15 @@ export function createArcadeHangarWorkshopRenderer(options) {
         catalogList.replaceChildren();
         if (!records.length) catalogList.appendChild(el('p', 'menu-hint hangar-empty-state', 'Keine Steine für diese Filterung gefunden.'));
         records.forEach(({ part, availability, purchase, lock }) => {
-            const card = button('hangar-part-card', '');
+            const card = el('article', 'hangar-part-card');
+            card.setAttribute('role', 'listitem');
             card.dataset.partId = part.id;
             card.dataset.stoneColor = part.colorId;
             card.dataset.partLabel = part.label;
             card.dataset.partTrait = part.trait;
-            card.setAttribute('aria-pressed', String(state.selectedPartId === part.id));
-            card.setAttribute('aria-disabled', String(Boolean(lock) && !purchase));
             card.classList.toggle('is-locked', Boolean(lock));
             card.classList.toggle('is-purchase', purchase);
             card.classList.toggle('is-selected', state.selectedPartId === part.id);
-            if (purchase) card.dataset.purchaseStoneId = part.id;
             if (lock && !purchase) {
                 card.dataset.locked = 'true';
                 const targetXp = lock.unlockLevel ? Number(state.xpForLevel?.(lock.unlockLevel)) || 0 : 0;
@@ -150,15 +172,25 @@ export function createArcadeHangarWorkshopRenderer(options) {
             const colorSwatch = el('span', 'hangar-stone-swatch');
             colorSwatch.style.backgroundColor = `#${Number(part.appearance?.color || 0).toString(16).padStart(6, '0')}`;
             colorLine.append(colorSwatch, `${part.colorLabel || part.colorId} · ${part.role}`);
-            card.append(
+            const selectButton = button('hangar-part-select', '');
+            selectButton.dataset.partSelect = part.id;
+            selectButton.setAttribute('aria-pressed', String(state.selectedPartId === part.id));
+            selectButton.setAttribute('aria-disabled', String(Boolean(lock) && !purchase));
+            selectButton.append(
                 head,
                 colorLine,
                 el('span', 'hangar-part-stats', partStatsText(part)),
                 el('span', 'hangar-part-run-bonuses', `Run: ${partRunBonusesText(part, paired ? 2 : 1, mode)}`),
                 el('span', 'hangar-part-costs', partCostsText(part, paired)),
                 el('span', 'hangar-stone-inventory', `Bestand: ${availability.available} frei · ${availability.equipped}/${availability.owned} eingesetzt`),
-                el('span', lock && !purchase ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', purchase ? `Für ${availability.priceXrp} XRP kaufen` : (lock ? card.dataset.lockedReason : 'Anklicken oder auf eine Fassung ziehen'))
+                el('span', lock && !purchase ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', purchase ? 'Vorschau öffnen oder ausdrücklich kaufen' : (lock ? card.dataset.lockedReason : 'Anklicken oder auf eine Fassung ziehen'))
             );
+            card.appendChild(selectButton);
+            if (purchase) {
+                const purchaseButton = button('secondary-btn hangar-part-purchase', `1 Exemplar für ${availability.priceXrp} XRP kaufen`);
+                purchaseButton.dataset.purchaseStoneId = part.id;
+                card.appendChild(purchaseButton);
+            }
             catalogList.appendChild(card);
         });
         favRow.replaceChildren();
@@ -326,7 +358,9 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const validation = validateBuild(state.draft, profile.level, profile);
         const favorites = new Set(selection.getFavorites());
         detailTitle.textContent = entry.label;
-        detailMeta.textContent = `${entry.kategorie} · ${entry.hitboxKlasse} · ${toVehicleLevelBand(profile.level)}`;
+        const levelBand = toVehicleLevelBand(profile.level);
+        detailMeta.textContent = `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${HITBOX_LABELS[entry.hitboxKlasse] || entry.hitboxKlasse} · ${LEVEL_LABELS[levelBand] || levelBand}`;
+        detailDescription.textContent = entry.kurzbeschreibung;
         const xp = state.xpToNextLevel(profile);
         levelLine.textContent = mode === 'fight'
             ? `Fight-Sidegrade · Leistungsbudget ${validation.balanceScore ?? 0}`
@@ -341,7 +375,15 @@ export function createArcadeHangarWorkshopRenderer(options) {
         favoriteBtn.classList.toggle('is-active', favorites.has(state.draft.vehicleId));
         vehiclesViewButton.classList.toggle('is-active', state.catalogView === 'vehicles');
         partsViewButton.classList.toggle('is-active', state.catalogView === 'parts');
-        [categoryTabs, hitboxChips, levelChips, quickRows].forEach((node) => node.classList.toggle('hidden', state.catalogView !== 'vehicles'));
+        vehiclesViewButton.setAttribute('aria-selected', String(state.catalogView === 'vehicles'));
+        partsViewButton.setAttribute('aria-selected', String(state.catalogView === 'parts'));
+        vehiclesViewButton.tabIndex = state.catalogView === 'vehicles' ? 0 : -1;
+        partsViewButton.tabIndex = state.catalogView === 'parts' ? 0 : -1;
+        [categoryTabs, hitboxChips, levelChips].forEach((node) => node.classList.toggle('hidden', state.catalogView !== 'vehicles'));
+        quickRows.classList.toggle(
+            'hidden',
+            state.catalogView !== 'vehicles' || (!selection.getFavorites().length && !selection.getRecents().length)
+        );
         partFilters.classList.toggle('hidden', state.catalogView !== 'parts');
         onlyFavBtn.classList.toggle('hidden', state.catalogView !== 'vehicles');
         search.placeholder = state.catalogView === 'vehicles' ? 'Fahrzeuge durchsuchen …' : 'Steine durchsuchen …';
@@ -349,10 +391,34 @@ export function createArcadeHangarWorkshopRenderer(options) {
             if (state.catalogView === 'vehicles') renderVehicles(state);
             else renderParts(state);
         }
-        categoryTabs.querySelectorAll('button').forEach((node) => node.classList.toggle('is-active', node.dataset.category === selection.getCategory()));
-        hitboxChips.querySelectorAll('button').forEach((node) => node.classList.toggle('is-active', node.dataset.filterValue === selection.getHitboxFilter()));
-        levelChips.querySelectorAll('button').forEach((node) => node.classList.toggle('is-active', node.dataset.filterValue === selection.getLevelFilter()));
+        categoryTabs.querySelectorAll('button').forEach((node) => {
+            const active = node.dataset.category === selection.getCategory();
+            node.classList.toggle('is-active', active);
+            node.setAttribute('aria-pressed', String(active));
+        });
+        hitboxChips.querySelectorAll('button').forEach((node) => {
+            const active = node.dataset.filterValue === selection.getHitboxFilter();
+            node.classList.toggle('is-active', active);
+            node.setAttribute('aria-pressed', String(active));
+        });
+        levelChips.querySelectorAll('button').forEach((node) => {
+            const active = node.dataset.filterValue === selection.getLevelFilter();
+            node.classList.toggle('is-active', active);
+            node.setAttribute('aria-pressed', String(active));
+        });
         onlyFavBtn.classList.toggle('is-active', selection.isFavoritesOnly());
+        onlyFavBtn.setAttribute('aria-pressed', String(selection.isFavoritesOnly()));
+        [
+            [workshopViewButton, workshopViewPanel, 'workshop'],
+            [statsViewButton, statsViewPanel, 'stats'],
+            [presetsViewButton, presetsViewPanel, 'presets'],
+        ].forEach(([buttonNode, panelNode, viewId]) => {
+            const active = state.buildView === viewId;
+            buttonNode.classList.toggle('is-active', active);
+            buttonNode.setAttribute('aria-selected', String(active));
+            buttonNode.tabIndex = active ? 0 : -1;
+            panelNode.classList.toggle('hidden', !active);
+        });
         const visibleVehicles = selection.getVisibleEntries(state.profiles);
         const canCycleVehicles = visibleVehicles.length > 1
             || (visibleVehicles.length === 1 && visibleVehicles[0].vehicleId !== state.draft.vehicleId);
@@ -397,7 +463,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         }
         container.dataset.previewStatus = viewport.getStatus();
         const dirty = isDirty();
-        saveState.textContent = dirty ? 'Ungespeicherte Änderungen' : (state.savedBuild ? 'Gespeichert' : 'Standard · noch nicht als Preset gespeichert');
+        saveState.textContent = dirty ? 'Entwurf · automatische Sicherung aktiv' : (state.savedBuild ? 'Preset gespeichert' : 'Standard · kein Preset');
         saveState.classList.toggle('is-dirty', dirty);
         container.dataset.buildValid = String(validation.ok);
         container.dataset.buildDirty = String(dirty);

@@ -7,7 +7,7 @@ const VEHICLE_MANAGER_UPGRADE_SLOT_COUNT = 7;
 
 const VEHICLE_MANAGER_CATEGORY_TABS = Object.freeze([
     Object.freeze({ id: 'all', label: 'Alle', order: 0 }),
-    Object.freeze({ id: 'jaeger', label: 'Jaeger', order: 1 }),
+    Object.freeze({ id: 'jaeger', label: 'Jäger', order: 1 }),
     Object.freeze({ id: 'kreuzer', label: 'Kreuzer', order: 2 }),
     Object.freeze({ id: 'spezial', label: 'Spezial', order: 3 }),
     Object.freeze({ id: 'custom', label: 'Custom', order: 4 }),
@@ -81,11 +81,11 @@ function resolveHitboxClass(radius) {
 
 function resolveShortDescription({ category, hitboxClass }) {
     if (category === 'custom') return 'Modulares Vehicle-Lab-Setup mit frei konfigurierbaren Teilen.';
-    if (category === 'jaeger') return 'Leichtes Dogfight-Chassis fuer hohe Agilitaet und schnelle Kurswechsel.';
-    if (category === 'spezial') return 'Spezialrahmen fuer situative Spielstile und Utility-Setup.';
-    if (hitboxClass === 'schwer') return 'Robustes Cruiser-Chassis mit Fokus auf Stabilitaet und Upgrade-Synergien.';
+    if (category === 'jaeger') return 'Leichtes Dogfight-Chassis für hohe Agilität und schnelle Kurswechsel.';
+    if (category === 'spezial') return 'Spezialrahmen für situative Spielstile und Utility-Setup.';
+    if (hitboxClass === 'schwer') return 'Robustes Cruiser-Chassis mit Fokus auf Stabilität und Upgrade-Synergien.';
     if (hitboxClass === 'kompakt') return 'Kompakter Cruiser mit hohem Tempo und niedrigem Profil.';
-    return 'Ausgewogenes Cruiser-Chassis fuer flexible Allround-Loadouts.';
+    return 'Ausgewogenes Cruiser-Chassis für flexible Allround-Loadouts.';
 }
 
 function resolveStatsSummary({ radius, category, hitboxClass }) {
@@ -186,7 +186,7 @@ export function resolveVehicleManagerCatalogEntry(vehicleId) {
         label: key || 'Unknown Vehicle',
         kategorie: 'custom',
         hitboxKlasse: 'standard',
-        kurzbeschreibung: 'Unbekannte Fahrzeug-ID; nutze Standardwerte fuer sicheren Fallback.',
+        kurzbeschreibung: 'Unbekannte Fahrzeug-ID; nutze Standardwerte für sicheren Fallback.',
         sortOrder: Number.MAX_SAFE_INTEGER,
         keywords: key ? toKeywordTokens(key) : ['unknown', 'vehicle'],
         previewToken: DEFAULT_PREVIEW_TOKEN,
