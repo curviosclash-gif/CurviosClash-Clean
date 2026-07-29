@@ -157,12 +157,34 @@
             min-width: 0;
             padding-inline: 5px;
             color: var(--muted);
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 4px;
         }
 
         .inspectorTabs button[aria-selected="true"] {
             border-color: var(--accent);
             background: rgba(37, 99, 235, 0.24);
             color: var(--text);
+        }
+
+        .inspectorTabBadge {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-width: 16px;
+            min-height: 16px;
+            padding: 0 4px;
+            border-radius: 999px;
+            background: rgba(249, 115, 115, 0.2);
+            color: #fecaca;
+            font-size: 9px;
+            line-height: 1;
+        }
+
+        .inspectorTabBadge[hidden] {
+            display: none;
         }
 
         .inspectorTabPanel {
@@ -349,10 +371,7 @@
         }
 
         #buildDock.is-collapsed {
-            bottom: auto;
-            max-height: 52px;
-            padding-top: 9px;
-            padding-bottom: 9px;
+            display: none;
         }
 
         #buildDock.is-collapsed .dockHeadingDescription,
@@ -1306,7 +1325,9 @@
                 <button id="editorTabMap" type="button" role="tab" data-editor-tab="map"
                     aria-controls="editorPanelMap" aria-selected="false" tabindex="-1">Map</button>
                 <button id="editorTabValidation" type="button" role="tab" data-editor-tab="validation"
-                    aria-controls="editorPanelValidation" aria-selected="false" tabindex="-1">Pruefung</button>
+                    aria-controls="editorPanelValidation" aria-selected="false" tabindex="-1">
+                    Prüfung <span class="inspectorTabBadge" id="validationIssueBadge" hidden>0</span>
+                </button>
             </div>
 
             <div class="inspectorTabPanel" id="editorPanelObjects" role="tabpanel"
@@ -1329,14 +1350,14 @@
                     </div>
                     <div class="objectList" id="objectList" aria-label="Map-Objekte"></div>
                     <div class="outlinerActions">
-                        <button id="btnDuplicateSelected" class="small" disabled>Duplizieren</button>
-                        <button id="btnToggleSelectedVisibility" class="small" disabled>Ausblenden</button>
-                        <button id="btnToggleSelectedLock" class="small" disabled>Sperren</button>
-                        <button id="btnGroupMarked" class="small" disabled>Gruppieren</button>
-                        <button id="btnDuplicateMarked" class="small" disabled>Gruppe duplizieren</button>
-                        <button id="btnTransformMarked" class="small" disabled>Gruppe transformieren</button>
-                        <button id="btnDeleteMarked" class="small dangerAction" disabled>Markierte loeschen</button>
-                        <button id="btnDelSelected" class="small dangerAction" disabled>Ausgewaehltes loeschen</button>
+                        <button id="btnDuplicateSelected" class="small" disabled hidden>Duplizieren</button>
+                        <button id="btnToggleSelectedVisibility" class="small" disabled hidden>Ausblenden</button>
+                        <button id="btnToggleSelectedLock" class="small" disabled hidden>Sperren</button>
+                        <button id="btnGroupMarked" class="small" disabled hidden>Gruppieren</button>
+                        <button id="btnDuplicateMarked" class="small" disabled hidden>Gruppe duplizieren</button>
+                        <button id="btnTransformMarked" class="small" disabled hidden>Gruppe transformieren</button>
+                        <button id="btnDeleteMarked" class="small dangerAction" disabled hidden>Markierte löschen</button>
+                        <button id="btnDelSelected" class="small dangerAction" disabled hidden>Ausgewähltes löschen</button>
                     </div>
                 </div>
 
@@ -1598,7 +1619,7 @@
                 <button id="btnRedo" class="small" title="Redo (Strg+Y / Strg+Shift+Z)" disabled>Redo</button>
                 <span class="badge" id="dirtyStateBadge">Gespeichert</span>
                 <div class="editorTopbar__spacer"></div>
-                <button id="btnSaveToGame" class="small editorTopbar__save">Map exportieren...</button>
+                <button id="btnSaveToGame" class="small editorTopbar__save">Im Spiel speichern...</button>
                 <label class="playtestMode" for="selPlaytestMode">
                     Ansicht
                     <select id="selPlaytestMode">
@@ -1617,10 +1638,10 @@
                 <details class="fileMenu" id="fileMenu">
                     <summary>Datei</summary>
                     <div class="fileMenu__items">
-                        <button id="btnExport" class="small">JSON-Vorschau aktualisieren</button>
+                        <button id="btnExport" class="small">JSON-Vorschau erzeugen</button>
                         <button id="btnImport" class="small">Import JSON</button>
                         <button id="btnCopyJson" class="small">JSON kopieren</button>
-                        <button id="btnDownloadJson" class="small">Map exportieren...</button>
+                        <button id="btnDownloadJson" class="small">Projektdatei exportieren...</button>
                         <button id="btnLoadJsonFile" class="small">Datei laden</button>
                         <button id="btnNew" class="small">Neu</button>
                     </div>

@@ -236,15 +236,29 @@ export function bindEditorWorkspaceControls(editor) {
         const items = buildValidationItems(editor);
         const errorCount = items.filter((item) => item.severity === 'error').length;
         const warningCount = items.filter((item) => item.severity === 'warning').length;
+        const issueCount = errorCount + warningCount;
+        const issueSummary = [
+            errorCount > 0 ? `${errorCount} Fehler` : '',
+            warningCount > 0 ? `${warningCount} ${warningCount === 1 ? 'Warnung' : 'Warnungen'}` : '',
+        ].filter(Boolean).join(' · ');
         if (dom.validationStateBadge) {
-            dom.validationStateBadge.textContent = errorCount > 0
-                ? `${errorCount} Fehler`
-                : warningCount > 0 ? `${warningCount} Warnung(en)` : 'Map bereit';
+            dom.validationStateBadge.textContent = issueSummary || 'Map bereit';
             dom.validationStateBadge.style.color = errorCount > 0 ? '#fecaca' : (warningCount > 0 ? '#fde68a' : '#86efac');
+        }
+        if (dom.validationIssueBadge) {
+            dom.validationIssueBadge.textContent = String(issueCount);
+            dom.validationIssueBadge.hidden = issueCount === 0;
+        }
+        if (dom.editorTabValidation) {
+            dom.editorTabValidation.setAttribute(
+                'aria-label',
+                issueCount > 0 ? `Prüfung: ${issueSummary}` : 'Prüfung: Map bereit',
+            );
         }
         if (dom.validationList) {
             const fragment = document.createDocumentFragment();
-            for (const item of items) {
+            const orderedItems = [...items].sort((left, right) => Number(left.ok) - Number(right.ok));
+            for (const item of orderedItems) {
                 const li = document.createElement('li');
                 li.classList.toggle('is-warning', !item.ok);
                 if (!item.ok && item.objectIds?.length) {
@@ -362,10 +376,23 @@ export function bindEditorWorkspaceControls(editor) {
 
     const updateMarkedActions = () => {
         const hasLockedObject = [...markedIds].some((id) => editor.isObjectLocked?.(editor.mapManager?.getObjectById?.(id)));
-        if (dom.btnGroupMarked) dom.btnGroupMarked.disabled = markedIds.size < 2 || hasLockedObject;
-        if (dom.btnDeleteMarked) dom.btnDeleteMarked.disabled = markedIds.size === 0 || hasLockedObject;
-        if (dom.btnDuplicateMarked) dom.btnDuplicateMarked.disabled = markedIds.size === 0;
-        if (dom.btnTransformMarked) dom.btnTransformMarked.disabled = markedIds.size === 0 || hasLockedObject;
+        const hasMarkedObjects = markedIds.size > 0;
+        if (dom.btnGroupMarked) {
+            dom.btnGroupMarked.hidden = !hasMarkedObjects;
+            dom.btnGroupMarked.disabled = markedIds.size < 2 || hasLockedObject;
+        }
+        if (dom.btnDeleteMarked) {
+            dom.btnDeleteMarked.hidden = !hasMarkedObjects;
+            dom.btnDeleteMarked.disabled = !hasMarkedObjects || hasLockedObject;
+        }
+        if (dom.btnDuplicateMarked) {
+            dom.btnDuplicateMarked.hidden = !hasMarkedObjects;
+            dom.btnDuplicateMarked.disabled = !hasMarkedObjects;
+        }
+        if (dom.btnTransformMarked) {
+            dom.btnTransformMarked.hidden = !hasMarkedObjects;
+            dom.btnTransformMarked.disabled = !hasMarkedObjects || hasLockedObject;
+        }
     };
 
     const renderOutliner = () => {
@@ -447,13 +474,21 @@ export function bindEditorWorkspaceControls(editor) {
         dom.objectList.replaceChildren(fragment);
 
         const selected = editor.selectedObject && editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
-        if (dom.btnDelSelected) dom.btnDelSelected.disabled = !selected || editor.isObjectLocked?.(selected);
-        if (dom.btnDuplicateSelected) dom.btnDuplicateSelected.disabled = !selected;
+        if (dom.btnDelSelected) {
+            dom.btnDelSelected.hidden = !selected;
+            dom.btnDelSelected.disabled = !selected || editor.isObjectLocked?.(selected);
+        }
+        if (dom.btnDuplicateSelected) {
+            dom.btnDuplicateSelected.hidden = !selected;
+            dom.btnDuplicateSelected.disabled = !selected;
+        }
         if (dom.btnToggleSelectedVisibility) {
+            dom.btnToggleSelectedVisibility.hidden = !selected;
             dom.btnToggleSelectedVisibility.disabled = !selected;
             dom.btnToggleSelectedVisibility.textContent = selected?.userData?.editorObjectVisible === false ? 'Einblenden' : 'Ausblenden';
         }
         if (dom.btnToggleSelectedLock) {
+            dom.btnToggleSelectedLock.hidden = !selected;
             dom.btnToggleSelectedLock.disabled = !selected;
             dom.btnToggleSelectedLock.textContent = selected?.userData?.editorLocked ? 'Entsperren' : 'Sperren';
         }

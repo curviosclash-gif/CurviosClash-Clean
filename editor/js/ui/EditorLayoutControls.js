@@ -8,8 +8,8 @@ function readLayoutState() {
             dockCollapsed: parsed.dockCollapsed === true,
             dockDetailed: parsed.dockDetailed === true,
             dockCompact: parsed.dockCompact !== false,
-            helpVisible: parsed.helpVisible !== false,
-            helpSeen: parsed.helpSeen === true || parsed.helpVisible === false,
+            helpVisible: parsed.helpVisible === true,
+            helpSeen: parsed.helpSeen === true,
             activePanel: INSPECTOR_PANELS.includes(parsed.activePanel) ? parsed.activePanel : 'objects',
         };
     } catch {
@@ -17,7 +17,7 @@ function readLayoutState() {
             dockCollapsed: false,
             dockDetailed: false,
             dockCompact: true,
-            helpVisible: true,
+            helpVisible: false,
             helpSeen: false,
             activePanel: 'objects',
         };
@@ -59,6 +59,9 @@ export function bindEditorLayoutControls(editor) {
         inspectorPanels.forEach((panel) => {
             panel.hidden = panel.dataset.editorTabPanel !== state.activePanel;
         });
+        if (state.activePanel === 'validation' && dom.validationDetails) {
+            dom.validationDetails.open = true;
+        }
 
         if (dom.btnDockCollapse) {
             dom.btnDockCollapse.textContent = state.dockCollapsed ? 'Ausklappen' : 'Einklappen';

@@ -110,6 +110,10 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#dockFavoriteList')).toContainText('Keine Favoriten');
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
         await expect(page.locator('#validationList li')).toHaveCount(10);
+        await expect(page.locator('#validationStateBadge')).toHaveText('1 Fehler · 1 Warnung');
+        await expect(page.locator('#validationIssueBadge')).toHaveText('2');
+        await expect(page.locator('#btnDuplicateSelected')).toBeHidden();
+        await expect(page.locator('#btnGroupMarked')).toBeHidden();
 
         const state = await page.evaluate(() => JSON.parse(window.render_game_to_text()));
         expect(state.mode).toBe('select');
@@ -375,23 +379,32 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('.editorTopbar')).toBeVisible();
         await expect(page.locator('.inspectorTabs [role="tab"]')).toHaveCount(4);
         await expect(page.locator('#validationDetails')).not.toHaveAttribute('open', '');
+        await expect(page.locator('#btnSaveToGame')).toHaveText('Im Spiel speichern...');
+        await openFileMenu(page);
+        await expect(page.locator('#btnDownloadJson')).toHaveText('Projektdatei exportieren...');
+        await page.locator('#fileMenu > summary').click();
 
         await page.locator('[data-editor-tab="objects"]').focus();
         await page.keyboard.press('ArrowRight');
         await expect(page.locator('[data-editor-tab="layers"]')).toBeFocused();
         await expect(page.locator('#editorPanelLayers')).toBeVisible();
 
-        await expect(page.locator('#editorHelp')).toBeVisible();
-        await page.locator('#btnToggleHelp').click();
         await expect(page.locator('#editorHelp')).toBeHidden();
+        await page.locator('#btnToggleHelp').click();
+        await expect(page.locator('#editorHelp')).toBeVisible();
         const storedLayout = await page.evaluate((storageKey) => JSON.parse(localStorage.getItem(storageKey) || '{}'), EDITOR_LAYOUT_STORAGE_KEY);
-        expect(storedLayout).toMatchObject({ helpSeen: true, helpVisible: false, activePanel: 'layers' });
+        expect(storedLayout).toMatchObject({ helpSeen: true, helpVisible: true, activePanel: 'layers' });
+
+        await activateInspectorTab(page, 'validation');
+        await expect(page.locator('#validationDetails')).toHaveAttribute('open', '');
 
         await page.locator('#btnDockCollapse').click();
         await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
+        await expect(page.locator('#buildDock')).toBeHidden();
         await expect(page.locator('#btnToggleDockFromScene')).toHaveText('Baukarten zeigen');
         await page.locator('#btnToggleDockFromScene').click();
         await expect(page.locator('#buildDock')).not.toHaveClass(/is-collapsed/);
+        await expect(page.locator('#buildDock')).toBeVisible();
 
         await page.locator('#btnDockDetailToggle').click();
         await expect(page.locator('#buildDock')).toHaveClass(/is-detailed/);
@@ -462,10 +475,13 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#btnDuplicateSelected').click();
         await expect(page.locator('#objectList .objectRow')).toHaveCount(2);
         await expect(page.locator('#btnUndo')).toBeEnabled();
+        await expect(page.locator('#btnDuplicateSelected')).toBeVisible();
+        await expect(page.locator('#btnGroupMarked')).toBeHidden();
 
         const marked = page.locator('#objectList input[type="checkbox"]');
         await marked.nth(0).check();
         await marked.nth(1).check();
+        await expect(page.locator('#btnGroupMarked')).toBeVisible();
         await expect(page.locator('#btnGroupMarked')).toBeEnabled();
         await page.locator('#btnGroupMarked').click();
         const groupIds = await page.evaluate(() => Array.from(window.CURVIOS_EDITOR.core.objectsContainer.children)

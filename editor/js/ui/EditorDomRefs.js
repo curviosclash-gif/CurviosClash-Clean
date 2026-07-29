@@ -121,6 +121,9 @@ export function createEditorDomRefs(doc = document) {
 
         dirtyStateBadge: doc.getElementById('dirtyStateBadge'),
         validationStateBadge: doc.getElementById('validationStateBadge'),
+        validationIssueBadge: doc.getElementById('validationIssueBadge'),
+        validationDetails: doc.getElementById('validationDetails'),
+        editorTabValidation: doc.getElementById('editorTabValidation'),
         workspaceStatusMessage: doc.getElementById('workspaceStatusMessage'),
         validationList: doc.getElementById('validationList'),
         recoveryBanner: doc.getElementById('recoveryBanner'),
