@@ -361,7 +361,7 @@ export class PlayerView {
         }
     }
 
-    updateVisuals(dt) {
+    updateVisuals(dt, { emitParticles = true } = {}) {
         if (!this.group) return;
 
         const safeDt = Math.max(0, Math.min(0.05, Number(dt) || 0));
@@ -395,7 +395,7 @@ export class PlayerView {
             }
         }
 
-        if (safeDt > 0 && this.player.alive) {
+        if (emitParticles && safeDt > 0 && this.player.alive) {
             this._emitThrusterExhaust(safeDt);
         }
 

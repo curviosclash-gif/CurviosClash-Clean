@@ -1,13 +1,13 @@
 // @ts-nocheck
 import { createGameStateSnapshot } from '../GameStateSnapshot.js';
 
-export const CINEMATIC_REPLAY_CONTRACT_VERSION = 'cinematic-replay.v1';
+export const CINEMATIC_REPLAY_CONTRACT_VERSION = 'cinematic-replay.v2';
 export const CINEMATIC_REPLAY_SAMPLE_FPS = 30;
 export const CINEMATIC_REPLAY_MAX_DURATION_SECONDS = 60 * 60;
 export const CINEMATIC_REPLAY_MAX_ESTIMATED_BYTES = 256 * 1024 * 1024;
 
 const AUDIO_STOP_TIMEOUT_MS = 8000;
-const MAX_PARTICLES_PER_SNAPSHOT = 192;
+const MAX_PARTICLES_PER_SNAPSHOT = 1000;
 
 function toFiniteNumber(value, fallback = 0) {
     const numeric = Number(value);
@@ -29,10 +29,10 @@ function captureParticleState(particles) {
         Math.max(0, Math.trunc(toFiniteNumber(particles?.count, 0)))
     );
     if (count <= 0 || !particles?.positions || !particles?.velocities) return null;
-    const values = new Array(count * 12);
+    const values = new Array(count * 13);
     for (let index = 0; index < count; index++) {
         const src3 = index * 3;
-        const dst = index * 12;
+        const dst = index * 13;
         values[dst] = toFiniteNumber(particles.positions[src3], 0);
         values[dst + 1] = toFiniteNumber(particles.positions[src3 + 1], 0);
         values[dst + 2] = toFiniteNumber(particles.positions[src3 + 2], 0);
@@ -44,23 +44,56 @@ function captureParticleState(particles) {
             values[dst + 6],
             toFiniteNumber(particles.maxLifetimes?.[index], values[dst + 6])
         );
-        values[dst + 8] = Math.max(0, toFiniteNumber(particles.scales?.[index], 0));
-        values[dst + 9] = toFiniteNumber(particles.colors?.[src3], 1);
-        values[dst + 10] = toFiniteNumber(particles.colors?.[src3 + 1], 1);
-        values[dst + 11] = toFiniteNumber(particles.colors?.[src3 + 2], 1);
+        values[dst + 8] = toFiniteNumber(particles.gravities?.[index], 0);
+        values[dst + 9] = Math.max(0, toFiniteNumber(particles.scales?.[index], 0));
+        values[dst + 10] = toFiniteNumber(particles.colors?.[src3], 1);
+        values[dst + 11] = toFiniteNumber(particles.colors?.[src3 + 1], 1);
+        values[dst + 12] = toFiniteNumber(particles.colors?.[src3 + 2], 1);
     }
     return { count, values };
 }
 
-function enrichPlayerVisualState(snapshotPlayers, livePlayers) {
+function enrichPlayerVisualState(snapshotPlayers, livePlayers, renderProjection = null) {
+    const projectedPlayers = Array.isArray(renderProjection?.players)
+        ? renderProjection.players
+        : [];
     for (let index = 0; index < snapshotPlayers.length; index++) {
         const snapshot = snapshotPlayers[index];
-        const player = livePlayers[index];
+        const player = livePlayers.find(
+            (candidate) => Number(candidate?.index) === Number(snapshot?.index)
+        ) || livePlayers[index];
         if (!snapshot || !player) continue;
+        const projected = projectedPlayers.find(
+            (candidate) => Number(candidate?.playerIndex) === Number(snapshot.index)
+        );
+        if (projected?.position) {
+            snapshot.pos = [
+                toFiniteNumber(projected.position.x),
+                toFiniteNumber(projected.position.y),
+                toFiniteNumber(projected.position.z),
+            ];
+        }
+        if (projected?.quaternion) {
+            snapshot.rot = [
+                toFiniteNumber(projected.quaternion.x),
+                toFiniteNumber(projected.quaternion.y),
+                toFiniteNumber(projected.quaternion.z),
+                toFiniteNumber(projected.quaternion.w, 1),
+            ];
+        }
         snapshot.maxHealth = toFiniteNumber(player.maxHp, 100);
+        snapshot.maxShieldHp = toFiniteNumber(player.maxShieldHp, 0);
+        snapshot.shieldHitFeedback = toFiniteNumber(player.shieldHitFeedback, 0);
         snapshot.boostCharge = toFiniteNumber(player.boostCharge, 0);
+        snapshot.boostCapacity = Math.max(0.001, toFiniteNumber(
+            player.boostCapacity
+            ?? player.gameplayConfig?.PLAYER?.BOOST_DURATION,
+            1
+        ));
         snapshot.isBoosting = player.isBoosting === true;
         snapshot.cameraMode = Math.trunc(toFiniteNumber(player.cameraMode, 0));
+        snapshot.cockpitCamera = player.cockpitCamera === true;
+        snapshot.planarMode = player.gameplayConfig?.GAMEPLAY?.PLANAR_MODE === true;
         snapshot.modelScale = Math.max(0.01, toFiniteNumber(player.modelScale, 1));
         snapshot.color = Math.trunc(toFiniteNumber(player.color, 0xffffff));
         snapshot.vehicleId = String(
@@ -77,12 +110,93 @@ function enrichPlayerVisualState(snapshotPlayers, livePlayers) {
     }
 }
 
-function createReplaySnapshot({ entityManager, roundState, particles, elapsedMs, gameStateId = '' }) {
+function enrichSceneVisualState(snapshot, entityManager) {
+    const liveProjectiles = entityManager?.projectiles || [];
+    for (let index = 0; index < snapshot.projectiles.length; index++) {
+        const entry = snapshot.projectiles[index];
+        const projectile = liveProjectiles.find(
+            (candidate, candidateIndex) => String(
+                candidate?.id || candidate?.traversalId || candidateIndex
+            ) === String(entry.id)
+        );
+        if (!projectile) continue;
+        entry.color = Math.trunc(toFiniteNumber(
+            projectile.color
+            ?? projectile.mesh?.userData?.projectileColor
+            ?? projectile.mesh?.material?.color?.getHex?.(),
+            0xffaa00
+        ));
+        entry.visualScale = Math.max(
+            0.01,
+            toFiniteNumber(projectile.visualScale ?? projectile.mesh?.scale?.x, 1)
+        );
+        entry.visible = projectile.mesh?.visible !== false;
+    }
+
+    const livePowerups = entityManager?.powerups || entityManager?.powerupManager?.items || [];
+    for (let index = 0; index < snapshot.powerups.length; index++) {
+        const entry = snapshot.powerups[index];
+        const powerup = livePowerups.find(
+            (candidate, candidateIndex) => String(
+                candidate?.id || candidate?.networkId || candidateIndex
+            ) === String(entry.id)
+        );
+        if (!powerup) continue;
+        if (powerup.mesh?.position) {
+            entry.pos = [
+                toFiniteNumber(powerup.mesh.position.x),
+                toFiniteNumber(powerup.mesh.position.y),
+                toFiniteNumber(powerup.mesh.position.z),
+            ];
+        }
+        entry.rotationY = toFiniteNumber(powerup.mesh?.rotation?.y, 0);
+        entry.visible = powerup.mesh?.visible !== false;
+    }
+}
+
+function captureCameraState(cameras) {
+    const source = Array.isArray(cameras) ? cameras : [];
+    return source.map((camera, index) => ({
+        index,
+        position: [
+            toFiniteNumber(camera?.position?.x),
+            toFiniteNumber(camera?.position?.y),
+            toFiniteNumber(camera?.position?.z),
+        ],
+        quaternion: [
+            toFiniteNumber(camera?.quaternion?.x),
+            toFiniteNumber(camera?.quaternion?.y),
+            toFiniteNumber(camera?.quaternion?.z),
+            toFiniteNumber(camera?.quaternion?.w, 1),
+        ],
+        fov: Math.max(1, toFiniteNumber(camera?.fov, 60)),
+        aspect: Math.max(0.01, toFiniteNumber(camera?.aspect, 16 / 9)),
+        near: Math.max(0.001, toFiniteNumber(camera?.near, 0.1)),
+        far: Math.max(1, toFiniteNumber(camera?.far, 200)),
+        zoom: Math.max(0.01, toFiniteNumber(camera?.zoom, 1)),
+    }));
+}
+
+function createReplaySnapshot({
+    entityManager,
+    roundState,
+    particles,
+    cameras,
+    renderProjection,
+    elapsedMs,
+    gameStateId = '',
+}) {
     const snapshot = createGameStateSnapshot(entityManager, roundState);
-    enrichPlayerVisualState(snapshot.players, entityManager?.players || []);
+    enrichPlayerVisualState(
+        snapshot.players,
+        entityManager?.players || [],
+        renderProjection
+    );
+    enrichSceneVisualState(snapshot, entityManager);
     snapshot.timeMs = Math.max(0, Math.round(elapsedMs));
     snapshot.gameStateId = String(gameStateId || '');
     snapshot.particles = captureParticleState(particles);
+    snapshot.cameras = captureCameraState(cameras);
     return snapshot;
 }
 
@@ -91,6 +205,7 @@ function estimateSnapshotBytes(snapshot) {
         + ((snapshot?.players?.length || 0) * 256)
         + ((snapshot?.projectiles?.length || 0) * 160)
         + ((snapshot?.powerups?.length || 0) * 96)
+        + ((snapshot?.cameras?.length || 0) * 128)
         + ((snapshot?.particles?.values?.length || 0) * 8);
 }
 
@@ -133,6 +248,7 @@ export class CinematicReplayRecorder {
         this._startedAt = 0;
         this._elapsedMs = 0;
         this._sampleAccumulatorMs = 0;
+        this._lastCaptureAt = 0;
         this._snapshots = [];
         this._metadata = null;
         this._partial = false;
@@ -157,6 +273,7 @@ export class CinematicReplayRecorder {
         this._startedAt = this.now();
         this._elapsedMs = 0;
         this._sampleAccumulatorMs = 0;
+        this._lastCaptureAt = this._startedAt;
         this._snapshots = [];
         this._metadata = cloneJsonValue(metadata, {});
         this._partial = false;
@@ -191,9 +308,21 @@ export class CinematicReplayRecorder {
         }
     }
 
-    capture({ entityManager, roundState = null, particles = null, dt = 0, metadata = null } = {}) {
+    capture({
+        entityManager,
+        roundState = null,
+        particles = null,
+        cameras = null,
+        renderProjection = null,
+        dt = 0,
+        metadata = null,
+    } = {}) {
         if (!this._recording || !entityManager) return false;
-        const deltaMs = Math.max(0, toFiniteNumber(dt, 0)) * 1000;
+        const capturedAt = this.now();
+        const wallDeltaMs = Math.max(0, capturedAt - this._lastCaptureAt);
+        this._lastCaptureAt = capturedAt;
+        const renderDeltaMs = Math.max(0, toFiniteNumber(dt, 0)) * 1000;
+        const deltaMs = wallDeltaMs > 0 ? wallDeltaMs : renderDeltaMs;
         this._elapsedMs += deltaMs;
         this._sampleAccumulatorMs += deltaMs;
         const intervalMs = 1000 / this.sampleFps;
@@ -215,6 +344,8 @@ export class CinematicReplayRecorder {
             entityManager,
             roundState,
             particles,
+            cameras,
+            renderProjection,
             elapsedMs: this._elapsedMs,
             gameStateId: metadata?.gameStateId || '',
         });
@@ -319,6 +450,7 @@ export class CinematicReplayRecorder {
         this._startedAt = 0;
         this._elapsedMs = 0;
         this._sampleAccumulatorMs = 0;
+        this._lastCaptureAt = 0;
         this._snapshots = [];
         this._metadata = null;
         this._partial = false;

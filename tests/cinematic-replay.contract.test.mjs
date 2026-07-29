@@ -55,6 +55,26 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
         globalScope: {},
     });
     const entityManager = createEntityManager();
+    const particleCount = 240;
+    const particles = {
+        count: particleCount,
+        positions: new Float32Array(particleCount * 3).fill(1),
+        velocities: new Float32Array(particleCount * 3).fill(2),
+        lifetimes: new Float32Array(particleCount).fill(0.5),
+        maxLifetimes: new Float32Array(particleCount).fill(1),
+        gravities: new Float32Array(particleCount).fill(-9.81),
+        scales: new Float32Array(particleCount).fill(0.75),
+        colors: new Float32Array(particleCount * 3).fill(0.25),
+    };
+    const cameras = [{
+        position: { x: 8, y: 6, z: 4 },
+        quaternion: { x: 0, y: 0.5, z: 0, w: 0.866 },
+        fov: 72,
+        aspect: 16 / 9,
+        near: 0.2,
+        far: 300,
+        zoom: 1.1,
+    }];
     const start = recorder.start({
         matchId: 'match-contract',
         metadata: { mapKey: 'arena', seed: 42 },
@@ -67,6 +87,15 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
         recorder.capture({
             entityManager,
             roundState: { frame, round: 1, timeRemaining: 30, scores: [2, 1] },
+            particles,
+            cameras,
+            renderProjection: {
+                players: [{
+                    playerIndex: 0,
+                    position: { x: 50 + frame, y: 4, z: -3 },
+                    quaternion: { x: 0, y: 0, z: 0, w: 1 },
+                }],
+            },
             dt: 1 / 60,
         });
     }
@@ -78,6 +107,11 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
     assert.equal(replay.snapshots[0].players[0].trailWidth, 0.85);
     assert.equal(replay.snapshots[0].players[0].trailInGap, true);
     assert.equal(replay.snapshots[0].projectiles[0].type, 'rocket');
+    assert.equal(replay.snapshots[0].players[0].pos[0], 50);
+    assert.equal(replay.snapshots[0].particles.count, particleCount);
+    assert.equal(replay.snapshots[0].particles.values.length, particleCount * 13);
+    assert.deepEqual(replay.snapshots[0].cameras[0].position, [8, 6, 4]);
+    assert.equal(replay.snapshots[0].cameras[0].fov, 72);
     assert.deepEqual(replay.metadata, { mapKey: 'arena', seed: 42 });
     assert.equal(replay.audioWarning, 'audio_capture_unavailable');
 });
@@ -90,6 +124,25 @@ test('cinematic replay partial state is preserved through stop', async () => {
     const replay = await recorder.stop();
     assert.equal(replay.partial, true);
     assert.equal(replay.partialReason, 'snapshot_budget_exhausted');
+});
+
+test('cinematic replay timing follows integer wall-clock deltas without cumulative drift', () => {
+    let now = 1000;
+    const recorder = new CinematicReplayRecorder({
+        sampleFps: 30,
+        now: () => now,
+        globalScope: {},
+    });
+    recorder.start({ matchId: 'timing-contract' });
+    const entityManager = { players: [], projectiles: [], powerups: [] };
+    const wallDeltas = [17, 17, 16];
+
+    for (let frame = 0; frame < 600; frame++) {
+        now += wallDeltas[frame % wallDeltas.length];
+        recorder.capture({ entityManager, dt: 1 / 60 });
+    }
+
+    assert.equal(recorder._elapsedMs, 10000);
 });
 
 test('cinematic replay library keeps individual recordings selectable and bounded', () => {
@@ -211,7 +264,7 @@ test('failed manual cinematic render retains the selected recording', async () =
 test('cinematic export streams frames once and propagates partial metadata', async () => {
     const frameBytes = new Uint8ClampedArray(1920 * 1080 * 4);
     const calls = [];
-    let firstProjectionTrail = null;
+    let firstProjectionState = null;
     const saveContract = {
         contractVersion: 'preload.save.v2',
         beginCinematicReplayExport: async () => ({ started: true, exportId: 'export-1' }),
@@ -244,9 +297,12 @@ test('cinematic export streams frames once and propagates partial metadata', asy
         runtimeGlobal,
         renderFrame: async ({ reset, projection }) => {
             if (reset) return null;
-            firstProjectionTrail ||= {
-                width: projection.players[0].trailWidth,
-                inGap: projection.players[0].trailInGap,
+            firstProjectionState ||= {
+                trailWidth: projection.players[0].trailWidth,
+                trailInGap: projection.players[0].trailInGap,
+                hasShield: projection.players[0].hasShield,
+                cameraX: projection.recordedCamera.position.x,
+                cameraFov: projection.recordedCamera.fov,
             };
             return {
                 width: 1920,
@@ -267,7 +323,19 @@ test('cinematic export streams frames once and propagates partial metadata', asy
             health: 100,
             trailWidth: 0.85,
             trailInGap: true,
+            hasShield: true,
+            shieldHP: 40,
         }],
+        cameras: [0, 1, 2].map((index) => ({
+            index,
+            position: [4 + index, 5, 6],
+            quaternion: [0, 0, 0, 1],
+            fov: 68 + index,
+            aspect: 16 / 9,
+            near: 0.1,
+            far: 200,
+            zoom: 1,
+        })),
     };
     const result = await controller.export({
         matchId: 'match-stream',
@@ -276,7 +344,7 @@ test('cinematic export streams frames once and propagates partial metadata', asy
             baseSnapshot,
             { ...baseSnapshot, timeMs: 17, players: [{ ...baseSnapshot.players[0], pos: [1, 0, 0] }] },
         ],
-        metadata: {},
+        metadata: { localPlayerIndex: 2 },
         partial: true,
         partialReason: 'audio_stop_timeout',
         audioBlob: null,
@@ -286,7 +354,13 @@ test('cinematic export streams frames once and propagates partial metadata', asy
     assert.equal(result.partial, true);
     assert.equal(result.partialReason, 'audio_stop_timeout');
     assert.deepEqual(calls, [0, 1]);
-    assert.deepEqual(firstProjectionTrail, { width: 0.85, inGap: true });
+    assert.deepEqual(firstProjectionState, {
+        trailWidth: 0.85,
+        trailInGap: true,
+        hasShield: true,
+        cameraX: 6,
+        cameraFov: 70,
+    });
 });
 
 test('cinematic export keeps consecutive saved renders successful when scene cleanup fails', async () => {
@@ -387,6 +461,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
             calls.push(['update', dt, position.x, direction.x, { ...options }]);
         },
     };
+    let visualOptions = null;
     const player = {
         index: 0,
         position: new THREE.Vector3(),
@@ -400,7 +475,20 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         view: {
             setVisible() {},
             syncFromState() {},
-            updateVisuals() {},
+            updateVisuals(dt, options) {
+                visualOptions = { dt, ...options };
+            },
+        },
+    };
+    const networkSnapshots = [];
+    let networkReplicaEnabled = false;
+    const entityManager = {
+        players: [player],
+        setNetworkReplica(enabled) {
+            networkReplicaEnabled = enabled;
+        },
+        applyNetworkSnapshot(snapshot) {
+            networkSnapshots.push(structuredClone(snapshot));
         },
     };
     const captureCanvas = { width: 1920, height: 1080 };
@@ -418,7 +506,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         renderer,
         prepareReplaySession: async () => {
             preparedSessions += 1;
-            return { entityManager: { players: [player] }, particles: null, arena: null };
+            return { entityManager, particles: null, arena: null };
         },
         disposeReplaySession: async () => {
             disposedSessions += 1;
@@ -442,7 +530,43 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
     assert.equal(await renderFrame({
         replay,
         projection,
-        leftSnapshot: { projectiles: [] },
+        leftSnapshot: {
+            projectiles: [{
+                id: 'rocket-1',
+                type: 'rocket',
+                owner: 0,
+                pos: [0, 0, 0],
+                vel: [0, 0, 2],
+                ttl: 2,
+                visualScale: 1.5,
+            }],
+            powerups: [{
+                id: 'boost-1',
+                type: 'BOOST',
+                pos: [2, 0, 0],
+                rotationY: 0,
+                visible: true,
+            }],
+        },
+        rightSnapshot: {
+            projectiles: [{
+                id: 'rocket-1',
+                type: 'rocket',
+                owner: 0,
+                pos: [4, 0, 0],
+                vel: [0, 0, 4],
+                ttl: 1,
+                visualScale: 1.5,
+            }],
+            powerups: [{
+                id: 'boost-1',
+                type: 'BOOST',
+                pos: [6, 0, 0],
+                rotationY: 1,
+                visible: true,
+            }],
+        },
+        alpha: 0.5,
         frameIndex: 0,
         dt: 1 / 60,
     }), captureCanvas);
@@ -457,6 +581,10 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
 
     assert.equal(preparedSessions, 1);
     assert.equal(disposedSessions, 1);
+    assert.equal(networkReplicaEnabled, true);
+    assert.equal(networkSnapshots[0].projectiles[0].pos[0], 2);
+    assert.equal(networkSnapshots[0].powerups[0].pos[0], 4);
+    assert.deepEqual(visualOptions, { dt: 1 / 60, emitParticles: false });
     assert.deepEqual(calls, [
         ['clear'],
         ['width', 0.85],

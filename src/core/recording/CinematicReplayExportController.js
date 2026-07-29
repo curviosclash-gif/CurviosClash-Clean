@@ -1,5 +1,6 @@
 // @ts-nocheck
 import { createElectronPreloadSaveAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
+import { updateReplayProjection } from './CinematicReplayProjection.js';
 
 export const CINEMATIC_REPLAY_EXPORT_FPS = 60;
 export const CINEMATIC_REPLAY_EXPORT_WIDTH = 1920;
@@ -12,140 +13,6 @@ function toFiniteNumber(value, fallback = 0) {
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, toFiniteNumber(value, 0)));
-}
-
-function lerp(left, right, alpha) {
-    return left + ((right - left) * alpha);
-}
-
-function normalizeQuaternion(out) {
-    const length = Math.hypot(out.x, out.y, out.z, out.w);
-    if (length <= 0.000001) {
-        out.x = 0;
-        out.y = 0;
-        out.z = 0;
-        out.w = 1;
-        return out;
-    }
-    out.x /= length;
-    out.y /= length;
-    out.z /= length;
-    out.w /= length;
-    return out;
-}
-
-function ensureProjectionPlayer(outPlayers, index) {
-    while (outPlayers.length <= index) {
-        outPlayers.push({
-            playerIndex: 0,
-            isBot: false,
-            alive: true,
-            color: 0xffffff,
-            score: 0,
-            speed: 0,
-            boostCharge: 0,
-            boostCapacity: 1,
-            isBoosting: false,
-            hp: 100,
-            maxHp: 100,
-            trailWidth: 0.6,
-            trailInGap: false,
-            cockpitCamera: false,
-            planarMode: false,
-            cameraModeId: 'THIRD_PERSON',
-            position: { x: 0, y: 0, z: 0 },
-            quaternion: { x: 0, y: 0, z: 0, w: 1 },
-            direction: { x: 0, y: 0, z: -1 },
-            firstPersonAnchor: { x: 0, y: 0, z: -1 },
-        });
-    }
-    return outPlayers[index];
-}
-
-function findPlayerByIndex(players, playerIndex, fallbackIndex) {
-    const list = Array.isArray(players) ? players : [];
-    for (let index = 0; index < list.length; index++) {
-        if (Number(list[index]?.index) === playerIndex) return list[index];
-    }
-    return list[fallbackIndex] || null;
-}
-
-function updateProjectionPlayer(out, left, right, alpha, fallbackIndex) {
-    const leftPos = left?.pos || [0, 0, 0];
-    const rightPos = right?.pos || leftPos;
-    const leftRot = left?.rot || [0, 0, 0, 1];
-    const rightRot = right?.rot || leftRot;
-    out.playerIndex = Number.isInteger(left?.index) ? left.index : fallbackIndex;
-    out.isBot = left?.isBot === true;
-    out.alive = alpha < 0.5 ? left?.alive !== false : right?.alive !== false;
-    out.color = Math.trunc(toFiniteNumber(left?.color, 0xffffff));
-    out.score = Math.max(0, Math.round(lerp(
-        toFiniteNumber(left?.score, 0),
-        toFiniteNumber(right?.score, toFiniteNumber(left?.score, 0)),
-        alpha
-    )));
-    out.speed = lerp(
-        toFiniteNumber(left?.speed, 0),
-        toFiniteNumber(right?.speed, toFiniteNumber(left?.speed, 0)),
-        alpha
-    );
-    out.boostCharge = lerp(
-        toFiniteNumber(left?.boostCharge, 0),
-        toFiniteNumber(right?.boostCharge, toFiniteNumber(left?.boostCharge, 0)),
-        alpha
-    );
-    out.boostCapacity = 1;
-    out.isBoosting = alpha < 0.5 ? left?.isBoosting === true : right?.isBoosting === true;
-    out.hp = lerp(
-        toFiniteNumber(left?.health, 100),
-        toFiniteNumber(right?.health, toFiniteNumber(left?.health, 100)),
-        alpha
-    );
-    out.maxHp = Math.max(1, toFiniteNumber(left?.maxHealth, 100));
-    out.trailWidth = Math.max(0.01, lerp(
-        toFiniteNumber(left?.trailWidth, 0.6),
-        toFiniteNumber(right?.trailWidth, toFiniteNumber(left?.trailWidth, 0.6)),
-        alpha
-    ));
-    out.trailInGap = alpha < 0.5 ? left?.trailInGap === true : right?.trailInGap === true;
-    out.position.x = lerp(toFiniteNumber(leftPos[0]), toFiniteNumber(rightPos[0]), alpha);
-    out.position.y = lerp(toFiniteNumber(leftPos[1]), toFiniteNumber(rightPos[1]), alpha);
-    out.position.z = lerp(toFiniteNumber(leftPos[2]), toFiniteNumber(rightPos[2]), alpha);
-    out.quaternion.x = lerp(toFiniteNumber(leftRot[0]), toFiniteNumber(rightRot[0]), alpha);
-    out.quaternion.y = lerp(toFiniteNumber(leftRot[1]), toFiniteNumber(rightRot[1]), alpha);
-    out.quaternion.z = lerp(toFiniteNumber(leftRot[2]), toFiniteNumber(rightRot[2]), alpha);
-    out.quaternion.w = lerp(toFiniteNumber(leftRot[3], 1), toFiniteNumber(rightRot[3], 1), alpha);
-    normalizeQuaternion(out.quaternion);
-    const q = out.quaternion;
-    out.direction.x = -2 * ((q.x * q.z) + (q.w * q.y));
-    out.direction.y = -2 * ((q.y * q.z) - (q.w * q.x));
-    out.direction.z = -1 + (2 * ((q.x * q.x) + (q.y * q.y)));
-    out.firstPersonAnchor.x = out.position.x + out.direction.x;
-    out.firstPersonAnchor.y = out.position.y + out.direction.y + 0.5;
-    out.firstPersonAnchor.z = out.position.z + out.direction.z;
-}
-
-function updateReplayProjection(projection, leftSnapshot, rightSnapshot, alpha, metadata) {
-    const leftPlayers = Array.isArray(leftSnapshot?.players) ? leftSnapshot.players : [];
-    const rightPlayers = Array.isArray(rightSnapshot?.players) ? rightSnapshot.players : leftPlayers;
-    projection.updatedAt = Math.max(0, toFiniteNumber(leftSnapshot?.timeMs, 0));
-    projection.gameStateId = String(leftSnapshot?.gameStateId || 'playing');
-    projection.modeId = String(metadata?.activeGameMode || metadata?.modeId || '');
-    projection.localHumanCount = Math.max(1, Math.trunc(toFiniteNumber(metadata?.numHumans, 1)));
-    for (let index = 0; index < leftPlayers.length; index++) {
-        const left = leftPlayers[index];
-        const playerIndex = Number.isInteger(left?.index) ? left.index : index;
-        const right = findPlayerByIndex(rightPlayers, playerIndex, index) || left;
-        updateProjectionPlayer(
-            ensureProjectionPlayer(projection.players, index),
-            left,
-            right,
-            alpha,
-            index
-        );
-    }
-    projection.players.length = leftPlayers.length;
-    return projection;
 }
 
 function yieldToRenderer() {
@@ -199,6 +66,7 @@ export class CinematicReplayExportController {
             localPlayerIndex: 0,
             localHumanCount: 1,
             players: [],
+            recordedCamera: null,
         };
     }
 

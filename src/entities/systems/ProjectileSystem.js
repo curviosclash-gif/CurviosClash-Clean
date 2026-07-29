@@ -448,6 +448,9 @@ export class ProjectileSystem {
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
             projectile.mesh.position.copy(projectile.position);
+            projectile.visualScale = Math.max(0.01, Number(entry.visualScale) || 1);
+            projectile.mesh.scale.setScalar(projectile.visualScale);
+            projectile.mesh.visible = entry.visible !== false;
             if (projectile.huntRocket && !projectile.rocketTrailHandle) {
                 this._rocketTrailSystem.initializeProjectile(projectile);
             }

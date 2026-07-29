@@ -406,6 +406,8 @@ export class PowerupManager {
             }
             const pos = Array.isArray(entry.pos) ? entry.pos : [];
             item.mesh.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
+            item.mesh.rotation.y = Number(entry.rotationY) || 0;
+            item.mesh.visible = entry.visible !== false;
             item.baseY = item.mesh.position.y;
             item.box.setFromCenterAndSize(item.mesh.position, this._pickupBoxSize);
         }

@@ -1,4 +1,5 @@
 // @ts-nocheck
+import * as THREE from 'three';
 import {
     RECORDING_CAPTURE_PROFILE,
     RECORDING_EXPORT_PRESET,
@@ -129,7 +130,27 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
         player.hp = Math.max(0, toFiniteNumber(projected.hp, player.hp));
         player.score = Math.max(0, Math.round(toFiniteNumber(projected.score, player.score)));
         player.speed = Math.max(0, toFiniteNumber(projected.speed, player.speed));
+        player.boostCharge = Math.max(0, toFiniteNumber(projected.boostCharge, player.boostCharge));
         player.isBoosting = projected.isBoosting === true;
+        player.hasShield = projected.hasShield === true;
+        player.shieldHP = Math.max(0, toFiniteNumber(projected.shieldHP, player.shieldHP));
+        player.maxShieldHp = Math.max(0, toFiniteNumber(projected.maxShieldHp, player.maxShieldHp));
+        player.shieldHitFeedback = Math.max(
+            0,
+            toFiniteNumber(projected.shieldHitFeedback, player.shieldHitFeedback)
+        );
+        player.inventory = Array.isArray(projected.inventory) ? projected.inventory.slice() : [];
+        player.activeEffects = Array.isArray(projected.effects)
+            ? projected.effects.map((effect) => ({ ...effect }))
+            : [];
+        player.animationState = String(projected.animation || '');
+        player.activeWeapon = String(projected.weapon || '');
+        player.skinId = String(projected.skinId || player.skinId || '');
+        const projectedScale = Math.max(0.01, toFiniteNumber(projected.modelScale, player.modelScale || 1));
+        if (Math.abs(projectedScale - toFiniteNumber(player.modelScale, 1)) > 0.0001) {
+            player.modelScale = projectedScale;
+            player.view?.applyModelScale?.();
+        }
         const previousAlive = replayAliveState.get(player.index);
         player.trail?.setWidth?.(Math.max(0.01, toFiniteNumber(projected.trailWidth, player.trail?.width || 0.6)));
         player.trail?.updateReplayVisual?.(
@@ -144,54 +165,100 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
         replayAliveState.set(player.index, player.alive);
         player.view?.setVisible?.(true);
         player.view?.syncFromState?.();
-        player.view?.updateVisuals?.(safeDt);
+        player.view?.updateVisuals?.(safeDt, { emitParticles: false });
     }
 }
 
-function ensureProjectileProxy(renderer, proxies, index) {
-    while (proxies.length <= index) {
-        const geometry = new THREE.SphereGeometry(0.18, 8, 6);
-        const material = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
-        const mesh = new THREE.Mesh(geometry, material);
-        mesh.visible = false;
-        renderer?.addToScene?.(mesh);
-        proxies.push(mesh);
+function findEntryById(entries, id) {
+    const list = Array.isArray(entries) ? entries : [];
+    for (let index = 0; index < list.length; index++) {
+        if (String(list[index]?.id ?? index) === id) return list[index];
     }
-    return proxies[index];
+    return null;
 }
 
-function applySnapshotToProjectiles(renderer, proxies, leftSnapshot) {
-    const projected = Array.isArray(leftSnapshot?.projectiles) ? leftSnapshot.projectiles : [];
-    for (let index = 0; index < proxies.length; index++) proxies[index].visible = false;
-    for (let index = 0; index < projected.length; index++) {
-        const state = projected[index];
-        const mesh = ensureProjectileProxy(renderer, proxies, index);
-        mesh.visible = true;
-        mesh.position.set(
-            toFiniteNumber(state.pos?.[0]),
-            toFiniteNumber(state.pos?.[1]),
-            toFiniteNumber(state.pos?.[2])
+function interpolateSceneEntries(target, leftEntries, rightEntries, alpha) {
+    const selected = alpha < 0.5
+        ? (Array.isArray(leftEntries) ? leftEntries : [])
+        : (Array.isArray(rightEntries) ? rightEntries : []);
+    while (target.length < selected.length) {
+        target.push({ pos: [0, 0, 0], vel: [0, 0, 0] });
+    }
+    for (let index = 0; index < selected.length; index++) {
+        const source = selected[index];
+        const id = String(source?.id ?? index);
+        const left = findEntryById(leftEntries, id) || source;
+        const right = findEntryById(rightEntries, id) || source;
+        const out = target[index];
+        const leftPosition = Array.isArray(left?.pos) ? left.pos : [0, 0, 0];
+        const rightPosition = Array.isArray(right?.pos) ? right.pos : leftPosition;
+        const leftVelocity = Array.isArray(left?.vel) ? left.vel : [0, 0, 0];
+        const rightVelocity = Array.isArray(right?.vel) ? right.vel : leftVelocity;
+        out.id = id;
+        out.type = String(source?.type || left?.type || right?.type || '');
+        out.owner = Math.trunc(toFiniteNumber(source?.owner ?? left?.owner ?? right?.owner, -1));
+        out.ttl = Math.max(0, THREE.MathUtils.lerp(
+            toFiniteNumber(left?.ttl, 0),
+            toFiniteNumber(right?.ttl, left?.ttl),
+            alpha
+        ));
+        out.radius = Math.max(0, toFiniteNumber(source?.radius ?? left?.radius, 0));
+        out.color = Math.trunc(toFiniteNumber(source?.color ?? left?.color, 0xffaa00));
+        out.visualScale = Math.max(0.01, toFiniteNumber(source?.visualScale ?? left?.visualScale, 1));
+        out.visible = source?.visible !== false;
+        out.rotationY = THREE.MathUtils.lerp(
+            toFiniteNumber(left?.rotationY, 0),
+            toFiniteNumber(right?.rotationY, left?.rotationY),
+            alpha
         );
-        mesh.scale.setScalar(Math.max(0.35, toFiniteNumber(state.radius, 0.18) / 0.18));
-        mesh.material.color.setHex(String(state.type || '').includes('rocket') ? 0xff6633 : 0xffdd66);
+        for (let axis = 0; axis < 3; axis++) {
+            out.pos[axis] = THREE.MathUtils.lerp(
+                toFiniteNumber(leftPosition[axis]),
+                toFiniteNumber(rightPosition[axis], leftPosition[axis]),
+                alpha
+            );
+            out.vel[axis] = THREE.MathUtils.lerp(
+                toFiniteNumber(leftVelocity[axis]),
+                toFiniteNumber(rightVelocity[axis], leftVelocity[axis]),
+                alpha
+            );
+        }
     }
+    target.length = selected.length;
 }
 
-function applySnapshotToParticles(particles, leftSnapshot) {
+function buildReplayNetworkSnapshot(target, leftSnapshot, rightSnapshot, alpha) {
+    interpolateSceneEntries(
+        target.projectiles,
+        leftSnapshot?.projectiles,
+        rightSnapshot?.projectiles,
+        alpha
+    );
+    interpolateSceneEntries(
+        target.powerups,
+        leftSnapshot?.powerups,
+        rightSnapshot?.powerups,
+        alpha
+    );
+    return target;
+}
+
+function applySnapshotToParticles(particles, leftSnapshot, timeOffsetSeconds = 0) {
     const state = leftSnapshot?.particles;
     const count = Math.max(0, Math.min(
         Number(state?.count) || 0,
         Number(particles?.positions?.length || 0) / 3
     ));
     const values = Array.isArray(state?.values) ? state.values : [];
-    if (!particles || count <= 0 || values.length < count * 12) {
+    const stride = values.length >= count * 13 ? 13 : 12;
+    if (!particles || count <= 0 || values.length < count * stride) {
         particles?.clear?.();
         return;
     }
     particles.count = count;
     for (let index = 0; index < count; index++) {
         const dst3 = index * 3;
-        const src = index * 12;
+        const src = index * stride;
         particles.positions[dst3] = toFiniteNumber(values[src]);
         particles.positions[dst3 + 1] = toFiniteNumber(values[src + 1]);
         particles.positions[dst3 + 2] = toFiniteNumber(values[src + 2]);
@@ -203,10 +270,15 @@ function applySnapshotToParticles(particles, leftSnapshot) {
             particles.lifetimes[index],
             toFiniteNumber(values[src + 7], particles.lifetimes[index])
         );
-        particles.scales[index] = Math.max(0.001, toFiniteNumber(values[src + 8], 0.1));
-        particles.colors[dst3] = toFiniteNumber(values[src + 9], 1);
-        particles.colors[dst3 + 1] = toFiniteNumber(values[src + 10], 1);
-        particles.colors[dst3 + 2] = toFiniteNumber(values[src + 11], 1);
+        particles.gravities[index] = stride === 13 ? toFiniteNumber(values[src + 8], 0) : 0;
+        particles.scales[index] = Math.max(
+            0.001,
+            toFiniteNumber(values[src + (stride === 13 ? 9 : 8)], 0.1)
+        );
+        const colorOffset = stride === 13 ? 10 : 9;
+        particles.colors[dst3] = toFiniteNumber(values[src + colorOffset], 1);
+        particles.colors[dst3 + 1] = toFiniteNumber(values[src + colorOffset + 1], 1);
+        particles.colors[dst3 + 2] = toFiniteNumber(values[src + colorOffset + 2], 1);
         if (particles.mesh?.setColorAt && particles._tmpColor?.setRGB) {
             particles._tmpColor.setRGB(
                 particles.colors[dst3],
@@ -216,7 +288,7 @@ function applySnapshotToParticles(particles, leftSnapshot) {
             particles.mesh.setColorAt(index, particles._tmpColor);
         }
     }
-    particles.update?.(0);
+    particles.update?.(Math.max(0, toFiniteNumber(timeOffsetSeconds, 0)));
     if (particles.mesh?.instanceColor) particles.mesh.instanceColor.needsUpdate = true;
 }
 
@@ -226,18 +298,22 @@ export function createCinematicReplayFrameRenderer({
     prepareReplaySession = prepareDefaultReplaySession,
     disposeReplaySession = disposeDefaultReplaySession,
 } = {}) {
-    const projectileProxies = [];
+    const networkSnapshot = { projectiles: [], powerups: [] };
     const replayAliveState = new Map();
     let activeReplay = null;
     let activeReplaySession = null;
     let pendingReplaySession = null;
     let previousRecordingSettings = null;
     let previousCameraPerspectiveSettings = null;
+    let previousGraphicsStyle = null;
+    let previousShadowQuality = null;
 
     const applyReplayRendererSettings = (replay) => {
         const metadata = replay?.metadata && typeof replay.metadata === 'object' ? replay.metadata : {};
         previousRecordingSettings = renderer?.getRecordingCaptureSettings?.() || null;
         previousCameraPerspectiveSettings = renderer?.getCameraPerspectiveSettings?.() || null;
+        previousGraphicsStyle = renderer?.getGraphicsStyle?.() || null;
+        previousShadowQuality = renderer?.getShadowQuality?.() ?? null;
         renderer?.setRecordingCaptureSettings?.({
             ...(previousRecordingSettings || {}),
             profile: RECORDING_CAPTURE_PROFILE.CINEMATIC,
@@ -249,6 +325,15 @@ export function createCinematicReplayFrameRenderer({
         renderer?.setCameraPerspectiveSettings?.(
             metadata.settings?.cameraPerspective || previousCameraPerspectiveSettings
         );
+        const recordedLocalSettings = metadata.settings?.localSettings || {};
+        renderer?.setGraphicsStyle?.(
+            recordedLocalSettings.graphicsStyle
+            || metadata.settings?.graphicsStyle
+            || previousGraphicsStyle
+        );
+        if (recordedLocalSettings.shadowQuality != null) {
+            renderer?.setShadowQuality?.(recordedLocalSettings.shadowQuality);
+        }
     };
 
     const restoreRendererSettings = () => {
@@ -258,8 +343,12 @@ export function createCinematicReplayFrameRenderer({
         if (previousCameraPerspectiveSettings) {
             renderer?.setCameraPerspectiveSettings?.(previousCameraPerspectiveSettings);
         }
+        if (previousGraphicsStyle) renderer?.setGraphicsStyle?.(previousGraphicsStyle);
+        if (previousShadowQuality != null) renderer?.setShadowQuality?.(previousShadowQuality);
         previousRecordingSettings = null;
         previousCameraPerspectiveSettings = null;
+        previousGraphicsStyle = null;
+        previousShadowQuality = null;
     };
 
     const resetReplaySession = async () => {
@@ -296,6 +385,7 @@ export function createCinematicReplayFrameRenderer({
         }
         activeReplaySession = await pendingReplaySession;
         pendingReplaySession = null;
+        activeReplaySession?.entityManager?.setNetworkReplica?.(true);
         return activeReplaySession;
     };
 
@@ -303,18 +393,17 @@ export function createCinematicReplayFrameRenderer({
         replay = null,
         projection = null,
         leftSnapshot = null,
+        rightSnapshot = null,
+        alpha = 0,
         frameIndex = 0,
+        timeMs = 0,
         dt = 1 / 60,
         reset = false,
     } = {}) => {
         if (reset) {
             const entityManager = activeReplaySession?.entityManager || null;
-            for (const proxy of projectileProxies) {
-                renderer?.removeFromScene?.(proxy);
-                proxy.geometry?.dispose?.();
-                proxy.material?.dispose?.();
-            }
-            projectileProxies.length = 0;
+            networkSnapshot.projectiles.length = 0;
+            networkSnapshot.powerups.length = 0;
             clearReplayTrails(entityManager);
             replayAliveState.clear();
             activeReplay = null;
@@ -333,8 +422,21 @@ export function createCinematicReplayFrameRenderer({
             replayAliveState.clear();
         }
         applyProjectionToPlayers(entityManager, projection, dt, replayAliveState, replayRestarted);
-        applySnapshotToProjectiles(renderer, projectileProxies, leftSnapshot);
-        applySnapshotToParticles(replaySession?.particles, leftSnapshot);
+        entityManager.applyNetworkSnapshot?.(
+            buildReplayNetworkSnapshot(
+                networkSnapshot,
+                leftSnapshot,
+                rightSnapshot || leftSnapshot,
+                THREE.MathUtils.clamp(toFiniteNumber(alpha, 0), 0, 1)
+            )
+        );
+        const leftTimeMs = toFiniteNumber(leftSnapshot?.timeMs, 0);
+        applySnapshotToParticles(
+            replaySession?.particles,
+            leftSnapshot,
+            Math.max(0, toFiniteNumber(timeMs, leftTimeMs) - leftTimeMs) / 1000
+        );
+        replaySession?.arena?.update?.(Math.max(0, toFiniteNumber(dt, 1 / 60)));
         renderer.setRecordingActive?.(true);
         renderer.setRecordingQualityLock?.(true, 'cinematic-replay-render');
         renderer.prepareRecordingCaptureFrame?.({
