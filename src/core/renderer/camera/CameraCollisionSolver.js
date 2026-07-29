@@ -42,22 +42,38 @@ export class CameraCollisionSolver {
 
         const radius = Math.max(0.05, CONFIG.CAMERA.COLLISION_RADIUS || 0.45);
         this._tmpDesired.copy(desiredPosition);
-        if (!arena.checkCollision(desiredPosition, radius)) {
-            this._storeCacheEntry(entry, mode, arena, origin, this._tmpDesired, desiredPosition);
-            return;
-        }
-
         this._tmpCamDir.copy(desiredPosition).sub(origin);
-        if (this._tmpCamDir.lengthSq() < 0.000001) {
+        const distance = this._tmpCamDir.length();
+        if (distance < 0.001) {
             this._storeCacheEntry(entry, mode, arena, origin, this._tmpDesired, desiredPosition);
             return;
         }
 
-        let min = 0;
-        let max = 1;
+        const refinementSteps = Math.max(4, Math.floor(CONFIG.CAMERA.COLLISION_STEPS || 8));
+        const sweepSteps = Math.min(
+            64,
+            Math.max(refinementSteps, Math.ceil(distance / Math.max(0.1, radius * 2)))
+        );
         let safe = 0;
-        const steps = Math.max(4, Math.floor(CONFIG.CAMERA.COLLISION_STEPS || 8));
-        for (let i = 0; i < steps; i++) {
+        let hit = -1;
+        for (let i = 1; i <= sweepSteps; i++) {
+            const t = i / sweepSteps;
+            this._tmpCamProbe.copy(origin).addScaledVector(this._tmpCamDir, t);
+            if (arena.checkCollision(this._tmpCamProbe, radius)) {
+                hit = t;
+                break;
+            }
+            safe = t;
+        }
+
+        if (hit < 0) {
+            this._storeCacheEntry(entry, mode, arena, origin, this._tmpDesired, desiredPosition);
+            return;
+        }
+
+        let min = safe;
+        let max = hit;
+        for (let i = 0; i < refinementSteps; i++) {
             const t = (min + max) * 0.5;
             this._tmpCamProbe.copy(origin).addScaledVector(this._tmpCamDir, t);
             if (arena.checkCollision(this._tmpCamProbe, radius)) {

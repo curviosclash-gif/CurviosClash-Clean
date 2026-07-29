@@ -4,7 +4,7 @@ const DIRECTION_MIN_LENGTH_SQ = 1e-6;
 const SIDE_MIN_LENGTH_SQ = 1e-6;
 const BLEND_EPSILON = 0.0001;
 const SWAY_PLAYER_PHASE_OFFSET = 0.7;
-const MAX_PLAYER_INDEX = 7;
+const MAX_PLAYER_INDEX = 9;
 const DEFAULT_REFERENCE_SPEED = 25;
 
 export class CinematicCameraSystem {

@@ -78,11 +78,18 @@ export class CinematicCaptureSubjectSelector {
         let strongestActivity = 0;
         for (let index = 0; index < players.length; index++) {
             const candidate = players[index];
-            if (!candidate || (aliveCount > 0 && candidate.alive === false)) continue;
+            if (!candidate) continue;
             const playerIndex = Math.max(0, Number(candidate.playerIndex) || 0);
             const hp = Math.max(0, Number(candidate.hp) || 0);
             const score = Math.max(0, Number(candidate.score) || 0);
             const boosting = candidate.isBoosting === true;
+            if (aliveCount > 0 && candidate.alive === false) {
+                this.activity[playerIndex] = 0;
+                this.previousHp[playerIndex] = hp;
+                this.previousScore[playerIndex] = score;
+                this.previousBoost[playerIndex] = false;
+                continue;
+            }
             let activity = Math.max(0, (Number(this.activity[playerIndex]) || 0) - dt);
             if (Number.isFinite(this.previousHp[playerIndex]) && hp < this.previousHp[playerIndex]) {
                 activity = Math.max(activity, 3.2);

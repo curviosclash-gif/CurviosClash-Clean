@@ -6,6 +6,16 @@ globalThis.THREE = ThreeModule;
 const { RecordingOrbitCameraDirector } = await import(
     '../src/core/renderer/camera/RecordingOrbitCameraDirector.js'
 );
+const { CameraCollisionSolver } = await import(
+    '../src/core/renderer/camera/CameraCollisionSolver.js'
+);
+const { CameraRigSystem } = await import('../src/core/renderer/CameraRigSystem.js');
+const { RecordingCapturePipeline } = await import(
+    '../src/core/renderer/RecordingCapturePipeline.js'
+);
+const { CinematicCameraSystem } = await import(
+    '../src/entities/systems/CinematicCameraSystem.js'
+);
 const { CinematicCaptureSubjectSelector } = await import(
     '../src/core/renderer/RecordingCaptureProjectionOps.js'
 );
@@ -84,4 +94,236 @@ test('cinematic capture includes bots and follows recent combat activity', () =>
     bot.hp = 60;
     assert.equal(selector.select([human, bot], 2, 1 / 60), bot);
     assert.equal(selector.findNearest([human, bot], human, 2), bot);
+});
+
+test('camera collision solver blocks obstacles between subject and clear endpoint', () => {
+    const solver = new CameraCollisionSolver();
+    const origin = new ThreeModule.Vector3(0, 5, 0);
+    const desired = new ThreeModule.Vector3(10, 5, 0);
+    const arena = {
+        checkCollision(position, radius = 0) {
+            return position.x + radius >= 4 && position.x - radius <= 6;
+        },
+    };
+
+    solver.resolve(0, 'recording-orbit-cinematic', origin, desired, arena);
+
+    assert.ok(desired.x < 4, `expected camera before wall, got x=${desired.x}`);
+    assert.ok(desired.x > origin.x);
+});
+
+test('invalid orbit shots return toward fallback and honor scalar arena bounds', () => {
+    const director = new RecordingOrbitCameraDirector();
+    const initialPosition = new ThreeModule.Vector3(25, 5, 25);
+    const camera = {
+        position: initialPosition.clone(),
+        fov: 75,
+        lookAt() {},
+        updateProjectionMatrix() {},
+    };
+    const playerPosition = new ThreeModule.Vector3(0, 5, 0);
+    const fallbackPosition = new ThreeModule.Vector3(0, 8, 10);
+
+    assert.equal(director._isWithinArenaBounds(
+        new ThreeModule.Vector3(0, 5, 0),
+        { bounds: { minX: -10, maxX: 10, minY: 0, maxY: 10, minZ: -10, maxZ: 10 } }
+    ), true);
+    assert.equal(director._isWithinArenaBounds(
+        new ThreeModule.Vector3(20, 5, 0),
+        { bounds: { minX: -10, maxX: 10, minY: 0, maxY: 10, minZ: -10, maxZ: 10 } }
+    ), false);
+
+    director.apply({
+        playerIndex: 0,
+        camera,
+        fallbackTarget: { position: fallbackPosition, lookAt: playerPosition },
+        playerPosition,
+        playerDirection: new ThreeModule.Vector3(0, 0, -1),
+        dt: 1 / 60,
+        arena: { checkCollision: () => true },
+        baseFov: 75,
+    });
+
+    assert.ok(camera.position.distanceTo(initialPosition) > 0.1);
+    assert.ok(camera.position.distanceTo(fallbackPosition) < initialPosition.distanceTo(fallbackPosition));
+});
+
+test('recording orbit camera preserves pose history and converges toward its shot', () => {
+    const pipeline = new RecordingCapturePipeline({
+        sourceCanvas: null,
+        sourceRenderer: null,
+        scene: null,
+    });
+    pipeline.setCameraPerspectiveSettings({
+        normal: 'cinematic_soft',
+        reduceMotion: false,
+    });
+    pipeline._ensureShortsCameraCount(1, 16 / 9);
+    const player = {
+        playerIndex: 0,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        score: 0,
+        speed: 18,
+        isBoosting: false,
+        position: { x: 0, y: 5, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        direction: { x: 0, y: 0, z: -1 },
+    };
+
+    for (let frame = 0; frame < 180; frame++) {
+        pipeline._updateShortsCamera({
+            slotIndex: 0,
+            player,
+            otherPlayer: null,
+            renderDelta: 1 / 60,
+            arena: null,
+        });
+    }
+
+    const camera = pipeline._shortsCameraRig.cameras[0];
+    const fallback = pipeline._shortsCameraRig.cameraTargets[0].position;
+    const desired = pipeline._orbitDirector._tmpDesiredPosition;
+    const fallbackDistance = fallback.distanceTo(desired);
+    const progress = 1 - (camera.position.distanceTo(desired) / fallbackDistance);
+    assert.ok(progress > 0.4, `expected accumulated orbit progress, got ${progress}`);
+});
+
+test('cinematic perspectives honor disabled speed FOV in live and capture cameras', () => {
+    const playerPosition = new ThreeModule.Vector3(0, 5, 0);
+    const playerDirection = new ThreeModule.Vector3(0, 0, -1);
+    const playerQuaternion = new ThreeModule.Quaternion();
+    const rig = new CameraRigSystem({ cinematicEnabled: true, livePerspectiveEnabled: true });
+    rig.createCamera(16 / 9);
+    rig.setCameraPerspectiveSettings({
+        normal: 'cinematic_soft',
+        reduceMotion: false,
+        speedFovEnabled: false,
+        speedFovIntensity: 0,
+    });
+
+    for (let frame = 0; frame < 120; frame++) {
+        rig.setFrameTiming({ rawDt: 1 / 60, dt: 1 / 60 });
+        rig.updateCamera(
+            0,
+            playerPosition,
+            playerDirection,
+            1 / 60,
+            playerQuaternion,
+            false,
+            true,
+            null,
+            null,
+            { playerState: { hp: 100, maxHp: 100, score: 0, speed: 40, isBoosting: true } }
+        );
+    }
+    assert.equal(rig.cameras[0].fov, 75);
+
+    const pipeline = new RecordingCapturePipeline({
+        sourceCanvas: null,
+        sourceRenderer: null,
+        scene: null,
+    });
+    pipeline.setCameraPerspectiveSettings({
+        normal: 'cinematic_action',
+        reduceMotion: true,
+        speedFovEnabled: false,
+        speedFovIntensity: 0,
+    });
+    pipeline._ensureShortsCameraCount(1, 16 / 9);
+    const projectedPlayer = {
+        playerIndex: 0,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        score: 0,
+        speed: 40,
+        isBoosting: true,
+        position: { x: 0, y: 5, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        direction: { x: 0, y: 0, z: -1 },
+    };
+    for (let frame = 0; frame < 120; frame++) {
+        pipeline._updateShortsCamera({
+            slotIndex: 0,
+            player: projectedPlayer,
+            otherPlayer: null,
+            renderDelta: 1 / 60,
+            arena: null,
+        });
+    }
+    assert.equal(pipeline._shortsCameraRig.cameras[0].fov, 75);
+
+    pipeline.setCameraPerspectiveSettings({
+        normal: 'cinematic_action',
+        reduceMotion: false,
+        speedFovEnabled: true,
+        speedFovIntensity: 1,
+    });
+    for (let frame = 0; frame < 240; frame++) {
+        pipeline._updateShortsCamera({
+            slotIndex: 0,
+            player: projectedPlayer,
+            otherPlayer: null,
+            renderDelta: 1 / 60,
+            arena: null,
+        });
+    }
+    const boostedCaptureFov = pipeline._shortsCameraRig.cameras[0].fov;
+    assert.ok(boostedCaptureFov > 90);
+    assert.ok(boostedCaptureFov <= 97.01, `expected bounded capture FOV, got ${boostedCaptureFov}`);
+});
+
+test('cinematic subject activity is cleared while a player waits to respawn', () => {
+    const selector = new CinematicCaptureSubjectSelector();
+    const player = {
+        playerIndex: 0,
+        alive: true,
+        hp: 100,
+        score: 0,
+        isBoosting: false,
+        position: { x: 0, y: 0, z: 0 },
+    };
+    const opponent = {
+        playerIndex: 1,
+        alive: true,
+        hp: 100,
+        score: 0,
+        isBoosting: false,
+        position: { x: 4, y: 0, z: 0 },
+    };
+
+    selector.select([player, opponent], 2, 1 / 60);
+    opponent.hp = 50;
+    assert.equal(selector.select([player, opponent], 2, 1 / 60), opponent);
+    opponent.alive = false;
+    for (let frame = 0; frame < 120; frame++) {
+        selector.select([player, opponent], 1, 1 / 60);
+    }
+    opponent.alive = true;
+    opponent.hp = 100;
+
+    assert.equal(selector.activity[1], 0);
+    assert.equal(selector.select([player, opponent], 2, 1 / 60), player);
+});
+
+test('cinematic camera supports every configured network player slot', () => {
+    const cinematic = new CinematicCameraSystem({ enabled: true });
+    for (const playerIndex of [8, 9]) {
+        const target = {
+            position: new ThreeModule.Vector3(),
+            lookAt: new ThreeModule.Vector3(),
+        };
+        cinematic.apply({
+            playerIndex,
+            mode: 'THIRD_PERSON',
+            target,
+            playerDirection: new ThreeModule.Vector3(0, 0, -1),
+            playerPosition: new ThreeModule.Vector3(),
+            dt: 1 / 60,
+            speed: 20,
+        });
+        assert.ok(cinematic.getPlayerBlend(playerIndex) > 0);
+    }
 });

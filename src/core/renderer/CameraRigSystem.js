@@ -286,6 +286,8 @@ export class CameraRigSystem {
             playerState: reduceMotion ? null : playerState,
             otherPlayerPosition: reduceMotion ? null : otherPlayerPosition,
             baseFov: Number(CONFIG?.CAMERA?.FOV) || 75,
+            dynamicFovEnabled: !reduceMotion && settings.speedFovEnabled !== false,
+            dynamicFovIntensity: Math.max(0, Number(settings.speedFovIntensity) || 0),
         });
         return true;
     }

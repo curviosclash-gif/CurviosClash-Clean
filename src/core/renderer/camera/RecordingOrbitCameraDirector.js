@@ -1,5 +1,11 @@
 import * as THREE from 'three';
 import { CameraCollisionSolver } from './CameraCollisionSolver.js';
+import {
+    isWithinRecordingArenaBounds,
+    moveRecordingCameraTowardFallback,
+    RECORDING_ORBIT_FOV,
+    updateRecordingOrbitFov,
+} from './RecordingOrbitCameraOps.js';
 
 function toPositiveNumber(value, fallback) {
     const numeric = Number(value);
@@ -85,14 +91,6 @@ const DUEL_PROXIMITY_THRESHOLD = 15;
 const DUEL_PROXIMITY_SQ = DUEL_PROXIMITY_THRESHOLD * DUEL_PROXIMITY_THRESHOLD;
 
 // --- Dynamic FOV ----------------------------------------------------------
-
-const BASE_FOV_OFFSET = 0;
-const FOV_BOOST_OFFSET = 22;       // degrees wider on boost
-const FOV_HIT_OFFSET = -10;        // degrees narrower on hit (dolly zoom)
-const FOV_HIT_SNAP_BACK = 5;       // overshoot on recovery
-const FOV_DUEL_OFFSET = 8;         // slightly wider for duel framing
-const FOV_DECAY_SPEED = 6.0;
-const FOV_SNAP_BACK_DELAY = 0.25;  // seconds before snap-back starts
 
 // --- Letterbox transition -------------------------------------------------
 
@@ -208,17 +206,7 @@ export class RecordingOrbitCameraDirector {
     }
 
     _isWithinArenaBounds(position, arena) {
-        const bounds = arena?.bounds || null;
-        if (!bounds?.min || !bounds?.max) return true;
-        const margin = 1.25;
-        return (
-            position.x >= (bounds.min.x + margin)
-            && position.x <= (bounds.max.x - margin)
-            && position.y >= (bounds.min.y + margin)
-            && position.y <= (bounds.max.y - margin)
-            && position.z >= (bounds.min.z + margin)
-            && position.z <= (bounds.max.z - margin)
-        );
+        return isWithinRecordingArenaBounds(position, arena);
     }
 
     // --- Shot computation helpers ----------------------------------------
@@ -401,8 +389,8 @@ export class RecordingOrbitCameraDirector {
             this._shakeIntensity[playerIndex] = Math.min(1, SHAKE_HIT + hpDrop * 0.5);
             this._shakeDecay[playerIndex] = 3.0;
             // FOV: dolly zoom (narrow, then snap back).
-            this._fovTarget[playerIndex] = FOV_HIT_OFFSET;
-            this._fovSnapBackTimer[playerIndex] = FOV_SNAP_BACK_DELAY;
+            this._fovTarget[playerIndex] = RECORDING_ORBIT_FOV.HIT;
+            this._fovSnapBackTimer[playerIndex] = RECORDING_ORBIT_FOV.SNAP_BACK_DELAY;
             return;
         }
 
@@ -412,7 +400,7 @@ export class RecordingOrbitCameraDirector {
             this._eventOverrideTimer[playerIndex] = EVENT_OVERRIDE_SCORE;
             this._shakeIntensity[playerIndex] = SHAKE_SCORE;
             this._shakeDecay[playerIndex] = 5.0;
-            this._fovTarget[playerIndex] = FOV_HIT_SNAP_BACK;
+            this._fovTarget[playerIndex] = RECORDING_ORBIT_FOV.HIT_SNAP_BACK;
             return;
         }
 
@@ -423,13 +411,13 @@ export class RecordingOrbitCameraDirector {
             this._shakeIntensity[playerIndex] = SHAKE_BOOST;
             this._shakeDecay[playerIndex] = 6.0;
             // FOV: wider for speed feel.
-            this._fovTarget[playerIndex] = FOV_BOOST_OFFSET;
+            this._fovTarget[playerIndex] = RECORDING_ORBIT_FOV.BOOST;
             return;
         }
 
         // Sustained boost keeps FOV wide.
         if (isBoosting) {
-            this._fovTarget[playerIndex] = FOV_BOOST_OFFSET;
+            this._fovTarget[playerIndex] = RECORDING_ORBIT_FOV.BOOST;
             return;
         }
 
@@ -455,41 +443,25 @@ export class RecordingOrbitCameraDirector {
 
     // --- Dynamic FOV ------------------------------------------------------
 
-    _updateFov(playerIndex, camera, dt, baseFov, isDuel) {
-        if (!camera) return;
-
-        // Snap-back timer for dolly zoom: after the initial narrow FOV,
-        // overshoots slightly wide before returning to baseline.
-        if ((this._fovSnapBackTimer[playerIndex] || 0) > 0) {
-            this._fovSnapBackTimer[playerIndex] -= dt;
-            if (this._fovSnapBackTimer[playerIndex] <= 0) {
-                this._fovTarget[playerIndex] = FOV_HIT_SNAP_BACK;
-                this._fovSnapBackTimer[playerIndex] = 0;
-            }
-        }
-
-        let target = this._fovTarget[playerIndex] || BASE_FOV_OFFSET;
-        if (isDuel) {
-            target = Math.max(target, FOV_DUEL_OFFSET);
-        }
-
-        // Decay FOV target toward zero when no event is driving it.
-        if ((this._eventOverrideTimer[playerIndex] || 0) <= 0
-            && (this._fovSnapBackTimer[playerIndex] || 0) <= 0) {
-            this._fovTarget[playerIndex] = target + (0 - target) * Math.min(1, dt * 3.0);
-            target = this._fovTarget[playerIndex];
-        }
-
-        const current = this._fovOffset[playerIndex] || 0;
-        const alpha = 1 - Math.exp(-FOV_DECAY_SPEED * dt);
-        const next = current + (target - current) * alpha;
-        this._fovOffset[playerIndex] = Math.abs(next) < 0.05 ? 0 : next;
-
-        const desiredFov = baseFov + this._fovOffset[playerIndex];
-        if (Math.abs(camera.fov - desiredFov) > 0.01) {
-            camera.fov = desiredFov;
-            camera.updateProjectionMatrix();
-        }
+    _updateFov(
+        playerIndex,
+        camera,
+        dt,
+        baseFov,
+        isDuel,
+        dynamicFovEnabled = true,
+        dynamicFovIntensity = 1
+    ) {
+        updateRecordingOrbitFov(
+            this,
+            playerIndex,
+            camera,
+            dt,
+            baseFov,
+            isDuel,
+            dynamicFovEnabled,
+            dynamicFovIntensity
+        );
     }
 
     // --- Shake & letterbox ------------------------------------------------
@@ -535,6 +507,8 @@ export class RecordingOrbitCameraDirector {
         playerState = null,
         otherPlayerPosition = null,
         baseFov = null,
+        dynamicFovEnabled = true,
+        dynamicFovIntensity = 1,
     }) {
         if (!camera || !playerPosition || !playerDirection) return;
         if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
@@ -621,8 +595,17 @@ export class RecordingOrbitCameraDirector {
 
         const fallbackLookAt = fallbackTarget?.lookAt || playerPosition;
         if (!useOrbitShot || blend <= 0.0001) {
+            moveRecordingCameraTowardFallback(camera, fallbackTarget, this.exitSpeed, safeDt);
             camera.lookAt(fallbackLookAt);
-            this._updateFov(playerIndex, camera, safeDt, immutableBaseFov, isDuel);
+            this._updateFov(
+                playerIndex,
+                camera,
+                safeDt,
+                immutableBaseFov,
+                isDuel,
+                dynamicFovEnabled,
+                dynamicFovIntensity
+            );
             return;
         }
 
@@ -638,6 +621,14 @@ export class RecordingOrbitCameraDirector {
         this._applyShake(camera, playerIndex, phase);
 
         // Apply dynamic FOV.
-        this._updateFov(playerIndex, camera, safeDt, immutableBaseFov, isDuel);
+        this._updateFov(
+            playerIndex,
+            camera,
+            safeDt,
+            immutableBaseFov,
+            isDuel,
+            dynamicFovEnabled,
+            dynamicFovIntensity
+        );
     }
 }

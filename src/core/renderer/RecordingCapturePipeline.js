@@ -26,6 +26,7 @@ import {
     toPositiveEven,
     toRatio,
 } from './RecordingCaptureProjectionOps.js';
+import { updateShortsCaptureCamera } from './RecordingCaptureCameraUpdateOps.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({
     width: 9,
@@ -71,6 +72,10 @@ export class RecordingCapturePipeline {
         this._tmpDirection = new THREE.Vector3();
         this._tmpColor = new THREE.Color();
         this._tmpOtherPosition = new THREE.Vector3();
+        this._tmpCameraPosition = new THREE.Vector3();
+        this._tmpCameraQuaternion = new THREE.Quaternion();
+        this._shortsOrbitPoseReady = [];
+        this._cinematicOrbitPoseReady = false;
         this._lastMeta = null;
     }
 
@@ -88,6 +93,8 @@ export class RecordingCapturePipeline {
         this._cinematicOrbitDirector.reset();
         this._cinematicCameraRig.resetCameras();
         this._cinematicSubjectSelector.reset();
+        this._shortsOrbitPoseReady.length = 0;
+        this._cinematicOrbitPoseReady = false;
     }
 
     setSettings(settings = null) {
@@ -257,63 +264,13 @@ export class RecordingCapturePipeline {
     }
 
     _updateShortsCamera({ slotIndex, player, otherPlayer, renderDelta, arena }) {
-        if (!player) return false;
-        this._shortsCameraRig.cameraModes[slotIndex] = 0;
-        const slotStyle = this._resolveShortsSlotStyle();
-        const useRecordingOrbit = typeof slotStyle === 'string' && slotStyle.length > 0;
-        applyProjectionVector3(this._tmpPosition, player?.position);
-        applyProjectionQuaternion(this._tmpQuaternion, player?.quaternion);
-        applyProjectionVector3(this._tmpDirection, player?.direction, 0, 0, -1);
-        if (this._tmpDirection.lengthSq() <= 0.000001) {
-            this._tmpDirection.set(0, 0, -1);
-        } else {
-            this._tmpDirection.normalize();
-        }
-        this._shortsCameraRig.updateCamera(
+        return updateShortsCaptureCamera(this, {
             slotIndex,
-            this._tmpPosition,
-            this._tmpDirection,
+            player,
+            otherPlayer,
             renderDelta,
-            this._tmpQuaternion,
-            false,
-            player?.isBoosting === true,
             arena,
-            null
-        );
-
-        // Resolve other player's position for duel-focus detection.
-        let otherPos = null;
-        if (otherPlayer?.position) {
-            otherPos = applyProjectionVector3(this._tmpOtherPosition, otherPlayer.position);
-        }
-
-        const camera = this._shortsCameraRig.cameras[slotIndex];
-        if (!camera) return false;
-        if (!useRecordingOrbit) {
-            return true;
-        }
-        const baseFov = camera.fov || CONFIG.CAMERA.FOV;
-        const perspectiveDt = this._resolveShortsDt(renderDelta);
-        this._orbitDirector.apply({
-            playerIndex: slotIndex,
-            camera,
-            fallbackTarget: this._shortsCameraRig.cameraTargets[slotIndex],
-            playerPosition: this._tmpPosition,
-            playerDirection: this._tmpDirection,
-            dt: perspectiveDt,
-            arena,
-            slotStyle,
-            playerState: {
-                hp: Number(player?.hp) || 0,
-                maxHp: Number(player?.maxHp) || 1,
-                score: Number(player?.score) || 0,
-                speed: Number(player?.speed) || 0,
-                isBoosting: player?.isBoosting === true,
-            },
-            otherPlayerPosition: otherPos,
-            baseFov,
         });
-        return true;
     }
 
     _storeMeta(baseMeta, segments) {
@@ -639,6 +596,7 @@ export class RecordingCapturePipeline {
         this._cinematicCameraRig.cameraModes[0] = 0;
 
         if (usesRecordedCamera) {
+            this._cinematicOrbitPoseReady = false;
             applyProjectionVector3(camera.position, recordedCamera.position);
             applyProjectionQuaternion(camera.quaternion, recordedCamera.quaternion);
             camera.fov = Math.max(1, Number(recordedCamera.fov) || this._cinematicBaseFov);
@@ -659,6 +617,13 @@ export class RecordingCapturePipeline {
                 this._tmpDirection.normalize();
             }
 
+            const preserveOrbitPose = this._cinematicOrbitPoseReady === true;
+            let preservedFov = camera.fov;
+            if (preserveOrbitPose) {
+                this._tmpCameraPosition.copy(camera.position);
+                this._tmpCameraQuaternion.copy(camera.quaternion);
+                preservedFov = camera.fov;
+            }
             this._cinematicCameraRig.updateCamera(
                 0,
                 this._tmpPosition,
@@ -670,6 +635,14 @@ export class RecordingCapturePipeline {
                 arena,
                 null
             );
+            if (preserveOrbitPose) {
+                camera.position.copy(this._tmpCameraPosition);
+                camera.quaternion.copy(this._tmpCameraQuaternion);
+                if (Math.abs(camera.fov - preservedFov) > 0.01) {
+                    camera.fov = preservedFov;
+                    camera.updateProjectionMatrix();
+                }
+            }
 
             let otherPos = null;
             if (otherPlayer?.position) {
@@ -689,16 +662,25 @@ export class RecordingCapturePipeline {
                 dt: perspectiveDt,
                 arena,
                 slotStyle,
-                playerState: {
+                playerState: this._cameraPerspectiveSettings?.reduceMotion === true ? null : {
                     hp: Number(player?.hp) || 0,
                     maxHp: Number(player?.maxHp) || 1,
                     score: Number(player?.score) || 0,
                     speed: Number(player?.speed) || 0,
                     isBoosting: player?.isBoosting === true,
                 },
-                otherPlayerPosition: otherPos,
+                otherPlayerPosition: this._cameraPerspectiveSettings?.reduceMotion === true
+                    ? null
+                    : otherPos,
                 baseFov: this._cinematicBaseFov,
+                dynamicFovEnabled: this._cameraPerspectiveSettings?.reduceMotion !== true
+                    && this._cameraPerspectiveSettings?.speedFovEnabled !== false,
+                dynamicFovIntensity: Math.max(
+                    0,
+                    Number(this._cameraPerspectiveSettings?.speedFovIntensity) || 0
+                ),
             });
+            this._cinematicOrbitPoseReady = true;
         }
 
         cinRenderer.render(this.scene, camera);
@@ -755,8 +737,10 @@ export class RecordingCapturePipeline {
         this._captureCtx = null;
         this._shortsCameraRig.resetCameras();
         this._orbitDirector.reset();
+        this._shortsOrbitPoseReady.length = 0;
         this._cinematicCameraRig.resetCameras();
         this._cinematicOrbitDirector.reset();
+        this._cinematicOrbitPoseReady = false;
         this._lastMeta = null;
     }
 }
