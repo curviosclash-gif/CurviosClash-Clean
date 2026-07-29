@@ -13,7 +13,7 @@ function drawHudSegment({
     const height = Math.floor(segment.height);
     const padding = Math.max(8, Math.floor(height * 0.035));
     const panelWidth = Math.min(Math.floor(width * 0.42), 270);
-    const panelHeight = Math.min(Math.floor(height * 0.34), 170);
+    const panelHeight = Math.min(Math.floor(height * 0.34), 196);
 
     ctx.save();
     ctx.fillStyle = 'rgba(5, 9, 18, 0.58)';
@@ -24,19 +24,22 @@ function drawHudSegment({
 
     const titleColor = tmpColor.setHex(Number(player?.color) || 0xffffff).getStyle();
     ctx.fillStyle = titleColor;
-    ctx.font = `${Math.max(14, Math.floor(height * 0.054))}px "Segoe UI", sans-serif`;
+    const titleFontSize = Math.max(18, Math.min(34, Math.floor(height * 0.032)));
+    const statFontSize = Math.max(14, Math.min(24, Math.floor(height * 0.022)));
+    ctx.font = `600 ${titleFontSize}px "Segoe UI", sans-serif`;
     ctx.fillText(
         labelText || `P${(Number(player?.playerIndex ?? player?.index) || 0) + 1}`,
         x + padding + 10,
-        y + padding + Math.max(20, Math.floor(height * 0.09))
+        y + padding + 10 + titleFontSize
     );
 
     ctx.fillStyle = '#e8f5ff';
-    ctx.font = `${Math.max(12, Math.floor(height * 0.04))}px "Segoe UI", sans-serif`;
+    ctx.font = `${statFontSize}px "Segoe UI", sans-serif`;
     const speedValue = Math.max(0, Math.round(Number(player?.speed) || 0));
     const scoreValue = Math.max(0, Math.round(Number(player?.score) || 0));
-    ctx.fillText(`SPD ${speedValue}`, x + padding + 10, y + padding + 56);
-    ctx.fillText(`SCORE ${scoreValue}`, x + padding + 10, y + padding + 80);
+    const statsTop = y + padding + 20 + titleFontSize + statFontSize;
+    ctx.fillText(`SPD ${speedValue}`, x + padding + 10, statsTop);
+    ctx.fillText(`SCORE ${scoreValue}`, x + padding + 10, statsTop + statFontSize + 6);
 
     const hpCurrent = Math.max(0, Number(player?.hp) || 0);
     const hpMax = Math.max(0.01, Number(player?.maxHp) || 1);
@@ -46,8 +49,8 @@ function drawHudSegment({
     const boostRatio = Math.max(0, Math.min(1, boostCurrent / boostMax));
 
     const barWidth = panelWidth - 20;
-    const hpBarY = y + padding + panelHeight - 52;
-    const boostBarY = y + padding + panelHeight - 24;
+    const hpBarY = y + padding + panelHeight - 48;
+    const boostBarY = y + padding + panelHeight - 18;
     ctx.fillStyle = 'rgba(255, 255, 255, 0.22)';
     ctx.fillRect(x + padding + 10, hpBarY, barWidth, 12);
     ctx.fillRect(x + padding + 10, boostBarY, barWidth, 12);
