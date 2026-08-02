@@ -28,6 +28,7 @@ export function buildReplaySceneFrames(frames, rawFrames = null) {
         }
         const projectiles = Array.isArray(rawFrame?.projectiles) ? rawFrame.projectiles : [];
         const powerups = Array.isArray(rawFrame?.powerups) ? rawFrame.powerups : [];
+        const turrets = Array.isArray(rawFrame?.turrets) ? rawFrame.turrets : [];
         playbackFrames[frameIndex] = {
             time: Number(sourceFrame?.time) || 0,
             players: sourcePlayers,
@@ -36,6 +37,8 @@ export function buildReplaySceneFrames(frames, rawFrames = null) {
             projectileLookup: buildLookup(projectiles),
             powerups,
             powerupLookup: buildLookup(powerups),
+            turrets,
+            turretLookup: buildLookup(turrets),
             particles: rawFrame?.particles || null,
         };
     }

@@ -46,6 +46,10 @@ export const HUNT_CONFIG = Object.freeze({
         TARGET_HOLD_SECONDS: 0.3,
         TARGET_REACQUIRE_SECONDS: 0.12,
         LOS_SAMPLE_STEP: 0.5,
+        ACQUIRE_DELAY_SECONDS: 0.22,
+        TURN_RATE_RADIANS_PER_SECOND: 8,
+        FIRE_DOT_MIN: 0.985,
+        AUDIO_RANGE: 80,
     }),
     TARGETING: Object.freeze({
         MUZZLE_OFFSET: 2.1,

@@ -22,6 +22,7 @@ export function createStaticTurretNetworkSnapshot(turrets = []) {
         entries.push({
             id: String(turret.id || ''),
             weapon: String(turret.weapon || 'mg'),
+            rocketType: String(turret.rocketType || 'ROCKET_WEAK'),
             pos: turret.position.toArray(),
             aim: turret.aimDirection.toArray(),
             owner: resolveOwnerIndex(turret),
@@ -67,6 +68,8 @@ function createNetworkTurret(system, entry, players) {
 }
 
 function applyTurretEntry(system, turret, entry, players) {
+    const previousShotsFired = turret.shotsFired;
+    const shotsWereInitialized = turret.networkShotsInitialized === true;
     const pos = Array.isArray(entry.pos) ? entry.pos : [0, 0, 0];
     const aim = Array.isArray(entry.aim) ? entry.aim : [1, 0, 0];
     turret.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
@@ -80,6 +83,7 @@ function applyTurretEntry(system, turret, entry, players) {
     turret.ownerPlayer = findOwnerPlayer(players, turret.ownerIndex);
     turret.source = turret.ownerPlayer || turret.source;
     turret.deployed = entry.deployed === true;
+    turret.rocketType = String(entry.rocketType || turret.rocketType || 'ROCKET_WEAK');
     turret.range = clampFinite(entry.range, turret.range, 1, 180);
     turret.cooldown = clampFinite(entry.cooldown, turret.cooldown, 0.05, 12);
     turret.cooldownRemaining = Math.max(0, Number(entry.cooldownRemaining) || 0);
@@ -93,6 +97,10 @@ function applyTurretEntry(system, turret, entry, players) {
     if (turret.root?.userData?.muzzleFlash) {
         turret.root.userData.muzzleFlash.visible = turret.flashRemaining > 0;
     }
+    if (shotsWereInitialized && turret.shotsFired > previousShotsFired) {
+        system._playReplicatedShot?.(turret);
+    }
+    turret.networkShotsInitialized = true;
 }
 
 export function applyStaticTurretNetworkSnapshot(system, entries, players = []) {

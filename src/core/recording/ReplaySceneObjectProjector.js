@@ -16,6 +16,7 @@ export class ReplaySceneObjectProjector {
         this.presentationKind = String(presentationKind || 'replay');
         this.projectileProxies = [];
         this.powerupProxies = [];
+        this.turretProxies = [];
         this.lastParticleFrame = null;
         this._tmpPosition = new THREE.Vector3();
         this._tmpDirection = new THREE.Vector3();
@@ -32,8 +33,12 @@ export class ReplaySceneObjectProjector {
         for (let index = 0; index < this.powerupProxies.length; index++) {
             this._disposeProxy(this.powerupProxies[index]);
         }
+        for (let index = 0; index < this.turretProxies.length; index++) {
+            this._disposeProxy(this.turretProxies[index]);
+        }
         this.projectileProxies.length = 0;
         this.powerupProxies.length = 0;
+        this.turretProxies.length = 0;
         this.lastParticleFrame = null;
         this.particles?.clear?.();
     }
@@ -42,6 +47,8 @@ export class ReplaySceneObjectProjector {
         if (proxy?.parent) proxy.parent.remove(proxy);
         proxy?.geometry?.dispose?.();
         proxy?.material?.dispose?.();
+        for (const geometry of proxy?.userData?.disposableGeometries || []) geometry?.dispose?.();
+        for (const material of proxy?.userData?.disposableMaterials || []) material?.dispose?.();
     }
 
     _ensureProjectileProxy(index) {
@@ -85,9 +92,40 @@ export class ReplaySceneObjectProjector {
         return this.powerupProxies[index];
     }
 
+    _ensureTurretProxy(index) {
+        while (this.turretProxies.length <= index) {
+            const root = new THREE.Group();
+            const baseGeometry = new THREE.CylinderGeometry(1.2, 1.6, 1.5, 10);
+            const headGeometry = new THREE.SphereGeometry(0.9, 10, 8);
+            const barrelGeometry = new THREE.CylinderGeometry(0.14, 0.2, 2.6, 8);
+            barrelGeometry.rotateX(Math.PI / 2);
+            const baseMaterial = new THREE.MeshStandardMaterial({ color: 0x263746, metalness: 0.6, roughness: 0.55 });
+            const weaponMaterial = new THREE.MeshStandardMaterial({ color: 0xffb347, emissive: 0xffb347, emissiveIntensity: 0.25 });
+            const base = new THREE.Mesh(baseGeometry, baseMaterial);
+            base.position.y = -0.75;
+            root.add(base);
+            const head = new THREE.Group();
+            head.add(new THREE.Mesh(headGeometry, weaponMaterial));
+            const barrel = new THREE.Mesh(barrelGeometry, weaponMaterial);
+            barrel.position.z = 1.45;
+            head.add(barrel);
+            root.add(head);
+            root.userData.head = head;
+            root.userData.weaponMaterial = weaponMaterial;
+            root.userData.disposableGeometries = [baseGeometry, headGeometry, barrelGeometry];
+            root.userData.disposableMaterials = [baseMaterial, weaponMaterial];
+            root.name = `${this.presentationKind}-turret-${this.turretProxies.length}`;
+            root.visible = false;
+            this.root?.add?.(root);
+            this.turretProxies.push(root);
+        }
+        return this.turretProxies[index];
+    }
+
     apply(previousFrame, nextFrame, alpha, elapsed) {
         this._applyProjectileFrames(previousFrame, nextFrame, alpha);
         this._applyPowerupFrames(previousFrame, nextFrame, alpha, elapsed);
+        this._applyTurretFrames(previousFrame, nextFrame, alpha);
         const particleFrame = alpha < 0.5 ? previousFrame : nextFrame;
         if (particleFrame === this.lastParticleFrame) return;
         this.lastParticleFrame = particleFrame;
@@ -160,6 +198,37 @@ export class ReplaySceneObjectProjector {
         }
     }
 
+    _applyTurretFrames(previousFrame, nextFrame, alpha) {
+        const sourceFrame = alpha < 0.5 ? previousFrame : nextFrame;
+        const sourceTurrets = Array.isArray(sourceFrame?.turrets) ? sourceFrame.turrets : [];
+        for (const proxy of this.turretProxies) proxy.visible = false;
+        for (let index = 0; index < sourceTurrets.length; index++) {
+            const source = sourceTurrets[index];
+            const id = String(source?.id ?? index);
+            const left = previousFrame?.turretLookup?.[id] || source;
+            const right = nextFrame?.turretLookup?.[id] || source;
+            const proxy = this._ensureTurretProxy(index);
+            proxy.visible = true;
+            proxy.position.set(
+                THREE.MathUtils.lerp(toFiniteNumber(left?.x), toFiniteNumber(right?.x), alpha),
+                THREE.MathUtils.lerp(toFiniteNumber(left?.y), toFiniteNumber(right?.y), alpha),
+                THREE.MathUtils.lerp(toFiniteNumber(left?.z), toFiniteNumber(right?.z), alpha)
+            );
+            this._tmpDirection.set(
+                THREE.MathUtils.lerp(toFiniteNumber(left?.ax, 1), toFiniteNumber(right?.ax, 1), alpha),
+                THREE.MathUtils.lerp(toFiniteNumber(left?.ay), toFiniteNumber(right?.ay), alpha),
+                THREE.MathUtils.lerp(toFiniteNumber(left?.az), toFiniteNumber(right?.az), alpha)
+            );
+            if (this._tmpDirection.lengthSq() > 0.000001) {
+                this._tmpPosition.copy(proxy.position).add(this._tmpDirection);
+                proxy.userData.head?.lookAt?.(this._tmpPosition);
+            }
+            const color = Math.trunc(toFiniteNumber(source?.color, source?.weapon === 'rocket' ? 0xff4d6d : 0xffb347));
+            proxy.userData.weaponMaterial.color.setHex(color);
+            proxy.userData.weaponMaterial.emissive.setHex(color);
+        }
+    }
+
     _applyParticleSnapshot(state) {
         const particles = this.particles;
         if (!particles || !state) return;
@@ -210,6 +279,10 @@ export class ReplaySceneObjectProjector {
                 0
             ),
             powerupCount: this.powerupProxies.reduce(
+                (count, proxy) => count + (proxy?.visible === true ? 1 : 0),
+                0
+            ),
+            turretCount: this.turretProxies.reduce(
                 (count, proxy) => count + (proxy?.visible === true ? 1 : 0),
                 0
             ),

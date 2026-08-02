@@ -306,6 +306,9 @@ export class RoundRecorder {
             const powerups = Array.isArray(snapshot?.powerups)
                 ? snapshot.powerups.map((entry) => ({ ...entry }))
                 : [];
+            const turrets = Array.isArray(snapshot?.turrets)
+                ? snapshot.turrets.map((entry) => ({ ...entry }))
+                : [];
             const particleValues = Array.isArray(snapshot?.particles?.values)
                 ? snapshot.particles.values.slice()
                 : [];
@@ -314,6 +317,7 @@ export class RoundRecorder {
                 players: framePlayers,
                 projectiles,
                 powerups,
+                turrets,
                 particles: {
                     count: Math.max(0, Number(snapshot?.particles?.count) || 0),
                     values: particleValues,
@@ -346,6 +350,7 @@ export class RoundRecorder {
             const sceneFrame = normalizedFrames[index];
             normalizedClip.frames[index].projectiles = sceneFrame.projectiles;
             normalizedClip.frames[index].powerups = sceneFrame.powerups;
+            normalizedClip.frames[index].turrets = sceneFrame.turrets;
             normalizedClip.frames[index].particles = sceneFrame.particles;
             const normalizedPlayers = normalizedClip.frames[index].players;
             for (let playerIndex = 0; playerIndex < normalizedPlayers.length; playerIndex++) {

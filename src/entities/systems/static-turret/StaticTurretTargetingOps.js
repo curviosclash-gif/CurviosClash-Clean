@@ -28,7 +28,7 @@ export function hasStaticTurretLineOfSight(system, turret, target) {
     if (!arena?.checkCollisionFast) return true;
     system._tmpAim.subVectors(target.position, turret.position);
     const distance = system._tmpAim.length();
-    if (distance <= 4) return true;
+    if (distance <= 0.000001) return true;
     const stepSize = clampFinite(turret.losSampleStep, 0.5, 0.2, 2);
     const steps = Math.max(2, Math.ceil(distance / stepSize));
     for (let i = 1; i < steps; i += 1) {
@@ -125,9 +125,14 @@ export function resolveStaticTurretTarget(system, turret, dt) {
     } else {
         turret.target = null;
     }
+    if (turret.targetReacquireRemaining > 0) return null;
+    const previousTarget = turret.target;
     const nextTarget = findTarget(system, turret);
     turret.target = nextTarget;
     turret.targetHoldRemaining = nextTarget ? turret.targetHoldSeconds : 0;
     turret.targetReacquireRemaining = turret.targetReacquireSeconds;
+    if (nextTarget && nextTarget !== previousTarget) {
+        turret.acquireRemaining = turret.acquireDelaySeconds;
+    }
     return nextTarget;
 }

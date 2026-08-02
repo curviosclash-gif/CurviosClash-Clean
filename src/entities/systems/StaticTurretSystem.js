@@ -10,6 +10,11 @@ import {
     hasStaticTurretLineOfSight,
     resolveStaticTurretTarget,
 } from './static-turret/StaticTurretTargetingOps.js';
+import {
+    createStaticTurretVisual,
+    playReplicatedStaticTurretShot,
+    updateStaticTurretVisual,
+} from './static-turret/StaticTurretVisualOps.js';
 
 const TURRET_BASE_COLOR = 0x263746;
 const TURRET_MG_COLOR = 0xffb347;
@@ -45,10 +50,13 @@ export class StaticTurretSystem {
         this._barrelGeometry.rotateX(Math.PI / 2);
         this._flashGeometry = new THREE.SphereGeometry(0.38, 8, 6);
         this._accentGeometry = new THREE.TorusGeometry(2.05, 0.12, 6, 20);
+        this._healthBarGeometry = new THREE.BoxGeometry(3.2, 0.32, 0.12);
+        this._healthBarFillGeometry = new THREE.BoxGeometry(3, 0.2, 0.14);
         this._baseMaterial = new THREE.MeshStandardMaterial({ color: TURRET_BASE_COLOR, roughness: 0.6, metalness: 0.65 });
         this._mgMaterial = new THREE.MeshStandardMaterial({ color: TURRET_MG_COLOR, emissive: TURRET_MG_COLOR, emissiveIntensity: 0.25 });
         this._rocketMaterial = new THREE.MeshStandardMaterial({ color: TURRET_ROCKET_COLOR, emissive: TURRET_ROCKET_COLOR, emissiveIntensity: 0.3 });
         this._flashMaterial = new THREE.MeshBasicMaterial({ color: 0xffe2a8 });
+        this._healthBackMaterial = new THREE.MeshBasicMaterial({ color: 0x101820, transparent: true, opacity: 0.78 });
         this._tracerFx = new MGTracerFx(entityManager);
     }
 
@@ -72,7 +80,7 @@ export class StaticTurretSystem {
     _createTurret(definition, authoredScale = 1) {
         const position = new THREE.Vector3(...definition.pos).multiplyScalar(authoredScale);
         const aimDirection = new THREE.Vector3(1, 0, 0);
-        const root = this._createVisual(definition, position, authoredScale);
+        const root = createStaticTurretVisual(this, definition, position, authoredScale);
         const deployed = definition.deployed === true;
         const maxHp = deployed
             ? clampFinite(definition.maxHp, 45, 1, 500)
@@ -108,6 +116,13 @@ export class StaticTurretSystem {
             targetHoldSeconds: clampFinite(definition.targetHoldSeconds, 0.3, 0, 2),
             targetReacquireSeconds: clampFinite(definition.targetReacquireSeconds, 0.12, 0.03, 1),
             losSampleStep: clampFinite(definition.losSampleStep, 0.5, 0.2, 2),
+            acquireDelaySeconds: clampFinite(definition.acquireDelaySeconds, 0.22, 0, 2),
+            acquireRemaining: 0,
+            turnRateRadians: clampFinite(definition.turnRateRadians, 8, 0.5, 30),
+            fireDotMin: clampFinite(definition.fireDotMin, 0.985, 0.8, 1),
+            audioRange: clampFinite(definition.audioRange, 80, 10, 200),
+            visualTime: 0,
+            networkShotsInitialized: false,
             createdSequence: this._nextCreatedSequence++,
         };
     }
@@ -126,6 +141,10 @@ export class StaticTurretSystem {
             targetHoldSeconds: clampFinite(config.TARGET_HOLD_SECONDS, 0.3, 0, 2),
             targetReacquireSeconds: clampFinite(config.TARGET_REACQUIRE_SECONDS, 0.12, 0.03, 1),
             losSampleStep: clampFinite(config.LOS_SAMPLE_STEP, 0.5, 0.2, 2),
+            acquireDelaySeconds: clampFinite(config.ACQUIRE_DELAY_SECONDS, 0.22, 0, 2),
+            turnRateRadians: clampFinite(config.TURN_RATE_RADIANS_PER_SECOND, 8, 0.5, 30),
+            fireDotMin: clampFinite(config.FIRE_DOT_MIN, 0.985, 0.8, 1),
+            audioRange: clampFinite(config.AUDIO_RANGE, 80, 10, 200),
         };
     }
 
@@ -143,9 +162,20 @@ export class StaticTurretSystem {
                 }
             }
         }
-        if (!arena?.checkCollisionFast || !arena.checkCollisionFast(this._tmpMuzzle, config.hitboxRadius)) {
+        if (!arena?.checkCollisionFast) {
             return this._tmpMuzzle;
         }
+        const deploymentDistance = this._tmpMuzzle.distanceTo(player.position);
+        const steps = Math.max(1, Math.ceil(deploymentDistance / config.losSampleStep));
+        let pathBlocked = false;
+        for (let step = 1; step <= steps; step += 1) {
+            this._tmpPoint.lerpVectors(player.position, this._tmpMuzzle, step / steps);
+            if (arena.checkCollisionFast(this._tmpPoint, config.hitboxRadius)) {
+                pathBlocked = true;
+                break;
+            }
+        }
+        if (!pathBlocked) return this._tmpMuzzle;
         this._tmpMuzzle.copy(player.position);
         return arena.checkCollisionFast(this._tmpMuzzle, config.hitboxRadius) ? null : this._tmpMuzzle;
     }
@@ -181,7 +211,10 @@ export class StaticTurretSystem {
         }
         const config = this._resolveTurretConfig();
         const position = this._resolveDeploymentPosition(player, config);
-        if (!position) return null;
+        if (!position) {
+            owner.recorder?.logEvent?.('TURRET_DEPLOY_FAILED', player.index, 'blocked');
+            return null;
+        }
         this._enforceOwnerLimit(player, config.maxPerOwner);
         const definition = {
             id: `player_${player.index}_${this._nextTurretId++}`,
@@ -197,55 +230,24 @@ export class StaticTurretSystem {
             ownerColor: player.color,
             maxHp: config.maxHp,
             hitboxRadius: config.hitboxRadius,
+            targetHoldSeconds: config.targetHoldSeconds,
+            targetReacquireSeconds: config.targetReacquireSeconds,
+            losSampleStep: config.losSampleStep,
+            acquireDelaySeconds: config.acquireDelaySeconds,
+            turnRateRadians: config.turnRateRadians,
+            fireDotMin: config.fireDotMin,
+            audioRange: config.audioRange,
         };
         const turret = this._createTurret(definition);
         turret.ownerPlayer = player;
         turret.source = player;
         turret.expiresRemaining = config.duration;
-        turret.targetHoldSeconds = config.targetHoldSeconds;
-        turret.targetReacquireSeconds = config.targetReacquireSeconds;
-        turret.losSampleStep = config.losSampleStep;
         turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
         this.turrets.push(turret);
         owner.particles?.spawnHit?.(turret.position, player.color || TURRET_MG_COLOR);
         if (!player.isBot) owner.audio?.play?.('POWERUP');
         owner.recorder?.logEvent?.('TURRET_DEPLOY', player.index, turret.id);
         return turret;
-    }
-
-    _createVisual(definition, position, authoredScale = 1) {
-        const renderer = this.entityManager?.renderer;
-        if (!renderer) return null;
-        const root = new THREE.Group();
-        root.position.copy(position);
-        root.scale.setScalar(Math.max(0.001, Number(authoredScale) || 1));
-        const base = new THREE.Mesh(this._baseGeometry, this._baseMaterial);
-        base.position.y = -1.1;
-        root.add(base);
-        const accentMaterial = new THREE.MeshBasicMaterial({
-            color: Number(definition.ownerColor) || (definition.weapon === 'rocket' ? TURRET_ROCKET_COLOR : TURRET_MG_COLOR),
-        });
-        const accent = new THREE.Mesh(this._accentGeometry, accentMaterial);
-        accent.rotation.x = Math.PI / 2;
-        accent.position.y = -0.95;
-        root.add(accent);
-        const headPivot = new THREE.Group();
-        root.add(headPivot);
-        const weaponMaterial = definition.weapon === 'rocket' ? this._rocketMaterial : this._mgMaterial;
-        const head = new THREE.Mesh(this._headGeometry, weaponMaterial);
-        headPivot.add(head);
-        const barrel = new THREE.Mesh(this._barrelGeometry, weaponMaterial);
-        barrel.position.z = 2.1;
-        headPivot.add(barrel);
-        const flash = new THREE.Mesh(this._flashGeometry, this._flashMaterial);
-        flash.position.z = 4.1;
-        flash.visible = false;
-        headPivot.add(flash);
-        root.userData.muzzleFlash = flash;
-        root.userData.headPivot = headPivot;
-        root.userData.disposableMaterials = [accentMaterial];
-        renderer.addToScene(root);
-        return root;
     }
 
     _applyMgHit(turret, target) {
@@ -304,7 +306,7 @@ export class StaticTurretSystem {
             this.entityManager?.recorder?.logEvent?.(
                 'TURRET_DAMAGED',
                 resolveOwnerIndex(turret),
-                `${turret.id}:${Math.round(hpApplied)}`
+                `${turret.id}:source=${Number.isInteger(options.sourcePlayer?.index) ? options.sourcePlayer.index : -1}:cause=${String(options.cause || 'UNKNOWN')}:damage=${Math.round(hpApplied)}:hp=${Math.round(turret.hp)}`
             );
         }
         const isDead = turret.hp <= 0;
@@ -318,9 +320,7 @@ export class StaticTurretSystem {
     }
 
     _fire(turret, target) {
-        turret.aimDirection.subVectors(target.position, turret.position);
         if (turret.aimDirection.lengthSq() <= 0.000001) return;
-        turret.aimDirection.normalize();
         this._tmpMuzzle.copy(turret.position).addScaledVector(turret.aimDirection, 4.2 * turret.authoredScale);
         if (turret.weapon === 'rocket') {
             this.entityManager?._projectileSystem?.spawnExternalProjectile?.({
@@ -331,6 +331,9 @@ export class StaticTurretSystem {
                 target,
                 speedMultiplier: 0.82,
             });
+            if (this._shouldPlayTurretAudio(turret)) {
+                this.entityManager?.audio?.play?.('ROCKET_SHOOT', { intensity: 0.35 });
+            }
         } else {
             this._applyMgHit(turret, target);
             this._tracerFx.spawnTracer(this._tmpMuzzle, target.position, true, {
@@ -338,7 +341,7 @@ export class StaticTurretSystem {
                 TRACER_BEAM_RADIUS: 0.11,
                 TRACER_BULLET_RADIUS: 0.28,
             });
-            if (!turret.ownerPlayer?.isBot) {
+            if (this._shouldPlayTurretAudio(turret)) {
                 this.entityManager?.audio?.play?.('MG_SHOOT', { intensity: 0.35 });
             }
         }
@@ -346,6 +349,24 @@ export class StaticTurretSystem {
         turret.flashRemaining = 0.09;
         turret.shotsFired += 1;
         if (turret.root?.userData?.muzzleFlash) turret.root.userData.muzzleFlash.visible = true;
+        this.entityManager?.recorder?.logEvent?.('TURRET_SHOT', resolveOwnerIndex(turret), `${turret.id}:${turret.weapon}`);
+    }
+
+    _shouldPlayTurretAudio(turret) {
+        const owner = this.entityManager;
+        const session = owner?.runtimeConfig?.session || {};
+        const first = Math.max(0, Math.trunc(Number(owner?.renderer?.viewportSystem?.localPlayerIndex ?? session.localPlayerIndex) || 0));
+        const count = Math.max(1, Math.trunc(Number(session.localHumanCount) || 1));
+        const rangeSq = turret.audioRange * turret.audioRange;
+        for (let index = first; index < first + count; index += 1) {
+            const player = owner?.players?.find?.((candidate) => candidate?.index === index);
+            if (player?.position && player.position.distanceToSquared(turret.position) <= rangeSq) return true;
+        }
+        return false;
+    }
+
+    _playReplicatedShot(turret) {
+        playReplicatedStaticTurretShot(this, turret);
     }
 
     update(dt) {
@@ -365,17 +386,22 @@ export class StaticTurretSystem {
             if (turret.root?.userData?.muzzleFlash && turret.flashRemaining <= 0) {
                 turret.root.userData.muzzleFlash.visible = false;
             }
+            const target = this.networkReplica ? null : resolveStaticTurretTarget(this, turret, safeDt);
+            const aimDot = updateStaticTurretVisual(this, turret, target, safeDt);
             if (this.networkReplica) {
                 i += 1;
                 continue;
             }
-            const target = resolveStaticTurretTarget(this, turret, safeDt);
             if (!target) {
                 i += 1;
                 continue;
             }
-            turret.root?.userData?.headPivot?.lookAt?.(target.position);
-            if (turret.cooldownRemaining <= 0 && hasStaticTurretLineOfSight(this, turret, target)) {
+            if (
+                turret.acquireRemaining <= 0
+                && aimDot >= turret.fireDotMin
+                && turret.cooldownRemaining <= 0
+                && hasStaticTurretLineOfSight(this, turret, target)
+            ) {
                 this._fire(turret, target);
             }
             i += 1;
@@ -460,10 +486,13 @@ export class StaticTurretSystem {
         this._barrelGeometry.dispose();
         this._flashGeometry.dispose();
         this._accentGeometry.dispose();
+        this._healthBarGeometry.dispose();
+        this._healthBarFillGeometry.dispose();
         this._baseMaterial.dispose();
         this._mgMaterial.dispose();
         this._rocketMaterial.dispose();
         this._flashMaterial.dispose();
+        this._healthBackMaterial.dispose();
     }
 }
 

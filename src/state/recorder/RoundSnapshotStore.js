@@ -20,6 +20,8 @@ export class RoundSnapshotStore {
                 projectiles: [],
                 powerupCount: 0,
                 powerups: [],
+                turretCount: 0,
+                turrets: [],
                 particleCount: 0,
                 particleValues: [],
             };
@@ -141,6 +143,32 @@ export class RoundSnapshotStore {
             out.visible = powerup.mesh?.visible !== false;
         }
 
+        const turrets = Array.isArray(entityManager?._staticTurretSystem?.turrets)
+            ? entityManager._staticTurretSystem.turrets
+            : [];
+        snap.turretCount = 0;
+        for (let i = 0; i < turrets.length; i++) {
+            const turret = turrets[i];
+            if (!turret || turret.hp <= 0) continue;
+            while (snap.turrets.length <= snap.turretCount) snap.turrets.push({});
+            const out = snap.turrets[snap.turretCount++];
+            out.id = String(turret.id || `turret:${i}`);
+            out.weapon = String(turret.weapon || 'mg');
+            out.rocketType = String(turret.rocketType || 'ROCKET_WEAK');
+            out.owner = Number.isInteger(turret.ownerIndex) ? turret.ownerIndex : -1;
+            out.deployed = turret.deployed === true;
+            out.x = toFiniteNumber(turret.position?.x);
+            out.y = toFiniteNumber(turret.position?.y);
+            out.z = toFiniteNumber(turret.position?.z);
+            out.ax = toFiniteNumber(turret.aimDirection?.x, 1);
+            out.ay = toFiniteNumber(turret.aimDirection?.y);
+            out.az = toFiniteNumber(turret.aimDirection?.z);
+            out.hp = toFiniteNumber(turret.hp, -1);
+            out.maxHp = toFiniteNumber(turret.maxHp, -1);
+            out.ttl = Number.isFinite(turret.expiresRemaining) ? Math.max(0, turret.expiresRemaining) : -1;
+            out.color = Math.trunc(toFiniteNumber(turret.ownerPlayer?.color, 0xffb347));
+        }
+
         const particles = entityManager?.particles;
         snap.particleCount = Math.min(
             MAX_REPLAY_PARTICLES,
@@ -188,6 +216,7 @@ export class RoundSnapshotStore {
                 players: [],
                 projectiles: [],
                 powerups: [],
+                turrets: [],
                 particles: { count: 0, values: [] },
             });
         }
@@ -234,6 +263,13 @@ export class RoundSnapshotStore {
             out.powerups.length = powerupCount;
             for (let j = 0; j < powerupCount; j++) {
                 Object.assign(out.powerups[j], snapshot.powerups[j]);
+            }
+
+            const turretCount = Math.max(0, Number(snapshot?.turretCount) || 0);
+            while (out.turrets.length < turretCount) out.turrets.push({});
+            out.turrets.length = turretCount;
+            for (let j = 0; j < turretCount; j++) {
+                Object.assign(out.turrets[j], snapshot.turrets[j]);
             }
 
             const particleCount = Math.max(0, Number(snapshot?.particleCount) || 0);

@@ -199,6 +199,7 @@ function interpolateSceneEntries(target, leftEntries, rightEntries, alpha) {
         out.id = id;
         out.type = String(source?.type || left?.type || right?.type || '');
         out.weapon = String(source?.weapon || left?.weapon || right?.weapon || '');
+        out.rocketType = String(source?.rocketType || left?.rocketType || right?.rocketType || 'ROCKET_WEAK');
         out.owner = Math.trunc(toFiniteNumber(source?.owner ?? left?.owner ?? right?.owner, -1));
         out.deployed = source?.deployed === true;
         out.ttl = Math.max(0, THREE.MathUtils.lerp(

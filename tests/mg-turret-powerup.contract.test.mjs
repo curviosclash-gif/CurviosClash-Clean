@@ -110,7 +110,7 @@ test('deployed MG turret prioritizes a nearer enemy trail, then attacks the enem
 
     const turret = system.deployForPlayer(ownerPlayer);
     assert.ok(turret);
-    system.update(0.01);
+    system.update(0.23);
     assert.equal(trailHits.length, 1);
     assert.equal(enemy.hp, 100);
 
@@ -178,6 +178,29 @@ test('hand MG resolves an enemy deployable turret before targets behind it', () 
     assert.equal(hit.distance, 5.9);
     resolver.applyTurretHit(attacker, turret, hit.distance, { RANGE: 50, DAMAGE: 10, MIN_FALLOFF: 0.5 });
     assert.ok(appliedDamage > 9 && appliedDamage < 10);
+});
+
+test('bot MG aim can select an enemy deployable turret', () => {
+    const bot = {
+        index: 0,
+        isBot: true,
+        position: new THREE.Vector3(),
+        getAimDirection: (out) => out.set(1, 0, 0),
+    };
+    const turret = {
+        deployed: true,
+        ownerIndex: 1,
+        hp: 45,
+        position: new THREE.Vector3(20, 0, 2),
+    };
+    const resolver = new MGHitResolver({
+        players: [bot],
+        combat: { getMgTurretTargets: () => [turret] },
+    });
+    const aim = resolver.resolveAimDirection(bot, new THREE.Vector3(), { RANGE: 50, AIM_DOT_MIN: 0.9 });
+
+    assert.ok(aim.z > 0.09);
+    assert.ok(aim.x > 0.99);
 });
 
 test('rocket sweep detonates on an enemy deployable turret', () => {

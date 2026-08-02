@@ -280,6 +280,34 @@ test('round snapshots and HUD consumers preserve a valid quaternion w of zero', 
     }
 });
 
+test('round snapshots preserve static turrets for killcam scene playback', () => {
+    const store = new RoundSnapshotStore({ maxSnapshots: 2, timeProvider: () => 1 });
+    store.capture({
+        players: [],
+        _staticTurretSystem: {
+            turrets: [{
+                id: 'turret:replay',
+                weapon: 'rocket',
+                rocketType: 'ROCKET_MEDIUM',
+                ownerIndex: 2,
+                deployed: true,
+                position: new THREE.Vector3(4, 1, 7),
+                aimDirection: new THREE.Vector3(0, 0, -1),
+                hp: 31,
+                maxHp: 45,
+                expiresRemaining: 8,
+                ownerPlayer: { color: 0x44aaff },
+            }],
+        },
+    });
+
+    const turret = store.getOrderedSnapshots()[0].turrets[0];
+    assert.deepEqual(turret, {
+        id: 'turret:replay', weapon: 'rocket', rocketType: 'ROCKET_MEDIUM', owner: 2, deployed: true,
+        x: 4, y: 1, z: 7, ax: 0, ay: 0, az: -1, hp: 31, maxHp: 45, ttl: 8, color: 0x44aaff,
+    });
+});
+
 test('NO_DAMAGE completes only at sector completion and remains failed after a hit', () => {
     const pristine = createMissionInstance('NO_DAMAGE');
     assert.equal(checkMissionComplete(pristine), false);

@@ -122,6 +122,10 @@ test('ReplayScenePresentationSystem projects players, projectiles, powerups and 
             z: 6,
             visible: true,
         }],
+        turrets: [{
+            id: 'turret:1', weapon: 'mg', color: 0xffaa33,
+            x: 9, y: 0, z: 2, ax: 1, ay: 0, az: 0, hp: 30, maxHp: 45,
+        }],
         particles: {
             count: 1,
             values: [7, 8, 9, 1, 2, 3, 0.5, 1, -5, 0.4, 1, 0.5, 0.25],
@@ -150,6 +154,7 @@ test('ReplayScenePresentationSystem projects players, projectiles, powerups and 
     assert.equal(state.ghosts[0]?.trailColor, 0x2299ff);
     assert.equal(state.projectileCount, 1);
     assert.equal(state.powerupCount, 1);
+    assert.equal(state.turretCount, 1);
     assert.equal(state.particleCount, 1);
     assert.deepEqual(Array.from(particles.positions.slice(0, 3)), [7, 8, 9]);
     system.dispose();

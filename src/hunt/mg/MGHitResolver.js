@@ -141,6 +141,21 @@ export class MGHitResolver {
                 found = true;
             }
         }
+        for (const turret of this.runtime?.combat?.getMgTurretTargets?.() || []) {
+            if (!turret?.deployed || turret.hp <= 0 || turret.ownerIndex === player.index || !turret.position) continue;
+            this._tmpHit.subVectors(turret.position, player.position);
+            const distanceSq = this._tmpHit.lengthSq();
+            if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;
+            this._tmpHit.multiplyScalar(1 / Math.sqrt(distanceSq));
+            const aimDot = out.dot(this._tmpHit);
+            if (aimDot < aimDotMin) continue;
+            if (aimDot > bestDot || (aimDot === bestDot && distanceSq < bestDistanceSq)) {
+                bestDot = aimDot;
+                bestDistanceSq = distanceSq;
+                this._tmpTargetAim.copy(this._tmpHit);
+                found = true;
+            }
+        }
         if (found) out.copy(this._tmpTargetAim);
         return out;
     }
