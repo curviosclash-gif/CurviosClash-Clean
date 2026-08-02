@@ -19,6 +19,17 @@ const VEHICLE_CATEGORY_LABELS = Object.freeze({
     custom: 'Custom',
 });
 
+const STAT_VALUE_HINTS = Object.freeze({
+    speed: 'Abstrakter Geschwindigkeitswert',
+    agility: 'Abstrakter Wendigheitswert',
+    maxHp: 'Lebenspunkte',
+    mass: 'Verbrauchtes Massebudget',
+    energy: 'Verbrauchtes Energiebudget',
+    heat: 'Erzeugte Hitze',
+    partCount: 'Eingesetzte Steine',
+    budget: 'Verbrauchtes Editorbudget',
+});
+
 function button(className, text) {
     const node = el('button', className, text);
     node.type = 'button';
@@ -27,7 +38,9 @@ function button(className, text) {
 
 function deltaText(value) {
     const number = Number(value) || 0;
-    return number > 0 ? `+${number}` : String(number);
+    if (number > 0) return `↑ +${number}`;
+    if (number < 0) return `↓ ${number}`;
+    return '→ ±0';
 }
 
 function partStatsText(part) {
@@ -68,7 +81,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
     const mode = options.mode === 'fight' ? 'fight' : 'arcade';
     const {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
-        categoryTabs, hitboxChips, levelChips, partFilters, quickRows, favRow, recentRow,
+        categoryTabs, hitboxChips, levelChips, partFilters, partFilterReset, quickRows, favRow, recentRow,
         resultLine, catalogList, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine, xpFill,
         vehiclePreviousButton, vehicleNextButton,
         machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
@@ -94,6 +107,9 @@ export function createArcadeHangarWorkshopRenderer(options) {
     function renderVehicles(state) {
         const visible = selection.getVisibleEntries(state.profiles);
         const favorites = new Set(selection.getFavorites());
+        const focusVehicleId = visible.some((entry) => entry.vehicleId === state.draft.vehicleId)
+            ? state.draft.vehicleId
+            : visible[0]?.vehicleId;
         catalogList.setAttribute('role', 'listbox');
         resultLine.textContent = `${visible.length} Fahrzeuge sichtbar`;
         catalogList.replaceChildren();
@@ -109,6 +125,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             card.classList.toggle('is-favorite', favorites.has(entry.vehicleId));
             card.setAttribute('role', 'option');
             card.setAttribute('aria-selected', String(entry.vehicleId === state.draft.vehicleId));
+            card.tabIndex = entry.vehicleId === focusVehicleId ? 0 : -1;
             card.append(
                 el('span', 'arcade-vehicle-card-title', entry.label),
                 el(
@@ -176,6 +193,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             selectButton.dataset.partSelect = part.id;
             selectButton.setAttribute('aria-pressed', String(state.selectedPartId === part.id));
             selectButton.setAttribute('aria-disabled', String(Boolean(lock) && !purchase));
+            if (lock && !purchase) selectButton.title = card.dataset.lockedReason;
             selectButton.append(
                 head,
                 colorLine,
@@ -235,16 +253,24 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const compareBuild = savedComparison || state.buildFromProfile(compareEntry.vehicleId, compareEntry, profileFor(compareEntry.vehicleId));
         const savedMetrics = compareHangarStats(current, saved);
         const compareMetrics = compareHangarStats(current, projectHangarStats(compareBuild));
+        const baselineLabel = state.savedBuild?.name || 'Standard';
+        const comparisonLabel = savedComparison?.name || compareEntry.label;
         statRows.replaceChildren();
         savedMetrics.forEach((metric, index) => {
             const versus = compareMetrics[index];
             const row = el('div', 'arcade-vehicle-compare-row hangar-stat-row');
             row.dataset.metric = metric.key;
+            const value = el('strong', 'hangar-stat-value', String(metric.value));
+            value.title = `${STAT_VALUE_HINTS[metric.key] || metric.label}: ${metric.value}`;
+            const comparisons = el('div', 'hangar-stat-comparisons');
+            comparisons.append(
+                el('span', `hangar-stat-delta is-${metric.tone}`, `Seit ${baselineLabel}: ${deltaText(metric.delta)}`),
+                el('span', `hangar-stat-delta is-${versus.tone}`, `Gegen ${comparisonLabel}: ${deltaText(versus.delta)}`)
+            );
             row.append(
                 el('span', 'arcade-vehicle-compare-label', metric.label),
-                el('strong', 'hangar-stat-value', String(metric.value)),
-                el('span', `hangar-stat-delta is-${metric.tone}`, `Build ${deltaText(metric.delta)}`),
-                el('span', `hangar-stat-delta is-${versus.tone}`, `${savedComparison ? 'Preset' : 'Vergleich'} ${deltaText(versus.delta)}`)
+                value,
+                comparisons
             );
             statRows.appendChild(row);
         });
@@ -286,13 +312,22 @@ export function createArcadeHangarWorkshopRenderer(options) {
             const tier = el('span', 'arcade-vehicle-slot-tier', part?.tier || '—');
             const quick = button('secondary-btn arcade-vehicle-upgrade-btn', part?.tier === 'T3' ? 'MAX' : 'Stufe +');
             quick.dataset.quickUpgrade = slot.id;
+            quick.setAttribute('aria-label', `${slot.label}: Steinstufe erhöhen`);
             const nextId = part?.upgradeTo || '';
             const nextValidation = nextId ? evaluateInstall(nextId, slot.id) : null;
             quick.disabled = !nextValidation?.ok;
-            quick.title = nextValidation?.ok ? 'Nächste Steinstufe als Entwurf einsetzen' : describeFailure(nextValidation);
+            quick.title = nextValidation?.ok
+                ? 'Nächste Steinstufe als Entwurf einsetzen'
+                : (part?.tier === 'T3' ? 'Maximale Steinstufe erreicht' : (part ? describeFailure(nextValidation) : 'Keine Steinstufe eingesetzt'));
+            quick.setAttribute('aria-description', quick.title);
             const remove = button('secondary-btn hangar-slot-remove', '×');
             remove.dataset.removeSlot = slot.id;
             remove.disabled = !part || slot.required;
+            remove.setAttribute('aria-label', `${slot.label}: Stein entfernen`);
+            remove.title = !part
+                ? 'Fassung ist leer'
+                : (slot.required ? 'Pflichtfassung kann nicht geleert werden' : `Stein aus ${slot.label} entfernen`);
+            remove.setAttribute('aria-description', remove.title);
             row.append(label, installed, tier, quick, remove);
             slotGrid.appendChild(row);
             const dragValidation = activePartId ? evaluateInstall(activePartId, slot.id) : null;
@@ -408,6 +443,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
         onlyFavBtn.classList.toggle('is-active', selection.isFavoritesOnly());
         onlyFavBtn.setAttribute('aria-pressed', String(selection.isFavoritesOnly()));
+        partFilterReset.disabled = state.partFamily === 'all'
+            && state.partTier === 'ALL'
+            && state.partTrait === 'all'
+            && state.partAvailability === 'all'
+            && !search.value.trim();
         [
             [workshopViewButton, workshopViewPanel, 'workshop'],
             [statsViewButton, statsViewPanel, 'stats'],

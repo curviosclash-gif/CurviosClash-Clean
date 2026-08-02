@@ -67,6 +67,15 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
     await loadGame(page);
     await openArcadeHangar(page);
 
+    await expect(page.locator('.hangar-status-message')).toHaveAttribute('aria-live', 'polite');
+    await expect(page.locator('.hangar-preset-sort')).toHaveAttribute('aria-label', 'Builds sortieren');
+    await expect(page.locator('.arcade-vehicle-preset-select')).toHaveAttribute('aria-label', 'Gespeicherter Build');
+    expect(await page.locator('.arcade-vehicle-card').evaluateAll((cards) => (
+        cards.filter((card) => card.tabIndex === 0).length
+    ))).toBe(1);
+    await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-label', 'Core-Fassung: Stein entfernen');
+    await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-description', 'Pflichtfassung kann nicht geleert werden');
+
     const infoHints = page.locator('#arcade-vehicle-manager .menu-info-hint');
     await expect(infoHints).toHaveCount(3);
     await expect(infoHints.nth(0)).toHaveAttribute(
@@ -160,14 +169,34 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('.hangar-hardpoint-overlay').evaluate((node) => { node.style.pointerEvents = ''; });
 
     const agilityBefore = await readMetric(page, 'agility');
+    await page.locator('[data-build-view="presets"]').click();
     await page.locator('[data-catalog-view="parts"]').click();
     await expect(page.locator('.hangar-part-card')).toHaveCount(15);
+    const catalogMetrics = await page.locator('.hangar-catalog-list').evaluate((list) => ({
+        clientHeight: list.clientHeight,
+        scrollHeight: list.scrollHeight,
+        minimumCardHeight: Math.min(...Array.from(list.querySelectorAll('.hangar-part-card'))
+            .map((card) => card.getBoundingClientRect().height)),
+    }));
+    expect(catalogMetrics.minimumCardHeight).toBeGreaterThan(100);
+    expect(catalogMetrics.scrollHeight).toBeGreaterThan(catalogMetrics.clientHeight);
+    expect(await page.locator('.hangar-part-filters select').evaluateAll((selects) => (
+        selects.every((select) => select.getBoundingClientRect().width >= 100)
+    ))).toBe(true);
+    await page.locator('.hangar-part-trait-filter').selectOption('speed');
+    await expect(page.locator('.hangar-part-card')).toHaveCount(3);
+    await expect(page.locator('.hangar-part-filter-reset')).toBeEnabled();
+    await page.locator('.hangar-part-filter-reset').click();
+    await expect(page.locator('.hangar-part-card')).toHaveCount(15);
+    await expect(page.locator('.hangar-part-filter-reset')).toBeDisabled();
     await expect(page.locator('.hangar-part-card[data-part-id="stone_blue_t1"] .hangar-part-stats')).toContainText('Tempo +3');
     await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-costs')).toContainText('Paarpreis');
     await expect(page.locator('.hangar-part-card[data-part-id="stone_green_t1"] .hangar-part-run-bonuses')).toContainText('Wende +4%');
 
     const violetCore = page.locator('.hangar-part-card[data-part-id="stone_violet_t1"]');
     await violetCore.locator('.hangar-part-select').click();
+    await expect(page.locator('[data-build-view="workshop"]')).toHaveAttribute('aria-selected', 'true');
+    await expect(page.locator('[data-build-view-panel="workshop"]')).toBeVisible();
     await expect(violetCore.locator('.hangar-part-select')).toHaveAttribute('aria-pressed', 'true');
     await expect(page.locator('.hangar-part-preview')).toContainText('Fassung anklicken');
     await page.locator('[data-hangar-slot="core"]').click();
@@ -176,6 +205,11 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
 
     await page.locator('[data-build-view="presets"]').click();
     await expect(page.locator('[data-build-view-panel="presets"]')).toBeVisible();
+    await expect(page.locator('[data-starter-build="sprinter"]')).toContainText('Tempo und geringes Gewicht');
+    await expect(page.locator('.hangar-preset-rename')).toBeHidden();
+    await expect(page.locator('.hangar-preset-more summary')).toHaveAttribute('aria-controls', 'hangar-preset-more-actions');
+    await page.locator('.hangar-preset-more summary').click();
+    await expect(page.locator('.hangar-preset-rename')).toBeVisible();
     await page.locator('[data-starter-build="sprinter"]').click();
     await expect(page.locator('[data-hangar-slot-row="wing_left"] .hangar-installed-part')).toContainText('Wendestein T1');
     await expect(page.locator('.hangar-status-message')).toContainText('Sprinter Build geladen');
@@ -230,6 +264,11 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await expect(page.locator('[data-hangar-slot-row="wing_left"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect(page.locator('[data-hangar-slot-row="wing_right"] .arcade-vehicle-slot-tier')).toHaveText('T2');
     await expect.poll(() => readMetric(page, 'agility')).toBeGreaterThan(agilityBefore);
+
+    await page.locator('[data-build-view="stats"]').click();
+    await expect(page.locator('[data-metric="agility"] .hangar-stat-comparisons')).toContainText('Seit Standard:');
+    await expect(page.locator('[data-metric="agility"] .hangar-stat-comparisons')).toContainText('Gegen ');
+    await expect(page.locator('[data-metric="agility"] .hangar-stat-value')).toHaveAttribute('title', /Wendigheitswert/);
 
     await page.locator('[data-build-view="presets"]').click();
     await page.locator('.arcade-vehicle-preset-input').fill(BUILD_NAME);

@@ -4460,7 +4460,8 @@ input[type="range"]::-webkit-slider-thumb {
     gap: 8px;
     align-content: start;
     min-height: 0;
-    overflow: auto;
+    overflow-x: hidden;
+    overflow-y: auto;
     scrollbar-color: rgba(98, 184, 255, 0.45) transparent;
 }
 
@@ -4507,9 +4508,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-catalog-view-switch,
 .hangar-camera-toolbar,
-.hangar-part-filters,
-.hangar-history-bar,
-.hangar-preset-actions {
+.hangar-history-bar {
     display: flex;
     flex-wrap: wrap;
     gap: 6px;
@@ -4543,11 +4542,39 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hangar-part-filters select {
-    flex: 1;
+    width: 100%;
+}
+
+.hangar-part-filters {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.hangar-filter-field {
+    display: grid;
+    min-width: 0;
+    gap: 3px;
+}
+
+.hangar-filter-field-label {
+    color: #afc4d7;
+    font-size: 0.75rem;
+    font-weight: 700;
+}
+
+.hangar-part-filter-reset {
+    grid-column: 1 / -1;
+    min-height: 32px;
 }
 
 .hangar-catalog-list {
+    align-content: start;
+    grid-auto-rows: max-content;
+    min-height: 0;
     max-height: 470px;
+    overflow-x: hidden;
+    overflow-y: auto;
 }
 
 .hangar-vehicle-card.is-locked,
@@ -4557,6 +4584,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-part-card {
     display: grid;
+    min-height: max-content;
     gap: 5px;
     padding: 0;
     border: 1px solid rgba(98, 184, 255, 0.22);
@@ -4645,7 +4673,7 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-tier {
     border-radius: 999px;
     padding: 2px 6px;
-    font-size: 0.62rem;
+    font-size: 0.75rem;
     font-weight: 800;
 }
 
@@ -4659,7 +4687,7 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-part-costs,
 .hangar-part-drag-hint,
 .hangar-part-lock-reason {
-    font-size: 0.66rem;
+    font-size: 0.75rem;
     color: #9fb4c9;
 }
 
@@ -4686,7 +4714,7 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid rgba(248, 194, 94, 0.38);
     border-radius: 8px;
     background: rgba(66, 48, 18, 0.32);
-    font-size: 0.7rem;
+    font-size: 0.75rem;
 }
 
 .hangar-part-preview.hidden {
@@ -4713,7 +4741,21 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hangar-starter-builds .secondary-btn {
-    min-height: 32px;
+    display: grid;
+    min-height: 54px;
+    gap: 3px;
+    text-align: left;
+}
+
+.hangar-starter-build-name {
+    font-size: 0.82rem;
+}
+
+.hangar-starter-build-description {
+    color: #a9bfd3;
+    font-size: 0.75rem;
+    font-weight: 500;
+    line-height: 1.25;
 }
 
 .hangar-part-lock-reason {
@@ -4807,7 +4849,7 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-pair-toggle {
     color: #b8cada;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
     white-space: nowrap;
 }
 
@@ -4818,7 +4860,7 @@ input[type="range"]::-webkit-slider-thumb {
     text-align: center;
     color: #f4a3ae;
     background: rgba(111, 26, 42, 0.12);
-    font-size: 0.68rem;
+    font-size: 0.75rem;
 }
 
 .hangar-remove-zone.is-drop-target {
@@ -4890,7 +4932,7 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-vehicle-description {
     margin: 3px 0 0;
     color: #9fb4c9;
-    font-size: 0.67rem;
+    font-size: 0.75rem;
     line-height: 1.25;
 }
 
@@ -4900,21 +4942,29 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .hangar-stat-row {
-    grid-template-columns: minmax(92px, 1fr) 48px minmax(64px, auto) minmax(74px, auto);
-    padding: 4px 0;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 5px 8px;
+    padding: 6px 0;
     border-bottom: 1px solid rgba(98, 184, 255, 0.08);
 }
 
 .hangar-stat-value {
     color: #f1f8ff;
-    font-size: 0.72rem;
+    font-size: 0.78rem;
     text-align: right;
+}
+
+.hangar-stat-comparisons {
+    display: grid;
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 5px;
 }
 
 .hangar-stat-delta {
     border-radius: 5px;
-    padding: 2px 4px;
-    font-size: 0.59rem;
+    padding: 3px 5px;
+    font-size: 0.75rem;
     text-align: center;
 }
 
@@ -4929,14 +4979,14 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-budget-row {
     display: grid;
-    grid-template-columns: 105px 1fr;
+    grid-template-columns: 125px 1fr;
     align-items: center;
     gap: 7px;
 }
 
 .hangar-budget-label {
     color: #afc1d2;
-    font-size: 0.63rem;
+    font-size: 0.75rem;
 }
 
 .hangar-budget-track {
@@ -4999,7 +5049,7 @@ input[type="range"]::-webkit-slider-thumb {
     border: 1px solid rgba(98, 184, 255, 0.2);
     border-radius: 8px;
     padding: 8px;
-    font-size: 0.68rem;
+    font-size: 0.75rem;
 }
 
 .hangar-validation-box.is-valid {
@@ -5031,12 +5081,44 @@ input[type="range"]::-webkit-slider-thumb {
 
 .hangar-preset-actions {
     display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
 }
 
 .hangar-preset-actions .secondary-btn {
     min-width: 0;
     padding-inline: 6px;
+}
+
+.hangar-preset-primary-actions,
+.hangar-preset-more-actions {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+}
+
+.hangar-preset-more {
+    border: 1px solid rgba(98, 184, 255, 0.2);
+    border-radius: 8px;
+    background: rgba(7, 15, 27, 0.5);
+}
+
+.hangar-preset-more summary {
+    padding: 8px 10px;
+    color: #bdd3e7;
+    font-size: 0.78rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.hangar-preset-more-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 0 8px 8px;
+}
+
+.hangar-danger-action {
+    grid-column: 1 / -1;
+    border-color: rgba(255, 82, 104, 0.46);
+    color: #ffadb8;
 }
 
 .hangar-activate-build {
@@ -5048,14 +5130,18 @@ input[type="range"]::-webkit-slider-thumb {
     border-top: 1px solid rgba(98, 184, 255, 0.16);
     padding-top: 9px;
     color: #9db1c4;
-    font-size: 0.67rem;
+    font-size: 0.75rem;
+}
+
+.hangar-workshop-shell :is(.arcade-vehicle-card-meta, .arcade-vehicle-level, .hangar-stone-inventory) {
+    font-size: 0.75rem;
 }
 
 .hangar-status-message[data-tone="success"] { color: #8cebb8; }
 .hangar-status-message[data-tone="warning"] { color: #ffd184; }
 .hangar-status-message[data-tone="error"] { color: #ff9aa8; }
 
-.hangar-workshop-shell :is(button, input, select, [tabindex]):focus-visible {
+.hangar-workshop-shell :is(button, input, select, summary, [tabindex]):focus-visible {
     outline: 2px solid #7ccaff;
     outline-offset: 2px;
 }
@@ -5063,6 +5149,19 @@ input[type="range"]::-webkit-slider-thumb {
 @media (max-width: 1260px) {
     .hangar-workshop-layout {
         grid-template-columns: minmax(230px, 0.9fr) minmax(330px, 1.25fr) minmax(300px, 1.1fr);
+    }
+
+    .hangar-slot-grid .hangar-slot-row {
+        grid-template-columns: minmax(0, 1fr) 32px minmax(72px, auto) 28px;
+    }
+
+    .hangar-slot-grid .hangar-slot-select {
+        grid-column: 1 / -1;
+        white-space: normal;
+    }
+
+    .hangar-history-bar .secondary-btn {
+        flex: 1 1 calc(50% - 6px);
     }
 
     .hunt-match-status {

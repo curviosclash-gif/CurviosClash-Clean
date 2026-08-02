@@ -1,5 +1,6 @@
 import { createUiNode as el } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
 import { FIGHT_MACHINE_GUN_MODELS } from '../../shared/contracts/FightMachineGunContract.js';
+import { HANGAR_STARTER_BUILDS } from './HangarStarterBuildCatalog.js';
 
 const STONE_COLORS = Object.freeze([
     ['all', 'Alle Farben'], ['blue', 'Blau · Geschwindigkeit'], ['green', 'Grün · Wendigkeit'],
@@ -24,6 +25,12 @@ function infoHint(text, className = '') {
     node.setAttribute('role', 'img');
     node.setAttribute('aria-label', text);
     return node;
+}
+
+function labeledSelect(labelText, select) {
+    const label = el('label', 'hangar-filter-field');
+    label.append(el('span', 'hangar-filter-field-label', labelText), select);
+    return label;
 }
 
 export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
@@ -119,7 +126,14 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         option.textContent = label;
         availabilitySelect.appendChild(option);
     });
-    partFilters.append(familySelect, tierSelect, traitSelect, availabilitySelect);
+    const partFilterReset = button('secondary-btn hangar-part-filter-reset', 'Filter zurücksetzen');
+    partFilters.append(
+        labeledSelect('Farbe', familySelect),
+        labeledSelect('Stufe', tierSelect),
+        labeledSelect('Eigenschaft', traitSelect),
+        labeledSelect('Verfügbarkeit', availabilitySelect),
+        partFilterReset
+    );
     const quickRows = el('div', 'arcade-vehicle-quick-rows');
     const favRow = el('div', 'arcade-vehicle-quick-row');
     const recentRow = el('div', 'arcade-vehicle-quick-row');
@@ -259,12 +273,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const starterPanel = el('section', 'hangar-starter-panel');
     starterPanel.appendChild(el('h4', 'arcade-vehicle-subtitle', 'Starter-Builds'));
     const starterBuilds = el('div', 'hangar-starter-builds');
-    [
-        ['sprinter', 'Sprinter'], ['turn_fighter', 'Kurvenjäger'],
-        ['tank', 'Tank'], ['efficient', 'Energiesparer'],
-    ].forEach(([id, label]) => {
-        const node = button('secondary-btn hangar-starter-build', label);
-        node.dataset.starterBuild = id;
+    HANGAR_STARTER_BUILDS.forEach((starterBuild) => {
+        const node = button('secondary-btn hangar-starter-build', '', starterBuild.description);
+        node.dataset.starterBuild = starterBuild.id;
+        node.append(
+            el('strong', 'hangar-starter-build-name', starterBuild.label),
+            el('span', 'hangar-starter-build-description', starterBuild.description)
+        );
         starterBuilds.appendChild(node);
     });
     starterPanel.appendChild(starterBuilds);
@@ -274,10 +289,13 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     presetName.type = 'text';
     presetName.className = 'arcade-vehicle-preset-input';
     presetName.placeholder = 'Build-Name';
+    presetName.setAttribute('aria-label', 'Build-Name');
     const presetSelect = document.createElement('select');
     presetSelect.className = 'arcade-vehicle-preset-select';
+    presetSelect.setAttribute('aria-label', 'Gespeicherter Build');
     const presetSort = document.createElement('select');
     presetSort.className = 'hangar-preset-sort';
+    presetSort.setAttribute('aria-label', 'Builds sortieren');
     [['updated', 'Zuletzt bearbeitet'], ['favorite', 'Favoriten zuerst'], ['name', 'Name A-Z']].forEach(([value, label]) => {
         const option = document.createElement('option');
         option.value = value;
@@ -288,17 +306,30 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     presetTags.type = 'text';
     presetTags.className = 'hangar-preset-tags';
     presetTags.placeholder = 'Tags, kommagetrennt';
+    presetTags.setAttribute('aria-label', 'Build-Tags, kommagetrennt');
     const presetActions = el('div', 'arcade-vehicle-loadout-controls hangar-preset-actions');
     const presetSave = button('secondary-btn arcade-vehicle-preset-save', 'Speichern');
     const presetSaveAs = button('secondary-btn hangar-preset-save-as', 'Speichern als');
     const presetLoad = button('secondary-btn arcade-vehicle-preset-load', 'Laden');
     const presetRename = button('secondary-btn hangar-preset-rename', 'Umbenennen');
     const presetDuplicate = button('secondary-btn hangar-preset-duplicate', 'Duplizieren');
-    const presetDelete = button('secondary-btn arcade-vehicle-preset-delete', 'Löschen');
+    const presetDelete = button('secondary-btn arcade-vehicle-preset-delete hangar-danger-action', 'Löschen');
     const presetFavorite = button('secondary-btn hangar-preset-favorite', '☆ Favorit');
     const presetExport = button('secondary-btn hangar-preset-export', 'Export');
     const presetImport = button('secondary-btn hangar-preset-import', 'Import');
-    presetActions.append(presetSave, presetSaveAs, presetLoad, presetRename, presetDuplicate, presetFavorite, presetExport, presetImport, presetDelete);
+    const presetPrimaryActions = el('div', 'hangar-preset-primary-actions');
+    presetPrimaryActions.append(presetSave, presetSaveAs, presetLoad);
+    const presetMore = document.createElement('details');
+    presetMore.className = 'hangar-preset-more';
+    const presetMoreSummary = document.createElement('summary');
+    presetMoreSummary.textContent = 'Weitere Aktionen';
+    presetMoreSummary.setAttribute('role', 'button');
+    presetMoreSummary.setAttribute('aria-controls', 'hangar-preset-more-actions');
+    const presetMoreActions = el('div', 'hangar-preset-more-actions');
+    presetMoreActions.id = 'hangar-preset-more-actions';
+    presetMoreActions.append(presetRename, presetDuplicate, presetFavorite, presetExport, presetImport, presetDelete);
+    presetMore.append(presetMoreSummary, presetMoreActions);
+    presetActions.append(presetPrimaryActions, presetMore);
     const activateButton = button('start-btn hangar-activate-build', mode === 'fight' ? 'Für nächsten Kampf aktivieren' : 'Für nächsten Run aktivieren');
     loadoutPanel.append(presetName, presetTags, presetSort, presetSelect, presetActions);
     const workshopViewPanel = el('div', 'hangar-build-view-panel');
@@ -332,13 +363,15 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     layout.appendChild(rightPanel);
     const statusBar = el('footer', 'hangar-status-bar');
     const statusMessage = el('span', 'hangar-status-message', 'Hangar wird geladen …');
+    statusMessage.setAttribute('role', 'status');
+    statusMessage.setAttribute('aria-live', 'polite');
     const activeBuildLabel = el('span', 'hangar-active-build-label', 'Aktiver Run-Build: Standard');
     statusBar.append(statusMessage, activeBuildLabel);
     container.appendChild(statusBar);
 
     return {
         container, saveState, viewSwitch, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
-        categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, traitSelect, availabilitySelect, quickRows,
+        categoryTabs, hitboxChips, levelChips, partFilters, familySelect, tierSelect, traitSelect, availabilitySelect, partFilterReset, quickRows,
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine,

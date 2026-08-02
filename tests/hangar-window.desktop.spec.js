@@ -49,6 +49,9 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     await expect(hangarPage.locator('[data-build-view-panel="presets"]')).toBeVisible();
     await expect(hangarPage.locator('.hangar-starter-builds')).toBeVisible();
     await hangarPage.locator('[data-build-view="workshop"]').click();
+    expect(await hangarPage.locator('.hangar-build-scroll').evaluate((node) => (
+        node.scrollWidth <= node.clientWidth + 1
+    ))).toBe(true);
 
     const layout = await hangarPage.evaluate(() => {
         const shell = document.getElementById('arcade-vehicle-manager')?.getBoundingClientRect();
@@ -60,6 +63,15 @@ test('Desktop-Hangar öffnet maximiert in einem eigenen Fenster', async ({ page,
     expect(Math.max(...cameraButtons) - Math.min(...cameraButtons)).toBeLessThan(8);
 
     await hangarPage.locator('[data-catalog-view="parts"]').click();
+    await expect(hangarPage.locator('.hangar-filter-field-label')).toHaveCount(4);
+    const stoneListLayout = await hangarPage.locator('.hangar-catalog-list').evaluate((list) => ({
+        clientHeight: list.clientHeight,
+        scrollHeight: list.scrollHeight,
+        minimumCardHeight: Math.min(...Array.from(list.querySelectorAll('.hangar-part-card'))
+            .map((card) => card.getBoundingClientRect().height)),
+    }));
+    expect(stoneListLayout.minimumCardHeight).toBeGreaterThan(100);
+    expect(stoneListLayout.scrollHeight).toBeGreaterThan(stoneListLayout.clientHeight);
     await expect(hangarPage.locator('.hangar-part-card[data-part-id="stone_blue_t2"] .hangar-part-lock-reason')).toContainText('Freischaltung auf Level 10');
     await expect(hangarPage.locator('.hangar-part-card[data-part-id="stone_blue_t2"] .hangar-part-lock-reason')).toContainText('noch');
     await hangarPage.locator('.hangar-part-trait-filter').selectOption('speed');

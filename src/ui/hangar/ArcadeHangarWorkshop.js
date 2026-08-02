@@ -86,7 +86,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     const shell = createArcadeHangarWorkshopShell(rules, { mode: hangarMode });
     const {
         container, viewSwitch, search, onlyFavBtn, categoryTabs, hitboxChips, levelChips,
-        familySelect, tierSelect, traitSelect, availabilitySelect, quickRows, catalogList, cameraToolbar, cameraReset, previewStage,
+        familySelect, tierSelect, traitSelect, availabilitySelect, partFilterReset, quickRows, catalogList, cameraToolbar, cameraReset, previewStage,
         vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, favoriteBtn, compareSelect, slotGrid, undoButton, redoButton,
         revertButton, defaultButton, presetName, presetSelect, presetSave, presetSaveAs, presetLoad,
@@ -270,6 +270,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     function selectPart(partId) {
         const part = resolveHangarPart(partId);
         if (!part) return;
+        buildView = 'workshop';
         selectedPartId = selectedPartId === part.id ? '' : part.id;
         previewPartId = selectedPartId;
         if (selectedPartId && !part.compatibleSlots.includes(selectedSlotId)) selectedSlotId = part.compatibleSlots[0];
@@ -286,6 +287,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     function handleSlotSelection(slotId) {
+        buildView = 'workshop';
         if (selectedPartId) {
             applyInstall(selectedPartId, slotId);
             return;
@@ -508,6 +510,18 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(tierSelect, 'change', () => { partTier = tierSelect.value; syncDisplay(); });
     bind(traitSelect, 'change', () => { partTrait = traitSelect.value; syncDisplay(); });
     bind(availabilitySelect, 'change', () => { partAvailability = availabilitySelect.value; syncDisplay(); });
+    bind(partFilterReset, 'click', () => {
+        partFamily = 'all';
+        partTier = 'ALL';
+        partTrait = 'all';
+        partAvailability = 'all';
+        search.value = '';
+        familySelect.value = partFamily;
+        tierSelect.value = partTier;
+        traitSelect.value = partTrait;
+        availabilitySelect.value = partAvailability;
+        syncDisplay();
+    });
     bind(catalogList, 'click', (event) => {
         const vehicleId = event.target?.closest?.('[data-vehicle-id]')?.dataset.vehicleId;
         if (vehicleId) { selectVehicle(vehicleId); return; }
@@ -524,6 +538,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             return;
         }
         if (card.querySelector('[data-purchase-stone-id]')) {
+            buildView = 'workshop';
             selectedPartId = '';
             previewPartId = card.dataset.partId;
             toast(`${card.dataset.partLabel} als Vorschau geöffnet · Kauf separat bestätigen`);
@@ -676,8 +691,9 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     bind(activateButton, 'click', () => { void saveCurrent({ activate: true }); });
     bind(container, 'keydown', (event) => {
         const editing = ['input', 'select', 'textarea'].includes(String(event.target?.tagName || '').toLowerCase());
+        const shortcutSurface = event.target === container || previewStage.contains(event.target) || slotGrid.contains(event.target);
         if (event.key === 'Escape' && selectedPartId && !editing) { event.preventDefault(); selectedPartId = ''; previewPartId = ''; toast('Teileauswahl aufgehoben'); syncDisplay(); }
-        else if (event.key === 'Delete' && !editing) { event.preventDefault(); applyRemoval(selectedSlotId); }
+        else if (event.key === 'Delete' && !editing && shortcutSurface) { event.preventDefault(); applyRemoval(selectedSlotId); }
         else if (event.ctrlKey && event.key.toLowerCase() === 'z' && !editing) { event.preventDefault(); const value = history.undo(); if (value) setDraft(value, { recordHistory: false }); }
         else if (event.ctrlKey && event.key.toLowerCase() === 'y' && !editing) { event.preventDefault(); const value = history.redo(); if (value) setDraft(value, { recordHistory: false }); }
         else if (!editing && ['ArrowLeft', 'ArrowRight'].includes(event.key)
