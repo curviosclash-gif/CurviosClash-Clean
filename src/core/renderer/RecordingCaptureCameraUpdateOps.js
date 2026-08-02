@@ -89,3 +89,27 @@ export function updateShortsCaptureCamera(
     pipeline._shortsOrbitPoseReady[slotIndex] = true;
     return true;
 }
+
+export function resetCapturePerspectiveState(pipeline, previous, next) {
+    const changed = previous?.normal !== next?.normal
+        || previous?.reduceMotion !== next?.reduceMotion;
+    if (!changed) return;
+    pipeline._orbitDirector.reset();
+    pipeline._cinematicOrbitDirector.reset();
+    pipeline._shortsOrbitPoseReady.length = 0;
+    pipeline._cinematicOrbitPoseReady = false;
+    pipeline._cinematicSubjectPlayerIndex = null;
+}
+
+export function syncCinematicCaptureSubject(pipeline, player) {
+    const playerIndex = Number.isInteger(player?.playerIndex) ? player.playerIndex : null;
+    if (playerIndex === null) {
+        pipeline._cinematicSubjectPlayerIndex = null;
+        return 0;
+    }
+    if (pipeline._cinematicSubjectPlayerIndex !== playerIndex) {
+        pipeline._cinematicOrbitDirector.resetPlayer(playerIndex);
+        pipeline._cinematicSubjectPlayerIndex = playerIndex;
+    }
+    return playerIndex;
+}

@@ -101,4 +101,9 @@ export class CameraCollisionSolver {
     reset() {
         this._cacheByPlayer.length = 0;
     }
+
+    resetPlayer(playerIndex) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._cacheByPlayer[playerIndex] = null;
+    }
 }

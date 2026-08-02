@@ -1,9 +1,12 @@
 import * as THREE from 'three';
 import { CameraCollisionSolver } from './CameraCollisionSolver.js';
 import {
+    detectRecordingOrbitPositionDiscontinuity,
     isWithinRecordingArenaBounds,
     moveRecordingCameraTowardFallback,
     RECORDING_ORBIT_FOV,
+    resetRecordingOrbitPlayer,
+    resetRecordingOrbitPlayerState,
     updateRecordingOrbitFov,
 } from './RecordingOrbitCameraOps.js';
 
@@ -112,6 +115,7 @@ export class RecordingOrbitCameraDirector {
         baseLift = 3.8,
         baseLookAhead = 5.5,
         transitionSpeed = 4.5,
+        discontinuityDistance = 14,
     } = {}) {
         this.orbitSpeed = toPositiveNumber(orbitSpeed, 0.9);
         this.smoothSpeed = toPositiveNumber(smoothSpeed, 8.0);
@@ -122,9 +126,11 @@ export class RecordingOrbitCameraDirector {
         this.baseLift = toPositiveNumber(baseLift, 3.8);
         this.baseLookAhead = toPositiveNumber(baseLookAhead, 5.5);
         this.transitionSpeed = toPositiveNumber(transitionSpeed, 4.5);
+        this.discontinuityDistance = toPositiveNumber(discontinuityDistance, 14);
 
         this._phaseByPlayer = [];
         this._blendByPlayer = [];
+        this._lastPlayerPositionByPlayer = [];
 
         // Shot-switching state per player.
         this._shotTimerByPlayer = [];
@@ -167,6 +173,7 @@ export class RecordingOrbitCameraDirector {
     reset() {
         this._phaseByPlayer.length = 0;
         this._blendByPlayer.length = 0;
+        this._lastPlayerPositionByPlayer.length = 0;
         this._shotTimerByPlayer.length = 0;
         this._shotDurationByPlayer.length = 0;
         this._shotSeqIndexByPlayer.length = 0;
@@ -186,6 +193,10 @@ export class RecordingOrbitCameraDirector {
         this._baseFovByPlayer.length = 0;
         this._letterboxTimer.length = 0;
         this._collisionSolver.reset();
+    }
+
+    resetPlayer(playerIndex) {
+        resetRecordingOrbitPlayer(this, playerIndex);
     }
 
     /** Returns letterbox progress 0..1 for the given player slot. */
@@ -441,29 +452,6 @@ export class RecordingOrbitCameraDirector {
         return distSq <= DUEL_PROXIMITY_SQ;
     }
 
-    // --- Dynamic FOV ------------------------------------------------------
-
-    _updateFov(
-        playerIndex,
-        camera,
-        dt,
-        baseFov,
-        isDuel,
-        dynamicFovEnabled = true,
-        dynamicFovIntensity = 1
-    ) {
-        updateRecordingOrbitFov(
-            this,
-            playerIndex,
-            camera,
-            dt,
-            baseFov,
-            isDuel,
-            dynamicFovEnabled,
-            dynamicFovIntensity
-        );
-    }
-
     // --- Shake & letterbox ------------------------------------------------
 
     _applyShake(camera, playerIndex, phase) {
@@ -514,6 +502,11 @@ export class RecordingOrbitCameraDirector {
         if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
 
         const safeDt = Math.max(0, Number(dt) || 0);
+        if (detectRecordingOrbitPositionDiscontinuity(this, playerIndex, playerPosition)) {
+            resetRecordingOrbitPlayerState(this, playerIndex);
+            camera.position.copy(fallbackTarget?.position || playerPosition);
+            camera.lookAt(fallbackTarget?.lookAt || playerPosition);
+        }
         if (!Number.isFinite(this._baseFovByPlayer[playerIndex])) {
             const explicitBaseFov = Number(baseFov);
             this._baseFovByPlayer[playerIndex] = Number.isFinite(explicitBaseFov) && explicitBaseFov > 0
@@ -597,7 +590,8 @@ export class RecordingOrbitCameraDirector {
         if (!useOrbitShot || blend <= 0.0001) {
             moveRecordingCameraTowardFallback(camera, fallbackTarget, this.exitSpeed, safeDt);
             camera.lookAt(fallbackLookAt);
-            this._updateFov(
+            updateRecordingOrbitFov(
+                this,
                 playerIndex,
                 camera,
                 safeDt,
@@ -621,7 +615,8 @@ export class RecordingOrbitCameraDirector {
         this._applyShake(camera, playerIndex, phase);
 
         // Apply dynamic FOV.
-        this._updateFov(
+        updateRecordingOrbitFov(
+            this,
             playerIndex,
             camera,
             safeDt,

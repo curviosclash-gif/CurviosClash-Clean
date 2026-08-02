@@ -15,6 +15,50 @@ export const RECORDING_ORBIT_FOV = Object.freeze({
     SNAP_BACK_DELAY: FOV_SNAP_BACK_DELAY,
 });
 
+export function resetRecordingOrbitPlayerState(state, playerIndex) {
+    state._phaseByPlayer[playerIndex] = undefined;
+    state._blendByPlayer[playerIndex] = undefined;
+    state._shotTimerByPlayer[playerIndex] = undefined;
+    state._shotDurationByPlayer[playerIndex] = undefined;
+    state._shotSeqIndexByPlayer[playerIndex] = undefined;
+    state._slotStyleByPlayer[playerIndex] = undefined;
+    state._prevShotType[playerIndex] = undefined;
+    state._prevHpRatio[playerIndex] = undefined;
+    state._prevScore[playerIndex] = undefined;
+    state._prevBoosting[playerIndex] = undefined;
+    state._baselineSpeed[playerIndex] = undefined;
+    state._eventOverrideShot[playerIndex] = undefined;
+    state._eventOverrideTimer[playerIndex] = undefined;
+    state._shakeIntensity[playerIndex] = undefined;
+    state._shakeDecay[playerIndex] = undefined;
+    state._fovOffset[playerIndex] = undefined;
+    state._fovTarget[playerIndex] = undefined;
+    state._fovSnapBackTimer[playerIndex] = undefined;
+    state._baseFovByPlayer[playerIndex] = undefined;
+    state._letterboxTimer[playerIndex] = undefined;
+    state._collisionSolver.resetPlayer(playerIndex);
+}
+
+export function resetRecordingOrbitPlayer(state, playerIndex) {
+    if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+    resetRecordingOrbitPlayerState(state, playerIndex);
+    state._lastPlayerPositionByPlayer[playerIndex] = undefined;
+}
+
+export function detectRecordingOrbitPositionDiscontinuity(state, playerIndex, playerPosition) {
+    let previousPosition = state._lastPlayerPositionByPlayer[playerIndex];
+    if (!previousPosition) {
+        previousPosition = new THREE.Vector3();
+        state._lastPlayerPositionByPlayer[playerIndex] = previousPosition;
+        previousPosition.copy(playerPosition);
+        return false;
+    }
+    const thresholdSq = state.discontinuityDistance * state.discontinuityDistance;
+    const discontinuity = previousPosition.distanceToSquared(playerPosition) > thresholdSq;
+    previousPosition.copy(playerPosition);
+    return discontinuity;
+}
+
 export function isWithinRecordingArenaBounds(position, arena) {
     const bounds = arena?.bounds || null;
     if (!bounds) return true;

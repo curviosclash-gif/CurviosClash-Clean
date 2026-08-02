@@ -194,6 +194,11 @@ export class CameraRigSystem {
         camera.updateProjectionMatrix();
     }
 
+    _resolveThirdPersonCollision(playerIndex, mode, playerPosition, desiredPosition, arena) {
+        if (mode !== 'THIRD_PERSON' || !desiredPosition) return;
+        this.collisionSolver.resolve(playerIndex, mode, playerPosition, desiredPosition, arena);
+    }
+
     _applySpeedFov(playerIndex, camera, mode, dt, playerState = null) {
         if (!camera) return;
 
@@ -398,9 +403,9 @@ export class CameraRigSystem {
             if (hasShake) {
                 target.position.add(shakeOffset);
             }
-
             const smoothFactor = firstPersonHardLock ? 1 : (1 - Math.pow(1 - smooth, stableDt * 60));
             cam.position.lerp(target.position, smoothFactor);
+            this._resolveThirdPersonCollision(playerIndex, mode, playerPosition, cam.position, arena);
             if (firstPersonHardLock) {
                 this._applySpeedFov(playerIndex, cam, mode, stableDt, playerState);
                 cam.quaternion.copy(playerQuaternion);
@@ -447,6 +452,7 @@ export class CameraRigSystem {
             target.position.add(shakeOffset);
             target.lookAt.addScaledVector(shakeOffset, 0.35);
         }
+        this._resolveThirdPersonCollision(playerIndex, mode, playerPosition, target.position, arena);
 
         const livePerspectiveApplied = this._applyLivePerspective({
             playerIndex,

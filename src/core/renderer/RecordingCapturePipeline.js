@@ -26,7 +26,11 @@ import {
     toPositiveEven,
     toRatio,
 } from './RecordingCaptureProjectionOps.js';
-import { updateShortsCaptureCamera } from './RecordingCaptureCameraUpdateOps.js';
+import {
+    resetCapturePerspectiveState,
+    syncCinematicCaptureSubject,
+    updateShortsCaptureCamera,
+} from './RecordingCaptureCameraUpdateOps.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({
     width: 9,
@@ -76,6 +80,7 @@ export class RecordingCapturePipeline {
         this._tmpCameraQuaternion = new THREE.Quaternion();
         this._shortsOrbitPoseReady = [];
         this._cinematicOrbitPoseReady = false;
+        this._cinematicSubjectPlayerIndex = null;
         this._lastMeta = null;
     }
 
@@ -95,6 +100,7 @@ export class RecordingCapturePipeline {
         this._cinematicSubjectSelector.reset();
         this._shortsOrbitPoseReady.length = 0;
         this._cinematicOrbitPoseReady = false;
+        this._cinematicSubjectPlayerIndex = null;
     }
 
     setSettings(settings = null) {
@@ -103,10 +109,13 @@ export class RecordingCapturePipeline {
     }
 
     setCameraPerspectiveSettings(settings = null) {
-        this._cameraPerspectiveSettings = normalizeCameraPerspectiveSettings(
+        const previous = this._cameraPerspectiveSettings;
+        const next = normalizeCameraPerspectiveSettings(
             settings,
-            this._cameraPerspectiveSettings
+            previous
         );
+        resetCapturePerspectiveState(this, previous, next);
+        this._cameraPerspectiveSettings = next;
         return { ...this._cameraPerspectiveSettings };
     }
 
@@ -597,6 +606,7 @@ export class RecordingCapturePipeline {
 
         if (usesRecordedCamera) {
             this._cinematicOrbitPoseReady = false;
+            this._cinematicSubjectPlayerIndex = null;
             applyProjectionVector3(camera.position, recordedCamera.position);
             applyProjectionQuaternion(camera.quaternion, recordedCamera.quaternion);
             camera.fov = Math.max(1, Number(recordedCamera.fov) || this._cinematicBaseFov);
@@ -608,6 +618,7 @@ export class RecordingCapturePipeline {
                 (candidate) => Number(candidate?.playerIndex) === Number(recordedCamera.index)
             ) || humanPlayers[0] || players[0] || null;
         } else if (player) {
+            const directorPlayerIndex = syncCinematicCaptureSubject(this, player);
             applyProjectionVector3(this._tmpPosition, player?.position);
             applyProjectionQuaternion(this._tmpQuaternion, player?.quaternion);
             applyProjectionVector3(this._tmpDirection, player?.direction, 0, 0, -1);
@@ -654,7 +665,7 @@ export class RecordingCapturePipeline {
                 : SLOT_STYLE.CINEMATIC;
             const perspectiveDt = this._resolveShortsDt(renderDelta);
             this._cinematicOrbitDirector.apply({
-                playerIndex: Number.isInteger(player?.playerIndex) ? player.playerIndex : 0,
+                playerIndex: directorPlayerIndex,
                 camera,
                 fallbackTarget: this._cinematicCameraRig.cameraTargets[0],
                 playerPosition: this._tmpPosition,
@@ -741,6 +752,7 @@ export class RecordingCapturePipeline {
         this._cinematicCameraRig.resetCameras();
         this._cinematicOrbitDirector.reset();
         this._cinematicOrbitPoseReady = false;
+        this._cinematicSubjectPlayerIndex = null;
         this._lastMeta = null;
     }
 }

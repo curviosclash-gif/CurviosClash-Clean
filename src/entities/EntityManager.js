@@ -19,7 +19,11 @@ import {
     emitArcadeDamageEvent,
     emitArcadeGameplayEvent,
 } from './runtime/EntityArcadeGameplayEvents.js';
-import { updateEntityCameraContext } from './runtime/EntityCameraContext.js';
+import {
+    findNearestLiveCameraOpponentPosition,
+    findNearestProjectedCameraOpponentPosition,
+    updateEntityCameraContext,
+} from './runtime/EntityCameraContext.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -377,7 +381,6 @@ export class EntityManager {
             }
         }
         if (projectedHumanCount > 0) {
-            const hasMultipleHumans = projectedHumanCount > 1;
             for (const projectedPlayer of projectedPlayers) {
                 if (!projectedPlayer || projectedPlayer.isBot === true) continue;
                 const playerIndex = Number.isInteger(projectedPlayer?.playerIndex)
@@ -420,23 +423,11 @@ export class EntityManager {
                         Number(projectedPlayer?.firstPersonAnchor?.z) || 0
                     )
                     : null;
-                let otherPlayerPosition = null;
-                if (hasMultipleHumans) {
-                    let otherPlayer = null;
-                    for (const entry of projectedPlayers) {
-                        if (entry && entry.isBot !== true && entry.playerIndex !== playerIndex) {
-                            otherPlayer = entry;
-                            break;
-                        }
-                    }
-                    if (otherPlayer?.position) {
-                        otherPlayerPosition = this._tmpVec2.set(
-                            Number(otherPlayer.position.x) || 0,
-                            Number(otherPlayer.position.y) || 0,
-                            Number(otherPlayer.position.z) || 0
-                        );
-                    }
-                }
+                const otherPlayerPosition = findNearestProjectedCameraOpponentPosition(
+                    projectedPlayers,
+                    projectedPlayer,
+                    this._tmpVec2
+                );
 
                 this.renderer.updateCamera(
                     playerIndex,
@@ -455,7 +446,6 @@ export class EntityManager {
             return;
         }
 
-        const hasMultipleHumans = Array.isArray(this.humanPlayers) && this.humanPlayers.length > 1;
         for (const player of this.players) {
             if (!player.isBot && player.index < this.renderer.cameras.length) {
                 const mode = this.renderer.getCameraMode(player.index);
@@ -470,13 +460,13 @@ export class EntityManager {
                 const firstPersonAnchor = mode === 'FIRST_PERSON'
                     ? player.getFirstPersonCameraAnchor(this._tmpCamAnchor)
                     : null;
-                let otherPlayerPosition = null;
-                if (hasMultipleHumans) {
-                    const otherPlayer = this.humanPlayers.find((entry) => entry && entry !== player) || null;
-                    if (otherPlayer && typeof otherPlayer.resolveRenderPosition === 'function') {
-                        otherPlayerPosition = otherPlayer.resolveRenderPosition(renderAlpha);
-                    }
-                }
+                const otherPlayerPosition = findNearestLiveCameraOpponentPosition(
+                    this.players,
+                    player,
+                    this._tmpCamRenderPos,
+                    renderAlpha,
+                    this._tmpVec2
+                );
                 this.renderer.updateCamera(
                     player.index,
                     this._tmpCamRenderPos,

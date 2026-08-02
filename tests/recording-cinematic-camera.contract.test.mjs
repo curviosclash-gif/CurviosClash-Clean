@@ -19,6 +19,13 @@ const { CinematicCameraSystem } = await import(
 const { CinematicCaptureSubjectSelector } = await import(
     '../src/core/renderer/RecordingCaptureProjectionOps.js'
 );
+const {
+    findNearestLiveCameraOpponentPosition,
+    findNearestProjectedCameraOpponentPosition,
+} = await import('../src/entities/runtime/EntityCameraContext.js');
+const { syncCinematicCaptureSubject } = await import(
+    '../src/core/renderer/RecordingCaptureCameraUpdateOps.js'
+);
 
 test('cinematic camera keeps immutable base FOV when caller passes mutated frame FOV', () => {
     const director = new RecordingOrbitCameraDirector();
@@ -326,4 +333,145 @@ test('cinematic camera supports every configured network player slot', () => {
         });
         assert.ok(cinematic.getPlayerBlend(playerIndex) > 0);
     }
+});
+
+test('third-person cameras resolve walls after cinematic offsets and smoothing', () => {
+    for (const cockpitCamera of [false, true]) {
+        const rig = new CameraRigSystem({ cinematicEnabled: true, livePerspectiveEnabled: true });
+        rig.createCamera(16 / 9);
+        rig.setCameraPerspectiveSettings({ normal: 'classic', reduceMotion: false });
+        let collisionChecks = 0;
+        const arena = {
+            checkCollision(position, radius = 0) {
+                collisionChecks++;
+                return position.z + radius >= 4 && position.z - radius <= 6;
+            },
+        };
+
+        rig.updateCamera(
+            0,
+            new ThreeModule.Vector3(0, 5, 0),
+            new ThreeModule.Vector3(0, 0, -1),
+            1 / 60,
+            new ThreeModule.Quaternion(),
+            cockpitCamera,
+            false,
+            arena,
+            null,
+            { playerState: { hp: 100, maxHp: 100, score: 0, speed: 18, isBoosting: false } }
+        );
+
+        assert.ok(collisionChecks > 0);
+        assert.ok(
+            rig.cameras[0].position.z < 4,
+            `expected ${cockpitCamera ? 'cockpit' : 'standard'} camera before wall`
+        );
+    }
+});
+
+test('cinematic duel focus selects the nearest living human or bot', () => {
+    const out = new ThreeModule.Vector3();
+    const subject = { playerIndex: 0, alive: true, position: { x: 0, y: 5, z: 0 } };
+    const farHuman = { playerIndex: 1, alive: true, position: { x: 100, y: 5, z: 0 } };
+    const nearHuman = { playerIndex: 2, alive: true, position: { x: 2, y: 5, z: 0 } };
+    const nearestBot = { playerIndex: 3, isBot: true, alive: true, position: { x: 1, y: 5, z: 0 } };
+
+    assert.equal(
+        findNearestProjectedCameraOpponentPosition(
+            [subject, farHuman, nearHuman, nearestBot],
+            subject,
+            out
+        ),
+        out
+    );
+    assert.deepEqual(out.toArray(), [1, 5, 0]);
+
+    const liveSubject = { alive: true };
+    const deadOpponent = { alive: false, position: { x: 0.5, y: 5, z: 0 } };
+    assert.equal(
+        findNearestLiveCameraOpponentPosition(
+            [liveSubject, farHuman, nearestBot, deadOpponent],
+            liveSubject,
+            new ThreeModule.Vector3(0, 5, 0),
+            1,
+            out
+        ),
+        out
+    );
+    assert.deepEqual(out.toArray(), [1, 5, 0]);
+});
+
+test('cinematic orbit snaps to the safe fallback after a respawn-sized teleport', () => {
+    const rig = new CameraRigSystem({ cinematicEnabled: true, livePerspectiveEnabled: true });
+    rig.createCamera(16 / 9);
+    rig.setCameraPerspectiveSettings({ normal: 'cinematic_soft', reduceMotion: false });
+    const position = new ThreeModule.Vector3(0, 5, 0);
+    const direction = new ThreeModule.Vector3(0, 0, -1);
+    const quaternion = new ThreeModule.Quaternion();
+    const cameraContext = {
+        playerState: { hp: 100, maxHp: 100, score: 0, speed: 18, isBoosting: false },
+        otherPlayerPosition: null,
+    };
+
+    for (let frame = 0; frame < 180; frame++) {
+        rig.setFrameTiming({ rawDt: 1 / 60, dt: 1 / 60 });
+        rig.updateCamera(
+            0, position, direction, 1 / 60, quaternion, false, false, null, null, cameraContext
+        );
+    }
+    position.set(80, 5, 0);
+    rig.setFrameTiming({ rawDt: 1 / 60, dt: 1 / 60 });
+    rig.updateCamera(
+        0, position, direction, 1 / 60, quaternion, false, false, null, null, cameraContext
+    );
+
+    assert.ok(
+        rig.cameras[0].position.distanceTo(position) < 14,
+        `expected camera at respawn fallback, got ${rig.cameras[0].position.distanceTo(position)}`
+    );
+});
+
+test('capture perspective and subject switches discard inactive cinematic events', () => {
+    const pipeline = new RecordingCapturePipeline({
+        sourceCanvas: null,
+        sourceRenderer: null,
+        scene: null,
+    });
+    pipeline._ensureShortsCameraCount(1, 16 / 9);
+    const player = {
+        playerIndex: 0,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        score: 0,
+        speed: 10,
+        isBoosting: false,
+        position: { x: 0, y: 5, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        direction: { x: 0, y: 0, z: -1 },
+    };
+
+    pipeline.setCameraPerspectiveSettings({ normal: 'cinematic_soft', reduceMotion: false });
+    pipeline._updateShortsCamera({
+        slotIndex: 0, player, otherPlayer: null, renderDelta: 1 / 60, arena: null,
+    });
+    pipeline.setCameraPerspectiveSettings({ normal: 'classic', reduceMotion: false });
+    player.hp = 10;
+    pipeline._updateShortsCamera({
+        slotIndex: 0, player, otherPlayer: null, renderDelta: 1 / 60, arena: null,
+    });
+    pipeline.setCameraPerspectiveSettings({ normal: 'cinematic_soft', reduceMotion: false });
+    pipeline._updateShortsCamera({
+        slotIndex: 0, player, otherPlayer: null, renderDelta: 1 / 60, arena: null,
+    });
+    assert.equal(pipeline._orbitDirector._eventOverrideTimer[0] || 0, 0);
+    assert.equal(pipeline._orbitDirector._shakeIntensity[0] || 0, 0);
+
+    syncCinematicCaptureSubject(pipeline, { playerIndex: 0 });
+    pipeline._cinematicOrbitDirector._eventOverrideTimer[0] = 1.8;
+    pipeline._cinematicOrbitDirector._shakeIntensity[0] = 0.8;
+    syncCinematicCaptureSubject(pipeline, { playerIndex: 1 });
+    syncCinematicCaptureSubject(pipeline, { playerIndex: 0 });
+    assert.equal(pipeline._cinematicOrbitDirector._eventOverrideTimer[0], undefined);
+    assert.equal(pipeline._cinematicOrbitDirector._shakeIntensity[0], undefined);
 });
