@@ -50,6 +50,7 @@ function createPlayerProjection(value = null) {
         hp: Math.max(0, normalizeNumber(value.hp, 0)),
         maxHp: Math.max(1, normalizeNumber(value.maxHp, 1)),
         cockpitCamera: value.cockpitCamera !== false,
+        renderDiscontinuityVersion: normalizeNonNegativeInt(value.renderDiscontinuityVersion, 0),
         planarMode: value.planarMode === true,
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
         position: createVector3Projection(value.position),

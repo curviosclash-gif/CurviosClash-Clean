@@ -29,6 +29,7 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
         if (!entityManager || !recorder || !player?.position || !player?.quaternion) {
             return { ok: false, reason: 'runtime-unavailable' };
         }
+        entityManager.renderer?.setCameraPerspectiveSettings?.({ reduceMotion: false });
 
         const terminal = {
             x: Number(player.position.x) || 0,
@@ -92,6 +93,10 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
         killcam._cameraInitialized = false;
         killcam?.applyCinematicCamera?.(1 / 60);
         const camera = entityManager.renderer?.cameras?.[0];
+        entityManager.updateCameras(1 / 60);
+        const firstOwnedPosition = camera.position.clone();
+        entityManager.updateCameras(1 / 60);
+        const cameraOwnershipDrift = camera.position.distanceTo(firstOwnedPosition);
 
         return {
             ok: killcam?.isActive?.() === true,
@@ -108,6 +113,9 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
                 y: camera?.position?.y,
                 z: camera?.position?.z,
             },
+            cameraOwnershipDrift,
+            cameraFov: camera?.fov,
+            shotFov: killcam?._currentShot?.fov,
             terminal,
             runtimeKind: window.curviosApp?.capabilities?.runtimeKind || null,
         };
@@ -116,6 +124,8 @@ test('desktop killcam renders the killed vehicle at the recorded terminal impact
     expect(setup.ok, setup.reason).toBeTruthy();
     expect(setup.runtimeKind).toBe('electron');
     expect(setup.initialReplayFocus?.z).toBeCloseTo(setup.terminal.z + 12, 1);
+    expect(setup.cameraOwnershipDrift).toBeLessThan(0.001);
+    expect(setup.cameraFov).toBeCloseTo(setup.shotFov, 3);
 
     const midpointState = await page.evaluate((playerIndex) => {
         const entityManager = window.GAME_INSTANCE?.entityManager;

@@ -4,6 +4,12 @@ import {
     applyProjectionVector3,
 } from './RecordingCaptureProjectionOps.js';
 
+export function setCaptureCameraFrameTiming(pipeline, rig, renderDelta) {
+    pipeline._captureFrameTiming.rawDt = renderDelta;
+    pipeline._captureFrameTiming.dt = renderDelta;
+    rig.setFrameTiming(pipeline._captureFrameTiming);
+}
+
 export function updateShortsCaptureCamera(
     pipeline,
     { slotIndex, player, otherPlayer, renderDelta, arena }
@@ -31,6 +37,7 @@ export function updateShortsCaptureCamera(
         pipeline._tmpCameraQuaternion.copy(camera.quaternion);
         preservedFov = camera.fov;
     }
+    setCaptureCameraFrameTiming(pipeline, rig, renderDelta);
     rig.updateCamera(
         slotIndex,
         pipeline._tmpPosition,

@@ -23,11 +23,13 @@ import {
     applyProjectionVector3,
     CinematicCaptureSubjectSelector,
     createCanvasClone,
+    findProjectedPlayerByIndex,
     toPositiveEven,
     toRatio,
 } from './RecordingCaptureProjectionOps.js';
 import {
     resetCapturePerspectiveState,
+    setCaptureCameraFrameTiming,
     syncCinematicCaptureSubject,
     updateShortsCaptureCamera,
 } from './RecordingCaptureCameraUpdateOps.js';
@@ -78,6 +80,7 @@ export class RecordingCapturePipeline {
         this._tmpOtherPosition = new THREE.Vector3();
         this._tmpCameraPosition = new THREE.Vector3();
         this._tmpCameraQuaternion = new THREE.Quaternion();
+        this._captureFrameTiming = { rawDt: 1 / 60, dt: 1 / 60 };
         this._shortsOrbitPoseReady = [];
         this._cinematicOrbitPoseReady = false;
         this._cinematicSubjectPlayerIndex = null;
@@ -309,15 +312,23 @@ export class RecordingCapturePipeline {
             return;
         }
 
-        const player1 = players.find((entry) => entry.playerIndex === 0) || players[0];
-        const player2 = players.find((entry) => entry.playerIndex === 1) || players[1] || null;
+        const player1 = findProjectedPlayerByIndex(players, 0, players[0]);
+        const player2 = findProjectedPlayerByIndex(players, 1, players[1] || null);
+        const primaryPlayer = findProjectedPlayerByIndex(players, splitScreen ? 0 : Math.max(0, Math.trunc(Number(renderProjection?.localPlayerIndex) || 0)), player1);
         const segments = [];
         if (splitScreen && player2) {
             const halfWidth = Math.floor(width * 0.5);
             segments.push({ x: 0, y: 0, width: halfWidth, height, player: player1, label: 'P1' });
             segments.push({ x: halfWidth, y: 0, width: width - halfWidth, height, player: player2, label: 'P2' });
         } else {
-            segments.push({ x: 0, y: 0, width, height, player: player1, label: 'P1' });
+            segments.push({
+                x: 0,
+                y: 0,
+                width,
+                height,
+                player: primaryPlayer,
+                label: `P${primaryPlayer.playerIndex + 1}`,
+            });
         }
 
         if (/** @type {string} */ (this._settings.hudMode) === RECORDING_HUD_MODE.WITH_HUD) {
@@ -635,6 +646,7 @@ export class RecordingCapturePipeline {
                 this._tmpCameraQuaternion.copy(camera.quaternion);
                 preservedFov = camera.fov;
             }
+            setCaptureCameraFrameTiming(this, this._cinematicCameraRig, renderDelta);
             this._cinematicCameraRig.updateCamera(
                 0,
                 this._tmpPosition,

@@ -178,9 +178,9 @@ export class KillcamSystem {
         if (replaySystem !== undefined) this.replaySystem = replaySystem;
     }
 
-    isActive() {
-        return this._active;
-    }
+    isActive() { return this._active; }
+
+    ownsCamera(playerIndex = KILLCAM_CAMERA_INDEX) { return this._active && this._sceneReplayActive && !this._pixelReplayActive && playerIndex === KILLCAM_CAMERA_INDEX; }
 
     getTimeScale() {
         if (this._pixelReplayActive) return 1;
@@ -557,6 +557,8 @@ export class KillcamSystem {
         } else {
             this._applyExplosionOrbitShot(camera, shot, shotAlpha, safeDt);
         }
+
+        this.renderer?.applyCameraShake?.(KILLCAM_CAMERA_INDEX, camera, safeDt, this._tmpVec);
 
         const targetFov = this._reduceMotion ? this._baseFov : shot.fov;
         if (Number.isFinite(targetFov) && Math.abs(camera.fov - targetFov) > 0.05) {

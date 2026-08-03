@@ -12,6 +12,8 @@ import {
     normalizeCameraPerspectiveSettings,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
 
+const CAMERA_SUBJECT_DISCONTINUITY_DISTANCE_SQ = 14 * 14;
+
 export class CameraRigSystem {
     constructor({
         cinematicEnabled = true,
@@ -26,6 +28,10 @@ export class CameraRigSystem {
         this.cameraShakeTimers = [];
         this.cameraShakeDurations = [];
         this.cameraShakeIntensities = [];
+        this.cameraSubjectPositions = [];
+        this.cameraSubjectInitialized = [];
+        this.cameraAppliedModes = [];
+        this.cameraDiscontinuityVersions = [];
 
         this._cameraDtMin = 1 / 240;
         this._cameraDtMax = 0.05;
@@ -136,6 +142,10 @@ export class CameraRigSystem {
         this.cameraShakeTimers.push(0);
         this.cameraShakeDurations.push(0);
         this.cameraShakeIntensities.push(0);
+        this.cameraSubjectPositions.push(new THREE.Vector3());
+        this.cameraSubjectInitialized.push(false);
+        this.cameraAppliedModes.push(null);
+        this.cameraDiscontinuityVersions.push(undefined);
         return cam;
     }
 
@@ -339,6 +349,24 @@ export class CameraRigSystem {
         const cam = this.cameras[playerIndex];
         const target = this.cameraTargets[playerIndex];
         const mode = this.getCameraMode(playerIndex);
+        const previousSubjectPosition = this.cameraSubjectPositions[playerIndex];
+        const subjectInitialized = this.cameraSubjectInitialized[playerIndex] === true;
+        const discontinuityVersion = Number(cameraContext?.discontinuityVersion);
+        const previousDiscontinuityVersion = this.cameraDiscontinuityVersions[playerIndex];
+        const subjectDiscontinuity = !subjectInitialized
+            || previousSubjectPosition.distanceToSquared(playerPosition) > CAMERA_SUBJECT_DISCONTINUITY_DISTANCE_SQ
+            || (
+                Number.isFinite(discontinuityVersion)
+                && Number.isFinite(previousDiscontinuityVersion)
+                && discontinuityVersion !== previousDiscontinuityVersion
+            );
+        const cameraModeChanged = subjectInitialized && this.cameraAppliedModes[playerIndex] !== mode;
+        previousSubjectPosition.copy(playerPosition);
+        this.cameraSubjectInitialized[playerIndex] = true;
+        this.cameraAppliedModes[playerIndex] = mode;
+        this.cameraDiscontinuityVersions[playerIndex] = Number.isFinite(discontinuityVersion)
+            ? discontinuityVersion
+            : previousDiscontinuityVersion;
         const stableDt = this._resolveSmoothedDt(playerIndex, dt);
         const playerState = cameraContext?.playerState && typeof cameraContext.playerState === 'object'
             ? cameraContext.playerState
@@ -367,7 +395,7 @@ export class CameraRigSystem {
         const shakeOffset = this.shakeSolver.resolveOffset(playerIndex, stableDt, this._tmpShakeOffset);
         const hasShake = shakeOffset.x !== 0 || shakeOffset.y !== 0 || shakeOffset.z !== 0;
 
-        if (cockpitCamera && playerQuaternion) {
+        if (cockpitCamera && playerQuaternion && mode !== 'TOP_DOWN') {
             if (mode === 'THIRD_PERSON') {
                 this.modeStrategies.applyCockpitThirdPerson({ target, playerPosition, playerQuaternion, tmpVec: this._tmpVec });
             } else if (mode === 'FIRST_PERSON') {
@@ -385,8 +413,6 @@ export class CameraRigSystem {
                     arena,
                     tmpVec: this._tmpVec,
                 });
-            } else if (mode === 'TOP_DOWN') {
-                this.modeStrategies.applyCockpitTopDown({ target, playerPosition, playerQuaternion, tmpVec: this._tmpVec });
             }
 
             this.cinematicCameraSystem.apply({
@@ -404,11 +430,18 @@ export class CameraRigSystem {
                 target.position.add(shakeOffset);
             }
             const smoothFactor = firstPersonHardLock ? 1 : (1 - Math.pow(1 - smooth, stableDt * 60));
-            cam.position.lerp(target.position, smoothFactor);
+            if (mode === 'THIRD_PERSON' && (subjectDiscontinuity || cameraModeChanged)) {
+                cam.position.copy(target.position);
+            } else {
+                cam.position.lerp(target.position, smoothFactor);
+            }
             this._resolveThirdPersonCollision(playerIndex, mode, playerPosition, cam.position, arena);
             if (firstPersonHardLock) {
                 this._applySpeedFov(playerIndex, cam, mode, stableDt, playerState);
                 cam.quaternion.copy(playerQuaternion);
+            } else if (mode === 'THIRD_PERSON' && (subjectDiscontinuity || cameraModeChanged)) {
+                cam.quaternion.copy(playerQuaternion);
+                this._applySpeedFov(playerIndex, cam, mode, stableDt, playerState);
             } else {
                 cam.quaternion.slerp(playerQuaternion, smoothFactor);
                 this._applySpeedFov(playerIndex, cam, mode, stableDt, playerState);
@@ -492,6 +525,10 @@ export class CameraRigSystem {
         this.cameraShakeTimers.length = 0;
         this.cameraShakeDurations.length = 0;
         this.cameraShakeIntensities.length = 0;
+        this.cameraSubjectPositions.length = 0;
+        this.cameraSubjectInitialized.length = 0;
+        this.cameraAppliedModes.length = 0;
+        this.cameraDiscontinuityVersions.length = 0;
         this._frameTiming.frameId = 0;
         this._resetTimingState('camera-reset');
         this.collisionSolver.reset();

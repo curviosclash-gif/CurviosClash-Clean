@@ -475,3 +475,112 @@ test('capture perspective and subject switches discard inactive cinematic events
     assert.equal(pipeline._cinematicOrbitDirector._eventOverrideTimer[0], undefined);
     assert.equal(pipeline._cinematicOrbitDirector._shakeIntensity[0], undefined);
 });
+
+test('cockpit top-down keeps the subject centered independently of vehicle attitude', () => {
+    const rig = new CameraRigSystem({ cinematicEnabled: true, livePerspectiveEnabled: true });
+    rig.createCamera(16 / 9);
+    rig.cameraModes[0] = 2;
+    const position = new ThreeModule.Vector3(3, 5, -2);
+    const direction = new ThreeModule.Vector3(0, 0, -1);
+    const quaternion = new ThreeModule.Quaternion().setFromEuler(
+        new ThreeModule.Euler(Math.PI * 0.45, Math.PI * 0.6, Math.PI * 0.35)
+    );
+
+    rig.setFrameTiming({ rawDt: 1 / 60, dt: 1 / 60 });
+    rig.updateCamera(0, position, direction, 1 / 60, quaternion, true);
+
+    const camera = rig.cameras[0];
+    const forward = new ThreeModule.Vector3(0, 0, -1).applyQuaternion(camera.quaternion);
+    const towardSubject = position.clone().sub(camera.position).normalize();
+    assert.ok(forward.dot(towardSubject) > 0.9999);
+    assert.ok(camera.position.y > position.y + 35);
+});
+
+test('cockpit third-person snaps on initialization and render discontinuities', () => {
+    const rig = new CameraRigSystem({ cinematicEnabled: true, livePerspectiveEnabled: true });
+    rig.createCamera(16 / 9);
+    const position = new ThreeModule.Vector3(0, 5, 0);
+    const direction = new ThreeModule.Vector3(0, 0, -1);
+    const quaternion = new ThreeModule.Quaternion();
+    const cameraContext = {
+        discontinuityVersion: 0,
+        playerState: { hp: 100, maxHp: 100, score: 0, speed: 18, isBoosting: false },
+    };
+
+    rig.setFrameTiming({ rawDt: 1 / 60, dt: 1 / 60 });
+    rig.updateCamera(0, position, direction, 1 / 60, quaternion, true, false, null, null, cameraContext);
+    assert.ok(rig.cameras[0].position.distanceTo(rig.cameraTargets[0].position) < 0.0001);
+
+    position.x = 10;
+    cameraContext.discontinuityVersion++;
+    rig.setFrameTiming({ rawDt: 1 / 60, dt: 1 / 60 });
+    rig.updateCamera(0, position, direction, 1 / 60, quaternion, true, false, null, null, cameraContext);
+    assert.ok(rig.cameras[0].position.distanceTo(rig.cameraTargets[0].position) < 0.0001);
+});
+
+test('shorts capture camera advances by wall time at 30, 60 and 120 FPS', () => {
+    const elapsedByFps = [];
+    const xByFps = [];
+    for (const fps of [30, 60, 120]) {
+        const pipeline = new RecordingCapturePipeline({
+            sourceCanvas: null,
+            sourceRenderer: null,
+            scene: null,
+        });
+        pipeline._ensureShortsCameraCount(1, 16 / 9);
+        const player = {
+            playerIndex: 0,
+            alive: true,
+            hp: 100,
+            maxHp: 100,
+            score: 0,
+            speed: 18,
+            isBoosting: false,
+            position: { x: 0, y: 5, z: 0 },
+            quaternion: { x: 0, y: 0, z: 0, w: 1 },
+            direction: { x: 0, y: 0, z: -1 },
+        };
+        for (let frame = 0; frame < fps; frame++) {
+            pipeline._updateShortsCamera({
+                slotIndex: 0,
+                player,
+                otherPlayer: null,
+                renderDelta: 1 / fps,
+                arena: null,
+            });
+        }
+        elapsedByFps.push(pipeline._shortsCameraRig.cinematicCameraSystem._timeByPlayer[0]);
+        xByFps.push(pipeline._shortsCameraRig.cameras[0].position.x);
+    }
+
+    for (const elapsed of elapsedByFps) assert.ok(Math.abs(elapsed - 1) < 0.0001);
+    assert.ok(Math.max(...xByFps) - Math.min(...xByFps) < 0.0001);
+});
+
+test('standard network recording uses the rendered local player for its single HUD segment', () => {
+    const pipeline = new RecordingCapturePipeline({
+        sourceCanvas: { width: 640, height: 360 },
+        sourceRenderer: null,
+        scene: null,
+    });
+    pipeline._captureCanvas = { width: 640, height: 360 };
+    pipeline._captureCtx = {
+        clearRect() {},
+        drawImage() {},
+    };
+    pipeline._ensureCaptureCanvas = () => pipeline._captureCanvas;
+    pipeline._prepareStandardSurface({
+        renderProjection: {
+            localPlayerIndex: 8,
+            players: Array.from({ length: 10 }, (_value, playerIndex) => ({
+                playerIndex,
+                isBot: false,
+                speed: 10 + playerIndex,
+            })),
+        },
+        splitScreen: false,
+    });
+
+    assert.equal(pipeline.getLastMeta().segments[0].playerIndex, 8);
+    assert.equal(pipeline.getLastMeta().segments[0].label, 'P9');
+});

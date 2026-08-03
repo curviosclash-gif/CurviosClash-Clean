@@ -387,6 +387,7 @@ export class EntityManager {
                     ? projectedPlayer.playerIndex
                     : -1;
                 if (playerIndex < 0 || playerIndex >= this.renderer.cameras.length) continue;
+                if (this._killcamSystem?.ownsCamera?.(playerIndex) === true) continue;
 
                 const mode = this.renderer.getCameraMode(playerIndex);
                 this._tmpCamRenderPos.set(
@@ -448,6 +449,7 @@ export class EntityManager {
 
         for (const player of this.players) {
             if (!player.isBot && player.index < this.renderer.cameras.length) {
+                if (this._killcamSystem?.ownsCamera?.(player.index) === true) continue;
                 const mode = this.renderer.getCameraMode(player.index);
                 const reusedRenderedTransform = useRenderedTransforms
                     && player.view?.copyRenderTransform?.(this._tmpCamRenderPos, this._tmpCamRenderQuat);

@@ -459,6 +459,45 @@ test('EntityManager owns killcam playback and camera updates behind public seams
     ]);
 });
 
+test('EntityManager does not overwrite a scene-killcam-owned camera', () => {
+    const calls = [];
+    const manager = Object.assign(Object.create(EntityManager.prototype), {
+        _killcamSystem: {
+            ownsCamera: (playerIndex) => playerIndex === 0,
+            applyCinematicCamera: (dt) => calls.push(['killcam', dt]),
+        },
+        renderer: {
+            cameras: [{}],
+            getCameraMode: () => 'THIRD_PERSON',
+            updateCamera: () => calls.push(['live']),
+        },
+        players: [],
+        _tmpCamRenderPos: new THREE.Vector3(),
+        _tmpCamRenderQuat: new THREE.Quaternion(),
+        _tmpDir2: new THREE.Vector3(),
+        _tmpCamAnchor: new THREE.Vector3(),
+        _tmpVec2: new THREE.Vector3(),
+        _cameraContext: {
+            playerState: {},
+            otherPlayerPosition: null,
+        },
+    });
+
+    manager.updateCameras(1 / 60, 1, true, {
+        players: [{
+            playerIndex: 0,
+            isBot: false,
+            alive: true,
+            cockpitCamera: true,
+            position: { x: 0, y: 5, z: 0 },
+            quaternion: { x: 0, y: 0, z: 0, w: 1 },
+            direction: { x: 0, y: 0, z: -1 },
+        }],
+    });
+
+    assert.deepEqual(calls, [['killcam', 1 / 60]]);
+});
+
 test('EntityManager render interpolation does not overwrite live vehicle killcam poses', () => {
     const replayGroup = {};
     const calls = [];

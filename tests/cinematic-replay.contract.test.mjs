@@ -450,6 +450,7 @@ test('cinematic export keeps consecutive saved renders successful when scene cle
 
 test('cinematic replay frame renderer rebuilds and resets player trails', async () => {
     const calls = [];
+    const visibility = [];
     const trail = {
         width: 0.6,
         clear() { calls.push(['clear']); },
@@ -473,7 +474,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         speed: 0,
         trail,
         view: {
-            setVisible() {},
+            setVisible(value) { visibility.push(value); },
             syncFromState() {},
             updateVisuals(dt, options) {
                 visualOptions = { dt, ...options };
@@ -572,7 +573,10 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
     }), captureCanvas);
     await renderFrame({
         replay,
-        projection,
+        projection: {
+            ...projection,
+            players: [{ ...projection.players[0], alive: false }],
+        },
         leftSnapshot: { projectiles: [] },
         frameIndex: 1,
         dt: 1 / 60,
@@ -584,13 +588,14 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
     assert.equal(networkReplicaEnabled, true);
     assert.equal(networkSnapshots[0].projectiles[0].pos[0], 2);
     assert.equal(networkSnapshots[0].powerups[0].pos[0], 4);
+    assert.deepEqual(visibility, [true, false]);
     assert.deepEqual(visualOptions, { dt: 1 / 60, emitParticles: false });
     assert.deepEqual(calls, [
         ['clear'],
         ['width', 0.85],
         ['update', 1 / 60, 2, 1, { inGap: false, discontinuity: true }],
         ['width', 0.85],
-        ['update', 1 / 60, 2, 1, { inGap: false, discontinuity: false }],
+        ['update', 1 / 60, 2, 1, { inGap: true, discontinuity: true }],
         ['clear'],
     ]);
 });

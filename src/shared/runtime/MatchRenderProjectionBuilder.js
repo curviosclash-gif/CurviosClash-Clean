@@ -131,6 +131,7 @@ function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha =
         hp: Math.max(0, Number(player?.hp) || 0),
         maxHp: Math.max(1, Number(player?.maxHp) || 1),
         cockpitCamera: player?.cockpitCamera === true,
+        renderDiscontinuityVersion: Math.max(0, Number(player?._renderDiscontinuityVersion) || 0),
         planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         position: renderTransform.position,

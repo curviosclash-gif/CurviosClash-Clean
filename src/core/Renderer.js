@@ -243,6 +243,11 @@ export class Renderer {
         this.cameraRigSystem.triggerCameraShake(playerIndex, intensity, duration);
     }
 
+    applyCameraShake(playerIndex, camera, dt, out) {
+        const offset = this.cameraRigSystem.shakeSolver.resolveOffset(playerIndex, dt, out);
+        if (camera && offset) camera.position.add(offset);
+    }
+
     resolveCameraCollision(playerIndex, mode, origin, desiredPosition, arena) {
         this.cameraRigSystem.collisionSolver.resolve(playerIndex, mode, origin, desiredPosition, arena);
     }

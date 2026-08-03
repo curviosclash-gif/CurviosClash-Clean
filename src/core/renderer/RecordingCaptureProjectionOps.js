@@ -58,6 +58,13 @@ export function createCanvasClone(sourceCanvas, width, height) {
     return canvasClone;
 }
 
+export function findProjectedPlayerByIndex(players, playerIndex, fallback = null) {
+    for (let index = 0; index < players.length; index++) {
+        if (players[index]?.playerIndex === playerIndex) return players[index];
+    }
+    return fallback;
+}
+
 export class CinematicCaptureSubjectSelector {
     constructor() {
         this.reset();

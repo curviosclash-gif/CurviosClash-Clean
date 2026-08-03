@@ -8,6 +8,10 @@ export function updateEntityCameraContext(context, player, otherPlayerPosition) 
     playerState.speed = Number(player?.speed) || 0;
     playerState.isBoosting = player?.isBoosting === true;
     context.otherPlayerPosition = otherPlayerPosition;
+    const discontinuityVersion = Number(player?.renderDiscontinuityVersion ?? player?._renderDiscontinuityVersion);
+    context.discontinuityVersion = Number.isFinite(discontinuityVersion)
+        ? discontinuityVersion
+        : undefined;
     return context;
 }
 

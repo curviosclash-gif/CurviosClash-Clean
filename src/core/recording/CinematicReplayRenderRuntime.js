@@ -163,7 +163,7 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
             }
         );
         replayAliveState.set(player.index, player.alive);
-        player.view?.setVisible?.(true);
+        player.view?.setVisible?.(player.alive);
         player.view?.syncFromState?.();
         player.view?.updateVisuals?.(safeDt, { emitParticles: false });
     }
