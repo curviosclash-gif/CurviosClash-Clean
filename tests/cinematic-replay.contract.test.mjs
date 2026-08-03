@@ -8,6 +8,7 @@ import {
 } from '../src/core/recording/CinematicReplayRecorder.js';
 import { CinematicReplayExportController } from '../src/core/recording/CinematicReplayExportController.js';
 import { CinematicReplayLibrary } from '../src/core/recording/CinematicReplayLibrary.js';
+import { updateReplayProjection } from '../src/core/recording/CinematicReplayProjection.js';
 import { createCinematicReplayFrameRenderer } from '../src/core/recording/CinematicReplayRenderRuntime.js';
 import { MediaRecorderSystem } from '../src/core/MediaRecorderSystem.js';
 
@@ -94,6 +95,7 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
                     playerIndex: 0,
                     position: { x: 50 + frame, y: 4, z: -3 },
                     quaternion: { x: 0, y: 0, z: 0, w: 1 },
+                    renderDiscontinuityVersion: 7,
                 }],
             },
             dt: 1 / 60,
@@ -108,12 +110,55 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
     assert.equal(replay.snapshots[0].players[0].trailInGap, true);
     assert.equal(replay.snapshots[0].projectiles[0].type, 'rocket');
     assert.equal(replay.snapshots[0].players[0].pos[0], 50);
+    assert.equal(replay.snapshots[0].players[0].renderDiscontinuityVersion, 7);
     assert.equal(replay.snapshots[0].particles.count, particleCount);
     assert.equal(replay.snapshots[0].particles.values.length, particleCount * 13);
     assert.deepEqual(replay.snapshots[0].cameras[0].position, [8, 6, 4]);
     assert.equal(replay.snapshots[0].cameras[0].fov, 72);
     assert.deepEqual(replay.metadata, { mapKey: 'arena', seed: 42 });
     assert.equal(replay.audioWarning, 'audio_capture_unavailable');
+});
+
+test('cinematic replay cuts player and recorded camera transforms at discontinuities', () => {
+    const createPlayer = (positionX, renderDiscontinuityVersion) => ({
+        index: 0,
+        pos: [positionX, 5, 0],
+        rot: [0, 0, 0, 1],
+        alive: true,
+        health: 100,
+        renderDiscontinuityVersion,
+    });
+    const createCamera = (positionX) => ({
+        index: 0,
+        position: [positionX, 10, 9],
+        quaternion: [0, 0, 0, 1],
+        fov: 75,
+        aspect: 16 / 9,
+        near: 0.1,
+        far: 200,
+        zoom: 1,
+    });
+    const leftSnapshot = {
+        timeMs: 0,
+        players: [createPlayer(0, 0)],
+        cameras: [createCamera(0)],
+    };
+    const rightSnapshot = {
+        timeMs: 1000 / 30,
+        players: [createPlayer(20, 1)],
+        cameras: [createCamera(20)],
+    };
+    const projection = { players: [], localPlayerIndex: 0, localHumanCount: 1 };
+
+    updateReplayProjection(projection, leftSnapshot, rightSnapshot, 0.49, {});
+    assert.equal(projection.players[0].position.x, 0);
+    assert.equal(projection.players[0].renderDiscontinuityVersion, 0);
+    assert.equal(projection.recordedCamera.position.x, 0);
+
+    updateReplayProjection(projection, leftSnapshot, rightSnapshot, 0.5, {});
+    assert.equal(projection.players[0].position.x, 20);
+    assert.equal(projection.players[0].renderDiscontinuityVersion, 1);
+    assert.equal(projection.recordedCamera.position.x, 20);
 });
 
 test('cinematic replay partial state is preserved through stop', async () => {

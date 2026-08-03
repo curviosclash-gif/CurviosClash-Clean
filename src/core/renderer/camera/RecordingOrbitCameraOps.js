@@ -43,9 +43,23 @@ export function resetRecordingOrbitPlayer(state, playerIndex) {
     if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
     resetRecordingOrbitPlayerState(state, playerIndex);
     state._lastPlayerPositionByPlayer[playerIndex] = undefined;
+    state._discontinuityVersionByPlayer[playerIndex] = undefined;
 }
 
-export function detectRecordingOrbitPositionDiscontinuity(state, playerIndex, playerPosition) {
+export function detectRecordingOrbitPositionDiscontinuity(
+    state,
+    playerIndex,
+    playerPosition,
+    discontinuityVersion = null
+) {
+    const nextDiscontinuityVersion = Number(discontinuityVersion);
+    const previousDiscontinuityVersion = state._discontinuityVersionByPlayer[playerIndex];
+    const versionChanged = Number.isFinite(nextDiscontinuityVersion)
+        && Number.isFinite(previousDiscontinuityVersion)
+        && nextDiscontinuityVersion !== previousDiscontinuityVersion;
+    if (Number.isFinite(nextDiscontinuityVersion)) {
+        state._discontinuityVersionByPlayer[playerIndex] = nextDiscontinuityVersion;
+    }
     let previousPosition = state._lastPlayerPositionByPlayer[playerIndex];
     if (!previousPosition) {
         previousPosition = new THREE.Vector3();
@@ -54,7 +68,8 @@ export function detectRecordingOrbitPositionDiscontinuity(state, playerIndex, pl
         return false;
     }
     const thresholdSq = state.discontinuityDistance * state.discontinuityDistance;
-    const discontinuity = previousPosition.distanceToSquared(playerPosition) > thresholdSq;
+    const discontinuity = versionChanged
+        || previousPosition.distanceToSquared(playerPosition) > thresholdSq;
     previousPosition.copy(playerPosition);
     return discontinuity;
 }

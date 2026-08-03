@@ -431,6 +431,46 @@ test('cinematic orbit snaps to the safe fallback after a respawn-sized teleport'
     );
 });
 
+test('cinematic orbit honors explicit discontinuities below the distance threshold', () => {
+    const director = new RecordingOrbitCameraDirector();
+    const camera = new ThreeModule.PerspectiveCamera(75, 16 / 9, 0.1, 200);
+    const playerPosition = new ThreeModule.Vector3(0, 5, 0);
+    const playerDirection = new ThreeModule.Vector3(0, 0, -1);
+    const fallbackTarget = {
+        position: new ThreeModule.Vector3(0, 10, 9),
+        lookAt: playerPosition,
+    };
+
+    for (let frame = 0; frame < 180; frame++) {
+        director.apply({
+            playerIndex: 0,
+            camera,
+            fallbackTarget,
+            playerPosition,
+            playerDirection,
+            dt: 1 / 60,
+            baseFov: 75,
+            discontinuityVersion: 0,
+        });
+    }
+
+    playerPosition.x = 10;
+    fallbackTarget.position.x = 10;
+    director.apply({
+        playerIndex: 0,
+        camera,
+        fallbackTarget,
+        playerPosition,
+        playerDirection,
+        dt: 1 / 60,
+        baseFov: 75,
+        discontinuityVersion: 1,
+    });
+
+    assert.ok(camera.position.distanceTo(fallbackTarget.position) < 0.5);
+    assert.ok(director._phaseByPlayer[0] < 0.1);
+});
+
 test('capture perspective and subject switches discard inactive cinematic events', () => {
     const pipeline = new RecordingCapturePipeline({
         sourceCanvas: null,
@@ -470,8 +510,12 @@ test('capture perspective and subject switches discard inactive cinematic events
     syncCinematicCaptureSubject(pipeline, { playerIndex: 0 });
     pipeline._cinematicOrbitDirector._eventOverrideTimer[0] = 1.8;
     pipeline._cinematicOrbitDirector._shakeIntensity[0] = 0.8;
+    pipeline._cinematicOrbitPoseReady = true;
     syncCinematicCaptureSubject(pipeline, { playerIndex: 1 });
+    assert.equal(pipeline._cinematicOrbitPoseReady, false);
+    pipeline._cinematicOrbitPoseReady = true;
     syncCinematicCaptureSubject(pipeline, { playerIndex: 0 });
+    assert.equal(pipeline._cinematicOrbitPoseReady, false);
     assert.equal(pipeline._cinematicOrbitDirector._eventOverrideTimer[0], undefined);
     assert.equal(pipeline._cinematicOrbitDirector._shakeIntensity[0], undefined);
 });
@@ -555,6 +599,58 @@ test('shorts capture camera advances by wall time at 30, 60 and 120 FPS', () => 
 
     for (const elapsed of elapsedByFps) assert.ok(Math.abs(elapsed - 1) < 0.0001);
     assert.ok(Math.max(...xByFps) - Math.min(...xByFps) < 0.0001);
+});
+
+test('classic shorts camera reuses player state for speed FOV and cinematic sway', () => {
+    const pipeline = new RecordingCapturePipeline({
+        sourceCanvas: null,
+        sourceRenderer: null,
+        scene: null,
+    });
+    pipeline.setCameraPerspectiveSettings({
+        normal: 'classic',
+        reduceMotion: false,
+        speedFovEnabled: true,
+        speedFovIntensity: 1,
+    });
+    pipeline._ensureShortsCameraCount(1, 16 / 9);
+    const player = {
+        playerIndex: 0,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        score: 0,
+        speed: 40,
+        isBoosting: true,
+        renderDiscontinuityVersion: 3,
+        position: { x: 0, y: 5, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        direction: { x: 0, y: 0, z: -1 },
+    };
+
+    pipeline._updateShortsCamera({
+        slotIndex: 0,
+        player,
+        otherPlayer: null,
+        renderDelta: 1 / 60,
+        arena: null,
+    });
+    const cameraContext = pipeline._shortsCameraContexts[0];
+    for (let frame = 1; frame < 120; frame++) {
+        pipeline._updateShortsCamera({
+            slotIndex: 0,
+            player,
+            otherPlayer: null,
+            renderDelta: 1 / 60,
+            arena: null,
+        });
+    }
+
+    assert.equal(pipeline._shortsCameraContexts[0], cameraContext);
+    assert.equal(cameraContext.playerState.speed, 40);
+    assert.equal(cameraContext.discontinuityVersion, 3);
+    assert.ok(pipeline._shortsCameraRig.cameras[0].fov > 75);
+    assert.ok(pipeline._shortsCameraRig.cameraSpeedFovOffsets[0] > 0);
 });
 
 test('standard network recording uses the rendered local player for its single HUD segment', () => {

@@ -28,9 +28,11 @@ import {
     toRatio,
 } from './RecordingCaptureProjectionOps.js';
 import {
+    createCaptureCameraContext,
     resetCapturePerspectiveState,
     setCaptureCameraFrameTiming,
     syncCinematicCaptureSubject,
+    updateCaptureCameraContext,
     updateShortsCaptureCamera,
 } from './RecordingCaptureCameraUpdateOps.js';
 
@@ -81,6 +83,8 @@ export class RecordingCapturePipeline {
         this._tmpCameraPosition = new THREE.Vector3();
         this._tmpCameraQuaternion = new THREE.Quaternion();
         this._captureFrameTiming = { rawDt: 1 / 60, dt: 1 / 60 };
+        this._shortsCameraContexts = [];
+        this._cinematicCameraContext = createCaptureCameraContext();
         this._shortsOrbitPoseReady = [];
         this._cinematicOrbitPoseReady = false;
         this._cinematicSubjectPlayerIndex = null;
@@ -646,6 +650,7 @@ export class RecordingCapturePipeline {
                 this._tmpCameraQuaternion.copy(camera.quaternion);
                 preservedFov = camera.fov;
             }
+            updateCaptureCameraContext(this._cinematicCameraContext, player);
             setCaptureCameraFrameTiming(this, this._cinematicCameraRig, renderDelta);
             this._cinematicCameraRig.updateCamera(
                 0,
@@ -656,7 +661,8 @@ export class RecordingCapturePipeline {
                 false,
                 player?.isBoosting === true,
                 arena,
-                null
+                null,
+                this._cinematicCameraContext
             );
             if (preserveOrbitPose) {
                 camera.position.copy(this._tmpCameraPosition);
@@ -685,16 +691,11 @@ export class RecordingCapturePipeline {
                 dt: perspectiveDt,
                 arena,
                 slotStyle,
-                playerState: this._cameraPerspectiveSettings?.reduceMotion === true ? null : {
-                    hp: Number(player?.hp) || 0,
-                    maxHp: Number(player?.maxHp) || 1,
-                    score: Number(player?.score) || 0,
-                    speed: Number(player?.speed) || 0,
-                    isBoosting: player?.isBoosting === true,
-                },
+                playerState: this._cameraPerspectiveSettings?.reduceMotion === true ? null : this._cinematicCameraContext.playerState,
                 otherPlayerPosition: this._cameraPerspectiveSettings?.reduceMotion === true
                     ? null
                     : otherPos,
+                discontinuityVersion: this._cinematicCameraContext.discontinuityVersion,
                 baseFov: this._cinematicBaseFov,
                 dynamicFovEnabled: this._cameraPerspectiveSettings?.reduceMotion !== true
                     && this._cameraPerspectiveSettings?.speedFovEnabled !== false,

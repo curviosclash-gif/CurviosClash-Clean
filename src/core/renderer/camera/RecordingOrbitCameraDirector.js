@@ -131,6 +131,7 @@ export class RecordingOrbitCameraDirector {
         this._phaseByPlayer = [];
         this._blendByPlayer = [];
         this._lastPlayerPositionByPlayer = [];
+        this._discontinuityVersionByPlayer = [];
 
         // Shot-switching state per player.
         this._shotTimerByPlayer = [];
@@ -174,6 +175,7 @@ export class RecordingOrbitCameraDirector {
         this._phaseByPlayer.length = 0;
         this._blendByPlayer.length = 0;
         this._lastPlayerPositionByPlayer.length = 0;
+        this._discontinuityVersionByPlayer.length = 0;
         this._shotTimerByPlayer.length = 0;
         this._shotDurationByPlayer.length = 0;
         this._shotSeqIndexByPlayer.length = 0;
@@ -497,12 +499,13 @@ export class RecordingOrbitCameraDirector {
         baseFov = null,
         dynamicFovEnabled = true,
         dynamicFovIntensity = 1,
+        discontinuityVersion = null,
     }) {
         if (!camera || !playerPosition || !playerDirection) return;
         if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
 
         const safeDt = Math.max(0, Number(dt) || 0);
-        if (detectRecordingOrbitPositionDiscontinuity(this, playerIndex, playerPosition)) {
+        if (detectRecordingOrbitPositionDiscontinuity(this, playerIndex, playerPosition, discontinuityVersion)) {
             resetRecordingOrbitPlayerState(this, playerIndex);
             camera.position.copy(fallbackTarget?.position || playerPosition);
             camera.lookAt(fallbackTarget?.lookAt || playerPosition);

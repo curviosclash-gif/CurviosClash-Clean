@@ -75,6 +75,7 @@ function ensureProjectionPlayer(outPlayers, index) {
             cockpitCamera: false,
             planarMode: false,
             cameraModeId: 'THIRD_PERSON',
+            renderDiscontinuityVersion: 0,
             position: { x: 0, y: 0, z: 0 },
             quaternion: { x: 0, y: 0, z: 0, w: 1 },
             direction: { x: 0, y: 0, z: -1 },
@@ -98,6 +99,17 @@ function updateProjectionPlayer(out, left, right, alpha, fallbackIndex) {
     const leftRot = left?.rot || [0, 0, 0, 1];
     const rightRot = right?.rot || leftRot;
     const discrete = alpha < 0.5 ? left : right;
+    const leftDiscontinuityVersion = Math.max(
+        0,
+        Math.trunc(toFiniteNumber(left?.renderDiscontinuityVersion, 0))
+    );
+    const rightDiscontinuityVersion = Math.max(
+        0,
+        Math.trunc(toFiniteNumber(right?.renderDiscontinuityVersion, leftDiscontinuityVersion))
+    );
+    const transformAlpha = leftDiscontinuityVersion === rightDiscontinuityVersion
+        ? alpha
+        : (alpha < 0.5 ? 0 : 1);
     out.playerIndex = Number.isInteger(left?.index) ? left.index : fallbackIndex;
     out.isBot = discrete?.isBot === true;
     out.alive = discrete?.alive !== false;
@@ -131,10 +143,13 @@ function updateProjectionPlayer(out, left, right, alpha, fallbackIndex) {
         alpha
     ));
     out.trailInGap = discrete?.trailInGap === true;
-    out.position.x = lerp(toFiniteNumber(leftPos[0]), toFiniteNumber(rightPos[0]), alpha);
-    out.position.y = lerp(toFiniteNumber(leftPos[1]), toFiniteNumber(rightPos[1]), alpha);
-    out.position.z = lerp(toFiniteNumber(leftPos[2]), toFiniteNumber(rightPos[2]), alpha);
-    interpolateQuaternion(out.quaternion, leftRot, rightRot, alpha);
+    out.renderDiscontinuityVersion = transformAlpha < 0.5
+        ? leftDiscontinuityVersion
+        : rightDiscontinuityVersion;
+    out.position.x = lerp(toFiniteNumber(leftPos[0]), toFiniteNumber(rightPos[0]), transformAlpha);
+    out.position.y = lerp(toFiniteNumber(leftPos[1]), toFiniteNumber(rightPos[1]), transformAlpha);
+    out.position.z = lerp(toFiniteNumber(leftPos[2]), toFiniteNumber(rightPos[2]), transformAlpha);
+    interpolateQuaternion(out.quaternion, leftRot, rightRot, transformAlpha);
     out.inventory = Array.isArray(discrete?.inventory) ? discrete.inventory.slice() : [];
     out.effects = Array.isArray(discrete?.effects)
         ? discrete.effects.map((effect) => ({ ...effect }))
@@ -178,16 +193,30 @@ function updateReplayCamera(projection, leftSnapshot, rightSnapshot, alpha) {
     const leftFov = toFiniteNumber(left.fov, 60);
     const leftAspect = toFiniteNumber(left.aspect, 16 / 9);
     const leftZoom = toFiniteNumber(left.zoom, 1);
+    const leftPlayer = findByIndex(leftSnapshot?.players, cameraIndex, 0);
+    const rightPlayer = findByIndex(rightSnapshot?.players, cameraIndex, 0) || leftPlayer;
+    const leftDiscontinuityVersion = Math.max(
+        0,
+        Math.trunc(toFiniteNumber(leftPlayer?.renderDiscontinuityVersion, 0))
+    );
+    const rightDiscontinuityVersion = Math.max(
+        0,
+        Math.trunc(toFiniteNumber(rightPlayer?.renderDiscontinuityVersion, leftDiscontinuityVersion))
+    );
+    const cameraAlpha = leftDiscontinuityVersion === rightDiscontinuityVersion
+        ? alpha
+        : (alpha < 0.5 ? 0 : 1);
+    const discreteCamera = cameraAlpha < 0.5 ? left : right;
     out.index = cameraIndex;
-    out.position.x = lerp(toFiniteNumber(leftPosition[0]), toFiniteNumber(rightPosition[0]), alpha);
-    out.position.y = lerp(toFiniteNumber(leftPosition[1]), toFiniteNumber(rightPosition[1]), alpha);
-    out.position.z = lerp(toFiniteNumber(leftPosition[2]), toFiniteNumber(rightPosition[2]), alpha);
-    interpolateQuaternion(out.quaternion, left.quaternion, right?.quaternion, alpha);
-    out.fov = Math.max(1, lerp(leftFov, toFiniteNumber(right?.fov, leftFov), alpha));
-    out.aspect = Math.max(0.01, lerp(leftAspect, toFiniteNumber(right?.aspect, leftAspect), alpha));
-    out.near = Math.max(0.001, toFiniteNumber(left.near, 0.1));
-    out.far = Math.max(1, toFiniteNumber(left.far, 200));
-    out.zoom = Math.max(0.01, lerp(leftZoom, toFiniteNumber(right?.zoom, leftZoom), alpha));
+    out.position.x = lerp(toFiniteNumber(leftPosition[0]), toFiniteNumber(rightPosition[0]), cameraAlpha);
+    out.position.y = lerp(toFiniteNumber(leftPosition[1]), toFiniteNumber(rightPosition[1]), cameraAlpha);
+    out.position.z = lerp(toFiniteNumber(leftPosition[2]), toFiniteNumber(rightPosition[2]), cameraAlpha);
+    interpolateQuaternion(out.quaternion, left.quaternion, right?.quaternion, cameraAlpha);
+    out.fov = Math.max(1, lerp(leftFov, toFiniteNumber(right?.fov, leftFov), cameraAlpha));
+    out.aspect = Math.max(0.01, lerp(leftAspect, toFiniteNumber(right?.aspect, leftAspect), cameraAlpha));
+    out.near = Math.max(0.001, toFiniteNumber(discreteCamera?.near, 0.1));
+    out.far = Math.max(1, toFiniteNumber(discreteCamera?.far, 200));
+    out.zoom = Math.max(0.01, lerp(leftZoom, toFiniteNumber(right?.zoom, leftZoom), cameraAlpha));
     projection.recordedCamera = out;
 }
 

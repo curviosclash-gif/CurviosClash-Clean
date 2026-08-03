@@ -81,6 +81,10 @@ function enrichPlayerVisualState(snapshotPlayers, livePlayers, renderProjection 
                 toFiniteNumber(projected.quaternion.w, 1),
             ];
         }
+        snapshot.renderDiscontinuityVersion = Math.max(0, Math.trunc(toFiniteNumber(
+            projected?.renderDiscontinuityVersion ?? player?._renderDiscontinuityVersion,
+            0
+        )));
         snapshot.maxHealth = toFiniteNumber(player.maxHp, 100);
         snapshot.maxShieldHp = toFiniteNumber(player.maxShieldHp, 0);
         snapshot.shieldHitFeedback = toFiniteNumber(player.shieldHitFeedback, 0);

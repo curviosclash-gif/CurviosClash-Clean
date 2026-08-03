@@ -4,6 +4,28 @@ import {
     applyProjectionVector3,
 } from './RecordingCaptureProjectionOps.js';
 
+export function createCaptureCameraContext() {
+    return {
+        discontinuityVersion: undefined,
+        playerState: { hp: 0, maxHp: 1, score: 0, speed: 0, isBoosting: false },
+    };
+}
+
+export function updateCaptureCameraContext(context, player) {
+    const target = context || createCaptureCameraContext();
+    const playerState = target.playerState;
+    playerState.hp = Number(player?.hp) || 0;
+    playerState.maxHp = Number(player?.maxHp) || 1;
+    playerState.score = Number(player?.score) || 0;
+    playerState.speed = Number(player?.speed) || 0;
+    playerState.isBoosting = player?.isBoosting === true;
+    const discontinuityVersion = Number(player?.renderDiscontinuityVersion);
+    target.discontinuityVersion = Number.isFinite(discontinuityVersion)
+        ? discontinuityVersion
+        : undefined;
+    return target;
+}
+
 export function setCaptureCameraFrameTiming(pipeline, rig, renderDelta) {
     pipeline._captureFrameTiming.rawDt = renderDelta;
     pipeline._captureFrameTiming.dt = renderDelta;
@@ -30,6 +52,12 @@ export function updateShortsCaptureCamera(
 
     const camera = rig.cameras[slotIndex];
     if (!camera) return false;
+    let cameraContext = pipeline._shortsCameraContexts[slotIndex];
+    if (!cameraContext) {
+        cameraContext = createCaptureCameraContext();
+        pipeline._shortsCameraContexts[slotIndex] = cameraContext;
+    }
+    updateCaptureCameraContext(cameraContext, player);
     const preserveOrbitPose = useRecordingOrbit && pipeline._shortsOrbitPoseReady[slotIndex] === true;
     let preservedFov = camera.fov;
     if (preserveOrbitPose) {
@@ -47,7 +75,8 @@ export function updateShortsCaptureCamera(
         false,
         player?.isBoosting === true,
         arena,
-        null
+        null,
+        cameraContext
     );
     if (preserveOrbitPose) {
         camera.position.copy(pipeline._tmpCameraPosition);
@@ -77,14 +106,9 @@ export function updateShortsCaptureCamera(
         dt: pipeline._resolveShortsDt(renderDelta),
         arena,
         slotStyle,
-        playerState: reduceMotion ? null : {
-            hp: Number(player?.hp) || 0,
-            maxHp: Number(player?.maxHp) || 1,
-            score: Number(player?.score) || 0,
-            speed: Number(player?.speed) || 0,
-            isBoosting: player?.isBoosting === true,
-        },
+        playerState: reduceMotion ? null : cameraContext.playerState,
         otherPlayerPosition: reduceMotion ? null : otherPos,
+        discontinuityVersion: cameraContext.discontinuityVersion,
         baseFov: Number(CONFIG.CAMERA.FOV) || 75,
         dynamicFovEnabled: !reduceMotion
             && pipeline._cameraPerspectiveSettings?.speedFovEnabled !== false,
@@ -112,11 +136,13 @@ export function syncCinematicCaptureSubject(pipeline, player) {
     const playerIndex = Number.isInteger(player?.playerIndex) ? player.playerIndex : null;
     if (playerIndex === null) {
         pipeline._cinematicSubjectPlayerIndex = null;
+        pipeline._cinematicOrbitPoseReady = false;
         return 0;
     }
     if (pipeline._cinematicSubjectPlayerIndex !== playerIndex) {
         pipeline._cinematicOrbitDirector.resetPlayer(playerIndex);
         pipeline._cinematicSubjectPlayerIndex = playerIndex;
+        pipeline._cinematicOrbitPoseReady = false;
     }
     return playerIndex;
 }
