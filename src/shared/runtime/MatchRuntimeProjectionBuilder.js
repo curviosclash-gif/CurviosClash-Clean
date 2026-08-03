@@ -118,6 +118,15 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         quaternion: toQuaternionProjection(player?.quaternion),
         aimDirection: toVector3Projection(aimDirection),
         inventory: Array.isArray(player?.inventory) ? [...player.inventory] : [],
+        activeEffects: Array.isArray(player?.activeEffects)
+            ? player.activeEffects.map((effect) => ({
+                type: String(effect?.type || '').trim().toUpperCase(),
+                remaining: Math.max(0, Number(effect?.remaining) || 0),
+                sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
+                    ? effect.sourcePlayerIndex
+                    : null,
+            })).filter((effect) => !!effect.type)
+            : [],
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
         itemUseCooldownRemaining: Math.max(0, Number(player?.itemUseCooldownRemaining) || 0),
         shootCooldown: Math.max(0, Number(player?.shootCooldown) || 0),

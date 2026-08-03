@@ -9,26 +9,23 @@ import { createEntityRuntimeConfig } from '../contracts/EntityRuntimeConfig.js';
 import { createArcadePort, createRecordingPort } from './GameRuntimeFeaturePorts.js';
 import { buildMatchRenderProjection as buildMatchRenderProjectionSnapshot } from './MatchRenderProjectionBuilder.js';
 import { buildMatchRuntimeProjection as buildMatchRuntimeProjectionSnapshot } from './MatchRuntimeProjectionBuilder.js';
+import { createMatchStatePort } from './MatchStatePort.js';
+import { createMatchUiPort } from './MatchUiPort.js';
 
 function noop() {}
-
 const RUNTIME_PORT_ADAPTER_SOURCES = Object.freeze({
     BUNDLE_COORDINATOR: 'runtime-bundle:runtimeCoordinator',
     UNRESOLVED: 'unresolved',
 });
-
 function getRuntimeBundle(game) {
     return game?.runtimeBundle || null;
 }
-
 function getSessionRuntime(game) {
     return getRuntimeBundle(game)?.sessionRuntime || game?.sessionRuntime || null;
 }
-
 function getRuntimeState(game) {
     return getRuntimeBundle(game)?.state || null;
 }
-
 function getMenuMultiplayerBridge(game) {
     return getRuntimeState(game)?.menuMultiplayerBridge || null;
 }
@@ -379,41 +376,13 @@ export function createRuntimeProjectionPort(game) {
     };
 }
 
-export function createMatchUiPort(game) {
-    return {
-        applyStartMatchProjection() {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.applyStartMatchProjection?.();
-        },
-        startMatch() {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.applyStartMatchProjection?.();
-        },
-        applyPauseMatchProjection() {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.applyPauseProjection?.();
-        },
-        applyResumeMatchProjection(options = undefined) {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.applyResumeProjection?.(options);
-        },
-        applyDisconnectConfirmationProjection() {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.applyDisconnectConfirmationProjection?.();
-        },
-        startRound() {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.startRound?.();
-        },
-        applyReturnToMenuUi(options = undefined) {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.applyReturnToMenuUi?.(options);
-        },
-        setupPauseOverlayListeners() {
-            return getRuntimeComponent(game, 'matchFlowUiController')?.setupPauseOverlayListeners?.();
-        },
-    };
-}
-
 export function createRuntimePorts(game) {
     const settingsPort = createSettingsPort(game);
     const uiFeedbackPort = createUiFeedbackPort(game);
     const sessionPort = createSessionPort(game);
     const renderPort = createRenderPort(game);
     const inputPort = createInputPort(game);
+    const matchStatePort = createMatchStatePort(game);
     const lifecyclePort = createLifecyclePort(game);
     const arcadePort = createArcadePort({
         getRuntimeCoordinator: () => getRuntimeCoordinator(game),
@@ -432,6 +401,7 @@ export function createRuntimePorts(game) {
         sessionPort,
         renderPort,
         inputPort,
+        matchStatePort,
         lifecyclePort,
         arcadePort,
         recordingPort,

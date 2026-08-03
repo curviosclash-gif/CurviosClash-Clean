@@ -39,6 +39,7 @@ test('match projections resolve only needed config sections while preserving fal
         cameraMode: 0,
         position: { x: 1, y: 2, z: 3 },
         quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        activeEffects: [{ type: 'INVERT', remaining: 2.5, sourcePlayerIndex: 3 }],
         entityRuntimeConfig: {
             PLAYER: { BOOST_DURATION: 9 },
             CAMERA: { MODES: ['CUSTOM_CAMERA'] },
@@ -97,6 +98,11 @@ test('match projections resolve only needed config sections while preserving fal
         maxHp: 45,
         range: 58,
     });
+    assert.deepEqual(runtimePlayer.activeEffects, [{
+        type: 'INVERT',
+        remaining: 2.5,
+        sourcePlayerIndex: 3,
+    }]);
 });
 
 test('runtime projection reuses scoreboard rows when formatting the Hunt summary', () => {

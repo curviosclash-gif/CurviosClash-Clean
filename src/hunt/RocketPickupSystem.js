@@ -2,7 +2,7 @@ import {
     getRocketPickupTypes,
     isRocketPickupType,
     normalizePickupType,
-} from '../entities/PickupRegistry.js';
+} from '../shared/contracts/PickupRegistryContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 
 const TIER_BY_ITEM = Object.freeze({

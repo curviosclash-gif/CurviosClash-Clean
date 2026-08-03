@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { GameModeContract } from '../src/modes/GameModeContract.js';
 import { ClassicModeStrategy } from '../src/modes/ClassicModeStrategy.js';
+import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createGameModeStrategy, registerGameModeStrategy } from '../src/modes/GameModeRegistry.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
@@ -19,6 +20,7 @@ import {
     resolveRocketTierDamage,
 } from '../src/hunt/RocketPickupSystem.js';
 import { createRuntimeRng } from '../src/shared/contracts/RuntimeRngContract.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
 
 test('GameModeRegistry resolves classic fallback and hunt mode deterministically', () => {
     assert.equal(createGameModeStrategy('UNKNOWN_MODE').modeType, 'CLASSIC');
@@ -310,6 +312,27 @@ test('B04 F5 hunt pickup distribution stays deterministic for equal runtime RNG 
     assert.deepEqual(picksA, picksB);
     assert.equal(picksA.some((type) => String(type || '').startsWith('ROCKET_')), true);
     assert.equal(picksA.some((type) => type === 'SHIELD' || type === 'SPEED_UP' || type === 'GHOST'), true);
+});
+
+test('classic and arcade pickup weights use seeded RNG and avoid immediate repeats', () => {
+    for (const Strategy of [ClassicModeStrategy, ArcadeModeStrategy]) {
+        const first = new Strategy({ runtimeRng: createRuntimeRng({ seed: 4815 }) });
+        const second = new Strategy({ runtimeRng: createRuntimeRng({ seed: 4815 }) });
+        const types = first.filterSpawnableTypes(getPickupTypes(), CONFIG_BASE.POWERUP.TYPES);
+        assert.equal(types.includes('HEALTH'), Strategy === ArcadeModeStrategy);
+        const picksA = [];
+        const picksB = [];
+        let previousA = '';
+        let previousB = '';
+        for (let i = 0; i < 32; i += 1) {
+            previousA = first.resolveSpawnType(types, CONFIG_BASE, { excludeType: previousA });
+            previousB = second.resolveSpawnType(types, CONFIG_BASE, { excludeType: previousB });
+            picksA.push(previousA);
+            picksB.push(previousB);
+        }
+        assert.deepEqual(picksA, picksB);
+        assert.equal(picksA.some((type, index) => index > 0 && type === picksA[index - 1]), false);
+    }
 });
 
 test('registerGameModeStrategy supports targeted extensions without browser runtime', () => {

@@ -2,7 +2,7 @@ import {
     isPickupTypeSelfUsable,
     isPickupTypeShootable,
     normalizePickupType,
-} from '../../entities/PickupRegistry.js';
+} from './PickupRegistryContract.js';
 
 export const GAMEPLAY_ACTION_COOLDOWN_EPSILON = 0.001;
 

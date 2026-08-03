@@ -5,6 +5,8 @@
 // ============================================
 
 import { GameModeContract } from './GameModeContract.js';
+import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -53,8 +55,12 @@ export const ARCADE_SECTOR_TYPES = Object.freeze({
 });
 
 export class ArcadeModeStrategy extends GameModeContract {
-    constructor() {
+    constructor(options = {}) {
         super();
+        this.runtimeRng = options?.runtimeRng && typeof options.runtimeRng.next === 'function'
+            ? options.runtimeRng
+            : createRuntimeRng({ random: options?.random });
+        this._random = this.runtimeRng.next;
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
         this._roundScores = {};
@@ -481,7 +487,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (target.hasShield) {
             target.hasShield = false;
         } else {
-            target.applyPowerup(projectile.type);
+            target.applyPowerup(projectile.type, { sourcePlayerIndex: projectile.owner?.index });
             system?.onProjectilePowerup?.(target, projectile);
         }
     }
@@ -494,12 +500,15 @@ export class ArcadeModeStrategy extends GameModeContract {
             const entry = powerupTypes[typeKey];
             if (!entry) return false;
             if (entry.huntOnly) return false;
-            return true;
+            return isPickupTypeAllowedForMode(typeKey, this.modeType);
         });
     }
 
-    resolveSpawnType(spawnableTypes) {
-        return spawnableTypes[Math.floor(Math.random() * spawnableTypes.length)];
+    resolveSpawnType(spawnableTypes, config, context = {}) {
+        const candidates = context?.excludeType && spawnableTypes.length > 1
+            ? spawnableTypes.filter((type) => type !== context.excludeType)
+            : spawnableTypes;
+        return pickWeightedPickupType(candidates, this.modeType, this._random, config?.POWERUP?.TYPES);
     }
 
     // --- Features ---

@@ -86,6 +86,7 @@ function summarizeLegacySurfaceScorecard(findings, guardMatrix) {
 const LOCAL_IMPORT_PATTERN = /import\s+(?:[\s\S]*?\s+from\s+)?['"]([^'"]+)['"]/g;
 const DYNAMIC_IMPORT_PATTERN = /import\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
 const COMMONJS_REQUIRE_PATTERN = /require\s*\(\s*['"]([^'"]+)['"]\s*\)/g;
+const EXPORT_FROM_PATTERN = /export\s+(?:\*|\{[\s\S]*?\})\s+from\s+['"]([^'"]+)['"]/g;
 const CONSTRUCTOR_GAME_PATTERN = /constructor\s*\(\s*game(?:\s*=|\s*[),])/g;
 const THIS_GAME_EQUALS_GAME_PATTERN = /\bthis\.game\s*=\s*game\b/g;
 const CONFIG_WRITE_PATTERN = /\bCONFIG(?:\.[A-Za-z_$][\w$]*|\[[^\]]+\])+\s*=/g;
@@ -103,7 +104,7 @@ function isScannableSourceFile(fileName) {
 }
 
 function getSourceFiles(rootDir) {
-    const sourceRoots = ['src', 'server', 'electron']
+    const sourceRoots = ['src', 'server', 'electron', 'editor', 'prototypes/vehicle-lab']
         .map((relativePath) => path.join(rootDir, relativePath))
         .filter((absolutePath) => existsSync(absolutePath));
     const files = [];
@@ -158,6 +159,8 @@ function resolveImportTarget(rootDir, fromFile, specifier) {
 
 function resolveLayer(relativePath) {
     if (relativePath.startsWith('server/')) return 'server';
+    if (relativePath.startsWith('editor/')) return 'editor';
+    if (relativePath.startsWith('prototypes/vehicle-lab/')) return 'vehicle-lab';
     if (relativePath.startsWith('electron/')) {
         const baseName = path.basename(relativePath).toLowerCase();
         if (baseName.includes('preload')) return 'electron-preload';
@@ -216,6 +219,22 @@ function collectImportEdges(rootDir, filesByRelativePath) {
                 specifier,
                 line,
                 kind: 'require',
+                isDynamic: false,
+                fromLayer: resolveLayer(relativePath),
+                toLayer: resolveLayer(target),
+            });
+        }
+        for (const match of text.matchAll(EXPORT_FROM_PATTERN)) {
+            const specifier = String(match[1] || '');
+            if (!specifier.startsWith('.')) continue;
+            const target = resolveImportTarget(rootDir, absolutePath, specifier);
+            const line = countLineNumber(text, match.index || 0);
+            edges.push({
+                from: relativePath,
+                to: target,
+                specifier,
+                line,
+                kind: 're-export',
                 isDynamic: false,
                 fromLayer: resolveLayer(relativePath),
                 toLayer: resolveLayer(target),
@@ -351,6 +370,9 @@ function classifyEdgeViolations(edges) {
     const sharedContractsToCoreImports = [];
     const applicationToUiImports = [];
     const applicationToCoreImports = [];
+    const applicationToPlatformImports = [];
+    const sharedContractsToImplementationImports = [];
+    const coreToUiCompositionImports = [];
 
     for (const edge of edges) {
         if (edge.from.startsWith('src/core/') && edge.to.startsWith('src/ui/')) {
@@ -425,6 +447,32 @@ function classifyEdgeViolations(edges) {
                 reason,
             });
         }
+        if (edge.from.startsWith('src/application/') && edge.to.startsWith('src/platform/')) {
+            applicationToPlatformImports.push({
+                ...edge,
+                allowed: false,
+                reason: null,
+            });
+        }
+        if (
+            edge.from.startsWith('src/shared/contracts/')
+            && edge.to.startsWith('src/')
+            && !edge.to.startsWith('src/shared/')
+            && !edge.to.startsWith('src/utils/')
+        ) {
+            sharedContractsToImplementationImports.push({
+                ...edge,
+                allowed: false,
+                reason: null,
+            });
+        }
+        if (edge.from.startsWith('src/core/') && edge.to.startsWith('src/composition/core-ui/')) {
+            coreToUiCompositionImports.push({
+                ...edge,
+                allowed: true,
+                reason: 'tracked core-ui composition seam',
+            });
+        }
     }
 
     return {
@@ -437,6 +485,9 @@ function classifyEdgeViolations(edges) {
         sharedContractsToCoreImports,
         applicationToUiImports,
         applicationToCoreImports,
+        applicationToPlatformImports,
+        sharedContractsToImplementationImports,
+        coreToUiCompositionImports,
     };
 }
 
@@ -494,6 +545,9 @@ export function collectArchitectureReport(rootDir = process.cwd()) {
         sharedContractsToCoreImports,
         applicationToUiImports,
         applicationToCoreImports,
+        applicationToPlatformImports,
+        sharedContractsToImplementationImports,
+        coreToUiCompositionImports,
     } = classifyEdgeViolations(importEdges);
     const constructorGameMatches = collectConstructorGameMatches(filesByRelativePath);
     const configWrites = collectConfigWrites(filesByRelativePath);
@@ -522,6 +576,9 @@ export function collectArchitectureReport(rootDir = process.cwd()) {
             sharedContractsToCoreImports,
             applicationToUiImports,
             applicationToCoreImports,
+            applicationToPlatformImports,
+            sharedContractsToImplementationImports,
+            coreToUiCompositionImports,
             legacySurfaceReads,
             electronPreloadExposures: electronSurfaces.preloadExposures,
             electronIpcRendererChannels: electronSurfaces.ipcRendererChannels,
@@ -600,6 +657,21 @@ export function collectArchitectureReport(rootDir = process.cwd()) {
             disallowedEdges: applicationToCoreImports.filter((entry) => !entry.allowed).length,
             legacyEdges: summarizeEdges(applicationToCoreImports.filter((entry) => entry.allowed)),
         },
+        applicationToPlatformImports: {
+            totalEdges: applicationToPlatformImports.length,
+            disallowedEdges: applicationToPlatformImports.length,
+            legacyEdges: [],
+        },
+        sharedContractsToImplementationImports: {
+            totalEdges: sharedContractsToImplementationImports.length,
+            disallowedEdges: sharedContractsToImplementationImports.length,
+            legacyEdges: [],
+        },
+        coreToUiCompositionImports: {
+            totalEdges: coreToUiCompositionImports.length,
+            disallowedEdges: 0,
+            legacyEdges: summarizeEdges(coreToUiCompositionImports),
+        },
         electronPreloadExposures: {
             totalOccurrences: electronSurfaces.preloadExposures.length,
             totalFiles: summarizeFiles(electronSurfaces.preloadExposures).length,
@@ -644,6 +716,9 @@ export function formatArchitectureReport(report) {
     lines.push(`shared/contracts -> core imports: ${report.scorecard.sharedContractsToCoreImports.totalEdges} edges (${report.scorecard.sharedContractsToCoreImports.disallowedEdges} disallowed)`);
     lines.push(`application -> ui imports: ${report.scorecard.applicationToUiImports.totalEdges} edges (${report.scorecard.applicationToUiImports.disallowedEdges} disallowed)`);
     lines.push(`application -> core imports: ${report.scorecard.applicationToCoreImports.totalEdges} edges (${report.scorecard.applicationToCoreImports.disallowedEdges} disallowed)`);
+    lines.push(`application -> platform imports: ${report.scorecard.applicationToPlatformImports.totalEdges} edges (${report.scorecard.applicationToPlatformImports.disallowedEdges} disallowed)`);
+    lines.push(`shared/contracts -> implementation imports: ${report.scorecard.sharedContractsToImplementationImports.totalEdges} edges (${report.scorecard.sharedContractsToImplementationImports.disallowedEdges} disallowed)`);
+    lines.push(`core -> composition/core-ui imports: ${report.scorecard.coreToUiCompositionImports.totalEdges} tracked edges`);
     lines.push(`electron preload exposures: ${report.scorecard.electronPreloadExposures.totalOccurrences} across ${report.scorecard.electronPreloadExposures.totalFiles} files`);
     lines.push(`electron ipcRenderer channels: ${report.scorecard.electronIpcRendererChannels.totalOccurrences} across ${report.scorecard.electronIpcRendererChannels.totalFiles} files`);
     lines.push(`electron ipcMain channels: ${report.scorecard.electronIpcMainChannels.totalOccurrences} across ${report.scorecard.electronIpcMainChannels.totalFiles} files`);

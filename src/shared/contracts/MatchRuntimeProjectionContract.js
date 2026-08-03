@@ -174,6 +174,19 @@ function createPlayerProjection(value = null) {
         quaternion: createQuaternionProjection(value.quaternion),
         aimDirection: createVector3Projection(value.aimDirection),
         inventory: cloneStringArray(value.inventory),
+        activeEffects: Array.isArray(value.activeEffects) ? value.activeEffects
+            .map((effect) => {
+                const type = normalizeString(effect?.type, '').trim().toUpperCase();
+                if (!type) return null;
+                return {
+                    type,
+                    remaining: Math.max(0, normalizeNumber(effect?.remaining, 0)),
+                    sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
+                        ? effect.sourcePlayerIndex
+                        : null,
+                };
+            })
+            .filter(Boolean) : [],
         selectedItemIndex: normalizeInt(value.selectedItemIndex, 0),
         itemUseCooldownRemaining: Math.max(0, normalizeNumber(value.itemUseCooldownRemaining, 0)),
         shootCooldown: Math.max(0, normalizeNumber(value.shootCooldown, 0)),

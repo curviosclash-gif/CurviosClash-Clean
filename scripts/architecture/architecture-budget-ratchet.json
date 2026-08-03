@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-07-29",
+  "updatedAt": "2026-08-03",
   "budgets": {
     "constructorGameFiles": 0,
     "domAccessFiles": 8,
@@ -12,6 +12,9 @@
     "sharedContractsToCoreImportEdges": 0,
     "applicationToUiImportEdges": 0,
     "applicationToCoreImportEdges": 0,
+    "applicationToPlatformImportEdges": 0,
+    "sharedContractsToImplementationImportEdges": 0,
+    "coreToUiCompositionImportEdges": 27,
     "legacySurface_game_runtimeBundle_totalFiles": 0,
     "legacySurface_game_runtimeFacade_totalFiles": 1,
     "legacySurface_window_GAME_INSTANCE_totalFiles": 1,

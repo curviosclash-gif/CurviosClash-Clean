@@ -89,6 +89,21 @@ const checks = [
         max: resolveBudget('applicationToCoreImportEdges', report.budgets.applicationToCoreImportEdges),
     },
     {
+        label: 'application -> platform edge budget',
+        actual: report.scorecard.applicationToPlatformImports.totalEdges,
+        max: resolveBudget('applicationToPlatformImportEdges', report.budgets.applicationToPlatformImportEdges),
+    },
+    {
+        label: 'shared/contracts -> implementation edge budget',
+        actual: report.scorecard.sharedContractsToImplementationImports.totalEdges,
+        max: resolveBudget('sharedContractsToImplementationImportEdges', report.budgets.sharedContractsToImplementationImportEdges),
+    },
+    {
+        label: 'core -> composition/core-ui tracked edge budget',
+        actual: report.scorecard.coreToUiCompositionImports.totalEdges,
+        max: resolveBudget('coreToUiCompositionImportEdges', report.budgets.coreToUiCompositionImportEdges),
+    },
+    {
         label: 'electron preload exposures',
         actual: report.scorecard.electronPreloadExposures.totalOccurrences,
         max: resolveBudget('electronPreloadExposures', report.scorecard.electronPreloadExposures.totalOccurrences),

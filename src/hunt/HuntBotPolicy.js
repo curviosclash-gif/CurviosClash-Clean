@@ -9,7 +9,7 @@ import {
     isPickupTypeSelfUsable,
     isPickupTypeShootable,
     normalizePickupType,
-} from '../entities/PickupRegistry.js';
+} from '../shared/contracts/PickupRegistryContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import {
     applyScenarioRoleMovement,

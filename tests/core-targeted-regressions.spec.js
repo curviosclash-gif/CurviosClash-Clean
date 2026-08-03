@@ -53,8 +53,9 @@ test.describe('V56: Code-Audit Remediation Regressions', () => {
     test('V56.1 Session-ID guard rejects stale async createMatchSession result', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
+            const { getSessionRuntimeHandle } = await import('/src/core/runtime/GameRuntimeBundle.js');
             const game = window.GAME_INSTANCE;
-            const orch = game.matchLifecycleSessionOrchestrator;
+            const orch = getSessionRuntimeHandle(game, 'matchSessionOrchestrator');
             if (!orch) return { skip: true };
 
             // First call (sync path)
@@ -611,14 +612,24 @@ test.describe('V74: Runtime-Decoupling Regressions', () => {
                             }),
                         },
                         matchUiPort: {
-                            applyStartMatchProjection: () => {
+                            prepareMatchStartProjection: () => {
                                 startCalls += 1;
                                 callLog.push('applyStart');
-                                return new Promise((resolve) => {
-                                    resolveStart = () => resolve(true);
-                                });
+                                return true;
                             },
+                            startRound() { },
                         },
+                        lifecyclePort: {
+                            initializeSession: () => true,
+                            waitForAllPlayersLoaded: () => true,
+                        },
+                    };
+                },
+                getRuntimeHandle() {
+                    return {
+                        createMatchSession: () => new Promise((resolve) => {
+                            resolveStart = () => resolve({});
+                        }),
                     };
                 },
             };
@@ -636,7 +647,9 @@ test.describe('V74: Runtime-Decoupling Regressions', () => {
             const samePromise = firstPromise === secondPromise;
             const startCallsBeforeFinalize = startCalls;
             resolveFinalize();
-            await Promise.resolve();
+            for (let attempt = 0; attempt < 10 && typeof resolveStart !== 'function'; attempt += 1) {
+                await Promise.resolve();
+            }
             const startCallsAfterFinalize = startCalls;
             resolveStart();
             const [firstResult, secondResult] = await Promise.all([firstPromise, secondPromise]);
@@ -912,12 +925,20 @@ test.describe('V74: Runtime-Decoupling Regressions', () => {
                             }),
                         },
                         matchUiPort: {
-                            applyStartMatchProjection: () => {
+                            prepareMatchStartProjection: () => {
                                 callLog.push('applyStart');
                                 return true;
                             },
+                            startRound() { },
+                        },
+                        lifecyclePort: {
+                            initializeSession: () => true,
+                            waitForAllPlayersLoaded: () => true,
                         },
                     };
+                },
+                getRuntimeHandle() {
+                    return { createMatchSession: () => ({}) };
                 },
             };
             facade.sessionHandler = new GameRuntimeSessionHandler({ facade, logger: console });

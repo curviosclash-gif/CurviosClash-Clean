@@ -1,6 +1,6 @@
 # Gameplay-Referenz: Powerups, Portale und Gates
 
-Stand: 2026-04-14
+Stand: 2026-08-03
 
 ## Zweck
 
@@ -28,6 +28,8 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 | `THICK` | ja | ja | Trailbreite auf `1.8` fuer 5s | `CLASSIC`, `ARCADE`, `HUNT` |
 | `THIN` | ja | ja | Trailbreite auf `0.2` fuer 5s | `CLASSIC`, `ARCADE`, `HUNT` |
 | `SHIELD` | ja | ja | Shield aktiv; in Hunt persistent solange `shieldHP > 0`, sonst Schutz fuer den naechsten Treffer | `CLASSIC`, `ARCADE`, `HUNT` |
+| `HEALTH` | ja | ja | stellt 35 HP wieder her | `ARCADE`, `HUNT` |
+| `MG_TURRET` | ja | nein | stellt ein zerstoerbares MG-Geschuetz auf | `HUNT` |
 | `SLOW_TIME` | ja | ja | setzt globale Spielzeit auf `0.4x`, solange aktiv; Hunt entfernt Legacy-Instanzen beim Effekt-Recompute | `CLASSIC`, `ARCADE` |
 | `GHOST` | ja | ja | ignoriert Wand- und Trail-Kollisionen waehrend der Laufzeit | `CLASSIC`, `ARCADE`, `HUNT` |
 | `INVERT` | ja | ja | invertiert die Steuerung fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
@@ -42,7 +44,11 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - Feldlimit gleichzeitig gespawnter Items: `10`.
 - Spawnintervall: `3.0s`.
 - Pickup-Radius: `2.5`.
+- Ein volles Inventar lehnt die Aufnahme mit `item.pickup.inventory-full` ab; das Pickup bleibt auf dem Feld und zaehlt nicht als Collect-Erfolg.
 - Die Capability-Matrix ist zentral in `src/entities/PickupRegistry.js` gepflegt und steuert Typ-Normalisierung, Modusfreigabe, Visuals, Bot-Gewichte und Observation-Slots.
+- Classic und Arcade lesen modusspezifische Spawn-Gewichte aus derselben Registry; der Runtime-RNG steuert Typ, Anker, Ebene und Animationsphase reproduzierbar und vermeidet direkte Typwiederholungen.
+- Laufende Status-Effekte verwenden reale Effektzeit. Globale Zeitlupe verlangsamt daher die Physik, verlaengert aber weder sich selbst noch andere `activeEffects`.
+- Das Desktop-HUD zeigt aktive Effekte samt Restzeit beziehungsweise Schild-HP und bei gegnerischen Treffern die Spielerquelle. Raketenstufen tragen zusaetzlich die sichtbaren Badges `S`, `M`, `L` und `XL`.
 - In Planar-Maps koennen freie Spawns auf `portalLevels` gelegt werden.
 - Map-Autoren koennen per `pickupType` feste Item-Typen an Anchors erzwingen.
 - `GHOST` und Spawn-Schutz ueberspringen den normalen Wand-/Trail-Kollisionspfad komplett.

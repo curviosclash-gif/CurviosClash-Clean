@@ -1957,6 +1957,79 @@ input[type="range"]::-webkit-slider-thumb {
     pointer-events: none;
 }
 
+.item-tier-badge {
+    position: absolute;
+    right: 2px;
+    top: 2px;
+    z-index: 4;
+    min-width: 13px;
+    padding: 1px 2px;
+    border: 1px solid rgba(255, 255, 255, 0.72);
+    background: rgba(0, 0, 0, 0.72);
+    color: #fff;
+    font: 800 0.48rem var(--menu-theme-display-font);
+    line-height: 1;
+    text-align: center;
+    opacity: 0;
+}
+
+.item-tier-badge.visible {
+    opacity: 1;
+}
+
+.active-effect-bar {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 4px;
+    max-width: 420px;
+}
+
+.active-effect-badge {
+    display: grid;
+    grid-template-columns: auto auto auto;
+    align-items: center;
+    gap: 3px;
+    min-height: 20px;
+    padding: 2px 6px;
+    border: 1px solid rgba(92, 223, 255, 0.62);
+    background: rgba(4, 24, 38, 0.86);
+    color: #e9fbff;
+    font: 700 0.58rem var(--menu-theme-display-font);
+    letter-spacing: 0.02em;
+}
+
+.active-effect-badge[data-tone="debuff"] {
+    border-color: rgba(255, 104, 132, 0.78);
+    background: rgba(48, 8, 22, 0.88);
+}
+
+.active-effect-time,
+.active-effect-source {
+    color: #fff;
+}
+
+.active-effect-source:empty {
+    display: none;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .active-effect-bar,
+#hud:has(#hunt-hud:not(.hidden)) #p1-hud > .active-effect-bar {
+    position: absolute;
+    left: 50%;
+    bottom: 74px;
+    width: min(760px, 62vw);
+    margin: 0;
+    transform: translateX(-50%) scale(var(--hud-scale, 1));
+    transform-origin: center bottom;
+}
+
+#hud.split-screen:has(#hunt-hud:not(.hidden)) #p1-hud > .active-effect-bar {
+    left: 25%;
+    width: min(480px, 30vw);
+}
+
 .item-slot.selected {
     transform: translateY(-1px) scale(1.03);
     background: rgba(12, 70, 108, 0.34);

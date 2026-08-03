@@ -10,6 +10,7 @@ import {
 } from '../../shared/runtime/UiIntentAtomicity.js';
 import { applyCommandRuntimeSettings } from './RuntimeCommandSettingsService.js';
 import { requestRuntimeMultiplayerMatchStart } from './RuntimeMultiplayerFlowService.js';
+import { MatchStartRuntimeService } from './MatchStartRuntimeService.js';
 import {
     initRuntimeSession,
     teardownRuntimeSession,
@@ -60,6 +61,7 @@ export class GameRuntimeSessionHandler {
         this._logger = logger;
         this._pendingStartMatch = null;
         this._pendingDispose = null;
+        this._matchStartRuntime = new MatchStartRuntimeService({ facade: this._facade });
     }
 
     _getPorts() {
@@ -239,7 +241,7 @@ export class GameRuntimeSessionHandler {
                     recordMenuTelemetry: (eventType, payload) => facade?._recordMenuTelemetry?.(eventType, payload),
                 });
             }
-            const startResult = facade?.getPorts?.()?.matchUiPort?.applyStartMatchProjection?.();
+            const startResult = this._matchStartRuntime.executeSafely();
             if (startResult === undefined || startResult === null) {
                 facade?.game?._showStatusToast?.('Start nicht moeglich: Match-Controller nicht verfuegbar.', 2000, 'error');
                 return false;
@@ -324,6 +326,7 @@ export class GameRuntimeSessionHandler {
         )) {
             return false;
         }
+        this._matchStartRuntime.cancel();
         return this._facade?.finalizeMatch?.({
             ...options,
             reason: options?.reason || SESSION_FINALIZE_TRIGGERS.RETURN_TO_MENU,
@@ -340,6 +343,7 @@ export class GameRuntimeSessionHandler {
 
     _disposeMenuRefs() {
         const facade = this._facade;
+        this._matchStartRuntime.cancel();
         facade?.game?.menuController?.dispose?.();
         facade?.game?.menuMultiplayerBridge?.dispose?.();
         if (facade?.game) {
@@ -358,6 +362,7 @@ export class GameRuntimeSessionHandler {
         if (this._pendingDispose) {
             return this._pendingDispose;
         }
+        this._matchStartRuntime.cancel();
         const facade = this._facade;
         facade?._clearMatchPrewarmTimer?.();
         const trackedDispose = (async () => {

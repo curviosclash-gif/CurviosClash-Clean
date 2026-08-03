@@ -51,6 +51,19 @@ function resetShieldState(player) {
     player.shieldHitFeedback = 0;
 }
 
+function resolveEffectClockScale(player) {
+    const players = Array.isArray(player?.entityManager?.players)
+        ? player.entityManager.players
+        : [player];
+    let scale = 1;
+    for (const candidate of players) {
+        if (candidate?.hasSlowTime && Number.isFinite(Number(candidate.slowTimeScale))) {
+            scale = Math.min(scale, Number(candidate.slowTimeScale));
+        }
+    }
+    return Math.max(0.05, Math.min(1, scale));
+}
+
 export function recomputePlayerEffectState(player) {
     if (!player) return;
 
@@ -128,6 +141,7 @@ export function updatePlayerEffects(player, dt) {
     if (!player) return;
 
     const modeType = resolveModeType(player);
+    const effectDt = Math.max(0, Number(dt) || 0) / resolveEffectClockScale(player);
     for (let i = player.activeEffects.length - 1; i >= 0; i -= 1) {
         const effect = player.activeEffects[i];
         if (!effect || !isPickupTypeAllowedForMode(effect.type, modeType)) {
@@ -149,7 +163,7 @@ export function updatePlayerEffects(player, dt) {
             }
         }
 
-        effect.remaining -= dt;
+        effect.remaining -= effectDt;
         if (effect.remaining <= 0) {
             removeEffectAtIndex(player, i);
         }
@@ -171,7 +185,7 @@ export function updatePlayerEffects(player, dt) {
     }
 }
 
-export function applyPlayerPowerup(player, type) {
+export function applyPlayerPowerup(player, type, options = {}) {
     if (!player) return;
 
     const definition = getPickupDefinition(type);
@@ -197,6 +211,9 @@ export function applyPlayerPowerup(player, type) {
     player.activeEffects.push({
         type,
         remaining: Number.isFinite(definition.duration) ? definition.duration : 0,
+        sourcePlayerIndex: Number.isInteger(options?.sourcePlayerIndex)
+            ? options.sourcePlayerIndex
+            : null,
     });
 
     if (type === 'SHIELD') {

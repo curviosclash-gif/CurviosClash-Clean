@@ -1,8 +1,3 @@
-import {
-    createElectronDiscoveryIntentBridge,
-    createElectronHostIntentBridge,
-    getElectronPlatformCapabilitySnapshot,
-} from '../../platform/electron/ElectronPlatformBridge.js';
 import { createLobbyLifecycleEventEmitter } from './LobbyLifecycleEventEmitter.js';
 import { resolveGlobalObject, toCallable } from './LobbyRuntimeEnvironment.js';
 import { createNetworkLobbyDiscoveryPort } from './NetworkLobbyDiscoveryPort.js';
@@ -54,12 +49,15 @@ export class NetworkLobbyService {
         this.onStateChanged = typeof options.onStateChanged === 'function' ? options.onStateChanged : null;
         this.onMatchStart = typeof options.onMatchStart === 'function' ? options.onMatchStart : null;
         this._runtime = options.runtime && typeof options.runtime === 'object' ? options.runtime : {};
+        const platformBindings = options.platformBindings && typeof options.platformBindings === 'object'
+            ? options.platformBindings
+            : null;
         this._platformCapabilities = options.platformCapabilities && typeof options.platformCapabilities === 'object'
             ? options.platformCapabilities
-            : getElectronPlatformCapabilitySnapshot(runtimeGlobal);
+            : platformBindings?.platformCapabilities || {};
         this._hostIntentBridge = options.hostIntentBridge && typeof options.hostIntentBridge === 'object'
             ? options.hostIntentBridge
-            : createElectronHostIntentBridge(runtimeGlobal);
+            : platformBindings?.hostIntentBridge || {};
         this._resolveHostSignalingUrlImpl = typeof options.resolveHostSignalingUrl === 'function'
             ? options.resolveHostSignalingUrl
             : null;
@@ -119,7 +117,8 @@ export class NetworkLobbyService {
                 ? options.discoveryPort
                 : createNetworkLobbyDiscoveryPort({
                     runtime: this._runtime,
-                    discoveryRuntime: options.discoveryRuntime || createElectronDiscoveryIntentBridge(runtimeGlobal),
+                    platformBindings,
+                    discoveryRuntime: options.discoveryRuntime || platformBindings?.discoveryIntentBridge || null,
                 }));
     }
 

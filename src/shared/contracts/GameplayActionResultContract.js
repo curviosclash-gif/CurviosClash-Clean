@@ -17,6 +17,7 @@ export const GAMEPLAY_ACTION_RESULT_CODES = Object.freeze({
     MG_SHOOT_OVERHEATED: 'mg.shoot.overheated',
     MG_SHOOT_INACTIVE: 'mg.shoot.inactive',
     ITEM_PICKUP_SUCCESS: 'item.pickup.success',
+    ITEM_PICKUP_INVENTORY_FULL: 'item.pickup.inventory-full',
     PORTAL_TRAVEL: 'portal.travel',
     PORTAL_TRAVEL_COOLDOWN: 'portal.travel.cooldown',
     PORTAL_TRAVEL_INACTIVE: 'portal.travel.inactive',

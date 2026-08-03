@@ -560,6 +560,35 @@ test('item slots render cooldown sweep and remaining seconds instead of title-on
     }
 });
 
+test('rocket tiers and active effect sources remain visible without color or tooltips', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const runtime = new HudRuntimeSystem({ game: {}, ports: null });
+        const container = createStubElement('item-bar');
+        container.parentNode = { insertBefore() {} };
+        const player = {
+            index: 1,
+            inventory: ['ROCKET_MEGA'],
+            selectedItemIndex: 0,
+            activeEffects: [{ type: 'INVERT', remaining: 2.25, sourcePlayerIndex: 0 }],
+        };
+
+        runtime._updateItemBar(container, player, { modeId: 'HUNT' });
+
+        const tierBadge = container.children[0].children[3];
+        assert.equal(tierBadge.textContent, 'XL');
+        assert.match(container.children[0].ariaLabel, /Rakete XL/);
+        const effectBar = runtime._activeEffectBars.get(container);
+        assert.equal(effectBar.classList.contains('hidden'), false);
+        assert.equal(effectBar.children[0].children[1].textContent, 'Invertieren');
+        assert.equal(effectBar.children[0].children[2].textContent, '2.3s');
+        assert.equal(effectBar.children[0].children[3].textContent, 'P1');
+        assert.equal(effectBar.children[0].dataset.tone, 'debuff');
+    } finally {
+        documentStub.restore();
+    }
+});
+
 test('item slots render the use-cooldown path with the configured item cooldown', () => {
     const documentStub = installDocumentStub();
     try {

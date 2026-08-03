@@ -8,6 +8,7 @@ import { resolveGameplayConfig } from '../../../shared/contracts/GameplayConfigC
 export class PlayerInteractionPhase {
     constructor(entityManager) {
         this.entityManager = entityManager;
+        this._inventoryFullPlayers = new WeakSet();
     }
 
     capturePreviousPosition(player) {
@@ -87,10 +88,27 @@ export class PlayerInteractionPhase {
             }), { mode: 'portal', type: 'PORTAL' }));
         }
 
-        const pickedUp = entityManager.powerupManager.checkPickup(player.position, player.hitboxRadius);
-        if (!pickedUp) return;
-
-        player.addToInventory(pickedUp.type);
+        const pickedUp = entityManager.powerupManager.checkPickup(
+            player.position,
+            player.hitboxRadius,
+            (type) => player.addToInventory(type)
+        );
+        if (!pickedUp) {
+            this._inventoryFullPlayers.delete(player);
+            return;
+        }
+        if (!pickedUp.ok) {
+            if (!this._inventoryFullPlayers.has(player)) {
+                this._inventoryFullPlayers.add(player);
+                if (!player.isBot) entityManager._notifyPlayerFeedback?.(player, pickedUp.reason);
+                entityManager.recorder?.logEvent?.('ITEM_PICKUP', player.index, encodeGameplayActionResultForLog(
+                    pickedUp,
+                    { mode: 'pickup', type: pickedUp.type }
+                ));
+            }
+            return;
+        }
+        this._inventoryFullPlayers.delete(player);
         entityManager._emitArcadeGameplayEvent?.({
             type: 'collect',
             playerIndex: player.index,

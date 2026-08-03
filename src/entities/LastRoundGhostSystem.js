@@ -1,3 +1,3 @@
 export {
     ReplayScenePresentationSystem as LastRoundGhostSystem,
-} from '../core/recording/ReplayScenePresentationSystem.js';
+} from './replay/ReplayScenePresentationSystem.js';

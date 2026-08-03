@@ -1,7 +1,7 @@
 import {
     createArcadeBlueprintFromVehicleConfig,
     validateArcadeBlueprint,
-} from '../../../src/entities/arcade/ArcadeBlueprintSchema.js';
+} from '../../../src/shared/contracts/ArcadeBlueprintContract.js';
 
 const SLOT_LABELS = Object.freeze({
     core: 'Rumpf',

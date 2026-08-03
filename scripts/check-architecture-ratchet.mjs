@@ -73,6 +73,21 @@ const checks = [
         actual: report.scorecard.applicationToCoreImports.totalEdges,
     },
     {
+        key: 'applicationToPlatformImportEdges',
+        label: 'application -> platform edge budget',
+        actual: report.scorecard.applicationToPlatformImports.totalEdges,
+    },
+    {
+        key: 'sharedContractsToImplementationImportEdges',
+        label: 'shared/contracts -> implementation edge budget',
+        actual: report.scorecard.sharedContractsToImplementationImports.totalEdges,
+    },
+    {
+        key: 'coreToUiCompositionImportEdges',
+        label: 'core -> composition/core-ui tracked edge budget',
+        actual: report.scorecard.coreToUiCompositionImports.totalEdges,
+    },
+    {
         key: 'electronPreloadExposures',
         label: 'electron preload exposure count',
         actual: report.scorecard.electronPreloadExposures.totalOccurrences,

@@ -3,7 +3,7 @@
 // ============================================
 
 import { isRocketTierType, pickWeightedRocketTierType, resolveRocketTierDamage } from '../hunt/RocketPickupSystem.js';
-import { isPickupTypeAllowedForMode, normalizePickupType } from '../entities/PickupRegistry.js';
+import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
@@ -378,13 +378,16 @@ export class HuntModeStrategy extends GameModeContract {
         });
     }
 
-    resolveSpawnType(spawnableTypes, config) {
+    resolveSpawnType(spawnableTypes, config, context = {}) {
         const activeConfig = resolveConfig(config, this.entityRuntimeConfig);
         const rocketSpawnChance = Math.max(0, Math.min(1, Number(activeConfig?.HUNT?.ROCKET_PICKUP_SPAWN_CHANCE || 0)));
         const huntWeights = activeConfig?.HUNT?.PICKUP_WEIGHTS || {};
-        const normalizedSpawnableTypes = Array.isArray(spawnableTypes)
+        let normalizedSpawnableTypes = Array.isArray(spawnableTypes)
             ? spawnableTypes.map((type) => String(type || '').trim().toUpperCase()).filter((type) => !!type)
             : [];
+        if (context?.excludeType && normalizedSpawnableTypes.length > 1) {
+            normalizedSpawnableTypes = normalizedSpawnableTypes.filter((type) => type !== context.excludeType);
+        }
 
         const nonRocketTypes = normalizedSpawnableTypes.filter((type) => !isRocketTierType(type));
         const weightedNonRocketTypes = nonRocketTypes

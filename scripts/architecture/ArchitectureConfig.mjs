@@ -63,7 +63,7 @@ export const LEGACY_APPLICATION_TO_CORE_IMPORTS = new Map();
 
 export const BOUNDARY_MATRIX = Object.freeze({
     id: 'V96.1-boundary-matrix',
-    updatedAt: '2026-07-14',
+    updatedAt: '2026-08-03',
     sourceBlock: 'V96.1',
     snapshotSource: 'architecture-report scorecard + architecture-budget-ratchet.json',
     edgeDirections: Object.freeze({
@@ -112,6 +112,36 @@ export const BOUNDARY_MATRIX = Object.freeze({
             ]),
             noNewConsumers: true,
         }),
+        applicationToPlatform: Object.freeze({
+            edge: 'application -> platform',
+            currentBudgetKey: 'applicationToPlatformImportEdges',
+            owner: 'Platform composition bindings',
+            status: 'enforced-zero',
+            targetPhase: 'complete',
+            targetState: '0 productive imports; platform bindings are injected at the composition boundary',
+            preferredPaths: Object.freeze(['Injected platform bindings', 'Shared capability descriptors']),
+            noNewConsumers: true,
+        }),
+        sharedContractsToImplementation: Object.freeze({
+            edge: 'shared/contracts -> implementation',
+            currentBudgetKey: 'sharedContractsToImplementationImportEdges',
+            owner: 'Shared contract layer',
+            status: 'enforced-zero',
+            targetPhase: 'complete',
+            targetState: '0 productive imports into core, entities, state, UI, application, platform, hunt or modes',
+            preferredPaths: Object.freeze(['Canonical shared registries', 'Canonical shared schemas']),
+            noNewConsumers: true,
+        }),
+        coreToUiComposition: Object.freeze({
+            edge: 'core -> composition/core-ui',
+            currentBudgetKey: 'coreToUiCompositionImportEdges',
+            owner: 'Core/UI composition seam',
+            status: 'frozen-baseline',
+            targetPhase: 'incremental',
+            targetState: 'tracked mediated UI dependencies; edge count may only shrink',
+            preferredPaths: Object.freeze(['Injected UI factories', 'Narrow runtime ports']),
+            noNewConsumers: true,
+        }),
     }),
     layerTargets: Object.freeze({
         applicationUseCases: Object.freeze({
@@ -154,6 +184,8 @@ export const ARCHITECTURE_SCORECARD_TARGETS = Object.freeze({
     disallowedSharedContractsToCoreImports: 0,
     disallowedApplicationToUiImports: 0,
     disallowedApplicationToCoreImports: 0,
+    disallowedApplicationToPlatformImports: 0,
+    disallowedSharedContractsToImplementationImports: 0,
 });
 
 export const ARCHITECTURE_SCORECARD_BUDGETS = Object.freeze({
@@ -168,4 +200,7 @@ export const ARCHITECTURE_SCORECARD_BUDGETS = Object.freeze({
     sharedContractsToCoreImportEdges: LEGACY_SHARED_CONTRACTS_TO_CORE_IMPORTS.size,
     applicationToUiImportEdges: LEGACY_APPLICATION_TO_UI_IMPORTS.size,
     applicationToCoreImportEdges: LEGACY_APPLICATION_TO_CORE_IMPORTS.size,
+    applicationToPlatformImportEdges: 0,
+    sharedContractsToImplementationImportEdges: 0,
+    coreToUiCompositionImportEdges: 27,
 });

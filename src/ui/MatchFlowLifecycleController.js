@@ -1,8 +1,4 @@
 import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlowTransitionHotspots.js';
-import {
-    GAME_STATE_IDS,
-    normalizeGameStateId,
-} from '../shared/contracts/GameStateIds.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -144,8 +140,7 @@ export class MatchFlowLifecycleController {
     onRoundEnd(winner, outcome = null) {
         const controller = this.controller;
         const game = this.game;
-        game.state = GAME_STATE_IDS.ROUND_END;
-        game.roundPause = 3.0;
+        this.runtimePort?.enterRoundEnd?.(3.0);
 
         const roundEndPlan = this.coordinateRoundEnd
             ? this.coordinateRoundEnd(this.buildRoundEndCoordinatorRequest(winner, outcome))
@@ -206,10 +201,8 @@ export class MatchFlowLifecycleController {
     }
 
     applyRoundEndControllerTransitionState(roundEndTransition) {
-        const game = this.game;
         if (!roundEndTransition) return;
-        game.roundPause = roundEndTransition.roundPause;
-        game.state = normalizeGameStateId(roundEndTransition.nextState, GAME_STATE_IDS.ROUND_END);
+        this.runtimePort?.applyRoundEndTransition?.(roundEndTransition);
     }
 
     applyReturnToMenuUi(options = {}) {

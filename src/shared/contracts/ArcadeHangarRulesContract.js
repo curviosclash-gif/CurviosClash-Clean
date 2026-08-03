@@ -11,7 +11,7 @@
 import {
     ARCADE_HITBOX_CLASSES,
     ARCADE_REQUIRED_SLOTS,
-} from '../../entities/arcade/ArcadeBlueprintSchema.js';
+} from './ArcadeBlueprintContract.js';
 
 export const ARCADE_HANGAR_RULES_CONTRACT_VERSION = 'arcade-hangar-rules.v2';
 

@@ -15,14 +15,35 @@ import {
     buildGameplayActionResult,
 } from '../shared/contracts/GameplayActionResultContract.js';
 
-function isTypeAllowedForMode(type, huntModeActive, entityRuntimeConfig) {
+function isTypeAllowedForMode(type, modeType, entityRuntimeConfig) {
     const normalizedType = normalizePickupType(type);
     const entry = entityRuntimeConfig?.POWERUP?.TYPES?.[normalizedType];
     if (!entry) return false;
-    return isPickupTypeAllowedForMode(normalizedType, huntModeActive ? 'HUNT' : 'CLASSIC');
+    return isPickupTypeAllowedForMode(normalizedType, modeType);
 }
 
-function resolveAuthoredPickupType(anchor, huntModeActive, entityRuntimeConfig) {
+function nextRuntimeRandom(strategy = null) {
+    const random = typeof strategy?.runtimeRng?.next === 'function'
+        ? strategy.runtimeRng.next
+        : Math.random;
+    const value = Number(random());
+    if (!Number.isFinite(value) || value <= 0) return 0;
+    if (value >= 1) return 0.999999999;
+    return value;
+}
+
+function disposeMeshMaterials(mesh) {
+    mesh?.traverse?.((node) => {
+        if (!node?.material) return;
+        if (Array.isArray(node.material)) {
+            node.material.forEach((material) => material?.dispose?.());
+        } else {
+            node.material.dispose?.();
+        }
+    });
+}
+
+function resolveAuthoredPickupType(anchor, modeType, entityRuntimeConfig) {
     if (!anchor || typeof anchor !== 'object') return null;
     const candidates = [
         anchor.pickupType,
@@ -32,7 +53,7 @@ function resolveAuthoredPickupType(anchor, huntModeActive, entityRuntimeConfig) 
     for (const candidate of candidates) {
         const normalizedType = normalizePickupType(candidate);
         if (!normalizedType) continue;
-        if (isTypeAllowedForMode(normalizedType, huntModeActive, entityRuntimeConfig)) {
+        if (isTypeAllowedForMode(normalizedType, modeType, entityRuntimeConfig)) {
             return normalizedType;
         }
     }
@@ -92,6 +113,7 @@ export class PowerupManager {
         this._sharedWireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
         this._occupiedAnchorKeys = new Set();
         this._nextNetworkId = 1;
+        this._lastRandomType = '';
         this.networkReplica = false;
     }
 
@@ -141,7 +163,8 @@ export class PowerupManager {
     _spawnRandom() {
         const config = this.entityRuntimeConfig;
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
-        const huntModeActive = strategy?.modeType === 'HUNT';
+        const random = () => nextRuntimeRandom(strategy);
+        const modeType = String(strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const itemSpawnAuthoring = resolveItemSpawnAuthoringContract(this.arena?.currentMapDefinition);
         const spawnableTypes = strategy
             ? strategy.filterSpawnableTypes(this.typeKeys, config.POWERUP.TYPES)
@@ -154,7 +177,7 @@ export class PowerupManager {
         const authoredAnchors = this._getAvailableAuthoredAnchors();
         const shouldUseAuthoredAnchor = itemSpawnAuthoring.mode !== 'fallback-random' && authoredAnchors.length > 0;
         const authoredAnchor = shouldUseAuthoredAnchor
-            ? this._pickAuthoredAnchor(authoredAnchors)
+            ? this._pickAuthoredAnchor(authoredAnchors, random)
             : null;
         if (!authoredAnchor && itemSpawnAuthoring.requiresAuthoredAnchor) {
             return;
@@ -163,18 +186,23 @@ export class PowerupManager {
             return;
         }
 
-        let type = resolveAuthoredPickupType(authoredAnchor?.anchor, huntModeActive, config) || null;
-        if (strategy && huntModeActive) {
-            type = strategy.resolveSpawnType(spawnableTypes, config) || type;
+        const fixedType = resolveAuthoredPickupType(authoredAnchor?.anchor, modeType, config) || null;
+        let type = fixedType;
+        if (strategy) {
+            type = strategy.resolveSpawnType(spawnableTypes, config, {
+                excludeType: fixedType ? '' : this._lastRandomType,
+            }) || type;
         }
         if (!type) {
-            type = spawnableTypes[Math.floor(Math.random() * spawnableTypes.length)];
+            const candidates = this._lastRandomType && spawnableTypes.length > 1
+                ? spawnableTypes.filter((candidate) => candidate !== this._lastRandomType)
+                : spawnableTypes;
+            type = candidates[Math.floor(random() * candidates.length)];
         }
-        if (authoredAnchor?.anchor) {
-            const fixedType = resolveAuthoredPickupType(authoredAnchor.anchor, huntModeActive, config);
-            if (fixedType) {
-                type = fixedType;
-            }
+        if (fixedType) {
+            type = fixedType;
+        } else {
+            this._lastRandomType = type;
         }
 
         const powerupConfig = config.POWERUP.TYPES[type];
@@ -188,7 +216,7 @@ export class PowerupManager {
         } else if (config.GAMEPLAY.PLANAR_MODE && this.arena?.getPortalLevels) {
             const levels = this.arena.getPortalLevels();
             if (levels.length > 0) {
-                const level = levels[Math.floor(Math.random() * levels.length)];
+                const level = levels[Math.floor(random() * levels.length)];
                 pos = this.arena.getRandomPositionOnLevel(level, 8);
             }
         }
@@ -216,7 +244,7 @@ export class PowerupManager {
             box,
             networkId: `powerup:${this._nextNetworkId++}`,
             baseY: pos.y,
-            phase: Math.random() * Math.PI * 2,
+            phase: random() * Math.PI * 2,
             anchorKey: authoredAnchor?.key || null,
         };
         this.items.push(spawnedItem);
@@ -255,14 +283,24 @@ export class PowerupManager {
     }
 
     /** Prueft ob ein Spieler ein Item einsammelt */
-    checkPickup(playerPosition, radius) {
+    checkPickup(playerPosition, radius, acceptPickup = null) {
         if (this.networkReplica) return null;
         this._pickupSphere.center.copy(playerPosition);
         this._pickupSphere.radius = radius + this.entityRuntimeConfig.POWERUP.PICKUP_RADIUS;
 
         for (let i = this.items.length - 1; i >= 0; i--) {
             if (this.items[i].box.intersectsSphere(this._pickupSphere)) {
-                const item = this.items.splice(i, 1)[0];
+                const item = this.items[i];
+                if (typeof acceptPickup === 'function' && acceptPickup(item.type) !== true) {
+                    return buildGameplayActionResult({
+                        ok: false,
+                        code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_PICKUP_INVENTORY_FULL,
+                        message: 'Inventar voll',
+                        mode: 'pickup',
+                        type: item.type,
+                    });
+                }
+                this.items.splice(i, 1);
                 this._disposeSpawnedItem(item);
                 return buildGameplayActionResult({
                     ok: true,
@@ -281,6 +319,7 @@ export class PowerupManager {
         }
         this.items = [];
         this.spawnTimer = 0;
+        this._lastRandomType = '';
         this._occupiedAnchorKeys.clear();
     }
 
@@ -321,13 +360,13 @@ export class PowerupManager {
         return availableAnchors;
     }
 
-    _pickAuthoredAnchor(availableAnchors = []) {
+    _pickAuthoredAnchor(availableAnchors = [], random = Math.random) {
         if (!Array.isArray(availableAnchors) || availableAnchors.length === 0) return null;
         let totalWeight = 0;
         for (const entry of availableAnchors) {
             totalWeight += Math.max(0.01, Number(entry.weight) || 1);
         }
-        let roll = Math.random() * totalWeight;
+        let roll = random() * totalWeight;
         for (const entry of availableAnchors) {
             roll -= Math.max(0.01, Number(entry.weight) || 1);
             if (roll <= 0) {
@@ -343,15 +382,7 @@ export class PowerupManager {
             this._occupiedAnchorKeys.delete(item.anchorKey);
         }
         this.renderer.removeFromScene(item.mesh);
-        item.mesh.traverse((node) => {
-            if (node.material) {
-                if (Array.isArray(node.material)) {
-                    node.material.forEach((material) => material.dispose());
-                } else {
-                    node.material.dispose();
-                }
-            }
-        });
+        disposeMeshMaterials(item.mesh);
     }
 
     setNetworkReplica(enabled) {
@@ -422,18 +453,16 @@ export class PowerupManager {
 
         const cache = this._authoredModelCache;
         cache.createModel(modelType, config?.color).then((authoredMesh) => {
-            if (!authoredMesh || this._authoredModelCache !== cache || !this.items.includes(item)) return;
+            if (!authoredMesh) return;
+            if (this._authoredModelCache !== cache || !this.items.includes(item)) {
+                disposeMeshMaterials(authoredMesh);
+                return;
+            }
             const previousMesh = item.mesh;
             authoredMesh.position.copy(previousMesh.position);
             authoredMesh.rotation.copy(previousMesh.rotation);
             this.renderer.removeFromScene(previousMesh);
-            previousMesh.traverse((node) => {
-                if (Array.isArray(node.material)) {
-                    node.material.forEach((material) => material?.dispose?.());
-                } else {
-                    node.material?.dispose?.();
-                }
-            });
+            disposeMeshMaterials(previousMesh);
             item.mesh = authoredMesh;
             this.renderer.addToScene(authoredMesh);
         });

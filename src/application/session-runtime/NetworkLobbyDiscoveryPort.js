@@ -1,9 +1,3 @@
-import { createBrowserDiscoveryAdapter } from '../../platform/browser/BrowserPlatformAdapters.js';
-import {
-    createElectronPreloadDiscoveryAdapter,
-    isElectronPreloadRuntime,
-    resolveElectronRuntimeSnapshot,
-} from '../../platform/electron/ElectronPlatformBridge.js';
 import { PLATFORM_CAPABILITY_IDS } from '../../shared/contracts/PlatformCapabilityContract.js';
 import { resolveSurfaceCapabilityAccess } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import { resolveGlobalObject, toCallable } from './LobbyRuntimeEnvironment.js';
@@ -16,15 +10,16 @@ function toHostList(value) {
 
 export function createNetworkLobbyDiscoveryPort(options = {}) {
     const runtimeGlobal = resolveGlobalObject(options.runtime);
+    const platformBindings = options.platformBindings && typeof options.platformBindings === 'object'
+        ? options.platformBindings
+        : null;
     const discoverySurfaceCapability = resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.DISCOVERY, {
         runtimeGlobal,
-        platformRuntimeSnapshot: resolveElectronRuntimeSnapshot(runtimeGlobal),
+        platformRuntimeSnapshot: platformBindings?.runtimeSnapshot || null,
     });
     const discoveryRuntime = options.discoveryRuntime && typeof options.discoveryRuntime === 'object'
         ? options.discoveryRuntime
-        : (isElectronPreloadRuntime(runtimeGlobal)
-            ? createElectronPreloadDiscoveryAdapter(runtimeGlobal)
-            : createBrowserDiscoveryAdapter());
+        : platformBindings?.discoveryAdapter || null;
 
     const startDiscovery = toCallable(discoveryRuntime?.startDiscovery, null);
     const stopDiscovery = toCallable(discoveryRuntime?.stopDiscovery, null);

@@ -1,7 +1,4 @@
-import { createLogger } from '../shared/logging/Logger.js';
 import { MatchFeedbackAdapter } from './MatchFeedbackAdapter.js';
-
-const logger = createLogger('MatchFlowUiController');
 import { PauseOverlayController } from './PauseOverlayController.js';
 import { MatchFlowArcadeOverlayController } from './MatchFlowArcadeOverlayController.js';
 import { MatchFlowLifecycleController } from './MatchFlowLifecycleController.js';
@@ -19,25 +16,13 @@ import {
     deriveMatchStartTransition,
     deriveReturnToMenuTransition,
     deriveRoundStartTransition,
-} from './MatchFlowLifecycleTransitions.js';
+} from '../shared/contracts/MatchFlowTransitionContract.js';
 import { coordinateRoundEnd } from './MatchFlowRoundEndCoordinator.js';
-import {
-    GAME_STATE_IDS,
-    normalizeGameStateId,
-} from '../shared/contracts/GameStateIds.js';
 import { createMatchFlowUiControllerPort } from '../shared/runtime/UiControllerRuntimePorts.js';
-import { executeAtomicUiIntent } from '../shared/runtime/UiIntentAtomicity.js';
 import {
     getMatchSessionAccessSnapshot,
-    initializeMatchSession,
-    startArcadeRunIfEnabled,
     syncMatchP2HudVisibility,
-    waitForMatchPlayersLoaded,
 } from './MatchFlowTransitionHotspots.js';
-
-function isPromiseLike(value) {
-    return !!value && typeof value.then === 'function';
-}
 
 function hasOwnProperty(source, key) {
     return !!source && Object.prototype.hasOwnProperty.call(source, key);
@@ -61,8 +46,6 @@ export class MatchFlowUiController {
             },
             logger: console,
         });
-        this._startMatchPromise = null;
-        this._startMatchGeneration = 0;
         this.pauseOverlayController = new PauseOverlayController({
             matchFlowUiController: this,
             runtime: this.game,
@@ -172,24 +155,7 @@ export class MatchFlowUiController {
     }
 
     applyLifecycleTransition(transition) {
-        const game = this.game;
-        if (!transition) return;
-
-        if (typeof transition.state === 'string' && transition.state.length > 0) {
-            game.state = normalizeGameStateId(transition.state, game?.state || GAME_STATE_IDS.MENU);
-        }
-        if (typeof transition.roundPause === 'number') {
-            game.roundPause = transition.roundPause;
-        }
-        if (typeof transition.hudTimer === 'number') {
-            game._hudTimer = transition.hudTimer;
-        }
-        if (transition.huntStatePatch && game.huntState) {
-            // Safe mutation: shallow-copy the patch to prevent stale closure references
-            // from corrupting shared state. Patch ordering is guaranteed to be sequential
-            // within the same frame; patches buffered across frames apply in FIFO order.
-            Object.assign(game.huntState, { ...transition.huntStatePatch });
-        }
+        return this.runtimePort?.applyLifecycleTransition?.(transition) === true;
     }
 
     resetCrosshairElementUi(element) {
@@ -237,24 +203,14 @@ export class MatchFlowUiController {
         this.telemetryController.recordRoundEndTelemetry(roundEndPlan);
     }
 
-    _completeStartedMatch(initializedMatch, startGeneration) {
-        if (!initializedMatch || startGeneration !== this._startMatchGeneration) return false;
-        startArcadeRunIfEnabled(this.runtimePort, this.game);
-        this.telemetryController.bindHuntEventHandlers(this.sessionOrchestrator);
-        this.startRound();
+    completeMatchStartProjection(initializedMatch) {
+        if (!initializedMatch) return false;
         this.feedbackAdapter.applyFeedbackPlan(initializedMatch?.feedbackPlan);
         return true;
     }
 
-    _handleStartMatchFailure(error) {
-        logger.error('startMatch failed:', error);
-        if (this.runtimePort?.showStatusToast) {
-            this.runtimePort.showStatusToast('Map-Start fehlgeschlagen. Fallback oder Menue wird geladen.', 2600, 'error');
-        } else {
-            this.game?._showStatusToast?.('Map-Start fehlgeschlagen. Fallback oder Menue wird geladen.', 2600, 'error');
-        }
-        this.returnToMenu({ reason: 'match_start_failure', trigger: 'match_start_failure' });
-        return false;
+    bindMatchStartRuntime() {
+        this.telemetryController.bindHuntEventHandlers(this.sessionOrchestrator);
     }
 
     _createPreferredInputSource(playerIndex, localHumanCount, options = {}) {
@@ -339,7 +295,7 @@ export class MatchFlowUiController {
         }
     }
 
-    _startMatchInternal(startGeneration) {
+    prepareMatchStartProjection() {
         const game = this.game;
         game.keyCapture = null;
 
@@ -351,88 +307,18 @@ export class MatchFlowUiController {
             this.applyMatchUiState(loadingUiState);
         }
 
-        // Initialize session adapter (Local/LAN/Online)
-        const sessionInitPromise = initializeMatchSession(this.runtimePort, game);
-
-        const createMatch = () => {
-            if (startGeneration !== this._startMatchGeneration) return null;
-            this._configureInputSourcesForMatch();
-            const initializedMatch = this.sessionOrchestrator.createMatchSession({
-                onPlayerFeedback: (player, message) => {
-                    if (this.runtimePort?.showPlayerFeedback) {
-                        this.runtimePort.showPlayerFeedback(player, message);
-                    } else {
-                        game._showPlayerFeedback?.(player, message);
-                    }
-                },
-                onPlayerDied: (player, cause) => {
-                    if (!player.isBot) {
-                        const deathMessage = this.runtimePort?.getDeathMessage
-                            ? this.runtimePort.getDeathMessage(cause)
-                            : game._getDeathMessage?.(cause);
-                        if (this.runtimePort?.showStatusToast) {
-                            this.runtimePort.showStatusToast(deathMessage, 2500, 'error');
-                        } else {
-                            game._showStatusToast?.(deathMessage, 2500, 'error');
-                        }
-                    }
-                },
-                onRoundEnd: (winner, outcome) => {
-                    this.onRoundEnd(winner, outcome);
-                },
-            });
-            return initializedMatch;
-        };
-
-        const completeWithLoadGate = (resolvedMatch) => {
-            if (!resolvedMatch || startGeneration !== this._startMatchGeneration) return false;
-            const loadGate = waitForMatchPlayersLoaded(this.runtimePort, game);
-            if (isPromiseLike(loadGate)) {
-                return Promise.resolve(loadGate).then(() => this._completeStartedMatch(resolvedMatch, startGeneration));
-            }
-            return this._completeStartedMatch(resolvedMatch, startGeneration);
-        };
-
-        if (isPromiseLike(sessionInitPromise)) {
-            return Promise.resolve(sessionInitPromise).then((sessionInitialized) => {
-                if (sessionInitialized === false || startGeneration !== this._startMatchGeneration) return false;
-                const initializedMatch = createMatch();
-                if (isPromiseLike(initializedMatch)) {
-                    return Promise.resolve(initializedMatch).then((r) => completeWithLoadGate(r));
-                }
-                return completeWithLoadGate(initializedMatch);
-            });
-        }
-
-        if (sessionInitPromise === false || startGeneration !== this._startMatchGeneration) return false;
-        const initializedMatch = createMatch();
-        if (isPromiseLike(initializedMatch)) {
-            return Promise.resolve(initializedMatch).then((resolvedMatch) => completeWithLoadGate(resolvedMatch));
-        }
-        return completeWithLoadGate(initializedMatch);
+        return true;
     }
 
-    applyStartMatchProjection() {
-        return executeAtomicUiIntent({
-            currentPromise: this._startMatchPromise,
-            assignPendingPromise: (promise) => {
-                this._startMatchPromise = promise;
-            },
-            clearPendingPromise: (promise) => {
-                if (this._startMatchPromise === promise) {
-                    this._startMatchPromise = null;
-                }
-            },
-            execute: () => this._startMatchInternal(++this._startMatchGeneration),
-            handleError: (error) => this._handleStartMatchFailure(error),
-        });
+    configureMatchInputSources() {
+        this._configureInputSourcesForMatch();
     }
 
     startMatch(options = undefined) {
         if (this.runtimePort?.startMatch) {
             return this.runtimePort.startMatch(options);
         }
-        return this.applyStartMatchProjection();
+        return false;
     }
 
     startRound() {
@@ -464,12 +350,10 @@ export class MatchFlowUiController {
     }
 
     applyReturnToMenuUi(options = {}) {
-        this._startMatchGeneration += 1;
         return this.lifecycleController.applyReturnToMenuUi(options);
     }
 
     returnToMenu(options = {}) {
-        this._startMatchGeneration += 1;
         return this.lifecycleController.returnToMenu(options);
     }
 
@@ -494,7 +378,6 @@ export class MatchFlowUiController {
     applyDisconnectConfirmationProjection() { return this.pauseOverlayController.applyDisconnectConfirmationProjection(); }
     setupPauseOverlayListeners() { this.pauseOverlayController.setupListeners(); }
     dispose() {
-        this._startMatchGeneration += 1;
         this.arcadeOverlayController?.dispose?.();
         this.pauseOverlayController?.dispose?.();
     }

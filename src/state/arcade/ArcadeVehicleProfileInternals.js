@@ -9,7 +9,7 @@ import {
 import {
     canUpgrade,
     getUpgradeCost,
-} from '../../entities/arcade/ArcadeBlueprintSchema.js';
+} from '../../shared/contracts/ArcadeBlueprintContract.js';
 import { toSafeNumber, clampInteger as clampInt } from '../../shared/utils/ArcadeUtils.js';
 
 export function isPersistenceSuccess(result) {

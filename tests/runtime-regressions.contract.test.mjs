@@ -14,6 +14,7 @@ import { InputManager } from '../src/core/InputManager.js';
 import { toggleCinematicRecordingFromHotkey } from '../src/core/runtime/GameRuntimeRecordingSupport.js';
 import { GameRuntimeSessionHandler } from '../src/core/runtime/GameRuntimeSessionHandler.js';
 import { GameRuntimeSettingsHandler } from '../src/core/runtime/GameRuntimeSettingsHandler.js';
+import { MatchStartRuntimeService } from '../src/core/runtime/MatchStartRuntimeService.js';
 import {
     clearActiveRuntimeConfig,
     createActiveRuntimeConfigReadPort,
@@ -165,7 +166,9 @@ test('MatchFlowUiController projects split-screen layout state and clears it on 
     assert.deepEqual(splitCalls, [true, false]);
 });
 
-test('MatchFlowUiController assigns the start inflight guard before reentrant work', async () => {
+test('MatchFlowUiController prepares presentation and input without creating a match session', () => {
+    let transitionCalls = 0;
+    let inputCalls = 0;
     const controller = new MatchFlowUiController({
         game: {
             state: 'MENU',
@@ -173,68 +176,56 @@ test('MatchFlowUiController assigns the start inflight guard before reentrant wo
             input: null,
             runtimeConfig: { session: { numHumans: 1 } },
         },
-        ports: {},
+        runtimePort: {
+            applyLifecycleTransition() {
+                transitionCalls += 1;
+                return true;
+            },
+        },
         sessionOrchestrator: {},
     });
-    let startCalls = 0;
-    let nestedPromise = null;
-    let resolveStart = null;
-    controller._handleStartMatchFailure = () => false;
-    controller._startMatchInternal = () => {
-        startCalls += 1;
-        if (!nestedPromise) nestedPromise = controller.applyStartMatchProjection();
-        return new Promise((resolve) => {
-            resolveStart = () => resolve('started');
-        });
-    };
-
-    const firstPromise = controller.applyStartMatchProjection();
-    assert.equal(firstPromise, nestedPromise);
-    assert.equal(startCalls, 1);
-    resolveStart();
-    assert.deepEqual(await Promise.all([firstPromise, nestedPromise]), ['started', 'started']);
-    assert.equal(controller._startMatchPromise, null);
+    controller.applyMatchUiState = () => {};
+    controller._configureInputSourcesForMatch = () => { inputCalls += 1; };
+    assert.equal(controller.prepareMatchStartProjection(), true);
+    assert.equal(transitionCalls, 1);
+    assert.equal(inputCalls, 0);
+    controller.configureMatchInputSources();
+    assert.equal(inputCalls, 1);
+    assert.equal(typeof controller.sessionOrchestrator.createMatchSession, 'undefined');
 });
 
-test('MatchFlowUiController ignores a late match start after returning to menu', async () => {
+test('MatchStartRuntimeService ignores a late session init after cancellation', async () => {
     let resolveSessionInit;
     let createMatchCalls = 0;
     let startRoundCalls = 0;
-    const game = {
-        state: 'MENU',
-        ui: {},
-        numHumans: 1,
-        input: null,
-        settings: {},
-        runtimeConfig: { session: { numHumans: 1 } },
-    };
-    const controller = new MatchFlowUiController({
-        game,
-        runtimePort: {
-            initializeSession: () => new Promise((resolve) => { resolveSessionInit = resolve; }),
-            waitForAllPlayersLoaded: () => undefined,
-            setSplitScreen() {},
+    const orchestrator = {
+        createMatchSession() {
+            createMatchCalls += 1;
+            return { feedbackPlan: null };
         },
-        sessionOrchestrator: {
-            createMatchSession() {
-                createMatchCalls += 1;
-                return { feedbackPlan: null };
-            },
+    };
+    const service = new MatchStartRuntimeService({
+        facade: {
+            getRuntimeHandle: () => orchestrator,
+            getPorts: () => ({
+                lifecyclePort: {
+                    initializeSession: () => new Promise((resolve) => { resolveSessionInit = resolve; }),
+                },
+                matchUiPort: {
+                    prepareMatchStartProjection: () => true,
+                    startRound() {
+                        startRoundCalls += 1;
+                    },
+                },
+            }),
         },
     });
-    controller.applyMatchUiState = () => {};
-    controller._configureInputSourcesForMatch = () => {};
-    controller.startRound = () => {
-        startRoundCalls += 1;
-        game.state = 'PLAYING';
-    };
 
-    const startPromise = controller.applyStartMatchProjection();
-    controller.applyReturnToMenuUi({ showMenuPanel: false });
+    const startPromise = service.execute();
+    service.cancel();
     resolveSessionInit(true);
 
     assert.equal(await startPromise, false);
-    assert.equal(game.state, 'MENU');
     assert.equal(createMatchCalls, 0);
     assert.equal(startRoundCalls, 0);
 });
@@ -725,6 +716,14 @@ test('MatchFlowLifecycleController persists longest round ghost per route on rou
         },
         game,
         runtimePort: {
+            enterRoundEnd(roundPause) {
+                game.state = 'ROUND_END';
+                game.roundPause = roundPause;
+            },
+            applyRoundEndTransition(transition) {
+                game.state = transition.nextState;
+                game.roundPause = transition.roundPause;
+            },
             getLastRoundGhostClip(_players, options = undefined) {
                 if (options?.maxSourceDuration === Number.POSITIVE_INFINITY) {
                     return libraryGhostClip;
@@ -2595,13 +2594,22 @@ test('GameRuntimeSessionHandler applies received LAN match-start commands locall
                     }),
                 },
                 matchUiPort: {
-                    applyStartMatchProjection() {
+                    prepareMatchStartProjection() {
                         calls.push('applyStart');
-                        game.state = 'PLAYING';
                         return true;
                     },
+                    startRound() {
+                        game.state = 'PLAYING';
+                    },
+                },
+                lifecyclePort: {
+                    initializeSession: () => true,
+                    waitForAllPlayersLoaded: () => true,
                 },
             };
+        },
+        getRuntimeHandle() {
+            return { createMatchSession: () => ({}) };
         },
     };
     const handler = new GameRuntimeSessionHandler({ facade, logger: console });
@@ -2843,13 +2851,22 @@ test('GameRuntimeSessionHandler queues a synchronous authoritative lobby start b
                     }),
                 },
                 matchUiPort: {
-                    applyStartMatchProjection() {
+                    prepareMatchStartProjection() {
                         calls.push('applyStart');
-                        game.state = 'PLAYING';
                         return true;
                     },
+                    startRound() {
+                        game.state = 'PLAYING';
+                    },
+                },
+                lifecyclePort: {
+                    initializeSession: () => true,
+                    waitForAllPlayersLoaded: () => true,
                 },
             };
+        },
+        getRuntimeHandle() {
+            return { createMatchSession: () => ({}) };
         },
     };
     handler = new GameRuntimeSessionHandler({ facade, logger: console });

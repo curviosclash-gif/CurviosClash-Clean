@@ -3,7 +3,7 @@
 // ============================================
 
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
-import { createPickupTypeConfigMap } from '../../entities/PickupRegistry.js';
+import { createPickupTypeConfigMap } from '../../shared/contracts/PickupRegistryContract.js';
 
 export const CONFIG_SECTIONS = {
     // ---- Allgemein ----

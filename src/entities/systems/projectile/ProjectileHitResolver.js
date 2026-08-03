@@ -200,7 +200,11 @@ export class ProjectileHitResolver {
             } else if (target.hasShield) {
                 target.hasShield = false;
             } else {
-                target.applyPowerup(projectile.type);
+                target.applyPowerup(projectile.type, {
+                    sourcePlayerIndex: Number.isInteger(projectile.owner?.index)
+                        ? projectile.owner.index
+                        : null,
+                });
                 this.system?.onProjectilePowerup?.(target, projectile);
             }
             break;

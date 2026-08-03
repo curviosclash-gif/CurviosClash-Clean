@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { validateGhostClip } from '../../shared/contracts/GhostClipContract.js';
-import { Trail } from '../../entities/Trail.js';
+import { Trail } from '../Trail.js';
 import { buildReplaySceneFrames } from './ReplaySceneFrameBuilder.js';
 import { ReplaySceneObjectProjector } from './ReplaySceneObjectProjector.js';
 

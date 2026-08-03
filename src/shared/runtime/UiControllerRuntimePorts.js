@@ -113,7 +113,21 @@ export function createMatchFlowUiControllerPort(ports = null) {
     const runtimeIntentPort = ports?.runtimeIntentPort || null;
     const runtimeProjectionPort = ports?.runtimeProjectionPort || null;
     const uiFeedbackPort = ports?.uiFeedbackPort || null;
+    const matchStatePort = ports?.matchStatePort || null;
     const controllerPort = {};
+
+    if (typeof matchStatePort?.applyLifecycleTransition === 'function') {
+        controllerPort.applyLifecycleTransition = (transition) => matchStatePort.applyLifecycleTransition(transition);
+    }
+    if (typeof matchStatePort?.enterRoundEnd === 'function') {
+        controllerPort.enterRoundEnd = (roundPause) => matchStatePort.enterRoundEnd(roundPause);
+    }
+    if (typeof matchStatePort?.applyRoundEndTransition === 'function') {
+        controllerPort.applyRoundEndTransition = (transition) => matchStatePort.applyRoundEndTransition(transition);
+    }
+    if (typeof matchStatePort?.setRoundPause === 'function') {
+        controllerPort.setRoundPause = (value) => matchStatePort.setRoundPause(value);
+    }
 
     if (typeof renderPort?.setSplitScreen === 'function') {
         controllerPort.setSplitScreen = (isEnabled) => renderPort.setSplitScreen(!!isEnabled);

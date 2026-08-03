@@ -1,7 +1,7 @@
 import {
     derivePauseTransition,
     deriveResumeTransition,
-} from './MatchFlowLifecycleTransitions.js';
+} from '../shared/contracts/MatchFlowTransitionContract.js';
 import { createPauseOverlayControllerPort } from '../shared/runtime/UiControllerRuntimePorts.js';
 import {
     applyResumeProjectionIntent,

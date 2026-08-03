@@ -28,7 +28,7 @@ import {
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
 import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeObservability.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
-import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
+import { createLobbyPlatformBindings } from '../../platform/LobbyPlatformBindings.js';
 import {
     beginMultiplayerAction,
     clearMultiplayerFieldError,
@@ -43,9 +43,10 @@ const ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE = 'Online ist nicht konfiguriert
 // ist auf die Electron-Plattformadapter beschraenkt).
 function resolveSurfaceResolverOptions() {
     const runtimeGlobal = typeof globalThis !== 'undefined' ? globalThis : null;
+    const platformBindings = createLobbyPlatformBindings(runtimeGlobal);
     return {
         runtimeGlobal,
-        platformRuntimeSnapshot: resolveElectronRuntimeSnapshot(runtimeGlobal),
+        platformRuntimeSnapshot: platformBindings.runtimeSnapshot,
     };
 }
 
@@ -119,10 +120,13 @@ export function createMenuMultiplayerBridge(options = {}) {
         peerId,
     } = options;
 
+    const runtimeGlobal = options.runtime?.global || (typeof globalThis !== 'undefined' ? globalThis : null);
+    const platformBindings = options.platformBindings || createLobbyPlatformBindings(runtimeGlobal);
     const resolvedTransport = resolveMenuLobbyServiceTransport({
         runtime,
         transport: options.transport,
         serviceFactories: options.serviceFactories,
+        platformBindings,
     });
     if (existingBridge) {
         existingBridge.contractVersion = contractVersion;
@@ -148,6 +152,7 @@ export function createMenuMultiplayerBridge(options = {}) {
         storage,
         sessionStorage,
         peerId,
+        platformBindings,
     });
 }
 

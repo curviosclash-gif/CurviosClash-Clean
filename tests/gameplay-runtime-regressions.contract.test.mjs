@@ -54,7 +54,7 @@ test('network snapshot reconciles Player hp, shield, inventory, alive state and 
         hp: 23,
         score: 12,
         inventory: ['SHIELD'],
-        activeEffects: [],
+        activeEffects: [{ type: 'INVERT', remaining: 1.75, sourcePlayerIndex: 2 }],
         hasShield: true,
         shieldHP: 7,
         speed: 18,
@@ -92,6 +92,11 @@ test('network snapshot reconciles Player hp, shield, inventory, alive state and 
     assert.equal(clientPlayer.shieldHP, 7);
     assert.equal(clientPlayer.hasShield, true);
     assert.deepEqual(clientPlayer.inventory, ['SHIELD']);
+    assert.deepEqual(clientPlayer.activeEffects, [{
+        type: 'INVERT',
+        remaining: 1.75,
+        sourcePlayerIndex: 2,
+    }]);
     assert.equal(clientPlayer.alive, false);
     assert.deepEqual(visibility, [false]);
     assert.equal(clientPlayer.quaternion.w, 0);

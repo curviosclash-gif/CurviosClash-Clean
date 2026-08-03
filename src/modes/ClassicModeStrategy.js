@@ -3,8 +3,18 @@
 // ============================================
 
 import { GameModeContract } from './GameModeContract.js';
+import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
+import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
 export class ClassicModeStrategy extends GameModeContract {
+    constructor(options = {}) {
+        super();
+        this.runtimeRng = options?.runtimeRng && typeof options.runtimeRng.next === 'function'
+            ? options.runtimeRng
+            : createRuntimeRng({ random: options?.random });
+        this._random = this.runtimeRng.next;
+    }
+
     get modeType() { return 'CLASSIC'; }
 
     // --- Lifecycle (V84 / 84.3.2) ---
@@ -132,7 +142,7 @@ export class ClassicModeStrategy extends GameModeContract {
         if (target.hasShield) {
             target.hasShield = false;
         } else {
-            target.applyPowerup(projectile.type);
+            target.applyPowerup(projectile.type, { sourcePlayerIndex: projectile.owner?.index });
             system?.onProjectilePowerup?.(target, projectile);
         }
     }
@@ -145,12 +155,15 @@ export class ClassicModeStrategy extends GameModeContract {
             const entry = powerupTypes[typeKey];
             if (!entry) return false;
             if (entry.huntOnly) return false;
-            return true;
+            return isPickupTypeAllowedForMode(typeKey, this.modeType);
         });
     }
 
-    resolveSpawnType(spawnableTypes) {
-        return spawnableTypes[Math.floor(Math.random() * spawnableTypes.length)];
+    resolveSpawnType(spawnableTypes, config, context = {}) {
+        const candidates = context?.excludeType && spawnableTypes.length > 1
+            ? spawnableTypes.filter((type) => type !== context.excludeType)
+            : spawnableTypes;
+        return pickWeightedPickupType(candidates, this.modeType, this._random, config?.POWERUP?.TYPES);
     }
 
     // --- Features ---

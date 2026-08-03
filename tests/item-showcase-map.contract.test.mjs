@@ -11,6 +11,7 @@ import {
     isPickupTypeAllowedForMode,
 } from '../src/entities/PickupRegistry.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
+import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 test('item showcase publishes one authored anchor for every registered item', () => {
@@ -57,5 +58,50 @@ test('item showcase keeps every Hunt item spawned and immediately replaces picku
 
     assert.equal(manager.items.length, map.items.length);
     assert.ok(manager.items.some((item) => item.type === 'MG_TURRET'));
+    manager.dispose();
+});
+
+test('discarded authored model clones release their materials after an async pickup race', async () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const manager = new PowerupManager({ addToScene() {}, removeFromScene() {} }, {}, entityRuntimeConfig);
+    const authoredMesh = new THREE.Mesh(
+        new THREE.BoxGeometry(1, 1, 1),
+        new THREE.MeshBasicMaterial()
+    );
+    let disposed = false;
+    authoredMesh.material.dispose = () => { disposed = true; };
+    manager._authoredModelCache = {
+        createModel: async () => authoredMesh,
+        dispose() {},
+    };
+    const item = { mesh: new THREE.Group() };
+    manager.items.push(item);
+
+    manager._applyAuthoredItemModel(item, { type: 'item_box' }, { color: 0xffffff });
+    manager.items.length = 0;
+    await Promise.resolve();
+    await Promise.resolve();
+
+    assert.equal(disposed, true);
+    authoredMesh.geometry.dispose();
+    manager.dispose();
+});
+
+test('Arcade authored health anchors keep their fixed pickup type', () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const map = {
+        itemSpawnMode: 'anchor-only',
+        items: [{ id: 'arcade-health', pickupType: 'HEALTH', x: 1, y: 2, z: 3 }],
+    };
+    const manager = new PowerupManager({ addToScene() {}, removeFromScene() {} }, {
+        currentMapDefinition: map,
+        getAuthoredItemAnchors: () => map.items,
+    }, entityRuntimeConfig);
+    manager.getStrategy = () => new ArcadeModeStrategy({ random: () => 0.5 });
+
+    manager.update(CONFIG_BASE.POWERUP.SPAWN_INTERVAL);
+
+    assert.equal(manager.items.length, 1);
+    assert.equal(manager.items[0].type, 'HEALTH');
     manager.dispose();
 });

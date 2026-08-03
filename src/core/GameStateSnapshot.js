@@ -119,6 +119,9 @@ function serializeEffects(effects) {
             return {
                 type,
                 remaining: Number(effect?.remaining) || 0,
+                sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
+                    ? effect.sourcePlayerIndex
+                    : null,
             };
         })
         .filter(Boolean);

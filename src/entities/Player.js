@@ -343,8 +343,8 @@ export class Player {
         this.controller?.setRampRates?.(this.controlRampRates);
     }
 
-    applyPowerup(type) {
-        applyPlayerPowerup(this, type);
+    applyPowerup(type, options = {}) {
+        applyPlayerPowerup(this, type, options);
     }
 
     _removeEffect(effect) {

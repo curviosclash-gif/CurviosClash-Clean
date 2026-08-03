@@ -1,5 +1,4 @@
 import { resolveDefaultLobbyTransport } from '../../shared/contracts/PlatformCapabilityRegistry.js';
-import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
 import {
     LOBBY_SERVICE_TRANSPORTS,
     matchesLobbyServiceTransport,
@@ -26,8 +25,7 @@ function resolveDefaultTransport(runtime = null) {
     }
     return resolveDefaultLobbyTransport({
         runtimeGlobal,
-        // Adapter-Snapshot statt Raw-Globals: sonst faellt die Desktop-App auf Browser-Demo-Defaults zurueck.
-        platformRuntimeSnapshot: resolveElectronRuntimeSnapshot(runtimeGlobal),
+        platformRuntimeSnapshot: runtime?.platformBindings?.runtimeSnapshot || null,
     });
 }
 
@@ -39,7 +37,10 @@ function resolveCustomFactory(serviceFactories = null, transport = '') {
 
 export function resolveMenuLobbyServiceTransport(options = {}) {
     const resolvedTransport = normalizeLobbyServiceTransport(options.transport, '');
-    return resolvedTransport || resolveDefaultTransport(options.runtime);
+    return resolvedTransport || resolveDefaultTransport({
+        ...(options.runtime && typeof options.runtime === 'object' ? options.runtime : {}),
+        platformBindings: options.platformBindings || null,
+    });
 }
 
 export function matchesMenuLobbyServiceTransport(service, transport) {

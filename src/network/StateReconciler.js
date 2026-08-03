@@ -141,6 +141,9 @@ function normalizeEffects(effects) {
             return {
                 type,
                 remaining: Math.max(0, toFiniteNumber(effect?.remaining, 0)),
+                sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
+                    ? effect.sourcePlayerIndex
+                    : null,
             };
         })
         .filter(Boolean);

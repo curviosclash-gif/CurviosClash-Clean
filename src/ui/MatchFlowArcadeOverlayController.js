@@ -254,9 +254,7 @@ export class MatchFlowArcadeOverlayController {
         continueButton.textContent = 'Auswahl bestaetigen';
         continueButton.addEventListener('click', () => {
             continueButton.disabled = true;
-            if (this.game) {
-                this.game.roundPause = 0;
-            }
+            this.runtimePort?.setRoundPause?.(0);
         });
         continueSection.appendChild(continueButton);
         bodyDiv.appendChild(continueSection);

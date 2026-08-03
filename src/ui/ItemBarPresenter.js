@@ -2,7 +2,7 @@
 // ItemBarPresenter.js - item inventory bar rendering (icons, cooldown overlay)
 // ============================================
 
-import { getPickupDefinition } from '../entities/PickupRegistry.js';
+import { getPickupDefinition, isPickupTypeOffensive } from '../shared/contracts/PickupRegistryContract.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 
 export function ensureItemSlots(container, maxInventory) {
@@ -23,9 +23,12 @@ export function ensureItemSlots(container, maxInventory) {
         sweep.className = 'item-cooldown-sweep';
         const cooldownText = document.createElement('span');
         cooldownText.className = 'item-cooldown-text';
+        const tierBadge = document.createElement('span');
+        tierBadge.className = 'item-tier-badge';
         slot.appendChild(icon);
         slot.appendChild(sweep);
         slot.appendChild(cooldownText);
+        slot.appendChild(tierBadge);
         container.appendChild(slot);
     }
 
@@ -81,6 +84,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         const iconEl = slot.children[0];
         const sweepEl = slot.children[1];
         const cooldownTextEl = slot.children[2];
+        const tierBadgeEl = slot.children[3];
         const iconText = type ? (config?.icon || '?') : '';
         if (iconEl && iconEl.textContent !== iconText) iconEl.textContent = iconText;
 
@@ -103,8 +107,18 @@ export function updateItemBar(container, player, projection = null, gameplayConf
             const cooldownText = cooldownRemaining > 0 ? cooldownRemaining.toFixed(1) : '';
             if (cooldownTextEl.textContent !== cooldownText) cooldownTextEl.textContent = cooldownText;
         }
+        if (tierBadgeEl) {
+            const tierLabel = type ? String(config?.rocketTierLabel || '') : '';
+            if (tierBadgeEl.textContent !== tierLabel) tierBadgeEl.textContent = tierLabel;
+            tierBadgeEl.classList.toggle('visible', !!tierLabel);
+        }
         const titleText = titleParts.join(' | ');
         if (slot.title !== titleText) slot.title = titleText;
+        const accessibleLabel = type
+            ? `${config?.name || type}${config?.rocketTierLabel ? ` ${config.rocketTierLabel}` : ''}, ${slotAction.actionHintLabel}`
+            : `Leerer Item-Slot ${i + 1}`;
+        slot.ariaLabel = accessibleLabel;
+        slot.setAttribute?.('aria-label', accessibleLabel);
         slot.classList.toggle('active', !!type);
         slot.classList.toggle('selected', isSelected);
         slot.classList.toggle('projectile-only', !!type && slotAction.canShoot && !slotAction.canUse);
@@ -114,5 +128,60 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         slot.style.borderColor = type && Number.isFinite(config?.color)
             ? '#' + config.color.toString(16).padStart(6, '0')
             : '';
+    }
+}
+
+function ensureEffectBadges(container, desired) {
+    while (container.children.length < desired) {
+        const badge = document.createElement('div');
+        badge.className = 'active-effect-badge';
+        const icon = document.createElement('span');
+        icon.className = 'active-effect-icon';
+        const name = document.createElement('span');
+        name.className = 'active-effect-name';
+        const time = document.createElement('span');
+        time.className = 'active-effect-time';
+        const source = document.createElement('span');
+        source.className = 'active-effect-source';
+        badge.appendChild(icon);
+        badge.appendChild(name);
+        badge.appendChild(time);
+        badge.appendChild(source);
+        container.appendChild(badge);
+    }
+    while (container.children.length > desired) {
+        container.removeChild(container.lastChild);
+    }
+}
+
+export function updateActiveEffectBar(container, player) {
+    if (!container) return;
+    const effects = Array.isArray(player?.activeEffects)
+        ? player.activeEffects.filter((effect) => getPickupDefinition(effect?.type))
+        : [];
+    ensureEffectBadges(container, effects.length);
+    container.classList.toggle('hidden', effects.length === 0);
+    const ownIndex = Number.isInteger(player?.playerIndex) ? player.playerIndex : player?.index;
+
+    for (let i = 0; i < effects.length; i += 1) {
+        const effect = effects[i];
+        const definition = getPickupDefinition(effect.type);
+        const badge = container.children[i];
+        const sourcePlayerIndex = Number.isInteger(effect?.sourcePlayerIndex)
+            ? effect.sourcePlayerIndex
+            : null;
+        const isExternal = sourcePlayerIndex !== null && sourcePlayerIndex !== ownIndex;
+        const isHpShield = effect.type === 'SHIELD' && player?.hasShield && Number(player?.shieldHP) > 0;
+        const remainingLabel = isHpShield
+            ? `${Math.ceil(Number(player.shieldHP))} HP`
+            : `${Math.max(0, Number(effect.remaining) || 0).toFixed(1)}s`;
+        badge.children[0].textContent = definition.icon || '?';
+        badge.children[1].textContent = definition.name || effect.type;
+        badge.children[2].textContent = remainingLabel;
+        badge.children[3].textContent = isExternal ? `P${sourcePlayerIndex + 1}` : '';
+        badge.dataset.type = effect.type;
+        badge.dataset.tone = isPickupTypeOffensive(effect.type) ? 'debuff' : 'buff';
+        badge.ariaLabel = `${definition.name}, ${remainingLabel}${isExternal ? `, von Spieler ${sourcePlayerIndex + 1}` : ''}`;
+        badge.setAttribute?.('aria-label', badge.ariaLabel);
     }
 }

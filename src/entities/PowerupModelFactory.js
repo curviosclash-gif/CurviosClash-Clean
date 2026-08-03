@@ -67,7 +67,13 @@ export class PowerupModelFactory {
             if (visualKind === 'slow-time') return this._createSlowTimeModel(color);
             if (visualKind === 'ghost') return this._createGhostModel(color);
             if (visualKind === 'invert') return this._createInvertModel(color);
-            if (visualKind === 'rocket') return this._createRocketModel(color, visualDescriptor?.scale || 1);
+            if (visualKind === 'rocket') {
+                return this._createRocketModel(
+                    color,
+                    visualDescriptor?.scale || 1,
+                    visualDescriptor?.rocketTier || 'WEAK'
+                );
+            }
             return this._createFallbackCube(color);
         } catch {
             return this._createFallbackCube(color);
@@ -286,9 +292,10 @@ export class PowerupModelFactory {
         return group;
     }
 
-    _createRocketModel(color, scale = 1) {
+    _createRocketModel(color, scale = 1, tier = 'WEAK') {
         const group = new THREE.Group();
         const s = Math.max(0.72, Number(scale) || 1);
+        const markerCount = ({ WEAK: 0, MEDIUM: 1, HEAVY: 2, MEGA: 3 })[tier] ?? 0;
 
         const body = new THREE.Mesh(this._geometries.rocketBody, createStandardMaterial(color, {
             emissiveIntensity: 0.58,
@@ -329,6 +336,18 @@ export class PowerupModelFactory {
         group.add(finA);
         group.add(finB);
         group.add(glow);
+        for (let i = 0; i < markerCount; i += 1) {
+            const marker = new THREE.Mesh(this._geometries.halo, createBasicMaterial(0xffffff, {
+                transparent: true,
+                opacity: 0.5,
+                depthWrite: false,
+            }));
+            marker.rotation.x = Math.PI * 0.5;
+            marker.position.z = this.size * (0.05 + i * 0.2) * s;
+            marker.scale.setScalar(0.48 * s);
+            group.add(marker);
+        }
+        group.userData.rocketTier = tier;
         return group;
     }
 

@@ -85,6 +85,16 @@ const violations = [
             location: `${entry.from}:${entry.line}`,
             detail: `${entry.from} -> ${entry.to}`,
         })),
+    ...report.findings.applicationToPlatformImports.map((entry) => ({
+        category: 'application -> platform import',
+        location: `${entry.from}:${entry.line}`,
+        detail: `${entry.from} -> ${entry.to}`,
+    })),
+    ...report.findings.sharedContractsToImplementationImports.map((entry) => ({
+        category: 'shared/contracts -> implementation import',
+        location: `${entry.from}:${entry.line}`,
+        detail: `${entry.from} -> ${entry.to}`,
+    })),
     ...(report.findings.legacySurfaceReads || [])
         .filter((entry) => !entry.allowed)
         .map((entry) => ({
@@ -108,6 +118,9 @@ if (violations.length === 0) {
     console.log(`shared/contracts -> core disallowed imports: ${report.scorecard.sharedContractsToCoreImports.disallowedEdges}`);
     console.log(`application -> ui disallowed imports: ${report.scorecard.applicationToUiImports.disallowedEdges}`);
     console.log(`application -> core disallowed imports: ${report.scorecard.applicationToCoreImports.disallowedEdges}`);
+    console.log(`application -> platform disallowed imports: ${report.scorecard.applicationToPlatformImports.disallowedEdges}`);
+    console.log(`shared/contracts -> implementation disallowed imports: ${report.scorecard.sharedContractsToImplementationImports.disallowedEdges}`);
+    console.log(`core -> composition/core-ui tracked imports: ${report.scorecard.coreToUiCompositionImports.totalEdges}`);
     console.log(`electron preload exposures: ${report.scorecard.electronPreloadExposures.totalOccurrences} across ${report.scorecard.electronPreloadExposures.totalFiles} files`);
     console.log(`electron ipcRenderer channels: ${report.scorecard.electronIpcRendererChannels.totalOccurrences} across ${report.scorecard.electronIpcRendererChannels.totalFiles} files`);
     console.log(`electron ipcMain channels: ${report.scorecard.electronIpcMainChannels.totalOccurrences} across ${report.scorecard.electronIpcMainChannels.totalFiles} files`);

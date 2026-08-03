@@ -9,11 +9,13 @@ import {
 
 import {
     getRocketPickupTypes,
+    getPickupSpawnWeight,
     isPickupTypeAllowedForMode,
     isPickupTypeSelfUsable,
     isPickupTypeShootable,
     normalizePickupType,
 } from '../src/entities/PickupRegistry.js';
+import { PowerupManager } from '../src/entities/Powerup.js';
 import { createMapDocument } from '../src/entities/MapSchema.js';
 import { PortalRuntimeSystem } from '../src/entities/arena/portal/PortalRuntimeSystem.js';
 import { PortalLayoutBuilder } from '../src/entities/arena/portal/PortalLayoutBuilder.js';
@@ -37,7 +39,7 @@ import {
 import { GAMEPLAY_ACTION_RESULT_CODES } from '../src/shared/contracts/GameplayActionResultContract.js';
 import { RoundMetricsStore } from '../src/state/recorder/RoundMetricsStore.js';
 import { deriveMapResolutionFeedbackPlan } from '../src/state/match-session/MatchSessionFeedbackPlan.js';
-import { applyPlayerPowerup } from '../src/entities/player/PlayerEffectOps.js';
+import { applyPlayerPowerup, updatePlayerEffects } from '../src/entities/player/PlayerEffectOps.js';
 import { CONFIG_BASE } from '../src/core/Config.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 import { updateTraversalStatus } from '../src/ui/TraversalHudPresenter.js';
@@ -59,6 +61,81 @@ test('Pickup capability matrix keeps rocket and utility contracts mode-safe', ()
     assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'HUNT'), false);
     assert.equal(isPickupTypeSelfUsable('SHIELD', 'HUNT'), true);
     assert.equal(isPickupTypeShootable('SHIELD', 'HUNT'), true);
+    assert.equal(isPickupTypeAllowedForMode('HEALTH', 'CLASSIC'), false);
+    assert.equal(isPickupTypeAllowedForMode('HEALTH', 'ARCADE'), true);
+    assert.equal(getPickupSpawnWeight('SLOW_TIME', 'CLASSIC') < getPickupSpawnWeight('SPEED_UP', 'CLASSIC'), true);
+});
+
+test('full inventory rejects a pickup without removing it or emitting collect success', () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const removed = [];
+    const manager = new PowerupManager({
+        addToScene() {},
+        removeFromScene(mesh) { removed.push(mesh); },
+    }, {}, entityRuntimeConfig);
+    const mesh = new THREE.Group();
+    manager.items.push({
+        mesh,
+        type: 'SHIELD',
+        box: new THREE.Box3().setFromCenterAndSize(new THREE.Vector3(), new THREE.Vector3(5, 5, 5)),
+        anchorKey: null,
+    });
+
+    const events = [];
+    const logs = [];
+    const feedback = [];
+    const phase = new PlayerInteractionPhase({
+        arena: { checkExitPortal: () => null, checkPortal: () => null },
+        powerupManager: manager,
+        recorder: { logEvent: (...args) => logs.push(args) },
+        _emitArcadeGameplayEvent: (event) => events.push(event),
+        _notifyPlayerFeedback: (_player, message) => feedback.push(message),
+    });
+    const player = {
+        index: 0,
+        isBot: false,
+        position: new THREE.Vector3(),
+        hitboxRadius: 1,
+        addToInventory: () => false,
+    };
+    phase.runPortalAndPickup(player);
+    phase.runPortalAndPickup(player);
+
+    assert.equal(manager.items.length, 1);
+    assert.equal(removed.length, 0);
+    assert.equal(events.length, 0);
+    assert.equal(logs.length, 1);
+    assert.match(logs[0][2], /item\.pickup\.inventory-full/);
+    assert.deepEqual(feedback, ['Inventar voll']);
+
+    const accepted = manager.checkPickup(new THREE.Vector3(), 1, () => true);
+    assert.equal(accepted.ok, true);
+    assert.equal(manager.items.length, 0);
+    assert.equal(removed.length, 1);
+    manager.dispose();
+});
+
+test('slow time counts active effect durations in real time', () => {
+    const player = {
+        entityRuntimeConfig: {
+            ...CONFIG_BASE,
+            HUNT: { ...CONFIG_BASE.HUNT, ACTIVE_MODE: 'CLASSIC', DEFAULT_MODE: 'CLASSIC' },
+        },
+        activeEffects: [],
+        baseSpeed: CONFIG_BASE.PLAYER.SPEED,
+        speed: CONFIG_BASE.PLAYER.SPEED,
+        trail: null,
+        hasShield: false,
+        shieldHP: 0,
+    };
+    player.entityManager = { players: [player] };
+    applyPlayerPowerup(player, 'SLOW_TIME');
+    applyPlayerPowerup(player, 'SPEED_UP');
+
+    updatePlayerEffects(player, 0.4);
+
+    assert.equal(player.activeEffects.find((effect) => effect.type === 'SLOW_TIME').remaining, 3);
+    assert.equal(player.activeEffects.find((effect) => effect.type === 'SPEED_UP').remaining, 3);
 });
 
 test('Medipack restores hunt health instead of granting a shield', () => {

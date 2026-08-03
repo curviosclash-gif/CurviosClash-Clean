@@ -5,7 +5,7 @@
 import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
-import { updateItemBar } from './ItemBarPresenter.js';
+import { updateActiveEffectBar, updateItemBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
@@ -407,6 +407,21 @@ export class HudRuntimeSystem {
     _updateItemBar(container, player, projection = null) {
         updateItemBar(container, player, projection, resolveGameplayConfig(this.game));
         this._updateCooldownIndicator(container, player);
+        this._updateActiveEffectBar(container, player);
+    }
+
+    _updateActiveEffectBar(container, player) {
+        if (!this._activeEffectBars) this._activeEffectBars = new WeakMap();
+        let effectBar = this._activeEffectBars.get(container);
+        if (!effectBar) {
+            effectBar = document.createElement('div');
+            effectBar.className = 'active-effect-bar hidden';
+            effectBar.setAttribute?.('role', 'status');
+            effectBar.setAttribute?.('aria-label', 'Aktive Effekte');
+            container.parentNode?.insertBefore(effectBar, container.nextSibling);
+            this._activeEffectBars.set(container, effectBar);
+        }
+        updateActiveEffectBar(effectBar, player);
     }
 
     _updateCooldownIndicator(container, player) {
