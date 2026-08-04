@@ -1,5 +1,5 @@
 // ============================================
-// ItemSlotEncoder.js - stable 20-slot item encoding for bot observations
+// ItemSlotEncoder.js - stable 20-slot semantic item encoding for bot observations
 // ============================================
 
 import {

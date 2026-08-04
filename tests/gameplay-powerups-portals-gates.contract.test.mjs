@@ -26,6 +26,12 @@ import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/Player
 import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
 import { HuntBridgePolicy } from '../src/entities/ai/HuntBridgePolicy.js';
 import {
+    encodeItemSlots,
+    ITEM_SLOT_BY_TYPE,
+    ITEM_SLOT_COUNT,
+    ITEM_SLOT_UNKNOWN_INDEX,
+} from '../src/entities/ai/observation/ItemSlotEncoder.js';
+import {
     PRESSURE_LEVEL,
     PROJECTILE_THREAT,
     TARGET_DISTANCE_RATIO,
@@ -72,6 +78,21 @@ test('Pickup capability matrix keeps rocket and utility contracts mode-safe', ()
     for (const type of getPickupTypes()) {
         assert.notEqual(isPickupTypeSelfUsable(type), isPickupTypeShootable(type), `${type} has one primary action`);
     }
+});
+
+test('expanded pickups keep distinct action semantics in the stable bot item encoding', () => {
+    assert.equal(ITEM_SLOT_COUNT, 20);
+    assert.equal(ITEM_SLOT_BY_TYPE.SWAP, ITEM_SLOT_BY_TYPE.EMP);
+    assert.equal(ITEM_SLOT_BY_TYPE.MINE, ITEM_SLOT_BY_TYPE.MG_TURRET);
+    assert.notEqual(ITEM_SLOT_BY_TYPE.SWAP, ITEM_SLOT_BY_TYPE.MINE);
+    assert.notEqual(ITEM_SLOT_BY_TYPE.SWAP, ITEM_SLOT_UNKNOWN_INDEX);
+    assert.notEqual(ITEM_SLOT_BY_TYPE.MINE, ITEM_SLOT_UNKNOWN_INDEX);
+
+    const encoded = encodeItemSlots(['SWAP', 'MINE', 'UNKNOWN_ITEM']);
+    assert.equal(encoded[ITEM_SLOT_BY_TYPE.SWAP], 1);
+    assert.equal(encoded[ITEM_SLOT_BY_TYPE.MINE], 1);
+    assert.equal(encoded[ITEM_SLOT_UNKNOWN_INDEX], 1);
+    assert.equal(encoded.reduce((sum, value) => sum + value, 0), 3);
 });
 
 test('full inventory rejects a pickup without removing it or emitting collect success', () => {

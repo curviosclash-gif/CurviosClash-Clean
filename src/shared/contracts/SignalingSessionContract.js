@@ -1,3 +1,5 @@
+import { normalizeString } from './ContractNormalizeUtils.js';
+
 export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
@@ -43,12 +45,24 @@ export const SIGNALING_HTTP_ROUTES = Object.freeze({
     LOBBY_ACK_PENDING: '/lobby/ack-pending',
     LOBBY_MATCH_START: '/lobby/match-start',
     LOBBY_INVALIDATE_READY: '/lobby/invalidate-ready',
+    LOBBY_METADATA: '/lobby/metadata',
     LOBBY_STATUS: '/lobby/status',
     SIGNALING_OFFER: '/signaling/offer',
     SIGNALING_ANSWER: '/signaling/answer',
     SIGNALING_ICE: '/signaling/ice',
     DISCOVERY_INFO: '/discovery/info',
 });
+
+export function normalizePublicLobbyMetadata(value = null, fallbackHostName = 'Host') {
+    const source = value && typeof value === 'object' ? value : {};
+    return {
+        hostName: normalizeString(source.hostName, fallbackHostName).slice(0, 48),
+        mapKey: normalizeString(source.mapKey, 'standard').slice(0, 48),
+        gameMode: normalizeString(source.gameMode, 'CLASSIC').slice(0, 32),
+        modePath: normalizeString(source.modePath, 'normal').slice(0, 32),
+        winsNeeded: Math.max(1, Math.min(99, Math.floor(Number(source.winsNeeded) || 5))),
+    };
+}
 
 /**
  * Maps each signaling command to the session role that sends it.

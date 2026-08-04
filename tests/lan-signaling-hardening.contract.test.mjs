@@ -140,6 +140,69 @@ test('LAN signaling enforces maxPlayers on join requests', async () => {
     }
 });
 
+test('LAN discovery publishes host-inclusive counts and current lobby metadata', async () => {
+    const lanServer = await startLanServer();
+    const lobby = new LANMatchLobby({
+        signalingUrl: lanServer.baseUrl,
+        pollIntervalMs: 60_000,
+    });
+    try {
+        await lobby.create({
+            maxPlayers: 4,
+            actorId: 'Captain',
+            name: 'Captain',
+            metadata: {
+                hostName: 'Captain',
+                mapKey: 'maze',
+                gameMode: 'HUNT',
+                modePath: 'fight',
+                winsNeeded: 7,
+            },
+        });
+
+        const initialDiscovery = await (
+            await fetch(`${lanServer.baseUrl}/discovery/info`)
+        ).json();
+        assert.equal(initialDiscovery.playerCount, 1);
+        assert.equal(initialDiscovery.maxPlayers, 4);
+        assert.equal(initialDiscovery.hostName, 'Captain');
+        assert.equal(initialDiscovery.mapKey, 'maze');
+        assert.equal(initialDiscovery.gameMode, 'HUNT');
+        assert.equal(initialDiscovery.modePath, 'fight');
+        assert.equal(initialDiscovery.winsNeeded, 7);
+
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: lobby.lobbyCode,
+            actorId: 'Wingman',
+        });
+        assert.equal(joined.ok, true);
+        const joinedDiscovery = await (
+            await fetch(`${lanServer.baseUrl}/discovery/info`)
+        ).json();
+        assert.equal(joinedDiscovery.playerCount, 2);
+
+        await lobby.updateSettings({
+            metadata: {
+                hostName: 'Captain',
+                mapKey: 'city',
+                gameMode: 'ARCADE',
+                modePath: 'normal',
+                winsNeeded: 3,
+            },
+        });
+        const updatedDiscovery = await (
+            await fetch(`${lanServer.baseUrl}/discovery/info`)
+        ).json();
+        assert.equal(updatedDiscovery.mapKey, 'city');
+        assert.equal(updatedDiscovery.gameMode, 'ARCADE');
+        assert.equal(updatedDiscovery.modePath, 'normal');
+        assert.equal(updatedDiscovery.winsNeeded, 3);
+    } finally {
+        lobby.leave();
+        await stopLanServer(lanServer.server);
+    }
+});
+
 test('LAN match start is idempotent while a start command is pending', async () => {
     const lanServer = await startLanServer();
     try {
@@ -262,6 +325,14 @@ test('LAN signaling requires host token for host-only mutating routes', async ()
         assert.equal(invalidateAllowed.ok, true);
         assert.equal(invalidateAllowed.payload?.sessionState?.hostReady, true);
         assert.equal(invalidateAllowed.payload?.sessionState?.players?.[0]?.ready, false);
+
+        const metadataDenied = await postJson(lanServer.baseUrl, '/lobby/metadata', {
+            hostPeerId: 'host',
+            metadata: { mapKey: 'city' },
+        });
+        assert.equal(metadataDenied.ok, false);
+        assert.equal(metadataDenied.status, 403);
+        assert.equal(metadataDenied.payload?.message, 'host_auth_failed');
 
         const startDenied = await postJson(lanServer.baseUrl, '/lobby/match-start', {
             hostPeerId: 'host',

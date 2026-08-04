@@ -7,6 +7,7 @@ import crypto from 'node:crypto';
 import {
     SIGNALING_HTTP_ROUTES,
     SIGNALING_SESSION_CONTRACT_VERSION,
+    normalizePublicLobbyMetadata,
 } from '../src/shared/contracts/SignalingSessionContract.js';
 
 const DEFAULT_MAX_PLAYERS = 10;
@@ -145,6 +146,7 @@ function buildLobbyState(lobby) {
         hostActorId: String(lobby.hostActorId || 'Host').trim() || 'Host',
         hostName: String(lobby.hostName || lobby.hostActorId || 'Host').trim() || 'Host',
         maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
+        metadata: { ...lobby.metadata },
         updatedAt: Date.now(),
         players: lobby.players.map((player) => ({
             peerId: player.playerId,
@@ -206,6 +208,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         hostActorId: 'Host',
         hostName: 'Host',
         maxPlayers: DEFAULT_MAX_PLAYERS,
+        metadata: normalizePublicLobbyMetadata(),
         players: [],
         pendingPlayers: [],
         offers: new Map(),
@@ -373,6 +376,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
                 : DEFAULT_MAX_PLAYERS;
+            lobby.metadata = normalizePublicLobbyMetadata(body.metadata, lobby.hostName);
             lobby.players = [];
             lobby.pendingPlayers = [];
             lobby.offers.clear();
@@ -542,6 +546,29 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 ...entry,
                 ready: false,
             }));
+            jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
+            return;
+        }
+
+        if (req.method === 'POST' && path === SIGNALING_HTTP_ROUTES.LOBBY_METADATA) {
+            const body = await readBody(req);
+            if (body?.__tooLarge === true) {
+                rejectOversizedRequest(req, res);
+                return;
+            }
+            if (body?.__badJson === true) {
+                jsonResponse(res, { ok: false, message: 'bad_json' }, 400);
+                return;
+            }
+            if (!isHostPeerId(body.hostPeerId || body.playerId)) {
+                jsonResponse(res, { ok: false, message: 'host_required' }, 403);
+                return;
+            }
+            if (!isValidHostToken(body.hostToken)) {
+                jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
+                return;
+            }
+            lobby.metadata = normalizePublicLobbyMetadata(body.metadata, lobby.hostName);
             jsonResponse(res, { ok: true, sessionState: buildLobbyState(lobby) });
             return;
         }
@@ -863,8 +890,13 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             const requestedLobbyCode = normalizeLobbyCode(url.searchParams.get('lobbyCode'));
             jsonResponse(res, {
                 matchesLobby: requestedLobbyCode !== '' && requestedLobbyCode === normalizeLobbyCode(lobby.code),
-                playerCount: lobby.players.length,
+                playerCount: countLobbyMembers(lobby),
                 maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
+                hostName: lobby.metadata.hostName,
+                mapKey: lobby.metadata.mapKey,
+                gameMode: lobby.metadata.gameMode,
+                modePath: lobby.metadata.modePath,
+                winsNeeded: lobby.metadata.winsNeeded,
                 ip: hostIp || undefined,
                 hostIp: hostIp || undefined,
                 diagnostics,

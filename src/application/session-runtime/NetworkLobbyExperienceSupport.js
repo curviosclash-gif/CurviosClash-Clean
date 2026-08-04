@@ -1,19 +1,21 @@
 import { LOBBY_SERVICE_TRANSPORTS } from '../../shared/contracts/LobbyServiceContract.js';
+import { normalizePublicLobbyMetadata } from '../../shared/contracts/SignalingSessionContract.js';
 import {
-    delay,
     normalizeDiscoveryHostEntry,
     normalizeString,
 } from './NetworkLobbyServiceSupport.js';
 
+const LAN_DISCOVERY_SCAN_TIMEOUT_MS = 2_500;
+
 export function createPublicLobbyMetadata(settingsSnapshot = null, actorId = '') {
     const snapshot = settingsSnapshot && typeof settingsSnapshot === 'object' ? settingsSnapshot : {};
-    return {
+    return normalizePublicLobbyMetadata({
         hostName: normalizeString(actorId, 'Host'),
         mapKey: normalizeString(snapshot.mapKey, 'standard'),
         gameMode: normalizeString(snapshot.gameMode, 'CLASSIC'),
         modePath: normalizeString(snapshot?.localSettings?.modePath, 'normal'),
         winsNeeded: Math.max(1, Math.floor(Number(snapshot.winsNeeded) || 5)),
-    };
+    });
 }
 
 export async function tryResolveNetworkLobbyUrl(resolver) {
@@ -45,12 +47,48 @@ export async function resolveNetworkLobbyShareAddress({
     return `${host}:${port}`;
 }
 
-export async function listDiscoveredNetworkLobbies({ discoveryPort, transport } = {}) {
-    if (!discoveryPort?.isAvailable?.()) return [];
-    discoveryPort.start?.();
+async function waitForDiscoveredHosts(discoveryPort, timeoutMs) {
+    let resolveHostEvent = null;
+    let timeoutId = null;
+    const hostEvent = new Promise((resolve) => {
+        resolveHostEvent = resolve;
+    });
+    const unsubscribe = discoveryPort.subscribe?.((hosts) => {
+        if (Array.isArray(hosts) && hosts.length > 0) {
+            resolveHostEvent(hosts);
+        }
+    });
+
     try {
-        await delay(300);
-        const hosts = await Promise.resolve(discoveryPort.getHosts?.());
+        await Promise.resolve(discoveryPort.start?.());
+        const cachedHosts = await Promise.resolve(discoveryPort.getHosts?.());
+        if (Array.isArray(cachedHosts) && cachedHosts.length > 0) {
+            return cachedHosts;
+        }
+        const timeout = new Promise((resolve) => {
+            timeoutId = setTimeout(() => {
+                Promise.resolve(discoveryPort.getHosts?.()).then(resolve, () => resolve([]));
+            }, timeoutMs);
+        });
+        return await Promise.race([
+            hostEvent,
+            timeout,
+        ]);
+    } finally {
+        if (timeoutId !== null) clearTimeout(timeoutId);
+        if (typeof unsubscribe === 'function') unsubscribe();
+    }
+}
+
+export async function listDiscoveredNetworkLobbies({
+    discoveryPort,
+    transport,
+    scanTimeoutMs = LAN_DISCOVERY_SCAN_TIMEOUT_MS,
+} = {}) {
+    if (!discoveryPort?.isAvailable?.()) return [];
+    try {
+        const timeoutMs = Math.max(0, Math.floor(Number(scanTimeoutMs) || LAN_DISCOVERY_SCAN_TIMEOUT_MS));
+        const hosts = await waitForDiscoveredHosts(discoveryPort, timeoutMs);
         return (Array.isArray(hosts) ? hosts : []).flatMap((host) => {
             const entry = normalizeDiscoveryHostEntry(host);
             if (!entry) return [];
@@ -62,11 +100,12 @@ export async function listDiscoveredNetworkLobbies({ discoveryPort, transport } 
                 mapKey: normalizeString(host?.mapKey, ''),
                 gameMode: normalizeString(host?.gameMode, ''),
                 modePath: normalizeString(host?.modePath, ''),
+                winsNeeded: Math.max(1, Math.floor(Number(host?.winsNeeded) || 1)),
                 signalingUrl: `http://${entry.ip}:${entry.port}`,
                 transport,
             }];
         });
     } finally {
-        discoveryPort.stop?.();
+        await Promise.resolve(discoveryPort.stop?.());
     }
 }

@@ -4,6 +4,7 @@ import test from 'node:test';
 import { createLobbyLifecycleEventEmitter } from '../src/application/session-runtime/LobbyLifecycleEventEmitter.js';
 import { NetworkLobbyService } from '../src/application/session-runtime/NetworkLobbyService.js';
 import { resolveDefaultJoinSignalingUrl } from '../src/application/session-runtime/NetworkLobbyServiceDiscovery.js';
+import { listDiscoveredNetworkLobbies } from '../src/application/session-runtime/NetworkLobbyExperienceSupport.js';
 import { createNetworkLobbySessionStateProjection } from '../src/application/session-runtime/NetworkLobbySessionStateProjection.js';
 import {
     normalizeLobbyCode,
@@ -833,7 +834,61 @@ test('LAN lobby discovery returns joinable directory entries', async () => {
         mapKey: '',
         gameMode: '',
         modePath: '',
+        winsNeeded: 1,
         signalingUrl: 'http://192.168.1.8:9090',
+        transport: 'lan',
+    }]);
+});
+
+test('LAN lobby discovery waits for the first broadcast event instead of sampling too early', async () => {
+    const calls = [];
+    let notifyHosts = null;
+    const lobbiesPromise = listDiscoveredNetworkLobbies({
+        transport: LOBBY_SERVICE_TRANSPORTS.LAN,
+        scanTimeoutMs: 100,
+        discoveryPort: {
+            isAvailable: () => true,
+            subscribe: (callback) => {
+                calls.push('subscribe');
+                notifyHosts = callback;
+                return () => calls.push('unsubscribe');
+            },
+            start: () => {
+                calls.push('start');
+                setTimeout(() => notifyHosts?.([{
+                    ip: '192.168.1.12',
+                    port: 9090,
+                    lobbyCode: 'LAN-EVENT',
+                    hostName: 'Studio',
+                    playerCount: 1,
+                    maxPlayers: 4,
+                    mapKey: 'maze',
+                    gameMode: 'HUNT',
+                    modePath: 'fight',
+                    winsNeeded: 7,
+                }]), 10);
+            },
+            getHosts: () => {
+                calls.push('getHosts');
+                return [];
+            },
+            stop: () => calls.push('stop'),
+        },
+    });
+
+    const lobbies = await lobbiesPromise;
+
+    assert.deepEqual(calls, ['subscribe', 'start', 'getHosts', 'unsubscribe', 'stop']);
+    assert.deepEqual(lobbies, [{
+        lobbyCode: 'LAN-EVENT',
+        memberCount: 1,
+        maxPlayers: 4,
+        hostName: 'Studio',
+        mapKey: 'maze',
+        gameMode: 'HUNT',
+        modePath: 'fight',
+        winsNeeded: 7,
+        signalingUrl: 'http://192.168.1.12:9090',
         transport: 'lan',
     }]);
 });

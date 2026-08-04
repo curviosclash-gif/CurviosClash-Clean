@@ -228,6 +228,7 @@ function startBroadcast(resolveState) {
             const state = typeof resolveState === 'function' ? resolveState() : null;
             const lobbyCode = String(state?.lobbyCode || '').trim();
             if (!lobbyCode || !broadcastSocket) return;
+            const metadata = state?.metadata && typeof state.metadata === 'object' ? state.metadata : {};
 
             const broadcastIps = ips.length > 0 ? ips : ['127.0.0.1'];
             for (const ip of broadcastIps) {
@@ -236,8 +237,13 @@ function startBroadcast(resolveState) {
                     ip,
                     port: signalingPort,
                     lobbyCode,
-                    hostName,
+                    hostName: String(metadata.hostName || state?.hostName || hostName).trim(),
                     playerCount: Number(state?.playerCount || 0),
+                    maxPlayers: Number(state?.maxPlayers || 10),
+                    mapKey: String(metadata.mapKey || 'standard').trim(),
+                    gameMode: String(metadata.gameMode || 'CLASSIC').trim(),
+                    modePath: String(metadata.modePath || 'normal').trim(),
+                    winsNeeded: Number(metadata.winsNeeded || 5),
                 });
                 const buffer = Buffer.from(payload);
                 broadcastSocket.send(buffer, 0, buffer.length, DISCOVERY_PORT, '255.255.255.255');
@@ -366,7 +372,10 @@ async function startSignalingServer() {
         resetSignalingError();
         startBroadcast(() => ({
             lobbyCode: runtime.lobby?.code || '',
-            playerCount: runtime.lobby?.players?.length || 0,
+            hostName: runtime.lobby?.hostName || '',
+            playerCount: runtime.lobby ? 1 + (runtime.lobby.players?.length || 0) : 0,
+            maxPlayers: runtime.lobby?.maxPlayers || 10,
+            metadata: runtime.lobby?.metadata || null,
         }));
         updateTrayTooltip();
         return runtime;
@@ -940,6 +949,11 @@ function startDiscoveryListener() {
                 lobbyCode,
                 hostName: String(data.hostName || '').trim(),
                 playerCount: Math.max(0, Math.floor(Number(data.playerCount) || 0)),
+                maxPlayers: Math.max(2, Math.floor(Number(data.maxPlayers) || 10)),
+                mapKey: String(data.mapKey || '').trim(),
+                gameMode: String(data.gameMode || '').trim(),
+                modePath: String(data.modePath || '').trim(),
+                winsNeeded: Math.max(1, Math.floor(Number(data.winsNeeded) || 5)),
                 lastSeen: Date.now(),
             };
             discoveredHosts.set(buildDiscoveryHostKey(hostRecord), hostRecord);

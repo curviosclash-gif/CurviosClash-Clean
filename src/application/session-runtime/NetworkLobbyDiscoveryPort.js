@@ -41,13 +41,13 @@ export function createNetworkLobbyDiscoveryPort(options = {}) {
 
     function start() {
         if (!isAvailable()) {
-            return;
+            return undefined;
         }
-        startDiscovery?.call(discoveryRuntime);
+        return startDiscovery?.call(discoveryRuntime);
     }
 
     function stop() {
-        stopDiscovery?.call(discoveryRuntime);
+        return stopDiscovery?.call(discoveryRuntime);
     }
 
     async function getHosts() {

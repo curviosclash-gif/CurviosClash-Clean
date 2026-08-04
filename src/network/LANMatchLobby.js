@@ -17,42 +17,14 @@ import {
     createNetworkUnavailableSignalingError,
     toErrorPayload,
 } from './OnlineSignalingSupport.js';
+import {
+    buildLanRequestError,
+    publishLanLobbyMetadata,
+} from './LANSignalingSupport.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_POLL_TIMEOUT_MS = 2500;
 const POLL_FAILURE_THRESHOLD = 3;
-
-function buildLanRequestError({
-    response = null,
-    payload = null,
-    fallbackMessage = 'LAN request failed.',
-    fallbackCode = 'lan_request_failed',
-} = {}) {
-    const responseCode = Number(response?.status || 0);
-    const signalingCode = String(payload?.message || '').trim() || fallbackCode;
-    let message = fallbackMessage;
-    if (signalingCode === 'lobby_full') {
-        message = 'Lobby ist voll.';
-    } else if (signalingCode === 'lobby_not_found') {
-        message = 'Lobby nicht gefunden.';
-    } else if (signalingCode === 'host_required') {
-        message = 'Nur der Host darf diese Aktion ausfuehren.';
-    } else if (signalingCode === 'host_auth_failed') {
-        message = 'Host-Autorisierung fehlgeschlagen.';
-    } else if (signalingCode === 'player_auth_failed') {
-        message = 'Spieler-Autorisierung fehlgeschlagen.';
-    } else if (signalingCode === 'members_not_ready') {
-        message = 'Alle Teilnehmer muessen Ready sein.';
-    } else if (signalingCode === 'not_enough_members') {
-        message = 'Mindestens zwei Teilnehmer werden benoetigt.';
-    } else if (responseCode > 0) {
-        message = `${fallbackMessage} (${responseCode})`;
-    }
-    const error = new Error(message);
-    error.code = signalingCode;
-    error.status = responseCode;
-    return error;
-}
 
 /**
  * Lobby for LAN play. Communicates with the embedded LAN signaling server
@@ -105,6 +77,7 @@ export class LANMatchLobby extends MatchLobby {
                 maxPlayers: Number(options.maxPlayers || 10),
                 actorId: options.actorId,
                 name: options.name || options.actorId,
+                metadata: options.metadata,
             }),
         });
         if (res?.ok === false) {
@@ -467,6 +440,21 @@ export class LANMatchLobby extends MatchLobby {
     updateSettings(settings) {
         Object.assign(this.settings, settings);
         this._emit('settingsChanged', { settings: this.settings, sessionState: this.sessionState });
+        if (this.isHost !== true || !settings?.metadata || !this._localPeerToken) {
+            return null;
+        }
+        return publishLanLobbyMetadata({
+            signalingUrl: this._signalingUrl,
+            hostPeerId: this._localPeerId || 'host',
+            hostToken: this._localPeerToken,
+            metadata: settings.metadata,
+        }).then((data) => {
+            this._processServerStatus(data);
+            return data;
+        }).catch((error) => {
+            logger.warn('Lobby metadata update failed:', error);
+            return null;
+        });
     }
 
     async invalidateReadyForAll() {

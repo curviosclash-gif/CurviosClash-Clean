@@ -44,7 +44,7 @@ export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
     SWAP: {
         name: 'Tausch', color: 0xbb66ff, icon: '<>', duration: 0,
         selfUsable: false, shootable: true, offensive: true, projectileOnly: false,
-        allowedModes: ALL_GAME_MODES, observationSlot: 19, visualKind: 'swap',
+        allowedModes: ALL_GAME_MODES, observationSlot: 15, visualKind: 'swap',
         actionRole: 'instant', stackPolicy: 'instant', animationKind: 'counter-spin',
         spawnWeights: { CLASSIC: 0.3, ARCADE: 0.45, HUNT: 0.5 },
         botRule: { self: -1, offense: 0.7, defensiveScale: 0, emergencyScale: 0, combatSelf: -1 },
@@ -52,7 +52,7 @@ export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
     MINE: {
         name: 'Mine', color: 0xff5533, icon: '*', duration: 0, damage: 25,
         selfUsable: true, shootable: false, offensive: true, projectileOnly: false,
-        allowedModes: ALL_GAME_MODES, observationSlot: 19, visualKind: 'mine',
+        allowedModes: ALL_GAME_MODES, observationSlot: 13, visualKind: 'mine',
         actionRole: 'deployment', stackPolicy: 'instant',
         spawnWeights: { CLASSIC: 0.4, ARCADE: 0.55, HUNT: 0.65 },
         botRule: { self: 0.55, offense: 0.65, defensiveScale: 0.35, emergencyScale: 0.2, combatSelf: 0.8 },
