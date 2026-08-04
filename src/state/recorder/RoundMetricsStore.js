@@ -2,7 +2,7 @@ import { parseGameplayActionResultLog } from '../../shared/contracts/GameplayAct
 import { cloneRoundMetricsSummary } from './RoundMetricsSummaryOps.js';
 
 const ITEM_USE_MODES = Object.freeze(['use', 'shoot', 'mg', 'other']);
-const GAMEPLAY_RESULT_EVENTS = Object.freeze(['ITEM_USE', 'ITEM_PICKUP', 'PORTAL_USE', 'GATE_TRIGGER']);
+const GAMEPLAY_RESULT_EVENTS = Object.freeze(['ITEM_USE', 'ITEM_PICKUP', 'ITEM_SPAWN', 'ITEM_HIT', 'PORTAL_USE', 'GATE_TRIGGER']);
 const FAILED_ITEM_ACTION_CODE_PREFIXES = Object.freeze(['item.use.', 'item.shoot.', 'mg.shoot.']);
 
 function createItemUseModeCounts() {
@@ -36,6 +36,10 @@ function parseItemUseEventData(value) {
 
 function createCodeCounts() {
     return {};
+}
+
+function mergeMetricCounts(target, source) {
+    for (const [key, value] of Object.entries(source || {})) target[key] = (target[key] || 0) + Math.max(0, Number(value) || 0);
 }
 
 function normalizeActionCode(value) {
@@ -81,6 +85,11 @@ function createRoundSummary() {
         itemUseEvents: 0,
         itemUseModeCounts: createItemUseModeCounts(),
         itemUseTypeCounts: {},
+        itemSpawnTypeCounts: {},
+        itemPickupTypeCounts: {},
+        itemPickupRejectedTypeCounts: {},
+        itemHitTypeCounts: {},
+        itemDamageByType: {},
         actionResultCodeCounts: {},
         failedItemActions: 0,
         failedItemActionModeCounts: createItemUseModeCounts(),
@@ -112,6 +121,11 @@ function createAggregateSummary() {
         totalItemUseEvents: 0,
         totalItemUseModeCounts: createItemUseModeCounts(),
         totalItemUseTypeCounts: {},
+        totalItemSpawnTypeCounts: {},
+        totalItemPickupTypeCounts: {},
+        totalItemPickupRejectedTypeCounts: {},
+        totalItemHitTypeCounts: {},
+        totalItemDamageByType: {},
         totalActionResultCodeCounts: {},
         totalFailedItemActions: 0,
         totalFailedItemActionModeCounts: createItemUseModeCounts(),
@@ -164,6 +178,11 @@ export class RoundMetricsStore {
         this._roundItemUseEvents = 0;
         this._roundItemUseModeCounts = createItemUseModeCounts();
         this._roundItemUseTypeCounts = {};
+        this._roundItemSpawnTypeCounts = {};
+        this._roundItemPickupTypeCounts = {};
+        this._roundItemPickupRejectedTypeCounts = {};
+        this._roundItemHitTypeCounts = {};
+        this._roundItemDamageByType = {};
         this._roundActionResultCodeCounts = createCodeCounts();
         this._roundFailedItemActions = 0;
         this._roundFailedItemActionModeCounts = createItemUseModeCounts();
@@ -238,6 +257,21 @@ export class RoundMetricsStore {
                 this._roundFailedItemActionCodeCounts[codeKey] = (this._roundFailedItemActionCodeCounts[codeKey] || 0) + 1;
             }
         }
+        if (type === 'ITEM_SPAWN' && parsedItemUse?.ok) {
+            const typeKey = normalizeItemUseType(parsedItemUse.type);
+            this._roundItemSpawnTypeCounts[typeKey] = (this._roundItemSpawnTypeCounts[typeKey] || 0) + 1;
+        }
+        if (type === 'ITEM_PICKUP') {
+            const typeKey = normalizeItemUseType(parsedItemUse?.type);
+            const target = parsedItemUse?.ok
+                ? this._roundItemPickupTypeCounts
+                : this._roundItemPickupRejectedTypeCounts;
+            target[typeKey] = (target[typeKey] || 0) + 1;
+        }
+        if (type === 'ITEM_HIT' && parsedItemUse?.ok) {
+            const typeKey = normalizeItemUseType(parsedItemUse.type);
+            this._roundItemHitTypeCounts[typeKey] = (this._roundItemHitTypeCounts[typeKey] || 0) + 1;
+        }
     }
 
     registerDamageEvent(event = null) {
@@ -257,6 +291,8 @@ export class RoundMetricsStore {
         if (isRocketType(cause) || isRocketType(projectileType)) {
             this._roundRocketHits += 1;
         }
+        const damageType = normalizeItemUseType(projectileType || cause);
+        this._roundItemDamageByType[damageType] = (this._roundItemDamageByType[damageType] || 0) + totalDamage;
     }
 
     markPlayerSpawn(player) {
@@ -345,6 +381,11 @@ export class RoundMetricsStore {
         round.itemUseEvents = this._roundItemUseEvents;
         round.itemUseModeCounts = { ...this._roundItemUseModeCounts };
         round.itemUseTypeCounts = { ...this._roundItemUseTypeCounts };
+        round.itemSpawnTypeCounts = { ...this._roundItemSpawnTypeCounts };
+        round.itemPickupTypeCounts = { ...this._roundItemPickupTypeCounts };
+        round.itemPickupRejectedTypeCounts = { ...this._roundItemPickupRejectedTypeCounts };
+        round.itemHitTypeCounts = { ...this._roundItemHitTypeCounts };
+        round.itemDamageByType = { ...this._roundItemDamageByType };
         round.actionResultCodeCounts = { ...this._roundActionResultCodeCounts };
         round.failedItemActions = this._roundFailedItemActions;
         round.failedItemActionModeCounts = { ...this._roundFailedItemActionModeCounts };
@@ -383,6 +424,11 @@ export class RoundMetricsStore {
             this._aggregate.totalItemUseTypeCounts[itemType] = (this._aggregate.totalItemUseTypeCounts[itemType] || 0)
                 + Math.max(0, Number(useCount) || 0);
         }
+        mergeMetricCounts(this._aggregate.totalItemSpawnTypeCounts, this._roundItemSpawnTypeCounts);
+        mergeMetricCounts(this._aggregate.totalItemPickupTypeCounts, this._roundItemPickupTypeCounts);
+        mergeMetricCounts(this._aggregate.totalItemPickupRejectedTypeCounts, this._roundItemPickupRejectedTypeCounts);
+        mergeMetricCounts(this._aggregate.totalItemHitTypeCounts, this._roundItemHitTypeCounts);
+        mergeMetricCounts(this._aggregate.totalItemDamageByType, this._roundItemDamageByType);
         for (const [code, useCount] of Object.entries(this._roundActionResultCodeCounts)) {
             this._aggregate.totalActionResultCodeCounts[code] = (this._aggregate.totalActionResultCodeCounts[code] || 0)
                 + Math.max(0, Number(useCount) || 0);
@@ -445,6 +491,11 @@ export class RoundMetricsStore {
                 other: rounds > 0 ? this._aggregate.totalItemUseModeCounts.other / rounds : 0,
             },
             itemUseTypeTotals: { ...this._aggregate.totalItemUseTypeCounts },
+            itemSpawnTypeTotals: { ...this._aggregate.totalItemSpawnTypeCounts },
+            itemPickupTypeTotals: { ...this._aggregate.totalItemPickupTypeCounts },
+            itemPickupRejectedTypeTotals: { ...this._aggregate.totalItemPickupRejectedTypeCounts },
+            itemHitTypeTotals: { ...this._aggregate.totalItemHitTypeCounts },
+            itemDamageByTypeTotals: { ...this._aggregate.totalItemDamageByType },
             actionResultCodeTotals: { ...this._aggregate.totalActionResultCodeCounts },
             failedItemActionModePerRound: {
                 use: rounds > 0 ? this._aggregate.totalFailedItemActionModeCounts.use / rounds : 0,

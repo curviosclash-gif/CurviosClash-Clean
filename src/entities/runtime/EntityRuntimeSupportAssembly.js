@@ -7,6 +7,11 @@ import { EntityRuntimeContext } from './EntityRuntimeContext.js';
 import { EntityEventBus } from './EntityEventBus.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
 import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
+import {
+    GAMEPLAY_ACTION_RESULT_CODES,
+    buildGameplayActionResult,
+    encodeGameplayActionResultForLog,
+} from '../../shared/contracts/GameplayActionResultContract.js';
 
 export function createEntityRuntimeSupport(owner) {
     let eventBus = null;
@@ -53,10 +58,26 @@ export function createEntityRuntimeSupport(owner) {
         },
         onProjectilePowerup: (target, projectile) => {
             if (isRocketTierType(projectile?.type)) return;
+            owner.recorder?.logEvent?.('ITEM_HIT', projectile?.owner?.index ?? -1, encodeGameplayActionResultForLog(
+                buildGameplayActionResult({
+                    ok: true,
+                    code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_HIT_SUCCESS,
+                    mode: 'hit',
+                    type: projectile?.type,
+                })
+            ));
             if (owner.particles) owner.particles.spawnExplosion(target.position, 0xff0000);
             if (owner.audio) owner.audio.play('POWERUP');
         },
         onProjectileDamage: (target, projectileOwner, type, damageResult, projectile) => {
+            owner.recorder?.logEvent?.('ITEM_HIT', projectileOwner?.index ?? -1, encodeGameplayActionResultForLog(
+                buildGameplayActionResult({
+                    ok: true,
+                    code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_HIT_SUCCESS,
+                    mode: 'hit',
+                    type,
+                })
+            ));
             owner._emitHuntDamageEvent({
                 target,
                 sourcePlayer: projectileOwner || null,

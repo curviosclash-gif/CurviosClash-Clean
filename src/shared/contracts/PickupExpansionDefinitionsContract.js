@@ -1,0 +1,60 @@
+const ALL_GAME_MODES = Object.freeze(['CLASSIC', 'ARCADE', 'HUNT']);
+
+export const PICKUP_EXPANSION_DEFINITIONS = Object.freeze({
+    TRAIL_GAP: {
+        name: 'Spurluecke', color: 0x42e8f4, icon: '---', duration: 3,
+        selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 14, visualKind: 'trail-gap',
+        effectCategory: 'trail-gap', animationKind: 'phase',
+        spawnWeights: { CLASSIC: 0.55, ARCADE: 0.65, HUNT: 0.5 },
+        botRule: { self: 0.85, offense: 0, defensiveScale: 1.1, emergencyScale: 1.5, combatSelf: 0.25 },
+    },
+    EMP: {
+        name: 'EMP', color: 0x33bbff, icon: 'EMP', duration: 3,
+        selfUsable: false, shootable: true, offensive: true, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 15, visualKind: 'emp',
+        effectCategory: 'disruption', animationKind: 'pulse',
+        spawnWeights: { CLASSIC: 0.45, ARCADE: 0.55, HUNT: 0.6 },
+        botRule: { self: -1, offense: 0.9, defensiveScale: 0, emergencyScale: 0, combatSelf: -1 },
+    },
+    MAGNET: {
+        name: 'Magnet', color: 0xff4466, icon: 'U', duration: 6, pickupRadiusMultiplier: 2.4,
+        selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 16, visualKind: 'magnet',
+        effectCategory: 'pickup-range', animationKind: 'orbit',
+        spawnWeights: { CLASSIC: 0.5, ARCADE: 0.65, HUNT: 0.55 },
+        botRule: { self: 0.6, offense: 0, defensiveScale: 0.25, emergencyScale: 0.1, combatSelf: 0.1 },
+    },
+    DECOY: {
+        name: 'Koeder', color: 0xff77dd, icon: 'D', duration: 5,
+        selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 17, visualKind: 'decoy',
+        effectCategory: 'targeting', animationKind: 'counter-spin',
+        spawnWeights: { CLASSIC: 0.4, ARCADE: 0.5, HUNT: 0.65 },
+        botRule: { self: 0.75, offense: 0, defensiveScale: 0.9, emergencyScale: 1.3, combatSelf: 0.4 },
+    },
+    PURGE: {
+        name: 'Reinigung', color: 0xffffff, icon: 'P', duration: 0,
+        selfUsable: true, shootable: false, offensive: false, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 18, visualKind: 'purge',
+        actionRole: 'instant', stackPolicy: 'instant',
+        spawnWeights: { CLASSIC: 0.4, ARCADE: 0.55, HUNT: 0.45 },
+        botRule: { self: 0.7, offense: 0, defensiveScale: 1.2, emergencyScale: 1.8, combatSelf: 0.2 },
+    },
+    SWAP: {
+        name: 'Tausch', color: 0xbb66ff, icon: '<>', duration: 0,
+        selfUsable: false, shootable: true, offensive: true, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 19, visualKind: 'swap',
+        actionRole: 'instant', stackPolicy: 'instant', animationKind: 'counter-spin',
+        spawnWeights: { CLASSIC: 0.3, ARCADE: 0.45, HUNT: 0.5 },
+        botRule: { self: -1, offense: 0.7, defensiveScale: 0, emergencyScale: 0, combatSelf: -1 },
+    },
+    MINE: {
+        name: 'Mine', color: 0xff5533, icon: '*', duration: 0, damage: 25,
+        selfUsable: true, shootable: false, offensive: true, projectileOnly: false,
+        allowedModes: ALL_GAME_MODES, observationSlot: 19, visualKind: 'mine',
+        actionRole: 'deployment', stackPolicy: 'instant',
+        spawnWeights: { CLASSIC: 0.4, ARCADE: 0.55, HUNT: 0.65 },
+        botRule: { self: 0.55, offense: 0.65, defensiveScale: 0.35, emergencyScale: 0.2, combatSelf: 0.8 },
+    },
+});

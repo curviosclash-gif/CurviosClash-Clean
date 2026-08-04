@@ -88,9 +88,13 @@ export class PlayerInteractionPhase {
             }), { mode: 'portal', type: 'PORTAL' }));
         }
 
+        const pickupRadiusMultiplier = Math.max(1, Number(player.pickupRadiusMultiplier) || 1);
+        const fieldPickupRadius = Math.max(0, Number(entityManager.entityRuntimeConfig?.POWERUP?.PICKUP_RADIUS) || 0);
+        const effectivePlayerPickupRadius = player.hitboxRadius * pickupRadiusMultiplier
+            + fieldPickupRadius * (pickupRadiusMultiplier - 1);
         const pickedUp = entityManager.powerupManager.checkPickup(
             player.position,
-            player.hitboxRadius,
+            effectivePlayerPickupRadius,
             (type) => player.addToInventory(type)
         );
         if (!pickedUp) {

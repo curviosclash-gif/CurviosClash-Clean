@@ -40,6 +40,7 @@ export class Player {
         this.index = index;
         this.color = color;
         this.isBot = isBot;
+        this.entityManager = options?.entityManager || null;
         this.entityRuntimeConfig = options?.entityRuntimeConfig || options?.entityManager?.entityRuntimeConfig || null;
         this.gameplayConfig = resolveGameplayConfig(this);
         const gameplayCameraState = createGameplayCameraState(this.gameplayConfig);
@@ -87,6 +88,10 @@ export class Player {
         this.hasSlowTime = false;
         this.slowTimeScale = 1;
         this.invertControls = false;
+        this.trailGapActive = false;
+        this.pickupRadiusMultiplier = 1;
+        this.decoyActive = false;
+        this.itemActionsDisabled = false;
         this.maxHp = 1;
         this.hp = 1;
         this.lastDamageTimestamp = -Infinity;
@@ -192,6 +197,10 @@ export class Player {
         this.hasSlowTime = false;
         this.slowTimeScale = 1;
         this.invertControls = false;
+        this.trailGapActive = false;
+        this.pickupRadiusMultiplier = 1;
+        this.decoyActive = false;
+        this.itemActionsDisabled = false;
         this.spawnProtectionTimer = playerConfig.SPAWN_PROTECTION || 0;
         this.planarAimOffset = 0;
         this.fightAimAssistTargetIndex = -1;

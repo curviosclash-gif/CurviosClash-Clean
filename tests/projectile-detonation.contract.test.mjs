@@ -16,6 +16,9 @@ function createShooter() {
         getAimDirection(out) {
             return out.set(1, 0, 0);
         },
+        getDirection(out) {
+            return out.set(1, 0, 0);
+        },
     };
 }
 
@@ -170,5 +173,53 @@ test('network rocket replacement detonates the removed projectile', () => {
 
     assert.deepEqual(detonations, ['ROCKET_WEAK']);
     assert.equal(system.projectiles[0].type, 'ROCKET_HEAVY');
+    system.dispose();
+});
+
+test('deployed mines remain stationary and damage the first enemy entering their radius', () => {
+    let appliedDamage = 0;
+    const { owner, players, system } = createProjectileSystem();
+    system.onProjectileDamage = (_target, _owner, type, result) => {
+        assert.equal(type, 'MINE');
+        appliedDamage = result.applied;
+    };
+    players.push({
+        index: 1,
+        alive: true,
+        position: new THREE.Vector3(-2, 0, 0),
+        hitboxRadius: 1,
+        isSphereInOBB: () => true,
+        takeDamage(amount) { return { applied: amount, isDead: false }; },
+    });
+
+    assert.equal(system.deployMine(owner), true);
+    assert.equal(system.projectiles[0].velocity.lengthSq(), 0);
+    assert.equal(system.projectiles[0].ttl, 10);
+    system.update(1 / 60);
+    assert.equal(appliedDamage, 25);
+    assert.equal(system.projectiles.length, 0);
+    system.dispose();
+});
+
+test('swap projectiles exchange player positions without drawing a connecting trail', () => {
+    const { owner, players, system } = createProjectileSystem({ type: 'SWAP' });
+    let gaps = 0;
+    owner.trail = { forceGap: () => { gaps += 1; } };
+    const target = {
+        index: 1,
+        alive: true,
+        position: new THREE.Vector3(3, 0, 0),
+        hitboxRadius: 1,
+        hasShield: false,
+        isSphereInOBB: () => true,
+        trail: { forceGap: () => { gaps += 1; } },
+    };
+    players.push(target);
+
+    system.shootItemProjectile(owner, 0);
+    system.update(1 / 60);
+    assert.deepEqual(owner.position.toArray(), [3, 0, 0]);
+    assert.deepEqual(target.position.toArray(), [0, 0, 0]);
+    assert.equal(gaps, 2);
     system.dispose();
 });

@@ -3,6 +3,7 @@ import { isHuntHealthActive } from '../../../hunt/HealthSystem.js';
 import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketPickupSystem.js';
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
+import { getPickupDefinition } from '../../PickupRegistry.js';
 
 export class ProjectileHitResolver {
     constructor(system) {
@@ -199,6 +200,19 @@ export class ProjectileHitResolver {
                 this._applyRocketExplosion(projectile, players, target);
             } else if (target.hasShield) {
                 target.hasShield = false;
+            } else if (projectile.type === 'SWAP' && projectile.owner?.position) {
+                this._tmpVec.copy(target.position);
+                target.position.copy(projectile.owner.position);
+                projectile.owner.position.copy(this._tmpVec);
+                target.trail?.forceGap?.(0.3);
+                projectile.owner.trail?.forceGap?.(0.3);
+                target.prepareObbCollisionQuery?.();
+                projectile.owner.prepareObbCollisionQuery?.();
+                this.system?.onProjectilePowerup?.(target, projectile);
+            } else if (projectile.type === 'MINE') {
+                const damage = Math.max(1, Number(getPickupDefinition('MINE')?.damage) || 25);
+                const damageResult = target.takeDamage(damage);
+                this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
             } else {
                 target.applyPowerup(projectile.type, {
                     sourcePlayerIndex: Number.isInteger(projectile.owner?.index)

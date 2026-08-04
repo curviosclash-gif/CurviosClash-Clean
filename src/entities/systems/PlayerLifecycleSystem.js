@@ -29,6 +29,7 @@ export class PlayerLifecycleSystem {
             player.prepareObbCollisionQuery();
         }
         if (player.alive && player.trail) {
+            if (player.trailGapActive) player.trail.forceGap(Math.max(0.1, dt * 2));
             player.trail.update(dt, player.position, player._tmpVec);
         }
 
@@ -46,4 +47,3 @@ export class PlayerLifecycleSystem {
         );
     }
 }
-

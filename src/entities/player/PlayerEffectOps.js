@@ -7,6 +7,14 @@ const SPEED_EFFECT_TYPES = Object.freeze(['SPEED_UP', 'SLOW_DOWN']);
 const TRAIL_EFFECT_TYPES = Object.freeze(['THICK', 'THIN']);
 const GLOBAL_TIME_EFFECT_TYPES = Object.freeze(['SLOW_TIME']);
 
+function removeEffectsByRole(player, role) {
+    for (let i = player.activeEffects.length - 1; i >= 0; i -= 1) {
+        if (getPickupDefinition(player.activeEffects[i]?.type)?.actionRole === role) {
+            removeEffectAtIndex(player, i);
+        }
+    }
+}
+
 function resolveModeType(player) {
     const config = resolveEntityRuntimeConfig(player);
     const enabled = config?.HUNT?.ENABLED !== false;
@@ -108,6 +116,13 @@ export function recomputePlayerEffectState(player) {
     // Boolean effects: any-active-wins, mode-filtered
     player.isGhost = hasAllowedEffect(player, 'GHOST', modeType);
     player.invertControls = hasAllowedEffect(player, 'INVERT', modeType);
+    player.trailGapActive = hasAllowedEffect(player, 'TRAIL_GAP', modeType);
+    player.decoyActive = hasAllowedEffect(player, 'DECOY', modeType);
+    player.itemActionsDisabled = hasAllowedEffect(player, 'EMP', modeType);
+    const magnetDefinition = getPickupDefinition('MAGNET');
+    player.pickupRadiusMultiplier = hasAllowedEffect(player, 'MAGNET', modeType)
+        ? Math.max(1, Number(magnetDefinition?.pickupRadiusMultiplier) || 1)
+        : 1;
 
     // Global time: latest-wins, timeScale from registry (applied globally by PlanarAimAssistSystem)
     const slowTimeEffect = findLatestAllowedEffect(player, GLOBAL_TIME_EFFECT_TYPES, modeType);
@@ -202,8 +217,31 @@ export function applyPlayerPowerup(player, type, options = {}) {
         return;
     }
 
+    if (type === 'PURGE') {
+        removeEffectsByRole(player, 'debuff');
+        recomputePlayerEffectState(player);
+        return;
+    }
+
+    if (type === 'MINE') {
+        player.entityManager?._projectileSystem?.deployMine?.(player);
+        return;
+    }
+
+    if (type === 'EMP') {
+        removeEffectsByRole(player, 'buff');
+        resetShieldState(player);
+        player._pickupShieldOwned = false;
+    }
+
+    const effectCategory = String(definition.effectCategory || '');
     for (let i = player.activeEffects.length - 1; i >= 0; i -= 1) {
-        if (player.activeEffects[i]?.type === type) {
+        const activeDefinition = getPickupDefinition(player.activeEffects[i]?.type);
+        const sameType = player.activeEffects[i]?.type === type;
+        const sameReplaceCategory = definition.stackPolicy === 'replace-category'
+            && effectCategory
+            && activeDefinition?.effectCategory === effectCategory;
+        if (sameType || sameReplaceCategory) {
             removeEffectAtIndex(player, i);
         }
     }

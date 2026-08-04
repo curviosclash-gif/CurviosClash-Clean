@@ -160,7 +160,7 @@ export const HUNT_CONFIG = Object.freeze({
     PICKUP_WEIGHTS: Object.freeze({
         SHIELD: 1.0,
         HEALTH: 1.0,
-        MG_TURRET: 4.0,
+        MG_TURRET: 7.5,
         SPEED_UP: 1.0,
         GHOST: 1.0,
         THICK: 1.0,

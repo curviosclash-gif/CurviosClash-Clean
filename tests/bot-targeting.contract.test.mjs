@@ -3,6 +3,7 @@ import { test } from 'node:test';
 import * as THREE from 'three';
 
 import { selectTarget } from '../src/entities/ai/BotTargetingOps.js';
+import { findPreferredPickupTarget } from '../src/entities/ai/BotPickupTargetingOps.js';
 
 function createPlayer({
     position = [0, 0, 0],
@@ -72,4 +73,18 @@ test('Bot targeting switches when the new candidate is clearly better', () => {
     selectTarget(bot, botPlayer, [botPlayer, previousTarget, closeTarget]);
 
     assert.equal(bot.state.targetPlayer, closeTarget);
+});
+
+test('Bot pickup targeting prefers urgent health over a closer offensive item', () => {
+    const player = createPlayer({ hp: 20, maxHp: 100 });
+    player.inventory = [];
+    player.hasShield = false;
+    player.activeEffects = [];
+    const health = { type: 'HEALTH', mesh: { position: new THREE.Vector3(20, 0, 0) }, telegraphRemaining: 0 };
+    const emp = { type: 'EMP', mesh: { position: new THREE.Vector3(5, 0, 0) }, telegraphRemaining: 0 };
+    const target = findPreferredPickupTarget(player, {
+        powerups: [emp, health],
+        players: [player, createPlayer({ position: [30, 0, 0] })],
+    }, { pressure: 0.85 });
+    assert.equal(target, health);
 });

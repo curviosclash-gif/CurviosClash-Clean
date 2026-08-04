@@ -315,36 +315,36 @@ export class Arena {
         return this.checkCollisionFast(position, radius);
     }
 
-    getRandomPosition(margin = 5) {
+    getRandomPosition(margin = 5, random = Math.random) {
         const b = this.bounds;
         for (let attempts = 0; attempts < 50; attempts++) {
-            const x = b.minX + margin + Math.random() * (b.maxX - b.minX - 2 * margin);
-            const y = 3 + Math.random() * (b.maxY - 6);
-            const z = b.minZ + margin + Math.random() * (b.maxZ - b.minZ - 2 * margin);
+            const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
+            const y = 3 + random() * (b.maxY - 6);
+            const z = b.minZ + margin + random() * (b.maxZ - b.minZ - 2 * margin);
             const pos = new THREE.Vector3(x, y, z);
             if (!this.checkCollision(pos, 3)) {
                 return pos;
             }
         }
-        const x = b.minX + margin + Math.random() * (b.maxX - b.minX - 2 * margin);
-        const y = 3 + Math.random() * (b.maxY - 6);
-        const z = b.minZ + margin + Math.random() * (b.maxZ - b.minZ - 2 * margin);
+        const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
+        const y = 3 + random() * (b.maxY - 6);
+        const z = b.minZ + margin + random() * (b.maxZ - b.minZ - 2 * margin);
         return new THREE.Vector3(x, y, z);
     }
 
-    getRandomPositionOnLevel(level, margin = 5) {
+    getRandomPositionOnLevel(level, margin = 5, random = Math.random) {
         const b = this.bounds;
         const y = Number.isFinite(level) ? level : (b.minY + b.maxY) * 0.5;
         for (let attempts = 0; attempts < 50; attempts++) {
-            const x = b.minX + margin + Math.random() * (b.maxX - b.minX - 2 * margin);
-            const z = b.minZ + margin + Math.random() * (b.maxZ - b.minZ - 2 * margin);
+            const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
+            const z = b.minZ + margin + random() * (b.maxZ - b.minZ - 2 * margin);
             const pos = new THREE.Vector3(x, y, z);
             if (!this.checkCollision(pos, 3)) {
                 return pos;
             }
         }
-        const x = b.minX + margin + Math.random() * (b.maxX - b.minX - 2 * margin);
-        const z = b.minZ + margin + Math.random() * (b.maxZ - b.minZ - 2 * margin);
+        const x = b.minX + margin + random() * (b.maxX - b.minX - 2 * margin);
+        const z = b.minZ + margin + random() * (b.maxZ - b.minZ - 2 * margin);
         return new THREE.Vector3(x, y, z);
     }
 

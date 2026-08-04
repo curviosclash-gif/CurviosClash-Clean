@@ -67,6 +67,13 @@ export class PowerupModelFactory {
             if (visualKind === 'slow-time') return this._createSlowTimeModel(color);
             if (visualKind === 'ghost') return this._createGhostModel(color);
             if (visualKind === 'invert') return this._createInvertModel(color);
+            if (visualKind === 'trail-gap') return this._createTrailGapModel(color);
+            if (visualKind === 'emp') return this._createEmpModel(color);
+            if (visualKind === 'magnet') return this._createMagnetModel(color);
+            if (visualKind === 'decoy') return this._createDecoyModel(color);
+            if (visualKind === 'purge') return this._createPurgeModel(color);
+            if (visualKind === 'swap') return this._createSwapModel(color);
+            if (visualKind === 'mine') return this._createMineModel(color);
             if (visualKind === 'rocket') {
                 return this._createRocketModel(
                     color,
@@ -289,6 +296,95 @@ export class PowerupModelFactory {
         ringB.rotation.y = Math.PI * 0.5;
         group.add(ringA);
         group.add(ringB);
+        return group;
+    }
+
+    _createTrailGapModel(color) {
+        const group = new THREE.Group();
+        const material = createStandardMaterial(color, { emissiveIntensity: 0.62 });
+        const left = new THREE.Mesh(this._geometries.rod, material);
+        const right = left.clone();
+        left.rotation.z = right.rotation.z = Math.PI * 0.5;
+        left.position.x = -this.size * 0.32;
+        right.position.x = this.size * 0.32;
+        left.scale.y = right.scale.y = 0.55;
+        group.add(left, right);
+        return group;
+    }
+
+    _createEmpModel(color) {
+        const group = new THREE.Group();
+        const core = new THREE.Mesh(this._geometries.coreSphere, createStandardMaterial(color, { emissiveIntensity: 0.8 }));
+        const ringA = new THREE.Mesh(this._geometries.halo, createBasicMaterial(color, { transparent: true, opacity: 0.65 }));
+        const ringB = ringA.clone();
+        ringA.rotation.x = Math.PI * 0.5;
+        ringB.rotation.y = Math.PI * 0.5;
+        group.add(core, ringA, ringB);
+        return group;
+    }
+
+    _createMagnetModel(color) {
+        const group = new THREE.Group();
+        const material = createStandardMaterial(color, { emissiveIntensity: 0.6 });
+        const left = new THREE.Mesh(this._geometries.thickRod, material);
+        const right = left.clone();
+        left.position.x = -this.size * 0.23;
+        right.position.x = this.size * 0.23;
+        const bridge = new THREE.Mesh(this._geometries.thickRod, material);
+        bridge.rotation.z = Math.PI * 0.5;
+        bridge.position.y = -this.size * 0.28;
+        bridge.scale.y = 0.7;
+        group.add(left, right, bridge);
+        return group;
+    }
+
+    _createDecoyModel(color) {
+        const group = new THREE.Group();
+        const first = new THREE.Mesh(this._geometries.octa, createStandardMaterial(color, { transparent: true, opacity: 0.72 }));
+        const second = first.clone();
+        first.position.x = -this.size * 0.2;
+        second.position.x = this.size * 0.2;
+        second.scale.setScalar(0.72);
+        group.add(first, second);
+        return group;
+    }
+
+    _createPurgeModel(color) {
+        const group = new THREE.Group();
+        for (let i = 0; i < 3; i += 1) {
+            const ring = new THREE.Mesh(this._geometries.ring, createStandardMaterial(color, { emissiveIntensity: 0.48 }));
+            ring.rotation.set(i === 0 ? Math.PI * 0.5 : 0, i === 1 ? Math.PI * 0.5 : 0, i === 2 ? Math.PI * 0.5 : 0);
+            group.add(ring);
+        }
+        return group;
+    }
+
+    _createSwapModel(color) {
+        const group = new THREE.Group();
+        const material = createStandardMaterial(color, { emissiveIntensity: 0.62 });
+        const forward = new THREE.Mesh(this._geometries.cone, material);
+        const backward = forward.clone();
+        forward.position.x = -this.size * 0.24;
+        backward.position.x = this.size * 0.24;
+        forward.rotation.z = -Math.PI * 0.5;
+        backward.rotation.z = Math.PI * 0.5;
+        group.add(forward, backward);
+        return group;
+    }
+
+    _createMineModel(color) {
+        const group = new THREE.Group();
+        const core = new THREE.Mesh(this._geometries.icosa, createStandardMaterial(color, { emissiveIntensity: 0.7, metalness: 0.85 }));
+        core.scale.setScalar(0.72);
+        group.add(core);
+        for (let i = 0; i < 4; i += 1) {
+            const spike = new THREE.Mesh(this._geometries.cone, createStandardMaterial(0xffffff, { emissiveIntensity: 0.25 }));
+            spike.rotation.z = Math.PI * 0.5;
+            spike.rotation.y = i * Math.PI * 0.5;
+            spike.position.set(Math.cos(i * Math.PI * 0.5) * this.size * 0.42, 0, Math.sin(i * Math.PI * 0.5) * this.size * 0.42);
+            spike.scale.setScalar(0.55);
+            group.add(spike);
+        }
         return group;
     }
 

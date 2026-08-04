@@ -9,6 +9,7 @@ import {
 
 import {
     getRocketPickupTypes,
+    getPickupTypes,
     getPickupSpawnWeight,
     isPickupTypeAllowedForMode,
     isPickupTypeSelfUsable,
@@ -22,6 +23,7 @@ import { PortalLayoutBuilder } from '../src/entities/arena/portal/PortalLayoutBu
 import { SpecialGateRuntime } from '../src/entities/arena/portal/SpecialGateRuntime.js';
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/PlayerInteractionPhase.js';
+import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
 import { HuntBridgePolicy } from '../src/entities/ai/HuntBridgePolicy.js';
 import {
     PRESSURE_LEVEL,
@@ -60,10 +62,16 @@ test('Pickup capability matrix keeps rocket and utility contracts mode-safe', ()
     assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'CLASSIC'), true);
     assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'HUNT'), false);
     assert.equal(isPickupTypeSelfUsable('SHIELD', 'HUNT'), true);
-    assert.equal(isPickupTypeShootable('SHIELD', 'HUNT'), true);
+    assert.equal(isPickupTypeShootable('SHIELD', 'HUNT'), false);
+    assert.equal(isPickupTypeSelfUsable('EMP', 'HUNT'), false);
+    assert.equal(isPickupTypeShootable('EMP', 'HUNT'), true);
+    assert.equal(isPickupTypeSelfUsable('MINE', 'CLASSIC'), true);
     assert.equal(isPickupTypeAllowedForMode('HEALTH', 'CLASSIC'), false);
     assert.equal(isPickupTypeAllowedForMode('HEALTH', 'ARCADE'), true);
     assert.equal(getPickupSpawnWeight('SLOW_TIME', 'CLASSIC') < getPickupSpawnWeight('SPEED_UP', 'CLASSIC'), true);
+    for (const type of getPickupTypes()) {
+        assert.notEqual(isPickupTypeSelfUsable(type), isPickupTypeShootable(type), `${type} has one primary action`);
+    }
 });
 
 test('full inventory rejects a pickup without removing it or emitting collect success', () => {
@@ -115,6 +123,31 @@ test('full inventory rejects a pickup without removing it or emitting collect su
     manager.dispose();
 });
 
+test('random pickups avoid unsafe player space and telegraph before collection', () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_BASE);
+    const positions = [new THREE.Vector3(0, 0, 0), new THREE.Vector3(24, 0, 0)];
+    let positionIndex = 0;
+    const manager = new PowerupManager({ addToScene() {}, removeFromScene() {} }, {
+        checkCollision: () => false,
+        getRandomPosition: () => positions[Math.min(positionIndex++, positions.length - 1)].clone(),
+        portals: [],
+        specialGates: [],
+    }, entityRuntimeConfig);
+    manager.getStrategy = () => new ClassicModeStrategy({ entityRuntimeConfig, random: () => 0.2 });
+    manager.getSafetyContext = () => ({
+        players: [{ alive: true, position: new THREE.Vector3(0, 0, 0) }],
+        trailSpatialIndex: { checkGlobalCollision: () => false },
+    });
+
+    manager._spawnRandom();
+    assert.equal(manager.items.length, 1);
+    assert.deepEqual(manager.items[0].mesh.position.toArray(), [24, 0, 0]);
+    assert.equal(manager.checkPickup(manager.items[0].mesh.position, 1, () => true), null);
+    manager.update(0.75);
+    assert.equal(manager.checkPickup(manager.items[0].mesh.position, 1, () => true)?.ok, true);
+    manager.dispose();
+});
+
 test('slow time counts active effect durations in real time', () => {
     const player = {
         entityRuntimeConfig: {
@@ -161,6 +194,58 @@ test('Medipack restores hunt health instead of granting a shield', () => {
     assert.equal(player.hp, 75);
     assert.equal(player.hasShield, false);
     assert.equal(player.activeEffects.length, 0);
+});
+
+test('expanded effects replace conflicting stacks and support EMP, purge and deployments', () => {
+    let mines = 0;
+    const player = {
+        entityRuntimeConfig: { ...CONFIG_BASE, HUNT: { ...CONFIG_BASE.HUNT, ACTIVE_MODE: 'CLASSIC' } },
+        entityManager: { _projectileSystem: { deployMine: () => { mines += 1; } } },
+        activeEffects: [],
+        baseSpeed: CONFIG_BASE.PLAYER.SPEED,
+        speed: CONFIG_BASE.PLAYER.SPEED,
+        trail: null,
+        hasShield: false,
+        shieldHP: 0,
+    };
+
+    applyPlayerPowerup(player, 'SPEED_UP');
+    applyPlayerPowerup(player, 'SLOW_DOWN');
+    assert.deepEqual(player.activeEffects.map((effect) => effect.type), ['SLOW_DOWN']);
+    applyPlayerPowerup(player, 'TRAIL_GAP');
+    applyPlayerPowerup(player, 'MAGNET');
+    applyPlayerPowerup(player, 'DECOY');
+    assert.equal(player.trailGapActive, true);
+    assert.equal(player.pickupRadiusMultiplier, 2.4);
+    assert.equal(player.decoyActive, true);
+
+    applyPlayerPowerup(player, 'EMP');
+    assert.deepEqual(player.activeEffects.map((effect) => effect.type), ['SLOW_DOWN', 'EMP']);
+    assert.equal(player.itemActionsDisabled, true);
+    applyPlayerPowerup(player, 'PURGE');
+    assert.equal(player.activeEffects.length, 0);
+    assert.equal(player.itemActionsDisabled, false);
+    applyPlayerPowerup(player, 'MINE');
+    assert.equal(mines, 1);
+});
+
+test('one simulation tick consumes at most one inventory item action', () => {
+    let uses = 0;
+    let shots = 0;
+    const phase = new PlayerActionPhase({
+        _useInventoryItem: () => { uses += 1; return { ok: true, type: 'SHIELD' }; },
+        _shootItemProjectile: () => { shots += 1; return { ok: true, type: 'EMP' }; },
+    });
+    phase.run({ isBot: true, cycleItem() {}, dropItem() {} }, {
+        nextItem: false,
+        dropItem: false,
+        useItem: 0,
+        shootItem: true,
+        shootItemIndex: 1,
+        shootMG: false,
+    }, { requiresShootItemIndex: () => true, hasMachineGun: () => false });
+    assert.equal(uses, 1);
+    assert.equal(shots, 0);
 });
 
 test('Map schema validation keeps portal and gate fallback behavior explicit', () => {
@@ -239,6 +324,11 @@ test('Round recorder diagnostics keep failed item actions analyzable by mode and
     metrics.registerEventType('ITEM_USE', 'mode=shoot type=ROCKET_WEAK code=item.shoot.success ok=1');
     metrics.registerEventType('ITEM_USE', 'mode=mg type=MG_BULLET code=mg.shoot.overheated ok=0');
     metrics.registerEventType('ITEM_USE', 'mode=other type=UNKNOWN code=unknown ok=0');
+    metrics.registerEventType('ITEM_SPAWN', 'mode=spawn type=EMP code=item.spawn.success ok=1');
+    metrics.registerEventType('ITEM_PICKUP', 'mode=pickup type=EMP code=item.pickup.success ok=1');
+    metrics.registerEventType('ITEM_PICKUP', 'mode=pickup type=MINE code=item.pickup.inventory-full ok=0');
+    metrics.registerEventType('ITEM_HIT', 'mode=hit type=EMP code=item.hit.success ok=1');
+    metrics.registerDamageEvent({ projectileType: 'MINE', damageResult: { applied: 25 } });
     metrics.finalizeRound(null, []);
 
     const lastRound = metrics.getLastRoundMetrics();
@@ -253,6 +343,11 @@ test('Round recorder diagnostics keep failed item actions analyzable by mode and
     assert.equal(lastRound.failedItemActionCodeCounts['item.use.forbidden'], 1);
     assert.equal(lastRound.failedItemActionCodeCounts['item.shoot.cooldown'], 1);
     assert.equal(lastRound.failedItemActionCodeCounts['mg.shoot.overheated'], 1);
+    assert.equal(lastRound.itemSpawnTypeCounts.EMP, 1);
+    assert.equal(lastRound.itemPickupTypeCounts.EMP, 1);
+    assert.equal(lastRound.itemPickupRejectedTypeCounts.MINE, 1);
+    assert.equal(lastRound.itemHitTypeCounts.EMP, 1);
+    assert.equal(lastRound.itemDamageByType.MINE, 25);
 
     const aggregate = metrics.getAggregateMetrics();
     assert.equal(aggregate.failedItemActionsPerRound, 3);
@@ -266,21 +361,21 @@ test('Round recorder diagnostics keep failed item actions analyzable by mode and
 });
 
 test('Shared UI action availability keeps cooldown and capability hints aligned', () => {
-    const dualAction = resolvePickupActionAvailability({
+    const useOnly = resolvePickupActionAvailability({
         type: 'shield',
         modeType: 'hunt',
         useCooldownRemaining: 0.35,
         shootCooldownRemaining: 0.2,
     });
-    assert.equal(dualAction.type, 'SHIELD');
-    assert.equal(dualAction.canUse, true);
-    assert.equal(dualAction.canShoot, true);
-    assert.equal(dualAction.canUseNow, false);
-    assert.equal(dualAction.canShootNow, false);
-    assert.equal(dualAction.useOnCooldown, true);
-    assert.equal(dualAction.shootOnCooldown, true);
-    assert.equal(dualAction.hasCooldown, true);
-    assert.equal(dualAction.actionHintLabel, 'DUAL');
+    assert.equal(useOnly.type, 'SHIELD');
+    assert.equal(useOnly.canUse, true);
+    assert.equal(useOnly.canShoot, false);
+    assert.equal(useOnly.canUseNow, false);
+    assert.equal(useOnly.canShootNow, false);
+    assert.equal(useOnly.useOnCooldown, true);
+    assert.equal(useOnly.shootOnCooldown, false);
+    assert.equal(useOnly.hasCooldown, true);
+    assert.equal(useOnly.actionHintLabel, 'USE');
 
     const projectedInventoryState = resolveInventoryActionAvailability({
         player: {

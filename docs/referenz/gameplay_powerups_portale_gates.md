@@ -1,6 +1,6 @@
 # Gameplay-Referenz: Powerups, Portale und Gates
 
-Stand: 2026-08-03
+Stand: 2026-08-04
 
 ## Zweck
 
@@ -13,7 +13,8 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - `toArenaMapDefinition()` liefert dafuer den maschinenlesbaren Spawn-Vertrag unter `map.itemSpawnAuthoring`.
 - Ein eingesammeltes Item landet im Inventar des Spielers.
 - `useItem` verbraucht nur self-usable Items als Selbst-Effekt; verbotene Nutzungen bleiben im Inventar und liefern stabile Result-Codes.
-- `shootItem` verschiesst das Item als Projektil.
+- `shootItem` verschiesst offensive Status-Items und Raketen als Projektil.
+- Jedes registrierte Item hat genau eine primaere Aktion: Buffs/Deployments werden genutzt, Debuffs/Raketen verschossen. Bei gleichzeitigem `useItem`/`shootItem` hat `useItem` Prioritaet; pro Simulationstick wird hoechstens ein Inventaritem verbraucht.
 - Projektil-Treffer uebertragen Status-Items weiterhin auf das Ziel.
 - In Hunt sind Raketen projektil-only Schadens-Projektile und koennen nicht mehr per `useItem` verbrannt werden.
 - HUD- und Touch-Oberflaechen lesen denselben Capability-Vertrag und markieren Slots bzw. Buttons als `USE`, `SHOT`, `DUAL` oder Cooldown.
@@ -23,16 +24,23 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 
 | Typ | Selbstnutzung | Projektil | Wirkung | Modus |
 | --- | --- | --- | --- | --- |
-| `SPEED_UP` | ja | ja | `baseSpeed * 1.6` fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
-| `SLOW_DOWN` | ja | ja | `baseSpeed * 0.5` fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
-| `THICK` | ja | ja | Trailbreite auf `1.8` fuer 5s | `CLASSIC`, `ARCADE`, `HUNT` |
-| `THIN` | ja | ja | Trailbreite auf `0.2` fuer 5s | `CLASSIC`, `ARCADE`, `HUNT` |
-| `SHIELD` | ja | ja | Shield aktiv; in Hunt persistent solange `shieldHP > 0`, sonst Schutz fuer den naechsten Treffer | `CLASSIC`, `ARCADE`, `HUNT` |
-| `HEALTH` | ja | ja | stellt 35 HP wieder her | `ARCADE`, `HUNT` |
+| `SPEED_UP` | ja | nein | `baseSpeed * 1.6` fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
+| `SLOW_DOWN` | nein | ja | `baseSpeed * 0.5` fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
+| `THICK` | ja | nein | Trailbreite auf `1.8` fuer 5s | `CLASSIC`, `ARCADE`, `HUNT` |
+| `THIN` | nein | ja | Trailbreite auf `0.2` fuer 5s | `CLASSIC`, `ARCADE`, `HUNT` |
+| `SHIELD` | ja | nein | Shield aktiv; in Hunt persistent solange `shieldHP > 0`, sonst Schutz fuer den naechsten Treffer | `CLASSIC`, `ARCADE`, `HUNT` |
+| `HEALTH` | ja | nein | stellt 35 HP wieder her | `ARCADE`, `HUNT` |
 | `MG_TURRET` | ja | nein | stellt ein zerstoerbares MG-Geschuetz auf | `HUNT` |
-| `SLOW_TIME` | ja | ja | setzt globale Spielzeit auf `0.4x`, solange aktiv; Hunt entfernt Legacy-Instanzen beim Effekt-Recompute | `CLASSIC`, `ARCADE` |
-| `GHOST` | ja | ja | ignoriert Wand- und Trail-Kollisionen waehrend der Laufzeit | `CLASSIC`, `ARCADE`, `HUNT` |
-| `INVERT` | ja | ja | invertiert die Steuerung fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
+| `SLOW_TIME` | ja | nein | setzt globale Spielzeit auf `0.4x`, solange aktiv; Hunt entfernt Legacy-Instanzen beim Effekt-Recompute | `CLASSIC`, `ARCADE` |
+| `GHOST` | ja | nein | ignoriert Wand- und Trail-Kollisionen waehrend der Laufzeit | `CLASSIC`, `ARCADE`, `HUNT` |
+| `INVERT` | nein | ja | invertiert die Steuerung fuer 4s | `CLASSIC`, `ARCADE`, `HUNT` |
+| `TRAIL_GAP` | ja | nein | unterbricht die eigene Spur fuer 3s | alle |
+| `EMP` | nein | ja | entfernt Buffs/Schild und blockiert Itemaktionen fuer 3s | alle |
+| `MAGNET` | ja | nein | vergroessert den gesamten Pickup-Radius fuer 6s auf `2.4x` | alle |
+| `DECOY` | ja | nein | stoert fuer 5s gegnerische Homing-Erfassung | alle |
+| `PURGE` | ja | nein | entfernt sofort alle aktiven Debuffs | alle |
+| `SWAP` | nein | ja | tauscht beim Treffer die Positionen von Schuetze und Ziel, inklusive Trail-Unterbrechung | alle |
+| `MINE` | ja | nein | legt hinter dem Spieler eine 10s aktive Mine mit 25 Schaden | alle |
 | `ROCKET_WEAK` | nein | ja | 10 Schaden | `HUNT` |
 | `ROCKET_MEDIUM` | nein | ja | 20 Schaden | `HUNT` |
 | `ROCKET_HEAVY` | nein | ja | 40 Schaden | `HUNT` |
@@ -45,7 +53,12 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - Spawnintervall: `3.0s`.
 - Pickup-Radius: `2.5`.
 - Ein volles Inventar lehnt die Aufnahme mit `item.pickup.inventory-full` ab; das Pickup bleibt auf dem Feld und zaehlt nicht als Collect-Erfolg.
-- Die Capability-Matrix ist zentral in `src/entities/PickupRegistry.js` gepflegt und steuert Typ-Normalisierung, Modusfreigabe, Visuals, Bot-Gewichte und Observation-Slots.
+- Die Capability-Matrix ist zentral in `src/shared/contracts/PickupRegistryContract.js` gepflegt und steuert Typ-Normalisierung, Modusfreigabe, Visuals, Bot-Gewichte und Observation-Slots.
+- Freie Spawns pruefen mit deterministischem Runtime-RNG bis zu zwoelf Kandidaten gegen Waende, Trails, Spieler, andere Pickups, Portale und Gates. Authored Anchors bleiben bewusste Map-Entscheidungen.
+- Neue Pickups werden `0.75s` sichtbar telegraphiert und sind in diesem Fenster noch nicht einsammelbar.
+- Status-Stacks sind explizit: gleiche Effekte refreshen; `SPEED_UP`/`SLOW_DOWN` sowie `THICK`/`THIN` ersetzen jeweils ihre Kategorie; Instant- und Deployment-Items erzeugen keinen Nullzeit-Stack.
+- Netzwerk-Clients blenden akzeptierte Pickups optimistisch aus. Bestaetigt der Host den Claim nicht innerhalb von `0.35s`, stellt der autoritative Snapshot das Pickup wieder her und die Inventar-Reconciliation rollt den lokalen Eintrag zurueck.
+- Heuristische Bots bewerten Feld-Pickups nach Distanz, Inventarplatz, HP/Schild, Debuffs und aktuellem Survival-Druck; defensive Ziele schlagen unter Gefahr naehere offensive Pickups.
 - Classic und Arcade lesen modusspezifische Spawn-Gewichte aus derselben Registry; der Runtime-RNG steuert Typ, Anker, Ebene und Animationsphase reproduzierbar und vermeidet direkte Typwiederholungen.
 - Laufende Status-Effekte verwenden reale Effektzeit. Globale Zeitlupe verlangsamt daher die Physik, verlaengert aber weder sich selbst noch andere `activeEffects`.
 - Das Desktop-HUD zeigt aktive Effekte samt Restzeit beziehungsweise Schild-HP und bei gegnerischen Treffern die Spielerquelle. Raketenstufen tragen zusaetzlich die sichtbaren Badges `S`, `M`, `L` und `XL`.
@@ -53,7 +66,8 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - Map-Autoren koennen per `pickupType` feste Item-Typen an Anchors erzwingen.
 - `GHOST` und Spawn-Schutz ueberspringen den normalen Wand-/Trail-Kollisionspfad komplett.
 - In Hunt haben Item-Selbstnutzungen einen Cooldown; fuer `SHIELD` gilt ein eigener Mindest-Cooldown.
-- Recorder und Diagnostik aggregieren stabile Action-Result-Codes wie `item.pickup.success`, `item.use.cooldown`, `item.shoot.success`, `portal.travel`, `portal.travel.cooldown`, `portal.exit.trigger`, `portal.exit.inactive`, `gate.trigger.boost` oder `gate.trigger.cooldown` in `actionResultCodeTotals`.
+- Recorder und Diagnostik aggregieren stabile Action-Result-Codes wie `item.spawn.success`, `item.pickup.success`, `item.hit.success`, `item.use.cooldown`, `item.shoot.success`, `portal.travel`, `portal.travel.cooldown`, `portal.exit.trigger`, `portal.exit.inactive`, `gate.trigger.boost` oder `gate.trigger.cooldown` in `actionResultCodeTotals`.
+- Balance-Telemetrie fuehrt pro Typ Spawn-, Collect-, Reject-, Use-/Shoot-, Treffer- und Schadenssummen; Rundendauer und Bot-Survival bleiben als Outcome-Metriken erhalten.
 - Fehlgeschlagene Item-Aktionen sind im Recorder jetzt explizit auswertbar: `failedItemActions`, `failedItemActionModeCounts` (`use|shoot|mg|other`) und `failedItemActionCodeCounts` liefern pro Runde und aggregiert denselben Code-Vertrag wie die Runtime (`item.use.*`, `item.shoot.*`, `mg.shoot.*`).
 
 ## Normale Portale

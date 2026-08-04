@@ -23,6 +23,7 @@ import { clamp } from '../../utils/MathOps.js';
 import { BOT_ITEM_RULES } from './BotTuningConfig.js';
 import { hasYaw, readObservationValue, resolveSelectedItemIndex } from './HeuristicBotPolicyOps.js';
 import { resolveBoostPressureCeiling } from './HeuristicBotSafetyOps.js';
+import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
 
 export function applyHeuristicClassicItemUse(policy, input, player, observation) {
     const targetDistanceRatio = clamp(readObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);
@@ -138,9 +139,17 @@ export function applyHeuristicClassicBehavior(policy, input, dt, player, runtime
     }
 
     const selectedItemReason = applyHeuristicClassicItemUse(policy, input, player, observation);
+    const pickupTarget = !unsafe && (!selectedItemReason || selectedItemReason === 'held')
+        ? findPreferredPickupTarget(player, runtimeContext, { pressure: pressureLevel })
+        : null;
+    if (pickupTarget?.mesh?.position) {
+        clearSteeringInput(input);
+        applySteeringTowardPosition(policy, input, player, pickupTarget.mesh.position);
+        input.boost = wallFront > 0.55 && pressureLevel < 0.45;
+    }
     input.shootMG = false;
     return {
-        intent: selectedItemReason && selectedItemReason !== 'held' ? 'classic-item' : state.intent,
+        intent: pickupTarget ? 'pickup-seek' : (selectedItemReason && selectedItemReason !== 'held' ? 'classic-item' : state.intent),
         retreatReason: unsafe ? 'space-pressure' : '',
         selectedItemReason,
         targetDistanceRatio: Number.isFinite(targetDistance) ? clamp(targetDistance / 120, 0, 1) : 1,

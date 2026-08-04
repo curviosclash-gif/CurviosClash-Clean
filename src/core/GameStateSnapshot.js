@@ -50,6 +50,8 @@ export function createGameStateSnapshot(entityManager, roundState) {
                 toFiniteNumber(pu.position?.z ?? pu.mesh?.position?.z, 0),
             ],
             type: pu.type || '',
+            visible: pu.mesh?.visible !== false,
+            telegraphRemaining: toFiniteNumber(pu.telegraphRemaining, 0),
         });
     }
     const turrets = entityManager?._staticTurretSystem?.createNetworkSnapshot?.() || [];

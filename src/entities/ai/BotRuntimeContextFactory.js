@@ -150,6 +150,7 @@ function createCachedRuntimeContext() {
         arena: null,
         players: [],
         projectiles: [],
+        powerups: [],
         trailSpatialIndex: null,
         mode: GAME_MODE_TYPES.CLASSIC,
         rules: {
@@ -260,6 +261,9 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.arena = entityManager?.arena || null;
     runtimeContext.players = players;
     runtimeContext.projectiles = projectiles;
+    runtimeContext.powerups = Array.isArray(entityManager?.powerupManager?.items)
+        ? entityManager.powerupManager.items
+        : [];
     runtimeContext.trailSpatialIndex = entityManager?.getTrailSpatialIndex?.() || entityManager?._trailSpatialIndex || null;
     runtimeContext.mode = mode;
 

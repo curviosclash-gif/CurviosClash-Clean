@@ -148,6 +148,8 @@ test('network snapshot serializes and applies authoritative projectiles and powe
         id: 'powerup:4',
         pos: [8, 7, 10],
         type: 'SHIELD',
+        visible: true,
+        telegraphRemaining: 0,
     });
     assert.equal(snapshot.turrets[0].id, 'turret:1');
     assert.equal(snapshot.turrets[0].hp, 45);
@@ -194,6 +196,14 @@ test('network replica managers spawn, update and remove authoritative entities',
     assert.deepEqual(powerupManager.items[0].mesh.position.toArray(), [3, 4, 5]);
     assert.equal(powerupManager.checkPickup(new THREE.Vector3(3, 4, 5), 1), null);
     assert.equal(powerupManager.items.length, 1);
+    const predicted = powerupManager.checkPickup(new THREE.Vector3(3, 4, 5), 1, () => true);
+    assert.equal(predicted.meta.predicted, true);
+    assert.equal(powerupManager.items[0].mesh.visible, false);
+    powerupManager.update(0.4);
+    powerupManager.applyNetworkSnapshot([{
+        id: 'powerup:1', pos: [3, 4, 5], type: 'SHIELD',
+    }]);
+    assert.equal(powerupManager.items[0].mesh.visible, true);
     powerupManager.applyNetworkSnapshot([]);
     assert.equal(powerupManager.items.length, 0);
     assert.equal(added.length, 2);

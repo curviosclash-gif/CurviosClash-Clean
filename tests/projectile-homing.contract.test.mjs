@@ -137,6 +137,15 @@ test('hunt homing locks a player inside the primary cone', () => {
     assert.equal(target.playerIndex, 1);
 });
 
+test('active decoys suppress homing acquisition', () => {
+    const ops = createOps();
+    const owner = createPlayer({ index: 0, position: [0, 0, 0] });
+    const decoyUser = createPlayer({ index: 1, position: [20, 0, 0] });
+    decoyUser.decoyActive = true;
+    const projectile = createProjectile({ owner, position: [0, 0, 0], velocity: [60, 0, 0] });
+    assert.equal(ops.acquireHomingTarget(projectile, [owner, decoyUser], null), null);
+});
+
 function createTrailIndexAt(distanceX) {
     const entry = {
         playerIndex: 1,

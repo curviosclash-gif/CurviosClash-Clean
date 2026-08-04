@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { configureProjectileRange, ProjectileStatePool } from './projectile/ProjectileStatePool.js';
 import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js';
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
+import { deployMine } from './projectile/MineDeploymentOps.js';
 import { RocketTrailSystem } from './projectile/RocketTrailSystem.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { isPickupTypeShootable } from '../PickupRegistry.js';
@@ -25,9 +26,7 @@ function getNowMilliseconds() {
 export class ProjectileSystem {
     constructor(options = {}) {
         this.renderer = options.renderer || null;
-        this.getArena = typeof options.getArena === 'function'
-            ? options.getArena
-            : (() => options.arena || null);
+        this.getArena = typeof options.getArena === 'function' ? options.getArena : (() => options.arena || null);
         this.getPlayers = typeof options.getPlayers === 'function'
             ? options.getPlayers
             : (() => options.players || []); this.getTurrets = typeof options.getTurrets === 'function' ? options.getTurrets : (() => options.turrets || []);
@@ -45,9 +44,7 @@ export class ProjectileSystem {
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
                 message: 'Kein Item verfuegbar',
             }));
-        this.resolveLockOn = typeof options.resolveLockOn === 'function'
-            ? options.resolveLockOn
-            : (() => null);
+        this.resolveLockOn = typeof options.resolveLockOn === 'function' ? options.resolveLockOn : (() => null);
         this.getTrailSpatialIndex = typeof options.getTrailSpatialIndex === 'function'
             ? options.getTrailSpatialIndex
             : (() => options.trailSpatialIndex || null);
@@ -69,13 +66,13 @@ export class ProjectileSystem {
         this._projectileStatePool = this._statePool.pool;
         this._nextTraversalId = 1;
         this.networkReplica = false;
+        this._tmpVec = new THREE.Vector3();
+        this._tmpVec2 = new THREE.Vector3();
+        this._tmpDir = new THREE.Vector3();
         this._simulationOps = new ProjectileSimulationOps(this);
         this._hitResolver = new ProjectileHitResolver(this);
         this._rocketTrailSystem = RocketTrailSystem.forProjectileSystem(this);
 
-        this._tmpVec = new THREE.Vector3();
-        this._tmpVec2 = new THREE.Vector3();
-        this._tmpDir = new THREE.Vector3();
     }
 
     shootItemProjectile(player, preferredIndex = -1) {
@@ -207,6 +204,8 @@ export class ProjectileSystem {
             type,
         });
     }
+
+    deployMine(player) { return deployMine(this, player); }
 
     spawnExternalProjectile(options = {}) {
         const owner = options.owner || null;
@@ -434,6 +433,7 @@ export class ProjectileSystem {
                 projectile.poolKey = type;
                 projectile.type = type;
                 projectile.huntRocket = isRocketTierType(type);
+                projectile.isMine = type === 'MINE';
                 projectile.networkId = id;
                 projectile.traversalId = id;
                 this.projectiles.push(projectile);

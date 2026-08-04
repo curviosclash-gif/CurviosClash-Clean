@@ -1,4 +1,8 @@
-import { encodeGameplayActionResultForLog } from '../../../shared/contracts/GameplayActionResultContract.js';
+import {
+    GAMEPLAY_ACTION_RESULT_CODES,
+    buildGameplayActionResult,
+    encodeGameplayActionResultForLog,
+} from '../../../shared/contracts/GameplayActionResultContract.js';
 
 export class PlayerActionPhase {
     constructor(entityManager) {
@@ -11,8 +15,20 @@ export class PlayerActionPhase {
         if (input.nextItem) player.cycleItem();
         if (input.dropItem) player.dropItem();
 
-        if (Number.isInteger(input.useItem) && input.useItem >= 0) {
-            const result = entityManager._useInventoryItem(player, input.useItem);
+        const wantsUseItem = Number.isInteger(input.useItem) && input.useItem >= 0;
+        const wantsShootItem = input.shootItem === true;
+        let itemActionHandled = false;
+
+        if (wantsUseItem) {
+            const result = player.itemActionsDisabled
+                ? buildGameplayActionResult({
+                    ok: false,
+                    code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_DISABLED,
+                    message: 'Items durch EMP blockiert',
+                    mode: 'use',
+                })
+                : entityManager._useInventoryItem(player, input.useItem);
+            itemActionHandled = true;
             if (entityManager.recorder && result) {
                 entityManager.recorder.logEvent('ITEM_USE', player.index, encodeGameplayActionResultForLog(result, {
                     mode: 'use',
@@ -24,9 +40,16 @@ export class PlayerActionPhase {
             }
         }
 
-        if (input.shootItem) {
+        if (wantsShootItem && !itemActionHandled) {
             let result = null;
-            if (strategy?.requiresShootItemIndex() && Number.isInteger(input.shootItemIndex) && input.shootItemIndex >= 0) {
+            if (player.itemActionsDisabled) {
+                result = buildGameplayActionResult({
+                    ok: false,
+                    code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_DISABLED,
+                    message: 'Items durch EMP blockiert',
+                    mode: 'shoot',
+                });
+            } else if (strategy?.requiresShootItemIndex() && Number.isInteger(input.shootItemIndex) && input.shootItemIndex >= 0) {
                 result = entityManager._shootItemProjectile(player, input.shootItemIndex);
             } else if (!strategy?.requiresShootItemIndex()) {
                 result = entityManager._shootItemProjectile(player, input.shootItemIndex);

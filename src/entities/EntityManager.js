@@ -143,6 +143,11 @@ export class EntityManager {
         });
         if (this.powerupManager) {
             this.powerupManager.getStrategy = () => this.gameModeStrategy;
+            this.powerupManager.getSafetyContext = () => ({
+                players: this.players,
+                trailSpatialIndex: this._trailSpatialIndex,
+                recorder: this.recorder,
+            });
         }
         this.runtimeConfig = null;
     }

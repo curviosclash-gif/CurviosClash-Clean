@@ -33,6 +33,7 @@ export class ProjectileStatePool {
             detonated: false,
             huntRocket: false,
             homingEnabled: false,
+            isMine: false,
             visualScale: 1,
             homingTurnRate: 0,
             homingLockOnAngle: 0,
@@ -67,6 +68,7 @@ export class ProjectileStatePool {
         projectile.detonated = false;
         projectile.huntRocket = false;
         projectile.homingEnabled = false;
+        projectile.isMine = false;
         projectile.visualScale = 1;
         projectile.homingTurnRate = 0;
         projectile.homingLockOnAngle = 0;

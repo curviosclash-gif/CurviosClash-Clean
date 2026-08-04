@@ -301,6 +301,13 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_rocket_medium', pickupType: 'ROCKET_MEDIUM', x: 16, y: 12, z: 18 },
             { id: 'item_showcase_rocket_heavy', pickupType: 'ROCKET_HEAVY', x: 32, y: 12, z: 18 },
             { id: 'item_showcase_rocket_mega', pickupType: 'ROCKET_MEGA', x: 48, y: 12, z: 18 },
+            { id: 'item_showcase_trail_gap', pickupType: 'TRAIL_GAP', x: -48, y: 12, z: 0 },
+            { id: 'item_showcase_emp', pickupType: 'EMP', x: -32, y: 12, z: 0 },
+            { id: 'item_showcase_magnet', pickupType: 'MAGNET', x: -16, y: 12, z: 0 },
+            { id: 'item_showcase_decoy', pickupType: 'DECOY', x: 0, y: 12, z: 0 },
+            { id: 'item_showcase_purge', pickupType: 'PURGE', x: 16, y: 12, z: 0 },
+            { id: 'item_showcase_swap', pickupType: 'SWAP', x: 32, y: 12, z: 0 },
+            { id: 'item_showcase_mine', pickupType: 'MINE', x: 48, y: 12, z: 0 },
         ],
     },
     showcase_nexus: {

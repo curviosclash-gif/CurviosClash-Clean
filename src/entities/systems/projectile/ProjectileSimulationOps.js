@@ -153,6 +153,9 @@ export class ProjectileSimulationOps {
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
             });
+            if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive) {
+                lineTarget = null;
+            }
         }
 
         let bestConeTarget = null;
@@ -160,7 +163,7 @@ export class ProjectileSimulationOps {
         let bestFallbackTarget = null;
         let bestFallbackDistSq = Infinity;
         for (const target of players) {
-            if (!target || !target.alive || target === owner) continue;
+            if (!target || !target.alive || target === owner || target.decoyActive) continue;
 
             this._tmpVec.subVectors(target.position, projectile.position);
             const distSq = this._tmpVec.lengthSq();
@@ -297,13 +300,17 @@ export class ProjectileSimulationOps {
 
         if (homingEnabled) {
             projectile.homingReacquireTimer = Math.max(0, (projectile.homingReacquireTimer || 0) - dt);
-            const currentTarget = resolveHuntTargetPosition(
+            let currentTarget = resolveHuntTargetPosition(
                 projectile.target,
                 players,
                 trailSpatialIndex,
                 this._tmpTargetPosition,
                 { scratch: this._targetingScratch }
             );
+            if (resolveHuntTargetOwnerPlayer(projectile.target, players)?.decoyActive) {
+                projectile.target = null;
+                currentTarget = null;
+            }
             if (!currentTarget || projectile.homingReacquireTimer <= 0) {
                 projectile.target = this.acquireHomingTarget(projectile, players, trailSpatialIndex);
                 projectile.homingReacquireTimer = Math.max(

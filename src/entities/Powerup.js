@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
+import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
 import {
     isPickupTypeAllowedForMode,
     normalizePickupType,
@@ -13,7 +14,11 @@ import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeCon
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
+    encodeGameplayActionResultForLog,
 } from '../shared/contracts/GameplayActionResultContract.js';
+
+const SPAWN_TELEGRAPH_SECONDS = 0.75;
+const PICKUP_PREDICTION_GRACE_SECONDS = 0.35;
 
 function isTypeAllowedForMode(type, modeType, entityRuntimeConfig) {
     const normalizedType = normalizePickupType(type);
@@ -99,6 +104,7 @@ export class PowerupManager {
         this.entityRuntimeConfig = config;
         this.runtimeConfig = config?.runtimeConfig || null;
         this.getStrategy = null;
+        this.getSafetyContext = null;
         this.items = []; // { mesh, type, box }
         this.spawnTimer = 0;
         this.typeKeys = Object.keys(config.POWERUP.TYPES);
@@ -149,14 +155,32 @@ export class PowerupManager {
         const pickupSize = config.POWERUP.PICKUP_RADIUS * 2;
         this._pickupBoxSize.set(pickupSize, pickupSize, pickupSize);
         for (const item of this.items) {
-            item.mesh.rotation.y += config.POWERUP.ROTATION_SPEED * dt;
+            item.telegraphRemaining = Math.max(0, (Number(item.telegraphRemaining) || 0) - dt);
+            if (item.predictedCollected) {
+                item.predictionAge = (Number(item.predictionAge) || 0) + dt;
+            }
+            const rotationDirection = item.animationKind === 'counter-spin' ? -1 : 1;
+            const rotationScale = item.animationKind === 'surge' ? 1.8 : 1;
+            const baseScaleX = Number.isFinite(Number(item.baseScaleX)) ? Number(item.baseScaleX) : 1;
+            const baseScaleY = Number.isFinite(Number(item.baseScaleY)) ? Number(item.baseScaleY) : 1;
+            const baseScaleZ = Number.isFinite(Number(item.baseScaleZ)) ? Number(item.baseScaleZ) : 1;
+            item.mesh.rotation.y += config.POWERUP.ROTATION_SPEED * rotationDirection * rotationScale * dt;
             item.mesh.position.y = item.baseY + Math.sin(time * config.POWERUP.BOUNCE_SPEED + item.phase) * config.POWERUP.BOUNCE_HEIGHT;
+            if (item.telegraphRemaining > 0) {
+                const progress = 1 - item.telegraphRemaining / SPAWN_TELEGRAPH_SECONDS;
+                const pulse = 0.5 + progress * 0.5 + Math.sin(time * 18 + item.phase) * 0.08;
+                const telegraphScale = Math.max(0.35, pulse);
+                item.mesh.scale.set(baseScaleX * telegraphScale, baseScaleY * telegraphScale, baseScaleZ * telegraphScale);
+            } else if (item.animationKind === 'pulse' || item.animationKind === 'phase') {
+                const pulseScale = 1 + Math.sin(time * 5 + item.phase) * 0.08;
+                item.mesh.scale.set(baseScaleX * pulseScale, baseScaleY * pulseScale, baseScaleZ * pulseScale);
+            } else {
+                item.mesh.scale.set(baseScaleX, baseScaleY, baseScaleZ);
+            }
 
             // Bounding Box aktualisieren
-            item.box.setFromCenterAndSize(
-                item.mesh.position,
-                this._pickupBoxSize
-            );
+            if (item.telegraphRemaining > 0 || item.predictedCollected) item.box.makeEmpty();
+            else item.box.setFromCenterAndSize(item.mesh.position, this._pickupBoxSize);
         }
     }
 
@@ -217,12 +241,13 @@ export class PowerupManager {
             const levels = this.arena.getPortalLevels();
             if (levels.length > 0) {
                 const level = levels[Math.floor(random() * levels.length)];
-                pos = this.arena.getRandomPositionOnLevel(level, 8);
+                pos = findSafePowerupPosition(this, random, level);
             }
         }
         if (!pos) {
-            pos = this.arena.getRandomPosition(8);
+            pos = findSafePowerupPosition(this, random);
         }
+        if (!pos) return;
 
         const mesh = this._createPowerupMesh(type, powerupConfig);
         mesh.position.copy(pos);
@@ -246,12 +271,28 @@ export class PowerupManager {
             baseY: pos.y,
             phase: random() * Math.PI * 2,
             anchorKey: authoredAnchor?.key || null,
+            telegraphRemaining: SPAWN_TELEGRAPH_SECONDS,
+            animationKind: String(powerupConfig?.animationKind || 'float'),
+            predictedCollected: false,
+            predictionAge: 0,
+            baseScaleX: mesh.scale.x,
+            baseScaleY: mesh.scale.y,
+            baseScaleZ: mesh.scale.z,
         };
         this.items.push(spawnedItem);
         this._applyAuthoredItemModel(spawnedItem, authoredAnchor?.anchor, powerupConfig);
         if (authoredAnchor?.key) {
             this._occupiedAnchorKeys.add(authoredAnchor.key);
         }
+        const recorder = typeof this.getSafetyContext === 'function'
+            ? this.getSafetyContext()?.recorder
+            : null;
+        recorder?.logEvent?.('ITEM_SPAWN', -1, encodeGameplayActionResultForLog(buildGameplayActionResult({
+            ok: true,
+            code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SPAWN_SUCCESS,
+            mode: 'spawn',
+            type,
+        })));
     }
 
     _createPowerupMesh(type, config) {
@@ -282,14 +323,16 @@ export class PowerupManager {
         return mesh;
     }
 
+
     /** Prueft ob ein Spieler ein Item einsammelt */
     checkPickup(playerPosition, radius, acceptPickup = null) {
-        if (this.networkReplica) return null;
+        if (this.networkReplica && typeof acceptPickup !== 'function') return null;
         this._pickupSphere.center.copy(playerPosition);
         this._pickupSphere.radius = radius + this.entityRuntimeConfig.POWERUP.PICKUP_RADIUS;
 
         for (let i = this.items.length - 1; i >= 0; i--) {
-            if (this.items[i].box.intersectsSphere(this._pickupSphere)) {
+            if (!this.items[i].predictedCollected && (Number(this.items[i].telegraphRemaining) || 0) <= 0
+                && this.items[i].box.intersectsSphere(this._pickupSphere)) {
                 const item = this.items[i];
                 if (typeof acceptPickup === 'function' && acceptPickup(item.type) !== true) {
                     return buildGameplayActionResult({
@@ -300,13 +343,21 @@ export class PowerupManager {
                         type: item.type,
                     });
                 }
-                this.items.splice(i, 1);
-                this._disposeSpawnedItem(item);
+                if (this.networkReplica) {
+                    item.predictedCollected = true;
+                    item.predictionAge = 0;
+                    item.mesh.visible = false;
+                    item.box.makeEmpty();
+                } else {
+                    this.items.splice(i, 1);
+                    this._disposeSpawnedItem(item);
+                }
                 return buildGameplayActionResult({
                     ok: true,
                     code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_PICKUP_SUCCESS,
                     mode: 'pickup',
                     type: item.type,
+                    meta: this.networkReplica ? { predicted: true } : null,
                 });
             }
         }
@@ -432,15 +483,28 @@ export class PowerupManager {
                     baseY: 0,
                     phase: 0,
                     anchorKey: null,
+                    telegraphRemaining: 0,
+                    animationKind: String(powerupConfig?.animationKind || 'float'),
+                    predictedCollected: false,
+                    predictionAge: 0,
+                    baseScaleX: mesh.scale.x,
+                    baseScaleY: mesh.scale.y,
+                    baseScaleZ: mesh.scale.z,
                 };
                 this.items.push(item);
             }
             const pos = Array.isArray(entry.pos) ? entry.pos : [];
             item.mesh.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
             item.mesh.rotation.y = Number(entry.rotationY) || 0;
-            item.mesh.visible = entry.visible !== false;
+            item.telegraphRemaining = Math.max(0, Number(entry.telegraphRemaining) || 0);
+            if (item.predictedCollected && item.predictionAge >= PICKUP_PREDICTION_GRACE_SECONDS) {
+                item.predictedCollected = false;
+                item.predictionAge = 0;
+            }
+            item.mesh.visible = entry.visible !== false && !item.predictedCollected;
             item.baseY = item.mesh.position.y;
-            item.box.setFromCenterAndSize(item.mesh.position, this._pickupBoxSize);
+            if (item.telegraphRemaining > 0 || item.predictedCollected) item.box.makeEmpty();
+            else item.box.setFromCenterAndSize(item.mesh.position, this._pickupBoxSize);
         }
     }
 
@@ -464,6 +528,9 @@ export class PowerupManager {
             this.renderer.removeFromScene(previousMesh);
             disposeMeshMaterials(previousMesh);
             item.mesh = authoredMesh;
+            item.baseScaleX = authoredMesh.scale.x;
+            item.baseScaleY = authoredMesh.scale.y;
+            item.baseScaleZ = authoredMesh.scale.z;
             this.renderer.addToScene(authoredMesh);
         });
     }

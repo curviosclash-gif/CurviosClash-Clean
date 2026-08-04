@@ -51,6 +51,7 @@ test('item showcase keeps every Hunt item spawned and immediately replaces picku
     }
 
     const turret = manager.items.find((item) => item.type === 'MG_TURRET');
+    manager.update(0.75);
     assert.equal(manager.checkPickup(turret.mesh.position, 0)?.type, 'MG_TURRET');
     assert.equal(manager.items.length, map.items.length - 1);
 

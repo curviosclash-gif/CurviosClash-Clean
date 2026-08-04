@@ -1,3 +1,6 @@
+import { PICKUP_EXPANSION_DEFINITIONS } from './PickupExpansionDefinitionsContract.js';
+import { ROCKET_PICKUP_DEFINITIONS } from './RocketPickupDefinitionsContract.js';
+
 const ALL_GAME_MODES = Object.freeze(['CLASSIC', 'ARCADE', 'HUNT']);
 const DEFAULT_BOT_RULE = Object.freeze({
     self: 0,
@@ -23,6 +26,10 @@ function createPickupDefinition(definition) {
             ...(definition.botRule || {}),
         }),
         visualScale: Number.isFinite(Number(definition.visualScale)) ? Number(definition.visualScale) : 1,
+        actionRole: String(definition.actionRole || (definition.offensive ? 'debuff' : 'buff')),
+        stackPolicy: String(definition.stackPolicy || 'refresh'),
+        effectCategory: String(definition.effectCategory || definition.visualKind || ''),
+        animationKind: String(definition.animationKind || 'float'),
     });
 }
 
@@ -37,15 +44,24 @@ export const PICKUP_REGISTRY = Object.freeze({
         duration: 4,
         multiplier: 1.6,
         selfUsable: true,
-        shootable: true,
+        shootable: false,
         offensive: false,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 0,
         visualKind: 'speed',
+        effectCategory: 'speed',
+        stackPolicy: 'replace-category',
+        animationKind: 'surge',
         aliases: ['ITEM_BATTERY'],
         spawnWeights: { CLASSIC: 1.15, ARCADE: 1.1 },
-        botRule: { self: 0.8, offense: 0.2, defensiveScale: 0.5, emergencyScale: 0.1, combatSelf: 0.2 },
+        botRule: {
+            self: 0.8,
+            offense: 0.2,
+            defensiveScale: 0.5,
+            emergencyScale: 0.1,
+            combatSelf: 0.2,
+        },
     }),
     SLOW_DOWN: createPickupDefinition({
         name: 'Langsamer',
@@ -53,15 +69,24 @@ export const PICKUP_REGISTRY = Object.freeze({
         icon: '🐢',
         duration: 4,
         multiplier: 0.5,
-        selfUsable: true,
+        selfUsable: false,
         shootable: true,
         offensive: true,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 1,
         visualKind: 'slow',
+        effectCategory: 'speed',
+        stackPolicy: 'replace-category',
+        animationKind: 'wobble',
         spawnWeights: { CLASSIC: 0.9, ARCADE: 0.85 },
-        botRule: { self: -0.8, offense: 0.9, defensiveScale: 0.1, emergencyScale: 0.0, combatSelf: -0.3 },
+        botRule: {
+            self: -0.8,
+            offense: 0.9,
+            defensiveScale: 0.1,
+            emergencyScale: 0.0,
+            combatSelf: -0.3,
+        },
     }),
     THICK: createPickupDefinition({
         name: 'Dick',
@@ -70,14 +95,22 @@ export const PICKUP_REGISTRY = Object.freeze({
         duration: 5,
         trailWidth: 1.8,
         selfUsable: true,
-        shootable: true,
+        shootable: false,
         offensive: false,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 2,
         visualKind: 'thick',
+        effectCategory: 'trail-width',
+        stackPolicy: 'replace-category',
         spawnWeights: { CLASSIC: 1.0, ARCADE: 0.95 },
-        botRule: { self: 0.9, offense: 0.1, defensiveScale: 0.8, emergencyScale: 0.2, combatSelf: 0.4 },
+        botRule: {
+            self: 0.9,
+            offense: 0.1,
+            defensiveScale: 0.8,
+            emergencyScale: 0.2,
+            combatSelf: 0.4,
+        },
     }),
     THIN: createPickupDefinition({
         name: 'Dünn',
@@ -85,15 +118,23 @@ export const PICKUP_REGISTRY = Object.freeze({
         icon: '✂',
         duration: 5,
         trailWidth: 0.2,
-        selfUsable: true,
+        selfUsable: false,
         shootable: true,
         offensive: true,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 3,
         visualKind: 'thin',
+        effectCategory: 'trail-width',
+        stackPolicy: 'replace-category',
         spawnWeights: { CLASSIC: 0.9, ARCADE: 0.85 },
-        botRule: { self: -0.6, offense: 0.7, defensiveScale: 0.2, emergencyScale: 0.0, combatSelf: -0.2 },
+        botRule: {
+            self: -0.6,
+            offense: 0.7,
+            defensiveScale: 0.2,
+            emergencyScale: 0.0,
+            combatSelf: -0.2,
+        },
     }),
     SHIELD: createPickupDefinition({
         name: 'Schild',
@@ -101,15 +142,23 @@ export const PICKUP_REGISTRY = Object.freeze({
         icon: '🛡',
         duration: 3,
         selfUsable: true,
-        shootable: true,
+        shootable: false,
         offensive: false,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 4,
         visualKind: 'shield',
+        effectCategory: 'shield',
+        animationKind: 'pulse',
         aliases: ['ITEM_SHIELD'],
         spawnWeights: { CLASSIC: 0.7, ARCADE: 0.8 },
-        botRule: { self: 0.5, offense: 0.0, defensiveScale: 1.2, emergencyScale: 2.5, combatSelf: 0.8 },
+        botRule: {
+            self: 0.5,
+            offense: 0.0,
+            defensiveScale: 1.2,
+            emergencyScale: 2.5,
+            combatSelf: 0.8,
+        },
     }),
     HEALTH: createPickupDefinition({
         name: 'Medipack',
@@ -118,15 +167,23 @@ export const PICKUP_REGISTRY = Object.freeze({
         duration: 0,
         healing: 35,
         selfUsable: true,
-        shootable: true,
+        shootable: false,
         offensive: false,
         projectileOnly: false,
         allowedModes: ['ARCADE', 'HUNT'],
         observationSlot: 12,
         visualKind: 'health',
+        actionRole: 'instant',
+        stackPolicy: 'instant',
         aliases: ['ITEM_HEALTH'],
         spawnWeights: { CLASSIC: 0, ARCADE: 1.2, HUNT: 1.0 },
-        botRule: { self: 0.8, offense: -0.2, defensiveScale: 1.1, emergencyScale: 2.2, combatSelf: 0.6 },
+        botRule: {
+            self: 0.8,
+            offense: -0.2,
+            defensiveScale: 1.1,
+            emergencyScale: 2.2,
+            combatSelf: 0.6,
+        },
     }),
     MG_TURRET: createPickupDefinition({
         name: 'MG-Geschuetz',
@@ -140,9 +197,17 @@ export const PICKUP_REGISTRY = Object.freeze({
         allowedModes: ['HUNT'],
         observationSlot: 13,
         visualKind: 'turret',
+        actionRole: 'deployment',
+        stackPolicy: 'instant',
         aliases: ['TURRET', 'ITEM_TURRET', 'MG_GESCHUETZ'],
         spawnWeights: { CLASSIC: 0, ARCADE: 0, HUNT: 0.45 },
-        botRule: { self: 0.65, offense: 0.75, defensiveScale: 0.2, emergencyScale: 0.15, combatSelf: 0.85 },
+        botRule: {
+            self: 0.65,
+            offense: 0.75,
+            defensiveScale: 0.2,
+            emergencyScale: 0.15,
+            combatSelf: 0.85,
+        },
     }),
     SLOW_TIME: createPickupDefinition({
         name: 'Zeitlupe',
@@ -151,14 +216,21 @@ export const PICKUP_REGISTRY = Object.freeze({
         duration: 4,
         timeScale: 0.4,
         selfUsable: true,
-        shootable: true,
+        shootable: false,
         offensive: false,
         projectileOnly: false,
         allowedModes: ['CLASSIC', 'ARCADE'],
         observationSlot: 5,
         visualKind: 'slow-time',
+        animationKind: 'orbit',
         spawnWeights: { CLASSIC: 0.35, ARCADE: 0.45, HUNT: 0 },
-        botRule: { self: 0.7, offense: 0.35, defensiveScale: 0.6, emergencyScale: 0.4, combatSelf: 0.3 },
+        botRule: {
+            self: 0.7,
+            offense: 0.35,
+            defensiveScale: 0.6,
+            emergencyScale: 0.4,
+            combatSelf: 0.3,
+        },
     }),
     GHOST: createPickupDefinition({
         name: 'Geist',
@@ -166,105 +238,48 @@ export const PICKUP_REGISTRY = Object.freeze({
         icon: '👻',
         duration: 3,
         selfUsable: true,
-        shootable: true,
+        shootable: false,
         offensive: false,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 6,
         visualKind: 'ghost',
+        animationKind: 'phase',
         spawnWeights: { CLASSIC: 0.55, ARCADE: 0.65 },
-        botRule: { self: 0.95, offense: 0.1, defensiveScale: 1.0, emergencyScale: 2.0, combatSelf: 0.5 },
+        botRule: {
+            self: 0.95,
+            offense: 0.1,
+            defensiveScale: 1.0,
+            emergencyScale: 2.0,
+            combatSelf: 0.5,
+        },
     }),
     INVERT: createPickupDefinition({
         name: 'Invertieren',
         color: 0xff00ff,
         icon: '🔀',
         duration: 4,
-        selfUsable: true,
+        selfUsable: false,
         shootable: true,
         offensive: true,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 7,
         visualKind: 'invert',
+        animationKind: 'counter-spin',
         spawnWeights: { CLASSIC: 0.7, ARCADE: 0.65 },
-        botRule: { self: -0.7, offense: 0.85, defensiveScale: 0.15, emergencyScale: 0.0, combatSelf: -0.4 },
+        botRule: {
+            self: -0.7,
+            offense: 0.85,
+            defensiveScale: 0.15,
+            emergencyScale: 0.0,
+            combatSelf: -0.4,
+        },
     }),
-    ROCKET_WEAK: createPickupDefinition({
-        name: 'Rakete S',
-        color: 0xffcc66,
-        icon: '🚀',
-        duration: 0,
-        damage: 10,
-        selfUsable: false,
-        shootable: true,
-        offensive: true,
-        projectileOnly: true,
-        allowedModes: ['HUNT'],
-        observationSlot: 8,
-        visualKind: 'rocket',
-        visualScale: 0.88,
-        rocketTier: 'WEAK',
-        rocketTierLabel: 'S',
-        aliases: ['ROCKET', 'ROCKET_BASIC', 'ROCKET_LIGHT', 'ITEM_ROCKET'],
-        botRule: { self: 0.06, offense: 0.45, defensiveScale: 0.02, emergencyScale: 0.05, combatSelf: 0.0 },
-    }),
-    ROCKET_MEDIUM: createPickupDefinition({
-        name: 'Rakete M',
-        color: 0xff8844,
-        icon: '🚀',
-        duration: 0,
-        damage: 20,
-        selfUsable: false,
-        shootable: true,
-        offensive: true,
-        projectileOnly: true,
-        allowedModes: ['HUNT'],
-        observationSlot: 9,
-        visualKind: 'rocket',
-        visualScale: 1.0,
-        rocketTier: 'MEDIUM',
-        rocketTierLabel: 'M',
-        botRule: { self: 0.06, offense: 0.5, defensiveScale: 0.02, emergencyScale: 0.05, combatSelf: 0.0 },
-    }),
-    ROCKET_HEAVY: createPickupDefinition({
-        name: 'Rakete L',
-        color: 0xff3344,
-        icon: '🚀',
-        duration: 0,
-        damage: 40,
-        selfUsable: false,
-        shootable: true,
-        offensive: true,
-        projectileOnly: true,
-        allowedModes: ['HUNT'],
-        observationSlot: 10,
-        visualKind: 'rocket',
-        visualScale: 1.14,
-        rocketTier: 'HEAVY',
-        rocketTierLabel: 'L',
-        aliases: ['ROCKET_STRONG', 'ROCKET_POWER'],
-        botRule: { self: 0.06, offense: 0.56, defensiveScale: 0.02, emergencyScale: 0.06, combatSelf: 0.0 },
-    }),
-    ROCKET_MEGA: createPickupDefinition({
-        name: 'Rakete XL',
-        color: 0xcc11ff,
-        icon: '🚀',
-        duration: 0,
-        damage: 70,
-        selfUsable: false,
-        shootable: true,
-        offensive: true,
-        projectileOnly: true,
-        allowedModes: ['HUNT'],
-        observationSlot: 11,
-        visualKind: 'rocket',
-        visualScale: 1.35,
-        rocketTier: 'MEGA',
-        rocketTierLabel: 'XL',
-        aliases: ['ROCKET_ULTRA'],
-        botRule: { self: 0.06, offense: 0.65, defensiveScale: 0.03, emergencyScale: 0.08, combatSelf: 0.0 },
-    }),
+    ...Object.fromEntries(Object.entries(PICKUP_EXPANSION_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])),
+    ...Object.fromEntries(
+        Object.entries(ROCKET_PICKUP_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])
+    ),
 });
 
 export const PICKUP_TYPES = Object.freeze(Object.keys(PICKUP_REGISTRY));
@@ -273,23 +288,33 @@ const PICKUP_TYPE_ALIASES = Object.freeze(
     PICKUP_TYPES.reduce((acc, type) => {
         acc[type] = type;
         for (const alias of PICKUP_REGISTRY[type].aliases) {
-            acc[String(alias || '').trim().toUpperCase()] = type;
+            acc[
+                String(alias || '')
+                    .trim()
+                    .toUpperCase()
+            ] = type;
         }
         return acc;
     }, Object.create(null))
 );
 
 function normalizeModeType(modeType) {
-    const normalized = String(modeType || '').trim().toUpperCase();
+    const normalized = String(modeType || '')
+        .trim()
+        .toUpperCase();
     return normalized || null;
 }
 
 function resolveNormalizedPickupType(type, fallback = '') {
-    const normalized = String(type || '').trim().toUpperCase();
+    const normalized = String(type || '')
+        .trim()
+        .toUpperCase();
     if (normalized) {
         return PICKUP_TYPE_ALIASES[normalized] || normalized;
     }
-    const normalizedFallback = String(fallback || '').trim().toUpperCase();
+    const normalizedFallback = String(fallback || '')
+        .trim()
+        .toUpperCase();
     if (!normalizedFallback) return '';
     return PICKUP_TYPE_ALIASES[normalizedFallback] || normalizedFallback;
 }
@@ -343,9 +368,7 @@ export function isRocketPickupType(type) {
 
 export function getPickupObservationSlotIndex(type) {
     const definition = getPickupDefinition(type);
-    return Number.isInteger(definition?.observationSlot)
-        ? definition.observationSlot
-        : PICKUP_SLOT_UNKNOWN_INDEX;
+    return Number.isInteger(definition?.observationSlot) ? definition.observationSlot : PICKUP_SLOT_UNKNOWN_INDEX;
 }
 
 export function getPickupVisualDescriptor(type) {
@@ -354,6 +377,7 @@ export function getPickupVisualDescriptor(type) {
     return Object.freeze({
         kind: definition.visualKind,
         scale: definition.visualScale,
+        animation: definition.animationKind,
         rocketTier: definition.rocketTier || null,
         tierLabel: definition.rocketTierLabel || '',
     });
@@ -404,6 +428,7 @@ function createPickupTypeConfigEntry(definition) {
         color: definition.color,
         icon: definition.icon,
         duration: Number.isFinite(Number(definition.duration)) ? Number(definition.duration) : 0,
+        animationKind: definition.animationKind,
     };
     if (Number.isFinite(Number(definition.multiplier))) {
         entry.multiplier = Number(definition.multiplier);
@@ -419,6 +444,9 @@ function createPickupTypeConfigEntry(definition) {
     }
     if (Number.isFinite(Number(definition.healing))) {
         entry.healing = Number(definition.healing);
+    }
+    if (Number.isFinite(Number(definition.pickupRadiusMultiplier))) {
+        entry.pickupRadiusMultiplier = Number(definition.pickupRadiusMultiplier);
     }
     if (definition.allowedModes.length === 1 && definition.allowedModes[0] === 'HUNT') {
         entry.huntOnly = true;

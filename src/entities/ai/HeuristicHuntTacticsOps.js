@@ -33,6 +33,7 @@ import {
     readObservationValue,
     resolveStableStrafeRight,
 } from './HeuristicBotPolicyOps.js';
+import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
 
 const PRECISION_AIM_STEERING = Object.freeze({ precision: true, gain: 12 });
 const FIGHT_CORRIDOR_BLOCKED = 0;
@@ -276,11 +277,15 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
 
     const retreatRequested = enemy && (vitalityRatio <= policy.profile.retreatVitality
         || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure));
+    const pickupTarget = !retreatRequested && survivalPressure < 0.82
+        ? findPreferredPickupTarget(player, runtimeContext, { pressure: survivalPressure, maxDistance: 75 })
+        : null;
     const requestedMovementIntent = retreatRequested
         ? 'retreat'
+        : (pickupTarget ? 'pickup'
         : (targetDistanceRatio > policy.profile.strafeDistance
             ? 'approach'
-            : (targetDistanceSq > HUNT_BREAKAWAY_DISTANCE_SQ ? 'strafe' : 'breakaway'));
+            : (targetDistanceSq > HUNT_BREAKAWAY_DISTANCE_SQ ? 'strafe' : 'breakaway')));
     const movementIntent = resolveMovementIntent(policy, dt, enemy ? requestedMovementIntent : 'search');
 
     if (enemy && movementIntent === 'retreat') {
@@ -307,6 +312,11 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
             input.shootItem = false;
             input.shootItemIndex = -1;
         }
+    } else if (pickupTarget?.mesh?.position) {
+        clearSteeringInput(input);
+        applySteeringTowardPosition(policy, input, player, pickupTarget.mesh.position);
+        input.boost = wallFront > 0.55 && survivalPressure < 0.48;
+        intent = 'pickup-seek';
     } else if (enemy?.position && player?.position) {
         clearSteeringInput(input);
         if (movementIntent === 'approach' && wallFront > policy.profile.safetyDistance) {
