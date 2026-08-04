@@ -15,6 +15,7 @@ const SUBSYSTEM_IDS = Object.freeze([
     'bot_sensing',
     'camera',
     'render',
+    'killcam_capture',
     'recorder_encode',
 ]);
 

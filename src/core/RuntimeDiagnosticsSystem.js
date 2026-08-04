@@ -45,7 +45,7 @@ function isCinematicRecordingActive(recorder) {
 
 function resolveEffectiveQualityLabel(renderer, isLowQuality = false) {
     const effectiveQuality = renderer?.getQualityState?.()?.effectiveQuality;
-    if (effectiveQuality === 'LOW' || effectiveQuality === 'HIGH') {
+    if (effectiveQuality === 'LOW' || effectiveQuality === 'MEDIUM' || effectiveQuality === 'HIGH') {
         return effectiveQuality;
     }
     return isLowQuality ? 'LOW' : 'HIGH';
@@ -82,6 +82,7 @@ export class RuntimeDiagnosticsSystem {
         this._statsTimer = 0;
         this._isLowQuality = false;
         this._autoLowActive = false;
+        this._quality = 'HIGH';
         this._statsElement = null;
         this._fpsTracker = createFpsTracker();
 
@@ -97,6 +98,7 @@ export class RuntimeDiagnosticsSystem {
         if (event.code === 'KeyP') {
             this._isLowQuality = !this._isLowQuality;
             this._autoLowActive = false;
+            this._quality = this._isLowQuality ? 'LOW' : 'HIGH';
             const quality = this._isLowQuality ? 'LOW' : 'HIGH';
             renderer?.setQuality?.(quality);
             if (quality === 'LOW' && isCinematicRecordingActive(recorder)) {
@@ -176,27 +178,30 @@ export class RuntimeDiagnosticsSystem {
             const avgFps = this._fpsTracker.avg;
             const isPlaying = this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING;
             const isRecording = isCinematicRecordingActive(recorder);
-            if (
-                avgFps < 30
-                && !this._isLowQuality
-                && isPlaying
-                && !isRecording
-            ) {
-                this._isLowQuality = true;
-                this._autoLowActive = true;
-                renderer?.setQuality?.('LOW');
-                this.runtimeAccess.actionShowStatusToast?.('Grafik automatisch reduziert');
-            } else if (
-                this._isLowQuality
-                && this._autoLowActive
-                && avgFps > 50
-                && isPlaying
-                && !isRecording
-            ) {
-                this._isLowQuality = false;
-                this._autoLowActive = false;
-                renderer?.setQuality?.('HIGH');
-                this.runtimeAccess.actionShowStatusToast?.('Grafik automatisch erhoeht');
+            if (isPlaying && !isRecording) {
+                let nextQuality = this._quality;
+                if (this._quality === 'HIGH' && avgFps < 50) {
+                    nextQuality = 'MEDIUM';
+                } else if (this._quality === 'MEDIUM' && avgFps < 30) {
+                    nextQuality = 'LOW';
+                } else if (this._autoLowActive && this._quality === 'LOW' && avgFps > 45) {
+                    nextQuality = 'MEDIUM';
+                } else if (this._autoLowActive && this._quality === 'MEDIUM' && avgFps > 55) {
+                    nextQuality = 'HIGH';
+                }
+
+                if (nextQuality !== this._quality) {
+                    const previousQuality = this._quality;
+                    this._quality = nextQuality;
+                    this._isLowQuality = nextQuality === 'LOW';
+                    this._autoLowActive = nextQuality !== 'HIGH';
+                    renderer?.setQuality?.(nextQuality);
+                    this.runtimeAccess.actionShowStatusToast?.(
+                        previousQuality === 'HIGH' || nextQuality === 'LOW'
+                            ? 'Grafik automatisch reduziert'
+                            : 'Grafik automatisch erhoeht'
+                    );
+                }
             }
         }
     }

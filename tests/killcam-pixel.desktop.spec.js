@@ -1,7 +1,7 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-test('desktop killcam replays the lossless rendered framebuffer', async ({ page }, testInfo) => {
+test('desktop killcam replays the bandwidth-bounded rendered framebuffer exactly', async ({ page }, testInfo) => {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
@@ -100,9 +100,11 @@ test('desktop killcam replays the lossless rendered framebuffer', async ({ page 
     expect(replay.sceneReplayActive).toBeFalsy();
     expect(replay.state?.playbackFrameCount).toBeGreaterThanOrEqual(2);
     expect(replay.state?.sourceDuration).toBeGreaterThan(1.5);
-    expect(replay.state?.captureBackend).toBe('webgl-readpixels');
-    expect(replay.state?.width).toBe(replay.sourceWidth);
-    expect(replay.state?.height).toBe(replay.sourceHeight);
+    expect(replay.state?.captureBackend).toBe('canvas-2d-scaled');
+    expect(replay.state?.captureScale).toBeGreaterThan(0);
+    expect(replay.state?.captureScale).toBeLessThanOrEqual(0.5);
+    expect(replay.state?.width).toBe(Math.round(replay.sourceWidth * replay.state.captureScale));
+    expect(replay.state?.height).toBe(Math.round(replay.sourceHeight * replay.state.captureScale));
     expect(replay.hudSuppressed).toBeTruthy();
 
     const terminal = await page.evaluate(() => {

@@ -292,6 +292,18 @@ function createHuntProjection(value = null, nowMs = 0) {
     };
 }
 
+export function createMatchRuntimePlayerProjection(value = null) {
+    return createPlayerProjection(value);
+}
+
+export function createMatchRuntimeSessionPlayerProjection(value = null) {
+    return createSessionPlayerProjection(value);
+}
+
+export function createMatchRuntimeLockTargetProjection(value = null) {
+    return createLockTargetProjection(value);
+}
+
 function createArcadeProjection(value = null) {
     if (!value || typeof value !== 'object') {
         return null;
@@ -315,19 +327,8 @@ function resolveMatchRuntimeProjectionSource(payload = {}) {
     return versionState.shouldReject ? {} : source;
 }
 
-export function createMatchRuntimeProjection(payload = {}) {
-    const source = resolveMatchRuntimeProjectionSource(payload);
+function createProjectionFromSource(source, players, sessionPlayers, lockTargets) {
     const updatedAt = Math.max(0, normalizeNumber(source.updatedAt, Date.now()));
-    const players = Array.isArray(source.players)
-        ? source.players.map((entry) => createPlayerProjection(entry)).filter(Boolean)
-        : [];
-    const sessionPlayers = Array.isArray(source.sessionPlayers)
-        ? source.sessionPlayers.map((entry) => createSessionPlayerProjection(entry))
-        : [];
-    const lockTargets = Array.isArray(source.lockTargets)
-        ? source.lockTargets.map((entry) => createLockTargetProjection(entry)).filter(Boolean)
-        : [];
-
     return {
         contractVersion: MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION,
         updatedAt,
@@ -343,6 +344,28 @@ export function createMatchRuntimeProjection(payload = {}) {
         hunt: createHuntProjection(source.hunt, updatedAt),
         arcade: createArcadeProjection(source.arcade),
     };
+}
+
+export function createMatchRuntimeProjection(payload = {}) {
+    const source = resolveMatchRuntimeProjectionSource(payload);
+    const players = Array.isArray(source.players)
+        ? source.players.map((entry) => createPlayerProjection(entry)).filter(Boolean)
+        : [];
+    const sessionPlayers = Array.isArray(source.sessionPlayers)
+        ? source.sessionPlayers.map((entry) => createSessionPlayerProjection(entry))
+        : [];
+    const lockTargets = Array.isArray(source.lockTargets)
+        ? source.lockTargets.map((entry) => createLockTargetProjection(entry)).filter(Boolean)
+        : [];
+    return createProjectionFromSource(source, players, sessionPlayers, lockTargets);
+}
+
+export function assembleMatchRuntimeProjection(payload = {}) {
+    const source = resolveMatchRuntimeProjectionSource(payload);
+    const players = Array.isArray(source.players) ? source.players.filter(Boolean) : [];
+    const sessionPlayers = Array.isArray(source.sessionPlayers) ? source.sessionPlayers.filter(Boolean) : [];
+    const lockTargets = Array.isArray(source.lockTargets) ? source.lockTargets.filter(Boolean) : [];
+    return createProjectionFromSource(source, players, sessionPlayers, lockTargets);
 }
 
 export const normalizeMatchRuntimeProjection = createMatchRuntimeProjection;

@@ -14,6 +14,8 @@ import {
     resolveClassicTutorialHint,
 } from '../shared/contracts/ClassicTutorialContract.js';
 
+const PARCOURS_MINIMAP_INTERVAL_SECONDS = 0.1;
+
 function formatParcoursDurationMs(value) {
     const ms = Math.max(0, Number(value) || 0);
     const seconds = ms / 1000;
@@ -26,6 +28,7 @@ export class HudRuntimeSystem {
         this.ports = deps.ports || null;
         this._hudP2Visible = null;
         this._fighterHudTimer = 0;
+        this._parcoursMinimapTimer = PARCOURS_MINIMAP_INTERVAL_SECONDS;
         /** @type {HTMLElement|null} */
         this._scoreboardContainer = null;
         this._arcadeMissionHud = null;
@@ -35,6 +38,7 @@ export class HudRuntimeSystem {
         this._arcadeTransitionVisibleUntilMs = 0;
         this._lastArcadeSectorIndex = 0;
         this._parcoursOverlay = null;
+        this._parcoursMinimapProjection = { parcours: null, players: null };
         this._tutorialCompletionPersisted = false;
         this._hudMode = null;
     }
@@ -291,7 +295,6 @@ export class HudRuntimeSystem {
         overlay.tickXp(hudState, nowMs);
         overlay.tickSplitDelta(hudState, nowMs);
         overlay.tickPenalty(hudState, nowMs);
-        overlay.tickMinimap(this.game?.entityManager, projection, this._getLocalPlayerIndex(projection));
         const suddenDeathActive = String(hudState.phase || '') === 'sudden_death';
         this._arcadeSuddenDeathOverlay?.classList?.toggle('hidden', !suddenDeathActive);
 
@@ -331,7 +334,7 @@ export class HudRuntimeSystem {
         }
     }
 
-    _updateParcoursHud(projection = null) {
+    _updateParcoursHud(projection = null, updateMinimap = true) {
         const game = this.game;
         const ui = game?.ui;
         if (!ui?.parcoursHud) return;
@@ -347,17 +350,27 @@ export class HudRuntimeSystem {
         if (!hudState?.enabled) {
             this._setParcoursHudVisible(false);
             this._clearParcoursHud();
+            this._parcoursOverlay?.hideMinimap?.();
             return;
         }
 
         this._setParcoursHudVisible(true);
-        this._ensureParcoursOverlay().tickMinimap(
-            game?.entityManager,
-            { ...projection, parcours: hudState },
-            this._isNetworkSession(projection)
-                ? Math.max(0, this._getLocalPlayerIndex(projection))
-                : 0
-        );
+        if (updateMinimap) {
+            const minimapProjection = projection?.parcours === hudState
+                ? projection
+                : this._parcoursMinimapProjection;
+            if (minimapProjection === this._parcoursMinimapProjection) {
+                minimapProjection.parcours = hudState;
+                minimapProjection.players = projection?.players || null;
+            }
+            this._ensureParcoursOverlay().tickMinimap(
+                game?.entityManager,
+                minimapProjection,
+                this._isNetworkSession(projection)
+                    ? Math.max(0, this._getLocalPlayerIndex(projection))
+                    : 0
+            );
+        }
         const routeLabel = String(hudState.routeId || 'parcours').replace(/_/g, ' ');
         if (ui.parcoursRoute) ui.parcoursRoute.textContent = routeLabel;
 
@@ -487,7 +500,12 @@ export class HudRuntimeSystem {
         if (!game.entityManager) return;
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
         this._syncHudMode();
-        this._updateParcoursHud(projection);
+        const updateMinimap = this._consumeInterval(
+            '_parcoursMinimapTimer',
+            dt,
+            PARCOURS_MINIMAP_INTERVAL_SECONDS
+        ) > 0;
+        this._updateParcoursHud(projection, updateMinimap);
 
         // Score/Inventory laufen auf eigener, konservativer Tick-Frequenz.
         const scoreHudInterval = this._resolveScoreHudInterval();

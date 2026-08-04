@@ -132,6 +132,10 @@ export class ParcoursOverlayController {
         );
     }
 
+    hideMinimap() {
+        this._minimap?._hide?.();
+    }
+
     dispose() {
         if (this._xpNotificationOverlay?.parentElement) {
             this._xpNotificationOverlay.parentElement.removeChild(this._xpNotificationOverlay);

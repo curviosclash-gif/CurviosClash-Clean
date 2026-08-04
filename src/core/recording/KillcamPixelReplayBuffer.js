@@ -1,7 +1,9 @@
-const DEFAULT_CAPTURE_FPS = 30;
+const DEFAULT_CAPTURE_FPS = 15;
 const DEFAULT_WINDOW_SECONDS = 2.15;
-const DEFAULT_MAX_FRAMES = 72;
-const DEFAULT_MEMORY_BUDGET_BYTES = 256 * 1024 * 1024;
+const DEFAULT_MAX_FRAMES = 36;
+const DEFAULT_MEMORY_BUDGET_BYTES = 64 * 1024 * 1024;
+const DEFAULT_CAPTURE_SCALE = 0.5;
+const DEFAULT_MAX_CAPTURE_PIXELS = 960 * 540;
 
 function toFiniteNumber(value, fallback = 0) {
     const numeric = Number(value);
@@ -24,6 +26,8 @@ export class KillcamPixelReplayBuffer {
         windowSeconds = DEFAULT_WINDOW_SECONDS,
         maxFrames = DEFAULT_MAX_FRAMES,
         memoryBudgetBytes = DEFAULT_MEMORY_BUDGET_BYTES,
+        captureScale = DEFAULT_CAPTURE_SCALE,
+        maxCapturePixels = DEFAULT_MAX_CAPTURE_PIXELS,
     } = {}) {
         this.sourceCanvas = sourceCanvas || null;
         this.glContext = glContext || null;
@@ -35,6 +39,11 @@ export class KillcamPixelReplayBuffer {
         this.memoryBudgetBytes = Math.max(
             8 * 1024 * 1024,
             Math.trunc(toFiniteNumber(memoryBudgetBytes, DEFAULT_MEMORY_BUDGET_BYTES))
+        );
+        this.captureScale = Math.max(0.25, Math.min(1, toFiniteNumber(captureScale, DEFAULT_CAPTURE_SCALE)));
+        this.maxCapturePixels = Math.max(
+            320 * 180,
+            Math.trunc(toFiniteNumber(maxCapturePixels, DEFAULT_MAX_CAPTURE_PIXELS))
         );
 
         this._captureCanvas = null;
@@ -52,6 +61,8 @@ export class KillcamPixelReplayBuffer {
         this._playbackRequestId = 0;
         this._effectiveMaxFrames = this.maxFrames;
         this._lastCaptureError = '';
+        this._captureBackend = 'none';
+        this._effectiveCaptureScale = this.captureScale;
         this._rowSwapBuffer = null;
     }
 
@@ -105,9 +116,13 @@ export class KillcamPixelReplayBuffer {
     captureFrame({ force = false, timestamp = this.now() } = {}) {
         if (!this.isSupported() || this._active) return Promise.resolve(null);
         const captureTime = toFiniteNumber(timestamp, this.now());
-        const width = Math.max(1, Math.trunc(toFiniteNumber(this.sourceCanvas?.width, 0)));
-        const height = Math.max(1, Math.trunc(toFiniteNumber(this.sourceCanvas?.height, 0)));
-        if (width <= 1 || height <= 1 || !this._ensureCaptureSurface(width, height)) {
+        const sourceWidth = Math.max(1, Math.trunc(toFiniteNumber(this.sourceCanvas?.width, 0)));
+        const sourceHeight = Math.max(1, Math.trunc(toFiniteNumber(this.sourceCanvas?.height, 0)));
+        const pixelBudgetScale = Math.sqrt(this.maxCapturePixels / (sourceWidth * sourceHeight));
+        this._effectiveCaptureScale = Math.min(this.captureScale, pixelBudgetScale, 1);
+        const width = Math.max(1, Math.round(sourceWidth * this._effectiveCaptureScale));
+        const height = Math.max(1, Math.round(sourceHeight * this._effectiveCaptureScale));
+        if (sourceWidth <= 1 || sourceHeight <= 1 || !this._ensureCaptureSurface(width, height)) {
             return Promise.resolve(null);
         }
         const bytesPerFrame = Math.max(4, width * height * 4);
@@ -127,9 +142,15 @@ export class KillcamPixelReplayBuffer {
         this._lastCaptureRequestAt = captureTime;
         const generation = this._generation;
         this._pendingCaptures += 1;
-        const readPromise = this._supportsAsyncWebGlReadback()
+        const useWebGlReadback = width === sourceWidth
+            && height === sourceHeight
+            && this._supportsAsyncWebGlReadback();
+        this._captureBackend = useWebGlReadback
+            ? 'webgl-readpixels'
+            : (this._effectiveCaptureScale < 1 ? 'canvas-2d-scaled' : 'canvas-2d');
+        const readPromise = useWebGlReadback
             ? this._readWebGlFrameAsync(width, height)
-            : Promise.resolve().then(() => this._readCanvasFrame(width, height));
+            : this._readCanvasFrameAsync(width, height);
         return readPromise
             .then((imageData) => {
                 this._pendingCaptures = Math.max(0, this._pendingCaptures - 1);
@@ -150,6 +171,28 @@ export class KillcamPixelReplayBuffer {
         this._captureContext.clearRect(0, 0, width, height);
         this._captureContext.drawImage(this.sourceCanvas, 0, 0, width, height);
         return this._captureContext.getImageData(0, 0, width, height);
+    }
+
+    async _readCanvasFrameAsync(width, height) {
+        const createImageBitmap = globalThis.createImageBitmap;
+        if (typeof createImageBitmap === 'function' && this._effectiveCaptureScale < 1) {
+            let bitmap = null;
+            try {
+                bitmap = await createImageBitmap(this.sourceCanvas, {
+                    resizeWidth: width,
+                    resizeHeight: height,
+                    resizeQuality: 'low',
+                });
+                this._captureContext.clearRect(0, 0, width, height);
+                this._captureContext.drawImage(bitmap, 0, 0, width, height);
+                return this._captureContext.getImageData(0, 0, width, height);
+            } catch {
+                // Older browser engines may expose createImageBitmap without resize options.
+            } finally {
+                bitmap?.close?.();
+            }
+        }
+        return this._readCanvasFrame(width, height);
     }
 
     _supportsAsyncWebGlReadback() {
@@ -365,7 +408,9 @@ export class KillcamPixelReplayBuffer {
             pendingCaptureCount: this._pendingCaptures,
             effectiveMaxFrames: this._effectiveMaxFrames,
             lastCaptureError: this._lastCaptureError,
-            captureBackend: this.glContext?.readPixels ? 'webgl-readpixels' : 'canvas-2d',
+            captureBackend: this._captureBackend,
+            captureScale: this._effectiveCaptureScale,
+            configuredCaptureScale: this.captureScale,
             sourceDuration: this._sourceDuration,
             currentFrameIndex: this._frameCursor,
             width: Number(this._overlayCanvas?.width) || 0,

@@ -494,10 +494,14 @@ export class Game {
         }
         const renderStart = this.runtimePerfProfiler?.startSample?.();
         this.renderer.render();
+        this.runtimePerfProfiler?.endSample?.('render', renderStart);
         if (this.state === GAME_STATE_IDS.PLAYING) {
+            const killcamCaptureStart = this.runtimePerfProfiler?.startSample?.();
             this.entityManager?.captureKillcamRenderedFrame?.();
+            this.runtimePerfProfiler?.endSample?.('killcam_capture', killcamCaptureStart);
         }
         if (this.mediaRecorderSystem?.isLiveRecording?.() === true) {
+            const recordingRenderStart = this.runtimePerfProfiler?.startSample?.();
             this.renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
                 renderProjection: matchRenderProjection,
@@ -506,8 +510,8 @@ export class Game {
                 renderDelta: this._renderDelta,
                 splitScreen: this.renderer?.splitScreen === true,
             });
+            this.runtimePerfProfiler?.endSample?.('render', recordingRenderStart);
         }
-        this.runtimePerfProfiler?.endSample?.('render', renderStart);
         this.mediaRecorderSystem?.captureRenderedFrame?.(this._renderDelta);
     }
 

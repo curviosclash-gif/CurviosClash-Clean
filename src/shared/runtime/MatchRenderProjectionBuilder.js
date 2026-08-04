@@ -1,5 +1,8 @@
 import * as THREE from 'three';
-import { createMatchRenderProjection } from '../contracts/MatchRenderProjectionContract.js';
+import {
+    assembleMatchRenderProjection,
+    createMatchRenderPlayerProjection,
+} from '../contracts/MatchRenderProjectionContract.js';
 import {
     CONFIG_SECTIONS,
     getGameplayConfigSection,
@@ -10,24 +13,6 @@ const TMP_RENDER_QUATERNION = new THREE.Quaternion();
 const TMP_RENDER_DIRECTION = new THREE.Vector3();
 const TMP_FIRST_PERSON_ANCHOR = new THREE.Vector3();
 const TMP_CONFIG_SOURCE = { config: null, entityRuntimeConfig: null };
-
-function toVector3Projection(value = null) {
-    return {
-        x: Number(value?.x) || 0,
-        y: Number(value?.y) || 0,
-        z: Number(value?.z) || 0,
-    };
-}
-
-function toQuaternionProjection(value = null) {
-    const w = Number(value?.w);
-    return {
-        x: Number(value?.x) || 0,
-        y: Number(value?.y) || 0,
-        z: Number(value?.z) || 0,
-        w: Number.isFinite(w) ? w : 1,
-    };
-}
 
 function resolveNetworkPlayerSlots(game) {
     const slots = game?.runtimeConfig?.session?.networkPlayerSlots;
@@ -97,12 +82,7 @@ function copyPlayerRenderTransform(player, renderAlpha = 1) {
         ? player.getFirstPersonCameraAnchor(TMP_FIRST_PERSON_ANCHOR)
         : TMP_FIRST_PERSON_ANCHOR.copy(TMP_RENDER_POSITION).add(TMP_RENDER_DIRECTION);
 
-    return {
-        position: toVector3Projection(TMP_RENDER_POSITION),
-        quaternion: toQuaternionProjection(TMP_RENDER_QUATERNION),
-        direction: toVector3Projection(TMP_RENDER_DIRECTION),
-        firstPersonAnchor: toVector3Projection(firstPersonAnchor),
-    };
+    return firstPersonAnchor;
 }
 
 function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha = 1 }) {
@@ -116,9 +96,9 @@ function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha =
     const gameplayConfig = getGameplayConfigSection(configSource, CONFIG_SECTIONS.GAMEPLAY);
     const cameraModeId = cameraConfig?.MODES?.[player?.cameraMode] || 'THIRD_PERSON';
     const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
-    const renderTransform = copyPlayerRenderTransform(player, renderAlpha);
+    const firstPersonAnchor = copyPlayerRenderTransform(player, renderAlpha);
 
-    return {
+    return createMatchRenderPlayerProjection({
         playerIndex: Number.isInteger(player?.index) ? player.index : 0,
         isBot: player?.isBot === true,
         alive: player?.alive !== false,
@@ -134,11 +114,11 @@ function buildPlayerRenderProjection({ runtimeState, game, player, renderAlpha =
         renderDiscontinuityVersion: Math.max(0, Number(player?._renderDiscontinuityVersion) || 0),
         planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
-        position: renderTransform.position,
-        quaternion: renderTransform.quaternion,
-        direction: renderTransform.direction,
-        firstPersonAnchor: renderTransform.firstPersonAnchor,
-    };
+        position: TMP_RENDER_POSITION,
+        quaternion: TMP_RENDER_QUATERNION,
+        direction: TMP_RENDER_DIRECTION,
+        firstPersonAnchor,
+    });
 }
 
 export function buildMatchRenderProjection({
@@ -159,7 +139,7 @@ export function buildMatchRenderProjection({
     const modeId = String(runtimeState?.activeGameMode || entityManager?.activeGameMode || game?.activeGameMode || '');
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
 
-    return createMatchRenderProjection({
+    return assembleMatchRenderProjection({
         updatedAt: Date.now(),
         gameStateId,
         modeId,

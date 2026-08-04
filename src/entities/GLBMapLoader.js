@@ -4,6 +4,7 @@ import { createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl } from './mapSchema/MapSchemaGlbOps.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
+const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
 
 function normalizeUrl(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -106,20 +107,37 @@ function resolveColliderKind(mesh) {
 function collectSceneColliders(root, options = {}) {
     const colliders = [];
     const bounds = new THREE.Box3();
+    const shadowCandidates = [];
     const collectColliders = options.collectColliders !== false;
+    const shadowCasterBudget = Math.max(0, Math.trunc(
+        Number(options.shadowCasterBudget ?? DEFAULT_GLB_SHADOW_CASTER_BUDGET) || 0
+    ));
     root.updateWorldMatrix(true, true);
 
     root.traverse((child) => {
         if (!child?.isMesh) return;
-        child.castShadow = true;
+        child.castShadow = false;
         child.receiveShadow = true;
-        bounds.expandByObject(child);
+        const box = new THREE.Box3().setFromObject(child);
+        if (box.isEmpty()) return;
+        bounds.union(box);
+
+        const materials = Array.isArray(child.material) ? child.material : [child.material];
+        const transparent = materials.some((material) => material?.transparent === true);
+        const noShadow = String(child.name || '').toLowerCase().includes('_noshadow');
+        if (!transparent && !noShadow) {
+            const width = box.max.x - box.min.x;
+            const height = box.max.y - box.min.y;
+            const depth = box.max.z - box.min.z;
+            shadowCandidates.push({
+                mesh: child,
+                score: Math.max(width * height, width * depth, height * depth),
+            });
+        }
 
         if (!collectColliders) return;
         if (isMeshColliderDisabled(child)) return;
 
-        const box = new THREE.Box3().setFromObject(child);
-        if (box.isEmpty()) return;
         const kind = resolveColliderKind(child);
         colliders.push({
             box,
@@ -128,6 +146,11 @@ function collectSceneColliders(root, options = {}) {
             meshCollider: createStaticMeshCollider(child),
         });
     });
+
+    shadowCandidates.sort((left, right) => right.score - left.score);
+    for (let index = 0; index < Math.min(shadowCasterBudget, shadowCandidates.length); index++) {
+        shadowCandidates[index].mesh.castShadow = true;
+    }
 
     return { colliders, bounds };
 }

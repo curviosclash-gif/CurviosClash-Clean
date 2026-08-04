@@ -283,3 +283,44 @@ test('desktop high quality enables the high shadow preset and higher pixel densi
     assert.equal(renderer.shadowMap.needsUpdate, true);
     assert.equal(CONFIG.RENDER.MAX_PIXEL_RATIO, 1.5);
 });
+
+test('medium render quality keeps filmic lighting while capping density and shadows', () => {
+    const pixelRatios = [];
+    let configuredShadowSize = null;
+    const environment = {};
+    const renderer = {
+        shadowMap: { enabled: false, needsUpdate: false },
+        setPixelRatio(value) { pixelRatios.push(value); },
+    };
+    const scene = {
+        environment,
+        fog: { near: 0, far: 0 },
+        traverse(callback) {
+            callback({
+                isDirectionalLight: true,
+                castShadow: true,
+                shadow: {
+                    map: null,
+                    mapSize: {
+                        width: 1024,
+                        height: 1024,
+                        set(width, height) { configuredShadowSize = [width, height]; },
+                    },
+                },
+            });
+        },
+    };
+    const previousWindow = globalThis.window;
+    globalThis.window = { devicePixelRatio: 2 };
+    try {
+        const controller = new RenderQualityController(renderer, scene);
+        controller.setQuality('MEDIUM');
+
+        assert.deepEqual(pixelRatios, [1]);
+        assert.equal(renderer.toneMapping, THREE.ACESFilmicToneMapping);
+        assert.equal(scene.environment, environment);
+        assert.deepEqual(configuredShadowSize, [512, 512]);
+    } finally {
+        globalThis.window = previousWindow;
+    }
+});

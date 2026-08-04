@@ -69,6 +69,7 @@ test('pixel replay stores lossless rendered frames and redraws the selected fram
         sourceCanvas: fixture.sourceCanvas,
         documentRef: fixture.documentRef,
         captureFps: 60,
+        captureScale: 1,
     });
 
     await buffer.captureFrame({ force: true, timestamp: 0 });
@@ -93,5 +94,30 @@ test('pixel replay stores lossless rendered frames and redraws the selected fram
 
     buffer.clearPlayback();
     assert.equal(fixture.classNames.has('killcam-pixel-replay-active'), false);
+    buffer.dispose();
+});
+
+test('pixel replay defaults keep capture bandwidth and memory bounded', async () => {
+    const fixture = createCanvasFixture();
+    const buffer = new KillcamPixelReplayBuffer({
+        sourceCanvas: fixture.sourceCanvas,
+        documentRef: fixture.documentRef,
+    });
+
+    const frame = await buffer.captureFrame({ force: true, timestamp: 0 });
+    const state = buffer.getState();
+
+    assert.equal(frame?.width, 4);
+    assert.equal(frame?.height, 2);
+    assert.equal(state.captureScale, 0.5);
+    assert.equal(state.effectiveMaxFrames, 36);
+    assert.equal(state.captureBackend, 'canvas-2d-scaled');
+
+    fixture.sourceCanvas.width = 3840;
+    fixture.sourceCanvas.height = 2160;
+    const highResolutionFrame = await buffer.captureFrame({ force: true, timestamp: 100 });
+    assert.equal(highResolutionFrame?.width, 960);
+    assert.equal(highResolutionFrame?.height, 540);
+    assert.equal(buffer.getState().captureScale, 0.25);
     buffer.dispose();
 });

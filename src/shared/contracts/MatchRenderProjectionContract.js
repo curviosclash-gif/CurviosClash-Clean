@@ -60,12 +60,11 @@ function createPlayerProjection(value = null) {
     };
 }
 
-export function createMatchRenderProjection(payload = {}) {
-    const source = /** @type {any} */ (payload && typeof payload === 'object' ? payload : {});
-    const players = Array.isArray(source.players)
-        ? source.players.map((entry) => createPlayerProjection(entry)).filter(Boolean)
-        : [];
+export function createMatchRenderPlayerProjection(value = null) {
+    return createPlayerProjection(value);
+}
 
+function createProjectionFromSource(source, players) {
     return {
         contractVersion: MATCH_RENDER_PROJECTION_CONTRACT_VERSION,
         updatedAt: Math.max(0, normalizeNumber(source.updatedAt, Date.now())),
@@ -76,4 +75,21 @@ export function createMatchRenderProjection(payload = {}) {
         localHumanCount: Math.max(1, normalizeNonNegativeInt(source.localHumanCount, 1)),
         players,
     };
+}
+
+export function createMatchRenderProjection(payload = {}) {
+    const source = /** @type {any} */ (payload && typeof payload === 'object' ? payload : {});
+    const players = Array.isArray(source.players)
+        ? source.players.map((entry) => createPlayerProjection(entry)).filter(Boolean)
+        : [];
+
+    return createProjectionFromSource(source, players);
+}
+
+export function assembleMatchRenderProjection(payload = {}) {
+    const source = /** @type {any} */ (payload && typeof payload === 'object' ? payload : {});
+    const players = Array.isArray(source.players)
+        ? source.players.filter((entry) => entry && typeof entry === 'object')
+        : [];
+    return createProjectionFromSource(source, players);
 }

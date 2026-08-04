@@ -193,7 +193,7 @@ test('closed GLB mesh colliders also reject positions fully inside the model', a
         async loadAsync() {
             const scene = new THREE.Group();
             scene.add(new THREE.Mesh(
-                new THREE.BoxGeometry(2, 2, 2),
+                new THREE.BoxGeometry(2, 2, 2, 4, 4, 4),
                 new THREE.MeshBasicMaterial(),
             ));
             return { scene };
@@ -208,8 +208,41 @@ test('closed GLB mesh colliders also reject positions fully inside the model', a
         obstacles: result.colliders,
     });
 
+    assert.ok(result.colliders[0]?.meshCollider?.bvh);
+
     assert.equal(collision.checkCollisionFast(new THREE.Vector3(0, 0, 0), 0.1), true);
     assert.equal(collision.checkCollisionFast(new THREE.Vector3(1.5, 0, 0), 0.1), false);
 
+    disposeObject3DResources(result.scene);
+});
+
+test('GLB scenes cap opaque shadow casters and skip transparent meshes', async () => {
+    const loader = {
+        async loadAsync() {
+            const scene = new THREE.Group();
+            for (let index = 0; index < 30; index++) {
+                const material = new THREE.MeshBasicMaterial({ transparent: index === 29 });
+                const mesh = new THREE.Mesh(new THREE.BoxGeometry(1 + index / 10, 1, 1), material);
+                mesh.position.x = index * 2;
+                scene.add(mesh);
+            }
+            return { scene };
+        },
+    };
+
+    const result = await loadGLBMap('/shadow-budget.glb', {
+        loader,
+        collectColliders: false,
+    });
+    let shadowCasters = 0;
+    let transparentCaster = false;
+    result.scene.traverse((child) => {
+        if (!child?.isMesh) return;
+        if (child.castShadow) shadowCasters += 1;
+        if (child.material?.transparent) transparentCaster = child.castShadow;
+    });
+
+    assert.equal(shadowCasters, 24);
+    assert.equal(transparentCaster, false);
     disposeObject3DResources(result.scene);
 });

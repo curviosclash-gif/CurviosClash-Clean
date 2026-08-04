@@ -6,6 +6,14 @@ export class ParcoursMinimapRenderer {
         this._onKeyDown = null;
         this._lastRouteId = null;
         this._cpById = null;
+        this._cpByRouteIndex = null;
+        this._routeBounds = null;
+        this._passedCheckpointIds = new Set();
+        this._transformMinX = 0;
+        this._transformMinZ = 0;
+        this._transformScale = 1;
+        this._transformOffsetX = 0;
+        this._transformOffsetZ = 0;
     }
 
     _ensureCanvas() {
@@ -31,6 +39,44 @@ export class ParcoursMinimapRenderer {
         if (this._canvas) this._canvas.style.display = 'none';
     }
 
+    _refreshRouteCache(routeSnapshot) {
+        this._lastRouteId = routeSnapshot.routeId;
+        this._cpById = new Map();
+        this._cpByRouteIndex = new Map();
+        let minX = Infinity;
+        let maxX = -Infinity;
+        let minZ = Infinity;
+        let maxZ = -Infinity;
+        const include = (entry) => {
+            const x = Number(entry?.pos?.[0]) || 0;
+            const z = Number(entry?.pos?.[2]) || 0;
+            minX = Math.min(minX, x);
+            maxX = Math.max(maxX, x);
+            minZ = Math.min(minZ, z);
+            maxZ = Math.max(maxZ, z);
+        };
+        for (const cp of routeSnapshot.checkpoints) {
+            this._cpById.set(cp.id, cp);
+            this._cpByRouteIndex.set(cp.routeIndex, cp);
+            include(cp);
+        }
+        if (routeSnapshot.finish) {
+            this._cpById.set(routeSnapshot.finish.id, routeSnapshot.finish);
+            include(routeSnapshot.finish);
+        }
+        this._routeBounds = Number.isFinite(minX)
+            ? { minX, maxX, minZ, maxZ }
+            : null;
+    }
+
+    _toCanvasX(worldX) {
+        return this._transformOffsetX + (worldX - this._transformMinX) * this._transformScale;
+    }
+
+    _toCanvasZ(worldZ) {
+        return this._transformOffsetZ + (worldZ - this._transformMinZ) * this._transformScale;
+    }
+
     update(routeSnapshot, nextCheckpointIndex, passedCheckpointIds = [], playerPos, playerQuat) {
         if (!routeSnapshot?.enabled) {
             this._hide();
@@ -49,35 +95,16 @@ export class ParcoursMinimapRenderer {
         const innerH = H - PAD * 2;
 
         if (this._lastRouteId !== routeSnapshot.routeId) {
-            this._lastRouteId = routeSnapshot.routeId;
-            this._cpById = new Map();
-            for (const cp of routeSnapshot.checkpoints) {
-                this._cpById.set(cp.id, cp);
-            }
-            if (routeSnapshot.finish) {
-                this._cpById.set(routeSnapshot.finish.id, routeSnapshot.finish);
-            }
+            this._refreshRouteCache(routeSnapshot);
         }
 
-        const allPositions = [];
-        for (const cp of routeSnapshot.checkpoints) {
-            allPositions.push([cp.pos[0], cp.pos[2]]);
-        }
-        if (routeSnapshot.finish) {
-            allPositions.push([routeSnapshot.finish.pos[0], routeSnapshot.finish.pos[2]]);
-        }
+        if (!this._routeBounds) return;
+        let { minX, maxX, minZ, maxZ } = this._routeBounds;
         if (playerPos) {
-            allPositions.push([playerPos.x, playerPos.z]);
-        }
-
-        if (allPositions.length === 0) return;
-
-        let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
-        for (const [x, z] of allPositions) {
-            if (x < minX) minX = x;
-            if (x > maxX) maxX = x;
-            if (z < minZ) minZ = z;
-            if (z > maxZ) maxZ = z;
+            minX = Math.min(minX, playerPos.x);
+            maxX = Math.max(maxX, playerPos.x);
+            minZ = Math.min(minZ, playerPos.z);
+            maxZ = Math.max(maxZ, playerPos.z);
         }
 
         const rangeX = Math.max(1, maxX - minX);
@@ -86,10 +113,11 @@ export class ParcoursMinimapRenderer {
         const offsetX = PAD + (innerW - rangeX * scale) / 2;
         const offsetZ = PAD + (innerH - rangeZ * scale) / 2;
 
-        const toCanvas = (wx, wz) => [
-            offsetX + (wx - minX) * scale,
-            offsetZ + (wz - minZ) * scale,
-        ];
+        this._transformMinX = minX;
+        this._transformMinZ = minZ;
+        this._transformScale = scale;
+        this._transformOffsetX = offsetX;
+        this._transformOffsetZ = offsetZ;
 
         ctx.clearRect(0, 0, W, H);
 
@@ -103,22 +131,27 @@ export class ParcoursMinimapRenderer {
         ctx.fill();
 
         const nextIdx = Math.max(0, nextCheckpointIndex || 0);
-        const passedCheckpointIdSet = new Set(
-            Array.isArray(passedCheckpointIds)
-                ? passedCheckpointIds.map((checkpointId) => String(checkpointId || '').trim()).filter(Boolean)
-                : []
-        );
+        const passedCheckpointIdSet = this._passedCheckpointIds;
+        passedCheckpointIdSet.clear();
+        if (Array.isArray(passedCheckpointIds)) {
+            for (const checkpointId of passedCheckpointIds) {
+                const normalizedId = String(checkpointId || '').trim();
+                if (normalizedId) passedCheckpointIdSet.add(normalizedId);
+            }
+        }
 
         // Connection lines between checkpoints
         for (const cp of routeSnapshot.checkpoints) {
-            const [x1, z1] = toCanvas(cp.pos[0], cp.pos[2]);
+            const x1 = this._toCanvasX(cp.pos[0]);
+            const z1 = this._toCanvasZ(cp.pos[2]);
             const isBranchLine = cp.isBranchOption === true;
             ctx.strokeStyle = isBranchLine ? 'rgba(0,200,255,0.4)' : 'rgba(180,180,180,0.5)';
             ctx.lineWidth = 1.5;
             for (const nextId of (cp.nextCheckpointIds || [])) {
                 const next = this._cpById?.get(nextId);
                 if (!next) continue;
-                const [x2, z2] = toCanvas(next.pos[0], next.pos[2]);
+                const x2 = this._toCanvasX(next.pos[0]);
+                const z2 = this._toCanvasZ(next.pos[2]);
                 ctx.beginPath();
                 ctx.moveTo(x1, z1);
                 ctx.lineTo(x2, z2);
@@ -129,8 +162,10 @@ export class ParcoursMinimapRenderer {
         // Line from last checkpoint to finish
         if (routeSnapshot.finish && routeSnapshot.checkpoints.length > 0) {
             const lastCp = routeSnapshot.checkpoints[routeSnapshot.checkpoints.length - 1];
-            const [x1, z1] = toCanvas(lastCp.pos[0], lastCp.pos[2]);
-            const [x2, z2] = toCanvas(routeSnapshot.finish.pos[0], routeSnapshot.finish.pos[2]);
+            const x1 = this._toCanvasX(lastCp.pos[0]);
+            const z1 = this._toCanvasZ(lastCp.pos[2]);
+            const x2 = this._toCanvasX(routeSnapshot.finish.pos[0]);
+            const z2 = this._toCanvasZ(routeSnapshot.finish.pos[2]);
             ctx.strokeStyle = 'rgba(255,215,0,0.5)';
             ctx.lineWidth = 1.5;
             ctx.beginPath();
@@ -141,7 +176,8 @@ export class ParcoursMinimapRenderer {
 
         // Checkpoint dots
         for (const cp of routeSnapshot.checkpoints) {
-            const [cx, cz] = toCanvas(cp.pos[0], cp.pos[2]);
+            const cx = this._toCanvasX(cp.pos[0]);
+            const cz = this._toCanvasZ(cp.pos[2]);
             const isPassed = passedCheckpointIdSet.has(cp.id);
             const isNext = cp.routeIndex === nextIdx;
             const isBranch = cp.isBranchOption === true;
@@ -171,7 +207,8 @@ export class ParcoursMinimapRenderer {
 
         // Finish ring
         if (routeSnapshot.finish) {
-            const [fx, fz] = toCanvas(routeSnapshot.finish.pos[0], routeSnapshot.finish.pos[2]);
+            const fx = this._toCanvasX(routeSnapshot.finish.pos[0]);
+            const fz = this._toCanvasZ(routeSnapshot.finish.pos[2]);
             const isFinished = nextIdx >= routeSnapshot.totalCheckpoints;
             ctx.beginPath();
             ctx.arc(fx, fz, 5, 0, Math.PI * 2);
@@ -184,7 +221,8 @@ export class ParcoursMinimapRenderer {
 
         // Player arrow
         if (playerPos) {
-            const [px, pz] = toCanvas(playerPos.x, playerPos.z);
+            const px = this._toCanvasX(playerPos.x);
+            const pz = this._toCanvasZ(playerPos.z);
             ctx.save();
             ctx.translate(px, pz);
 
@@ -212,7 +250,7 @@ export class ParcoursMinimapRenderer {
             ctx.restore();
         }
 
-        const nextTarget = routeSnapshot.checkpoints.find((entry) => entry.routeIndex === nextIdx)
+        const nextTarget = this._cpByRouteIndex?.get(nextIdx)
             || (nextIdx >= routeSnapshot.totalCheckpoints ? routeSnapshot.finish : null);
         if (playerPos && nextTarget?.pos) {
             const heightDelta = Math.round((Number(nextTarget.pos[1]) || 0) - (Number(playerPos.y) || 0));
@@ -236,6 +274,9 @@ export class ParcoursMinimapRenderer {
         this._canvas = null;
         this._ctx = null;
         this._cpById = null;
+        this._cpByRouteIndex = null;
+        this._routeBounds = null;
+        this._passedCheckpointIds.clear();
         this._lastRouteId = null;
     }
 }

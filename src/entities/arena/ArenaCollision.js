@@ -260,7 +260,7 @@ export class ArenaCollision {
 
         this._tmpSphere.center.copy(position);
         this._tmpSphere.radius = radius;
-        for (const obs of this.arena.obstacles) {
+        for (const obs of this._getFastCollisionObstacles(position, radius)) {
             if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
             if (obs.meshCollider && !sphereIntersectsStaticMeshCollider(
                 obs.meshCollider,

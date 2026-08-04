@@ -40,3 +40,26 @@ test('fast arena collision narrows large static obstacle sets and follows rebuil
     arena.obstacles = [...arena.obstacles.slice(0, -1), obstacleAt(25)];
     assert.equal(collision.checkCollisionFast(new THREE.Vector3(25, 0, 0), 0.5), true);
 });
+
+test('detailed arena collision uses the spatial index without changing hit details', () => {
+    const obstacles = Array.from({ length: 16 }, (_value, index) => obstacleAt(index * 40));
+    let intersectionChecks = 0;
+    for (const obstacle of obstacles) {
+        const intersectsSphere = obstacle.box.intersectsSphere.bind(obstacle.box);
+        obstacle.box.intersectsSphere = (sphere) => {
+            intersectionChecks += 1;
+            return intersectsSphere(sphere);
+        };
+    }
+    const collision = new ArenaCollision({
+        bounds: { minX: -1000, maxX: 1000, minY: -100, maxY: 100, minZ: -100, maxZ: 100 },
+        obstacles,
+    });
+
+    const hit = collision.getCollisionInfo(new THREE.Vector3(0.75, 0, 0), 0.5);
+
+    assert.equal(hit?.kind, 'hard');
+    assert.equal(hit?.isWall, false);
+    assert.equal(hit?.normal.x, 1);
+    assert.ok(intersectionChecks < obstacles.length);
+});

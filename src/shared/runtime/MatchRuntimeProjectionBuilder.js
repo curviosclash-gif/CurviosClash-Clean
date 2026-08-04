@@ -4,28 +4,15 @@ import {
     CONFIG_SECTIONS,
     getGameplayConfigSection,
 } from '../contracts/GameplayConfigContract.js';
-import { createMatchRuntimeProjection } from '../contracts/MatchRuntimeProjectionContract.js';
+import {
+    assembleMatchRuntimeProjection,
+    createMatchRuntimeLockTargetProjection,
+    createMatchRuntimePlayerProjection,
+    createMatchRuntimeSessionPlayerProjection,
+} from '../contracts/MatchRuntimeProjectionContract.js';
 
 const TMP_AIM_DIRECTION = new THREE.Vector3();
 const TMP_CONFIG_SOURCE = { config: null, entityRuntimeConfig: null };
-
-function toVector3Projection(value = null) {
-    return {
-        x: Number(value?.x) || 0,
-        y: Number(value?.y) || 0,
-        z: Number(value?.z) || 0,
-    };
-}
-
-function toQuaternionProjection(value = null) {
-    const w = Number(value?.w);
-    return {
-        x: Number(value?.x) || 0,
-        y: Number(value?.y) || 0,
-        z: Number(value?.z) || 0,
-        w: Number.isFinite(w) ? w : 1,
-    };
-}
 
 function resolveNetworkPlayerSlots(game) {
     const slots = game?.runtimeConfig?.session?.networkPlayerSlots;
@@ -63,7 +50,7 @@ function resolveLocalPlayerIndex(facade, sessionPlayers = resolveSessionPlayers(
 
 function buildSessionPlayersProjection(facade, sessionPlayers = resolveSessionPlayers(facade)) {
     const localPlayerId = facade?.session?.localPlayerId || '';
-    return sessionPlayers.map((player, index) => ({
+    return sessionPlayers.map((player, index) => createMatchRuntimeSessionPlayerProjection({
         playerIndex: Number.isInteger(player?.index) ? player.index : index,
         playerId: String(player?.id || ''),
         pingMs: Number.isFinite(Number(player?.ping)) ? Math.max(0, Math.round(Number(player.ping))) : -1,
@@ -101,7 +88,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         : null;
     const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
     const boostCharge = Math.max(0, Math.min(boostCapacity, Number(player?.boostCharge) || 0));
-    return {
+    return createMatchRuntimePlayerProjection({
         playerIndex: Number.isInteger(player?.index) ? player.index : 0,
         isBot: player?.isBot === true,
         alive: player?.alive !== false,
@@ -114,19 +101,11 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         maxHp: Math.max(1, Number(player?.maxHp) || 1),
         shieldHP: Math.max(0, Number(player?.shieldHP) || 0),
         maxShieldHp: Math.max(1, Number(player?.maxShieldHp) || 1),
-        position: toVector3Projection(player?.position),
-        quaternion: toQuaternionProjection(player?.quaternion),
-        aimDirection: toVector3Projection(aimDirection),
-        inventory: Array.isArray(player?.inventory) ? [...player.inventory] : [],
-        activeEffects: Array.isArray(player?.activeEffects)
-            ? player.activeEffects.map((effect) => ({
-                type: String(effect?.type || '').trim().toUpperCase(),
-                remaining: Math.max(0, Number(effect?.remaining) || 0),
-                sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
-                    ? effect.sourcePlayerIndex
-                    : null,
-            })).filter((effect) => !!effect.type)
-            : [],
+        position: player?.position,
+        quaternion: player?.quaternion,
+        aimDirection,
+        inventory: player?.inventory,
+        activeEffects: player?.activeEffects,
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
         itemUseCooldownRemaining: Math.max(0, Number(player?.itemUseCooldownRemaining) || 0),
         shootCooldown: Math.max(0, Number(player?.shootCooldown) || 0),
@@ -134,7 +113,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         traversal: buildTraversalProjection(entityManager, player?.index),
         turret: entityManager?._staticTurretSystem?.getHudStateForPlayer?.(player?.index) || null,
-    };
+    });
 }
 
 function buildLockTargetProjection(entityManager, playerIndex) {
@@ -145,14 +124,14 @@ function buildLockTargetProjection(entityManager, playerIndex) {
     if (!target) {
         return null;
     }
-    return {
+    return createMatchRuntimeLockTargetProjection({
         playerIndex,
         targetPlayerIndex: Number.isInteger(target?.index)
             ? target.index
             : (Number.isInteger(target?.playerIndex) ? target.playerIndex : -1),
         alive: target?.alive !== false,
-        position: toVector3Projection(target?.position),
-    };
+        position: target?.position,
+    });
 }
 
 export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessionRuntime }) {
@@ -180,7 +159,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         || entityManager?.getHuntScoreboard?.()
         || [];
 
-    return createMatchRuntimeProjection({
+    return assembleMatchRuntimeProjection({
         updatedAt: Date.now(),
         gameStateId,
         modeId,

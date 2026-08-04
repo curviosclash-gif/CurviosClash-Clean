@@ -92,10 +92,16 @@ test('ParcoursMinimapRenderer keeps untaken branch siblings unpassed', () => {
 
         renderer.update(routeSnapshot, 3, ['CP01', 'CP02', 'CP03A'], null, null);
 
-        const checkpointDots = recordedArcs.filter((entry) => entry.r === 4 || entry.r === 5);
-        assert.equal(checkpointDots.length, 6);
+        const checkpointCache = renderer._cpById;
+        const passedCheckpointCache = renderer._passedCheckpointIds;
+        renderer.update(routeSnapshot, 3, ['CP01', 'CP02', 'CP03A'], null, null);
+        assert.equal(renderer._cpById, checkpointCache);
+        assert.equal(renderer._passedCheckpointIds, passedCheckpointCache);
 
-        const [cp01, cp02, cp03a, cp03b, cp04] = checkpointDots;
+        const checkpointDots = recordedArcs.filter((entry) => entry.r === 4 || entry.r === 5);
+        assert.equal(checkpointDots.length, 12);
+
+        const [cp01, cp02, cp03a, cp03b, cp04] = checkpointDots.slice(-6);
         assert.equal(cp01.fillStyle, '#00cc00');
         assert.equal(cp02.fillStyle, '#00cc00');
         assert.equal(cp03a.fillStyle, '#00cc00');

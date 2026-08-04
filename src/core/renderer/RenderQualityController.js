@@ -47,7 +47,8 @@ export class RenderQualityController {
     }
 
     _normalizeQuality(quality) {
-        return quality === 'LOW' ? 'LOW' : 'HIGH';
+        if (quality === 'LOW' || quality === 'MEDIUM') return quality;
+        return 'HIGH';
     }
 
     _resolveEffectiveQuality() {
@@ -69,6 +70,12 @@ export class RenderQualityController {
             this.scene.environment = null;
             this.scene.fog.near = 25;
             this.scene.fog.far = 120;
+        } else if (this.quality === 'MEDIUM') {
+            this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
+            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+            this.scene.environment = this.highQualityEnvironment;
+            this.scene.fog.near = 30;
+            this.scene.fog.far = 160;
         } else {
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
             this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -98,7 +105,9 @@ export class RenderQualityController {
     _applyShadowQuality() {
         const effectiveShadowQuality = this.quality === 'LOW'
             ? SHADOW_QUALITY_LEVELS.OFF
-            : this.shadowQuality;
+            : (this.quality === 'MEDIUM'
+                ? Math.min(this.shadowQuality, SHADOW_QUALITY_LEVELS.MEDIUM)
+                : this.shadowQuality);
         const preset = resolveShadowQualityPreset(effectiveShadowQuality);
         this.renderer.shadowMap.enabled = preset.enabled;
 

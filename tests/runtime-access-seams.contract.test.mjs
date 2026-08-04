@@ -412,7 +412,7 @@ test('V104.2 runtime diagnostics handles KeyP/KeyO and blocks both while key-cap
     });
 });
 
-test('runtime diagnostics restores quality only after an automatic downgrade', async () => {
+test('runtime diagnostics adapts quality in stable steps and restores automatic downgrades', async () => {
     await withMockBrowserGlobals(async () => {
         const qualityCalls = [];
         const runtimeAccess = {
@@ -429,10 +429,13 @@ test('runtime diagnostics restores quality only after an automatic downgrade', a
         try {
             diagnostics._fpsTracker.avg = 20;
             diagnostics.update(3.1);
+            diagnostics.update(3.1);
+            diagnostics._fpsTracker.avg = 46;
+            diagnostics.update(3.1);
             diagnostics._fpsTracker.avg = 60;
             diagnostics.update(3.1);
 
-            assert.deepEqual(qualityCalls, ['LOW', 'HIGH']);
+            assert.deepEqual(qualityCalls, ['MEDIUM', 'LOW', 'MEDIUM', 'HIGH']);
             assert.equal(diagnostics._isLowQuality, false);
             assert.equal(diagnostics._autoLowActive, false);
         } finally {
