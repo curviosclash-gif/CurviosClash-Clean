@@ -93,10 +93,12 @@ class FakeNetworkLobby {
         return this.localPeerId;
     }
 
-    async create() {
+    async create(options = {}) {
+        this.lastCreateOptions = options;
         this.sessionState = {
             lobbyCode: 'LAN-QA',
             hostPeerId: 'peer-host',
+            maxPlayers: Number(options.maxPlayers || 10),
             members: [
                 {
                     peerId: 'peer-host',
@@ -109,6 +111,7 @@ class FakeNetworkLobby {
     }
 
     async join(options = {}) {
+        this.lastJoinOptions = options;
         this.sessionState = {
             lobbyCode: options.lobbyCode || 'LAN-QA',
             hostPeerId: 'peer-host',
@@ -217,6 +220,7 @@ test('V96.6 Network lobby transport and projection keep delegation, state and di
         onError: (payload) => callbacks.push(['error', payload]),
         onClosed: (payload) => callbacks.push(['closed', payload]),
         onMatchStart: (payload) => callbacks.push(['matchStart', payload]),
+        onConnectionPhaseChanged: (payload) => callbacks.push(['connection', payload]),
     });
 
     session.replace('ws://first');
@@ -230,12 +234,16 @@ test('V96.6 Network lobby transport and projection keep delegation, state and di
     lobbies[0].handlers.get('error')?.({ message: 'boom' });
     lobbies[0].handlers.get('closed')?.({ reason: 'closed' });
     lobbies[0].handlers.get('matchStart')?.({ pendingMatchStart: { commandId: 'cmd-1' } });
+    lobbies[0].handlers.get('reconnecting')?.({ attempt: 2, maxAttempts: 3 });
+    lobbies[0].handlers.get('connectionResumed')?.({});
 
     assert.equal(session.hasLobby(), true);
     assert.equal(session.getLobbyState().lobbyCode, 'LAN-QA');
     assert.equal(session.getLocalPeerId(), 'peer-local');
     assert.equal(session.getSignalingUrl(), 'ws://first');
-    assert.deepEqual(callbacks.map(([type]) => type), ['state', 'error', 'closed', 'matchStart']);
+    assert.deepEqual(callbacks.map(([type]) => type), ['state', 'error', 'closed', 'matchStart', 'connection', 'connection']);
+    assert.deepEqual(callbacks.at(-2)?.[1], { phase: 'reconnecting', attempt: 2, maxAttempts: 3 });
+    assert.equal(callbacks.at(-1)?.[1].phase, 'connected');
     assert.deepEqual(callbacks[0][1], {
         sessionState: { lobbyCode: 'LAN-QA' },
         signalingUrl: 'ws://first',
@@ -475,8 +483,10 @@ test('NetworkLobbyService forwards pending match-start state once even without a
         onMatchStart: (command, state) => starts.push([command.commandId, state.role]),
     });
 
-    await service.join({ lobbyCode: 'LAN-LIVE' });
+    await service.join({ actorId: 'Pilot', lobbyCode: 'LAN-LIVE' });
     const lobby = lobbies[0];
+    assert.equal(lobby.lastJoinOptions.actorId, 'Pilot');
+    assert.equal(lobby.lastJoinOptions.name, 'Pilot');
     lobby.sessionState = {
         ...lobby.sessionState,
         pendingMatchStart: {
@@ -499,30 +509,133 @@ test('NetworkLobbyService forwards pending match-start state once even without a
 
 test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helpers', async () => {
     const events = [];
+    let lobby = null;
     const service = new NetworkLobbyService({
         contractVersion: LOBBY_LIFECYCLE_EVENT_CONTRACT_VERSION,
         runtime: { global: {} },
         discoveryPort: null,
         resolveHostSignalingUrl: () => 'ws://127.0.0.1:4567',
-        createLobby: (signalingUrl) => new FakeNetworkLobby(signalingUrl),
+        createLobby: (signalingUrl) => {
+            lobby = new FakeNetworkLobby(signalingUrl);
+            return lobby;
+        },
         onEvent: (event) => events.push(event),
     });
 
-    const result = await service.host({ actorId: 'Host', maxPlayers: 2 });
+    const result = await service.host({
+        actorId: 'Captain',
+        maxPlayers: 2,
+        settingsSnapshot: { mapKey: 'maze', gameMode: 'HUNT', localSettings: { modePath: 'fight' } },
+    });
     const hostReadyResult = await service.toggleReady({ actorId: 'Host', ready: false });
 
     assert.equal(result.ok, true);
     assert.equal(result.event.eventType, LOBBY_SERVICE_EVENT_TYPES.HOST);
     assert.equal(result.event.contractVersion, LOBBY_LIFECYCLE_EVENT_CONTRACT_VERSION);
     assert.equal(result.event.channel, 'multiplayer');
-    assert.equal(result.event.payload.actorId, 'Host');
+    assert.equal(result.event.payload.actorId, 'Captain');
     assert.equal(result.event.payload.lobbyCode, 'LAN-QA');
     assert.equal(result.sessionState.lobbyCode, 'LAN-QA');
     assert.equal(result.sessionState.isHost, true);
     assert.equal(result.sessionState.localReady, true);
+    assert.equal(result.sessionState.maxPlayers, 2);
+    assert.equal(service.getSessionState().shareAddress, 'localhost:4567');
+    assert.equal(lobby.lastCreateOptions.actorId, 'Captain');
+    assert.equal(lobby.lastCreateOptions.name, 'Captain');
+    assert.deepEqual(lobby.lastCreateOptions.metadata, {
+        hostName: 'Captain',
+        mapKey: 'maze',
+        gameMode: 'HUNT',
+        modePath: 'fight',
+        winsNeeded: 5,
+    });
     assert.equal(hostReadyResult.sessionState.localReady, true);
     assert.equal(hostReadyResult.event, null);
     assert.equal(events.length, 1);
+});
+
+test('LANMatchLobby rejoins a client session and reports reconnect progress', async () => {
+    const originalFetch = globalThis.fetch;
+    const events = [];
+    const lobby = new LANMatchLobby({ signalingUrl: 'http://localhost:9090' });
+    lobby.isHost = false;
+    lobby._localPeerId = 'player-1';
+    lobby._localPeerToken = 'token-1';
+    lobby._cancelReconnect = false;
+    lobby.on('reconnecting', ({ attempt, maxAttempts }) => events.push(['reconnecting', attempt, maxAttempts]));
+    lobby.on('connectionResumed', () => events.push(['resumed']));
+    globalThis.fetch = async (url, options) => {
+        assert.match(String(url), /\/lobby\/rejoin$/);
+        assert.deepEqual(JSON.parse(options.body), { playerId: 'player-1', playerToken: 'token-1' });
+        return {
+            ok: true,
+            json: async () => ({
+                sessionState: {
+                    lobbyCode: 'LAN-QA',
+                    hostPeerId: 'host',
+                    hostReady: true,
+                    players: [{ playerId: 'player-1', actorId: 'Pilot', ready: false }],
+                },
+            }),
+        };
+    };
+    try {
+        await lobby._attemptReconnect(new Error('offline'));
+        assert.deepEqual(events, [['reconnecting', 1, 3], ['resumed']]);
+        assert.equal(lobby.sessionState.lobbyCode, 'LAN-QA');
+        assert.equal(lobby.sessionState.members[1].actorId, 'Pilot');
+    } finally {
+        lobby._stopPolling();
+        globalThis.fetch = originalFetch;
+    }
+});
+
+test('NetworkLobbyService exposes pending mutations and rejects duplicate ready/start actions', async () => {
+    let readyResolve;
+    let startResolve;
+    let lobby;
+    const service = new NetworkLobbyService({
+        runtime: { global: {} },
+        discoveryPort: null,
+        resolveHostSignalingUrl: () => 'http://localhost:9090',
+        createLobby: (signalingUrl) => {
+            lobby = new FakeNetworkLobby(signalingUrl);
+            lobby.setReady = () => new Promise((resolve) => { readyResolve = resolve; });
+            lobby.startMatch = () => new Promise((resolve) => { startResolve = resolve; });
+            return lobby;
+        },
+    });
+
+    await service.host({ actorId: 'Host' });
+    lobby.localPeerId = 'peer-client';
+    lobby.sessionState = {
+        ...lobby.sessionState,
+        members: [
+            { peerId: 'peer-host', actorId: 'Host', ready: true },
+            { peerId: 'peer-client', actorId: 'Client', ready: false },
+        ],
+    };
+    lobby.handlers.get('sessionStateChanged')?.({ sessionState: lobby.sessionState });
+
+    const readyPromise = service.toggleReady({ ready: true });
+    assert.equal(service.getSessionState().readyMutationPending, true);
+    assert.equal((await service.toggleReady({ ready: true })).code, 'ready_pending');
+    readyResolve();
+    await readyPromise;
+    assert.equal(service.getSessionState().readyMutationPending, false);
+
+    lobby.localPeerId = 'peer-host';
+    lobby.sessionState = {
+        ...lobby.sessionState,
+        members: lobby.sessionState.members.map((member) => ({ ...member, ready: true })),
+    };
+    lobby.handlers.get('sessionStateChanged')?.({ sessionState: lobby.sessionState });
+    const startPromise = service.requestMatchStart();
+    assert.equal(service.getSessionState().matchStartPending, true);
+    assert.equal(service.requestMatchStart().code, 'match_start_pending');
+    startResolve({ pendingMatchStart: { commandId: 'match-1' } });
+    await startPromise;
+    assert.equal(service.getSessionState().matchStartPending, false);
 });
 
 test('LAN join with explicit signalingUrl uses the manual host address without discovery', async () => {
@@ -689,4 +802,38 @@ test('V96.2 StorageLobbyService keeps host, join and ready mutations application
     assert.equal(readyResult.event.eventType, LOBBY_SERVICE_EVENT_TYPES.READY_TOGGLE);
     assert.equal(readyResult.sessionState.localReady, true);
     assert.equal(readyResult.sessionState.readyCount, 2);
+});
+
+test('LAN lobby discovery returns joinable directory entries', async () => {
+    const calls = [];
+    const service = new NetworkLobbyService({
+        runtime: { global: {} },
+        discoveryPort: {
+            isAvailable: () => true,
+            start: () => calls.push('start'),
+            getHosts: async () => [{
+                ip: '192.168.1.8',
+                port: 9090,
+                lobbyCode: 'LAN-QA',
+                hostName: 'Wohnzimmer',
+                playerCount: 2,
+                maxPlayers: 6,
+            }],
+            stop: () => calls.push('stop'),
+        },
+    });
+
+    const lobbies = await service.listOpenLobbies();
+    assert.deepEqual(calls, ['start', 'stop']);
+    assert.deepEqual(lobbies, [{
+        lobbyCode: 'LAN-QA',
+        memberCount: 2,
+        maxPlayers: 6,
+        hostName: 'Wohnzimmer',
+        mapKey: '',
+        gameMode: '',
+        modePath: '',
+        signalingUrl: 'http://192.168.1.8:9090',
+        transport: 'lan',
+    }]);
 });

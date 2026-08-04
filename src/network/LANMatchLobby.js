@@ -77,6 +77,8 @@ export class LANMatchLobby extends MatchLobby {
         this._localPeerId = '';
         this._localPeerToken = '';
         this._lastHandledMatchCommandId = '';
+        this._reconnectPromise = null;
+        this._cancelReconnect = false;
     }
 
     _applySessionState(nextState) {
@@ -94,11 +96,16 @@ export class LANMatchLobby extends MatchLobby {
         this._lastHandledMatchCommandId = '';
         this._pollClosed = false;
         this._consecutivePollFailures = 0;
+        this._cancelReconnect = false;
 
         const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_CREATE}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ maxPlayers: Number(options.maxPlayers || 10) }),
+            body: JSON.stringify({
+                maxPlayers: Number(options.maxPlayers || 10),
+                actorId: options.actorId,
+                name: options.name || options.actorId,
+            }),
         });
         if (res?.ok === false) {
             const payload = await res.json().catch(() => ({}));
@@ -134,12 +141,17 @@ export class LANMatchLobby extends MatchLobby {
         this._lastHandledMatchCommandId = '';
         this._pollClosed = false;
         this._consecutivePollFailures = 0;
+        this._cancelReconnect = false;
 
         try {
             const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_JOIN}`, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ lobbyCode: this.lobbyCode }),
+                body: JSON.stringify({
+                    lobbyCode: this.lobbyCode,
+                    actorId: joinOptions.actorId,
+                    name: joinOptions.name || joinOptions.actorId,
+                }),
             });
             if (res?.ok === false) {
                 const payload = await res.json().catch(() => ({}));
@@ -196,7 +208,7 @@ export class LANMatchLobby extends MatchLobby {
                 : existing?.ready === true;
             merged.push({
                 peerId,
-                actorId: String(existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
+                actorId: String(player?.actorId || existing?.actorId || player?.name || (peerId === hostPeerId ? 'Host' : peerId)).trim(),
                 name: String(player?.name || existing?.name || peerId).trim(),
                 role: peerId === hostPeerId ? 'host' : fallbackRole,
                 ready: resolvedReady,
@@ -205,7 +217,12 @@ export class LANMatchLobby extends MatchLobby {
             });
         };
 
-        ensureMember({ playerId: hostPeerId, name: 'Host', ready: status.hostReady === true }, 'host');
+        ensureMember({
+            playerId: hostPeerId,
+            actorId: status.hostActorId,
+            name: status.hostName || status.hostActorId || 'Host',
+            ready: status.hostReady === true,
+        }, 'host');
         for (const player of serverPlayers) {
             ensureMember(player, 'client');
         }
@@ -321,15 +338,66 @@ export class LANMatchLobby extends MatchLobby {
             source: 'lan_status_poll',
             reason: error instanceof Error ? error.message : 'unknown',
         }, error instanceof Error ? error : null);
-        this._emit('error', toErrorPayload(err, 'LAN-Signaling nicht erreichbar.'));
+        if (this._reconnectPromise || !this._localPeerId || !this._localPeerToken) return;
+        this._reconnectPromise = this._attemptReconnect(err).finally(() => {
+            this._reconnectPromise = null;
+        });
+    }
+
+    async _attemptReconnect(closeError) {
+        const maxAttempts = 3;
+        let lastError = closeError;
+        for (let attempt = 1; attempt <= maxAttempts && !this._cancelReconnect; attempt += 1) {
+            this._emit('reconnecting', { attempt, maxAttempts, sessionState: this.sessionState });
+            if (attempt > 1) {
+                await new Promise((resolve) => setTimeout(resolve, attempt * 750));
+            }
+            if (this._cancelReconnect) return;
+            try {
+                let data;
+                if (this.isHost) {
+                    data = await this._pollStatusOnce();
+                } else {
+                    const response = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_REJOIN}`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            playerId: this._localPeerId,
+                            playerToken: this._localPeerToken,
+                        }),
+                    });
+                    if (response?.ok === false) {
+                        const payload = await response.json().catch(() => ({}));
+                        throw buildLanRequestError({
+                            response,
+                            payload,
+                            fallbackMessage: 'Wiederverbindung fehlgeschlagen.',
+                            fallbackCode: 'connection_resume_failed',
+                        });
+                    }
+                    data = await response.json();
+                }
+                if (this._cancelReconnect) return;
+                this._consecutivePollFailures = 0;
+                this._processServerStatus(data);
+                this._emit('connectionResumed', { sessionState: this.sessionState });
+                this._startPolling();
+                return;
+            } catch (error) {
+                lastError = error;
+            }
+        }
+        if (this._cancelReconnect) return;
+        this._emit('error', toErrorPayload(lastError, 'LAN-Signaling nicht erreichbar.'));
         this._applySessionState(createInitialLobbySessionState());
         this._emit('closed', {
             reason: 'signaling_unavailable',
-            error: toErrorPayload(err, 'LAN-Signaling nicht erreichbar.'),
+            error: toErrorPayload(lastError, 'LAN-Signaling nicht erreichbar.'),
         });
     }
 
     leave() {
+        this._cancelReconnect = true;
         this._stopPolling();
         this._consecutivePollFailures = 0;
 

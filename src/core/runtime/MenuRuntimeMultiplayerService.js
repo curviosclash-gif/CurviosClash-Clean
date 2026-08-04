@@ -36,7 +36,7 @@ import {
     setMultiplayerStatus,
 } from './MenuRuntimeMultiplayerUiFeedback.js';
 
-const ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE = 'Online ist nicht konfiguriert. Bitte VITE_SIGNALING_URL setzen oder LAN verwenden.';
+const ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE = 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.';
 
 // Surface-/Capability-Resolver brauchen den Adapter-Snapshot, damit die
 // Desktop-App nicht als Browser-Demo eingestuft wird (Raw-Global-Sniffing
@@ -282,7 +282,7 @@ export function invalidateMultiplayerReadyIfHostChangedSettings({
     }).catch(() => null);
 }
 
-function renderOpenOnlineLobbyOptions(game, lobbies = []) {
+function renderOpenLobbyOptions(game, lobbies = []) {
     const select = game?.ui?.multiplayerOpenLobbiesSelect;
     const doc = select?.ownerDocument;
     if (!select || typeof doc?.createElement !== 'function') return;
@@ -295,7 +295,15 @@ function renderOpenOnlineLobbyOptions(game, lobbies = []) {
     const options = [placeholder, ...lobbies.map((lobby) => {
         const option = doc.createElement('option');
         option.value = lobby.lobbyCode;
-        option.textContent = `${lobby.lobbyCode} · ${lobby.memberCount}/${lobby.maxPlayers} Spieler`;
+        if (option.dataset) {
+            option.dataset.signalingUrl = normalizeString(lobby.signalingUrl, '');
+        }
+        const context = [
+            normalizeString(lobby.hostName, ''),
+            normalizeString(lobby.modePath || lobby.gameMode, ''),
+            normalizeString(lobby.mapKey, ''),
+        ].filter(Boolean).join(' · ');
+        option.textContent = `${lobby.lobbyCode} · ${lobby.memberCount}/${lobby.maxPlayers} Spieler${context ? ` · ${context}` : ''}`;
         return option;
     })];
     select.replaceChildren(...options);
@@ -312,27 +320,25 @@ export async function handleMultiplayerLobbyListRefreshAction({
         game?.settings?.localSettings?.multiplayerTransport,
         MULTIPLAYER_TRANSPORTS.LAN
     );
-    if (selectedTransport !== MULTIPLAYER_TRANSPORTS.ONLINE) {
-        return { ok: false, message: 'Offene Lobbys sind nur fuer Online verfuegbar.' };
-    }
     if (typeof menuMultiplayerBridge?.listOpenLobbies !== 'function') {
-        return { ok: false, message: 'Die Online-Lobby-Suche ist nicht verfuegbar.' };
+        return { ok: false, message: 'Die Lobby-Suche ist nicht verfuegbar.' };
     }
 
     const refreshButton = game.ui?.multiplayerOpenLobbiesRefreshButton;
     const wasDisabled = refreshButton?.disabled === true;
     if (refreshButton) refreshButton.disabled = true;
-    setMultiplayerStatus(game, 'Offene Online-Lobbys werden gesucht ...');
+    const transportLabel = selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE ? 'Online' : 'LAN';
+    setMultiplayerStatus(game, `${transportLabel}-Lobbys werden gesucht ...`);
     try {
         const lobbies = await Promise.resolve(menuMultiplayerBridge.listOpenLobbies());
-        renderOpenOnlineLobbyOptions(game, lobbies);
+        renderOpenLobbyOptions(game, lobbies);
         setMultiplayerStatus(game, lobbies.length === 1
-            ? '1 offene Online-Lobby gefunden.'
-            : `${lobbies.length} offene Online-Lobbys gefunden.`);
+            ? `1 offene ${transportLabel}-Lobby gefunden.`
+            : `${lobbies.length} offene ${transportLabel}-Lobbys gefunden.`);
         return { ok: true, lobbies };
     } catch (error) {
         const message = error instanceof Error ? error.message : 'Lobby-Suche fehlgeschlagen.';
-        renderOpenOnlineLobbyOptions(game, []);
+        renderOpenLobbyOptions(game, []);
         setMultiplayerStatus(game, `Lobby-Suche fehlgeschlagen: ${message}`);
         game._showStatusToast?.(message, 1800, 'error');
         return { ok: false, message };
@@ -374,12 +380,14 @@ export async function handleMultiplayerHostAction({
         return { ok: false, message: hostGate.message, reason: hostGate.reason };
     }
     const accessContext = resolveMenuAccessContext?.();
+    const settingsSnapshot = captureSettingsSnapshot?.();
     observeCapabilityFallback(runtimeSource, menuMultiplayerBridge, 'host', event?.lobbyCode);
     let result = null;
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.host({
             actorId: accessContext?.actorId,
             lobbyCode: String(event?.lobbyCode || '').trim(),
+            settingsSnapshot,
         }));
     } catch (error) {
         result = {
@@ -399,7 +407,7 @@ export async function handleMultiplayerHostAction({
     if (game.ui?.multiplayerLobbyCodeInput) {
         game.ui.multiplayerLobbyCodeInput.value = result.lobbyCode || '';
     }
-    menuMultiplayerBridge?.publishHostSettings?.(captureSettingsSnapshot?.());
+    menuMultiplayerBridge?.publishHostSettings?.(settingsSnapshot);
     finishPendingAction();
     syncUiState?.();
     return result;

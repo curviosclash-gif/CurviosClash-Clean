@@ -5,6 +5,26 @@ export function bindMenuMultiplayerActionButtons({
     eventTypes,
     featureFlags,
 }) {
+    const copyValue = async (value, label) => {
+        const text = String(value || '').trim();
+        if (!text) return;
+        try {
+            const clipboard = globalThis.navigator?.clipboard;
+            if (typeof clipboard?.writeText !== 'function') throw new Error('clipboard_unavailable');
+            await clipboard.writeText(text);
+            emit(eventTypes.SHOW_STATUS_TOAST, {
+                message: `${label} kopiert.`,
+                duration: 1200,
+                tone: 'success',
+            });
+        } catch {
+            emit(eventTypes.SHOW_STATUS_TOAST, {
+                message: `${label} konnte nicht kopiert werden.`,
+                duration: 1600,
+                tone: 'error',
+            });
+        }
+    };
     const clearFieldError = (field) => {
         field?.removeAttribute?.('aria-invalid');
         field?.classList?.remove?.('menu-field-error');
@@ -49,7 +69,26 @@ export function bindMenuMultiplayerActionButtons({
             if (lobbyCode && ui.multiplayerLobbyCodeInput) {
                 ui.multiplayerLobbyCodeInput.value = lobbyCode;
             }
+            const selectedOption = ui.multiplayerOpenLobbiesSelect.selectedOptions?.[0];
+            const signalingUrl = String(selectedOption?.dataset?.signalingUrl || '').trim();
+            if (signalingUrl && ui.multiplayerHostAddressInput) {
+                ui.multiplayerHostAddressInput.value = signalingUrl;
+            }
         });
+    }
+
+    if (ui.multiplayerCopyCodeButton) {
+        bind(ui.multiplayerCopyCodeButton, 'click', () => copyValue(
+            ui.multiplayerShareCode?.textContent,
+            'Lobby-Code'
+        ));
+    }
+
+    if (ui.multiplayerCopyAddressButton) {
+        bind(ui.multiplayerCopyAddressButton, 'click', () => copyValue(
+            ui.multiplayerShareAddress?.textContent,
+            'LAN-Adresse'
+        ));
     }
 
     if (ui.multiplayerLeaveLobbyButton) {

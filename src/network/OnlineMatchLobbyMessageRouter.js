@@ -157,6 +157,12 @@ export function routeOnlineLobbyMessage(
         lobby._setReadyStateFor(msg.peerId, msg.ready === true);
         break;
 
+    case SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED:
+        if (msg?.sessionState && typeof msg.sessionState === 'object') {
+            lobby._applySessionState(msg.sessionState);
+        }
+        break;
+
     case SIGNALING_EVENT_TYPES.MATCH_START: {
         if (msg?.sessionState && typeof msg.sessionState === 'object') {
             lobby._applySessionState(msg.sessionState);
@@ -192,7 +198,7 @@ export function routeOnlineLobbyMessage(
     }
 
     case SIGNALING_EVENT_TYPES.ERROR: {
-        const err = createServerSignalingError(msg.message);
+        const err = createServerSignalingError(msg.code, msg.message, msg.details);
         lobby._rejectAllPendingMutationAcks(err);
         lobby._emit('error', toErrorPayload(err));
         if (connectReject) {

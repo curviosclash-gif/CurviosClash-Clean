@@ -142,6 +142,8 @@ function buildLobbyState(lobby) {
         lobbyCode: lobby.code,
         hostPeerId: 'host',
         hostReady: lobby.hostReady === true,
+        hostActorId: String(lobby.hostActorId || 'Host').trim() || 'Host',
+        hostName: String(lobby.hostName || lobby.hostActorId || 'Host').trim() || 'Host',
         maxPlayers: Number(lobby.maxPlayers || DEFAULT_MAX_PLAYERS),
         updatedAt: Date.now(),
         players: lobby.players.map((player) => ({
@@ -149,6 +151,8 @@ function buildLobbyState(lobby) {
             playerId: player.playerId,
             ready: player.ready === true,
             isHost: false,
+            actorId: String(player.actorId || player.playerId).trim(),
+            name: String(player.name || player.actorId || player.playerId).trim(),
         })),
         pendingPlayers: lobby.pendingPlayers.map((entry) => ({ playerId: entry.playerId })),
         pendingMatchStart: lobby.pendingMatchStart
@@ -199,6 +203,8 @@ export function createLANSignalingServer(port = 9090, options = {}) {
         code: generateLobbyCode(),
         hostToken: generateAccessToken('host'),
         hostReady: true,
+        hostActorId: 'Host',
+        hostName: 'Host',
         maxPlayers: DEFAULT_MAX_PLAYERS,
         players: [],
         pendingPlayers: [],
@@ -288,6 +294,8 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 lobby.reconnectLeases.set(stalePlayer.playerId, {
                     token: stalePlayer.token,
                     ready: stalePlayer.ready === true,
+                    actorId: stalePlayer.actorId,
+                    name: stalePlayer.name,
                     expiresAt: timestamp + reconnectLeaseMs,
                 });
                 removePlayer(stalePlayer.playerId);
@@ -360,6 +368,8 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             lobby.code = generateLobbyCode();
             lobby.hostToken = generateAccessToken('host');
             lobby.hostReady = true;
+            lobby.hostActorId = String(body.actorId || body.name || 'Host').trim() || 'Host';
+            lobby.hostName = String(body.name || body.actorId || 'Host').trim() || 'Host';
             lobby.maxPlayers = Number.isFinite(requestedMaxPlayers)
                 ? Math.max(2, Math.min(DEFAULT_MAX_PLAYERS, Math.floor(requestedMaxPlayers)))
                 : DEFAULT_MAX_PLAYERS;
@@ -406,6 +416,8 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 playerId,
                 token: playerToken,
                 ready: false,
+                actorId: String(body.actorId || body.name || playerId).trim() || playerId,
+                name: String(body.name || body.actorId || playerId).trim() || playerId,
                 joinedAt: timestamp,
                 lastActivityAt: timestamp,
             });
@@ -620,6 +632,8 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     playerId,
                     token: lease.token,
                     ready: lease.ready === true,
+                    actorId: lease.actorId || playerId,
+                    name: lease.name || lease.actorId || playerId,
                     joinedAt: timestamp,
                     lastActivityAt: timestamp,
                 };
@@ -659,6 +673,14 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             }
             if (String(body.hostToken || '') !== String(lobby.hostToken || '')) {
                 jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
+                return;
+            }
+            if (lobby.pendingMatchStart) {
+                jsonResponse(res, {
+                    ok: true,
+                    pendingMatchStart: lobby.pendingMatchStart,
+                    sessionState: buildLobbyState(lobby),
+                });
                 return;
             }
             if (countLobbyMembers(lobby) < 2) {

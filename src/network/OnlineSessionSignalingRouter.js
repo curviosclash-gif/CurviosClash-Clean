@@ -137,7 +137,7 @@ export async function routeOnlineSessionSignalingMessage(adapter, msg, { connect
         break;
 
     case SIGNALING_EVENT_TYPES.ERROR: {
-        const err = createServerSignalingError(msg.message);
+        const err = createServerSignalingError(msg.code, msg.message, msg.details);
         adapter._emit('error', toErrorPayload(err));
         if (connectReject) connectReject(err);
         break;

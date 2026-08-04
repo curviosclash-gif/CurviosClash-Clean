@@ -16,7 +16,7 @@ import {
 const LOBBY_LIST_TIMEOUT_MS = 3_500;
 const MAX_LOBBY_LIST_ITEMS = 50;
 
-function normalizeOpenLobbyList(value) {
+function normalizeOpenLobbyList(value, signalingUrl = '') {
     if (!Array.isArray(value)) return [];
     const seenCodes = new Set();
     return value.slice(0, MAX_LOBBY_LIST_ITEMS).flatMap((entry) => {
@@ -31,6 +31,12 @@ function normalizeOpenLobbyList(value) {
             maxPlayers,
             createdAt: Math.max(0, Math.floor(Number(entry?.createdAt) || 0)),
             updatedAt: Math.max(0, Math.floor(Number(entry?.updatedAt) || 0)),
+            hostName: String(entry?.hostName || '').trim(),
+            mapKey: String(entry?.mapKey || '').trim(),
+            gameMode: String(entry?.gameMode || '').trim(),
+            modePath: String(entry?.modePath || '').trim(),
+            winsNeeded: Math.max(1, Math.floor(Number(entry?.winsNeeded) || 1)),
+            signalingUrl: String(entry?.signalingUrl || signalingUrl || '').trim(),
         }];
     });
 }
@@ -81,11 +87,15 @@ export function listOpenOnlineLobbies(signalingUrl, options = {}) {
                 return;
             }
             if (message?.type === SIGNALING_EVENT_TYPES.ERROR) {
-                finish(reject, createServerSignalingError(message.message, { signalingUrl: resolvedUrl }));
+                finish(reject, createServerSignalingError(
+                    message.code,
+                    message.message,
+                    { ...(message.details || {}), signalingUrl: resolvedUrl }
+                ));
                 return;
             }
             if (message?.type === SIGNALING_EVENT_TYPES.LOBBY_LIST) {
-                finish(resolve, normalizeOpenLobbyList(message.lobbies));
+                finish(resolve, normalizeOpenLobbyList(message.lobbies, resolvedUrl));
             }
         };
         socket.onerror = (error) => finish(

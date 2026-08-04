@@ -2075,6 +2075,11 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         const multiplayerSessionControls = new FakeElement();
         const multiplayerMemberList = new FakeElement();
         const multiplayerMemberCount = new FakeElement();
+        const multiplayerShareCode = new FakeElement('output');
+        const multiplayerCopyCodeButton = new FakeElement('button');
+        const multiplayerShareAddressRow = new FakeElement();
+        const multiplayerShareAddress = new FakeElement('output');
+        const multiplayerCopyAddressButton = new FakeElement('button');
         const multiplayerManualAddress = new FakeElement('details');
         const startButton = new FakeElement('button');
         const ui = {
@@ -2094,6 +2099,11 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
             multiplayerSessionControls,
             multiplayerMemberList,
             multiplayerMemberCount,
+            multiplayerShareCode,
+            multiplayerCopyCodeButton,
+            multiplayerShareAddressRow,
+            multiplayerShareAddress,
+            multiplayerCopyAddressButton,
             multiplayerManualAddress,
         };
         const surfaceEntryCopy = {
@@ -2113,6 +2123,8 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
             pendingMatchCommandId: 'cmd-1',
             connected: true,
             memberCount: 2,
+            maxPlayers: 6,
+            shareAddress: '192.168.1.8:9090',
             readyCount: 2,
             localReady: true,
             canStart: false,
@@ -2176,7 +2188,10 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         assert.equal(multiplayerReadyToggle.checked, true);
         assert.equal(multiplayerTransportHint.textContent, 'Produktiver Transport: LAN');
         assert.equal(multiplayerMemberList.children.length, 2);
-        assert.equal(multiplayerMemberCount.textContent, '2 / 10');
+        assert.equal(multiplayerMemberCount.textContent, '2 / 6');
+        assert.equal(multiplayerShareCode.textContent, 'ABCD');
+        assert.equal(multiplayerShareAddress.textContent, '192.168.1.8:9090');
+        assert.equal(multiplayerShareAddressRow.classList.values.has('hidden'), false);
         assert.equal(multiplayerStartMatchButton.disabled, true);
         assert.equal(multiplayerStartMatchButton.textContent, 'Match wird gestartet …');
         assert.equal(startButton.classList.values.has('hidden'), true);

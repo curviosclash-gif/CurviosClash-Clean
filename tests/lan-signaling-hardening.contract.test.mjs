@@ -114,14 +114,20 @@ test('LAN discovery hides join data, status requires a token, and CORS rejects p
 test('LAN signaling enforces maxPlayers on join requests', async () => {
     const lanServer = await startLanServer();
     try {
-        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', {
+            maxPlayers: 2,
+            actorId: 'Captain',
+        });
         assert.equal(created.ok, true);
+        assert.equal(created.payload.sessionState.hostActorId, 'Captain');
 
         const joinedFirst = await postJson(lanServer.baseUrl, '/lobby/join', {
             lobbyCode: created.payload?.lobbyCode || '',
+            actorId: 'Wingman',
         });
         assert.equal(joinedFirst.ok, true);
         assert.ok(String(joinedFirst.payload?.playerId || '').startsWith('player-'));
+        assert.equal(joinedFirst.payload.sessionState.players[0].actorId, 'Wingman');
 
         const joinedSecond = await postJson(lanServer.baseUrl, '/lobby/join', {
             lobbyCode: created.payload?.lobbyCode || '',
@@ -129,6 +135,38 @@ test('LAN signaling enforces maxPlayers on join requests', async () => {
         assert.equal(joinedSecond.ok, false);
         assert.equal(joinedSecond.status, 409);
         assert.equal(joinedSecond.payload?.message, 'lobby_full');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN match start is idempotent while a start command is pending', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', { maxPlayers: 2 });
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+            actorId: 'Client',
+        });
+        await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId: joined.payload.playerId,
+            playerToken: joined.payload.playerToken,
+            ready: true,
+        });
+        const first = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            commandId: 'match-first',
+        });
+        const duplicate = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            commandId: 'match-second',
+        });
+
+        assert.equal(first.ok, true);
+        assert.equal(duplicate.ok, true);
+        assert.equal(duplicate.payload.pendingMatchStart.commandId, 'match-first');
     } finally {
         await stopLanServer(lanServer.server);
     }

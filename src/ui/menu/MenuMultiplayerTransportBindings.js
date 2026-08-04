@@ -21,6 +21,7 @@ export function bindMenuMultiplayerTransportButtons({
             }
             settings.localSettings.sessionType = 'multiplayer';
             if (settings.localSettings.multiplayerTransport === requestedTransport) {
+                emit(eventTypes.MULTIPLAYER_LOBBY_LIST_REFRESH);
                 return;
             }
             settings.localSettings.multiplayerTransport = requestedTransport;
@@ -28,6 +29,7 @@ export function bindMenuMultiplayerTransportButtons({
                 keys.MULTIPLAYER_TRANSPORT,
                 keys.MULTIPLAYER_STATUS,
             ]);
+            emit(eventTypes.MULTIPLAYER_LOBBY_LIST_REFRESH);
             emit(eventTypes.SHOW_STATUS_TOAST, {
                 message: requestedTransport === 'online'
                     ? 'Multiplayer-Transport: Online'

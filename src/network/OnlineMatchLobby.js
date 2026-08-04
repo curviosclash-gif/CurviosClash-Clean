@@ -21,6 +21,10 @@ import {
     createResumeSignalingEnvelope,
     isRetryableSignalingError,
     toErrorPayload,
+    applyOnlineLobbySettings,
+    createOnlineLobbyCreateEnvelope,
+    createOnlineLobbyJoinEnvelope,
+    emitOnlineLobbyReconnectProgress,
 } from './OnlineSignalingSupport.js';
 import { routeOnlineLobbyMessage } from './OnlineMatchLobbyMessageRouter.js';
 
@@ -188,7 +192,6 @@ export class OnlineMatchLobby extends MatchLobby {
     _scheduleReconnect(reconnectContext, closeError) {
         if (this._reconnectPromise) return this._reconnectPromise;
         this._cancelReconnect = false;
-        this._emit('reconnecting', { sessionState: this.sessionState });
         this._reconnectPromise = this.reconnect(reconnectContext)
             .catch((error) => {
                 if (!this._cancelReconnect) {
@@ -223,6 +226,9 @@ export class OnlineMatchLobby extends MatchLobby {
 
         for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
             if (this._cancelReconnect) break;
+            if (options.emitReconnectProgress === true) {
+                emitOnlineLobbyReconnectProgress(this, attempt, maxAttempts);
+            }
             try {
                 await this._makeConnectAttempt(setupFn, timeoutMs);
                 return;
@@ -306,9 +312,7 @@ export class OnlineMatchLobby extends MatchLobby {
 
         return this._makeConnectPromise((ws, connectResolve, connectReject, connectState) => {
             ws.onopen = () => {
-                this._send(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, {
-                    maxPlayers: options.maxPlayers || 10,
-                }));
+                this._send(createOnlineLobbyCreateEnvelope(options));
             };
             ws.onmessage = (event) => {
                 try {
@@ -333,7 +337,7 @@ export class OnlineMatchLobby extends MatchLobby {
 
         return this._makeConnectPromise((ws, connectResolve, connectReject, connectState) => {
             ws.onopen = () => {
-                this._send(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.JOIN_LOBBY, { lobbyCode }));
+                this._send(createOnlineLobbyJoinEnvelope(lobbyCode, options));
             };
             ws.onmessage = (event) => {
                 try {
@@ -384,7 +388,7 @@ export class OnlineMatchLobby extends MatchLobby {
                     }
                 }
             };
-        }, options);
+        }, { ...options, emitReconnectProgress: true });
     }
 
     _handleMessage(msg, connectResolve, connectReject, connectState = null) {
@@ -503,8 +507,7 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     updateSettings(settings) {
-        Object.assign(this.settings, settings);
-        this._emit('settingsChanged', { settings: this.settings, sessionState: this.sessionState });
+        applyOnlineLobbySettings(this, settings);
     }
 
     async startMatch(options = {}) {
@@ -531,13 +534,9 @@ export class OnlineMatchLobby extends MatchLobby {
         return { pendingMatchStart };
     }
 
-    getLocalPeerId() {
-        return String(this._playerId || '').trim();
-    }
+    getLocalPeerId() { return String(this._playerId || '').trim(); }
 
-    getLocalPeerToken() {
-        return this._sessionToken;
-    }
+    getLocalPeerToken() { return this._sessionToken; }
 
     dispose() {
         this.leave();

@@ -579,10 +579,8 @@ export class UIManager {
             sessionType,
         });
         const sessionState = this._readMenuMultiplayerSessionState();
-        const activePresetId = String(settings?.matchSettings?.activePresetId || '');
-        const presetText = activePresetId ? ` | Preset: ${activePresetId}` : '';
         if (sessionType !== MENU_SESSION_TYPES.MULTIPLAYER) {
-            this.ui.multiplayerStatus.textContent = `${surfaceEntryCopy.multiplayerInactiveStatus}${presetText}`;
+            this.ui.multiplayerStatus.textContent = surfaceEntryCopy.multiplayerInactiveStatus;
             if (this.ui.startButton) {
                 this.ui.startButton.disabled = false;
                 this.ui.startButton.title = surfaceEntryCopy.startButtonTitle || '';
@@ -594,17 +592,24 @@ export class UIManager {
                 sessionType,
                 multiplayerTransport: settings?.localSettings?.multiplayerTransport,
             });
-            this.ui.multiplayerStatus.textContent = `${surfaceEntryCopy.multiplayerDisconnectedStatus} | Transport: ${sessionContract.transportAudienceLabel}${presetText}`;
+            this.ui.multiplayerStatus.textContent = `${surfaceEntryCopy.multiplayerDisconnectedStatus} · ${sessionContract.transportAudienceLabel}`;
             if (this.ui.startButton) {
                 this.ui.startButton.disabled = false;
                 this.ui.startButton.title = surfaceEntryCopy.multiplayerJoinWaitTitle;
             }
             return;
         }
-        const role = sessionState.isHost ? 'Host' : surfaceEntryCopy.multiplayerClientRoleLabel;
-        const connectionStatus = sessionState.pendingMatchCommandId ? 'Startsignal gesendet' : (sessionState.connected ? 'verbunden' : (sessionState.isHost ? 'Host aktiv' : 'Warte auf Host'));
-        const startStatus = sessionState.pendingMatchCommandId ? 'Matchstart laeuft' : (sessionState.canStart ? 'Start bereit' : (sessionState.isHost ? 'Warte auf Ready' : 'Warte auf Host'));
-        this.ui.multiplayerStatus.textContent = `Lobby live | Rolle: ${role} | Status: ${connectionStatus} | ${sessionState.readyCount}/${sessionState.memberCount} ready | ${startStatus}${presetText}`;
+        if (sessionState.connectionPhase === 'reconnecting') {
+            this.ui.multiplayerStatus.textContent = `Verbindung wird wiederhergestellt (${sessionState.reconnectAttempt}/${sessionState.reconnectMaxAttempts}) …`;
+        } else if (sessionState.readyMutationPending) {
+            this.ui.multiplayerStatus.textContent = 'Bereitschaft wird aktualisiert …';
+        } else if (sessionState.matchStartPending || sessionState.pendingMatchCommandId) {
+            this.ui.multiplayerStatus.textContent = 'Match wird gestartet …';
+        } else {
+            this.ui.multiplayerStatus.textContent = sessionState.canStart
+                ? 'Alle sind bereit.'
+                : 'Lobby verbunden.';
+        }
         if (this.ui.startButton) {
             this.ui.startButton.disabled = false;
             this.ui.startButton.title = sessionState.pendingMatchCommandId

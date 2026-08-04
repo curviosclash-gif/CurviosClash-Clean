@@ -153,7 +153,7 @@ test('join action exposes a busy state and restores controls after connecting', 
 test('online lobby list action renders joinable lobby options and status', async () => {
     const select = {
         ownerDocument: {
-            createElement: () => ({ value: '', textContent: '' }),
+            createElement: () => ({ value: '', textContent: '', dataset: {} }),
         },
         options: [],
         value: '',
@@ -181,6 +181,10 @@ test('online lobby list action renders joinable lobby options and status', async
         maxPlayers: 4,
         createdAt: 1,
         updatedAt: 2,
+        hostName: 'Captain',
+        modePath: 'fight',
+        mapKey: 'maze',
+        signalingUrl: 'ws://lobby.example',
     }];
 
     const result = await handleMultiplayerLobbyListRefreshAction({
@@ -193,8 +197,39 @@ test('online lobby list action renders joinable lobby options and status', async
     assert.deepEqual(result, { ok: true, lobbies });
     assert.equal(select.options.length, 2);
     assert.equal(select.options[1].value, 'ABCD1234');
-    assert.equal(select.options[1].textContent, 'ABCD1234 · 1/4 Spieler');
+    assert.equal(select.options[1].textContent, 'ABCD1234 · 1/4 Spieler · Captain · fight · maze');
+    assert.equal(select.options[1].dataset.signalingUrl, 'ws://lobby.example');
     assert.equal(select.disabled, false);
     assert.equal(refreshButton.disabled, false);
     assert.equal(game.ui.multiplayerStatus.textContent, '1 offene Online-Lobby gefunden.');
+});
+
+test('LAN lobby list action uses the same discovery UI', async () => {
+    const select = {
+        ownerDocument: { createElement: () => ({ value: '', textContent: '', dataset: {} }) },
+        options: [],
+        value: '',
+        disabled: false,
+        replaceChildren(...options) { this.options = options; },
+    };
+    const game = {
+        settings: { localSettings: { multiplayerTransport: MULTIPLAYER_TRANSPORTS.LAN } },
+        ui: {
+            multiplayerOpenLobbiesSelect: select,
+            multiplayerOpenLobbiesRefreshButton: { disabled: false },
+            multiplayerStatus: { textContent: '' },
+        },
+    };
+    const lobbies = [{
+        lobbyCode: 'LAN-QA', memberCount: 2, maxPlayers: 10, hostName: 'Wohnzimmer',
+    }];
+
+    const result = await handleMultiplayerLobbyListRefreshAction({
+        game,
+        menuMultiplayerBridge: { listOpenLobbies: async () => lobbies },
+    });
+
+    assert.equal(result.ok, true);
+    assert.equal(select.options[1].value, 'LAN-QA');
+    assert.equal(game.ui.multiplayerStatus.textContent, '1 offene LAN-Lobby gefunden.');
 });

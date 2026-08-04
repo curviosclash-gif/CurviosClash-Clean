@@ -21,6 +21,9 @@ export class NetworkLobbyTransportSession {
         this._onError = typeof options.onError === 'function' ? options.onError : null;
         this._onClosed = typeof options.onClosed === 'function' ? options.onClosed : null;
         this._onMatchStart = typeof options.onMatchStart === 'function' ? options.onMatchStart : null;
+        this._onConnectionPhaseChanged = typeof options.onConnectionPhaseChanged === 'function'
+            ? options.onConnectionPhaseChanged
+            : null;
         this._signalingUrl = '';
         this._lobby = null;
     }
@@ -41,6 +44,12 @@ export class NetworkLobbyTransportSession {
         });
         lobby.on('matchStart', ({ pendingMatchStart }) => {
             this._onMatchStart?.(pendingMatchStart);
+        });
+        lobby.on('reconnecting', (payload = null) => {
+            this._onConnectionPhaseChanged?.({ phase: 'reconnecting', ...(payload || {}) });
+        });
+        lobby.on('connectionResumed', (payload = null) => {
+            this._onConnectionPhaseChanged?.({ phase: 'connected', ...(payload || {}) });
         });
     }
 

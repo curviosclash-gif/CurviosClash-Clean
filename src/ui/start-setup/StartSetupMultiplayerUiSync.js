@@ -44,7 +44,8 @@ function renderMultiplayerMembers(ui, sessionState, hasActiveLobbySession) {
         const resolvedMemberCount = hasActiveLobbySession
             ? Math.max(members.length, Math.floor(Number(sessionState?.memberCount) || 0))
             : 0;
-        memberCount.textContent = `${resolvedMemberCount} / 10`;
+        const maxPlayers = Math.max(resolvedMemberCount, Math.floor(Number(sessionState?.maxPlayers) || 10));
+        memberCount.textContent = `${resolvedMemberCount} / ${maxPlayers}`;
     }
     if (!memberList) return;
 
@@ -282,7 +283,7 @@ export function syncStartSetupMultiplayerUi({
             );
             if (transport === MULTIPLAYER_TRANSPORTS.ONLINE && allowed) {
                 button.title = multiplayerTransportUiState.isOnlineUnconfigured
-                    ? 'Online ist nicht konfiguriert. Bitte VITE_SIGNALING_URL setzen oder LAN verwenden.'
+                    ? 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.'
                     : 'Online-Lobby als Internet-Pfad nutzen.';
             } else if (allowed) {
                 button.title = 'LAN als produktiven Host-/Join-Pfad nutzen.';
@@ -296,20 +297,25 @@ export function syncStartSetupMultiplayerUi({
             ? 'Auswahl: Online | nicht konfiguriert, bitte LAN verwenden'
             : `Produktiver Transport: ${multiplayerTransportUiState.selectedTransportLabel}`;
     }
-    const showOpenOnlineLobbies = isMultiplayerSession
-        && multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE;
-    const canBrowseOpenOnlineLobbies = showOpenOnlineLobbies
+    const showOpenLobbies = isMultiplayerSession && sessionContract.isLegacyTransport !== true;
+    const canBrowseOpenLobbies = showOpenLobbies
         && !hasActiveLobbySession
-        && !multiplayerTransportUiState.isOnlineUnconfigured;
+        && !(multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE
+            && multiplayerTransportUiState.isOnlineUnconfigured);
     if (ui.multiplayerOpenLobbiesControls) {
-        ui.multiplayerOpenLobbiesControls.classList.toggle('hidden', !showOpenOnlineLobbies);
+        ui.multiplayerOpenLobbiesControls.classList.toggle('hidden', !showOpenLobbies);
+    }
+    if (ui.multiplayerOpenLobbiesLabel) {
+        ui.multiplayerOpenLobbiesLabel.textContent = multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE
+            ? 'Offene Online-Lobbys'
+            : 'Lobbys im LAN';
     }
     if (ui.multiplayerOpenLobbiesSelect) {
-        ui.multiplayerOpenLobbiesSelect.disabled = !canBrowseOpenOnlineLobbies
+        ui.multiplayerOpenLobbiesSelect.disabled = !canBrowseOpenLobbies
             || Number(ui.multiplayerOpenLobbiesSelect.options?.length || 0) <= 1;
     }
     if (ui.multiplayerOpenLobbiesRefreshButton) {
-        ui.multiplayerOpenLobbiesRefreshButton.disabled = !canBrowseOpenOnlineLobbies;
+        ui.multiplayerOpenLobbiesRefreshButton.disabled = !canBrowseOpenLobbies;
     }
     if (ui.multiplayerLobbyCodeInput) {
         if (hasActiveLobbySession) {
@@ -352,8 +358,19 @@ export function syncStartSetupMultiplayerUi({
     if (ui.multiplayerLeaveLobbyButton) {
         ui.multiplayerLeaveLobbyButton.disabled = !hasActiveLobbySession;
     }
+    const lobbyCode = String(resolvedMultiplayerSessionState?.lobbyCode || '').trim();
+    const shareAddress = String(resolvedMultiplayerSessionState?.shareAddress || '').trim();
+    if (ui.multiplayerShareCode) ui.multiplayerShareCode.textContent = lobbyCode || '—';
+    if (ui.multiplayerCopyCodeButton) ui.multiplayerCopyCodeButton.disabled = !lobbyCode;
+    if (ui.multiplayerShareAddress) ui.multiplayerShareAddress.textContent = shareAddress || '—';
+    if (ui.multiplayerShareAddressRow) {
+        ui.multiplayerShareAddressRow.classList.toggle('hidden', !shareAddress);
+    }
+    if (ui.multiplayerCopyAddressButton) ui.multiplayerCopyAddressButton.disabled = !shareAddress;
     if (ui.multiplayerReadyToggle) {
-        ui.multiplayerReadyToggle.disabled = !hasActiveLobbySession || isHost;
+        ui.multiplayerReadyToggle.disabled = !hasActiveLobbySession
+            || isHost
+            || resolvedMultiplayerSessionState?.readyMutationPending === true;
         ui.multiplayerReadyToggle.checked = isMultiplayerSession
             ? resolvedMultiplayerSessionState?.localReady === true
             : false;
@@ -362,7 +379,8 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerReadyControl.classList.toggle('hidden', !hasActiveLobbySession || isHost);
     }
     if (ui.multiplayerStartMatchButton) {
-        const pendingMatchStart = !!resolvedMultiplayerSessionState?.pendingMatchCommandId;
+        const pendingMatchStart = !!resolvedMultiplayerSessionState?.pendingMatchCommandId
+            || resolvedMultiplayerSessionState?.matchStartPending === true;
         const canStart = isHost && resolvedMultiplayerSessionState?.canStart === true && !pendingMatchStart;
         ui.multiplayerStartMatchButton.classList.toggle('hidden', !hasActiveLobbySession);
         ui.multiplayerStartMatchButton.disabled = !canStart;
@@ -388,11 +406,13 @@ export function syncStartSetupMultiplayerUi({
             const roleLabel = resolvedMultiplayerSessionState.isHost
                 ? 'Host'
                 : surfaceEntryCopy.multiplayerClientRoleLabel;
-            const connectionLabel = resolvedMultiplayerSessionState.pendingMatchCommandId
+            const connectionLabel = resolvedMultiplayerSessionState.connectionPhase === 'reconnecting'
+                ? `Verbindung wird wiederhergestellt (${resolvedMultiplayerSessionState.reconnectAttempt}/${resolvedMultiplayerSessionState.reconnectMaxAttempts})`
+                : (resolvedMultiplayerSessionState.pendingMatchCommandId
                 ? 'Startsignal gesendet'
                 : (resolvedMultiplayerSessionState.connected
                     ? 'verbunden'
-                    : (resolvedMultiplayerSessionState.isHost ? 'Host aktiv' : 'Warte auf Host'));
+                    : (resolvedMultiplayerSessionState.isHost ? 'Host aktiv' : 'Warte auf Host')));
             const transportSuffix = sessionContract.isLegacyTransport === true
                 ? ` | ${sessionContract.transportAudienceLabel}`
                 : '';
@@ -416,14 +436,14 @@ export function syncStartSetupMultiplayerUi({
         const surfaceDisabled = ui.multiplayerHostButton.disabled === true;
         ui.multiplayerHostButton.disabled = surfaceDisabled || disableTransportUnavailableActions;
         if (disableTransportUnavailableActions) {
-            ui.multiplayerHostButton.title = 'Online ist nicht konfiguriert. Bitte VITE_SIGNALING_URL setzen oder LAN verwenden.';
+            ui.multiplayerHostButton.title = 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.';
         }
     }
     if (ui.multiplayerJoinButton) {
         const surfaceDisabled = ui.multiplayerJoinButton.disabled === true;
         ui.multiplayerJoinButton.disabled = surfaceDisabled || disableTransportUnavailableActions;
         if (disableTransportUnavailableActions) {
-            ui.multiplayerJoinButton.title = 'Online ist nicht konfiguriert. Bitte VITE_SIGNALING_URL setzen oder LAN verwenden.';
+            ui.multiplayerJoinButton.title = 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.';
         } else {
             ui.multiplayerJoinButton.title = '';
         }

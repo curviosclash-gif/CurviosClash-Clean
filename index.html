@@ -161,7 +161,7 @@
                                             data-multiplayer-transport="online" aria-pressed="false">Online</button>
                                     </div>
                                     <div id="multiplayer-open-lobbies-controls" class="hidden">
-                                        <label for="multiplayer-open-lobbies" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Online-Lobbys</label>
+                                        <label id="multiplayer-open-lobbies-label" for="multiplayer-open-lobbies" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
                                         <div class="btn-group secondary-btn-spaced">
                                             <select id="multiplayer-open-lobbies" disabled>
                                                 <option value="">Aktualisieren, um Lobbys zu suchen</option>
@@ -189,6 +189,18 @@
                                 </div>
 
                                 <div id="multiplayer-session-controls" class="hidden">
+                                    <div id="multiplayer-share-card" class="mp-share-card">
+                                        <div class="mp-share-row">
+                                            <span class="mp-code-label">Lobby-Code</span>
+                                            <output id="multiplayer-share-code" class="mp-code-value">—</output>
+                                            <button type="button" id="btn-multiplayer-copy-code" class="secondary-btn">Code kopieren</button>
+                                        </div>
+                                        <div id="multiplayer-share-address-row" class="mp-share-row hidden">
+                                            <span class="mp-code-label">LAN-Adresse</span>
+                                            <output id="multiplayer-share-address" class="mp-share-address">—</output>
+                                            <button type="button" id="btn-multiplayer-copy-address" class="secondary-btn">Adresse kopieren</button>
+                                        </div>
+                                    </div>
                                     <div class="mp-player-list">
                                         <div class="mp-player-list-header">
                                             <span>Teilnehmer</span>

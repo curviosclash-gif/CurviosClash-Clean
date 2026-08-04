@@ -15,7 +15,26 @@ const NON_RETRYABLE_SIGNALING_ERROR_CODES = new Set([
     'signaling_server_error',
     'signaling_payload_invalid',
     'signaling_network_unavailable',
+    'lobby_not_found',
+    'lobby_full',
+    'host_required',
+    'not_enough_members',
+    'members_not_ready',
+    'rate_limit_exceeded',
+    'reconnect_window_expired',
+    'connection_resume_failed',
 ]);
+
+const SERVER_ERROR_MESSAGES = Object.freeze({
+    lobby_not_found: 'Lobby nicht gefunden.',
+    lobby_full: 'Lobby ist voll.',
+    host_required: 'Nur der Host darf diese Aktion ausfuehren.',
+    not_enough_members: 'Mindestens zwei Teilnehmer werden benoetigt.',
+    members_not_ready: 'Alle Teilnehmer muessen bereit sein.',
+    rate_limit_exceeded: 'Zu viele Anfragen. Bitte kurz warten.',
+    reconnect_window_expired: 'Die Wiederverbindungszeit ist abgelaufen.',
+    connection_resume_failed: 'Wiederverbindung fehlgeschlagen.',
+});
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -52,6 +71,37 @@ export function createOnlineSignalingError(code, message, details = null, cause 
     return new OnlineSignalingError(code, message, details, cause);
 }
 
+export function createOnlineLobbyCreateEnvelope(options = {}) {
+    return createSignalingEnvelope(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, {
+        maxPlayers: options.maxPlayers || 10,
+        actorId: options.actorId,
+        name: options.name || options.actorId,
+        metadata: options.metadata,
+    });
+}
+
+export function createOnlineLobbyJoinEnvelope(lobbyCode, options = {}) {
+    return createSignalingEnvelope(SIGNALING_COMMAND_TYPES.JOIN_LOBBY, {
+        lobbyCode,
+        actorId: options.actorId,
+        name: options.name || options.actorId,
+    });
+}
+
+export function emitOnlineLobbyReconnectProgress(lobby, attempt, maxAttempts) {
+    lobby._emit('reconnecting', { attempt, maxAttempts, sessionState: lobby.sessionState });
+}
+
+export function applyOnlineLobbySettings(lobby, settings = {}) {
+    Object.assign(lobby.settings, settings);
+    if (lobby.isHost === true && settings?.metadata) {
+        lobby._send(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA, {
+            metadata: settings.metadata,
+        }));
+    }
+    lobby._emit('settingsChanged', { settings: lobby.settings, sessionState: lobby.sessionState });
+}
+
 export function isRetryableSignalingError(error) {
     const code = normalizeString(error?.code, '');
     return !NON_RETRYABLE_SIGNALING_ERROR_CODES.has(code);
@@ -69,7 +119,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (!rawValue) {
         throw createOnlineSignalingError(
             'signaling_endpoint_missing',
-            'Online-Signaling-Endpoint fehlt. Setze VITE_SIGNALING_URL auf ws:// oder wss://.'
+            'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden oder die Online-Konfiguration pruefen.'
         );
     }
 
@@ -81,7 +131,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     } catch (error) {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_url',
-            `Online-Signaling-Endpoint ist ungueltig: ${rawValue}`,
+            'Die Online-Konfiguration ist ungueltig.',
             { rawValue },
             error
         );
@@ -97,7 +147,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (parsedUrl.protocol !== 'ws:' && parsedUrl.protocol !== 'wss:') {
         throw createOnlineSignalingError(
             'signaling_endpoint_invalid_scheme',
-            `Online-Signaling-Endpoint muss ws:// oder wss:// verwenden: ${rawValue}`,
+            'Die Online-Konfiguration verwendet ein nicht unterstuetztes Protokoll.',
             { rawValue, protocol: originalProtocol || parsedUrl.protocol }
         );
     }
@@ -105,7 +155,7 @@ export function resolveOnlineSignalingUrl(primaryValue, fallbackValue = '') {
     if (!normalizeString(parsedUrl.hostname, '')) {
         throw createOnlineSignalingError(
             'signaling_endpoint_missing_host',
-            `Online-Signaling-Endpoint enthaelt keinen Host: ${rawValue}`,
+            'Die Online-Konfiguration enthaelt keine Serveradresse.',
             { rawValue }
         );
     }
@@ -126,16 +176,10 @@ export function buildSocketCloseDetails(event, signalingUrl = '') {
 
 export function createSocketLifecycleError(source, details = null, cause = null) {
     const normalizedDetails = details && typeof details === 'object' ? { ...details } : {};
-    const closeCode = Number.isFinite(Number(normalizedDetails.closeCode))
-        ? Math.floor(Number(normalizedDetails.closeCode))
-        : null;
-
     if (source === 'error') {
         return createOnlineSignalingError(
             'signaling_socket_error',
-            normalizedDetails.signalingUrl
-                ? `WebSocket-Verbindung zum Online-Signaling fehlgeschlagen: ${normalizedDetails.signalingUrl}`
-                : 'WebSocket-Verbindung zum Online-Signaling fehlgeschlagen.',
+            'Online-Verbindung fehlgeschlagen.',
             normalizedDetails,
             cause
         );
@@ -144,9 +188,7 @@ export function createSocketLifecycleError(source, details = null, cause = null)
     if (source === 'timeout') {
         return createOnlineSignalingError(
             'signaling_connect_timeout',
-            normalizedDetails.signalingUrl
-                ? `Online-Signaling antwortet nicht rechtzeitig: ${normalizedDetails.signalingUrl}`
-                : 'Online-Signaling antwortet nicht rechtzeitig.',
+            'Die Online-Verbindung antwortet nicht rechtzeitig.',
             normalizedDetails,
             cause
         );
@@ -154,19 +196,19 @@ export function createSocketLifecycleError(source, details = null, cause = null)
 
     return createOnlineSignalingError(
         'signaling_socket_closed',
-        closeCode
-            ? `WebSocket zum Online-Signaling wurde geschlossen (Code ${closeCode}).`
-            : 'WebSocket zum Online-Signaling wurde geschlossen.',
+        'Die Online-Verbindung wurde unterbrochen.',
         normalizedDetails,
         cause
     );
 }
 
-export function createServerSignalingError(message, details = null, cause = null) {
-    const normalizedMessage = normalizeString(message, 'Signaling-Serverfehler');
+export function createServerSignalingError(code, message = '', details = null, cause = null) {
+    const normalizedCode = normalizeString(code, 'signaling_server_error');
+    const normalizedMessage = SERVER_ERROR_MESSAGES[normalizedCode]
+        || normalizeString(message, 'Der Lobby-Server hat die Anfrage abgelehnt.');
     return createOnlineSignalingError(
-        'signaling_server_error',
-        `Signaling-Serverfehler: ${normalizedMessage}`,
+        normalizedCode,
+        normalizedMessage,
         details,
         cause
     );
@@ -184,7 +226,7 @@ export function createInvalidSignalingPayloadError(details = null, cause = null)
 export function createNetworkUnavailableSignalingError(details = null, cause = null) {
     return createOnlineSignalingError(
         'signaling_network_unavailable',
-        'Online nicht erreichbar – Internetverbindung oder Signaling-Server-Adresse pruefen.',
+        'Online ist nicht erreichbar. Bitte Internetverbindung pruefen oder LAN verwenden.',
         details,
         cause
     );

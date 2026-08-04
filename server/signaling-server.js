@@ -102,6 +102,25 @@ function sendSignaling(ws, type, payload = null) {
     sendJson(ws, createSignalingEnvelope(type, payload));
 }
 
+function sendSignalingError(ws, code, message, details = null) {
+    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, {
+        code: normalizeString(code, 'signaling_server_error'),
+        message: normalizeString(message, 'Lobby request failed'),
+        ...(details && typeof details === 'object' ? { details } : {}),
+    });
+}
+
+function normalizeLobbyMetadata(value = null, fallbackHostName = 'Host') {
+    const source = value && typeof value === 'object' ? value : {};
+    return {
+        hostName: normalizeString(source.hostName, fallbackHostName).slice(0, 48),
+        mapKey: normalizeString(source.mapKey, 'standard').slice(0, 48),
+        gameMode: normalizeString(source.gameMode, 'CLASSIC').slice(0, 32),
+        modePath: normalizeString(source.modePath, 'normal').slice(0, 32),
+        winsNeeded: Math.max(1, Math.min(99, Math.floor(Number(source.winsNeeded) || 5))),
+    };
+}
+
 function broadcastToLobby(lobby, type, payload = null, excludeWs = null) {
     for (const player of lobby.players) {
         if (player.ws === excludeWs) continue;
@@ -198,6 +217,7 @@ function buildLobbyState(lobby) {
         updatedAt: Number(lobby.updatedAt || lobby.createdAt || Date.now()),
         revision: Number(lobby.revision || 0),
         pendingMatchStart: lobby.pendingMatchStart || null,
+        metadata: { ...lobby.metadata },
         members,
         players: members,
     };
@@ -221,6 +241,7 @@ function buildOpenLobbyList() {
             maxPlayers: lobby.maxPlayers,
             createdAt: lobby.createdAt,
             updatedAt: lobby.updatedAt,
+            ...lobby.metadata,
         }));
 }
 
@@ -403,7 +424,7 @@ export function createSignalingServer(port = 9090, options = {}) {
             ws._messageCount += 1;
             ipRate.count += 1;
             if (ws._messageCount > MAX_MESSAGES_PER_SOCKET || ipRate.count > MAX_MESSAGES_PER_IP) {
-                sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Rate limit exceeded' });
+                sendSignalingError(ws, 'rate_limit_exceeded', 'Rate limit exceeded');
                 ws.close(1008, 'rate_limit_exceeded');
                 return;
             }
@@ -423,7 +444,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                 && (envelope.type === SIGNALING_COMMAND_TYPES.CREATE_LOBBY
                     || envelope.type === SIGNALING_COMMAND_TYPES.JOIN_LOBBY)
             ) {
-                sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Socket already assigned to a lobby' });
+                sendSignalingError(ws, 'socket_already_assigned', 'Socket already assigned to a lobby');
                 return;
             }
 
@@ -436,13 +457,13 @@ export function createSignalingServer(port = 9090, options = {}) {
 
             case SIGNALING_COMMAND_TYPES.CREATE_LOBBY: {
                 if (lobbies.size >= MAX_LOBBIES) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby capacity reached' });
+                    sendSignalingError(ws, 'lobby_capacity_reached', 'Lobby capacity reached');
                     break;
                 }
                 const ownedLobbyCount = [...lobbies.values()]
                     .filter((entry) => entry.ownerAddress === ws._remoteAddress).length;
                 if (ownedLobbyCount >= lobbyLimit) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'IP lobby capacity reached' });
+                    sendSignalingError(ws, 'ip_lobby_capacity_reached', 'IP lobby capacity reached');
                     break;
                 }
                 const code = generateLobbyCode();
@@ -470,6 +491,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     lastActivityAt: createdAt,
                     revision: 1,
                     pendingMatchStart: null,
+                    metadata: normalizeLobbyMetadata(msg.metadata, normalizeString(msg.name || msg.actorId, 'Host')),
                     ownerAddress: ws._remoteAddress,
                     serverLobbyCodes,
                 };
@@ -490,11 +512,11 @@ export function createSignalingServer(port = 9090, options = {}) {
                 const requestedLobbyCode = normalizeLobbyCode(msg.lobbyCode, '');
                 const lobby = lobbies.get(requestedLobbyCode);
                 if (!lobby) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby not found' });
+                    sendSignalingError(ws, 'lobby_not_found', 'Lobby not found');
                     return;
                 }
                 if (lobby.players.length >= lobby.maxPlayers) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Lobby full' });
+                    sendSignalingError(ws, 'lobby_full', 'Lobby full');
                     return;
                 }
                 const player = createLobbyPlayer({
@@ -529,21 +551,21 @@ export function createSignalingServer(port = 9090, options = {}) {
                 const leaseKey = buildReconnectLeaseKey(lobbyCode, resumePeerId);
                 const lease = leaseKey ? reconnectLeases.get(leaseKey) : null;
                 if (!lobby || !lease) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Connection resume failed' });
+                    sendSignalingError(ws, 'connection_resume_failed', 'Connection resume failed');
                     break;
                 }
                 if (lease.expiresAt <= Date.now()) {
                     reconnectLeases.delete(leaseKey);
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Reconnect window expired' });
+                    sendSignalingError(ws, 'reconnect_window_expired', 'Reconnect window expired');
                     break;
                 }
                 if (!isValidSessionToken(lease.sessionToken, msg.sessionToken)) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Connection resume failed' });
+                    sendSignalingError(ws, 'connection_resume_failed', 'Connection resume failed');
                     break;
                 }
                 if (lobby.players.some((entry) => entry.peerId === resumePeerId)) {
                     reconnectLeases.delete(leaseKey);
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Player already connected' });
+                    sendSignalingError(ws, 'player_already_connected', 'Player already connected');
                     break;
                 }
 
@@ -589,7 +611,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     ? lobby.players.find((entry) => entry.peerId === attachPeerId)
                     : null;
                 if (!lobby || !player || !isValidSessionToken(player.sessionToken, msg.sessionToken)) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Transport attach failed' });
+                    sendSignalingError(ws, 'transport_attach_failed', 'Transport attach failed');
                     break;
                 }
                 if (player.transportWs && player.transportWs !== ws && player.transportWs.readyState === 1) {
@@ -637,7 +659,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                         fromPeerId: peerId,
                         offer: msg.offer,
                     });
-                } else sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Signaling role violation' });
+                } else sendSignalingError(ws, 'signaling_role_violation', 'Signaling role violation');
                 break;
             }
 
@@ -648,7 +670,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                         fromPeerId: peerId,
                         answer: msg.answer,
                     });
-                } else sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Signaling role violation' });
+                } else sendSignalingError(ws, 'signaling_role_violation', 'Signaling role violation');
                 break;
             }
 
@@ -659,7 +681,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                         fromPeerId: peerId,
                         candidate: msg.candidate,
                     });
-                } else sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'Signaling role violation' });
+                } else sendSignalingError(ws, 'signaling_role_violation', 'Signaling role violation');
                 break;
             }
 
@@ -705,16 +727,40 @@ export function createSignalingServer(port = 9090, options = {}) {
                 break;
             }
 
+            case SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA: {
+                const lobbyCode = peerToLobby.get(ws);
+                const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
+                if (!lobby || lobby.hostPeerId !== peerId) {
+                    sendSignalingError(ws, 'host_required', 'Host required');
+                    break;
+                }
+                const host = lobby.players.find((player) => player.peerId === lobby.hostPeerId);
+                lobby.metadata = normalizeLobbyMetadata(msg.metadata, host?.name || host?.actorId || 'Host');
+                bumpLobbyState(lobby);
+                broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED, {
+                    metadata: lobby.metadata,
+                    sessionState: buildLobbyState(lobby),
+                });
+                break;
+            }
+
             case SIGNALING_COMMAND_TYPES.START_MATCH: {
                 const lobbyCode = peerToLobby.get(ws);
                 const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
                 if (!lobby || lobby.hostPeerId !== peerId) break;
+                if (lobby.pendingMatchStart) {
+                    sendSignaling(ws, SIGNALING_EVENT_TYPES.MATCH_START, {
+                        pendingMatchStart: lobby.pendingMatchStart,
+                        sessionState: buildLobbyState(lobby),
+                    });
+                    break;
+                }
                 if (lobby.players.length < 2) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'At least two players are required' });
+                    sendSignalingError(ws, 'not_enough_members', 'At least two players are required');
                     break;
                 }
                 if (lobby.players.some((player) => player.ready !== true)) {
-                    sendSignaling(ws, SIGNALING_EVENT_TYPES.ERROR, { message: 'All players must be ready' });
+                    sendSignalingError(ws, 'members_not_ready', 'All players must be ready');
                     break;
                 }
                 lobby.pendingMatchStart = {
@@ -782,7 +828,7 @@ export function createSignalingServer(port = 9090, options = {}) {
             if (!headless && now - lastActivityAt <= LOBBY_TIMEOUT) continue;
             const closeMessage = headless ? 'Host left permanently' : 'Lobby expired';
             for (const player of lobby.players) {
-                sendSignaling(player.ws, SIGNALING_EVENT_TYPES.ERROR, { message: closeMessage });
+                sendSignalingError(player.ws, 'server_shutting_down', closeMessage);
                 peerToLobby.delete(player.ws);
                 player.ws.close(1001, closeMessage);
                 if (player.transportWs) {

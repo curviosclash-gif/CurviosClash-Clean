@@ -7,6 +7,10 @@ import { WebSocket } from 'ws';
 import { createSignalingServer } from '../server/signaling-server.js';
 import { listOpenOnlineLobbies } from '../src/network/OnlineLobbyDirectoryClient.js';
 import {
+    createServerSignalingError,
+    resolveOnlineSignalingUrl,
+} from '../src/network/OnlineSignalingSupport.js';
+import {
     SIGNALING_COMMAND_TYPES,
     SIGNALING_EVENT_TYPES,
     createSignalingEnvelope,
@@ -44,13 +48,34 @@ function sendAndReceive(socket, type, payload = null) {
     });
 }
 
+test('online signaling errors keep stable codes and player-facing German messages', () => {
+    const notFound = createServerSignalingError('lobby_not_found', 'Lobby not found');
+    assert.equal(notFound.code, 'lobby_not_found');
+    assert.equal(notFound.message, 'Lobby nicht gefunden.');
+    assert.throws(
+        () => resolveOnlineSignalingUrl(''),
+        (error) => error.code === 'signaling_endpoint_missing'
+            && !error.message.includes('VITE_SIGNALING_URL')
+            && !error.message.includes('ws://')
+    );
+});
+
 test('online signaling lists only joinable lobby summaries', async () => {
     const { wss, url } = await startServer();
     try {
         const host = await openClient(url);
         const created = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.CREATE_LOBBY, {
             maxPlayers: 2,
+            actorId: 'Captain',
+            metadata: {
+                hostName: 'Captain',
+                mapKey: 'maze',
+                gameMode: 'HUNT',
+                modePath: 'fight',
+                winsNeeded: 7,
+            },
         });
+        assert.equal(created.sessionState.members[0].actorId, 'Captain');
 
         const openLobbies = await listOpenOnlineLobbies(url, {
             WebSocketImpl: WebSocket,
@@ -59,19 +84,40 @@ test('online signaling lists only joinable lobby summaries', async () => {
         assert.equal(openLobbies.length, 1);
         assert.deepEqual(Object.keys(openLobbies[0]).sort(), [
             'createdAt',
+            'gameMode',
+            'hostName',
             'lobbyCode',
+            'mapKey',
             'maxPlayers',
             'memberCount',
+            'modePath',
+            'signalingUrl',
             'updatedAt',
+            'winsNeeded',
         ]);
         assert.equal(openLobbies[0].lobbyCode, created.lobbyCode);
         assert.equal(openLobbies[0].memberCount, 1);
         assert.equal(openLobbies[0].maxPlayers, 2);
+        assert.equal(openLobbies[0].hostName, 'Captain');
+        assert.equal(openLobbies[0].mapKey, 'maze');
+        assert.equal(openLobbies[0].signalingUrl, `${url}/`);
+
+        const metadataUpdated = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA, {
+            metadata: { hostName: 'Admiral', mapKey: 'standard', gameMode: 'CLASSIC', modePath: 'normal' },
+        });
+        assert.equal(metadataUpdated.type, SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED);
+        const updatedLobbies = await listOpenOnlineLobbies(url, {
+            WebSocketImpl: WebSocket,
+            timeoutMs: 2_000,
+        });
+        assert.equal(updatedLobbies[0].hostName, 'Admiral');
 
         const client = await openClient(url);
-        await sendAndReceive(client, SIGNALING_COMMAND_TYPES.JOIN_LOBBY, {
+        const joined = await sendAndReceive(client, SIGNALING_COMMAND_TYPES.JOIN_LOBBY, {
             lobbyCode: created.lobbyCode,
+            actorId: 'Wingman',
         });
+        assert.equal(joined.sessionState.members.find((member) => member.peerId === joined.playerId)?.actorId, 'Wingman');
         const fullLobbyList = await listOpenOnlineLobbies(url, {
             WebSocketImpl: WebSocket,
             timeoutMs: 2_000,
@@ -91,6 +137,7 @@ test('online signaling rejects a second lobby assignment on the same socket', as
 
         const rejected = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.CREATE_LOBBY);
         assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(rejected.code, 'socket_already_assigned');
         assert.equal(rejected.message, 'Socket already assigned to a lobby');
 
         const client = await openClient(url);
@@ -126,7 +173,31 @@ test('online signaling normalizes invalid maxPlayers and enforces the ten-player
             lobbyCode: created.lobbyCode,
         });
         assert.equal(rejected.type, SIGNALING_EVENT_TYPES.ERROR);
+        assert.equal(rejected.code, 'lobby_full');
         assert.equal(rejected.message, 'Lobby full');
+    } finally {
+        await stopServer(wss);
+    }
+});
+
+test('online match start is idempotent while a start command is pending', async () => {
+    const { wss, url } = await startServer();
+    try {
+        const host = await openClient(url);
+        const created = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 2 });
+        const client = await openClient(url);
+        await sendAndReceive(client, SIGNALING_COMMAND_TYPES.JOIN_LOBBY, { lobbyCode: created.lobbyCode });
+        await sendAndReceive(client, SIGNALING_COMMAND_TYPES.READY, { ready: true });
+
+        const first = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.START_MATCH, {
+            commandId: 'match-first',
+        });
+        const duplicate = await sendAndReceive(host, SIGNALING_COMMAND_TYPES.START_MATCH, {
+            commandId: 'match-second',
+        });
+        assert.equal(first.type, SIGNALING_EVENT_TYPES.MATCH_START);
+        assert.equal(duplicate.type, SIGNALING_EVENT_TYPES.MATCH_START);
+        assert.equal(duplicate.pendingMatchStart.commandId, 'match-first');
     } finally {
         await stopServer(wss);
     }

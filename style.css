@@ -3686,6 +3686,39 @@ input[type="range"]::-webkit-slider-thumb {
     margin: 0;
 }
 
+.mp-share-card {
+    display: grid;
+    gap: 8px;
+    padding: 10px;
+    border: 1px solid rgba(122, 177, 221, 0.28);
+    border-radius: 8px;
+    background: rgba(0, 170, 255, 0.055);
+}
+
+.mp-share-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 4px 10px;
+    align-items: center;
+}
+
+.mp-share-row > .mp-code-label {
+    grid-column: 1;
+}
+
+.mp-share-row > .secondary-btn {
+    grid-column: 2;
+    grid-row: 1 / span 2;
+    margin: 0;
+}
+
+.mp-share-address {
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-family: monospace;
+    color: var(--menu-theme-accent-strong);
+}
+
 .multiplayer-manual-address {
     padding: 7px 9px;
     border: 1px solid rgba(122, 177, 221, 0.18);

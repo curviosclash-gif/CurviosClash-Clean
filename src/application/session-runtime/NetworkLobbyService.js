@@ -25,6 +25,16 @@ import {
     resolveDefaultHostSignalingUrl,
     resolveDefaultJoinSignalingUrl,
 } from './NetworkLobbyServiceDiscovery.js';
+import {
+    createPublicLobbyMetadata,
+    listDiscoveredNetworkLobbies,
+    resolveNetworkLobbyShareAddress,
+    tryResolveNetworkLobbyUrl,
+} from './NetworkLobbyExperienceSupport.js';
+import {
+    requestNetworkLobbyMatchStart,
+    toggleNetworkLobbyReady,
+} from './NetworkLobbyMutationActions.js';
 
 const DISCOVERY_POLL_INTERVAL_MS = 250;
 const DISCOVERY_MAX_WAIT_MS = 3_000;
@@ -69,6 +79,12 @@ export class NetworkLobbyService {
         });
         this._actorId = '';
         this._hostSettingsSnapshot = null;
+        this._connectionPhase = 'idle';
+        this._reconnectAttempt = 0;
+        this._reconnectMaxAttempts = 0;
+        this._readyMutationPending = false;
+        this._matchStartPending = false;
+        this._shareAddress = '';
         this._lastNotifiedMatchCommandId = '';
         this._sessionStateProjection = createNetworkLobbySessionStateProjection({
             transport: this.transport,
@@ -80,6 +96,8 @@ export class NetworkLobbyService {
             createLobby: options.createLobby,
             joinLobby: options.joinLobby,
             onSessionStateChanged: ({ sessionState, signalingUrl, localPeerId }) => {
+                this._connectionPhase = 'connected';
+                this._reconnectAttempt = 0;
                 this._sessionStateProjection.projectLobbyState(sessionState, {
                     signalingUrl,
                     localPeerId,
@@ -96,6 +114,7 @@ export class NetworkLobbyService {
                 this._setStatus(message);
             },
             onClosed: (payload = null) => {
+                this._connectionPhase = 'disconnected';
                 this._sessionStateProjection.reset();
                 this.onStateChanged?.(this.getSessionState());
                 if (payload?.reason === 'signaling_unavailable') {
@@ -108,6 +127,12 @@ export class NetworkLobbyService {
             },
             onMatchStart: (pendingMatchStart) => {
                 this._notifyMatchStart(pendingMatchStart);
+            },
+            onConnectionPhaseChanged: ({ phase, attempt = 0, maxAttempts = 0 } = {}) => {
+                this._connectionPhase = normalizeString(phase, 'connected');
+                this._reconnectAttempt = Math.max(0, Math.floor(Number(attempt) || 0));
+                this._reconnectMaxAttempts = Math.max(0, Math.floor(Number(maxAttempts) || 0));
+                this.onStateChanged?.(this.getSessionState());
             },
         });
         this._lastJoinDiscoveryIssue = null;
@@ -230,19 +255,34 @@ export class NetworkLobbyService {
     async host(options = {}) {
         const actorId = normalizeString(options.actorId, 'Host');
         this._actorId = actorId;
-        const signalingUrl = await this._resolveHostSignalingUrl();
+        this._connectionPhase = 'connecting';
+        this._hostSettingsSnapshot = deepClone(options.settingsSnapshot ?? this._hostSettingsSnapshot);
+        const resolvedUrl = await tryResolveNetworkLobbyUrl(() => this._resolveHostSignalingUrl());
+        if (resolvedUrl.error) {
+            this._connectionPhase = 'disconnected';
+            return this._fail(
+                resolvedUrl.error instanceof Error ? resolvedUrl.error.message : 'Lobby konnte nicht erstellt werden.',
+                normalizeString(resolvedUrl.error?.code, 'lobby_create_failed')
+            );
+        }
+        const signalingUrl = resolvedUrl.value;
         this._transportSession.replace(signalingUrl);
 
         try {
             await this._transportSession.create({
                 maxPlayers: Number(options.maxPlayers || 10),
+                actorId,
+                name: actorId,
+                metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, actorId),
             });
         } catch (error) {
+            this._connectionPhase = 'disconnected';
             const message = error instanceof Error ? error.message : 'Lobby konnte nicht erstellt werden.';
             return this._fail(message, normalizeString(error?.code, 'lobby_create_failed'));
         }
 
         const sessionState = this.getSessionState();
+        this._shareAddress = await this._resolveShareAddress(signalingUrl);
         const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.HOST, {
             actorId,
             lobbyCode: sessionState.lobbyCode,
@@ -267,8 +307,20 @@ export class NetworkLobbyService {
         }
 
         this._actorId = actorId;
-        const signalingUrl = await this._resolveJoinSignalingUrl(requestedLobbyCode, options.signalingUrl);
+        this._connectionPhase = 'connecting';
+        const resolvedUrl = await tryResolveNetworkLobbyUrl(
+            () => this._resolveJoinSignalingUrl(requestedLobbyCode, options.signalingUrl)
+        );
+        if (resolvedUrl.error) {
+            this._connectionPhase = 'disconnected';
+            return this._fail(
+                resolvedUrl.error instanceof Error ? resolvedUrl.error.message : 'Lobby konnte nicht beigetreten werden.',
+                normalizeString(resolvedUrl.error?.code, 'join_failed')
+            );
+        }
+        const signalingUrl = resolvedUrl.value;
         if (!signalingUrl) {
+            this._connectionPhase = 'disconnected';
             const issue = this._lastJoinDiscoveryIssue;
             return this._fail(
                 issue?.message || `Lobby nicht gefunden: ${requestedLobbyCode}`,
@@ -282,8 +334,11 @@ export class NetworkLobbyService {
             await Promise.resolve(this._transportSession.join({
                 signalingUrl,
                 lobbyCode: requestedLobbyCode,
+                actorId,
+                name: actorId,
             }));
         } catch (error) {
+            this._connectionPhase = 'disconnected';
             const message = error instanceof Error ? error.message : 'Lobby konnte nicht beigetreten werden.';
             const code = normalizeString(error?.code, 'join_failed');
             return this._fail(message, code);
@@ -308,43 +363,7 @@ export class NetworkLobbyService {
     }
 
     async toggleReady(options = {}) {
-        const sessionState = this.getSessionState();
-        if (!this._transportSession.hasLobby() || !sessionState.joined) {
-            return this._fail('Noch keiner Lobby beigetreten.', 'not_in_lobby');
-        }
-        if (sessionState.isHost) {
-            return {
-                ok: true,
-                event: null,
-                sessionState,
-                snapshot: this.getSnapshot(),
-            };
-        }
-
-        const requestedReady = typeof options.ready === 'boolean'
-            ? options.ready
-            : !sessionState.localReady;
-        try {
-            await this._transportSession.setReady(requestedReady);
-        } catch (error) {
-            const message = error instanceof Error ? error.message : 'Ready-Status konnte nicht gesetzt werden.';
-            return this._fail(message, normalizeString(error?.code, 'ready_failed'));
-        }
-
-        const updatedSessionState = this.getSessionState();
-        const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.READY_TOGGLE, {
-            actorId: normalizeString(options.actorId, this._actorId || 'Spieler'),
-            lobbyCode: updatedSessionState.lobbyCode,
-            ready: requestedReady,
-            peerId: updatedSessionState.peerId,
-        });
-        this._setStatus(requestedReady ? 'Ready gesetzt' : 'Ready entfernt');
-        return {
-            ok: true,
-            event,
-            sessionState: this.getSessionState(),
-            snapshot: this.getSnapshot(),
-        };
+        return toggleNetworkLobbyReady(this, options);
     }
 
     invalidateReadyForAll(reason = 'host_settings_changed') {
@@ -385,58 +404,27 @@ export class NetworkLobbyService {
 
     publishHostSettings(settingsSnapshot) {
         this._hostSettingsSnapshot = deepClone(settingsSnapshot);
-        this._transportSession.updateSettings(this._hostSettingsSnapshot);
+        this._transportSession.updateSettings({
+            ...this._hostSettingsSnapshot,
+            metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, this._actorId),
+        });
         return this.getSnapshot();
     }
 
     requestMatchStart(options = {}) {
-        const sessionState = this.getSessionState();
-        if (!this._transportSession.hasLobby() || !sessionState.joined) {
-            return this._fail('Lobby fehlt.', 'not_in_lobby');
-        }
-        if (!sessionState.isHost) {
-            return this._fail('Nur der Host kann starten.', 'host_required');
-        }
-        if (sessionState.memberCount < 2) {
-            return this._fail('Mindestens zwei Teilnehmer werden benoetigt.', 'not_enough_members');
-        }
-        if (!sessionState.allReady) {
-            return this._fail('Alle Teilnehmer muessen Ready sein.', 'members_not_ready');
-        }
-
-        const settingsSnapshot = deepClone(options.settingsSnapshot ?? this._hostSettingsSnapshot);
-        return Promise.resolve(this._transportSession.startMatch({ settingsSnapshot })).then((response) => {
-            const updatedSessionState = this.getSessionState();
-            const commandId = normalizeString(
-                response?.pendingMatchStart?.commandId || response?.sessionState?.pendingMatchStart?.commandId,
-                ''
-            );
-            const event = this._emit(LOBBY_SERVICE_EVENT_TYPES.MATCH_START, {
-                lobbyCode: updatedSessionState.lobbyCode,
-                commandId,
-                participantCount: updatedSessionState.memberCount,
-                peerId: updatedSessionState.peerId,
-            });
-            this._setStatus(`Match-Start an Lobby gesendet: ${updatedSessionState.lobbyCode}`);
-            return {
-                ok: true,
-                commandId,
-                event,
-                sessionState: this.getSessionState(),
-                snapshot: this.getSnapshot(),
-            };
-        }).catch((error) => (
-            this._fail(
-                error instanceof Error ? error.message : 'Lobby-Start konnte nicht ausgeliefert werden.',
-                normalizeString(error?.code, 'match_start_failed')
-            )
-        ));
+        return requestNetworkLobbyMatchStart(this, options);
     }
 
     leave(options = {}) {
         const previousState = this.getSessionState();
         this._transportSession.dispose();
         this._sessionStateProjection.reset();
+        this._connectionPhase = 'idle';
+        this._reconnectAttempt = 0;
+        this._reconnectMaxAttempts = 0;
+        this._readyMutationPending = false;
+        this._matchStartPending = false;
+        this._shareAddress = '';
         if (options?.silent !== true && previousState.lobbyCode) {
             this._setStatus(`Lobby verlassen: ${previousState.lobbyCode}`);
         }
@@ -452,7 +440,30 @@ export class NetworkLobbyService {
     }
 
     getSessionState() {
-        return this._sessionStateProjection.getSessionState();
+        return {
+            ...this._sessionStateProjection.getSessionState(),
+            connectionPhase: this._connectionPhase,
+            reconnectAttempt: this._reconnectAttempt,
+            reconnectMaxAttempts: this._reconnectMaxAttempts,
+            readyMutationPending: this._readyMutationPending,
+            matchStartPending: this._matchStartPending,
+            shareAddress: this._shareAddress,
+        };
+    }
+
+    async _resolveShareAddress(signalingUrl = '') {
+        return resolveNetworkLobbyShareAddress({
+            transport: this.transport,
+            hostIntentBridge: this._hostIntentBridge,
+            signalingUrl,
+        });
+    }
+
+    async listOpenLobbies() {
+        return listDiscoveredNetworkLobbies({
+            discoveryPort: this._discoveryPort,
+            transport: this.transport,
+        });
     }
 
     getSnapshot() {

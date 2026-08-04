@@ -31,6 +31,8 @@ export class OnlineLobbyService extends NetworkLobbyService {
                 ? options.joinLobby
                 : (lobby, joinOptions = {}) => lobby.join(joinOptions.lobbyCode, {
                     signalingUrl: joinOptions.signalingUrl,
+                    actorId: joinOptions.actorId,
+                    name: joinOptions.name,
                 }),
         });
         this._resolveConfiguredUrl = resolveConfiguredUrl;
