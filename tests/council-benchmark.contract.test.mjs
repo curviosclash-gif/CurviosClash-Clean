@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { createHash } from 'node:crypto';
-import { mkdtemp, readFile, symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -94,6 +94,8 @@ test('paired arms receive byte-identical isolated snapshots without private meta
     assert.equal(report.passed, true);
     assert.equal(report.externalModelCalls, 0);
     assert.equal(report.cases.length, 3);
+    assert.deepEqual(JSON.parse(await readFile(report.resultFile, 'utf8')), report);
+    assert.deepEqual((await readdir(report.runRoot)).filter((file) => file.endsWith('.tmp')), []);
     for (const benchmarkCase of report.cases) {
         assert.equal(benchmarkCase.identicalVisibleInputs, true);
         assert.equal(new Set(benchmarkCase.snapshots.map(({ digest }) => digest)).size, 1);
@@ -317,28 +319,104 @@ test('non-graded smoke classifies unavailable OpenCode model as infrastructure a
     assert.equal(smoke.cases, 3);
     assert.equal(smoke.armRuns.length, 6);
     assert.equal(smoke.infrastructureErrors, 3);
+    assert.equal(smoke.notRunArms, 0);
+    assert.deepEqual(smoke.specialistReports, { total: 0, valid: 0, invalid: 0, timedOut: 0, infrastructureErrors: 0 });
     assert.equal(smoke.exitReason, 'MODEL_NOT_AVAILABLE');
     assert.equal(modelChecks, 1);
+    assert.deepEqual(JSON.parse(await readFile(smoke.resultFile, 'utf8')), smoke);
 });
 
 test('non-graded smoke requires actual completion from every injected arm executor', async () => {
     const tempRoot = await mkdtemp(path.join(tmpdir(), 'council-benchmark-executor-'));
     let executions = 0;
     const stateRoots = new Set();
+    const progress = [];
     const completed = await runBenchmarkHarnessSmoke({
         repositoryRoot: ROOT,
         tempRoot,
         listModels: async () => ({ stdout: `${DEEPSEEK_OPENCODE_MODEL}\n` }),
+        progressIntervalMs: 1,
+        onProgress: (entry) => progress.push(entry),
         executeArm: async ({ stateRoot }) => {
             executions += 1;
             stateRoots.add(stateRoot);
+            await new Promise((resolve) => setTimeout(resolve, 5));
             return { status: 'COMPLETED', modelCalls: 1, toolCalls: 0, inputTokens: 1, outputTokens: 1, costUsd: null };
         },
     });
     assert.equal(completed.passed, true);
     assert.equal(completed.baselineEligible, true);
     assert.equal(completed.validRuns, 6);
+    assert.equal(completed.notRunArms, 0);
     assert.equal(executions, 6);
     assert.equal(stateRoots.size, 6);
     assert.deepEqual(completed.tokens, { input: 6, output: 6 });
+    assert.ok(progress.some(({ phase }) => phase === 'arm-start'));
+    assert.ok(progress.some(({ phase }) => phase === 'arm-running'));
+    assert.equal(progress.at(-1).phase, 'complete');
+    assert.deepEqual(JSON.parse(await readFile(completed.resultFile, 'utf8')), completed);
+});
+
+test('non-graded smoke preserves the arm failure and reports the exact external worktree diff', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'council-benchmark-worktree-'));
+    const snapshots = [{ 'user-change.js': 'before' }, { 'user-change.js': 'after' }];
+    let snapshotCalls = 0;
+    let executions = 0;
+    const progress = [];
+    const smoke = await runBenchmarkHarnessSmoke({
+        repositoryRoot: ROOT,
+        tempRoot,
+        listModels: async () => ({ stdout: `${DEEPSEEK_OPENCODE_MODEL}\n` }),
+        captureWorkingTreeSnapshot: () => snapshots[Math.min(snapshotCalls++, snapshots.length - 1)],
+        onProgress: (entry) => progress.push(entry),
+        executeArm: async () => {
+            executions += 1;
+            return {
+                status: 'INFRASTRUCTURE_ERROR',
+                reason: 'COUNCIL_REVIEW_VALID_0_OF_5',
+                validationDetails: [
+                    { agent: 'council-review', valid: false, timedOut: true, exitReason: 'MODEL_TIMEOUT' },
+                    { agent: 'council-review-fb', valid: false, timedOut: false, exitReason: 'INFRASTRUCTURE_ERROR' },
+                ],
+            };
+        },
+    });
+    assert.equal(executions, 1);
+    assert.equal(smoke.exitReason, 'WORKTREE_CHANGED_EXTERNALLY');
+    assert.deepEqual(smoke.worktreeChange, {
+        caseId: 'local-v2-easy-detection',
+        arm: 'read-only-council',
+        repositoryChangedFiles: ['user-change.js'],
+    });
+    assert.equal(smoke.armRuns[0].previousReason, 'COUNCIL_REVIEW_VALID_0_OF_5');
+    assert.deepEqual(smoke.armRuns[0].repositoryChangedFiles, ['user-change.js']);
+    assert.equal(smoke.notRunArms, 5);
+    assert.deepEqual(smoke.specialistReports, { total: 2, valid: 0, invalid: 2, timedOut: 1, infrastructureErrors: 1 });
+    assert.ok(smoke.armRuns.slice(1).every((entry) => entry.status === 'NOT_RUN'));
+    assert.ok(smoke.armRuns.slice(1).every((entry) => entry.blockedBy.arm === 'read-only-council'));
+    assert.ok(progress.some(({ phase }) => phase === 'arm-skipped'));
+    assert.deepEqual(JSON.parse(await readFile(smoke.resultFile, 'utf8')), smoke);
+});
+
+test('non-graded smoke enforces its total deadline and persists the partial report', async () => {
+    const tempRoot = await mkdtemp(path.join(tmpdir(), 'council-benchmark-deadline-'));
+    let executions = 0;
+    const smoke = await runBenchmarkHarnessSmoke({
+        repositoryRoot: ROOT,
+        tempRoot,
+        benchmarkTimeoutMs: 500,
+        listModels: async () => ({ stdout: `${DEEPSEEK_OPENCODE_MODEL}\n` }),
+        executeArm: async () => {
+            executions += 1;
+            await new Promise((resolve) => setTimeout(resolve, 550));
+            return { status: 'COMPLETED', modelCalls: 1, toolCalls: 0, inputTokens: 1, outputTokens: 1 };
+        },
+    });
+    assert.equal(executions, 1);
+    assert.equal(smoke.passed, false);
+    assert.equal(smoke.exitReason, 'BENCHMARK_TIMEOUT');
+    assert.equal(smoke.notRunArms, 5);
+    assert.equal(smoke.armRuns[0].status, 'COMPLETED');
+    assert.ok(smoke.armRuns.slice(1).every((entry) => entry.reason === 'BENCHMARK_TIMEOUT'));
+    assert.deepEqual(JSON.parse(await readFile(smoke.resultFile, 'utf8')), smoke);
 });

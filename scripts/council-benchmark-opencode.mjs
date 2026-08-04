@@ -83,12 +83,24 @@ async function installCouncilConfiguration(repositoryRoot, snapshotRoot) {
 
 async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRoot }) {
     const startedAt = Date.now();
+    const deadline = startedAt + timeoutMs;
     const totals = { inputTokens: 0, outputTokens: 0, modelCalls: 0, toolCalls: 0, costUsd: 0, completeCost: true };
     const scopeResults = [];
+    const validationDetails = [];
     const visibleSource = (await Promise.all(snapshot.publicCase.files.map(async ({ path: file }) => (
         `--- ${file} ---\n${await readFile(path.join(snapshot.root, file), 'utf8')}`
     )))).join('\n');
+    const remainingMs = () => Math.max(0, deadline - Date.now());
+    const timeoutResult = (timeoutPhase) => ({
+        status: 'INFRASTRUCTURE_ERROR',
+        reason: 'COUNCIL_ARM_TIMEOUT',
+        timeoutPhase,
+        validationDetails,
+        durationMs: Date.now() - startedAt,
+        ...totals,
+    });
     for (const scope of REVIEW_SCOPES) {
+        if (remainingMs() < 1) return timeoutResult(scope);
         const prompt = publicPrompt(scope, snapshot.publicCase, visibleSource);
         const results = await Promise.all(AGENT_SUFFIXES.map(async (suffix) => {
             const agent = `council-${scope}${suffix}`;
@@ -96,24 +108,27 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
                 repositoryRoot: snapshot.root,
                 agent,
                 prompt,
-                timeoutMs,
+                timeoutMs: Math.max(1, remainingMs()),
                 env: { ...process.env, TEMP: stateRoot, TMP: stateRoot, COUNCIL_STATE_DIR: path.join(stateRoot, agent) },
             });
             for (const attempt of result.attempts) mergeUsage(totals, attempt);
             return result;
         }));
         const valid = results.filter((entry) => entry.validation.valid);
+        validationDetails.push(...results.map((entry) => ({
+            scope,
+            agent: entry.agent,
+            valid: entry.validation.valid,
+            reasons: entry.validation.reasons,
+            attempts: entry.attempts.length,
+            timedOut: entry.timedOut,
+            exitReason: entry.exitReason,
+        })));
         if (valid.length < 4) {
             return {
                 status: 'INFRASTRUCTURE_ERROR',
                 reason: `COUNCIL_${scope.toUpperCase()}_VALID_${valid.length}_OF_5`,
-                validationDetails: results.map((entry) => ({
-                    agent: entry.agent,
-                    valid: entry.validation.valid,
-                    reasons: entry.validation.reasons,
-                    attempts: entry.attempts.length,
-                    timedOut: entry.timedOut,
-                })),
+                validationDetails,
                 durationMs: Date.now() - startedAt,
                 ...totals,
             };
@@ -128,11 +143,12 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
         'End with one fenced JSON object {"candidates":[]} using the repository candidate schema.',
         JSON.stringify(scopeResults),
     ].join('\n');
+    if (remainingMs() < 1) return timeoutResult('lead');
     const lead = await runCouncilAgentCli({
         repositoryRoot: snapshot.root,
         agent: 'council-lead',
         prompt: leadPrompt,
-        timeoutMs,
+        timeoutMs: Math.max(1, remainingMs()),
         env: { ...process.env, TEMP: stateRoot, TMP: stateRoot, COUNCIL_STATE_DIR: path.join(stateRoot, 'lead') },
     });
     for (const attempt of lead.attempts) mergeUsage(totals, attempt);
@@ -154,12 +170,13 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
             JSON.stringify({ candidates }),
             visibleSource,
         ].join('\n');
+        if (remainingMs() < 1) return timeoutResult('verify');
         const verifyAgents = ['council-verify', 'council-verify-fb'];
         const verifies = await Promise.all(verifyAgents.map((agent, index) => runCouncilAgentCli({
             repositoryRoot: snapshot.root,
             agent,
             prompt: `${verifyPrompt}\nIndependent verify run: ${index}`,
-            timeoutMs,
+            timeoutMs: Math.max(1, remainingMs()),
             env: { ...process.env, TEMP: stateRoot, TMP: stateRoot, COUNCIL_STATE_DIR: path.join(stateRoot, `verify-${index}`) },
         })));
         for (const verify of verifies) {
@@ -173,6 +190,7 @@ async function runReadOnlyCouncil({ snapshot, stateRoot, timeoutMs, repositoryRo
     return {
         status: 'COMPLETED',
         output: { verdict: leadValidation.verdict, candidates },
+        validationDetails,
         durationMs: Date.now() - startedAt,
         inputTokens: totals.inputTokens,
         outputTokens: totals.outputTokens,

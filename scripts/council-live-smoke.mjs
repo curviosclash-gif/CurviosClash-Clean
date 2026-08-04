@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { pathToFileURL } from 'node:url';
 
 import {
+    extractCandidateManifest,
     extractResearchManifest,
     loadCouncilAgentRoutes,
     resolveOpenCodeExecutable,
@@ -11,8 +12,34 @@ import {
 } from './council-hardening-runner.mjs';
 
 const execFile = promisify(execFileCallback);
-const LIVE_SMOKE_PROMPT = `Read the exact repository file .opencode/council-models.json directly; do not use glob or search. Verify that readOnlyCouncil.primary contains council-review. Do not inspect any other file, edit, use bash, or delegate. If the exact file and property are readable, return CLEAN; otherwise return NEEDS_DATA. Emit no status, planning, or introductory text. The first visible text line must be exactly VERDICT: CLEAN or VERDICT: NEEDS_DATA. End with exactly one fenced JSON block {"findings":[]} and no text after it.`;
-const LEAD_HEALTH_PROMPT = `Health check only. Do not use tools, inspect files, edit, or delegate. Emit exactly VERDICT: CLEAN followed by one fenced JSON block {"candidates":[]} and no other text.`;
+const READINESS_FIXTURE = 'tests/council-test-loop/errors-v2-easy.mjs';
+const READINESS_SYMBOL = 'normalizeSampleWindow';
+const LIVE_SMOKE_PROMPT = `Read only the exact repository file ${READINESS_FIXTURE}; do not use glob or search, inspect other files, edit, use bash, or delegate. Review only normalizeSampleWindow against this public contract: it returns a normalized copy without mutating the caller-owned samples array, and numeric minimum/maximum values including zero are valid. Report exactly one strongest reachable contract defect with concrete cause and effect. Emit no status, planning, or introductory text. The first visible text line must be exactly VERDICT: ISSUES_FOUND or VERDICT: NEEDS_DATA. End with exactly one fenced JSON object {"findings":[{"file":"...","symbol":"...","category":"kebab-case","claim":"...","evidence":"...","confidence":"HIGH|MEDIUM|LOW","impact":"HIGH|MEDIUM|LOW"}]} and no text after it.`;
+
+function isReadinessTarget(entry) {
+    const file = String(entry?.file || '').replaceAll('\\', '/');
+    return file.endsWith('errors-v2-easy.mjs') && entry?.symbol === READINESS_SYMBOL;
+}
+
+function representativeFindings(result) {
+    if (!result?.validation?.valid || result.validation.verdict !== 'ISSUES_FOUND') return [];
+    try {
+        return extractResearchManifest(result.validation.report).findings.filter(isReadinessTarget);
+    } catch {
+        return [];
+    }
+}
+
+function buildLeadReadinessPrompt(reports) {
+    return [
+        'Representative readiness consolidation only. Do not use tools, inspect files, edit, or delegate.',
+        `The supplied independent reports all target ${READINESS_FIXTURE}:${READINESS_SYMBOL}.`,
+        'Require at least four supplied valid reports. Consolidate their strongest shared defect into exactly one candidate; with fewer than four reports return NEEDS_DATA and an empty candidates array.',
+        'The first visible text line must be exactly VERDICT: ISSUES_FOUND or VERDICT: NEEDS_DATA.',
+        'End with exactly one fenced JSON object {"candidates":[{"id":"...","file":"...","symbol":"...","claim":"...","evidence":"...","potentialImpact":"HIGH|MEDIUM"}]} and no text after it.',
+        JSON.stringify(reports),
+    ].join('\n');
+}
 
 async function defaultListModels() {
     return execFile(resolveOpenCodeExecutable(), ['models'], { encoding: 'utf8', timeout: 15_000, windowsHide: true });
@@ -36,10 +63,11 @@ export async function runCouncilLiveSmoke({
     const agents = ['council-review', 'council-review-fb', 'council-review-fb2', 'council-review-fb3', 'council-review-fb4'];
     const completed = new Set();
     const progress = setInterval(() => {
-        onProgress({ scope: 'route-health', completed: completed.size, total: agents.length + 1, elapsedMs: Date.now() - startedAt });
+        onProgress({ scope: 'representative-review', completed: completed.size, total: agents.length + 1, elapsedMs: Date.now() - startedAt });
     }, 30_000);
     let scopeResults;
     let lead;
+    let readinessReports = [];
     try {
         scopeResults = await Promise.all(agents.map(async (agent) => {
             const model = routes.get(agent);
@@ -53,29 +81,33 @@ export async function runCouncilLiveSmoke({
                 completed.add(agent);
             }
         }));
+        readinessReports = scopeResults.flatMap((result) => {
+            const findings = representativeFindings(result);
+            return findings.length > 0 ? [{ agent: result.agent, findings }] : [];
+        });
         const leadModel = routes.get('council-lead');
         lead = registered.has(leadModel)
-            ? await runCouncilAgentCli({ repositoryRoot, agent: 'council-lead', prompt: LEAD_HEALTH_PROMPT, timeoutMs, ...(run ? { run } : {}) })
+            ? await runCouncilAgentCli({
+                repositoryRoot,
+                agent: 'council-lead',
+                prompt: buildLeadReadinessPrompt(readinessReports),
+                timeoutMs,
+                ...(run ? { run } : {}),
+            })
             : { agent: 'council-lead', model: leadModel, valid: false, reasons: ['model-not-registered'], attempts: [], exitReason: 'INFRASTRUCTURE_ERROR' };
         completed.add('council-lead');
     } finally {
         clearInterval(progress);
     }
     const results = scopeResults.map((result) => {
-        let structured = false;
-        if (result.validation.valid) {
-            try {
-                structured = extractResearchManifest(result.validation.report).findings.length === 0;
-            } catch {
-                structured = false;
-            }
-        }
+        const findings = representativeFindings(result);
+        const representative = findings.length > 0;
         return {
             agent: result.agent,
             model: result.model,
-            valid: result.validation.valid && structured && result.validation.verdict === 'CLEAN',
+            valid: result.validation.valid && representative,
             verdict: result.validation.verdict,
-            reasons: structured ? result.validation.reasons : [...result.validation.reasons, 'invalid-findings-manifest'],
+            reasons: representative ? result.validation.reasons : [...result.validation.reasons, 'missing-representative-finding'],
             attempts: result.attempts.length,
             timedOut: result.timedOut,
             durationMs: result.attempts.reduce((sum, attempt) => sum + Number(attempt.durationMs || 0), 0),
@@ -85,8 +117,19 @@ export async function runCouncilLiveSmoke({
         };
     });
     const validRuns = results.filter(({ valid }) => valid).length;
-    const leadHealthy = lead.valid === true;
+    let representativeCandidate = false;
+    if (lead.valid) {
+        try {
+            representativeCandidate = extractCandidateManifest(lead.report).candidates.some(isReadinessTarget);
+        } catch {
+            representativeCandidate = false;
+        }
+    }
+    const leadHealthy = lead.valid === true && representativeCandidate;
+    const leadReasons = representativeCandidate ? lead.reasons : [...(lead.reasons || []), 'missing-representative-candidate'];
     return {
+        mode: 'REPRESENTATIVE_REVIEW',
+        readinessTarget: { file: READINESS_FIXTURE, symbol: READINESS_SYMBOL },
         passed: validRuns >= 4 && leadHealthy,
         validRuns,
         requiredValidRuns: 4,
@@ -96,7 +139,8 @@ export async function runCouncilLiveSmoke({
             agent: lead.agent,
             model: lead.model,
             valid: leadHealthy,
-            reasons: lead.reasons,
+            routeValid: lead.valid === true,
+            reasons: leadReasons,
             attempts: lead.attempts.length,
             timedOut: lead.timedOut,
             durationMs: lead.durationMs,

@@ -311,18 +311,36 @@ test('bounded Council CLI accepts both independent verify routes and rejects unk
     await assert.rejects(() => runCouncilAgentCli({ repositoryRoot: ROOT, agent: 'default', prompt: 'no', run: async () => ({}) }), /unsupported/);
 });
 
-test('live smoke requires four structured CLEAN reports from real-agent adapters', async () => {
+test('live smoke requires four representative findings and lead consolidation from real-agent adapters', async () => {
     let calls = 0;
-    const report = `VERDICT: CLEAN\n\n\`\`\`json\n${JSON.stringify({ findings: [] })}\n\`\`\``;
+    const prompts = new Map();
+    const finding = {
+        file: 'tests/council-test-loop/errors-v2-easy.mjs',
+        symbol: 'normalizeSampleWindow',
+        category: 'caller-input-mutation',
+        claim: 'sort mutates the caller-owned input array',
+        evidence: 'samples.sort operates in place before normalization',
+        confidence: 'HIGH',
+        impact: 'MEDIUM',
+    };
+    const report = specialistReport('ISSUES_FOUND', [finding]);
     const result = await runCouncilLiveSmoke({
         repositoryRoot: ROOT,
         timeoutMs: 1_000,
-        run: async ({ agent }) => {
+        run: async ({ agent, prompt }) => {
             calls += 1;
+            prompts.set(agent, prompt);
             if (agent === 'council-lead') {
                 return {
                     agent,
-                    stdout: reportEvent('VERDICT: CLEAN\n```json\n{"candidates":[]}\n```'),
+                    stdout: reportEvent(`VERDICT: ISSUES_FOUND\n\`\`\`json\n${JSON.stringify({ candidates: [{
+                        id: 'LIVE-01',
+                        file: finding.file,
+                        symbol: finding.symbol,
+                        claim: finding.claim,
+                        evidence: finding.evidence,
+                        potentialImpact: 'MEDIUM',
+                    }] })}\n\`\`\``),
                     stderr: '',
                     exitCode: 0,
                     timedOut: false,
@@ -330,7 +348,7 @@ test('live smoke requires four structured CLEAN reports from real-agent adapters
             }
             return {
                 agent,
-                stdout: reportEvent(agent === 'council-review-fb4' ? 'VERDICT: NEEDS_DATA\n```json\n{"findings":[]}\n```' : report),
+                stdout: reportEvent(agent === 'council-review-fb4' ? specialistReport('NEEDS_DATA') : report),
                 stderr: '',
                 exitCode: 0,
                 timedOut: false,
@@ -338,10 +356,14 @@ test('live smoke requires four structured CLEAN reports from real-agent adapters
         },
     });
     assert.equal(calls, 6);
+    assert.equal(result.mode, 'REPRESENTATIVE_REVIEW');
     assert.equal(result.validRuns, 4);
     assert.equal(result.distinctValidRoutes, 4);
     assert.equal(result.leadHealthy, true);
     assert.equal(result.passed, true);
+    assert.match(prompts.get('council-review'), /normalizeSampleWindow/);
+    assert.match(prompts.get('council-review'), /without mutating the caller-owned samples array/);
+    assert.match(prompts.get('council-lead'), /caller-input-mutation/);
 });
 
 test('live smoke rejects unregistered routes before invoking their agents', async () => {
