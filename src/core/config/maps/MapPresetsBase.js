@@ -48,6 +48,7 @@ const BASE_MAP_KEYS = [
     'abyssal_descent',
     'magma_maze',
     'chrono_forge_nexus',
+    'eclipse_foundry',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
