@@ -8,13 +8,13 @@ test('sichtbare GLB-Karten laden echte 3D-Vorschauen nach', async ({ page }) => 
 
     await page.goto(EDITOR_VIEW_PATHS.MAP_EDITOR, { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.getState);
-    await expect(page.locator('#assetStatusText')).toContainText(/geladen/i);
+    await expect(page.locator('#assetStatusText')).toContainText(/geladen/i, { timeout: 20_000 });
 
-    const initial = await page.evaluate(({ entryId, assetId }) => ({
-        previewUrl: window.CURVIOS_EDITOR.ui.getBuildPreviewUrl(entryId),
+    const initial = await page.evaluate(({ entry, assetId }) => ({
+        previewReady: window.CURVIOS_EDITOR.ui.isBuildPreviewReady(entry),
         assetState: window.CURVIOS_EDITOR.assetLoader.getLoadStatus(assetId).state,
-    }), { entryId: firstEntry.id, assetId: firstEntry.subType });
-    expect(initial).toEqual({ previewUrl: '', assetState: 'idle' });
+    }), { entry: firstEntry, assetId: firstEntry.subType });
+    expect(initial).toEqual({ previewReady: false, assetState: 'idle' });
 
     await page.locator('#dockCategoryTabs [data-category-id="glb"]').click();
     const firstCard = page.locator(`#dockCards [data-entry-id="${firstEntry.id}"]`);
@@ -22,8 +22,14 @@ test('sichtbare GLB-Karten laden echte 3D-Vorschauen nach', async ({ page }) => 
     await expect.poll(() => page.evaluate((assetId) => (
         window.CURVIOS_EDITOR.assetLoader.getLoadStatus(assetId).state
     ), firstEntry.subType)).toBe('loaded');
-    await expect.poll(() => firstCard.locator('.buildCardPreview img').getAttribute('src'))
-        .toMatch(/^data:image\/webp/);
+    await expect(firstCard.locator('.buildCardPreviewCanvas')).toBeVisible();
+    await expect.poll(() => firstCard.locator('.buildCardPreviewCanvas').evaluate((canvas) => {
+        const context = canvas.getContext('2d');
+        return context.getImageData(0, 0, 1, 1).data[3];
+    })).toBeGreaterThan(0);
+    const firstFrame = await firstCard.locator('.buildCardPreviewCanvas').evaluate((canvas) => canvas.toDataURL());
+    await expect.poll(() => firstCard.locator('.buildCardPreviewCanvas').evaluate((canvas) => canvas.toDataURL()))
+        .not.toBe(firstFrame);
 
     const loadedCount = await page.evaluate((assetIds) => assetIds.filter((assetId) => (
         window.CURVIOS_EDITOR.assetLoader.getLoadStatus(assetId).state === 'loaded'

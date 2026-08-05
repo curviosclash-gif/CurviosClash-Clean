@@ -127,13 +127,17 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         ...userData
     };
 
-    manager.attachSelectionOutlines(mesh);
+    if (options.attachSelectionOutlines !== false) {
+        manager.attachSelectionOutlines(mesh);
+    }
 
     if (isFiniteNumber(props.rotateY)) {
         mesh.rotation.y = Number(props.rotateY);
     }
     if (isFiniteNumber(props.rotateX)) mesh.rotation.x = Number(props.rotateX);
     if (isFiniteNumber(props.rotateZ)) mesh.rotation.z = Number(props.rotateZ);
+
+    if (options.register === false) return mesh;
 
     return manager.registerObject(mesh, {
         requestedId,

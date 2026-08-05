@@ -125,7 +125,7 @@ function createEntryButton(entry, options = {}) {
 
     button.innerHTML = `
         <span class="buildCardPreview" data-preview-token="${entry.previewToken}" aria-hidden="true">
-            ${options.previewUrl ? `<img src="${options.previewUrl}" alt="" loading="lazy" />` : `<span class="buildCardPreviewGlyph">${entry.previewGlyph}</span>`}
+            ${options.previewReady ? '<canvas class="buildCardPreviewCanvas" width="256" height="144"></canvas>' : `<span class="buildCardPreviewGlyph">${entry.previewGlyph}</span>`}
         </span>
         <span class="buildCardBody">
             <span class="buildCardTitleRow">
@@ -143,15 +143,16 @@ function createEntryButton(entry, options = {}) {
     return button;
 }
 
-function updateEntryButtonPreview(button, entry, previewUrl, assetState) {
-    if (!button || !previewUrl) return;
+function updateEntryButtonPreview(editor, button, entry, previewReady, assetState) {
+    if (!button || !previewReady) return;
     const preview = button.querySelector('.buildCardPreview');
     if (preview) {
-        const image = document.createElement('img');
-        image.src = previewUrl;
-        image.alt = '';
-        image.loading = 'lazy';
-        preview.replaceChildren(image);
+        const canvas = document.createElement('canvas');
+        canvas.className = 'buildCardPreviewCanvas';
+        canvas.width = 256;
+        canvas.height = 144;
+        preview.replaceChildren(canvas);
+        editor.attachBuildPreview?.(canvas, entry);
     }
     button.dataset.assetState = assetState.state;
     button.title = `${entry.label}: ${entry.description} ${assetState.detail}`;
@@ -232,22 +233,22 @@ export function bindEditorToolPaletteControls(editor) {
     let catalogQuery = '';
     let assetFilter = '';
     const previewLoads = new Map();
+    let previewUiDisposed = false;
 
     const requestEntryPreview = (button, entry) => {
-        if (entry.tool !== 'glb' || editor.getBuildPreviewUrl?.(entry.id)) return;
+        if (entry.tool !== 'glb' || editor.isBuildPreviewReady?.(entry)) return;
         let pending = previewLoads.get(entry.id);
         if (!pending && typeof editor.loadBuildPreview === 'function') {
             pending = Promise.resolve(editor.loadBuildPreview(entry));
             previewLoads.set(entry.id, pending);
         }
-        pending?.then((previewUrl) => {
-            if (!previewUrl) return;
-            editor.buildPreviewCache?.set(entry.id, previewUrl);
+        pending?.then((previewReady) => {
+            if (!previewReady || previewUiDisposed) return;
             const currentButton = button.isConnected
                 ? button
                 : Array.from(dom.dockCards?.querySelectorAll('[data-entry-id]') || [])
                     .find((candidate) => candidate.dataset.entryId === entry.id);
-            updateEntryButtonPreview(currentButton, entry, previewUrl, resolveEntryAssetState(editor, entry));
+            updateEntryButtonPreview(editor, currentButton, entry, previewReady, resolveEntryAssetState(editor, entry));
         }).catch((error) => {
             console.warn(`[EditorToolPaletteControls] Preview for "${entry.id}" failed:`, error);
         });
@@ -370,6 +371,7 @@ export function bindEditorToolPaletteControls(editor) {
 
     const renderCards = (snapshot) => {
         if (!dom.dockCards) return;
+        editor.clearBuildPreviewTargets?.();
         dom.dockCards.replaceChildren();
 
         const sourceEntries = catalogQuery
@@ -390,7 +392,7 @@ export function bindEditorToolPaletteControls(editor) {
                 isActive: snapshot.mode === 'place' && snapshot.selectedEntry?.id === entry.id,
                 isSelected: snapshot.selectedEntry?.id === entry.id,
                 assetState: resolveEntryAssetState(editor, entry),
-                previewUrl: editor.getBuildPreviewUrl?.(entry.id) || '',
+                previewReady: editor.isBuildPreviewReady?.(entry) === true,
             });
             button.addEventListener('click', () => {
                 hoveredEntryId = null;
@@ -440,7 +442,8 @@ export function bindEditorToolPaletteControls(editor) {
                 }
             });
             dom.dockCards.appendChild(button);
-            if (entry.tool === 'glb' && !editor.getBuildPreviewUrl?.(entry.id)) {
+            editor.attachBuildPreview?.(button.querySelector('.buildCardPreviewCanvas'), entry);
+            if (entry.tool === 'glb' && !editor.isBuildPreviewReady?.(entry)) {
                 previewObserver?.observe(button);
             }
         }
@@ -487,14 +490,24 @@ export function bindEditorToolPaletteControls(editor) {
     editor.refreshToolDock = () => {
         renderAll(toolDockState.getSnapshot());
     };
-    editor.setBuildPreviewCache = (cache) => {
-        editor.buildPreviewCache = cache instanceof Map ? cache : new Map();
+    editor.setBuildPreviewController = (controller) => {
+        editor.clearBuildPreviewTargets?.();
+        editor.buildPreviewController = controller?.available ? controller : null;
+        editor.loadBuildPreview = controller?.available ? (entry) => controller.loadEntry(entry) : null;
+        editor.isBuildPreviewReady = (entry) => controller?.isEntryReady?.(entry) === true;
+        editor.attachBuildPreview = (canvas, entry) => controller?.attach?.(canvas, entry) === true;
+        editor.clearBuildPreviewTargets = () => controller?.clearTargets?.();
         renderAll(toolDockState.getSnapshot());
     };
-    editor.setBuildPreviewLoader = (loader) => {
-        editor.loadBuildPreview = typeof loader === 'function' ? loader : null;
+    editor.disposeBuildPreviewUi = () => {
+        previewUiDisposed = true;
+        previewObserver?.disconnect();
+        previewLoads.clear();
+        editor.clearBuildPreviewTargets?.();
+        editor.buildPreviewController = null;
+        editor.loadBuildPreview = null;
+        editor.attachBuildPreview = null;
     };
-    editor.getBuildPreviewUrl = (entryId) => editor.buildPreviewCache?.get(entryId) || '';
 
     dom.btnDockSelectMode?.addEventListener('click', () => {
         hoveredEntryId = null;

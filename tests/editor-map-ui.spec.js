@@ -850,8 +850,11 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         }));
         expect(cameraState).toEqual({ mode: 'top', orthographic: true });
 
-        await expect(page.locator('#assetStatusText')).toContainText(/geladen/i);
-        await expect.poll(() => page.locator('#dockCards .buildCardPreview img').count()).toBeGreaterThan(0);
+        await expect(page.locator('#assetStatusText')).toContainText(/geladen/i, { timeout: 20_000 });
+        await expect.poll(() => page.locator('#dockCards .buildCardPreviewCanvas').count()).toBeGreaterThan(0);
+        const previewHeight = await page.locator('#dockCards [data-entry-id="build-hard"] .buildCardPreview')
+            .evaluate((element) => element.getBoundingClientRect().height);
+        expect(previewHeight).toBeGreaterThanOrEqual(72);
     });
 
     test('Portal- und Parcours-Beziehungen werden bearbeitet, visualisiert und geprueft', async ({ page }) => {

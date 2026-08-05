@@ -4,8 +4,6 @@ import { EditorUI } from './EditorUI.js';
 import { EditorMapManager } from './EditorMapManager.js';
 import {
     getEditorBuildCatalogDescriptor,
-    listEditorBuildDescriptorEntries,
-    resolveEditorBuildEntryAssetId,
     resolveEditorTemplateImportCapability,
 } from './ui/EditorBuildCatalog.js';
 import { resolveMapAuthoringStatus } from './EditorMapSerializer.js';
@@ -133,16 +131,14 @@ export async function initEditor() {
         core.animate();
 
         const assetSummary = await assetLoader.loadAll();
-        const previewRenderer = createEditorBuildPreviewRenderer(assetLoader);
-        window.addEventListener('beforeunload', () => previewRenderer.dispose(), { once: true });
-        const buildEntries = listEditorBuildDescriptorEntries();
-        ui.setBuildPreviewLoader?.(async (entry) => {
-            const assetId = resolveEditorBuildEntryAssetId(entry);
-            if (entry?.tool !== 'glb' || !assetId) return '';
-            await assetLoader.loadAsset(assetId);
-            return previewRenderer.render([entry]).get(entry.id) || '';
-        });
-        ui.setBuildPreviewCache?.(previewRenderer.render(buildEntries.filter((entry) => entry.tool !== 'glb')));
+        const previewRenderer = createEditorBuildPreviewRenderer(mapManager);
+        ui.setBuildPreviewController?.(previewRenderer);
+        const disposeBuildPreviews = () => {
+            ui.disposeBuildPreviewUi?.();
+            previewRenderer.dispose();
+        };
+        globalThis.CURVIOS_EDITOR.disposeBuildPreviews = disposeBuildPreviews;
+        window.addEventListener('beforeunload', disposeBuildPreviews, { once: true });
         if ((assetSummary.failed + assetSummary.timedOut) > 0) {
             setAssetStatus({
                 level: 'warn',

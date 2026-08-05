@@ -1,48 +1,26 @@
 import * as THREE from 'three';
+import { createEditorMesh } from '../EditorMeshFactory.js';
 import { resolveEditorBuildEntryAssetId } from './EditorBuildCatalog.js';
 
-function createFallbackPreviewObject(entry) {
-    if (entry.tool === 'hard' || entry.tool === 'foam') {
-        return new THREE.Mesh(
-            new THREE.BoxGeometry(1.5, 1, 1.2),
-            new THREE.MeshLambertMaterial({ color: entry.tool === 'hard' ? 0xf97373 : 0x34d399 }),
-        );
-    }
-    if (entry.tool === 'portal' || entry.tool === 'checkpoint') {
-        return new THREE.Mesh(
-            new THREE.TorusGeometry(0.8, entry.tool === 'portal' ? 0.16 : 0.09, 12, 30),
-            new THREE.MeshLambertMaterial({ color: entry.tool === 'portal' ? 0xc084fc : 0xaaff00 }),
-        );
-    }
-    if (entry.tool === 'spawn') {
-        return new THREE.Mesh(
-            new THREE.ConeGeometry(0.65, 1.5, 12),
-            new THREE.MeshLambertMaterial({ color: entry.subType === 'player' ? 0xeab308 : 0xef4444 }),
-        );
-    }
-    if (entry.tool === 'tunnel') {
-        const mesh = new THREE.Mesh(
-            new THREE.CylinderGeometry(0.65, 0.65, 1.8, 18, 1, true),
-            new THREE.MeshLambertMaterial({ color: 0x60a5fa, side: THREE.DoubleSide }),
-        );
-        mesh.rotation.z = Math.PI / 2;
-        return mesh;
-    }
-    return new THREE.Mesh(
-        new THREE.OctahedronGeometry(0.85),
-        new THREE.MeshLambertMaterial({ color: entry.tool === 'aircraft' ? 0x34d399 : 0xfbbf24 }),
-    );
-}
+const PREVIEW_WIDTH = 256;
+const PREVIEW_HEIGHT = 144;
+const PREVIEW_FPS = 24;
+const PREVIEW_ROTATION_SPEED = 0.28;
+const CAMERA_DIRECTION = new THREE.Vector3(1.55, 1.05, 2.35).normalize();
 
 function hasFinitePreviewGeometry(object) {
     let valid = true;
     object?.traverse?.((node) => {
-        const transforms = [node?.position, node?.rotation, node?.scale];
-        if (transforms.some((value) => value && Object.values(value).some((entry) => typeof entry === 'number' && !Number.isFinite(entry)))) {
+        const transformValues = [
+            node.position?.x, node.position?.y, node.position?.z,
+            node.quaternion?.x, node.quaternion?.y, node.quaternion?.z, node.quaternion?.w,
+            node.scale?.x, node.scale?.y, node.scale?.z,
+        ];
+        if (transformValues.some((value) => value !== undefined && !Number.isFinite(value))) {
             valid = false;
             return;
         }
-        const values = node?.geometry?.attributes?.position?.array;
+        const values = node.geometry?.attributes?.position?.array;
         if (!values || !valid) return;
         for (let index = 0; index < values.length; index += 1) {
             if (!Number.isFinite(values[index])) {
@@ -54,91 +32,281 @@ function hasFinitePreviewGeometry(object) {
     return valid;
 }
 
-function disposePreviewObject(object) {
+function getPreviewPlacement(entry) {
+    if (entry.tool === 'hard' || entry.tool === 'foam') {
+        return {
+            sizeInfo: 1,
+            extraProps: { sizeX: 1.5, sizeY: 1.05, sizeZ: 1.25 },
+        };
+    }
+    if (entry.tool === 'tunnel') {
+        return {
+            sizeInfo: 0.55,
+            extraProps: {
+                radius: 0.55,
+                pointA: new THREE.Vector3(-1.25, 0, 0),
+                pointB: new THREE.Vector3(1.25, 0, 0),
+            },
+        };
+    }
+    if (entry.tool === 'portal') return { sizeInfo: 1, extraProps: { radius: 1 } };
+    if (entry.tool === 'checkpoint') return { sizeInfo: 1, extraProps: { cpRadius: 1 } };
+    if (entry.tool === 'aircraft') return { sizeInfo: 1, extraProps: { modelScale: 1 } };
+    if (entry.tool === 'glb') return { sizeInfo: 1, extraProps: { targetSize: 1 } };
+    return { sizeInfo: 1, extraProps: {} };
+}
+
+export function createEditorPreviewObject(mapManager, entry) {
+    if (!mapManager || !entry) return null;
+    const placement = getPreviewPlacement(entry);
+    return createEditorMesh(
+        mapManager,
+        entry.tool,
+        entry.subType,
+        0,
+        0,
+        0,
+        placement.sizeInfo,
+        placement.extraProps,
+        { register: false, updateUi: false, attachSelectionOutlines: false },
+    );
+}
+
+export function fitEditorPreviewObject(object, targetRadius = 1) {
+    if (!object || !hasFinitePreviewGeometry(object)) return null;
+    object.updateWorldMatrix(true, true);
+    const bounds = new THREE.Box3().setFromObject(object);
+    if (bounds.isEmpty()) return null;
+    const sphere = bounds.getBoundingSphere(new THREE.Sphere());
+    if (!Number.isFinite(sphere.radius) || sphere.radius <= 0) return null;
+
+    const wrapper = new THREE.Group();
+    object.position.sub(sphere.center);
+    wrapper.scale.setScalar(targetRadius / sphere.radius);
+    wrapper.add(object);
+    wrapper.updateWorldMatrix(true, true);
+    return wrapper;
+}
+
+export function disposeEditorPreviewObject(object, mapManager) {
+    const disposedGeometries = new Set();
+    const disposedMaterials = new Set();
     object?.traverse?.((node) => {
-        node.geometry?.dispose?.();
-        const materials = Array.isArray(node.material) ? node.material : [node.material];
-        materials.forEach((material) => material?.dispose?.());
+        if (node.geometry
+            && !disposedGeometries.has(node.geometry)
+            && mapManager?.shouldDisposeGeometry?.(node)) {
+            disposedGeometries.add(node.geometry);
+            node.geometry.dispose?.();
+        }
+        const materials = Array.isArray(node.material) ? node.material : (node.material ? [node.material] : []);
+        for (const material of materials) {
+            if (!material
+                || disposedMaterials.has(material)
+                || !mapManager?.shouldDisposeMaterial?.(node, material)) continue;
+            disposedMaterials.add(material);
+            material.dispose?.();
+        }
     });
 }
 
-export function createEditorBuildPreviewRenderer(assetLoader) {
-    let renderer = null;
-    try {
-        renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, preserveDrawingBuffer: true });
-        renderer.setSize(192, 108, false);
-        renderer.setPixelRatio(1);
-        renderer.setClearColor(0x06101f, 1);
-        const scene = new THREE.Scene();
-        const camera = new THREE.PerspectiveCamera(34, 16 / 9, 0.01, 100);
-        camera.position.set(3.1, 2.2, 3.5);
-        camera.lookAt(0, 0, 0);
-        scene.add(new THREE.HemisphereLight(0xffffff, 0x18233a, 2.2));
-        const keyLight = new THREE.DirectionalLight(0xffffff, 2.4);
-        keyLight.position.set(4, 5, 3);
-        scene.add(keyLight);
-
-        const box = new THREE.Box3();
-        const size = new THREE.Vector3();
-        const center = new THREE.Vector3();
-
-        return {
-            render(entries) {
-                const cache = new Map();
-                if (!Array.isArray(entries) || entries.length === 0) return cache;
-                for (const entry of entries) {
-                    let object = null;
-                    try {
-                        const assetId = resolveEditorBuildEntryAssetId(entry);
-                        const assetStatus = assetId ? assetLoader?.getLoadStatus?.(assetId) : null;
-                        object = assetId && assetStatus?.state === 'loaded' ? assetLoader?.getClone?.(assetId) : null;
-                        if (object && !hasFinitePreviewGeometry(object)) {
-                            disposePreviewObject(object);
-                            object = null;
-                        }
-                        if (!object) object = createFallbackPreviewObject(entry);
-                        box.setFromObject(object);
-                        box.getSize(size);
-                        box.getCenter(center);
-                        object.position.sub(center);
-                        const largest = Math.max(size.x, size.y, size.z, 0.001);
-                        object.scale.multiplyScalar(1.8 / largest);
-                        object.rotation.y += 0.55;
-                        scene.add(object);
-                        renderer.render(scene, camera);
-                        cache.set(entry.id, renderer.domElement.toDataURL('image/webp', 0.82));
-                    } catch (error) {
-                        console.warn(`[EditorPreviewRenderer] Preview for "${entry.id}" unavailable:`, error);
-                    } finally {
-                        if (object) {
-                            scene.remove(object);
-                            disposePreviewObject(object);
-                        }
-                    }
-                }
-                return cache;
-            },
-            dispose() {
-                renderer?.dispose?.();
-                renderer = null;
-            },
-        };
-    } catch (error) {
-        console.warn('[EditorPreviewRenderer] 3D preview cache unavailable:', error);
-        renderer?.dispose?.();
-        return {
-            render() { return new Map(); },
-            dispose() {},
-        };
-    }
+function createUnavailablePreviewRenderer() {
+    return {
+        available: false,
+        attach() { return false; },
+        clearTargets() {},
+        dispose() {},
+        isEntryReady() { return false; },
+        async loadEntry() { return false; },
+    };
 }
 
-export function createEditorBuildPreviewCache(entries, assetLoader) {
-    if (typeof document === 'undefined') return new Map();
-    const previewRenderer = createEditorBuildPreviewRenderer(assetLoader);
+export function createEditorBuildPreviewRenderer(mapManager, options = {}) {
+    let renderer = null;
     try {
-        return previewRenderer.render(entries);
-    } finally {
-        previewRenderer.dispose();
+        renderer = options.rendererFactory?.() || new THREE.WebGLRenderer({
+            antialias: true,
+            alpha: false,
+            powerPreference: 'low-power',
+        });
+        renderer.setSize(PREVIEW_WIDTH, PREVIEW_HEIGHT, false);
+        renderer.setPixelRatio(1);
+        renderer.setClearColor(0x06101f, 1);
+        renderer.outputColorSpace = THREE.SRGBColorSpace;
+        renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        renderer.toneMappingExposure = 1.15;
+    } catch (error) {
+        console.warn('[EditorPreviewRenderer] 3D previews unavailable:', error);
+        renderer?.dispose?.();
+        return createUnavailablePreviewRenderer();
     }
+
+    const scene = new THREE.Scene();
+    const camera = new THREE.PerspectiveCamera(32, PREVIEW_WIDTH / PREVIEW_HEIGHT, 0.1, 20);
+    const cameraDistance = 1.18 / Math.sin(THREE.MathUtils.degToRad(camera.fov * 0.5));
+    camera.position.copy(CAMERA_DIRECTION).multiplyScalar(cameraDistance);
+    camera.lookAt(0, 0, 0);
+    scene.add(new THREE.HemisphereLight(0xffffff, 0x18233a, 2.5));
+    const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
+    keyLight.position.set(4, 5, 3);
+    scene.add(keyLight);
+    const fillLight = new THREE.DirectionalLight(0x7dd3fc, 1.4);
+    fillLight.position.set(-4, 2, -3);
+    scene.add(fillLight);
+
+    const previews = new Map();
+    const targets = new Map();
+    const requestFrame = options.requestAnimationFrame
+        || globalThis.requestAnimationFrame?.bind(globalThis)
+        || ((callback) => globalThis.setTimeout(() => callback(globalThis.performance?.now?.() || Date.now()), 50));
+    const cancelFrame = options.cancelAnimationFrame
+        || globalThis.cancelAnimationFrame?.bind(globalThis)
+        || globalThis.clearTimeout?.bind(globalThis);
+    const motionQuery = options.motionQuery
+        || globalThis.matchMedia?.('(prefers-reduced-motion: reduce)')
+        || null;
+    let reducedMotion = motionQuery?.matches === true;
+    let disposed = false;
+    let frameId = 0;
+    let lastFrameTime = -Infinity;
+
+    const hasVisibleTarget = () => {
+        for (const target of targets.values()) {
+            if (target.visible && target.canvas.isConnected !== false) return true;
+        }
+        return false;
+    };
+
+    const prepareEntry = (entry) => {
+        if (!entry || previews.has(entry.id)) return previews.get(entry?.id) || null;
+        const assetId = resolveEditorBuildEntryAssetId(entry);
+        if (entry.tool === 'glb' && mapManager?.assetLoader?.getLoadStatus?.(assetId)?.state !== 'loaded') {
+            return null;
+        }
+
+        let object = null;
+        try {
+            object = createEditorPreviewObject(mapManager, entry);
+            const root = fitEditorPreviewObject(object);
+            if (!root) {
+                disposeEditorPreviewObject(object, mapManager);
+                return null;
+            }
+            root.visible = false;
+            scene.add(root);
+            const preview = { root, baseRotation: root.rotation.y };
+            previews.set(entry.id, preview);
+            return preview;
+        } catch (error) {
+            disposeEditorPreviewObject(object, mapManager);
+            console.warn(`[EditorPreviewRenderer] Preview for "${entry.id}" unavailable:`, error);
+            return null;
+        }
+    };
+
+    const scheduleFrame = () => {
+        if (disposed || frameId || !hasVisibleTarget()) return;
+        if (typeof document !== 'undefined' && document.hidden) return;
+        frameId = requestFrame(renderFrame);
+    };
+
+    function renderFrame(timestamp) {
+        frameId = 0;
+        if (disposed || targets.size === 0) return;
+        const now = Number.isFinite(timestamp) ? timestamp : (globalThis.performance?.now?.() || Date.now());
+        if (!reducedMotion && now - lastFrameTime < 1000 / PREVIEW_FPS) {
+            scheduleFrame();
+            return;
+        }
+        lastFrameTime = now;
+
+        if (typeof document === 'undefined' || !document.hidden) {
+            for (const target of targets.values()) {
+                if (!target.visible || target.canvas.isConnected === false) continue;
+                const preview = prepareEntry(target.entry);
+                if (!preview) continue;
+                preview.root.rotation.y = preview.baseRotation + now * 0.001 * PREVIEW_ROTATION_SPEED;
+                preview.root.visible = true;
+                renderer.render(scene, camera);
+                target.context.drawImage(renderer.domElement, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
+                preview.root.visible = false;
+            }
+        }
+        if (!reducedMotion) scheduleFrame();
+    }
+
+    const observerCallback = (records) => {
+        for (const record of records) {
+            const target = targets.get(record.target);
+            if (target) target.visible = record.isIntersecting;
+        }
+        scheduleFrame();
+    };
+    const observerFactory = options.intersectionObserverFactory
+        || (typeof IntersectionObserver === 'function'
+            ? (callback) => new IntersectionObserver(callback, { rootMargin: '80px' })
+            : null);
+    const observer = observerFactory?.(observerCallback) || null;
+
+    const handleMotionChange = (event) => {
+        reducedMotion = event.matches === true;
+        scheduleFrame();
+    };
+    motionQuery?.addEventListener?.('change', handleMotionChange);
+    const handleVisibilityChange = () => scheduleFrame();
+    globalThis.document?.addEventListener?.('visibilitychange', handleVisibilityChange);
+
+    return {
+        available: true,
+        attach(canvas, entry) {
+            if (disposed || !canvas || !entry) return false;
+            const context = canvas.getContext?.('2d', { alpha: false });
+            if (!context) return false;
+            const target = { canvas, context, entry, visible: !observer };
+            targets.set(canvas, target);
+            observer?.observe?.(canvas);
+            prepareEntry(entry);
+            scheduleFrame();
+            return true;
+        },
+        clearTargets() {
+            for (const canvas of targets.keys()) observer?.unobserve?.(canvas);
+            targets.clear();
+            if (frameId) cancelFrame?.(frameId);
+            frameId = 0;
+        },
+        isEntryReady(entry) {
+            if (!entry || disposed) return false;
+            if (entry.tool !== 'glb') return true;
+            const assetId = resolveEditorBuildEntryAssetId(entry);
+            return mapManager?.assetLoader?.getLoadStatus?.(assetId)?.state === 'loaded';
+        },
+        async loadEntry(entry) {
+            if (!entry || disposed) return false;
+            const assetId = resolveEditorBuildEntryAssetId(entry);
+            if (entry.tool === 'glb' && assetId) {
+                await mapManager?.assetLoader?.loadAsset?.(assetId);
+            }
+            const preview = prepareEntry(entry);
+            scheduleFrame();
+            return !!preview;
+        },
+        dispose() {
+            if (disposed) return;
+            disposed = true;
+            if (frameId) cancelFrame?.(frameId);
+            frameId = 0;
+            observer?.disconnect?.();
+            motionQuery?.removeEventListener?.('change', handleMotionChange);
+            globalThis.document?.removeEventListener?.('visibilitychange', handleVisibilityChange);
+            targets.clear();
+            for (const preview of previews.values()) {
+                scene.remove(preview.root);
+                disposeEditorPreviewObject(preview.root, mapManager);
+            }
+            previews.clear();
+            renderer.dispose?.();
+            renderer.forceContextLoss?.();
+            renderer = null;
+        },
+    };
 }
