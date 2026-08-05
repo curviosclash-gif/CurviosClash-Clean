@@ -342,10 +342,24 @@
   setTool("tunnel");
 
   // Updates Area Sizes
+  function positiveInt(value, fallback) {
+    const parsed = Number.parseInt(value, 10);
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+  }
+
+  function finiteNumber(value, fallback) {
+    if (value === null || value === undefined || value === '') return fallback;
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed : fallback;
+  }
+
   function updateArenaSize() {
-    ARENA_W = parseInt(numArenaW.value) || 2800;
-    ARENA_D = parseInt(numArenaD.value) || 2400;
-    ARENA_H = parseInt(numArenaH.value) || 950;
+    ARENA_W = positiveInt(numArenaW.value, 2800);
+    ARENA_D = positiveInt(numArenaD.value, 2400);
+    ARENA_H = positiveInt(numArenaH.value, 950);
+    numArenaW.value = ARENA_W;
+    numArenaD.value = ARENA_D;
+    numArenaH.value = ARENA_H;
     hudArenaSize.textContent = `Arena: ${ARENA_W} × ${ARENA_D} (x/z)`;
     hudArenaHeight.textContent = `Höhe: ${ARENA_H}`;
     draw();
@@ -427,8 +441,12 @@
   btnRedo.addEventListener("click", redo);
   
   document.addEventListener("keydown", (e) => {
-      if (e.ctrlKey && e.key === 'z') { e.preventDefault(); undo(); }
-      if (e.ctrlKey && e.key === 'y') { e.preventDefault(); redo(); }
+      const target = e.target;
+      const isEditing = target?.matches?.('input, textarea, select') || target?.isContentEditable;
+      if (isEditing) return;
+      const key = String(e.key || '').toLowerCase();
+      if (e.ctrlKey && key === 'z') { e.preventDefault(); undo(); }
+      if (e.ctrlKey && key === 'y') { e.preventDefault(); redo(); }
   });
 
   // ==========================
@@ -813,6 +831,7 @@
   });
 
   canvas.addEventListener("mousedown", (e)=>{
+    if (e.button !== 0) return;
     updateMouseFromEvent(e);
     const x = state.mouseX;
     const z = state.mouseZ;
@@ -879,21 +898,18 @@
       state.botSpawns  = Array.isArray(obj.botSpawns) ? obj.botSpawns : [];
       state.portals    = Array.isArray(obj.portals) ? obj.portals : [];
       state.items      = Array.isArray(obj.items) ? obj.items : [];
+      if(obj.arenaSize){
+          numArenaW.value = positiveInt(obj.arenaSize.width, 2800);
+          numArenaH.value = positiveInt(obj.arenaSize.height, 950);
+          numArenaD.value = positiveInt(obj.arenaSize.depth, 2400);
+          updateArenaSize();
+      }
       if (obj.playerSpawn){
         state.playerSpawn = {
-          x: obj.playerSpawn.x || 0,
-          y: obj.playerSpawn.y || ARENA_H*0.55,
-          z: obj.playerSpawn.z || 0
+          x: finiteNumber(obj.playerSpawn.x, 0),
+          y: finiteNumber(obj.playerSpawn.y, ARENA_H*0.55),
+          z: finiteNumber(obj.playerSpawn.z, 0)
         };
-      }
-      if(obj.arenaSize){
-          ARENA_W = obj.arenaSize.width || 2800;
-          ARENA_H = obj.arenaSize.height || 950;
-          ARENA_D = obj.arenaSize.depth || 2400;
-          
-          numArenaW.value = ARENA_W;
-          numArenaH.value = ARENA_H;
-          numArenaD.value = ARENA_D;
       }
       saveState();
       draw();

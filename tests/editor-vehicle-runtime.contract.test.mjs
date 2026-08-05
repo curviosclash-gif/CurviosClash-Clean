@@ -18,6 +18,13 @@ function createTestAssetObject() {
 
 test('EditorAssetLoader soft timeout does not poison a later successful cache fill', async () => {
     const loader = new EditorAssetLoader({ timeoutMs: 10, maxConcurrentLoads: 1 });
+    loader.glbModelById.set('demo_asset', { id: 'demo_asset', url: '/demo.obj' });
+    let hydratedTarget = null;
+    let hydratedReplacement = null;
+    loader.setCloneHydrationHandler((target, replacement) => {
+        hydratedTarget = target;
+        hydratedReplacement = replacement;
+    });
     loader.loader = {
         load(_url, onLoad) {
             setTimeout(() => onLoad(createTestAssetObject()), 25);
@@ -26,12 +33,15 @@ test('EditorAssetLoader soft timeout does not poison a later successful cache fi
 
     const result = await loader._loadModelWithTimeout('demo_asset', '/demo.obj');
     assert.equal(result.status, 'timeout');
-    assert.equal(loader.getClone('demo_asset').userData.isEditorPlaceholder, true);
+    const placedPlaceholder = loader.getClone('demo_asset');
+    assert.equal(placedPlaceholder.userData.isEditorPlaceholder, true);
 
     await new Promise((resolve) => setTimeout(resolve, 40));
 
     assert.equal(loader.loadStatus.get('demo_asset')?.state, 'loaded');
     assert.equal(loader.getClone('demo_asset').userData.isEditorPlaceholder, false);
+    assert.equal(hydratedTarget, placedPlaceholder);
+    assert.equal(hydratedReplacement.userData.isEditorPlaceholder, false);
 });
 
 test('EditorAssetLoader loadAll respects maxConcurrentLoads', async () => {

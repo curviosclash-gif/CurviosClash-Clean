@@ -41,6 +41,7 @@ export function updateTunnelSegmentLineVisuals(editor) {
 
     editor.core.objectsContainer.children.forEach((obj) => {
         if (obj.userData.type !== 'tunnel') return;
+        if (obj.visible === false) return;
         if (!obj.userData.pointA || !obj.userData.pointB) return;
         const geometry = new THREE.BufferGeometry().setFromPoints([obj.userData.pointA, obj.userData.pointB]);
         const line = new THREE.Line(geometry, editor.matTunnelLine);

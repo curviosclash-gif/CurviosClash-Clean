@@ -6,6 +6,7 @@ import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
 const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
 const EDITOR_LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
 const EDITOR_AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
+const PLAYTEST_RETURN_STORAGE_KEY = 'curviosclash.editor.playtest-return.v1';
 
 async function loadEditorPage(page, { autosave = null, waitForDockVisible = true } = {}) {
     await page.addInitScript(({ storageKeys, autosaveStorageKey, autosaveValue }) => {
@@ -435,6 +436,13 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.mouse.move(dockBox.x + 70, dockBox.y + 70, { steps: 4 });
         await page.mouse.up();
 
+        const spatiallyIndexed = await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const object = editor.ui.selectedObject;
+            return editor.mapManager.queryObjectsNear(object.position, 0).includes(object);
+        });
+        expect(spatiallyIndexed).toBe(true);
+
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
         await expect.poll(() => page.evaluate(() => window.localStorage.getItem('curviosclash.editor.autosave.v1'))).not.toBeNull();
@@ -464,6 +472,12 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.locator('#numArenaW').fill('-20');
         await page.locator('#numArenaW').press('Tab');
         await expect(page.locator('#numArenaW')).toHaveValue('2800');
+        await page.locator('#numYLayer').fill('900');
+        await page.locator('#numYLayer').press('Tab');
+        await page.locator('#numArenaH').fill('700');
+        await page.locator('#numArenaH').press('Tab');
+        await expect(page.locator('#numYLayer')).toHaveValue('700');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.yGridHelper.position.y)).toBe(700);
         await activateInspectorTab(page, 'selection');
 
         await page.locator('#propX').fill('1300');
@@ -512,6 +526,35 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(transformed.every((entry) => Number.isFinite(entry.x) && Number.isFinite(entry.z))).toBeTruthy();
     });
 
+    test('Gruppentransformation skaliert Abstaende, aber keine nicht skalierbaren Pickups', async ({ page }) => {
+        await loadEditorPage(page);
+        const ids = await page.evaluate(() => {
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            const block = manager.createMesh('hard', null, -100, 100, 0, 0, { sizeX: 100, sizeY: 100, sizeZ: 100, groupId: 'mixed' });
+            const item = manager.createMesh('item', 'item_rocket', 100, 100, 0, 0, { groupId: 'mixed' });
+            return { block: block.userData.id, item: item.userData.id };
+        });
+        await activateInspectorTab(page, 'objects');
+        await page.getByLabel(`${ids.block} fuer Mehrfachaktion markieren`).check();
+        await page.locator('#btnTransformMarked').click();
+        await page.locator('#editorModalInput').fill('0, 0, 0, 0, 2');
+        await page.locator('#btnEditorModalConfirm').click();
+
+        const transformed = await page.evaluate(({ block, item }) => {
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            const blockObject = manager.getObjectById(block);
+            const itemObject = manager.getObjectById(item);
+            return {
+                blockScale: blockObject.scale.toArray(),
+                itemScale: itemObject.scale.toArray(),
+                positions: [blockObject.position.x, itemObject.position.x],
+            };
+        }, ids);
+        expect(transformed.blockScale).toEqual([200, 200, 200]);
+        expect(transformed.itemScale).toEqual([30, 80, 30]);
+        expect(transformed.positions).toEqual([-200, 200]);
+    });
+
     test('Undo und Redo gleichen den Dirty-State mit dem gespeicherten Stand ab', async ({ page }) => {
         await loadEditorPage(page);
         await activateDockEntry(page, 'build', 'build-hard');
@@ -538,6 +581,8 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.getState, null, { timeout: 30_000 });
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+        await expect.poll(() => page.evaluate((key) => window.localStorage.getItem(key), PLAYTEST_RETURN_STORAGE_KEY)).toBeNull();
+        expect(new URL(page.url()).searchParams.has('returnFromPlaytest')).toBe(false);
     });
 
     test('S skaliert ausgewaehlte Map-Objekte und exportiert die neue Groesse', async ({ page }) => {
@@ -857,6 +902,26 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(previewHeight).toBeGreaterThanOrEqual(72);
     });
 
+    test('ausgeblendete Tunnel entfernen auch ihre Hilfslinien', async ({ page }) => {
+        await loadEditorPage(page);
+        const tunnelId = await page.evaluate(() => {
+            const Vector3 = window.CURVIOS_EDITOR.core.scene.position.constructor;
+            const manager = window.CURVIOS_EDITOR.mapManager;
+            const tunnel = manager.createMesh('tunnel', null, 0, 200, 0, 80, {
+                pointA: new Vector3(-200, 200, 0),
+                pointB: new Vector3(200, 200, 0),
+                radius: 80,
+            });
+            return tunnel.userData.id;
+        });
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.tunnelLines.children.length)).toBe(1);
+        expect(tunnelId).toBeTruthy();
+        await activateInspectorTab(page, 'layers');
+        await page.locator('#layerList [data-layer-id="geometry"]')
+            .getByRole('button', { name: 'Geometrie ausblenden' }).click();
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.core.tunnelLines.children.length)).toBe(0);
+    });
+
     test('Portal- und Parcours-Beziehungen werden bearbeitet, visualisiert und geprueft', async ({ page }) => {
         await loadEditorPage(page);
         const ids = await page.evaluate(() => {
@@ -884,6 +949,31 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(relation.right).toBe(ids[0]);
         expect(relation.lineCount).toBeGreaterThanOrEqual(3);
         await expect(page.locator('#validationList')).toContainText('Portale sind explizit gepaart');
+
+        await page.evaluate((rightId) => {
+            const editor = window.CURVIOS_EDITOR;
+            editor.mapManager.getObjectById(rightId).userData.portalPartnerId = '';
+            editor.ui.refreshWorkspace();
+        }, ids[1]);
+        await expect(page.locator('#validationList')).toContainText('Portal(e) ohne Partner');
+        await page.evaluate(([leftId, rightId]) => {
+            const editor = window.CURVIOS_EDITOR;
+            editor.ui.setPortalPartner(editor.mapManager.getObjectById(leftId), rightId);
+            editor.ui.refreshWorkspace();
+        }, [ids[0], ids[1]]);
+
+        await page.evaluate((finishId) => window.CURVIOS_EDITOR.ui.selectObject(window.CURVIOS_EDITOR.mapManager.getObjectById(finishId)), ids[4]);
+        await activateInspectorTab(page, 'selection');
+        await expect(page.locator('#propCheckpointOrder')).toBeDisabled();
+        const finishOrder = await page.evaluate(([finishId, startId]) => {
+            const editor = window.CURVIOS_EDITOR;
+            const reordered = editor.ui.reorderCheckpointById(finishId, startId);
+            const checkpoints = Array.from(editor.core.objectsContainer.children)
+                .filter((object) => object.userData.type === 'checkpoint')
+                .sort((left, right) => left.userData.checkpointOrder - right.userData.checkpointOrder);
+            return { reordered, lastId: checkpoints.at(-1).userData.id };
+        }, [ids[4], ids[2]]);
+        expect(finishOrder).toEqual({ reordered: false, lastId: ids[4] });
     });
 
     test('grosse Maps nutzen virtuellen Outliner und raeumliche Auswahlindizes', async ({ page }) => {
@@ -966,5 +1056,34 @@ test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
             displayWidth: element.clientWidth,
         }));
         expect(sizing.internalWidth).toBeCloseTo(sizing.displayWidth * 2, 0);
+    });
+
+    test('Import aktualisiert HUD und bewahrt Nullhoehen; Rechtsklick platziert nichts', async ({ page }) => {
+        await page.goto('/editor/map-editor.html', { waitUntil: 'domcontentloaded' });
+        const imported = {
+            arenaSize: { width: 3200, height: 700, depth: 1800 },
+            hardBlocks: [], tunnels: [], foamBlocks: [], botSpawns: [], portals: [], items: [],
+            playerSpawn: { x: 0, y: 0, z: 0 },
+        };
+        await page.locator('#jsonOutput').fill(JSON.stringify(imported));
+        await page.locator('#btnImport').click();
+        await expect(page.locator('#hudArenaSize')).toContainText('3200');
+        await expect(page.locator('#hudArenaHeight')).toContainText('700');
+        await page.locator('#btnExport').click();
+        const exported = JSON.parse(await page.locator('#jsonOutput').inputValue());
+        expect(exported.playerSpawn.y).toBe(0);
+
+        const shortcutAllowed = await page.locator('#jsonOutput').evaluate((element) => element.dispatchEvent(new KeyboardEvent('keydown', {
+            key: 'z', ctrlKey: true, bubbles: true, cancelable: true,
+        })));
+        expect(shortcutAllowed).toBe(true);
+
+        await page.locator('[data-tool="hard"]').click();
+        const canvas = page.locator('#mapCanvas');
+        const box = await canvas.boundingBox();
+        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
+        await page.locator('#btnExport').click();
+        const afterRightClick = JSON.parse(await page.locator('#jsonOutput').inputValue());
+        expect(afterRightClick.hardBlocks).toHaveLength(0);
     });
 });

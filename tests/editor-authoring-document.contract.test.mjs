@@ -19,6 +19,9 @@ import {
 } from '../editor/js/ui/EditorBuildCatalog.js';
 import { EditorObjectRegistry } from '../editor/js/EditorObjectRegistry.js';
 import { EditorMapManager } from '../editor/js/EditorMapManager.js';
+import { toArenaMapDefinition } from '../src/entities/MapSchema.js';
+import { ArenaGeometryCompilePipeline } from '../src/entities/arena/ArenaGeometryCompilePipeline.js';
+import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
 
 function createMapManager(callbacks = {}) {
     return new EditorMapManager({
@@ -137,4 +140,94 @@ test('tunnel spatial index follows transformed endpoints immediately', () => {
 
     assert.deepEqual(manager.queryObjectsNear({ x: 5000, z: 0 }, 100), [tunnel]);
     assert.deepEqual(manager.queryObjectsNear({ x: 0, z: 0 }, 100), []);
+});
+
+test('editor map roundtrip preserves advanced block, portal, GLB and parcours fields', () => {
+    const manager = createMapManager();
+    manager.importFromJSON(JSON.stringify({
+        arenaSize: { width: 2800, height: 950, depth: 2400 },
+        hardBlocks: [{
+            id: 'rotated_tunnel_block', x: 0, y: 100, z: 0,
+            width: 300, height: 200, depth: 100, rotateY: Math.PI / 3,
+            tunnel: { radius: 30, axis: 'x' },
+        }],
+        portals: [{ id: 'portal_a', x: 20, y: 100, z: 30, radius: 60, forward: [0, 1, 0] }],
+        glbModels: [{
+            id: 'demo/model#glb_scale', url: 'assets/demo.glb', position: [1, 2, 3],
+            rotation: [0, 0.5, 0], scale: 2.5,
+        }],
+        parcours: {
+            enabled: true,
+            routeId: 'advanced_route',
+            checkpoints: [{
+                id: 'checkpoint_a', type: 'gate', pos: [0, 100, 0], radius: 8,
+                forward: [0, 0, -1], nextIds: ['finish_a'], params: { lane: 2 },
+            }],
+            finish: {
+                id: 'finish_a', type: 'finish', pos: [500, 100, 0], radius: 10,
+                forward: [1, 0, 0], params: { reward: 'gold' },
+            },
+        },
+    }));
+
+    const exported = JSON.parse(manager.generateJSONExport({ width: 2800, height: 950, depth: 2400 }));
+    assert.deepEqual(exported.hardBlocks[0].tunnel, { radius: 30, axis: 'x' });
+    assert.equal(exported.hardBlocks[0].rotateY, Math.PI / 3);
+    assert.deepEqual(exported.portals[0].forward.map((value) => Math.round(value)), [0, 1, 0]);
+    assert.equal(exported.glbModels[0].scale, 2.5);
+    assert.equal(exported.glbModels[0].targetSize, 0);
+    assert.deepEqual(exported.parcours.checkpoints[0].nextIds, ['finish_a']);
+    assert.deepEqual(exported.parcours.checkpoints[0].params, { lane: 2 });
+    assert.deepEqual(exported.parcours.finish.params, { reward: 'gold' });
+
+    for (const checkpoint of [...manager.core.objectsContainer.children].filter((object) => object.userData.type === 'checkpoint')) {
+        manager.removeObject(checkpoint);
+    }
+    const withoutParcoursObjects = JSON.parse(manager.generateJSONExport({ width: 2800, height: 950, depth: 2400 }));
+    assert.notEqual(withoutParcoursObjects.parcours?.enabled, true);
+    assert.equal(withoutParcoursObjects.parcours?.checkpoints?.length || 0, 0);
+    assert.equal(withoutParcoursObjects.parcours?.finish, undefined);
+});
+
+test('checkpoint orientation metadata follows the rendered rotation', () => {
+    const manager = createMapManager();
+    const checkpoint = manager.createMesh('checkpoint', 'gate', 0, 100, 0, 0, {
+        cpForward: [0, 1, 0],
+    });
+    const visualForward = new THREE.Vector3(0, 0, 1).applyQuaternion(checkpoint.quaternion);
+    assert.ok(visualForward.distanceTo(new THREE.Vector3(0, 1, 0)) < 1e-9);
+
+    checkpoint.rotation.set(0, Math.PI / 2, 0);
+    manager.notifyObjectMutated(checkpoint);
+    assert.ok(new THREE.Vector3(...checkpoint.userData.cpForward).distanceTo(new THREE.Vector3(1, 0, 0)) < 1e-9);
+});
+
+test('rotated blocks occupy their rotated editor spatial cells', () => {
+    const manager = createMapManager();
+    const block = manager.createMesh('hard', null, 0, 100, 0, 0, {
+        sizeX: 3000, sizeY: 100, sizeZ: 20, rotateY: Math.PI / 2,
+    });
+    assert.ok(manager.queryObjectsNear({ x: 0, z: 1400 }, 0).includes(block));
+});
+
+test('rotated authored blocks compile with exact runtime collision geometry', () => {
+    const definition = toArenaMapDefinition({
+        arenaSize: { width: 100, height: 50, depth: 100 },
+        hardBlocks: [{ x: 0, y: 5, z: 0, width: 10, height: 10, depth: 2, rotateY: Math.PI / 2 }],
+    }).map;
+    assert.equal(definition.obstacles[0].rotateY, Math.PI / 2);
+
+    const arena = {
+        obstacles: [],
+        bounds: { minX: -50, maxX: 50, minY: 0, maxY: 50, minZ: -50, maxZ: 50 },
+        _pendingObstacleGeos: [], _pendingFoamGeos: [],
+        _pendingObstacleEdgeGeos: [], _pendingFoamEdgeGeos: [],
+    };
+    const pipeline = new ArenaGeometryCompilePipeline(arena);
+    pipeline.compileObstacleStage({ obstacleDefs: definition.obstacles, scale: 1 });
+    assert.ok(arena.obstacles[0].meshCollider);
+    const collision = new ArenaCollision(arena);
+    assert.equal(collision.checkCollisionFast(new THREE.Vector3(0, 5, 4), 0.1), true);
+    assert.equal(collision.checkCollisionFast(new THREE.Vector3(4, 5, 0), 0.1), false);
+    [...arena._pendingObstacleGeos, ...arena._pendingObstacleEdgeGeos].forEach((geometry) => geometry.dispose());
 });

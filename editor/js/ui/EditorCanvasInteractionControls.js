@@ -205,6 +205,7 @@ export function bindEditorCanvasInteractionControls(editor) {
         releasePointer();
         editor.isDrawing = false;
         if (editor.isManagedObjectAlive(editor.previewMesh)) {
+            editor.mapManager?.notifyObjectMutated?.(editor.previewMesh, { workspace: false });
             editor.setSelectionOutline(editor.previewMesh, 0x000000, 0.2);
             editor.selectObject(editor.previewMesh);
         }

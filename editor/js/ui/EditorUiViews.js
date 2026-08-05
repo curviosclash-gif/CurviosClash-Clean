@@ -106,6 +106,9 @@ export function showPropertyPanelView(editor, obj) {
         editor.dom.propScale, editor.dom.propGroup, editor.dom.propPortalPartner, editor.dom.propCheckpointOrder].forEach((input) => {
         if (input) input.disabled = locked;
     });
+    if (editor.dom.propCheckpointOrder && u.type === 'checkpoint' && u.subType === 'finish') {
+        editor.dom.propCheckpointOrder.disabled = true;
+    }
 
     if (propSizeRow) propSizeRow.style.display = "none";
     if (propWidthRow) propWidthRow.style.display = "none";
@@ -130,7 +133,9 @@ export function showPropertyPanelView(editor, obj) {
         writePropertyFieldValue(editor, 'size', u.type === 'checkpoint' ? (u.cpRadius || 5.5) : (u.radius || u.sizeInfo));
     } else if (u.type === 'aircraft' || u.type === 'glb') {
         if (propScaleRow) propScaleRow.style.display = "grid";
-        writePropertyFieldValue(editor, 'scale', u.type === 'glb' ? (u.targetSize || 14) : (u.modelScale || 50));
+        writePropertyFieldValue(editor, 'scale', u.type === 'glb'
+            ? (Number(u.targetSize) > 0 ? u.targetSize : (u.glbScale || obj.scale.x || 1))
+            : (u.modelScale || 50));
     }
 }
 

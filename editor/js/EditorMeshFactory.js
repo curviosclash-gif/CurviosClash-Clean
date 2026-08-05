@@ -5,6 +5,18 @@ function isFiniteNumber(value) {
     return Number.isFinite(Number(value));
 }
 
+function applyForwardOrientation(mesh, forwardValue) {
+    if (!Array.isArray(forwardValue) || forwardValue.length < 3) return false;
+    const forward = new THREE.Vector3(
+        Number(forwardValue[0]) || 0,
+        Number(forwardValue[1]) || 0,
+        Number(forwardValue[2]) || 0,
+    );
+    if (forward.lengthSq() <= Number.EPSILON) return false;
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), forward.normalize());
+    return true;
+}
+
 export function alignTunnelSegment(mesh, pA, pB, radius) {
     const distance = pA.distanceTo(pB);
     if (distance <= 0) return;
@@ -62,7 +74,7 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         mesh = (portalSubType ? manager.assetLoader.getClone(portalSubType) : null) || new THREE.Mesh(manager.torusGeo, manager.mats.portal);
         const r = Number(sizeInfo) || Number(props.radius) || 80;
         mesh.scale.set(r, r, r);
-        mesh.rotation.x = Math.PI / 2;
+        if (!applyForwardOrientation(mesh, props.forward)) mesh.rotation.x = Math.PI / 2;
         userData.sizeInfo = r;
         userData.radius = r;
         if (portalSubType) {
@@ -94,11 +106,14 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
     }
     else if (type === 'glb') {
         mesh = manager.assetLoader.getClone(subType) || new THREE.Mesh(manager.blockGeo, manager.mats.aircraft_fallback);
-        const targetSize = Number(props.targetSize) || Number(sizeInfo) || 14;
-        mesh.scale.setScalar(targetSize);
+        const hasAuthoredScale = Number.isFinite(Number(props.glbScale));
+        const targetSize = hasAuthoredScale ? null : (Number(props.targetSize) > 0 ? Number(props.targetSize) : (Number(sizeInfo) || 14));
+        const scale = targetSize || Number(props.glbScale);
+        mesh.scale.setScalar(scale);
         userData.subType = subType;
         userData.glbUrl = props.glbUrl || manager.assetLoader.getAssetUrl?.(subType) || '';
-        userData.targetSize = targetSize;
+        if (targetSize) userData.targetSize = targetSize;
+        else userData.glbScale = scale;
     }
     else if (type === 'checkpoint') {
         const isFinish = subType === 'finish';
@@ -107,7 +122,7 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         const r = Number(props.cpRadius) || (isFinish ? 7.0 : 5.5);
         const scale = r * 14;
         mesh.scale.set(scale, scale, scale);
-        mesh.rotation.x = Math.PI / 2;
+        if (!applyForwardOrientation(mesh, props.cpForward || [1, 0, 0])) mesh.rotation.x = Math.PI / 2;
         userData.subType = subType;
         userData.cpRadius = r;
         userData.cpForward = props.cpForward || [1, 0, 0];
@@ -136,6 +151,12 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
     }
     if (isFiniteNumber(props.rotateX)) mesh.rotation.x = Number(props.rotateX);
     if (isFiniteNumber(props.rotateZ)) mesh.rotation.z = Number(props.rotateZ);
+
+    if (type === 'portal' || type === 'checkpoint') {
+        const forward = new THREE.Vector3(0, 0, 1).applyQuaternion(mesh.quaternion).normalize().toArray();
+        if (type === 'portal') mesh.userData.forward = forward;
+        else mesh.userData.cpForward = forward;
+    }
 
     if (options.register === false) return mesh;
 

@@ -279,6 +279,12 @@ export class EditorUI {
             this.ARENA_W = arenaSize.width;
             this.ARENA_D = arenaSize.depth;
             this.ARENA_H = arenaSize.height;
+            if (this.dom.numYLayer) {
+                const yLayer = Math.max(0, Math.min(this.ARENA_H, Number.parseFloat(this.dom.numYLayer.value) || 0));
+                this.dom.numYLayer.value = String(yLayer);
+                this.core.yGridHelper.position.y = yLayer;
+                this.core.yGroundMesh.position.y = yLayer;
+            }
             this.updateArenaVisual();
         };
         this.syncArenaValues = syncArenaValues;

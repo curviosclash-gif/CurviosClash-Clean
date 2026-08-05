@@ -85,7 +85,10 @@ function extractMapMetadata(data) {
         metadata.gates = cloneSerializable(data.gates) || [];
     }
     if (data.parcours && typeof data.parcours === 'object') {
-        metadata.parcours = cloneSerializable(data.parcours) || {};
+        const parcoursMetadata = cloneSerializable(data.parcours) || {};
+        delete parcoursMetadata.checkpoints;
+        delete parcoursMetadata.finish;
+        metadata.parcours = parcoursMetadata;
     }
     return metadata;
 }
@@ -136,7 +139,7 @@ export function generateJSONExport(manager, arenaSize) {
         }
 
         if (u.type === 'hard') {
-            payload.hardBlocks.push({
+            const blockEntry = {
                 id: u.id,
                 x: p.x, y: p.y, z: p.z,
                 width: u.sizeX,
@@ -144,10 +147,12 @@ export function generateJSONExport(manager, arenaSize) {
                 height: u.sizeY,
                 size: u.sizeInfo,
                 rotateY: ry
-            });
+            };
+            if (u.tunnel && typeof u.tunnel === 'object') blockEntry.tunnel = cloneSerializable(u.tunnel);
+            payload.hardBlocks.push(blockEntry);
         }
         else if (u.type === 'foam') {
-            payload.foamBlocks.push({
+            const blockEntry = {
                 id: u.id,
                 x: p.x, y: p.y, z: p.z,
                 width: u.sizeX,
@@ -155,7 +160,9 @@ export function generateJSONExport(manager, arenaSize) {
                 height: u.sizeY,
                 size: u.sizeInfo,
                 rotateY: ry
-            });
+            };
+            if (u.tunnel && typeof u.tunnel === 'object') blockEntry.tunnel = cloneSerializable(u.tunnel);
+            payload.foamBlocks.push(blockEntry);
         }
         else if (u.type === 'portal') {
             const portalEntry = {
@@ -170,6 +177,9 @@ export function generateJSONExport(manager, arenaSize) {
             };
             if (typeof u.subType === 'string' && u.subType) {
                 portalEntry.model = u.subType;
+            }
+            if (Array.isArray(u.forward)) {
+                portalEntry.forward = cloneSerializable(u.forward);
             }
             payload.portals.push(portalEntry);
         }
@@ -204,13 +214,18 @@ export function generateJSONExport(manager, arenaSize) {
             });
         }
         else if (u.type === 'glb') {
-            payload.glbModels.push({
+            const glbEntry = {
                 id: `${u.subType}#${u.id}`,
                 url: u.glbUrl,
                 position: [p.x, p.y, p.z],
                 rotation: [obj.rotation.x || 0, ry, obj.rotation.z || 0],
-                targetSize: u.targetSize || 14,
-            });
+            };
+            if (Number.isFinite(Number(u.targetSize)) && Number(u.targetSize) > 0) {
+                glbEntry.targetSize = Number(u.targetSize);
+            } else {
+                glbEntry.scale = Number.isFinite(Number(u.glbScale)) ? Number(u.glbScale) : obj.scale.x;
+            }
+            payload.glbModels.push(glbEntry);
         }
         else if (u.type === 'tunnel') {
             if (u.pointA && u.pointB) {
@@ -234,7 +249,9 @@ export function generateJSONExport(manager, arenaSize) {
                 pos: [p.x, p.y, p.z],
                 radius: u.cpRadius || 5.5,
                 forward: u.cpForward || [1, 0, 0],
-                ...(u.aliasOf ? { aliasOf: u.aliasOf } : {})
+                ...(u.aliasOf ? { aliasOf: u.aliasOf } : {}),
+                ...(Array.isArray(u.nextIds) ? { nextIds: cloneSerializable(u.nextIds) } : {}),
+                ...(u.params && typeof u.params === 'object' ? { params: cloneSerializable(u.params) } : {})
             });
         }
     });
@@ -289,7 +306,9 @@ export function generateJSONExport(manager, arenaSize) {
             ...(finishCp ? { finish: finishCp } : {})
         };
     } else if (payload.parcours) {
-        // Preserve existing parcours metadata if no checkpoints were placed
+        delete payload.parcours.checkpoints;
+        delete payload.parcours.finish;
+        payload.parcours.enabled = false;
     }
 
     const warnings = [];
@@ -367,7 +386,8 @@ export function importFromJSON(manager, jsonString, options = {}) {
                     sizeX: b.width || b.size * 2,
                     sizeZ: b.depth || b.size * 2,
                     sizeY: b.height || b.size * 2,
-                    rotateY: b.rotateY || 0
+                    rotateY: b.rotateY || 0,
+                    ...(b.tunnel && typeof b.tunnel === 'object' ? { tunnel: cloneSerializable(b.tunnel) } : {})
                 }, { updateUi: false }));
             }
 
@@ -377,7 +397,8 @@ export function importFromJSON(manager, jsonString, options = {}) {
                     sizeX: b.width || b.size * 2,
                     sizeZ: b.depth || b.size * 2,
                     sizeY: b.height || b.size * 2,
-                    rotateY: b.rotateY || 0
+                    rotateY: b.rotateY || 0,
+                    ...(b.tunnel && typeof b.tunnel === 'object' ? { tunnel: cloneSerializable(b.tunnel) } : {})
                 }, { updateUi: false }));
             }
 
@@ -387,6 +408,7 @@ export function importFromJSON(manager, jsonString, options = {}) {
                     rotateX: b.rotateX,
                     rotateY: b.rotateY,
                     rotateZ: b.rotateZ,
+                    ...(Array.isArray(b.forward) ? { forward: cloneSerializable(b.forward) } : {}),
                 }, { updateUi: false }));
             }
 
@@ -411,10 +433,12 @@ export function importFromJSON(manager, jsonString, options = {}) {
             if (data.glbModels) {
                 data.glbModels.forEach((model) => {
                     const [assetId, placementId] = String(model.id || '').split('#');
-                    manager.createMesh('glb', assetId, ...model.position, model.targetSize, {
+                    const targetSize = Number(model.targetSize) > 0 ? Number(model.targetSize) : null;
+                    const scale = Number.isFinite(Number(model.scale)) ? Number(model.scale) : 1;
+                    manager.createMesh('glb', assetId, ...model.position, targetSize || scale, {
                         id: placementId || model.id,
                         glbUrl: model.url,
-                        targetSize: model.targetSize || 14,
+                        ...(targetSize ? { targetSize } : { glbScale: scale }),
                         rotateX: model.rotation?.[0] || 0,
                         rotateY: model.rotation?.[1] || 0,
                         rotateZ: model.rotation?.[2] || 0,
@@ -456,7 +480,9 @@ export function importFromJSON(manager, jsonString, options = {}) {
                         id: cp.id,
                         cpRadius: cp.radius || 5.5,
                         cpForward: cp.forward || [1, 0, 0],
-                        ...(cp.aliasOf ? { aliasOf: cp.aliasOf } : {})
+                        ...(cp.aliasOf ? { aliasOf: cp.aliasOf } : {}),
+                        ...(Array.isArray(cp.nextIds) ? { nextIds: cloneSerializable(cp.nextIds) } : {}),
+                        ...(cp.params && typeof cp.params === 'object' ? { params: cloneSerializable(cp.params) } : {})
                     }, { updateUi: false });
                 });
                 if (data.parcours.finish) {
@@ -465,7 +491,10 @@ export function importFromJSON(manager, jsonString, options = {}) {
                     manager.createMesh('checkpoint', 'finish', fx, fy, fz, 0, {
                         id: fin.id,
                         cpRadius: fin.radius || 7.0,
-                        cpForward: fin.forward || [1, 0, 0]
+                        cpForward: fin.forward || [1, 0, 0],
+                        ...(fin.aliasOf ? { aliasOf: fin.aliasOf } : {}),
+                        ...(Array.isArray(fin.nextIds) ? { nextIds: cloneSerializable(fin.nextIds) } : {}),
+                        ...(fin.params && typeof fin.params === 'object' ? { params: cloneSerializable(fin.params) } : {})
                     }, { updateUi: false });
                 }
             }

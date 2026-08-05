@@ -314,7 +314,7 @@ export class EditorAssetLoader {
             const resolveFailure = (status, error = null) => {
                 const failureReason = status === 'timeout' ? 'timeout' : 'error';
                 this._createAndCachePlaceholder(id, failureReason);
-                this.pendingCloneHydrations.delete(id);
+                if (status !== 'timeout') this.pendingCloneHydrations.delete(id);
                 this.loadStatus.set(id, {
                     state: status,
                     url,
@@ -357,7 +357,10 @@ export class EditorAssetLoader {
                 },
                 undefined,
                 (error) => {
-                    if (timedOut) return;
+                    if (timedOut) {
+                        this.pendingCloneHydrations.delete(id);
+                        return;
+                    }
                     finalize('error', null, error);
                 }
             );

@@ -34,6 +34,7 @@ export function bindEditorLayerControls(editor) {
         editor.syncTransformControlAttachment?.();
         if (editor.selectedObject) editor.showPropPanel?.(editor.selectedObject);
         editor.updateRelationshipVisuals?.();
+        editor.updateTunnelVisuals?.();
     };
 
     const render = () => {

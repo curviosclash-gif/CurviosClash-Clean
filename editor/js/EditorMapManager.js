@@ -28,6 +28,7 @@ export class EditorMapManager {
         this.mapDocumentMeta = {};
         this.lastSchemaWarnings = [];
         this.authoringMetadataProvider = null;
+        this._orientationForward = new THREE.Vector3();
 
         this.setCallbacks(options?.callbacks || options);
         this.setupPrimitives();
@@ -338,6 +339,7 @@ export class EditorMapManager {
         const rootObject = this.resolveManagedObject(object);
         if (!rootObject) return null;
         this.syncObjectScaleMetadata(rootObject, options.scaleAxis);
+        this.syncObjectOrientationMetadata(rootObject);
 
         if (rootObject.userData?.type === 'tunnel') {
             this.syncTunnelEndpointsFromMesh(rootObject);
@@ -390,11 +392,26 @@ export class EditorMapManager {
             } else if (userData.type === 'aircraft') {
                 userData.modelScale = scalar;
             } else if (userData.type === 'glb') {
-                userData.targetSize = scalar;
+                if (Number(userData.targetSize) > 0) userData.targetSize = scalar;
+                else userData.glbScale = scalar;
             } else if (userData.type === 'checkpoint') {
                 userData.cpRadius = scalar / CHECKPOINT_SCALE_FACTOR;
             }
         }
+    }
+
+    syncObjectOrientationMetadata(object) {
+        const rootObject = this.resolveManagedObject(object) || object;
+        const type = rootObject?.userData?.type;
+        if (type !== 'portal' && type !== 'checkpoint') return;
+
+        const forward = this._orientationForward
+            .set(0, 0, 1)
+            .applyQuaternion(rootObject.quaternion)
+            .normalize()
+            .toArray();
+        if (type === 'portal') rootObject.userData.forward = forward;
+        else rootObject.userData.cpForward = forward;
     }
 
     createMesh(type, subType, x, y, z, sizeInfo, extraProps = {}, options = {}) {

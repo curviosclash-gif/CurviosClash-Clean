@@ -142,6 +142,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
                 block.depth * invScale,
             ],
             kind,
+            rotateY: Number(block.rotateY) || 0,
         };
         if (block.tunnel && typeof block.tunnel === 'object') {
             obstacle.tunnel = {

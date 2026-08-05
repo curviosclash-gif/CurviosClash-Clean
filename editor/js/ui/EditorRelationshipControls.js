@@ -49,11 +49,15 @@ export function bindEditorRelationshipControls(editor) {
     };
 
     const normalizeCheckpointOrder = (ordered = null) => {
-        const checkpoints = ordered || listByType(editor, 'checkpoint')
+        const source = ordered || listByType(editor, 'checkpoint')
             .sort((left, right) => {
                 const orderDelta = (Number(left.userData?.checkpointOrder) || 0) - (Number(right.userData?.checkpointOrder) || 0);
                 return orderDelta || String(left.userData?.id || '').localeCompare(String(right.userData?.id || ''));
             });
+        const checkpoints = [
+            ...source.filter((checkpoint) => checkpoint.userData?.subType !== 'finish'),
+            ...source.filter((checkpoint) => checkpoint.userData?.subType === 'finish'),
+        ];
         checkpoints.forEach((checkpoint, index) => {
             checkpoint.userData.checkpointOrder = index;
         });
@@ -123,6 +127,7 @@ export function bindEditorRelationshipControls(editor) {
         const sourceIndex = checkpoints.findIndex((entry) => entry.userData.id === sourceId);
         const targetIndex = checkpoints.findIndex((entry) => entry.userData.id === targetId);
         if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return false;
+        if (checkpoints[sourceIndex].userData?.subType === 'finish') return false;
         const [source] = checkpoints.splice(sourceIndex, 1);
         checkpoints.splice(targetIndex, 0, source);
         normalizeCheckpointOrder(checkpoints);
@@ -139,9 +144,11 @@ export function bindEditorRelationshipControls(editor) {
                 legacyPortals[index + 1].userData.portalPartnerId = legacyPortals[index].userData.id;
             }
         }
-        listByType(editor, 'checkpoint').forEach((checkpoint, index) => {
+        const checkpoints = listByType(editor, 'checkpoint');
+        checkpoints.forEach((checkpoint, index) => {
             if (!Number.isFinite(Number(checkpoint.userData?.checkpointOrder))) checkpoint.userData.checkpointOrder = index;
         });
+        normalizeCheckpointOrder();
     };
     editor.initializeRelationships = initializeRelationships;
     initializeRelationships();

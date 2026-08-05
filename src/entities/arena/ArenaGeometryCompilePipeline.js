@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { createBoxWithTunnel } from '../TunnelGeometry.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { createStaticMeshCollider } from './StaticMeshCollider.js';
 
 function asPositiveNumber(value, defaultValue = 1) {
     const num = Number(value);
@@ -35,6 +36,25 @@ function removeAndDisposeObject(arena, key) {
         obj.geometry.dispose();
     }
     arena[key] = null;
+}
+
+function createObstacleTransform(x, y, z, rotateY = 0) {
+    const transform = new THREE.Matrix4().makeRotationY(Number(rotateY) || 0);
+    transform.setPosition(x, y, z);
+    return transform;
+}
+
+function createGeometryBounds(geometry) {
+    geometry.computeBoundingBox();
+    return geometry.boundingBox.clone();
+}
+
+function createGeometryCollider(geometry) {
+    return createStaticMeshCollider({
+        geometry,
+        matrixWorld: new THREE.Matrix4(),
+        isSkinnedMesh: false,
+    });
 }
 
 export class ArenaGeometryCompilePipeline {
@@ -83,6 +103,7 @@ export class ArenaGeometryCompilePipeline {
             const isFoamObstacle = obstacleKind === 'foam';
             const obstacleOptions = {
                 kind: isFoamObstacle ? 'foam' : 'hard',
+                rotateY: Number(obs.rotateY) || 0,
             };
 
             if (String(obs.shape || '').toLowerCase() === 'tube') {
@@ -208,18 +229,17 @@ export class ArenaGeometryCompilePipeline {
         const arena = this.arena;
         const kind = typeof options.kind === 'string' ? options.kind : 'hard';
         const isFoam = kind === 'foam';
+        const rotateY = Number(options.rotateY) || 0;
 
         const geo = new THREE.BoxGeometry(w, h, d);
-        const translationMatrix = new THREE.Matrix4().makeTranslation(x, y, z);
-
-        const box = new THREE.Box3(
-            new THREE.Vector3(x - w / 2, y - h / 2, z - d / 2),
-            new THREE.Vector3(x + w / 2, y + h / 2, z + d / 2)
-        );
-        arena.obstacles.push({ box, isWall: false, kind });
+        const transform = createObstacleTransform(x, y, z, rotateY);
 
         const worldGeo = geo.clone();
-        worldGeo.applyMatrix4(translationMatrix);
+        worldGeo.applyMatrix4(transform);
+        const box = createGeometryBounds(worldGeo);
+        const obstacle = { box, isWall: false, kind };
+        if (rotateY !== 0) obstacle.meshCollider = createGeometryCollider(worldGeo);
+        arena.obstacles.push(obstacle);
         if (isFoam) {
             arena._pendingFoamGeos.push(worldGeo);
         } else {
@@ -228,7 +248,7 @@ export class ArenaGeometryCompilePipeline {
 
         const edgeGeo = new THREE.EdgesGeometry(geo);
         const worldEdgeGeo = edgeGeo.clone();
-        worldEdgeGeo.applyMatrix4(translationMatrix);
+        worldEdgeGeo.applyMatrix4(transform);
 
         if (isFoam) {
             arena._pendingFoamEdgeGeos.push(worldEdgeGeo);
@@ -301,26 +321,24 @@ export class ArenaGeometryCompilePipeline {
         const arena = this.arena;
         const kind = typeof options.kind === 'string' ? options.kind : 'hard';
         const isFoam = kind === 'foam';
+        const rotateY = Number(options.rotateY) || 0;
         const axis = normalizeTunnelAxis(tunnelAxis);
         const radius = resolveTunnelRadius(tunnelRadius, w, h, d, axis);
 
         const geo = createBoxWithTunnel(w, h, d, radius, axis);
-        const translationMatrix = new THREE.Matrix4().makeTranslation(x, y, z);
-
-        const box = new THREE.Box3(
-            new THREE.Vector3(x - w / 2, y - h / 2, z - d / 2),
-            new THREE.Vector3(x + w / 2, y + h / 2, z + d / 2)
-        );
-
-        arena.obstacles.push({
+        const transform = createObstacleTransform(x, y, z, rotateY);
+        const worldGeo = geo.clone();
+        worldGeo.applyMatrix4(transform);
+        const box = createGeometryBounds(worldGeo);
+        const obstacle = {
             box,
             isWall: false,
             kind,
-            tunnel: { cx: x, cy: y, cz: z, radius, axis },
-        });
+        };
+        if (rotateY === 0) obstacle.tunnel = { cx: x, cy: y, cz: z, radius, axis };
+        else obstacle.meshCollider = createGeometryCollider(worldGeo);
+        arena.obstacles.push(obstacle);
 
-        const worldGeo = geo.clone();
-        worldGeo.applyMatrix4(translationMatrix);
         if (isFoam) {
             arena._pendingFoamGeos.push(worldGeo);
         } else {
@@ -329,7 +347,7 @@ export class ArenaGeometryCompilePipeline {
 
         const edgeGeo = new THREE.EdgesGeometry(geo);
         const worldEdgeGeo = edgeGeo.clone();
-        worldEdgeGeo.applyMatrix4(translationMatrix);
+        worldEdgeGeo.applyMatrix4(transform);
         if (isFoam) {
             arena._pendingFoamEdgeGeos.push(worldEdgeGeo);
         } else {

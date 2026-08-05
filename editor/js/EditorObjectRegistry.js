@@ -110,7 +110,12 @@ export class EditorObjectRegistry {
         if (data.type === 'hard' || data.type === 'foam') {
             const halfX = Math.max(0, Number(data.sizeX) || 0) * 0.5;
             const halfZ = Math.max(0, Number(data.sizeZ) || 0) * 0.5;
-            minX -= halfX; maxX += halfX; minZ -= halfZ; maxZ += halfZ;
+            const rotationY = Number(object.rotation?.y) || 0;
+            const cosine = Math.abs(Math.cos(rotationY));
+            const sine = Math.abs(Math.sin(rotationY));
+            const extentX = cosine * halfX + sine * halfZ;
+            const extentZ = sine * halfX + cosine * halfZ;
+            minX -= extentX; maxX += extentX; minZ -= extentZ; maxZ += extentZ;
         } else if (data.type === 'tunnel' && data.pointA && data.pointB) {
             const radius = Math.max(0, Number(data.radius) || 0);
             minX = Math.min(data.pointA.x, data.pointB.x) - radius;

@@ -96,7 +96,9 @@ export function bindEditorPropertyControls(editor) {
             if (!selected || !editor.isManagedObjectAlive(selected) || isLocked(selected)) return;
             if (selected.userData.type !== 'aircraft' && selected.userData.type !== 'glb') return;
 
-            const scaleField = selected.userData.type === 'glb' ? 'targetSize' : 'modelScale';
+            const scaleField = selected.userData.type === 'glb'
+                ? (Number(selected.userData.targetSize) > 0 ? 'targetSize' : 'glbScale')
+                : 'modelScale';
             const s = readPositivePropertyFieldNumber(editor, 'scale', selected.userData[scaleField] || 1);
             if (s > 0) {
                 selected.userData[scaleField] = s;

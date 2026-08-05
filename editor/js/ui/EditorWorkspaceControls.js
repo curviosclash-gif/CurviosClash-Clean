@@ -138,7 +138,10 @@ function buildValidationItems(editor) {
     }
     const unpairedPortals = portals.filter((portal) => {
         const partner = editor.mapManager?.getObjectById?.(String(portal.userData?.portalPartnerId || ''));
-        return !partner || partner.userData?.type !== 'portal';
+        return !partner
+            || partner === portal
+            || partner.userData?.type !== 'portal'
+            || String(partner.userData?.portalPartnerId || '') !== String(portal.userData?.id || '');
     });
     const assetText = String(editor.dom?.assetStatusText?.textContent || '');
     const assetsDegraded = /placeholder|fehler|timeout/i.test(assetText);
@@ -426,7 +429,7 @@ export function bindEditorWorkspaceControls(editor) {
             const row = document.createElement('div');
             row.className = 'objectRow';
             if (object.userData?.type === 'checkpoint') {
-                row.draggable = true;
+                row.draggable = object.userData?.subType !== 'finish';
                 row.addEventListener('dragstart', () => { draggedCheckpointId = id; });
                 row.addEventListener('dragover', (event) => event.preventDefault());
                 row.addEventListener('drop', (event) => {
@@ -586,7 +589,7 @@ export function bindEditorWorkspaceControls(editor) {
                 center.z + relX * sin + relZ * cos + dz,
             );
             object.rotation.y += radians;
-            object.scale.multiplyScalar(scale);
+            if (editor.mapManager.canScaleObject(object)) object.scale.multiplyScalar(scale);
             editor.mapManager.notifyObjectMutated(object, { workspace: false });
         }
     };
@@ -847,6 +850,10 @@ export function bindEditorWorkspaceControls(editor) {
             const restoreMessage = 'Playtest-Arbeitsstand und Kamera wiederhergestellt; Probleme sind markiert.';
             if (stored.dirty === false) markSaved(restoreMessage);
             else markDirty(restoreMessage);
+            localStorage.removeItem(PLAYTEST_RETURN_STORAGE_KEY);
+            const cleanUrl = new URL(window.location.href);
+            cleanUrl.searchParams.delete('returnFromPlaytest');
+            window.history.replaceState(window.history.state, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
             renderValidation();
             return true;
         } catch (error) {
