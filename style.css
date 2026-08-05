@@ -6195,11 +6195,58 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .start-map-choice-strip {
+    display: grid;
+    gap: 10px;
+    max-height: 280px;
+    overflow-y: auto;
+    padding: 6px 2px 7px;
+    scrollbar-color: rgba(88, 184, 239, 0.58) rgba(7, 19, 34, 0.34);
+    scrollbar-width: thin;
+}
+
+.start-map-quick-access {
+    margin: 0 0 8px;
+}
+
+.start-map-choice-group {
+    display: grid;
+    gap: 5px;
+    min-width: 0;
+}
+
+.start-map-choice-group-label {
+    color: rgba(193, 222, 246, 0.68);
+    font-size: 0.64rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.start-map-choice-group-row {
     display: flex;
     gap: 8px;
     overflow-x: auto;
-    padding: 6px 2px 7px;
+    padding-bottom: 2px;
     scroll-snap-type: x proximity;
+    scrollbar-color: rgba(88, 184, 239, 0.48) transparent;
+    scrollbar-width: thin;
+}
+
+.start-map-choice-strip::-webkit-scrollbar,
+.start-map-choice-group-row::-webkit-scrollbar {
+    width: 7px;
+    height: 7px;
+}
+
+.start-map-choice-strip::-webkit-scrollbar-track,
+.start-map-choice-group-row::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+.start-map-choice-strip::-webkit-scrollbar-thumb,
+.start-map-choice-group-row::-webkit-scrollbar-thumb {
+    border-radius: 999px;
+    background: rgba(88, 184, 239, 0.48);
 }
 
 .start-map-choice {
@@ -6223,6 +6270,10 @@ input[type="range"]::-webkit-slider-thumb {
 
 #main-menu[data-menu-local-theme="hell"] .start-map-choice.active {
     color: #183450;
+}
+
+#main-menu[data-menu-local-theme="hell"] .start-map-choice-group-label {
+    color: rgba(32, 52, 79, 0.68);
 }
 
 @media (max-width: 940px) {

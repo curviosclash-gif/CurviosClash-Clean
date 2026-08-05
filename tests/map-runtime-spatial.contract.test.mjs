@@ -37,6 +37,13 @@ test('map preview metadata hides aliases without breaking direct runtime preview
     assert.ok(tutorial.filterTags.includes('parcours'));
     assert.equal(fortressAlias.hiddenFromMapPicker, true);
     assert.equal(expert.hiddenFromMapPicker, false);
+    assert.equal(entries.find((entry) => entry.key === 'standard').collection, 'arena');
+    assert.equal(entries.find((entry) => entry.key === 'neon_abyss').collection, 'adventure');
+    assert.equal(entries.find((entry) => entry.key === 'parcours_rift').collectionLabel, 'Parcours');
+    assert.deepEqual(
+        [...new Set(entries.map((entry) => entry.collection))],
+        ['arena', 'themed', 'adventure', 'parcours', 'expert', 'showcase', 'custom']
+    );
     assert.equal(resolveMapPreview('tutorial_classic').name, 'Classic Tutorial-Parcours');
 });
 
@@ -123,7 +130,7 @@ test('map preview accepts authored xyz spawn objects', () => {
     }), [[1, 2, 3], [4, 5, 6], [7, 8, 9]]);
 });
 
-test('map picker exposes gameplay filters and omits hidden runtime maps', () => {
+test('map picker exposes organized filters, readable quick picks, and omits hidden runtime maps', () => {
     class FakeOption {
         constructor(value = '', textContent = '') {
             this.value = value;
@@ -145,19 +152,36 @@ test('map picker exposes gameplay filters and omits hidden runtime maps', () => 
             this.value = '';
         }
     }
+    class FakeContainer {
+        constructor() {
+            this.children = [];
+            this.parentElement = null;
+        }
+        appendChild(child) {
+            this.children.push(child);
+        }
+        replaceChildren() {
+            this.children = [];
+        }
+        closest() {
+            return null;
+        }
+    }
 
     const originalDocument = globalThis.document;
     globalThis.document = { createElement: () => new FakeOption() };
     try {
         const mapSelect = new FakeSelect();
         const mapFilterSelect = new FakeSelect([new FakeOption('all', 'Alle Groessen')]);
+        const mapFavoritesList = new FakeContainer();
+        const mapRecentList = new FakeContainer();
         const startSetup = {
             mapSearch: '',
-            mapFilter: 'parcours',
+            mapFilter: 'parcours-collection',
             vehicleSearch: '',
             vehicleFilter: 'all',
-            favoriteMaps: [],
-            recentMaps: [],
+            favoriteMaps: ['parcours_rift'],
+            recentMaps: ['standard'],
             favoriteVehicles: [],
             recentVehicles: [],
             modeSelections: { normal: { mapKey: 'parcours_rift', vehicles: {} } },
@@ -169,7 +193,7 @@ test('map picker exposes gameplay filters and omits hidden runtime maps', () => 
         };
 
         syncStartSetupSelectionState({
-            ui: { mapSelect, mapFilterSelect },
+            ui: { mapSelect, mapFilterSelect, mapFavoritesList, mapRecentList },
             settings,
             startSetup,
             runtimeMaps: CONFIG.MAPS,
@@ -186,11 +210,28 @@ test('map picker exposes gameplay filters and omits hidden runtime maps', () => 
         });
 
         assert.equal(mapFilterSelect.options[0].textContent, 'Alle Karten');
-        assert.deepEqual(mapFilterSelect.options.map((option) => option.value), ['all', 'parcours', 'glb']);
+        assert.deepEqual(mapFilterSelect.options.map((option) => option.value), [
+            'all',
+            'arena',
+            'themed',
+            'adventure',
+            'parcours-collection',
+            'expert',
+            'showcase',
+            'custom',
+            'small',
+            'medium',
+            'large',
+            'parcours',
+            'glb',
+        ]);
         assert.ok(mapSelect.options.length > 0);
         assert.equal(mapSelect.options.some((option) => option.value === 'tutorial_classic'), false);
         assert.equal(mapSelect.options.some((option) => option.value === 'die_festung'), false);
-        assert.ok(mapSelect.options.every((option) => resolveMapPreview(option.value).hasParcours));
+        assert.ok(mapSelect.options.every((option) => resolveMapPreview(option.value).collection === 'parcours'));
+        assert.equal(mapFavoritesList.children[0].textContent, 'Parcours Rift');
+        assert.equal(mapFavoritesList.children[0].dataset.mapKey, 'parcours_rift');
+        assert.equal(mapRecentList.children[0].textContent, 'Standard Arena');
     } finally {
         globalThis.document = originalDocument;
     }

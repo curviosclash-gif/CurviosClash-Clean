@@ -248,13 +248,38 @@
                                 <span class="menu-accordion-copy" data-menu-text-id="menu.level3.map.description">Größe, Favoriten und Vorschau für den Start</span>
                             </summary>
                             <div class="menu-accordion-body">
+                                <div class="setup-chip-grid start-map-quick-access">
+                                    <div class="setup-chip-group">
+                                        <label class="setup-chip-label" data-menu-text-id="menu.level3.map.favorite.label">Favoriten</label>
+                                        <div id="map-favorites-list" class="quick-pill-list"></div>
+                                    </div>
+                                    <div class="setup-chip-group">
+                                        <label class="setup-chip-label" data-menu-text-id="menu.level3.map.recent.label">Zuletzt benutzt</label>
+                                        <div id="map-recent-list" class="quick-pill-list"></div>
+                                    </div>
+                                </div>
                                 <div class="setup-search-grid">
                                     <input type="text" id="map-search-input" placeholder="Karte suchen">
                                     <select id="map-filter-select">
-                                        <option value="all" data-menu-text-id="menu.level3.map.filter.all">Alle Größen</option>
-                                        <option value="small" data-menu-text-id="menu.level3.map.filter.small">Klein</option>
-                                        <option value="medium" data-menu-text-id="menu.level3.map.filter.medium">Mittel</option>
-                                        <option value="large" data-menu-text-id="menu.level3.map.filter.large">Groß</option>
+                                        <option value="all" data-menu-text-id="menu.level3.map.filter.all">Alle Karten</option>
+                                        <optgroup label="Sammlungen">
+                                            <option value="arena">Arenen</option>
+                                            <option value="themed">Themenwelten</option>
+                                            <option value="adventure">Abenteuer</option>
+                                            <option value="parcours-collection">Parcours</option>
+                                            <option value="expert">Expertenkarten</option>
+                                            <option value="showcase">Showcase &amp; Tests</option>
+                                            <option value="custom">Eigene Karten</option>
+                                        </optgroup>
+                                        <optgroup label="Größe">
+                                            <option value="small" data-menu-text-id="menu.level3.map.filter.small">Klein</option>
+                                            <option value="medium" data-menu-text-id="menu.level3.map.filter.medium">Mittel</option>
+                                            <option value="large" data-menu-text-id="menu.level3.map.filter.large">Groß</option>
+                                        </optgroup>
+                                        <optgroup label="Merkmale">
+                                            <option value="parcours">Parcours</option>
+                                            <option value="glb">3D-Art</option>
+                                        </optgroup>
                                     </select>
                                 </div>
                                 <div class="start-map-picker">
@@ -290,16 +315,6 @@
                                 </div>
                                 <div id="start-map-choice-strip" class="start-map-choice-strip" role="listbox"
                                     aria-label="Verfügbare Karten"></div>
-                                <div class="setup-chip-grid">
-                                    <div class="setup-chip-group">
-                                        <label class="setup-chip-label" data-menu-text-id="menu.level3.map.favorite.label">Favoriten</label>
-                                        <div id="map-favorites-list" class="quick-pill-list"></div>
-                                    </div>
-                                    <div class="setup-chip-group">
-                                        <label class="setup-chip-label" data-menu-text-id="menu.level3.map.recent.label">Zuletzt benutzt</label>
-                                        <div id="map-recent-list" class="quick-pill-list"></div>
-                                    </div>
-                                </div>
                                 <button type="button" class="secondary-btn start-step-next"
                                     data-start-section-target="vehicle">Weiter: Flugzeug →</button>
                             </div>

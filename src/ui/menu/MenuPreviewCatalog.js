@@ -2,6 +2,7 @@ import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
 import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GLBMapLoader.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolvePortalMode } from '../../shared/contracts/PortalAuthoringContract.js';
+import { compareMapPickerEntries, resolveMapPickerCollection } from './MenuMapCollectionCatalog.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -39,6 +40,7 @@ export function resolveVehicleCategory(vehicleDefinition) {
 export function listMapPreviewEntries() {
     const maps = getRuntimeMapCatalog();
     return Object.entries(maps).map(([mapKey, mapDefinition]) => {
+        const collection = resolveMapPickerCollection(mapKey);
         const size = Array.isArray(mapDefinition?.size) ? mapDefinition.size : [80, 30, 80];
         const obstacles = Array.isArray(mapDefinition?.obstacles) ? mapDefinition.obstacles.length : 0;
         const portals = Array.isArray(mapDefinition?.portals) ? mapDefinition.portals.length : 0;
@@ -68,6 +70,10 @@ export function listMapPreviewEntries() {
             aircraftCount: aircraft,
             portalLevelCount: portalLevels,
             category: resolveMapCategory(mapDefinition),
+            collection: collection.id,
+            collectionLabel: collection.label,
+            collectionOrder: collection.order,
+            pickerOrder: collection.pickerOrder,
             filterTags: [hasParcours ? 'parcours' : '', hasGlbModel ? 'glb' : ''].filter(Boolean),
             hiddenFromMapPicker: mapDefinition?.hiddenFromMapPicker === true,
             hasParcours,
@@ -78,7 +84,7 @@ export function listMapPreviewEntries() {
             glbFallbackMode: glbFootprint?.fallbackMode || '',
             renderMode: hasGlbModel ? (usesFallbackColliders ? 'GLB+FALLBACK' : 'GLB') : 'BOX',
         };
-    });
+    }).sort(compareMapPickerEntries);
 }
 
 export function resolveMapPreview(mapKey) {
@@ -99,6 +105,10 @@ export function resolveMapPreview(mapKey) {
         aircraftCount: 0,
         portalLevelCount: 0,
         category: 'medium',
+        collection: 'other',
+        collectionLabel: 'Weitere Karten',
+        collectionOrder: Number.MAX_SAFE_INTEGER,
+        pickerOrder: Number.MAX_SAFE_INTEGER,
         filterTags: [],
         hiddenFromMapPicker: false,
         hasParcours: false,

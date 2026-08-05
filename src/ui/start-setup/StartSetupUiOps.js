@@ -43,7 +43,7 @@ export function pushRecentEntry(list, value, maxItems = 6) {
     list.push(...filtered);
 }
 
-export function renderQuickList(container, items, dataKey) {
+export function renderQuickList(container, items, dataKey, resolveLabel = (value) => value) {
     if (!container) return;
     const normalizedItems = Array.isArray(items) ? items.filter(Boolean) : [];
     const group = container.closest?.('.setup-chip-group') || container.parentElement;
@@ -54,7 +54,8 @@ export function renderQuickList(container, items, dataKey) {
         const button = document.createElement('button');
         button.type = 'button';
         button.className = 'secondary-btn quick-pill';
-        button.textContent = String(value);
+        button.textContent = String(resolveLabel(value) || value);
+        button.title = String(value);
         button.dataset[dataKey] = String(value);
         container.appendChild(button);
     });
