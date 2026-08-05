@@ -216,6 +216,10 @@ export class HangarVehicleAssembly {
         return root;
     }
 
+    createPreviewPartNode(part) {
+        return this._createPartNode(part);
+    }
+
     _applyHardpointTransform(node, hardpoint) {
         node.position.fromArray(hardpoint.position);
         node.rotation.fromArray(hardpoint.rotation);

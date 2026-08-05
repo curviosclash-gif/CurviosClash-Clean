@@ -6,7 +6,16 @@ import {
     createVehicleCatalogPreview3d,
     disposeVehicleCatalogPreviewObject,
     fitVehicleCatalogPreviewObject,
+    resolveHangarPartPreviewRadius,
 } from '../src/ui/arcade/vehicle-manager/VehicleCatalogPreview3d.js';
+
+test('part preview keeps tier size differences within safe framing', () => {
+    const radii = [0.78, 1.04, 1.34].map((sizeScale) => (
+        resolveHangarPartPreviewRadius({ appearance: { sizeScale } })
+    ));
+    assert.ok(radii[0] < radii[1] && radii[1] < radii[2]);
+    assert.ok(radii.every((radius) => radius >= 0.84 && radius <= 1.14));
+});
 
 test('vehicle catalog preview centers and uniformly fits irregular vehicle meshes', () => {
     const root = new THREE.Group();
@@ -44,6 +53,8 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
     let rendererDisposed = false;
     let contextLost = false;
     let vehicleDisposed = false;
+    let partAssemblyDisposed = false;
+    let requestedPartId = '';
     let vehicleColor = 0;
     let tickCount = 0;
     let drawCount = 0;
@@ -53,14 +64,15 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
         setPixelRatio() {},
         setSize() {},
         render(scene) {
-            const root = scene.children.find((child) => child.name === 'VehicleCatalogPreview:aircraft');
-            renderAngles.push(root.rotation.y);
+            const root = scene.children.find((child) => child.name === 'VehicleCatalogPreview:aircraft' && child.visible);
+            if (root) renderAngles.push(root.rotation.y);
         },
         dispose() { rendererDisposed = true; },
         forceContextLoss() { contextLost = true; },
     };
     const documentRef = {
         visibilityState: 'visible',
+        createElement() { return partCanvas; },
         addEventListener(type, listener) { documentListeners.set(type, listener); },
         removeEventListener(type, listener) {
             if (documentListeners.get(type) === listener) documentListeners.delete(type);
@@ -82,10 +94,38 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
             };
         },
     };
+    const partCanvas = {
+        dataset: {},
+        setAttribute() {},
+        getContext() {
+            return {
+                clearRect() {},
+                drawImage() { drawCount += 1; },
+            };
+        },
+    };
+    const partCard = {
+        appended: null,
+        classList: { add() {} },
+        appendChild(node) { this.appended = node; },
+    };
     const vehicle = new THREE.Group();
     vehicle.add(new THREE.Mesh(new THREE.BoxGeometry(2, 1, 3), new THREE.MeshBasicMaterial()));
     vehicle.tick = () => { tickCount += 1; };
     vehicle.dispose = () => { vehicleDisposed = true; };
+    const partNode = new THREE.Group();
+    partNode.add(new THREE.Mesh(new THREE.OctahedronGeometry(), new THREE.MeshBasicMaterial()));
+    const partAssembly = {
+        createPreviewPartNode(part) {
+            requestedPartId = part.id;
+            return partNode;
+        },
+        dispose() {
+            partAssemblyDisposed = true;
+            partNode.children[0].geometry.dispose();
+            partNode.children[0].material.dispose();
+        },
+    };
 
     const preview = createVehicleCatalogPreview3d({
         rendererFactory: () => renderer,
@@ -94,6 +134,7 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
             return vehicle;
         },
         color: '#123abc',
+        partAssembly,
         documentRef,
         motionQuery,
         requestAnimationFrame(callback) {
@@ -117,13 +158,19 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
     });
 
     preview.attach(canvas, 'aircraft');
+    preview.attachPartCard(partCard, { id: 'stone_blue_t1', appearance: { sizeScale: 0.78 } });
     assert.equal(preview.available, true);
     assert.equal(vehicleColor, 0);
-    assert.deepEqual(observed, [canvas]);
+    assert.deepEqual(observed, [canvas, partCanvas]);
+    assert.equal(partCard.appended, partCanvas);
     assert.equal(frameCallbacks.size, 0);
 
-    observerCallback([{ target: canvas, isIntersecting: true }]);
+    observerCallback([
+        { target: canvas, isIntersecting: true },
+        { target: partCanvas, isIntersecting: true },
+    ]);
     assert.equal(vehicleColor, 0x123abc);
+    assert.equal(requestedPartId, 'stone_blue_t1');
     const firstFrame = frameCallbacks.entries().next().value;
     frameCallbacks.delete(firstFrame[0]);
     firstFrame[1](100);
@@ -131,16 +178,18 @@ test('vehicle catalog preview renders visible cards with one renderer and releas
     frameCallbacks.delete(secondFrame[0]);
     secondFrame[1](160);
 
-    assert.equal(drawCount, 2);
+    assert.equal(drawCount, 4);
     assert.equal(tickCount, 2);
     assert.equal(canvas.dataset.previewStatus, 'ready');
+    assert.equal(partCanvas.dataset.previewStatus, 'ready');
     assert.equal(renderAngles.length, 2);
     assert.ok(renderAngles[1] > renderAngles[0]);
 
     preview.dispose();
-    assert.deepEqual(unobserved, [canvas]);
+    assert.deepEqual(unobserved, [canvas, partCanvas]);
     assert.equal(observerDisconnected, true);
     assert.equal(vehicleDisposed, true);
+    assert.equal(partAssemblyDisposed, true);
     assert.equal(rendererDisposed, true);
     assert.equal(contextLost, true);
     assert.ok(cancelledFrames.length > 0);

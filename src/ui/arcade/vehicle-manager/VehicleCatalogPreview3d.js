@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { createVehicleMesh } from '../../../entities/vehicle-registry.js';
 import { disposeObject3DResources } from '../../../shared/rendering/ThreeDisposal.js';
+import { HangarVehicleAssembly } from '../../hangar/HangarVehicleAssembly.js';
 
 const PREVIEW_WIDTH = 192;
 const PREVIEW_HEIGHT = 108;
@@ -9,6 +10,11 @@ const ROTATION_SPEED = 0.24;
 
 const fitBounds = new THREE.Box3();
 const fitSphere = new THREE.Sphere();
+
+export function resolveHangarPartPreviewRadius(part) {
+    const sizeScale = Number(part?.appearance?.sizeScale) || 1;
+    return Math.max(0.84, Math.min(1.14, 0.52 + sizeScale * 0.45));
+}
 
 export function fitVehicleCatalogPreviewObject(vehicleNode, root, targetRadius = 1) {
     if (!vehicleNode || !root) return false;
@@ -50,6 +56,7 @@ function createUnavailablePreview() {
         available: false,
         attach() {},
         attachCard() {},
+        attachPartCard() {},
         clearTargets() {},
         dispose() {},
     });
@@ -93,6 +100,7 @@ export function createVehicleCatalogPreview3d(options = {}) {
     const rimLight = new THREE.DirectionalLight(0x55aaff, 1.25);
     rimLight.position.set(-4, 2, -5);
     scene.add(rimLight);
+    const partAssembly = options.partAssembly || new HangarVehicleAssembly(scene);
 
     const createVehicle = options.createVehicle || createVehicleMesh;
     const rawColor = options.color;
@@ -129,31 +137,36 @@ export function createVehicleCatalogPreview3d(options = {}) {
         rafId = requestFrame(renderFrame);
     }
 
-    function prepareEntry(vehicleId) {
-        if (entries.has(vehicleId)) return entries.get(vehicleId);
+    function prepareEntry(target) {
+        if (entries.has(target.previewKey)) return entries.get(target.previewKey);
         try {
             const root = new THREE.Group();
-            root.name = `VehicleCatalogPreview:${vehicleId}`;
+            root.name = target.kind === 'part'
+                ? `HangarPartCatalogPreview:${target.id}`
+                : `VehicleCatalogPreview:${target.id}`;
             root.rotation.y = Math.PI * 0.12;
-            const vehicleNode = createVehicle(vehicleId, color);
-            root.add(vehicleNode);
+            const objectNode = target.kind === 'part'
+                ? partAssembly.createPreviewPartNode(target.part)
+                : createVehicle(target.id, color);
+            root.add(objectNode);
             scene.add(root);
-            const entry = { root, vehicleNode, loadedHandler: null, fitted: false };
-            entries.set(vehicleId, entry);
-            entry.fitted = fitVehicleCatalogPreviewObject(vehicleNode, root, 1.12);
-            if (vehicleNode._loadingPromise && vehicleNode._loaded !== true) {
+            const entry = { root, objectNode, kind: target.kind, loadedHandler: null, fitted: false };
+            entries.set(target.previewKey, entry);
+            const targetRadius = target.kind === 'part' ? resolveHangarPartPreviewRadius(target.part) : 1.12;
+            entry.fitted = fitVehicleCatalogPreviewObject(objectNode, root, targetRadius);
+            if (objectNode._loadingPromise && objectNode._loaded !== true) {
                 entry.loadedHandler = () => {
-                    vehicleNode.removeEventListener?.('loaded', entry.loadedHandler);
+                    objectNode.removeEventListener?.('loaded', entry.loadedHandler);
                     entry.loadedHandler = null;
-                    entry.fitted = fitVehicleCatalogPreviewObject(vehicleNode, root, 1.12);
+                    entry.fitted = fitVehicleCatalogPreviewObject(objectNode, root, targetRadius);
                     scheduleFrame();
                 };
-                vehicleNode.addEventListener?.('loaded', entry.loadedHandler);
+                objectNode.addEventListener?.('loaded', entry.loadedHandler);
             }
             root.visible = false;
             return entry;
         } catch {
-            entries.set(vehicleId, null);
+            entries.set(target.previewKey, null);
             return null;
         }
     }
@@ -171,14 +184,14 @@ export function createVehicleCatalogPreview3d(options = {}) {
 
         for (const target of targets.values()) {
             if (!target.visible) continue;
-            const entry = prepareEntry(target.vehicleId);
+            const entry = prepareEntry(target);
             if (!entry) {
                 target.canvas.dataset.previewStatus = 'fallback';
                 continue;
             }
             entry.root.rotation.y = Math.PI * 0.12 + elapsedSeconds * ROTATION_SPEED;
             entry.root.visible = true;
-            entry.vehicleNode.tick?.(dt, elapsedSeconds);
+            entry.objectNode.tick?.(dt, elapsedSeconds);
             renderer.render(scene, camera);
             target.context.clearRect(0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
             target.context.drawImage(renderer.domElement, 0, 0, PREVIEW_WIDTH, PREVIEW_HEIGHT);
@@ -198,7 +211,7 @@ export function createVehicleCatalogPreview3d(options = {}) {
                 const target = targets.get(record.target);
                 if (!target) continue;
                 target.visible = record.isIntersecting === true;
-                if (target.visible) prepareEntry(target.vehicleId);
+                if (target.visible) prepareEntry(target);
             }
             if (!hasVisibleTargets() && rafId) {
                 cancelFrame(rafId);
@@ -218,22 +231,25 @@ export function createVehicleCatalogPreview3d(options = {}) {
         lastFrameMs = 0;
     }
 
-    function attach(canvas, vehicleId) {
+    function attachTarget(canvas, target) {
         if (disposed || !canvas) return;
         const context = canvas.getContext?.('2d', { alpha: false });
         if (!context) return;
-        const normalizedVehicleId = String(vehicleId || '').trim().toLowerCase();
-        if (!normalizedVehicleId) return;
         canvas.width = PREVIEW_WIDTH;
         canvas.height = PREVIEW_HEIGHT;
         canvas.dataset.previewStatus = 'pending';
-        const target = { canvas, context, vehicleId: normalizedVehicleId, visible: !observer };
-        targets.set(canvas, target);
+        const previewTarget = { canvas, context, visible: !observer, ...target };
+        targets.set(canvas, previewTarget);
         if (observer) observer.observe(canvas);
         else {
-            prepareEntry(normalizedVehicleId);
+            prepareEntry(previewTarget);
             scheduleFrame();
         }
+    }
+
+    function attach(canvas, vehicleId) {
+        const id = String(vehicleId || '').trim().toLowerCase();
+        if (id) attachTarget(canvas, { id, kind: 'vehicle', previewKey: `vehicle:${id}` });
     }
 
     function attachCard(card, vehicleId) {
@@ -244,6 +260,17 @@ export function createVehicleCatalogPreview3d(options = {}) {
         card.classList.add('has-preview');
         card.appendChild(canvas);
         attach(canvas, vehicleId);
+    }
+
+    function attachPartCard(card, part) {
+        const id = String(part?.id || '').trim().toLowerCase();
+        if (disposed || !id || !card || !documentRef?.createElement) return;
+        const canvas = documentRef.createElement('canvas');
+        canvas.className = 'hangar-part-card-preview';
+        canvas.setAttribute('aria-hidden', 'true');
+        card.classList.add('has-preview');
+        card.appendChild(canvas);
+        attachTarget(canvas, { id, kind: 'part', part, previewKey: `part:${id}` });
     }
 
     function handleVisibilityChange() {
@@ -268,6 +295,7 @@ export function createVehicleCatalogPreview3d(options = {}) {
         available: true,
         attach,
         attachCard,
+        attachPartCard,
         clearTargets,
         dispose() {
             if (disposed) return;
@@ -280,12 +308,13 @@ export function createVehicleCatalogPreview3d(options = {}) {
             for (const entry of entries.values()) {
                 if (!entry) continue;
                 if (entry.loadedHandler) {
-                    entry.vehicleNode.removeEventListener?.('loaded', entry.loadedHandler);
+                    entry.objectNode.removeEventListener?.('loaded', entry.loadedHandler);
                 }
                 entry.root.removeFromParent();
-                disposeVehicleCatalogPreviewObject(entry.vehicleNode);
+                if (entry.kind === 'vehicle') disposeVehicleCatalogPreviewObject(entry.objectNode);
             }
             entries.clear();
+            partAssembly.dispose?.();
             renderer.dispose?.();
             renderer.forceContextLoss?.();
             renderer = null;

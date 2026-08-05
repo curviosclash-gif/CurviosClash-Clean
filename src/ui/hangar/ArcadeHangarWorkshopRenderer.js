@@ -190,7 +190,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             const colorSwatch = el('span', 'hangar-stone-swatch');
             colorSwatch.style.backgroundColor = `#${Number(part.appearance?.color || 0).toString(16).padStart(6, '0')}`;
             colorLine.append(colorSwatch, `${part.colorLabel || part.colorId} · ${part.role}`);
-            const selectButton = button('hangar-part-select', '');
+            const selectButton = button('hangar-part-select', ''); if (catalogPreview?.available) catalogPreview.attachPartCard(selectButton, part);
             selectButton.dataset.partSelect = part.id;
             selectButton.setAttribute('aria-pressed', String(state.selectedPartId === part.id));
             selectButton.setAttribute('aria-disabled', String(Boolean(lock) && !purchase));

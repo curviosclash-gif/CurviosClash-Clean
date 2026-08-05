@@ -109,12 +109,12 @@ test('five stone colors have distinct properties across three levels', () => {
 
 test('all stones share one form while their level is visible through size', () => {
     const assembly = new HangarVehicleAssembly(new THREE.Group());
-    const t1Nodes = STONE_COLORS.map((color) => assembly._createPartNode(resolveHangarPart(`stone_${color}_t1`)));
+    const t1Nodes = STONE_COLORS.map((color) => assembly.createPreviewPartNode(resolveHangarPart(`stone_${color}_t1`)));
     assert.equal(new Set(t1Nodes.map(partShapeSignature)).size, 1);
     assert.ok(t1Nodes.every((node) => node.children.length === 1));
     assert.ok(t1Nodes.every((node) => node.children[0].geometry.type === 'OctahedronGeometry'));
     const sizes = ['T1', 'T2', 'T3'].map((tier) => {
-        const node = assembly._createPartNode(resolveHangarPart(`stone_blue_${tier.toLowerCase()}`));
+        const node = assembly.createPreviewPartNode(resolveHangarPart(`stone_blue_${tier.toLowerCase()}`));
         return new THREE.Box3().setFromObject(node).getSize(new THREE.Vector3()).length();
     });
     assert.ok(sizes[0] < sizes[1] && sizes[1] < sizes[2], sizes.join(' < '));

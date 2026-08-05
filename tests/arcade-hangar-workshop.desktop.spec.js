@@ -194,6 +194,27 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await page.locator('[data-build-view="presets"]').click();
     await page.locator('[data-catalog-view="parts"]').click();
     await expect(page.locator('.hangar-part-card')).toHaveCount(15);
+    await expect(page.locator('.hangar-part-card-preview')).toHaveCount(15);
+    const stonePreview = page.locator('.hangar-part-card[data-part-id="stone_blue_t1"] .hangar-part-card-preview');
+    await stonePreview.scrollIntoViewIfNeeded();
+    await expect(stonePreview).toHaveAttribute('data-preview-status', 'ready');
+    const stonePreviewLayout = await stonePreview.evaluate((canvas) => {
+        const preview = canvas.getBoundingClientRect();
+        const button = canvas.closest('.hangar-part-select').getBoundingClientRect();
+        return {
+            width: preview.width,
+            height: preview.height,
+            contained: preview.left >= button.left && preview.right <= button.right + 1
+                && preview.top >= button.top && preview.bottom <= button.bottom + 1,
+        };
+    });
+    expect(stonePreviewLayout.width).toBeGreaterThanOrEqual(108);
+    expect(stonePreviewLayout.height).toBeGreaterThanOrEqual(58);
+    expect(stonePreviewLayout.contained).toBe(true);
+    if (!await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        const firstFrame = await stonePreview.evaluate((canvas) => canvas.toDataURL());
+        await expect.poll(() => stonePreview.evaluate((canvas) => canvas.toDataURL())).not.toBe(firstFrame);
+    }
     const catalogMetrics = await page.locator('.hangar-catalog-list').evaluate((list) => ({
         clientHeight: list.clientHeight,
         scrollHeight: list.scrollHeight,
