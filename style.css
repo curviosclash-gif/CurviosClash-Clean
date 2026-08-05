@@ -4683,6 +4683,23 @@ input[type="range"]::-webkit-slider-thumb {
     overflow-y: auto;
 }
 
+.hangar-vehicle-card.has-preview {
+    grid-template-columns: minmax(104px, 42%) minmax(0, 1fr);
+    align-items: center;
+    min-height: 88px;
+    overflow: hidden;
+}
+
+.hangar-vehicle-card-preview {
+    display: block;
+    grid-row: 1 / span 2;
+    width: 100%;
+    aspect-ratio: 16 / 9;
+    border: 1px solid rgba(98, 184, 255, 0.18);
+    border-radius: 7px;
+    background: radial-gradient(circle at 50% 35%, rgba(50, 113, 174, 0.24), rgba(7, 16, 29, 0.96));
+}
+
 .hangar-vehicle-card.is-locked,
 .hangar-part-card.is-locked {
     opacity: 0.58;

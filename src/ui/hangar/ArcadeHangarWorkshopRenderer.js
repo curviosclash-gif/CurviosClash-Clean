@@ -73,7 +73,7 @@ function partCostsText(part, paired) {
 
 export function createArcadeHangarWorkshopRenderer(options) {
     const {
-        shell, settings, catalogEntries, selection, persistence, viewport,
+        shell, settings, catalogEntries, selection, persistence, viewport, catalogPreview,
         getState, entryFor, profileFor, evaluateInstall, describeFailure,
         onSelectSlot, isDirty,
     } = options;
@@ -104,7 +104,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
     }
 
-    function renderVehicles(state) {
+    function renderVehicles(state) { catalogPreview?.clearTargets?.();
         const visible = selection.getVisibleEntries(state.profiles);
         const favorites = new Set(selection.getFavorites());
         const focusVehicleId = visible.some((entry) => entry.vehicleId === state.draft.vehicleId)
@@ -126,6 +126,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
             card.setAttribute('role', 'option');
             card.setAttribute('aria-selected', String(entry.vehicleId === state.draft.vehicleId));
             card.tabIndex = entry.vehicleId === focusVehicleId ? 0 : -1;
+            if (catalogPreview?.available) catalogPreview.attachCard(card, entry.vehicleId);
             card.append(
                 el('span', 'arcade-vehicle-card-title', entry.label),
                 el(
@@ -143,7 +144,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         quickRows.classList.toggle('hidden', !favoriteIds.length && !recentIds.length);
     }
 
-    function renderParts(state) {
+    function renderParts(state) { catalogPreview?.clearTargets?.();
         const profile = profileFor(state.draft.vehicleId);
         catalogList.setAttribute('role', 'list');
         const records = listHangarParts({ search: search.value, color: state.partFamily, tier: state.partTier, trait: state.partTrait })

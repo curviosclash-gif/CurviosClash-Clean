@@ -29,6 +29,7 @@ import { createHangarViewport3d } from './HangarViewport3d.js';
 import { createHangarDragDropController } from './HangarDragDropController.js';
 import { createArcadeHangarWorkshopShell } from './ArcadeHangarWorkshopShell.js';
 import { createArcadeHangarWorkshopRenderer } from './ArcadeHangarWorkshopRenderer.js';
+import { createVehicleCatalogPreview3d } from '../arcade/vehicle-manager/VehicleCatalogPreview3d.js';
 import { createHangarDraftPersistence } from './HangarDraftPersistence.js';
 import { createHangarWorkshopAudio } from './HangarWorkshopAudio.js';
 import { createHangarStarterBuild } from './HangarStarterBuildCatalog.js';
@@ -96,6 +97,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     } = shell;
     search.value = selection.getSearchTerm();
     const viewport = createHangarViewport3d({ mount: previewStage, overlay: previewOverlay, color: resolvePlayerColor(settings) });
+    const catalogPreview = createVehicleCatalogPreview3d({ color: resolvePlayerColor(settings) });
     let renderer = null;
 
     function toast(message, tone = 'info') {
@@ -425,7 +427,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
     }
 
     renderer = createArcadeHangarWorkshopRenderer({
-        shell, settings, catalogEntries, selection, persistence, viewport, getState: state,
+        shell, settings, catalogEntries, selection, persistence, viewport, catalogPreview, getState: state,
         entryFor, profileFor, evaluateInstall, describeFailure: describeDropFailure,
         onQuickUpgrade: quickUpgrade,
         onSelectSlot: handleSlotSelection,
@@ -747,6 +749,7 @@ export function setupArcadeHangarWorkshop(ctx = {}) {
             flushDraft();
             disposed = true;
             dragController.dispose();
+            catalogPreview.dispose();
             viewport.dispose();
             audio.dispose();
             container.dataset.lifecycle = 'disposed';

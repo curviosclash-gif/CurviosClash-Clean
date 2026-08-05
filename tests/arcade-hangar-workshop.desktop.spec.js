@@ -73,6 +73,28 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
     expect(await page.locator('.arcade-vehicle-card').evaluateAll((cards) => (
         cards.filter((card) => card.tabIndex === 0).length
     ))).toBe(1);
+    const vehicleCards = page.locator('.arcade-vehicle-card');
+    await expect(page.locator('.arcade-vehicle-card .hangar-vehicle-card-preview')).toHaveCount(await vehicleCards.count());
+    const aircraftPreview = page.locator('.arcade-vehicle-card[data-vehicle-id="aircraft"] .hangar-vehicle-card-preview');
+    await aircraftPreview.scrollIntoViewIfNeeded();
+    await expect(aircraftPreview).toHaveAttribute('data-preview-status', 'ready', { timeout: 10_000 });
+    const previewLayout = await aircraftPreview.evaluate((canvas) => {
+        const preview = canvas.getBoundingClientRect();
+        const card = canvas.closest('.arcade-vehicle-card').getBoundingClientRect();
+        return {
+            width: preview.width,
+            height: preview.height,
+            contained: preview.left >= card.left && preview.right <= card.right + 1
+                && preview.top >= card.top && preview.bottom <= card.bottom + 1,
+        };
+    });
+    expect(previewLayout.width).toBeGreaterThanOrEqual(100);
+    expect(previewLayout.height).toBeGreaterThanOrEqual(55);
+    expect(previewLayout.contained).toBe(true);
+    if (!await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)) {
+        const firstFrame = await aircraftPreview.evaluate((canvas) => canvas.toDataURL());
+        await expect.poll(() => aircraftPreview.evaluate((canvas) => canvas.toDataURL())).not.toBe(firstFrame);
+    }
     await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-label', 'Core-Fassung: Stein entfernen');
     await expect(page.locator('[data-remove-slot="core"]')).toHaveAttribute('aria-description', 'Pflichtfassung kann nicht geleert werden');
 
