@@ -317,3 +317,92 @@ test('Klassik and Arcade use the Fight HUD shell without duplicate Arcade score'
     expect(layout.arcade.scoreRect.width).toBe(280);
     expect(layout.arcade.scoreClip).not.toBe('none');
 });
+
+test('split-screen keeps every classic/arcade panel inside its own viewport half', async ({ page }) => {
+    for (const viewport of VIEWPORTS) {
+        await page.setViewportSize(viewport);
+        await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+        for (const hudMode of ['normal', 'arcade']) {
+            const layout = await page.evaluate(({ hudMode }) => {
+                const rect = (selector) => {
+                    const element = document.querySelector(selector);
+                    if (!element) return null;
+                    const value = element.getBoundingClientRect();
+                    return {
+                        left: value.left,
+                        right: value.right,
+                        top: value.top,
+                        bottom: value.bottom,
+                        width: value.width,
+                    };
+                };
+                const overlaps = (a, b) => !!a && !!b && !(
+                    a.right <= b.left || a.left >= b.right
+                    || a.bottom <= b.top || a.top >= b.bottom
+                );
+
+                document.querySelector('#main-menu')?.classList.add('hidden');
+                const hud = document.querySelector('#hud');
+                hud.classList.remove('hidden');
+                hud.classList.add('split-screen');
+                hud.dataset.hudMode = hudMode;
+                document.querySelector('#p2-hud')?.classList.remove('hidden');
+                document.querySelector('#parcours-hud')?.classList.remove('hidden');
+                document.querySelector('#p2-parcours-hud')?.classList.remove('hidden');
+
+                for (const barId of ['p1-items', 'p2-items']) {
+                    const bar = document.querySelector('#' + barId);
+                    while (bar.children.length < 5) {
+                        const slot = document.createElement('div');
+                        slot.className = 'item-slot active';
+                        slot.dataset.actionHintLabel = 'SHOT';
+                        slot.dataset.actionKey = 'F';
+                        slot.innerHTML = '<span class="item-icon">R</span>';
+                        bar.appendChild(slot);
+                    }
+                }
+
+                const p1 = {
+                    items: rect('#p1-items'),
+                    parcours: rect('#parcours-hud'),
+                    summary: rect('#p1-hud .player-hud-summary'),
+                };
+                const p2 = {
+                    items: rect('#p2-items'),
+                    parcours: rect('#p2-parcours-hud'),
+                    summary: rect('#p2-hud .player-hud-summary'),
+                };
+                return {
+                    p1,
+                    p2,
+                    parcoursOverlapsSummary: overlaps(p1.parcours, p1.summary)
+                        || overlaps(p2.parcours, p2.summary),
+                    parcoursOverlapsItems: overlaps(p1.parcours, p1.items)
+                        || overlaps(p2.parcours, p2.items),
+                };
+            }, { hudMode });
+
+            const half = viewport.width / 2;
+            const context = `${hudMode} at ${viewport.width}x${viewport.height}`;
+            for (const [name, panel] of Object.entries(layout.p1)) {
+                expect(panel, `${name} exists (${context})`).not.toBeNull();
+                expect(panel.left, `p1 ${name} starts on screen (${context})`).toBeGreaterThanOrEqual(-1);
+                expect(panel.right, `p1 ${name} stays left of the divider (${context})`).toBeLessThanOrEqual(half + 1);
+            }
+            for (const [name, panel] of Object.entries(layout.p2)) {
+                expect(panel, `${name} exists (${context})`).not.toBeNull();
+                expect(panel.left, `p2 ${name} stays right of the divider (${context})`).toBeGreaterThanOrEqual(half - 1);
+                expect(panel.right, `p2 ${name} ends on screen (${context})`).toBeLessThanOrEqual(viewport.width + 1);
+            }
+            expect(
+                layout.parcoursOverlapsSummary,
+                `parcours panel clears the score box (${context})`
+            ).toBe(false);
+            expect(
+                layout.parcoursOverlapsItems,
+                `parcours panel clears the item bar (${context})`
+            ).toBe(false);
+        }
+    }
+});

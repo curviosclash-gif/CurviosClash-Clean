@@ -243,6 +243,24 @@ test('applyHudAppearance writes scale, opacity and preset colors as CSS variable
     assert.ok(properties.has('--hud-glow'));
     assert.ok(properties.has('--hud-bg'));
     assert.ok(properties.has('--hud-text'));
+    assert.equal(properties.get('--hud-accent'), '#ffb43c');
+    assert.equal(properties.get('--hud-accent-soft'), '#a35d09');
+});
+
+test('every color preset ships a distinct accent so the scheme reaches the whole HUD', () => {
+    const accents = new Set();
+    for (const preset of Object.values(HUD_COLOR_PRESET)) {
+        const properties = new Map();
+        const element = { style: { setProperty(name, value) { properties.set(name, value); } } };
+        applyHudAppearance(element, { colorPreset: preset });
+        const accent = properties.get('--hud-accent');
+        const accentSoft = properties.get('--hud-accent-soft');
+        assert.ok(accent, `${preset} defines --hud-accent`);
+        assert.ok(accentSoft, `${preset} defines --hud-accent-soft`);
+        assert.notEqual(accent, accentSoft, `${preset} accent and soft accent differ`);
+        accents.add(accent);
+    }
+    assert.equal(accents.size, Object.values(HUD_COLOR_PRESET).length, 'presets do not share an accent');
 });
 
 test('applyHudAppearance keeps the HUD visible for invalid input and missing elements', () => {
@@ -555,6 +573,43 @@ test('item slots render cooldown sweep and remaining seconds instead of title-on
         runtime._updateItemBar(container, player, { modeId: 'HUNT' });
         assert.equal(sweepEl.style.transform, 'scaleY(0)');
         assert.equal(cooldownTextEl.textContent, '');
+    } finally {
+        documentStub.restore();
+    }
+});
+
+test('item slots expose the bound key, not the slot number, for the usable action', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const game = {
+            inputManager: {
+                bindings: {
+                    PLAYER_1: { SHOOT: 'KeyF', USE_ITEM: 'KeyG' },
+                    PLAYER_2: { SHOOT: 'ArrowUp', USE_ITEM: 'Quote' },
+                },
+            },
+        };
+        const runtime = new HudRuntimeSystem({ game, ports: null });
+        const player = { inventory: ['ROCKET'], selectedItemIndex: 0 };
+
+        const p1Container = createStubElement('item-bar');
+        runtime._updateItemBar(p1Container, player, { modeId: 'HUNT' }, 0);
+        const p1Key = p1Container.children[0].dataset.actionKey;
+        assert.ok(p1Key.length > 0, 'a key cap is rendered for a usable slot');
+        assert.ok(/[FG]/.test(p1Key), `P1 key comes from its own bindings, got ${p1Key}`);
+        assert.ok(
+            String(p1Container.children[0].ariaLabel).includes(p1Key),
+            'the key also reaches the accessible label'
+        );
+
+        // Player two must read its own bindings, not player one's.
+        const p2Container = createStubElement('item-bar');
+        runtime._updateItemBar(p2Container, player, { modeId: 'HUNT' }, 1);
+        const p2Key = p2Container.children[0].dataset.actionKey;
+        assert.notEqual(p2Key, p1Key, `P2 resolves separate bindings, got ${p2Key}`);
+
+        // Empty slots carry no key cap.
+        assert.equal(p1Container.children[4].dataset.actionKey, '');
     } finally {
         documentStub.restore();
     }

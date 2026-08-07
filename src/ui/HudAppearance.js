@@ -17,6 +17,8 @@ const HUD_COLOR_PRESET_VARS = Object.freeze({
         lineStrong: 'rgba(141, 255, 159, 0.95)',
         glow: 'rgba(20, 255, 120, 0.5)',
         bg: 'rgba(8, 22, 14, 0.35)',
+        accent: '#3dff7a',
+        accentSoft: '#0f9c46',
     }),
     [HUD_COLOR_PRESET.AMBER]: Object.freeze({
         color: '#ffd28d',
@@ -26,6 +28,8 @@ const HUD_COLOR_PRESET_VARS = Object.freeze({
         lineStrong: 'rgba(255, 210, 141, 0.95)',
         glow: 'rgba(255, 180, 60, 0.5)',
         bg: 'rgba(26, 18, 6, 0.35)',
+        accent: '#ffb43c',
+        accentSoft: '#a35d09',
     }),
     [HUD_COLOR_PRESET.CYAN]: Object.freeze({
         color: '#8ddcff',
@@ -35,6 +39,8 @@ const HUD_COLOR_PRESET_VARS = Object.freeze({
         lineStrong: 'rgba(141, 220, 255, 0.95)',
         glow: 'rgba(60, 200, 255, 0.5)',
         bg: 'rgba(6, 20, 26, 0.35)',
+        accent: '#3cc8ff',
+        accentSoft: '#0b6fa8',
     }),
     [HUD_COLOR_PRESET.WHITE]: Object.freeze({
         color: '#e8e8e8',
@@ -44,6 +50,8 @@ const HUD_COLOR_PRESET_VARS = Object.freeze({
         lineStrong: 'rgba(232, 232, 232, 0.95)',
         glow: 'rgba(255, 255, 255, 0.45)',
         bg: 'rgba(16, 16, 16, 0.35)',
+        accent: '#ffffff',
+        accentSoft: '#8a8a8a',
     }),
 });
 
@@ -87,6 +95,10 @@ export function applyHudAppearance(rootElement, appearance) {
     setHudStyleVar(style, '--hud-line-strong', presetVars.lineStrong);
     setHudStyleVar(style, '--hud-glow', presetVars.glow);
     setHudStyleVar(style, '--hud-bg', presetVars.bg);
+    // Chrome accents (frames, meter fills, active item slots) follow the preset
+    // so a non-default color scheme reaches the whole HUD, not just the tapes.
+    setHudStyleVar(style, '--hud-accent', presetVars.accent);
+    setHudStyleVar(style, '--hud-accent-soft', presetVars.accentSoft);
 }
 
 /**

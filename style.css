@@ -1850,12 +1850,21 @@ input[type="range"]::-webkit-slider-thumb {
     display: contents;
 }
 
+/* Player identity stays preset-independent on purpose: P1/P2 must remain
+   distinguishable in split-screen no matter which HUD color scheme is set.
+   Everything else (frames, meters, item slots) follows --hud-accent. */
 .player-hud.left {
+    --player-accent: #00ccff;
+    --player-accent-soft: #00aaff;
+    --player-accent-glow: rgba(39, 220, 255, 0.72);
     left: 15px;
     transform-origin: left top;
 }
 
 .player-hud.right {
+    --player-accent: #ffcc00;
+    --player-accent-soft: #ffaa00;
+    --player-accent-glow: rgba(255, 196, 39, 0.72);
     right: 15px;
     text-align: right;
     transform-origin: right top;
@@ -1867,28 +1876,14 @@ input[type="range"]::-webkit-slider-thumb {
     text-transform: uppercase;
     letter-spacing: 2px;
     opacity: 0.6;
-}
-
-.player-hud.left .player-name {
-    color: #00aaff;
-}
-
-.player-hud.right .player-name {
-    color: #ffaa00;
+    color: var(--player-accent-soft, #00aaff);
 }
 
 .player-score {
     font-family: var(--menu-theme-display-font);
     font-size: 2.5em;
     font-weight: 900;
-}
-
-.player-hud.left .player-score {
-    color: #00ccff;
-}
-
-.player-hud.right .player-score {
-    color: #ffcc00;
+    color: var(--player-accent, #00ccff);
 }
 
 .item-bar {
@@ -1913,8 +1908,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 .item-slot.active {
-    border-color: #00aaff;
-    box-shadow: 0 0 10px rgba(0, 170, 255, 0.3);
+    border-color: var(--hud-accent, #00aaff);
+    box-shadow: 0 0 10px var(--hud-glow, rgba(0, 170, 255, 0.3));
 }
 
 .item-icon {
@@ -2030,6 +2025,11 @@ input[type="range"]::-webkit-slider-thumb {
     width: min(480px, 30vw);
 }
 
+/* Same container-relative sizing as the item bar (see there). */
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .active-effect-bar {
+    width: min(760px, 92%);
+}
+
 .item-slot.selected {
     transform: translateY(-1px) scale(1.03);
     background: rgba(12, 70, 108, 0.34);
@@ -2083,6 +2083,9 @@ input[type="range"]::-webkit-slider-thumb {
     color: rgba(255, 190, 150, 0.96);
 }
 
+/* One parcours panel per player. Outside split-screen only the P1 panel is
+   shown and it stays centred; in split-screen each panel sits over its own
+   viewport half instead of straddling the divider. */
 .parcours-hud {
     position: absolute;
     top: 18px;
@@ -2134,6 +2137,26 @@ input[type="range"]::-webkit-slider-thumb {
 
 .parcours-status.success {
     color: rgba(132, 247, 160, 0.98);
+}
+
+#hud.split-screen .parcours-hud {
+    /* min-width beats max-width in CSS, so both bounds have to shrink for the
+       panel to stay inside one half. */
+    min-width: 0;
+    max-width: min(44vw, 380px);
+    /* A half is too narrow to fit this panel next to the 280px score box, so
+       it moves to the free band above the item bar instead of the top edge. */
+    top: auto;
+    bottom: 128px;
+    transform-origin: center bottom;
+}
+
+#hud.split-screen .parcours-hud-p1 {
+    left: 25%;
+}
+
+#hud.split-screen .parcours-hud-p2 {
+    left: 75%;
 }
 
 .hunt-hud {
@@ -2891,15 +2914,15 @@ input[type="range"]::-webkit-slider-thumb {
     left: auto;
     right: 105%;
     font-size: 10px;
-    color: #8dff9f;
+    color: var(--hud-color, #8dff9f);
     letter-spacing: 1px;
 }
 
 .hud-boost-bar .boost-fill {
     height: 100%;
     width: 100%;
-    background: linear-gradient(90deg, #0088ff, #00ffff);
-    box-shadow: 0 0 10px rgba(0, 255, 255, 0.6);
+    background: linear-gradient(90deg, var(--hud-accent-soft, #0088ff), var(--hud-accent, #00ffff));
+    box-shadow: 0 0 10px var(--hud-glow, rgba(0, 255, 255, 0.6));
     transition: width 0.1s linear, background 0.3s ease;
 }
 
@@ -2946,14 +2969,14 @@ input[type="range"]::-webkit-slider-thumb {
     position: absolute;
     inset: 0;
     z-index: -1;
-    border: 1px solid rgba(0, 229, 255, 0.78);
+    border: 1px solid var(--hud-accent, rgba(0, 229, 255, 0.78));
     background: linear-gradient(115deg, rgba(3, 16, 30, 0.94), rgba(2, 12, 24, 0.72));
     clip-path: polygon(0 0, 88% 0, 100% 24%, 92% 100%, 0 100%);
-    box-shadow: inset 0 -4px 0 rgba(255, 38, 78, 0.85), 0 0 18px rgba(0, 214, 255, 0.16);
+    box-shadow: inset 0 -4px 0 var(--player-accent, rgba(255, 38, 78, 0.85)), 0 0 18px var(--hud-glow, rgba(0, 214, 255, 0.16));
 }
 
 #hud:has(#hunt-hud:not(.hidden)) #p1-hud .player-name {
-    color: #33e5ff;
+    color: var(--player-accent, #33e5ff);
     font-size: 0.86rem;
     font-style: italic;
     font-weight: 800;
@@ -2966,7 +2989,7 @@ input[type="range"]::-webkit-slider-thumb {
     font-size: 3.25rem;
     font-style: italic;
     line-height: 1;
-    text-shadow: 0 0 12px rgba(39, 220, 255, 0.72);
+    text-shadow: 0 0 12px var(--player-accent-glow, rgba(39, 220, 255, 0.72));
 }
 
 #hud:has(#hunt-hud:not(.hidden)) #p1-hud .player-hud-summary > .hud-boost-bar,
@@ -2996,7 +3019,7 @@ input[type="range"]::-webkit-slider-thumb {
     box-sizing: border-box;
     justify-content: flex-start;
     padding: 0 10px 0 44px;
-    border-color: rgba(0, 220, 255, 0.5) !important;
+    border-color: var(--hud-line-soft, rgba(0, 220, 255, 0.5)) !important;
     border-radius: 0;
     background: linear-gradient(90deg, rgba(3, 19, 34, 0.9), rgba(3, 15, 27, 0.52));
     clip-path: polygon(0 0, 93% 0, 100% 50%, 93% 100%, 0 100%, 3% 50%);
@@ -3005,16 +3028,24 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 #hud:has(#hunt-hud:not(.hidden)) #p1-hud .item-slot::before {
-    content: counter(hunt-item-slot);
+    /* Key cap instead of the slot counter - see the classic/arcade rule. */
+    content: attr(data-action-key) / '';
     position: absolute;
     left: 8px;
     top: 50%;
     width: 30px;
     transform: translateY(-50%);
-    color: #20dcff;
+    color: var(--hud-accent, #20dcff);
     font: 800 italic 1rem var(--menu-theme-display-font);
     text-align: center;
-    border-right: 1px solid rgba(0, 220, 255, 0.55);
+    border-right: 1px solid var(--hud-line-soft, rgba(0, 220, 255, 0.55));
+}
+
+#hud:has(#hunt-hud:not(.hidden)) #p1-hud .item-slot:not(.active)::before {
+    content: counter(hunt-item-slot) / '';
+    color: var(--hud-line-soft, rgba(0, 220, 255, 0.55));
+    font-style: normal;
+    font-size: 0.8rem;
 }
 
 #hud:has(#hunt-hud:not(.hidden)) #p1-hud .item-slot::after {
@@ -3032,7 +3063,7 @@ input[type="range"]::-webkit-slider-thumb {
     transform: translateY(-5px);
     opacity: 1;
     background: linear-gradient(90deg, rgba(4, 50, 72, 0.96), rgba(3, 18, 31, 0.7));
-    box-shadow: inset 4px 0 0 #2ce5ff, 0 0 18px rgba(0, 213, 255, 0.28);
+    box-shadow: inset 4px 0 0 var(--hud-accent, #2ce5ff), 0 0 18px var(--hud-glow, rgba(0, 213, 255, 0.28));
 }
 
 .hunt-hud {
@@ -6906,10 +6937,10 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     position: absolute;
     inset: 0;
     z-index: -1;
-    border: 1px solid rgba(0, 229, 255, 0.78);
+    border: 1px solid var(--hud-accent, rgba(0, 229, 255, 0.78));
     background: linear-gradient(115deg, rgba(3, 16, 30, 0.94), rgba(2, 12, 24, 0.72));
     clip-path: polygon(0 0, 88% 0, 100% 24%, 92% 100%, 0 100%);
-    box-shadow: inset 0 -4px 0 rgba(255, 38, 78, 0.85), 0 0 18px rgba(0, 214, 255, 0.16);
+    box-shadow: inset 0 -4px 0 var(--player-accent, rgba(255, 38, 78, 0.85)), 0 0 18px var(--hud-glow, rgba(0, 214, 255, 0.16));
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud.right .player-hud-summary::before {
@@ -6917,7 +6948,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-name {
-    color: #33e5ff;
+    color: var(--player-accent, #33e5ff);
     font-size: 0.86rem;
     font-style: italic;
     font-weight: 800;
@@ -6930,7 +6961,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     font-size: 3.25rem;
     font-style: italic;
     line-height: 1;
-    text-shadow: 0 0 12px rgba(39, 220, 255, 0.72);
+    text-shadow: 0 0 12px var(--player-accent-glow, rgba(39, 220, 255, 0.72));
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud-summary > .hud-boost-bar {
@@ -6957,8 +6988,8 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud[data-hud-mode="normal"] .classic-boost-widget {
-    --hunt-arc-color: #70ff45;
-    --hunt-arc-track: rgba(80, 255, 90, 0.16);
+    --hunt-arc-color: var(--hud-accent, #70ff45);
+    --hunt-arc-track: var(--hud-line-soft, rgba(80, 255, 90, 0.16));
     position: absolute;
     left: 50%;
     top: calc(50% - 210px);
@@ -6973,9 +7004,11 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     transform-origin: center bottom;
 }
 
+/* Recharging is a state, not chrome: it keeps a fixed warning hue so it stays
+   readable against every color preset (matching .boost-fill.cooldown). */
 #hud[data-hud-mode="normal"] .classic-boost-widget.cooldown {
-    --hunt-arc-color: #4db8ee;
-    --hunt-arc-track: rgba(77, 184, 238, 0.16);
+    --hunt-arc-color: #ff5a4a;
+    --hunt-arc-track: rgba(255, 90, 74, 0.16);
 }
 
 #hud[data-hud-mode="normal"] .classic-boost-arc,
@@ -7022,11 +7055,14 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     letter-spacing: 0;
 }
 
+/* Width is a percentage of the owning .player-hud box, not of the viewport:
+   in split-screen that box is one half, so the bar stays inside its own view
+   instead of bleeding across the divider. */
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar {
     position: absolute;
     left: 50%;
     bottom: 20px;
-    width: min(760px, 62vw);
+    width: min(760px, 92%);
     margin: 0;
     display: grid;
     grid-auto-flow: column;
@@ -7044,7 +7080,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     box-sizing: border-box;
     justify-content: flex-start;
     padding: 0 10px 0 44px;
-    border-color: rgba(0, 220, 255, 0.5) !important;
+    border-color: var(--hud-line-soft, rgba(0, 220, 255, 0.5)) !important;
     border-radius: 0;
     background: linear-gradient(90deg, rgba(3, 19, 34, 0.9), rgba(3, 15, 27, 0.52));
     clip-path: polygon(0 0, 93% 0, 100% 50%, 93% 100%, 0 100%, 3% 50%);
@@ -7053,16 +7089,26 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot::before {
-    content: counter(mode-item-slot);
+    /* The key cap replaces the old slot counter: items are cycled, never
+       selected by number, so a bare "1..5" advertised a shortcut that does
+       not exist. Empty slots fall back to their position. */
+    content: attr(data-action-key) / '';
     position: absolute;
     left: 8px;
     top: 50%;
     width: 30px;
     transform: translateY(-50%);
-    color: #20dcff;
+    color: var(--hud-accent, #20dcff);
     font: 800 italic 1rem var(--menu-theme-display-font);
     text-align: center;
-    border-right: 1px solid rgba(0, 220, 255, 0.55);
+    border-right: 1px solid var(--hud-line-soft, rgba(0, 220, 255, 0.55));
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot:not(.active)::before {
+    content: counter(mode-item-slot) / '';
+    color: var(--hud-line-soft, rgba(0, 220, 255, 0.55));
+    font-style: normal;
+    font-size: 0.8rem;
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot::after {
@@ -7070,6 +7116,28 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     margin-left: 8px;
     transform: none;
     font-size: 0.58rem;
+    white-space: nowrap;
+}
+
+/* While a slot counts down, the remaining seconds occupy the trailing edge -
+   the action label would collide with it, and the countdown is the more
+   urgent readout. */
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot.cooldown::after,
+#hud:has(#hunt-hud:not(.hidden)) #p1-hud .item-slot.cooldown::after {
+    visibility: hidden;
+}
+
+/* The wide mode slots put the counter column on the left, so the remaining
+   cooldown moves to the trailing edge instead of centring over the number. */
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-cooldown-text,
+#hud:has(#hunt-hud:not(.hidden)) #p1-hud .item-slot .item-cooldown-text {
+    left: auto;
+    right: 9px;
+    top: 50%;
+    transform: translateY(-50%);
+    text-align: right;
+    font-size: 0.92rem;
+    color: #ffd9a0;
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot.active {
@@ -7080,7 +7148,7 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     transform: translateY(-5px);
     opacity: 1;
     background: linear-gradient(90deg, rgba(4, 50, 72, 0.96), rgba(3, 18, 31, 0.7));
-    box-shadow: inset 4px 0 0 #2ce5ff, 0 0 18px rgba(0, 213, 255, 0.28);
+    box-shadow: inset 4px 0 0 var(--hud-accent, #2ce5ff), 0 0 18px var(--hud-glow, rgba(0, 213, 255, 0.28));
 }
 
 #hud[data-hud-mode="arcade"] #p1-hud .player-name,
@@ -7140,6 +7208,16 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     font-style: italic;
 }
 
+/* The arcade banner above is wider and top-anchored, which does not fit beside
+   the score box in a split-screen half - restate the split-screen bounds here
+   so they win by source order. */
+#hud.split-screen[data-hud-mode="arcade"] .parcours-hud {
+    top: auto;
+    bottom: 128px;
+    min-width: 0;
+    max-width: min(44vw, 380px);
+}
+
 #hud[data-hud-mode="arcade"] #arcade-mission-hud {
     top: 224px !important;
     right: 28px !important;
@@ -7186,7 +7264,9 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 @media (max-width: 900px) {
     #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar {
         bottom: 12px;
-        width: min(70vw, 560px);
+        /* Container-relative like the wide-viewport rule, so split-screen
+           halves are respected here too. */
+        width: min(92%, 560px);
         gap: 5px;
     }
 
@@ -7198,6 +7278,12 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 
     #hud[data-hud-mode="arcade"] .parcours-hud {
         min-width: min(46vw, 420px);
+    }
+
+    /* Same specificity as the rule above, so the split-screen bound has to be
+       restated here to win by source order. */
+    #hud.split-screen[data-hud-mode="arcade"] .parcours-hud {
+        min-width: 0;
     }
 
     #hud[data-hud-mode="arcade"] #arcade-mission-hud {

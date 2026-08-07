@@ -1,4 +1,5 @@
 import { GLOBAL_KEY_BIND_ACTIONS, KEY_BIND_ACTIONS } from './KeybindActionCatalog.js';
+import { formatKeyCode } from './KeybindLabels.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
 const KEY_BIND_SCOPES = [
@@ -238,28 +239,6 @@ export class KeybindEditorController {
     }
 
     formatKeyCode(code) {
-        if (!code) return '-';
-
-        const named = {
-            ArrowUp: 'Arrow Up',
-            ArrowDown: 'Arrow Down',
-            ArrowLeft: 'Arrow Left',
-            ArrowRight: 'Arrow Right',
-            ShiftLeft: 'Shift Left',
-            ShiftRight: 'Shift Right',
-            Space: 'Space',
-            Enter: 'Enter',
-            Escape: 'Escape',
-            ControlLeft: 'Ctrl Left',
-            ControlRight: 'Ctrl Right',
-            AltLeft: 'Alt Left',
-            AltRight: 'Alt Right',
-        };
-
-        if (named[code]) return named[code];
-        if (code.startsWith('Key')) return code.slice(3);
-        if (code.startsWith('Digit')) return code.slice(5);
-        if (code.startsWith('Numpad')) return `Num ${code.slice(6)}`;
-        return code;
+        return formatKeyCode(code);
     }
 }

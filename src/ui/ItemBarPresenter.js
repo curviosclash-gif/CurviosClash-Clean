@@ -4,6 +4,23 @@
 
 import { getPickupDefinition, isPickupTypeOffensive } from '../shared/contracts/PickupRegistryContract.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
+import { formatKeyCodeShort } from './KeybindLabels.js';
+
+/**
+ * Resolves the key cap shown on a slot. Items are cycled, not selected by
+ * number, so the only meaningful key is the one that fires/uses the slot.
+ */
+function resolveSlotKeyLabel(slotAction, keyBindings) {
+    if (!keyBindings) return '';
+    if (slotAction.canShoot && !slotAction.canUse) return formatKeyCodeShort(keyBindings.SHOOT);
+    if (slotAction.canUse && !slotAction.canShoot) return formatKeyCodeShort(keyBindings.USE_ITEM);
+    if (slotAction.canUse && slotAction.canShoot) {
+        const useKey = formatKeyCodeShort(keyBindings.USE_ITEM);
+        const shootKey = formatKeyCodeShort(keyBindings.SHOOT);
+        return useKey === shootKey ? useKey : `${useKey}/${shootKey}`;
+    }
+    return '';
+}
 
 export function ensureItemSlots(container, maxInventory) {
     const desired = Math.max(0, Math.floor(Number(maxInventory) || 0));
@@ -15,6 +32,7 @@ export function ensureItemSlots(container, maxInventory) {
         slot.dataset.pickupType = '';
         slot.dataset.actionHint = '';
         slot.dataset.actionHintLabel = '';
+        slot.dataset.actionKey = '';
         slot.dataset.selected = '0';
         slot.dataset.cooldown = '0';
         const icon = document.createElement('span');
@@ -37,7 +55,7 @@ export function ensureItemSlots(container, maxInventory) {
     }
 }
 
-export function updateItemBar(container, player, projection = null, gameplayConfig = null) {
+export function updateItemBar(container, player, projection = null, gameplayConfig = null, keyBindings = null) {
     const powerupConfig = gameplayConfig?.POWERUP || {};
     const shootCooldownMax = Math.max(0.001, Number(gameplayConfig?.PROJECTILE?.COOLDOWN) || 0.001);
     const itemUseCooldownMax = Math.max(0.001, Number(gameplayConfig?.HUNT?.ITEM_USE_COOLDOWN_SECONDS) || 0.001);
@@ -75,10 +93,14 @@ export function updateItemBar(container, player, projection = null, gameplayConf
             if (slotAction.shootOnCooldown) titleParts.push(`Shoot-CD ${slotAction.shootCooldownRemaining.toFixed(1)}s`);
         }
 
+        const slotKeyLabel = type ? resolveSlotKeyLabel(slotAction, keyBindings) : '';
+        if (type && slotKeyLabel) titleParts.push(`Taste ${slotKeyLabel}`);
+
         slot.dataset.type = rawType;
         slot.dataset.pickupType = type || '';
         slot.dataset.actionHint = slotAction.actionHintLabel.toLowerCase();
         slot.dataset.actionHintLabel = slotAction.actionHintLabel;
+        slot.dataset.actionKey = slotKeyLabel;
         slot.dataset.selected = isSelected ? '1' : '0';
         slot.dataset.cooldown = slotAction.hasCooldown ? '1' : '0';
         const iconEl = slot.children[0];
@@ -88,8 +110,10 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         const iconText = type ? (config?.icon || '?') : '';
         if (iconEl && iconEl.textContent !== iconText) iconEl.textContent = iconText;
 
-        // Visible cooldown feedback (sweep fill + remaining seconds); the
-        // title tooltip is unreachable because #hud has pointer-events:none.
+        // #hud has pointer-events:none, so the title tooltip can never be
+        // hovered: everything the player needs (action, key cap, remaining
+        // cooldown) has to be rendered into the slot itself. The title is kept
+        // only as a debugging/inspection aid.
         const activeUseCooldown = slotAction.useOnCooldown ? slotAction.useCooldownRemaining : 0;
         const activeShootCooldown = slotAction.shootOnCooldown ? slotAction.shootCooldownRemaining : 0;
         const cooldownRemaining = Math.max(activeUseCooldown, activeShootCooldown);
@@ -115,7 +139,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         const titleText = titleParts.join(' | ');
         if (slot.title !== titleText) slot.title = titleText;
         const accessibleLabel = type
-            ? `${config?.name || type}${config?.rocketTierLabel ? ` ${config.rocketTierLabel}` : ''}, ${slotAction.actionHintLabel}`
+            ? `${config?.name || type}${config?.rocketTierLabel ? ` ${config.rocketTierLabel}` : ''}, ${slotAction.actionHintLabel}${slotKeyLabel ? `, Taste ${slotKeyLabel}` : ''}`
             : `Leerer Item-Slot ${i + 1}`;
         slot.ariaLabel = accessibleLabel;
         slot.setAttribute?.('aria-label', accessibleLabel);

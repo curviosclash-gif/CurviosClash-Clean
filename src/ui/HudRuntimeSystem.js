@@ -9,18 +9,13 @@ import { updateActiveEffectBar, updateItemBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
-    createCompletedClassicTutorialState,
-    isClassicTutorialRoute,
-    resolveClassicTutorialHint,
-} from '../shared/contracts/ClassicTutorialContract.js';
+    clearParcoursPanel,
+    renderParcoursPanel,
+    resolveParcoursPanelRefs,
+    setParcoursPanelVisible,
+} from './ParcoursHudPresenter.js';
 
 const PARCOURS_MINIMAP_INTERVAL_SECONDS = 0.1;
-
-function formatParcoursDurationMs(value) {
-    const ms = Math.max(0, Number(value) || 0);
-    const seconds = ms / 1000;
-    return `${seconds.toFixed(seconds >= 10 ? 1 : 2)}s`;
-}
 
 export class HudRuntimeSystem {
     constructor(deps = {}) {
@@ -114,7 +109,7 @@ export class HudRuntimeSystem {
             const localPlayer = this._findProjectedPlayer(runtimeProjection, localIdx)
                 || game.entityManager?.players?.[localIdx];
             if (localPlayer && game.ui.p1Items) {
-                this._updateItemBar(game.ui.p1Items, localPlayer, runtimeProjection);
+                this._updateItemBar(game.ui.p1Items, localPlayer, runtimeProjection, 0);
                 updateTraversalStatus(game.ui.p1TraversalStatus, localPlayer);
             }
             return;
@@ -130,7 +125,7 @@ export class HudRuntimeSystem {
             if (game.ui.p1Score.textContent !== p1Score) {
                 game.ui.p1Score.textContent = p1Score;
             }
-            this._updateItemBar(game.ui.p1Items, humans[0], runtimeProjection);
+            this._updateItemBar(game.ui.p1Items, humans[0], runtimeProjection, 0);
             updateTraversalStatus(game.ui.p1TraversalStatus, humans[0]);
         }
 
@@ -139,7 +134,7 @@ export class HudRuntimeSystem {
             if (game.ui.p2Score.textContent !== p2Score) {
                 game.ui.p2Score.textContent = p2Score;
             }
-            this._updateItemBar(game.ui.p2Items, humans[1], runtimeProjection);
+            this._updateItemBar(game.ui.p2Items, humans[1], runtimeProjection, 1);
             updateTraversalStatus(game.ui.p2TraversalStatus, humans[1]);
         }
     }
@@ -317,27 +312,32 @@ export class HudRuntimeSystem {
 
     }
 
-    _setParcoursHudVisible(isVisible) {
-        const root = this.game?.ui?.parcoursHud;
-        if (!root) return;
-        root.classList.toggle('hidden', !isVisible);
+    // Each split-screen player owns one parcours panel; refs are grouped so the
+    // same render path serves both without duplicating the formatting rules.
+    _getParcoursPanelRefs(playerIndex) {
+        return resolveParcoursPanelRefs(this.game?.ui, playerIndex);
     }
 
-    _clearParcoursHud() {
-        const ui = this.game?.ui;
-        if (!ui) return;
-        if (ui.parcoursProgress) ui.parcoursProgress.textContent = 'CP 0/0';
-        if (ui.parcoursTimer) ui.parcoursTimer.textContent = '0.00s';
-        if (ui.parcoursStatus) {
-            ui.parcoursStatus.textContent = '';
-            ui.parcoursStatus.classList.remove('success');
+    _setParcoursHudVisible(isVisible, refs = null) {
+        setParcoursPanelVisible(refs || this._getParcoursPanelRefs(0), isVisible);
+    }
+
+    _clearParcoursHud(refs = null) {
+        clearParcoursPanel(refs || this._getParcoursPanelRefs(0));
+    }
+
+    /** Writes one parcours panel. Tutorial progress persists only for the primary panel. */
+    _renderParcoursPanel(refs, hudState, isPrimary) {
+        const persistTutorial = isPrimary && !this._tutorialCompletionPersisted;
+        if (renderParcoursPanel(refs, hudState, this.game, persistTutorial)) {
+            this._tutorialCompletionPersisted = true;
         }
     }
 
     _updateParcoursHud(projection = null, updateMinimap = true) {
         const game = this.game;
-        const ui = game?.ui;
-        if (!ui?.parcoursHud) return;
+        const primaryRefs = this._getParcoursPanelRefs(0);
+        if (!primaryRefs) return;
 
         const hudState = projection?.parcours
             || (game?.entityManager
@@ -347,14 +347,15 @@ export class HudRuntimeSystem {
                         : 0
                 )
                 : null);
+        this._updateSecondaryParcoursHud(projection);
         if (!hudState?.enabled) {
-            this._setParcoursHudVisible(false);
-            this._clearParcoursHud();
+            this._setParcoursHudVisible(false, primaryRefs);
+            this._clearParcoursHud(primaryRefs);
             this._parcoursOverlay?.hideMinimap?.();
             return;
         }
 
-        this._setParcoursHudVisible(true);
+        this._setParcoursHudVisible(true, primaryRefs);
         if (updateMinimap) {
             const minimapProjection = projection?.parcours === hudState
                 ? projection
@@ -371,54 +372,51 @@ export class HudRuntimeSystem {
                     : 0
             );
         }
-        const routeLabel = String(hudState.routeId || 'parcours').replace(/_/g, ' ');
-        if (ui.parcoursRoute) ui.parcoursRoute.textContent = routeLabel;
-
-        const total = Math.max(0, Number(hudState.totalCheckpoints) || 0);
-        const current = Math.max(0, Math.min(total, Number(hudState.currentCheckpoint) || 0));
-        if (ui.parcoursProgress) {
-            ui.parcoursProgress.textContent = `CP ${current}/${total}`;
-        }
-
-        if (ui.parcoursTimer) {
-            if (hudState.completed) {
-                ui.parcoursTimer.textContent = `Finish ${formatParcoursDurationMs(hudState.completionTimeMs)}`;
-            } else {
-                ui.parcoursTimer.textContent = `Segment ${formatParcoursDurationMs(hudState.segmentElapsedMs)}`;
-            }
-        }
-
-        if (ui.parcoursStatus) {
-            let statusText = '';
-            let isSuccess = false;
-            if (hudState.completed) {
-                statusText = 'Parcours abgeschlossen';
-                isSuccess = true;
-            } else if (hudState.hasError && hudState.errorMessage) {
-                statusText = hudState.errorMessage;
-            }
-            if (isClassicTutorialRoute(hudState.routeId)) {
-                statusText = resolveClassicTutorialHint(current, hudState.completed);
-                isSuccess = hudState.completed === true;
-                if (hudState.completed && !this._tutorialCompletionPersisted) {
-                    this._tutorialCompletionPersisted = true;
-                    const settings = game?.settings;
-                    if (settings) {
-                        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
-                        settings.localSettings.classicTutorial = createCompletedClassicTutorialState(
-                            settings.localSettings.classicTutorial
-                        );
-                        game.settingsManager?.saveSettings?.(settings);
-                    }
-                }
-            }
-            ui.parcoursStatus.textContent = statusText;
-            ui.parcoursStatus.classList.toggle('success', isSuccess);
-        }
+        this._renderParcoursPanel(primaryRefs, hudState, true);
     }
 
-    _updateItemBar(container, player, projection = null) {
-        updateItemBar(container, player, projection, resolveGameplayConfig(this.game));
+    /**
+     * Second local player's parcours panel. Only ever shown in local
+     * split-screen; network sessions render a single local view.
+     */
+    _updateSecondaryParcoursHud(projection = null) {
+        const refs = this._getParcoursPanelRefs(1);
+        if (!refs) return;
+
+        const isSplitScreen = this.game?.ui?.hud?.classList?.contains('split-screen') === true;
+        const hudState = isSplitScreen && !this._isNetworkSession(projection)
+            ? this.game?.entityManager?.getParcoursHudState?.(1) || null
+            : null;
+
+        if (!hudState?.enabled) {
+            this._setParcoursHudVisible(false, refs);
+            this._clearParcoursHud(refs);
+            return;
+        }
+
+        this._setParcoursHudVisible(true, refs);
+        this._renderParcoursPanel(refs, hudState, false);
+    }
+
+    /**
+     * Resolves the live key bindings for a player so item slots can show the
+     * key that actually fires them (items are cycled, never number-selected).
+     */
+    _getPlayerKeyBindings(playerIndex) {
+        const scope = playerIndex === 1 ? 'PLAYER_2' : 'PLAYER_1';
+        return this.game?.inputManager?.bindings?.[scope]
+            || this.game?.settings?.controls?.[scope]
+            || null;
+    }
+
+    _updateItemBar(container, player, projection = null, playerIndex = 0) {
+        updateItemBar(
+            container,
+            player,
+            projection,
+            resolveGameplayConfig(this.game),
+            this._getPlayerKeyBindings(playerIndex)
+        );
         this._updateCooldownIndicator(container, player);
         this._updateActiveEffectBar(container, player);
     }
