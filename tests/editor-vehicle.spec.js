@@ -20,6 +20,15 @@ async function getVehicleLabPartCount(page) {
     return page.locator('#partsList .part-item').count();
 }
 
+// Die prozeduralen Triebwerke eines OBJ-Fahrzeugs liefern allein bereits 432 Polygone.
+// Nur ein hoeherer Wert belegt, dass auch das OBJ-Grundmodell wirklich geladen wurde.
+const OBJ_ENGINE_ONLY_POLYGON_COUNT = 432;
+
+async function getVehicleLabPolygonCount(page) {
+    const badge = await page.locator('#polyCountBadge').textContent();
+    return Number.parseInt(String(badge).replace(/\D/g, ''), 10);
+}
+
 test.describe('Vehicle Lab', () => {
     test('vehicle selection is visible and loads a preset immediately', async ({ page }) => {
         await resetVehicleLab(page);
@@ -36,6 +45,12 @@ test.describe('Vehicle Lab', () => {
 
     test('built-in game vehicles keep their base mesh and save editable product overrides', async ({ page }) => {
         await resetVehicleLab(page);
+        // Das Vehicle Lab liegt in einem Unterordner; seitenrelative Asset-Pfade wuerden dort ins Leere zeigen.
+        const modelRequestPaths = [];
+        page.on('request', (request) => {
+            const { pathname } = new URL(request.url());
+            if (pathname.includes('spaceship_pack')) modelRequestPaths.push(pathname);
+        });
         let savedRequest = null;
         await page.route(`**${EDITOR_API_ROUTES.SAVE_VEHICLE_DISK}`, async (route) => {
             savedRequest = route.request().postDataJSON();
@@ -53,7 +68,11 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('#btnAddPart')).toBeEnabled();
         await expect(page.locator('#btnSaveToGameVehicle')).toBeDisabled();
         await expect(page.locator('#btnSaveVehicle')).toHaveText('Spiel-Fahrzeug speichern');
-        await expect(page.locator('#polyCountBadge')).not.toHaveText('Polygone: 0');
+        await expect
+            .poll(() => getVehicleLabPolygonCount(page))
+            .toBeGreaterThan(OBJ_ENGINE_ONLY_POLYGON_COUNT);
+        expect(modelRequestPaths.length).toBeGreaterThan(0);
+        expect(modelRequestPaths.filter((pathname) => !pathname.startsWith('/assets/'))).toEqual([]);
 
         await page.locator('#btnEditBaseVehicle').click();
         const basePositionX = page.locator('#propertiesContainer input[aria-label="Position X"]');

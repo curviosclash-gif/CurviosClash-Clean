@@ -10,6 +10,20 @@ import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 const logger = createLogger('OBJVehicleMesh');
 let OBJ_MTL_LOADER_PROMISE = null;
 
+/**
+ * Liefert die Ausdehnung eines geladenen Modells oder null, wenn daraus keine
+ * brauchbare Skalierung folgt. Ohne Geometrie ist die Box leer, bei defekten
+ * Vertexdaten enthaelt sie NaN - beides wuerde sonst NaN-Transformationen erzeugen.
+ */
+function resolveModelExtent(object) {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+    const size = box.getSize(new THREE.Vector3());
+    const largestExtent = Math.max(size.x, size.y, size.z);
+    if (!Number.isFinite(largestExtent) || largestExtent <= 0) return null;
+    return { box, size };
+}
+
 function loadObjAndMtlModules() {
     if (!OBJ_MTL_LOADER_PROMISE) {
         OBJ_MTL_LOADER_PROMISE = Promise.all([
@@ -83,7 +97,8 @@ export class OBJVehicleMesh extends THREE.Group {
             return this._loadingPromise;
         }
 
-        const basePath = 'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/';
+        // Wurzelrelativ, damit auch Oberflaechen in Unterordnern (Vehicle Lab) die Modelle finden.
+        const basePath = '/assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/';
         this._loadingPromise = loadObjAndMtlModules()
             .then(({ OBJLoader, MTLLoader }) => new Promise((resolve, reject) => {
                 const mtlLoader = new MTLLoader();
@@ -115,7 +130,12 @@ export class OBJVehicleMesh extends THREE.Group {
                     disposeObject3DResources(object);
                     return false;
                 }
-                this._applyLoadedModel(object);
+                const extent = resolveModelExtent(object);
+                if (!extent) {
+                    disposeObject3DResources(object);
+                    throw new Error(`${this.shipId}.obj contains no usable geometry.`);
+                }
+                this._applyLoadedModel(object, extent);
                 this._disposeTemplateMaterials();
                 return true;
             })
@@ -136,9 +156,7 @@ export class OBJVehicleMesh extends THREE.Group {
         return this._loadingPromise;
     }
 
-    _applyLoadedModel(object) {
-        const box = new THREE.Box3().setFromObject(object);
-        const size = box.getSize(new THREE.Vector3());
+    _applyLoadedModel(object, { box, size }) {
         const center = box.getCenter(new THREE.Vector3());
 
         object.position.sub(center);
