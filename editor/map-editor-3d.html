@@ -380,16 +380,35 @@
         }
 
         #buildDock.is-collapsed {
-            display: none;
+            bottom: auto;
+            width: auto;
+            max-width: var(--dock-width);
+            padding: 9px 12px;
+        }
+
+        #buildDock.is-collapsed .dockHeader,
+        #buildDock.is-collapsed .dockHeading {
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+
+        #buildDock.is-collapsed .dockHeadingTitle {
+            font-size: 13px;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
         }
 
         #buildDock.is-collapsed .dockHeadingDescription,
         #buildDock.is-collapsed .dockShortcutGrid,
+        #buildDock.is-collapsed .dockPrefabSection,
         #buildDock.is-collapsed .dockCatalogControls,
         #buildDock.is-collapsed .dockCategoryTabs,
         #buildDock.is-collapsed .dockCards,
         #buildDock.is-collapsed #btnDockSelectMode,
         #buildDock.is-collapsed #btnDockFavoriteToggle,
+        #buildDock.is-collapsed #btnDockDetailToggle,
         #buildDock:not(.is-detailed) .dockHeadingDescription,
         #buildDock:not(.is-detailed) .dockShortcutGrid {
             display: none;
@@ -1371,6 +1390,7 @@
 
             #buildDock.is-collapsed {
                 bottom: 8px;
+                max-width: none;
             }
 
             .hud {

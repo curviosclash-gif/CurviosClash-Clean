@@ -405,8 +405,16 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
         await page.locator('#btnDockCollapse').click();
         await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
-        await expect(page.locator('#buildDock')).toBeHidden();
+        await expect(page.locator('#buildDock')).toBeVisible();
+        await expect(page.locator('#dockCards')).toBeHidden();
+        await expect(page.locator('#btnDockCollapse')).toHaveText('Ausklappen');
         await expect(page.locator('#btnToggleDockFromScene')).toHaveText('Baukarten zeigen');
+        await page.locator('#btnDockCollapse').click();
+        await expect(page.locator('#buildDock')).not.toHaveClass(/is-collapsed/);
+        await expect(page.locator('#dockCards')).toBeVisible();
+
+        await page.locator('#btnToggleDockFromScene').click();
+        await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
         await page.locator('#btnToggleDockFromScene').click();
         await expect(page.locator('#buildDock')).not.toHaveClass(/is-collapsed/);
         await expect(page.locator('#buildDock')).toBeVisible();
@@ -1010,7 +1018,8 @@ test.describe('Editor Small Desktop Layout', () => {
         await loadEditorPage(page, { waitForDockVisible: false });
 
         await expect(page.locator('#buildDock')).toHaveClass(/is-collapsed/);
-        await expect(page.locator('#buildDock')).toBeHidden();
+        await expect(page.locator('#dockCards')).toBeHidden();
+        await expect(page.locator('#btnDockCollapse')).toHaveText('Ausklappen');
         await expect(page.locator('#btnToggleDockFromScene')).toHaveText('Baukarten zeigen');
         await expect(page.locator('#playtestSettingsSummary')).toHaveText('3D · Solo');
 
