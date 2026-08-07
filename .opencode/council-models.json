@@ -11,7 +11,7 @@
       "council-perf": { "model": "opencode/big-pickle" },
       "council-test": { "model": "opencode/big-pickle" },
       "council-refactor": { "model": "opencode/big-pickle" },
-      "council-lead": { "model": "opencode-go/deepseek-v4-pro", "note": "Einziger Council-Agent mit Premium-Modell (AGENTS.md Rule 19)" },
+      "council-lead": { "model": "opencode-go/deepseek-v4-pro", "note": "Einziger Council-Agent mit Premium-Modell (.opencode/AGENTS.md Rule 1)" },
       "council-verify": { "model": "opencode/deepseek-v4-flash-free" },
       "council-verify-fb": { "model": "opencode/laguna-s-2.1-free", "note": "Unabhängiger Zweitverifizierer; erhält niemals das Ergebnis des ersten Laufs" }
     },
@@ -66,7 +66,7 @@
       "task": "deny"
     },
     "model": "default",
-    "note": "Alle Coding-Council-Agenten nutzen das Standard-Modell. FB-Geschwister sind hier nicht vorgesehen (Merge-Konflikt-Risiko, AGENTS.md Rule 27)."
+    "note": "Alle Coding-Council-Agenten nutzen das Standard-Modell. FB-Geschwister sind hier nicht vorgesehen (Merge-Konflikt-Risiko, .opencode/AGENTS.md Rule 9)."
   },
 
   "supportAgents": {

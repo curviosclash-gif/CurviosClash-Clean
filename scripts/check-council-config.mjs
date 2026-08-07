@@ -193,14 +193,18 @@ for (const model of configuredFreeModels) {
     expect(preflightText.includes(model), `${join(AGENT_DIR, 'council-preflight.md')}: missing configured free model ${model}`);
 }
 
-const agentsInstructions = read(join(ROOT, 'AGENTS.md'));
+const agentsInstructions = read(join(ROOT, '.opencode', 'AGENTS.md'));
 expect(
     agentsInstructions.includes('npm run --silent council:agent -- <council-agent>'),
-    'AGENTS.md: direct Council invocation must use the bounded wrapper',
+    '.opencode/AGENTS.md: direct Council invocation must use the bounded wrapper',
 );
-expect(agentsInstructions.includes('npm run council:validate'), 'AGENTS.md: Council changes must require the live validation gate');
-expect(/`@council-verify` und `@council-verify-fb`/.test(agentsInstructions), 'AGENTS.md: both independent verify routes are required');
-expect(/`BUG \+ BUG`/.test(agentsInstructions), 'AGENTS.md: only double BUG may confirm a finding');
+expect(agentsInstructions.includes('npm run council:validate'), '.opencode/AGENTS.md: Council changes must require the live validation gate');
+expect(/`@council-verify` und `@council-verify-fb`/.test(agentsInstructions), '.opencode/AGENTS.md: both independent verify routes are required');
+expect(/`BUG \+ BUG`/.test(agentsInstructions), '.opencode/AGENTS.md: only double BUG may confirm a finding');
+expect(
+    read(join(ROOT, 'AGENTS.md')).includes('.opencode/AGENTS.md'),
+    'AGENTS.md: root instructions must point to the Council rules',
+);
 
 const hardeningRunner = read(join(ROOT, 'scripts', 'council-hardening-runner.mjs'));
 expect(/'--agent', agent, '--model', model/.test(hardeningRunner), 'council-hardening-runner.mjs: OpenCode Council process must receive explicit --model');
