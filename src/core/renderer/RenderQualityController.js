@@ -64,24 +64,17 @@ export class RenderQualityController {
             return;
         }
         this.quality = nextQuality;
+        // Qualitaetsstufen regeln nur Aufloesung und Schatten. Tone-Mapping, Environment-IBL
+        // und Fog bleiben konstant, sonst kippt die Szenenhelligkeit bei jedem Stufenwechsel
+        // sichtbar zwischen hell und dunkel. Fog gehoert dem Grafikstil (Renderer.setGraphicsStyle).
+        this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+        this.scene.environment = this.highQualityEnvironment;
         if (this.quality === 'LOW') {
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 0.8));
-            this.renderer.toneMapping = THREE.NoToneMapping;
-            this.scene.environment = null;
-            this.scene.fog.near = 25;
-            this.scene.fog.far = 120;
         } else if (this.quality === 'MEDIUM') {
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 1));
-            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            this.scene.environment = this.highQualityEnvironment;
-            this.scene.fog.near = 30;
-            this.scene.fog.far = 160;
         } else {
             this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, CONFIG.RENDER.MAX_PIXEL_RATIO));
-            this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
-            this.scene.environment = this.highQualityEnvironment;
-            this.scene.fog.near = 35;
-            this.scene.fog.far = 200;
         }
 
         this._applyShadowQuality();

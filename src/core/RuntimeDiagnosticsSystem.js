@@ -2,7 +2,20 @@ import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isCinematicCaptureProfile } from '../shared/contracts/RecordingCaptureContract.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
-const FPS_TRACKER_WINDOW = 60;
+// Breites Messfenster (~3s bei 60fps): der Regler soll auf anhaltende Last reagieren,
+// nicht auf einzelne Frame-Spikes.
+const FPS_TRACKER_WINDOW = 180;
+const ADAPTIVE_CHECK_INTERVAL_SECONDS = 3.0;
+// Nach jedem Stufenwechsel pausiert der Regler, damit er nicht seine eigene Wirkung misst
+// und zwischen zwei Stufen hin- und herpendelt.
+const ADAPTIVE_COOLDOWN_SECONDS = 10.0;
+// Breite Hysterese: ein Stufenwechsel verschiebt die Framerate selbst um 20-40%.
+const ADAPTIVE_FPS_THRESHOLDS = Object.freeze({
+    HIGH_TO_MEDIUM: 45,
+    MEDIUM_TO_LOW: 25,
+    LOW_TO_MEDIUM: 50,
+    MEDIUM_TO_HIGH: 58,
+});
 
 function formatMs(value) {
     const numeric = Number(value);
@@ -33,6 +46,13 @@ function createFpsTracker(windowSize = FPS_TRACKER_WINDOW) {
 
             this.writeIndex = (this.writeIndex + 1) % windowSize;
             this.avg = this.count > 0 ? this.sum / this.count : 60;
+        },
+        reset() {
+            this.samples.fill(0);
+            this.writeIndex = 0;
+            this.count = 0;
+            this.sum = 0;
+            this.avg = 60;
         },
     };
 }
@@ -79,6 +99,7 @@ export class RuntimeDiagnosticsSystem {
             : {};
         this._onKeyDown = (event) => this._handleKeyDown(event);
         this._adaptiveTimer = 0;
+        this._adaptiveCooldown = 0;
         this._statsTimer = 0;
         this._isLowQuality = false;
         this._autoLowActive = false;
@@ -101,6 +122,7 @@ export class RuntimeDiagnosticsSystem {
             this._quality = this._isLowQuality ? 'LOW' : 'HIGH';
             const quality = this._isLowQuality ? 'LOW' : 'HIGH';
             renderer?.setQuality?.(quality);
+            this._startAdaptiveCooldown();
             if (quality === 'LOW' && isCinematicRecordingActive(recorder)) {
                 this.runtimeAccess.actionShowStatusToast?.(
                     'Grafik: Niedrig vorgemerkt (waehrend Cinematic-Aufnahme bleibt Hoch)'
@@ -172,38 +194,52 @@ export class RuntimeDiagnosticsSystem {
             }
         }
 
-        this._adaptiveTimer += dt;
-        if (this._adaptiveTimer >= 3.0) {
-            this._adaptiveTimer = 0;
-            const avgFps = this._fpsTracker.avg;
-            const isPlaying = this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING;
-            const isRecording = isCinematicRecordingActive(recorder);
-            if (isPlaying && !isRecording) {
-                let nextQuality = this._quality;
-                if (this._quality === 'HIGH' && avgFps < 50) {
-                    nextQuality = 'MEDIUM';
-                } else if (this._quality === 'MEDIUM' && avgFps < 30) {
-                    nextQuality = 'LOW';
-                } else if (this._autoLowActive && this._quality === 'LOW' && avgFps > 45) {
-                    nextQuality = 'MEDIUM';
-                } else if (this._autoLowActive && this._quality === 'MEDIUM' && avgFps > 55) {
-                    nextQuality = 'HIGH';
-                }
-
-                if (nextQuality !== this._quality) {
-                    const previousQuality = this._quality;
-                    this._quality = nextQuality;
-                    this._isLowQuality = nextQuality === 'LOW';
-                    this._autoLowActive = nextQuality !== 'HIGH';
-                    renderer?.setQuality?.(nextQuality);
-                    this.runtimeAccess.actionShowStatusToast?.(
-                        previousQuality === 'HIGH' || nextQuality === 'LOW'
-                            ? 'Grafik automatisch reduziert'
-                            : 'Grafik automatisch erhoeht'
-                    );
-                }
-            }
+        if (this._adaptiveCooldown > 0) {
+            this._adaptiveCooldown = Math.max(0, this._adaptiveCooldown - dt);
         }
+
+        this._adaptiveTimer += dt;
+        if (this._adaptiveTimer < ADAPTIVE_CHECK_INTERVAL_SECONDS) return;
+        this._adaptiveTimer = 0;
+        if (this._adaptiveCooldown > 0) return;
+
+        const avgFps = this._fpsTracker.avg;
+        const isPlaying = this.runtimeAccess.getState?.() === GAME_STATE_IDS.PLAYING;
+        const isRecording = isCinematicRecordingActive(recorder);
+        if (!isPlaying || isRecording) return;
+
+        let nextQuality = this._quality;
+        if (this._quality === 'HIGH' && avgFps < ADAPTIVE_FPS_THRESHOLDS.HIGH_TO_MEDIUM) {
+            nextQuality = 'MEDIUM';
+        } else if (this._quality === 'MEDIUM' && avgFps < ADAPTIVE_FPS_THRESHOLDS.MEDIUM_TO_LOW) {
+            nextQuality = 'LOW';
+        } else if (this._autoLowActive && this._quality === 'LOW' && avgFps > ADAPTIVE_FPS_THRESHOLDS.LOW_TO_MEDIUM) {
+            nextQuality = 'MEDIUM';
+        } else if (this._autoLowActive && this._quality === 'MEDIUM' && avgFps > ADAPTIVE_FPS_THRESHOLDS.MEDIUM_TO_HIGH) {
+            nextQuality = 'HIGH';
+        }
+
+        if (nextQuality === this._quality) return;
+
+        const previousQuality = this._quality;
+        this._quality = nextQuality;
+        this._isLowQuality = nextQuality === 'LOW';
+        this._autoLowActive = nextQuality !== 'HIGH';
+        renderer?.setQuality?.(nextQuality);
+        this._startAdaptiveCooldown();
+        this.runtimeAccess.actionShowStatusToast?.(
+            previousQuality === 'HIGH' || nextQuality === 'LOW'
+                ? 'Grafik automatisch reduziert'
+                : 'Grafik automatisch erhoeht'
+        );
+    }
+
+    _startAdaptiveCooldown() {
+        this._adaptiveCooldown = ADAPTIVE_COOLDOWN_SECONDS;
+        this._adaptiveTimer = 0;
+        // Alte Samples stammen aus der vorherigen Qualitaetsstufe und wuerden den naechsten
+        // Vergleich verfaelschen.
+        this._fpsTracker.reset();
     }
 
     dispose() {

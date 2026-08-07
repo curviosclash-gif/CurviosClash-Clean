@@ -120,20 +120,32 @@ test.describe('T21-40: Rendering & GPU', () => {
         expect(lightProps.mapSize).toBeGreaterThanOrEqual(512); // DEFAULT_SHADOW_MAP_SIZE in Config is usually 512
     });
 
-    test('T30: Render-Qualität LOW reduziert Features', async ({ page }) => {
+    test('T30: Render-Qualität LOW reduziert Features ohne Helligkeitssprung', async ({ page }) => {
         await startGame(page);
-        const lowSettings = await page.evaluate(() => {
+        const settings = await page.evaluate(() => {
             const g = window.GAME_INSTANCE;
-            g.renderer.setQuality('LOW');
-            return {
+            const read = () => ({
                 shadows: g.renderer.renderer.shadowMap.enabled,
                 toneMapping: g.renderer.renderer.toneMapping,
+                environment: !!g.renderer.scene.environment,
+                fogNear: g.renderer.scene.fog.near,
+                fogFar: g.renderer.scene.fog.far,
                 pixelRatio: g.renderer.renderer.getPixelRatio()
-            };
+            });
+            g.renderer.setQuality('HIGH');
+            const high = read();
+            g.renderer.setQuality('LOW');
+            return { high, low: read() };
         });
-        expect(lowSettings.shadows).toBeFalsy();
-        expect(lowSettings.toneMapping).toBe(0); // THREE.NoToneMapping
-        expect(lowSettings.pixelRatio).toBeLessThanOrEqual(0.8);
+        expect(settings.low.shadows).toBeFalsy();
+        expect(settings.low.pixelRatio).toBeLessThanOrEqual(0.8);
+        // Qualitaetsstufen duerfen die Szenenhelligkeit nicht veraendern - sonst flackert
+        // das Bild zwischen hell und dunkel, sobald der Auto-Regler die Stufe wechselt.
+        expect(settings.low.toneMapping).toBe(settings.high.toneMapping);
+        expect(settings.low.toneMapping).not.toBe(0); // THREE.NoToneMapping
+        expect(settings.low.environment).toBe(settings.high.environment);
+        expect(settings.low.fogNear).toBe(settings.high.fogNear);
+        expect(settings.low.fogFar).toBe(settings.high.fogFar);
     });
 
     test('T31: Render-Qualität HIGH aktiviert Features', async ({ page }) => {

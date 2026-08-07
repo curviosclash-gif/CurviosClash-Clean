@@ -426,18 +426,61 @@ test('runtime diagnostics adapts quality in stable steps and restores automatic 
         const diagnostics = new RuntimeDiagnosticsSystem(runtimeAccess);
         diagnostics._fpsTracker.update = () => {};
 
+        // Cooldown gezielt ueberspringen - die Sperre selbst deckt der naechste Test ab.
+        const checkWithAverageFps = (avgFps) => {
+            diagnostics._fpsTracker.avg = avgFps;
+            diagnostics._adaptiveCooldown = 0;
+            diagnostics.update(3.1);
+        };
+
         try {
-            diagnostics._fpsTracker.avg = 20;
-            diagnostics.update(3.1);
-            diagnostics.update(3.1);
-            diagnostics._fpsTracker.avg = 46;
-            diagnostics.update(3.1);
-            diagnostics._fpsTracker.avg = 60;
-            diagnostics.update(3.1);
+            checkWithAverageFps(20);
+            checkWithAverageFps(20);
+            // 52 fps hebt LOW auf MEDIUM, reicht aber nicht fuer HIGH - Hysterese haelt die Stufe.
+            checkWithAverageFps(52);
+            checkWithAverageFps(52);
+            checkWithAverageFps(60);
 
             assert.deepEqual(qualityCalls, ['MEDIUM', 'LOW', 'MEDIUM', 'HIGH']);
             assert.equal(diagnostics._isLowQuality, false);
             assert.equal(diagnostics._autoLowActive, false);
+        } finally {
+            diagnostics.dispose();
+        }
+    });
+});
+
+test('runtime diagnostics holds the quality level during the cooldown after a switch', async () => {
+    await withMockBrowserGlobals(async () => {
+        const qualityCalls = [];
+        const runtimeAccess = {
+            getRenderer: () => ({ setQuality: (quality) => qualityCalls.push(quality) }),
+            getMediaRecorderSystem: () => null,
+            getEntityManager: () => null,
+            getRenderDelta: () => 1 / 60,
+            getState: () => 'PLAYING',
+            actionShowStatusToast() {},
+        };
+        const diagnostics = new RuntimeDiagnosticsSystem(runtimeAccess);
+        diagnostics._fpsTracker.update = () => {};
+
+        try {
+            // Dauerhaft niedrige FPS: ohne Cooldown wuerde der Regler bei jedem Intervall
+            // eine Stufe weiterschalten und die Szenenhelligkeit im Takt umkippen.
+            diagnostics._fpsTracker.avg = 20;
+            diagnostics.update(3.1);
+            assert.deepEqual(qualityCalls, ['MEDIUM']);
+
+            for (let step = 0; step < 3; step++) {
+                diagnostics._fpsTracker.avg = 20;
+                diagnostics.update(3.1);
+                assert.deepEqual(qualityCalls, ['MEDIUM']);
+            }
+
+            // Erst nach Ablauf des Cooldowns darf die naechste Stufe folgen.
+            diagnostics._fpsTracker.avg = 20;
+            diagnostics.update(3.1);
+            assert.deepEqual(qualityCalls, ['MEDIUM', 'LOW']);
         } finally {
             diagnostics.dispose();
         }
