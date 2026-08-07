@@ -16,6 +16,7 @@ export class ParticleSystem {
         this.renderer = renderer;
         this.configSource = configSource || null;
         this.count = 0;
+        this._recycleCursor = 0;
         this._debugEvents = [];
         this._maxDebugEvents = 24;
         this._presentationSuppressed = false;
@@ -96,6 +97,21 @@ export class ParticleSystem {
         return this._presentationSuppressed;
     }
 
+    // Returns the slot a freshly spawned particle should write to. Once the buffer is
+    // full the burst used to be dropped entirely, which silently swallowed whole
+    // explosions during busy fights. update() compacts the arrays and preserves their
+    // order, so the lowest indices hold the oldest particles - recycling those keeps the
+    // newest impact visible instead of showing nothing at all.
+    _allocateParticleSlot() {
+        if (this.count < MAX_PARTICLES) {
+            this._recycleCursor = 0;
+            return this.count++;
+        }
+        const index = this._recycleCursor;
+        this._recycleCursor = (this._recycleCursor + 1) % MAX_PARTICLES;
+        return index;
+    }
+
     spawn(position, count, color, speed = 1.0, size = 0.5, life = 1.0, options = {}) {
         if (!this.mesh || (this._presentationSuppressed && options?.presentationOverride !== true)) return;
         const gravity = Number.isFinite(Number(options.gravity)) ? Number(options.gravity) : -5.0;
@@ -104,10 +120,7 @@ export class ParticleSystem {
         this._recordDebugEvent(debugType, count, color);
 
         for (let i = 0; i < count; i++) {
-            if (this.count >= MAX_PARTICLES) return;
-
-            const idx = this.count;
-            this.count++;
+            const idx = this._allocateParticleSlot();
 
             // Position
             this.positions[idx * 3] = position.x;
@@ -180,10 +193,7 @@ export class ParticleSystem {
         this._recordDebugEvent(debugType, count, color);
 
         for (let i = 0; i < count; i++) {
-            if (this.count >= MAX_PARTICLES) return;
-
-            const idx = this.count;
-            this.count++;
+            const idx = this._allocateParticleSlot();
             const idx3 = idx * 3;
             const angle = Math.random() * Math.PI * 2;
             const radial = Math.random() * spread;
@@ -418,6 +428,7 @@ export class ParticleSystem {
 
     clear() {
         this.count = 0;
+        this._recycleCursor = 0;
         this.rocketBlastEffect?.clear();
         if (this.mesh) {
             this.mesh.count = 0;

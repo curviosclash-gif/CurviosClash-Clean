@@ -753,8 +753,11 @@ export class KillcamSystem {
         this._pixelReplayRequestId++;
         this._pixelReplayPending = null;
         this._pixelTerminalCapturePending = false;
+        // Released unconditionally: a suppression that outlives its replay silently kills
+        // every explosion and impact in the live scene, so the reset must not depend on
+        // the scene-replay flag still being set.
+        this.entityManager?.particles?.setPresentationSuppressed?.(false);
         if (wasSceneReplayActive) {
-            this.entityManager?.particles?.setPresentationSuppressed?.(false);
             restoreKillcamLivePresentation(this);
         }
         if (hadPixelReplay) this.pixelReplayBuffer?.clearPlayback?.();
