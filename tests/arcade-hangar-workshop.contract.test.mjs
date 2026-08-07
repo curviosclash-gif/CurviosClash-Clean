@@ -5,8 +5,13 @@ import {
     HangarBuildHistory,
     createDefaultHangarBuild,
     installHangarPart,
+    normalizeHangarBuild,
     removeHangarPart,
 } from '../src/ui/hangar/HangarBuildDraftState.js';
+import {
+    validateFightHangarBuild,
+    validateFightHangarDrop,
+} from '../src/ui/hangar/FightHangarValidation.js';
 import {
     hangarBuildToProfileBonuses,
     hangarBuildToProfileUpgrades,
@@ -407,4 +412,47 @@ test('Vehicle Lab publications become validated Hangar catalog parts', () => {
     assert.equal(labStone.compatibleSlots.length, 7);
     assert.equal(labStone.appearance.variant, 'universal-stone');
     registerPublishedHangarParts(null);
+});
+
+test('normalizing a build without a slots map keeps optional slots empty', () => {
+    // A partial record (legacy persistence, preset import) must not invent stones
+    // for slots it never mentioned — utility is gated to level 5 and an invented
+    // stone made every fresh level 1-4 build fail its own validation.
+    const bare = normalizeHangarBuild({ vehicleId: 'ship5' });
+    assert.equal(bare.slots.utility, null);
+    assert.equal(bare.slots.core, 'stone_gold_t1');
+    assert.equal(bare.slots.wing_left, 'stone_green_t1');
+    assert.deepEqual(validateHangarBuild(bare, 1).errors, []);
+    assert.equal(validateHangarBuild(bare, 1).ok, true);
+});
+
+test('legacy upgrade records still migrate into stone slots', () => {
+    const migrated = normalizeHangarBuild({ vehicleId: 'ship5', upgrades: { core: 'T2', utility: 'T2' } });
+    assert.equal(migrated.slots.core, 'stone_gold_t1');
+    assert.equal(migrated.slots.utility, 'stone_violet_t1');
+    const explicit = normalizeHangarBuild({ vehicleId: 'ship5', slots: { utility: 'stone_violet_t1' } });
+    assert.equal(explicit.slots.utility, 'stone_violet_t1');
+    assert.equal(explicit.slots.core, 'stone_gold_t1');
+    const cleared = normalizeHangarBuild({ vehicleId: 'ship5', slots: { utility: null } });
+    assert.equal(cleared.slots.utility, null);
+});
+
+test('fight validation reports the stats and limits the shared workshop surface renders', () => {
+    // The workshop renderer draws budget bars from validation.stats/limits for both
+    // modes; fight used to omit them and took the whole hangar window down on sync.
+    const build = createDefaultHangarBuild('ship5', { mode: 'fight' });
+    const validation = validateFightHangarBuild(build);
+    assert.equal(validation.ok, true);
+    for (const key of ['budgetUsed', 'massUsed', 'powerUsed', 'heatUsed', 'partCount']) {
+        assert.equal(typeof validation.stats[key], 'number', `stats.${key} must be numeric`);
+    }
+    for (const key of ['editorBudget', 'massBudget', 'powerBudget', 'heatBudget']) {
+        assert.ok(Number(validation.limits[key]) > 0, `limits.${key} must be a positive reference`);
+    }
+    assert.equal(validation.stats.partCount, 6);
+    assert.ok(validation.stats.budgetUsed <= validation.limits.editorBudget);
+    const dropped = validateFightHangarDrop(build, 'stone_blue_t2', 'nose', install);
+    assert.equal(dropped.ok, true);
+    assert.equal(typeof dropped.stats.budgetUsed, 'number');
+    assert.equal(typeof dropped.limits.editorBudget, 'number');
 });

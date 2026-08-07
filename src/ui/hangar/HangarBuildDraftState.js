@@ -52,8 +52,9 @@ export function normalizeHangarBuild(source, fallback = {}) {
     const legacyUpgrades = record.upgrades && typeof record.upgrades === 'object' ? record.upgrades : null;
     const slots = { ...base.slots };
     for (const slot of HANGAR_SLOT_DEFINITIONS) {
+        const hasSlotEntry = Object.hasOwn(sourceSlots || {}, slot.id);
         const rawPartId = sourceSlots?.[slot.id];
-        if (rawPartId === null && Object.hasOwn(sourceSlots || {}, slot.id)) {
+        if (rawPartId === null && hasSlotEntry) {
             slots[slot.id] = null;
             continue;
         }
@@ -62,10 +63,12 @@ export function normalizeHangarBuild(source, fallback = {}) {
             slots[slot.id] = part.id;
             continue;
         }
-        const legacyTier = legacyUpgrades?.[slot.id]
-            || legacyUpgrades?.[`${slot.id}_t2`]
-            || 'T1';
-        const legacyPartId = resolveLegacyHangarStoneId(rawPartId || legacyTier, slot.id);
+        const legacyTier = legacyUpgrades?.[slot.id] || legacyUpgrades?.[`${slot.id}_t2`];
+        // Nothing to migrate for this slot — keep the schema default instead of
+        // inventing a stone. Otherwise optional slots (utility) get silently
+        // filled and the build fails its own level gate.
+        if (!hasSlotEntry && !legacyTier) continue;
+        const legacyPartId = resolveLegacyHangarStoneId(rawPartId || legacyTier || 'T1', slot.id);
         if (legacyPartId) slots[slot.id] = legacyPartId;
     }
     const mode = record.mode === 'fight' || fallback.mode === 'fight' ? 'fight' : 'arcade';

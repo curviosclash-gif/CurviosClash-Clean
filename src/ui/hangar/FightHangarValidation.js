@@ -1,9 +1,17 @@
 import { evaluateFightHangarParts } from '../../shared/contracts/FightHangarBalanceContract.js';
+import { resolveArcadeHangarBlueprintLimits } from '../../shared/contracts/ArcadeHangarRulesContract.js';
 import { HANGAR_SLOT_DEFINITIONS, resolveHangarPart } from './HangarPartCatalog.js';
 import { normalizeHangarBuild } from './HangarBuildDraftState.js';
+import { projectHangarBuildBlueprint } from './HangarBuildValidation.js';
+
+// Fight runs at the Elite band. Budgets are not enforced here — Fight is gated by
+// the neutral power budget, not by progression — but the shared workshop surface
+// reads stats/limits to draw its budget bars, so both must be present.
+const FIGHT_HANGAR_LEVEL = 30;
 
 export function validateFightHangarBuild(build) {
     const normalized = normalizeHangarBuild({ ...build, mode: 'fight' });
+    const blueprint = projectHangarBuildBlueprint(normalized);
     const errors = [];
     const parts = [];
     for (const slot of HANGAR_SLOT_DEFINITIONS) {
@@ -23,11 +31,14 @@ export function validateFightHangarBuild(build) {
     return {
         ok: errors.length === 0,
         build: normalized,
+        blueprint,
+        stats: { ...blueprint.stats },
+        limits: { ...resolveArcadeHangarBlueprintLimits(FIGHT_HANGAR_LEVEL) },
         bonuses: balance.bonuses,
         balanceScore: balance.balanceScore,
         errors,
         warnings: [],
-        level: 30,
+        level: FIGHT_HANGAR_LEVEL,
         allowedTiers: ['T1', 'T2', 'T3'],
         allowedPartFamilies: ['core', 'nose', 'wing', 'engine', 'utility', 'stone'],
         unlockedSlots: HANGAR_SLOT_DEFINITIONS.map((slot) => slot.id),
