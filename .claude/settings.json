@@ -1,0 +1,37 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm run test:contract:fast)",
+      "Bash(npm run test:contract)",
+      "Bash(npm run lint)",
+      "Bash(npm run test:desktop:smoke)",
+      "Bash(npm run check:architecture)",
+      "Bash(npm run check:parcours)",
+      "Bash(npm run typecheck:contracts)",
+      "Bash(npm run typecheck:architecture)",
+      "Bash(npm run council:check)",
+      "Bash(node scripts/run-playwright-targeted.mjs *)",
+      "Bash(node scripts/run-playwright-targeted-clusters.mjs *)",
+      "mcp__Claude_Browser__read_page",
+      "mcp__Claude_Browser__read_console_messages",
+      "mcp__Claude_Browser__get_page_text",
+      "mcp__Claude_Browser__preview_logs",
+      "mcp__Claude_Browser__find"
+    ]
+  },
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node .claude/hooks/eslint-changed.mjs",
+            "timeout": 60,
+            "statusMessage": "eslint auf geaenderte Datei"
+          }
+        ]
+      }
+    ]
+  }
+}
