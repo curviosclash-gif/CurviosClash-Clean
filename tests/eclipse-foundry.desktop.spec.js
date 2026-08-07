@@ -58,7 +58,7 @@ test('Eclipse Foundry loads and advances all thirteen GLB animation loops on des
         mapKey: 'eclipse_foundry',
         mixerCount: 13,
         warningCount: 0,
-        colliderMode: 'fallbackOnly',
+        colliderMode: 'dynamic',
         glbSceneChildren: 26,
     });
 });

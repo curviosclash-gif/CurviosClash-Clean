@@ -54,7 +54,52 @@ test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop',
     expect(state.mapKey).toBe('chrono_forge_nexus');
     expect(state.loadError).toBeNull();
     expect(state.warnings).toEqual([]);
-    expect(state.colliderMode).toBe('fallbackOnly');
+    expect(state.colliderMode).toBe('dynamic');
     expect(state.mixerTimes).toHaveLength(8);
     expect(state.mixerTimes.every((time, index) => time > before[index])).toBeTruthy();
+
+    // The moving setpieces must carry collision with them instead of leaving a hitbox
+    // behind at the pose they were authored in.
+    const probe = await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
+        const centerOf = (box) => ({
+            x: (box.min.x + box.max.x) / 2,
+            y: (box.min.y + box.max.y) / 2,
+            z: (box.min.z + box.max.z) / 2,
+        });
+        return arena._glbDynamicObstacles.map((obstacle, index) => ({
+            index,
+            center: centerOf(obstacle.box),
+        }));
+    });
+    expect(probe.length).toBeGreaterThan(0);
+
+    await expect.poll(
+        () => page.evaluate((baseline) => {
+            const arena = window.GAME_INSTANCE.arena;
+            const centerOf = (box) => ({
+                x: (box.min.x + box.max.x) / 2,
+                y: (box.min.y + box.max.y) / 2,
+                z: (box.min.z + box.max.z) / 2,
+            });
+            return baseline.some((entry) => {
+                const obstacle = arena._glbDynamicObstacles[entry.index];
+                if (!obstacle) return false;
+                const current = centerOf(obstacle.box);
+                const travelled = Math.hypot(
+                    current.x - entry.center.x,
+                    current.y - entry.center.y,
+                    current.z - entry.center.z,
+                );
+                if (travelled < 1) return false;
+                // Solid where the mesh is now, free where it used to be.
+                return arena.checkCollisionFast(current, 0.5)
+                    && !arena.checkCollisionFast(entry.center, 0.5);
+            });
+        }, probe),
+        {
+            message: 'an animated setpiece should collide at its current pose and no longer at its old one',
+            timeout: 20000,
+        }
+    ).toBeTruthy();
 });

@@ -187,7 +187,9 @@ export const ECLIPSE_FOUNDRY_MAP = {
         portals: ECLIPSE_FOUNDRY_PORTALS,
         gates: ECLIPSE_FOUNDRY_GATES,
         glbModels: ECLIPSE_FOUNDRY_LANDMARKS,
-        glbColliderMode: 'fallbackOnly',
+        // The animatedLandmark() setpieces collide via their animated mesh colliders; the
+        // static CC0 landmarks stay on the authored box obstacles.
+        glbColliderMode: 'dynamic',
         glbLoadConcurrency: 3,
         playerSpawn: { x: -210, y: 12, z: 0 },
         botSpawns: [

@@ -23,7 +23,7 @@ test('Chrono-Forge Nexus fulfills the authored gameplay inventory', () => {
     assert.equal(map.botSpawns.length, 4);
     assert.ok(map.glbModels.length <= 30);
     assert.equal(map.glbModels.filter((model) => model.url.startsWith('assets/maps/chrono_forge/glb/')).length, 8);
-    assert.equal(map.glbColliderMode, 'fallbackOnly');
+    assert.equal(map.glbColliderMode, 'dynamic');
 });
 
 test('Chrono-Forge Nexus builds two forward branches and fifteen stages including finish', () => {

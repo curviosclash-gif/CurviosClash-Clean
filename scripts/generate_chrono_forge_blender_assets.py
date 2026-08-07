@@ -52,8 +52,12 @@ def material(name, color, emission_strength=0.0, metallic=0.7):
 
 
 def finish_mesh(obj, name, mat):
-    obj.name = f"{name}_nocol"
-    obj.data.name = f"{name}_mesh_nocol"
+    # No _nocol suffix: the runtime derives collision from the animation clip, and the map
+    # runs in glbColliderMode 'dynamic' so only the moving parts get a mesh collider while
+    # the static set dressing stays on the map's authored box obstacles. Add _nocol back on
+    # a single mesh only to exclude it from collision on purpose.
+    obj.name = name
+    obj.data.name = f"{name}_mesh"
     obj.data.materials.append(mat)
     return obj
 

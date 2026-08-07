@@ -41,7 +41,7 @@ test('Eclipse Foundry places thirteen animated GLBs with authored fallback colli
     assert.equal(map.glbModels.length, 26);
     assert.equal(animatedModels.length, 13);
     assert.equal(new Set(map.glbModels.map((model) => model.id)).size, map.glbModels.length);
-    assert.equal(map.glbColliderMode, 'fallbackOnly');
+    assert.equal(map.glbColliderMode, 'dynamic');
     assert.equal(map.glbLoadConcurrency, 3);
     for (const model of map.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);

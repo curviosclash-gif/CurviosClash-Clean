@@ -169,7 +169,9 @@ export const CHRONO_FORGE_NEXUS_MAP = {
         portals: CHRONO_FORGE_PORTALS,
         gates: CHRONO_FORGE_GATES,
         glbModels: CHRONO_FORGE_LANDMARKS,
-        glbColliderMode: 'fallbackOnly',
+        // Moving setpieces (gears, pistons, gates, drones) collide via their animated mesh
+        // colliders; the static dressing stays on CHRONO_FORGE_OBSTACLES.
+        glbColliderMode: 'dynamic',
         glbLoadConcurrency: 3,
         playerSpawn: { x: -178, y: 12, z: 0 },
         botSpawns: [
