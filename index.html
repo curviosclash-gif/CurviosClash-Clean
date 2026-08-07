@@ -707,6 +707,14 @@
                                         <option value="classic">Alt (Klassisch)</option>
                                         <option value="modern" selected>Neu</option>
                                     </select>
+                                    <label for="map-brightness-select" data-menu-text-id="menu.level4.graphics.map_brightness.label">Karten-Helligkeit</label>
+                                    <select id="map-brightness-select">
+                                        <option value="dunkel">Dunkel</option>
+                                        <option value="mittel" selected>Mittel</option>
+                                        <option value="hell">Hell</option>
+                                    </select>
+                                    <label for="view-distance-slider"><span data-menu-text-id="menu.level4.graphics.view_distance.label">Sichtweite:</span> <span id="view-distance-label">Automatisch</span></label>
+                                    <input type="range" id="view-distance-slider" min="0" max="190" step="10" value="0">
                                     <label for="shadow-quality-slider"><span data-menu-text-id="menu.level4.graphics.shadow_quality.label">Schattenqualität:</span> <span id="shadow-quality-label">Hoch</span></label>
                                     <input type="range" id="shadow-quality-slider" min="0" max="3" step="1" value="3">
                                     <label for="normal-camera-perspective-select" data-menu-text-id="menu.level4.camera.perspective.label">Video-Perspektive</label>

@@ -332,6 +332,8 @@ export function handleLevel4ResetAction(ctx) {
         game.settings.localSettings = {};
     }
     game.settings.localSettings.shadowQuality = defaults.localSettings.shadowQuality;
+    game.settings.localSettings.mapBrightness = defaults.localSettings.mapBrightness;
+    game.settings.localSettings.viewDistance = defaults.localSettings.viewDistance;
     game.settings.autoRoll = defaults.autoRoll;
     game.settings.invertPitch = { ...defaults.invertPitch };
     game.settings.cockpitCamera = { ...defaults.cockpitCamera };
@@ -359,6 +361,8 @@ export function handleLevel4ResetAction(ctx) {
             SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_PLAYER_HP,
             SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_MG_DAMAGE,
             SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY,
+            SETTINGS_CHANGE_KEYS.LOCAL_MAP_BRIGHTNESS,
+            SETTINGS_CHANGE_KEYS.LOCAL_VIEW_DISTANCE,
             SETTINGS_CHANGE_KEYS.RECORDING_PROFILE,
             SETTINGS_CHANGE_KEYS.RECORDING_HUD_MODE,
             SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_NORMAL,

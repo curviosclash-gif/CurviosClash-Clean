@@ -49,6 +49,8 @@ export function orchestrateRuntimeSettingsChanged({
 
     markSettingsDirty?.(true);
     game.renderer?.setGraphicsStyle?.(game.settings?.localSettings?.graphicsStyle);
+    game.renderer?.setMapBrightness?.(game.settings?.localSettings?.mapBrightness);
+    game.renderer?.setViewDistance?.(game.settings?.localSettings?.viewDistance);
     game.renderer?.setShadowQuality?.(game.settings?.localSettings?.shadowQuality);
     game.renderer?.setRecordingCaptureSettings?.(game.settings?.recording);
     game.renderer?.setCameraPerspectiveSettings?.(game.settings?.cameraPerspective);

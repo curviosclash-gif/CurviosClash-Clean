@@ -338,6 +338,8 @@ export function createCinematicReplayFrameRenderer({
     let previousRecordingSettings = null;
     let previousCameraPerspectiveSettings = null;
     let previousGraphicsStyle = null;
+    let previousMapBrightness = null;
+    let previousViewDistance = null;
     let previousShadowQuality = null;
 
     const applyReplayRendererSettings = (replay) => {
@@ -345,6 +347,8 @@ export function createCinematicReplayFrameRenderer({
         previousRecordingSettings = renderer?.getRecordingCaptureSettings?.() || null;
         previousCameraPerspectiveSettings = renderer?.getCameraPerspectiveSettings?.() || null;
         previousGraphicsStyle = renderer?.getGraphicsStyle?.() || null;
+        previousMapBrightness = renderer?.getMapBrightness?.() || null;
+        previousViewDistance = renderer?.getViewDistance?.() ?? null;
         previousShadowQuality = renderer?.getShadowQuality?.() ?? null;
         renderer?.setRecordingCaptureSettings?.({
             ...(previousRecordingSettings || {}),
@@ -363,6 +367,13 @@ export function createCinematicReplayFrameRenderer({
             || metadata.settings?.graphicsStyle
             || previousGraphicsStyle
         );
+        renderer?.setMapBrightness?.(
+            recordedLocalSettings.mapBrightness
+            || previousMapBrightness
+        );
+        renderer?.setViewDistance?.(
+            recordedLocalSettings.viewDistance ?? previousViewDistance
+        );
         if (recordedLocalSettings.shadowQuality != null) {
             renderer?.setShadowQuality?.(recordedLocalSettings.shadowQuality);
         }
@@ -376,10 +387,14 @@ export function createCinematicReplayFrameRenderer({
             renderer?.setCameraPerspectiveSettings?.(previousCameraPerspectiveSettings);
         }
         if (previousGraphicsStyle) renderer?.setGraphicsStyle?.(previousGraphicsStyle);
+        if (previousMapBrightness) renderer?.setMapBrightness?.(previousMapBrightness);
+        if (previousViewDistance != null) renderer?.setViewDistance?.(previousViewDistance);
         if (previousShadowQuality != null) renderer?.setShadowQuality?.(previousShadowQuality);
         previousRecordingSettings = null;
         previousCameraPerspectiveSettings = null;
         previousGraphicsStyle = null;
+        previousMapBrightness = null;
+        previousViewDistance = null;
         previousShadowQuality = null;
     };
 

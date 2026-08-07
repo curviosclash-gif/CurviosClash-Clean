@@ -86,6 +86,8 @@ export function bootstrapGameRuntime(game, options = {}) {
     const renderer = new Renderer(canvas);
     const audio = new AudioManager();
     renderer.setGraphicsStyle(game.settings?.localSettings?.graphicsStyle);
+    renderer.setMapBrightness(game.settings?.localSettings?.mapBrightness);
+    renderer.setViewDistance(game.settings?.localSettings?.viewDistance);
     renderer.setShadowQuality(game.settings?.localSettings?.shadowQuality);
     const recorderRuntimeConfig = resolveRecorderRuntimeConfig();
     let replaySessionPort = null;

@@ -4,6 +4,8 @@ import { createDefaultRecordingCaptureSettings } from '../../shared/contracts/Re
 import { createDefaultCameraPerspectiveSettings } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { DEFAULT_MOBILE_CLASSIC_CONTROLS } from '../../shared/contracts/MobileClassicControlsContract.js';
 import { GRAPHICS_STYLES } from '../../shared/contracts/GraphicsStyleContract.js';
+import { DEFAULT_MAP_BRIGHTNESS } from '../../shared/contracts/MapBrightnessContract.js';
+import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContract.js';
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 
 export const MENU_DEFAULT_EDITOR_SCHEMA_VERSION = 'menu-default-editor.v1';
@@ -100,6 +102,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         modePath: 'fight',
         themeMode: 'dunkel',
         graphicsStyle: GRAPHICS_STYLES.MODERN,
+        mapBrightness: DEFAULT_MAP_BRIGHTNESS,
+        viewDistance: DEFAULT_VIEW_DISTANCE,
         shadowQuality: DEFAULT_SHADOW_QUALITY,
         mouseSteering: false,
         hud: createDefaultHudAppearance(),
@@ -371,6 +375,8 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             modePath: String(localSettings.modePath || MENU_DEFAULT_EDITOR_CONFIG.localSettings.modePath),
             themeMode: String(localSettings.themeMode || MENU_DEFAULT_EDITOR_CONFIG.localSettings.themeMode),
             graphicsStyle: String(localSettings.graphicsStyle || MENU_DEFAULT_EDITOR_CONFIG.localSettings.graphicsStyle),
+            mapBrightness: String(localSettings.mapBrightness || MENU_DEFAULT_EDITOR_CONFIG.localSettings.mapBrightness),
+            viewDistance: Number(localSettings.viewDistance ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.viewDistance),
             shadowQuality: String(localSettings.shadowQuality || MENU_DEFAULT_EDITOR_CONFIG.localSettings.shadowQuality),
             mouseSteering: localSettings.mouseSteering === true,
             startSetup: deepClone(localSettings.startSetup || MENU_DEFAULT_EDITOR_CONFIG.localSettings.startSetup),

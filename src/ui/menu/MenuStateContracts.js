@@ -8,6 +8,8 @@ import {
 } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { normalizeMobileClassicControlSettings } from '../../shared/contracts/MobileClassicControlsContract.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
+import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessContract.js';
+import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import {
     createMenuEventPlaylistStateDefaults,
@@ -207,6 +209,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         modePath,
         themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
+        mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
+        viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
         hud: normalizeHudAppearance(source.hud, defaults.hud),

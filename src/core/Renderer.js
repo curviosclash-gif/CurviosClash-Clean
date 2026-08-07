@@ -14,6 +14,16 @@ import {
     GRAPHICS_STYLES,
     normalizeGraphicsStyle,
 } from '../shared/contracts/GraphicsStyleContract.js';
+import {
+    DEFAULT_MAP_BRIGHTNESS,
+    normalizeMapBrightness,
+    resolveMapBrightnessFactors,
+} from '../shared/contracts/MapBrightnessContract.js';
+import {
+    DEFAULT_VIEW_DISTANCE,
+    normalizeViewDistance,
+    resolveFogRange,
+} from '../shared/contracts/ViewDistanceContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -41,6 +51,12 @@ export class Renderer {
         this._skyDome = null;
         this._starField = null;
         this._graphicsStyle = GRAPHICS_STYLES.MODERN;
+        this._mapBrightness = DEFAULT_MAP_BRIGHTNESS;
+        this._viewDistance = DEFAULT_VIEW_DISTANCE;
+        this._baseToneMappingExposure = 1.05;
+        this._baseAmbientIntensity = 0.58;
+        this._baseFogNear = 55;
+        this._baseFogFar = 190;
 
         this._setupLights();
         this._setupEnvironment();
@@ -190,15 +206,15 @@ export class Renderer {
         const modern = normalized === GRAPHICS_STYLES.MODERN;
         this._graphicsStyle = normalized;
 
-        this.renderer.toneMappingExposure = modern ? 1.05 : 1.2;
+        this._baseToneMappingExposure = modern ? 1.05 : 1.2;
+        this._baseAmbientIntensity = modern ? 0.58 : 0.8;
         this.scene.background = modern ? this._modernBackgroundColor : null;
         this.scene.fog.color.setHex(modern ? 0x0b1020 : CONFIG.COLORS.BACKGROUND);
-        this.scene.fog.near = modern ? 55 : 50;
-        this.scene.fog.far = modern ? 190 : 200;
+        this._baseFogNear = modern ? 55 : 50;
+        this._baseFogFar = modern ? 190 : 200;
 
         this._ambientLight.color.setHex(modern ? 0x9bc8ff : CONFIG.COLORS.AMBIENT_LIGHT);
         this._ambientLight.groundColor.setHex(CONFIG.COLORS.AMBIENT_LIGHT);
-        this._ambientLight.intensity = modern ? 0.58 : 0.8;
         this._keyLight.color.setHex(modern ? 0xfff4e8 : 0xffffff);
         this._keyLight.intensity = modern ? 1.35 : 0.8;
         this._keyLight.shadow.bias = modern ? -0.0002 : 0;
@@ -209,6 +225,8 @@ export class Renderer {
         this._skyDome.visible = modern;
         this._starField.visible = modern;
 
+        this._applySceneAppearance();
+
         if (typeof document !== 'undefined') {
             document.documentElement.dataset.graphicsStyle = normalized;
         }
@@ -217,6 +235,46 @@ export class Renderer {
 
     getGraphicsStyle() {
         return this._graphicsStyle;
+    }
+
+    setMapBrightness(level) {
+        const normalized = normalizeMapBrightness(level);
+        this._mapBrightness = normalized;
+        this._applySceneAppearance();
+        return normalized;
+    }
+
+    getMapBrightness() {
+        return this._mapBrightness;
+    }
+
+    setViewDistance(value) {
+        const normalized = normalizeViewDistance(value);
+        this._viewDistance = normalized;
+        this._applySceneAppearance();
+        return normalized;
+    }
+
+    getViewDistance() {
+        return this._viewDistance;
+    }
+
+    // Der Grafikstil liefert die Basiswerte, die Helligkeitsstufe einen Faktor darauf, und
+    // eine explizit gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Nur diese eine
+    // Stelle schreibt - sonst ueberschreiben sich die Quellen gegenseitig.
+    _applySceneAppearance() {
+        const factors = resolveMapBrightnessFactors(this._mapBrightness);
+        this.renderer.toneMappingExposure = this._baseToneMappingExposure * factors.exposure;
+        this._ambientLight.intensity = this._baseAmbientIntensity * factors.ambient;
+
+        const fog = resolveFogRange({
+            viewDistance: this._viewDistance,
+            brightnessFogFactor: factors.fog,
+            baseNear: this._baseFogNear,
+            baseFar: this._baseFogFar,
+        });
+        this.scene.fog.near = fog.near;
+        this.scene.fog.far = fog.far;
     }
 
     createCamera(_index) {

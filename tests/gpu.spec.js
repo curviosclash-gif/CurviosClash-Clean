@@ -152,6 +152,47 @@ test.describe('T21-40: Rendering & GPU', () => {
         expect(highSettings.pixelRatio).toBeGreaterThan(0.8);
     });
 
+    test('T31b: Karten-Helligkeit skaliert die Szene und ueberlebt einen Grafikstil-Wechsel', async ({ page }) => {
+        await startGame(page);
+        const result = await page.evaluate(() => {
+            const r = window.GAME_INSTANCE.renderer;
+            const read = () => ({
+                exposure: r.renderer.toneMappingExposure,
+                ambient: r._ambientLight.intensity,
+                fogNear: r.scene.fog.near,
+                fogFar: r.scene.fog.far,
+            });
+            r.setGraphicsStyle('modern');
+            r.setMapBrightness('mittel');
+            const medium = read();
+            r.setMapBrightness('dunkel');
+            const dark = read();
+            r.setMapBrightness('hell');
+            const bright = read();
+            r.setGraphicsStyle('classic');
+            const afterClassic = read();
+            r.setGraphicsStyle('modern');
+            const afterModern = read();
+            return { medium, dark, bright, afterClassic, afterModern, level: r.getMapBrightness() };
+        });
+
+        expect(result.dark.exposure).toBeLessThan(result.medium.exposure);
+        expect(result.bright.exposure).toBeGreaterThan(result.medium.exposure);
+        expect(result.dark.ambient).toBeLessThan(result.medium.ambient);
+        expect(result.bright.ambient).toBeGreaterThan(result.medium.ambient);
+
+        // 'dunkel' zieht zusaetzlich die Sichtweite zusammen, 'hell' laesst sie unveraendert.
+        expect(result.dark.fogFar).toBeLessThan(result.medium.fogFar);
+        expect(result.dark.fogNear).toBeLessThan(result.medium.fogNear);
+        expect(result.bright.fogFar).toBe(result.medium.fogFar);
+
+        // Der Grafikstil liefert nur die Basiswerte - er darf die gewaehlte Helligkeit
+        // weder zuruecksetzen noch dauerhaft veraendern.
+        expect(result.level).toBe('hell');
+        expect(result.afterClassic.exposure).toBeGreaterThan(result.medium.exposure);
+        expect(result.afterModern).toEqual(result.bright);
+    });
+
     test('T31a: Schattenqualitaets-Slider steuert Shadow-Maps im Menue', async ({ page }) => {
         await loadGame(page);
         await openLevel4Drawer(page, { section: 'gameplay' });

@@ -105,6 +105,8 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.gameplay.fight_hp.label': 'Spieler-HP im Kampf:',
     'menu.level4.gameplay.fight_damage.label': 'MG-Schaden im Kampf:',
     'menu.level4.graphics.style.label': 'Grafikstil',
+    'menu.level4.graphics.map_brightness.label': 'Karten-Helligkeit',
+    'menu.level4.graphics.view_distance.label': 'Sichtweite:',
     'menu.level4.graphics.shadow_quality.label': 'Schattenqualität:',
     'menu.level4.camera.perspective.label': 'Video-Perspektive',
     'menu.level4.recording.profile.label': 'Aufnahmeprofil',
