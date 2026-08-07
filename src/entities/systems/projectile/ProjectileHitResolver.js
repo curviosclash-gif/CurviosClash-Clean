@@ -206,8 +206,8 @@ export class ProjectileHitResolver {
                 projectile.owner.position.copy(this._tmpVec);
                 target.trail?.forceGap?.(0.3);
                 projectile.owner.trail?.forceGap?.(0.3);
-                target.prepareObbCollisionQuery?.();
-                projectile.owner.prepareObbCollisionQuery?.();
+                target.refreshObbCollisionQuery?.();
+                projectile.owner.refreshObbCollisionQuery?.();
                 this.system?.onProjectilePowerup?.(target, projectile);
             } else if (projectile.type === 'MINE') {
                 const damage = Math.max(1, Number(getPickupDefinition('MINE')?.damage) || 25);

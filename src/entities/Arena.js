@@ -9,6 +9,7 @@ import {
     resolveGLBCollectionFootprint,
     resolveGLBFootprint,
 } from './GLBMapLoader.js';
+import { refreshDynamicMeshCollider } from './arena/StaticMeshCollider.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
 
@@ -63,6 +64,7 @@ export class Arena {
         this._mergedFoamEdges = null;
         this._glbScene = null;
         this._glbAnimationMixers = [];
+        this._glbDynamicObstacles = [];
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
         this._glbFootprint = null;
@@ -84,6 +86,7 @@ export class Arena {
             mixer.uncacheRoot(root);
         }
         this._glbAnimationMixers.length = 0;
+        this._glbDynamicObstacles.length = 0;
         if (!this._glbScene) return;
         this.renderer.removeFromScene(this._glbScene);
         disposeObject3DResources(this._glbScene);
@@ -213,7 +216,11 @@ export class Arena {
 
         let usedGlbModel = false;
         const finalizeBuild = () => {
-            const useFallbackObstacles = !usedGlbModel || buildContext.glbColliderMode === 'fallbackOnly';
+            // 'dynamic' only adds colliders for the moving GLB parts, so the authored box
+            // obstacles stay responsible for the static set dressing.
+            const useFallbackObstacles = !usedGlbModel
+                || buildContext.glbColliderMode === 'fallbackOnly'
+                || buildContext.glbColliderMode === 'dynamic';
             if (useFallbackObstacles) {
                 this._builder.geometryPipeline.compileObstacleStage({
                     obstacleDefs: buildContext.obstacleDefs,
@@ -250,11 +257,13 @@ export class Arena {
                 placementScale: buildContext.scale,
                 sceneName: `glbMap-${this.currentMapKey}`,
                 collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
+                colliderMode: buildContext.glbColliderMode,
             })
             : loadGLBMap(buildContext.glbModel, {
                 loadDelayMs: buildContext.glbLoadDelayMs,
                 sceneName: `glbMap-${this.currentMapKey}`,
                 collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
+                colliderMode: buildContext.glbColliderMode,
             });
 
         return glbLoad.then((glbResult) => {
@@ -265,6 +274,7 @@ export class Arena {
             this.renderer.addToScene(this._glbScene);
             if (Array.isArray(glbResult.colliders) && glbResult.colliders.length > 0) {
                 this.obstacles.push(...glbResult.colliders);
+                this._glbDynamicObstacles = glbResult.colliders.filter((obstacle) => obstacle.dynamic);
             }
             usedGlbModel = true;
             return finalizeBuild();
@@ -356,11 +366,28 @@ export class Arena {
         return this._portalGateSystem.getPortalLevels();
     }
 
+    /**
+     * Moves the colliders of animated GLB meshes onto their current animation pose.
+     * Runs after the mixers advanced, so collision queries in this frame see the same
+     * transforms the renderer will draw.
+     */
+    _refreshDynamicObstacles() {
+        if (this._glbDynamicObstacles.length === 0) return;
+        // Mixers only write local transforms. Collision runs before the renderer would
+        // flush the hierarchy, so the world matrices have to be resolved here.
+        this._glbScene?.updateMatrixWorld(true);
+        for (const obstacle of this._glbDynamicObstacles) {
+            refreshDynamicMeshCollider(obstacle.meshCollider, obstacle.box);
+        }
+        this._collision.invalidateDynamicObstacles();
+    }
+
     update(dt) {
         this._portalGateSystem.update(dt);
         for (const mixer of this._glbAnimationMixers) {
             mixer.update(dt);
         }
+        this._refreshDynamicObstacles();
         for (const entry of this._aircraftDecorations) {
             entry?.mesh?.tick?.(dt);
         }
@@ -414,6 +441,7 @@ export class Arena {
         this.exitPortals = [];
         this.checkpointRings = [];
         this.obstacles = [];
+        this._glbDynamicObstacles = [];
         this.currentMapDefinition = null;
         this.runtimeMapDefinition = null;
         this._lastBuildSignature = null;

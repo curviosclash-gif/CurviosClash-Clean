@@ -125,6 +125,47 @@ export class ArenaCollision {
         this._obstacleCandidates = [];
         this._obstacleSeenAt = new WeakMap();
         this._obstacleQueryId = 0;
+        this._dynamicGrid = new Map();
+        this._dynamicGridGlobal = [];
+        this._dynamicObstacles = [];
+        this._dynamicGridDirty = true;
+    }
+
+    // Called once per frame after the animated GLB colliders moved.
+    invalidateDynamicObstacles() {
+        this._dynamicGridDirty = true;
+    }
+
+    _insertObstacleIntoGrid(obstacle, grid, globalList) {
+        const box = obstacle?.box;
+        if (!box?.min || !box?.max) {
+            globalList.push(obstacle);
+            return;
+        }
+        const minX = Math.floor(box.min.x / OBSTACLE_GRID_SIZE);
+        const maxX = Math.floor(box.max.x / OBSTACLE_GRID_SIZE);
+        const minY = Math.floor(box.min.y / OBSTACLE_GRID_SIZE);
+        const maxY = Math.floor(box.max.y / OBSTACLE_GRID_SIZE);
+        const minZ = Math.floor(box.min.z / OBSTACLE_GRID_SIZE);
+        const maxZ = Math.floor(box.max.z / OBSTACLE_GRID_SIZE);
+        const cellCount = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
+        if (!Number.isFinite(cellCount) || cellCount > OBSTACLE_GRID_MAX_CELLS) {
+            globalList.push(obstacle);
+            return;
+        }
+        for (let x = minX; x <= maxX; x++) {
+            for (let y = minY; y <= maxY; y++) {
+                for (let z = minZ; z <= maxZ; z++) {
+                    const key = getObstacleGridKey(x, y, z);
+                    let bucket = grid.get(key);
+                    if (!bucket) {
+                        bucket = [];
+                        grid.set(key, bucket);
+                    }
+                    bucket.push(obstacle);
+                }
+            }
+        }
     }
 
     _rebuildObstacleGrid(obstacles) {
@@ -132,37 +173,26 @@ export class ArenaCollision {
         this._obstacleGridGlobal.length = 0;
         this._obstacleGridSource = obstacles;
         this._obstacleGridSourceCount = obstacles.length;
+        this._dynamicObstacles.length = 0;
 
         for (const obstacle of obstacles) {
-            const box = obstacle?.box;
-            if (!box?.min || !box?.max) {
-                this._obstacleGridGlobal.push(obstacle);
+            // Animated colliders change their cells every frame, so they are kept out of
+            // this grid — it is only rebuilt when the map itself changes.
+            if (obstacle?.dynamic) {
+                this._dynamicObstacles.push(obstacle);
                 continue;
             }
-            const minX = Math.floor(box.min.x / OBSTACLE_GRID_SIZE);
-            const maxX = Math.floor(box.max.x / OBSTACLE_GRID_SIZE);
-            const minY = Math.floor(box.min.y / OBSTACLE_GRID_SIZE);
-            const maxY = Math.floor(box.max.y / OBSTACLE_GRID_SIZE);
-            const minZ = Math.floor(box.min.z / OBSTACLE_GRID_SIZE);
-            const maxZ = Math.floor(box.max.z / OBSTACLE_GRID_SIZE);
-            const cellCount = (maxX - minX + 1) * (maxY - minY + 1) * (maxZ - minZ + 1);
-            if (!Number.isFinite(cellCount) || cellCount > OBSTACLE_GRID_MAX_CELLS) {
-                this._obstacleGridGlobal.push(obstacle);
-                continue;
-            }
-            for (let x = minX; x <= maxX; x++) {
-                for (let y = minY; y <= maxY; y++) {
-                    for (let z = minZ; z <= maxZ; z++) {
-                        const key = getObstacleGridKey(x, y, z);
-                        let bucket = this._obstacleGrid.get(key);
-                        if (!bucket) {
-                            bucket = [];
-                            this._obstacleGrid.set(key, bucket);
-                        }
-                        bucket.push(obstacle);
-                    }
-                }
-            }
+            this._insertObstacleIntoGrid(obstacle, this._obstacleGrid, this._obstacleGridGlobal);
+        }
+        this._dynamicGridDirty = true;
+    }
+
+    _rebuildDynamicGrid() {
+        this._dynamicGridDirty = false;
+        this._dynamicGrid.clear();
+        this._dynamicGridGlobal.length = 0;
+        for (const obstacle of this._dynamicObstacles) {
+            this._insertObstacleIntoGrid(obstacle, this._dynamicGrid, this._dynamicGridGlobal);
         }
     }
 
@@ -172,6 +202,7 @@ export class ArenaCollision {
         if (this._obstacleGridSource !== obstacles || this._obstacleGridSourceCount !== obstacles.length) {
             this._rebuildObstacleGrid(obstacles);
         }
+        if (this._dynamicGridDirty) this._rebuildDynamicGrid();
 
         const minX = Math.floor((position.x - radius) / OBSTACLE_GRID_SIZE);
         const maxX = Math.floor((position.x + radius) / OBSTACLE_GRID_SIZE);
@@ -188,10 +219,20 @@ export class ArenaCollision {
         for (const obstacle of this._obstacleGridGlobal) {
             this._appendObstacleCandidate(obstacle, queryId, candidates);
         }
+        for (const obstacle of this._dynamicGridGlobal) {
+            this._appendObstacleCandidate(obstacle, queryId, candidates);
+        }
         for (let x = minX; x <= maxX; x++) {
             for (let y = minY; y <= maxY; y++) {
                 for (let z = minZ; z <= maxZ; z++) {
-                    const bucket = this._obstacleGrid.get(getObstacleGridKey(x, y, z));
+                    const key = getObstacleGridKey(x, y, z);
+                    const bucket = this._obstacleGrid.get(key);
+                    const dynamicBucket = this._dynamicGrid.get(key);
+                    if (dynamicBucket) {
+                        for (const obstacle of dynamicBucket) {
+                            this._appendObstacleCandidate(obstacle, queryId, candidates);
+                        }
+                    }
                     if (!bucket) continue;
                     for (const obstacle of bucket) {
                         this._appendObstacleCandidate(obstacle, queryId, candidates);

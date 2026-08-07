@@ -100,6 +100,11 @@ export class Player {
         this.modelScale = playerConfig.MODEL_SCALE || 1;
         this.cockpitCamera = gameplayCameraState.cockpitCamera;
         this.spawnProtectionTimer = 0;
+        // Short grace after a bounce so the same wall is not hit again on the next frame.
+        // Kept apart from spawnProtectionTimer, which also makes a player untargetable.
+        this.arenaCollisionGraceTimer = 0;
+        this.wallDamageCooldown = 0;
+        this.crashDamageCooldown = 0;
         this.planarAimOffset = 0;
         this.fightAimAssistTargetIndex = -1;
         this.fightAimAssistLockRemaining = 0;
@@ -202,6 +207,9 @@ export class Player {
         this.decoyActive = false;
         this.itemActionsDisabled = false;
         this.spawnProtectionTimer = playerConfig.SPAWN_PROTECTION || 0;
+        this.arenaCollisionGraceTimer = 0;
+        this.wallDamageCooldown = 0;
+        this.crashDamageCooldown = 0;
         this.planarAimOffset = 0;
         this.fightAimAssistTargetIndex = -1;
         this.fightAimAssistLockRemaining = 0;
@@ -252,6 +260,9 @@ export class Player {
         this._obbCollisionPrepared = false;
 
         this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dt);
+        this.arenaCollisionGraceTimer = Math.max(0, (this.arenaCollisionGraceTimer || 0) - dt);
+        this.wallDamageCooldown = Math.max(0, (this.wallDamageCooldown || 0) - dt);
+        this.crashDamageCooldown = Math.max(0, (this.crashDamageCooldown || 0) - dt);
         this.fightAimAssistLockRemaining = Math.max(
             0,
             Number(this.fightAimAssistLockRemaining || 0) - dt
@@ -537,6 +548,14 @@ export class Player {
     }
 
     prepareObbCollisionQuery() {
+        return preparePlayerObbCollisionQuery(this);
+    }
+
+    // prepareObbCollisionQuery() is a no-op once the cache is warm, so callers that moved
+    // or rotated the player mid-frame have to invalidate it first - otherwise every
+    // following hit test runs against the pose the player had before the move.
+    refreshObbCollisionQuery() {
+        this._obbCollisionPrepared = false;
         return preparePlayerObbCollisionQuery(this);
     }
 

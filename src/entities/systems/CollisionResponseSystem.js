@@ -19,7 +19,7 @@ const DEFAULT_FOAM_BOUNCE_OPTIONS = Object.freeze({
     normalPush: 4.8,
     extraPush: 3.2,
     trailGap: 0.45,
-    spawnProtection: 0.16,
+    collisionGrace: 0.16,
 });
 
 function readBounceRandom(owner, options = {}) {
@@ -120,8 +120,11 @@ export class CollisionResponseSystem {
         }
 
         player.trail.forceGap(Number.isFinite(options.trailGap) ? options.trailGap : 0.3);
-        if (Number.isFinite(options.spawnProtection) && options.spawnProtection > 0) {
-            player.spawnProtectionTimer = Math.max(player.spawnProtectionTimer || 0, options.spawnProtection);
+        if (Number.isFinite(options.collisionGrace) && options.collisionGrace > 0) {
+            player.arenaCollisionGraceTimer = Math.max(
+                player.arenaCollisionGraceTimer || 0,
+                options.collisionGrace
+            );
         }
 
         const botAI = owner.botByPlayer.get(player);
@@ -129,6 +132,35 @@ export class CollisionResponseSystem {
         if (owner.recorder) {
             owner.recorder.logEvent(source === 'TRAIL' ? 'BOUNCE_TRAIL' : 'BOUNCE_WALL', player.index);
         }
+    }
+
+    /**
+     * Nudges a player out of the geometry it is stuck in, without touching its heading.
+     *
+     * bounceBot() rewrites the quaternion, which is fine for a bot but fights a human's
+     * steering input. Human players therefore used to stay inside the wall and take the
+     * wall damage again on every following frame; this moves them clear instead.
+     */
+    pushPlayerOutOfCollision(player, normal = null, distance = 1.6) {
+        const owner = this.owner;
+        if (!owner || !player || !normal) return false;
+
+        const pushDistance = Number.isFinite(distance) && distance > 0 ? distance : 1.6;
+        owner._tmpVec2.copy(normal);
+        if (owner._tmpVec2.lengthSq() <= 0.000001) return false;
+        owner._tmpVec2.normalize();
+
+        for (let step = 1; step <= 3; step++) {
+            owner._tmpVec.copy(player.position).addScaledVector(owner._tmpVec2, pushDistance * step);
+            if (!owner.arena.checkCollision(owner._tmpVec, player.hitboxRadius)) {
+                player.position.copy(owner._tmpVec);
+                player.refreshObbCollisionQuery?.();
+                player.trail?.forceGap?.(0.3);
+                player.markRenderDiscontinuity?.('collision-pushout');
+                return true;
+            }
+        }
+        return false;
     }
 
     bouncePlayerOnFoam(player, normalOverride = null) {

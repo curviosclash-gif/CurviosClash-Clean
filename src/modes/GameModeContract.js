@@ -84,12 +84,14 @@ export class GameModeContract {
     applyDamage(player, amount, options, config) { void player; void amount; void options; void config; return { applied: 0, absorbedByShield: 0, remainingHp: 0, isDead: false }; }
     applyHealing(player, amount, config) { void player; void amount; void config; return { healed: 0, hp: 0 }; }
     resolveCollisionDamage(cause, config) { void cause; void config; return 1; }
+    resolveCollisionCooldown(cause, config) { void cause; void config; return 0.5; }
     grantShield(player, config) { void player; void config; return 0; }
     updateHealthRegen(player, dt, config, nowSeconds) { void player; void dt; void config; void nowSeconds; }
 
     // --- Collision Response ---
     handleWallCollision(player, arenaCollision, entityManager) { void player; void arenaCollision; void entityManager; return false; }
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) { void player; void collision; void trailCause; void sourcePlayer; void entityManager; return false; }
+    handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) { void player; void otherPlayer; void crashNormal; void entityManager; return false; }
 
     // --- Actions ---
     requiresShootItemIndex() { return false; }

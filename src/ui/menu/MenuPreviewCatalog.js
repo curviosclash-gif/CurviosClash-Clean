@@ -55,7 +55,10 @@ export function listMapPreviewEntries() {
         const glbFootprint = hasGlbModel
             ? resolveGLBMapSourceFootprint(mapDefinition)
             : null;
-        const usesFallbackColliders = glbFootprint?.colliderMode === 'fallbackOnly';
+        // 'dynamic' adds mesh colliders for the animated parts only, so the authored box
+        // obstacles still carry the static geometry.
+        const usesFallbackColliders = glbFootprint?.colliderMode === 'fallbackOnly'
+            || glbFootprint?.colliderMode === 'dynamic';
         return {
             key: mapKey,
             name: normalizeString(mapDefinition?.name, mapKey),

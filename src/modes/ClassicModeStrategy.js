@@ -116,6 +116,35 @@ export class ClassicModeStrategy extends GameModeContract {
         return true;
     }
 
+    handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
+        void crashNormal;
+        // Classic has no health pool: a wall is lethal, so a head-on crash is too. The
+        // shield absorbs it for whoever still carries one.
+        const shieldedSelf = player.hasShield === true;
+        const shieldedOther = otherPlayer.hasShield === true;
+        // Blocks the mirrored check on otherPlayer later in this frame from resolving the
+        // same crash a second time (relevant when a shield kept someone alive).
+        const cooldown = this.resolveCollisionCooldown('PLAYER_CRASH');
+        player.crashDamageCooldown = cooldown;
+        otherPlayer.crashDamageCooldown = cooldown;
+        if (entityManager.audio && (!player.isBot || !otherPlayer.isBot)) {
+            entityManager.audio.play(shieldedSelf || shieldedOther ? 'SHIELD_HIT' : 'HIT');
+        }
+        if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
+
+        if (shieldedOther) {
+            otherPlayer.hasShield = false;
+        } else {
+            entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
+        }
+        if (shieldedSelf) {
+            player.hasShield = false;
+            return false;
+        }
+        entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
+        return true;
+    }
+
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
         if (player.hasShield) {
             if (entityManager.audio && !player.isBot) {

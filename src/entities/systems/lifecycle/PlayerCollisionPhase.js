@@ -1,6 +1,17 @@
+import * as THREE from 'three';
+
+// Broadphase slack for vehicle-vs-vehicle checks: the hitbox sphere is much smaller than
+// the vehicle body, so the sphere test only preselects and the oriented box decides.
+const CRASH_BROADPHASE_SCALE = 3;
+const CRASH_SWEEP_MAX_STEPS = 16;
+
 export class PlayerCollisionPhase {
     constructor(entityManager) {
         this.entityManager = entityManager;
+        this._tmpSweepDelta = new THREE.Vector3();
+        this._tmpSweepPoint = new THREE.Vector3();
+        this._tmpSweepLastFree = new THREE.Vector3();
+        this._tmpCrashNormal = new THREE.Vector3();
     }
 
     run(player, prevPos, strategy) {
@@ -11,8 +22,55 @@ export class PlayerCollisionPhase {
         }
 
         const hRadius = Math.max(0.05, Number(player.hitboxRadius) || 0.4);
-        let arenaCollision = this._probeArenaCollision(player.position, hRadius);
         let bouncedOnFoam = false;
+
+        // A bounce just pushed this player off a surface; re-testing the arena immediately
+        // would resolve the very same contact again. Trails stay armed on purpose.
+        if ((player.arenaCollisionGraceTimer || 0) <= 0) {
+            const arenaCollision = this._resolveArenaCollision(player, prevPos, hRadius);
+            if (arenaCollision?.hit) {
+                const hitKind = String(arenaCollision.kind || 'wall').toLowerCase();
+                if (hitKind === 'foam') {
+                    if (entityManager.audio) entityManager.audio.play('HIT');
+                    if (entityManager.particles) entityManager.particles.spawnHit(player.position, 0x34d399);
+                    entityManager._bouncePlayerOnFoam(player, arenaCollision.normal || null);
+                    bouncedOnFoam = true;
+                } else {
+                    const died = strategy.handleWallCollision(player, arenaCollision, entityManager);
+                    if (died) return true;
+                }
+            }
+        }
+
+        if (!bouncedOnFoam) {
+            const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
+            const collision = this._resolveTrailCollision(player, prevPos, hRadius * 2.0, selfTrailSkipRecent);
+            if (collision?.hit) {
+                const trailCause = collision.playerIndex === player.index ? 'TRAIL_SELF' : 'TRAIL_OTHER';
+                const sourcePlayer = collision.playerIndex >= 0 && collision.playerIndex !== player.index
+                    ? entityManager.players[collision.playerIndex]
+                    : null;
+                const died = strategy.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
+                if (died) return true;
+            }
+        }
+
+        if (player.alive && this._resolvePlayerCrash(player, hRadius, strategy)) {
+            return true;
+        }
+
+        return false;
+    }
+
+    _resolveArenaCollision(player, prevPos, hRadius) {
+        const entityManager = this.entityManager;
+
+        // Swept first: the point probes below only see where the player ended up this
+        // frame, so on a frame spike a fast vehicle passes straight through a thin wall.
+        const sweptCollision = this._probeSweptArenaCollision(player, prevPos, hRadius);
+        if (sweptCollision) return sweptCollision;
+
+        let arenaCollision = this._probeArenaCollision(player.position, hRadius);
 
         if (!arenaCollision) {
             player.getAimDirection(entityManager._tmpDir).multiplyScalar(4).add(player.position);
@@ -37,30 +95,69 @@ export class PlayerCollisionPhase {
             }
         }
 
-        if (arenaCollision?.hit) {
-            const hitKind = String(arenaCollision.kind || 'wall').toLowerCase();
-            if (hitKind === 'foam') {
-                if (entityManager.audio) entityManager.audio.play('HIT');
-                if (entityManager.particles) entityManager.particles.spawnHit(player.position, 0x34d399);
-                entityManager._bouncePlayerOnFoam(player, arenaCollision.normal || null);
-                bouncedOnFoam = true;
-            } else {
-                const died = strategy.handleWallCollision(player, arenaCollision, entityManager);
-                if (died) return true;
-            }
-        }
+        return arenaCollision;
+    }
 
-        if (!bouncedOnFoam) {
-            const selfTrailSkipRecent = entityManager.constructor.deriveSelfTrailSkipRecentSegments(player);
-            const collision = this._resolveTrailCollision(player, prevPos, hRadius * 2.0, selfTrailSkipRecent);
-            if (collision?.hit) {
-                const trailCause = collision.playerIndex === player.index ? 'TRAIL_SELF' : 'TRAIL_OTHER';
-                const sourcePlayer = collision.playerIndex >= 0 && collision.playerIndex !== player.index
-                    ? entityManager.players[collision.playerIndex]
-                    : null;
-                const died = strategy.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
-                if (died) return true;
+    _probeSweptArenaCollision(player, prevPos, probeRadius) {
+        if (!prevPos) return null;
+        this._tmpSweepDelta.subVectors(player.position, prevPos);
+        const travelled = this._tmpSweepDelta.length();
+        // Anything shorter than one probe radius is already covered by the point probe on
+        // the end pose - sweeping it would only cost time.
+        if (!Number.isFinite(travelled) || travelled <= probeRadius) return null;
+
+        const steps = Math.min(
+            CRASH_SWEEP_MAX_STEPS,
+            Math.max(2, Math.ceil(travelled / probeRadius))
+        );
+        this._tmpSweepLastFree.copy(prevPos);
+        for (let step = 1; step <= steps; step++) {
+            this._tmpSweepPoint.lerpVectors(prevPos, player.position, step / steps);
+            const info = this._probeArenaCollision(this._tmpSweepPoint, probeRadius);
+            if (!info) {
+                this._tmpSweepLastFree.copy(this._tmpSweepPoint);
+                continue;
             }
+            // Pull the player back onto the last free sample so the impact resolves at the
+            // wall instead of somewhere behind it.
+            player.position.copy(this._tmpSweepLastFree);
+            player.refreshObbCollisionQuery?.();
+            return info;
+        }
+        return null;
+    }
+
+    _resolvePlayerCrash(player, probeRadius, strategy) {
+        const entityManager = this.entityManager;
+        if (typeof strategy?.handlePlayerCrash !== 'function') return false;
+        if ((player.crashDamageCooldown || 0) > 0) return false;
+        const players = entityManager.players;
+        if (!Array.isArray(players)) return false;
+
+        for (const other of players) {
+            if (!other || other === player || !other.alive || other.isGhost) continue;
+            if ((other.spawnProtectionTimer || 0) > 0) continue;
+            if ((other.crashDamageCooldown || 0) > 0) continue;
+
+            const otherRadius = Math.max(0.05, Number(other.hitboxRadius) || 0.4);
+            const contactRadius = probeRadius + otherRadius;
+            const broadphaseRadius = contactRadius * CRASH_BROADPHASE_SCALE;
+            const distanceSq = player.position.distanceToSquared(other.position);
+            if (distanceSq > broadphaseRadius * broadphaseRadius) continue;
+
+            const touching = typeof other.isSphereInOBB === 'function'
+                ? other.isSphereInOBB(player.position, probeRadius)
+                : distanceSq <= contactRadius * contactRadius;
+            if (!touching) continue;
+
+            this._tmpCrashNormal.subVectors(player.position, other.position);
+            if (this._tmpCrashNormal.lengthSq() <= 0.000001) {
+                this._tmpCrashNormal.set(0, 1, 0);
+            } else {
+                this._tmpCrashNormal.normalize();
+            }
+
+            return strategy.handlePlayerCrash(player, other, this._tmpCrashNormal, entityManager) === true;
         }
 
         return false;

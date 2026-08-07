@@ -372,6 +372,12 @@ export class ArcadeModeStrategy extends GameModeContract {
         return 22;
     }
 
+    resolveCollisionCooldown(cause) {
+        const key = String(cause || '').toUpperCase();
+        if (key === 'PLAYER_CRASH') return 0.5;
+        return 0.6;
+    }
+
     grantShield(player) {
         if (!player) return 0;
         player.hasShield = true;
@@ -444,8 +450,16 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // --- Collision Response ---
     handleWallCollision(player, arenaCollision, entityManager) {
+        // Same guard as in Hunt: one crash must not bill the player once per frame for as
+        // long as it stays inside the geometry.
+        if ((player.wallDamageCooldown || 0) > 0) {
+            entityManager._pushPlayerOutOfCollision?.(player, arenaCollision.normal || null);
+            return false;
+        }
+
         const wallDamage = this.resolveCollisionDamage('WALL');
         const damageResult = player.takeDamage(wallDamage);
+        player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
         entityManager._emitHuntDamageEvent({
             target: player,
             sourcePlayer: null,
@@ -456,6 +470,42 @@ export class ArcadeModeStrategy extends GameModeContract {
         });
         if (damageResult.isDead) {
             entityManager._killPlayer(player, 'WALL');
+            return true;
+        }
+        entityManager._pushPlayerOutOfCollision?.(player, arenaCollision.normal || null);
+        return false;
+    }
+
+    handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
+        const crashDamage = this.resolveCollisionDamage('PLAYER_CRASH');
+        const cooldown = this.resolveCollisionCooldown('PLAYER_CRASH');
+        player.crashDamageCooldown = cooldown;
+        otherPlayer.crashDamageCooldown = cooldown;
+
+        const damageResult = player.takeDamage(crashDamage);
+        entityManager._emitHuntDamageEvent({
+            target: player,
+            sourcePlayer: otherPlayer,
+            cause: 'PLAYER_CRASH',
+            hitNormal: crashNormal || null,
+            damageResult,
+            impactPoint: player.position,
+        });
+        const otherDamageResult = otherPlayer.takeDamage(crashDamage);
+        entityManager._emitHuntDamageEvent({
+            target: otherPlayer,
+            sourcePlayer: player,
+            cause: 'PLAYER_CRASH',
+            hitNormal: crashNormal || null,
+            damageResult: otherDamageResult,
+            impactPoint: otherPlayer.position,
+        });
+
+        if (otherDamageResult.isDead) {
+            entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
+        }
+        if (damageResult.isDead) {
+            entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
             return true;
         }
         return false;

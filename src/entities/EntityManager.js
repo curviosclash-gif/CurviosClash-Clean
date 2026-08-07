@@ -362,6 +362,10 @@ export class EntityManager {
         player?.markRenderDiscontinuity?.('bounce-foam');
     }
 
+    _pushPlayerOutOfCollision(player, normal = null, distance = 1.6) {
+        return this._collisionResponseSystem.pushPlayerOutOfCollision(player, normal, distance);
+    }
+
     renderInterpolatedTransforms(renderAlpha = 1, visualDelta = 0) {
         const visualDt = Math.max(0, Math.min(0.05, Number(visualDelta) || 0));
         for (const player of this.players) {

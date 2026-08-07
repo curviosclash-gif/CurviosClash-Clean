@@ -87,6 +87,10 @@ export const DEFAULT_ENTITY_RUNTIME_CONFIG = Object.freeze({
             TRAIL: 34,
             PLAYER_CRASH: 40,
         }),
+        COLLISION_COOLDOWN: Object.freeze({
+            WALL: 0.6,
+            PLAYER_CRASH: 0.5,
+        }),
         RESPAWN: Object.freeze({}),
         TARGETING: Object.freeze({}),
         MG: Object.freeze({}),

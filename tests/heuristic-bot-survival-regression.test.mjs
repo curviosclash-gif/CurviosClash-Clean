@@ -125,7 +125,7 @@ test('surviving Fight collisions bounce heuristic bots into recovery', () => {
     const entityManager = {
         _bounceBot(target, normal, source, options) {
             bounces.push({ target, normal, source, options });
-            target.spawnProtectionTimer = options.spawnProtection;
+            target.arenaCollisionGraceTimer = options.collisionGrace;
             policy.onBounce(source, normal);
         },
         _emitHuntDamageEvent() {},
@@ -137,7 +137,9 @@ test('surviving Fight collisions bounce heuristic bots into recovery', () => {
     assert.equal(strategy.handleWallCollision(player, wallCollision, entityManager), false);
     assert.equal(player.hp, 78);
     assert.equal(bounces[0].source, 'WALL');
-    assert.ok(bounces[0].options.spawnProtection > 0);
+    // Bounce recovery uses a dedicated arena-collision grace, not the spawn protection
+    // that would also make the bot untargetable for turrets.
+    assert.ok(bounces[0].options.collisionGrace > 0);
     assert.equal(policy._safetyState.pendingBounce, true);
 
     player.hp = 100;

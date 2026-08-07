@@ -8,7 +8,7 @@ import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 
-const BOT_COLLISION_RECOVERY_OPTIONS = Object.freeze({ spawnProtection: 0.16 });
+const BOT_COLLISION_RECOVERY_OPTIONS = Object.freeze({ collisionGrace: 0.16 });
 
 function toSafeNumber(value, fallback) {
     const parsed = Number(value);
@@ -22,14 +22,25 @@ function getNowSeconds() {
     return Date.now() * 0.001;
 }
 
-function recoverBotFromCollision(player, collision, source, entityManager) {
-    if (!player?.isBot || typeof entityManager?._bounceBot !== 'function') return;
-    entityManager._bounceBot(
-        player,
-        collision?.normal || null,
-        source,
-        BOT_COLLISION_RECOVERY_OPTIONS
-    );
+// Bots get the full bounce (heading included); human players only get moved clear so the
+// recovery does not fight their steering. Both leave the geometry they collided with -
+// staying inside it used to re-trigger the same collision on every following frame.
+function recoverPlayerFromCollision(player, collision, source, entityManager) {
+    if (!player) return;
+    if (player.isBot) {
+        if (typeof entityManager?._bounceBot !== 'function') return;
+        entityManager._bounceBot(
+            player,
+            collision?.normal || null,
+            source,
+            BOT_COLLISION_RECOVERY_OPTIONS
+        );
+        return;
+    }
+    if (typeof entityManager?._pushPlayerOutOfCollision !== 'function') return;
+    if (entityManager._pushPlayerOutOfCollision(player, collision?.normal || null)) {
+        player.arenaCollisionGraceTimer = Math.max(player.arenaCollisionGraceTimer || 0, 0.16);
+    }
 }
 
 const ENTITY_RUNTIME_CONFIG_SECTION_KEYS = Object.freeze([
@@ -242,6 +253,16 @@ export class HuntModeStrategy extends GameModeContract {
         return Math.max(1, toSafeNumber(table.WALL, 22));
     }
 
+    resolveCollisionCooldown(cause, config) {
+        const activeConfig = resolveConfig(config, this.entityRuntimeConfig);
+        const table = activeConfig?.HUNT?.COLLISION_COOLDOWN || {};
+        const key = String(cause || '').toUpperCase();
+        if (key === 'PLAYER_CRASH') {
+            return Math.max(0, toSafeNumber(table.PLAYER_CRASH, 0.5));
+        }
+        return Math.max(0, toSafeNumber(table.WALL, 0.6));
+    }
+
     grantShield(player, config) {
         if (!player) return 0;
         const activeConfig = resolveConfig(config || player, this.entityRuntimeConfig);
@@ -269,8 +290,16 @@ export class HuntModeStrategy extends GameModeContract {
 
     // --- Collision Response ---
     handleWallCollision(player, arenaCollision, entityManager) {
+        // Still inside the wall from a previous hit: recover again, but do not stack a
+        // second full damage tick onto the same crash.
+        if ((player.wallDamageCooldown || 0) > 0) {
+            recoverPlayerFromCollision(player, arenaCollision, 'WALL', entityManager);
+            return false;
+        }
+
         const wallDamage = this.resolveCollisionDamage('WALL');
         const damageResult = player.takeDamage(wallDamage);
+        player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
         entityManager._emitHuntDamageEvent({
             target: player,
             sourcePlayer: null,
@@ -283,7 +312,44 @@ export class HuntModeStrategy extends GameModeContract {
             entityManager._killPlayer(player, 'WALL');
             return true;
         }
-        recoverBotFromCollision(player, arenaCollision, 'WALL', entityManager);
+        recoverPlayerFromCollision(player, arenaCollision, 'WALL', entityManager);
+        return false;
+    }
+
+    handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
+        const crashDamage = this.resolveCollisionDamage('PLAYER_CRASH');
+        const cooldown = this.resolveCollisionCooldown('PLAYER_CRASH');
+        // Both vehicles take the hit and both get the cooldown, so the mirrored check on
+        // the other player later in the same frame does not double-apply the crash.
+        player.crashDamageCooldown = cooldown;
+        otherPlayer.crashDamageCooldown = cooldown;
+
+        const damageResult = player.takeDamage(crashDamage);
+        entityManager._emitHuntDamageEvent({
+            target: player,
+            sourcePlayer: otherPlayer,
+            cause: 'PLAYER_CRASH',
+            hitNormal: crashNormal || null,
+            damageResult,
+            impactPoint: player.position,
+        });
+        const otherDamageResult = otherPlayer.takeDamage(crashDamage);
+        entityManager._emitHuntDamageEvent({
+            target: otherPlayer,
+            sourcePlayer: player,
+            cause: 'PLAYER_CRASH',
+            hitNormal: crashNormal || null,
+            damageResult: otherDamageResult,
+            impactPoint: otherPlayer.position,
+        });
+
+        if (otherDamageResult.isDead) {
+            entityManager._killPlayer(otherPlayer, 'PLAYER_CRASH', { killer: player });
+        }
+        if (damageResult.isDead) {
+            entityManager._killPlayer(player, 'PLAYER_CRASH', { killer: otherPlayer });
+            return true;
+        }
         return false;
     }
 
@@ -304,7 +370,7 @@ export class HuntModeStrategy extends GameModeContract {
             entityManager._killPlayer(player, trailCause, { killer: sourcePlayer || null });
             return true;
         }
-        recoverBotFromCollision(player, collision, 'TRAIL', entityManager);
+        recoverPlayerFromCollision(player, collision, 'TRAIL', entityManager);
         return false;
     }
 

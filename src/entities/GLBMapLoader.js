@@ -1,10 +1,13 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
-import { createStaticMeshCollider } from './arena/StaticMeshCollider.js';
+import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl } from './mapSchema/MapSchemaGlbOps.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
+// Only transform tracks move a collider. Morph and material tracks deform or restyle a
+// mesh without displacing it, so they keep the cheaper static collider.
+const TRANSFORM_TRACK_PROPERTIES = new Set(['position', 'quaternion', 'rotation', 'scale']);
 
 function normalizeUrl(value) {
     return typeof value === 'string' ? value.trim() : '';
@@ -99,9 +102,40 @@ function isMeshColliderDisabled(mesh) {
     return name.includes('_nocol');
 }
 
+function isMeshColliderForcedDynamic(mesh) {
+    const name = String(mesh?.name || '').toLowerCase();
+    return name.includes('_dyn');
+}
+
 function resolveColliderKind(mesh) {
     const name = String(mesh?.name || '').toLowerCase();
     return name.includes('_foam') ? 'foam' : 'hard';
+}
+
+/**
+ * Resolves every object whose world transform an animation clip drives, including the
+ * descendants of an animated node — a keyframed rig empty moves the meshes below it.
+ */
+export function collectAnimatedNodes(root, clips) {
+    const animated = new Set();
+    if (!root || !Array.isArray(clips)) return animated;
+
+    for (const clip of clips) {
+        for (const track of clip?.tracks || []) {
+            let parsed = null;
+            try {
+                parsed = THREE.PropertyBinding.parseTrackName(String(track?.name || ''));
+            } catch {
+                continue;
+            }
+            if (!TRANSFORM_TRACK_PROPERTIES.has(parsed?.propertyName)) continue;
+            const node = parsed.nodeName
+                ? THREE.PropertyBinding.findNode(root, parsed.nodeName)
+                : root;
+            node?.traverse?.((child) => animated.add(child));
+        }
+    }
+    return animated;
 }
 
 function collectSceneColliders(root, options = {}) {
@@ -109,6 +143,10 @@ function collectSceneColliders(root, options = {}) {
     const bounds = new THREE.Box3();
     const shadowCandidates = [];
     const collectColliders = options.collectColliders !== false;
+    const animatedNodes = options.animatedNodes instanceof Set ? options.animatedNodes : null;
+    // 'dynamic' keeps static set dressing on the map's authored box obstacles and only
+    // adds mesh colliders for the moving parts.
+    const dynamicOnly = options.colliderMode === 'dynamic';
     const shadowCasterBudget = Math.max(0, Math.trunc(
         Number(options.shadowCasterBudget ?? DEFAULT_GLB_SHADOW_CASTER_BUDGET) || 0
     ));
@@ -138,12 +176,23 @@ function collectSceneColliders(root, options = {}) {
         if (!collectColliders) return;
         if (isMeshColliderDisabled(child)) return;
 
+        const isAnimated = isMeshColliderForcedDynamic(child) || !!animatedNodes?.has(child);
+        if (dynamicOnly && !isAnimated) return;
+
         const kind = resolveColliderKind(child);
+        const meshCollider = isAnimated
+            ? createDynamicMeshCollider(child)
+            : createStaticMeshCollider(child);
+        // A moving mesh we cannot track (skinned, degenerate) gets no collider at all: its
+        // baked box would drift away from the animation and block empty space.
+        if (isAnimated && !meshCollider) return;
+
         colliders.push({
             box,
             isWall: false,
             kind,
-            meshCollider: createStaticMeshCollider(child),
+            meshCollider,
+            dynamic: !!meshCollider?.dynamic,
         });
     });
 
@@ -210,16 +259,22 @@ export async function loadGLBMap(glbModel, options = {}) {
     const clips = Array.isArray(gltf.animations) ? gltf.animations : [];
     const animationMixer = clips.length > 0 ? new THREE.AnimationMixer(scene) : null;
     animationMixer?.clipAction(clips[0]).play();
+    const animatedNodes = collectAnimatedNodes(scene, clips);
     const { colliders, bounds } = collectSceneColliders(scene, {
         collectColliders: options.collectColliders !== false,
+        colliderMode: options.colliderMode,
+        animatedNodes,
     });
     return {
         sourceUrl: modelUrl,
         footprint: resolveGLBFootprint(modelUrl, {
-            colliderMode: options.collectColliders === false ? 'fallbackOnly' : 'scene',
+            colliderMode: options.collectColliders === false
+                ? 'fallbackOnly'
+                : (normalizeUrl(options.colliderMode) || 'scene'),
         }),
         scene,
         animationMixers: animationMixer ? [animationMixer] : [],
+        animatedNodes,
         colliders,
         bounds,
     };
@@ -265,6 +320,9 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
     const scene = new THREE.Group();
     scene.name = String(options.sceneName || 'glbMapCollection');
     const animationMixers = [];
+    // Per-model detection runs before placement; the node references stay identical once
+    // the scenes are nested into the collection group, so the union stays valid.
+    const animatedNodes = new Set();
     let loadedCount = 0;
     for (const loaded of loadedModels) {
         if (!loaded) continue;
@@ -275,6 +333,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             placementScale,
         ));
         animationMixers.push(...loaded.result.animationMixers);
+        for (const node of loaded.result.animatedNodes) animatedNodes.add(node);
         loadedCount += 1;
     }
 
@@ -286,15 +345,20 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
 
     const { colliders, bounds } = collectSceneColliders(scene, {
         collectColliders: options.collectColliders !== false,
+        colliderMode: options.colliderMode,
+        animatedNodes,
     });
     return {
         sourceUrls: models.map((entry) => entry.url),
         footprint: resolveGLBCollectionFootprint(models, {
-            colliderMode: options.collectColliders === false ? 'fallbackOnly' : 'scene',
+            colliderMode: options.collectColliders === false
+                ? 'fallbackOnly'
+                : (normalizeUrl(options.colliderMode) || 'scene'),
             loadedCount,
         }),
         scene,
         animationMixers,
+        animatedNodes,
         colliders,
         bounds,
         warnings: resolvedWarnings,

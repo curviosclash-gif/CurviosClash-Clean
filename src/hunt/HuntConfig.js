@@ -14,6 +14,12 @@ export const HUNT_CONFIG = Object.freeze({
         TRAIL: 28,
         PLAYER_CRASH: 40,
     }),
+    // Minimum seconds between two collision hits of the same kind on one player. Without
+    // it a player stuck inside geometry takes the full wall damage on every single frame.
+    COLLISION_COOLDOWN: Object.freeze({
+        WALL: 0.6,
+        PLAYER_CRASH: 0.5,
+    }),
     MG: Object.freeze({
         DAMAGE: 7.75,
         COOLDOWN: 0.08,

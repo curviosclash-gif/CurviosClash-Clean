@@ -130,8 +130,9 @@ function normalizeGlbColliderMode(value) {
     if (normalized === 'fallbackonly' || normalized === 'fallback-only' || normalized === 'fallback_box') {
         return 'fallbackOnly';
     }
-    if (normalized === 'mesh') {
-        return 'mesh';
+    // 'dynamic' gives mesh colliders to animated parts only; statics keep authored boxes.
+    if (normalized === 'mesh' || normalized === 'dynamic') {
+        return normalized;
     }
     return undefined;
 }

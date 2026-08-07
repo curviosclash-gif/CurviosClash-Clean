@@ -186,7 +186,11 @@ export class MatchFlowUiController {
         const mapDefinition = mapSelection?.mapDefinition || null;
         if (!hasGLBMapSource(mapDefinition)) return null;
         const footprint = resolveGLBMapSourceFootprint(mapDefinition);
-        const colliderLabel = footprint.colliderMode === 'fallbackOnly' ? 'Box-Collider' : 'Szenen-Collider';
+        const COLLIDER_LABELS = {
+            fallbackOnly: 'Box-Collider',
+            dynamic: 'Box- und Animations-Collider',
+        };
+        const colliderLabel = COLLIDER_LABELS[footprint.colliderMode] || 'Szenen-Collider';
         const sourceLabel = footprint.sourceKind === 'embedded'
             ? 'eingebettet'
             : (footprint.sourceKind === 'collection' ? `${footprint.modelCount} Modelle` : footprint.sourceKind);
