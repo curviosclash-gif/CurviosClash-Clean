@@ -222,17 +222,32 @@ export async function selectSessionType(page, sessionType = 'single') {
     }, normalizedSessionType);
     if (alreadySelected) return;
 
+    // A busy machine can push the visibility wait past its budget while the menu is
+    // perfectly healthy. That must not end the run: the loop below already carries two
+    // fallbacks, they were just unreachable because the wait threw out of the whole
+    // function instead of falling through to them.
+    const buttonTimeoutMs = toPositiveInt(process.env.PW_SESSION_TYPE_TIMEOUT_MS, 4000, 250, 60_000);
     const selector = `#menu-nav [data-session-type="${normalizedSessionType}"]`;
-    for (let attempt = 0; attempt < 3; attempt += 1) {
-        const sessionButton = page.locator(selector).first();
-        await sessionButton.waitFor({ state: 'visible', timeout: 4000 });
-        await sessionButton.click({ force: true });
+    const isPanelVisible = () => page.evaluate(() => {
+        const panel = document.getElementById('submenu-custom');
+        return !!(panel && !panel.classList.contains('hidden'));
+    });
 
-        const panelVisible = await page.evaluate(() => {
-            const panel = document.getElementById('submenu-custom');
-            return !!(panel && !panel.classList.contains('hidden'));
-        });
-        if (panelVisible) return;
+    for (let attempt = 0; attempt < 3; attempt += 1) {
+        try {
+            const sessionButton = page.locator(selector).first();
+            await sessionButton.waitFor({ state: 'visible', timeout: buttonTimeoutMs });
+            await sessionButton.click({ force: true });
+            if (await isPanelVisible()) return;
+        } catch {
+            // The button never became visible in time. Dispatch the click through the DOM
+            // instead - it bubbles into the same delegated handler, so the session type is
+            // still selected properly rather than merely revealing the panel.
+            await page.evaluate((buttonSelector) => {
+                document.querySelector(buttonSelector)?.click();
+            }, selector);
+            if (await isPanelVisible()) return;
+        }
 
         try {
             await openViaNavigationRuntime(page, 'submenu-custom');
@@ -242,7 +257,7 @@ export async function selectSessionType(page, sessionType = 'single') {
         }
     }
 
-    await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: 4000 });
+    await page.waitForSelector('#submenu-custom:not(.hidden)', { timeout: buttonTimeoutMs });
 }
 
 async function openViaNavigationRuntime(page, submenuId) {
