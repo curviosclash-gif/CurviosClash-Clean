@@ -5,6 +5,16 @@ function toFiniteNumber(value, fallback = 0) {
 
 const MAX_REPLAY_PARTICLES = 192;
 const PARTICLE_VALUE_STRIDE = 13;
+const MAX_PARTICLE_VALUES = MAX_REPLAY_PARTICLES * PARTICLE_VALUE_STRIDE;
+
+// capture() runs 20x per second for the whole round, so every allocation in it lands in the
+// young generation and buys a GC pause. Shared for the "source has no such list" branches,
+// which used to hand out a fresh [] on every call.
+const EMPTY_LIST = Object.freeze([]);
+
+function toCaptureList(value) {
+    return Array.isArray(value) ? value : EMPTY_LIST;
+}
 
 export class RoundSnapshotStore {
     constructor({ maxSnapshots = 900, timeProvider = null } = {}) {
@@ -23,7 +33,8 @@ export class RoundSnapshotStore {
                 turretCount: 0,
                 turrets: [],
                 particleCount: 0,
-                particleValues: [],
+                // Grown to its final size on first use and never shrunk again - see capture().
+                particleValues: new Float32Array(0),
             };
         }
         this.snapshotIndex = 0;
@@ -83,9 +94,7 @@ export class RoundSnapshotStore {
             s.trailInGap = p?.trail?.inGap === true;
         }
 
-        const projectiles = Array.isArray(entityManager?.projectiles)
-            ? entityManager.projectiles
-            : [];
+        const projectiles = toCaptureList(entityManager?.projectiles);
         snap.projectileCount = 0;
         for (let i = 0; i < projectiles.length; i++) {
             const projectile = projectiles[i];
@@ -117,9 +126,7 @@ export class RoundSnapshotStore {
             out.radius = Math.max(0, toFiniteNumber(projectile.radius));
         }
 
-        const powerups = Array.isArray(entityManager?.powerupManager?.items)
-            ? entityManager.powerupManager.items
-            : [];
+        const powerups = toCaptureList(entityManager?.powerupManager?.items);
         snap.powerupCount = 0;
         for (let i = 0; i < powerups.length; i++) {
             const powerup = powerups[i];
@@ -143,9 +150,7 @@ export class RoundSnapshotStore {
             out.visible = powerup.mesh?.visible !== false;
         }
 
-        const turrets = Array.isArray(entityManager?._staticTurretSystem?.turrets)
-            ? entityManager._staticTurretSystem.turrets
-            : [];
+        const turrets = toCaptureList(entityManager?._staticTurretSystem?.turrets);
         snap.turretCount = 0;
         for (let i = 0; i < turrets.length; i++) {
             const turret = turrets[i];
@@ -175,8 +180,15 @@ export class RoundSnapshotStore {
             Math.max(0, Math.trunc(toFiniteNumber(particles?.count)))
         );
         const particleValueCount = snap.particleCount * PARTICLE_VALUE_STRIDE;
-        while (snap.particleValues.length < particleValueCount) snap.particleValues.push(0);
-        snap.particleValues.length = particleValueCount;
+        // The previous plain array was grown with push() and then truncated via .length on
+        // every single capture. With the particle count swinging between 0 and the cap that
+        // reallocated the backing store 20 times a second, per ring slot - the dominant
+        // source of the GC pauses measured in fight mode. A typed array of the maximum size
+        // is allocated once per slot and then only ever written into. Float32 is well beyond
+        // what a replay needs; positions are already rounded elsewhere.
+        if (!ArrayBuffer.isView(snap.particleValues) || snap.particleValues.length < particleValueCount) {
+            snap.particleValues = new Float32Array(MAX_PARTICLE_VALUES);
+        }
         for (let i = 0; i < snap.particleCount; i++) {
             const src3 = i * 3;
             const dst = i * PARTICLE_VALUE_STRIDE;
