@@ -46,7 +46,12 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     if (entityManager.recorder) {
         const killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
         entityManager.recorder.markPlayerDeath(player, cause);
-        entityManager.recorder.logEvent('KILL', player.index, `cause=${cause} killer=${killerIndex}`);
+        entityManager.recorder.logEvent(
+            'KILL',
+            player.index,
+            `cause=${cause} killer=${killerIndex}`,
+            player.position
+        );
     }
     emitArcadeEliminationEvents(entityManager, player, cause, options);
     entityManager._eventBus.emitPlayerDied(player, cause);

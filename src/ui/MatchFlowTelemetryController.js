@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { GAME_STATE_IDS, normalizeGameStateId } from '../shared/contracts/GameStateIds.js';
+import { normalizeHeatmapCells } from '../shared/contracts/RoundHeatmapContract.js';
 import {
     getLastRoundRecordingMetrics,
     recordMatchEndTelemetry,
@@ -174,6 +175,7 @@ export class MatchFlowTelemetryController {
             shieldAbsorb: Math.max(0, Number(roundMetrics.shieldAbsorb) || 0),
             hpDamage: Math.max(0, Number(roundMetrics.hpDamage) || 0),
             stuckEvents: Math.max(0, Number(roundMetrics.stuckEvents) || 0),
+            heatmap: normalizeHeatmapCells(roundMetrics.heatmap),
             spawnDeaths,
             parcoursCompleted: roundMetrics.parcoursCompleted === true,
             parcoursRouteId: normalizeTelemetryString(roundMetrics.parcoursRouteId, ''),

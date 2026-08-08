@@ -154,7 +154,8 @@ export function enterRecovery(bot, player, arena, allPlayers, reason) {
         bot.recorder.logEvent(
             'STUCK',
             player.index,
-            `reason=${reason} yaw=${bot.state.recoveryYaw} pitch=${bot.state.recoveryPitch} chain=${bot._recoveryChainCount}`
+            `reason=${reason} yaw=${bot.state.recoveryYaw} pitch=${bot.state.recoveryPitch} chain=${bot._recoveryChainCount}`,
+            player.position
         );
     }
 }

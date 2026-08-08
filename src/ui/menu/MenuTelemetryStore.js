@@ -1,4 +1,9 @@
 import {
+    ROUND_HEATMAP_MAX_MERGED_CELLS,
+    mergeHeatmapCells,
+    normalizeHeatmapCells,
+} from '../../shared/contracts/RoundHeatmapContract.js';
+import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
 } from '../StorageKeys.js';
@@ -83,6 +88,10 @@ function createDefaultBucket() {
         totalItemUseTypeCounts: {},
         parcoursCompletions: 0,
         totalParcoursCompletionTimeMs: 0,
+        // Nur Map-Buckets fuellen die Heatmap: dieselbe Weltkoordinate bedeutet
+        // ueber zwei verschiedene Maps hinweg nichts, ueber zwei Runden derselben
+        // Map dagegen alles.
+        heatmap: [],
         lastSeenAt: '',
     };
 }
@@ -111,6 +120,7 @@ function normalizeBucketCollection(source) {
             totalItemUseTypeCounts: normalizeItemUseTypeCounts(bucket.totalItemUseTypeCounts),
             parcoursCompletions: toNonNegativeInt(bucket.parcoursCompletions, 0),
             totalParcoursCompletionTimeMs: toNonNegativeNumber(bucket.totalParcoursCompletionTimeMs, 0),
+            heatmap: normalizeHeatmapCells(bucket.heatmap, ROUND_HEATMAP_MAX_MERGED_CELLS),
             lastSeenAt: typeof bucket.lastSeenAt === 'string' ? bucket.lastSeenAt : '',
         };
     });
@@ -194,6 +204,15 @@ function normalizeRecentRoundEntry(entry) {
     };
 }
 
+function toEventPayloadCopy(payload) {
+    if (!payload || typeof payload !== 'object') return null;
+    const copy = { ...payload };
+    // Die Heatmap ist im Map-Bucket aufgehoben. Im Rohereignis-Ring waere sie nur
+    // Ballast fuer den Persistenzspeicher.
+    delete copy.heatmap;
+    return copy;
+}
+
 function createDefaultState() {
     return {
         abortCount: 0,
@@ -275,6 +294,10 @@ export class MenuTelemetryStore extends PersistentStore {
             };
             collection[bucketKey].totalItemUseModeCounts = normalizeItemUseModeCounts(collection[bucketKey].totalItemUseModeCounts);
             collection[bucketKey].totalItemUseTypeCounts = normalizeItemUseTypeCounts(collection[bucketKey].totalItemUseTypeCounts);
+            collection[bucketKey].heatmap = normalizeHeatmapCells(
+                collection[bucketKey].heatmap,
+                ROUND_HEATMAP_MAX_MERGED_CELLS
+            );
             return collection[bucketKey];
         }
         collection[bucketKey] = createDefaultBucket();
@@ -347,6 +370,11 @@ export class MenuTelemetryStore extends PersistentStore {
         }
         if (winnerType === 'human') mapBucket.humanWins += 1;
         if (winnerType === 'bot') mapBucket.botWins += 1;
+        mapBucket.heatmap = mergeHeatmapCells(
+            mapBucket.heatmap,
+            source.heatmap,
+            ROUND_HEATMAP_MAX_MERGED_CELLS
+        );
         mapBucket.lastSeenAt = recordedAt;
 
         const modeBucket = this._resolveBucket(summary.modes, mode);
@@ -430,7 +458,7 @@ export class MenuTelemetryStore extends PersistentStore {
         state.events.push({
             type: normalizedEventType,
             at: recordedAt,
-            payload: payload && typeof payload === 'object' ? { ...payload } : null,
+            payload: toEventPayloadCopy(payload),
         });
         if (state.events.length > MAX_EVENTS) {
             state.events = state.events.slice(state.events.length - MAX_EVENTS);

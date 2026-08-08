@@ -1,3 +1,5 @@
+import { renderTelemetryHeatmapSection } from './MenuTelemetryHeatmapView.js';
+
 function formatPercent(value) {
     const parsed = Number(value);
     const normalized = Number.isFinite(parsed) ? Math.max(0, parsed) : 0;
@@ -159,6 +161,7 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     renderBucketRows(modesCard, snapshot.topModes, 'Noch keine Modi');
 
     container.appendChild(grid);
+    renderTelemetryHeatmapSection(container, snapshot.topMaps);
     renderRecentRoundsCard(container, snapshot.recentRounds);
 }
 

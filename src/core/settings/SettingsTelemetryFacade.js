@@ -1,3 +1,7 @@
+import {
+    ROUND_HEATMAP_MAX_MERGED_CELLS,
+    normalizeHeatmapCells,
+} from '../../shared/contracts/RoundHeatmapContract.js';
 import { ensureMenuContractState } from '../../composition/core-ui/CoreSettingsPorts.js';
 
 function toNonNegativeInt(value, fallback = 0) {
@@ -57,6 +61,7 @@ function normalizeTelemetryBucketSnapshot(source) {
         totalStuckEvents: toNonNegativeInt(bucket.totalStuckEvents, 0),
         parcoursCompletions: toNonNegativeInt(bucket.parcoursCompletions, 0),
         totalParcoursCompletionTimeMs: toNonNegativeNumber(bucket.totalParcoursCompletionTimeMs, 0),
+        heatmap: normalizeHeatmapCells(bucket.heatmap, ROUND_HEATMAP_MAX_MERGED_CELLS),
         lastSeenAt: typeof bucket.lastSeenAt === 'string' ? bucket.lastSeenAt : '',
     };
 }
@@ -93,6 +98,7 @@ function deriveTelemetryTopBuckets(source, fallbackKey) {
                 averageParcoursCompletionTimeMs: bucket.parcoursCompletions > 0
                     ? bucket.totalParcoursCompletionTimeMs / bucket.parcoursCompletions
                     : 0,
+                heatmap: bucket.heatmap,
                 lastSeenAt: bucket.lastSeenAt,
             };
         })

@@ -509,6 +509,64 @@
     margin-left: -18px;
 }
 
+.developer-telemetry-heatmap-legend {
+    list-style: none;
+    margin: 0 0 10px;
+    padding: 0;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    color: #9bb1cb;
+    font-size: 0.76em;
+}
+
+.developer-telemetry-heatmap-legend li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.developer-telemetry-heatmap-swatch {
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+    display: inline-block;
+}
+
+.developer-telemetry-heatmap-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+
+.developer-telemetry-heatmap-canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    border-radius: 8px;
+}
+
+.developer-telemetry-heatmap-meta {
+    margin: 8px 0 4px;
+    color: #9bb1cb;
+    font-size: 0.74em;
+}
+
+.developer-telemetry-heatmap-hotspots {
+    margin: 0;
+    padding-left: 18px;
+    display: grid;
+    gap: 4px;
+    color: #b6c6df;
+    font-size: 0.74em;
+}
+
+.developer-telemetry-heatmap-empty {
+    color: #8893aa;
+    font-size: 0.78em;
+    margin: 0;
+}
+
 .debug-hint {
     color: #8893aa;
     font-size: 0.88em;

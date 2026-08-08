@@ -22,6 +22,10 @@ const DEFAULT_FOAM_BOUNCE_OPTIONS = Object.freeze({
     collisionGrace: 0.16,
 });
 
+// Wiederverwendetes Sample-Objekt: der Recorder liest x/z synchron aus, deshalb
+// braucht der Aufprallort keine eigene Allokation pro Bounce.
+const BOUNCE_HEATMAP_SAMPLE = { x: 0, z: 0 };
+
 function readBounceRandom(owner, options = {}) {
     const random = typeof options.random === 'function'
         ? options.random
@@ -62,6 +66,10 @@ export class CollisionResponseSystem {
         if (!owner || !player) return;
 
         const pos = player.position;
+        // Der Bounce schiebt den Spieler gleich aus der Geometrie heraus. Fuer die
+        // Heatmap zaehlt aber der Aufprallort, also hier festhalten.
+        BOUNCE_HEATMAP_SAMPLE.x = pos.x;
+        BOUNCE_HEATMAP_SAMPLE.z = pos.z;
         let normal = normalOverride;
         if (!normal) {
             const bounds = owner.arena.bounds;
@@ -130,7 +138,12 @@ export class CollisionResponseSystem {
         const botAI = owner.botByPlayer.get(player);
         if (botAI?.onBounce) botAI.onBounce(source, normal);
         if (owner.recorder) {
-            owner.recorder.logEvent(source === 'TRAIL' ? 'BOUNCE_TRAIL' : 'BOUNCE_WALL', player.index);
+            owner.recorder.logEvent(
+                source === 'TRAIL' ? 'BOUNCE_TRAIL' : 'BOUNCE_WALL',
+                player.index,
+                '',
+                BOUNCE_HEATMAP_SAMPLE
+            );
         }
     }
 
