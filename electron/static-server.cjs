@@ -34,7 +34,8 @@ function toFilePath(rootDir, requestPath) {
 }
 
 function resolveDesktopConnectSources(rootDir) {
-    const sources = ["'self'", 'http://*:*', 'ws://127.0.0.1:*', 'ws://localhost:*'];
+    // blob: and data: cover GLTFLoader texture and embedded map fetches, which run through connect-src.
+    const sources = ["'self'", 'blob:', 'data:', 'http://*:*', 'ws://127.0.0.1:*', 'ws://localhost:*'];
     try {
         const policy = JSON.parse(readFileSync(path.join(rootDir, 'desktop-network-policy.json'), 'utf8'));
         const origin = new URL(String(policy?.signalingOrigin || '')).origin;

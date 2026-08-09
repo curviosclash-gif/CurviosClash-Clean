@@ -40,3 +40,30 @@ test('desktop static server CSP allows LAN HTTP lobby requests', async () => {
         await rm(rootDir, { recursive: true, force: true });
     }
 });
+
+test('desktop static server CSP allows GLB texture and embedded map fetches', async () => {
+    const rootDir = await mkdtemp(path.join(os.tmpdir(), 'curvios-static-csp-glb-'));
+    let server = null;
+    try {
+        await writeFile(path.join(rootDir, 'index.html'), '<!doctype html><title>Curvios</title>', 'utf8');
+        server = await startStaticServer({ rootDir, port: 0 });
+
+        const response = await fetch(server.url);
+        const csp = response.headers.get('content-security-policy') || '';
+        const directives = csp.split(';').map((part) => part.trim());
+        const connectSrc = directives.find((part) => part.startsWith('connect-src')) || '';
+        const connectTokens = connectSrc.split(/\s+/).slice(1);
+
+        // GLTFLoader fetches embedded textures from blob: URLs and embedded maps from data: URLs.
+        assert.ok(connectTokens.includes('blob:'), `connect-src is missing blob:: ${connectSrc}`);
+        assert.ok(connectTokens.includes('data:'), `connect-src is missing data:: ${connectSrc}`);
+
+        // The relaxation stays confined to connect-src.
+        assert.ok(directives.includes("default-src 'self'"), csp);
+        assert.ok(directives.includes("script-src 'self' 'unsafe-inline'"), csp);
+        assert.ok(directives.includes("object-src 'none'"), csp);
+    } finally {
+        await server?.close?.();
+        await rm(rootDir, { recursive: true, force: true });
+    }
+});
