@@ -25,6 +25,11 @@ import { resolvePortalMode, resolvePortalPairCount } from '../../../shared/contr
 
 const PORTAL_EXIT_OFFSET = 1.8;
 const PORTAL_NORMAL = new THREE.Vector3(0, 0, 1);
+// Authored pairs sit where a designer put them, so a blocked endpoint is rescued by
+// stepping off the authored height rather than by sliding far across the arena.
+const AUTHORED_PORTAL_RESCUE = Object.freeze({
+    verticalOffsets: Object.freeze([0, 2.5, -2.5, 5, -5, 8, -8, 12, -12]),
+});
 
 function disposeMeshTreeResources(root) {
     if (!root || typeof root.traverse !== 'function') return;
@@ -369,8 +374,8 @@ export class PortalLayoutBuilder {
         const bz = Number(def.b[2]);
         if (![ax, ay, az, bx, by, bz].every(Number.isFinite)) return;
 
-        const posA = resolvePortalPosition(new THREE.Vector3(ax * scale, ay * scale, az * scale), 11, this.arena, config.PORTAL);
-        const posB = resolvePortalPosition(new THREE.Vector3(bx * scale, by * scale, bz * scale), 29, this.arena, config.PORTAL);
+        const posA = resolvePortalPosition(new THREE.Vector3(ax * scale, ay * scale, az * scale), 11, this.arena, config.PORTAL, AUTHORED_PORTAL_RESCUE);
+        const posB = resolvePortalPosition(new THREE.Vector3(bx * scale, by * scale, bz * scale), 29, this.arena, config.PORTAL, AUTHORED_PORTAL_RESCUE);
         if (!posA || !posB) {
             this._warnPortalLayout('Authored portal pair was skipped because no collision-free placement was found.');
             return;

@@ -145,7 +145,9 @@ export function resolvePlanarElevatorPair(nx, nz, lowY, highY, seed, arena, port
     return null;
 }
 
-export function resolvePortalPosition(pos, seed, arena, portalConfig) {
+const NO_VERTICAL_OFFSETS = Object.freeze([0]);
+
+export function resolvePortalPosition(pos, seed, arena, portalConfig, options = {}) {
     const b = arena.bounds;
     const margin = portalConfig.RING_SIZE + 2.5;
     const testRadius = portalConfig.RADIUS * 0.75;
@@ -153,22 +155,29 @@ export function resolvePortalPosition(pos, seed, arena, portalConfig) {
         return pos;
     }
 
+    // Offsets are ordered nearest-first, so a rescued portal stays as close to the
+    // authored spot as the geometry allows.
+    const verticalOffsets = Array.isArray(options.verticalOffsets) && options.verticalOffsets.length > 0
+        ? options.verticalOffsets
+        : NO_VERTICAL_OFFSETS;
     const probe = new THREE.Vector3();
     for (let i = 0; i < 20; i++) {
         const angle = (((seed + i * 37) % 360) * Math.PI) / 180;
         const dist = 2.5 + i * 1.3;
-        probe.set(
-            pos.x + Math.cos(angle) * dist,
-            pos.y,
-            pos.z + Math.sin(angle) * dist
-        );
+        for (const verticalOffset of verticalOffsets) {
+            probe.set(
+                pos.x + Math.cos(angle) * dist,
+                pos.y + verticalOffset,
+                pos.z + Math.sin(angle) * dist
+            );
 
-        probe.x = Math.max(b.minX + margin, Math.min(b.maxX - margin, probe.x));
-        probe.y = Math.max(b.minY + margin, Math.min(b.maxY - margin, probe.y));
-        probe.z = Math.max(b.minZ + margin, Math.min(b.maxZ - margin, probe.z));
+            probe.x = Math.max(b.minX + margin, Math.min(b.maxX - margin, probe.x));
+            probe.y = Math.max(b.minY + margin, Math.min(b.maxY - margin, probe.y));
+            probe.z = Math.max(b.minZ + margin, Math.min(b.maxZ - margin, probe.z));
 
-        if (!arena.checkCollision(probe, testRadius)) {
-            return probe.clone();
+            if (!arena.checkCollision(probe, testRadius)) {
+                return probe.clone();
+            }
         }
     }
 
