@@ -17,6 +17,7 @@ export function resolveMatchStartValidationIssue({
     maps = {},
     huntModeType = 'HUNT',
     classicModeType = 'CLASSIC',
+    arcadeModeType = 'ARCADE',
     productSurfaceId = '',
 } = {}) {
     const sessionContract = resolveRuntimeSessionContract(settings?.localSettings);
@@ -143,11 +144,18 @@ export function resolveMatchStartValidationIssue({
             fieldMessage: 'Fight-Konflikt: Modus auf HUNT synchronisieren.',
         };
     }
-    if ((modePath === 'normal' || modePath === 'arcade') && gameMode !== classicModeType) {
+    if (modePath === 'arcade' && gameMode !== arcadeModeType) {
         return {
-            message: 'Start nicht moeglich: Normal/Arcade muessen intern auf CLASSIC laufen.',
+            message: 'Start nicht moeglich: Arcade muss intern auf ARCADE laufen.',
             fieldKey: 'match',
-            fieldMessage: 'Modus-Konflikt: Normal/Arcade auf CLASSIC synchronisieren.',
+            fieldMessage: 'Arcade-Konflikt: Modus auf ARCADE synchronisieren.',
+        };
+    }
+    if (modePath === 'normal' && gameMode !== classicModeType) {
+        return {
+            message: 'Start nicht moeglich: Normal muss intern auf CLASSIC laufen.',
+            fieldKey: 'match',
+            fieldMessage: 'Modus-Konflikt: Normal auf CLASSIC synchronisieren.',
         };
     }
 

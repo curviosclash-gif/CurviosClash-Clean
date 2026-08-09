@@ -236,7 +236,9 @@ export function handleModePathChangeAction(ctx) {
         game.settings.hunt.respawnEnabled = true;
         changedKeys.push(SETTINGS_CHANGE_KEYS.GAME_MODE, SETTINGS_CHANGE_KEYS.HUNT_RESPAWN_ENABLED);
     } else if (modePath === 'normal' || modePath === 'arcade') {
-        game.settings.gameMode = 'CLASSIC';
+        // Arcade runs on its own strategy: it is the survival gauntlet with a health pool,
+        // scoring and upgrade bonuses. Classic stays the instant-kill mode.
+        game.settings.gameMode = modePath === 'arcade' ? 'ARCADE' : 'CLASSIC';
         if (!game.settings.hunt || typeof game.settings.hunt !== 'object') {
             game.settings.hunt = {};
         }

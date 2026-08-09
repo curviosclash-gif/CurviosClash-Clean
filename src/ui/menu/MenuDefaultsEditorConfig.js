@@ -174,7 +174,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             lockedFields: ['mode', 'gameMode', 'numBots', 'winsNeeded'],
             values: {
                 mode: '1p',
-                gameMode: 'CLASSIC',
+                gameMode: 'ARCADE',
                 mapKey: 'parcours_rift',
                 numBots: 2,
                 botDifficulty: 'NORMAL',
