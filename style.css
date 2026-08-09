@@ -4408,6 +4408,16 @@ input[type="range"]::-webkit-slider-thumb {
     margin: 0;
 }
 
+.arcade-vehicle-level-detail {
+    margin: 0;
+    color: #9db1c4;
+    font-size: 0.72rem;
+}
+
+.arcade-vehicle-level-detail:empty {
+    display: none;
+}
+
 .arcade-vehicle-xp-bar {
     height: 8px;
     border-radius: 999px;
@@ -5253,6 +5263,17 @@ input[type="range"]::-webkit-slider-thumb {
 .hangar-slot-row.is-selected {
     border-color: rgba(98, 184, 255, 0.38);
     background: rgba(48, 117, 176, 0.1);
+}
+
+.hangar-slot-row.is-locked {
+    border-color: rgba(255, 209, 132, 0.28);
+    opacity: 0.72;
+}
+
+.hangar-slot-lock-reason {
+    flex-basis: 100%;
+    color: #ffd184;
+    font-size: 0.72rem;
 }
 
 .hangar-slot-select,

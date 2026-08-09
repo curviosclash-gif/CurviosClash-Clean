@@ -205,7 +205,9 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
     const xpBar = el('div', 'arcade-vehicle-xp-bar');
     const xpFill = el('div', 'arcade-vehicle-xp-fill');
     xpBar.appendChild(xpFill);
-    profileBox.append(levelLine, xpBar);
+    const levelDetail = el('p', 'arcade-vehicle-level-detail');
+    levelDetail.setAttribute('aria-live', 'polite');
+    profileBox.append(levelLine, xpBar, levelDetail);
     const buildViewSwitch = el('div', 'hangar-build-view-switch');
     buildViewSwitch.setAttribute('role', 'tablist');
     buildViewSwitch.setAttribute('aria-label', 'Werkstattbereich');
@@ -375,7 +377,7 @@ export function createArcadeHangarWorkshopShell(rules = {}, options = {}) {
         favRow, recentRow, resultLine, catalogList, cameraToolbar, cameraReset, previewStage,
         vehiclePreviousButton, vehicleNextButton,
         previewOverlay, pairToggle, removeZone, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine,
-        xpFill, machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
+        levelDetail, xpFill, machineGunPanel, machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton,
         redoButton, revertButton, defaultButton, starterBuilds, presetName, presetSelect, presetSave,
         presetSaveAs, presetLoad, presetRename, presetDuplicate, presetDelete, presetSort, presetTags,
         presetFavorite, presetExport, presetImport, buildScroll, buildViewSwitch,

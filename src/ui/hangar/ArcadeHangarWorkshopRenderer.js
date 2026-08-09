@@ -5,70 +5,28 @@ import {
     resolvePlayerColor,
     toVehicleLevelBand,
 } from '../arcade/vehicle-manager/VehicleManagerUiPrimitives.js';
-import { resolveFightPartTradeoff } from '../../shared/contracts/FightHangarBalanceContract.js';
 import { resolveFightMachineGunModel } from '../../shared/contracts/FightMachineGunContract.js';
 import { HANGAR_SLOT_DEFINITIONS, listHangarParts, resolveHangarPart, resolvePartLockReason } from './HangarPartCatalog.js';
 import { resolveHangarStoneAvailability } from './HangarStoneInventory.js';
 import { validateHangarBuild } from './HangarBuildValidation.js';
 import { compareHangarStats, projectHangarStats } from './HangarStatProjection.js';
-
-const VEHICLE_CATEGORY_LABELS = Object.freeze({
-    jaeger: 'Jäger',
-    kreuzer: 'Kreuzer',
-    spezial: 'Spezial',
-    custom: 'Custom',
-});
-
-const STAT_VALUE_HINTS = Object.freeze({
-    speed: 'Abstrakter Geschwindigkeitswert',
-    agility: 'Abstrakter Wendigheitswert',
-    maxHp: 'Lebenspunkte',
-    mass: 'Verbrauchtes Massebudget',
-    energy: 'Verbrauchtes Energiebudget',
-    heat: 'Erzeugte Hitze',
-    partCount: 'Eingesetzte Steine',
-    budget: 'Verbrauchtes Editorbudget',
-});
+import { projectHangarProgression } from './HangarProgressionProjection.js';
+import {
+    STAT_VALUE_HINTS,
+    VEHICLE_CATEGORY_LABELS,
+    deltaText,
+    partCostsText,
+    partRunBonusesText,
+    partStatsText,
+    progressionDetailText,
+    progressionSummaryText,
+    signed,
+} from './HangarWorkshopRenderText.js';
 
 function button(className, text) {
     const node = el('button', className, text);
     node.type = 'button';
     return node;
-}
-
-function deltaText(value) {
-    const number = Number(value) || 0;
-    if (number > 0) return `↑ +${number}`;
-    if (number < 0) return `↓ ${number}`;
-    return '→ ±0';
-}
-
-function partStatsText(part) {
-    return [
-        Number(part.stats.speed) ? `Tempo +${part.stats.speed}` : '',
-        Number(part.stats.agility) ? `Wende +${part.stats.agility}` : '',
-        Number(part.stats.maxHp) ? `HP +${part.stats.maxHp}` : '',
-    ].filter(Boolean).join(' · ');
-}
-
-function signed(value, suffix = '') {
-    const number = Number(value) || 0;
-    return `${number > 0 ? '+' : ''}${number}${suffix}`;
-}
-
-function partRunBonusesText(part, multiplier = 1, mode = 'arcade') {
-    const bonuses = mode === 'fight' ? resolveFightPartTradeoff(part) : (part.bonuses || {});
-    return [
-        Number(bonuses.speedBonusPct) ? `Tempo ${signed(bonuses.speedBonusPct * multiplier, '%')}` : '',
-        Number(bonuses.turningBonusPct) ? `Wende ${signed(bonuses.turningBonusPct * multiplier, '%')}` : '',
-        Number(bonuses.maxHpBonus) ? `HP ${signed(bonuses.maxHpBonus * multiplier)}` : '',
-    ].filter(Boolean).join(' · ') || 'keine direkten Run-Boni';
-}
-
-function partCostsText(part, paired) {
-    const multiplier = paired ? 2 : 1;
-    const costs = part.costs;
-    return `${paired ? 'Paarpreis' : 'Kosten'}: B ${costs.budget * multiplier} · M ${costs.mass * multiplier} · E ${costs.energy * multiplier} · H ${costs.heat * multiplier}`;
 }
 
 export function createArcadeHangarWorkshopRenderer(options) {
@@ -82,7 +40,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
     const {
         container, saveState, vehiclesViewButton, partsViewButton, search, onlyFavBtn,
         categoryTabs, hitboxChips, levelChips, partFilters, partFilterReset, quickRows, favRow, recentRow,
-        resultLine, catalogList, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine, xpFill,
+        resultLine, catalogList, detailTitle, detailMeta, detailDescription, favoriteBtn, levelLine, levelDetail, xpFill,
         vehiclePreviousButton, vehicleNextButton,
         machineGunSelect, machineGunDetails, compareSelect, buildCompareSelect, statRows, budgetRows, partPreviewBox, slotGrid, validationBox, undoButton, redoButton,
         revertButton, activateButton, presetSelect, presetLoad, presetRename, presetDuplicate,
@@ -294,14 +252,18 @@ export function createArcadeHangarWorkshopRenderer(options) {
         });
     }
 
-    function renderSlots(state, validation, activePartId) {
+    function renderSlots(state, validation, activePartId, progression) {
         slotGrid.replaceChildren();
         const viewportStates = [];
+        const slotProjectionById = new Map((progression?.slots || []).map((entry) => [entry.id, entry]));
         HANGAR_SLOT_DEFINITIONS.forEach((slot) => {
             const part = resolveHangarPart(state.draft.slots[slot.id]);
+            const slotProjection = slotProjectionById.get(slot.id) || null;
+            const slotLocked = slotProjection ? slotProjection.unlocked === false : false;
             const row = el('div', 'arcade-vehicle-slot-row hangar-slot-row');
             row.dataset.hangarSlotRow = slot.id;
             row.classList.toggle('is-selected', state.selectedSlotId === slot.id);
+            row.classList.toggle('is-locked', slotLocked);
             const label = button('hangar-slot-select arcade-vehicle-slot-label', slot.label);
             label.dataset.selectSlot = slot.id;
             const installed = button('hangar-installed-part', part?.label || 'Leer');
@@ -330,6 +292,19 @@ export function createArcadeHangarWorkshopRenderer(options) {
                 : (slot.required ? 'Pflichtfassung kann nicht geleert werden' : `Stein aus ${slot.label} entfernen`);
             remove.setAttribute('aria-description', remove.title);
             row.append(label, installed, tier, quick, remove);
+            if (slotLocked) {
+                // Without this the locked slot looked like an ordinary empty one.
+                row.dataset.lockedReason = slotProjection.lockReason;
+                label.disabled = true;
+                label.title = slotProjection.lockReason;
+                installed.disabled = true;
+                quick.disabled = true;
+                quick.title = slotProjection.lockReason;
+                row.append(el('span', 'hangar-slot-lock-reason', slotProjection.lockReason));
+            } else if (slotProjection?.nextTier?.reason && quick.disabled) {
+                quick.title = slotProjection.nextTier.reason;
+                quick.setAttribute('aria-description', quick.title);
+            }
             slotGrid.appendChild(row);
             const dragValidation = activePartId ? evaluateInstall(activePartId, slot.id) : null;
             viewportStates.push({
@@ -398,9 +373,11 @@ export function createArcadeHangarWorkshopRenderer(options) {
         detailMeta.textContent = `${VEHICLE_CATEGORY_LABELS[entry.kategorie] || entry.kategorie} · ${HITBOX_LABELS[entry.hitboxKlasse] || entry.hitboxKlasse} · ${LEVEL_LABELS[levelBand] || levelBand}`;
         detailDescription.textContent = entry.kurzbeschreibung;
         const xp = state.xpToNextLevel(profile);
+        const progression = projectHangarProgression(profile, state.draft, xp);
         levelLine.textContent = mode === 'fight'
             ? `Fight-Sidegrade · Leistungsbudget ${validation.balanceScore ?? 0}`
-            : `Level ${profile.level} · Mastery ${profile.masteryMilestones?.length || 0} · XP ${xp.current}/${xp.required} · XRP ${state.getSpendableUpgradeXp(profile)}`;
+            : progressionSummaryText(progression);
+        levelDetail.textContent = mode === 'fight' ? '' : progressionDetailText(progression);
         xpFill.style.width = mode === 'fight' ? '100%' : `${(xp.progress * 100).toFixed(1)}%`;
         if (mode === 'fight') {
             const machineGun = resolveFightMachineGunModel(state.draft.machineGunId);
@@ -492,7 +469,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
         const activePartId = syncOptions.dragPartId || state.selectedPartId || state.previewPartId;
         renderStatistics(state, validation);
         renderPartPreview(state);
-        renderSlots(state, validation, activePartId);
+        renderSlots(state, validation, activePartId, progression);
         renderPresets(state);
         viewport.setBuild(state.draft, { color: resolvePlayerColor(settings), changedSlots: syncOptions.changedSlots || [] });
         viewport.setComparison(persistence.getBuild(buildCompareSelect.value));
