@@ -1,3 +1,11 @@
+// ============================================
+// NICHT IN BENUTZUNG (Stand 2026-08-09)
+// ============================================
+// Operationen zum ungenutzten Airframe-Mastery-System (siehe AirframeMasteryCatalog.js).
+// Kein Aufrufer in `src/`; der produktive Fortschritt laeuft ueber
+// `src/state/arcade/ArcadeVehicleProfile.js`. Datei bleibt absichtlich erhalten.
+// ============================================
+
 import {
     AIRFRAME_BASE_BUDGETS,
     getAirframeLevelFromXp,

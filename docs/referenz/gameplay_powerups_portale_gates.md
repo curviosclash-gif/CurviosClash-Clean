@@ -146,6 +146,33 @@ Maps koennen folgende Felder verwenden:
 - `items`: feste Pickup-Anker mit optionalem `pickupType`; ungueltige Typen werden beim Schema-Export sichtbar gemeldet und fallen deterministisch auf `type`/`model` zurueck.
 - `exitPortal`: einzelnes Exit-Portal mit optionaler spaeter Aktivierung.
 
+## Neuen Parcours hinzufuegen
+
+Ein Parcours ist reine Map-Autorenarbeit. Es ist **kein Codeeingriff noetig**, damit er im
+Arcade-Modus XP und Fortschritt liefert.
+
+1. Map-Definition anlegen (`src/core/config/maps/presets/parcours_maps.js` oder Editor-Export).
+2. Block `parcours` setzen:
+   - `enabled: true` — ohne dieses Flag entsteht keine Route.
+   - `routeId`: stabile Kennung; Bestzeiten und Ghosts haengen daran.
+   - `checkpoints`: geordnete Liste mit `id`, `pos`, `radius`, `forward`. Ohne Checkpoints
+     entsteht keine Route und es wird kein XP vergeben.
+   - `finish`: Zielcheckpoint. Fehlt er, meldet der Editor eine Authoring-Warnung.
+   - `rules` ist optional; alle Werte haben Defaults (siehe `buildRouteFromParcours`).
+3. Fertig. `ParcoursProgressSystem` baut die Route aus der Map, und
+   `GameRuntimeArcadeSupport` verbindet ihre Ereignisse mit dem Fahrzeugprofil.
+
+Die XP-Betraege stehen ausschliesslich in `XP_REWARD_TABLE`
+(`src/state/arcade/ArcadeVehicleProfile.js`): `parcoursCheckpoint`, `parcoursFinish` und
+`parcoursNewBestTime`. Eine neue Map bringt **keine eigenen XP-Werte** mit.
+
+Vergeben wird das XP nur, wenn der Lauf im Arcade-Pfad startet
+(`localSettings.modePath === 'arcade'`, intern `gameMode === 'ARCADE'`); im Klassik- und
+Kampfpfad laeuft derselbe Parcours ohne Fortschritt.
+
+Abgesichert durch `tests/parcours-new-route-xp.contract.test.mjs`: dort wird eine frisch
+erfundene Parcours-Definition abgeflogen und der ausgezahlte XP-Betrag geprueft.
+
 ## Editor-Authoring-Vertrag
 
 Der `EditorAuthoringContract.js` (`src/shared/contracts/EditorAuthoringContract.js`) definiert die autoritative Grenze zwischen Content-Descriptor-Feldern und UI-Metadaten:

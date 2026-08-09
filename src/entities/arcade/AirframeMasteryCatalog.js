@@ -1,3 +1,17 @@
+// ============================================
+// NICHT IN BENUTZUNG (Stand 2026-08-09)
+// ============================================
+// Zweites, eigenstaendiges Levelsystem (airframeXp, Editor-Budget, Overclock-Stufen).
+// Es hat in `src/` keinen einzigen Aufrufer und ist an keiner Stelle mit dem Spiel
+// verbunden. Der eine tatsaechlich benutzte Fortschrittsweg im Arcade-Modus ist das
+// Fahrzeugprofil in `src/state/arcade/ArcadeVehicleProfile.js` (XP, Level, Slots,
+// Steinkaeufe im Arcade-Hangar).
+//
+// Diese Datei bleibt absichtlich erhalten, aber nichts hier wirkt sich auf ein Spiel aus.
+// Wer sie in Betrieb nimmt, entfernt diesen Hinweis und passt
+// `tests/airframe-mastery-unused.contract.test.mjs` an.
+// ============================================
+
 export const AIRFRAME_MASTERY_LEVEL_THRESHOLDS = Object.freeze([
     0,
     120,
