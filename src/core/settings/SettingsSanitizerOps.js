@@ -23,6 +23,7 @@ import {
     createDefaultCameraPerspectiveSettings,
     normalizeCameraPerspectiveSettings,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
+import { normalizeArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 import { GAMEPLAY_COCKPIT_CAMERA_ENABLED } from '../../shared/contracts/CameraModeContract.js';
 import {
     deepClone,
@@ -76,6 +77,9 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
         merged.hunt.respawnEnabled = false;
     }
+    // Without this the whole arcade block was lost on every save, so the run seed,
+    // the daily challenge flag and the sector count could never persist.
+    merged.arcade = normalizeArcadeRunSettings(src?.arcade ?? defaults.arcade);
 }
 
 function applyGameplaySanitization({ merged, src, defaults, runtimeLimits }) {

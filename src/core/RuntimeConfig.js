@@ -13,6 +13,10 @@ import {
     normalizeArcadeGhostTrailCollisionEnabled,
 } from '../shared/contracts/ArcadeGhostDuelContract.js';
 import {
+    hasExplicitArcadeSeed,
+    normalizeArcadeRunSettings,
+} from '../shared/contracts/ArcadeRunSettingsContract.js';
+import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
 } from '../shared/contracts/RecordingCaptureContract.js';
@@ -74,11 +78,10 @@ function hashSeed(input) {
  */
 function resolveArcadeSeed(settings = null, activeGameMode = GAME_MODE_TYPES.CLASSIC) {
     const source = settings && typeof settings === 'object' ? settings : {};
-    const explicitSeed = source?.arcade && typeof source.arcade === 'object'
-        ? source.arcade.seed
-        : null;
-    if (Number.isFinite(Number(explicitSeed))) {
-        return clampInteger(explicitSeed, 0, 2_147_483_647, 0);
+    // Only a seed the player actually chose wins. Since the arcade block is persisted,
+    // its default 0 must keep deriving the seed from map, mode and bot count.
+    if (hasExplicitArcadeSeed(source.arcade)) {
+        return clampInteger(source.arcade.seed, 0, 2_147_483_647, 0);
     }
     const mapKey = String(source.mapKey || 'standard');
     const numBots = clampInteger(source.numBots, 0, 12, 0);
@@ -350,18 +353,11 @@ export function createRuntimeConfigSnapshot(settings, {
             timeLimitSeconds: huntSource.timeLimitEnabled === false ? 0 : 300,
         },
         arcade: {
+            // Same normalizer the settings sanitizer uses, so persisted values and the
+            // values a match runs with can never drift apart.
+            ...normalizeArcadeRunSettings(arcadeSource),
             enabled: arcadeEnabled,
-            profileId: String(arcadeSource.profileId || 'arcade-default'),
-            runType: String(arcadeSource.runType || 'gauntlet'),
             seed: resolveArcadeSeed(source, activeGameMode),
-            scoreModel: String(arcadeSource.scoreModel || 'arcade-score.v1'),
-            sectorCount: clampInteger(arcadeSource.sectorCount, 1, 20, 5),
-            intermissionSeconds: clampSettingValue(arcadeSource.intermissionSeconds, { min: 1, max: 20 }, 10),
-            comboWindowMs: clampInteger(arcadeSource.comboWindowMs, 800, 20_000, 5000),
-            comboDecayPerSecond: clampSettingValue(arcadeSource.comboDecayPerSecond, { min: 0, max: 10 }, 1),
-            maxMultiplier: clampInteger(arcadeSource.maxMultiplier, 1, 25, 8),
-            replayHooksEnabled: arcadeSource.replayHooksEnabled !== false,
-            dailyChallenge: arcadeSource.dailyChallenge === true,
             ghostDuelMode: arcadeGhostDuelMode,
             ghostTrailCollisionEnabled: arcadeGhostTrailCollisionEnabled,
         },

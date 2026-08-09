@@ -7,6 +7,7 @@ import { GRAPHICS_STYLES } from '../../shared/contracts/GraphicsStyleContract.js
 import { DEFAULT_MAP_BRIGHTNESS } from '../../shared/contracts/MapBrightnessContract.js';
 import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContract.js';
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
+import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
 export const MENU_DEFAULT_EDITOR_SCHEMA_VERSION = 'menu-default-editor.v1';
 export const MENU_DEFAULT_EVENT_PLAYLIST_ID = 'fun_rotation';
@@ -57,6 +58,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
             deathmatchKillLimit: Number(HUNT_CONFIG.DEATHMATCH_KILL_LIMIT) || 10,
             timeLimitEnabled: true,
         },
+        arcade: createDefaultArcadeRunSettings(),
         gameplay: {
             speed: 18,
             turnSensitivity: 2.2,
