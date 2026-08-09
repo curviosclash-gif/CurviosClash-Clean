@@ -458,7 +458,10 @@ export class ArcadeModeStrategy extends GameModeContract {
         }
 
         const wallDamage = this.resolveCollisionDamage('WALL');
-        const damageResult = player.takeDamage(wallDamage);
+        // Own health model: player.takeDamage() still routes through the legacy Hunt
+        // HealthSystem, which only knows Hunt and Classic and reports an instant kill
+        // for every other mode. Arcade must spend its pool instead.
+        const damageResult = this.applyDamage(player, wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
         entityManager._emitHuntDamageEvent({
             target: player,
@@ -482,7 +485,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         player.crashDamageCooldown = cooldown;
         otherPlayer.crashDamageCooldown = cooldown;
 
-        const damageResult = player.takeDamage(crashDamage);
+        const damageResult = this.applyDamage(player, crashDamage);
         entityManager._emitHuntDamageEvent({
             target: player,
             sourcePlayer: otherPlayer,
@@ -491,7 +494,7 @@ export class ArcadeModeStrategy extends GameModeContract {
             damageResult,
             impactPoint: player.position,
         });
-        const otherDamageResult = otherPlayer.takeDamage(crashDamage);
+        const otherDamageResult = this.applyDamage(otherPlayer, crashDamage);
         entityManager._emitHuntDamageEvent({
             target: otherPlayer,
             sourcePlayer: player,
@@ -512,7 +515,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
-        const damageResult = player.takeDamage(this.resolveCollisionDamage('TRAIL'));
+        const damageResult = this.applyDamage(player, this.resolveCollisionDamage('TRAIL'));
         entityManager._emitHuntDamageEvent({
             target: player,
             sourcePlayer,
