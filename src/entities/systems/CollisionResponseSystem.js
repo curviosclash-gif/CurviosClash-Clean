@@ -38,6 +38,34 @@ function readBounceRandom(owner, options = {}) {
     return value;
 }
 
+/**
+ * Picks the nearest arena wall and writes its inward normal into outVec.
+ *
+ * "Inward" means the normal points from the wall towards the arena centre, matching
+ * ArenaCollision.getCollisionInfo(): the minX wall reports +X, the maxX wall reports -X.
+ * Kept free of player/trail state so the sign convention stays testable on its own.
+ */
+export function resolveNearestBoundsNormal(bounds, pos, outVec) {
+    if (!bounds || !pos || !outVec) return outVec;
+
+    const dLeft = pos.x - bounds.minX;
+    const dRight = bounds.maxX - pos.x;
+    const dDown = pos.y - bounds.minY;
+    const dUp = bounds.maxY - pos.y;
+    const dBack = pos.z - bounds.minZ;
+    const dFront = bounds.maxZ - pos.z;
+
+    let minDist = dLeft;
+    outVec.set(1, 0, 0);
+    if (dRight < minDist) { minDist = dRight; outVec.set(-1, 0, 0); }
+    if (dDown < minDist) { minDist = dDown; outVec.set(0, 1, 0); }
+    if (dUp < minDist) { minDist = dUp; outVec.set(0, -1, 0); }
+    if (dFront < minDist) { minDist = dFront; outVec.set(0, 0, -1); }
+    if (dBack < minDist) { outVec.set(0, 0, 1); }
+
+    return outVec;
+}
+
 export class CollisionResponseSystem {
     constructor(owner, spawnPlacementSystem = null) {
         this.owner = owner || null;
@@ -72,22 +100,7 @@ export class CollisionResponseSystem {
         BOUNCE_HEATMAP_SAMPLE.z = pos.z;
         let normal = normalOverride;
         if (!normal) {
-            const bounds = owner.arena.bounds;
-            const dLeft = pos.x - bounds.minX;
-            const dRight = bounds.maxX - pos.x;
-            const dDown = pos.y - bounds.minY;
-            const dUp = bounds.maxY - pos.y;
-            const dBack = pos.z - bounds.minZ;
-            const dFront = bounds.maxZ - pos.z;
-
-            let minDist = dLeft;
-            owner._tmpVec2.set(1, 0, 0);
-            if (dRight < minDist) { minDist = dRight; owner._tmpVec2.set(-1, 0, 0); }
-            if (dDown < minDist) { minDist = dDown; owner._tmpVec2.set(0, 1, 0); }
-            if (dUp < minDist) { minDist = dUp; owner._tmpVec2.set(0, -1, 0); }
-            if (dFront < minDist) { minDist = dFront; owner._tmpVec2.set(0, 0, 1); }
-            if (dBack < minDist) { minDist = dBack; owner._tmpVec2.set(0, 0, -1); }
-            normal = owner._tmpVec2;
+            normal = resolveNearestBoundsNormal(owner.arena.bounds, pos, owner._tmpVec2);
         }
 
         player.getDirection(owner._tmpDir).normalize();
