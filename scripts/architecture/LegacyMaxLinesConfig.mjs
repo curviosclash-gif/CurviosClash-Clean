@@ -17,7 +17,6 @@ export const LEGACY_MAX_LINES = Object.freeze({
     'src/shared/contracts/BrowserDemoSurfacePolicyOverrideContract.js': 692,
     'src/shared/contracts/PlatformSurfacePolicyOps.js': 538,
     'src/shared/runtime/GameRuntimePorts.js': 420,
-    'src/state/recorder/RoundMetricsStore.js': 529,
     'src/ui/arcade/ArcadeVehicleManager.js': 552,
     'src/ui/MatchFlowUiController.js': 790,
     'src/ui/PauseOverlayController.js': 300,

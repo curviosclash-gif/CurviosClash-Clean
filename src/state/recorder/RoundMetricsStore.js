@@ -1,18 +1,13 @@
 import { parseGameplayActionResultLog } from '../../shared/contracts/GameplayActionResultContract.js';
-import { cloneRoundMetricsSummary } from './RoundMetricsSummaryOps.js';
+import {
+    cloneRoundMetricsSummary,
+    createAggregateSummary,
+    createItemUseModeCounts,
+} from './RoundMetricsSummaryOps.js';
 
 const ITEM_USE_MODES = Object.freeze(['use', 'shoot', 'mg', 'other']);
 const GAMEPLAY_RESULT_EVENTS = Object.freeze(['ITEM_USE', 'ITEM_PICKUP', 'ITEM_SPAWN', 'ITEM_HIT', 'PORTAL_USE', 'GATE_TRIGGER']);
 const FAILED_ITEM_ACTION_CODE_PREFIXES = Object.freeze(['item.use.', 'item.shoot.', 'mg.shoot.']);
-
-function createItemUseModeCounts() {
-    return {
-        use: 0,
-        shoot: 0,
-        mg: 0,
-        other: 0,
-    };
-}
 
 function normalizeItemUseMode(value) {
     const normalized = typeof value === 'string' ? value.trim().toLowerCase() : '';
@@ -107,40 +102,6 @@ function createRoundSummary() {
     };
 }
 
-function createAggregateSummary() {
-    return {
-        rounds: 0,
-        totalDuration: 0,
-        totalBotLives: 0,
-        totalBotSurvival: 0,
-        totalBotDeathCauseCounts: {},
-        totalSelfCollisions: 0,
-        totalStuckEvents: 0,
-        totalBounceWallEvents: 0,
-        totalBounceTrailEvents: 0,
-        totalItemUseEvents: 0,
-        totalItemUseModeCounts: createItemUseModeCounts(),
-        totalItemUseTypeCounts: {},
-        totalItemSpawnTypeCounts: {},
-        totalItemPickupTypeCounts: {},
-        totalItemPickupRejectedTypeCounts: {},
-        totalItemHitTypeCounts: {},
-        totalItemDamageByType: {},
-        totalActionResultCodeCounts: {},
-        totalFailedItemActions: 0,
-        totalFailedItemActionModeCounts: createItemUseModeCounts(),
-        totalFailedItemActionCodeCounts: {},
-        totalMgHits: 0,
-        totalRocketHits: 0,
-        totalShieldAbsorb: 0,
-        totalHpDamage: 0,
-        totalTurretEventCounts: {},
-        botWins: 0,
-        parcoursCompletions: 0,
-        totalParcoursCompletionTimeMs: 0,
-    };
-}
-
 export class RoundMetricsStore {
     constructor({ maxRounds = 120, maxTrackedPlayers = 16, timeProvider = null } = {}) {
         this.maxRounds = Math.max(1, Number(maxRounds) || 120);
@@ -217,6 +178,10 @@ export class RoundMetricsStore {
             this.playerDeathTime[idx] = -1;
             this.playerDeathCause[idx] = '';
         }
+    }
+
+    startMatch() {
+        this._aggregate = createAggregateSummary();
     }
 
     startRound(players = []) {

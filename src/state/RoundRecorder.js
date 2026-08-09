@@ -127,6 +127,10 @@ export class RoundRecorder {
         return this.roundStartTime > 0 ? (performance.now() - this.roundStartTime) / 1000 : 0;
     }
 
+    startMatch() {
+        this._metricsStore.startMatch();
+    }
+
     startRound(players = []) {
         this._eventStore.reset();
         this._snapshotStore.reset();

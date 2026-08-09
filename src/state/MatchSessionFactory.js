@@ -316,6 +316,8 @@ export function wireMatchSessionRuntime({
         for (const player of entityManager.players) {
             player.score = 0;
         }
+        // Match aggregates share the scoreboard's lifetime; the recorder outlives a single match.
+        entityManager.recorder?.startMatch?.();
     }
 
     return {
