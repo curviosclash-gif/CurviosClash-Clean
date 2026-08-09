@@ -2352,6 +2352,10 @@ input[type="range"]::-webkit-slider-thumb {
     -webkit-text-fill-color: transparent;
     background-clip: text;
     text-align: center;
+    /* The round end text carries a line break between winner and hunt scoreboard. */
+    white-space: pre-line;
+    max-width: min(920px, calc(100% - 32px));
+    overflow-wrap: anywhere;
 }
 
 #message-sub {

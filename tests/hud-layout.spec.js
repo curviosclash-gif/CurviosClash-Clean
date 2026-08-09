@@ -406,3 +406,44 @@ test('split-screen keeps every classic/arcade panel inside its own viewport half
         }
     }
 });
+
+test('round end headline wraps its hunt summary and stays inside the window', async ({ page }) => {
+    const viewport = { width: 1280, height: 720 };
+    await page.setViewportSize(viewport);
+    await page.goto('/', { waitUntil: 'domcontentloaded' });
+
+    const layout = await page.evaluate(() => {
+        document.querySelector('#main-menu')?.classList.add('hidden');
+        document.querySelector('#hud').classList.remove('hidden');
+        document.querySelector('#message-overlay').classList.remove('hidden');
+        const messageText = document.querySelector('#message-text');
+        messageText.textContent = 'Bot 3 gewinnt die Runde\nP1 K0/T0/A0 | Bot 2 K0/T0/A0 | Bot 3 K0/T0/A0 | Bot 4 K0/T0/A0';
+        const winnerLine = document.createRange();
+        winnerLine.setStart(messageText.firstChild, 0);
+        winnerLine.setEnd(messageText.firstChild, 'Bot 3 gewinnt die Runde'.length);
+        const rect = messageText.getBoundingClientRect();
+        return {
+            whiteSpace: getComputedStyle(messageText).whiteSpace,
+            winnerLineBoxes: winnerLine.getClientRects().length,
+            winnerLineWidth: winnerLine.getBoundingClientRect().width,
+            scrollWidth: messageText.scrollWidth,
+            clientWidth: messageText.clientWidth,
+            left: rect.left,
+            right: rect.right,
+        };
+    });
+
+    // F-01: the winner line must own its line box instead of merging with the scoreboard line.
+    expect(layout.whiteSpace, 'newline in the round end text is rendered as a line break')
+        .toMatch(/^pre-line|^pre-wrap|^break-spaces/);
+    expect(layout.winnerLineBoxes, 'the winner line stays on a single line box of its own').toBe(1);
+    expect(layout.winnerLineWidth, 'the winner line does not span the whole text box')
+        .toBeLessThan(layout.clientWidth);
+    // F-02: the headline keeps a margin to both window edges instead of bleeding off screen.
+    expect(layout.scrollWidth, 'the round end text does not overflow its box')
+        .toBeLessThanOrEqual(layout.clientWidth);
+    expect(layout.left, 'the round end text keeps a margin to the left window edge')
+        .toBeGreaterThanOrEqual(8);
+    expect(layout.right, 'the round end text keeps a margin to the right window edge')
+        .toBeLessThanOrEqual(viewport.width - 8);
+});

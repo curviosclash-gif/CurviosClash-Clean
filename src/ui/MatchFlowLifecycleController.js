@@ -149,7 +149,10 @@ export class MatchFlowLifecycleController {
             displayDuration: game.roundPause,
         });
         this._persistRoundGhostForActiveRoute();
-        const huntSummary = controller._getMatchRuntimeProjection()?.hunt?.scoreboardSummary || '';
+        const huntProjection = controller._getMatchRuntimeProjection()?.hunt || null;
+        const huntSummary = huntProjection?.active === true
+            ? huntProjection.scoreboardSummary || ''
+            : '';
         if (huntSummary) {
             if (!roundEndPlan.uiState) roundEndPlan.uiState = {};
             const baseText = String(roundEndPlan.uiState.messageText || '').trim();
