@@ -198,12 +198,16 @@ export function handleModePathChangeAction(ctx) {
     const changedKeys = [SETTINGS_CHANGE_KEYS.MODE_PATH];
     const presetId = MODE_PATH_TO_PRESET_ID[modePath];
     if (presetId) {
+        // Bot difficulty is a player preference, not part of the curated style setup.
+        // Choosing a style is navigation, so its preset must not silently overwrite it.
+        const savedBotDifficulty = game.settings.botDifficulty;
         const presetResult = game.settingsManager.applyMenuPreset(
             game.settings,
             presetId,
             resolveMenuAccessContext()
         );
         if (presetResult.success) {
+            game.settings.botDifficulty = savedBotDifficulty;
             appendMutationChangedKeys(changedKeys, presetResult);
         } else {
             game._showStatusToast(resolvePresetFailureMessage(presetResult, 'Preset konnte nicht angewendet werden.'), 1700, 'error');
