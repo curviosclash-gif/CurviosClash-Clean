@@ -211,7 +211,12 @@ export class Trail {
         if (this.timeSinceUpdate >= config.TRAIL.UPDATE_INTERVAL) {
             this.timeSinceUpdate -= config.TRAIL.UPDATE_INTERVAL;
 
-            if (Math.random() < config.TRAIL.GAP_CHANCE) {
+            // Der Wuerfel wird erst hier aufgeloest: runtimeRng entsteht im
+            // EntityManager nach der Trail-Erzeugung, ein Cache im Konstruktor
+            // wuerde also immer den ungesetzten Fallback festhalten.
+            const roll = this.entityManager?.runtimeRng?.next;
+            const gapRoll = typeof roll === 'function' ? roll() : Math.random();
+            if (gapRoll < config.TRAIL.GAP_CHANCE) {
                 this.inGap = true;
                 this.gapTimer = config.TRAIL.GAP_DURATION;
                 this._setLastPosition(position, direction);

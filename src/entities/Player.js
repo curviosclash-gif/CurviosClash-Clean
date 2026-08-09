@@ -230,7 +230,8 @@ export class Player {
             this._tmpVec.copy(startDirection).normalize();
             this.quaternion.setFromUnitVectors(this._tmpDir.set(0, 0, -1), this._tmpVec);
         } else {
-            const angle = Math.random() * Math.PI * 2;
+            const roll = this.entityManager?.runtimeRng?.next;
+            const angle = (typeof roll === 'function' ? roll() : Math.random()) * Math.PI * 2;
             this._tmpEuler.set(0, angle, 0, 'YXZ');
             this.quaternion.setFromEuler(this._tmpEuler);
         }
