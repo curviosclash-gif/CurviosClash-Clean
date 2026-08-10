@@ -126,6 +126,9 @@ export class BotSensors {
         this._portalExit = new THREE.Vector3();
         this._portalTarget = null;
         this._runtimeBot = null;
+        // Die Probe- und Bedrohungs-Ops bekommen diese Sensorik als "bot" uebergeben,
+        // deshalb traegt sie den Wuerfel der gebundenen BotAI mit.
+        this._random = Math.random;
 
         const vectorLength = this._probes.length * BOT_SENSOR_ARRAY_PROBE_WIDTH + BOT_SENSOR_ARRAY_SCALAR_WIDTH;
         this._sensorArray = new Array(vectorLength).fill(0);
@@ -159,6 +162,7 @@ export class BotSensors {
         this.profile = bot.profile;
         this.state = bot.state;
         this._recentBouncePressure = bot._recentBouncePressure;
+        this._random = typeof bot._random === 'function' ? bot._random : Math.random;
         this._portalEntry = bot._portalEntry || this._portalEntry;
         this._portalExit = bot._portalExit || this._portalExit;
         this._portalTarget = bot._portalTarget || null;

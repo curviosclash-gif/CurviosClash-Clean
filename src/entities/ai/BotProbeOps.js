@@ -130,8 +130,8 @@ export function scoreProbe(bot, player, arena, allPlayers, probe, lookAhead) {
     risk += lateralBlocks * AI_SENSOR_PROBE_POLICY.lateralBlockRiskPenalty;
     if (immediateDanger) risk += AI_SENSOR_PROBE_POLICY.immediateDangerRiskPenalty;
 
-    if (bot.profile.errorRate > 0 && Math.random() < bot.profile.errorRate) {
-        risk += (Math.random() - AI_SENSOR_PROBE_POLICY.errorNoiseOffset) * AI_SENSOR_PROBE_POLICY.errorNoiseScale;
+    if (bot.profile.errorRate > 0 && bot._random() < bot.profile.errorRate) {
+        risk += (bot._random() - AI_SENSOR_PROBE_POLICY.errorNoiseOffset) * AI_SENSOR_PROBE_POLICY.errorNoiseScale;
     }
 
     probe.wallDist = wallDist;

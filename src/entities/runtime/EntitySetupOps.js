@@ -196,6 +196,7 @@ export class EntitySetupOps {
                 bridgeEnabled: owner.botBridgeEnabled,
                 activeGameMode: owner.activeGameMode,
                 isDesktopRuntime: owner.botIsDesktopRuntime,
+                runtimeRng: owner.runtimeRng,
             });
             const sensePhase = i % 4;
             if (typeof ai?.setSensePhase === 'function') {

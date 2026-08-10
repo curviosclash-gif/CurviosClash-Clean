@@ -92,7 +92,7 @@ export function decideSteering(bot, player) {
     const planarMode = !!resolveGameplayConfig(bot).GAMEPLAY.PLANAR_MODE;
     const best = bot.sense.bestProbe;
     if (!best) {
-        bot._decision.yaw = Math.random() > 0.5 ? 1 : -1;
+        bot._decision.yaw = bot._random() > 0.5 ? 1 : -1;
         bot._decision.pitch = 0;
         return;
     }
@@ -164,14 +164,14 @@ export function decideSteering(bot, player) {
             * opennessBonus
             * chaseBonus
             * pressurePenalty;
-        if (Math.random() < effectiveChance) {
+        if (bot._random() < effectiveChance) {
             bot._decision.boost = true;
         }
     }
 
     // Hard bots correct less randomly; easy bots keep subtle random drift.
-    if (bot._profileName === 'EASY' && Math.random() < 0.08) {
-        bot._decision.yaw = Math.random() > 0.5 ? 1 : -1;
+    if (bot._profileName === 'EASY' && bot._random() < 0.08) {
+        bot._decision.yaw = bot._random() > 0.5 ? 1 : -1;
     }
 }
 

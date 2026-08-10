@@ -122,7 +122,7 @@ export function enterRecovery(bot, player, arena, allPlayers, reason) {
     bot._stuckScore = 0;
 
     const maneuver = selectRecoveryManeuver(bot, player, arena, allPlayers);
-    let selectedYaw = maneuver?.yaw || (Math.random() > 0.5 ? 1 : -1);
+    let selectedYaw = maneuver?.yaw || (bot._random() > 0.5 ? 1 : -1);
     bot.state.recoveryPitch = planarMode ? 0 : (maneuver?.pitch || 0);
 
     if (bot._recoveryChainTimer > 0 && bot._lastRecoveryReason === reason) {
@@ -219,7 +219,7 @@ export function updateRecovery(bot, dt, player, arena, allPlayers) {
         bot.state.recoveryTimer <= bot.profile.recoveryDuration * 0.55 &&
         (bot.sense.forwardRisk > 0.78 || bot._recentBouncePressure > 2.1 || bot._bounceStreak >= 3);
     if (stuckInsideRecovery) {
-        bot.state.recoveryYaw = bot.state.recoveryYaw !== 0 ? -bot.state.recoveryYaw : (Math.random() > 0.5 ? 1 : -1);
+        bot.state.recoveryYaw = bot.state.recoveryYaw !== 0 ? -bot.state.recoveryYaw : (bot._random() > 0.5 ? 1 : -1);
         bot.state.recoveryPitch = planarMode ? 0 : -bot.state.recoveryPitch;
         bot.state.recoverySwitchUsed = true;
         if (bot.recorder) {

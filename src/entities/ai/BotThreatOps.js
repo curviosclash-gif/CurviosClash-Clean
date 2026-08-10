@@ -58,7 +58,7 @@ export function senseProjectiles(bot, player, projectiles) {
             AI_SENSOR_THREAT_POLICY.projectileTimeToImpactBase
             + awareness * AI_SENSOR_THREAT_POLICY.projectileTimeToImpactAwarenessScale
         )) continue;
-        if (awareness < AI_SENSOR_THREAT_POLICY.projectileAwarenessGuaranteedThreshold && Math.random() > awareness) continue;
+        if (awareness < AI_SENSOR_THREAT_POLICY.projectileAwarenessGuaranteedThreshold && bot._random() > awareness) continue;
 
         if (timeToImpact < nearestTime) {
             nearestTime = timeToImpact;

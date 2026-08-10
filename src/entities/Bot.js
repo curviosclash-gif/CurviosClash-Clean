@@ -20,6 +20,11 @@ export class BotAI {
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = options.entityRuntimeConfig || null;
         this.gameplayConfig = resolveGameplayConfig(this);
+        // Bots existieren erst, wenn der Match-Wuerfel steht — hier darf er also
+        // gebunden werden. Ohne gesetzten Wuerfel bleibt der globale Zufall.
+        this._random = typeof options.runtimeRng?.next === 'function'
+            ? options.runtimeRng.next
+            : Math.random;
 
         this.currentInput = {
             pitchUp: false,
@@ -305,7 +310,7 @@ export class BotAI {
             return this.currentInput;
         }
 
-        const jitter = 1 + (Math.random() * 2 - 1) * this.profile.errorRate * 0.2;
+        const jitter = 1 + (this._random() * 2 - 1) * this.profile.errorRate * 0.2;
         this.reactionTimer = Math.max(0.02, this.profile.reactionTime * jitter);
 
         this._resetDecision();
