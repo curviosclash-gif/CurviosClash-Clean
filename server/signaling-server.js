@@ -357,6 +357,17 @@ export function createSignalingServer(port = 9090, options = {}) {
     const unassignedTimeoutMs = Number.isFinite(Number(options.unassignedSocketTimeoutMs))
         ? Math.max(1, Math.floor(Number(options.unassignedSocketTimeoutMs)))
         : UNASSIGNED_SOCKET_TIMEOUT_MS;
+    // Die Obergrenzen sind im Betrieb absichtlich hoch. Ohne Stellschraube liesse sich
+    // nur nachlesen, dass es sie gibt — nicht, dass sie greifen.
+    const socketMessageLimit = Number.isFinite(Number(options.maxMessagesPerSocket))
+        ? Math.max(1, Math.floor(Number(options.maxMessagesPerSocket)))
+        : MAX_MESSAGES_PER_SOCKET;
+    const ipMessageLimit = Number.isFinite(Number(options.maxMessagesPerIp))
+        ? Math.max(1, Math.floor(Number(options.maxMessagesPerIp)))
+        : MAX_MESSAGES_PER_IP;
+    const lobbyCapacity = Number.isFinite(Number(options.maxLobbies))
+        ? Math.max(1, Math.floor(Number(options.maxLobbies)))
+        : MAX_LOBBIES;
     const ipConnectionCounts = new Map();
     const serverLobbyCodes = new Set();
     const wss = new WebSocketServer({
@@ -423,7 +434,7 @@ export function createSignalingServer(port = 9090, options = {}) {
             }
             ws._messageCount += 1;
             ipRate.count += 1;
-            if (ws._messageCount > MAX_MESSAGES_PER_SOCKET || ipRate.count > MAX_MESSAGES_PER_IP) {
+            if (ws._messageCount > socketMessageLimit || ipRate.count > ipMessageLimit) {
                 sendSignalingError(ws, 'rate_limit_exceeded', 'Rate limit exceeded');
                 ws.close(1008, 'rate_limit_exceeded');
                 return;
@@ -456,7 +467,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                 break;
 
             case SIGNALING_COMMAND_TYPES.CREATE_LOBBY: {
-                if (lobbies.size >= MAX_LOBBIES) {
+                if (lobbies.size >= lobbyCapacity) {
                     sendSignalingError(ws, 'lobby_capacity_reached', 'Lobby capacity reached');
                     break;
                 }

@@ -67,8 +67,8 @@ function waitForClose(socket) {
     });
 }
 
-async function createTestServer() {
-    const wss = createSignalingServer(0);
+async function createTestServer(options = {}) {
+    const wss = createSignalingServer(0, options);
     if (!wss.address()) await once(wss, 'listening');
     return {
         wss,
@@ -240,12 +240,57 @@ test('online signaling bounds per-socket message rate', async () => {
     }
 });
 
-test('online signaling declares IP message and global lobby resource ceilings', () => {
-    const source = readFileSync(new URL('../server/signaling-server.js', import.meta.url), 'utf8');
-    assert.match(source, /const MAX_MESSAGES_PER_IP = \d[\d_]*;/);
-    assert.match(source, /ipRate\.count > MAX_MESSAGES_PER_IP/);
-    assert.match(source, /const MAX_LOBBIES = \d[\d_]*;/);
-    assert.match(source, /lobbies\.size >= MAX_LOBBIES/);
+// Vorher stand hier ein Textvergleich auf den Quelltext des Servers. Der haette auch
+// dann bestanden, wenn die Zaehlung falsch ist — geprueft wurde nur, dass die Konstante
+// im Code vorkommt. Die Grenzen sind jetzt einstellbar, damit ihr Greifen messbar wird.
+test('online signaling cuts a socket that exceeds the per-IP message budget', async () => {
+    const { wss, url } = await createTestServer({ maxMessagesPerIp: 3, maxMessagesPerSocket: 999 });
+    try {
+        const client = await createClient(url);
+        const closed = waitForClose(client.socket);
+
+        for (let index = 0; index < 5; index++) {
+            client.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 2 });
+            await delay(5);
+        }
+
+        assert.equal((await closed).code, 1008, 'the socket is closed with the policy-violation code');
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
+test('online signaling refuses a new lobby once the global capacity is reached', async () => {
+    const { wss, url } = await createTestServer({ maxLobbies: 1, maxLobbiesPerIp: 10 });
+    try {
+        const first = await createClient(url);
+        first.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 2 });
+        await first.next(SIGNALING_EVENT_TYPES.LOBBY_CREATED);
+
+        const second = await createClient(url);
+        second.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 2 });
+
+        assert.equal((await second.next(SIGNALING_EVENT_TYPES.ERROR)).message, 'Lobby capacity reached');
+    } finally {
+        await closeTestServer(wss);
+    }
+});
+
+test('online signaling keeps serving lobbies below the capacity', async () => {
+    const { wss, url } = await createTestServer({ maxLobbies: 2, maxLobbiesPerIp: 10 });
+    try {
+        const first = await createClient(url);
+        first.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 2 });
+        const firstCreated = await first.next(SIGNALING_EVENT_TYPES.LOBBY_CREATED);
+
+        const second = await createClient(url);
+        second.send(SIGNALING_COMMAND_TYPES.CREATE_LOBBY, { maxPlayers: 2 });
+        const secondCreated = await second.next(SIGNALING_EVENT_TYPES.LOBBY_CREATED);
+
+        assert.notEqual(secondCreated.lobbyCode, firstCreated.lobbyCode);
+    } finally {
+        await closeTestServer(wss);
+    }
 });
 
 test('online signaling releases expired lobby sockets and server-owned lobby codes', () => {
