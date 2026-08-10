@@ -1,7 +1,10 @@
-import { readdirSync } from 'node:fs';
+import { mkdtempSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
+
+import { readCoverageRatchet, runCoverageRatchet } from './check-coverage-ratchet.mjs';
 
 const distDependentTests = new Set([
     'electron-renderer-dist-drift.contract.test.mjs',
@@ -54,18 +57,28 @@ export function selectNodeTestFiles(fileNames, mode = 'fast') {
         .sort();
 }
 
+// Node kennt nur eine globale Schwelle fuer den gesamten Include-Satz. Eine einzige
+// Zahl ueber alle Bereiche wuerde entweder src/shared/contracts absenken oder die
+// schwaecheren Bereiche gar nicht erst zulassen, deshalb pruefen die Grenzen je
+// Bereich nach dem Lauf gegen scripts/architecture/coverage-ratchet.json.
+export function buildCoverageArgs(areaNames, summaryPath) {
+    return [
+        '--experimental-test-coverage',
+        ...areaNames.map((areaName) => `--test-coverage-include=${areaName}/**/*.js`),
+        '--test-reporter=spec',
+        '--test-reporter-destination=stdout',
+        '--test-reporter=./scripts/coverage-summary-reporter.mjs',
+        `--test-reporter-destination=${summaryPath}`,
+    ];
+}
+
 export function runContractTests(argv = process.argv.slice(2)) {
     const mode = argv.find((value) => !String(value).startsWith('-')) || 'fast';
     const coverageEnabled = argv.includes('--coverage');
     const selectedTests = selectNodeTestFiles(collectNodeTestFileNames('tests'), mode);
+    const summaryPath = path.join(mkdtempSync(path.join(tmpdir(), 'curvios-coverage-')), 'summary.json');
     const testArgs = coverageEnabled
-        ? [
-            '--experimental-test-coverage',
-            '--test-coverage-include=src/shared/contracts/**/*.js',
-            '--test-coverage-lines=70',
-            '--test-coverage-branches=60',
-            '--test-coverage-functions=60',
-        ]
+        ? buildCoverageArgs(Object.keys(readCoverageRatchet().areas), summaryPath)
         : [];
 
     const result = spawnSync(process.execPath, [
@@ -78,7 +91,13 @@ export function runContractTests(argv = process.argv.slice(2)) {
     });
 
     if (result.error) throw result.error;
-    return result.status ?? 1;
+    const testStatus = result.status ?? 1;
+    if (!coverageEnabled) return testStatus;
+
+    // Der Ratchet laeuft auch bei roten Tests, damit ein Coverage-Einbruch nicht erst
+    // beim naechsten gruenen Lauf auffaellt. Der Testfehler bleibt der Rueckgabewert.
+    const ratchetStatus = runCoverageRatchet(summaryPath);
+    return testStatus || ratchetStatus;
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
