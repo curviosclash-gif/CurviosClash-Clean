@@ -4,13 +4,13 @@
   "measured": {
     "src/shared/contracts": "90.31 / 75.12 / 85.63",
     "src/state": "66.24 / 66.78 / 64.19",
-    "src/entities/systems": "74.94 / 60.65 / 68.47",
+    "src/entities/systems": "76.57 / 61.49 / 69.60",
     "src/modes": "76.60 / 66.01 / 54.09"
   },
   "areas": {
     "src/shared/contracts": { "lines": 89, "branches": 74, "functions": 84 },
     "src/state": { "lines": 65, "branches": 65, "functions": 63 },
-    "src/entities/systems": { "lines": 73, "branches": 59, "functions": 67 },
+    "src/entities/systems": { "lines": 75, "branches": 60, "functions": 68 },
     "src/modes": { "lines": 75, "branches": 65, "functions": 53 }
   }
 }
