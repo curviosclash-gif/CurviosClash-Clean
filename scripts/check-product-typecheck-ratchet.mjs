@@ -40,25 +40,78 @@ for (const sourceRoot of sourceRoots) {
 const program = ts.createProgram(sourceFiles, converted.options);
 const diagnostics = ts.getPreEmitDiagnostics(program)
     .filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
-const maxDiagnostics = Number(baseline.maxDiagnostics);
-if (!Number.isFinite(maxDiagnostics)) {
-    throw new Error('Missing numeric maxDiagnostics in product typecheck ratchet.');
+const REST_BUCKET = '*';
+
+function formatDiagnostic(diagnostic) {
+    const file = diagnostic.file
+        ? path.relative(rootDir, diagnostic.file.fileName).replace(/\\/g, '/')
+        : '<compiler>';
+    const position = diagnostic.file && Number.isInteger(diagnostic.start)
+        ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
+        : null;
+    const location = position ? `${file}:${position.line + 1}:${position.character + 1}` : file;
+    return `- ${location} TS${diagnostic.code} ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`;
 }
 
-if (diagnostics.length > maxDiagnostics) {
-    console.error(`Product typecheck ratchet failed: ${diagnostics.length} diagnostics exceed baseline ${maxDiagnostics}.`);
-    for (const diagnostic of diagnostics.slice(0, 20)) {
-        const file = diagnostic.file
-            ? path.relative(rootDir, diagnostic.file.fileName).replace(/\\/g, '/')
-            : '<compiler>';
-        const position = diagnostic.file && Number.isInteger(diagnostic.start)
-            ? diagnostic.file.getLineAndCharacterOfPosition(diagnostic.start)
-            : null;
-        const location = position ? `${file}:${position.line + 1}:${position.character + 1}` : file;
-        console.error(`- ${location} ${ts.flattenDiagnosticMessageText(diagnostic.messageText, ' ')}`);
+function reportOverflow(bucket, count, budget, examples) {
+    console.error(`Product typecheck ratchet failed: bucket ${bucket} has ${count} diagnostics, budget ${budget}.`);
+    for (const diagnostic of examples.slice(0, 20)) {
+        console.error(formatDiagnostic(diagnostic));
     }
-    process.exit(1);
 }
 
-const status = diagnostics.length === maxDiagnostics ? 'at-baseline' : 'below-baseline';
-console.log(`Product typecheck ratchet passed: ${sourceFiles.length} files, ${diagnostics.length} diagnostics (${status}, baseline ${maxDiagnostics}).`);
+// Altes Gesamtmass: nur noch fuer Baselines, die nicht auf Eimer umgestellt sind.
+if (baseline.maxDiagnostics !== undefined) {
+    const maxDiagnostics = Number(baseline.maxDiagnostics);
+    if (!Number.isFinite(maxDiagnostics)) {
+        throw new Error('Missing numeric maxDiagnostics in product typecheck ratchet.');
+    }
+    if (diagnostics.length > maxDiagnostics) {
+        reportOverflow('total', diagnostics.length, maxDiagnostics, diagnostics);
+        process.exit(1);
+    }
+    const status = diagnostics.length === maxDiagnostics ? 'at-baseline' : 'below-baseline';
+    console.log(`Product typecheck ratchet passed: ${sourceFiles.length} files, ${diagnostics.length} diagnostics (${status}, baseline ${maxDiagnostics}).`);
+    process.exit(0);
+}
+
+// Eimer-Mass: eine Gesamtzahl sagt nichts, solange drei JSDoc-Codes 90 % stellen und
+// mit jedem neuen Objektliteral wachsen. Jeder budgetierte Code wird einzeln geprueft,
+// alles Uebrige summiert gegen "*" — dort faellt echter neuer Fehlercode auf.
+const budgets = baseline.budgets;
+if (!budgets || typeof budgets !== 'object') {
+    throw new Error('Missing budgets object in product typecheck ratchet.');
+}
+if (!Number.isFinite(Number(budgets[REST_BUCKET]))) {
+    throw new Error(`Missing numeric "${REST_BUCKET}" budget in product typecheck ratchet.`);
+}
+
+const grouped = new Map();
+for (const diagnostic of diagnostics) {
+    const code = `TS${diagnostic.code}`;
+    const bucket = Object.hasOwn(budgets, code) ? code : REST_BUCKET;
+    let entry = grouped.get(bucket);
+    if (!entry) {
+        entry = [];
+        grouped.set(bucket, entry);
+    }
+    entry.push(diagnostic);
+}
+
+let failed = false;
+const summary = [];
+for (const [bucket, budgetValue] of Object.entries(budgets)) {
+    const budget = Number(budgetValue);
+    if (!Number.isFinite(budget)) {
+        throw new Error(`Non-numeric budget for bucket ${bucket} in product typecheck ratchet.`);
+    }
+    const found = grouped.get(bucket) || [];
+    summary.push(`${bucket}=${found.length}/${budget}`);
+    if (found.length > budget) {
+        reportOverflow(bucket, found.length, budget, found);
+        failed = true;
+    }
+}
+if (failed) process.exit(1);
+
+console.log(`Product typecheck ratchet passed: ${sourceFiles.length} files, ${diagnostics.length} diagnostics (${summary.join(', ')}).`);
