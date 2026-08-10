@@ -200,6 +200,8 @@ export function createGameUiRefs(doc = document) {
         arcadeGhostDuelModeSelect: doc.getElementById('arcade-ghost-duel-mode-select'),
         arcadeGhostTrailCollisionToggle: doc.getElementById('arcade-ghost-trail-collision-toggle'),
         arcadeGhostDuelModeHint: doc.getElementById('arcade-ghost-duel-mode-hint'),
+        arcadeSectorCountInput: doc.getElementById('arcade-sector-count'),
+        arcadeSectorCountLabel: doc.getElementById('arcade-sector-count-label'),
         themeModeSelect: doc.getElementById('theme-mode-select'),
         themeFieldHint: doc.getElementById('theme-field-hint'),
         matchFieldHint: doc.getElementById('match-field-hint'),

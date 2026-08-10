@@ -4,6 +4,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     MULTIPLAYER_TRANSPORT: 'multiplayer.transport',
     ARCADE_GHOST_DUEL_MODE: 'startSetup.arcadeGhostDuelMode',
     ARCADE_GHOST_TRAIL_COLLISION_ENABLED: 'startSetup.arcadeGhostTrailCollisionEnabled',
+    ARCADE_SECTOR_COUNT: 'arcade.sectorCount',
     LOCAL_THEME_MODE: 'local.themeMode',
     LOCAL_GRAPHICS_STYLE: 'local.graphicsStyle',
     LOCAL_MAP_BRIGHTNESS: 'local.mapBrightness',
@@ -107,6 +108,7 @@ const CHANGE_KEY_PATH_OVERRIDES = Object.freeze({
 });
 
 const CHANGE_KEY_ROOT_PATHS = Object.freeze({
+    arcade: 'arcade',
     cameraPerspective: 'cameraPerspective',
     gameplay: 'gameplay',
     hunt: 'hunt',

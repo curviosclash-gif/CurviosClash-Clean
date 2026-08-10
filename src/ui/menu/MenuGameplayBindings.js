@@ -4,14 +4,12 @@ import { normalizeShadowQuality } from '../../shared/contracts/ShadowQualityCont
 import { GAMEPLAY_COCKPIT_CAMERA_ENABLED } from '../../shared/contracts/CameraModeContract.js';
 import { clamp } from '../../utils/MathOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
-import {
-    MOBILE_CLASSIC_TILT_SENSITIVITY_LIMITS,
-    normalizeMobileClassicControlSettings,
-} from '../../shared/contracts/MobileClassicControlsContract.js';
 import { bindMenuMultiplayerTransportButtons } from './MenuMultiplayerTransportBindings.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/SettingsRuntimeLimitsContract.js';
 import { bindMenuExtrasButtons } from './MenuExtrasBindings.js';
 import { bindArcadeGhostDuelModeSelect } from './MenuArcadeGhostDuelBindings.js';
+import { bindArcadeRunSettings } from './MenuArcadeRunSettingsBindings.js';
+import { bindMenuMobileTiltControls } from './MenuMobileTiltBindings.js';
 import { bindMenuRecordingCameraControls } from './MenuRecordingCameraBindings.js';
 import {
     HANGAR_SELECTION_PLAYER_SLOTS,
@@ -38,23 +36,6 @@ export function setupMenuGameplayBindings(ctx) {
     const hangarWindow = createHangarWindowMenuPort(globalThis);
     const mgTrailAimLimits = gameplayLimits.mgTrailAimRadius;
     const fightMgDamageLimits = gameplayLimits.fightMgDamage;
-    const ensureMobileControls = () => {
-        if (!settings.localSettings || typeof settings.localSettings !== 'object') {
-            settings.localSettings = {};
-        }
-        settings.localSettings.mobileControls = normalizeMobileClassicControlSettings(
-            settings.localSettings.mobileControls
-        );
-        return settings.localSettings.mobileControls;
-    };
-    const updateMobileControls = (patch) => {
-        const current = ensureMobileControls();
-        settings.localSettings.mobileControls = normalizeMobileClassicControlSettings({
-            ...current,
-            ...patch,
-        });
-        return settings.localSettings.mobileControls;
-    };
     settings.cockpitCamera = { ...(settings.cockpitCamera && typeof settings.cockpitCamera === 'object' ? settings.cockpitCamera : {}), PLAYER_1: GAMEPLAY_COCKPIT_CAMERA_ENABLED, PLAYER_2: GAMEPLAY_COCKPIT_CAMERA_ENABLED };
     [ui.cockpitCamP1, ui.cockpitCamP2].forEach((toggle) => { if (toggle) { toggle.checked = GAMEPLAY_COCKPIT_CAMERA_ENABLED; toggle.disabled = true; } });
     const resolveCurrentHangarModePath = () => String(settings?.localSettings?.modePath || 'normal').trim().toLowerCase() || 'normal';
@@ -278,6 +259,7 @@ export function setupMenuGameplayBindings(ctx) {
         });
     }
     bindArcadeGhostDuelModeSelect({ ui, settings, bind, emitSettingsChangedImmediate, keys });
+    bindArcadeRunSettings({ ui, settings, bind, emitSettingsChangedImmediate, keys });
 
     bind(ui.botSlider, 'input', () => {
         settings.numBots = clamp(parseInt(ui.botSlider.value, 10), sessionLimits.numBots.min, sessionLimits.numBots.max);
@@ -355,45 +337,9 @@ export function setupMenuGameplayBindings(ctx) {
         emitSettingsChangedImmediate([keys.RULES_PORTALS_ENABLED]);
     });
 
-    if (ui.mobileTiltSensitivitySlider) {
-        bind(ui.mobileTiltSensitivitySlider, 'input', () => {
-            const percent = clamp(
-                parseInt(ui.mobileTiltSensitivitySlider.value, 10),
-                Math.round(MOBILE_CLASSIC_TILT_SENSITIVITY_LIMITS.min * 100),
-                Math.round(MOBILE_CLASSIC_TILT_SENSITIVITY_LIMITS.max * 100)
-            );
-            updateMobileControls({ tiltSensitivity: percent / 100 });
-            queueInputSettingsChanged([keys.LOCAL_MOBILE_TILT_SENSITIVITY]);
-        });
-    }
-
-    if (ui.mobileTiltAssistSelect) {
-        bind(ui.mobileTiltAssistSelect, 'change', () => {
-            updateMobileControls({ tiltAssistMode: ui.mobileTiltAssistSelect.value });
-            emitSettingsChangedImmediate([keys.LOCAL_MOBILE_TILT_ASSIST_MODE]);
-        });
-    }
-
-    if (ui.mobileTiltPitchModeSelect) {
-        bind(ui.mobileTiltPitchModeSelect, 'change', () => {
-            updateMobileControls({ tiltPitchMode: ui.mobileTiltPitchModeSelect.value });
-            emitSettingsChangedImmediate([keys.LOCAL_MOBILE_TILT_PITCH_MODE]);
-        });
-    }
-
-    if (ui.mobileTiltDebugToggle) {
-        bind(ui.mobileTiltDebugToggle, 'change', () => {
-            updateMobileControls({ tiltDebugVisible: !!ui.mobileTiltDebugToggle.checked });
-            emitSettingsChangedImmediate([keys.LOCAL_MOBILE_TILT_DEBUG_VISIBLE]);
-        });
-    }
-
-    if (ui.mobileTiltSensorHzToggle) {
-        bind(ui.mobileTiltSensorHzToggle, 'change', () => {
-            updateMobileControls({ tiltSensorHzVisible: !!ui.mobileTiltSensorHzToggle.checked });
-            emitSettingsChangedImmediate([keys.LOCAL_MOBILE_TILT_SENSOR_HZ_VISIBLE]);
-        });
-    }
+    bindMenuMobileTiltControls({
+        ui, settings, bind, emitSettingsChangedImmediate, queueInputSettingsChanged, keys,
+    });
 
     bind(ui.speedSlider, 'input', () => {
         settings.gameplay.speed = clamp(parseFloat(ui.speedSlider.value), gameplayLimits.speed.min, gameplayLimits.speed.max);

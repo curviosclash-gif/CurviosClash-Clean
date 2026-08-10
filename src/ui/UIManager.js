@@ -23,6 +23,7 @@ import {
 } from '../shared/contracts/RecordingCaptureContract.js';
 import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
 import { applyRuntimeHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
+import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
@@ -411,6 +412,7 @@ export class UIManager {
             ui.huntTimeLimitToggle.checked = settings?.hunt?.timeLimitEnabled !== false;
             ui.huntTimeLimitToggle.disabled = !huntRespawnEnabled;
         }
+        syncArcadeRunSettings(ui, settings);
     }
 
     syncMap(settings = this.settings) {
