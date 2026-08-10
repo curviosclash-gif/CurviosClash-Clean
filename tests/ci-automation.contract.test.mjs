@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-import { selectNodeTestFiles } from '../scripts/run-contract-tests.mjs';
+import { collectNodeTestFileNames, selectNodeTestFiles } from '../scripts/run-contract-tests.mjs';
 import {
     DESKTOP_E2E_CLUSTERS,
     HEAVY_DIAGNOSTIC_CLUSTERS,
@@ -70,6 +71,53 @@ test('contract runner discovers every root Node test exactly once', () => {
     ].sort();
 
     assert.deepEqual(selected, allNodeTests);
+});
+
+function fakeTestTree(tree) {
+    return (directory, options) => {
+        void options;
+        const entries = tree[directory.split(/[\\/]/).join('/')];
+        if (!entries) throw new Error(`unexpected directory: ${directory}`);
+        return entries.map(([name, isDirectory]) => ({
+            name,
+            isDirectory: () => isDirectory,
+        }));
+    };
+}
+
+test('a Node test in a subfolder is collected instead of silently skipped', () => {
+    const collected = collectNodeTestFileNames('tests', fakeTestTree({
+        tests: [['root.contract.test.mjs', false], ['nested', true]],
+        'tests/nested': [['deep.contract.test.mjs', false], ['helper.mjs', false]],
+    }));
+
+    assert.deepEqual(collected, ['nested/deep.contract.test.mjs', 'root.contract.test.mjs']);
+});
+
+test('fixture folders keep their deliberately broken tests out of the suite', () => {
+    const collected = collectNodeTestFileNames('tests', fakeTestTree({
+        tests: [['root.contract.test.mjs', false], ['council-test-loop', true]],
+    }));
+
+    assert.deepEqual(collected, ['root.contract.test.mjs']);
+});
+
+test('the dist-dependent test is routed by name even from a subfolder', () => {
+    const nested = ['nested/electron-renderer-dist-drift.contract.test.mjs'];
+
+    assert.deepEqual(selectNodeTestFiles(nested, 'dist'), nested);
+    assert.deepEqual(selectNodeTestFiles(nested, 'fast'), []);
+});
+
+test('the real tests folder exposes its fixture loop but never runs it', () => {
+    const collected = collectNodeTestFileNames(fileURLToPath(new URL('../tests/', import.meta.url)));
+
+    assert.ok(collected.includes('ci-automation.contract.test.mjs'), 'root tests are collected');
+    assert.equal(
+        collected.some((fileName) => fileName.startsWith('council-test-loop/')),
+        false,
+        'council fixtures stay out of the product suite'
+    );
 });
 
 test('CI cluster catalog assigns every Playwright spec exactly once', () => {
