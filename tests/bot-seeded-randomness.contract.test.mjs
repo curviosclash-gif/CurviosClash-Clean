@@ -66,3 +66,35 @@ test('steering without a probe target draws its yaw from the seeded rng', () => 
         Math.random = originalRandom;
     }
 });
+
+// Die Sensorik wird vor dem Binden schon benutzt. Ihr Konstruktor setzte deshalb
+// this._random = Math.random — ein ungesetzter Wuerfel, den der Determinismus-Guard
+// nicht sah, weil er nur nach Math.random( mit Klammer suchte.
+test('unbound sensors roll a constant instead of reaching for the global rng', async () => {
+    const { BotSensors } = await import('../src/entities/ai/BotSensors.js');
+    const sensors = new BotSensors();
+
+    assert.notEqual(sensors._random, Math.random);
+    assert.equal(sensors._random(), 0.5);
+    assert.equal(sensors._random(), sensors._random(), 'the fallback stays reproducible');
+});
+
+test('binding a bot without a roll keeps the constant rather than the global rng', async () => {
+    const { BotSensors } = await import('../src/entities/ai/BotSensors.js');
+    const sensors = new BotSensors();
+
+    sensors.bindRuntime({ _random: 'not-a-function', profile: null, state: null });
+
+    assert.notEqual(sensors._random, Math.random);
+    assert.equal(sensors._random(), 0.5);
+});
+
+test('binding a bot with a seeded roll still wins over the constant', async () => {
+    const { BotSensors } = await import('../src/entities/ai/BotSensors.js');
+    const runtimeRng = createRuntimeRng({ seed: 1234 });
+    const sensors = new BotSensors();
+
+    sensors.bindRuntime({ _random: runtimeRng.next, profile: null, state: null });
+
+    assert.equal(sensors._random, runtimeRng.next);
+});

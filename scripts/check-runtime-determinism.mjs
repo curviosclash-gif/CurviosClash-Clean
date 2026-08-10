@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 
 // Verzeichnisse statt Einzeldateien: die alte Liste hat fuenf Pfade geprueft und dabei
 // eine Datei mitgezaehlt, die inzwischen nur noch ein Re-Export ist. Die eigentliche
@@ -8,6 +9,7 @@ const SCAN_TARGETS = [
     'src/network',
     'src/application/session-runtime',
     'src/entities',
+    'src/modes',
     'src/core/runtime/MenuRuntimeSessionService.js',
     'src/ui/menu/MenuMultiplayerBridge.js',
 ];
@@ -37,6 +39,45 @@ const EXCEPTIONS = {
     // Gesetzter Wuerfel mit Rueckfall: greift nur, solange runtimeRng noch nicht steht.
     'src/entities/Trail.js': { reason: 'guarded fallback while runtimeRng is not bound yet' },
     'src/entities/Player.js': { reason: 'guarded fallback while runtimeRng is not bound yet' },
+
+    // Erst sichtbar, seit der Guard auch blosse Verweise sieht. Alle reichen den Wuerfel
+    // bzw. die Uhr als Standardwert weiter und bevorzugen die gesetzte Quelle, wenn es
+    // eine gibt. Bewertet, aber echte Schuld: ohne Injektion laeuft es global.
+    'src/entities/Arena.js': {
+        reason: 'random is a default parameter, callers pass the seeded roll',
+        todo: true,
+    },
+    'src/entities/Bot.js': {
+        reason: 'guarded fallback while runtimeRng is not bound yet',
+        todo: true,
+    },
+    'src/entities/runtime/EntitySetupOps.js': {
+        reason: 'seeds the runtime rng and falls back to the global roll when unseeded',
+        todo: true,
+    },
+    'src/application/session-runtime/LobbyLifecycleEventEmitter.js': {
+        reason: 'now is a guarded fallback behind an injectable clock',
+        todo: true,
+    },
+    'src/application/session-runtime/StorageLobbySessionStateProjection.js': {
+        reason: 'now is a guarded fallback behind an injectable clock',
+        todo: true,
+    },
+
+    // src/modes wird erst seit dieser Runde gescannt. Die Strategien messen Spielzeit
+    // ueber eine eigene nowSeconds-Hilfe und reichen den Wuerfel als Standardwert weiter.
+    'src/modes/ArcadeModeStrategy.js': {
+        reason: 'nowSeconds helper measures real frame time for modifier timing',
+        todo: true,
+    },
+    'src/modes/ClassicModeStrategy.js': {
+        reason: 'damage timestamp falls back to the wall clock when none is passed',
+        todo: true,
+    },
+    'src/modes/HuntModeStrategy.js': {
+        reason: 'nowSeconds helper plus seeded-roll fallbacks for pickup weighting',
+        todo: true,
+    },
 
     // Bewertet, aber noch nicht umgebaut.
     'src/entities/systems/ProjectileSystem.js': {
@@ -77,8 +118,40 @@ const EXCEPTIONS = {
     },
 };
 
-const DIRECT_TIME_OR_RNG_PATTERN = /\b(?:Date\.now|Math\.random|performance\.now)\s*\(/g;
+// Der alte Ausdruck verlangte die oeffnende Klammer und hat deshalb jede Zuweisung
+// durchgelassen. Ein blosser Verweis ist aber genauso unbestimmt wie ein Aufruf: wer
+// Math.random als Wert weiterreicht, bekommt denselben ungesetzten Wuerfel, nur eine
+// Zeile spaeter.
+const DIRECT_TIME_OR_RNG_PATTERN = /\b(?:Date\.now|Math\.random|performance\.now)\b/g;
+
+// "typeof performance.now === 'function'" fragt nach der Plattform, nicht nach der Zeit.
+// Solche Pruefungen sind keine Nutzung und duerfen den Guard nicht ausloesen.
+const CAPABILITY_CHECK_PREFIX = /typeof\s+$/;
+
 const toPosix = (value) => value.replace(/\\/g, '/');
+
+// Kommentare werden durch Leerzeichen gleicher Laenge ersetzt statt entfernt, damit die
+// gemeldete Zeilennummer weiter auf die echte Quelle zeigt.
+export function maskComments(text) {
+    return text
+        .replace(/\/\*[\s\S]*?\*\//g, (match) => match.replace(/[^\n]/g, ' '))
+        .replace(/\/\/[^\n]*/g, (match) => ' '.repeat(match.length));
+}
+
+export function findDeterminismViolations(text) {
+    const masked = maskComments(text);
+    const violations = [];
+    for (const match of masked.matchAll(DIRECT_TIME_OR_RNG_PATTERN)) {
+        const offset = Number(match.index || 0);
+        if (CAPABILITY_CHECK_PREFIX.test(masked.slice(Math.max(0, offset - 12), offset))) continue;
+        const isCall = /^\s*\(/.test(masked.slice(offset + match[0].length));
+        violations.push({
+            line: masked.slice(0, offset).split(/\r?\n/).length,
+            detail: isCall ? `${match[0]}(` : `${match[0]} (handed on as a value)`,
+        });
+    }
+    return violations;
+}
 
 // Zeilenweise statt mit einem Gesamt-Regex: eine verschachtelte Alternative ueber die
 // ganze Datei laeuft auf grossen Quellen in katastrophales Backtracking.
@@ -108,6 +181,7 @@ function collectJsFiles(target) {
     return collected;
 }
 
+export function runDeterminismGuard() {
 const failures = [];
 const notes = [];
 const scannedFiles = [];
@@ -147,10 +221,8 @@ for (const target of SCAN_TARGETS) {
         }
 
         scannedFiles.push(filePath);
-        for (const match of text.matchAll(DIRECT_TIME_OR_RNG_PATTERN)) {
-            const offset = Number(match.index || 0);
-            const line = text.slice(0, offset).split(/\r?\n/).length;
-            failures.push({ filePath, line, detail: String(match[0]) });
+        for (const violation of findDeterminismViolations(text)) {
+            failures.push({ filePath, line: violation.line, detail: violation.detail });
         }
     }
 }
@@ -160,7 +232,7 @@ if (failures.length > 0) {
     for (const failure of failures) {
         console.error(`- ${failure.filePath}:${failure.line} ${failure.detail}`);
     }
-    process.exit(1);
+    return { status: 1, failures, scannedFiles, exemptFiles, todoFiles, notes };
 }
 
 console.log('Runtime determinism guard passed.');
@@ -170,4 +242,10 @@ for (const note of notes) {
 }
 for (const todo of todoFiles) {
     console.log(`- todo: ${todo.filePath} (${todo.reason})`);
+}
+return { status: 0, failures, scannedFiles, exemptFiles, todoFiles, notes };
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+    process.exit(runDeterminismGuard().status);
 }

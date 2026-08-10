@@ -104,7 +104,17 @@ export class GameModeContract {
     // --- Spawning ---
     isRespawnEnabled(config) { void config; return false; }
     filterSpawnableTypes(typeKeys, powerupTypes, huntModeActive) { void powerupTypes; void huntModeActive; return typeKeys; }
-    resolveSpawnType(spawnableTypes, config) { void config; return spawnableTypes[Math.floor(Math.random() * spawnableTypes.length)]; }
+    // Jede konkrete Strategie setzt this._random aus dem gesetzten Runtime-Wuerfel und
+    // ueberschreibt diese Methode. Die Basis darf trotzdem nicht auf den globalen Zufall
+    // ausweichen: ein vierter Modus wuerde sonst eine nicht reproduzierbare Auswahl erben,
+    // ohne dass es auffaellt. Ohne Wuerfel entscheidet ein konstanter Wurf.
+    resolveSpawnType(spawnableTypes, config) {
+        void config;
+        if (!Array.isArray(spawnableTypes) || spawnableTypes.length === 0) return undefined;
+        const roll = typeof this._random === 'function' ? Number(this._random()) : 0.5;
+        const index = Math.floor((Number.isFinite(roll) ? roll : 0.5) * spawnableTypes.length);
+        return spawnableTypes[Math.min(Math.max(index, 0), spawnableTypes.length - 1)];
+    }
 
     // --- Features ---
     hasScoring() { return false; }

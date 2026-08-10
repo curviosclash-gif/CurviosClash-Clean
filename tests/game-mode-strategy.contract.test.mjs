@@ -345,3 +345,45 @@ test('registerGameModeStrategy supports targeted extensions without browser runt
     registerGameModeStrategy('ARCADE_CONTRACT_TEST', () => new ArcadeTestModeStrategy());
     assert.equal(createGameModeStrategy('ARCADE_CONTRACT_TEST').modeType, 'ARCADE');
 });
+
+// Alle drei echten Strategien ueberschreiben resolveSpawnType. Die Basisimplementierung
+// lief deshalb nie — und griff unbemerkt auf den globalen Zufall zu. Ein vierter Modus
+// haette eine nicht reproduzierbare Auswahl geerbt, ohne dass es auffaellt.
+test('the base strategy picks a spawn type without touching the global roll', () => {
+    const originalRandom = Math.random;
+    Math.random = () => {
+        throw new Error('the base strategy must not fall back to Math.random');
+    };
+    try {
+        const base = new GameModeContract();
+        const types = ['SHIELD', 'ROCKET', 'BOOST', 'MINE'];
+
+        const first = base.resolveSpawnType(types, null);
+        const second = base.resolveSpawnType(types, null);
+
+        assert.ok(types.includes(first));
+        assert.equal(second, first, 'without a seeded roll the choice stays reproducible');
+    } finally {
+        Math.random = originalRandom;
+    }
+});
+
+test('the base strategy draws from a bound roll when one exists', () => {
+    const base = new GameModeContract();
+    const types = ['SHIELD', 'ROCKET', 'BOOST', 'MINE'];
+    const rolls = [0, 0.3, 0.6, 0.99];
+    let index = 0;
+    base._random = () => rolls[index++];
+
+    assert.deepEqual(types.map(() => base.resolveSpawnType(types, null)), types);
+});
+
+test('the base strategy survives an empty or broken type list', () => {
+    const base = new GameModeContract();
+
+    assert.equal(base.resolveSpawnType([], null), undefined);
+    assert.equal(base.resolveSpawnType(null, null), undefined);
+
+    base._random = () => Number.NaN;
+    assert.equal(base.resolveSpawnType(['ONLY'], null), 'ONLY');
+});
