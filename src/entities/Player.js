@@ -273,7 +273,9 @@ export class Player {
         this.itemUseCooldownRemaining = Math.max(0, Number(this.itemUseCooldownRemaining || 0) - dt);
         const steeringLocked = this.steeringLockTimer > 0;
 
-        updatePlayerHealthRegen(this, dt);
+        if (!strategy || typeof strategy.updateHealthRegen !== 'function') {
+            updatePlayerHealthRegen(this, dt);
+        }
         updatePlayerEffects(this, dt);
 
         // 61.4.1: Apply modifier per-frame effects via strategy
@@ -402,7 +404,10 @@ export class Player {
     }
 
     heal(amount) {
-        return applyHealing(this, amount);
+        const strategy = this.entityManager?.gameModeStrategy || null;
+        return typeof strategy?.applyHealing === 'function'
+            ? strategy.applyHealing(this, amount, this.entityRuntimeConfig)
+            : applyHealing(this, amount);
     }
 
     isDead() {

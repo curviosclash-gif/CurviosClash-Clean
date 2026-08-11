@@ -213,7 +213,11 @@ export function applyPlayerPowerup(player, type, options = {}) {
 
     if (type === 'HEALTH') {
         const runtimeConfig = resolveEntityRuntimeConfig(player);
-        const healResult = applyHealing(player, Number(definition.healing) || 0, runtimeConfig);
+        const strategy = player.entityManager?.gameModeStrategy || null;
+        const healing = Number(definition.healing) || 0;
+        const healResult = typeof strategy?.applyHealing === 'function'
+            ? strategy.applyHealing(player, healing, runtimeConfig)
+            : applyHealing(player, healing, runtimeConfig);
         if (healResult.healed > 0) {
             player.entityManager?._emitArcadeGameplayEvent?.({
                 type: 'health_update',
