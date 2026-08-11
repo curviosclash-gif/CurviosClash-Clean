@@ -215,12 +215,20 @@ export function applyArcadeSectorScore(runState, payload = null, {
     // 61.5.2: apply bossMultiplier for the final boss sector (doubles sector score)
     const bonusMultiplier = 1 + scoreBonus;
     const bossMultiplier = Math.max(1, toSafeNumber(sectorEntry?.bossMultiplier, 1));
+    const objectiveState = runState.objectiveState && typeof runState.objectiveState === 'object'
+        ? runState.objectiveState
+        : null;
+    const objectiveMultiplier = objectiveState?.completed === true
+        && Math.max(0, clampInteger(objectiveState.sectorIndex, 0, 99_999, 0)) === completedSectors
+        ? Math.max(1, toSafeNumber(objectiveState.scoreWeight, 1))
+        : 1;
     const masteryScoreMultiplier = 1 + resolveMasteryPct(masteryPerks, 'scoreBonusPct') / 100;
     const sectorPoints = Math.round(
         Math.max(0, breakdown.total)
         * nextMultiplier
         * bonusMultiplier
         * bossMultiplier
+        * objectiveMultiplier
         * masteryScoreMultiplier
     );
 
@@ -263,6 +271,7 @@ export function applyArcadeSectorScore(runState, payload = null, {
             sectorIndex: completedSectors,
             awardedPoints: sectorPoints,
             multiplierApplied: nextMultiplier,
+            objectiveMultiplierApplied: objectiveMultiplier,
             comboAtSectorEnd: nextCombo,
             breakdown,
         },

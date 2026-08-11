@@ -17,6 +17,18 @@ function createElement(tag, className, textContent = '') {
     return el;
 }
 
+function resolveProgressFraction(entry, isObjective = false) {
+    if (isObjective) return Math.max(0, Math.min(1, Number(entry?.progressFraction) || 0));
+    const progress = entry?.progress || {};
+    if (entry?.completed) return 1;
+    if (entry?.type === 'KILL_COUNT') return Math.min(1, (progress.kills || 0) / (progress.target || 1));
+    if (entry?.type === 'COLLECT_ITEMS') return Math.min(1, (progress.collected || 0) / (progress.target || 1));
+    if (entry?.type === 'SURVIVE_DURATION') return Math.min(1, (progress.survived || 0) / (progress.target || 1));
+    if (entry?.type === 'REACH_PORTAL') return progress.reached ? 1 : 0;
+    if (entry?.type === 'TIME_TRIAL') return progress.elapsed > 0 ? Math.min(1, progress.elapsed / (progress.target || 1)) : 0;
+    return 0;
+}
+
 export class ArcadeMissionHUD {
     constructor(parentElement) {
         this._parent = parentElement || document.body;
@@ -59,20 +71,21 @@ export class ArcadeMissionHUD {
         }
     }
 
-    update(missionState) {
-        if (!missionState || !Array.isArray(missionState.missions)) {
+    update(missionState, objectiveState = null) {
+        const missions = Array.isArray(missionState?.missions) ? missionState.missions : [];
+        const hasObjective = !!objectiveState && typeof objectiveState === 'object';
+        const entryCount = missions.length + (hasObjective ? 1 : 0);
+        if (entryCount === 0) {
             this.hide();
             return;
         }
         if (!this._visible) this.show();
 
-        const missions = missionState.missions;
-
         // Rebuild mission elements if count changed
-        if (this._missionElements.length !== missions.length) {
+        if (this._missionElements.length !== entryCount) {
             this._container.replaceChildren();
             this._missionElements = [];
-            for (let i = 0; i < missions.length; i += 1) {
+            for (let i = 0; i < entryCount; i += 1) {
                 const card = createElement('div', 'arcade-mission-card');
                 card.style.cssText = [
                     'background: rgba(5,12,22,0.68)',
@@ -110,32 +123,18 @@ export class ArcadeMissionHUD {
         }
 
         // Update each mission element
-        for (let i = 0; i < missions.length; i += 1) {
-            const mission = missions[i];
+        for (let i = 0; i < entryCount; i += 1) {
+            const isObjective = hasObjective && i === 0;
+            const mission = isObjective ? objectiveState : missions[i - (hasObjective ? 1 : 0)];
             const el = this._missionElements[i];
             if (!el) continue;
 
             const typeDef = MISSION_TYPES[mission.type];
-            el.icon.textContent = MISSION_ICON_MAP[typeDef?.icon] || '\u2022';
-            el.label.textContent = typeDef?.label || mission.type;
-            el.progressText.textContent = formatMissionProgress(mission);
-
-            // Progress bar
-            const progress = mission.progress || {};
-            let fraction = 0;
-            if (mission.completed) {
-                fraction = 1;
-            } else if (mission.type === 'KILL_COUNT') {
-                fraction = Math.min(1, (progress.kills || 0) / (progress.target || 1));
-            } else if (mission.type === 'COLLECT_ITEMS') {
-                fraction = Math.min(1, (progress.collected || 0) / (progress.target || 1));
-            } else if (mission.type === 'SURVIVE_DURATION') {
-                fraction = Math.min(1, (progress.survived || 0) / (progress.target || 1));
-            } else if (mission.type === 'REACH_PORTAL') {
-                fraction = progress.reached ? 1 : 0;
-            } else if (mission.type === 'TIME_TRIAL') {
-                fraction = progress.elapsed > 0 ? Math.min(1, progress.elapsed / (progress.target || 1)) : 0;
-            }
+            const objectiveTarget = isObjective && mission.targetLabel ? `: ${mission.targetLabel}` : '';
+            el.icon.textContent = isObjective ? '\u2316' : (MISSION_ICON_MAP[typeDef?.icon] || '\u2022');
+            el.label.textContent = isObjective ? `${mission.label}${objectiveTarget}` : (typeDef?.label || mission.type);
+            el.progressText.textContent = isObjective ? mission.progressText : formatMissionProgress(mission);
+            const fraction = resolveProgressFraction(mission, isObjective);
             el.progressBar.style.width = `${(fraction * 100).toFixed(1)}%`;
 
             // Completed styling
@@ -143,6 +142,9 @@ export class ArcadeMissionHUD {
                 el.card.style.borderLeftColor = '#44ff44';
                 el.progressBar.style.background = '#44ff44';
                 el.label.textContent += ' \u2713';
+            } else if (mission.failed) {
+                el.card.style.borderLeftColor = '#ff445f';
+                el.progressBar.style.background = '#ff445f';
             } else {
                 el.card.style.borderLeftColor = '#00ff88';
                 el.progressBar.style.background = '#00ff88';

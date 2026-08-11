@@ -24,14 +24,19 @@ export function emitArcadeDamageEvent(owner, event) {
         hp: Math.max(0, Number(target?.hp) || 0),
         maxHp: Math.max(1, Number(target?.maxHp) || 1),
     });
+    if (String(event?.cause || '').toUpperCase() === 'TRAIL_SELF') {
+        emitArcadeGameplayEvent(owner, { type: 'self_collision', playerIndex: target?.index });
+    }
 }
 
 export function emitArcadeEliminationEvents(owner, player, cause, options = {}) {
-    if (cause === 'TRAIL_SELF') {
-        emitArcadeGameplayEvent(owner, { type: 'self_collision', playerIndex: player?.index });
-    }
     const killer = options?.killer || null;
     if (killer && killer !== player && killer.isBot !== true) {
-        emitArcadeGameplayEvent(owner, { type: 'kill', playerIndex: killer.index, count: 1 });
+        emitArcadeGameplayEvent(owner, {
+            type: 'kill',
+            playerIndex: killer.index,
+            victimIndex: player?.index,
+            count: 1,
+        });
     }
 }

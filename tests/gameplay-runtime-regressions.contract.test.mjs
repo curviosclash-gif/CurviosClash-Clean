@@ -788,6 +788,7 @@ test('entity gameplay sources emit damage, kill, self-collision, trail and inter
 
     manager._emitHuntDamageEvent({
         target,
+        cause: 'TRAIL_SELF',
         damageResult: { applied: 10 },
     });
     manager._killPlayer(target, 'PROJECTILE', { killer });
@@ -835,8 +836,8 @@ test('entity gameplay sources emit damage, kill, self-collision, trail and inter
 
     assert.deepEqual(events.map((event) => event.type), [
         'damage',
-        'kill',
         'self_collision',
+        'kill',
         'exit_portal',
         'collect',
         'trail_extend',

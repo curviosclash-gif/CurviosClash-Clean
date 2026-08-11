@@ -47,6 +47,21 @@ function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     };
 }
 
+function buildObjectiveParticipants(entityManager) {
+    return (Array.isArray(entityManager?.players) ? entityManager.players : []).map((player) => ({
+        playerIndex: Math.max(0, Number(player?.index) || 0),
+        label: String(player?.name || (player?.isBot ? `Bot ${Number(player?.index) + 1}` : `Spieler ${Number(player?.index) + 1}`)),
+        isBot: player?.isBot === true,
+        alive: player?.alive !== false,
+    }));
+}
+
+function requestObjectiveRoundEnd(entityManager, request) {
+    const winner = (Array.isArray(entityManager?.humanPlayers) ? entityManager.humanPlayers : [])
+        .find((player) => player && player.alive !== false) || null;
+    return winner ? entityManager.requestRoundEnd?.({ ...request, winner }) === true : false;
+}
+
 export class GameRuntimeArcadeSupport {
     constructor({
         getGame = null,
@@ -73,6 +88,13 @@ export class GameRuntimeArcadeSupport {
             replayRecorder: this._arcadeReplayRecorder,
             now: nowMs,
             logger,
+            getObjectiveParticipants: () => buildObjectiveParticipants(
+                this.getRuntimeState()?.entityManager || this.game?.entityManager
+            ),
+            requestRoundEnd: (request) => requestObjectiveRoundEnd(
+                this.getRuntimeState()?.entityManager || this.game?.entityManager,
+                request
+            ),
         });
         this._arcadeGameplayEventHandler = (event) => this.arcadeRunRuntime.applyGameplayEvent(event);
 

@@ -42,8 +42,6 @@ import {
 } from '../../state/arcade/ArcadeGhostLibrary.js';
 import { ArcadeGhostRecorder } from '../../state/arcade/ArcadeGhostRecorder.js';
 import {
-    assignSectorMissions,
-    createSectorMissionState,
     updateSectorMissionState,
 } from '../../state/arcade/ArcadeMissionState.js';
 import {
@@ -69,6 +67,7 @@ import { isArcadeGhostDuelPlaybackEnabled } from '../../shared/contracts/ArcadeG
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
+import { assignArcadeSectorRuntimeState, updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
 
 const ARCADE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
 const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
@@ -158,6 +157,9 @@ export class ArcadeRunRuntime {
         this._vehicleProfiles = null;
         this._activeVehicleId = null;
         this._missionState = null;
+        this._objectiveState = null;
+        this._getObjectiveParticipants = typeof options.getObjectiveParticipants === 'function' ? options.getObjectiveParticipants : null;
+        this._requestRoundEnd = typeof options.requestRoundEnd === 'function' ? options.requestRoundEnd : null;
         this._sectorElapsedSeconds = 0;
         this._lastMissionTickSecond = 0;
         this._onMapTransition = null;
@@ -838,6 +840,7 @@ export class ArcadeRunRuntime {
             currentMapKey: String(this._state.currentMapKey || ''),
             activeModifierId: this._activeModifierId,
             missionState: this._missionState,
+            objectiveState: this._objectiveState,
             comboWindowMs: Math.max(800, toSafeInt(this._state?.config?.comboWindowMs, 5000)),
             comboFreezeUntilMs: Math.max(0, toSafeNumber(this._state?.comboFreezeUntilMs, 0)),
             suddenDeathElapsedMs: this._state.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH
@@ -904,6 +907,7 @@ export class ArcadeRunRuntime {
         this._applyComboDecayAt(nowMs);
 
         // Update missions first so allCompleted flag reflects current action
+        updateArcadeObjectiveRuntimeState(this, eventWithTime);
         const wasAllCompleted = this._missionState?.allCompleted === true;
         this.updateMissions(eventWithTime);
 
@@ -1116,26 +1120,7 @@ export class ArcadeRunRuntime {
     }
 
     _assignMissionsForCurrentSector() {
-        if (!this._state) return;
-        const sectorIdx = Math.max(0, this._state.sectorIndex - 1);
-        const encounterEntry = this._getEncounterSectorEntry(this._state.sectorIndex);
-        const templateId = String(encounterEntry?.templateId || 'sector_intro').trim() || 'sector_intro';
-        const planEntry = { id: templateId };
-        const mapKey = String(this._state.currentMapKey || 'standard').trim() || 'standard';
-        const runtimeMapCatalog = getRuntimeMapCatalog();
-        const mapDefinition = getRuntimeMapDefinition(mapKey, runtimeMapCatalog);
-        const mapMissions = Array.isArray(mapDefinition?.missions) && mapDefinition.missions.length > 0
-            ? mapDefinition.missions
-            : null;
-        const seedSource = this._resolveActiveRunSeed();
-        const missions = assignSectorMissions(
-            planEntry,
-            mapMissions,
-            `${seedSource}-${this._state.runId}`,
-            sectorIdx
-        );
-        this._missionState = createSectorMissionState(missions);
-        this._state.missions = this._missionState;
+        assignArcadeSectorRuntimeState(this);
     }
 
     /**
@@ -1700,6 +1685,7 @@ export class ArcadeRunRuntime {
         this._activeModifierId = null;
         this._lastGhostPlaybackRouteId = '';
         this._missionState = null;
+        this._objectiveState = null;
         this._sectorElapsedSeconds = 0;
         this._lastMissionTickSecond = 0;
         this._resetStrategyRuntimeState();

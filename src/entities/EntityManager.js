@@ -257,6 +257,8 @@ export class EntityManager {
         this._tickPipeline.update(dt, inputManager, renderFrameId);
     }
 
+    requestRoundEnd(request = {}) { return this.isFightOutcomeAuthority !== false && this._roundOutcomeSystem?.requestRoundEnd?.(request) === true; }
+
     setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); }
 
     _getPendingHumanRespawns(players = this.humanPlayers) {

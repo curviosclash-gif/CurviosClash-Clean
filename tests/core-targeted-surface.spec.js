@@ -2379,6 +2379,15 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 allCompleted: false,
                 completedCount: 0,
             };
+            runtime._objectiveState = {
+                objectiveId: 'bounty_hunt',
+                label: 'Bounty Hunt',
+                targetLabel: 'Bot 2',
+                progressText: 'Ziel: Bot 2',
+                progressFraction: 0,
+                completed: false,
+                failed: false,
+            };
 
             const previousScore = runtime._state.score && typeof runtime._state.score === 'object'
                 ? runtime._state.score
@@ -2419,6 +2428,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 scoreText: String(scoreRoot?.textContent || ''),
                 modifierLabel: String(scoreRoot?.querySelector('.arcade-score-hud-modifier-label')?.textContent || ''),
                 missionCardCount: missionRoot?.querySelectorAll('.arcade-mission-card').length || 0,
+                objectiveText: String(missionRoot?.querySelector('.arcade-mission-card')?.textContent || ''),
             };
         });
 
@@ -2428,7 +2438,8 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(initialHudState.scoreText).toContain('1337');
         expect(initialHudState.scoreText).toContain('x4.0');
         expect(initialHudState.modifierLabel).toContain('Portal Storm');
-        expect(initialHudState.missionCardCount).toBeGreaterThanOrEqual(2);
+        expect(initialHudState.missionCardCount).toBeGreaterThanOrEqual(3);
+        expect(initialHudState.objectiveText).toContain('Bot 2');
 
         const modifierSwitchLabel = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;

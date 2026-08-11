@@ -282,7 +282,7 @@ export class HudRuntimeSystem {
 
         this._ensureArcadeHud();
         this._arcadeScoreHud?.update?.(hudState);
-        this._arcadeMissionHud?.update?.(hudState.missionState);
+        this._arcadeMissionHud?.update?.(hudState.missionState, hudState.objectiveState);
         this._ensureArcadeFeedbackOverlays();
 
         const nowMs = Math.max(0, Number(hudState.nowMs) || Date.now());

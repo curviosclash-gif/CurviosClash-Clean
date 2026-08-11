@@ -22,9 +22,24 @@ export class RoundOutcomeSystem {
         this.getElapsedSeconds = getElapsedSeconds;
         this.getObjectiveOutcome = getObjectiveOutcome;
         this._overtime = false;
+        this._requestedOutcome = null;
     }
 
-    reset() { this._overtime = false; }
+    reset() {
+        this._overtime = false;
+        this._requestedOutcome = null;
+    }
+
+    requestRoundEnd({ winner = null, reason = 'OBJECTIVE', parcours = null } = {}) {
+        if (!winner || this._requestedOutcome) return false;
+        this._requestedOutcome = {
+            shouldEnd: true,
+            winner,
+            reason: String(reason || 'OBJECTIVE'),
+            parcours: parcours && typeof parcours === 'object' ? parcours : null,
+        };
+        return true;
+    }
 
     getDeathmatchState() {
         const timeLimitSeconds = Math.max(0, Number(this.getDeathmatchTimeLimitSeconds()) || 0);
@@ -50,6 +65,7 @@ export class RoundOutcomeSystem {
         if (this.isRespawnEnabled() && !this.isOutcomeAuthority()) {
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
+        if (this._requestedOutcome) return this._requestedOutcome;
         const objectiveOutcome = this.getObjectiveOutcome?.();
         if (objectiveOutcome?.shouldEnd === true && objectiveOutcome?.winner) {
             return {
