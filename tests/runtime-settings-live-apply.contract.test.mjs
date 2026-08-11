@@ -6,6 +6,7 @@ import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeS
 import { LEADERBOARD_STORAGE_KEY } from '../src/state/arcade/ArcadeLeaderboard.js';
 import { ARCADE_GHOST_LIBRARY_STORAGE_KEY } from '../src/state/arcade/ArcadeGhostLibrary.js';
 import { assignSectorMissions } from '../src/state/arcade/ArcadeMissionState.js';
+import { buildArcadeMissionSeed } from '../src/core/arcade/ArcadeObjectiveRuntimeOps.js';
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import {
     getRuntimeMapCatalog,
@@ -522,8 +523,13 @@ test('Arcade mission assignment uses active sector template id from encounter se
         const expectedMissionTypes = assignSectorMissions(
             { id: 'sector_hazard' },
             null,
-            `${runSeed}-${state?.runId || ''}`,
-            0
+            buildArcadeMissionSeed({
+                activeSeed: runSeed,
+                sectorIndex: 1,
+                templateId: 'sector_hazard',
+                mapKey: 'standard',
+            }),
+            1
         ).map((mission) => mission.type);
 
         assert.deepEqual(actualMissionTypes, expectedMissionTypes);
@@ -565,8 +571,13 @@ test('Arcade mission assignment prefers map-specific mission pools when present'
         const expectedMissionTypes = assignSectorMissions(
             { id: 'sector_intro' },
             [{ type: 'REACH_PORTAL', params: {}, weight: 1 }],
-            `${runSeed}-${state?.runId || ''}`,
-            0
+            buildArcadeMissionSeed({
+                activeSeed: runSeed,
+                sectorIndex: 1,
+                templateId: 'sector_intro',
+                mapKey: 'standard',
+            }),
+            1
         ).map((mission) => mission.type);
 
         assert.deepEqual(actualMissionTypes, expectedMissionTypes);
@@ -634,7 +645,6 @@ test('Arcade startRun seeds mission assignment from active run seed override', (
         },
     });
 
-    const runId = String(state?.runId || runtime._state?.runId || '');
     const mapKey = String(state?.currentMapKey || 'standard');
     const mapDefinition = getRuntimeMapDefinition(mapKey, getRuntimeMapCatalog());
     const mapMissions = Array.isArray(mapDefinition?.missions) && mapDefinition.missions.length > 0
@@ -643,9 +653,19 @@ test('Arcade startRun seeds mission assignment from active run seed override', (
     const actualMissionTypes = Array.isArray(state?.missions?.missions)
         ? state.missions.missions.map((mission) => mission.type)
         : [];
-    const expectedByRunSeed = assignSectorMissions({ id: 'sector_pressure' }, mapMissions, `${runSeed}-${runId}`, 0)
+    const expectedByRunSeed = assignSectorMissions({ id: 'sector_pressure' }, mapMissions, buildArcadeMissionSeed({
+        activeSeed: runSeed,
+        sectorIndex: 1,
+        templateId: 'sector_pressure',
+        mapKey,
+    }), 1)
         .map((mission) => mission.type);
-    const expectedByConfigSeed = assignSectorMissions({ id: 'sector_pressure' }, mapMissions, `${configSeed}-${runId}`, 0)
+    const expectedByConfigSeed = assignSectorMissions({ id: 'sector_pressure' }, mapMissions, buildArcadeMissionSeed({
+        activeSeed: configSeed,
+        sectorIndex: 1,
+        templateId: 'sector_pressure',
+        mapKey,
+    }), 1)
         .map((mission) => mission.type);
 
     assert.deepEqual(actualMissionTypes, expectedByRunSeed);
@@ -726,6 +746,43 @@ test('Arcade deriveRoundEndPlan routes PARCOURS_COMPLETE through completeParcour
     assert.equal(plan?.outcome?.reason, 'PARCOURS_COMPLETE');
     assert.equal(plan?.outcome?.requiredWins, 4);
     assert.deepEqual(plan?.outcome?.parcours, parcours);
+});
+
+test('Arcade mission selection ignores wall clock and run identity', () => {
+    const encounterPlan = {
+        difficulty: 'normal',
+        sequence: [{
+            encounterId: 'deterministic-intro',
+            sectorNumber: 1,
+            templateId: 'sector_intro',
+            objectiveId: 'survive_window',
+            mapKey: 'standard',
+            squadId: 'scout_duo',
+        }],
+    };
+    const createRuntime = (nowMs) => {
+        const runtime = new ArcadeRunRuntime({ now: () => nowMs });
+        runtime.configure({ arcade: { enabled: true, seed: 90210, sectorCount: 2 } });
+        return runtime;
+    };
+    const first = createRuntime(1000);
+    const second = createRuntime(9_999_999);
+
+    const firstState = first.startRun({ encounterPlan });
+    const secondState = second.startRun({ encounterPlan });
+
+    assert.notEqual(firstState.runId, secondState.runId);
+    assert.deepEqual(firstState.missions, secondState.missions);
+
+    const firstDaily = createRuntime(2000).startDailyChallenge({
+        encounterPlan,
+        date: '2026-08-11T01:00:00.000Z',
+    });
+    const secondDaily = createRuntime(8_000_000).startDailyChallenge({
+        encounterPlan,
+        date: '2026-08-11T23:00:00.000Z',
+    });
+    assert.deepEqual(firstDaily.missions, secondDaily.missions);
 });
 
 test('Arcade terminal priority lets last-human death beat parcours completion in the same tick', () => {

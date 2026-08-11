@@ -9,6 +9,26 @@ import {
 import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog, getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 
+const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v1';
+
+export function buildArcadeMissionSeed({
+    scoreModel = 'arcade-score.v2',
+    activeSeed = 0,
+    sectorIndex = 1,
+    encounterId = '',
+    templateId = 'sector_intro',
+    mapKey = 'standard',
+} = {}) {
+    return [
+        ARCADE_MISSION_GENERATOR_VERSION,
+        String(scoreModel || 'arcade-score.v2'),
+        Math.max(0, Number(activeSeed) || 0),
+        Math.max(1, Number(sectorIndex) || 1),
+        String(encounterId || templateId || 'sector_intro'),
+        String(mapKey || 'standard'),
+    ].join(':');
+}
+
 function resolveObjectiveDefinition(objectiveId) {
     const normalized = String(objectiveId || '').trim().toLowerCase();
     return ARCADE_SECTOR_OBJECTIVES.find((entry) => entry.id === normalized) || null;
@@ -17,7 +37,6 @@ function resolveObjectiveDefinition(objectiveId) {
 export function assignArcadeSectorRuntimeState(runtime) {
     if (!runtime?._state) return;
     const sectorIndex = Math.max(1, Number(runtime._state.sectorIndex) || 1);
-    const sectorOffset = sectorIndex - 1;
     const encounterEntry = runtime._getEncounterSectorEntry(sectorIndex);
     const templateId = String(encounterEntry?.templateId || 'sector_intro').trim() || 'sector_intro';
     const mapKey = String(runtime._state.currentMapKey || 'standard').trim() || 'standard';
@@ -28,8 +47,15 @@ export function assignArcadeSectorRuntimeState(runtime) {
     const missions = assignSectorMissions(
         { id: templateId },
         mapMissions,
-        `${runtime._resolveActiveRunSeed()}-${runtime._state.runId}`,
-        sectorOffset
+        buildArcadeMissionSeed({
+            scoreModel: runtime._state?.config?.scoreModel,
+            activeSeed: runtime._resolveActiveRunSeed(),
+            sectorIndex,
+            encounterId: encounterEntry?.encounterId || encounterEntry?.id,
+            templateId,
+            mapKey,
+        }),
+        sectorIndex
     );
     runtime._missionState = createSectorMissionState(missions);
     runtime._objectiveState = createArcadeObjectiveState(

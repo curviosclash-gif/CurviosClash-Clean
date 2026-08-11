@@ -5,7 +5,7 @@ import {
     formatMissionProgress,
     listArcadeMissionDescriptors,
 } from '../../shared/contracts/ArcadeMissionContract.js';
-import { toSafeNumber, createSeededRandom } from '../../shared/utils/ArcadeUtils.js';
+import { toSafeNumber, createSeededRandom, normalizeSeed } from '../../shared/utils/ArcadeUtils.js';
 
 const MISSION_DESCRIPTOR_TYPE_IDS = new Set(listArcadeMissionDescriptors().map((entry) => entry.id));
 
@@ -147,7 +147,8 @@ export function checkMissionComplete(mission) {
 // ─── Mission Assignment ───
 
 export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNumber) {
-    const randomFn = createSeededRandom(`${seed}-missions-${sectorNumber}`);
+    const assignmentSeed = `${seed}-missions-${sectorNumber}`;
+    const randomFn = createSeededRandom(assignmentSeed);
     const missionCount = 1 + (randomFn() > 0.5 ? 1 : 0); // 1-2 missions
 
     // Build weighted pool from map-specific missions, or fallback to generic
@@ -190,6 +191,7 @@ export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNu
 
         const instance = createMissionInstance(chosen.type, chosen.params);
         if (instance) {
+            instance.id = `${chosen.type.toLowerCase()}-${normalizeSeed(`${assignmentSeed}:${i}:${chosen.type}`).toString(36)}`;
             missions.push(instance);
             usedTypes.add(chosen.type);
         }
@@ -203,6 +205,7 @@ export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNu
             const bonusEntry = bonusPool[Math.floor(randomFn() * bonusPool.length)];
             const bonusInstance = createMissionInstance(bonusEntry.type, bonusEntry.params);
             if (bonusInstance) {
+                bonusInstance.id = `${bonusEntry.type.toLowerCase()}-${normalizeSeed(`${assignmentSeed}:bonus:${bonusEntry.type}`).toString(36)}`;
                 bonusInstance.bonus = true;
                 missions.push(bonusInstance);
             }
