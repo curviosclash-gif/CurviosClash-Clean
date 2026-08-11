@@ -20,6 +20,14 @@ export const HUNT_CONFIG = Object.freeze({
         WALL: 0.6,
         PLAYER_CRASH: 0.5,
     }),
+    // A frontal crash is not the same event as scraping along geometry. Above this share
+    // of the vehicle base speed - measured as the closing speed into the surface - a wall
+    // bills WALL_DAMAGE instead of the cooldown-limited COLLISION_DAMAGE tick. 120 kills
+    // an unshielded vehicle outright and leaves a shielded one at 20 structure.
+    COLLISION_IMPACT: Object.freeze({
+        WALL_SPEED_RATIO: 0.6,
+        WALL_DAMAGE: 120,
+    }),
     MG: Object.freeze({
         DAMAGE: 7.75,
         COOLDOWN: 0.08,

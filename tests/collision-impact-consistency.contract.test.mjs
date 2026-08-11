@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { CONFIG_BASE } from '../src/core/Config.js';
+import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
 import { ParticleSystem } from '../src/entities/Particles.js';
 import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
@@ -35,6 +36,11 @@ function createPlayerStub({ index = 0, position = new THREE.Vector3(), isBot = f
         arenaCollisionGraceTimer: 0,
         wallDamageCooldown: 0,
         crashDamageCooldown: 0,
+        baseSpeed: 45,
+        speed: 45,
+        // Standing still by default, so contacts resolve as the slow grinding case unless
+        // a test gives the vehicle a velocity into the surface.
+        velocity: new THREE.Vector3(),
         position,
         quaternion: new THREE.Quaternion(),
         trail: { forceGap() {} },
@@ -142,6 +148,61 @@ test('wall damage is not billed again while the wall cooldown is still running',
     assert.equal(strategy.handleWallCollision(player, collision, entityManager), false);
     assert.equal(player.hp, 80);
     assert.equal(entityManager.events.length, 1);
+});
+
+test('a frontal wall impact at speed kills instead of billing the slow damage tick', () => {
+    const strategy = new HuntModeStrategy({
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+    });
+    const player = createPlayerStub();
+    // Straight into the surface at full travel speed; the normal points into free space.
+    player.velocity.set(0, 0, -45);
+    const entityManager = createEntityManagerStub({ players: [player] });
+    const collision = { normal: new THREE.Vector3(0, 0, 1) };
+
+    assert.equal(strategy.handleWallCollision(player, collision, entityManager), true);
+    assert.equal(player.hp, 0, 'a crash at speed has to stay lethal');
+    assert.equal(entityManager.kills.length, 1);
+    assert.equal(entityManager.kills[0].cause, 'WALL');
+});
+
+test('grinding along a wall keeps the slow tick instead of the crash damage', () => {
+    const strategy = new HuntModeStrategy({
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+    });
+    const player = createPlayerStub();
+    // Full speed, but almost entirely parallel to the surface.
+    player.velocity.set(45, 0, -1);
+    const entityManager = createEntityManagerStub({ players: [player] });
+    const collision = { normal: new THREE.Vector3(0, 0, 1) };
+
+    assert.equal(strategy.handleWallCollision(player, collision, entityManager), false);
+    assert.equal(player.hp, 80, 'scraping stays on the rate-limited tick');
+    assert.equal(entityManager.kills.length, 0);
+});
+
+test('every arena bound reports a normal that points back into the arena', () => {
+    const arenaCollision = new ArenaCollision({
+        bounds: { minX: -10, maxX: 10, minY: -10, maxY: 10, minZ: -10, maxZ: 10 },
+    });
+    const probes = [
+        { point: new THREE.Vector3(-10, 0, 0), normal: [1, 0, 0] },
+        { point: new THREE.Vector3(10, 0, 0), normal: [-1, 0, 0] },
+        { point: new THREE.Vector3(0, -10, 0), normal: [0, 1, 0] },
+        { point: new THREE.Vector3(0, 10, 0), normal: [0, -1, 0] },
+        { point: new THREE.Vector3(0, 0, -10), normal: [0, 0, 1] },
+        { point: new THREE.Vector3(0, 0, 10), normal: [0, 0, -1] },
+    ];
+
+    for (const probe of probes) {
+        const info = arenaCollision.getCollisionInfo(probe.point, 0.5);
+        assert.equal(info?.hit, true, `bound at ${probe.point.toArray()} has to report a hit`);
+        assert.deepEqual(
+            info.normal.toArray(),
+            probe.normal,
+            `bound at ${probe.point.toArray()} has to push back into the arena`
+        );
+    }
 });
 
 test('an arena collision grace suspends the wall check without disarming trails', () => {

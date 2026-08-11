@@ -7,6 +7,7 @@ const NORMAL_NX = Object.freeze(new THREE.Vector3(-1, 0, 0));
 const NORMAL_PY = Object.freeze(new THREE.Vector3(0, 1, 0));
 const NORMAL_NY = Object.freeze(new THREE.Vector3(0, -1, 0));
 const NORMAL_PZ = Object.freeze(new THREE.Vector3(0, 0, 1));
+const NORMAL_NZ = Object.freeze(new THREE.Vector3(0, 0, -1));
 const OBSTACLE_GRID_SIZE = 16;
 const OBSTACLE_GRID_MIN_COUNT = 12;
 const OBSTACLE_GRID_MAX_CELLS = 2048;
@@ -295,7 +296,7 @@ export class ArenaCollision {
             return this._collisionResult;
         }
         if (position.z + radius > b.maxZ) {
-            this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_PZ);
+            this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_NZ);
             return this._collisionResult;
         }
 

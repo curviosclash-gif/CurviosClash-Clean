@@ -7,8 +7,7 @@ import { isPickupTypeAllowedForMode, normalizePickupType } from '../shared/contr
 import { GameModeContract } from './GameModeContract.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
-
-const BOT_COLLISION_RECOVERY_OPTIONS = Object.freeze({ collisionGrace: 0.16 });
+import { recoverPlayerFromCollision, resolveWallCollisionDamage } from './HuntCollisionOps.js';
 
 function toSafeNumber(value, fallback) {
     const parsed = Number(value);
@@ -20,27 +19,6 @@ function getNowSeconds() {
         return performance.now() * 0.001;
     }
     return Date.now() * 0.001;
-}
-
-// Bots get the full bounce (heading included); human players only get moved clear so the
-// recovery does not fight their steering. Both leave the geometry they collided with -
-// staying inside it used to re-trigger the same collision on every following frame.
-function recoverPlayerFromCollision(player, collision, source, entityManager) {
-    if (!player) return;
-    if (player.isBot) {
-        if (typeof entityManager?._bounceBot !== 'function') return;
-        entityManager._bounceBot(
-            player,
-            collision?.normal || null,
-            source,
-            BOT_COLLISION_RECOVERY_OPTIONS
-        );
-        return;
-    }
-    if (typeof entityManager?._pushPlayerOutOfCollision !== 'function') return;
-    if (entityManager._pushPlayerOutOfCollision(player, collision?.normal || null)) {
-        player.arenaCollisionGraceTimer = Math.max(player.arenaCollisionGraceTimer || 0, 0.16);
-    }
 }
 
 const ENTITY_RUNTIME_CONFIG_SECTION_KEYS = Object.freeze([
@@ -297,7 +275,14 @@ export class HuntModeStrategy extends GameModeContract {
             return false;
         }
 
-        const wallDamage = this.resolveCollisionDamage('WALL');
+        // Graded by closing speed: a frontal crash stays as deadly as it looks, grinding
+        // along the wall keeps the rate-limited tick.
+        const wallDamage = resolveWallCollisionDamage(
+            player,
+            arenaCollision?.normal,
+            resolveConfig(null, this.entityRuntimeConfig),
+            this.resolveCollisionDamage('WALL')
+        );
         const damageResult = player.takeDamage(wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
         entityManager._emitHuntDamageEvent({
