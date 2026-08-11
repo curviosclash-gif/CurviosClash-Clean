@@ -192,7 +192,7 @@ test('Ghost-Selbstduell Roundtrip persistiert und spielt auf Desktop-Electron in
             continue;
         }
 
-        await waitForRenderFrames(page, 210);
+        await waitForRenderFrames(page, 30);
         const roundEndResult = await triggerRoundEndForPersistence(page);
         await page.waitForFunction(
             () => ['ROUND_END', 'MATCH_END'].includes(String(globalThis.GAME_INSTANCE?.state || '')),
@@ -227,8 +227,10 @@ test('Ghost-Selbstduell Roundtrip persistiert und spielt auf Desktop-Electron in
             const ghostState = game?.entityManager?.getLastRoundGhostState?.();
             return ghostState?.active === true
                 && Number(ghostState?.entryCount || 0) > 0
+                && Number(ghostState?.frameCount || 0) > 1
                 && Number(ghostState?.trailCount || 0) > 0
-                && Number(ghostState?.trailSegmentCount || 0) > 0;
+                && Array.isArray(ghostState?.ghosts)
+                && ghostState.ghosts.some((ghost) => ghost?.visible === true);
         }, null, { timeout: 6000 }).then(() => true).catch(() => false);
 
         if (!playbackActive) {
