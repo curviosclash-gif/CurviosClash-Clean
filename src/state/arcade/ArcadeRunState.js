@@ -1,9 +1,14 @@
+import {
+    CURRENT_ARCADE_SCORE_MODEL,
+    normalizeArcadeScoreModel,
+} from '../../shared/contracts/ArcadeRunSettingsContract.js';
+
 const DEFAULT_ARCADE_RUN_CONFIG = Object.freeze({
     enabled: false,
     profileId: 'arcade-default',
     runType: 'gauntlet',
     seed: 0,
-    scoreModel: 'arcade-score.v1',
+    scoreModel: CURRENT_ARCADE_SCORE_MODEL,
     sectorCount: 8,
     intermissionSeconds: 10,
     comboWindowMs: 5000,
@@ -77,7 +82,7 @@ export function createArcadeRunConfig(source = null) {
         profileId: normalizeText(input.profileId, DEFAULT_ARCADE_RUN_CONFIG.profileId),
         runType: normalizeText(input.runType, DEFAULT_ARCADE_RUN_CONFIG.runType),
         seed: clampInteger(input.seed, 0, 2_147_483_647, DEFAULT_ARCADE_RUN_CONFIG.seed),
-        scoreModel: normalizeText(input.scoreModel, DEFAULT_ARCADE_RUN_CONFIG.scoreModel),
+        scoreModel: normalizeArcadeScoreModel(input.scoreModel),
         sectorCount: clampInteger(input.sectorCount, 1, 20, DEFAULT_ARCADE_RUN_CONFIG.sectorCount),
         intermissionSeconds: clampNumber(input.intermissionSeconds, 0.5, 20, DEFAULT_ARCADE_RUN_CONFIG.intermissionSeconds),
         comboWindowMs: clampInteger(input.comboWindowMs, 800, 20_000, DEFAULT_ARCADE_RUN_CONFIG.comboWindowMs),
@@ -109,32 +114,37 @@ export function createArcadeRunConfig(source = null) {
 
 export function createArcadeRunRecords(source = null) {
     const input = source && typeof source === 'object' ? source : {};
+    const comparableInput = input.schemaVersion === 'arcade-run-profile.v2'
+        && input.scoreModel === CURRENT_ARCADE_SCORE_MODEL
+        ? input
+        : {};
     return {
-        schemaVersion: 'arcade-run-profile.v1',
-        updatedAt: normalizeText(input.updatedAt, ''),
-        runsPlayed: Math.max(0, clampInteger(input.runsPlayed, 0, 999_999, 0)),
-        bestScore: Math.max(0, toSafeNumber(input.bestScore, 0)),
-        bestMultiplier: Math.max(1, toSafeNumber(input.bestMultiplier, 1)),
-        bestCombo: Math.max(0, clampInteger(input.bestCombo, 0, 99_999, 0)),
-        bestSector: Math.max(0, clampInteger(input.bestSector, 0, 999, 0)),
-        bestRunAt: normalizeText(input.bestRunAt, ''),
-        lastScore: Math.max(0, toSafeNumber(input.lastScore, 0)),
-        lastMultiplier: Math.max(1, toSafeNumber(input.lastMultiplier, 1)),
-        lastCombo: Math.max(0, clampInteger(input.lastCombo, 0, 99_999, 0)),
-        lastSector: Math.max(0, clampInteger(input.lastSector, 0, 999, 0)),
-        lastRunAt: normalizeText(input.lastRunAt, ''),
+        schemaVersion: 'arcade-run-profile.v2',
+        scoreModel: CURRENT_ARCADE_SCORE_MODEL,
+        updatedAt: normalizeText(comparableInput.updatedAt, ''),
+        runsPlayed: Math.max(0, clampInteger(comparableInput.runsPlayed, 0, 999_999, 0)),
+        bestScore: Math.max(0, toSafeNumber(comparableInput.bestScore, 0)),
+        bestMultiplier: Math.max(1, toSafeNumber(comparableInput.bestMultiplier, 1)),
+        bestCombo: Math.max(0, clampInteger(comparableInput.bestCombo, 0, 99_999, 0)),
+        bestSector: Math.max(0, clampInteger(comparableInput.bestSector, 0, 999, 0)),
+        bestRunAt: normalizeText(comparableInput.bestRunAt, ''),
+        lastScore: Math.max(0, toSafeNumber(comparableInput.lastScore, 0)),
+        lastMultiplier: Math.max(1, toSafeNumber(comparableInput.lastMultiplier, 1)),
+        lastCombo: Math.max(0, clampInteger(comparableInput.lastCombo, 0, 99_999, 0)),
+        lastSector: Math.max(0, clampInteger(comparableInput.lastSector, 0, 999, 0)),
+        lastRunAt: normalizeText(comparableInput.lastRunAt, ''),
         replay: {
-            lastRunId: normalizeText(input?.replay?.lastRunId, ''),
-            bestRunId: normalizeText(input?.replay?.bestRunId, ''),
+            lastRunId: normalizeText(comparableInput?.replay?.lastRunId, ''),
+            bestRunId: normalizeText(comparableInput?.replay?.bestRunId, ''),
         },
-        breakdownTotals: createEmptyBreakdown(input.breakdownTotals),
+        breakdownTotals: createEmptyBreakdown(comparableInput.breakdownTotals),
         daily: {
-            seed: Math.max(0, clampInteger(input?.daily?.seed, 0, 2_147_483_647, 0)),
-            runsPlayed: Math.max(0, clampInteger(input?.daily?.runsPlayed, 0, 999_999, 0)),
-            bestScore: Math.max(0, toSafeNumber(input?.daily?.bestScore, 0)),
-            bestRunAt: normalizeText(input?.daily?.bestRunAt, ''),
-            lastScore: Math.max(0, toSafeNumber(input?.daily?.lastScore, 0)),
-            lastRunAt: normalizeText(input?.daily?.lastRunAt, ''),
+            seed: Math.max(0, clampInteger(comparableInput?.daily?.seed, 0, 2_147_483_647, 0)),
+            runsPlayed: Math.max(0, clampInteger(comparableInput?.daily?.runsPlayed, 0, 999_999, 0)),
+            bestScore: Math.max(0, toSafeNumber(comparableInput?.daily?.bestScore, 0)),
+            bestRunAt: normalizeText(comparableInput?.daily?.bestRunAt, ''),
+            lastScore: Math.max(0, toSafeNumber(comparableInput?.daily?.lastScore, 0)),
+            lastRunAt: normalizeText(comparableInput?.daily?.lastRunAt, ''),
         },
     };
 }

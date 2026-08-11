@@ -12,10 +12,12 @@ export const ARCADE_RUN_SETTINGS_RANGES = Object.freeze({
     maxMultiplier: Object.freeze({ min: 1, max: 25 }),
 });
 
+export const CURRENT_ARCADE_SCORE_MODEL = 'arcade-score.v2';
+
 const DEFAULTS = Object.freeze({
     profileId: 'arcade-default',
     runType: 'gauntlet',
-    scoreModel: 'arcade-score.v1',
+    scoreModel: CURRENT_ARCADE_SCORE_MODEL,
     seed: 0,
     sectorCount: 5,
     intermissionSeconds: 10,
@@ -43,6 +45,10 @@ function normalizeText(value, fallback) {
     return normalized || fallback;
 }
 
+export function normalizeArcadeScoreModel(_value) {
+    return CURRENT_ARCADE_SCORE_MODEL;
+}
+
 export function createDefaultArcadeRunSettings() {
     return { ...DEFAULTS };
 }
@@ -56,7 +62,7 @@ export function normalizeArcadeRunSettings(source) {
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
         runType: normalizeText(input.runType, DEFAULTS.runType),
-        scoreModel: normalizeText(input.scoreModel, DEFAULTS.scoreModel),
+        scoreModel: normalizeArcadeScoreModel(input.scoreModel),
         seed: clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
         sectorCount: clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),
         intermissionSeconds: clampNumber(

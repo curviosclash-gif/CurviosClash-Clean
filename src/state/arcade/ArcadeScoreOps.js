@@ -1,5 +1,10 @@
 import { ARCADE_RUN_PHASES, createArcadeRunRecords, createArcadeRunState } from './ArcadeRunState.js';
 import { toSafeNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
+import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+
+const SURVIVAL_LATE_THRESHOLD_SEC = 30;
+const SURVIVAL_MAX_DURATION_SEC = 180;
+const SURVIVAL_LATE_BONUS_CAP = 2000;
 
 /** Base score per sector template — harder templates reward more. */
 const SECTOR_BASE_SCORES = Object.freeze({
@@ -148,11 +153,11 @@ export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTempla
     // 61.1.1 — Dynamic base score per sector template
     const base = SECTOR_BASE_SCORES[sectorTemplateId] || SECTOR_BASE_SCORES.sector_intro;
 
-    // 61.1.3 — Non-linear survival scoring: exponential curve, last 10s are worth more
-    const dur = telemetry.duration;
+    // Reward survival after 30 seconds with a capped quadratic bonus.
+    const dur = Math.min(SURVIVAL_MAX_DURATION_SEC, telemetry.duration);
     const linearPart = dur * 10;
-    const lateBonusSec = Math.max(0, dur - Math.max(0, dur - 10));
-    const lateBonus = Math.round(lateBonusSec * lateBonusSec * 0.8);
+    const lateBonusSec = Math.max(0, dur - SURVIVAL_LATE_THRESHOLD_SEC);
+    const lateBonus = Math.min(SURVIVAL_LATE_BONUS_CAP, Math.round(lateBonusSec * lateBonusSec * 0.8));
     const survival = Math.round(linearPart + lateBonus);
 
     // 61.1.2 — Kill-based scoring
@@ -273,6 +278,7 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
         : createArcadeRunState().score;
     const endedAtIso = new Date(Math.max(0, toSafeNumber(endedAtMs, Date.now()))).toISOString();
     const summary = {
+        scoreModel: CURRENT_ARCADE_SCORE_MODEL,
         runId: String(runState.runId || ''),
         score: Math.max(0, toSafeNumber(safeScore.total, 0)),
         peakMultiplier: Math.max(1, toSafeNumber(safeScore.peakMultiplier, safeScore.multiplier || 1)),
@@ -291,6 +297,10 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
 export function mergeArcadeRunRecords(records, summary) {
     const baseRecords = createArcadeRunRecords(records);
     if (!summary || typeof summary !== 'object') {
+        return baseRecords;
+    }
+    const summaryScoreModel = String(summary.scoreModel || CURRENT_ARCADE_SCORE_MODEL).trim();
+    if (summaryScoreModel !== CURRENT_ARCADE_SCORE_MODEL) {
         return baseRecords;
     }
 
