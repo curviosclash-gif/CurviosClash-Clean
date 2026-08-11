@@ -126,7 +126,7 @@ export function normalizeHostPort(value, fallback = 0) {
  * keine, und 0 sortiert ihn ans Ende, statt ihn als "gerade gesehen" auszugeben
  * und damit vor echte, wirklich frische Hosts zu schieben.
  *
- * @param {unknown} host
+ * @param {any} host
  * @param {number} [now]
  */
 export function normalizeDiscoveryHostEntry(host, now = 0) {
