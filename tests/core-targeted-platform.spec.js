@@ -15,6 +15,7 @@ import {
     openMultiplayerSubmenu,
     openSubmenu,
     returnToMenu,
+    resolveAppUrl,
     startGame,
     startGameWithBots,
     unlockExpertMode,
@@ -800,7 +801,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     });
 
     test('T20ka: Profil-UX aktualisiert Action-State und unterstuetzt Duplicate, Import/Export und Standardprofil', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(resolveAppUrl(page, '/'));
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), SETTINGS_PROFILES_STORAGE_KEY);
         await page.reload();
         await page.waitForSelector('#main-menu', { state: 'visible', timeout: 15000 });

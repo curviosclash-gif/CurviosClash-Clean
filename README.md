@@ -30,6 +30,8 @@ npm run test:desktop:smoke  # zentraler Desktop-Smoke
 npm run test:desktop:e2e    # getrennte Desktop-E2E-Cluster
 ```
 
+Die Desktop-Skripte bauen `dist-app` mit der gebündelten Test-Bridge und testen das echte Electron-Fenster samt Preload-Bridge. Der getrennte Befehl `npm run test:browser:compat` startet bewusst nur den Browser-Demo-Vertrag.
+
 `npm run test:contract:fast` prüft reine Node-Contracts ohne Renderer-Build. `npm run test:contract:dist` baut und prüft die Renderer-Artefakte; `npm run test:contract` führt beide Pfade aus. Weitere gezielte Befehle für Physik, GPU, Stress, Editor, Bots, LAN und Android stehen in `package.json`.
 
 GitHub Actions führt bei jedem Push und Pull Request die Standardqualität auf Windows mit Node.js aus `.nvmrc` aus. Produktänderungen starten zusätzlich Desktop-Smoke und vier getrennte E2E-Cluster mit festen Zeitgrenzen. Änderungen an Electron, Abhängigkeiten oder Build-Konfigurationen bauen und prüfen außerdem das Windows-Paket. Ein wöchentlicher Audit prüft Root, `electron/` und `server/`; Dependabot schlägt gesperrte Dependency-Änderungen als Pull Requests vor und führt keine automatischen Releases aus.

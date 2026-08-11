@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { loadGame } from './helpers.js';
 
 test.describe('V59-59.7.1: MediaRecorderSystem', () => {

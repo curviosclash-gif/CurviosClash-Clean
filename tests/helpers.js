@@ -13,6 +13,25 @@ function toPositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGE
     return Math.max(min, Math.min(max, numeric));
 }
 
+export function resolveAppUrl(page, targetPath = '/') {
+    const target = String(targetPath || '/');
+    if (/^[a-z][a-z\d+.-]*:/i.test(target)) return target;
+
+    const currentUrl = String(page?.url?.() || '');
+    if (/^https?:\/\//i.test(currentUrl)) {
+        return new URL(target, currentUrl).href;
+    }
+
+    const runProfile = String(process.env.PW_RUN_PROFILE || '').trim();
+    if (runProfile.startsWith('desktop-')) {
+        const host = String(process.env.TEST_HOST || '127.0.0.1');
+        const port = String(process.env.TEST_PORT || '').trim();
+        if (port) return new URL(target, `http://${host}:${port}`).href;
+    }
+
+    return target;
+}
+
 async function readMenuRuntimeState(page) {
     return page.evaluate(() => {
         const menu = document.getElementById('main-menu');
@@ -149,7 +168,7 @@ export async function loadGame(page) {
                 Math.min(gotoTimeoutMs, remainingBeforeGoto - 1_500)
             );
             lastStage = 'goto';
-            await page.goto('/', { waitUntil: gotoWaitUntil, timeout: gotoBudgetMs });
+            await page.goto(resolveAppUrl(page, '/'), { waitUntil: gotoWaitUntil, timeout: gotoBudgetMs });
 
             const elapsedBeforeReady = performance.now() - startedAt;
             const remainingBeforeReady = totalTimeoutMs - elapsedBeforeReady;

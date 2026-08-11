@@ -1,10 +1,10 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from './helpers.desktop.js';
 
 import { EDITOR_API_ROUTES, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
-import { waitForRenderFrames } from './helpers.js';
+import { resolveAppUrl, waitForRenderFrames } from './helpers.js';
 
 async function resetVehicleLab(page) {
-    await page.goto(EDITOR_VIEW_PATHS.VEHICLE_LAB, { waitUntil: 'domcontentloaded' });
+    await page.goto(resolveAppUrl(page, EDITOR_VIEW_PATHS.VEHICLE_LAB), { waitUntil: 'domcontentloaded' });
     await page.evaluate(() => {
         localStorage.removeItem('vehicle_lab_config');
         localStorage.removeItem('vehicle_lab_recovery_config');
@@ -350,4 +350,3 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('[data-transform-mode="scale"]')).toBeEnabled();
     });
 });
-

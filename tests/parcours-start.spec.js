@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { loadGame, openCustomSubmenu } from './helpers.js';
 
 test('T60e: sichtbarer Parcours-Start-Ring triggert den ersten Checkpoint', async ({ page }) => {

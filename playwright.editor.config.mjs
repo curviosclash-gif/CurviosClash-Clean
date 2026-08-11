@@ -1,29 +1,5 @@
-import { defineConfig, devices } from '@playwright/test';
+process.env.PW_RUN_PROFILE = String(process.env.PW_RUN_PROFILE || 'desktop-e2e');
 
-const TEST_HOST = String(process.env.TEST_HOST || '127.0.0.1');
-const TEST_PORT = Number.parseInt(process.env.TEST_PORT || '5312', 10) || 5312;
-const OUTPUT_DIR = String(process.env.PW_OUTPUT_DIR || 'test-results/editor-ui');
+const { default: desktopConfig } = await import('./playwright.config.js');
 
-export default defineConfig({
-    testDir: './tests',
-    timeout: 90_000,
-    retries: 0,
-    workers: 1,
-    outputDir: OUTPUT_DIR,
-    use: {
-        baseURL: `http://${TEST_HOST}:${TEST_PORT}`,
-        trace: 'off',
-    },
-    projects: [
-        {
-            name: 'chromium',
-            use: { ...devices['Desktop Chrome'] },
-        },
-    ],
-    webServer: {
-        command: `npx vite --host ${TEST_HOST} --port ${TEST_PORT} --strictPort --clearScreen false --logLevel error`,
-        url: `http://${TEST_HOST}:${TEST_PORT}/prototypes/vehicle-lab/index.html`,
-        timeout: 180_000,
-        reuseExistingServer: process.env.PW_REUSE_SERVER === '1',
-    },
-});
+export default desktopConfig;

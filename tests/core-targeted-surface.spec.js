@@ -14,6 +14,7 @@ import {
     openMultiplayerSubmenu,
     openSubmenu,
     returnToMenu,
+    resolveAppUrl,
     startGame,
     startGameWithBots,
     unlockExpertMode,
@@ -716,7 +717,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20l1: F8/F9 senden getrennte lifecycle.v1 Start- und Stoppbefehle', async ({ page }) => {
         test.setTimeout(60000);
-        await page.goto('/', { waitUntil: 'commit' });
+        await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'commit' });
         await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
         await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -770,7 +771,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     });
 
     test('T20l2: Cinematic-Aufnahme meldet WebCodecs-Starts als MP4', async ({ page }) => {
-        await page.goto('/', { waitUntil: 'commit' });
+        await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'commit' });
         await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
         const result = await page.evaluate(async () => {
             const game = window.GAME_INSTANCE;
@@ -829,7 +830,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     });
 
     test('T20l3: Cinematic-Renderliste rendert nur die ausgewaehlte Aufnahme', async ({ page }) => {
-        await page.goto('/', { waitUntil: 'commit' });
+        await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'commit' });
         await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
         const prepared = await page.evaluate(() => {
             const recorder = window.GAME_INSTANCE?.mediaRecorderSystem;
@@ -894,7 +895,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20l4: Menue-Render rekonstruiert eine Replay-Szene ohne aktive Match-Session', async ({ page }) => {
         test.setTimeout(120000);
-        await page.goto('/', { waitUntil: 'commit' });
+        await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'commit' });
         await page.waitForFunction(() => !!window.GAME_INSTANCE, null, { timeout: 30000 });
         const result = await page.evaluate(async () => {
             const game = window.GAME_INSTANCE;

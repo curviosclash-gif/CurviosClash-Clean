@@ -1,8 +1,9 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
+import { resolveAppUrl } from './helpers.js';
 
 test('Fly Mode behaelt das Transformationswerkzeug fuer ausgewaehlte Objekte', async ({ page }) => {
-    await page.goto(EDITOR_VIEW_PATHS.MAP_EDITOR);
+    await page.goto(resolveAppUrl(page, EDITOR_VIEW_PATHS.MAP_EDITOR));
     await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.mapManager);
 
     const firstId = await page.evaluate(() => {

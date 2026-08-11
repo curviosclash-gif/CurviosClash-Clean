@@ -1,5 +1,5 @@
-import { test, expect } from '@playwright/test';
-import { collectErrors } from './helpers.js';
+import { test, expect } from './helpers.desktop.js';
+import { collectErrors, resolveAppUrl } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
 
@@ -25,7 +25,7 @@ async function loadEditorPage(page, { autosave = null, waitForDockVisible = true
     let lastError = null;
     for (let attempt = 1; attempt <= 3; attempt += 1) {
         try {
-            await page.goto(EDITOR_VIEW_PATHS.MAP_EDITOR, {
+            await page.goto(resolveAppUrl(page, EDITOR_VIEW_PATHS.MAP_EDITOR), {
                 waitUntil: 'domcontentloaded',
                 timeout: 45_000
             });
@@ -585,7 +585,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
         await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.ui.capturePlaytestReturnState())).toBe(true);
 
-        await page.goto(`${EDITOR_VIEW_PATHS.MAP_EDITOR}?returnFromPlaytest=1`, { waitUntil: 'domcontentloaded' });
+        await page.goto(resolveAppUrl(page, `${EDITOR_VIEW_PATHS.MAP_EDITOR}?returnFromPlaytest=1`), { waitUntil: 'domcontentloaded' });
         await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.getState, null, { timeout: 30_000 });
         await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
@@ -1054,7 +1054,7 @@ test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
     test.use({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 2 });
 
     test('Canvas-Mitte bleibt bei 200 Prozent Skalierung Weltursprung', async ({ page }) => {
-        await page.goto('/editor/map-editor.html', { waitUntil: 'domcontentloaded' });
+        await page.goto(resolveAppUrl(page, '/editor/map-editor.html'), { waitUntil: 'domcontentloaded' });
         const canvas = page.locator('#mapCanvas');
         const box = await canvas.boundingBox();
         expect(box).toBeTruthy();
@@ -1068,7 +1068,7 @@ test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
     });
 
     test('Import aktualisiert HUD und bewahrt Nullhoehen; Rechtsklick platziert nichts', async ({ page }) => {
-        await page.goto('/editor/map-editor.html', { waitUntil: 'domcontentloaded' });
+        await page.goto(resolveAppUrl(page, '/editor/map-editor.html'), { waitUntil: 'domcontentloaded' });
         const imported = {
             arenaSize: { width: 3200, height: 700, depth: 1800 },
             hardBlocks: [], tunnels: [], foamBlocks: [], botSpawns: [], portals: [], items: [],

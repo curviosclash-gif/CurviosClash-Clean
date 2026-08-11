@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { loadGame, openGameSubmenu, startGame, startGameWithBots, waitForRenderFrames } from './helpers.js';
 import { stringifyMapDocument } from '../src/entities/MapSchema.js';
 import { TEST_HANGAR_GLB_DATA_URI } from '../src/core/config/maps/EmbeddedGlbMapAssets.js';

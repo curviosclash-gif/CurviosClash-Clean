@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { CONFIG } from '../src/core/Config.js';
 import {
     collectErrors,
@@ -14,6 +14,7 @@ import {
     openMultiplayerSubmenu,
     openSubmenu,
     returnToMenu,
+    resolveAppUrl,
     startGame,
     startGameWithBots,
     unlockExpertMode,
@@ -121,6 +122,7 @@ export {
     openMultiplayerSubmenu,
     openSubmenu,
     returnToMenu,
+    resolveAppUrl,
     startGame,
     startGameWithBots,
     unlockExpertMode,

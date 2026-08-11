@@ -106,7 +106,7 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium
       - name: Run ${{ matrix.cluster }} cluster
-        run: node scripts/run-playwright-targeted-clusters.mjs ${{ matrix.cluster }} --timeout=180000
+        run: npm run test:desktop:e2e -- ${{ matrix.cluster }} --timeout=180000
 
   heavy-e2e:
     if: ${{ github.event_name == 'schedule' || github.event_name == 'workflow_dispatch' }}
@@ -135,7 +135,7 @@ jobs:
       - name: Install Playwright browser
         run: npx playwright install chromium
       - name: Run ${{ matrix.cluster }} cluster
-        run: node scripts/run-playwright-targeted-clusters.mjs ${{ matrix.cluster }} --timeout=240000
+        run: npm run test:desktop:e2e -- ${{ matrix.cluster }} --timeout=240000
 
   browser-compat:
     needs: smoke

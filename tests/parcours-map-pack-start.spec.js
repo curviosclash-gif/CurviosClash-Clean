@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { loadGame, openCustomSubmenu } from './helpers.js';
 
 const V130_START_SMOKE_MAPS = [

@@ -67,7 +67,8 @@ const isolatedEnv = resolveIsolatedPlaywrightEnv(runProfile);
 const TEST_PORT = isolatedEnv.testPort;
 const TEST_HOST = String(process.env.TEST_HOST || '127.0.0.1');
 process.env.TEST_HOST = TEST_HOST;
-const serverMode = resolvePlaywrightRunProfile(runProfile.name).serverMode;
+const resolvedRunProfile = resolvePlaywrightRunProfile(runProfile.name);
+const serverMode = resolvedRunProfile.serverMode;
 const runTag = isolatedEnv.runTag;
 const outputDir = isolatedEnv.outputDir;
 const htmlReportDir = String(process.env.PW_HTML_REPORT_DIR || `playwright-report/${runTag}`);
@@ -127,10 +128,12 @@ export default defineConfig({
             })(),
         },
     ],
-    webServer: {
-        command: webServerCommand,
-        url: `http://${TEST_HOST}:${TEST_PORT}`,
-        timeout: 300_000,
-        reuseExistingServer: !isCI && process.env.PW_REUSE_SERVER === '1',
-    },
+    ...(resolvedRunProfile.useExternalWebServer ? {
+        webServer: {
+            command: webServerCommand,
+            url: `http://${TEST_HOST}:${TEST_PORT}`,
+            timeout: 300_000,
+            reuseExistingServer: !isCI && process.env.PW_REUSE_SERVER === '1',
+        },
+    } : {}),
 });

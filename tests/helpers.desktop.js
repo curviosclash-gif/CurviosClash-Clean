@@ -6,7 +6,10 @@ import { _electron as electron, expect, test as base } from '@playwright/test';
 const require = createRequire(import.meta.url);
 
 const ELECTRON_DIR = path.resolve(process.cwd(), 'electron');
-const ELECTRON_EXECUTABLE = require(path.resolve(ELECTRON_DIR, 'node_modules', 'electron'));
+const IS_BROWSER_COMPAT = String(process.env.PW_RUN_PROFILE || '').trim() === 'browser-compat';
+const ELECTRON_EXECUTABLE = IS_BROWSER_COMPAT
+    ? null
+    : require(path.resolve(ELECTRON_DIR, 'node_modules', 'electron'));
 const DESKTOP_DIAGNOSTICS_FILE = 'desktop-startup-diagnostics.json';
 const DESKTOP_MAIN_PROCESS_LOG_FILE = 'desktop-main-process.log';
 const DESKTOP_RENDERER_CONSOLE_LOG_FILE = 'desktop-renderer-console.log';
@@ -333,7 +336,7 @@ async function createDesktopDiagnostics({
     };
 }
 
-export const test = base.extend({
+const desktopTest = base.extend({
     desktopHarness: async ({}, use, testInfo) => {
         const artifactPaths = {
             diagnosticsPath: testInfo.outputPath(DESKTOP_DIAGNOSTICS_FILE),
@@ -379,6 +382,7 @@ export const test = base.extend({
                 env: {
                     ...process.env,
                     CURVIOS_ELECTRON_SHOW_WINDOW: String(process.env.CURVIOS_ELECTRON_SHOW_WINDOW || '0'),
+                    CURVIOS_DESKTOP_STATIC_PORT: String(process.env.TEST_PORT || ''),
                 },
             });
 
@@ -597,5 +601,7 @@ export const test = base.extend({
         await use(desktopHarness.page);
     },
 });
+
+export const test = IS_BROWSER_COMPAT ? base : desktopTest;
 
 export { expect };

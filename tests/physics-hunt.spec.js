@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { loadGame, startHuntGame, startHuntGameWithBots } from './helpers.js';
 
 test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {

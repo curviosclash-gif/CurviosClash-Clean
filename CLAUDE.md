@@ -57,7 +57,7 @@ node --test tests/audio.contract.test.mjs
 node scripts/run-playwright-targeted.mjs tests/physics-core.spec.js
 ```
 
-Playwright läuft immer über die Wrapper in `scripts/run-playwright-*.mjs` (setzen `PW_RUN_PROFILE`, Timeouts und den eigenen Vite-/Preview-`webServer`), nicht über `npx playwright test` direkt. Ausnahme: `npm run test:editor-ui` mit eigener Config. `--grep "T1:|T2:"` wird an Playwright durchgereicht.
+Playwright läuft immer über die Wrapper in `scripts/run-playwright-*.mjs`. Desktop-Profile starten das echte Electron-Fenster gegen den gebauten `dist-app`-Renderer; nur `test:browser:compat` verwendet bewusst den Vite-Browserpfad. `--grep "T1:|T2:"` wird an Playwright durchgereicht.
 
 Die Desktop-E2E-Suite ist in benannte Cluster geschnitten (`scripts/playwright-test-clusters.mjs`). Der Cluster-Runner akzeptiert Cluster-IDs *und* Spec-Pfade, sodass gezielt ein Cluster statt der ganzen Suite läuft:
 

@@ -342,7 +342,10 @@ async function classifyClusterFailure(result) {
 async function main() {
     const shouldPrintClusters = process.argv.includes('--print-clusters');
     const shouldDryRun = process.argv.includes('--dry-run');
-    const { selectors, playwrightArgs } = splitSelectorsAndPlaywrightArgs(process.argv.slice(2));
+    const { selectors, playwrightArgs: explicitPlaywrightArgs } = splitSelectorsAndPlaywrightArgs(process.argv.slice(2));
+    const playwrightArgs = explicitPlaywrightArgs.some((value) => String(value).startsWith('--timeout'))
+        ? explicitPlaywrightArgs
+        : [...explicitPlaywrightArgs, '--timeout=240000'];
     const clusters = resolveSelectedClusters(selectors);
 
     if (shouldPrintClusters) {

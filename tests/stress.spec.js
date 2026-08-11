@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import {
     collectErrors,
     loadGame,
@@ -7,6 +7,7 @@ import {
     openMultiplayerSubmenu,
     selectSessionType,
     returnToMenu,
+    resolveAppUrl,
     startGame,
     waitForRenderFrames,
 } from './helpers.js';
@@ -87,7 +88,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
     });
 
     test('T66: Ungueltige Settings-Werte -> kein Crash', async ({ page }) => {
-        await page.goto('/');
+        await page.goto(resolveAppUrl(page, '/'));
         await page.evaluate(() => {
             localStorage.setItem('cuviosclash.settings.v1', JSON.stringify({
                 speed: -999,

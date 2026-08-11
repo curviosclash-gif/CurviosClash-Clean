@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { loadGame, openGameSubmenu, startGame, startGameWithBots, waitForRenderFrames } from './helpers.js';
 
 async function startMazeGameWithBots(page, botCount = 3) {

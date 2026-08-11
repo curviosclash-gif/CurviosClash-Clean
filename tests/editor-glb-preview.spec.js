@@ -1,12 +1,13 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './helpers.desktop.js';
 import { getEditorBuildEntriesForCategory } from '../editor/js/ui/EditorBuildCatalog.js';
 import { EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
+import { resolveAppUrl } from './helpers.js';
 
 test('sichtbare GLB-Karten laden echte 3D-Vorschauen nach', async ({ page }) => {
     const glbEntries = getEditorBuildEntriesForCategory('glb');
     const firstEntry = glbEntries[0];
 
-    await page.goto(EDITOR_VIEW_PATHS.MAP_EDITOR, { waitUntil: 'domcontentloaded' });
+    await page.goto(resolveAppUrl(page, EDITOR_VIEW_PATHS.MAP_EDITOR), { waitUntil: 'domcontentloaded' });
     await page.waitForFunction(() => !!window.CURVIOS_EDITOR?.getState);
     await expect(page.locator('#assetStatusText')).toContainText(/geladen/i, { timeout: 20_000 });
 
