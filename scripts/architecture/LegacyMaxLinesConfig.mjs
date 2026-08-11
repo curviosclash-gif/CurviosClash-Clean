@@ -1,6 +1,6 @@
 export const LEGACY_MAX_LINES = Object.freeze({
     'src/core/Audio.js': 758,
-    'src/core/arcade/ArcadeRunRuntime.js': 1530,
+    'src/core/arcade/ArcadeRunRuntime.js': 1276,
     'src/core/GameDebugApi.js': 650,
     'src/core/GameRuntimeFacade.js': 485,
     'src/core/MediaRecorderSystem.js': 1461,
@@ -17,7 +17,6 @@ export const LEGACY_MAX_LINES = Object.freeze({
     'src/shared/contracts/BrowserDemoSurfacePolicyOverrideContract.js': 692,
     'src/shared/contracts/PlatformSurfacePolicyOps.js': 538,
     'src/shared/runtime/GameRuntimePorts.js': 420,
-    'src/ui/arcade/ArcadeVehicleManager.js': 552,
     'src/ui/MatchFlowUiController.js': 790,
     'src/ui/PauseOverlayController.js': 300,
     'src/ui/TouchInputSource.js': 720,

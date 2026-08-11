@@ -21,7 +21,6 @@ const KILL_SCORE_BASE = 35;
 const COMBO_ACTION_INCREMENTS = Object.freeze({
     kill: 1,
     collect: 0.5,
-    clean_dodge: 0.3,
 });
 
 function normalizeTelemetryPayload(payload = null) {
@@ -119,7 +118,7 @@ export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = 
 }
 
 /**
- * Increment combo based on an in-game action (kill, collect, clean_dodge).
+ * Increment combo based on an in-game action (kill or collect).
  * Uses fractional accumulation — partial increments add up over time.
  * 61.2.1
  */

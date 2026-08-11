@@ -29,16 +29,11 @@ import {
 } from '../../state/arcade/ArcadeVehicleProfile.js';
 import {
     loadLeaderboard,
-    insertLeaderboardEntry,
-    getBestEntry,
 } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
     bootstrapGhostLibraryFromLeaderboard,
     getGhostLibraryDebugSnapshot,
-    getLongestGhostByRoute,
     loadGhostLibrary,
-    saveGhostLibrary,
-    upsertLongestGhostByRoute,
 } from '../../state/arcade/ArcadeGhostLibrary.js';
 import { ArcadeGhostRecorder } from '../../state/arcade/ArcadeGhostRecorder.js';
 import {
@@ -63,13 +58,24 @@ import {
     listRuntimeMapPresetKeys,
     resolveRuntimeMapPresetLabel,
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
-import { isArcadeGhostDuelPlaybackEnabled } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
 import { assignArcadeSectorRuntimeState, updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
+import { applyParcoursLeaderboardEvent } from './ArcadeParcoursLeaderboardOps.js';
+import {
+    clearGhostLibrarySaveTimer,
+    flushArcadePersistenceSaves,
+    flushPendingGhostLibrarySave,
+    mergeGhostLibraryTelemetryDelta,
+    readArcadeRecordsFromStorage,
+    resolveArcadeSettingsRecordStore,
+    scheduleArcadeLeaderboardSave,
+    scheduleArcadeRecordsSave,
+    scheduleArcadeVehicleProfilesSave,
+    scheduleGhostLibrarySave,
+} from './ArcadeRunPersistenceOps.js';
 
-const ARCADE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
 const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
 const DEFAULT_ARCADE_PERSISTENCE_SAVE_THROTTLE_MS = 250;
 
@@ -99,24 +105,6 @@ function clampIndex(index, maxExclusive) {
 function toSafeBudgetLimit(value, fallback = 0) {
     const numeric = Math.trunc(Number(value));
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
-}
-
-function normalizeRouteCandidates(routeId, routeAliases = null) {
-    const candidates = [];
-    const seen = new Set();
-    const pushCandidate = (value) => {
-        const normalized = String(value || '').trim();
-        if (!normalized || seen.has(normalized)) return;
-        seen.add(normalized);
-        candidates.push(normalized);
-    };
-    pushCandidate(routeId);
-    if (Array.isArray(routeAliases)) {
-        for (let i = 0; i < routeAliases.length; i += 1) {
-            pushCandidate(routeAliases[i]);
-        }
-    }
-    return candidates;
 }
 
 function formatMapLabel(mapKey) {
@@ -205,62 +193,35 @@ export class ArcadeRunRuntime {
     }
 
     _resolveSettingsRecordStore() {
-        return this.settingsManager?.getSettingsRecordStorePort?.()
-            || null;
+        return resolveArcadeSettingsRecordStore(this);
     }
 
     _scheduleVehicleProfilesSave() {
-        const store = this._resolveSettingsRecordStore();
-        return this._persistenceScheduler?.scheduleVehicleProfiles?.(store, this._vehicleProfiles) === true;
+        return scheduleArcadeVehicleProfilesSave(this);
     }
 
     _scheduleLeaderboardSave() {
-        const store = this._resolveSettingsRecordStore();
-        return this._persistenceScheduler?.scheduleLeaderboard?.(store, this._leaderboard) === true;
+        return scheduleArcadeLeaderboardSave(this);
     }
 
     _readRecordsFromStorage() {
-        const store = this._resolveSettingsRecordStore();
-        if (!store || typeof store.loadJsonRecord !== 'function') {
-            return createArcadeRunRecords(this._records);
-        }
-        const storedValue = store.loadJsonRecord(ARCADE_PROFILE_STORAGE_KEY, null);
-        return createArcadeRunRecords(storedValue);
+        return readArcadeRecordsFromStorage(this);
     }
 
     _scheduleRecordsSave(records = this._records) {
-        const store = this._resolveSettingsRecordStore();
-        if (!store || typeof store.saveJsonRecord !== 'function') return false;
-        return this._persistenceScheduler?.scheduleRunRecords?.(
-            store,
-            ARCADE_PROFILE_STORAGE_KEY,
-            records,
-            createArcadeRunRecords
-        ) === true;
+        return scheduleArcadeRecordsSave(this, records);
     }
 
     _mergeGhostLibraryTelemetryDelta(delta) {
-        if (!delta || typeof delta !== 'object') return;
-        this._ghostLibraryDebugCounters.evictedRoutes += Math.max(0, toSafeInt(delta.evictedRoutes, 0));
-        this._ghostLibraryDebugCounters.trimmedFrames += Math.max(0, toSafeInt(delta.trimmedFrames, 0));
-        this._ghostLibraryDebugCounters.migrationWrites += Math.max(0, toSafeInt(delta.migrationWrites, 0));
-        this._ghostLibraryDebugCounters.droppedByByteBudget += Math.max(0, toSafeInt(delta.droppedByByteBudget, 0));
+        mergeGhostLibraryTelemetryDelta(this, delta);
     }
 
     _clearGhostLibrarySaveTimer() {
-        if (this._ghostLibrarySaveTimer != null) {
-            clearTimeout(this._ghostLibrarySaveTimer);
-            this._ghostLibrarySaveTimer = null;
-        }
+        clearGhostLibrarySaveTimer(this);
     }
 
     _flushPendingGhostLibrarySave() {
-        this._clearGhostLibrarySaveTimer();
-        const pending = this._pendingGhostLibrarySave;
-        if (!pending) return false;
-        this._pendingGhostLibrarySave = null;
-        saveGhostLibrary(pending.store, pending.ghostLibrary, pending.budgetOptions);
-        return true;
+        return flushPendingGhostLibrarySave(this);
     }
 
     flushGhostLibrarySaves() {
@@ -268,28 +229,11 @@ export class ArcadeRunRuntime {
     }
 
     flushPersistenceSaves() {
-        const flushedArcadeSaves = this._persistenceScheduler?.flushAll?.() === true;
-        const flushedGhostSaves = this._flushPendingGhostLibrarySave();
-        return flushedArcadeSaves || flushedGhostSaves;
+        return flushArcadePersistenceSaves(this);
     }
 
     _scheduleGhostLibrarySave(store, budgetOptions) {
-        if (!store || typeof store.saveJsonRecord !== 'function') return;
-        this._pendingGhostLibrarySave = {
-            store,
-            budgetOptions,
-            ghostLibrary: this._ghostLibrary,
-        };
-        if (this._ghostLibrarySaveThrottleMs <= 0) {
-            this._flushPendingGhostLibrarySave();
-            return;
-        }
-        if (this._ghostLibrarySaveTimer != null) {
-            return;
-        }
-        this._ghostLibrarySaveTimer = setTimeout(() => {
-            this._flushPendingGhostLibrarySave();
-        }, this._ghostLibrarySaveThrottleMs);
+        scheduleGhostLibrarySave(this, store, budgetOptions);
     }
 
     configure(runtimeConfig = null) {
@@ -1358,198 +1302,7 @@ export class ArcadeRunRuntime {
     }
 
     applyParcoursLeaderboardEvent(data) {
-        if (!data || typeof data !== 'object') return null;
-        const {
-            type,
-            routeId,
-            checkpointIndex,
-            currentSplitMs,
-            totalTimeMs,
-            penaltyTimeMs,
-            segmentSplitsMs,
-            ghostClip,
-        } = data;
-        const routeCandidates = normalizeRouteCandidates(routeId, data.routeAliases);
-        const primaryRouteId = routeCandidates[0] || '';
-        const runtimeEnabled = this._enabled === true;
-        const persistLibraryOnly = data.persistLibraryOnly === true || !runtimeEnabled;
-        const ghostLibraryBudget = this._resolveGhostLibraryBudgetOptions();
-
-        if (type === 'checkpoint') {
-            if (!runtimeEnabled) return null;
-            if (!this._leaderboard || !primaryRouteId) return null;
-            const best = getBestEntry(this._leaderboard, primaryRouteId);
-            if (!best || !Array.isArray(best.segmentSplitsMs)) return null;
-            const bestSplitMs = best.segmentSplitsMs[checkpointIndex];
-            if (typeof bestSplitMs !== 'number') return null;
-            const deltaMs = currentSplitMs - bestSplitMs;
-            if (this._state) {
-                this._state.lastParcoursSegmentSplit = {
-                    checkpointIndex,
-                    deltaMs,
-                    isBetter: deltaMs < 0,
-                };
-            }
-            return { deltaMs, isBetter: deltaMs < 0 };
-        }
-
-        if (type === 'ghost_start') {
-            if (routeCandidates.length === 0) {
-                return {
-                    started: false,
-                    reason: 'invalid_route',
-                    routeCandidates,
-                };
-            }
-            if (!isArcadeGhostDuelPlaybackEnabled(this._config?.ghostDuelMode)) {
-                return {
-                    started: false,
-                    reason: 'ghost_mode_disabled',
-                    routeCandidates,
-                };
-            }
-            let clipToPlay = null;
-            let selectedRouteId = '';
-            for (let i = 0; i < routeCandidates.length; i += 1) {
-                const longestGhost = getLongestGhostByRoute(
-                    this._ghostLibrary,
-                    routeCandidates[i],
-                    ghostLibraryBudget
-                );
-                if (!longestGhost?.longestGhostClip) continue;
-                clipToPlay = longestGhost.longestGhostClip;
-                selectedRouteId = String(longestGhost.routeId || routeCandidates[i] || '').trim();
-                break;
-            }
-            if (!clipToPlay) {
-                return {
-                    started: false,
-                    reason: 'ghost_not_found',
-                    routeCandidates,
-                };
-            }
-            const source = String(data?.source || '').trim().toLowerCase();
-            if (
-                source === 'parcours_checkpoint_start'
-                && selectedRouteId
-                && selectedRouteId === this._lastGhostPlaybackRouteId
-            ) {
-                return {
-                    started: false,
-                    reason: 'duplicate_checkpoint_start',
-                    routeId: selectedRouteId,
-                    routeCandidates,
-                };
-            }
-            if (this._onGhostPlayback) {
-                try {
-                    this._onGhostPlayback(clipToPlay);
-                    this._lastGhostPlaybackRouteId = selectedRouteId;
-                    return {
-                        started: true,
-                        reason: 'ok',
-                        routeId: selectedRouteId,
-                        routeCandidates,
-                    };
-                } catch {
-                    return {
-                        started: false,
-                        reason: 'playback_handler_error',
-                        routeId: selectedRouteId,
-                        routeCandidates,
-                    };
-                }
-            }
-            return {
-                started: false,
-                reason: 'playback_handler_missing',
-                routeId: selectedRouteId,
-                routeCandidates,
-            };
-        }
-
-        if (type === 'wrong_order') {
-            if (!runtimeEnabled) return null;
-            const nextPenaltyMs = Math.max(0, Math.trunc(Number(data.penaltyMs) || 0));
-            if (nextPenaltyMs <= 0) return null;
-            const nextTotalPenaltyMs = Math.max(
-                nextPenaltyMs,
-                Math.trunc(Number(data.totalPenaltyMs) || nextPenaltyMs)
-            );
-            if (this._state) {
-                this._state.lastParcoursPenalty = {
-                    penaltyMs: nextPenaltyMs,
-                    totalPenaltyMs: nextTotalPenaltyMs,
-                };
-            }
-            return { penaltyMs: nextPenaltyMs, totalPenaltyMs: nextTotalPenaltyMs };
-        }
-
-        if (type === 'finish') {
-            const store = this._resolveSettingsRecordStore();
-            // Ghost self-duel should keep working in-session even when persistence is unavailable.
-            if (!primaryRouteId) return null;
-            const vehicleId = this._activeVehicleId || '';
-            const recordedAtIso = new Date().toISOString();
-            const ghostDurationMs = Math.max(0, Math.trunc(Number(data?.ghostDurationMs) || 0));
-            const explicitLongestDurationMs = ghostDurationMs > 0 ? ghostDurationMs : 0;
-            let isBestTime = false;
-            let inserted = false;
-            if (!persistLibraryOnly) {
-                isBestTime = (() => {
-                    const best = getBestEntry(this._leaderboard, primaryRouteId);
-                    return !best || totalTimeMs < best.totalTimeMs;
-                })();
-                this._leaderboard = insertLeaderboardEntry(this._leaderboard, primaryRouteId, {
-                    totalTimeMs,
-                    penaltyTimeMs,
-                    segmentSplitsMs,
-                    vehicleId,
-                    date: recordedAtIso,
-                    ghostClip: isBestTime ? (ghostClip || null) : null,
-                });
-                this._scheduleLeaderboardSave();
-                inserted = true;
-            }
-            let nextGhostLibrary = this._ghostLibrary;
-            let longestGhostUpdated = false;
-            let primaryLongestGhostReason = 'invalid_route';
-            const ghostLibraryUpsert = upsertLongestGhostByRoute(
-                nextGhostLibrary,
-                primaryRouteId,
-                ghostClip,
-                explicitLongestDurationMs,
-                {
-                    updatedAt: recordedAtIso,
-                    routeAliases: routeCandidates.slice(1),
-                    canonicalRouteId: primaryRouteId,
-                    budgetOptions: ghostLibraryBudget,
-                    assumeNormalizedLibrary: false,
-                }
-            );
-            this._mergeGhostLibraryTelemetryDelta(ghostLibraryUpsert.telemetryDelta);
-            nextGhostLibrary = ghostLibraryUpsert.ghostLibrary;
-            primaryLongestGhostReason = ghostLibraryUpsert.reason;
-            longestGhostUpdated = ghostLibraryUpsert.changed;
-            this._ghostLibrary = nextGhostLibrary;
-            this._lastGhostPlaybackRouteId = '';
-            if (longestGhostUpdated) {
-                this._scheduleGhostLibrarySave(store, ghostLibraryBudget);
-            }
-            if (!persistLibraryOnly && isBestTime) {
-                this.applyParcoursXpEvent('new_best_time', data.playerIndex || 0);
-            }
-            return {
-                inserted,
-                isBestTime,
-                persistLibraryOnly,
-                ghostRouteIds: routeCandidates,
-                longestGhostUpdated,
-                longestGhostReason: primaryLongestGhostReason,
-            };
-        }
-
-        return null;
+        return applyParcoursLeaderboardEvent(this, data);
     }
 
     _applySectorXpReward(telemetryPayload) {
