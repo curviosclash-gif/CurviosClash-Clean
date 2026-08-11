@@ -18,8 +18,8 @@ const DEFAULT_ARCADE_RUN_CONFIG = Object.freeze({
     dailyChallenge: false,
     ghostDuelMode: 'off',
     ghostLibraryMaxRoutes: 64,
-    ghostLibraryMaxFramesPerRoute: 0,
-    ghostLibraryMaxBytes: 0,
+    ghostLibraryMaxFramesPerRoute: 1200,
+    ghostLibraryMaxBytes: 4_000_000,
 });
 
 export const ARCADE_RUN_PHASES = Object.freeze({
@@ -99,13 +99,13 @@ export function createArcadeRunConfig(source = null) {
         ),
         ghostLibraryMaxFramesPerRoute: clampInteger(
             input.ghostLibraryMaxFramesPerRoute,
-            0,
+            1,
             20000,
             DEFAULT_ARCADE_RUN_CONFIG.ghostLibraryMaxFramesPerRoute
         ),
         ghostLibraryMaxBytes: clampInteger(
             input.ghostLibraryMaxBytes,
-            0,
+            1,
             20_000_000,
             DEFAULT_ARCADE_RUN_CONFIG.ghostLibraryMaxBytes
         ),

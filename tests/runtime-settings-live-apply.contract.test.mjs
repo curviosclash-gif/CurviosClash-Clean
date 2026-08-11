@@ -1243,6 +1243,43 @@ test('Ghost library keeps finish clips in memory when record store is unavailabl
     assert.equal(runtime._ghostLibrary.route_memory.durationMs, 5400);
 });
 
+test('Ghost library retries a quota-rejected save without dropping the pending clip', () => {
+    let attempts = 0;
+    const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 60_000 });
+    runtime._enabled = false;
+    runtime._config = { ghostDuelMode: 'self_longest_ghost' };
+    runtime._state = null;
+    runtime._leaderboard = {};
+    runtime._ghostLibrary = {};
+    runtime.settingsManager = createRecordStoreSettingsManager({
+        saveJsonRecord(key) {
+            if (key !== ARCADE_GHOST_LIBRARY_STORAGE_KEY) return true;
+            attempts += 1;
+            return attempts === 1
+                ? { success: false, reason: 'quota_exceeded' }
+                : { success: true };
+        },
+    });
+
+    runtime.applyParcoursLeaderboardEvent({
+        type: 'finish',
+        routeId: 'route_retry',
+        totalTimeMs: 5400,
+        penaltyTimeMs: 0,
+        segmentSplitsMs: [],
+        ghostClip: createGhostClip(5.4),
+        persistLibraryOnly: true,
+    });
+
+    assert.equal(runtime.flushGhostLibrarySaves(), false);
+    assert.equal(runtime.getDebugSnapshot()?.ghostLibrary?.pendingSave, true);
+    assert.equal(runtime._ghostLibrary.route_retry.durationMs, 5400);
+
+    assert.equal(runtime.flushGhostLibrarySaves(), true);
+    assert.equal(runtime.getDebugSnapshot()?.ghostLibrary?.pendingSave, false);
+    assert.equal(attempts, 2);
+});
+
 test('Ghost library budget in runtime evicts oldest routes by updatedAt during finish upsert', () => {
     const writes = [];
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });

@@ -9,8 +9,8 @@ const GHOST_LIBRARY_META_SCHEMA_VERSION = '__ghostSchemaVersion';
 
 export const DEFAULT_GHOST_LIBRARY_BUDGET = Object.freeze({
     maxRoutes: 64,
-    maxFramesPerRoute: 0,
-    maxBytes: 0,
+    maxFramesPerRoute: 1200,
+    maxBytes: 4_000_000,
     canonicalizeAliases: true,
 });
 
@@ -69,8 +69,11 @@ export function normalizeGhostLibraryBudgetOptions(options = null) {
     const input = isPlainObject(options) ? options : {};
     return {
         maxRoutes: toSafePositiveInteger(input.maxRoutes, DEFAULT_GHOST_LIBRARY_BUDGET.maxRoutes),
-        maxFramesPerRoute: toSafePositiveInteger(input.maxFramesPerRoute, 0),
-        maxBytes: toSafePositiveInteger(input.maxBytes, 0),
+        maxFramesPerRoute: toSafePositiveInteger(
+            input.maxFramesPerRoute,
+            DEFAULT_GHOST_LIBRARY_BUDGET.maxFramesPerRoute
+        ),
+        maxBytes: toSafePositiveInteger(input.maxBytes, DEFAULT_GHOST_LIBRARY_BUDGET.maxBytes),
         canonicalizeAliases: input.canonicalizeAliases !== false,
     };
 }

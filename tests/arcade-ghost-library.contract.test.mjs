@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import {
+    ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
     ARCADE_GHOST_LIBRARY_STORAGE_KEY,
     ARCADE_GHOST_LIBRARY_SCHEMA_VERSION,
     bootstrapGhostLibraryFromLeaderboard,
@@ -34,6 +35,65 @@ function createRecorderPlayer(index, x = 0) {
         quaternion: { x: 0, y: 0, z: 0, w: 1 },
     };
 }
+
+function createDenseGhostClip(frameCount, durationSeconds = 60) {
+    return {
+        frames: Array.from({ length: frameCount }, (_, index) => ({
+            time: (durationSeconds * index) / (frameCount - 1),
+            players: [{ idx: 0, x: index, y: 0, z: index / 2 }],
+        })),
+        players: [{ idx: 0, color: 0xffffff }],
+        sourceDuration: durationSeconds,
+        displayDuration: durationSeconds,
+    };
+}
+
+test('ArcadeGhostLibrary applies positive frame and byte budgets by default', () => {
+    assert.ok(ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxFramesPerRoute > 0);
+    assert.ok(ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxBytes > 0);
+
+    const result = upsertLongestGhostByRoute(
+        {},
+        'route_dense',
+        createDenseGhostClip(ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxFramesPerRoute + 301),
+        60000
+    );
+
+    const frames = result.ghostLibrary.route_dense?.longestGhostClip?.frames;
+    assert.equal(frames?.length, ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxFramesPerRoute);
+    assert.equal(frames?.[0]?.time, 0);
+    assert.equal(frames?.at(-1)?.time, 60);
+    const debug = getGhostLibraryDebugSnapshot(result.ghostLibrary);
+    assert.ok(debug.serializedBytes <= ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxBytes);
+});
+
+test('ArcadeGhostLibrary treats legacy zero budgets as bounded defaults on import', () => {
+    const writes = [];
+    const store = {
+        loadJsonRecord() {
+            return {
+                route_dense: {
+                    durationMs: 60000,
+                    longestGhostClip: createDenseGhostClip(
+                        ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxFramesPerRoute + 301
+                    ),
+                },
+            };
+        },
+        saveJsonRecord(key, value) {
+            writes.push({ key, value });
+        },
+    };
+
+    const loaded = loadGhostLibrary(store, { maxFramesPerRoute: 0, maxBytes: 0 });
+
+    assert.equal(
+        loaded.route_dense?.longestGhostClip?.frames?.length,
+        ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxFramesPerRoute
+    );
+    assert.equal(writes.length, 1);
+    assert.ok(JSON.stringify(writes[0].value).length <= ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxBytes);
+});
 
 test('ArcadeGhostRecorder keeps ownership on one player while recording', () => {
     const recorder = new ArcadeGhostRecorder();

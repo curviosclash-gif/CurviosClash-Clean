@@ -31,6 +31,7 @@ import {
     loadLeaderboard,
 } from '../../state/arcade/ArcadeLeaderboard.js';
 import {
+    ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET,
     bootstrapGhostLibraryFromLeaderboard,
     getGhostLibraryDebugSnapshot,
     loadGhostLibrary,
@@ -384,9 +385,18 @@ export class ArcadeRunRuntime {
             ? source
             : this._config;
         return {
-            maxRoutes: toSafeBudgetLimit(budgetSource?.ghostLibraryMaxRoutes, 64),
-            maxFramesPerRoute: toSafeBudgetLimit(budgetSource?.ghostLibraryMaxFramesPerRoute, 0),
-            maxBytes: toSafeBudgetLimit(budgetSource?.ghostLibraryMaxBytes, 0),
+            maxRoutes: toSafeBudgetLimit(
+                budgetSource?.ghostLibraryMaxRoutes,
+                ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxRoutes
+            ),
+            maxFramesPerRoute: toSafeBudgetLimit(
+                budgetSource?.ghostLibraryMaxFramesPerRoute,
+                ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxFramesPerRoute
+            ),
+            maxBytes: toSafeBudgetLimit(
+                budgetSource?.ghostLibraryMaxBytes,
+                ARCADE_GHOST_LIBRARY_DEFAULT_BUDGET.maxBytes
+            ),
         };
     }
 
