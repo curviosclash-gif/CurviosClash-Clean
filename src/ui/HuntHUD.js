@@ -110,6 +110,8 @@ export class HuntHUD {
 
         initializeHudSegmentedArc(this.p1BoostFill);
         initializeHudSegmentedArc(this.p1OverheatFill);
+        initializeHudSegmentedArc(this.p2BoostFill);
+        initializeHudSegmentedArc(this.p2OverheatFill);
     }
 
     _getMatchRuntimeProjection() {

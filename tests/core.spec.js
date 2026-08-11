@@ -86,6 +86,108 @@ test.describe('Desktop Smoke', () => {
         expect(errors).toHaveLength(0);
     });
 
+    test('split-screen fight renders a complete HUD for each local player', async ({ page }, testInfo) => {
+        const errors = collectErrors(page);
+        await waitForLoadedGame(page);
+        await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
+        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click({ force: true });
+        await page.locator('#submenu-game:not(.hidden) #btn-start').click({ force: true });
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            const huntHud = document.getElementById('hunt-hud');
+            return globalThis.curviosApp?.capabilities?.runtimeKind === 'electron'
+                && game?.entityManager?.players?.length >= 2
+                && huntHud
+                && !huntHud.classList.contains('hidden');
+        }, null, { timeout: 60000 });
+        await waitForRenderFrames(page, 12);
+
+        const layout = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const players = game.entityManager.players;
+            players[0].hp = Math.min(players[0].maxHp, 73);
+            players[1].hp = Math.min(players[1].maxHp, 41);
+            game.huntHud._playerPanelTickTimer = 9999;
+            game.huntHud.update(0.001);
+
+            const rect = (selector) => {
+                const element = document.querySelector(selector);
+                const value = element?.getBoundingClientRect();
+                return value ? {
+                    left: value.left,
+                    top: value.top,
+                    right: value.right,
+                    bottom: value.bottom,
+                    width: value.width,
+                    height: value.height,
+                } : null;
+            };
+            const inspectPlayer = (playerNumber) => {
+                const prefix = `#hunt-p${playerNumber}-panel`;
+                const boostFill = document.querySelector(`${prefix} .hunt-arc-boost .hunt-fill`);
+                const overheatFill = document.querySelector(`${prefix} .hunt-arc-overheat .hunt-fill`);
+                return {
+                    panel: rect(prefix),
+                    summary: rect(`#p${playerNumber}-hud .player-hud-summary`),
+                    vitals: rect(`${prefix} .hunt-vitals`),
+                    boost: rect(`${prefix} .hunt-arc-boost`),
+                    overheat: rect(`${prefix} .hunt-arc-overheat`),
+                    items: rect(`#p${playerNumber}-items`),
+                    itemDisplay: getComputedStyle(document.querySelector(`#p${playerNumber}-items`)).display,
+                    hpText: document.querySelector(`#hunt-p${playerNumber}-hp-text`)?.textContent || '',
+                    arcSegmentCounts: [boostFill, overheatFill].map((fill) => (
+                        [...(fill?.querySelectorAll('.hunt-segmented-arc path') || [])]
+                            .map((path) => (path.getAttribute('d').match(/M/g) || []).length)
+                    )),
+                };
+            };
+            return {
+                runtimeKind: globalThis.curviosApp?.capabilities?.runtimeKind,
+                viewport: { width: innerWidth, height: innerHeight },
+                killFeed: rect('.hunt-kill-feed'),
+                p1: inspectPlayer(1),
+                p2: inspectPlayer(2),
+            };
+        });
+
+        const overlaps = (a, b) => !(
+            a.right <= b.left || a.left >= b.right
+            || a.bottom <= b.top || a.top >= b.bottom
+        );
+        const half = layout.viewport.width / 2;
+        expect(layout.runtimeKind).toBe('electron');
+        expect(layout.p1.panel).toMatchObject({ left: 0, right: half });
+        expect(layout.p2.panel).toMatchObject({ left: half, right: layout.viewport.width });
+
+        for (const [playerIndex, playerHud] of [layout.p1, layout.p2].entries()) {
+            const minX = playerIndex === 0 ? 0 : half;
+            const maxX = playerIndex === 0 ? half : layout.viewport.width;
+            for (const [name, elementRect] of Object.entries({
+                summary: playerHud.summary,
+                vitals: playerHud.vitals,
+                boost: playerHud.boost,
+                overheat: playerHud.overheat,
+                items: playerHud.items,
+            })) {
+                expect(elementRect, `P${playerIndex + 1} ${name} exists`).not.toBeNull();
+                expect(elementRect.left, `P${playerIndex + 1} ${name} starts in its viewport`).toBeGreaterThanOrEqual(minX - 1);
+                expect(elementRect.right, `P${playerIndex + 1} ${name} stays in its viewport`).toBeLessThanOrEqual(maxX + 1);
+            }
+            expect(playerHud.itemDisplay).toBe('grid');
+            expect(playerHud.arcSegmentCounts).toEqual([[100, 100], [100, 100]]);
+            expect(overlaps(playerHud.vitals, playerHud.items)).toBe(false);
+            expect(overlaps(playerHud.vitals, playerHud.boost)).toBe(false);
+            expect(overlaps(playerHud.vitals, playerHud.overheat)).toBe(false);
+        }
+        expect(layout.p1.hpText).toMatch(/^73 \/ /);
+        expect(layout.p2.hpText).toMatch(/^41 \/ /);
+        expect(overlaps(layout.killFeed, layout.p1.summary)).toBe(false);
+        expect(overlaps(layout.killFeed, layout.p2.summary)).toBe(false);
+
+        await page.screenshot({ path: testInfo.outputPath('splitscreen-fight-hud.png') });
+        expect(errors).toHaveLength(0);
+    });
+
     test('graceful-close IPC reaches only the current runtime after an AppInitializer remount', async ({ page, electronApp }) => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);

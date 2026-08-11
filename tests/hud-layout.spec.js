@@ -173,7 +173,7 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expectNear(layout.p1Root.left, 0);
             expectNear(layout.p1Root.right, halfWidth);
             expectNear(layout.vitals.left, layout.p1Root.left + 20);
-            expectNear(layout.vitals.bottom, viewport.height - 20);
+            expectNear(layout.vitals.bottom, viewport.height - 74);
             for (const arc of [layout.boost, layout.overheat]) {
                 expect(arc.left).toBeGreaterThanOrEqual(layout.p1Root.left - 1);
                 expect(arc.right).toBeLessThanOrEqual(layout.p1Root.right + 1);
