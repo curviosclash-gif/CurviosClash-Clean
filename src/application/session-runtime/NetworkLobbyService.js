@@ -1,5 +1,6 @@
 import { createLobbyLifecycleEventEmitter } from './LobbyLifecycleEventEmitter.js';
 import { createRuntimeClock } from '../../shared/contracts/RuntimeClockContract.js';
+import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveGlobalObject, toCallable } from './LobbyRuntimeEnvironment.js';
 import { createNetworkLobbyDiscoveryPort } from './NetworkLobbyDiscoveryPort.js';
 import { createNetworkLobbySessionStateProjection } from './NetworkLobbySessionStateProjection.js';
@@ -66,6 +67,7 @@ export class NetworkLobbyService {
             nowMs: options.now || this._runtime.now,
             runtime: runtimeGlobal,
         });
+        this._rng = createRuntimeRng({ random: options.random || this._runtime.random });
         const platformBindings = options.platformBindings && typeof options.platformBindings === 'object'
             ? options.platformBindings
             : null;
@@ -100,6 +102,8 @@ export class NetworkLobbyService {
             transport: this.transport,
             runtime: this._runtime,
             platformCapabilities: this._platformCapabilities,
+            nowMs: this._clock.nowMs,
+            random: this._rng.next,
             createLobby: options.createLobby,
             joinLobby: options.joinLobby,
             onSessionStateChanged: ({ sessionState, signalingUrl, localPeerId }) => {

@@ -80,18 +80,6 @@ const EXCEPTIONS = {
         reason: 'lastPortalTravelAtMs reaches the match runtime projection',
         todo: true,
     },
-    'src/network/OnlineMatchLobby.js': {
-        reason: 'lobby ids and member timestamps still come from the wall clock',
-        todo: true,
-    },
-    'src/network/OnlineMatchLobbyMessageRouter.js': {
-        reason: 'lobby member timestamps still come from the wall clock',
-        todo: true,
-    },
-    'src/network/LANMatchLobby.js': {
-        reason: 'command ids and member timestamps still come from the wall clock',
-        todo: true,
-    },
 };
 
 // Der alte Ausdruck verlangte die oeffnende Klammer und hat deshalb jede Zuweisung

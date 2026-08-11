@@ -27,6 +27,7 @@ import {
     emitOnlineLobbyReconnectProgress,
 } from './OnlineSignalingSupport.js';
 import { routeOnlineLobbyMessage } from './OnlineMatchLobbyMessageRouter.js';
+import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
 const MUTATION_ACK_TIMEOUT_MS = 3_500;
 
@@ -43,6 +44,7 @@ function createLobbyUsageError(code, message) {
 export class OnlineMatchLobby extends MatchLobby {
     constructor(options = {}) {
         super('online');
+        this._lobbyRuntime = createLobbyRuntimeBindings(options);
         this._signalingUrl = options.signalingUrl || '';
         this._ws = null;
         this._playerId = null;
@@ -67,13 +69,13 @@ export class OnlineMatchLobby extends MatchLobby {
         if (!normalizedPeerId) return;
         const nextMembers = this.sessionState.members.map((member) => (
             member.peerId === normalizedPeerId
-                ? { ...member, ready: ready === true, lastSeenAt: Date.now() }
+                ? { ...member, ready: ready === true, lastSeenAt: this._lobbyRuntime.nowMs() }
                 : member
         ));
         this._applySessionState({
             ...this.sessionState,
             members: nextMembers,
-            updatedAt: Date.now(),
+            updatedAt: this._lobbyRuntime.nowMs(),
             revision: Number(this.sessionState.revision || 0) + 1,
         });
     }
@@ -83,7 +85,7 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     _createMutationAckId(prefix = 'ack') {
-        return `${prefix}-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        return `${prefix}-${this._lobbyRuntime.nowMs().toString(36)}-${this._lobbyRuntime.random().toString(36).slice(2, 8)}`;
     }
 
     _rejectAllPendingMutationAcks(error) {
@@ -519,7 +521,7 @@ export class OnlineMatchLobby extends MatchLobby {
             commandId,
             lobbyCode: this.sessionState.lobbyCode || this.lobbyCode || '',
             hostPeerId: this.sessionState.hostPeerId || this._playerId || '',
-            issuedAt: Date.now(),
+            issuedAt: this._lobbyRuntime.nowMs(),
             settingsSnapshot: options?.settingsSnapshot ?? this.settings ?? null,
         };
         await this._sendMutationWithAck({

@@ -20,7 +20,11 @@ export class OnlineLobbyService extends NetworkLobbyService {
             discoveryPort: null,
             createLobby: typeof options.createLobby === 'function'
                 ? options.createLobby
-                : (signalingUrl) => new OnlineMatchLobby({ signalingUrl }),
+                : (signalingUrl, lobbyRuntime = null) => new OnlineMatchLobby({
+                    signalingUrl,
+                    nowMs: lobbyRuntime?.nowMs,
+                    random: lobbyRuntime?.random,
+                }),
             resolveHostSignalingUrl: typeof options.resolveHostSignalingUrl === 'function'
                 ? options.resolveHostSignalingUrl
                 : () => resolveConfiguredUrl(),

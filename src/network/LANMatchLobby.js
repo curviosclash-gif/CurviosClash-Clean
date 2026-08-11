@@ -21,6 +21,7 @@ import {
     buildLanRequestError,
     publishLanLobbyMetadata,
 } from './LANSignalingSupport.js';
+import { createLobbyRuntimeBindings } from './LobbyRuntimeBindings.js';
 
 const DEFAULT_POLL_INTERVAL_MS = 500;
 const DEFAULT_POLL_TIMEOUT_MS = 2500;
@@ -33,6 +34,7 @@ const POLL_FAILURE_THRESHOLD = 3;
 export class LANMatchLobby extends MatchLobby {
     constructor(options = {}) {
         super('lan');
+        this._lobbyRuntime = createLobbyRuntimeBindings(options);
         this._signalingUrl = options.signalingUrl || 'http://localhost:9090';
         this._pollingTimer = null;
         this._pollingAbortController = null;
@@ -170,7 +172,7 @@ export class LANMatchLobby extends MatchLobby {
 
         const merged = [];
         const hostPeerId = String(status.hostPeerId || this.sessionState.hostPeerId || 'host').trim() || 'host';
-        const now = Date.now();
+        const now = this._lobbyRuntime.nowMs();
 
         const ensureMember = (player, fallbackRole = 'client') => {
             const peerId = String(player?.playerId || player?.peerId || player?.id || '').trim();
@@ -482,7 +484,7 @@ export class LANMatchLobby extends MatchLobby {
 
     async startMatch(options = {}) {
         const settingsSnapshot = options?.settingsSnapshot ?? this.settings ?? null;
-        const commandId = options?.commandId || `match-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 8)}`;
+        const commandId = options?.commandId || `match-${this._lobbyRuntime.nowMs().toString(36)}-${this._lobbyRuntime.random().toString(36).slice(2, 8)}`;
         const res = await fetch(`${this._signalingUrl}${SIGNALING_HTTP_ROUTES.LOBBY_MATCH_START}`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },

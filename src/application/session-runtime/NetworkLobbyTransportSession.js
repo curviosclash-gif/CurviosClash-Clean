@@ -11,9 +11,17 @@ export class NetworkLobbyTransportSession {
         this._platformCapabilities = options.platformCapabilities && typeof options.platformCapabilities === 'object'
             ? options.platformCapabilities
             : {};
+        // Uhr und Wuerfel der Lobby kommen vom Service, damit Beitrittszeiten und
+        // Kommando-IDs nicht an der Wanduhr des jeweiligen Rechners haengen.
+        this._nowMs = typeof options.nowMs === 'function' ? options.nowMs : null;
+        this._random = typeof options.random === 'function' ? options.random : null;
         this._createLobby = typeof options.createLobby === 'function'
             ? options.createLobby
-            : (signalingUrl) => new LANMatchLobby({ signalingUrl });
+            : (signalingUrl, lobbyRuntime = null) => new LANMatchLobby({
+                signalingUrl,
+                nowMs: lobbyRuntime?.nowMs,
+                random: lobbyRuntime?.random,
+            });
         this._joinLobby = typeof options.joinLobby === 'function' ? options.joinLobby : defaultJoinLobby;
         this._onSessionStateChanged = typeof options.onSessionStateChanged === 'function'
             ? options.onSessionStateChanged
@@ -62,6 +70,8 @@ export class NetworkLobbyTransportSession {
             transport: this._transport,
             runtime: this._runtime,
             platformCapabilities: this._platformCapabilities,
+            nowMs: this._nowMs,
+            random: this._random,
         });
         this._bindLobby(this._lobby);
     }

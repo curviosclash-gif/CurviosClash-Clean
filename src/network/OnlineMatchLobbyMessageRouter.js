@@ -21,10 +21,10 @@ function applyServerStateOrFallbackForLobbyCreated(lobby, msg) {
                 name: 'Host',
                 role: 'host',
                 ready: true,
-                joinedAt: Date.now(),
-                lastSeenAt: Date.now(),
+                joinedAt: lobby._lobbyRuntime.nowMs(),
+                lastSeenAt: lobby._lobbyRuntime.nowMs(),
             }],
-            updatedAt: Date.now(),
+            updatedAt: lobby._lobbyRuntime.nowMs(),
             revision: Number(lobby.sessionState.revision || 0) + 1,
         };
     lobby._applySessionState(serverState);
@@ -38,7 +38,7 @@ function applyServerStateOrFallbackForLobbyJoined(lobby, msg) {
         : {
             ...lobby.sessionState,
             lobbyCode: msg.lobbyCode || lobby.sessionState.lobbyCode,
-            updatedAt: Date.now(),
+            updatedAt: lobby._lobbyRuntime.nowMs(),
             revision: Number(lobby.sessionState.revision || 0) + 1,
         };
     // A pendingMatchStart that predates this join belongs to a match that is
@@ -57,7 +57,7 @@ function applyServerStateOrFallbackForConnectionResumed(lobby, msg) {
     if (msg?.sessionState && typeof msg.sessionState === 'object') {
         lobby._applySessionState(msg.sessionState);
     }
-    const now = Date.now();
+    const now = lobby._lobbyRuntime.nowMs();
     if (!msg?.sessionState || typeof msg.sessionState !== 'object') {
         lobby._applySessionState({
             ...lobby.sessionState,
@@ -110,7 +110,7 @@ export function routeOnlineLobbyMessage(
             lobby._applySessionState(msg.sessionState);
             break;
         }
-        const now = Date.now();
+        const now = lobby._lobbyRuntime.nowMs();
         const peerId = String(msg.peerId || '').trim();
         if (!peerId) break;
         const exists = lobby.sessionState.members.some((member) => member.peerId === peerId);
@@ -144,7 +144,7 @@ export function routeOnlineLobbyMessage(
         lobby._applySessionState({
             ...lobby.sessionState,
             members: lobby.sessionState.members.filter((member) => member.peerId !== msg.peerId),
-            updatedAt: Date.now(),
+            updatedAt: lobby._lobbyRuntime.nowMs(),
             revision: Number(lobby.sessionState.revision || 0) + 1,
         });
         break;
