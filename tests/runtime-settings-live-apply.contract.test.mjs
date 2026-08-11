@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
+import { collectUnseenParcoursHudEvents } from '../src/ui/arcade/ParcoursOverlayController.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
 import { LEADERBOARD_STORAGE_KEY } from '../src/state/arcade/ArcadeLeaderboard.js';
 import { ARCADE_GHOST_LIBRARY_STORAGE_KEY } from '../src/state/arcade/ArcadeGhostLibrary.js';
@@ -836,7 +837,7 @@ test('Arcade terminal priority still permits sector completion while a human rem
     assert.equal(plan?.outcome?.state, 'ROUND_END');
 });
 
-test('Arcade parcours wrong-order event exposes red penalty HUD payload as one-shot', () => {
+test('Arcade parcours HUD snapshots are pure and UI consumption is sequence based', () => {
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });
     runtime._enabled = true;
     runtime._state = {};
@@ -848,10 +849,30 @@ test('Arcade parcours wrong-order event exposes red penalty HUD payload as one-s
     });
 
     assert.deepEqual(result, { penaltyMs: 2000, totalPenaltyMs: 4000 });
+    runtime._activeVehicleId = 'ship1';
+    runtime._vehicleProfiles = {};
+    runtime._leaderboard = {
+        route_hud: [{ segmentSplitsMs: [1000] }],
+    };
+    runtime.applyParcoursXpEvent('checkpoint', 0);
+    runtime.applyParcoursLeaderboardEvent({
+        type: 'checkpoint',
+        routeId: 'route_hud',
+        checkpointIndex: 0,
+        currentSplitMs: 900,
+    });
     const firstHudState = runtime.getHudState();
-    assert.deepEqual(firstHudState?.parcoursPenalty, { penaltyMs: 2000, totalPenaltyMs: 4000 });
+    assert.equal(firstHudState?.parcoursPenalty?.penaltyMs, 2000);
+    assert.equal(firstHudState?.parcoursPenalty?.totalPenaltyMs, 4000);
     const secondHudState = runtime.getHudState();
-    assert.equal(secondHudState?.parcoursPenalty, null);
+    assert.deepEqual(secondHudState?.parcoursPenalty, firstHudState?.parcoursPenalty);
+
+    const firstConsume = collectUnseenParcoursHudEvents(firstHudState, 'parcours_penalty', 0);
+    const secondConsume = collectUnseenParcoursHudEvents(secondHudState, 'parcours_penalty', firstConsume.lastSequence);
+    assert.equal(firstConsume.events.length, 1);
+    assert.equal(secondConsume.events.length, 0);
+    assert.equal(collectUnseenParcoursHudEvents(firstHudState, 'parcours_xp', 0).events.length, 1);
+    assert.equal(collectUnseenParcoursHudEvents(firstHudState, 'parcours_split', 0).events.length, 1);
 });
 
 test('Arcade parcours leaderboard persists penaltyTimeMs separately from totalTimeMs', () => {

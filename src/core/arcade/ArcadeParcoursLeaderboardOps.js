@@ -86,11 +86,11 @@ function resolveCheckpoint(runtime, data, primaryRouteId) {
     if (typeof bestSplitMs !== 'number') return null;
     const deltaMs = data.currentSplitMs - bestSplitMs;
     if (runtime._state) {
-        runtime._state.lastParcoursSegmentSplit = {
+        runtime._state.lastParcoursSegmentSplit = runtime._enqueueHudEvent('parcours_split', {
             checkpointIndex: data.checkpointIndex,
             deltaMs,
             isBetter: deltaMs < 0,
-        };
+        });
     }
     return { deltaMs, isBetter: deltaMs < 0 };
 }
@@ -100,7 +100,12 @@ function resolveWrongOrder(runtime, data) {
     const penaltyMs = Math.max(0, Math.trunc(Number(data.penaltyMs) || 0));
     if (penaltyMs <= 0) return null;
     const totalPenaltyMs = Math.max(penaltyMs, Math.trunc(Number(data.totalPenaltyMs) || penaltyMs));
-    if (runtime._state) runtime._state.lastParcoursPenalty = { penaltyMs, totalPenaltyMs };
+    if (runtime._state) {
+        runtime._state.lastParcoursPenalty = runtime._enqueueHudEvent('parcours_penalty', {
+            penaltyMs,
+            totalPenaltyMs,
+        });
+    }
     return { penaltyMs, totalPenaltyMs };
 }
 

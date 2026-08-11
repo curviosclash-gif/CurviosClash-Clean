@@ -148,6 +148,8 @@ export class ArcadeRunRuntime {
         this._activeVehicleId = null;
         this._missionState = null;
         this._objectiveState = null;
+        this._hudEventSequence = 0;
+        this._hudEvents = [];
         this._getObjectiveParticipants = typeof options.getObjectiveParticipants === 'function' ? options.getObjectiveParticipants : null;
         this._requestRoundEnd = typeof options.requestRoundEnd === 'function' ? options.requestRoundEnd : null;
         this._sectorElapsedSeconds = 0;
@@ -272,6 +274,30 @@ export class ArcadeRunRuntime {
 
     getStateSnapshot() {
         return cloneArcadeRunState(this._state);
+    }
+
+    getPhase() {
+        return String(this._state?.phase || '');
+    }
+
+    _enqueueHudEvent(type, payload = null) {
+        const normalizedType = String(type || '').trim();
+        if (!normalizedType) return null;
+        this._hudEventSequence += 1;
+        const event = Object.freeze({
+            ...(payload && typeof payload === 'object' ? payload : {}),
+            type: normalizedType,
+            sequence: this._hudEventSequence,
+        });
+        this._hudEvents = [...this._hudEvents, event].slice(-64);
+        return event;
+    }
+
+    _peekHudEvent(type) {
+        for (let i = this._hudEvents.length - 1; i >= 0; i -= 1) {
+            if (this._hudEvents[i]?.type === type) return this._hudEvents[i];
+        }
+        return null;
     }
 
     getRecordsSnapshot() {
@@ -778,18 +804,9 @@ export class ArcadeRunRuntime {
         const breakdown = score.breakdown && typeof score.breakdown === 'object'
             ? score.breakdown
             : {};
-        const parcoursXpGain = this._state.lastParcoursXpGain || null;
-        if (parcoursXpGain) {
-            this._state.lastParcoursXpGain = null;
-        }
-        const parcoursSegmentSplit = this._state.lastParcoursSegmentSplit || null;
-        if (parcoursSegmentSplit) {
-            this._state.lastParcoursSegmentSplit = null;
-        }
-        const parcoursPenalty = this._state.lastParcoursPenalty || null;
-        if (parcoursPenalty) {
-            this._state.lastParcoursPenalty = null;
-        }
+        const parcoursXpGain = this._peekHudEvent('parcours_xp') || this._state.lastParcoursXpGain || null;
+        const parcoursSegmentSplit = this._peekHudEvent('parcours_split') || this._state.lastParcoursSegmentSplit || null;
+        const parcoursPenalty = this._peekHudEvent('parcours_penalty') || this._state.lastParcoursPenalty || null;
         // 82.8.3: Vehicle stats for sector-start HUD flash
         const profile = this.getVehicleProfile();
         const profileBonuses = profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null;
@@ -804,6 +821,7 @@ export class ArcadeRunRuntime {
             parcoursXpGain,
             parcoursSegmentSplit,
             parcoursPenalty,
+            events: this._hudEvents,
             vehicleStats,
             phase: String(this._state.phase || ''),
             sectorIndex: Math.max(0, Math.floor(toSafeNumber(this._state.sectorIndex, 0))),
@@ -939,6 +957,7 @@ export class ArcadeRunRuntime {
             this._state.isDailyChallenge = true;
         }
         this._state.intermission = null;
+        this._hudEvents = [];
         this._state.sectorHistory = [];
         this._state.rewardHistory = [];
         this._state.postRunSummary = null;
@@ -1331,12 +1350,12 @@ export class ArcadeRunRuntime {
         this._scheduleVehicleProfilesSave();
 
         if (this._state) {
-            this._state.lastParcoursXpGain = {
+            this._state.lastParcoursXpGain = this._enqueueHudEvent('parcours_xp', {
                 eventType: String(eventType),
                 earned: xpEarned,
                 leveledUp: result.leveledUp,
                 newLevel: result.newLevel,
-            };
+            });
         }
         return { earned: xpEarned, leveledUp: result.leveledUp, newLevel: result.newLevel };
     }
@@ -1490,6 +1509,7 @@ export class ArcadeRunRuntime {
         this._objectiveState = null;
         this._sectorElapsedSeconds = 0;
         this._lastMissionTickSecond = 0;
+        this._hudEvents = [];
         this._resetStrategyRuntimeState();
         this._state = null;
         if (!preserveRecords) {

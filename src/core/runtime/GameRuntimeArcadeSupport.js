@@ -335,8 +335,7 @@ export class GameRuntimeArcadeSupport {
     tickSuddenDeath(dt = 0) {
         // This established per-frame arcade seam also advances time-based missions.
         this.arcadeRunRuntime.tickGameplay?.(dt);
-        const hudState = this.arcadeRunRuntime.getHudState?.();
-        if (!hudState || String(hudState.phase || '') !== 'sudden_death') {
+        if (this.arcadeRunRuntime.getPhase?.() !== 'sudden_death') {
             return null;
         }
         const strategy = this.getRuntimeState()?.entityManager?.gameModeStrategy

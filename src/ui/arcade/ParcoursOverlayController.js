@@ -1,5 +1,30 @@
 import { ParcoursMinimapRenderer } from './ParcoursMinimapRenderer.js';
 
+export function collectUnseenParcoursHudEvents(hudState, type, lastSequence = 0) {
+    const source = Array.isArray(hudState?.events) ? hudState.events : [];
+    const events = [];
+    let nextSequence = Math.max(0, Number(lastSequence) || 0);
+    for (let i = 0; i < source.length; i += 1) {
+        const event = source[i];
+        const sequence = Math.max(0, Number(event?.sequence) || 0);
+        if (event?.type !== type || sequence <= nextSequence) continue;
+        events.push(event);
+        nextSequence = sequence;
+    }
+    if (events.length === 0 && nextSequence === 0) {
+        const legacyEvent = type === 'parcours_xp'
+            ? hudState?.parcoursXpGain
+            : (type === 'parcours_split'
+                ? hudState?.parcoursSegmentSplit
+                : (type === 'parcours_penalty' ? hudState?.parcoursPenalty : null));
+        if (legacyEvent) {
+            events.push(legacyEvent);
+            nextSequence = 1;
+        }
+    }
+    return { events, lastSequence: nextSequence };
+}
+
 export class ParcoursOverlayController {
     constructor() {
         this._xpNotificationOverlay = null;
@@ -11,6 +36,9 @@ export class ParcoursOverlayController {
         this._statsFlashOverlay = null;
         this._statsFlashHideAtMs = 0;
         this._minimap = null;
+        this._lastXpSequence = 0;
+        this._lastSplitSequence = 0;
+        this._lastPenaltySequence = 0;
     }
 
     _ensureOverlay(id, className) {
@@ -27,11 +55,14 @@ export class ParcoursOverlayController {
 
     tickXp(hudState, nowMs) {
         if (!document?.body) return;
-        if (hudState?.parcoursXpGain?.earned > 0) {
-            const levelUp = hudState.parcoursXpGain.leveledUp
-                ? ` ↑ Lv ${hudState.parcoursXpGain.newLevel}!`
+        const pending = collectUnseenParcoursHudEvents(hudState, 'parcours_xp', this._lastXpSequence);
+        this._lastXpSequence = pending.lastSequence;
+        for (const parcoursXpGain of pending.events) {
+            if (!(parcoursXpGain?.earned > 0)) continue;
+            const levelUp = parcoursXpGain.leveledUp
+                ? ` ↑ Lv ${parcoursXpGain.newLevel}!`
                 : '';
-            const text = `+${hudState.parcoursXpGain.earned} XP${levelUp}`;
+            const text = `+${parcoursXpGain.earned} XP${levelUp}`;
             const el = this._ensureOverlay('parcours-xp-notification', 'hidden');
             if (el) {
                 el.textContent = text;
@@ -47,8 +78,10 @@ export class ParcoursOverlayController {
 
     tickSplitDelta(hudState, nowMs) {
         if (!document?.body) return;
-        if (hudState?.parcoursSegmentSplit) {
-            const { deltaMs, isBetter } = hudState.parcoursSegmentSplit;
+        const pending = collectUnseenParcoursHudEvents(hudState, 'parcours_split', this._lastSplitSequence);
+        this._lastSplitSequence = pending.lastSequence;
+        for (const parcoursSegmentSplit of pending.events) {
+            const { deltaMs, isBetter } = parcoursSegmentSplit;
             if (!this._splitDeltaOverlay) {
                 this._splitDeltaOverlay = this._ensureOverlay('parcours-split-delta', 'hidden');
             }
@@ -66,8 +99,10 @@ export class ParcoursOverlayController {
 
     tickPenalty(hudState, nowMs) {
         if (!document?.body) return;
-        const penalty = hudState?.parcoursPenalty;
-        if (penalty?.penaltyMs > 0) {
+        const pending = collectUnseenParcoursHudEvents(hudState, 'parcours_penalty', this._lastPenaltySequence);
+        this._lastPenaltySequence = pending.lastSequence;
+        for (const penalty of pending.events) {
+            if (!(penalty?.penaltyMs > 0)) continue;
             if (!this._penaltyOverlay) {
                 this._penaltyOverlay = this._ensureOverlay(
                     'parcours-penalty-notification',
@@ -155,5 +190,8 @@ export class ParcoursOverlayController {
         this._statsFlashOverlay = null;
         this._minimap?.dispose?.();
         this._minimap = null;
+        this._lastXpSequence = 0;
+        this._lastSplitSequence = 0;
+        this._lastPenaltySequence = 0;
     }
 }
