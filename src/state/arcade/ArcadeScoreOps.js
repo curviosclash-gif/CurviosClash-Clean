@@ -56,7 +56,11 @@ function resolveMultiplierFromCombo(combo, maxMultiplier) {
     return Math.max(1, Math.min(normalizedMax, 1 + Math.floor(normalizedCombo / 2)));
 }
 
-export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = Date.now()) {
+function resolveMasteryPct(perks, key) {
+    return Math.max(0, Math.min(100, toSafeNumber(perks?.[key], 0)));
+}
+
+export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = Date.now(), masteryPerks = null) {
     const sourceScore = scoreState && typeof scoreState === 'object' ? scoreState : {};
     const sourceConfig = config && typeof config === 'object' ? config : {};
     const comboWindowMs = Math.max(800, toSafeNumber(sourceConfig.comboWindowMs, 5000));
@@ -99,7 +103,9 @@ export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = 
         const superFastPart = Math.floor((decaySeconds - 3) * comboDecayPerSecond * 2.5);
         decayAmount = slowPart + midPart + superFastPart;
     }
-    const decayedCombo = Math.max(0, currentCombo - Math.max(0, decayAmount));
+    const comboDecaySlowPct = resolveMasteryPct(masteryPerks, 'comboDecaySlowPct');
+    const masteryAdjustedDecay = Math.floor(decayAmount * (1 - comboDecaySlowPct / 100));
+    const decayedCombo = Math.max(0, currentCombo - Math.max(0, masteryAdjustedDecay));
     return {
         ...sourceScore,
         combo: decayedCombo,
@@ -169,7 +175,10 @@ export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTempla
     };
 }
 
-export function applyArcadeSectorScore(runState, payload = null, { nowMs = Date.now() } = {}) {
+export function applyArcadeSectorScore(runState, payload = null, {
+    nowMs = Date.now(),
+    masteryPerks = null,
+} = {}) {
     if (!runState || typeof runState !== 'object' || runState.enabled !== true) {
         return runState;
     }
@@ -184,7 +193,7 @@ export function applyArcadeSectorScore(runState, payload = null, { nowMs = Date.
     }
 
     const now = Math.max(0, toSafeNumber(nowMs, Date.now()));
-    const decayedScore = applyArcadeComboDecay(sourceScore, runState.config, now);
+    const decayedScore = applyArcadeComboDecay(sourceScore, runState.config, now, masteryPerks);
     // 61.6.3: In SUDDEN_DEATH, combo increments by 2 per sector for faster multiplier growth
     const isSuddenDeath = String(runState.phase || '') === ARCADE_RUN_PHASES.SUDDEN_DEATH;
     const comboStep = isSuddenDeath ? 2 : 1;
@@ -201,7 +210,14 @@ export function applyArcadeSectorScore(runState, payload = null, { nowMs = Date.
     // 61.5.2: apply bossMultiplier for the final boss sector (doubles sector score)
     const bonusMultiplier = 1 + scoreBonus;
     const bossMultiplier = Math.max(1, toSafeNumber(sectorEntry?.bossMultiplier, 1));
-    const sectorPoints = Math.round(Math.max(0, breakdown.total) * nextMultiplier * bonusMultiplier * bossMultiplier);
+    const masteryScoreMultiplier = 1 + resolveMasteryPct(masteryPerks, 'scoreBonusPct') / 100;
+    const sectorPoints = Math.round(
+        Math.max(0, breakdown.total)
+        * nextMultiplier
+        * bonusMultiplier
+        * bossMultiplier
+        * masteryScoreMultiplier
+    );
 
     const nextBreakdown = createScoreBreakdown({
         base: toSafeNumber(sourceScore?.breakdown?.base, 0) + breakdown.base,

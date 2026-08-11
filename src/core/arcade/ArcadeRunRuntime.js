@@ -71,6 +71,7 @@ import {
     applyArcadeIntermissionEffects,
     captureArcadeHumanVitals,
 } from './ArcadeIntermissionEffects.js';
+import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
 
 const ARCADE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
 const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
@@ -448,6 +449,7 @@ export class ArcadeRunRuntime {
 
     setActiveVehicle(vehicleId) {
         this._activeVehicleId = String(vehicleId || 'ship1');
+        syncArcadeMasteryPerks(this._state, this.getVehicleProfile());
     }
 
     getVehicleProfile() {
@@ -872,7 +874,7 @@ export class ArcadeRunRuntime {
         if (!this._state?.score) return;
         const frozenUntil = Math.max(0, toSafeNumber(this._state.comboFreezeUntilMs, 0));
         if (nowMs <= frozenUntil) return;
-        const decayedScore = applyArcadeComboDecay(this._state.score, this._state.config, nowMs);
+        const decayedScore = applyArcadeComboDecay(this._state.score, this._state.config, nowMs, this._state.masteryPerks);
         if (decayedScore !== this._state.score) {
             this._state = { ...this._state, score: decayedScore };
         }
@@ -912,7 +914,10 @@ export class ArcadeRunRuntime {
         if (justCompleted && this._state.score) {
             const MISSION_ALL_COMPLETE_BONUS = 500;
             const multiplier = Math.max(1, toSafeNumber(this._state.score?.multiplier, 1));
-            const bonus = Math.round(MISSION_ALL_COMPLETE_BONUS * multiplier);
+            const bonus = applyArcadeMasteryScoreBonus(
+                MISSION_ALL_COMPLETE_BONUS * multiplier,
+                this._state.masteryPerks
+            );
             this._state = {
                 ...this._state,
                 comboFreezeUntilMs: nowMs + 3000,
@@ -973,6 +978,7 @@ export class ArcadeRunRuntime {
         const store = this._resolveSettingsRecordStore();
         this._vehicleProfiles = loadVehicleProfiles(store);
         const activeProfile = this.getVehicleProfile();
+        syncArcadeMasteryPerks(this._state, activeProfile);
         this._notifyVehicleUpgradesChanged(getSlotStatBonuses(activeProfile?.upgrades, activeProfile?.hangarBonuses));
 
         // Resolve map sequence from encounter plan if available
@@ -1272,7 +1278,7 @@ export class ArcadeRunRuntime {
         }
 
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
-        this._state = applyArcadeSectorScore(this._state, payload, { nowMs });
+        this._state = applyArcadeSectorScore(this._state, payload, { nowMs, masteryPerks: this._state.masteryPerks });
         this._applySectorXpReward(payload);
         this._recordSectorHistoryEntry(payload, nowMs);
 
@@ -1352,6 +1358,7 @@ export class ArcadeRunRuntime {
 
         const result = addXp(profile, xpEarned);
         this._vehicleProfiles[this._activeVehicleId] = result.profile;
+        syncArcadeMasteryPerks(this._state, result.profile);
         this._scheduleVehicleProfilesSave();
 
         if (this._state) {
@@ -1583,6 +1590,7 @@ export class ArcadeRunRuntime {
         const result = addXp(profile, xpEarned);
         profile = result.profile;
         this._vehicleProfiles[this._activeVehicleId] = profile;
+        syncArcadeMasteryPerks(this._state, profile);
         this._scheduleVehicleProfilesSave();
 
         // Attach XP info to state for UI consumption
