@@ -63,9 +63,13 @@ export class ArcadeRunPersistenceScheduler {
         this._clearTimer(kind);
         const task = this._pendingSaves.get(kind);
         if (typeof task !== 'function') return false;
-        this._pendingSaves.delete(kind);
         try {
-            task();
+            const saveResult = task();
+            if (!isPersisted(saveResult)) {
+                this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save was not acknowledged', { kind });
+                return false;
+            }
+            this._pendingSaves.delete(kind);
             return true;
         } catch (error) {
             this.logger?.warn?.('[ArcadeRunPersistenceScheduler] save failed:', error);
@@ -74,11 +78,13 @@ export class ArcadeRunPersistenceScheduler {
     }
 
     flushAll() {
-        let flushed = false;
-        for (const kind of Array.from(this._pendingSaves.keys())) {
-            flushed = this.flush(kind) || flushed;
+        const pendingKinds = Array.from(this._pendingSaves.keys());
+        if (pendingKinds.length === 0) return false;
+        let allFlushed = true;
+        for (const kind of pendingKinds) {
+            allFlushed = this.flush(kind) && allFlushed;
         }
-        return flushed;
+        return allFlushed;
     }
 
     dispose() {
@@ -92,7 +98,7 @@ export class ArcadeRunPersistenceScheduler {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(profiles);
         return this._schedule(SAVE_KINDS.VEHICLE_PROFILES, () => {
-            saveVehicleProfiles(store, snapshot);
+            return saveVehicleProfiles(store, snapshot);
         });
     }
 
@@ -100,11 +106,11 @@ export class ArcadeRunPersistenceScheduler {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const snapshot = clonePlainSnapshot(leaderboard);
         return this._schedule(SAVE_KINDS.LEADERBOARD, () => {
-            saveLeaderboard(store, snapshot);
+            return saveLeaderboard(store, snapshot);
         });
     }
 
-    scheduleRunRecords(store, storageKey, records, normalizeRecords = null) {
+    scheduleRunRecords(store, storageKey, records, normalizeRecords = null, onPersisted = null) {
         if (!store || typeof store.saveJsonRecord !== 'function') return false;
         const key = String(storageKey || '').trim();
         if (!key) return false;
@@ -113,13 +119,17 @@ export class ArcadeRunPersistenceScheduler {
         );
         return this._schedule(SAVE_KINDS.RUN_RECORDS, () => {
             const saveResult = store.saveJsonRecord(key, clonePlainSnapshot(snapshot));
-            if (isPersisted(saveResult)) return;
+            if (isPersisted(saveResult)) {
+                onPersisted?.();
+                return saveResult;
+            }
             this.logger?.warn?.('[ArcadeRunPersistenceScheduler] run records save failed', {
                 reason: String(saveResult?.reason || ''),
                 metadata: saveResult?.metadata && typeof saveResult.metadata === 'object'
                     ? { ...saveResult.metadata }
                     : null,
             });
+            return saveResult;
         });
     }
 }

@@ -59,9 +59,10 @@ export function loadLeaderboard(store) {
 }
 
 export function saveLeaderboard(store, lb) {
-    if (!store || typeof store.saveJsonRecord !== 'function') return;
+    if (!store || typeof store.saveJsonRecord !== 'function') return false;
     const saveResult = store.saveJsonRecord(LEADERBOARD_STORAGE_KEY, lb || {});
     warnPersistenceFailure('saveLeaderboard', saveResult);
+    return saveResult;
 }
 
 export function insertLeaderboardEntry(lb, routeId, entry) {

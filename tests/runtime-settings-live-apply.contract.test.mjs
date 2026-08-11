@@ -852,6 +852,40 @@ test('V96.7 Arcade run records are scheduled and flushed instead of written inli
     assert.equal(writes[0]?.value?.lastScore, 4321);
 });
 
+test('Arcade run finalization marks persistence only after an acknowledged write', () => {
+    const writes = [];
+    let shouldReject = true;
+    const runtime = new ArcadeRunRuntime({
+        arcadePersistenceSaveThrottleMs: 0,
+        ghostLibrarySaveThrottleMs: 0,
+        logger: { log() {}, warn() {} },
+    });
+    runtime.settingsManager = createRecordStoreSettingsManager({
+        saveJsonRecord(key, value) {
+            writes.push({ key, value });
+            return shouldReject ? { success: false, reason: 'quota' } : { success: true };
+        },
+    });
+    runtime._state = {
+        runId: 'run-record-retry',
+        completedSectors: 1,
+        score: { total: 1200, multiplier: 1, peakMultiplier: 1, peakCombo: 2 },
+        sectorHistory: [],
+        rewardHistory: [],
+    };
+
+    const rejected = runtime._finalizeRun(1710000000000);
+    assert.equal(rejected?.phase, 'finished');
+    assert.equal(rejected?.persistedAtIso, '');
+    assert.equal(runtime.getRecordsSnapshot().runsPlayed, 1);
+
+    shouldReject = false;
+    const persisted = runtime._finalizeRun(1710000000001);
+    assert.equal(persisted?.persistedAtIso, '2024-03-09T16:00:00.000Z');
+    assert.equal(runtime.getRecordsSnapshot().runsPlayed, 1);
+    assert.equal(writes.length, 2);
+});
+
 test('Arcade ghost_start replays only in self_longest_ghost mode and uses longest route ghost', () => {
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });
     runtime._enabled = true;

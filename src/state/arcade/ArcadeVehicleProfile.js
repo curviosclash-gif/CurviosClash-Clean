@@ -451,7 +451,7 @@ export function loadVehicleProfiles(store) {
 }
 
 export function saveVehicleProfiles(store, profiles) {
-    if (!store || typeof store.saveJsonRecord !== 'function') return;
+    if (!store || typeof store.saveJsonRecord !== 'function') return false;
     const sourceProfiles = profiles && typeof profiles === 'object' ? profiles : {};
     const normalizedProfiles = {};
     Object.entries(sourceProfiles).forEach(([vehicleId, profile]) => {
@@ -459,6 +459,7 @@ export function saveVehicleProfiles(store, profiles) {
     });
     const saveResult = store.saveJsonRecord(STORAGE_KEY, normalizedProfiles);
     warnPersistenceFailure('saveVehicleProfiles', saveResult);
+    return saveResult;
 }
 
 export function getOrCreateProfile(profiles, vehicleId, nowMs = Date.now()) {

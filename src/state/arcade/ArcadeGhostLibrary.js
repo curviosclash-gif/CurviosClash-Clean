@@ -199,7 +199,7 @@ export function loadGhostLibrary(store, budgetOptions = null, options = null) {
 }
 
 export function saveGhostLibrary(store, ghostLibrary, budgetOptions = null) {
-    if (!store || typeof store.saveJsonRecord !== 'function') return;
+    if (!store || typeof store.saveJsonRecord !== 'function') return false;
     const resolvedBudget = normalizeGhostLibraryBudgetOptions(budgetOptions);
     const normalized = normalizeGhostLibrary(ghostLibrary, resolvedBudget).ghostLibrary;
     const saveResult = store.saveJsonRecord(
@@ -207,6 +207,7 @@ export function saveGhostLibrary(store, ghostLibrary, budgetOptions = null) {
         serializeGhostLibraryForStorage(normalized, resolvedBudget)
     );
     warnPersistenceFailure('saveGhostLibrary', saveResult);
+    return saveResult;
 }
 
 export function getLongestGhostByRoute(ghostLibrary, routeId, budgetOptions = null) {

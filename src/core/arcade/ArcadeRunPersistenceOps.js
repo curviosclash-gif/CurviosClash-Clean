@@ -30,14 +30,15 @@ export function readArcadeRecordsFromStorage(runtime) {
     return createArcadeRunRecords(store.loadJsonRecord(ARCADE_PROFILE_STORAGE_KEY, null));
 }
 
-export function scheduleArcadeRecordsSave(runtime, records = runtime._records) {
+export function scheduleArcadeRecordsSave(runtime, records = runtime._records, onPersisted = null) {
     const store = resolveArcadeSettingsRecordStore(runtime);
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
     return runtime._persistenceScheduler?.scheduleRunRecords?.(
         store,
         ARCADE_PROFILE_STORAGE_KEY,
         records,
-        createArcadeRunRecords
+        createArcadeRunRecords,
+        onPersisted
     ) === true;
 }
 
@@ -59,9 +60,17 @@ export function flushPendingGhostLibrarySave(runtime) {
     clearGhostLibrarySaveTimer(runtime);
     const pending = runtime._pendingGhostLibrarySave;
     if (!pending) return false;
-    runtime._pendingGhostLibrarySave = null;
-    saveGhostLibrary(pending.store, pending.ghostLibrary, pending.budgetOptions);
-    return true;
+    try {
+        const saveResult = saveGhostLibrary(pending.store, pending.ghostLibrary, pending.budgetOptions);
+        if (saveResult !== undefined && saveResult !== true && saveResult?.success !== true) {
+            return false;
+        }
+        runtime._pendingGhostLibrarySave = null;
+        return true;
+    } catch (error) {
+        runtime.logger?.warn?.('[ArcadeRunPersistenceOps] ghost library save failed:', error);
+        return false;
+    }
 }
 
 export function flushArcadePersistenceSaves(runtime) {

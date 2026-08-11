@@ -208,8 +208,8 @@ export class ArcadeRunRuntime {
         return readArcadeRecordsFromStorage(this);
     }
 
-    _scheduleRecordsSave(records = this._records) {
-        return scheduleArcadeRecordsSave(this, records);
+    _scheduleRecordsSave(records = this._records, onPersisted = null) {
+        return scheduleArcadeRecordsSave(this, records, onPersisted);
     }
 
     _mergeGhostLibraryTelemetryDelta(delta) {
@@ -1349,6 +1349,10 @@ export class ArcadeRunRuntime {
         if (this._state.persistedAtIso) {
             return this.getStateSnapshot();
         }
+        if (this._state.finishedAtIso) {
+            this.flushPersistenceSaves();
+            return this.getStateSnapshot();
+        }
 
         const replaySnapshot = this._stopReplayRecording();
         this._latestReplaySnapshot = replaySnapshot && typeof replaySnapshot === 'object'
@@ -1362,7 +1366,6 @@ export class ArcadeRunRuntime {
         if (!summary) return this.getStateSnapshot();
 
         this._records = mergeArcadeRunRecords(this._records, summary);
-        this._scheduleRecordsSave(this._records);
         const sectorHistory = Array.isArray(this._state.sectorHistory)
             ? this._state.sectorHistory.map((entry) => ({ ...entry }))
             : [];
@@ -1406,7 +1409,7 @@ export class ArcadeRunRuntime {
             ...this._state,
             phase: ARCADE_RUN_PHASES.FINISHED,
             finishedAtIso: summary.finishedAtIso,
-            persistedAtIso: summary.finishedAtIso,
+            persistedAtIso: '',
             updatedAtIso: summary.finishedAtIso,
             records: createArcadeRunRecords(this._records),
             postRunSummary,
@@ -1416,6 +1419,12 @@ export class ArcadeRunRuntime {
                 payloadAvailable: replayState.payloadAvailable,
             },
         };
+        const finalizedRunId = String(summary.runId || '');
+        this._scheduleRecordsSave(this._records, () => {
+            if (String(this._state?.runId || '') !== finalizedRunId) return;
+            this._state.persistedAtIso = summary.finishedAtIso;
+            this._state.updatedAtIso = summary.finishedAtIso;
+        });
         return this.getStateSnapshot();
     }
 
