@@ -148,7 +148,6 @@ export class ArcadeRunRuntime {
         this._vehicleProfiles = null;
         this._activeVehicleId = null;
         this._missionState = null;
-        this._objectiveState = null;
         this._hudEventSequence = 0;
         this._hudEvents = [];
         this._getObjectiveParticipants = typeof options.getObjectiveParticipants === 'function' ? options.getObjectiveParticipants : null;
@@ -839,9 +838,7 @@ export class ArcadeRunRuntime {
             currentMapKey: String(this._state.currentMapKey || ''),
             activeModifierId: this._activeModifierId,
             missionState: this._missionState,
-            // The run state carries the objective mirror that every objective update writes,
-            // so the HUD reads that one source instead of the private field it duplicates.
-            objectiveState: this._state.objectiveState || this._objectiveState,
+            objectiveState: this._state.objectiveState || null,
             comboWindowMs: Math.max(800, toSafeInt(this._state?.config?.comboWindowMs, 5000)),
             comboFreezeUntilMs: Math.max(0, toSafeNumber(this._state?.comboFreezeUntilMs, 0)),
             suddenDeathElapsedMs: this._state.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH
@@ -1516,7 +1513,6 @@ export class ArcadeRunRuntime {
         this._activeModifierId = null;
         this._lastGhostPlaybackRouteId = '';
         this._missionState = null;
-        this._objectiveState = null;
         this._sectorElapsedSeconds = 0;
         this._lastMissionTickSecond = 0;
         this._hudEvents = [];

@@ -58,7 +58,7 @@ export function assignArcadeSectorRuntimeState(runtime) {
         sectorIndex
     );
     runtime._missionState = createSectorMissionState(missions);
-    runtime._objectiveState = createArcadeObjectiveState(
+    runtime._state.objectiveState = createArcadeObjectiveState(
         resolveObjectiveDefinition(encounterEntry?.objectiveId),
         {
             sectorIndex,
@@ -66,14 +66,12 @@ export function assignArcadeSectorRuntimeState(runtime) {
         }
     );
     runtime._state.missions = runtime._missionState;
-    runtime._state.objectiveState = runtime._objectiveState;
 }
 
 export function updateArcadeObjectiveRuntimeState(runtime, event) {
-    if (!runtime?._objectiveState) return null;
-    const next = updateArcadeObjectiveState(runtime._objectiveState, event);
-    runtime._objectiveState = next;
-    if (runtime._state) runtime._state.objectiveState = next;
+    if (!runtime?._state?.objectiveState) return null;
+    const next = updateArcadeObjectiveState(runtime._state.objectiveState, event);
+    runtime._state.objectiveState = next;
     if (!next?.shouldEnd || next.roundEndRequested) return next;
     const accepted = runtime._requestRoundEnd?.({
         reason: 'ARCADE_OBJECTIVE',

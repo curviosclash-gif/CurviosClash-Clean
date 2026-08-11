@@ -163,6 +163,7 @@ test('runtime forwards a completed bounty objective to the round-end request por
     assert.equal(requests[0].reason, 'ARCADE_OBJECTIVE');
     assert.equal(requests[0].objectiveId, 'bounty_hunt');
     assert.equal(runtime.getHudState().objectiveState.completed, true);
+    assert.equal(Object.hasOwn(runtime, '_objectiveState'), false);
 });
 
 test('production arcade support resolves the human winner for objective round end', () => {
