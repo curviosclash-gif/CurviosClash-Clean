@@ -4,6 +4,20 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 Projektsprache ist Deutsch; Code, Commit-Betreffe und Bezeichner sind Englisch.
 
+## Sprache in Antworten und Erklärungen
+
+Alle Antworten, Erklärungen, Zusammenfassungen und Commit-Beschreibungen an den Nutzer werden in **einfacher, laienverständlicher Sprache** geschrieben. Ziel ist nicht Vereinfachung um jeden Preis, sondern Verständlichkeit **mit** Lerneffekt.
+
+- Kurze Sätze, aktive Formulierungen, keine verschachtelten Nebensatzketten.
+- **Fachbegriffe werden nicht vermieden, sondern erklärt.** Beim ersten Auftreten im Gespräch: Begriff nennen, dann in einem Halbsatz erklären, was er bedeutet — z. B. „Ein *Contract-Test* prüft, ob eine Datenform noch zum vereinbarten Format passt (also ob ein gespeichertes Fahrzeug noch geladen werden kann)."
+- Erst das *Was und Warum* in Alltagssprache, dann bei Bedarf die technischen Details. Nicht umgekehrt.
+- Analogien und konkrete Beispiele aus dem Spiel sind erwünscht, wenn sie ein Konzept greifbar machen.
+- Abkürzungen (IPC, ESM, ADR, CSP, …) beim ersten Mal ausschreiben und einordnen.
+- Keine unerklärten Anglizismen, wo ein deutsches Wort genauso genau ist. Wo der englische Begriff der Standard ist (Commit, Build, Renderer), bleibt er stehen — dann aber erklärt.
+- Das gilt für Chat-Antworten und Erklärtexte. **Code, Bezeichner, Kommentare im Code und Commit-Betreffe bleiben davon unberührt** und folgen weiter den Regeln oben.
+
+Der Nutzer soll nach jeder Antwort nicht nur wissen, *dass* etwas funktioniert, sondern ein Stück besser verstehen, *warum*.
+
 ## Verbindliche Arbeitsregeln
 
 `AGENTS.md` enthält die vollständigen Projektregeln und gilt uneingeschränkt. Besonders relevant für Claude Code:
