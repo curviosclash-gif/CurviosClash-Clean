@@ -6,7 +6,10 @@ import { CONFIG } from '../src/core/Config.js';
 import { createGameStateSnapshot } from '../src/core/GameStateSnapshot.js';
 import { ArcadeRunRuntime } from '../src/core/arcade/ArcadeRunRuntime.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
-import { resolveArcadeSectorRuntimeProfile } from '../src/entities/directors/ArcadeEncounterCatalog.js';
+import {
+    resolveArcadeEndlessSectorDescriptor,
+    resolveArcadeSectorRuntimeProfile,
+} from '../src/entities/directors/ArcadeEncounterCatalog.js';
 import { Arena } from '../src/entities/Arena.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { Player } from '../src/entities/Player.js';
@@ -546,6 +549,60 @@ test('Arcade sector profiles apply authored squad pressure and request session r
     assert.equal(transition.mapKey, 'complex');
     assert.equal(transition.botCount, 5);
     assert.equal(appliedProfiles.at(-1).botDifficulty, 'HARD');
+});
+
+test('Arcade endless sectors resolve deterministic combat descriptors beyond the authored plan', () => {
+    const first = [];
+    const second = [];
+    for (let sectorIndex = 3; sectorIndex <= 10; sectorIndex += 1) {
+        first.push(resolveArcadeEndlessSectorDescriptor({ seed: 4815, sectorIndex, difficulty: 'hard' }));
+        second.push(resolveArcadeEndlessSectorDescriptor({ seed: 4815, sectorIndex, difficulty: 'hard' }));
+    }
+
+    assert.deepEqual(first, second);
+    for (const descriptor of first) {
+        const profile = resolveArcadeSectorRuntimeProfile(descriptor, {
+            sectorIndex: descriptor.sectorNumber,
+            fallbackBotCount: 0,
+            fallbackDifficulty: 'normal',
+        });
+        assert.ok(descriptor.mapKey);
+        assert.ok(descriptor.objectiveId);
+        assert.ok(descriptor.squadId);
+        assert.equal(descriptor.parcoursEnabled, false);
+        assert.ok(profile.botCount >= 1);
+    }
+});
+
+test('Arcade runtime caches an endless descriptor when entering sudden death', () => {
+    const transitions = [];
+    const runtime = new ArcadeRunRuntime({ now: () => 5000 });
+    runtime._enabled = true;
+    runtime._config = { intermissionSeconds: 1 };
+    runtime._state = {
+        runId: 'endless-runtime',
+        config: { enabled: true, seed: 91, sectorCount: 2 },
+        phase: 'intermission',
+        sectorIndex: 2,
+        completedSectors: 2,
+        encounterSequence: [
+            { sectorNumber: 1, templateId: 'sector_intro', squadId: 'scout_duo', mapKey: 'standard' },
+            { sectorNumber: 2, templateId: 'sector_intro', squadId: 'elite_lance', mapKey: 'crossfire', isBoss: true },
+        ],
+        mapSequence: ['standard', 'crossfire'],
+        currentMapKey: 'crossfire',
+        score: { total: 0, combo: 0, multiplier: 1 },
+    };
+    runtime.setMapTransitionHandler((transition) => transitions.push(transition));
+
+    runtime.beginNextSector();
+
+    assert.equal(runtime._state.sectorIndex, 3);
+    assert.equal(runtime._state.phase, 'sudden_death');
+    assert.equal(runtime._state.encounterSequence.length, 3);
+    assert.equal(runtime._state.mapSequence.length, 3);
+    assert.ok(transitions[0]?.botCount >= 1);
+    assert.ok(transitions[0]?.mapKey);
 });
 
 test('Arcade replay fallback exports the captured run instead of reporting no player', () => {

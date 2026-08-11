@@ -42,6 +42,7 @@ import {
 import {
     ARCADE_RUN_LEVELUP_REWARDS,
     ARCADE_SECTOR_MODIFIERS,
+    resolveArcadeEndlessSectorDescriptor,
     resolveArcadeSectorRuntimeProfile,
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import {
@@ -448,10 +449,35 @@ export class ArcadeRunRuntime {
         return entry && typeof entry === 'object' ? entry : null;
     }
 
+    _ensureEncounterSectorEntry(sectorIndex) {
+        const normalizedSectorIndex = Math.max(1, toSafeInt(sectorIndex, 1));
+        const existing = this._getEncounterSectorEntry(normalizedSectorIndex);
+        if (existing) return existing;
+        if (!this._state) return null;
+
+        const descriptor = resolveArcadeEndlessSectorDescriptor({
+            seed: this._resolveActiveRunSeed(),
+            sectorIndex: normalizedSectorIndex,
+            difficulty: this._state?.encounterDifficulty || 'normal',
+        });
+        const encounterSequence = Array.isArray(this._state.encounterSequence)
+            ? [...this._state.encounterSequence]
+            : [];
+        encounterSequence[normalizedSectorIndex - 1] = descriptor;
+        this._state.encounterSequence = encounterSequence;
+
+        const mapSequence = Array.isArray(this._state.mapSequence)
+            ? [...this._state.mapSequence]
+            : [];
+        mapSequence[normalizedSectorIndex - 1] = descriptor.mapKey;
+        this._state.mapSequence = mapSequence;
+        return descriptor;
+    }
+
     getSectorRuntimeProfile(sectorIndex = this._state?.sectorIndex || 1, options = {}) {
         const normalizedSectorIndex = Math.max(1, toSafeInt(sectorIndex, 1));
         const sequenceIndex = Math.max(0, normalizedSectorIndex - 1);
-        const encounterEntry = this._getEncounterSectorEntry(normalizedSectorIndex);
+        const encounterEntry = this._ensureEncounterSectorEntry(normalizedSectorIndex);
         const mapKey = getMapKeyForSector(this._state?.mapSequence, sequenceIndex);
         return resolveArcadeSectorRuntimeProfile(encounterEntry, {
             sectorIndex: normalizedSectorIndex,
@@ -943,6 +969,7 @@ export class ArcadeRunRuntime {
             if (Array.isArray(options.encounterPlan.sequence)) {
                 this._state.encounterSequence = options.encounterPlan.sequence;
             }
+            this._state.encounterDifficulty = String(options.encounterPlan.difficulty || 'normal');
         }
         if (!this._state.currentMapKey) {
             this._state.currentMapKey = getMapKeyForSector(this._state.mapSequence, 0);
@@ -1021,6 +1048,7 @@ export class ArcadeRunRuntime {
         // Resolve the next sector's authored map before the round/session restarts.
         const prevMapKey = this._state.currentMapKey;
         const nextSequenceIndex = Math.max(0, toSafeInt(this._state.completedSectors, 0));
+        this._ensureEncounterSectorEntry(nextSequenceIndex + 1);
         const nextMapKey = getMapKeyForSector(this._state.mapSequence, nextSequenceIndex);
         this._state.currentMapKey = nextMapKey;
 

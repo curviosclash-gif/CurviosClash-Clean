@@ -278,6 +278,36 @@ export function buildArcadeSectorPlan(options = {}) {
     };
 }
 
+export function resolveArcadeEndlessSectorDescriptor(options = {}) {
+    const sectorNumber = Math.max(1, Math.trunc(Number(options.sectorIndex) || 1));
+    const randomFn = createSeededRandom(`${String(options.seed ?? 'arcade-default')}-endless-${sectorNumber}`);
+    const difficultyScale = resolveDifficultyScale(options.difficulty);
+    const template = getSectorTemplate(sectorNumber);
+    const squadId = pickFromPool(template.squadPool, randomFn) || 'elite_lance';
+    const objectiveId = pickFromPool(template.objectivePool, randomFn);
+    const modifierId = pickFromPool(template.modifierPool, randomFn);
+    const rewardChoices = pickDistinctFromPool(template.rewardPool, 2, randomFn);
+    const modifierDef = ARCADE_SECTOR_MODIFIERS.find((entry) => entry.id === modifierId) || null;
+    const basePressure = ARCADE_SQUAD_PROFILES[squadId]?.pressure || ARCADE_SQUAD_PROFILES.elite_lance.pressure;
+    const pressure = Math.min(1, (basePressure + (modifierDef?.difficultyDelta || 0)) * difficultyScale);
+
+    return Object.freeze({
+        encounterId: `endless-${sectorNumber}`,
+        sectorNumber,
+        templateId: template.id,
+        squadId,
+        objectiveId,
+        modifierId,
+        scoreBonus: Number((modifierDef?.scoreBonus || 0).toFixed(3)),
+        rewardChoices,
+        pressure: Number(pressure.toFixed(3)),
+        mapKey: pickFromPool(template.mapPool || ['standard'], randomFn) || 'standard',
+        isBoss: false,
+        bossMultiplier: 1,
+        parcoursEnabled: false,
+    });
+}
+
 export default {
     ARCADE_SQUAD_PROFILES,
     ARCADE_SECTOR_OBJECTIVES,
@@ -285,5 +315,6 @@ export default {
     ARCADE_RUN_LEVELUP_REWARDS,
     ARCADE_SECTOR_CATALOG,
     buildArcadeSectorPlan,
+    resolveArcadeEndlessSectorDescriptor,
     resolveArcadeSectorRuntimeProfile,
 };
