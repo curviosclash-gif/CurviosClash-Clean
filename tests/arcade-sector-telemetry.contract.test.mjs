@@ -116,3 +116,37 @@ test('Sector XP rewards kills and grants the clean bonus only without self colli
     assert.equal(dirtyRuntime._state.lastSectorXp.earned, expectedDirtyXp);
     assert.equal(cleanRuntime._state.lastSectorXp.earned, expectedCleanXp);
 });
+
+test('Sudden-death sector result survives intermission for score, combo and history', () => {
+    let state = createArcadeRunState({
+        config: { enabled: true, sectorCount: 2 },
+        nowMs: 0,
+        runId: 'sudden-death-sector-result',
+    });
+    state.completedSectors = 1;
+    state = beginArcadeSector(state, 100);
+    assert.equal(state.phase, 'sudden_death');
+    state = completeArcadeSector(state, 200);
+    assert.equal(state.phase, 'intermission');
+    assert.equal(state.lastCompletedSectorResult.wasSuddenDeath, true);
+
+    const runtime = new ArcadeRunRuntime({ now: () => 300 });
+    runtime._enabled = true;
+    runtime._state = state;
+    runtime.setActiveVehicle('ship1');
+    runtime._vehicleProfiles = {};
+    runtime.handleRoundEndTelemetry({
+        state: 'ROUND_END',
+        duration: 10,
+        kills: 0,
+        selfCollisions: 0,
+        itemUses: 0,
+        stuckEvents: 0,
+    });
+
+    assert.equal(runtime._state.score.combo, 2);
+    assert.ok(runtime._state.score.suddenDeathScore > 0);
+    assert.equal(runtime._state.lastSectorSummary.wasSuddenDeath, true);
+    assert.equal(runtime._state.sectorHistory[0].phase, 'sudden_death');
+    assert.equal(runtime._state.sectorHistory[0].wasSuddenDeath, true);
+});

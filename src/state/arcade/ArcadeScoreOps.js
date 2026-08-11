@@ -187,7 +187,15 @@ export function applyArcadeSectorScore(runState, payload = null, {
         return runState;
     }
 
-    const completedSectors = Math.max(0, clampInteger(runState.completedSectors, 0, 99_999, 0));
+    const sectorResult = runState.lastCompletedSectorResult && typeof runState.lastCompletedSectorResult === 'object'
+        ? runState.lastCompletedSectorResult
+        : null;
+    const completedSectors = Math.max(0, clampInteger(
+        sectorResult?.sectorIndex ?? runState.completedSectors,
+        0,
+        99_999,
+        0
+    ));
     const sourceScore = runState.score && typeof runState.score === 'object'
         ? runState.score
         : createArcadeRunState().score;
@@ -199,7 +207,9 @@ export function applyArcadeSectorScore(runState, payload = null, {
     const now = Math.max(0, toSafeNumber(nowMs, Date.now()));
     const decayedScore = applyArcadeComboDecay(sourceScore, runState.config, now, masteryPerks);
     // 61.6.3: In SUDDEN_DEATH, combo increments by 2 per sector for faster multiplier growth
-    const isSuddenDeath = String(runState.phase || '') === ARCADE_RUN_PHASES.SUDDEN_DEATH;
+    const isSuddenDeath = sectorResult
+        ? sectorResult.wasSuddenDeath === true
+        : String(runState.phase || '') === ARCADE_RUN_PHASES.SUDDEN_DEATH;
     const comboStep = isSuddenDeath ? 2 : 1;
     const nextCombo = Math.max(1, clampInteger(decayedScore.combo + comboStep, 1, 99_999, 1));
     const nextMultiplier = resolveMultiplierFromCombo(nextCombo, runState?.config?.maxMultiplier);
@@ -268,6 +278,10 @@ export function applyArcadeSectorScore(runState, payload = null, {
         },
         lastSectorSummary: {
             sectorIndex: completedSectors,
+            sectorPhase: String(sectorResult?.sectorPhase || runState.phase || ''),
+            wasSuddenDeath: isSuddenDeath,
+            encounterId: String(sectorResult?.encounterId || sectorEntry?.encounterId || sectorEntry?.id || sectorTemplateId),
+            modifierId: String(sectorResult?.modifierId || sectorEntry?.modifierId || ''),
             awardedPoints: sectorPoints,
             multiplierApplied: nextMultiplier,
             objectiveMultiplierApplied: objectiveMultiplier,

@@ -187,6 +187,7 @@ export function createArcadeRunState({
             runReplayId: '',
         },
         lastSectorSummary: null,
+        lastCompletedSectorResult: null,
         mapSequence: [],
         currentMapKey: null,
         missions: null,
@@ -238,10 +239,23 @@ export function completeArcadeSector(state, nowMs = Date.now()) {
             Math.max(0, clampInteger(state.completedSectors, 0, maxSectors, 0)),
             Math.max(0, clampInteger(state.sectorIndex, 0, maxSectors, 0))
         ));
+    const sectorEntry = Array.isArray(state.encounterSequence)
+        ? state.encounterSequence[Math.max(0, completedSectors - 1)] || null
+        : null;
+    const lastCompletedSectorResult = Object.freeze({
+        sectorIndex: completedSectors,
+        sectorPhase: String(state.phase || ''),
+        wasSuddenDeath: isSuddenDeath,
+        mapKey: String(state.currentMapKey || ''),
+        templateId: String(sectorEntry?.templateId || ''),
+        encounterId: String(sectorEntry?.encounterId || sectorEntry?.id || sectorEntry?.templateId || ''),
+        modifierId: String(sectorEntry?.modifierId || ''),
+    });
     // 61.6.1: Always go to INTERMISSION — FINISHED is set by _finalizeRun when player dies/quits
     return {
         ...state,
         completedSectors,
+        lastCompletedSectorResult,
         phase: ARCADE_RUN_PHASES.INTERMISSION,
         updatedAtIso: toIsoString(nowMs),
     };
