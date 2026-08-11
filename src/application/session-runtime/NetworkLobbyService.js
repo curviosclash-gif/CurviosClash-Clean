@@ -1,4 +1,5 @@
 import { createLobbyLifecycleEventEmitter } from './LobbyLifecycleEventEmitter.js';
+import { createRuntimeClock } from '../../shared/contracts/RuntimeClockContract.js';
 import { resolveGlobalObject, toCallable } from './LobbyRuntimeEnvironment.js';
 import { createNetworkLobbyDiscoveryPort } from './NetworkLobbyDiscoveryPort.js';
 import { createNetworkLobbySessionStateProjection } from './NetworkLobbySessionStateProjection.js';
@@ -59,6 +60,12 @@ export class NetworkLobbyService {
         this.onStateChanged = typeof options.onStateChanged === 'function' ? options.onStateChanged : null;
         this.onMatchStart = typeof options.onMatchStart === 'function' ? options.onMatchStart : null;
         this._runtime = options.runtime && typeof options.runtime === 'object' ? options.runtime : {};
+        // Gleiche Reihenfolge wie in StorageLobbyTransportRuntime: erst die Uhr aus
+        // den Service-Optionen, dann die der Laufzeit, sonst die des Contracts.
+        this._clock = createRuntimeClock({
+            nowMs: options.now || this._runtime.now,
+            runtime: runtimeGlobal,
+        });
         const platformBindings = options.platformBindings && typeof options.platformBindings === 'object'
             ? options.platformBindings
             : null;
@@ -75,7 +82,7 @@ export class NetworkLobbyService {
             ? options.resolveJoinSignalingUrl
             : null;
         this._eventEmitter = createLobbyLifecycleEventEmitter({
-            now: () => Date.now(),
+            now: this._clock.nowMs,
         });
         this._actorId = '';
         this._hostSettingsSnapshot = null;

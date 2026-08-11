@@ -6,12 +6,13 @@ import {
     normalizeString,
     toTimestamp,
 } from './StorageLobbyServiceSupport.js';
+import { createRuntimeClock } from '../../shared/contracts/RuntimeClockContract.js';
 
 const MATCH_START_MAX_AGE_MS = 12000;
 
 export function createStorageLobbySessionStateProjection(options = {}) {
     const peerId = normalizeString(options.peerId, '');
-    const now = typeof options.now === 'function' ? options.now : Date.now;
+    const now = createRuntimeClock({ nowMs: options.now }).nowMs;
     let activeLobbyCode = '';
     let sessionSnapshot = null;
     let sessionState = createIdleSessionState(peerId);

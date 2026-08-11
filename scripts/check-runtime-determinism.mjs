@@ -55,14 +55,6 @@ const EXCEPTIONS = {
         reason: 'seeds the runtime rng and falls back to the global roll when unseeded',
         todo: true,
     },
-    'src/application/session-runtime/LobbyLifecycleEventEmitter.js': {
-        reason: 'now is a guarded fallback behind an injectable clock',
-        todo: true,
-    },
-    'src/application/session-runtime/StorageLobbySessionStateProjection.js': {
-        reason: 'now is a guarded fallback behind an injectable clock',
-        todo: true,
-    },
 
     // Verbleibende Strategien messen Spielzeit ueber eigene Uhr-Fallbacks oder
     // reichen den Wuerfel als Standardwert weiter.
@@ -98,10 +90,6 @@ const EXCEPTIONS = {
     },
     'src/network/LANMatchLobby.js': {
         reason: 'command ids and member timestamps still come from the wall clock',
-        todo: true,
-    },
-    'src/application/session-runtime/NetworkLobbyService.js': {
-        reason: 'lobby clock is built from Date.now instead of an injected one',
         todo: true,
     },
     'src/application/session-runtime/NetworkLobbyServiceDiscovery.js': {

@@ -1,9 +1,10 @@
 import { buildLobbyLifecycleEventPayload } from '../../shared/contracts/LobbyLifecycleEventContract.js';
+import { createRuntimeClock } from '../../shared/contracts/RuntimeClockContract.js';
 
 const DEFAULT_EVENT_LIMIT = 60;
 
 export function createLobbyLifecycleEventEmitter(options = {}) {
-    const now = typeof options.now === 'function' ? options.now : Date.now;
+    const now = createRuntimeClock({ nowMs: options.now }).nowMs;
     const eventLimit = Math.max(1, Math.floor(Number(options.eventLimit) || DEFAULT_EVENT_LIMIT));
     const events = [];
 
