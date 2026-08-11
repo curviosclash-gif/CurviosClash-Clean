@@ -1,5 +1,8 @@
 import { LOBBY_SERVICE_TRANSPORTS } from '../../shared/contracts/LobbyServiceContract.js';
-import { normalizePublicLobbyMetadata } from '../../shared/contracts/SignalingSessionContract.js';
+import {
+    MULTIPLAYER_PROTOCOL_VERSION,
+    normalizePublicLobbyMetadata,
+} from '../../shared/contracts/SignalingSessionContract.js';
 import {
     normalizeDiscoveryHostEntry,
     normalizeString,
@@ -15,6 +18,7 @@ export function createPublicLobbyMetadata(settingsSnapshot = null, actorId = '')
         gameMode: normalizeString(snapshot.gameMode, 'CLASSIC'),
         modePath: normalizeString(snapshot?.localSettings?.modePath, 'normal'),
         winsNeeded: Math.max(1, Math.floor(Number(snapshot.winsNeeded) || 5)),
+        protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
     });
 }
 

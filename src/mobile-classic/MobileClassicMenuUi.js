@@ -64,6 +64,22 @@ function ensureStatusUi(doc = document) {
     doc.body.appendChild(status);
 }
 
+function configureMobileLanLobbyUi(doc = document) {
+    const manualAddress = doc?.getElementById?.('multiplayer-manual-address');
+    if (manualAddress) {
+        manualAddress.setAttribute?.('open', '');
+        const summary = manualAddress.querySelector?.('summary');
+        if (summary) summary.hidden = true;
+    }
+    const addressInput = doc?.getElementById?.('multiplayer-host-address');
+    if (addressInput) {
+        addressInput.setAttribute?.('placeholder', '192.168.1.10:9090');
+        addressInput.setAttribute?.('inputmode', 'url');
+    }
+    const addressLabel = doc?.querySelector?.('label[for="multiplayer-host-address"]');
+    if (addressLabel) addressLabel.textContent = 'Host-IP und Port';
+}
+
 function updateMenuVisibility(doc = document) {
     if (!doc?.body) return;
     const mainMenu = doc.getElementById?.('main-menu');
@@ -88,6 +104,7 @@ function ensureMenuVisibilityObserver(doc = document) {
 
 export function setupMobileClassicMenuDocumentState(doc = document) {
     ensureStatusUi(doc);
+    configureMobileLanLobbyUi(doc);
     ensureMenuVisibilityObserver(doc);
 }
 
@@ -134,7 +151,14 @@ function bindMobileModeResync(game, button, applyMobileClassicSettings) {
     button.dataset.mobileAndroidModeBound = '1';
     button.addEventListener?.('click', () => {
         const ownerWindow = button.ownerDocument?.defaultView || (typeof window !== 'undefined' ? window : null);
-        ownerWindow?.setTimeout?.(() => applyMobileClassicMenuUiLocks(game, { applyMobileClassicSettings }), 0);
+        ownerWindow?.setTimeout?.(() => {
+            const requestedSessionType = normalizeTarget(button?.dataset?.sessionType);
+            if (requestedSessionType === MENU_SESSION_TYPES.MULTIPLAYER && game?.settings?.localSettings) {
+                game.settings.localSettings.modePath = MENU_MODE_PATHS.NORMAL;
+                game.settings.localSettings.multiplayerTransport = 'lan';
+            }
+            applyMobileClassicMenuUiLocks(game, { applyMobileClassicSettings });
+        }, 0);
     });
 }
 
@@ -149,20 +173,31 @@ export function applyMobileClassicMenuUiLocks(game = null, { applyMobileClassicS
     const modePath = resolveMobileAndroidModePath(game?.settings || null);
     const doc = ui.mainMenu?.ownerDocument || ui.mapSelect?.ownerDocument
         || (typeof document !== 'undefined' ? document : null);
+    configureMobileLanLobbyUi(doc);
     updateDocumentMode(modePath, doc);
 
     if (Array.isArray(ui.sessionButtons)) {
         ui.sessionButtons.forEach((button) => {
             const sessionType = normalizeTarget(button?.dataset?.sessionType);
-            setButtonLocked(button, sessionType && sessionType !== MENU_SESSION_TYPES.SINGLE);
+            const allowed = sessionType === MENU_SESSION_TYPES.SINGLE || sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
+            setButtonLocked(button, sessionType && !allowed);
+            if (allowed) bindMobileModeResync(game, button, applyMobileClassicSettings);
         });
     }
     if (Array.isArray(ui.modePathButtons)) {
         ui.modePathButtons.forEach((button) => {
             const buttonModePath = normalizeTarget(button?.dataset?.modePath);
-            const allowed = buttonModePath === MENU_MODE_PATHS.NORMAL || buttonModePath === MENU_MODE_PATHS.ARCADE;
+            const multiplayerActive = game?.settings?.localSettings?.sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
+            const allowed = buttonModePath === MENU_MODE_PATHS.NORMAL
+                || (!multiplayerActive && buttonModePath === MENU_MODE_PATHS.ARCADE);
             setButtonLocked(button, buttonModePath && !allowed);
             if (allowed) bindMobileModeResync(game, button, applyMobileClassicSettings);
+        });
+    }
+    if (ui.multiplayerHostButton) setButtonLocked(ui.multiplayerHostButton, true);
+    if (Array.isArray(ui.multiplayerTransportButtons)) {
+        ui.multiplayerTransportButtons.forEach((button) => {
+            setButtonLocked(button, normalizeTarget(button?.dataset?.multiplayerTransport) !== 'lan');
         });
     }
     if (modePath === MENU_MODE_PATHS.ARCADE) {

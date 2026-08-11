@@ -3,6 +3,9 @@ import { normalizeString } from './ContractNormalizeUtils.js';
 export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 
 export const SIGNALING_SESSION_CONTRACT_VERSION = 'signaling-session.v1';
+export const MULTIPLAYER_PROTOCOL_VERSION = 'curvios-multiplayer.v1';
+export const MOBILE_LAN_PARTICIPANT_SURFACE_ID = 'mobile-app';
+export const MOBILE_LAN_CROSSPLAY_MAP_KEYS = Object.freeze(['standard', 'maze']);
 
 export const SIGNALING_COMMAND_TYPES = Object.freeze({
     LIST_LOBBIES: 'list_lobbies',
@@ -61,7 +64,78 @@ export function normalizePublicLobbyMetadata(value = null, fallbackHostName = 'H
         gameMode: normalizeString(source.gameMode, 'CLASSIC').slice(0, 32),
         modePath: normalizeString(source.modePath, 'normal').slice(0, 32),
         winsNeeded: Math.max(1, Math.min(99, Math.floor(Number(source.winsNeeded) || 5))),
+        protocolVersion: normalizeString(source.protocolVersion, MULTIPLAYER_PROTOCOL_VERSION).slice(0, 48),
     };
+}
+
+export function normalizeSignalingParticipantMetadata(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    return {
+        productSurfaceId: normalizeString(source.productSurfaceId, '').toLowerCase().slice(0, 32),
+        protocolVersion: normalizeString(source.protocolVersion, '').slice(0, 48),
+    };
+}
+
+export function isMobileLanParticipantMetadata(value = null) {
+    return normalizeSignalingParticipantMetadata(value).productSurfaceId === MOBILE_LAN_PARTICIPANT_SURFACE_ID;
+}
+
+function createMobileLanCompatibilityResult(code = '') {
+    return Object.freeze({ compatible: code === '', code });
+}
+
+export function validateMobileLanParticipantMetadata(value = null) {
+    const metadata = normalizeSignalingParticipantMetadata(value);
+    if (metadata.productSurfaceId !== MOBILE_LAN_PARTICIPANT_SURFACE_ID
+        || metadata.protocolVersion !== MULTIPLAYER_PROTOCOL_VERSION) {
+        return createMobileLanCompatibilityResult('mobile_protocol_incompatible');
+    }
+    return createMobileLanCompatibilityResult();
+}
+
+export function validateMobileLanLobbyMetadata(value = null) {
+    const metadata = normalizePublicLobbyMetadata(value);
+    if (metadata.protocolVersion !== MULTIPLAYER_PROTOCOL_VERSION) {
+        return createMobileLanCompatibilityResult('mobile_protocol_incompatible');
+    }
+    if (metadata.modePath.toLowerCase() !== 'normal' || metadata.gameMode.toUpperCase() !== 'CLASSIC') {
+        return createMobileLanCompatibilityResult('mobile_mode_incompatible');
+    }
+    if (!MOBILE_LAN_CROSSPLAY_MAP_KEYS.includes(metadata.mapKey)) {
+        return createMobileLanCompatibilityResult('mobile_map_incompatible');
+    }
+    return createMobileLanCompatibilityResult();
+}
+
+export function validateMobileLanMatchSettingsSnapshot(value = null) {
+    const snapshot = value && typeof value === 'object' ? value : {};
+    const localSettings = snapshot.localSettings && typeof snapshot.localSettings === 'object'
+        ? snapshot.localSettings
+        : {};
+    if (String(localSettings.sessionType || '').trim().toLowerCase() !== 'multiplayer'
+        || String(localSettings.multiplayerTransport || '').trim().toLowerCase() !== 'lan'
+        || String(localSettings.modePath || '').trim().toLowerCase() !== 'normal'
+        || String(snapshot.gameMode || '').trim().toUpperCase() !== 'CLASSIC') {
+        return createMobileLanCompatibilityResult('mobile_mode_incompatible');
+    }
+    if (!MOBILE_LAN_CROSSPLAY_MAP_KEYS.includes(String(snapshot.mapKey || '').trim())) {
+        return createMobileLanCompatibilityResult('mobile_map_incompatible');
+    }
+    return createMobileLanCompatibilityResult();
+}
+
+export function validateMobileLanLobbyMatchConsistency(metadataValue = null, snapshotValue = null) {
+    const metadata = normalizePublicLobbyMetadata(metadataValue);
+    const snapshot = snapshotValue && typeof snapshotValue === 'object' ? snapshotValue : {};
+    const localSettings = snapshot.localSettings && typeof snapshot.localSettings === 'object'
+        ? snapshot.localSettings
+        : {};
+    if (metadata.mapKey !== String(snapshot.mapKey || '').trim()
+        || metadata.gameMode.toUpperCase() !== String(snapshot.gameMode || '').trim().toUpperCase()
+        || metadata.modePath.toLowerCase() !== String(localSettings.modePath || '').trim().toLowerCase()) {
+        return createMobileLanCompatibilityResult('mobile_settings_mismatch');
+    }
+    return createMobileLanCompatibilityResult();
 }
 
 /**

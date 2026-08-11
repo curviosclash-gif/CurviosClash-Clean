@@ -15,6 +15,11 @@ function readSource(relativePath) {
     return readFileSync(new URL(relativePath, import.meta.url), 'utf8');
 }
 
+test('packaged Electron includes the shared window security policy', () => {
+    const packageJson = JSON.parse(readSource('../electron/package.json'));
+    assert.ok(packageJson.build.files.includes('window-security-options.cjs'));
+});
+
 test('every Electron window uses the executable renderer security policy', () => {
     for (const relativePath of [
         '../electron/main.cjs',

@@ -25,6 +25,10 @@ export function resolvePlatformProductSurfaceId(options = {}) {
     if (explicitProductSurfaceId) {
         return explicitProductSurfaceId;
     }
+    const normalizedAppTarget = normalizeString(options.appTarget, '').toLowerCase();
+    if (normalizedAppTarget === 'mobile-classic') {
+        return PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP;
+    }
     const normalizedAppMode = normalizeString(options.appMode, '').toLowerCase();
     if (normalizedAppMode === 'app') {
         return PLATFORM_PRODUCT_SURFACE_IDS.DESKTOP_APP;

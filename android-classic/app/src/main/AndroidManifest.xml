@@ -7,7 +7,8 @@
         android:label="${appName}"
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
-        android:theme="@style/AppTheme">
+        android:theme="@style/AppTheme"
+        android:usesCleartextTraffic="true">
 
         <!-- V131 Orientation-Policy: Match und Menue bleiben landscape-stabil (beide Richtungen);
              Tilt-Neutral/Steuerlayout gehen auf Android von 90/270 Grad aus, Browser bleibt orientation-frei. -->

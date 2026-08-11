@@ -496,6 +496,7 @@ export function resolveSurfaceEntryCopy(options = {}) {
     const policy = resolveSurfacePolicy(options);
     const productSurfaceId = policy.productSurfaceId;
     const isBrowserDemo = productSurfaceId === PLATFORM_PRODUCT_SURFACE_IDS.BROWSER_DEMO;
+    const isJoinOnly = policy.multiplayerRole === 'join-only';
     const sessionType = normalizeSurfaceSessionType(
         options.sessionType,
         resolveSurfaceFallbackSessionType({ productSurfaceId })
@@ -509,14 +510,14 @@ export function resolveSurfaceEntryCopy(options = {}) {
         sessionType,
         sessionLabels: Object.freeze({
             [PLATFORM_SURFACE_SESSION_TYPES.SINGLE]: isBrowserDemo ? 'Demo' : 'Einzelspieler',
-            [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isBrowserDemo ? 'Nur beitreten' : 'Mehrspieler',
+            [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isJoinOnly ? 'Nur beitreten' : 'Mehrspieler',
             [PLATFORM_SURFACE_SESSION_TYPES.SPLITSCREEN]: 'Geteilter Bildschirm',
         }),
         sessionDescriptions: Object.freeze({
             [PLATFORM_SURFACE_SESSION_TYPES.SINGLE]: isBrowserDemo
                 ? 'Kuratierte Offline-Runde der Browser-Demo.'
                 : 'Lokaler Startpfad fuer Solo-Runden in der Vollversion.',
-            [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isBrowserDemo
+            [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isJoinOnly
                 ? 'Desktop-Lobbys beitreten, aber nicht hosten.'
                 : 'Hosten oder einer Lobby beitreten.',
             [PLATFORM_SURFACE_SESSION_TYPES.SPLITSCREEN]: isBrowserDemo
@@ -525,7 +526,7 @@ export function resolveSurfaceEntryCopy(options = {}) {
         }),
         sessionSummaryLabels: Object.freeze({
             [PLATFORM_SURFACE_SESSION_TYPES.SINGLE]: isBrowserDemo ? 'Demo offline' : 'Einzelspieler',
-            [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isBrowserDemo ? 'Nur beitreten' : 'Mehrspieler',
+            [PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER]: isJoinOnly ? 'Nur beitreten' : 'Mehrspieler',
             [PLATFORM_SURFACE_SESSION_TYPES.SPLITSCREEN]: 'Geteilter Bildschirm',
         }),
         startButtonLabel: isBrowserDemo && sessionType !== PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER
@@ -534,9 +535,9 @@ export function resolveSurfaceEntryCopy(options = {}) {
         startButtonTitle: isBrowserDemo && sessionType !== PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER
             ? 'Startet die kuratierte Browser-Demo.'
             : '',
-        multiplayerTitle: isBrowserDemo ? 'Lobby & Beitreten' : 'Lobby & Bereitschaft',
-        multiplayerSubtitle: isBrowserDemo
-            ? 'Die Demo kann Desktop-Lobbys beitreten, aber keine Lobby hosten.'
+        multiplayerTitle: isJoinOnly ? 'Lobby & Beitreten' : 'Lobby & Bereitschaft',
+        multiplayerSubtitle: isJoinOnly
+            ? 'Diese App kann Desktop-Lobbys beitreten, aber keine Lobby hosten.'
             : 'Session-Code, echte Lobby-Verbindung und Ready-Status.',
         hostButtonLabel: hostCapability.available === true
             ? 'Lobby erstellen'
@@ -548,20 +549,20 @@ export function resolveSurfaceEntryCopy(options = {}) {
                 : 'Hosting ist in dieser Surface nicht verfuegbar.'),
         hostActionAvailable: hostCapability.available === true,
         joinButtonLabel: isBrowserDemo ? 'Beitreten' : 'Beitreten',
-        joinButtonTitle: isBrowserDemo
-            ? 'Diese Demo kann nur einer Desktop-Lobby beitreten.'
+        joinButtonTitle: isJoinOnly
+            ? 'Diese App kann nur einer Desktop-Lobby beitreten.'
             : 'Einer vorhandenen Lobby beitreten.',
-        lobbyCodePlaceholder: isBrowserDemo ? 'Code vom Desktop-Host' : 'z. B. TEST-1234',
-        multiplayerInactiveStatus: isBrowserDemo ? 'Beitritt inaktiv' : 'Lobby inaktiv',
-        multiplayerDisconnectedStatus: isBrowserDemo
+        lobbyCodePlaceholder: isJoinOnly ? 'Code vom Desktop-Host' : 'z. B. TEST-1234',
+        multiplayerInactiveStatus: isJoinOnly ? 'Beitritt inaktiv' : 'Lobby inaktiv',
+        multiplayerDisconnectedStatus: isJoinOnly
             ? 'Lobby offline | Rolle: Beitritt'
             : 'Lobby offline | Rolle: nicht verbunden',
-        multiplayerClientRoleLabel: isBrowserDemo ? 'Beitritt' : 'Client',
-        multiplayerJoinWaitTitle: isBrowserDemo
+        multiplayerClientRoleLabel: isJoinOnly ? 'Beitritt' : 'Client',
+        multiplayerJoinWaitTitle: isJoinOnly
             ? 'Lobby-Code eines Desktop-Hosts eingeben und beitreten.'
             : 'Lobby hosten oder joinen, bevor gestartet wird.',
-        multiplayerClientStartTitle: isBrowserDemo
-            ? 'Diese Demo kann nur beitreten; der Matchstart erfolgt über den Desktop-Host.'
+        multiplayerClientStartTitle: isJoinOnly
+            ? 'Diese App kann nur beitreten; der Matchstart erfolgt über den Desktop-Host.'
             : 'Nur der Host kann das Match starten.',
     });
 }

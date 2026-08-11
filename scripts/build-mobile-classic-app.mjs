@@ -54,10 +54,16 @@ async function writeManifest() {
       target: 'mobile-classic',
     },
     modeScope: {
-      sessionType: 'single',
+      sessionTypes: ['single', 'multiplayer'],
       modePaths: ['normal', 'arcade'],
       defaultModePath: 'normal',
       gameMode: 'CLASSIC',
+      multiplayer: {
+        role: 'client',
+        transport: 'lan',
+        modePath: 'normal',
+        mapKeys: ['standard', 'maze'],
+      },
       arcade: {
         defaultMapKey: MOBILE_ARCADE_DEFAULT_MAP_KEY,
         routeAllowlist,

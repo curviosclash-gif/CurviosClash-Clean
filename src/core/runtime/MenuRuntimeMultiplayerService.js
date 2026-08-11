@@ -8,10 +8,7 @@ import {
     resolveMenuLobbyServiceTransport,
 } from '../../application/session-runtime/MenuLobbyServiceFactory.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../../shared/contracts/MatchLifecycleContract.js';
-import {
-    resolveDefaultLobbyTransport,
-    resolveLobbyProviderKind,
-} from '../../shared/contracts/PlatformCapabilityRegistry.js';
+import { PLATFORM_PRODUCT_SURFACE_IDS, resolveDefaultLobbyTransport, resolveLobbyProviderKind, resolveSurfacePolicy } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import {
     resolveSurfaceMultiplayerGateAccess,
 } from '../../shared/contracts/PlatformSurfacePolicyOps.js';
@@ -26,6 +23,7 @@ import {
     normalizeMultiplayerTransport as normalizeRuntimeMultiplayerTransport,
 } from '../../shared/contracts/RuntimeSessionContract.js';
 import { hasConfiguredOnlineSignalingUrl } from '../../shared/contracts/OnlineSignalingConfig.js';
+import { MULTIPLAYER_PROTOCOL_VERSION } from '../../shared/contracts/SignalingSessionContract.js';
 import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeObservability.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { createLobbyPlatformBindings } from '../../platform/LobbyPlatformBindings.js';
@@ -38,6 +36,8 @@ import {
 
 const ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE = 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.';
 
+/* global __APP_TARGET__ */
+
 // Surface-/Capability-Resolver brauchen den Adapter-Snapshot, damit die
 // Desktop-App nicht als Browser-Demo eingestuft wird (Raw-Global-Sniffing
 // ist auf die Electron-Plattformadapter beschraenkt).
@@ -45,6 +45,7 @@ function resolveSurfaceResolverOptions() {
     const runtimeGlobal = typeof globalThis !== 'undefined' ? globalThis : null;
     const platformBindings = createLobbyPlatformBindings(runtimeGlobal);
     return {
+        appTarget: typeof __APP_TARGET__ !== 'undefined' ? String(__APP_TARGET__).trim().toLowerCase() : '',
         runtimeGlobal,
         platformRuntimeSnapshot: platformBindings.runtimeSnapshot,
     };
@@ -122,6 +123,8 @@ export function createMenuMultiplayerBridge(options = {}) {
 
     const runtimeGlobal = options.runtime?.global || (typeof globalThis !== 'undefined' ? globalThis : null);
     const platformBindings = options.platformBindings || createLobbyPlatformBindings(runtimeGlobal);
+    const productSurfaceId = resolveSurfacePolicy(resolveSurfaceResolverOptions()).productSurfaceId;
+    const isMobileApp = productSurfaceId === PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP;
     const resolvedTransport = resolveMenuLobbyServiceTransport({
         runtime,
         transport: options.transport,
@@ -153,6 +156,13 @@ export function createMenuMultiplayerBridge(options = {}) {
         sessionStorage,
         peerId,
         platformBindings,
+        productSurfaceId,
+        supportsDiscovery: !isMobileApp,
+        ...(isMobileApp ? { discoveryPort: null } : {}),
+        participantMetadata: isMobileApp ? {
+            productSurfaceId,
+            protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+        } : null,
     });
 }
 

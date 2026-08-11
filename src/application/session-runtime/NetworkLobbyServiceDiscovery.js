@@ -26,6 +26,7 @@ export async function resolveDefaultHostSignalingUrl({
     return 'http://localhost:9090';
 }
 
+/** @param {Record<string, any>} options */
 export async function resolveDefaultJoinSignalingUrl({
     lobbyCode = '',
     explicitSignalingUrl = '',

@@ -121,6 +121,12 @@ test('Windows package uses the original project icon and keeps env-only signing'
     assert.equal(Object.hasOwn(packageJson.build?.win || {}, 'certificateFile'), false);
     assert.equal(Object.hasOwn(packageJson.build?.win || {}, 'certificatePassword'), false);
 
+    const sourceResources = packageJson.build?.extraResources?.find((entry) => entry.to === 'src');
+    assert.ok(sourceResources?.filter?.includes('shared/storage/*.js'));
+    assert.ok(sourceResources?.filter?.includes('shared/utils/CanonicalJson.js'));
+    assert.ok(sourceResources?.filter?.includes('core/settings/SettingsOverrideRangeContract.js'));
+    assert.ok(sourceResources?.filter?.includes('ui/SettingsFieldRegistry.js'));
+
     const ico = readFileSync(new URL('../assets/branding/curviosclash-icon.ico', import.meta.url));
     assert.deepEqual([...ico.subarray(0, 4)], [0, 0, 1, 0]);
     assert.equal(ico.readUInt16LE(4), 7);

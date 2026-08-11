@@ -126,6 +126,7 @@ export class LANMatchLobby extends MatchLobby {
                     lobbyCode: this.lobbyCode,
                     actorId: joinOptions.actorId,
                     name: joinOptions.name || joinOptions.actorId,
+                    participantMetadata: joinOptions.participantMetadata,
                 }),
             });
             if (res?.ok === false) {

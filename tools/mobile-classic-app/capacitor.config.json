@@ -4,6 +4,11 @@
   "webDir": "../../dist/mobile-classic",
   "backgroundColor": "#04070b",
   "zoomEnabled": false,
+  "server": {
+    "hostname": "localhost",
+    "androidScheme": "http",
+    "cleartext": true
+  },
   "android": {
     "path": "../../android-classic",
     "zoomEnabled": false,

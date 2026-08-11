@@ -19,6 +19,7 @@ export const PLATFORM_SURFACE_POLICY_CONTRACT_VERSION = 'platform-surface-policy
 export const PLATFORM_PRODUCT_SURFACE_IDS = Object.freeze({
     DESKTOP_APP: 'desktop-app',
     BROWSER_DEMO: 'browser-demo',
+    MOBILE_APP: 'mobile-app',
 });
 
 export const PLATFORM_RUNTIME_KINDS = Object.freeze({
@@ -170,6 +171,58 @@ export const PLATFORM_CAPABILITY_REGISTRY = Object.freeze({
                 [PLATFORM_CAPABILITY_IDS.RECORDING]: Object.freeze({
                     available: PLATFORM_PROVIDER_KINDS.BROWSER_NATIVE,
                     unavailable: PLATFORM_PROVIDER_KINDS.BROWSER_DEMO,
+                }),
+            }),
+        }),
+        [PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP]: Object.freeze({
+            runtimeKind: PLATFORM_RUNTIME_KINDS.WEB,
+            defaultLobbyTransport: MULTIPLAYER_TRANSPORTS.LAN,
+            toolingSurfaceId: PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP,
+            surfacePolicy: Object.freeze({
+                defaultAccessMode: PLATFORM_SURFACE_POLICY_MODES.DEFAULT_DENY,
+                multiplayerRole: PLATFORM_SURFACE_MULTIPLAYER_ROLES.JOIN_ONLY,
+                defaultModePath: PLATFORM_SURFACE_MENU_MODE_PATHS.NORMAL,
+                allowedSessionTypes: Object.freeze([
+                    PLATFORM_SURFACE_SESSION_TYPES.SINGLE,
+                    PLATFORM_SURFACE_SESSION_TYPES.MULTIPLAYER,
+                ]),
+                defaultMultiplayerTransport: MULTIPLAYER_TRANSPORTS.LAN,
+                allowedMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.LAN]),
+                hostMultiplayerTransports: Object.freeze([]),
+                joinMultiplayerTransports: Object.freeze([MULTIPLAYER_TRANSPORTS.LAN]),
+                legacyMultiplayerTransports: Object.freeze([]),
+                allowedGameModes: Object.freeze(['Arcade', 'Normal', 'Classic']),
+                allowedModePaths: Object.freeze([
+                    PLATFORM_SURFACE_MENU_MODE_PATHS.ARCADE,
+                    PLATFORM_SURFACE_MENU_MODE_PATHS.NORMAL,
+                ]),
+                allowedQuickStartActionIds: Object.freeze([]),
+                allowedPresetIds: Object.freeze([]),
+                curatedMapKeysByModePath: Object.freeze({}),
+                requiresCuratedMaps: false,
+                developerAccess: Object.freeze({
+                    available: false,
+                    accessMode: PLATFORM_SURFACE_DEVELOPER_ACCESS_MODES.BLOCKED,
+                    reason: PLATFORM_SURFACE_DEVELOPER_ACCESS_REASONS.UNAVAILABLE,
+                    message: 'Developer- und Desktop-Werkzeuge sind in der Android-App nicht verfuegbar.',
+                }),
+            }),
+            capabilities: Object.freeze({
+                [PLATFORM_CAPABILITY_IDS.DISCOVERY]: Object.freeze({
+                    enabled: false,
+                    unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
+                }),
+                [PLATFORM_CAPABILITY_IDS.HOST]: Object.freeze({
+                    enabled: false,
+                    unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
+                }),
+                [PLATFORM_CAPABILITY_IDS.SAVE]: Object.freeze({
+                    enabled: false,
+                    unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
+                }),
+                [PLATFORM_CAPABILITY_IDS.RECORDING]: Object.freeze({
+                    enabled: false,
+                    unavailable: PLATFORM_PROVIDER_KINDS.UNAVAILABLE,
                 }),
             }),
         }),

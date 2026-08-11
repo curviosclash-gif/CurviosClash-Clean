@@ -7,8 +7,15 @@ import crypto from 'node:crypto';
 import {
     SIGNALING_HTTP_ROUTES,
     SIGNALING_SESSION_CONTRACT_VERSION,
+    isMobileLanParticipantMetadata,
+    normalizeSignalingParticipantMetadata,
     normalizePublicLobbyMetadata,
+    validateMobileLanLobbyMetadata,
+    validateMobileLanLobbyMatchConsistency,
+    validateMobileLanMatchSettingsSnapshot,
+    validateMobileLanParticipantMetadata,
 } from '../src/shared/contracts/SignalingSessionContract.js';
+import { isLocalNetworkHostname } from '../src/shared/contracts/LocalNetworkAddressContract.js';
 
 const DEFAULT_MAX_PLAYERS = 10;
 const DEFAULT_GHOST_PLAYER_TIMEOUT_MS = 60_000;
@@ -55,20 +62,8 @@ function resolveCorsOrigin(req) {
     try {
         const { protocol, hostname: rawHostname } = new URL(origin);
         const hostname = rawHostname.replace(/^\[|\]$/g, '').toLowerCase();
-        const octets = hostname.split('.').map(Number);
-        const isPrivateIpv4 = octets.length === 4 && octets.every(Number.isInteger) && (
-            octets[0] === 10
-            || (octets[0] === 172 && octets[1] >= 16 && octets[1] <= 31)
-            || (octets[0] === 192 && octets[1] === 168)
-            || (octets[0] === 169 && octets[1] === 254)
-            || octets[0] === 127
-        );
-        const isPrivateIpv6 = hostname === '::1'
-            || hostname.startsWith('fc')
-            || hostname.startsWith('fd')
-            || hostname.startsWith('fe80:');
         return (protocol === 'http:' || protocol === 'https:')
-            && (hostname === 'localhost' || isPrivateIpv4 || isPrivateIpv6)
+            && isLocalNetworkHostname(hostname)
             ? origin
             : null;
     } catch {
@@ -155,6 +150,7 @@ function buildLobbyState(lobby) {
             isHost: false,
             actorId: String(player.actorId || player.playerId).trim(),
             name: String(player.name || player.actorId || player.playerId).trim(),
+            participantMetadata: { ...player.participantMetadata },
         })),
         pendingPlayers: lobby.pendingPlayers.map((entry) => ({ playerId: entry.playerId })),
         pendingMatchStart: lobby.pendingMatchStart
@@ -299,6 +295,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     ready: stalePlayer.ready === true,
                     actorId: stalePlayer.actorId,
                     name: stalePlayer.name,
+                    participantMetadata: stalePlayer.participantMetadata,
                     expiresAt: timestamp + reconnectLeaseMs,
                 });
                 removePlayer(stalePlayer.playerId);
@@ -422,6 +419,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                 ready: false,
                 actorId: String(body.actorId || body.name || playerId).trim() || playerId,
                 name: String(body.name || body.actorId || playerId).trim() || playerId,
+                participantMetadata: normalizeSignalingParticipantMetadata(body.participantMetadata),
                 joinedAt: timestamp,
                 lastActivityAt: timestamp,
             });
@@ -464,6 +462,17 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             if (String(body.playerToken || '') !== String(player.token || '')) {
                 jsonResponse(res, { ok: false, message: 'player_auth_failed' }, 403);
                 return;
+            }
+            if (ready && isMobileLanParticipantMetadata(player.participantMetadata)) {
+                const participantCompatibility = validateMobileLanParticipantMetadata(player.participantMetadata);
+                const lobbyCompatibility = validateMobileLanLobbyMetadata(lobby.metadata);
+                const compatibility = participantCompatibility.compatible
+                    ? lobbyCompatibility
+                    : participantCompatibility;
+                if (!compatibility.compatible) {
+                    jsonResponse(res, { ok: false, message: compatibility.code }, 409);
+                    return;
+                }
             }
             player.ready = ready;
             touchPlayerActivity(playerId);
@@ -661,6 +670,7 @@ export function createLANSignalingServer(port = 9090, options = {}) {
                     ready: lease.ready === true,
                     actorId: lease.actorId || playerId,
                     name: lease.name || lease.actorId || playerId,
+                    participantMetadata: lease.participantMetadata,
                     joinedAt: timestamp,
                     lastActivityAt: timestamp,
                 };
@@ -701,6 +711,27 @@ export function createLANSignalingServer(port = 9090, options = {}) {
             if (String(body.hostToken || '') !== String(lobby.hostToken || '')) {
                 jsonResponse(res, { ok: false, message: 'host_auth_failed' }, 403);
                 return;
+            }
+            const hasMobileClient = lobby.players.some((player) => (
+                isMobileLanParticipantMetadata(player.participantMetadata)
+            ));
+            if (hasMobileClient) {
+                const participantCompatibility = lobby.players
+                    .filter((player) => isMobileLanParticipantMetadata(player.participantMetadata))
+                    .map((player) => validateMobileLanParticipantMetadata(player.participantMetadata))
+                    .find((result) => !result.compatible);
+                const lobbyCompatibility = validateMobileLanLobbyMetadata(lobby.metadata);
+                const settingsCompatibility = validateMobileLanMatchSettingsSnapshot(body.settingsSnapshot);
+                const consistency = validateMobileLanLobbyMatchConsistency(lobby.metadata, body.settingsSnapshot);
+                const compatibility = participantCompatibility || (
+                    lobbyCompatibility.compatible
+                        ? (settingsCompatibility.compatible ? consistency : settingsCompatibility)
+                        : lobbyCompatibility
+                );
+                if (!compatibility.compatible) {
+                    jsonResponse(res, { ok: false, message: compatibility.code }, 409);
+                    return;
+                }
             }
             if (lobby.pendingMatchStart) {
                 jsonResponse(res, {

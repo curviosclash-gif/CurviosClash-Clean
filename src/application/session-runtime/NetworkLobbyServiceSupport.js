@@ -1,4 +1,5 @@
 import { LOBBY_SERVICE_TRANSPORTS, normalizeLobbyServiceTransport } from '../../shared/contracts/LobbyServiceContract.js';
+import { tryParseLocalLanSignalingOrigin } from '../../shared/contracts/LocalNetworkAddressContract.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 
 export function normalizeString(value, fallback = '') {
@@ -24,6 +25,7 @@ export function delay(ms) {
     return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+/** @param {string} lobbyCode @param {string} transport */
 export function createIdleSessionState(lobbyCode = '', transport = LOBBY_SERVICE_TRANSPORTS.LAN) {
     return {
         peerId: '',
@@ -167,27 +169,9 @@ export function compareDiscoveryHostEntries(left, right) {
 }
 
 export function tryParseManualSignalingUrl(rawValue, options = {}) {
-    const value = normalizeString(rawValue, '');
-    if (!value) return '';
-    const hasScheme = value.includes('://');
-    if (!hasScheme
-        && !/^localhost(?::\d+)?$/i.test(value)
-        && !/^\d{1,3}(\.\d{1,3}){3}(?::\d+)?$/.test(value)
-        && !/^[a-z0-9.-]+:\d+$/i.test(value)
-        && !/^\[[0-9a-f:.]+\]:\d+$/i.test(value)) {
-        return '';
-    }
-    let parsedUrl = null;
-    try {
-        parsedUrl = new URL(hasScheme ? value : `http://${value}`);
-    } catch {
-        return '';
-    }
-    if (parsedUrl.protocol !== 'http:' && parsedUrl.protocol !== 'https:') return '';
-    if (!normalizeString(parsedUrl.hostname, '')) return '';
-    if (options?.requirePort === true && !parsedUrl.port) return '';
-    if (parsedUrl.pathname !== '/' || parsedUrl.search || parsedUrl.hash) return '';
-    return parsedUrl.origin;
+    return tryParseLocalLanSignalingOrigin(rawValue, {
+        requirePort: options?.requirePort === true,
+    });
 }
 
 export function defaultJoinLobby(lobby, options = {}) {
@@ -196,5 +180,6 @@ export function defaultJoinLobby(lobby, options = {}) {
         lobbyCode: options.lobbyCode,
         actorId: options.actorId,
         name: options.name,
+        participantMetadata: options.participantMetadata,
     });
 }

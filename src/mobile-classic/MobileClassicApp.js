@@ -8,6 +8,7 @@ import {
     ARCADE_GHOST_DUEL_MODES,
 } from '../shared/contracts/ArcadeGhostDuelContract.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
+import { MULTIPLAYER_TRANSPORTS } from '../shared/contracts/RuntimeSessionContract.js';
 import { ensureMobileClassicStyles } from './MobileClassicStyles.js';
 import { setupMobileClassicUpdateUi } from './MobileClassicUpdateUi.js';
 import {
@@ -73,11 +74,21 @@ export function applyMobileClassicSettings(settings = null) {
         settings.hunt = {};
     }
 
+    const requestedSessionType = normalizeTarget(settings.localSettings.sessionType);
+    const requestedTransport = normalizeTarget(settings.localSettings.multiplayerTransport);
+    const isLanMultiplayer = requestedSessionType === MENU_SESSION_TYPES.MULTIPLAYER
+        && requestedTransport === MULTIPLAYER_TRANSPORTS.LAN;
     const modePath = resolveMobileAndroidModePath(settings);
-    settings.mode = '1p';
-    settings.gameMode = GAME_MODE_TYPES.CLASSIC;
-    settings.localSettings.sessionType = MENU_SESSION_TYPES.SINGLE;
-    settings.localSettings.modePath = modePath;
+    if (isLanMultiplayer) {
+        settings.localSettings.sessionType = MENU_SESSION_TYPES.MULTIPLAYER;
+        settings.localSettings.multiplayerTransport = MULTIPLAYER_TRANSPORTS.LAN;
+    } else {
+        settings.mode = '1p';
+        settings.gameMode = GAME_MODE_TYPES.CLASSIC;
+        settings.localSettings.sessionType = MENU_SESSION_TYPES.SINGLE;
+        settings.localSettings.multiplayerTransport = '';
+        settings.localSettings.modePath = modePath;
+    }
     settings.localSettings.mobileControls = normalizeMobileClassicControlSettings(settings.localSettings.mobileControls);
     if (!settings.invertPitch || typeof settings.invertPitch !== 'object') {
         settings.invertPitch = {};
@@ -90,10 +101,12 @@ export function applyMobileClassicSettings(settings = null) {
     settings.localSettings.toolsState.activeSection = resolveMobileAndroidLevel4SectionId(
         settings.localSettings.toolsState.activeSection,
     );
-    settings.gameplay.planarMode = false;
-    settings.hunt.respawnEnabled = false;
-    if (modePath === MENU_MODE_PATHS.ARCADE) {
-        applyMobileAndroidArcadeSettings(settings);
+    if (!isLanMultiplayer) {
+        settings.gameplay.planarMode = false;
+        settings.hunt.respawnEnabled = false;
+        if (modePath === MENU_MODE_PATHS.ARCADE) {
+            applyMobileAndroidArcadeSettings(settings);
+        }
     }
 
     return settings;

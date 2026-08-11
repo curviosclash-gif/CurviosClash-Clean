@@ -549,6 +549,7 @@ test('V96.2 NetworkLobbyService emits lifecycle events without UI runtime helper
         gameMode: 'HUNT',
         modePath: 'fight',
         winsNeeded: 5,
+        protocolVersion: 'curvios-multiplayer.v1',
     });
     assert.equal(hostReadyResult.sessionState.localReady, true);
     assert.equal(hostReadyResult.event, null);
@@ -758,6 +759,20 @@ test('LAN join with malformed explicit signalingUrl reports host-address validat
     assert.equal(calls[0]?.[1], 'manual_signaling_url_invalid');
     assert.match(calls[0]?.[2], /Host-Adresse/);
     assert.equal(calls.some(([type]) => type === 'discovery'), false);
+});
+
+test('manual LAN signaling accepts only local HTTP literals with valid ports', () => {
+    assert.equal(tryParseManualSignalingUrl('192.168.1.20:9090', { requirePort: true }), 'http://192.168.1.20:9090');
+    assert.equal(tryParseManualSignalingUrl('169.254.10.2:9090', { requirePort: true }), 'http://169.254.10.2:9090');
+    assert.equal(tryParseManualSignalingUrl('[fd00::20]:9090', { requirePort: true }), 'http://[fd00::20]:9090');
+    assert.equal(tryParseManualSignalingUrl('[fe80::20]:9090', { requirePort: true }), 'http://[fe80::20]:9090');
+    assert.equal(tryParseManualSignalingUrl('8.8.8.8:9090', { requirePort: true }), '');
+    assert.equal(tryParseManualSignalingUrl('example.com:9090', { requirePort: true }), '');
+    assert.equal(tryParseManualSignalingUrl('fd-malicious.example:9090', { requirePort: true }), '');
+    assert.equal(tryParseManualSignalingUrl('https://192.168.1.20:9090', { requirePort: true }), '');
+    assert.equal(tryParseManualSignalingUrl('http://192.168.1.20:9090/path', { requirePort: true }), '');
+    assert.equal(tryParseManualSignalingUrl('http://192.168.1.20:9090?token=x', { requirePort: true }), '');
+    assert.equal(tryParseManualSignalingUrl('192.168.1.20', { requirePort: true }), '');
 });
 
 test('V96.2 StorageLobbyService keeps host, join and ready mutations application-owned', () => {

@@ -4,6 +4,10 @@ import test from 'node:test';
 import { createLANSignalingServer } from '../server/lan-signaling.js';
 import { selectJoinSignalingUrlFromDiscoveredHosts } from '../src/application/session-runtime/NetworkLobbyDiscoveryResolver.js';
 import { LANMatchLobby } from '../src/network/LANMatchLobby.js';
+import {
+    MOBILE_LAN_PARTICIPANT_SURFACE_ID,
+    MULTIPLAYER_PROTOCOL_VERSION,
+} from '../src/shared/contracts/SignalingSessionContract.js';
 
 async function startLanServer(options = {}) {
     const bundle = createLANSignalingServer(0, options);
@@ -106,6 +110,14 @@ test('LAN discovery hides join data, status requires a token, and CORS rejects p
         assert.equal(allowedJoin.status, 200);
         assert.equal(allowedJoin.headers.get('access-control-allow-origin'), allowedOrigin);
         assert.notEqual(allowedJoin.headers.get('access-control-allow-origin'), '*');
+
+        const capacitorOrigin = 'http://localhost';
+        const capacitorPreflight = await fetch(`${lanServer.baseUrl}/lobby/status`, {
+            method: 'OPTIONS',
+            headers: { Origin: capacitorOrigin },
+        });
+        assert.equal(capacitorPreflight.status, 200);
+        assert.equal(capacitorPreflight.headers.get('access-control-allow-origin'), capacitorOrigin);
     } finally {
         await stopLanServer(lanServer.server);
     }
@@ -230,6 +242,130 @@ test('LAN match start is idempotent while a start command is pending', async () 
         assert.equal(first.ok, true);
         assert.equal(duplicate.ok, true);
         assert.equal(duplicate.payload.pendingMatchStart.commandId, 'match-first');
+    } finally {
+        await stopLanServer(lanServer.server);
+    }
+});
+
+test('LAN signaling gates mobile Ready and Start on the crossplay compatibility contract', async () => {
+    const lanServer = await startLanServer();
+    try {
+        const created = await postJson(lanServer.baseUrl, '/lobby/create', {
+            maxPlayers: 2,
+            metadata: {
+                mapKey: 'standard',
+                gameMode: 'CLASSIC',
+                modePath: 'normal',
+                protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+            },
+        });
+        const outdatedClient = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+            actorId: 'Old Android',
+            participantMetadata: {
+                productSurfaceId: MOBILE_LAN_PARTICIPANT_SURFACE_ID,
+                protocolVersion: 'curvios-multiplayer.v0',
+            },
+        });
+        const outdatedReady = await postJson(lanServer.baseUrl, '/lobby/ready', {
+            playerId: outdatedClient.payload.playerId,
+            playerToken: outdatedClient.payload.playerToken,
+            ready: true,
+        });
+        assert.equal(outdatedReady.status, 409);
+        assert.equal(outdatedReady.payload.message, 'mobile_protocol_incompatible');
+        await postJson(lanServer.baseUrl, '/lobby/leave', {
+            playerId: outdatedClient.payload.playerId,
+            playerToken: outdatedClient.payload.playerToken,
+        });
+
+        const joined = await postJson(lanServer.baseUrl, '/lobby/join', {
+            lobbyCode: created.payload.lobbyCode,
+            actorId: 'Android',
+            participantMetadata: {
+                productSurfaceId: MOBILE_LAN_PARTICIPANT_SURFACE_ID,
+                protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+            },
+        });
+        const readyBody = {
+            playerId: joined.payload.playerId,
+            playerToken: joined.payload.playerToken,
+            ready: true,
+        };
+        assert.equal((await postJson(lanServer.baseUrl, '/lobby/ready', readyBody)).ok, true);
+
+        await postJson(lanServer.baseUrl, '/lobby/metadata', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            metadata: {
+                mapKey: 'city',
+                gameMode: 'CLASSIC',
+                modePath: 'normal',
+                protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+            },
+        });
+        const incompatibleReady = await postJson(lanServer.baseUrl, '/lobby/ready', readyBody);
+        assert.equal(incompatibleReady.status, 409);
+        assert.equal(incompatibleReady.payload.message, 'mobile_map_incompatible');
+
+        await postJson(lanServer.baseUrl, '/lobby/metadata', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            metadata: {
+                mapKey: 'maze',
+                gameMode: 'CLASSIC',
+                modePath: 'normal',
+                protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+            },
+        });
+        assert.equal((await postJson(lanServer.baseUrl, '/lobby/ready', readyBody)).ok, true);
+
+        const incompatibleStart = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            settingsSnapshot: {
+                gameMode: 'CLASSIC',
+                mapKey: 'city',
+                localSettings: {
+                    sessionType: 'multiplayer',
+                    multiplayerTransport: 'lan',
+                    modePath: 'normal',
+                },
+            },
+        });
+        assert.equal(incompatibleStart.status, 409);
+        assert.equal(incompatibleStart.payload.message, 'mobile_map_incompatible');
+
+        const staleReadyStart = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            settingsSnapshot: {
+                gameMode: 'CLASSIC',
+                mapKey: 'standard',
+                localSettings: {
+                    sessionType: 'multiplayer',
+                    multiplayerTransport: 'lan',
+                    modePath: 'normal',
+                },
+            },
+        });
+        assert.equal(staleReadyStart.status, 409);
+        assert.equal(staleReadyStart.payload.message, 'mobile_settings_mismatch');
+
+        const compatibleStart = await postJson(lanServer.baseUrl, '/lobby/match-start', {
+            hostPeerId: 'host',
+            hostToken: created.payload.hostToken,
+            settingsSnapshot: {
+                gameMode: 'CLASSIC',
+                mapKey: 'maze',
+                localSettings: {
+                    sessionType: 'multiplayer',
+                    multiplayerTransport: 'lan',
+                    modePath: 'normal',
+                },
+            },
+        });
+        assert.equal(compatibleStart.ok, true);
     } finally {
         await stopLanServer(lanServer.server);
     }

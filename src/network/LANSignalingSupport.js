@@ -31,6 +31,14 @@ export function buildLanRequestError({
         message = 'Alle Teilnehmer muessen Ready sein.';
     } else if (signalingCode === 'not_enough_members') {
         message = 'Mindestens zwei Teilnehmer werden benoetigt.';
+    } else if (signalingCode === 'mobile_protocol_incompatible') {
+        message = 'Die Lobby verwendet eine nicht unterstuetzte Multiplayer-Version.';
+    } else if (signalingCode === 'mobile_mode_incompatible') {
+        message = 'Android-Crossplay unterstuetzt derzeit nur Normal / Classic ueber LAN.';
+    } else if (signalingCode === 'mobile_map_incompatible') {
+        message = 'Die Host-Karte ist in der Android-App nicht fuer Crossplay freigegeben.';
+    } else if (signalingCode === 'mobile_settings_mismatch') {
+        message = 'Die Host-Einstellungen haben sich nach dem Ready-Status geaendert.';
     } else if (responseCode > 0) {
         message = `${fallbackMessage} (${responseCode})`;
     }

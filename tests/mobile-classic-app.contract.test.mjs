@@ -369,6 +369,9 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
   const normalButton = createButton({ modePath: 'normal' });
   const arcadeButton = createButton({ modePath: 'arcade' });
   const fightButton = createButton({ modePath: 'fight' });
+  const hostButton = createButton();
+  const lanTransportButton = createButton({ multiplayerTransport: 'lan' });
+  const onlineTransportButton = createButton({ multiplayerTransport: 'online' });
   const mapSelect = createMapSelect(['standard', 'micro_maw', 'storm_switchyard', 'mirror_docks'], 'storm_switchyard');
   const startButton = createButton();
   const menuContext = { textContent: 'Hauptmenue' };
@@ -388,6 +391,8 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
       sessionButtons: [singleButton, multiButton],
       modePathButtons: [normalButton, arcadeButton, fightButton],
       mapSelect,
+      multiplayerHostButton: hostButton,
+      multiplayerTransportButtons: [lanTransportButton, onlineTransportButton],
       startButton,
       menuContext,
     },
@@ -395,12 +400,15 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
 
   assert.equal(singleButton.disabled, false);
   assert.equal(singleButton.textContent, 'Einzelspieler');
-  assert.equal(multiButton.disabled, true);
+  assert.equal(multiButton.disabled, false);
   assert.equal(normalButton.disabled, false);
   assert.equal(normalButton.textContent, 'Klassisch');
   assert.equal(arcadeButton.disabled, false);
   assert.equal(arcadeButton.textContent, 'Arcade');
   assert.equal(fightButton.disabled, true);
+  assert.equal(hostButton.disabled, true);
+  assert.equal(lanTransportButton.disabled, false);
+  assert.equal(onlineTransportButton.disabled, true);
   assert.deepEqual(mapSelect.options.map((option) => option.value), ['micro_maw', 'mirror_docks']);
   assert.equal(mapSelect.value, 'micro_maw');
   assert.equal(gameSettings.mapKey, 'micro_maw');
@@ -408,6 +416,34 @@ test('Unified Mobile Android UI keeps the shared game menu copy and mobile mode 
   assert.equal(gameSettings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
   assert.equal(startButton.textContent, 'Spiel starten');
   assert.equal(menuContext.textContent, 'Hauptmenue');
+});
+
+test('Unified Mobile Android preserves an authoritative LAN multiplayer snapshot', () => {
+  const settings = {
+    mode: '1p',
+    gameMode: 'CLASSIC',
+    mapKey: 'maze',
+    invertPitch: { PLAYER_1: true },
+    localSettings: {
+      sessionType: 'multiplayer',
+      multiplayerTransport: 'lan',
+      modePath: 'normal',
+    },
+    gameplay: { planarMode: true },
+    hunt: { respawnEnabled: true },
+  };
+
+  applyMobileClassicSettings(settings);
+
+  assert.equal(settings.mode, '1p');
+  assert.equal(settings.gameMode, 'CLASSIC');
+  assert.equal(settings.mapKey, 'maze');
+  assert.equal(settings.localSettings.sessionType, 'multiplayer');
+  assert.equal(settings.localSettings.multiplayerTransport, 'lan');
+  assert.equal(settings.localSettings.modePath, 'normal');
+  assert.equal(settings.gameplay.planarMode, true);
+  assert.equal(settings.hunt.respawnEnabled, true);
+  assert.equal(settings.invertPitch.PLAYER_1, false);
 });
 
 test('Unified Mobile Android Level 4 keeps the shared game menu copy', () => {
@@ -1218,6 +1254,7 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   const capacitorScript = await readText('scripts/capacitor-mobile-classic.mjs');
   const gradleFile = await readText('android-classic/app/build.gradle');
   const androidManifest = await readText('android-classic/app/src/main/AndroidManifest.xml');
+  const capacitorConfig = await readJson('tools/mobile-classic-app/capacitor.config.json');
   const mainActivity = await readText('android-classic/app/src/main/java/de/curviosclash/classic/MainActivity.java');
   const updateScript = await readText('scripts/update-mobile-classic-from-github.mjs');
   const mobileClassicApp = await readText('src/mobile-classic/MobileClassicApp.js');
@@ -1243,6 +1280,9 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.match(buildScript, /mobile-classic\.manifest\.json/);
   assert.match(buildScript, /curvios\.mobile-android-app\.v1/);
   assert.match(buildScript, /modePaths: \['normal', 'arcade'\]/);
+  assert.match(buildScript, /sessionTypes: \['single', 'multiplayer'\]/);
+  assert.match(buildScript, /role: 'client'/);
+  assert.match(buildScript, /transport: 'lan'/);
   assert.match(buildScript, /listMobileArcadeRouteAllowlist/);
   assert.match(buildScript, /CURVIOS_CLASSIC_APP_GITHUB_REPOSITORY/);
   assert.match(buildScript, /updates: createMobileClassicGithubUpdateConfig/);
@@ -1267,6 +1307,12 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   // V131 Orientation-Policy: landscape-stabil fuer Match und Menue, keine Activity-Recreation bei Rotation.
   assert.match(androidManifest, /android:screenOrientation="sensorLandscape"/);
   assert.match(androidManifest, /android:configChanges="[^"]*orientation[^"]*"/);
+  assert.match(androidManifest, /android:usesCleartextTraffic="true"/);
+  assert.deepEqual(capacitorConfig.server, {
+    hostname: 'localhost',
+    androidScheme: 'http',
+    cleartext: true,
+  });
   assert.match(mainActivity, /WindowManager\.LayoutParams\.FLAG_KEEP_SCREEN_ON/);
   assert.match(mainActivity, /OnBackPressedCallback/);
   assert.match(mainActivity, /__curviosAndroidBackHandler/);
@@ -1284,7 +1330,10 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.doesNotMatch(mobileClassicMenuUi, /Zeitroute mit Ghost-Selbstduell/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobile-android-route-panel/);
   assert.doesNotMatch(mobileClassicMenuUi, /mobileRouteKey|dispatchMapSelectChange/);
-  assert.match(mobileClassicStyles, /#menu-nav\{grid-template-columns:minmax\(0,1fr\)\}/);
+  assert.match(mobileClassicStyles, /#menu-nav\{grid-template-columns:repeat\(2,minmax\(0,1fr\)\)\}/);
+  assert.doesNotMatch(mobileClassicStyles, /nav-btn\[data-session-type="multiplayer"\]/);
+  assert.match(mobileClassicStyles, /#btn-multiplayer-host/);
+  assert.match(mobileClassicStyles, /#btn-multiplayer-transport-online/);
   assert.doesNotMatch(mobileClassicStyles, /mobile-android-entry|mobile-android-route/);
   assert.match(mobileClassicApp, /ensureMobileClassicStyles/);
   assert.match(startSetupUiOps, /dataset\.summaryLabel/);

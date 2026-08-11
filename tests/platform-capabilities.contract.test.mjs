@@ -29,6 +29,7 @@ import {
     resolveCapabilityProviderKind,
     resolveDefaultLobbyTransport,
     resolveLobbyProviderKind,
+    resolvePlatformProductSurfaceId,
     resolveSurfaceCapabilityAccess,
     resolveSurfaceDeveloperAccess,
     resolveSurfacePolicy,
@@ -80,6 +81,25 @@ function createBrowserDemoBuildArtifactRuntimeGlobal({
         },
     };
 }
+
+test('mobile-classic resolves to a join-only LAN-only product surface', () => {
+    const productSurfaceId = resolvePlatformProductSurfaceId({
+        appMode: 'app',
+        appTarget: 'mobile-classic',
+    });
+    const policy = resolveSurfacePolicy({ productSurfaceId });
+    const host = resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.HOST, { productSurfaceId });
+    const discovery = resolveSurfaceCapabilityAccess(PLATFORM_CAPABILITY_IDS.DISCOVERY, { productSurfaceId });
+
+    assert.equal(productSurfaceId, PLATFORM_PRODUCT_SURFACE_IDS.MOBILE_APP);
+    assert.equal(policy.multiplayerRole, PLATFORM_SURFACE_MULTIPLAYER_ROLES.JOIN_ONLY);
+    assert.deepEqual(policy.allowedSessionTypes, ['single', 'multiplayer']);
+    assert.deepEqual(policy.allowedMultiplayerTransports, ['lan']);
+    assert.deepEqual(policy.hostMultiplayerTransports, []);
+    assert.deepEqual(policy.joinMultiplayerTransports, ['lan']);
+    assert.equal(host.available, false);
+    assert.equal(discovery.available, false);
+});
 
 test('V87.3 Electron discovery adapter suppresses stale capability availability without intents', () => {
     const runtimeGlobal = {

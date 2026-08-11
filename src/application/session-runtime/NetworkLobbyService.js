@@ -87,6 +87,9 @@ export class NetworkLobbyService {
             now: this._clock.nowMs,
         });
         this._actorId = '';
+        this._participantMetadata = options.participantMetadata && typeof options.participantMetadata === 'object'
+            ? { ...options.participantMetadata }
+            : null;
         this._hostSettingsSnapshot = null;
         this._connectionPhase = 'idle';
         this._reconnectAttempt = 0;
@@ -348,6 +351,7 @@ export class NetworkLobbyService {
                 lobbyCode: requestedLobbyCode,
                 actorId,
                 name: actorId,
+                participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
             this._connectionPhase = 'disconnected';

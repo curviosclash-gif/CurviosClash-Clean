@@ -7,13 +7,18 @@ import {
 import { resolveElectronRuntimeSnapshot } from '../../platform/electron/ElectronPlatformBridge.js';
 import { createMenuFeatureFlags } from './MenuStateContracts.js';
 
-/* global __APP_MODE__ */
+/* global __APP_MODE__, __APP_TARGET__ */
+
+function resolveAppTarget() {
+    return typeof __APP_TARGET__ !== 'undefined' ? String(__APP_TARGET__).trim().toLowerCase() : '';
+}
 
 export function isDesktopAppRuntime(runtimeGlobal = globalThis) {
     const appMode = typeof __APP_MODE__ !== 'undefined' ? String(__APP_MODE__).trim().toLowerCase() : 'web';
     const platformRuntimeSnapshot = resolveElectronRuntimeSnapshot(runtimeGlobal);
     return isDesktopProductSurface({
         appMode,
+        appTarget: resolveAppTarget(),
         platformRuntimeSnapshot,
     });
 }
@@ -24,6 +29,7 @@ export function resolveRuntimeMenuFeatureFlags(sourceFlags = null, runtimeGlobal
     const platformRuntimeSnapshot = resolveElectronRuntimeSnapshot(runtimeGlobal);
     const capabilityResolverOptions = {
         appMode,
+        appTarget: resolveAppTarget(),
         platformRuntimeSnapshot,
         runtimeGlobal,
     };
