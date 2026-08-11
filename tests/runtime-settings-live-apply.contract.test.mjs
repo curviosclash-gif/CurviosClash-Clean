@@ -876,6 +876,37 @@ test('Arcade parcours HUD snapshots are pure and UI consumption is sequence base
     assert.equal(collectUnseenParcoursHudEvents(firstHudState, 'parcours_split', 0).events.length, 1);
 });
 
+test('Arcade HUD reads the canonical cached profile without normalizing it per snapshot', () => {
+    const runtime = new ArcadeRunRuntime({ now: () => 1000 });
+    runtime._enabled = true;
+    runtime._activeVehicleId = 'ship1';
+    runtime._vehicleProfiles = {
+        ship1: {
+            level: 7,
+            upgrades: {},
+            hangarBonuses: { speedBonusPct: 9, turningBonusPct: 4, maxHpBonus: 12 },
+        },
+    };
+    runtime._state = {
+        phase: 'sector_active',
+        sectorIndex: 1,
+        config: { comboWindowMs: 5000 },
+        score: { breakdown: {} },
+    };
+    runtime.getVehicleProfile = () => {
+        throw new Error('HUD hot path must not normalize profiles');
+    };
+
+    const hud = runtime.getHudState();
+
+    assert.deepEqual(hud.vehicleStats, {
+        level: 7,
+        speedBonusPct: 9,
+        turningBonusPct: 4,
+        maxHpBonus: 12,
+    });
+});
+
 test('Arcade parcours leaderboard persists penaltyTimeMs separately from totalTimeMs', () => {
     const writes = [];
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });

@@ -817,7 +817,9 @@ export class ArcadeRunRuntime {
         const parcoursSegmentSplit = this._peekHudEvent('parcours_split') || this._state.lastParcoursSegmentSplit || null;
         const parcoursPenalty = this._peekHudEvent('parcours_penalty') || this._state.lastParcoursPenalty || null;
         // 82.8.3: Vehicle stats for sector-start HUD flash
-        const profile = this.getVehicleProfile();
+        // Profiles are canonicalized when loaded or changed. Re-normalizing the full
+        // Hangar progression here would allocate several collections every HUD frame.
+        const profile = this._vehicleProfiles?.[this._activeVehicleId] || null;
         const profileBonuses = profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null;
         const vehicleStats = {
             level: profile?.level ?? 1,
