@@ -99,7 +99,7 @@
     "@capacitor/cli": "8.3.4",
     "@playwright/test": "^1.58.2",
     "@types/node": "^25.5.0",
-    "eslint": "^10.0.3",
+    "eslint": "^10.8.1",
     "eslint-plugin-boundaries": "^6.0.2",
     "typescript": "^5.9.3",
     "vite": "^6.4.2",
