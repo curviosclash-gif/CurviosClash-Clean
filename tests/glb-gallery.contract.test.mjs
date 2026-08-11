@@ -143,15 +143,17 @@ test('GLB animation playback uses the first exported clip and is owned by the ar
     });
     arena._portalGateSystem.update = () => {};
     arena._glbScene = result.scene;
-    arena._glbAnimationMixers = result.animationMixers;
+    arena.setGlbAnimationTracks(result.animationTracks);
 
     assert.equal(result.animationMixers.length, 1);
+    assert.equal(result.animationTracks.length, 1);
+    assert.equal(result.animationTracks[0].clipName, 'move-x');
     arena.update(0.5);
     assert.equal(animatedNode.position.x, 2);
     assert.equal(animatedNode.position.y, 0);
 
     arena._clearLoadedGlbScene();
-    assert.equal(arena._glbAnimationMixers.length, 0);
+    assert.equal(arena.glbAnimationElapsedSeconds, 0);
     assert.equal(arena._glbScene, null);
 });
 

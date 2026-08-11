@@ -65,6 +65,7 @@ export class ArenaBuilder {
             glbLoadDelayMs: Number(mapResolution.map?.glbLoadDelayMs) || 0,
             glbLoadConcurrency: Number(mapResolution.map?.glbLoadConcurrency) || 4,
             glbColliderMode: typeof mapResolution.map?.glbColliderMode === 'string' ? mapResolution.map.glbColliderMode : 'mesh',
+            glbAnimationClock: mapResolution.map?.glbAnimationClock ?? null,
             materialBundle,
             graphicsStyle,
             buildSignature,

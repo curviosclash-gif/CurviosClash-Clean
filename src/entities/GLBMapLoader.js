@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationClockContract.js';
+import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl } from './mapSchema/MapSchemaGlbOps.js';
 
@@ -32,8 +34,13 @@ function normalizeVector3(value, fallback = [0, 0, 0]) {
     ];
 }
 
-export function normalizeGLBModelCollection(glbModels) {
+/**
+ * @param {any} glbModels
+ * @param {{ animationClock?: unknown }} [options] map level clock every model falls back to
+ */
+export function normalizeGLBModelCollection(glbModels, options = {}) {
     if (!Array.isArray(glbModels)) return [];
+    const mapClock = normalizeMapAnimationClock(options?.animationClock);
     const normalized = [];
     for (let index = 0; index < glbModels.length; index += 1) {
         const source = glbModels[index];
@@ -46,9 +53,25 @@ export function normalizeGLBModelCollection(glbModels) {
             rotation: normalizeVector3(source?.rotation),
             scale: normalizePositiveNumber(source?.scale, 1),
             targetSize: normalizePositiveNumber(source?.targetSize, 0),
+            animationClock: normalizeMapAnimationClock(source?.animationClock, mapClock),
         });
     }
     return normalized;
+}
+
+/**
+ * Picks the clip a setpiece should play. A named clip that the file does not contain falls
+ * back to the first one, so a renamed export degrades to the old behaviour instead of
+ * leaving the setpiece frozen.
+ */
+function selectAnimationClip(clips, clipName) {
+    if (!Array.isArray(clips) || clips.length === 0) return null;
+    const wanted = typeof clipName === 'string' ? clipName.trim() : '';
+    if (wanted) {
+        const match = clips.find((clip) => String(clip?.name || '') === wanted);
+        if (match) return match;
+    }
+    return clips[0] || null;
 }
 
 export function classifyGLBModelSource(glbModel) {
@@ -256,10 +279,19 @@ export async function loadGLBMap(glbModel, options = {}) {
     }
 
     scene.name = String(options.sceneName || 'glbMapScene');
+    const clock = normalizeMapAnimationClock(options.animationClock);
     const clips = Array.isArray(gltf.animations) ? gltf.animations : [];
-    const animationMixer = clips.length > 0 ? new THREE.AnimationMixer(scene) : null;
-    animationMixer?.clipAction(clips[0]).play();
-    const animatedNodes = collectAnimatedNodes(scene, clips);
+    const clip = selectAnimationClip(clips, clock.clipName);
+    const animationMixer = clip ? new THREE.AnimationMixer(scene) : null;
+    const animationTracks = [];
+    if (animationMixer && clip) {
+        const action = animationMixer.clipAction(clip);
+        action.play();
+        animationTracks.push(createGlbAnimationTrack({ mixer: animationMixer, action, clip, clock }));
+    }
+    // Only the clip that actually plays moves anything, so only its nodes need to carry a
+    // collider that follows the animation.
+    const animatedNodes = collectAnimatedNodes(scene, clip ? [clip] : []);
     const { colliders, bounds } = collectSceneColliders(scene, {
         collectColliders: options.collectColliders !== false,
         colliderMode: options.colliderMode,
@@ -274,6 +306,7 @@ export async function loadGLBMap(glbModel, options = {}) {
         }),
         scene,
         animationMixers: animationMixer ? [animationMixer] : [],
+        animationTracks,
         animatedNodes,
         colliders,
         bounds,
@@ -281,7 +314,7 @@ export async function loadGLBMap(glbModel, options = {}) {
 }
 
 export async function loadGLBMapCollection(glbModels, options = {}) {
-    const models = normalizeGLBModelCollection(glbModels);
+    const models = normalizeGLBModelCollection(glbModels, { animationClock: options.animationClock });
     if (models.length === 0) {
         throw new Error('GLB map collection requires at least one model URL.');
     }
@@ -307,6 +340,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
                     loader: options.loader,
                     sceneName: `glbModel-${descriptor.id}`,
                     collectColliders: false,
+                    animationClock: descriptor.animationClock,
                 });
                 loadedModels[modelIndex] = { descriptor, result };
             } catch (error) {
@@ -320,6 +354,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
     const scene = new THREE.Group();
     scene.name = String(options.sceneName || 'glbMapCollection');
     const animationMixers = [];
+    const animationTracks = [];
     // Per-model detection runs before placement; the node references stay identical once
     // the scenes are nested into the collection group, so the union stays valid.
     const animatedNodes = new Set();
@@ -333,6 +368,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
             placementScale,
         ));
         animationMixers.push(...loaded.result.animationMixers);
+        animationTracks.push(...loaded.result.animationTracks);
         for (const node of loaded.result.animatedNodes) animatedNodes.add(node);
         loadedCount += 1;
     }
@@ -358,6 +394,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
         }),
         scene,
         animationMixers,
+        animationTracks,
         animatedNodes,
         colliders,
         bounds,

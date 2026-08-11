@@ -9,6 +9,7 @@ import {
     resolveGLBCollectionFootprint,
     resolveGLBFootprint,
 } from './GLBMapLoader.js';
+import { GlbAnimationDriver } from './arena/GlbAnimationDriver.js';
 import { refreshDynamicMeshCollider } from './arena/StaticMeshCollider.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
@@ -63,7 +64,7 @@ export class Arena {
         this._mergedObstacleEdges = null;
         this._mergedFoamEdges = null;
         this._glbScene = null;
-        this._glbAnimationMixers = [];
+        this._glbAnimation = new GlbAnimationDriver();
         this._glbDynamicObstacles = [];
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
@@ -79,13 +80,26 @@ export class Arena {
         this._portalGateSystem = new PortalGateSystem(this);
     }
 
+    /** Elapsed match time the animated setpieces are posed for. */
+    get glbAnimationElapsedSeconds() {
+        return this._glbAnimation.elapsedSeconds;
+    }
+
+    setGlbAnimationTracks(tracks) {
+        this._glbAnimation.setTracks(tracks);
+    }
+
+    /**
+     * Overrides the time the setpieces are posed for. A round restart passes 0; a client
+     * that fell behind passes the time the host reports, which snaps every moving obstacle
+     * back onto the pose the other players already see.
+     */
+    setGlbAnimationElapsedSeconds(seconds) {
+        this._glbAnimation.setElapsedSeconds(seconds);
+    }
+
     _clearLoadedGlbScene() {
-        for (const mixer of this._glbAnimationMixers) {
-            const root = mixer.getRoot();
-            mixer.stopAllAction();
-            mixer.uncacheRoot(root);
-        }
-        this._glbAnimationMixers.length = 0;
+        this._glbAnimation.clear();
         this._glbDynamicObstacles.length = 0;
         if (!this._glbScene) return;
         this.renderer.removeFromScene(this._glbScene);
@@ -205,7 +219,9 @@ export class Arena {
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
         this.portalLayoutWarnings = [];
-        const glbModels = normalizeGLBModelCollection(buildContext.glbModels);
+        const glbModels = normalizeGLBModelCollection(buildContext.glbModels, {
+            animationClock: buildContext.glbAnimationClock,
+        });
         const hasGlbCollection = glbModels.length > 0;
         this._glbFootprint = hasGlbCollection
             ? resolveGLBCollectionFootprint(glbModels, { colliderMode: buildContext.glbColliderMode })
@@ -258,17 +274,19 @@ export class Arena {
                 sceneName: `glbMap-${this.currentMapKey}`,
                 collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
                 colliderMode: buildContext.glbColliderMode,
+                animationClock: buildContext.glbAnimationClock,
             })
             : loadGLBMap(buildContext.glbModel, {
                 loadDelayMs: buildContext.glbLoadDelayMs,
                 sceneName: `glbMap-${this.currentMapKey}`,
                 collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
                 colliderMode: buildContext.glbColliderMode,
+                animationClock: buildContext.glbAnimationClock,
             });
 
         return glbLoad.then((glbResult) => {
             this._glbScene = glbResult.scene;
-            this._glbAnimationMixers = glbResult.animationMixers;
+            this._glbAnimation.setTracks(glbResult.animationTracks);
             this._glbFootprint = glbResult.footprint || this._glbFootprint;
             this._glbLoadWarnings = Array.isArray(glbResult.warnings) ? [...glbResult.warnings] : [];
             this.renderer.addToScene(this._glbScene);
@@ -384,9 +402,7 @@ export class Arena {
 
     update(dt) {
         this._portalGateSystem.update(dt);
-        for (const mixer of this._glbAnimationMixers) {
-            mixer.update(dt);
-        }
+        this._glbAnimation.advance(dt);
         this._refreshDynamicObstacles();
         for (const entry of this._aircraftDecorations) {
             entry?.mesh?.tick?.(dt);
