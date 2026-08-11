@@ -314,6 +314,35 @@ test('failed hangar writes leave the local build snapshot unchanged', async () =
     assert.deepEqual(adapter.getSnapshot(), stableSnapshot);
 });
 
+test('hangar legacy migration reports a rejected canonical write', async () => {
+    const legacy = {
+        schemaVersion: 'arcade-vehicle-loadouts.v1',
+        presets: [{ presetId: 'legacy-retry', vehicleId: 'ship5', name: 'Legacy Retry' }],
+    };
+    const store = {
+        loadJsonRecord(key, fallback) {
+            return key === LEGACY_ARCADE_LOADOUT_STORAGE_KEY ? structuredClone(legacy) : fallback;
+        },
+        saveJsonRecord() {
+            return { success: false, reason: 'quota_exceeded' };
+        },
+    };
+    const capability = createSettingsRecordHangarCapability({ store, mode: 'arcade' });
+
+    const result = capability(HANGAR_CAPABILITY_IDS.LOAD_CUSTOM_BLUEPRINT);
+
+    assert.equal(result.ok, false);
+    assert.equal(result.code, 'quota_exceeded');
+    assert.deepEqual(result.migration, {
+        attempted: true,
+        ok: false,
+        code: 'quota_exceeded',
+        sourceKey: LEGACY_ARCADE_LOADOUT_STORAGE_KEY,
+        storageKey: HANGAR_BUILD_STORAGE_KEYS.arcade,
+    });
+    assert.equal(result.record.builds[0]?.buildId, 'legacy-retry');
+});
+
 test('hangar selection merges into the newest settings record before saving', () => {
     const localSettings = {
         audioVolume: 0.1,

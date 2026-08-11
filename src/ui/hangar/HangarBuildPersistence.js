@@ -74,24 +74,43 @@ export function createSettingsRecordHangarCapability({ store, mode = 'arcade' } 
     const storageKey = HANGAR_BUILD_STORAGE_KEYS[normalizedMode];
 
     function loadRecord() {
-        if (!store || typeof store.loadJsonRecord !== 'function') return normalizeRecord(null, normalizedMode);
+        if (!store || typeof store.loadJsonRecord !== 'function') {
+            return { record: normalizeRecord(null, normalizedMode), migration: null };
+        }
         const raw = store.loadJsonRecord(storageKey, null);
-        if (raw && typeof raw === 'object') return normalizeRecord(raw, normalizedMode);
+        if (raw && typeof raw === 'object') {
+            return { record: normalizeRecord(raw, normalizedMode), migration: null };
+        }
         if (normalizedMode === 'arcade') {
             const legacy = store.loadJsonRecord(LEGACY_ARCADE_LOADOUT_STORAGE_KEY, null);
             if (legacy && typeof legacy === 'object') {
                 const migrated = normalizeRecord(legacy, normalizedMode);
-                saveRecord(store, storageKey, migrated);
-                return migrated;
+                const persistence = saveRecord(store, storageKey, migrated);
+                return {
+                    record: migrated,
+                    migration: {
+                        attempted: true,
+                        ok: persistence.ok === true,
+                        code: persistence.ok === true ? 'migrated' : persistence.code,
+                        sourceKey: LEGACY_ARCADE_LOADOUT_STORAGE_KEY,
+                        storageKey,
+                    },
+                };
             }
         }
-        return normalizeRecord(null, normalizedMode);
+        return { record: normalizeRecord(null, normalizedMode), migration: null };
     }
 
     return (capabilityId, payload = {}) => {
-        const record = loadRecord();
+        const loaded = loadRecord();
+        const record = loaded.record;
         if (capabilityId === HANGAR_CAPABILITY_IDS.LOAD_CUSTOM_BLUEPRINT) {
-            return { ok: true, record: cloneRecord(record) };
+            return {
+                ok: loaded.migration?.ok !== false,
+                code: loaded.migration?.ok === false ? loaded.migration.code : undefined,
+                record: cloneRecord(record),
+                migration: loaded.migration,
+            };
         }
         if (capabilityId === HANGAR_CAPABILITY_IDS.SAVE_CUSTOM_BLUEPRINT) {
             const build = normalizeHangarBuild({ ...(payload.build || payload), mode: normalizedMode });
