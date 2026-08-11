@@ -120,18 +120,48 @@ function renderRecentRoundsCard(container, recentRounds = []) {
     container.appendChild(card);
 }
 
-export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null) {
+function renderAuthoringTelemetry(container, snapshot = null) {
+    if (!snapshot || typeof snapshot !== 'object') return;
+    const tools = snapshot.tools && typeof snapshot.tools === 'object' ? snapshot.tools : {};
+    const grid = document.createElement('div');
+    grid.className = 'developer-telemetry-grid';
+    grid.setAttribute('data-telemetry-section', 'authoring');
+
+    const definitions = [
+        ['vehicle_lab', 'Vehicle Lab'],
+        ['map_editor', 'Map Editor'],
+    ];
+    definitions.forEach(([toolId, label]) => {
+        const tool = tools[toolId] || {};
+        const sessions = Math.max(0, Number(tool.sessions) || 0);
+        const completed = Math.max(0, Number(tool.completedSessions) || 0);
+        const list = createCard(grid, `authoring-${toolId}`, label);
+        appendRow(list, `${toolId}-sessions`, 'Sitzungen', String(sessions));
+        appendRow(list, `${toolId}-completion`, 'Abschlussrate', formatPercent(sessions > 0 ? completed / sessions : 0));
+        appendRow(list, `${toolId}-duration`, 'Aktive Zeit', formatDurationMs(tool.activeDurationMs));
+        appendRow(list, `${toolId}-save`, 'Speichern', String(Math.max(0, Number(tool.counters?.save) || 0)));
+        appendRow(list, `${toolId}-export`, 'Export', String(Math.max(0, Number(tool.counters?.export) || 0)));
+        appendRow(list, `${toolId}-validation`, 'Validierungen', String(Math.max(0, Number(tool.counters?.validation) || 0)));
+        appendRow(list, `${toolId}-undo`, 'Undo / Redo', `${Math.max(0, Number(tool.counters?.undo) || 0)} / ${Math.max(0, Number(tool.counters?.redo) || 0)}`);
+        const errorTotal = Object.values(tool.errors || {}).reduce((sum, value) => sum + Math.max(0, Number(value) || 0), 0);
+        appendRow(list, `${toolId}-errors`, 'Fehler', String(errorTotal));
+    });
+    container.appendChild(grid);
+}
+
+export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null, authoringTelemetrySnapshot = null) {
     if (!container) return;
     clearContainer(container);
 
-    const snapshot = telemetrySnapshot && typeof telemetrySnapshot === 'object'
+    const gameplaySnapshot = telemetrySnapshot && typeof telemetrySnapshot === 'object'
         ? telemetrySnapshot
         : null;
+    const snapshot = gameplaySnapshot || {};
     const balance = snapshot?.balance && typeof snapshot.balance === 'object'
         ? snapshot.balance
         : null;
 
-    if (!snapshot) {
+    if (!gameplaySnapshot && !authoringTelemetrySnapshot) {
         container.textContent = 'Keine Telemetrie vorhanden.';
         return;
     }
@@ -163,6 +193,7 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     container.appendChild(grid);
     renderTelemetryHeatmapSection(container, snapshot.topMaps);
     renderRecentRoundsCard(container, snapshot.recentRounds);
+    renderAuthoringTelemetry(container, authoringTelemetrySnapshot);
 }
 
 export function renderTelemetryHistorySection(container, historySummary) {

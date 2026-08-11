@@ -1,3 +1,5 @@
+import { AUTHORING_TELEMETRY_STORAGE_KEY } from '../shared/contracts/AuthoringTelemetryContract.js';
+
 const APP_STORAGE_NAMESPACE = 'cuviosclash';
 const LEGACY_APP_STORAGE_NAMESPACE = 'aero-arena-3d';
 
@@ -11,6 +13,7 @@ export const STORAGE_KEYS = Object.freeze({
     menuPresets: buildStorageKey(APP_STORAGE_NAMESPACE, 'menu-presets.v1'),
     menuTextOverrides: buildStorageKey(APP_STORAGE_NAMESPACE, 'menu-text-overrides.v1'),
     menuTelemetry: buildStorageKey(APP_STORAGE_NAMESPACE, 'menu-telemetry.v1'),
+    authoringTelemetry: AUTHORING_TELEMETRY_STORAGE_KEY,
     menuDrafts: buildStorageKey(APP_STORAGE_NAMESPACE, 'menu-drafts.v1'),
     // Note: arcadeVehicleProfile key is owned by src/state/arcade/ArcadeVehicleProfile.js
     // and must match: 'cuviosclash.arcade-vehicle-profile.v1'
@@ -27,6 +30,7 @@ export const LEGACY_STORAGE_KEYS = Object.freeze({
     menuPresets: Object.freeze([buildStorageKey(LEGACY_APP_STORAGE_NAMESPACE, 'menu-presets.v1')]),
     menuTextOverrides: Object.freeze([buildStorageKey(LEGACY_APP_STORAGE_NAMESPACE, 'menu-text-overrides.v1')]),
     menuTelemetry: Object.freeze([buildStorageKey(LEGACY_APP_STORAGE_NAMESPACE, 'menu-telemetry.v1')]),
+    authoringTelemetry: Object.freeze([]),
     menuDrafts: Object.freeze([buildStorageKey(LEGACY_APP_STORAGE_NAMESPACE, 'menu-drafts.v1')]),
     arcadeVehicleProfile: Object.freeze([]),
 });

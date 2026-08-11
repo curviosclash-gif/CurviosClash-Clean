@@ -28,6 +28,8 @@ import {
     saveVehicleLabCatalog,
     upsertVehicleLabCatalogVehicle,
 } from '../../src/shared/contracts/VehicleLabConfigContract.js';
+import { AUTHORING_TELEMETRY_TOOLS } from '../../src/shared/contracts/AuthoringTelemetryContract.js';
+import { AuthoringTelemetrySession } from '../../src/state/AuthoringTelemetrySession.js';
 
 const VEHICLE_LAB_CONFIG_STORAGE_KEY = 'vehicle_lab_config';
 const VEHICLE_LAB_RECOVERY_STORAGE_KEY = 'vehicle_lab_recovery_config';
@@ -118,6 +120,7 @@ class VehicleLabApp {
     constructor() {
         this.canvas = document.getElementById('vehicleCanvas');
         this.core = new VehicleLabCore(this.canvas);
+        this.authoringTelemetry = new AuthoringTelemetrySession({ tool: AUTHORING_TELEMETRY_TOOLS.VEHICLE_LAB });
 
         const saved = localStorage.getItem(VEHICLE_LAB_CONFIG_STORAGE_KEY);
         let initialConfig = null;
@@ -354,6 +357,7 @@ class VehicleLabApp {
             this.ui.updateSaveState('saved', 'Entwurf automatisch gesichert');
             this.setStatus(statusMessage, 'success');
         } catch (error) {
+            this.authoringTelemetry?.recordError('autosave_failed');
             this.ui.updateSaveState('error', 'Speichern fehlgeschlagen');
             this.setStatus(`Lokales Speichern fehlgeschlagen: ${error.message}`, 'error');
         }
@@ -406,6 +410,8 @@ class VehicleLabApp {
         }
         this.ui.setDraftRecoveryAvailable(this.readRecoveryDraft() !== null);
         this.setStatus('Vorheriger Entwurf wiederhergestellt.', 'success');
+        this.authoringTelemetry.recordCounter('recovery_restored');
+        this.authoringTelemetry.recordOutcome('recovery_restored', true, { flush: true });
     }
 
     applyVehicleConfigToEditor(config, options = {}) {
@@ -522,6 +528,7 @@ class VehicleLabApp {
         const preset = VEHICLE_PRESETS.find(p => p.id === vehicleId);
         if (preset) {
             this.applyVehicleConfigToEditor(preset);
+            this.authoringTelemetry.recordCounter('preset_loaded');
             return;
         }
         const gameReference = GAME_VEHICLE_REFERENCES.find((entry) => entry.id === vehicleId);
@@ -708,6 +715,7 @@ class VehicleLabApp {
         this.rebuildVehicle();
         this.selectPart(this.vehicle.config.parts.length - 1, []);
         this.onPropUpdate('add');
+        this.authoringTelemetry.recordCounter('part_added');
     }
 
     addChild() {
@@ -724,6 +732,7 @@ class VehicleLabApp {
         this.rebuildVehicle();
         this.selectPart(this.selectedIndex, [...this.selectedPath, part.children.length - 1]);
         this.onPropUpdate('add');
+        this.authoringTelemetry.recordCounter('part_added');
     }
 
     deletePart() {
@@ -751,6 +760,7 @@ class VehicleLabApp {
             this.updateArcadeBlueprintStatus();
             this.persistCurrentConfig('Bauteil gelöscht.');
             this.updateUI();
+            this.authoringTelemetry.recordCounter('part_removed');
         }
     }
 
@@ -809,6 +819,7 @@ class VehicleLabApp {
         }
         this.persistCurrentConfig('Bauteil dupliziert.');
         this.updateUI();
+        this.authoringTelemetry.recordCounter('part_duplicated');
     }
 
     toggleMirrorPart() {
@@ -862,6 +873,7 @@ class VehicleLabApp {
             const file = e.target.files[0];
             if (!file) return;
             if (file.size > 2 * 1024 * 1024) {
+                this.authoringTelemetry.recordError('import_failed');
                 this.ui.showToast('Import fehlgeschlagen: Die JSON-Datei darf höchstens 2 MB groß sein.', 'error');
                 return;
             }
@@ -870,7 +882,10 @@ class VehicleLabApp {
                 try {
                     const config = JSON.parse(re.target.result);
                     this.applyVehicleConfigToEditor(config);
+                    this.authoringTelemetry.recordCounter('import');
+                    this.authoringTelemetry.recordOutcome('import_succeeded', true, { flush: true });
                 } catch (err) {
+                    this.authoringTelemetry.recordError('import_failed');
                     this.ui.showToast(`Import fehlgeschlagen: ${err.message}`, 'error');
                 }
             };
@@ -888,6 +903,8 @@ class VehicleLabApp {
         a.download = `${this.vehicle.config.label || 'ship'}.json`;
         a.click();
         URL.revokeObjectURL(url);
+        this.authoringTelemetry.recordCounter('export');
+        this.authoringTelemetry.recordOutcome('export_succeeded', true, { flush: true });
         this.ui.showToast('JSON exportiert.', 'success');
     }
 
@@ -926,7 +943,14 @@ class VehicleLabApp {
         }
 
         const guardResult = this.updateArcadeBlueprintStatus(vehicleName);
+        this.authoringTelemetry.recordCounter('validation');
+        this.authoringTelemetry.recordCounter(
+            'validation_issue',
+            (guardResult.validation.errors?.length || 0) + (guardResult.validation.warnings?.length || 0)
+        );
+        this.authoringTelemetry.recordOutcome('validation_passed', guardResult.validation.ok === true);
         if (publish && !guardResult.validation.ok) {
+            this.authoringTelemetry.recordError('validation_failed');
             this.ui.showToast(`Blueprint ungültig: ${formatArcadeBlueprintValidationMessage(guardResult)}`, 'error');
             return;
         }
@@ -961,13 +985,18 @@ class VehicleLabApp {
                 this.ui.showToast(`${publication.label} veröffentlicht; ${publication.parts.length} Bauteile sind im Hangar verfügbar.`, 'success');
                 this.setStatus(`${publication.label} veröffentlicht – Spielseite zum Aktualisieren neu laden.`, 'success');
                 this.ui.updateSaveState('saved', 'Im Hangar veröffentlicht');
+                this.authoringTelemetry.recordCounter('publish');
+                this.authoringTelemetry.recordOutcome('publish_succeeded', true, { flush: true });
             } else {
                 this.ui.showToast(`${saved.vehicle.label} gespeichert; Spielseite zum Auswählen neu laden.`, 'success');
                 this.setStatus(`${saved.vehicle.label} als Fahrzeug gespeichert.`, 'success');
                 this.ui.updateSaveState('saved', 'Fahrzeug gespeichert');
+                this.authoringTelemetry.recordCounter('save');
+                this.authoringTelemetry.recordOutcome('save_succeeded', true, { flush: true });
             }
             this.updateUI();
         } catch (error) {
+            this.authoringTelemetry.recordError(publish ? 'export_failed' : 'save_failed');
             this.ui.showToast(`${publish ? 'Veröffentlichen' : 'Speichern'} fehlgeschlagen: ${error.message}`, 'error');
         }
     }
@@ -980,6 +1009,13 @@ class VehicleLabApp {
         this.flushPendingSave();
         const normalized = normalizeVehicleLabConfig(this.vehicle?.config, { requireParts: true });
         if (!normalized.ok) {
+            this.authoringTelemetry.recordCounter('validation');
+            this.authoringTelemetry.recordCounter(
+                'validation_issue',
+                (normalized.errors?.length || 0) + (normalized.warnings?.length || 0)
+            );
+            this.authoringTelemetry.recordOutcome('validation_passed', false);
+            this.authoringTelemetry.recordError('validation_failed');
             this.ui.showToast(`Spiel-Fahrzeug ungültig: ${formatVehicleLabConfigIssues(normalized)}`, 'error');
             return;
         }
@@ -990,6 +1026,7 @@ class VehicleLabApp {
             jsonText: JSON.stringify({ ...normalized.config, id: vehicleId }),
         });
         if (!result) {
+            this.authoringTelemetry.recordError('save_failed');
             this.ui.showToast('Produktives Speichern benötigt die lokale Entwickler-API.', 'error');
             this.ui.updateSaveState('error', 'Produktives Speichern fehlgeschlagen');
             return;
@@ -998,6 +1035,10 @@ class VehicleLabApp {
         this.persistCurrentConfig('Produktives Spiel-Fahrzeug gespeichert.');
         this.ui.updateSaveState('saved', 'Spiel-Fahrzeug gespeichert');
         this.ui.showToast(`${normalized.config.label} wurde unter ${vehicleId} ins Spiel gespeichert.`, 'success');
+        this.authoringTelemetry.recordCounter('validation');
+        this.authoringTelemetry.recordOutcome('validation_passed', true);
+        this.authoringTelemetry.recordCounter('save');
+        this.authoringTelemetry.recordOutcome('save_succeeded', true, { flush: true });
         this.updateUI();
     }
 
@@ -1073,6 +1114,7 @@ class VehicleLabApp {
         this.flushPendingSave();
         const config = this.history.undo();
         if (config) {
+            this.authoringTelemetry.recordCounter('undo');
             this.vehicle.updateConfig(config);
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
@@ -1090,6 +1132,7 @@ class VehicleLabApp {
         this.flushPendingSave();
         const config = this.history.redo();
         if (config) {
+            this.authoringTelemetry.recordCounter('redo');
             this.vehicle.updateConfig(config);
             this.markSceneMetricsDirty();
             this.updateArcadeBlueprintStatus();
@@ -1219,6 +1262,7 @@ class VehicleLabApp {
             this.vehicle.dispose();
         }
         this.core?.dispose();
+        this.authoringTelemetry?.end({ completed: this.authoringTelemetry?.outcomes?.completed === true });
     }
 }
 

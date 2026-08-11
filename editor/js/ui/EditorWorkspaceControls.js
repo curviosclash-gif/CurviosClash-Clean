@@ -320,7 +320,10 @@ export function bindEditorWorkspaceControls(editor) {
                 viewState: documentValue.authoring.viewState,
             }));
             notify('Arbeitsstand automatisch gesichert.', 'success');
-        } catch (error) { notify(`Autosave fehlgeschlagen: ${error.message}`, 'error'); }
+        } catch (error) {
+            editor.authoringTelemetry?.recordError?.('autosave_failed');
+            notify(`Autosave fehlgeschlagen: ${error.message}`, 'error');
+        }
     };
 
     const scheduleAutosave = () => {
@@ -788,7 +791,12 @@ export function bindEditorWorkspaceControls(editor) {
             removeAutosave();
             dom.recoveryBanner?.classList.remove('is-visible');
             markDirty('Autosave wiederhergestellt.');
-        } catch (error) { notify(`Autosave konnte nicht geladen werden: ${error.message}`, 'error'); }
+            editor.authoringTelemetry?.recordCounter?.('recovery_restored');
+            editor.authoringTelemetry?.recordOutcome?.('recovery_restored', true, { flush: true });
+        } catch (error) {
+            editor.authoringTelemetry?.recordError?.('import_failed');
+            notify(`Autosave konnte nicht geladen werden: ${error.message}`, 'error');
+        }
     });
     dom.btnDismissAutosave?.addEventListener('click', () => {
         pendingRecovery = null;
@@ -855,8 +863,11 @@ export function bindEditorWorkspaceControls(editor) {
             cleanUrl.searchParams.delete('returnFromPlaytest');
             window.history.replaceState(window.history.state, '', `${cleanUrl.pathname}${cleanUrl.search}${cleanUrl.hash}`);
             renderValidation();
+            editor.authoringTelemetry?.recordCounter?.('playtest_returned');
+            editor.authoringTelemetry?.recordOutcome?.('playtest_returned', true, { flush: true });
             return true;
         } catch (error) {
+            editor.authoringTelemetry?.recordError?.('playtest_return_failed');
             notify(`Playtest-Rueckkehr konnte nicht wiederhergestellt werden: ${error.message}`, 'error');
             return false;
         }

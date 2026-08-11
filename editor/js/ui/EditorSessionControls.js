@@ -229,6 +229,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         try {
             ({ warnings } = saveCurrentMapToGameStorage());
         } catch (error) {
+            editor.authoringTelemetry?.recordError?.('playtest_save_failed');
             editor.notify?.(`Playtest konnte nicht gespeichert werden: ${error.message}`, 'error');
             return;
         }
@@ -248,6 +249,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         params.set('session', playtestSession);
         const playtestUrl = `../index.html?${params.toString()}`;
         const playtestWindow = window.open(playtestUrl, '_blank');
+        editor.authoringTelemetry?.recordCounter?.('playtest_started');
+        editor.authoringTelemetry?.flush?.();
         dom.playtestMenu?.removeAttribute('open');
         if (playtestWindow) {
             playtestWindow.focus?.();
@@ -364,6 +367,13 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             listError: false,
             resultMapKey: '',
         };
+        const validationIssues = exportState.validationItems.filter((item) => !item.ok);
+        editor.authoringTelemetry?.recordCounter?.('validation');
+        editor.authoringTelemetry?.recordCounter?.('validation_issue', validationIssues.length);
+        editor.authoringTelemetry?.recordOutcome?.('validation_passed', validationIssues.length === 0);
+        if (validationIssues.some((item) => item.severity === 'error')) {
+            editor.authoringTelemetry?.recordError?.('validation_failed', 1, { flush: false });
+        }
         if (dom.exportFormView) dom.exportFormView.hidden = false;
         if (dom.exportResultView) dom.exportResultView.hidden = true;
         if (dom.exportMapName) dom.exportMapName.value = readLastMapName();
@@ -412,6 +422,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 downloadJsonFile(projectJson, fileName);
                 editor.markSaved?.(`Bearbeitbare Map-Datei erstellt: ${fileName}.`);
                 showExportResult({ summary: 'Die bearbeitbare Map-Datei wurde erstellt.', paths: [fileName] });
+                editor.authoringTelemetry?.recordCounter?.('export');
+                editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
                 return;
             }
             if (target === 'runtime') {
@@ -419,6 +431,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 downloadJsonFile(exportState.jsonText, fileName);
                 editor.notify?.(`Runtime-JSON erstellt: ${fileName}.`, 'success');
                 showExportResult({ summary: 'Das Runtime-JSON wurde erstellt. Editor-Ebenen sind darin absichtlich nicht enthalten.', paths: [fileName] });
+                editor.authoringTelemetry?.recordCounter?.('export');
+                editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
                 return;
             }
 
@@ -435,7 +449,12 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 mapKey: payload.mapKey,
                 canOpenFolder: true,
             });
+            editor.authoringTelemetry?.recordCounter?.('save');
+            editor.authoringTelemetry?.recordCounter?.('export');
+            editor.authoringTelemetry?.recordOutcome?.('save_succeeded', true);
+            editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
         } catch (error) {
+            editor.authoringTelemetry?.recordError?.('export_failed');
             if (dom.exportConflictNotice) dom.exportConflictNotice.textContent = `Export fehlgeschlagen: ${error.message}`;
             editor.notify?.(`Map konnte nicht exportiert werden: ${error.message}`, 'error');
             if (dom.btnExportConfirm) {
@@ -450,6 +469,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         setJsonEditorText(editor, jsonText);
         const warningMessage = formatWarningsMessage(resolveWarningsTitle('Map exportiert mit Hinweisen:', warnings), warnings);
         editor.notify?.(warningMessage || 'JSON-Export aktualisiert.', warningMessage ? 'warn' : 'success');
+        editor.authoringTelemetry?.recordCounter?.('export');
+        editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
     });
 
     dom.btnSaveToGame?.addEventListener('click', () => openExportDialog('install'));
@@ -528,7 +549,10 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 editor.mapManager?.lastSchemaWarnings
             );
             editor.notify?.(warningMessage || 'Map erfolgreich importiert.', warningMessage ? 'warn' : 'success');
+            editor.authoringTelemetry?.recordCounter?.('import');
+            editor.authoringTelemetry?.recordOutcome?.('import_succeeded', true, { flush: true });
         } catch (error) {
+            editor.authoringTelemetry?.recordError?.('import_failed');
             editor.notify?.(`Map-Import fehlgeschlagen: ${error.message}`, 'error');
         }
     });

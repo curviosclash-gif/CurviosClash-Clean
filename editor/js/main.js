@@ -8,6 +8,8 @@ import {
 } from './ui/EditorBuildCatalog.js';
 import { resolveMapAuthoringStatus } from './EditorMapSerializer.js';
 import { createEditorBuildPreviewRenderer } from './ui/EditorPreviewRenderer.js';
+import { AuthoringTelemetrySession } from '../../src/state/AuthoringTelemetrySession.js';
+import { AUTHORING_TELEMETRY_TOOLS } from '../../src/shared/contracts/AuthoringTelemetryContract.js';
 
 function buildEditorRuntimeSnapshot({ ui, mapManager, core }) {
     const activeEntry = ui?.toolDockState?.getActiveEntry?.() || null;
@@ -80,6 +82,7 @@ function installEditorRuntimeHooks({ core, ui, mapManager, assetLoader }) {
 }
 
 export async function initEditor() {
+    const authoringTelemetry = new AuthoringTelemetrySession({ tool: AUTHORING_TELEMETRY_TOOLS.MAP_EDITOR });
     try {
         const assetStatusText = document.getElementById("assetStatusText");
         let ui = null;
@@ -100,7 +103,7 @@ export async function initEditor() {
         assetLoader.setStatusHandler(setAssetStatus);
 
         const core = new EditorCore("threeCanvas");
-        ui = new EditorUI(core);
+        ui = new EditorUI(core, { authoringTelemetry });
         const mapManager = new EditorMapManager(core, assetLoader);
         const buildCatalogDescriptor = getEditorBuildCatalogDescriptor();
         const templateImportCapability = resolveEditorTemplateImportCapability();
@@ -131,6 +134,10 @@ export async function initEditor() {
         core.animate();
 
         const assetSummary = await assetLoader.loadAll();
+        authoringTelemetry.recordCounter('asset_loaded', assetSummary.loaded);
+        authoringTelemetry.recordCounter('asset_placeholder', assetSummary.failed + assetSummary.timedOut);
+        if (assetSummary.failed > 0) authoringTelemetry.recordError('asset_load_failed', assetSummary.failed, { flush: false });
+        if (assetSummary.timedOut > 0) authoringTelemetry.recordError('asset_load_timeout', assetSummary.timedOut);
         const previewRenderer = createEditorBuildPreviewRenderer(mapManager);
         ui.setBuildPreviewController?.(previewRenderer);
         const disposeBuildPreviews = () => {
@@ -153,6 +160,8 @@ export async function initEditor() {
 
         console.log("3D Map Editor successfully initialized.");
     } catch (error) {
+        authoringTelemetry.recordError('init_failed');
+        authoringTelemetry.end({ completed: false });
         console.error("Editor initialization failed:", error);
         const assetStatusText = document.getElementById("assetStatusText");
         if (assetStatusText) {

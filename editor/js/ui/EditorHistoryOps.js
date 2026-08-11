@@ -105,7 +105,10 @@ export function executeHistoryMutation(editor, label, mutateFn) {
     }
     const afterSnapshot = captureHistorySnapshot(editor);
     const changed = pushSnapshotHistoryCommand(editor, label, beforeSnapshot, afterSnapshot);
-    if (changed) editor.markDirty?.(`${label}.`);
+    if (changed) {
+        editor.authoringTelemetry?.recordCounter?.('edit');
+        editor.markDirty?.(`${label}.`);
+    }
     return result;
 }
 
@@ -134,7 +137,10 @@ export function commitHistoryGesture(editor, key, labelOverride = null) {
     const afterSnapshot = captureHistorySnapshot(editor);
     const label = labelOverride || pending.label;
     const changed = pushSnapshotHistoryCommand(editor, label, pending.before, afterSnapshot);
-    if (changed) editor.markDirty?.(`${label}.`);
+    if (changed) {
+        editor.authoringTelemetry?.recordCounter?.('edit');
+        editor.markDirty?.(`${label}.`);
+    }
     return changed;
 }
 
@@ -148,6 +154,7 @@ export function undoHistory(editor) {
     try {
         const changed = editor.commandHistory.undo();
         if (changed) {
+            editor.authoringTelemetry?.recordCounter?.('undo');
             if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Undo ausgefuehrt.');
             else editor.markDirty?.('Undo ausgefuehrt.');
         }
@@ -163,6 +170,7 @@ export function redoHistory(editor) {
     try {
         const changed = editor.commandHistory.redo();
         if (changed) {
+            editor.authoringTelemetry?.recordCounter?.('redo');
             if (typeof editor.reconcileDirtyState === 'function') editor.reconcileDirtyState('Redo ausgefuehrt.');
             else editor.markDirty?.('Redo ausgefuehrt.');
         }

@@ -15,6 +15,7 @@ import {
 } from '../composition/core-ui/CoreSettingsPorts.js';
 import { createRuntimeConfigSnapshot } from './RuntimeConfig.js';
 import { TelemetryHistoryStore } from '../state/TelemetryHistoryStore.js';
+import { AuthoringTelemetryStore } from '../state/AuthoringTelemetryStore.js';
 import {
     cloneDefaultControlsSnapshot,
     createSettingsDefaultsPortForRuntime,
@@ -47,6 +48,7 @@ export class SettingsManager {
     #menuDraftStore;
     #menuTextOverrideStore;
     #menuTelemetryStore;
+    #authoringTelemetryStore;
     #telemetryHistoryStore;
 
     /**
@@ -87,6 +89,7 @@ export class SettingsManager {
                 : null,
         });
         this.#menuTelemetryStore = new MenuTelemetryStore(storeOptions);
+        this.#authoringTelemetryStore = new AuthoringTelemetryStore(storeOptions);
         this.#telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
     }
 
@@ -275,6 +278,10 @@ export class SettingsManager {
 
     getMenuTelemetrySnapshot(settings = null) {
         return this.telemetryFacade.getMenuTelemetrySnapshot(settings);
+    }
+
+    getAuthoringTelemetrySnapshot() {
+        return this.#authoringTelemetryStore.getSnapshot();
     }
 
     recordMenuTelemetry(settings, eventType, payload = null) {

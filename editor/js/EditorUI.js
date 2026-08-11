@@ -50,8 +50,9 @@ import {
 } from './ui/EditorUiViews.js';
 
 export class EditorUI {
-    constructor(core) {
+    constructor(core, options = {}) {
         this.core = core;
+        this.authoringTelemetry = options.authoringTelemetry || null;
         this.mapManager = null; // Injected later
 
         this.currentTool = "select";

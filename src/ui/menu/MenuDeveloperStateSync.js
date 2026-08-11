@@ -82,12 +82,13 @@ export function syncMenuDeveloperState({
     const telemetrySnapshot = settingsManager?.getMenuTelemetrySnapshot?.(settings)
         || localSettings.telemetryState
         || null;
+    const authoringTelemetrySnapshot = settingsManager?.getAuthoringTelemetrySnapshot?.() || null;
     if (ui.developerTelemetryDashboard) {
-        renderMenuTelemetryDashboard(ui.developerTelemetryDashboard, telemetrySnapshot);
+        renderMenuTelemetryDashboard(ui.developerTelemetryDashboard, telemetrySnapshot, authoringTelemetrySnapshot);
     }
     if (ui.developerTelemetryOutput) {
-        ui.developerTelemetryOutput.textContent = telemetrySnapshot
-            ? JSON.stringify(telemetrySnapshot, null, 2)
+        ui.developerTelemetryOutput.textContent = telemetrySnapshot || authoringTelemetrySnapshot
+            ? JSON.stringify({ gameplay: telemetrySnapshot, authoring: authoringTelemetrySnapshot }, null, 2)
             : 'Keine Telemetrie vorhanden.';
     }
 
