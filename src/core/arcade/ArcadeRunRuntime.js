@@ -1570,7 +1570,7 @@ export class ArcadeRunRuntime {
             multiplier: toSafeNumber(this._state?.score?.multiplier, 1),
             missionsCompleted,
             totalMissions,
-            cleanSector: telemetryPayload?.cleanSector === true,
+            cleanSector: Math.max(0, toSafeNumber(telemetryPayload?.selfCollisions, 0)) === 0,
         };
 
         let profile = getOrCreateProfile(this._vehicleProfiles, this._activeVehicleId);

@@ -12,6 +12,27 @@ function normalizeTelemetryString(value, fallback = 'unknown') {
     return normalized || fallback;
 }
 
+function collectHumanPlayerIndices(players) {
+    const humanIndices = new Set();
+    if (!Array.isArray(players)) return humanIndices;
+    players.forEach((player) => {
+        const playerIndex = Number(player?.index ?? player?.playerIndex);
+        if (player?.isBot !== true && Number.isFinite(playerIndex)) humanIndices.add(playerIndex);
+    });
+    return humanIndices;
+}
+
+// The arcade sector score rates the player's own performance, so bot-vs-bot kills
+// must not inflate it. Scoreboard rows only carry playerIndex, so human identity is
+// resolved through the authoritative player list. Unknown rows stay excluded.
+function sumHumanScoreboardKills(scoreboardRows, players) {
+    const humanIndices = collectHumanPlayerIndices(players);
+    return scoreboardRows.reduce((total, row) => {
+        if (!humanIndices.has(Number(row?.playerIndex))) return total;
+        return total + Math.max(0, Math.trunc(Number(row?.kills) || 0));
+    }, 0);
+}
+
 function resolveRoundTelemetryWinnerLabel(players, roundMetrics) {
     if (!roundMetrics) return 'Unbekannt';
     const winnerIndex = Number(roundMetrics.winnerIndex);
@@ -150,8 +171,12 @@ export class MatchFlowTelemetryController {
             if (!normalizedType) return;
             itemUseByType[normalizedType] = Math.max(0, Number(count) || 0);
         });
-        const spawnDeaths = (game?.entityManager?.getHuntScoreboard?.() || [])
+        const scoreboardRows = game?.entityManager?.getHuntScoreboard?.() || [];
+        const spawnDeaths = scoreboardRows
             .reduce((total, row) => total + Math.max(0, Number(row?.spawnDeaths) || 0), 0);
+        const humanPlayers = game?.entityManager?.getHumanPlayers?.()
+            || game?.entityManager?.players;
+        const kills = sumHumanScoreboardKills(scoreboardRows, humanPlayers);
 
         return {
             mapKey: normalizeTelemetryString(game?.arena?.currentMapKey || game?.mapKey, 'standard'),
@@ -177,6 +202,7 @@ export class MatchFlowTelemetryController {
             stuckEvents: Math.max(0, Number(roundMetrics.stuckEvents) || 0),
             heatmap: normalizeHeatmapCells(roundMetrics.heatmap),
             spawnDeaths,
+            kills,
             parcoursCompleted: roundMetrics.parcoursCompleted === true,
             parcoursRouteId: normalizeTelemetryString(roundMetrics.parcoursRouteId, ''),
             parcoursCompletionTimeMs: Math.max(0, Number(roundMetrics.parcoursCompletionTimeMs) || 0),
