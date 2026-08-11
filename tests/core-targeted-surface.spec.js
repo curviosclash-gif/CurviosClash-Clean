@@ -117,6 +117,26 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await returnToMenu(page);
     });
 
+    test('T66c: Arcade-Combo-Regler erreichen Settings und sichtbare Labels', async ({ page }) => {
+        await loadGame(page);
+        await page.locator('#arcade-combo-window').evaluate((input) => {
+            input.value = '9000';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await page.locator('#arcade-max-multiplier').evaluate((input) => {
+            input.value = '12';
+            input.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+
+        await expect(page.locator('#arcade-combo-window-label')).toHaveText('9.0 s');
+        await expect(page.locator('#arcade-max-multiplier-label')).toHaveText('12x');
+        const arcadeSettings = await page.evaluate(() => ({
+            comboWindowMs: window.GAME_INSTANCE?.settings?.arcade?.comboWindowMs,
+            maxMultiplier: window.GAME_INSTANCE?.settings?.arcade?.maxMultiplier,
+        }));
+        expect(arcadeSettings).toEqual({ comboWindowMs: 9000, maxMultiplier: 12 });
+    });
+
     test('T66b: Vehicle-Selection bleibt zwischen Start-Setup, Settings, Snapshot und Spawn konsistent', async ({ page }) => {
         await loadGame(page);
         await page.evaluate((lastRunKey) => localStorage.removeItem(lastRunKey), ARCADE_LAST_RUN_STORAGE_KEY);

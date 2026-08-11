@@ -5,6 +5,8 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     ARCADE_GHOST_DUEL_MODE: 'startSetup.arcadeGhostDuelMode',
     ARCADE_GHOST_TRAIL_COLLISION_ENABLED: 'startSetup.arcadeGhostTrailCollisionEnabled',
     ARCADE_SECTOR_COUNT: 'arcade.sectorCount',
+    ARCADE_COMBO_WINDOW: 'arcade.comboWindowMs',
+    ARCADE_MAX_MULTIPLIER: 'arcade.maxMultiplier',
     LOCAL_THEME_MODE: 'local.themeMode',
     LOCAL_GRAPHICS_STYLE: 'local.graphicsStyle',
     LOCAL_MAP_BRIGHTNESS: 'local.mapBrightness',

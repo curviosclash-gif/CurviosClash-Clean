@@ -4,7 +4,29 @@ import {
     normalizeArcadeRunSettings,
 } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
-const SECTOR_RANGE = ARCADE_RUN_SETTINGS_RANGES.sectorCount;
+const CONTROL_DESCRIPTORS = Object.freeze([
+    Object.freeze({
+        inputKey: 'arcadeSectorCountInput',
+        labelKey: 'arcadeSectorCountLabel',
+        settingKey: 'sectorCount',
+        changeKey: 'ARCADE_SECTOR_COUNT',
+        format: (value) => String(value),
+    }),
+    Object.freeze({
+        inputKey: 'arcadeComboWindowInput',
+        labelKey: 'arcadeComboWindowLabel',
+        settingKey: 'comboWindowMs',
+        changeKey: 'ARCADE_COMBO_WINDOW',
+        format: (value) => `${(value / 1000).toFixed(1)} s`,
+    }),
+    Object.freeze({
+        inputKey: 'arcadeMaxMultiplierInput',
+        labelKey: 'arcadeMaxMultiplierLabel',
+        settingKey: 'maxMultiplier',
+        changeKey: 'ARCADE_MAX_MULTIPLIER',
+        format: (value) => `${value}x`,
+    }),
+]);
 
 function ensureArcadeSettings(settings) {
     if (!settings.arcade || typeof settings.arcade !== 'object' || Array.isArray(settings.arcade)) {
@@ -15,13 +37,15 @@ function ensureArcadeSettings(settings) {
     return settings.arcade;
 }
 
-function applySectorCountToUi(ui, sectorCount) {
-    if (ui.arcadeSectorCountInput) {
-        ui.arcadeSectorCountInput.value = String(sectorCount);
-    }
-    if (ui.arcadeSectorCountLabel) {
-        ui.arcadeSectorCountLabel.textContent = String(sectorCount);
-    }
+function applyControlToUi(ui, descriptor, value) {
+    const input = ui?.[descriptor.inputKey];
+    const label = ui?.[descriptor.labelKey];
+    if (input) input.value = String(value);
+    if (label) label.textContent = descriptor.format(value);
+}
+
+function hasArcadeControl(ui) {
+    return CONTROL_DESCRIPTORS.some((descriptor) => !!ui?.[descriptor.inputKey]);
 }
 
 /**
@@ -35,26 +59,33 @@ export function bindArcadeRunSettings({
     emitSettingsChangedImmediate,
     keys,
 }) {
-    if (!ui?.arcadeSectorCountInput) return;
+    if (!hasArcadeControl(ui)) return;
 
     const arcadeSettings = ensureArcadeSettings(settings);
-    ui.arcadeSectorCountInput.min = String(SECTOR_RANGE.min);
-    ui.arcadeSectorCountInput.max = String(SECTOR_RANGE.max);
-    applySectorCountToUi(ui, arcadeSettings.sectorCount);
-
-    bind(ui.arcadeSectorCountInput, 'input', () => {
-        const nextArcadeSettings = ensureArcadeSettings(settings);
-        nextArcadeSettings.sectorCount = normalizeArcadeRunSettings({
-            ...nextArcadeSettings,
-            sectorCount: ui.arcadeSectorCountInput.value,
-        }).sectorCount;
-        applySectorCountToUi(ui, nextArcadeSettings.sectorCount);
-        emitSettingsChangedImmediate([keys.ARCADE_SECTOR_COUNT]);
-    });
+    for (const descriptor of CONTROL_DESCRIPTORS) {
+        const input = ui?.[descriptor.inputKey];
+        if (!input) continue;
+        const range = ARCADE_RUN_SETTINGS_RANGES[descriptor.settingKey];
+        input.min = String(range.min);
+        input.max = String(range.max);
+        applyControlToUi(ui, descriptor, arcadeSettings[descriptor.settingKey]);
+        bind(input, 'input', () => {
+            const nextArcadeSettings = ensureArcadeSettings(settings);
+            nextArcadeSettings[descriptor.settingKey] = normalizeArcadeRunSettings({
+                ...nextArcadeSettings,
+                [descriptor.settingKey]: input.value,
+            })[descriptor.settingKey];
+            applyControlToUi(ui, descriptor, nextArcadeSettings[descriptor.settingKey]);
+            emitSettingsChangedImmediate([keys[descriptor.changeKey]]);
+        });
+    }
 }
 
 /** Mirrors a settings change back onto the control without emitting a new change. */
 export function syncArcadeRunSettings(ui, settings) {
-    if (!ui?.arcadeSectorCountInput) return;
-    applySectorCountToUi(ui, normalizeArcadeRunSettings(settings?.arcade).sectorCount);
+    if (!hasArcadeControl(ui)) return;
+    const arcadeSettings = normalizeArcadeRunSettings(settings?.arcade);
+    for (const descriptor of CONTROL_DESCRIPTORS) {
+        applyControlToUi(ui, descriptor, arcadeSettings[descriptor.settingKey]);
+    }
 }

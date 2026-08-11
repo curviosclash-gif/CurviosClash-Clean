@@ -11,6 +11,7 @@ import {
     createDefaultArcadeRunRewardEffects,
     normalizeArcadeRunRewardEffects,
 } from '../shared/contracts/ArcadeRunRewardEffectsContract.js';
+import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -18,13 +19,6 @@ const DEFAULT_SHIELD_HP = 40;
 function toSafe(value, fallback) {
     const n = Number(value);
     return Number.isFinite(n) ? n : fallback;
-}
-
-function nowSeconds() {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now() * 0.001;
-    }
-    return Date.now() * 0.001;
 }
 
 // 61.4.1: Modifier effect constants
@@ -61,6 +55,7 @@ export const ARCADE_SECTOR_TYPES = Object.freeze({
 export class ArcadeModeStrategy extends GameModeContract {
     constructor(options = {}) {
         super();
+        this._nowMs = createRuntimeClock({ nowMs: options.nowMs }).nowMs;
         this.runtimeRng = options?.runtimeRng && typeof options.runtimeRng.next === 'function'
             ? options.runtimeRng
             : createRuntimeRng({ random: options?.random });
@@ -76,6 +71,14 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._sdDamageMultiplier = 1.0;
         // 82.1.1: Current sector type (null = default arena)
         this._sectorType = null;
+    }
+
+    setNowMsSource(nowMs) {
+        if (typeof nowMs === 'function') this._nowMs = nowMs;
+    }
+
+    _nowSeconds() {
+        return Math.max(0, toSafe(this._nowMs(), 0)) * 0.001;
     }
 
     // --- Lifecycle (V84 / 84.3.2) ---
@@ -308,7 +311,7 @@ export class ArcadeModeStrategy extends GameModeContract {
 
         if (remaining > 0) {
             player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - remaining);
-            player.lastDamageTimestamp = toSafe(options?.nowSeconds, nowSeconds());
+            player.lastDamageTimestamp = toSafe(options?.nowSeconds, this._nowSeconds());
         }
 
         return { applied: dmg, absorbedByShield: absorbed, remainingHp: player.hp, isDead: player.hp <= 0 };
@@ -403,7 +406,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (drain <= 0) return;
         player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - drain);
         if (player.hp <= 0) {
-            player.lastDamageTimestamp = nowSeconds();
+            player.lastDamageTimestamp = this._nowSeconds();
         }
     }
 
@@ -417,7 +420,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (cost <= 0) return;
         player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - cost);
         if (player.hp <= 0) {
-            player.lastDamageTimestamp = nowSeconds();
+            player.lastDamageTimestamp = this._nowSeconds();
         }
     }
 
@@ -467,9 +470,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         }
 
         const wallDamage = this.resolveCollisionDamage('WALL');
-        // Own health model: player.takeDamage() still routes through the legacy Hunt
-        // HealthSystem, which only knows Hunt and Classic and reports an instant kill
-        // for every other mode. Arcade must spend its pool instead.
+        // Keep collision damage on the active mode strategy so modifiers and shields
+        // use the same Arcade health rules as every other damage source.
         const damageResult = this.applyDamage(player, wallDamage);
         player.wallDamageCooldown = this.resolveCollisionCooldown('WALL');
         entityManager._emitHuntDamageEvent({

@@ -64,12 +64,8 @@ const EXCEPTIONS = {
         todo: true,
     },
 
-    // src/modes wird erst seit dieser Runde gescannt. Die Strategien messen Spielzeit
-    // ueber eine eigene nowSeconds-Hilfe und reichen den Wuerfel als Standardwert weiter.
-    'src/modes/ArcadeModeStrategy.js': {
-        reason: 'nowSeconds helper measures real frame time for modifier timing',
-        todo: true,
-    },
+    // Verbleibende Strategien messen Spielzeit ueber eigene Uhr-Fallbacks oder
+    // reichen den Wuerfel als Standardwert weiter.
     'src/modes/ClassicModeStrategy.js': {
         reason: 'damage timestamp falls back to the wall clock when none is passed',
         todo: true,

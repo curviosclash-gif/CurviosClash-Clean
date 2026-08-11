@@ -72,6 +72,7 @@ export class GameRuntimeArcadeSupport {
     } = {}) {
         this._getGame = typeof getGame === 'function' ? getGame : () => null;
         this._getRuntimeState = typeof getRuntimeState === 'function' ? getRuntimeState : () => null;
+        this._nowMs = typeof nowMs === 'function' ? nowMs : () => Date.now();
         this._baseRoundStateController = this.getRuntimeState()?.roundStateController
             || this.game?.roundStateController
             || null;
@@ -86,7 +87,7 @@ export class GameRuntimeArcadeSupport {
         this.arcadeRunRuntime = new ArcadeRunRuntime({
             settingsManager: this.game?.settingsManager || null,
             replayRecorder: this._arcadeReplayRecorder,
-            now: nowMs,
+            now: this._nowMs,
             logger,
             getObjectiveParticipants: () => buildObjectiveParticipants(
                 this.getRuntimeState()?.entityManager || this.game?.entityManager
@@ -170,6 +171,7 @@ export class GameRuntimeArcadeSupport {
             this._unbindGameplayCallback();
         }
         if (!entityManager) return;
+        entityManager.gameModeStrategy?.setNowMsSource?.(this._nowMs);
         entityManager.onArcadeGameplayEvent = this._arcadeGameplayEventHandler;
         this._boundGameplayEntityManager = entityManager;
     }
