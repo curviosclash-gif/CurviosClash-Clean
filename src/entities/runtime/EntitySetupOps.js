@@ -30,6 +30,12 @@ function resolveConfiguredBotPolicyType({ requestedPolicyType, runtimeConfig, ac
     return resolvedPolicyType;
 }
 
+function toMatchSeed(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return 0;
+    return (Math.floor(Math.abs(numeric)) >>> 0);
+}
+
 function resolveDesktopRuntimeProbeOption(rawValue) {
     if (rawValue === true) {
         return () => true;
@@ -81,13 +87,10 @@ export class EntitySetupOps {
         const setupBridgeEnabled = typeof options.bridgeEnabled === 'boolean'
             ? options.bridgeEnabled
             : (strategyForcesBridge || !!owner.runtimeConfig?.bot?.trainerBridgeEnabled);
-        const runtimeSeed = Number(owner.runtimeConfig?.arcade?.seed);
+        owner.matchSeed = this.resolveMatchSeed(options);
         owner.runtimeRng = options.runtimeRng && typeof options.runtimeRng.next === 'function'
             ? options.runtimeRng
-            : createRuntimeRng({
-                seed: Number.isFinite(runtimeSeed) ? runtimeSeed : 0,
-                random: typeof owner.runtimeRng?.next === 'function' ? owner.runtimeRng.next : Math.random,
-            });
+            : createRuntimeRng({ seed: owner.matchSeed });
         owner.huntEnabled = activeModeLower === 'hunt' && owner.entityRuntimeConfig?.HUNT?.ENABLED !== false;
         owner.gameModeStrategy = createGameModeStrategy(owner.activeGameMode, {
             entityRuntimeConfig: owner.entityRuntimeConfig,
@@ -104,6 +107,32 @@ export class EntitySetupOps {
             activeGameMode: owner.activeGameMode,
             planarMode: setupPlanarMode,
         });
+    }
+
+    /**
+     * Loest die Match-Saat fuer *alle* Modi auf. Vorher hing sie allein an
+     * `runtimeConfig.arcade.seed` und wurde ausserdem nie ausgewertet, weil der
+     * Aufrufer immer zusaetzlich ein `random` mitgab.
+     *
+     * @param {{ seed?: unknown }} [options]
+     * @returns {number}
+     */
+    resolveMatchSeed(options = {}) {
+        const owner = this.entityManager;
+        const candidates = [
+            options.seed,
+            owner?.runtimeConfig?.session?.matchSeed,
+            owner?.runtimeConfig?.arcade?.seed,
+        ];
+        for (const candidate of candidates) {
+            const seed = toMatchSeed(candidate);
+            if (seed > 0) return seed;
+        }
+        // Nichts vorgegeben: einmal pro Match ziehen und behalten. Der stille
+        // Rueckfall auf Math.random bei jedem Zug machte ein Match unwiederholbar.
+        const keptSeed = toMatchSeed(owner?.matchSeed);
+        if (keptSeed > 0) return keptSeed;
+        return toMatchSeed(Math.floor(Math.random() * 0xffffffff)) || 1;
     }
 
     resolveSetupPlayerContext(options = {}) {

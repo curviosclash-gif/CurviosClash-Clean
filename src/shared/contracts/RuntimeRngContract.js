@@ -16,11 +16,18 @@ function createXorshift32(seed) {
     };
 }
 
+/**
+ * @param {{ seed?: unknown, random?: unknown }} [options]
+ * @returns {{ contractVersion: string, seed: number, next: () => number, int: (maxExclusive: unknown) => number, pick: (values?: unknown[]) => unknown }}
+ */
 export function createRuntimeRng(options = {}) {
     const seed = toUInt32(options.seed);
-    const random = typeof options.random === 'function'
-        ? options.random
-        : (seed > 0 ? createXorshift32(seed) : Math.random);
+    const injectedRandom = typeof options.random === 'function' ? options.random : null;
+    // Die Saat schlaegt den uebergebenen Wuerfel. Vorher gewann `random`, weshalb
+    // jeder Aufrufer, der beides mitgab, seine Saat still verlor.
+    const random = seed > 0
+        ? createXorshift32(seed)
+        : (injectedRandom || Math.random);
 
     const next = () => {
         const value = Number(random());
@@ -43,6 +50,8 @@ export function createRuntimeRng(options = {}) {
 
     return {
         contractVersion: RUNTIME_RNG_CONTRACT_VERSION,
+        // 0 heisst: ungesetzt, die Folge haengt am uebergebenen bzw. globalen Wuerfel.
+        seed,
         next,
         int,
         pick,
