@@ -2648,6 +2648,64 @@ test('GameRuntimeSessionHandler applies received LAN match-start commands locall
     assert.equal(calls.includes('validation'), false);
 });
 
+test('GameRuntimeSessionHandler validates before preparing Arcade match state', async () => {
+    const calls = [];
+    const game = {
+        state: null,
+        settings: {
+            localSettings: {
+                sessionType: 'single',
+                modePath: 'arcade',
+            },
+        },
+        uiManager: {
+            showStartValidationError() {
+                calls.push('showValidation');
+            },
+        },
+        _showStatusToast() {},
+    };
+    const facade = {
+        game,
+        _clearMatchPrewarmTimer() {},
+        _applySettingsToRuntimeInternal() {},
+        settingsHandler: {
+            applySurfacePolicyStartDefaults() {},
+            applyMapScenarioStartDefaults() {},
+        },
+        _recordMenuTelemetry() {},
+        _resolveStartValidationIssue() {
+            calls.push('validate');
+            return { message: 'Start blockiert', fieldKey: 'map' };
+        },
+        prepareArcadeMatchStartRuntime() {
+            calls.push('prepareArcade');
+        },
+        getPorts() {
+            return {
+                runtimeProjectionPort: {
+                    getSessionRuntimeSnapshot: () => ({
+                        lifecycleState: 'menu',
+                        finalizeState: 'idle',
+                        pendingFinalizeTrigger: '',
+                    }),
+                },
+                matchUiPort: {
+                    prepareMatchStartProjection() {
+                        calls.push('prepareMatch');
+                    },
+                },
+            };
+        },
+    };
+    const handler = new GameRuntimeSessionHandler({ facade, logger: console });
+
+    const result = await handler.startMatch();
+
+    assert.equal(result, false);
+    assert.deepEqual(calls, ['validate', 'showValidation']);
+});
+
 test('Arcade HUD consumes the arcade projection while the wrapped game mode remains classic', () => {
     const scoreStates = [];
     const missionStates = [];

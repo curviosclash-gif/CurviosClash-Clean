@@ -213,7 +213,6 @@ export class GameRuntimeSessionHandler {
             });
             facade?.settingsHandler?.applySurfacePolicyStartDefaults?.();
             facade?.settingsHandler?.applyMapScenarioStartDefaults?.();
-            facade?.prepareArcadeMatchStartRuntime?.();
             const sessionContract = resolveRuntimeSessionContract(game?.settings?.localSettings);
             const telemetryPayload = buildTelemetryPayload();
             const isReceivedMultiplayerStartCommand = sessionContract.sessionType === RUNTIME_SESSION_TYPES.MULTIPLAYER
@@ -231,6 +230,7 @@ export class GameRuntimeSessionHandler {
                 return false;
             }
 
+            facade?.prepareArcadeMatchStartRuntime?.();
             facade?.getUiManager?.()?.clearStartValidationError?.();
             blurFocusedTextInput(globalThis?.document);
             if (sessionContract.sessionType === RUNTIME_SESSION_TYPES.MULTIPLAYER && !isReceivedMultiplayerStartCommand) {
