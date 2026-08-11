@@ -22,6 +22,14 @@ export class RuleBasedBotPolicy {
         }
     }
 
+    setArcadeBotAggressiveness(value) {
+        this._botAI.setArcadeBotAggressiveness(value);
+    }
+
+    getArcadeAggressivenessSnapshot() {
+        return this._botAI.getArcadeAggressivenessSnapshot();
+    }
+
     onBounce(type, normal = null) {
         if (typeof this._botAI.onBounce === 'function') {
             this._botAI.onBounce(type, normal);

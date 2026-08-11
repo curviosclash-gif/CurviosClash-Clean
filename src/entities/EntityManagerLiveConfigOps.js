@@ -58,6 +58,12 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     if (runtimeConfig !== undefined) {
         em.runtimeConfig = runtimeConfig;
     }
+    const arcadeAggressiveness = runtimeConfig?.bot?.arcadeAggressiveness;
+    if (Number.isFinite(Number(arcadeAggressiveness))) {
+        for (const bot of em.bots || []) {
+            bot?.ai?.setArcadeBotAggressiveness?.(arcadeAggressiveness);
+        }
+    }
     const playerSection = nextErc.PLAYER || {};
     const nextMaxHp = Number(nextErc?.HUNT?.PLAYER_MAX_HP);
     for (const player of em.players) {

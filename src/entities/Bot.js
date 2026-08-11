@@ -11,6 +11,10 @@ import { BotSensors } from './ai/BotSensors.js';
 import { BotSensorsFacade } from './ai/BotSensorsFacade.js';
 import { BOT_FALLBACK_DIFFICULTY_PROFILE, BOT_ITEM_RULES } from './ai/BotTuningConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import {
+    applyArcadeBotAggressiveness,
+    normalizeArcadeBotAggressiveness,
+} from '../shared/contracts/ArcadeBotAggressionContract.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -46,6 +50,9 @@ export class BotAI {
         this.reactionTimer = 0;
         this._profileName = 'NORMAL';
         this.profile = null;
+        this._arcadeBotAggressiveness = normalizeArcadeBotAggressiveness(
+            options.arcadeAggressiveness ?? options.runtimeConfig?.bot?.arcadeAggressiveness
+        );
 
         this._decision = {
             yaw: 0,
@@ -127,13 +134,14 @@ export class BotAI {
         const profiles = botConfig.DIFFICULTY_PROFILES || {};
         const upper = typeof profileName === 'string' ? profileName.toUpperCase() : 'NORMAL';
         this._profileName = profiles[upper] ? upper : 'NORMAL';
-        this.profile = {
+        const baseProfile = {
             ...BOT_FALLBACK_DIFFICULTY_PROFILE,
             reactionTime: botConfig.REACTION_TIME || BOT_FALLBACK_DIFFICULTY_PROFILE.reactionTime,
             lookAhead: botConfig.LOOK_AHEAD || BOT_FALLBACK_DIFFICULTY_PROFILE.lookAhead,
             aggression: botConfig.AGGRESSION || BOT_FALLBACK_DIFFICULTY_PROFILE.aggression,
             ...(profiles[this._profileName] || {}),
         };
+        this.profile = applyArcadeBotAggressiveness(baseProfile, this._arcadeBotAggressiveness);
     }
 
     setDifficulty(profileName) {
@@ -141,6 +149,18 @@ export class BotAI {
         this.reactionTimer = 0;
         this.state.turnCommitTimer = 0;
         this.state.recoveryActive = false;
+    }
+
+    setArcadeBotAggressiveness(value) {
+        this._arcadeBotAggressiveness = normalizeArcadeBotAggressiveness(value);
+        this.setDifficulty(this._profileName);
+    }
+
+    getArcadeAggressivenessSnapshot() {
+        return {
+            authored: this._arcadeBotAggressiveness,
+            profile: Number(this.profile?.aggression) || 0,
+        };
     }
 
     onBounce(type, normal = null) {

@@ -207,7 +207,7 @@ export class GameRuntimeFacade {
         const nextRuntimeConfig = {
             ...currentRuntimeConfig,
             session: { ...currentRuntimeConfig.session, mapKey, numBots },
-            bot: { ...currentRuntimeConfig.bot, activeDifficulty },
+            bot: { ...currentRuntimeConfig.bot, activeDifficulty, arcadeAggressiveness: Math.max(0, Math.min(1, Number(profile.aggressiveness) || 0)) },
         };
         const nextCompatibilityConfig = applyRuntimeConfigCompatibility(nextRuntimeConfig, CONFIG_BASE);
         applyRuntimeSettingsState(this.getRuntimeBundle(), {

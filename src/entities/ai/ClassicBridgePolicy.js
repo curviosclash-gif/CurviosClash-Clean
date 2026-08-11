@@ -22,6 +22,10 @@ import {
     WALL_DISTANCE_UP,
 } from './observation/ObservationSchemaV1.js';
 import { clamp } from '../../utils/MathOps.js';
+import {
+    normalizeArcadeBotAggressiveness,
+    resolveArcadeBridgeAggressionThresholds,
+} from '../../shared/contracts/ArcadeBotAggressionContract.js';
 
 function resolveObservationValue(observation, index, fallback = 0) {
     if (!observation || typeof observation.length !== 'number') return fallback;
@@ -29,7 +33,7 @@ function resolveObservationValue(observation, index, fallback = 0) {
     return Number.isFinite(value) ? value : fallback;
 }
 
-export function resolveClassicBridgeAction(runtimeContext) {
+export function resolveClassicBridgeAction(runtimeContext, options = {}) {
     const observation = runtimeContext?.observation || null;
     if (!observation || typeof observation.length !== 'number' || observation.length === 0) {
         return null;
@@ -49,6 +53,7 @@ export function resolveClassicBridgeAction(runtimeContext) {
     const inventoryCountRatio = clamp(resolveObservationValue(observation, INVENTORY_COUNT_RATIO, 0), 0, 1);
     const selectedItemSlot = Math.trunc(resolveObservationValue(observation, SELECTED_ITEM_SLOT, -1));
     const planarMode = resolveObservationValue(observation, PLANAR_MODE_ACTIVE, 0) >= 0.5;
+    const thresholds = resolveArcadeBridgeAggressionThresholds(options.aggressiveness);
 
     const action = {};
     const obstaclePressure = wallFront < 0.24 || pressureLevel > 0.78;
@@ -73,11 +78,23 @@ export function resolveClassicBridgeAction(runtimeContext) {
         }
     }
 
-    if (targetInFront && targetAlignment >= 0.55 && targetDistanceRatio <= 0.48 && pressureLevel < 0.9) {
+    if (
+        targetInFront
+        && targetAlignment >= thresholds.shootAlignment
+        && targetDistanceRatio <= thresholds.shootDistance
+        && pressureLevel < thresholds.shootPressureCeiling
+    ) {
         action.shootMG = true;
     }
 
-    if (projectileThreat || (targetDistanceRatio > 0.55 && openness > 0.62 && pressureLevel < 0.55)) {
+    if (
+        projectileThreat
+        || (
+            targetDistanceRatio > thresholds.boostDistance
+            && openness > thresholds.boostOpenness
+            && pressureLevel < thresholds.boostPressureCeiling
+        )
+    ) {
         action.boost = true;
     }
     if (wallFront < 0.16 && !projectileThreat) {
@@ -100,9 +117,16 @@ export class ClassicBridgePolicy extends ObservationBridgePolicy {
     constructor(options = {}) {
         const policyType = normalizeBotPolicyType(options.type || BOT_POLICY_TYPES.CLASSIC_BRIDGE);
         const fallbackPolicy = options.fallbackPolicy || new RuleBasedBotPolicy(options);
+        const aggressionState = {
+            value: normalizeArcadeBotAggressiveness(
+                options.arcadeAggressiveness ?? options.runtimeConfig?.bot?.arcadeAggressiveness
+            ),
+        };
         const resolveAction = typeof options.resolveAction === 'function'
             ? options.resolveAction
-            : (runtimeContext) => resolveClassicBridgeAction(runtimeContext);
+            : (runtimeContext) => resolveClassicBridgeAction(runtimeContext, {
+                aggressiveness: aggressionState.value,
+            });
 
         super({
             ...options,
@@ -112,5 +136,11 @@ export class ClassicBridgePolicy extends ObservationBridgePolicy {
         });
 
         this.type = policyType;
+        this._arcadeAggressionState = aggressionState;
+    }
+
+    setArcadeBotAggressiveness(value) {
+        this._arcadeAggressionState.value = normalizeArcadeBotAggressiveness(value);
+        super.setArcadeBotAggressiveness(this._arcadeAggressionState.value);
     }
 }

@@ -379,6 +379,12 @@ export class ObservationBridgePolicy {
         }
     }
 
+    setArcadeBotAggressiveness(value) {
+        if (typeof this._fallbackPolicy?.setArcadeBotAggressiveness === 'function') {
+            this._fallbackPolicy.setArcadeBotAggressiveness(value);
+        }
+    }
+
     onBounce(type, normal = null) {
         if (typeof this._fallbackPolicy?.onBounce === 'function') {
             this._fallbackPolicy.onBounce(type, normal);
