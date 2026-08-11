@@ -92,14 +92,6 @@ const EXCEPTIONS = {
         reason: 'command ids and member timestamps still come from the wall clock',
         todo: true,
     },
-    'src/application/session-runtime/NetworkLobbyServiceDiscovery.js': {
-        reason: 'discovery deadline is measured against the wall clock',
-        todo: true,
-    },
-    'src/application/session-runtime/NetworkLobbyServiceSupport.js': {
-        reason: 'default host entry timestamp comes from the wall clock',
-        todo: true,
-    },
 };
 
 // Der alte Ausdruck verlangte die oeffnende Klammer und hat deshalb jede Zuweisung

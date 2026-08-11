@@ -119,7 +119,17 @@ export function normalizeHostPort(value, fallback = 0) {
     return port;
 }
 
-export function normalizeDiscoveryHostEntry(host, now = Date.now()) {
+/**
+ * `now` ist nur der Rueckfall fuer einen Eintrag ohne `lastSeen`. Echte
+ * Discovery-Eintraege bringen den Zeitstempel immer mit (electron/main.cjs),
+ * deshalb wird hier keine Uhr gelesen: ein Eintrag ohne Zeitstempel hat schlicht
+ * keine, und 0 sortiert ihn ans Ende, statt ihn als "gerade gesehen" auszugeben
+ * und damit vor echte, wirklich frische Hosts zu schieben.
+ *
+ * @param {unknown} host
+ * @param {number} [now]
+ */
+export function normalizeDiscoveryHostEntry(host, now = 0) {
     if (!host || typeof host !== 'object') return null;
     const ip = normalizeString(host.ip, '');
     const lobbyCode = normalizeLobbyCode(host.lobbyCode, '');

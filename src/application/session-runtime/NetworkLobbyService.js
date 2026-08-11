@@ -234,6 +234,7 @@ export class NetworkLobbyService {
             collectMatchingDiscoveryHosts,
             selectJoinSignalingUrlFromDiscoveredHosts,
             runtimeGlobal: this._runtimeGlobal,
+            nowMs: this._clock.nowMs,
             discoveryPollIntervalMs: DISCOVERY_POLL_INTERVAL_MS,
             discoveryMaxWaitMs: DISCOVERY_MAX_WAIT_MS,
             discoveryMaxMatchingHosts: DISCOVERY_MAX_MATCHING_HOSTS,

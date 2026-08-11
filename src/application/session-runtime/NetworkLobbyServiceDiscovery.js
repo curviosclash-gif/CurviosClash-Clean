@@ -1,3 +1,5 @@
+import { createRuntimeClock } from '../../shared/contracts/RuntimeClockContract.js';
+
 export async function resolveDefaultHostSignalingUrl({
     platformCapabilities = null,
     hostIntentBridge = null,
@@ -36,6 +38,7 @@ export async function resolveDefaultJoinSignalingUrl({
     collectMatchingDiscoveryHosts,
     selectJoinSignalingUrlFromDiscoveredHosts,
     runtimeGlobal = null,
+    nowMs = null,
     discoveryPollIntervalMs = 250,
     discoveryMaxWaitMs = 3_000,
     discoveryMaxMatchingHosts = 8,
@@ -73,9 +76,10 @@ export async function resolveDefaultJoinSignalingUrl({
     clearJoinDiscoveryIssue();
     discoveryPort.start?.();
     try {
-        const deadline = Date.now() + discoveryMaxWaitMs;
+        const now = createRuntimeClock({ nowMs }).nowMs;
+        const deadline = now() + discoveryMaxWaitMs;
         let lastIssue = null;
-        while (Date.now() <= deadline) {
+        while (now() <= deadline) {
             const hosts = await Promise.resolve(discoveryPort.getHosts?.());
             const matches = collectMatchingDiscoveryHosts(hosts, normalizedLobbyCode, discoveryMaxMatchingHosts);
             if (matches.length > 0) {
