@@ -279,11 +279,13 @@ export class Player {
         // 61.4.1: Apply modifier per-frame effects via strategy
         if (strategy) {
             if (typeof strategy.updateHealthRegen === 'function') {
-                strategy.updateHealthRegen(this, dt);
+                strategy.updateHealthRegen(this, dt, this.entityManager);
             }
+            if (!this.alive) return;
             if (typeof strategy.applyBoostTick === 'function') {
-                strategy.applyBoostTick(this, dt);
+                strategy.applyBoostTick(this, dt, this.entityManager);
             }
+            if (!this.alive) return;
         }
 
         // Capture vor JEDEM Substep, nicht nur einmal pro Frame.

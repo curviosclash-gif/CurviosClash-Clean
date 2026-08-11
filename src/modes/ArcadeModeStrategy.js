@@ -396,32 +396,36 @@ export class ArcadeModeStrategy extends GameModeContract {
         return player.shieldHP;
     }
 
+    _applyModifierDamage(player, amount, cause, entityManager = null) {
+        if (typeof entityManager?._applyModeDamage === 'function') {
+            return entityManager._applyModeDamage(player, amount, cause, {
+                ignoreShield: true,
+                emitDamageEvent: false,
+            });
+        }
+        return this.applyDamage(player, amount, { ignoreShield: true });
+    }
+
     // 61.4.1: heat_stress drains HP over time; no natural regen in Arcade
     // 61.6.2: Also aggregates SD stacked modifier effects
-    updateHealthRegen(player, dt) {
-        if (!player || player.hp <= 0) return;
+    updateHealthRegen(player, dt, entityManager = null) {
+        if (!player || player.hp <= 0) return null;
         const fx = this._getAggregatedModifierEffects();
-        if (!fx || !fx.hpDrainPerSecond) return;
+        if (!fx || !fx.hpDrainPerSecond) return null;
         const drain = fx.hpDrainPerSecond * Math.max(0, dt);
-        if (drain <= 0) return;
-        player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - drain);
-        if (player.hp <= 0) {
-            player.lastDamageTimestamp = this._nowSeconds();
-        }
+        if (drain <= 0) return null;
+        return this._applyModifierDamage(player, drain, 'HEAT_STRESS', entityManager);
     }
 
     // 61.4.1: boost_tax — drains HP while boosting
     // 61.6.2: Also aggregates SD stacked modifier effects
-    applyBoostTick(player, dt) {
-        if (!player || player.hp <= 0 || !player.isBoosting) return;
+    applyBoostTick(player, dt, entityManager = null) {
+        if (!player || player.hp <= 0 || !player.isBoosting) return null;
         const fx = this._getAggregatedModifierEffects();
-        if (!fx || !fx.boostHpCostPerSecond) return;
+        if (!fx || !fx.boostHpCostPerSecond) return null;
         const cost = fx.boostHpCostPerSecond * Math.max(0, dt);
-        if (cost <= 0) return;
-        player.hp = Math.max(0, toSafe(player.hp, player.maxHp) - cost);
-        if (player.hp <= 0) {
-            player.lastDamageTimestamp = this._nowSeconds();
-        }
+        if (cost <= 0) return null;
+        return this._applyModifierDamage(player, cost, 'BOOST_TAX', entityManager);
     }
 
     // 61.4.1: tight_turns — multiplier applied to turn rate

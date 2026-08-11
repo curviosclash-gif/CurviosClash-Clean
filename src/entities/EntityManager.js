@@ -338,6 +338,28 @@ export class EntityManager {
         emitArcadeDamageEvent(this, event);
     }
 
+    _applyModeDamage(player, amount, cause = 'UNKNOWN', options = {}) {
+        if (!player || player.alive === false) return null;
+        const damageResult = this.gameModeStrategy?.applyDamage?.(player, amount, options) || null;
+        if (!damageResult) return null;
+        if (options?.emitDamageEvent !== false) {
+            this._emitHuntDamageEvent({
+                target: player,
+                sourcePlayer: options?.sourcePlayer || null,
+                cause,
+                damageResult,
+                impactPoint: options?.impactPoint || player.position || null,
+            });
+        }
+        if (damageResult.isDead) {
+            this._killPlayer(player, cause, {
+                killer: options?.sourcePlayer || null,
+                impactPoint: options?.impactPoint || player.position || null,
+            });
+        }
+        return damageResult;
+    }
+
     _killPlayer(player, cause = 'UNKNOWN', options = {}) {
         killPlayer(this, player, cause, options);
     }

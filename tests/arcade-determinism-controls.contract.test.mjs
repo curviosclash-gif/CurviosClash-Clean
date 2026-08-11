@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
+import { EntityManager } from '../src/entities/EntityManager.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
 import { bindArcadeRunSettings } from '../src/ui/menu/MenuArcadeRunSettingsBindings.js';
 import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
@@ -35,6 +36,71 @@ test('Arcade strategy uses its injected run clock for damage timestamps', () => 
     player.hp = 1;
     strategy.updateHealthRegen(player, 1);
     assert.equal(player.lastDamageTimestamp, 18);
+});
+
+test('Arcade modifier drain uses the entity damage lifecycle and eliminates exactly once', () => {
+    const strategy = new ArcadeModeStrategy({ nowMs: () => 21_000 });
+    strategy.setActiveModifier('heat_stress');
+    const player = {
+        index: 0,
+        alive: true,
+        hp: 1,
+        maxHp: 100,
+        hasShield: true,
+        shieldHP: 40,
+        maxShieldHp: 40,
+        position: {},
+    };
+    const kills = [];
+    const entityManager = Object.create(EntityManager.prototype);
+    entityManager.gameModeStrategy = strategy;
+    entityManager._killPlayer = (target, cause) => {
+        kills.push(cause);
+        target.alive = false;
+    };
+    entityManager._emitHuntDamageEvent = () => {
+        throw new Error('passive modifier damage must not emit hit feedback every frame');
+    };
+
+    const result = strategy.updateHealthRegen(player, 1, entityManager);
+    strategy.updateHealthRegen(player, 1, entityManager);
+
+    assert.equal(result?.isDead, true);
+    assert.equal(player.hp, 0);
+    assert.equal(player.shieldHP, 40, 'passive HP drain intentionally bypasses shields');
+    assert.equal(player.alive, false);
+    assert.deepEqual(kills, ['HEAT_STRESS']);
+});
+
+test('Arcade boost tax uses the same lethal lifecycle without consuming shields', () => {
+    const strategy = new ArcadeModeStrategy({ nowMs: () => 22_000 });
+    strategy.setActiveModifier('boost_tax');
+    const player = {
+        index: 0,
+        alive: true,
+        isBoosting: true,
+        hp: 1,
+        maxHp: 100,
+        hasShield: true,
+        shieldHP: 40,
+        maxShieldHp: 40,
+        position: {},
+    };
+    const kills = [];
+    const entityManager = Object.create(EntityManager.prototype);
+    entityManager.gameModeStrategy = strategy;
+    entityManager._killPlayer = (target, cause) => {
+        kills.push(cause);
+        target.alive = false;
+    };
+
+    const result = strategy.applyBoostTick(player, 1, entityManager);
+    strategy.applyBoostTick(player, 1, entityManager);
+
+    assert.equal(result?.isDead, true);
+    assert.equal(player.hp, 0);
+    assert.equal(player.shieldHP, 40);
+    assert.deepEqual(kills, ['BOOST_TAX']);
 });
 
 test('Productive Arcade support binds the run clock to an existing strategy', () => {
