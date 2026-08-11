@@ -2399,7 +2399,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 allCompleted: false,
                 completedCount: 0,
             };
-            runtime._objectiveState = {
+            const objectiveState = {
                 objectiveId: 'bounty_hunt',
                 label: 'Bounty Hunt',
                 targetLabel: 'Bot 2',
@@ -2421,6 +2421,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 sectorIndex: 3,
                 completedSectors: 2,
                 missions: runtime._missionState,
+                objectiveState,
                 score: {
                     ...previousScore,
                     total: 1337,

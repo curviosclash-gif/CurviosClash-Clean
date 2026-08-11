@@ -784,7 +784,9 @@ export class ArcadeRunRuntime {
             currentMapKey: String(this._state.currentMapKey || ''),
             activeModifierId: this._activeModifierId,
             missionState: this._missionState,
-            objectiveState: this._objectiveState,
+            // The run state carries the objective mirror that every objective update writes,
+            // so the HUD reads that one source instead of the private field it duplicates.
+            objectiveState: this._state.objectiveState || this._objectiveState,
             comboWindowMs: Math.max(800, toSafeInt(this._state?.config?.comboWindowMs, 5000)),
             comboFreezeUntilMs: Math.max(0, toSafeNumber(this._state?.comboFreezeUntilMs, 0)),
             suddenDeathElapsedMs: this._state.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH
