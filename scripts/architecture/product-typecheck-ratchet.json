@@ -1,5 +1,5 @@
 {
-  "updatedAt": "2026-08-10",
+  "updatedAt": "2026-08-11",
   "comment": "Je Fehlercode budgetiert. TS2339/TS2345/TS2353 sind JSDoc-Schulden; alle uebrigen Codes duerfen nur sinken.",
-  "budgets": { "TS2339": 851, "TS2345": 97, "TS2353": 65, "*": 111 }
+  "budgets": { "TS2339": 851, "TS2345": 97, "TS2353": 65, "*": 95 }
 }

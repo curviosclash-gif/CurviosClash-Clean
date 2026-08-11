@@ -37,7 +37,15 @@ for (const sourceRoot of sourceRoots) {
     if (existsSync(absoluteRoot)) walk(absoluteRoot);
 }
 
-const program = ts.createProgram(sourceFiles, converted.options);
+// Ambiente Deklarationen gehoeren zu keinem Quellbaum, muessen dem Programm aber
+// bekannt sein — sonst zaehlt der Ratchet Build-Zeit-Konstanten als echte Fehler.
+const ambientDeclarationFiles = [
+    'dev/vite/vite-build-globals.d.ts',
+]
+    .map((relativePath) => path.join(rootDir, relativePath))
+    .filter((absolutePath) => existsSync(absolutePath));
+
+const program = ts.createProgram([...sourceFiles, ...ambientDeclarationFiles], converted.options);
 const diagnostics = ts.getPreEmitDiagnostics(program)
     .filter((diagnostic) => diagnostic.category === ts.DiagnosticCategory.Error);
 const REST_BUCKET = '*';
