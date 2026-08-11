@@ -7,8 +7,14 @@ import {
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
 import { applyHangarWindowStorageEvent, createHangarWindowLauncher, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
-const ARCADE_SEED_STORAGE_KEY = 'cuviosclash.arcade.seed.v1';
-const ARCADE_LAST_RUN_STORAGE_KEY = 'cuviosclash.arcade.last_run.v1';
+import {
+    ARCADE_LAST_RUN_STORAGE_KEY,
+    ARCADE_SEED_STORAGE_KEY,
+    createArcadeLastRunRecord,
+    createArcadeSeedRecord,
+    readArcadeLastRunRecord,
+    readArcadeSeedRecord,
+} from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -51,13 +57,24 @@ function computeDailySeed() {
 
 function loadSeed() {
     const raw = safeReadLocalStorage(ARCADE_SEED_STORAGE_KEY);
-    const parsed = toInt(raw, 0);
-    if (parsed > 0) return parsed;
+    let parsed = raw;
+    try {
+        parsed = JSON.parse(raw);
+    } catch {
+        // Legacy seed payloads were stored as plain integer strings.
+    }
+    const result = readArcadeSeedRecord(parsed);
+    if (result.record) {
+        if (result.shouldPersist) {
+            safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(result.record));
+        }
+        return result.record.seed;
+    }
     return Math.floor(Math.random() * 1_000_000) + 1;
 }
 
 function saveSeed(seed) {
-    safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, String(seed));
+    safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(createArcadeSeedRecord(seed)));
 }
 
 function loadLastRunSnapshot() {
@@ -65,15 +82,21 @@ function loadLastRunSnapshot() {
     if (!raw) return null;
     try {
         const parsed = JSON.parse(raw);
-        if (!parsed || typeof parsed !== 'object') return null;
-        return parsed;
+        const result = readArcadeLastRunRecord(parsed);
+        if (result.record && result.shouldPersist) {
+            safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(result.record));
+        }
+        return result.record;
     } catch {
         return null;
     }
 }
 
 function saveLastRunSnapshot(snapshot) {
-    safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(snapshot));
+    safeWriteLocalStorage(
+        ARCADE_LAST_RUN_STORAGE_KEY,
+        JSON.stringify(createArcadeLastRunRecord(snapshot))
+    );
 }
 
 function formatRunTime(isoTime) {
@@ -272,7 +295,7 @@ function shouldShowArcade(settings) {
 }
 
 function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
-    return {
+    return createArcadeLastRunRecord({
         at: new Date().toISOString(),
         mapKey: normalizeString(settings?.mapKey, 'standard'),
         vehicleId: normalizeString(settings?.vehicles?.PLAYER_1, 'ship5'),
@@ -282,7 +305,7 @@ function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
         dailyChallenge: settings?.arcade?.dailyChallenge === true,
         buildId: normalizeString(hangarBuild?.buildId, ''),
         buildSchemaVersion: normalizeString(hangarBuild?.schemaVersion, ''),
-    };
+    });
 }
 
 export function setupArcadeMenuSurface(ctx = {}) {

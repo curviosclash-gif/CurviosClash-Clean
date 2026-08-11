@@ -30,6 +30,7 @@ import {
 } from '../src/ui/arcade/VehicleManagerCatalog.js';
 import { applyPlayerPowerup, updatePlayerEffects } from '../src/entities/player/PlayerEffectOps.js';
 import { createMatchRuntimeProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
+import { ARCADE_LAST_RUN_STORAGE_KEY } from '../src/shared/contracts/ArcadeMenuPersistenceContract.js';
 
 const SETTINGS_STORAGE_KEY = 'cuviosclash.settings.v1';
 const SETTINGS_PROFILES_STORAGE_KEY = 'cuviosclash.settings-profiles.v1';
@@ -39,7 +40,6 @@ const MENU_PRESETS_STORAGE_KEY = 'cuviosclash.menu-presets.v1';
 const CUSTOM_MAP_STORAGE_KEY = 'custom_map_test';
 const ARCADE_VEHICLE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-vehicle-profile.v1';
 const ARCADE_VEHICLE_LOADOUT_STORAGE_KEY = 'cuviosclash.arcade-vehicle-loadouts.v1';
-const ARCADE_LAST_RUN_STORAGE_KEY = 'cuviosclash.arcade.last_run.v1';
 
 function buildLegacyRuntimeCustomMap(obstacles = [], options = {}) {
     const payload = {
