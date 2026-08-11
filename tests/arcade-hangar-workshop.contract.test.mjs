@@ -26,7 +26,10 @@ import {
     readActiveHangarBuildFromStore,
 } from '../src/ui/hangar/HangarBuildPersistence.js';
 import { persistArcadeHangarVehicleSelection } from '../src/ui/hangar/HangarWindowSettingsSync.js';
-import { HANGAR_CAPABILITY_IDS } from '../src/shared/contracts/HangarModeContract.js';
+import {
+    HANGAR_CAPABILITY_IDS,
+    HANGAR_USER_FLOW_DESCRIPTORS,
+} from '../src/shared/contracts/HangarModeContract.js';
 import {
     HANGAR_SELECTION_PLAYER_SLOTS,
     readHangarVehicleSelection,
@@ -78,6 +81,11 @@ function partShapeSignature(node) {
         scale: child.scale.toArray().map((value) => Number(value.toFixed(3))),
     })));
 }
+
+test('hangar mode descriptors expose the storage keys used by persistence', () => {
+    assert.equal(HANGAR_USER_FLOW_DESCRIPTORS.arcade.persistenceKey, HANGAR_BUILD_STORAGE_KEYS.arcade);
+    assert.equal(HANGAR_USER_FLOW_DESCRIPTORS.fight.persistenceKey, HANGAR_BUILD_STORAGE_KEYS.fight);
+});
 
 test('hangar stones fit every socket and reject locked or over-budget drafts', () => {
     const base = createDefaultHangarBuild('ship5', { nowMs: 1 });

@@ -272,6 +272,31 @@ test('ArcadeGhostLibrary load/save normalizes persisted records', () => {
     assert.equal(writes[1].value.routes.route_beta, undefined);
 });
 
+test('ArcadeGhostLibrary does not overwrite an unknown future root schema', () => {
+    const writes = [];
+    const store = {
+        loadJsonRecord() {
+            return {
+                schemaVersion: 'arcade-ghost-library.v99',
+                routes: {
+                    route_future: {
+                        durationMs: 4000,
+                        longestGhostClip: createGhostClip(4),
+                    },
+                },
+            };
+        },
+        saveJsonRecord(key, value) {
+            writes.push({ key, value });
+        },
+    };
+
+    const loaded = loadGhostLibrary(store);
+
+    assert.deepEqual(Object.keys(loaded), []);
+    assert.equal(writes.length, 0);
+});
+
 test('ArcadeGhostLibrary loads mixed legacy route entries from a v2 root container', () => {
     const store = {
         loadJsonRecord(key) {

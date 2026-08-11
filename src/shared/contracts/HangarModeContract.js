@@ -24,6 +24,11 @@ export const HANGAR_MODES = Object.freeze({
     FIGHT: 'fight',
 });
 
+export const HANGAR_BUILD_STORAGE_KEYS = Object.freeze({
+    [HANGAR_MODES.ARCADE]: 'curviosclash.hangar.arcade-builds.v2',
+    [HANGAR_MODES.FIGHT]: 'curviosclash.hangar.fight-builds.v2',
+});
+
 // ─── Desktop Capability IDs (Preload Bridge) ───
 // Named capability IDs for electron/preload.cjs to expose to renderer.
 // Renderer code uses only these names — never electron IPC channel strings.
@@ -173,7 +178,7 @@ export const HANGAR_USER_FLOW_DESCRIPTORS = Object.freeze({
         mode: HANGAR_MODES.ARCADE,
         ruleContract: 'ArcadeHangarRulesContract',
         dataSpace: 'settings.vehicles.arcade',
-        persistenceKey: 'cuviosclash.hangar.arcade.v1',
+        persistenceKey: HANGAR_BUILD_STORAGE_KEYS[HANGAR_MODES.ARCADE],
         startNavEvent: HANGAR_NAV_EVENTS.OPEN_ARCADE_HANGAR,
         workshopAllowed: true,
         progressionDriven: true,
@@ -183,7 +188,7 @@ export const HANGAR_USER_FLOW_DESCRIPTORS = Object.freeze({
         mode: HANGAR_MODES.FIGHT,
         ruleContract: 'FightHangarBalanceContract',
         dataSpace: 'settings.vehicles.fight',
-        persistenceKey: 'cuviosclash.hangar.fight.v1',
+        persistenceKey: HANGAR_BUILD_STORAGE_KEYS[HANGAR_MODES.FIGHT],
         startNavEvent: HANGAR_NAV_EVENTS.OPEN_FIGHT_HANGAR,
         workshopAllowed: true,
         progressionDriven: false,

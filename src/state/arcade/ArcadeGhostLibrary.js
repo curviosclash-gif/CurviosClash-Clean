@@ -171,6 +171,10 @@ export function loadGhostLibrary(store, budgetOptions = null, options = null) {
     }
 
     const raw = store.loadJsonRecord(ARCADE_GHOST_LIBRARY_STORAGE_KEY, {});
+    const rawSchemaVersion = normalizeString(raw?.schemaVersion);
+    if (rawSchemaVersion && rawSchemaVersion !== ARCADE_GHOST_LIBRARY_SCHEMA_VERSION) {
+        return createEmptyGhostLibrary();
+    }
     const normalization = normalizeGhostLibrary(raw, resolvedBudget, {
         seedLastTouchSeq: toSafeNonNegativeInteger(raw?.lastTouchSeq, 0),
     });

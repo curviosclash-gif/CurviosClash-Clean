@@ -1,4 +1,5 @@
 import {
+    ARCADE_RUN_PROFILE_SCHEMA_VERSION,
     CURRENT_ARCADE_SCORE_MODEL,
     normalizeArcadeScoreModel,
 } from '../../shared/contracts/ArcadeRunSettingsContract.js';
@@ -114,12 +115,12 @@ export function createArcadeRunConfig(source = null) {
 
 export function createArcadeRunRecords(source = null) {
     const input = source && typeof source === 'object' ? source : {};
-    const comparableInput = input.schemaVersion === 'arcade-run-profile.v2'
+    const comparableInput = input.schemaVersion === ARCADE_RUN_PROFILE_SCHEMA_VERSION
         && input.scoreModel === CURRENT_ARCADE_SCORE_MODEL
         ? input
         : {};
     return {
-        schemaVersion: 'arcade-run-profile.v2',
+        schemaVersion: ARCADE_RUN_PROFILE_SCHEMA_VERSION,
         scoreModel: CURRENT_ARCADE_SCORE_MODEL,
         updatedAt: normalizeText(comparableInput.updatedAt, ''),
         runsPlayed: Math.max(0, clampInteger(comparableInput.runsPlayed, 0, 999_999, 0)),

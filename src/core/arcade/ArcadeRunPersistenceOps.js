@@ -1,7 +1,6 @@
 import { createArcadeRunRecords } from '../../state/arcade/ArcadeRunState.js';
 import { saveGhostLibrary } from '../../state/arcade/ArcadeGhostLibrary.js';
-
-const ARCADE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
+import { ARCADE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
 function toSafeInt(value, fallback = 0) {
     const parsed = Math.floor(Number(value));
@@ -27,7 +26,7 @@ export function readArcadeRecordsFromStorage(runtime) {
     if (!store || typeof store.loadJsonRecord !== 'function') {
         return createArcadeRunRecords(runtime._records);
     }
-    return createArcadeRunRecords(store.loadJsonRecord(ARCADE_PROFILE_STORAGE_KEY, null));
+    return createArcadeRunRecords(store.loadJsonRecord(ARCADE_RUN_PROFILE_STORAGE_KEY, null));
 }
 
 export function scheduleArcadeRecordsSave(runtime, records = runtime._records, onPersisted = null) {
@@ -35,7 +34,7 @@ export function scheduleArcadeRecordsSave(runtime, records = runtime._records, o
     if (!store || typeof store.saveJsonRecord !== 'function') return false;
     return runtime._persistenceScheduler?.scheduleRunRecords?.(
         store,
-        ARCADE_PROFILE_STORAGE_KEY,
+        ARCADE_RUN_PROFILE_STORAGE_KEY,
         records,
         createArcadeRunRecords,
         onPersisted

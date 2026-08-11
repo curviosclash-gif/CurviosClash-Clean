@@ -6,10 +6,19 @@ import {
     mergeArcadeRunRecords,
 } from '../src/state/arcade/ArcadeScoreOps.js';
 import { createArcadeRunRecords } from '../src/state/arcade/ArcadeRunState.js';
-import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
+import {
+    ARCADE_RUN_PROFILE_SCHEMA_VERSION,
+    ARCADE_RUN_PROFILE_STORAGE_KEY,
+    normalizeArcadeRunSettings,
+} from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 
 const SCORE_MODEL_V2 = 'arcade-score.v2';
-const RECORD_SCHEMA_V2 = 'arcade-run-profile.v2';
+const RECORD_SCHEMA_V2 = ARCADE_RUN_PROFILE_SCHEMA_VERSION;
+
+test('run profile keeps its legacy key and current payload schema explicit', () => {
+    assert.equal(ARCADE_RUN_PROFILE_STORAGE_KEY, 'cuviosclash.arcade-run-profile.v1');
+    assert.equal(ARCADE_RUN_PROFILE_SCHEMA_VERSION, 'arcade-run-profile.v2');
+});
 
 test('score v2 rewards late survival non-linearly and caps invalid long durations', () => {
     const atTwenty = computeArcadeSectorScoreBreakdown({ duration: 20, selfCollisions: 1, itemUses: 1 });
@@ -60,6 +69,19 @@ test('current v2 records preserve comparable scores', () => {
     assert.equal(current.runsPlayed, 3);
     assert.equal(current.bestScore, 1234);
     assert.equal(current.lastScore, 900);
+});
+
+test('unknown future run profiles fall back without importing incomparable fields', () => {
+    const fallback = createArcadeRunRecords({
+        schemaVersion: 'arcade-run-profile.v99',
+        scoreModel: SCORE_MODEL_V2,
+        runsPlayed: 88,
+        bestScore: 999999,
+    });
+
+    assert.equal(fallback.schemaVersion, RECORD_SCHEMA_V2);
+    assert.equal(fallback.runsPlayed, 0);
+    assert.equal(fallback.bestScore, 0);
 });
 
 test('record merge rejects summaries from an incompatible score model', () => {

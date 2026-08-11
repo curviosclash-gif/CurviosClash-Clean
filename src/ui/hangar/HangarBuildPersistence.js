@@ -1,12 +1,12 @@
-import { HANGAR_CAPABILITY_IDS } from '../../shared/contracts/HangarModeContract.js';
+import {
+    HANGAR_BUILD_STORAGE_KEYS,
+    HANGAR_CAPABILITY_IDS,
+} from '../../shared/contracts/HangarModeContract.js';
 import { createHangarWorkshopPersistenceFacade } from './HangarWorkshopPersistenceFacade.js';
 import { cloneHangarBuild, normalizeHangarBuild } from './HangarBuildDraftState.js';
 
 export const HANGAR_BUILD_STORE_SCHEMA_VERSION = 'hangar-build-store.v2';
-export const HANGAR_BUILD_STORAGE_KEYS = Object.freeze({
-    arcade: 'curviosclash.hangar.arcade-builds.v2',
-    fight: 'curviosclash.hangar.fight-builds.v2',
-});
+export { HANGAR_BUILD_STORAGE_KEYS };
 export const LEGACY_ARCADE_LOADOUT_STORAGE_KEY = 'cuviosclash.arcade-vehicle-loadouts.v1';
 
 function normalizeMode(value) {
