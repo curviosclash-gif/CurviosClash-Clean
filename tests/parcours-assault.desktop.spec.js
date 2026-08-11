@@ -27,9 +27,60 @@ test('Angriffsparcours starts on desktop with checkpoints, bots, MG and rockets'
         && window.GAME_INSTANCE?.entityManager?._staticTurretSystem?.turrets?.length === 4
     ), null, { timeout: 20000 });
 
-    await page.evaluate(() => {
-        window.GAME_INSTANCE?.entityManager?._staticTurretSystem?.update?.(2);
+    const turretExercise = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const manager = game?.entityManager;
+        const system = manager?._staticTurretSystem;
+        const target = manager?.humanPlayers?.[0];
+        const turret = system?.turrets?.find((entry) => entry?.weapon === 'mg');
+        const arena = game?.arena;
+        if (!system || !target?.position || !turret?.position || !arena?.checkCollisionFast) {
+            return { positioned: false, shotsFired: 0 };
+        }
+
+        const radii = [0.25, 0.4, 0.55].map((ratio) => Math.max(6, turret.range * ratio));
+        const lineProbe = turret.position.clone();
+        let positioned = false;
+        for (const radius of radii) {
+            for (let angleIndex = 0; angleIndex < 24; angleIndex += 1) {
+                const angle = (Math.PI * 2 * angleIndex) / 24;
+                const x = turret.position.x + Math.cos(angle) * radius;
+                const y = turret.position.y;
+                const z = turret.position.z + Math.sin(angle) * radius;
+                target.position.set(x, y, z);
+                if (arena.checkCollisionFast(target.position, 0.18)) continue;
+
+                let blocked = false;
+                const steps = Math.max(2, Math.ceil(radius / 0.5));
+                for (let step = 1; step < steps; step += 1) {
+                    lineProbe.lerpVectors(turret.position, target.position, step / steps);
+                    if (arena.checkCollisionFast(lineProbe, 0.18)) {
+                        blocked = true;
+                        break;
+                    }
+                }
+                if (!blocked) {
+                    positioned = true;
+                    break;
+                }
+            }
+            if (positioned) break;
+        }
+
+        if (!positioned) return { positioned: false, shotsFired: 0 };
+        target.spawnProtectionTimer = 0;
+        target.velocity?.set?.(0, 0, 0);
+        turret.cooldownRemaining = 0;
+        turret.acquireRemaining = 0;
+        turret.target = null;
+        for (let tick = 0; tick < 30 && turret.shotsFired === 0; tick += 1) {
+            system.update(0.1);
+        }
+        return { positioned: true, shotsFired: turret.shotsFired };
     });
+
+    expect(turretExercise.positioned).toBeTruthy();
+    expect(turretExercise.shotsFired).toBeGreaterThan(0);
 
     const state = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
