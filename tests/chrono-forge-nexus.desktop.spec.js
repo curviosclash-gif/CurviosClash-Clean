@@ -21,22 +21,20 @@ test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop',
     await page.click('#btn-start');
     await page.waitForFunction(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'chrono_forge_nexus'
-        && window.GAME_INSTANCE?.arena?._glbAnimationMixers?.length === 8
+        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 8
     ), null, { timeout: 30000 });
 
     const before = await page.evaluate(() => (
-        window.GAME_INSTANCE.arena._glbAnimationMixers.map((mixer) => mixer.time)
+        window.GAME_INSTANCE.arena.glbAnimationElapsedSeconds
     ));
     await expect.poll(
         () => page.evaluate((baseline) => {
             const game = window.GAME_INSTANCE;
-            const mixers = game?.arena?._glbAnimationMixers || [];
             return game?.state === 'PLAYING'
-                && mixers.length === baseline.length
-                && mixers.every((mixer, index) => mixer.time > baseline[index]);
+                && game?.arena?.glbAnimationElapsedSeconds > baseline;
         }, before),
         {
-            message: 'all Chrono-Forge animation mixers should advance after match start',
+            message: 'the Chrono-Forge animation clock should advance after match start',
             timeout: 5000,
         }
     ).toBeTruthy();
@@ -44,7 +42,7 @@ test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop',
         const arena = window.GAME_INSTANCE.arena;
         return {
             mapKey: arena.currentMapKey,
-            mixerTimes: arena._glbAnimationMixers.map((mixer) => mixer.time),
+            trackCount: arena._glbAnimation.trackCount,
             loadError: arena._glbLoadError,
             warnings: arena._glbLoadWarnings,
             colliderMode: arena._glbFootprint?.colliderMode,
@@ -55,8 +53,7 @@ test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop',
     expect(state.loadError).toBeNull();
     expect(state.warnings).toEqual([]);
     expect(state.colliderMode).toBe('dynamic');
-    expect(state.mixerTimes).toHaveLength(8);
-    expect(state.mixerTimes.every((time, index) => time > before[index])).toBeTruthy();
+    expect(state.trackCount).toBe(8);
 
     // The moving setpieces must carry collision with them instead of leaving a hitbox
     // behind at the pose they were authored in.

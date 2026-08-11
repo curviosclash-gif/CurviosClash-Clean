@@ -24,30 +24,27 @@ test('Eclipse Foundry loads and advances all thirteen GLB animation loops on des
         window.GAME_INSTANCE?.arena?.currentMapKey === 'eclipse_foundry'
         && window.GAME_INSTANCE?.arena?._glbScene
         && !window.GAME_INSTANCE?.arena?._glbLoadError
-        && window.GAME_INSTANCE?.arena?._glbAnimationMixers?.length === 13
+        && window.GAME_INSTANCE?.arena?._glbAnimation?.trackCount === 13
     )), {
         timeout: 90_000,
         message: 'Eclipse Foundry should load all animated GLBs',
     }).toBeTruthy();
 
-    const initialTimes = await page.evaluate(() => (
-        window.GAME_INSTANCE.arena._glbAnimationMixers.map((mixer) => mixer.time)
+    const initialElapsed = await page.evaluate(() => (
+        window.GAME_INSTANCE.arena.glbAnimationElapsedSeconds
     ));
-    await expect.poll(() => page.evaluate((times) => {
-        const game = window.GAME_INSTANCE;
-        const mixers = game?.arena?._glbAnimationMixers || [];
-        return mixers.length === times.length
-            && mixers.every((mixer, index) => mixer.time > times[index]);
-    }, initialTimes), {
+    await expect.poll(() => page.evaluate((elapsed) => (
+        window.GAME_INSTANCE?.arena?.glbAnimationElapsedSeconds > elapsed
+    ), initialElapsed), {
         timeout: 10_000,
-        message: 'all Eclipse Foundry animation mixers should advance after match start',
+        message: 'the Eclipse Foundry animation clock should advance after match start',
     }).toBeTruthy();
 
     const state = await page.evaluate(() => {
         const arena = window.GAME_INSTANCE.arena;
         return {
             mapKey: arena.currentMapKey,
-            mixerCount: arena._glbAnimationMixers.length,
+            trackCount: arena._glbAnimation.trackCount,
             warningCount: arena._glbLoadWarnings.length,
             colliderMode: arena.currentMapDefinition?.glbColliderMode,
             glbSceneChildren: arena._glbScene?.children?.length || 0,
@@ -56,7 +53,7 @@ test('Eclipse Foundry loads and advances all thirteen GLB animation loops on des
 
     expect(state).toEqual({
         mapKey: 'eclipse_foundry',
-        mixerCount: 13,
+        trackCount: 13,
         warningCount: 0,
         colliderMode: 'dynamic',
         glbSceneChildren: 26,
