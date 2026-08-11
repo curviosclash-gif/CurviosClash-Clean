@@ -67,10 +67,7 @@ import {
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { isArcadeGhostDuelPlaybackEnabled } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
-import {
-    applyArcadeIntermissionEffects,
-    captureArcadeHumanVitals,
-} from './ArcadeIntermissionEffects.js';
+import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
 
 const ARCADE_PROFILE_STORAGE_KEY = 'cuviosclash.arcade-run-profile.v1';
@@ -426,6 +423,7 @@ export class ArcadeRunRuntime {
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
         try { this._strategy.applyVehicleUpgrades?.(getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses)); } catch { /* no-op */ }
+        syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             try { this._strategy.enterSuddenDeath?.(); } catch { /* no-op */ }
         }
@@ -438,6 +436,7 @@ export class ArcadeRunRuntime {
         try { strategy.setActiveModifier?.(null); } catch { /* no-op */ }
         try { strategy.setSectorType?.(null); } catch { /* no-op */ }
         try { strategy.applyVehicleUpgrades?.(null); } catch { /* no-op */ }
+        syncArcadeRunRewardEffects(null, strategy);
     }
 
     _resolveActiveRunSeed(config = null) {
@@ -1065,6 +1064,7 @@ export class ArcadeRunRuntime {
             this._pendingIntermissionEffects = null;
             this._pendingHumanVitals = null;
         }
+        syncArcadeRunRewardEffects(this._state, this._strategy);
         this._state.intermission = null;
 
         // Resolve the next sector's authored map before the round/session restarts.

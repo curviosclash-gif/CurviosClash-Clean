@@ -7,6 +7,10 @@
 import { GameModeContract } from './GameModeContract.js';
 import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
+import {
+    createDefaultArcadeRunRewardEffects,
+    normalizeArcadeRunRewardEffects,
+} from '../shared/contracts/ArcadeRunRewardEffectsContract.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -63,6 +67,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._random = this.runtimeRng.next;
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
+        this._runRewardEffects = createDefaultArcadeRunRewardEffects();
         this._roundScores = {};
         // 61.6.2: Sudden Death state
         this._sdActive = false;
@@ -88,6 +93,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this.setActiveModifier(null);
         this.setSectorType(null);
         this.applyVehicleUpgrades(null);
+        this.applyRunRewardEffects(null);
     }
 
     /**
@@ -150,6 +156,10 @@ export class ArcadeModeStrategy extends GameModeContract {
                 maxHpBonus: Number.isFinite(bonuses.maxHpBonus) ? bonuses.maxHpBonus : 0,
             });
         }
+    }
+
+    applyRunRewardEffects(effects) {
+        this._runRewardEffects = normalizeArcadeRunRewardEffects(effects);
     }
 
     get modeType() { return 'ARCADE'; }
@@ -265,7 +275,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (!player) return null;
         // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of base
         const hpBonus = Math.min(DEFAULT_MAX_HP * (UPGRADE_STAT_CAP_PCT / 100), Math.max(0, this._slotBonuses.maxHpBonus));
-        player.maxHp = DEFAULT_MAX_HP + hpBonus;
+        player.maxHp = DEFAULT_MAX_HP + hpBonus + this._runRewardEffects.maxHpBonus;
         player.hp = player.maxHp;
         player.maxShieldHp = DEFAULT_SHIELD_HP;
         player.shieldHP = player.hasShield ? DEFAULT_SHIELD_HP : 0;
@@ -325,13 +335,9 @@ export class ArcadeModeStrategy extends GameModeContract {
         const missionTotal = Math.max(0, toSafeInt(context.totalMissions, 0));
         const missionCompleted = Math.max(0, Math.min(missionTotal, toSafeInt(context.completedMissions, 0)));
         const missionRatio = missionTotal > 0 ? missionCompleted / missionTotal : 0;
-        const rewardId = String(context.selectedRewardId || '').trim().toLowerCase();
 
         let healPct = this._sdActive ? SD_INTERMISSION_HEAL_PCT : BASE_INTERMISSION_HEAL_PCT;
         healPct += missionRatio * 0.08;
-        if (rewardId === 'run_armor_t1') healPct += 0.16;
-        if (rewardId === 'run_speed_t1') healPct += 0.08;
-        if (rewardId === 'run_pickup_t1') healPct += 0.06;
         healPct = Math.max(0, Math.min(0.4, healPct));
 
         const requestedHeal = Math.max(0, Math.round(maxHp * healPct));
@@ -348,7 +354,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         let shieldGranted = 0;
         const spill = Math.max(0, requestedHeal - healed);
         if (spill > 0) {
-            const shieldTopupFactor = rewardId === 'run_portal_t1' ? 0.6 : 0.5;
+            const shieldTopupFactor = 0.5 * (1 + this._runRewardEffects.shieldTopupBonusPct / 100);
             const maxShield = Math.max(0, toSafe(player.maxShieldHp, DEFAULT_SHIELD_HP));
             const targetShield = Math.min(maxShield, Math.max(0, toSafe(player.shieldHP, 0)) + Math.round(spill * shieldTopupFactor));
             shieldGranted = Math.max(0, targetShield - Math.max(0, toSafe(player.shieldHP, 0)));
@@ -429,7 +435,9 @@ export class ArcadeModeStrategy extends GameModeContract {
     // 61.8.1: T2 Engine adds +8% speed; 82.8.4: capped at +50%
     getSpeedMultiplier() {
         const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._slotBonuses.speedBonusPct);
-        return 1.0 + (cappedPct / 100);
+        const upgradeMultiplier = 1.0 + (cappedPct / 100);
+        const rewardMultiplier = 1.0 + (this._runRewardEffects.speedBonusPct / 100);
+        return upgradeMultiplier * rewardMultiplier;
     }
 
     // 82.8.1: Apply upgrade speed bonus to player base speed at spawn
@@ -445,7 +453,8 @@ export class ArcadeModeStrategy extends GameModeContract {
     // 61.6.2: Also aggregates SD stacked modifier effects
     getSpawnRateMultiplier() {
         const fx = this._getAggregatedModifierEffects();
-        return (fx && fx.spawnRateMultiplier) ? fx.spawnRateMultiplier : 1.0;
+        const modifierMultiplier = (fx && fx.spawnRateMultiplier) ? fx.spawnRateMultiplier : 1.0;
+        return modifierMultiplier * this._runRewardEffects.spawnRateMultiplier;
     }
 
     // --- Collision Response ---

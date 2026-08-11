@@ -1,4 +1,5 @@
 import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
+import { deriveArcadeRunRewardEffects } from '../../shared/contracts/ArcadeRunRewardEffectsContract.js';
 
 function toSafeInt(value, fallback = 0) {
     return Math.trunc(toSafeNumber(value, fallback));
@@ -36,7 +37,6 @@ export function applyArcadeIntermissionEffects({
     strategy = null,
     context = null,
     state = null,
-    nowMs = Date.now(),
 } = {}) {
     const humans = (Array.isArray(players) ? players : [])
         .filter((entry) => entry && entry.isBot !== true && entry.alive !== false);
@@ -64,19 +64,23 @@ export function applyArcadeIntermissionEffects({
         result.playersAffected += 1;
     }
 
-    if (context?.selectedRewardId === 'run_combo_t1' && state?.score) {
-        const appliedAtMs = Math.max(0, toSafeNumber(nowMs, Date.now()));
-        result.comboFreezeGrantedMs = 1200;
-        state.comboFreezeUntilMs = Math.max(
-            toSafeNumber(state.comboFreezeUntilMs, 0),
-            appliedAtMs + result.comboFreezeGrantedMs
-        );
-        state.score = {
-            ...state.score,
-            lastComboAtMs: Math.max(toSafeNumber(state.score.lastComboAtMs, 0), appliedAtMs),
-        };
-    }
-
     if (state) state.lastIntermissionHeal = result;
     return result;
+}
+
+export function syncArcadeRunRewardEffects(state = null, strategy = null) {
+    if (!state || typeof state !== 'object') {
+        strategy?.applyRunRewardEffects?.(null);
+        return null;
+    }
+    const effects = deriveArcadeRunRewardEffects(state.rewardHistory);
+    const baseComboWindowMs = Math.max(800, Number(state.rewardBaseComboWindowMs ?? state?.config?.comboWindowMs) || 5000);
+    state.rewardBaseComboWindowMs = baseComboWindowMs;
+    state.rewardEffects = effects;
+    state.config = {
+        ...state.config,
+        comboWindowMs: Math.min(20_000, baseComboWindowMs + effects.comboWindowBonusMs),
+    };
+    strategy?.applyRunRewardEffects?.(effects);
+    return effects;
 }

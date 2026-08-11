@@ -7,27 +7,27 @@ const ARCADE_REWARD_META = Object.freeze({
     run_speed_t1: Object.freeze({
         id: 'run_speed_t1',
         label: 'Thruster Burst',
-        effectText: '+8% Intermission-Heal',
+        effectText: '+4% Grundtempo (max. +20%)',
     }),
     run_armor_t1: Object.freeze({
         id: 'run_armor_t1',
         label: 'Reactive Hull',
-        effectText: '+16% Intermission-Heal',
+        effectText: '+12 max. HP (max. +48)',
     }),
     run_combo_t1: Object.freeze({
         id: 'run_combo_t1',
         label: 'Combo Buffer',
-        effectText: 'Combo-Freeze +1.2s',
+        effectText: '+0.8s Combo-Fenster (max. +3.2s)',
     }),
     run_pickup_t1: Object.freeze({
         id: 'run_pickup_t1',
         label: 'Salvage Scanner',
-        effectText: '+6% Intermission-Heal',
+        effectText: 'Item-Spawnrate x1.15 (max. x1.75)',
     }),
     run_portal_t1: Object.freeze({
         id: 'run_portal_t1',
         label: 'Portal Line',
-        effectText: '+10% Shield-Topup',
+        effectText: '+25% Schildumwandlung (max. +100%)',
     }),
 });
 

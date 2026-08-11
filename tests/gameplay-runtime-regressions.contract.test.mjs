@@ -447,7 +447,7 @@ test('Arcade runtime decays an idle combo during gameplay but respects combo fre
     assert.equal(runtime._state.score.multiplier, 4);
 });
 
-test('Arcade intermission restores carried vitals before healing and grants combo buffer', () => {
+test('Arcade intermission restores carried vitals without a one-off combo freeze', () => {
     const runtime = new ArcadeRunRuntime({ now: () => 5000 });
     runtime._enabled = true;
     runtime._state = createArcadeRunState({
@@ -492,8 +492,8 @@ test('Arcade intermission restores carried vitals before healing and grants comb
     assert.equal(player.hasShield, true);
     assert.equal(result.playersRestored, 1);
     assert.equal(result.healedTotal, 10);
-    assert.equal(result.comboFreezeGrantedMs, 1200);
-    assert.equal(runtime._state.comboFreezeUntilMs, 6200);
+    assert.equal(result.comboFreezeGrantedMs, 0);
+    assert.equal(runtime._state.comboFreezeUntilMs, undefined);
 });
 
 test('Arcade sector profiles apply authored squad pressure and request session rebuilds', () => {
@@ -593,7 +593,7 @@ test('Arcade records retain kill score totals and isolate each daily seed', () =
     assert.equal(second.daily.bestScore, 400);
 });
 
-test('Portal Line adds ten percentage points to intermission shield conversion', () => {
+test('selecting Portal Line no longer applies a one-off shield conversion bonus', () => {
     const strategy = new ArcadeModeStrategy();
     const basePlayer = {
         alive: true,
@@ -610,7 +610,7 @@ test('Portal Line adds ten percentage points to intermission shield conversion',
     });
 
     assert.equal(base.shieldGranted, 6);
-    assert.equal(portal.shieldGranted, 7);
+    assert.equal(portal.shieldGranted, 6);
 });
 
 test('temporary speed effects preserve Arcade vehicle and Fight loadout speed bonuses', () => {
