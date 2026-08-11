@@ -213,7 +213,15 @@ export function applyPlayerPowerup(player, type, options = {}) {
 
     if (type === 'HEALTH') {
         const runtimeConfig = resolveEntityRuntimeConfig(player);
-        applyHealing(player, Number(definition.healing) || 0, runtimeConfig);
+        const healResult = applyHealing(player, Number(definition.healing) || 0, runtimeConfig);
+        if (healResult.healed > 0) {
+            player.entityManager?._emitArcadeGameplayEvent?.({
+                type: 'health_update',
+                playerIndex: player.index,
+                hp: player.hp,
+                maxHp: player.maxHp,
+            });
+        }
         return;
     }
 

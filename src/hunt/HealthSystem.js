@@ -26,7 +26,8 @@ function getActiveMode(config = null) {
 export function isHuntHealthActive(config = null) {
     const activeConfig = resolveConfig(config);
     const enabled = activeConfig?.HUNT?.ENABLED !== false;
-    return enabled && isHuntMode(getActiveMode(activeConfig), enabled);
+    const activeMode = getActiveMode(activeConfig);
+    return activeMode === GAME_MODE_TYPES.ARCADE || (enabled && isHuntMode(activeMode, enabled));
 }
 
 export function getPlayerMaxHp(config = null) {
