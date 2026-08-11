@@ -78,6 +78,7 @@ import {
 
 const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
 const DEFAULT_ARCADE_PERSISTENCE_SAVE_THROTTLE_MS = 250;
+const ARCADE_RUN_ABORT_REASONS = new Set(['ABORT', 'ABORTED', 'MATCH_ABORT', 'QUIT', 'RUN_ABORT']);
 
 import { toSafeNumber, computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 
@@ -1136,7 +1137,17 @@ export class ArcadeRunRuntime {
         const parcoursInput = inputs?.parcours && typeof inputs.parcours === 'object'
             ? inputs.parcours
             : null;
-        if (outcomeReason === 'PARCOURS_COMPLETE') {
+        const roster = Array.isArray(players) ? players : [];
+        const humans = roster.filter((entry) => entry && entry.isBot !== true);
+        const hasAliveHuman = humans.some((entry) => entry.alive !== false && toSafeNumber(entry.hp, 1) > 0);
+        const allHumansDead = humans.length > 0
+            ? !hasAliveHuman
+            : outcomeReason !== 'PARCOURS_COMPLETE';
+        const terminalReason = allHumansDead
+            ? 'ELIMINATION'
+            : (ARCADE_RUN_ABORT_REASONS.has(outcomeReason) ? outcomeReason : '');
+
+        if (!terminalReason && outcomeReason === 'PARCOURS_COMPLETE') {
             const parcoursPlan = this.completeParcoursSector(
                 {
                     reason: outcomeReason,
@@ -1152,17 +1163,14 @@ export class ArcadeRunRuntime {
         }
 
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
-        this.applyGameplayEvent({ type: 'sector_complete', elapsed: this._sectorElapsedSeconds });
-        this._state = completeArcadeSector(this._state, nowMs);
-        const roster = Array.isArray(players) ? players : [];
-        const humans = roster.filter((entry) => entry && entry.isBot !== true);
-        const hasAliveHuman = humans.some((entry) => entry.alive !== false && toSafeNumber(entry.hp, 1) > 0);
-        const finished = !hasAliveHuman;
+        const finished = terminalReason.length > 0;
         if (finished) {
             this._pendingHumanVitals = null;
             this._state.phase = ARCADE_RUN_PHASES.FINISHED;
             this._state.intermission = null;
         } else {
+            this.applyGameplayEvent({ type: 'sector_complete', elapsed: this._sectorElapsedSeconds });
+            this._state = completeArcadeSector(this._state, nowMs);
             this._prepareIntermission(nowMs);
         }
         const scoreTotal = Math.max(0, toSafeNumber(this._state?.score?.total, 0));
@@ -1182,7 +1190,7 @@ export class ArcadeRunRuntime {
                 canWinMatch: true,
                 requiredWins: Math.max(1, Number(inputs?.winsNeeded) || 1),
                 matchWinner: null,
-                reason: outcomeReason || (finished ? 'ELIMINATION' : ''),
+                reason: terminalReason || outcomeReason,
                 parcours: parcoursInput,
                 messageText,
                 messageSub,

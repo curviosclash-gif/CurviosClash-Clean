@@ -728,6 +728,57 @@ test('Arcade deriveRoundEndPlan routes PARCOURS_COMPLETE through completeParcour
     assert.deepEqual(plan?.outcome?.parcours, parcours);
 });
 
+test('Arcade terminal priority lets last-human death beat parcours completion in the same tick', () => {
+    const runtime = new ArcadeRunRuntime({ now: () => 1000 });
+    runtime._enabled = true;
+    runtime._state = {
+        phase: 'sector',
+        sectorIndex: 1,
+        completedSectors: 0,
+        config: { sectorCount: 3 },
+        score: { total: 0, combo: 0, multiplier: 1 },
+        intermission: null,
+    };
+    runtime.completeParcoursSector = () => {
+        throw new Error('parcours completion must not run after the last human died');
+    };
+
+    const plan = runtime.deriveRoundEndPlan({
+        players: [{ index: 0, isBot: false, alive: false, hp: 0 }],
+        inputs: { reason: 'PARCOURS_COMPLETE', parcours: { completionTimeMs: 1234 } },
+        baseController: { deriveOnRoundEndPlan() { return null; } },
+    });
+
+    assert.equal(plan?.outcome?.state, 'MATCH_END');
+    assert.equal(plan?.outcome?.reason, 'ELIMINATION');
+    assert.equal(plan?.transition?.nextState, 'MATCH_END');
+    assert.equal(runtime._state.completedSectors, 0);
+    assert.equal(runtime._state.phase, 'finished');
+});
+
+test('Arcade terminal priority still permits sector completion while a human remains alive', () => {
+    const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });
+    runtime._enabled = true;
+    runtime._state = { placeholder: true };
+    let completions = 0;
+    runtime.completeParcoursSector = () => {
+        completions += 1;
+        return {
+            outcome: { state: 'ROUND_END', reason: 'PARCOURS_COMPLETE' },
+            transition: { nextState: 'ROUND_END' },
+        };
+    };
+
+    const plan = runtime.deriveRoundEndPlan({
+        players: [{ index: 0, isBot: false, alive: true, hp: 1 }],
+        inputs: { reason: 'PARCOURS_COMPLETE' },
+        baseController: { deriveOnRoundEndPlan() { return null; } },
+    });
+
+    assert.equal(completions, 1);
+    assert.equal(plan?.outcome?.state, 'ROUND_END');
+});
+
 test('Arcade parcours wrong-order event exposes red penalty HUD payload as one-shot', () => {
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });
     runtime._enabled = true;
