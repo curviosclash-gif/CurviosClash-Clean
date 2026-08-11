@@ -25,6 +25,7 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/models/jets/cc0/pinnace_lo.obj',
         'assets/models/jets/cc0/spaceship_pack/dist/obj_mtl/ship5.obj',
         'assets/maps/chrono_forge/glb/08_time_core.glb',
+        'assets/maps/kinetic_tide/glb/08_reactor_heart.glb',
     ]) {
         assert.ok(statSync(path.join(outDir, relativePath)).size > 0, `${relativePath} was not copied`);
     }
