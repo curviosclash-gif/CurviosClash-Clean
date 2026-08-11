@@ -16,13 +16,6 @@ import {
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
 
-function getNowMilliseconds() {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-    }
-    return Date.now();
-}
-
 export class ProjectileSystem {
     constructor(options = {}) {
         this.renderer = options.renderer || null;
@@ -65,6 +58,7 @@ export class ProjectileSystem {
         this._statePool = new ProjectileStatePool();
         this._projectileStatePool = this._statePool.pool;
         this._nextTraversalId = 1;
+        this._elapsedSeconds = 0;
         this.networkReplica = false;
         this._tmpVec = new THREE.Vector3();
         this._tmpVec2 = new THREE.Vector3();
@@ -479,7 +473,11 @@ export class ProjectileSystem {
         const arena = this.getArena();
         const players = this.getPlayers();
         const trailSpatialIndex = this.getTrailSpatialIndex();
-        const time = getNowMilliseconds() * 0.001;
+        // Der Flammen-Flacker haengt an der verstrichenen Frame-Zeit, nicht an der
+        // Wanduhr: sonst startet dieselbe Rakete auf jedem Rechner in einer
+        // anderen Phase, und ein Test kann die Phase gar nicht ansteuern.
+        this._elapsedSeconds += Math.max(0, Number(dt) || 0);
+        const time = this._elapsedSeconds;
 
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const projectile = this.projectiles[i];
@@ -531,6 +529,7 @@ export class ProjectileSystem {
             this._releaseProjectileState(projectile);
         }
         this.projectiles.length = 0;
+        this._elapsedSeconds = 0;
         this._rocketTrailSystem.clear();
     }
 

@@ -41,13 +41,6 @@ function scaleVec3(vec, scale = 1) {
     ];
 }
 
-export function nowMs() {
-    if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
-        return performance.now();
-    }
-    return Date.now();
-}
-
 export function formatDurationMs(ms) {
     const clampedMs = Math.max(0, Math.round(Number(ms) || 0));
     const totalSeconds = clampedMs / 1000;

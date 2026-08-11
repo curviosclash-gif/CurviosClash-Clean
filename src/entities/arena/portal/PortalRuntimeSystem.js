@@ -40,6 +40,7 @@ export class PortalRuntimeSystem {
     constructor(arena) {
         this.arena = arena;
         this._postPortalSignalByEntity = new Map();
+        this._elapsedMs = 0;
         this._tmpVec1 = new THREE.Vector3();
         this._tmpVec2 = new THREE.Vector3();
         this._tmpQuaternion = new THREE.Quaternion();
@@ -88,12 +89,13 @@ export class PortalRuntimeSystem {
         this._postPortalSignalByEntity.set(entityKey, {
             remainingSeconds: POST_PORTAL_SIGNAL_SECONDS,
             cooldownSeconds: Math.max(0, Number(cooldownSeconds) || 0),
-            lastPortalTravelAtMs: Date.now(),
+            lastPortalTravelAtMs: Math.trunc(this._elapsedMs),
         });
     }
 
     resetRuntimeState() {
         this._postPortalSignalByEntity.clear();
+        this._elapsedMs = 0;
     }
 
     _resolveOrientedTraversal(position, previousPosition, entryPosition, entryForward, exitForward) {
@@ -304,6 +306,9 @@ export class PortalRuntimeSystem {
     }
 
     update(dt) {
+        // Match-relative Zeit: lastPortalTravelAtMs landet in der
+        // MatchRuntimeProjection und wird ueber Rechnergrenzen verglichen.
+        this._elapsedMs += Math.max(0, Number(dt) || 0) * 1000;
         for (const portal of this.arena.portals) {
             portal.visualPulseRemaining = Math.max(0, Number(portal.visualPulseRemaining || 0) - dt);
             for (const [id, t] of portal.cooldowns) {

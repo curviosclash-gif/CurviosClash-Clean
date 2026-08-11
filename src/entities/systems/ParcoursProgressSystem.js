@@ -3,7 +3,6 @@ import {
     createPlayerProgressState,
     formatDurationMs,
     normalizeString,
-    nowMs,
 } from './ParcoursProgressUtils.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { resetParcoursProgressState, rewindParcoursProgressState } from './ParcoursProgressStateOps.js';
@@ -22,7 +21,13 @@ import {
 export class ParcoursProgressSystem {
     constructor(entityManager, options = {}) {
         this.entityManager = entityManager || null;
-        this.nowProvider = typeof options.nowProvider === 'function' ? options.nowProvider : nowMs;
+        // Dieselbe Uhr, die updatePlayerProgress ohnehin schon bekommt: der
+        // Simulationstakt des Matches. Vorher lief der Standard ueber die Wanduhr,
+        // sodass ein Reset einen Zeitstempel aus einer anderen Zeitbasis setzte
+        // und die daraus gerechnete Zwischenzeit unbrauchbar wurde.
+        this.nowProvider = typeof options.nowProvider === 'function'
+            ? options.nowProvider
+            : () => Math.max(0, Number(this.entityManager?._simulationClockMs) || 0);
         this._route = null;
         this._playerStates = new Map();
         this._completionOrder = [];

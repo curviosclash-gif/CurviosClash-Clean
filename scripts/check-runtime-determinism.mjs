@@ -68,17 +68,8 @@ const EXCEPTIONS = {
     },
 
     // Bewertet, aber noch nicht umgebaut.
-    'src/entities/systems/ProjectileSystem.js': {
-        reason: 'wall clock feeds stepProjectile simulation time',
-        todo: true,
-    },
-    'src/entities/systems/ParcoursProgressUtils.js': {
-        reason: 'wall clock feeds parcours split timing',
-        todo: true,
-    },
     'src/entities/arena/portal/PortalRuntimeSystem.js': {
-        reason: 'lastPortalTravelAtMs reaches the match runtime projection',
-        todo: true,
+        reason: 'visual-only portal spin phase, the projection timestamp is match time now',
     },
 };
 
