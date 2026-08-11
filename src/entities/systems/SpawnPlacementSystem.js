@@ -67,6 +67,9 @@ export class SpawnPlacementSystem {
         const options = this._normalizeSpawnOptions(planarLevelOrOptions, extraOptions);
         const preferredPositions = this._resolvePreferredPositions(options);
         const usePlanarLevel = Number.isFinite(options.planarLevel) && typeof arena.getRandomPositionOnLevel === 'function';
+        // Ohne diesen Wuerfel fiel die Ausweich-Spawnposition auf Math.random
+        // zurueck, waehrend Spur, Spawn-Richtung und Bots laengst gesetzt liefen.
+        const spawnRoll = owner?.runtimeRng?.next;
         const minDistanceSq = minDistance * minDistance;
         const preferredRadius = Math.max(3, Number(options?.player?.hitboxRadius) || 0);
 
@@ -87,8 +90,8 @@ export class SpawnPlacementSystem {
         let safestFallbackScore = -Infinity;
         for (let attempts = 0; attempts < 100; attempts++) {
             const pos = usePlanarLevel
-                ? arena.getRandomPositionOnLevel(options.planarLevel, margin)
-                : arena.getRandomPosition(margin);
+                ? arena.getRandomPositionOnLevel(options.planarLevel, margin, spawnRoll)
+                : arena.getRandomPosition(margin, spawnRoll);
             if (!pos) continue;
             if (!checkedFallback) {
                 checkedFallback = clonePosition(pos);

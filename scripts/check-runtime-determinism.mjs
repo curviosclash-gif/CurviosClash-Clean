@@ -40,34 +40,28 @@ const EXCEPTIONS = {
     'src/entities/Trail.js': { reason: 'guarded fallback while runtimeRng is not bound yet' },
     'src/entities/Player.js': { reason: 'guarded fallback while runtimeRng is not bound yet' },
 
-    // Erst sichtbar, seit der Guard auch blosse Verweise sieht. Alle reichen den Wuerfel
-    // bzw. die Uhr als Standardwert weiter und bevorzugen die gesetzte Quelle, wenn es
-    // eine gibt. Bewertet, aber echte Schuld: ohne Injektion laeuft es global.
+    // Erst sichtbar, seit der Guard auch blosse Verweise sieht. Bewertet und
+    // abgeschlossen: der Standardwert greift nur noch dort, wo es keine gesetzte
+    // Quelle geben kann.
     'src/entities/Arena.js': {
-        reason: 'random is a default parameter, callers pass the seeded roll',
-        todo: true,
+        reason: 'random is a default parameter, every caller passes the seeded roll',
     },
     'src/entities/Bot.js': {
-        reason: 'guarded fallback while runtimeRng is not bound yet',
-        todo: true,
+        reason: 'fallback for direct construction, the match path always injects runtimeRng',
     },
     'src/entities/runtime/EntitySetupOps.js': {
-        reason: 'seeds the runtime rng and falls back to the global roll when unseeded',
-        todo: true,
+        reason: 'draws the match seed once when no seed is configured at all',
     },
 
-    // Verbleibende Strategien messen Spielzeit ueber eigene Uhr-Fallbacks oder
-    // reichen den Wuerfel als Standardwert weiter.
     'src/modes/ClassicModeStrategy.js': {
-        reason: 'damage timestamp falls back to the wall clock when none is passed',
-        todo: true,
+        reason: 'injectable clock via setNowMsSource, contract default is the wall clock',
     },
+    // Der Wuerfel-Rueckfall bei der Pickup-Gewichtung ist noch offen.
     'src/modes/HuntModeStrategy.js': {
         reason: 'nowSeconds helper plus seeded-roll fallbacks for pickup weighting',
         todo: true,
     },
 
-    // Bewertet, aber noch nicht umgebaut.
     'src/entities/arena/portal/PortalRuntimeSystem.js': {
         reason: 'visual-only portal spin phase, the projection timestamp is match time now',
     },

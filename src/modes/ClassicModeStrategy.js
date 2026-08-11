@@ -5,6 +5,7 @@
 import { GameModeContract } from './GameModeContract.js';
 import { isPickupTypeAllowedForMode, pickWeightedPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
+import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 
 export class ClassicModeStrategy extends GameModeContract {
     constructor(options = {}) {
@@ -13,6 +14,17 @@ export class ClassicModeStrategy extends GameModeContract {
             ? options.runtimeRng
             : createRuntimeRng({ random: options?.random });
         this._random = this.runtimeRng.next;
+        this._nowMs = createRuntimeClock({ nowMs: options?.nowMs }).nowMs;
+    }
+
+    // Gleiche Schnittstelle wie ArcadeModeStrategy, damit die Runtime beiden
+    // Strategien dieselbe Uhr unterschieben kann.
+    setNowMsSource(nowMs) {
+        if (typeof nowMs === 'function') this._nowMs = nowMs;
+    }
+
+    _nowSeconds() {
+        return Math.max(0, Number(this._nowMs()) || 0) * 0.001;
     }
 
     get modeType() { return 'CLASSIC'; }
@@ -73,8 +85,9 @@ export class ClassicModeStrategy extends GameModeContract {
         player.hp = 0;
         player.shieldHP = 0;
         player.hasShield = false;
-        const nowSeconds = typeof options?.nowSeconds === 'number' ? options.nowSeconds : (typeof performance !== 'undefined' ? performance.now() * 0.001 : Date.now() * 0.001);
-        player.lastDamageTimestamp = nowSeconds;
+        player.lastDamageTimestamp = typeof options?.nowSeconds === 'number'
+            ? options.nowSeconds
+            : this._nowSeconds();
         return { applied: requestedDamage, absorbedByShield: 0, remainingHp: 0, isDead: true };
     }
 
