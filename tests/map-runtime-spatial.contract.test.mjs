@@ -11,7 +11,7 @@ test('runtime parcours keep authored spawns and routes in one scaled world space
     const mapScale = CONFIG.ARENA.MAP_SCALE;
     const parcoursMaps = Object.entries(CONFIG.MAPS).filter(([, map]) => map?.parcours?.enabled === true);
 
-    assert.equal(parcoursMaps.length, 20);
+    assert.equal(parcoursMaps.length, 21);
     for (const [mapKey, map] of parcoursMaps) {
         assert.equal(map.scaleAuthoredAnchors, true, `${mapKey} scales authored anchors`);
         const route = buildRouteFromParcours(map.parcours, { positionScale: mapScale });

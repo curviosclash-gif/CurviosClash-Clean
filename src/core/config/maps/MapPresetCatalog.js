@@ -17,6 +17,7 @@ import { ABYSSAL_DESCENT_MAP } from './presets/abyssal_descent.js';
 import { MAGMA_MAZE_MAP } from './presets/magma_maze.js';
 import { CHRONO_FORGE_NEXUS_MAP } from './presets/chrono_forge_nexus.js';
 import { ECLIPSE_FOUNDRY_MAP } from './presets/eclipse_foundry.js';
+import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -38,4 +39,5 @@ export const MAP_PRESET_CATALOG = {
     ...(MAGMA_MAZE_MAP || {}),
     ...(CHRONO_FORGE_NEXUS_MAP || {}),
     ...(ECLIPSE_FOUNDRY_MAP || {}),
+    ...(KINETIC_TIDE_MAP || {}),
 };

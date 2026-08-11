@@ -35,6 +35,7 @@ const COLLECTION_DEFINITIONS = [
             'magma_maze',
             'chrono_forge_nexus',
             'eclipse_foundry',
+            'kinetic_tide',
         ],
     },
     {
