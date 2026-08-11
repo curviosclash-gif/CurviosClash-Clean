@@ -2,6 +2,8 @@ import {
     AUTHORING_TELEMETRY_COUNTERS,
     AUTHORING_TELEMETRY_ERRORS,
     AUTHORING_TELEMETRY_OUTCOMES,
+    normalizeAuthoringTelemetryDelta,
+    normalizeAuthoringTelemetrySession,
     normalizeAuthoringTelemetryTool,
 } from '../shared/contracts/AuthoringTelemetryContract.js';
 import { AuthoringTelemetryStore } from './AuthoringTelemetryStore.js';
@@ -10,6 +12,8 @@ const COUNTERS = new Set(AUTHORING_TELEMETRY_COUNTERS);
 const OUTCOMES = new Set(AUTHORING_TELEMETRY_OUTCOMES);
 const ERRORS = new Set(AUTHORING_TELEMETRY_ERRORS);
 const COMPLETION_OUTCOMES = new Set(['save_succeeded', 'export_succeeded', 'publish_succeeded']);
+const LOCAL_WORKFLOW_ENDPOINT = 'http://127.0.0.1:4318/v1/authoring';
+const LOCAL_WORKFLOW_SCHEMA_VERSION = 'codex-workflow.authoring.v1';
 
 function increment(target, key, count) {
     const parsed = Number(count);
@@ -24,6 +28,44 @@ function cloneCounts(source) {
 function resolvePlatform(runtimeGlobal) {
     const userAgent = String(runtimeGlobal?.navigator?.userAgent || '');
     return /electron/i.test(userAgent) || runtimeGlobal?.electronAPI ? 'desktop' : 'browser';
+}
+
+function createSessionId(runtimeGlobal, startedAtMs) {
+    try {
+        const id = runtimeGlobal?.crypto?.randomUUID?.();
+        if (id) return id;
+    } catch {
+        // A local correlation ID does not need to block authoring startup.
+    }
+    return `${startedAtMs.toString(36)}-${Math.random().toString(36).slice(2, 14)}`;
+}
+
+function createLocalLifecycleSink(runtimeGlobal) {
+    const navigatorRef = runtimeGlobal?.navigator;
+    if (navigatorRef?.webdriver === true) return null;
+    const sendBeacon = navigatorRef?.sendBeacon;
+    const BlobRef = runtimeGlobal?.Blob;
+    if (typeof sendBeacon === 'function' && typeof BlobRef === 'function') {
+        return (payload) => {
+            const body = new BlobRef([JSON.stringify(payload)], { type: 'text/plain;charset=UTF-8' });
+            return sendBeacon.call(navigatorRef, LOCAL_WORKFLOW_ENDPOINT, body);
+        };
+    }
+
+    const fetchRef = runtimeGlobal?.fetch;
+    if (typeof fetchRef === 'function') {
+        return (payload) => {
+            void fetchRef.call(runtimeGlobal, LOCAL_WORKFLOW_ENDPOINT, {
+                method: 'POST',
+                mode: 'no-cors',
+                keepalive: true,
+                headers: { 'Content-Type': 'text/plain;charset=UTF-8' },
+                body: JSON.stringify(payload),
+            }).catch(() => {});
+            return true;
+        };
+    }
+    return null;
 }
 
 export class AuthoringTelemetrySession {
@@ -45,10 +87,33 @@ export class AuthoringTelemetrySession {
         this.pendingErrors = {};
         this.ended = false;
         this.platform = options.platform || resolvePlatform(this.runtimeGlobal);
+        this.sessionId = String(options.sessionId || createSessionId(this.runtimeGlobal, this.startedAtMs));
+        this.lifecycleSink = typeof options.lifecycleSink === 'function'
+            ? options.lifecycleSink
+            : createLocalLifecycleSink(this.runtimeGlobal);
         this._onVisibilityChange = () => this._handleVisibilityChange();
         this._onPageHide = () => this.end({ completed: this.outcomes.completed === true });
         this.documentRef?.addEventListener?.('visibilitychange', this._onVisibilityChange);
         this.runtimeGlobal?.addEventListener?.('pagehide', this._onPageHide, { once: true });
+        this._emitLifecycle('started', {
+            startedAt: new Date(this.startedAtMs).toISOString(),
+        });
+    }
+
+    _emitLifecycle(event, data = {}) {
+        if (!this.lifecycleSink || !this.tool) return false;
+        try {
+            return this.lifecycleSink({
+                schemaVersion: LOCAL_WORKFLOW_SCHEMA_VERSION,
+                event,
+                sessionId: this.sessionId,
+                tool: this.tool,
+                platform: this.platform,
+                ...data,
+            }) !== false;
+        } catch {
+            return false;
+        }
     }
 
     _captureActiveDuration() {
@@ -113,6 +178,7 @@ export class AuthoringTelemetrySession {
         if (!hasDelta) return true;
         const saved = this.store.recordDelta(this.tool, delta);
         if (saved) {
+            this._emitLifecycle('activity', normalizeAuthoringTelemetryDelta(delta));
             this.pendingDurationMs = 0;
             this.pendingCounters = {};
             this.pendingOutcomes = {};
@@ -129,7 +195,7 @@ export class AuthoringTelemetrySession {
         this.ended = true;
         this.documentRef?.removeEventListener?.('visibilitychange', this._onVisibilityChange);
         this.runtimeGlobal?.removeEventListener?.('pagehide', this._onPageHide);
-        return this.store.recordSession({
+        const summary = normalizeAuthoringTelemetrySession({
             tool: this.tool,
             platform: this.platform,
             startedAt: new Date(this.startedAtMs).toISOString(),
@@ -140,5 +206,8 @@ export class AuthoringTelemetrySession {
             outcomes: this.outcomes,
             errors: this.errors,
         });
+        const saved = this.store.recordSession(summary);
+        this._emitLifecycle('ended', summary);
+        return saved;
     }
 }

@@ -106,12 +106,15 @@ test('authoring session records active time and flushes safe deltas on completio
     const runtimeGlobal = createEventTarget({ navigator: { userAgent: 'Electron test' } });
     const storagePlatform = createMemoryStoragePlatform();
     const store = new AuthoringTelemetryStore({ storagePlatform });
+    const lifecycle = [];
     const session = new AuthoringTelemetrySession({
         tool: AUTHORING_TELEMETRY_TOOLS.VEHICLE_LAB,
         store,
         runtimeGlobal,
         documentRef,
         now: () => nowMs,
+        sessionId: 'vehicle-lab-test-session',
+        lifecycleSink: (event) => lifecycle.push(structuredClone(event)),
     });
 
     session.recordCounter('part_added', 2);
@@ -130,6 +133,80 @@ test('authoring session records active time and flushes safe deltas on completio
     assert.equal(snapshot.tools.vehicle_lab.completedSessions, 1);
     assert.equal(snapshot.recentSessions[0].platform, 'desktop');
     assert.equal(snapshot.recentSessions[0].durationActiveMs, 3000);
+    assert.deepEqual(lifecycle.map((event) => event.event), ['started', 'activity', 'activity', 'ended']);
+    assert.equal(lifecycle[0].sessionId, 'vehicle-lab-test-session');
+    assert.equal(lifecycle[0].tool, AUTHORING_TELEMETRY_TOOLS.VEHICLE_LAB);
+    assert.equal(lifecycle[1].durationActiveMs, 2500);
+    assert.equal(lifecycle[2].durationActiveMs, 500);
+    assert.equal(lifecycle[3].durationActiveMs, 3000);
+    assert.equal('vehicleConfig' in lifecycle[3], false);
+});
+
+test('authoring session automatically sends its lifecycle to the local workflow collector', () => {
+    const beacons = [];
+    class MemoryBlob {
+        constructor(parts, options = {}) {
+            this.value = parts.join('');
+            this.type = options.type;
+        }
+    }
+    const runtimeGlobal = createEventTarget({
+        Blob: MemoryBlob,
+        crypto: { randomUUID: () => 'map-editor-test-session' },
+        navigator: {
+            userAgent: 'Electron test',
+            sendBeacon(url, body) {
+                beacons.push({ url, body });
+                return true;
+            },
+        },
+    });
+    const session = new AuthoringTelemetrySession({
+        tool: AUTHORING_TELEMETRY_TOOLS.MAP_EDITOR,
+        store: new AuthoringTelemetryStore({ storagePlatform: createMemoryStoragePlatform() }),
+        runtimeGlobal,
+        documentRef: createEventTarget({ visibilityState: 'visible' }),
+        now: () => 1_700_000_000_000,
+    });
+
+    assert.equal(beacons.length, 1);
+    assert.equal(beacons[0].url, 'http://127.0.0.1:4318/v1/authoring');
+    assert.equal(beacons[0].body.type, 'text/plain;charset=UTF-8');
+    assert.deepEqual(JSON.parse(beacons[0].body.value), {
+        schemaVersion: 'codex-workflow.authoring.v1',
+        event: 'started',
+        sessionId: 'map-editor-test-session',
+        tool: AUTHORING_TELEMETRY_TOOLS.MAP_EDITOR,
+        platform: 'desktop',
+        startedAt: '2023-11-14T22:13:20.000Z',
+    });
+
+    session.end();
+    assert.equal(JSON.parse(beacons.at(-1).body.value).event, 'ended');
+});
+
+test('automated browser runs do not pollute local authoring telemetry', () => {
+    let beaconCalls = 0;
+    const runtimeGlobal = createEventTarget({
+        Blob,
+        navigator: {
+            userAgent: 'HeadlessChrome test',
+            webdriver: true,
+            sendBeacon() {
+                beaconCalls += 1;
+                return true;
+            },
+        },
+    });
+    const session = new AuthoringTelemetrySession({
+        tool: AUTHORING_TELEMETRY_TOOLS.VEHICLE_LAB,
+        store: new AuthoringTelemetryStore({ storagePlatform: createMemoryStoragePlatform() }),
+        runtimeGlobal,
+        documentRef: createEventTarget({ visibilityState: 'visible' }),
+    });
+
+    session.end();
+    assert.equal(beaconCalls, 0);
 });
 
 test('settings manager exposes the shared authoring snapshot to the developer dashboard', () => {
