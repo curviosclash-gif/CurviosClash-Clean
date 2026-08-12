@@ -76,6 +76,34 @@ test('ObservationBridgePolicy skips latest checkpoint auto-load in desktop app r
     }
 });
 
+test('ObservationBridgePolicy adds fallback steering to passive local bridge actions', () => {
+    let fallbackCalls = 0;
+    const policy = new ObservationBridgePolicy({
+        type: 'hunt-bridge',
+        autoLoadCheckpoint: false,
+        resolveAction() {
+            return { shootMG: true };
+        },
+        fallbackPolicy: {
+            update() {
+                fallbackCalls += 1;
+                return { yawRight: true };
+            },
+        },
+    });
+
+    const action = policy.update(1 / 60, { index: 0, inventory: [] }, {
+        mode: 'HUNT',
+        players: [],
+        projectiles: [],
+        observation: new Array(40).fill(0),
+    });
+
+    assert.equal(fallbackCalls, 1);
+    assert.equal(action.yawRight, true);
+    assert.equal(action.shootMG, true);
+});
+
 test('HeuristicBotPolicy is selectable as a pure local policy type', () => {
     assert.equal(normalizeBotPolicyType('pure-heuristic'), BOT_POLICY_TYPES.HEURISTIC);
     assert.equal(resolveBotPolicyType('heuristic', 'CLASSIC'), BOT_POLICY_TYPES.HEURISTIC);

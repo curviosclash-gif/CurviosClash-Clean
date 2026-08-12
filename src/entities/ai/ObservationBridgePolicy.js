@@ -321,7 +321,13 @@ export class ObservationBridgePolicy {
             try {
                 const action = this._resolveAction(runtimeContext, player, dt);
                 if (action && typeof action === 'object') {
-                    return this._sanitizeAction(action, player);
+                    const sanitizedAction = this._sanitizeAction(action, player);
+                    return this._injectFallbackSteeringIfNeeded(
+                        sanitizedAction,
+                        dt,
+                        player,
+                        runtimeContext
+                    );
                 }
                 this._warn('resolveAction returned no action payload, using fallback', null, 'resolve-action-empty');
             } catch (error) {
