@@ -137,19 +137,29 @@ export class ParcoursProgressSystem {
         const wasInside = checkpointId && insideMap instanceof Map
             ? insideMap.get(checkpointId) === true
             : false;
-        if (checkpointId && insideMap instanceof Map) {
-            insideMap.set(checkpointId, true);
+        if (this._route?.rules?.bidirectionalCheckpoints !== false || !entry.forward) {
+            if (checkpointId && insideMap instanceof Map) insideMap.set(checkpointId, true);
+            if (wasInside) return false;
+            return !this._isCheckpointOnCooldown(state, entry.id, entry.cooldownMs, now);
         }
-        if (wasInside) return false;
-        if (this._isCheckpointOnCooldown(state, entry.id, entry.cooldownMs, now)) return false;
-        if (this._route?.rules?.bidirectionalCheckpoints !== false || !entry.forward) return true;
 
         const prevDx = (Number(previousPosition.x) || 0) - entry.pos[0];
         const prevDy = (Number(previousPosition.y) || 0) - entry.pos[1];
         const prevDz = (Number(previousPosition.z) || 0) - entry.pos[2];
         const dotPrev = (prevDx * entry.forward[0]) + (prevDy * entry.forward[1]) + (prevDz * entry.forward[2]);
         const dotCurr = (dx * entry.forward[0]) + (dy * entry.forward[1]) + (dz * entry.forward[2]);
-        return dotPrev <= 0 && dotCurr > 0;
+        const crossedForward = dotPrev <= 0 && dotCurr > 0;
+
+        // Directional checkpoints arm on their back side and fire when the player crosses
+        // the plane while still inside the trigger radius. Marking the whole sphere as
+        // entered would reject normal multi-frame approaches and only allow teleports that
+        // jump from outside the sphere directly across the plane.
+        if (checkpointId && insideMap instanceof Map) {
+            if (dotCurr <= 0) insideMap.set(checkpointId, false);
+            else if (crossedForward) insideMap.set(checkpointId, true);
+        }
+        if (!crossedForward || wasInside) return false;
+        return !this._isCheckpointOnCooldown(state, entry.id, entry.cooldownMs, now);
     }
     _notifyPlayer(player, message) {
         if (!player || !message) return;

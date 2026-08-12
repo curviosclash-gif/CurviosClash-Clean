@@ -35,6 +35,7 @@ TEAL = (0.02, 0.62, 0.68, 1.0)
 AMBER = (1.0, 0.42, 0.03, 1.0)
 ICE = (0.35, 0.85, 1.0, 1.0)
 DEEP = (0.06, 0.02, 0.42, 1.0)
+SIGNAL = (0.72, 0.94, 1.0, 1.0)
 
 
 def reset_scene(name, duration_seconds):
@@ -79,6 +80,7 @@ def build_materials():
         "amber": material("TideAmber", AMBER, 3.4, 0.2, 0.2),
         "ice": material("TideIce", ICE, 2.6, 0.15, 0.14),
         "deep": material("TideDeep", DEEP, 2.2, 0.25, 0.22),
+        "signal": material("TideSignal", SIGNAL, 4.2, 0.12, 0.12),
     }
 
 
@@ -100,6 +102,18 @@ def cube(name, location, scale, mat, rotation=(0, 0, 0)):
 def cylinder(name, location, radius, depth, mat, vertices=16, rotation=(0, 0, 0)):
     bpy.ops.mesh.primitive_cylinder_add(
         vertices=vertices, radius=radius, depth=depth, location=location, rotation=rotation
+    )
+    return finish_mesh(bpy.context.object, name, mat)
+
+
+def cone(name, location, radius1, radius2, depth, mat, vertices=12, rotation=(0, 0, 0)):
+    bpy.ops.mesh.primitive_cone_add(
+        vertices=vertices,
+        radius1=radius1,
+        radius2=radius2,
+        depth=depth,
+        location=location,
+        rotation=rotation,
     )
     return finish_mesh(bpy.context.object, name, mat)
 
@@ -132,6 +146,31 @@ def bevel(obj, width=0.05, segments=2):
     modifier.segments = segments
     modifier.limit_method = "ANGLE"
     return obj
+
+
+def warning_chevrons(prefix, *, center, count, spacing, mat, rotation=(0, 0, 0), scale=1.0):
+    """Small emissive arrowheads used as a common motion language on every machine.
+    They are decorative by contract and therefore always carry the _nocol suffix."""
+    result = []
+    start = -((count - 1) * spacing) * 0.5
+    for index in range(count):
+        x = center[0] + start + index * spacing
+        upper = cube(
+            f"{prefix}_chevron_{index}_upper_nocol",
+            (x, center[1], center[2] + 0.18 * scale),
+            (0.34 * scale, 0.08 * scale, 0.08 * scale),
+            mat,
+            rotation=(rotation[0], rotation[1] - 0.55, rotation[2]),
+        )
+        lower = cube(
+            f"{prefix}_chevron_{index}_lower_nocol",
+            (x, center[1], center[2] - 0.18 * scale),
+            (0.34 * scale, 0.08 * scale, 0.08 * scale),
+            mat,
+            rotation=(rotation[0], rotation[1] + 0.55, rotation[2]),
+        )
+        result.extend((upper, lower))
+    return result
 
 
 def empty(name, location=(0, 0, 0)):
@@ -168,11 +207,39 @@ def beat_frame(scene, beats):
 
 def build_breath_gate(scene, mats):
     """One beat: two seconds open, two seconds shut. The lintel and posts are static, so
-    they carry no collider in dynamic mode and can afford the detail."""
-    bevel(cube("gate_lintel", (0, 0, 7.4), (6.2, 0.9, 0.55), mats["plate"]))
-    bevel(cube("gate_post_left", (-5.7, 0, 3.7), (0.6, 0.9, 3.7), mats["plate"]))
-    bevel(cube("gate_post_right", (5.7, 0, 3.7), (0.6, 0.9, 3.7), mats["plate"]))
-    cube("gate_sill", (0, 0, 0.3), (6.2, 1.1, 0.3), mats["steel"])
+    they carry no collider in dynamic mode and can afford the detail. A cyan-to-amber
+    signal bar makes the opening direction readable before the player enters the chain."""
+    bevel(cube("gate_lintel", (0, 0, 7.4), (6.5, 1.0, 0.62), mats["plate"]), 0.12)
+    bevel(cube("gate_post_left", (-5.9, 0, 3.7), (0.72, 1.0, 3.7), mats["plate"]), 0.1)
+    bevel(cube("gate_post_right", (5.9, 0, 3.7), (0.72, 1.0, 3.7), mats["plate"]), 0.1)
+    cube("gate_sill", (0, 0, 0.3), (6.5, 1.15, 0.3), mats["steel"])
+    cube("gate_header_signal", (0, -1.02, 7.42), (3.3, 0.09, 0.16), mats["signal"])
+    warning_chevrons(
+        "gate_header",
+        center=(0, -1.13, 7.42),
+        count=5,
+        spacing=1.0,
+        mat=mats["teal"],
+        scale=0.72,
+    )
+    for side in (-1, 1):
+        cylinder(
+            f"gate_hydraulic_housing_{side}",
+            (side * 5.92, 0, 6.4),
+            0.34,
+            1.8,
+            mats["bronze"],
+            vertices=12,
+            rotation=(0, pi / 2, 0),
+        )
+        sphere(
+            f"gate_beacon_{side}",
+            (side * 5.75, -1.08, 8.15),
+            (0.24, 0.24, 0.24),
+            mats["amber"],
+            12,
+            6,
+        )
 
     for side, closed_x, open_x, tone in ((-1, -2.6, -5.4, "teal"), (1, 2.6, 5.4, "amber")):
         leaf = empty(f"GateLeaf{'L' if side < 0 else 'R'}", (closed_x, 0, 3.7))
@@ -182,7 +249,21 @@ def build_breath_gate(scene, mats):
         # Detail that must not cost collision work.
         trim = cube(f"gate_leaf_trim_{side}_nocol", (closed_x, 0, 6.6), (2.5, 0.5, 0.22), mats[tone])
         bevel(trim, 0.04)
-        for obj in (body, trim):
+        spine = cube(
+            f"gate_leaf_spine_{side}_nocol",
+            (closed_x, -0.48, 3.7),
+            (0.16, 0.08, 2.5),
+            mats[tone],
+        )
+        leaf_signals = warning_chevrons(
+            f"gate_leaf_{side}",
+            center=(closed_x, -0.58, 3.7),
+            count=3,
+            spacing=0.72,
+            mat=mats[tone],
+            scale=0.6,
+        )
+        for obj in (body, trim, spine, *leaf_signals):
             parent_keep_world(obj, leaf)
 
         keyframe(leaf, beat_frame(scene, 0), location=(closed_x, 0, 3.7))
@@ -192,9 +273,9 @@ def build_breath_gate(scene, mats):
 
 def build_piston_tunnel(scene, mats):
     """Four rams narrow the corridor in pairs, so a straight line through the middle is
-    only free on the off beat."""
+    only free on the off beat. The outer rails and amber sleeves expose the mechanism,
+    while cyan face lights announce the clear half of the cycle."""
     for index in range(4):
-        angle = index * pi / 2
         ring = torus(
             f"tunnel_ring_{index}",
             (0, 0, 2.4 + index * 2.6),
@@ -205,17 +286,51 @@ def build_piston_tunnel(scene, mats):
         )
         ring.hide_render = False
 
+    for side in (-1, 1):
+        for axis in (-1, 1):
+            bevel(cube(
+                f"tunnel_longitudinal_rail_{side}_{axis}",
+                (side * 4.15, axis * 4.15, 6.3),
+                (0.2, 0.2, 5.3),
+                mats["bronze"],
+            ), 0.06)
+    for level in range(5):
+        cube(
+            f"tunnel_pulse_marker_{level}",
+            (0, -4.72, 1.2 + level * 2.5),
+            (0.55, 0.12, 0.09),
+            mats["teal"] if level % 2 == 0 else mats["amber"],
+        )
+
     for index in range(4):
         angle = index * pi / 2
         retracted = (4.6 * cos(angle), 4.6 * sin(angle), 5.0)
         extended = (1.5 * cos(angle), 1.5 * sin(angle), 5.0)
         ram = empty(f"PistonRam{index}", retracted)
+        cylinder(
+            f"piston_sleeve_{index}",
+            (5.1 * cos(angle), 5.1 * sin(angle), 5.0),
+            1.22,
+            1.8,
+            mats["bronze"],
+            vertices=14,
+            rotation=(0, pi / 2, angle),
+        )
         head = cylinder(
             f"piston_head_{index}",
             retracted,
             0.95,
             2.6,
             mats["steel"],
+            vertices=12,
+            rotation=(0, pi / 2, angle),
+        )
+        face = cylinder(
+            f"piston_face_{index}_nocol",
+            retracted,
+            0.78,
+            0.12,
+            mats["signal"],
             vertices=12,
             rotation=(0, pi / 2, angle),
         )
@@ -228,7 +343,7 @@ def build_piston_tunnel(scene, mats):
             vertices=12,
             rotation=(0, pi / 2, angle),
         )
-        for obj in (head, glow):
+        for obj in (head, glow, face):
             parent_keep_world(obj, ram)
 
         # Opposing pairs alternate: even rams push on the first half beat, odd on the second.
@@ -240,8 +355,19 @@ def build_piston_tunnel(scene, mats):
 
 
 def build_iris_shutter(scene, mats):
-    """Two beats. Eight blades close to the centre and leave a short window open."""
+    """Two beats. Eight blades close to the centre and leave a short window open. A
+    bright aperture ring and radial warning fins make that window legible on approach."""
     torus("iris_frame", (0, 0, 0), 6.4, 0.45, mats["plate"], (pi / 2, 0, 0), major_segments=40)
+    torus("iris_aperture_signal", (0, -0.34, 0), 2.05, 0.10, mats["signal"], (pi / 2, 0, 0), major_segments=32)
+    for index in range(12):
+        angle = index * (2 * pi / 12)
+        cube(
+            f"iris_housing_fin_{index}",
+            (7.05 * cos(angle), 0, 7.05 * sin(angle)),
+            (0.68, 0.32, 0.18),
+            mats["bronze"] if index % 3 == 0 else mats["plate"],
+            rotation=(0, -angle, 0),
+        )
     for index in range(8):
         angle = index * (pi / 4)
         open_radius = 6.0
@@ -261,7 +387,14 @@ def build_iris_shutter(scene, mats):
             mats["teal"],
             rotation=(0, -angle, 0),
         )
-        for obj in (blade, edge):
+        pulse = cube(
+            f"iris_pulse_{index}_nocol",
+            ((open_radius - 0.65) * cos(angle), -0.34, (open_radius - 0.65) * sin(angle)),
+            (0.44, 0.10, 0.16),
+            mats["amber"],
+            rotation=(0, -angle, 0),
+        )
+        for obj in (blade, edge, pulse):
             parent_keep_world(obj, blade_pivot)
 
         shut = (shut_radius * cos(angle), 0, shut_radius * sin(angle))
@@ -273,8 +406,17 @@ def build_iris_shutter(scene, mats):
 
 
 def build_carousel_ring(scene, mats):
-    """Two beats per turn. Nine spokes with three wide gaps: the way through moves."""
+    """Two beats per turn. Nine spokes with three wide gaps: the way through moves.
+    Cyan gap beacons travel with the rotor so the next opening can be tracked at speed."""
     cylinder("carousel_hub", (0, 0, 0), 1.5, 1.8, mats["bronze"], vertices=20, rotation=(pi / 2, 0, 0))
+    cylinder("carousel_hub_signal", (0, -0.96, 0), 0.82, 0.12, mats["signal"], vertices=18, rotation=(pi / 2, 0, 0))
+    for side in (-1, 1):
+        bevel(cube(
+            f"carousel_support_{side}",
+            (side * 8.8, 0.5, 0),
+            (0.42, 1.0, 9.0),
+            mats["plate"],
+        ), 0.1)
     rotor = empty("CarouselRotor", (0, 0, 0))
     # The rim only frames the wheel; the spokes are what a player has to avoid. Keeping it
     # out of collision lets it stay round without paying 700 triangles per query.
@@ -284,6 +426,17 @@ def build_carousel_ring(scene, mats):
     for index in range(9):
         # Three evenly spread gaps: skip every third spoke.
         if index % 3 == 0:
+            angle = index * (2 * pi / 9)
+            beacon = torus(
+                f"carousel_gap_beacon_{index}_nocol",
+                (6.3 * cos(angle), -0.48, 6.3 * sin(angle)),
+                0.42,
+                0.10,
+                mats["signal"],
+                (pi / 2, 0, 0),
+                major_segments=16,
+            )
+            parent_keep_world(beacon, rotor)
             continue
         angle = index * (2 * pi / 9)
         spoke = cube(
@@ -302,16 +455,41 @@ def build_carousel_ring(scene, mats):
         for obj in (spoke, light):
             parent_keep_world(obj, rotor)
 
+    for index in range(12):
+        angle = index * (2 * pi / 12)
+        tick = cube(
+            f"carousel_tick_{index}_nocol",
+            (7.95 * cos(angle), -0.45, 7.95 * sin(angle)),
+            (0.12, 0.08, 0.42),
+            mats["teal"] if index % 3 == 0 else mats["amber"],
+            rotation=(0, -angle, 0),
+        )
+        parent_keep_world(tick, rotor)
+
     keyframe(rotor, beat_frame(scene, 0), rotation=(0, 0, 0))
     keyframe(rotor, beat_frame(scene, 2), rotation=(0, 2 * pi, 0))
 
 
 def build_pendulum_field(scene, mats):
-    """One beat. Five pendulums swing in alternating directions across the lane."""
-    bevel(cube("pendulum_rail", (0, 0, 9.4), (9.5, 0.7, 0.45), mats["plate"]))
+    """One beat. Five pendulums swing in alternating directions across the lane. Their
+    rail lights alternate cyan and amber to reveal the phase order before the first bob."""
+    bevel(cube("pendulum_rail", (0, 0, 9.4), (9.8, 0.8, 0.5), mats["plate"]), 0.12)
+    for side in (-1, 1):
+        bevel(cube(
+            f"pendulum_arch_{side}",
+            (side * 9.3, 0, 4.8),
+            (0.5, 0.85, 4.8),
+            mats["plate"],
+        ), 0.1)
     for index in range(5):
         offset_x = -7.6 + index * 3.8
         direction = 1 if index % 2 == 0 else -1
+        cube(
+            f"pendulum_phase_lamp_{index}",
+            (offset_x, -0.82, 9.45),
+            (1.2, 0.10, 0.14),
+            mats["teal"] if direction > 0 else mats["amber"],
+        )
         pivot = empty(f"PendulumPivot{index}", (offset_x, 0, 9.0))
         rod = cylinder(f"pendulum_rod_{index}_nocol", (offset_x, 0, 6.4), 0.12, 5.2, mats["bronze"], vertices=8)
         bob = sphere(f"pendulum_bob_{index}", (offset_x, 0, 3.6), (1.15, 1.15, 1.15), mats["steel"], 16, 8)
@@ -323,7 +501,24 @@ def build_pendulum_field(scene, mats):
             mats["ice"],
             (pi / 2, 0, 0),
         )
-        for obj in (rod, bob, halo):
+        bob_eye = sphere(
+            f"pendulum_eye_{index}_nocol",
+            (offset_x, -1.08, 3.6),
+            (0.34, 0.12, 0.34),
+            mats["signal"],
+            12,
+            6,
+        )
+        counterweight = cone(
+            f"pendulum_counterweight_{index}_nocol",
+            (offset_x, 0, 8.1),
+            0.42,
+            0.18,
+            0.8,
+            mats["bronze"],
+            vertices=10,
+        )
+        for obj in (rod, bob, halo, bob_eye, counterweight):
             parent_keep_world(obj, pivot)
 
         swing = direction * 0.85
@@ -334,8 +529,24 @@ def build_pendulum_field(scene, mats):
 
 def build_lift_rings(scene, mats):
     """Four beats. Two ring platforms travel in opposite directions, so the pair opens a
-    high route and a low route in turn."""
+    high route and a low route in turn. Column arrows and under-deck light identify the
+    direction of each carrier without relying on the player watching a whole cycle."""
     cylinder("lift_column", (0, 0, 8.0), 1.1, 16.0, mats["plate"], vertices=14)
+    for level in range(6):
+        tone = "teal" if level % 2 == 0 else "amber"
+        cube(
+            f"lift_column_step_{level}",
+            (0, -1.08, 2.0 + level * 2.4),
+            (0.32, 0.10, 0.12),
+            mats[tone],
+        )
+    for side in (-1, 1):
+        cube(
+            f"lift_guide_{side}",
+            (side * 5.2, 0.75, 8.0),
+            (0.18, 0.18, 7.5),
+            mats["bronze"],
+        )
     for side, low, high, tone in ((-1, 2.0, 13.0, "teal"), (1, 13.0, 2.0, "amber")):
         carrier = empty(f"LiftCarrier{'A' if side < 0 else 'B'}", (side * 5.2, 0, low))
         deck = cylinder(f"lift_deck_{side}", (side * 5.2, 0, low), 3.6, 0.55, mats["steel"], vertices=16)
@@ -348,7 +559,25 @@ def build_lift_rings(scene, mats):
             (0, 0, 0),
             major_segments=32,
         )
-        for obj in (deck, rim):
+        underglow = cylinder(
+            f"lift_underglow_{side}_nocol",
+            (side * 5.2, 0, low - 0.32),
+            2.75,
+            0.10,
+            mats[tone],
+            vertices=18,
+        )
+        direction_marker = cone(
+            f"lift_direction_{side}_nocol",
+            (side * 5.2, -3.0, low + 0.55),
+            0.48,
+            0.0,
+            0.9,
+            mats["signal"],
+            vertices=10,
+            rotation=(0 if high > low else pi, 0, 0),
+        )
+        for obj in (deck, rim, underglow, direction_marker):
             parent_keep_world(obj, carrier)
 
         keyframe(carrier, beat_frame(scene, 0), location=(side * 5.2, 0, low))
@@ -359,7 +588,8 @@ def build_lift_rings(scene, mats):
 
 def build_tide_wall(scene, mats):
     """Four beats. A wall of segments sweeps down the hall and back; the gap in its middle
-    is the only way past it."""
+    is the only way past it. Layered crests and alternating signal ribs turn the very
+    simple collision wall into a readable mechanical wave without adding collider detail."""
     for index in range(6):
         if index == 2 or index == 3:
             continue
@@ -371,22 +601,68 @@ def build_tide_wall(scene, mats):
         )
         bevel(column, 0.08)
 
+    bevel(cube("tide_arch_top", (0, 0, 10.5), (13.0, 1.6, 0.55), mats["plate"]), 0.12)
+    for index in range(9):
+        cube(
+            f"tide_arch_meter_{index}",
+            (-8.0 + index * 2.0, -1.62, 10.5),
+            (0.55, 0.10, 0.14),
+            mats["teal"] if index < 4 else mats["amber"],
+        )
+    for side in (-1, 1):
+        cylinder(
+            f"tide_drive_drum_{side}",
+            (side * 11.4, 0, 8.6),
+            1.25,
+            1.4,
+            mats["bronze"],
+            vertices=16,
+            rotation=(pi / 2, 0, 0),
+        )
+
     sweep = empty("TideSweep", (0, -14.0, 0))
     for index in range(5):
+        height = 3.6 + (abs(2 - index) * 0.45)
         panel = cube(
             f"tide_panel_{index}",
-            (-9.6 + index * 4.8, -14.0, 4.2),
-            (2.2, 0.6, 4.2),
+            (-9.6 + index * 4.8, -14.0, height),
+            (2.2, 0.6, height),
             mats["steel"],
         )
         crest = cube(
             f"tide_crest_{index}_nocol",
-            (-9.6 + index * 4.8, -14.0, 8.6),
+            (-9.6 + index * 4.8, -14.0, height * 2 + 0.38),
             (2.1, 0.7, 0.3),
-            mats["deep"],
+            mats["deep"] if index % 2 == 0 else mats["teal"],
         )
-        for obj in (panel, crest):
+        face = cube(
+            f"tide_face_rib_{index}_nocol",
+            (-9.6 + index * 4.8, -14.64, height),
+            (0.20, 0.08, max(1.6, height - 0.7)),
+            mats["signal"] if index == 2 else mats["amber"],
+        )
+        crown = cone(
+            f"tide_crown_{index}_nocol",
+            (-9.6 + index * 4.8, -14.0, height * 2 + 0.9),
+            0.72,
+            0.0,
+            1.0,
+            mats["signal"] if index == 2 else mats["bronze"],
+            vertices=8,
+        )
+        for obj in (panel, crest, face, crown):
             parent_keep_world(obj, sweep)
+
+    sweep_signals = warning_chevrons(
+        "tide_sweep",
+        center=(0, -14.7, 5.1),
+        count=5,
+        spacing=2.1,
+        mat=mats["signal"],
+        scale=0.78,
+    )
+    for signal in sweep_signals:
+        parent_keep_world(signal, sweep)
 
     keyframe(sweep, beat_frame(scene, 0), location=(0, -14.0, 0))
     keyframe(sweep, beat_frame(scene, 2), location=(0, 14.0, 0))
@@ -395,7 +671,28 @@ def build_tide_wall(scene, mats):
 
 def build_reactor_heart(scene, mats):
     """Two beats. The goal marker: it pulses and its shell opens, but nothing about it
-    blocks the lane, so the finish stays readable."""
+    blocks the lane, so the finish stays readable. A static crown and six energy vanes
+    give the map a proper final silhouette while the animated core remains the focus."""
+    cylinder("reactor_plinth", (0, 0, 0.65), 5.8, 1.3, mats["plate"], vertices=24)
+    torus("reactor_plinth_signal", (0, 0, 1.32), 5.0, 0.13, mats["teal"], major_segments=36)
+    for index in range(6):
+        angle = index * pi / 3
+        cube(
+            f"reactor_crown_pylon_{index}",
+            (5.5 * cos(angle), 5.5 * sin(angle), 3.0),
+            (0.34, 0.55, 2.2),
+            mats["bronze"],
+            rotation=(0, 0, angle),
+        )
+        cone(
+            f"reactor_crown_tip_{index}",
+            (5.5 * cos(angle), 5.5 * sin(angle), 5.5),
+            0.55,
+            0.08,
+            1.2,
+            mats["signal"] if index % 2 == 0 else mats["amber"],
+            vertices=10,
+        )
     core = sphere("reactor_core", (0, 0, 5.0), (2.6, 2.6, 2.6), mats["deep"], 24, 12)
     keyframe(core, beat_frame(scene, 0), scale=(1, 1, 1))
     keyframe(core, beat_frame(scene, 1), scale=(1.22, 1.22, 1.22))
@@ -414,6 +711,20 @@ def build_reactor_heart(scene, mats):
         )
         keyframe(ring, beat_frame(scene, 0), rotation=(pi / 2, tilt, 0))
         keyframe(ring, beat_frame(scene, 2), rotation=(pi / 2, tilt + (2 * pi if index % 2 == 0 else -2 * pi), 0))
+
+    vane_rig = empty("ReactorEnergyVanes", (0, 0, 5.0))
+    for index in range(6):
+        angle = index * pi / 3
+        vane = cube(
+            f"reactor_energy_vane_{index}_nocol",
+            (3.7 * cos(angle), 3.7 * sin(angle), 5.0),
+            (1.2, 0.10, 0.16),
+            mats["teal"] if index % 2 == 0 else mats["deep"],
+            rotation=(0, 0, angle),
+        )
+        parent_keep_world(vane, vane_rig)
+    keyframe(vane_rig, beat_frame(scene, 0), rotation=(0, 0, 0))
+    keyframe(vane_rig, beat_frame(scene, 2), rotation=(0, 0, -2 * pi))
 
     for index in range(6):
         angle = index * pi / 3
