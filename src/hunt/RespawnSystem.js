@@ -34,6 +34,13 @@ function applyRespawnRecovery(player, respawnConfig) {
     }
 }
 
+function createVectorFromPlayer(player, values) {
+    if (!Array.isArray(values) || values.length < 3) return null;
+    const vector = player?.position?.clone?.();
+    if (!vector || typeof vector.set !== 'function') return null;
+    return vector.set(Number(values[0]) || 0, Number(values[1]) || 0, Number(values[2]) || 0);
+}
+
 export class RespawnSystem {
     constructor(runtimeContext) {
         this.runtime = runtimeContext || null;
@@ -42,7 +49,8 @@ export class RespawnSystem {
 
     isEnabled() {
         const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
-        return strategy?.isRespawnEnabled() ?? false;
+        return strategy?.isRespawnEnabled?.() === true
+            || this.runtime?.callbacks?.parcours?.isRespawnEnabled?.() === true;
     }
 
     reset() {
@@ -50,11 +58,21 @@ export class RespawnSystem {
     }
 
     onPlayerDied(player) {
-        if (!this.isEnabled() || !player) return false;
-        const delaySeconds = Math.max(0.1, Number(getRespawnConfig(this.runtime)?.DELAY_SECONDS || 3));
+        if (!player) return false;
+        const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
+        const huntRespawnEnabled = strategy?.isRespawnEnabled?.() === true;
+        const parcoursPlan = this.runtime?.callbacks?.parcours?.takeRespawnPlan?.(player) || null;
+        if (!huntRespawnEnabled && !parcoursPlan) return false;
+        const delaySeconds = Math.max(
+            0.1,
+            Number(parcoursPlan?.delaySeconds ?? getRespawnConfig(this.runtime)?.DELAY_SECONDS ?? 3) || 3
+        );
         this.pendingByPlayer.set(player.index, {
             player,
             remaining: delaySeconds,
+            delaySeconds,
+            kind: parcoursPlan ? 'parcours' : 'hunt',
+            parcoursPlan,
         });
         return true;
     }
@@ -108,24 +126,37 @@ export class RespawnSystem {
 
             const respawnConfig = getRespawnConfig(this.runtime);
             const entityRuntimeConfig = resolveEntityRuntimeConfig(this.runtime);
-            const planarSpawnLevel = entityRuntimeConfig.GAMEPLAY.PLANAR_MODE && this.runtime?.spawn?.getPlanarSpawnLevel
-                ? this.runtime.spawn.getPlanarSpawnLevel()
-                : null;
-            const minEnemyDistance = Math.max(12, Number(respawnConfig?.MIN_ENEMY_DISTANCE || 18));
-            const spawnPos = this.runtime.spawn.findSpawnPosition(minEnemyDistance, 12, {
-                planarLevel: planarSpawnLevel,
-                player,
-            });
-            const spawnDir = this.runtime.spawn.findSafeSpawnDirection(spawnPos, player.hitboxRadius);
+            const parcoursPlan = pending.parcoursPlan || null;
+            let spawnPos = createVectorFromPlayer(player, parcoursPlan?.position);
+            let spawnDir = createVectorFromPlayer(player, parcoursPlan?.forward);
+            if (!spawnPos) {
+                const planarSpawnLevel = entityRuntimeConfig.GAMEPLAY.PLANAR_MODE && this.runtime?.spawn?.getPlanarSpawnLevel
+                    ? this.runtime.spawn.getPlanarSpawnLevel()
+                    : null;
+                const minEnemyDistance = Math.max(12, Number(respawnConfig?.MIN_ENEMY_DISTANCE || 18));
+                spawnPos = this.runtime.spawn.findSpawnPosition(minEnemyDistance, 12, {
+                    planarLevel: planarSpawnLevel,
+                    player,
+                });
+            }
+            if (!spawnDir) {
+                spawnDir = this.runtime.spawn.findSafeSpawnDirection(spawnPos, player.hitboxRadius);
+            }
             player.spawn(spawnPos, spawnDir);
+            const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
+            strategy?.resetPlayerHealth?.(player);
             player.fightLastAttackerIndex = -1;
             player.fightTargetPlayerIndex = -1;
             player.fightTargetLockRemaining = 0;
             player.fightSpawnedAtSeconds = Math.max(0, Number(this.runtime?.callbacks?.getSimulationNowMs?.()) || 0) * 0.001;
-            this.runtime?.callbacks?.parcours?.onPlayerSpawn?.(player, { reason: 'respawn' });
+            this.runtime?.callbacks?.parcours?.onPlayerSpawn?.(player, {
+                reason: parcoursPlan ? 'parcours_respawn' : 'respawn',
+            });
 
-            resetRespawnInventory(player, respawnConfig);
-            applyRespawnRecovery(player, respawnConfig);
+            if (!parcoursPlan) {
+                resetRespawnInventory(player, respawnConfig);
+                applyRespawnRecovery(player, respawnConfig);
+            }
 
             const invulnerability = Math.max(0, Number(respawnConfig?.INVULNERABILITY_SECONDS || 1));
             player.spawnProtectionTimer = Math.max(player.spawnProtectionTimer || 0, invulnerability);
@@ -138,10 +169,12 @@ export class RespawnSystem {
                 recorder.logEvent(
                     'RESPAWN',
                     player.index,
-                    `delay=${Math.max(0, Number(respawnConfig?.DELAY_SECONDS || 3)).toFixed(2)} shield=${Math.round(player.shieldHP || 0)} items=${player.inventory.length}`
+                    `kind=${parcoursPlan ? 'parcours' : 'hunt'} delay=${Math.max(0, Number(pending?.delaySeconds) || 0).toFixed(2)} checkpoint=${parcoursPlan?.checkpointId || ''} shield=${Math.round(player.shieldHP || 0)} items=${player.inventory.length}`
                 );
             }
-            this.runtime?.events?.emitHuntFeed(`${getLabel(player)} ist wieder im Kampf`);
+            if (!parcoursPlan) {
+                this.runtime?.events?.emitHuntFeed(`${getLabel(player)} ist wieder im Kampf`);
+            }
 
             this.pendingByPlayer.delete(playerIndex);
         }

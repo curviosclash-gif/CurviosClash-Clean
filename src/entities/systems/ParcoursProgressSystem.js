@@ -17,6 +17,7 @@ import {
     createPlayerHudState,
     createPlayerProgressSnapshot,
 } from './ParcoursProgressSnapshot.js';
+import { applyParcoursDeathRespawn } from './ParcoursRespawnOps.js';
 
 export class ParcoursProgressSystem {
     constructor(entityManager, options = {}) {
@@ -35,6 +36,7 @@ export class ParcoursProgressSystem {
         this._leaderboardCallback = null;
         this._ghostRecorder = null;
         this._progressPlayerIndexResolver = null;
+        this._respawnPlanByPlayer = new Map();
     }
     setXpEventCallback(callback) {
         this._xpEventCallback = typeof callback === 'function' ? callback : null;
@@ -68,11 +70,22 @@ export class ParcoursProgressSystem {
     isEnabled() {
         return !!this._route;
     }
+    isRespawnEnabled() {
+        return this._route?.rules?.respawnOnDeath === true;
+    }
+    takeRespawnPlan(playerOrIndex) {
+        const playerIndex = Number.isInteger(playerOrIndex) ? playerOrIndex : playerOrIndex?.index;
+        if (!Number.isInteger(playerIndex)) return null;
+        const plan = this._respawnPlanByPlayer.get(playerIndex) || null;
+        this._respawnPlanByPlayer.delete(playerIndex);
+        return plan;
+    }
     reset() {
         this._clearGhostRecording('parcours-reset');
         this._route = null;
         this._playerStates.clear();
         this._completionOrder.length = 0;
+        this._respawnPlanByPlayer.clear();
         this.entityManager?.arena?._portalGateSystem?.checkpointRingRuntime?.setProgressProvider?.(null);
     }
     startRound(players = []) {
@@ -84,6 +97,7 @@ export class ParcoursProgressSystem {
         });
         this._playerStates.clear();
         this._completionOrder.length = 0;
+        this._respawnPlanByPlayer.clear();
         if (!this._route) return;
         if (!Array.isArray(players)) return;
         for (const player of players) {
@@ -201,6 +215,17 @@ export class ParcoursProgressSystem {
 
         const reason = normalizeString(options.cause, 'death');
         this._cancelGhostRecordingForPlayer(player, `death:${reason}`);
+        if (this._route.rules.respawnOnDeath) {
+            const result = applyParcoursDeathRespawn(this._route, state, player, {
+                now: this.nowProvider(),
+                reason,
+                setErrorState: this._setErrorState.bind(this),
+            });
+            if (result.plan) this._respawnPlanByPlayer.set(player.index, result.plan);
+            this._notifyPlayer(player, result.feedback);
+            this._logRecorderEvent('PARCOURS_RESET', player, result.logDetails);
+            return;
+        }
         if (this._route.rules.resetOnDeath) {
             resetParcoursProgressState(state, {
                 countReset: true,

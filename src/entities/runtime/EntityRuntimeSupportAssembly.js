@@ -188,6 +188,8 @@ export function createEntityRuntimeSupport(owner) {
                 getTrailSpatialIndex: () => trailSpatialIndex,
             },
             parcours: {
+                isRespawnEnabled: () => owner._parcoursProgressSystem?.isRespawnEnabled?.() === true,
+                takeRespawnPlan: (player) => owner._parcoursProgressSystem?.takeRespawnPlan?.(player) || null,
                 onPlayerSpawn: (player, options = {}) => owner._parcoursProgressSystem?.onPlayerSpawn?.(player, options),
                 onPlayerDeath: (player, options = {}) => owner._parcoursProgressSystem?.onPlayerDeath?.(player, options),
             },

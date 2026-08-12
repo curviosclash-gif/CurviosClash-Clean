@@ -45,3 +45,18 @@ test('Parcours route can scale checkpoint world positions and trigger radii', ()
     assert.deepEqual(scaledRoute?.finish?.pos, [60, 0, 0]);
     assert.ok(Math.abs((scaledRoute?.finish?.radius ?? 0) - 3.6) < 1e-9);
 });
+
+test('Parcours route defaults respawn off and preserves an explicit checkpoint policy', () => {
+    const defaultRoute = buildRouteFromParcours(createParcoursFixture());
+    assert.equal(defaultRoute?.rules?.respawnOnDeath, false);
+    assert.equal(defaultRoute?.rules?.lastCheckpointRespawns, 0);
+
+    const respawnRoute = buildRouteFromParcours(createParcoursFixture({
+        respawnOnDeath: true,
+        lastCheckpointRespawns: 3,
+        respawnDelaySeconds: 2.5,
+    }));
+    assert.equal(respawnRoute?.rules?.respawnOnDeath, true);
+    assert.equal(respawnRoute?.rules?.lastCheckpointRespawns, 3);
+    assert.equal(respawnRoute?.rules?.respawnDelaySeconds, 2.5);
+});

@@ -24,6 +24,7 @@ export function createPlayerProgressSnapshot(route, state, now) {
         wrongOrderCount: state.wrongOrderCount,
         penaltyTimeMs: Math.max(0, Math.trunc(Number(state.penaltyTimeMs) || 0)),
         resetCount: state.resetCount,
+        checkpointRespawnsUsed: Math.max(0, Math.trunc(Number(state.checkpointRespawnsUsed) || 0)),
         completed: state.completed,
         completedAtMs: state.completedAtMs,
         completionTimeMs: state.completionTimeMs,
@@ -51,5 +52,6 @@ export function createPlayerHudState(snapshot) {
         errorMessage: snapshot.errorMessage,
         wrongOrderCount: snapshot.wrongOrderCount,
         resetCount: snapshot.resetCount,
+        checkpointRespawnsUsed: snapshot.checkpointRespawnsUsed,
     };
 }

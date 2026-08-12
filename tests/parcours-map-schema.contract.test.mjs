@@ -52,6 +52,29 @@ test('MapSchema runtime preserves custom parcours ghost and animation flags', ()
     assert.equal(runtime?.map?.parcours?.rules?.animateCheckpoints, false);
 });
 
+test('MapSchema runtime preserves checkpoint respawn policy', () => {
+    const runtime = toArenaMapDefinition(
+        createMapDocument({
+            respawnOnDeath: true,
+            lastCheckpointRespawns: 3,
+            respawnDelaySeconds: 2.5,
+        }),
+        { mapScale: 1, name: 'Schema Route' }
+    );
+    assert.deepEqual(
+        {
+            respawnOnDeath: runtime?.map?.parcours?.rules?.respawnOnDeath,
+            lastCheckpointRespawns: runtime?.map?.parcours?.rules?.lastCheckpointRespawns,
+            respawnDelaySeconds: runtime?.map?.parcours?.rules?.respawnDelaySeconds,
+        },
+        {
+            respawnOnDeath: true,
+            lastCheckpointRespawns: 3,
+            respawnDelaySeconds: 2.5,
+        }
+    );
+});
+
 test('MapSchema runtime preserves explicit zero-valued parcours timing rules', () => {
     const runtime = toArenaMapDefinition(
         createMapDocument({

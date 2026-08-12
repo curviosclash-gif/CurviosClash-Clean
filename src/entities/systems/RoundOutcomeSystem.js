@@ -5,6 +5,7 @@ export class RoundOutcomeSystem {
         getBots = () => [],
         getScoreboard = () => [],
         isRespawnEnabled = () => false,
+        isEliminationSuppressed = () => Boolean(false),
         isOutcomeAuthority = () => true,
         getDeathmatchKillLimit = () => 10,
         getDeathmatchTimeLimitSeconds = () => 300,
@@ -16,6 +17,7 @@ export class RoundOutcomeSystem {
         this.getBots = getBots;
         this.getScoreboard = getScoreboard;
         this.isRespawnEnabled = isRespawnEnabled;
+        this.isEliminationSuppressed = isEliminationSuppressed;
         this.isOutcomeAuthority = isOutcomeAuthority;
         this.getDeathmatchKillLimit = getDeathmatchKillLimit;
         this.getDeathmatchTimeLimitSeconds = getDeathmatchTimeLimitSeconds;
@@ -104,6 +106,12 @@ export class RoundOutcomeSystem {
                     parcours: null,
                 };
             }
+            return { shouldEnd: false, winner: null, reason: '', parcours: null };
+        }
+
+        // Parcours respawns suppress elimination without turning the route into a Hunt
+        // deathmatch. Completion remains objective-driven, with no kill/time-limit rules.
+        if (this.isEliminationSuppressed()) {
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
 

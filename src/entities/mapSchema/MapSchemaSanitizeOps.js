@@ -166,6 +166,8 @@ function sanitizeParcoursRules(raw) {
         bidirectionalCheckpoints: source.bidirectionalCheckpoints !== false,
         resetOnDeath: source.resetOnDeath !== false,
         resetToLastValid: source.resetToLastValid === true,
+        respawnOnDeath: source.respawnOnDeath === true, lastCheckpointRespawns: Math.max(0, Math.trunc(asFiniteNumber(source.lastCheckpointRespawns, 0))),
+        respawnDelaySeconds: Math.max(0.1, asFiniteNumber(source.respawnDelaySeconds, 3)),
         allowLaneAliases: source.allowLaneAliases !== false,
         winnerByParcoursComplete: source.winnerByParcoursComplete !== false,
         maxSegmentTimeMs: Math.max(0, Math.trunc(asFiniteNumber(source.maxSegmentTimeMs, 0))),
@@ -177,7 +179,6 @@ function sanitizeParcoursRules(raw) {
         showGhost: source.showGhost !== false,
     };
 }
-
 function sanitizeParcoursCheckpoint(raw, fallbackId = '') {
     const source = raw && typeof raw === 'object' ? raw : {};
     const id = sanitizeOptionalId(source.id) || fallbackId || undefined;

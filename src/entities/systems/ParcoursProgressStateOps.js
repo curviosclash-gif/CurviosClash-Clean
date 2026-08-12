@@ -9,6 +9,7 @@ export function resetParcoursProgressState(state, {
     const previousWrongOrderCount = state.wrongOrderCount;
     const previousPenaltyTimeMs = state.penaltyTimeMs;
     const previousResetCount = state.resetCount;
+    const previousCheckpointRespawnsUsed = state.checkpointRespawnsUsed;
     state.nextCheckpointIndex = 0;
     state.passedMask.fill(0);
     state.stageCheckpointIds.fill('');
@@ -27,6 +28,7 @@ export function resetParcoursProgressState(state, {
     state.wrongOrderCount = preserveCounters ? previousWrongOrderCount : 0;
     state.penaltyTimeMs = preserveCounters ? previousPenaltyTimeMs : 0;
     state.resetCount = preserveCounters ? previousResetCount : 0;
+    state.checkpointRespawnsUsed = preserveCounters ? previousCheckpointRespawnsUsed : 0;
     if (countReset) {
         state.resetCount += 1;
     }
