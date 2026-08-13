@@ -1,4 +1,5 @@
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
 
 const MIN_HITBOX_RADIUS = 0.2;
 const HITBOX_HEIGHT_FACTOR = 0.7;
@@ -202,6 +203,7 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
         player.position.y += player.velocity.y * dt;
     }
     player.position.z += player.velocity.z * dt;
+    applyFourPlayerPlanarPhysicsConstraint(player);
 }
 
 export function setPlayerLookAtWorld(player, x, y, z) {

@@ -5,6 +5,7 @@
 import { PlayerActionPhase } from './lifecycle/PlayerActionPhase.js';
 import { PlayerCollisionPhase } from './lifecycle/PlayerCollisionPhase.js';
 import { PlayerInteractionPhase } from './lifecycle/PlayerInteractionPhase.js';
+import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
 
 export class PlayerLifecycleSystem {
     constructor(entityManager) {
@@ -40,6 +41,7 @@ export class PlayerLifecycleSystem {
         if (aborted || !player.alive) return;
 
         this._interactionPhase.runPortalAndPickup(player, prevPos);
+        applyFourPlayerPlanarPhysicsConstraint(player);
         this.entityManager?._parcoursProgressSystem?.updatePlayerProgress?.(
             player,
             prevPos,

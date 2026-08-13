@@ -33,6 +33,7 @@ import {
 } from './player/PlayerMotionOps.js';
 import { PlayerController } from './player/PlayerController.js';
 import { createPlayerView } from './player/createPlayerView.js';
+import { applyFourPlayerPlanarPhysicsConstraint } from '../four-player-planar/FourPlayerPlanarPhysics.js';
 
 export class Player {
     constructor(renderer, index, color, isBot = false, options = {}) {
@@ -235,6 +236,8 @@ export class Player {
             this._tmpEuler.set(0, angle, 0, 'YXZ');
             this.quaternion.setFromEuler(this._tmpEuler);
         }
+
+        applyFourPlayerPlanarPhysicsConstraint(this);
 
         this.markRenderDiscontinuity('spawn');
         this._obbCollisionPrepared = false;

@@ -177,7 +177,10 @@ export class EntitySetupOps {
         ];
         for (let i = 0; i < numHumans; i++) {
             const playerVehicleId = setupContext.normalizeVehicleId(setupContext.humanConfigs[i]?.vehicleId);
-            const player = new Player(owner.renderer, i, humanColors[i], false, {
+            const playerColor = Number.isFinite(Number(setupContext.humanConfigs[i]?.color))
+                ? Number(setupContext.humanConfigs[i].color)
+                : (humanColors[i] ?? humanColors[i % humanColors.length]);
+            const player = new Player(owner.renderer, i, playerColor, false, {
                 vehicleId: playerVehicleId,
                 entityManager: owner,
                 entityRuntimeConfig: owner.entityRuntimeConfig,

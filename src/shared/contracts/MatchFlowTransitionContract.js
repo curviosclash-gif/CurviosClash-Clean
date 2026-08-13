@@ -16,12 +16,12 @@ function createHuntStateReset() {
     };
 }
 
-export function deriveMatchStartTransition({ numHumans } = {}) {
+export function deriveMatchStartTransition({ numHumans, viewportLayout } = {}) {
     return {
         state: null,
         roundPause: null,
         hudTimer: null,
-        uiState: deriveMatchStartUiState({ numHumans }),
+        uiState: deriveMatchStartUiState({ numHumans, viewportLayout }),
         huntStatePatch: null,
     };
 }

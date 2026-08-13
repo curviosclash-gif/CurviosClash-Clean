@@ -23,6 +23,7 @@ import {
     getMatchSessionAccessSnapshot,
     syncMatchP2HudVisibility,
 } from './MatchFlowTransitionHotspots.js';
+import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
 
 function hasOwnProperty(source, key) {
     return !!source && Object.prototype.hasOwnProperty.call(source, key);
@@ -132,7 +133,24 @@ export class MatchFlowUiController {
             game.ui.statusToast.classList.toggle('hidden', visibility.statusToastHidden !== false);
         }
 
-        if (typeof uiState?.splitScreenEnabled === 'boolean') {
+        if (typeof uiState?.viewportLayout === 'string') {
+            const splitScreenEnabled = uiState.viewportLayout !== VIEWPORT_LAYOUTS.SINGLE;
+            game.ui.hud?.classList.toggle('split-screen', splitScreenEnabled);
+            if (this.runtimePort?.setViewportLayout) {
+                this.runtimePort.setViewportLayout(uiState.viewportLayout);
+            } else if (this.runtimePort?.setSplitScreen) {
+                this.runtimePort.setSplitScreen(splitScreenEnabled);
+            } else if (game.renderer?.setViewportLayout) {
+                game.renderer.setViewportLayout(uiState.viewportLayout);
+            } else {
+                game.renderer?.setSplitScreen?.(splitScreenEnabled);
+            }
+            if (uiState.viewportLayout === VIEWPORT_LAYOUTS.FOUR_GRID) {
+                game.fourPlayerPlanar?.activateMatch?.();
+            } else {
+                game.fourPlayerPlanar?.deactivateMatch?.();
+            }
+        } else if (typeof uiState?.splitScreenEnabled === 'boolean') {
             game.ui.hud?.classList.toggle('split-screen', uiState.splitScreenEnabled);
             if (this.runtimePort?.setSplitScreen) {
                 this.runtimePort.setSplitScreen(uiState.splitScreenEnabled);
@@ -290,6 +308,9 @@ export class MatchFlowUiController {
         if (this._configureNetworkInputSourcesForMatch(input)) {
             return;
         }
+        if (game.fourPlayerPlanar?.configureInputSources?.(input)) {
+            return;
+        }
         const localHumanCount = Math.max(1, Number(game?.runtimeConfig?.session?.numHumans) || 1);
         for (let playerIndex = 0; playerIndex < localHumanCount; playerIndex += 1) {
             const source = this._createPreferredInputSource(playerIndex, localHumanCount);
@@ -303,7 +324,10 @@ export class MatchFlowUiController {
         const game = this.game;
         game.keyCapture = null;
 
-        const matchStartTransition = deriveMatchStartTransition({ numHumans: game.numHumans });
+        const matchStartTransition = deriveMatchStartTransition({
+            numHumans: game.numHumans,
+            viewportLayout: game?.runtimeConfig?.session?.viewportLayout,
+        });
         this.applyLifecycleTransition(matchStartTransition);
         this.applyMatchStartUiState(matchStartTransition.uiState);
         const loadingUiState = this._resolveMatchLoadingUiState();

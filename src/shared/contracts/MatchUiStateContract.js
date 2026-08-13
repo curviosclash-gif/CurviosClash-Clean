@@ -2,12 +2,19 @@
 // MatchUiStateContract.js - shared match UI state derivations
 // ============================================
 
+import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from './ViewportLayoutContract.js';
+
 export function deriveMatchStartUiState(inputs = {}) {
     const numHumans = Math.max(0, Number(inputs.numHumans) || 0);
     const isTwoPlayer = numHumans === 2;
+    const viewportLayout = normalizeViewportLayout(
+        inputs.viewportLayout,
+        isTwoPlayer ? VIEWPORT_LAYOUTS.TWO_COLUMNS : VIEWPORT_LAYOUTS.SINGLE
+    );
 
     return {
-        splitScreenEnabled: isTwoPlayer,
+        viewportLayout,
+        splitScreenEnabled: viewportLayout !== VIEWPORT_LAYOUTS.SINGLE,
         p2HudVisible: isTwoPlayer,
         visibility: {
             mainMenuHidden: true,
@@ -37,6 +44,7 @@ export function deriveMatchLoadingUiState(inputs = {}) {
 
 export function deriveReturnToMenuUiState() {
     return {
+        viewportLayout: VIEWPORT_LAYOUTS.SINGLE,
         splitScreenEnabled: false,
         p2HudVisible: false,
         visibility: {

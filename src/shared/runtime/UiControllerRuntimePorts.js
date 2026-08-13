@@ -132,6 +132,9 @@ export function createMatchFlowUiControllerPort(ports = null) {
     if (typeof renderPort?.setSplitScreen === 'function') {
         controllerPort.setSplitScreen = (isEnabled) => renderPort.setSplitScreen(!!isEnabled);
     }
+    if (typeof renderPort?.setViewportLayout === 'function') {
+        controllerPort.setViewportLayout = (layout) => renderPort.setViewportLayout(layout);
+    }
     if (typeof lifecyclePort?.initializeSession === 'function') {
         controllerPort.initializeSession = () => lifecyclePort.initializeSession();
     }

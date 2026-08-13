@@ -38,6 +38,7 @@ import {
     isMobileClassicAppTarget,
 } from '../mobile-classic/MobileClassicApp.js';
 import { installDesktopTuningRuntimeBridge } from '../dev/tuning/TuningRuntimeIpcBridge.js';
+import { FourPlayerPlanarModule } from '../four-player-planar/FourPlayerPlanarModule.js';
 
 /* global __APP_VERSION__, __BUILD_TIME__, __BUILD_ID__ */
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -89,6 +90,8 @@ export class Game {
         this._disposePromise = null;
         this._playtestStartTimeoutId = null;
         this.runtimeCoordinator = new GameRuntimeCoordinator({ runtime: this });
+        this.fourPlayerPlanar = new FourPlayerPlanarModule({ game: this });
+        this.fourPlayerPlanar.mountSetupUi();
         this._boundKeyCaptureHandler = (event) => this.runtimeCoordinator?.getRuntimeHandle?.('keybindEditorController')?.handleKeyCapture?.(event);
 
         this.runtimeCoordinator.initialize({
@@ -444,6 +447,7 @@ export class Game {
                 : null;
             this.huntHud.update(dt, runtimeProjection);
         }
+        this.fourPlayerPlanar?.update?.();
     }
 
     // Legacy compatibility hook retained for runtime/tests.
@@ -509,6 +513,7 @@ export class Game {
                 renderAlpha: this._renderAlpha,
                 renderDelta: this._renderDelta,
                 splitScreen: this.renderer?.splitScreen === true,
+                viewportLayout: this.renderer?.viewportLayout,
             });
             this.runtimePerfProfiler?.endSample?.('render', recordingRenderStart);
         }
@@ -535,6 +540,8 @@ export class Game {
         this._disposePromise = Promise.resolve()
             .then(() => runtimeCoordinator?.disposeRuntime?.())
             .finally(() => {
+                this.fourPlayerPlanar?.dispose?.();
+                this.fourPlayerPlanar = null;
                 releasePublishedRuntimeHandles(this, runtimeFacade, this.debugApi);
             });
         return this._disposePromise;

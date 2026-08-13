@@ -129,10 +129,12 @@ test('settings versions migrate through explicit ordered steps', () => {
     assert.deepEqual(migration.appliedMigrations, [
         SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
         SETTINGS_VERSION_MIGRATION_IDS.V1_TO_V2,
+        SETTINGS_VERSION_MIGRATION_IDS.V2_TO_V3,
     ]);
     assert.equal(migration.reachedVersion, defaults.settingsVersion);
     assert.equal(migration.settings.settingsVersion, defaults.settingsVersion);
     assert.equal(migration.settings.localSettings.sessionType, 'splitscreen');
     assert.equal(migration.settings.localSettings.modePath, defaults.localSettings.modePath);
     assert.equal(migration.settings.botPolicyStrategy, defaults.botPolicyStrategy);
+    assert.equal(migration.settings.localSettings.splitScreenVariant, 'standard');
 });

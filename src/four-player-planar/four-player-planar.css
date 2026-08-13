@@ -1,0 +1,86 @@
+.four-player-planar-entry {
+    border-color: color-mix(in srgb, var(--menu-accent, #54d8ff) 70%, transparent);
+}
+
+.four-player-planar-standard-hidden {
+    display: none !important;
+}
+
+.four-player-planar-setup {
+    display: grid;
+    gap: 16px;
+}
+
+.four-player-planar-setup-header,
+.four-player-planar-fields,
+.four-player-planar-keys {
+    display: grid;
+    gap: 12px;
+}
+
+.four-player-planar-setup-header {
+    grid-template-columns: auto 1fr;
+    align-items: start;
+}
+
+.four-player-planar-fields {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.four-player-planar-fields label {
+    display: grid;
+    gap: 6px;
+}
+
+.four-player-planar-keys {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.four-player-planar-keys span {
+    padding: 8px;
+    border-left: 3px solid var(--player-color);
+    background: rgba(6, 15, 28, 0.55);
+}
+
+.four-player-planar-hud {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    pointer-events: none;
+}
+
+.four-player-planar-hud-quadrant {
+    position: absolute;
+    width: 50%;
+    height: 50%;
+    padding: 14px;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    color: #fff;
+    text-shadow: 0 1px 4px #000;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--player-color) 55%, transparent);
+}
+
+.four-player-planar-hud-quadrant strong {
+    color: var(--player-color);
+}
+
+.four-player-planar-hud-quadrant [data-fpp-action] {
+    margin-left: auto;
+    opacity: 0.82;
+}
+
+.four-player-planar-hud-quadrant.q1 { left: 0; top: 0; }
+.four-player-planar-hud-quadrant.q2 { left: 50%; top: 0; }
+.four-player-planar-hud-quadrant.q3 { left: 0; top: 50%; align-items: flex-end; }
+.four-player-planar-hud-quadrant.q4 { left: 50%; top: 50%; align-items: flex-end; }
+
+.four-player-planar-active #p1-fighter-hud,
+.four-player-planar-active #p2-fighter-hud,
+.four-player-planar-active #p1-hud,
+.four-player-planar-active #p2-hud,
+.four-player-planar-active #crosshair-container {
+    display: none !important;
+}

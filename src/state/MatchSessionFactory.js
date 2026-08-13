@@ -24,6 +24,7 @@ import {
     storePrewarmedArenaSession,
     trackPrewarmPromise,
 } from './match-session/MatchSessionPrewarmStore.js';
+import { isFourPlayerPlanarRuntime } from '../four-player-planar/FourPlayerPlanarContract.js';
 
 export { disposeMatchSessionSystems } from './match-session/MatchSessionSetupOps.js';
 
@@ -310,6 +311,9 @@ export function wireMatchSessionRuntime({
     const cameraCount = Math.max(0, Number(numHumans) || 0);
     for (let i = 0; i < cameraCount; i++) {
         renderer.createCamera(i);
+        if (isFourPlayerPlanarRuntime(entityManager?.runtimeConfig) && i < renderer.cameraModes.length) {
+            renderer.cameraModes[i] = 0;
+        }
     }
 
     if (resetScores) {

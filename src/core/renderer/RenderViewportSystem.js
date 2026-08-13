@@ -1,9 +1,18 @@
+import {
+    VIEWPORT_LAYOUTS,
+    normalizeViewportLayout,
+} from '../../shared/contracts/ViewportLayoutContract.js';
+
 export class RenderViewportSystem {
     constructor(renderer, options = {}) {
         this.renderer = renderer;
         this.width = Number(options.width) || window.innerWidth;
         this.height = Number(options.height) || window.innerHeight;
-        this.splitScreen = !!options.splitScreen;
+        this.layout = normalizeViewportLayout(
+            options.layout,
+            options.splitScreen ? VIEWPORT_LAYOUTS.TWO_COLUMNS : VIEWPORT_LAYOUTS.SINGLE
+        );
+        this.splitScreen = this.layout !== VIEWPORT_LAYOUTS.SINGLE;
         /** When true, forces fullscreen single-camera rendering (network mode). */
         this.networkEnabled = !!options.networkEnabled;
         /** Index of the local player whose camera to follow in network mode. */
@@ -15,8 +24,11 @@ export class RenderViewportSystem {
         if (this.networkEnabled) {
             return this.width / this.height;
         }
-        if (this.splitScreen) {
+        if (this.layout === VIEWPORT_LAYOUTS.TWO_COLUMNS) {
             return (this.width / 2) / this.height;
+        }
+        if (this.layout === VIEWPORT_LAYOUTS.FOUR_GRID) {
+            return (this.width / 2) / (this.height / 2);
         }
         return this.width / this.height;
     }
@@ -30,7 +42,15 @@ export class RenderViewportSystem {
     }
 
     setSplitScreen(enabled, cameras) {
-        this.splitScreen = !!enabled;
+        this.setViewportLayout(
+            enabled ? VIEWPORT_LAYOUTS.TWO_COLUMNS : VIEWPORT_LAYOUTS.SINGLE,
+            cameras
+        );
+    }
+
+    setViewportLayout(layout, cameras) {
+        this.layout = normalizeViewportLayout(layout);
+        this.splitScreen = this.layout !== VIEWPORT_LAYOUTS.SINGLE;
         this.updateCameraAspects(cameras);
     }
 
@@ -44,6 +64,7 @@ export class RenderViewportSystem {
         this.networkEnabled = !!enabled;
         this.localPlayerIndex = localPlayerIndex || 0;
         if (enabled) {
+            this.layout = VIEWPORT_LAYOUTS.SINGLE;
             this.splitScreen = false;
         }
         this.updateCameraAspects(cameras);
@@ -65,29 +86,60 @@ export class RenderViewportSystem {
             const camIdx = Math.min(this.localPlayerIndex, cameras.length - 1);
             const cam = cameras[Math.max(0, camIdx)] || cameras[0];
             if (cam) {
+                this.renderer.setScissorTest(false);
                 this.renderer.setViewport(0, 0, w, h);
+                this.renderer.setScissor(0, 0, w, h);
                 this.renderer.render(scene, cam);
             }
             return;
         }
 
-        // Splitscreen: only for local 2P (sessionType='splitscreen')
-        if (this.splitScreen && cameras.length >= 2) {
-            this.renderer.setViewport(0, 0, w / 2, h);
-            this.renderer.setScissor(0, 0, w / 2, h);
+        if (this.layout === VIEWPORT_LAYOUTS.FOUR_GRID && cameras.length >= 4) {
+            const leftWidth = Math.floor(w / 2);
+            const rightWidth = w - leftWidth;
+            const bottomHeight = Math.floor(h / 2);
+            const topHeight = h - bottomHeight;
+            this.renderer.setScissorTest(true);
+            const quadrants = [
+                [0, bottomHeight, leftWidth, topHeight, cameras[0]],
+                [leftWidth, bottomHeight, rightWidth, topHeight, cameras[1]],
+                [0, 0, leftWidth, bottomHeight, cameras[2]],
+                [leftWidth, 0, rightWidth, bottomHeight, cameras[3]],
+            ];
+            for (const [x, y, width, height, camera] of quadrants) {
+                this.renderer.setViewport(x, y, width, height);
+                this.renderer.setScissor(x, y, width, height);
+                this.renderer.render(scene, camera);
+            }
+            this.renderer.setScissorTest(false);
+            this.renderer.setViewport(0, 0, w, h);
+            this.renderer.setScissor(0, 0, w, h);
+            return;
+        }
+
+        // Compatibility layout for the existing local 2P adapter.
+        if (this.layout === VIEWPORT_LAYOUTS.TWO_COLUMNS && cameras.length >= 2) {
+            const leftWidth = Math.floor(w / 2);
+            const rightWidth = w - leftWidth;
+            this.renderer.setViewport(0, 0, leftWidth, h);
+            this.renderer.setScissor(0, 0, leftWidth, h);
             this.renderer.setScissorTest(true);
             this.renderer.render(scene, cameras[0]);
 
-            this.renderer.setViewport(w / 2, 0, w / 2, h);
-            this.renderer.setScissor(w / 2, 0, w / 2, h);
+            this.renderer.setViewport(leftWidth, 0, rightWidth, h);
+            this.renderer.setScissor(leftWidth, 0, rightWidth, h);
             this.renderer.render(scene, cameras[1]);
 
             this.renderer.setScissorTest(false);
+            this.renderer.setViewport(0, 0, w, h);
+            this.renderer.setScissor(0, 0, w, h);
             return;
         }
 
         if (cameras.length > 0) {
+            this.renderer.setScissorTest(false);
             this.renderer.setViewport(0, 0, w, h);
+            this.renderer.setScissor(0, 0, w, h);
             this.renderer.render(scene, cameras[0]);
         }
     }

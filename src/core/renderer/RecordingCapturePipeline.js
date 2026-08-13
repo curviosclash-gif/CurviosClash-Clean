@@ -19,13 +19,12 @@ import {
     normalizeCameraPerspectiveSettings,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
 import {
-    applyProjectionQuaternion,
-    applyProjectionVector3,
-    CinematicCaptureSubjectSelector,
-    createCanvasClone,
-    findProjectedPlayerByIndex,
-    toPositiveEven,
-    toRatio,
+  applyProjectionQuaternion,
+  applyProjectionVector3,
+  CinematicCaptureSubjectSelector,
+  createCanvasClone,
+  toPositiveEven,
+  toRatio,
 } from './RecordingCaptureProjectionOps.js';
 import {
     createCaptureCameraContext,
@@ -35,11 +34,10 @@ import {
     updateCaptureCameraContext,
     updateShortsCaptureCamera,
 } from './RecordingCaptureCameraUpdateOps.js';
+import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contracts/ViewportLayoutContract.js';
+import { buildStandardCaptureSegments } from './RecordingCaptureLayoutOps.js';
 
-const SHORTS_OUTPUT_ASPECT = Object.freeze({
-    width: 9,
-    height: 16,
-});
+const SHORTS_OUTPUT_ASPECT = Object.freeze({ width: 9, height: 16 });
 
 export class RecordingCapturePipeline {
     constructor({
@@ -293,7 +291,7 @@ export class RecordingCapturePipeline {
         this._lastMeta = storeCaptureMeta(baseMeta, segments);
     }
 
-    _prepareStandardSurface({ renderProjection, splitScreen }) {
+    _prepareStandardSurface({ renderProjection, viewportLayout }) {
         const targetCanvas = this._ensureCaptureCanvas(this.sourceCanvas?.width, this.sourceCanvas?.height);
         const ctx = this._captureCtx;
         if (!targetCanvas || !ctx || !this.sourceCanvas) return;
@@ -316,24 +314,13 @@ export class RecordingCapturePipeline {
             return;
         }
 
-        const player1 = findProjectedPlayerByIndex(players, 0, players[0]);
-        const player2 = findProjectedPlayerByIndex(players, 1, players[1] || null);
-        const primaryPlayer = findProjectedPlayerByIndex(players, splitScreen ? 0 : Math.max(0, Math.trunc(Number(renderProjection?.localPlayerIndex) || 0)), player1);
-        const segments = [];
-        if (splitScreen && player2) {
-            const halfWidth = Math.floor(width * 0.5);
-            segments.push({ x: 0, y: 0, width: halfWidth, height, player: player1, label: 'P1' });
-            segments.push({ x: halfWidth, y: 0, width: width - halfWidth, height, player: player2, label: 'P2' });
-        } else {
-            segments.push({
-                x: 0,
-                y: 0,
-                width,
-                height,
-                player: primaryPlayer,
-                label: `P${primaryPlayer.playerIndex + 1}`,
-            });
-        }
+        const segments = buildStandardCaptureSegments({
+            players,
+            viewportLayout,
+            width,
+            height,
+            localPlayerIndex: renderProjection?.localPlayerIndex,
+        });
 
         if (/** @type {string} */ (this._settings.hudMode) === RECORDING_HUD_MODE.WITH_HUD) {
             drawHudOverlay({
@@ -349,7 +336,7 @@ export class RecordingCapturePipeline {
             profile: RECORDING_CAPTURE_PROFILE.STANDARD,
             hudMode: this._settings.hudMode,
             overlay: /** @type {string} */ (this._settings.hudMode) === RECORDING_HUD_MODE.WITH_HUD ? 'hud' : 'clean',
-            layout: splitScreen && player2 ? 'split_horizontal' : 'single',
+            layout: viewportLayout,
             width,
             height,
         }, segments);
@@ -494,10 +481,22 @@ export class RecordingCapturePipeline {
         arena = null,
         renderDelta = 1 / 60,
         splitScreen = false,
+        viewportLayout = null,
     } = {}) {
         if (!recordingActive) return;
         if (!this._active) {
             this.setActive(true);
+        }
+        const resolvedViewportLayout = normalizeViewportLayout(
+            viewportLayout,
+            splitScreen ? VIEWPORT_LAYOUTS.TWO_COLUMNS : VIEWPORT_LAYOUTS.SINGLE
+        );
+        if (resolvedViewportLayout === VIEWPORT_LAYOUTS.FOUR_GRID) {
+            this._prepareStandardSurface({
+                renderProjection,
+                viewportLayout: resolvedViewportLayout,
+            });
+            return;
         }
         if (/** @type {string} */ (this._settings.profile) === RECORDING_CAPTURE_PROFILE.YOUTUBE_SHORT) {
             this._prepareShortsSurface({ renderProjection, renderDelta, splitScreen, arena });
@@ -510,7 +509,7 @@ export class RecordingCapturePipeline {
         // Always copy the WebGL source canvas to a preserved 2D capture canvas.
         // Without this, preserveDrawingBuffer:false on the main renderer can
         // cause black frames on some browsers/drivers (notably Windows + ANGLE).
-        this._prepareStandardSurface({ renderProjection, splitScreen });
+        this._prepareStandardSurface({ renderProjection, viewportLayout: resolvedViewportLayout });
     }
 
 

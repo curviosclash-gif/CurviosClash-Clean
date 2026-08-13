@@ -270,6 +270,9 @@ export function createSessionPort(game) {
 
 export function createRenderPort(game) {
     return {
+        setViewportLayout(layout) {
+            getRuntimeComponents(game)?.renderer?.setViewportLayout?.(layout);
+        },
         setSplitScreen(isEnabled) {
             getRuntimeComponents(game)?.renderer?.setSplitScreen?.(!!isEnabled);
         },

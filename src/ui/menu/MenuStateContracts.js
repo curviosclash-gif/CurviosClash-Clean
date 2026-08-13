@@ -12,6 +12,10 @@ import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessCont
 import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import {
+    normalizeFourPlayerPlanarSettings,
+    normalizeSplitScreenVariant,
+} from '../../four-player-planar/FourPlayerPlanarContract.js';
+import {
     createMenuEventPlaylistStateDefaults,
     createMenuLocalSettingsDefaults,
     createMenuStartSetupDefaults,
@@ -205,6 +209,8 @@ function normalizeLocalSettingsState(localSettings = null) {
         fixedPresetId: normalizeString(source.fixedPresetId, defaults.fixedPresetId),
         fixedPresetLockEnabled: normalizeBoolean(source.fixedPresetLockEnabled, defaults.fixedPresetLockEnabled),
         sessionType,
+        splitScreenVariant: normalizeSplitScreenVariant(source.splitScreenVariant),
+        fourPlayerPlanar: normalizeFourPlayerPlanarSettings(source.fourPlayerPlanar),
         multiplayerTransport,
         modePath,
         themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',

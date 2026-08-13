@@ -31,6 +31,11 @@ import {
 } from './SettingsDomainUtils.js';
 import { createRuntimeSettingsLimitsForRuntime } from './SettingsRuntimeLimits.js';
 import { migrateSettingsSnapshot } from './SettingsVersionMigrations.js';
+import {
+    normalizeFourPlayerPlanarSettings,
+    normalizeSplitScreenVariant,
+} from '../../four-player-planar/FourPlayerPlanarContract.js';
+import { getVehicleIds } from '../../entities/vehicle-registry.js';
 
 function applySessionSanitization({ merged, src, defaults, migratedSessionType, runtimeLimits }) {
     const huntFeatureEnabled = CONFIG.HUNT?.ENABLED !== false;
@@ -232,6 +237,18 @@ function applyMenuContractPayloadSanitization({ merged, src }) {
 function finalizeSanitizedSettings({ merged, migratedSessionType }) {
     ensureMenuContractState(merged);
     merged.localSettings.sessionType = migratedSessionType;
+    merged.localSettings.splitScreenVariant = normalizeSplitScreenVariant(
+        merged.localSettings.splitScreenVariant
+    );
+    merged.localSettings.fourPlayerPlanar = normalizeFourPlayerPlanarSettings(
+        merged.localSettings.fourPlayerPlanar,
+        {
+            allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
+            allowedVehicleIds: new Set(getVehicleIds()),
+            fallbackMapKey: merged.mapKey || 'standard',
+            fallbackVehicleId: merged?.vehicles?.PLAYER_1 || 'ship5',
+        }
+    );
     merged.localSettings.modePath = normalizeModePath(merged.localSettings.modePath, 'normal');
     applyMenuCompatibilityRuleSet(merged);
     return merged;

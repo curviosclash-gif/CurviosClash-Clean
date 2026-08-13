@@ -3,6 +3,7 @@ import { deepClone } from './SettingsDomainUtils.js';
 export const SETTINGS_VERSION_MIGRATION_IDS = Object.freeze({
     V0_TO_V1: 'settings.v0-to-v1',
     V1_TO_V2: 'settings.v1-to-v2',
+    V2_TO_V3: 'settings.v2-to-v3',
 });
 
 function ensureLocalSettings(settings) {
@@ -35,6 +36,21 @@ function migrateV1ToV2(settings, defaults) {
     return settings;
 }
 
+function migrateV2ToV3(settings, defaults) {
+    const localSettings = ensureLocalSettings(settings);
+    localSettings.splitScreenVariant = 'standard';
+    if (!localSettings.fourPlayerPlanar || typeof localSettings.fourPlayerPlanar !== 'object') {
+        localSettings.fourPlayerPlanar = deepClone(defaults?.localSettings?.fourPlayerPlanar || {
+            mode: 'classic',
+            mapKey: 'standard',
+            vehicleId: 'ship5',
+            botCount: 0,
+        });
+    }
+    settings.settingsVersion = 3;
+    return settings;
+}
+
 const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
     Object.freeze({
         id: SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
@@ -47,6 +63,12 @@ const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
         fromVersion: 1,
         toVersion: 2,
         migrate: migrateV1ToV2,
+    }),
+    Object.freeze({
+        id: SETTINGS_VERSION_MIGRATION_IDS.V2_TO_V3,
+        fromVersion: 2,
+        toVersion: 3,
+        migrate: migrateV2ToV3,
     }),
 ]);
 

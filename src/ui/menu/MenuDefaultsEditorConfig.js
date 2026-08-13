@@ -8,6 +8,10 @@ import { DEFAULT_MAP_BRIGHTNESS } from '../../shared/contracts/MapBrightnessCont
 import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContract.js';
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import {
+    SPLIT_SCREEN_VARIANTS,
+    normalizeFourPlayerPlanarSettings,
+} from '../../four-player-planar/FourPlayerPlanarContract.js';
 
 export const MENU_DEFAULT_EDITOR_SCHEMA_VERSION = 'menu-default-editor.v1';
 export const MENU_DEFAULT_EVENT_PLAYLIST_ID = 'fun_rotation';
@@ -31,7 +35,7 @@ function deepClone(value) {
 const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     schemaVersion: MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     baseSettings: {
-        settingsVersion: 2,
+        settingsVersion: 3,
         mode: '2p',
         gameMode: HUNT_CONFIG.DEFAULT_MODE,
         mapKey: 'mega_maze',
@@ -101,6 +105,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         fixedPresetId: '',
         fixedPresetLockEnabled: false,
         sessionType: 'splitscreen',
+        splitScreenVariant: SPLIT_SCREEN_VARIANTS.STANDARD,
+        fourPlayerPlanar: normalizeFourPlayerPlanarSettings(),
         modePath: 'fight',
         themeMode: 'dunkel',
         graphicsStyle: GRAPHICS_STYLES.MODERN,

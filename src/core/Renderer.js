@@ -88,6 +88,7 @@ export class Renderer {
         this._width = this.viewportSystem.width;
         this._height = this.viewportSystem.height;
         this.splitScreen = this.viewportSystem.splitScreen;
+        this.viewportLayout = this.viewportSystem.layout;
 
         this.qualityController = new RenderQualityController(this.renderer, this.scene);
         this.recordingCapturePipeline = new RecordingCapturePipeline({
@@ -284,6 +285,14 @@ export class Renderer {
     setSplitScreen(enabled) {
         this.viewportSystem.setSplitScreen(enabled, this.cameras);
         this.splitScreen = this.viewportSystem.splitScreen;
+        this.viewportLayout = this.viewportSystem.layout;
+    }
+
+    setViewportLayout(layout) {
+        this.viewportSystem.setViewportLayout(layout, this.cameras);
+        this.splitScreen = this.viewportSystem.splitScreen;
+        this.viewportLayout = this.viewportSystem.layout;
+        return this.viewportLayout;
     }
 
     cycleCamera(playerIndex) {

@@ -1,0 +1,225 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import * as THREE from 'three';
+
+import { SettingsManager } from '../src/core/SettingsManager.js';
+import { RenderViewportSystem } from '../src/core/renderer/RenderViewportSystem.js';
+import { buildStandardCaptureSegments } from '../src/core/renderer/RecordingCaptureLayoutOps.js';
+import { buildHumanConfigs } from '../src/state/match-session/MatchSessionSetupOps.js';
+import { migrateSettingsSnapshot } from '../src/core/settings/SettingsVersionMigrations.js';
+import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
+import {
+    FOUR_PLAYER_PLANAR_KEY_BINDINGS,
+    FOUR_PLAYER_PLANAR_PLAYER_COLORS,
+    SPLIT_SCREEN_VARIANTS,
+    normalizeFourPlayerPlanarSettings,
+    normalizeSplitScreenVariant,
+} from '../src/four-player-planar/FourPlayerPlanarContract.js';
+import {
+    createFourPlayerPlanarInputSource,
+    resolvePreferredFourPlayerPlanarAction,
+} from '../src/four-player-planar/FourPlayerPlanarInputSource.js';
+import { applyFourPlayerPlanarPhysicsConstraint } from '../src/four-player-planar/FourPlayerPlanarPhysics.js';
+import { VIEWPORT_LAYOUTS } from '../src/shared/contracts/ViewportLayoutContract.js';
+
+function createManager() {
+    return new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+}
+
+test('four-player planar settings migrate and sanitize without changing legacy profiles', () => {
+    const manager = createManager();
+    const defaults = manager.createDefaultSettings();
+    const migrated = migrateSettingsSnapshot({
+        settingsVersion: 2,
+        localSettings: { sessionType: 'splitscreen' },
+    }, defaults);
+    assert.deepEqual(migrated.appliedMigrations, ['settings.v2-to-v3']);
+    assert.equal(migrated.settings.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.STANDARD);
+
+    const sanitized = manager.sanitizeSettings({
+        ...defaults,
+        localSettings: {
+            ...defaults.localSettings,
+            splitScreenVariant: 'unknown-future-value',
+            fourPlayerPlanar: {
+                mode: 'invalid',
+                mapKey: '__missing__',
+                vehicleId: '__missing__',
+                botCount: 99,
+            },
+        },
+    });
+    assert.equal(sanitized.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.STANDARD);
+    assert.deepEqual(sanitized.localSettings.fourPlayerPlanar, {
+        mode: 'classic',
+        mapKey: sanitized.mapKey,
+        vehicleId: sanitized.vehicles.PLAYER_1,
+        botCount: 6,
+    });
+    assert.equal(normalizeSplitScreenVariant(null), SPLIT_SCREEN_VARIANTS.STANDARD);
+    assert.equal(normalizeFourPlayerPlanarSettings({ botCount: -4 }).botCount, 0);
+});
+
+test('runtime snapshot creates four local humans, one shared vehicle, four-grid layout and at most six bots', () => {
+    const manager = createManager();
+    const settings = manager.createDefaultSettings();
+    settings.localSettings.sessionType = 'splitscreen';
+    settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+    settings.localSettings.fourPlayerPlanar = {
+        mode: 'hunt',
+        mapKey: settings.mapKey,
+        vehicleId: settings.vehicles.PLAYER_1,
+        botCount: 20,
+    };
+    const runtime = manager.createRuntimeConfig(settings);
+    assert.equal(runtime.session.numHumans, 4);
+    assert.equal(runtime.session.numBots, 6);
+    assert.equal(runtime.session.activeGameMode, 'HUNT');
+    assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.FOUR_GRID);
+    assert.equal(runtime.gameplay.planarMode, true);
+    assert.deepEqual(Object.values(runtime.player.vehicles), Array(4).fill(settings.vehicles.PLAYER_1));
+
+    const humans = buildHumanConfigs(settings, runtime);
+    assert.equal(humans.length, 4);
+    assert.deepEqual(humans.map((entry) => entry.vehicleId), Array(4).fill(settings.vehicles.PLAYER_1));
+    assert.deepEqual(humans.map((entry) => entry.color), FOUR_PLAYER_PLANAR_PLAYER_COLORS);
+});
+
+test('standard two-player splitscreen remains the compatible two-column adapter', () => {
+    const manager = createManager();
+    const settings = manager.createDefaultSettings();
+    settings.localSettings.sessionType = 'splitscreen';
+    settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.STANDARD;
+    settings.gameplay.planarMode = false;
+    const runtime = manager.createRuntimeConfig(settings);
+    assert.equal(runtime.session.numHumans, 2);
+    assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.TWO_COLUMNS);
+    assert.equal(runtime.gameplay.planarMode, false);
+    assert.equal(buildHumanConfigs(settings, runtime).length, 2);
+});
+
+test('all four keyboard groups are edge-triggered and keep pitch, roll, boost, camera, MG and gamepad neutral', () => {
+    const down = new Set();
+    const pressed = new Set();
+    const inputManager = {
+        isDown: (code) => down.has(code),
+        wasPressed(code) {
+            const result = pressed.has(code);
+            pressed.delete(code);
+            return result;
+        },
+    };
+    const players = Array.from({ length: 4 }, () => ({ inventory: ['SHIELD'], selectedItemIndex: 0 }));
+    const sources = FOUR_PLAYER_PLANAR_KEY_BINDINGS.map((binding, index) => {
+        const source = createFourPlayerPlanarInputSource({
+            inputManager,
+            playerIndex: index,
+            getPlayer: () => players[index],
+            getMode: () => 'classic',
+        });
+        source.bind(index);
+        down.add(binding.left);
+        pressed.add(binding.action);
+        const first = { ...source.poll() };
+        const held = { ...source.poll() };
+        down.delete(binding.left);
+        assert.equal(first.yawLeft, true);
+        assert.equal(first.useItem, true);
+        assert.equal(held.useItem, false);
+        for (const key of ['pitchAxis', 'rollAxis']) assert.equal(first[key], 0);
+        for (const key of ['pitchUp', 'pitchDown', 'rollLeft', 'rollRight', 'boost', 'boostPressed', 'cameraSwitch', 'shootMG']) {
+            assert.equal(first[key], false);
+        }
+        source.clearInputState();
+        assert.equal(source.poll().yawLeft, false);
+        return source;
+    });
+    assert.equal(sources.length, 4);
+
+    const dual = { hasItem: true, canUseNow: true, canShootNow: true };
+    assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'classic'), { useItem: true, shootItem: false });
+    assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'hunt'), { useItem: false, shootItem: true });
+});
+
+test('four-player planar physics restores height, pitch and roll after curve, collision and respawn changes', () => {
+    const player = {
+        entityManager: { runtimeConfig: { session: { splitScreenVariant: 'four_player_planar', viewportLayout: 'four_grid' } } },
+        currentPlanarY: 7,
+        position: new THREE.Vector3(1, 30, 2),
+        velocity: new THREE.Vector3(3, 9, 4),
+        quaternion: new THREE.Quaternion(),
+        _tmpEuler2: new THREE.Euler(0, 0, 0, 'YXZ'),
+    };
+    for (const [pitch, yaw, roll] of [[0.5, 0.2, 0.7], [-0.8, 1.2, -0.4], [1.1, -0.3, 0.9]]) {
+        player.position.y = 50;
+        player.velocity.y = -12;
+        player.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
+        assert.equal(applyFourPlayerPlanarPhysicsConstraint(player), true);
+        const euler = new THREE.Euler().setFromQuaternion(player.quaternion, 'YXZ');
+        assert.equal(player.position.y, 7);
+        assert.equal(player.velocity.y, 0);
+        assert.ok(Math.abs(euler.x) < 1e-9);
+        assert.ok(Math.abs(euler.z) < 1e-9);
+    }
+});
+
+test('four-grid renderer uses P1/P2 top, P3/P4 bottom, updates aspects and resets scissor state', () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = { innerWidth: 1920, innerHeight: 1080 };
+    const calls = [];
+    const renderer = {
+        setSize: (...args) => calls.push(['size', ...args]),
+        setViewport: (...args) => calls.push(['viewport', ...args]),
+        setScissor: (...args) => calls.push(['scissor', ...args]),
+        setScissorTest: (...args) => calls.push(['scissorTest', ...args]),
+        render: (_scene, camera) => calls.push(['render', camera.id]),
+    };
+    const cameras = Array.from({ length: 4 }, (_, index) => ({
+        id: `P${index + 1}`,
+        aspect: 0,
+        updateProjectionMatrix() {},
+    }));
+    try {
+        const viewport = new RenderViewportSystem(renderer, { width: 1920, height: 1080 });
+        viewport.setViewportLayout(VIEWPORT_LAYOUTS.FOUR_GRID, cameras);
+        assert.deepEqual(cameras.map((camera) => camera.aspect), Array(4).fill(16 / 9));
+        calls.length = 0;
+        viewport.render({}, cameras);
+        assert.deepEqual(calls.filter(([type]) => type === 'render').map(([, id]) => id), ['P1', 'P2', 'P3', 'P4']);
+        assert.deepEqual(calls.filter(([type]) => type === 'viewport').slice(0, 4), [
+            ['viewport', 0, 540, 960, 540],
+            ['viewport', 960, 540, 960, 540],
+            ['viewport', 0, 0, 960, 540],
+            ['viewport', 960, 0, 960, 540],
+        ]);
+        assert.deepEqual(calls.at(-2), ['viewport', 0, 0, 1920, 1080]);
+        assert.deepEqual(calls.at(-3), ['scissorTest', false]);
+        globalThis.window.innerWidth = 1280;
+        globalThis.window.innerHeight = 720;
+        viewport.onResize(cameras);
+        assert.equal(viewport.getAspect(), 16 / 9);
+    } finally {
+        globalThis.window = previousWindow;
+    }
+});
+
+test('recording capture metadata segments preserve the visible 2x2 quadrant order', () => {
+    const players = Array.from({ length: 4 }, (_, playerIndex) => ({ playerIndex }));
+    const segments = buildStandardCaptureSegments({
+        players,
+        viewportLayout: VIEWPORT_LAYOUTS.FOUR_GRID,
+        width: 1920,
+        height: 1080,
+    });
+    assert.deepEqual(segments.map((segment) => ({
+        label: segment.label,
+        playerIndex: segment.player.playerIndex,
+        x: segment.x,
+        y: segment.y,
+    })), [
+        { label: 'P1', playerIndex: 0, x: 0, y: 0 },
+        { label: 'P2', playerIndex: 1, x: 960, y: 0 },
+        { label: 'P3', playerIndex: 2, x: 0, y: 540 },
+        { label: 'P4', playerIndex: 3, x: 960, y: 540 },
+    ]);
+});

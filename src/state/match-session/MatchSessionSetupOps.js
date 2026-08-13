@@ -1,3 +1,8 @@
+import {
+    FOUR_PLAYER_PLANAR_PLAYER_COLORS,
+    SPLIT_SCREEN_VARIANTS,
+} from '../../four-player-planar/FourPlayerPlanarContract.js';
+
 export function disposeMatchSessionSystems(renderer, currentSession, options = {}) {
     if (currentSession?.entityManager) {
         currentSession.entityManager.dispose();
@@ -21,20 +26,22 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const fightLoadouts = runtimeConfig?.session?.modePath === 'fight'
         ? runtimeConfig?.player?.fightLoadouts || null
         : null;
-    return [
-        {
-            invertPitch: !!settings?.invertPitch?.PLAYER_1,
+    const configuredHumanCount = Math.max(1, Number(runtimeConfig?.session?.numHumans) || 2);
+    const fallbackVehicleId = runtimeVehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1;
+    const configs = [];
+    for (let index = 0; index < configuredHumanCount; index += 1) {
+        const slot = `PLAYER_${index + 1}`;
+        configs.push({
+            invertPitch: !!settings?.invertPitch?.[slot],
             cockpitCamera: true,
-            vehicleId: runtimeVehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1,
-            fightLoadout: fightLoadouts?.PLAYER_1 || null,
-        },
-        {
-            invertPitch: !!settings?.invertPitch?.PLAYER_2,
-            cockpitCamera: true,
-            vehicleId: runtimeVehicles?.PLAYER_2 || settings?.vehicles?.PLAYER_2,
-            fightLoadout: fightLoadouts?.PLAYER_2 || null,
-        },
-    ];
+            vehicleId: runtimeVehicles?.[slot] || fallbackVehicleId,
+            fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
+            color: runtimeConfig?.session?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
+                ? FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]
+                : undefined,
+        });
+    }
+    return configs;
 }
 
 export function buildEntityManagerSetupOptions(settings, runtimeConfig = null, entityRuntimeConfig = null, setupOptions = null) {
