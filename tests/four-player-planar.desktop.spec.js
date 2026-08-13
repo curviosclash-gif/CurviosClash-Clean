@@ -84,6 +84,15 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         expect(state.crosshairHidden).toBeTruthy();
         expect(state.fighterHudHidden).toBeTruthy();
 
+        await page.keyboard.press('Escape');
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PAUSED');
+        await expect(page.locator('#pause-overlay')).toBeVisible();
+        await expect(page.locator('#btn-pause-menu')).toBeVisible();
+        await page.locator('#btn-pause-menu').click();
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'MENU');
+
+        await startVariant(page, scenario.mode, scenario.bots);
+
         await page.keyboard.down('KeyA');
         await page.waitForFunction(() => window.GAME_INSTANCE?.input?.getPlayerSource?.(0)?.poll?.()?.yawLeft === true);
         await page.keyboard.up('KeyA');

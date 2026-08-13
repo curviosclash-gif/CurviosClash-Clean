@@ -111,7 +111,12 @@
     transform-origin: right bottom;
 }
 
-.four-player-planar-active #hud > :not(#four-player-planar-hud),
+.four-player-planar-active #hud > :not(#four-player-planar-hud):not(#message-overlay):not(#pause-overlay),
 .four-player-planar-active #crosshair-container {
     display: none !important;
+}
+
+.four-player-planar-active #message-overlay,
+.four-player-planar-active #pause-overlay {
+    z-index: 40;
 }
