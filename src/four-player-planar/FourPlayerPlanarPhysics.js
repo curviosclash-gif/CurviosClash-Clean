@@ -7,7 +7,6 @@ export function applyFourPlayerPlanarPhysicsConstraint(player) {
     player.velocity.y = 0;
     player._tmpEuler2.setFromQuaternion(player.quaternion, 'YXZ');
     player._tmpEuler2.x = 0;
-    player._tmpEuler2.z = 0;
     player.quaternion.setFromEuler(player._tmpEuler2).normalize();
     return true;
 }

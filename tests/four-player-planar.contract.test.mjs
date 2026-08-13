@@ -11,7 +11,9 @@ import { createMemoryStoragePlatform } from './helpers/settings-manager-contract
 import {
     FOUR_PLAYER_PLANAR_KEY_BINDINGS,
     FOUR_PLAYER_PLANAR_PLAYER_COLORS,
+    FOUR_PLAYER_PLANAR_ROLL_BINDINGS,
     SPLIT_SCREEN_VARIANTS,
+    normalizeFourPlayerPlanarRollBindings,
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
 } from '../src/four-player-planar/FourPlayerPlanarContract.js';
@@ -55,9 +57,14 @@ test('four-player planar settings migrate and sanitize without changing legacy p
         mapKey: sanitized.mapKey,
         vehicleId: sanitized.vehicles.PLAYER_1,
         botCount: 6,
+        rollBindings: FOUR_PLAYER_PLANAR_ROLL_BINDINGS.map((binding) => ({ ...binding })),
     });
     assert.equal(normalizeSplitScreenVariant(null), SPLIT_SCREEN_VARIANTS.STANDARD);
     assert.equal(normalizeFourPlayerPlanarSettings({ botCount: -4 }).botCount, 0);
+    assert.deepEqual(
+        normalizeFourPlayerPlanarRollBindings([{ left: 'Escape', right: 'KeyA' }]),
+        FOUR_PLAYER_PLANAR_ROLL_BINDINGS.map((binding) => ({ ...binding }))
+    );
 });
 
 test('runtime snapshot creates four local humans, one shared vehicle, four-grid layout and at most six bots', () => {
@@ -77,6 +84,7 @@ test('runtime snapshot creates four local humans, one shared vehicle, four-grid 
     assert.equal(runtime.session.activeGameMode, 'HUNT');
     assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.FOUR_GRID);
     assert.equal(runtime.gameplay.planarMode, true);
+    assert.deepEqual(runtime.session.fourPlayerPlanar.rollBindings, FOUR_PLAYER_PLANAR_ROLL_BINDINGS.map((binding) => ({ ...binding })));
     assert.deepEqual(Object.values(runtime.player.vehicles), Array(4).fill(settings.vehicles.PLAYER_1));
 
     const humans = buildHumanConfigs(settings, runtime);
@@ -98,7 +106,7 @@ test('standard two-player splitscreen remains the compatible two-column adapter'
     assert.equal(buildHumanConfigs(settings, runtime).length, 2);
 });
 
-test('all four keyboard groups are edge-triggered and keep pitch, roll, boost, camera, MG and gamepad neutral', () => {
+test('all four keyboard groups support steering, context action and configurable roll while keeping pitch and extras neutral', () => {
     const down = new Set();
     const pressed = new Set();
     const inputManager = {
@@ -116,18 +124,23 @@ test('all four keyboard groups are edge-triggered and keep pitch, roll, boost, c
             playerIndex: index,
             getPlayer: () => players[index],
             getMode: () => 'classic',
+            rollBinding: FOUR_PLAYER_PLANAR_ROLL_BINDINGS[index],
         });
         source.bind(index);
         down.add(binding.left);
+        down.add(FOUR_PLAYER_PLANAR_ROLL_BINDINGS[index].left);
         pressed.add(binding.action);
         const first = { ...source.poll() };
         const held = { ...source.poll() };
         down.delete(binding.left);
+        down.delete(FOUR_PLAYER_PLANAR_ROLL_BINDINGS[index].left);
         assert.equal(first.yawLeft, true);
+        assert.equal(first.rollLeft, true);
+        assert.equal(first.rollAxis, 1);
         assert.equal(first.useItem, true);
         assert.equal(held.useItem, false);
-        for (const key of ['pitchAxis', 'rollAxis']) assert.equal(first[key], 0);
-        for (const key of ['pitchUp', 'pitchDown', 'rollLeft', 'rollRight', 'boost', 'boostPressed', 'cameraSwitch', 'shootMG']) {
+        assert.equal(first.pitchAxis, 0);
+        for (const key of ['pitchUp', 'pitchDown', 'rollRight', 'boost', 'boostPressed', 'cameraSwitch', 'shootMG']) {
             assert.equal(first[key], false);
         }
         source.clearInputState();
@@ -141,7 +154,7 @@ test('all four keyboard groups are edge-triggered and keep pitch, roll, boost, c
     assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'hunt'), { useItem: false, shootItem: true });
 });
 
-test('four-player planar physics restores height, pitch and roll after curve, collision and respawn changes', () => {
+test('four-player planar physics restores height and pitch while preserving manual roll after curve, collision and respawn changes', () => {
     const player = {
         entityManager: { runtimeConfig: { session: { splitScreenVariant: 'four_player_planar', viewportLayout: 'four_grid' } } },
         currentPlanarY: 7,
@@ -154,12 +167,14 @@ test('four-player planar physics restores height, pitch and roll after curve, co
         player.position.y = 50;
         player.velocity.y = -12;
         player.quaternion.setFromEuler(new THREE.Euler(pitch, yaw, roll, 'YXZ'));
+        const before = new THREE.Euler().setFromQuaternion(player.quaternion, 'YXZ');
         assert.equal(applyFourPlayerPlanarPhysicsConstraint(player), true);
         const euler = new THREE.Euler().setFromQuaternion(player.quaternion, 'YXZ');
         assert.equal(player.position.y, 7);
         assert.equal(player.velocity.y, 0);
         assert.ok(Math.abs(euler.x) < 1e-9);
-        assert.ok(Math.abs(euler.z) < 1e-9);
+        assert.ok(Math.abs(euler.y - before.y) < 1e-9);
+        assert.ok(Math.abs(euler.z - before.z) < 1e-9);
     }
 });
 

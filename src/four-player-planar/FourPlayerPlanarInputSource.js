@@ -2,6 +2,7 @@ import { resolveInventoryActionAvailability } from '../shared/contracts/Gameplay
 import {
     FOUR_PLAYER_PLANAR_KEY_BINDINGS,
     FOUR_PLAYER_PLANAR_MODES,
+    FOUR_PLAYER_PLANAR_ROLL_BINDINGS,
 } from './FourPlayerPlanarContract.js';
 
 function resetInput(input) {
@@ -49,9 +50,11 @@ export function createFourPlayerPlanarInputSource({
     playerIndex,
     getPlayer,
     getMode,
+    rollBinding = null,
 } = {}) {
     const binding = FOUR_PLAYER_PLANAR_KEY_BINDINGS[playerIndex];
-    if (!inputManager || !binding) return null;
+    const resolvedRollBinding = rollBinding || FOUR_PLAYER_PLANAR_ROLL_BINDINGS[playerIndex];
+    if (!inputManager || !binding || !resolvedRollBinding) return null;
     const output = resetInput({});
 
     return {
@@ -76,6 +79,9 @@ export function createFourPlayerPlanarInputSource({
             output.yawLeft = inputManager.isDown(binding.left);
             output.yawRight = inputManager.isDown(binding.right);
             output.yawAxis = (output.yawLeft ? 1 : 0) - (output.yawRight ? 1 : 0);
+            output.rollLeft = inputManager.isDown(resolvedRollBinding.left);
+            output.rollRight = inputManager.isDown(resolvedRollBinding.right);
+            output.rollAxis = (output.rollLeft ? 1 : 0) - (output.rollRight ? 1 : 0);
             if (inputManager.wasPressed(binding.action)) {
                 const action = resolveFourPlayerPlanarContextAction(
                     typeof getPlayer === 'function' ? getPlayer() : null,

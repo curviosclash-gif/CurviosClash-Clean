@@ -33,6 +33,17 @@ function colorToCss(color) {
     return `#${Number(color).toString(16).padStart(6, '0')}`;
 }
 
+function formatKeyCode(code) {
+    const labels = {
+        ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓',
+        PageUp: 'Bild ↑', PageDown: 'Bild ↓',
+    };
+    if (labels[code]) return labels[code];
+    if (String(code).startsWith('Key')) return String(code).slice(3);
+    if (String(code).startsWith('Numpad')) return `Num ${String(code).slice(6)}`;
+    return String(code);
+}
+
 function resolveMapLabel(mapKey, definition) {
     return String(definition?.name || definition?.label || mapKey);
 }
@@ -56,6 +67,7 @@ export class FourPlayerPlanarModule {
         this._hudRoot = null;
         this._hudRows = [];
         this._matchActive = false;
+        this._rollKeyCapture = null;
         this._lastHudValues = Array.from({ length: FOUR_PLAYER_PLANAR_HUMAN_COUNT }, () => ({}));
     }
 
@@ -81,7 +93,7 @@ export class FourPlayerPlanarModule {
                 <button type="button" class="back-btn" data-four-player-planar-back aria-label="Zurück zur Spielstilwahl">← Zurück</button>
                 <div>
                     <h2 id="four-player-planar-setup-title" class="section-title">4 Spieler – Planar</h2>
-                    <p class="menu-hint">Vier lokale Tastaturspieler · Third Person · Pitch und Rollen gesperrt</p>
+                    <p class="menu-hint">Vier lokale Tastaturspieler · Third Person · Pitch gesperrt</p>
                 </div>
             </div>
             <div class="four-player-planar-fields">
@@ -95,7 +107,11 @@ export class FourPlayerPlanarModule {
                     <input data-four-player-planar-bots type="range" min="0" max="6" step="1" value="0">
                 </label>
             </div>
-            <div class="four-player-planar-keys" aria-label="Feste Tastaturbelegung"></div>
+            <details class="four-player-planar-controls">
+                <summary>Tastenbelegung</summary>
+                <div class="four-player-planar-keys" aria-label="Tastenbelegung für vier Spieler"></div>
+                <p class="menu-hint" data-four-player-planar-key-hint>Roll-Taste anklicken und neue Taste drücken.</p>
+            </details>
             <p class="menu-hint">Hinweis: Hardwarebedingtes Keyboard-Ghosting kann bei manchen Tastaturen auftreten.</p>
             <button type="button" class="start-btn" data-four-player-planar-start>4-Spieler-Match starten</button>
             </section>`);
@@ -111,8 +127,13 @@ export class FourPlayerPlanarModule {
         }
         const keys = surface.querySelector('.four-player-planar-keys');
         FOUR_PLAYER_PLANAR_KEY_BINDINGS.forEach((binding, index) => {
-            const row = this.document.createElement('span');
-            row.textContent = `P${index + 1}: ${binding.label}`;
+            const row = createStaticElement(this.document, `
+                <div class="four-player-planar-key-row">
+                    <strong>P${index + 1}</strong>
+                    <span>Lenken / Aktion: ${binding.label}</span>
+                    <button type="button" class="secondary-btn" data-four-player-roll-key="left" data-player-index="${index}"></button>
+                    <button type="button" class="secondary-btn" data-four-player-roll-key="right" data-player-index="${index}"></button>
+                </div>`);
             row.style.setProperty('--player-color', colorToCss(FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]));
             keys.appendChild(row);
         });
@@ -126,6 +147,8 @@ export class FourPlayerPlanarModule {
             vehicle: vehicleSelect,
             bots: surface.querySelector('[data-four-player-planar-bots]'),
             botLabel: surface.querySelector('[data-four-player-planar-bot-label]'),
+            rollButtons: Array.from(surface.querySelectorAll('[data-four-player-roll-key]')),
+            keyHint: surface.querySelector('[data-four-player-planar-key-hint]'),
             back: surface.querySelector('[data-four-player-planar-back]'),
             start: surface.querySelector('[data-four-player-planar-start]'),
         };
@@ -133,6 +156,10 @@ export class FourPlayerPlanarModule {
         this._listen(card, 'click', () => this.openSetup());
         this._listen(this._setupNodes.back, 'click', () => this.closeSetup());
         this._listen(this._setupNodes.start, 'click', () => this.startMatch());
+        for (const button of this._setupNodes.rollButtons) {
+            this._listen(button, 'click', () => this._beginRollKeyCapture(button));
+        }
+        this._listen(this.document, 'keydown', (event) => this._captureRollKey(event));
         for (const control of [this._setupNodes.mode, this._setupNodes.map, this._setupNodes.vehicle, this._setupNodes.bots]) {
             this._listen(control, 'input', () => this._persistSetupSelection());
             this._listen(control, 'change', () => this._persistSetupSelection());
@@ -196,6 +223,71 @@ export class FourPlayerPlanarModule {
         this._setupNodes.vehicle.value = selection.vehicleId;
         this._setupNodes.bots.value = String(selection.botCount);
         this._setupNodes.botLabel.textContent = String(selection.botCount);
+        this._syncRollKeyButtons(selection.rollBindings);
+    }
+
+    _syncRollKeyButtons(rollBindings) {
+        for (const button of this._setupNodes?.rollButtons || []) {
+            const playerIndex = Number(button.dataset.playerIndex);
+            const direction = button.dataset.fourPlayerRollKey;
+            const code = rollBindings?.[playerIndex]?.[direction] || '';
+            button.textContent = `${direction === 'left' ? 'Rolle links' : 'Rolle rechts'}: ${formatKeyCode(code)}`;
+        }
+    }
+
+    _beginRollKeyCapture(button) {
+        const playerIndex = Number(button?.dataset?.playerIndex);
+        const direction = button?.dataset?.fourPlayerRollKey;
+        if (!Number.isInteger(playerIndex) || !['left', 'right'].includes(direction)) return;
+        this._syncRollKeyButtons(this._resolveSelection().rollBindings);
+        this._rollKeyCapture = { playerIndex, direction };
+        button.textContent = 'Taste drücken …';
+        if (this._setupNodes?.keyHint) {
+            this._setupNodes.keyHint.textContent = `Neue Taste für P${playerIndex + 1} drücken · Esc bricht ab.`;
+        }
+    }
+
+    _captureRollKey(event) {
+        const capture = this._rollKeyCapture;
+        if (!capture) {
+            const rollBindings = this.game?.runtimeConfig?.session?.fourPlayerPlanar?.rollBindings || [];
+            if (this._matchActive && rollBindings.some((binding) => binding.left === event.code || binding.right === event.code)) {
+                event.preventDefault();
+            }
+            return;
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        const selection = this._resolveSelection();
+        if (event.code === 'Escape') {
+            this._rollKeyCapture = null;
+            this._syncRollKeyButtons(selection.rollBindings);
+            if (this._setupNodes?.keyHint) this._setupNodes.keyHint.textContent = 'Tastenauswahl abgebrochen.';
+            return;
+        }
+        const occupied = new Set(FOUR_PLAYER_PLANAR_KEY_BINDINGS
+            .flatMap((binding) => [binding.left, binding.right, binding.action]));
+        for (const code of Object.values(this.game?.input?.bindings?.GLOBAL || {})) occupied.add(code);
+        selection.rollBindings.forEach((binding, playerIndex) => {
+            for (const direction of ['left', 'right']) {
+                if (playerIndex !== capture.playerIndex || direction !== capture.direction) occupied.add(binding[direction]);
+            }
+        });
+        if (occupied.has(event.code) || event.code === 'Enter') {
+            if (this._setupNodes?.keyHint) this._setupNodes.keyHint.textContent = `${formatKeyCode(event.code)} ist bereits belegt.`;
+            return;
+        }
+        const rollBindings = selection.rollBindings.map((binding) => ({ ...binding }));
+        rollBindings[capture.playerIndex][capture.direction] = event.code;
+        const normalizedSelection = normalizeFourPlayerPlanarSettings({
+            ...selection,
+            rollBindings,
+        });
+        this.game.settings.localSettings.fourPlayerPlanar = normalizedSelection;
+        this._rollKeyCapture = null;
+        this._syncRollKeyButtons(normalizedSelection.rollBindings);
+        if (this._setupNodes?.keyHint) this._setupNodes.keyHint.textContent = 'Tastenbelegung gespeichert.';
+        this.game._onSettingsChanged?.();
     }
 
     openSetup() {
@@ -210,6 +302,7 @@ export class FourPlayerPlanarModule {
 
     closeSetup() {
         if (!this._setupNodes) return;
+        this._rollKeyCapture = null;
         for (const node of this._setupNodes.standardSections) node.classList.remove('four-player-planar-standard-hidden');
         this._setupNodes.surface.classList.add('hidden');
     }
@@ -224,6 +317,7 @@ export class FourPlayerPlanarModule {
             mapKey: this._setupNodes.map.value,
             vehicleId: this._setupNodes.vehicle.value,
             botCount: this._setupNodes.bots.value,
+            rollBindings: this.game.settings.localSettings?.fourPlayerPlanar?.rollBindings,
         }, {
             allowedMapKeys: eligibleMapKeys,
             allowedVehicleIds: new Set(getVehicleIds()),
@@ -267,12 +361,14 @@ export class FourPlayerPlanarModule {
     configureInputSources(inputManager) {
         if (!this.isRuntimeActive() || !inputManager?.setPlayerSource) return false;
         const mode = this.game.runtimeConfig?.session?.fourPlayerPlanar?.mode || FOUR_PLAYER_PLANAR_MODES.CLASSIC;
+        const rollBindings = this.game.runtimeConfig?.session?.fourPlayerPlanar?.rollBindings || [];
         for (let playerIndex = 0; playerIndex < FOUR_PLAYER_PLANAR_HUMAN_COUNT; playerIndex += 1) {
             inputManager.setPlayerSource(playerIndex, createFourPlayerPlanarInputSource({
                 inputManager,
                 playerIndex,
                 getPlayer: () => this.game?.entityManager?.players?.[playerIndex] || null,
                 getMode: () => mode,
+                rollBinding: rollBindings[playerIndex],
             }));
         }
         return true;

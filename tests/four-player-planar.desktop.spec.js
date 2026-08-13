@@ -12,8 +12,16 @@ async function openFourPlayerSetup(page) {
     await expect(page.locator('#four-player-planar-setup')).toBeVisible();
 }
 
-async function startVariant(page, mode, botCount) {
+async function startVariant(page, mode, botCount, { configureRoll = false } = {}) {
     await openFourPlayerSetup(page);
+    await page.locator('.four-player-planar-controls summary').click();
+    await expect(page.locator('[data-four-player-roll-key]')).toHaveCount(8);
+    if (configureRoll) {
+        const rollLeftP1 = page.locator('[data-four-player-roll-key="left"][data-player-index="0"]');
+        await rollLeftP1.click();
+        await page.keyboard.press('KeyZ');
+        await expect(rollLeftP1).toHaveText('Rolle links: Z');
+    }
     await page.locator('[data-four-player-planar-mode]').selectOption(mode);
     await page.locator('[data-four-player-planar-bots]').evaluate((element, value) => {
         element.value = String(value);
@@ -32,7 +40,7 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         { mode: 'classic', bots: 0, modeType: 'CLASSIC' },
         { mode: 'hunt', bots: 2, modeType: 'HUNT' },
     ]) {
-        await startVariant(page, scenario.mode, scenario.bots);
+        await startVariant(page, scenario.mode, scenario.bots, { configureRoll: scenario.mode === 'classic' });
         const state = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             return {
@@ -42,6 +50,7 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
                 layout: game?.renderer?.viewportLayout,
                 cameraModes: game?.renderer?.cameraModes?.slice(0, 4),
                 sourceTypes: Array.from({ length: 4 }, (_, index) => game?.input?.getPlayerSource?.(index)?.type),
+                rollBindings: game?.runtimeConfig?.session?.fourPlayerPlanar?.rollBindings,
                 hudQuadrants: document.querySelectorAll('#four-player-planar-hud .four-player-planar-hud-quadrant').length,
                 viewport: { width: window.innerWidth, height: window.innerHeight },
                 hudCards: Array.from(document.querySelectorAll('#four-player-planar-hud .four-player-planar-hud-card')).map((card) => {
@@ -67,6 +76,7 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         expect(state.layout).toBe('four_grid');
         expect(state.cameraModes).toEqual([0, 0, 0, 0]);
         expect(state.sourceTypes).toEqual(Array(4).fill('four-player-planar-keyboard'));
+        expect(state.rollBindings[0].left).toBe('KeyZ');
         expect(state.hudQuadrants).toBe(4);
         state.hudCards.forEach((card, index) => {
             expect({ player: card.player, stat: card.stat, item: card.item }).toEqual({
@@ -96,6 +106,9 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         await page.keyboard.down('KeyA');
         await page.waitForFunction(() => window.GAME_INSTANCE?.input?.getPlayerSource?.(0)?.poll?.()?.yawLeft === true);
         await page.keyboard.up('KeyA');
+        await page.keyboard.down('KeyZ');
+        await page.waitForFunction(() => window.GAME_INSTANCE?.input?.getPlayerSource?.(0)?.poll?.()?.rollLeft === true);
+        await page.keyboard.up('KeyZ');
 
         await returnToMenu(page);
         await page.waitForFunction(() => window.GAME_INSTANCE?.renderer?.viewportLayout === 'single');

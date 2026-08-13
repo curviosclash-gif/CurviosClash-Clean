@@ -29,6 +29,42 @@ export const FOUR_PLAYER_PLANAR_KEY_BINDINGS = Object.freeze([
     Object.freeze({ left: 'Numpad4', right: 'Numpad6', action: 'Numpad8', label: 'Num 4 / 6 / 8' }),
 ]);
 
+export const FOUR_PLAYER_PLANAR_ROLL_BINDINGS = Object.freeze([
+    Object.freeze({ left: 'KeyQ', right: 'KeyE' }),
+    Object.freeze({ left: 'KeyU', right: 'KeyO' }),
+    Object.freeze({ left: 'PageUp', right: 'PageDown' }),
+    Object.freeze({ left: 'Numpad7', right: 'Numpad9' }),
+]);
+
+const RESERVED_ROLL_KEY_CODES = new Set(['Escape', 'Enter']);
+const KEY_CODE_PATTERN = /^[A-Za-z][A-Za-z0-9]{1,31}$/;
+
+function cloneDefaultRollBindings() {
+    return FOUR_PLAYER_PLANAR_ROLL_BINDINGS.map((binding) => ({ ...binding }));
+}
+
+export function normalizeFourPlayerPlanarRollBindings(value = null) {
+    const source = Array.isArray(value) ? value : [];
+    const bindings = FOUR_PLAYER_PLANAR_ROLL_BINDINGS.map((fallback, index) => {
+        const candidate = source[index] && typeof source[index] === 'object' ? source[index] : {};
+        const normalizeCode = (code, fallbackCode) => {
+            const normalized = String(code || '').trim();
+            return KEY_CODE_PATTERN.test(normalized) && !RESERVED_ROLL_KEY_CODES.has(normalized)
+                ? normalized
+                : fallbackCode;
+        };
+        return {
+            left: normalizeCode(candidate.left, fallback.left),
+            right: normalizeCode(candidate.right, fallback.right),
+        };
+    });
+    const allCodes = [
+        ...FOUR_PLAYER_PLANAR_KEY_BINDINGS.flatMap((binding) => [binding.left, binding.right, binding.action]),
+        ...bindings.flatMap((binding) => [binding.left, binding.right]),
+    ];
+    return new Set(allCodes).size === allCodes.length ? bindings : cloneDefaultRollBindings();
+}
+
 export function normalizeSplitScreenVariant(value) {
     return value === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
         ? SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
@@ -61,6 +97,7 @@ export function normalizeFourPlayerPlanarSettings(value = null, options = {}) {
         mapKey: normalizeSelection(source.mapKey, options.allowedMapKeys, fallbackMapKey),
         vehicleId: normalizeSelection(source.vehicleId, options.allowedVehicleIds, fallbackVehicleId),
         botCount,
+        rollBindings: normalizeFourPlayerPlanarRollBindings(source.rollBindings),
     };
 }
 

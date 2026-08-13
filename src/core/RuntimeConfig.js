@@ -291,6 +291,7 @@ export function createRuntimeConfigSnapshot(settings, {
                 mapKey: fourPlayerPlanarSelection.mapKey,
                 vehicleId: sharedFourPlayerVehicleId,
                 botCount: fourPlayerPlanarSelection.botCount,
+                rollBindings: fourPlayerPlanarSelection.rollBindings,
             } : null,
             maxPlayers: clampSettingValue(source.maxPlayers, { min: 2, max: 10, step: 1 }, 10),
             numBots: fourPlayerPlanarActive
