@@ -305,16 +305,18 @@ export class FourPlayerPlanarModule {
         root.className = 'four-player-planar-hud hidden';
         for (let index = 0; index < FOUR_PLAYER_PLANAR_HUMAN_COUNT; index += 1) {
             const row = createStaticElement(this.document, `
-                <section class="four-player-planar-hud-quadrant q${index + 1}">
-                    <strong>P${index + 1}</strong><span data-fpp-stat>–</span>
-                    <span data-fpp-item>Kein Item</span><span data-fpp-action>Aktion bereit</span>
+                <section class="four-player-planar-hud-quadrant q${index + 1}" aria-label="HUD Spieler ${index + 1}">
+                    <div class="four-player-planar-hud-card">
+                        <strong data-fpp-player>P${index + 1}</strong>
+                        <span data-fpp-stat>–</span>
+                        <span data-fpp-item>Kein Item</span>
+                    </div>
                 </section>`);
             row.style.setProperty('--player-color', colorToCss(FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]));
             root.appendChild(row);
             this._hudRows.push({
                 stat: row.querySelector('[data-fpp-stat]'),
                 item: row.querySelector('[data-fpp-item]'),
-                action: row.querySelector('[data-fpp-action]'),
             });
         }
         hud.appendChild(root);
@@ -345,12 +347,9 @@ export class FourPlayerPlanarModule {
             const values = {
                 stat: hunt ? `HP ${Math.max(0, Math.ceil(Number(player.hp) || 0))}` : `Punkte ${Number(player.score) || 0}`,
                 item: availability.hasItem ? availability.type : 'Kein Item',
-                action: availability.hasItem
-                    ? `${FOUR_PLAYER_PLANAR_KEY_BINDINGS[index].label.split(' / ').at(-1)}: ${hunt && availability.canShoot ? 'Abschuss' : (availability.canUse ? 'Nutzen' : 'Abschuss')}`
-                    : `${FOUR_PLAYER_PLANAR_KEY_BINDINGS[index].label.split(' / ').at(-1)}: Aktion`,
             };
             const previous = this._lastHudValues[index];
-            for (const key of ['stat', 'item', 'action']) {
+            for (const key of ['stat', 'item']) {
                 if (previous[key] === values[key]) continue;
                 previous[key] = values[key];
                 row[key].textContent = values[key];

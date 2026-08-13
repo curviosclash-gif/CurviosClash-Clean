@@ -43,6 +43,17 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
                 cameraModes: game?.renderer?.cameraModes?.slice(0, 4),
                 sourceTypes: Array.from({ length: 4 }, (_, index) => game?.input?.getPlayerSource?.(index)?.type),
                 hudQuadrants: document.querySelectorAll('#four-player-planar-hud .four-player-planar-hud-quadrant').length,
+                viewport: { width: window.innerWidth, height: window.innerHeight },
+                hudCards: Array.from(document.querySelectorAll('#four-player-planar-hud .four-player-planar-hud-card')).map((card) => {
+                    const rect = card.getBoundingClientRect();
+                    return {
+                        player: card.querySelector('[data-fpp-player]')?.textContent,
+                        stat: card.querySelector('[data-fpp-stat]')?.textContent,
+                        item: card.querySelector('[data-fpp-item]')?.textContent,
+                        rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+                    };
+                }),
+                actionHints: document.querySelectorAll('#four-player-planar-hud [data-fpp-action]').length,
                 fighterHudHidden: getComputedStyle(document.getElementById('p1-fighter-hud')).display === 'none',
             };
         });
@@ -53,6 +64,18 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         expect(state.cameraModes).toEqual([0, 0, 0, 0]);
         expect(state.sourceTypes).toEqual(Array(4).fill('four-player-planar-keyboard'));
         expect(state.hudQuadrants).toBe(4);
+        state.hudCards.forEach((card, index) => {
+            expect({ player: card.player, stat: card.stat, item: card.item }).toEqual({
+                player: `P${index + 1}`,
+                stat: scenario.mode === 'hunt' ? 'HP 100' : 'Punkte 0',
+                item: 'Kein Item',
+            });
+            expect(card.rect.width).toBeLessThan(state.viewport.width / 3);
+            expect(card.rect.height).toBeLessThan(state.viewport.height / 4);
+            expect(card.rect.left >= state.viewport.width / 2).toBe(index % 2 === 1);
+            expect(card.rect.top >= state.viewport.height / 2).toBe(index >= 2);
+        });
+        expect(state.actionHints).toBe(0);
         expect(state.fighterHudHidden).toBeTruthy();
 
         await page.keyboard.down('KeyA');

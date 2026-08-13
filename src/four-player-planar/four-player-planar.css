@@ -53,29 +53,63 @@
     position: absolute;
     width: 50%;
     height: 50%;
-    padding: 14px;
+    padding: clamp(8px, 1.25vw, 16px);
     display: flex;
     align-items: flex-start;
-    gap: 10px;
-    color: #fff;
-    text-shadow: 0 1px 4px #000;
     box-sizing: border-box;
-    border: 1px solid color-mix(in srgb, var(--player-color) 55%, transparent);
 }
 
-.four-player-planar-hud-quadrant strong {
+.four-player-planar-hud-card {
+    display: grid;
+    grid-template-columns: auto auto;
+    align-items: baseline;
+    gap: 3px 12px;
+    max-width: 100%;
+    padding: 7px 10px;
+    color: #fff;
+    font-size: clamp(12px, 1.1vw, 16px);
+    line-height: 1.2;
+    text-shadow: 0 1px 4px #000;
+    box-sizing: border-box;
+    border: 1px solid color-mix(in srgb, var(--player-color) 65%, transparent);
+    border-left-width: 4px;
+    background: color-mix(in srgb, var(--hud-bg, rgba(8, 22, 14, 0.75)) 88%, #000);
+    opacity: var(--hud-opacity, 1);
+    scale: var(--hud-scale, 1);
+    transform-origin: left top;
+}
+
+.four-player-planar-hud-card strong {
     color: var(--player-color);
 }
 
-.four-player-planar-hud-quadrant [data-fpp-action] {
-    margin-left: auto;
-    opacity: 0.82;
+.four-player-planar-hud-card [data-fpp-item] {
+    grid-column: 1 / -1;
+    overflow: hidden;
+    color: color-mix(in srgb, #fff 78%, var(--player-color));
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 .four-player-planar-hud-quadrant.q1 { left: 0; top: 0; }
-.four-player-planar-hud-quadrant.q2 { left: 50%; top: 0; }
+.four-player-planar-hud-quadrant.q2 { left: 50%; top: 0; justify-content: flex-end; }
 .four-player-planar-hud-quadrant.q3 { left: 0; top: 50%; align-items: flex-end; }
-.four-player-planar-hud-quadrant.q4 { left: 50%; top: 50%; align-items: flex-end; }
+.four-player-planar-hud-quadrant.q4 { left: 50%; top: 50%; align-items: flex-end; justify-content: flex-end; }
+
+.four-player-planar-hud-quadrant.q2 .four-player-planar-hud-card,
+.four-player-planar-hud-quadrant.q4 .four-player-planar-hud-card {
+    border-right-width: 4px;
+    border-left-width: 1px;
+    transform-origin: right top;
+}
+
+.four-player-planar-hud-quadrant.q3 .four-player-planar-hud-card {
+    transform-origin: left bottom;
+}
+
+.four-player-planar-hud-quadrant.q4 .four-player-planar-hud-card {
+    transform-origin: right bottom;
+}
 
 .four-player-planar-active #p1-fighter-hud,
 .four-player-planar-active #p2-fighter-hud,
