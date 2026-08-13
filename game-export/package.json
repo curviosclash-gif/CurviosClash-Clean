@@ -1,0 +1,28 @@
+{
+  "name": "curviosclash-game",
+  "version": "1.0.0",
+  "private": true,
+  "description": "CurviosClash desktop game distribution",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build:game",
+    "build:game": "vite build --mode game && node scripts/check-game-build.mjs dist-game",
+    "app:setup": "npm --prefix electron ci",
+    "app:start": "npm run build:game && npm --prefix electron start",
+    "app:package": "node scripts/package-game-app.mjs",
+    "test": "npm run test:contract",
+    "test:contract": "node --test tests/*.contract.test.mjs",
+    "test:installer": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/test-installer.ps1",
+    "release:verify": "node scripts/release-verify.mjs",
+    "repository:check": "node scripts/check-game-repository.mjs"
+  },
+  "dependencies": {
+    "mp4-muxer": "5.2.2",
+    "three": "0.160.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.58.2",
+    "vite": "6.4.3",
+    "ws": "8.19.0"
+  }
+}

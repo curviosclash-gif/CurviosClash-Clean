@@ -32,18 +32,40 @@ export default defineConfig(({ mode }) => {
         ...process.env,
         ...loadedEnv,
     };
+    const isGameDistribution = mode === 'game';
+    if (isGameDistribution) {
+        resolvedEnv.VITE_APP_MODE = 'app';
+        resolvedEnv.VITE_APP_TARGET = 'game';
+    }
+    const gameToolingAdapter = path.resolve(__dirname, 'src/product/GameDistributionToolingAdapter.js');
 
     return {
         plugins: [
-            playwrightTestRuntimeBridgePlugin(resolvedEnv),
-            playwrightHealthApiPlugin(),
-            editorDiskSaveApiPlugin(),
-            developmentCheckpointApiPlugin(),
+            ...(isGameDistribution ? [] : [
+                playwrightTestRuntimeBridgePlugin(resolvedEnv),
+                playwrightHealthApiPlugin(),
+                editorDiskSaveApiPlugin(),
+                developmentCheckpointApiPlugin(),
+            ]),
             copyObjVehicleAssetsPlugin(),
             copyGlbGalleryAssetsPlugin(),
             desktopNetworkPolicyPlugin(resolvedEnv),
         ],
         server: createRendererShellServerConfig(resolvedEnv),
+        resolve: isGameDistribution ? {
+            alias: {
+                '../mobile-classic/MobileClassicApp.js': path.resolve(
+                    __dirname,
+                    'src/product/DesktopMobileClassicAdapter.js'
+                ),
+                [path.resolve(__dirname, 'src/core/PlaytestLaunchParams.js')]: gameToolingAdapter,
+                [path.resolve(__dirname, 'src/core/PlaytestReturnControl.js')]: gameToolingAdapter,
+                [path.resolve(__dirname, 'src/dev/tuning/TuningRuntimeIpcBridge.js')]: gameToolingAdapter,
+                [path.resolve(__dirname, 'src/state/AuthoringTelemetryStore.js')]: gameToolingAdapter,
+                [path.resolve(__dirname, 'src/shared/contracts/AuthoringTelemetryContract.js')]: gameToolingAdapter,
+                [path.resolve(__dirname, 'src/ui/menu/MenuDeveloperStateSync.js')]: gameToolingAdapter,
+            },
+        } : undefined,
         build: createRendererShellBuildConfig({
             rootDir: __dirname,
             chunkSizeWarningLimit: CHUNK_SIZE_WARNING_LIMIT_KB,

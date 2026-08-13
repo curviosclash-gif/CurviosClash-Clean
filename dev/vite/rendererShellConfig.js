@@ -15,6 +15,7 @@ const RENDERER_INPUT_FILES = {
 };
 
 const RENDERER_APP_TARGETS = Object.freeze({
+    GAME: 'game',
     MOBILE_CLASSIC: 'mobile-classic',
 });
 
@@ -26,6 +27,12 @@ function resolveRendererInputFiles(env = process.env) {
     const appTarget = resolveRendererAppTarget(env);
     if (appTarget === RENDERER_APP_TARGETS.MOBILE_CLASSIC) {
         return { app: RENDERER_INPUT_FILES.app };
+    }
+    if (appTarget === RENDERER_APP_TARGETS.GAME) {
+        return {
+            app: RENDERER_INPUT_FILES.app,
+            hangar: RENDERER_INPUT_FILES.hangar,
+        };
     }
     return RENDERER_INPUT_FILES;
 }
@@ -39,7 +46,7 @@ function resolvePlaywrightWarmupClientFiles(env = process.env) {
     return PLAYWRIGHT_WARMUP_CLIENT_FILES;
 }
 
-function resolveRendererManualChunk(id) {
+function resolveRendererManualChunk(id, env = process.env) {
     if (!id) return undefined;
     const normalizedId = id.replace(/\\/g, '/');
     if (id.includes('node_modules/three/examples/jsm/loaders/OBJLoader.js') ||
@@ -77,7 +84,10 @@ function resolveRendererManualChunk(id) {
         normalizedId.includes('/config/maps/presets/')) {
         return 'map-presets';
     }
-    if (normalizedId.includes('/menu/MenuTelemetryDashboard')) {
+    if (
+        resolveRendererAppTarget(env) !== RENDERER_APP_TARGETS.GAME
+        && normalizedId.includes('/menu/MenuTelemetryDashboard')
+    ) {
         return 'developer-ui';
     }
 
@@ -102,6 +112,9 @@ function resolveRendererBuildOutDir(env = process.env) {
     if (appTarget === RENDERER_APP_TARGETS.MOBILE_CLASSIC) {
         return 'dist/mobile-classic';
     }
+    if (appTarget === RENDERER_APP_TARGETS.GAME) {
+        return 'dist-game';
+    }
     const appMode = String(env?.VITE_APP_MODE || '').trim().toLowerCase();
     if (appMode === 'app') {
         return 'dist-app';
@@ -121,7 +134,7 @@ export function createRendererShellBuildConfig({ rootDir, chunkSizeWarningLimit,
                 ])
             ),
             output: {
-                manualChunks: resolveRendererManualChunk,
+                manualChunks: (id) => resolveRendererManualChunk(id, env),
             },
         },
     };
@@ -136,6 +149,7 @@ export function createRendererBuildDefines({ pkgVersion, buildTime, buildId, env
         __CURVIOS_E2E__: JSON.stringify(isPlaywright),
         __APP_MODE__: JSON.stringify(env?.VITE_APP_MODE || 'web'),
         __APP_TARGET__: JSON.stringify(resolveRendererAppTarget(env) || 'default'),
+        __GAME_DISTRIBUTION__: JSON.stringify(resolveRendererAppTarget(env) === RENDERER_APP_TARGETS.GAME),
         __SIGNALING_URL__: JSON.stringify(env?.VITE_SIGNALING_URL || ''),
         __TURN_URL__: JSON.stringify(env?.VITE_TURN_URL || ''),
         __TURN_USERNAME__: JSON.stringify(env?.VITE_TURN_USER || env?.VITE_TURN_USERNAME || ''),

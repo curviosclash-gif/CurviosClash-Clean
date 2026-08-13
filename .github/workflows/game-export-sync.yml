@@ -1,0 +1,70 @@
+name: Sync committed game export
+
+on:
+  workflow_dispatch:
+    inputs:
+      source_commit:
+        description: Committed CurviosClash-Clean revision to export
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  export:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      GH_TOKEN: ${{ secrets.CURVIOS_GAME_REPO_TOKEN }}
+      TARGET_REPOSITORY: curviosclash-gif/CurviosClash-Game
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - name: Resolve explicit committed source
+        id: source
+        shell: pwsh
+        run: |
+          $commit = git rev-parse '${{ inputs.source_commit }}^{commit}'
+          if ($LASTEXITCODE -ne 0) { throw 'Source commit does not exist.' }
+          "commit=$commit" >> $env:GITHUB_OUTPUT
+          "short=$($commit.Substring(0, 12))" >> $env:GITHUB_OUTPUT
+      - name: Export and validate
+        shell: pwsh
+        run: |
+          $output = Join-Path $env:RUNNER_TEMP 'CurviosClash-Game'
+          npm run game:export -- -- --commit=${{ steps.source.outputs.commit }} --output=$output
+          node "$output/scripts/check-game-repository.mjs" $output
+          Push-Location $output
+          npm ci
+          npm --prefix electron ci --ignore-scripts
+          node electron/node_modules/electron/install.js
+          $env:npm_config_arch = 'x64'
+          node electron/node_modules/ffmpeg-static/install.js
+          Remove-Item Env:npm_config_arch
+          npm run test:contract
+          npm run build:game
+          Pop-Location
+      - name: Push sync branch and open PR
+        shell: pwsh
+        run: |
+          if (-not $env:GH_TOKEN) { throw 'CURVIOS_GAME_REPO_TOKEN is required.' }
+          $output = Join-Path $env:RUNNER_TEMP 'CurviosClash-Game'
+          $branch = 'sync/source-${{ steps.source.outputs.short }}'
+          Push-Location $output
+          git init --initial-branch=main
+          git config user.name 'curvios-game-export[bot]'
+          git config user.email 'curvios-game-export[bot]@users.noreply.github.com'
+          git remote add origin "https://x-access-token:$env:GH_TOKEN@github.com/$env:TARGET_REPOSITORY.git"
+          git add -- .game-export.json .editorconfig .gitattributes .gitignore .nvmrc README.md package.json package-lock.json vite.config.js index.html hangar.html style.css app-shell.css assets build electron server src scripts tests .github
+          git commit -m 'chore(sync): export source ${{ steps.source.outputs.short }}'
+          git branch -M $branch
+          git push origin "HEAD:$branch"
+          gh pr create --repo $env:TARGET_REPOSITORY --head $branch --base main --title "chore(sync): export source ${{ steps.source.outputs.short }}" --body "Generated from committed source `${{ steps.source.outputs.commit }}`."
+          Pop-Location

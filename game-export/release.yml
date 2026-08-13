@@ -1,0 +1,99 @@
+name: Release Windows installers
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: read
+
+jobs:
+  package-and-test:
+    name: Package and test ${{ matrix.arch }}
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - arch: x64
+            runner: windows-latest
+          - arch: arm64
+            runner: windows-11-arm
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 75
+    env:
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+      CSC_KEY_PASSWORD: ${{ secrets.CSC_KEY_PASSWORD }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+          cache-dependency-path: |
+            package-lock.json
+            electron/package-lock.json
+      - name: Install game dependencies
+        run: npm ci
+      - name: Install Electron and pinned x64 FFmpeg
+        shell: pwsh
+        run: |
+          npm --prefix electron ci --ignore-scripts
+          node electron/node_modules/electron/install.js
+          $env:npm_config_arch = 'x64'
+          node electron/node_modules/ffmpeg-static/install.js
+          Remove-Item Env:npm_config_arch
+          node scripts/verify-ffmpeg-binary.mjs
+      - name: Validate release tag
+        shell: pwsh
+        run: |
+          npm run repository:check
+          $root = Get-Content -Raw package.json | ConvertFrom-Json
+          $electron = Get-Content -Raw electron/package.json | ConvertFrom-Json
+          if ($root.version -ne $electron.version) { throw 'Root and Electron versions differ.' }
+          if ('${{ github.ref_name }}' -ne "v$($root.version)") { throw 'Tag and package version differ.' }
+      - name: Build one architecture
+        run: npm run app:package -- -- --arch=${{ matrix.arch }}
+      - name: Install, exercise, and uninstall exact artifact
+        run: npm run test:installer -- -- --arch=${{ matrix.arch }}
+      - name: Upload tested bytes
+        uses: actions/upload-artifact@v6
+        with:
+          name: installer-${{ matrix.arch }}
+          if-no-files-found: error
+          retention-days: 7
+          path: |
+            release/CurviosClash-Setup-*-${{ matrix.arch }}.exe
+            release/installer-proof-${{ matrix.arch }}.json
+
+  publish:
+    name: Publish tested installers
+    needs: package-and-test
+    runs-on: windows-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      CSC_LINK: ${{ secrets.CSC_LINK }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version-file: .nvmrc
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: installer-*
+          path: release
+          merge-multiple: true
+      - name: Verify tested bytes and write checksums
+        run: npm run release:verify -- -- --directory=release --tag=${{ github.ref_name }}
+      - name: Publish without rebuilding
+        shell: pwsh
+        run: |
+          $assets = Get-ChildItem release -File | Where-Object {
+            $_.Name -like 'CurviosClash-Setup-*.exe' -or
+            $_.Name -eq 'SHA256SUMS.txt' -or
+            $_.Name -eq 'RELEASE-SIGNING.txt'
+          } | ForEach-Object { $_.FullName }
+          gh release create '${{ github.ref_name }}' $assets --verify-tag --title '${{ github.ref_name }}' --notes-file release/RELEASE-NOTES.md

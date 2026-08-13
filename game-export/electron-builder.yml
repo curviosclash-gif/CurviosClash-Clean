@@ -1,0 +1,81 @@
+appId: com.curviosclash.app
+productName: CurviosClash
+artifactName: CurviosClash-Setup-${version}-${arch}.${ext}
+files:
+  - entry.cjs
+  - main.cjs
+  - preload.cjs
+  - ipc-sender-guard.cjs
+  - window-security-options.cjs
+  - session-data-runtime.cjs
+  - hangar-window.cjs
+  - hangar-preload.cjs
+  - settings-studio/**/*
+  - recording-video-export-job.cjs
+  - cinematic-replay-video-export-job.cjs
+  - static-server.cjs
+  - node_modules/ffmpeg-static/**/*
+extraResources:
+  - from: ../dist-game
+    to: dist-app
+  - from: ../server
+    to: server
+    filter:
+      - lan-signaling.js
+      - package.json
+  - from: ../src
+    to: src
+    filter:
+      - composition/core-ui/CoreSettingsPorts.js
+      - core/Config.js
+      - core/config/**/*.js
+      - core/runtime/ActiveRuntimeConfigStore.js
+      - core/settings/SettingsOverrideContract.js
+      - core/settings/SettingsOverrideMergeOps.js
+      - core/settings/SettingsOverrideRangeContract.js
+      - entities/GeneratedLocalMaps.js
+      - entities/PickupRegistry.js
+      - hunt/HuntConfig.js
+      - hunt/HuntMode.js
+      - platform/PlatformCapabilityAdapterSupport.js
+      - platform/electron/ElectronPlatformBridge.js
+      - product/GameDistributionToolingAdapter.js
+      - shared/contracts/*.js
+      - '!shared/contracts/AuthoringTelemetryContract.js'
+      - '!shared/contracts/Editor*.js'
+      - '!shared/contracts/VehicleLab*.js'
+      - shared/logging/Logger.js
+      - shared/runtime/BrowserStoragePorts.js
+      - shared/storage/*.js
+      - shared/utils/CanonicalJson.js
+      - shared/utils/JsonClone.js
+      - state/storage/*.js
+      - ui/base/*.js
+      - ui/menu/*.js
+      - '!ui/menu/MenuDeveloperStateSync.js'
+      - '!ui/menu/MenuTelemetryDashboard.js'
+      - '!ui/menu/MenuTelemetryHeatmapView.js'
+      - ui/SettingsChangeKeys.js
+      - ui/SettingsFieldRegistry.js
+      - ui/SettingsStore.js
+      - ui/StorageKeys.js
+      - utils/MathOps.js
+  - from: runtime-resources/package.json
+    to: package.json
+asarUnpack:
+  - node_modules/ffmpeg-static/**/*
+directories:
+  output: ../release
+win:
+  target:
+    - nsis
+  icon: ../assets/branding/curviosclash-icon.ico
+  signAndEditExecutable: true
+nsis:
+  oneClick: false
+  perMachine: false
+  allowElevation: false
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  deleteAppDataOnUninstall: false
+  runAfterFinish: false
