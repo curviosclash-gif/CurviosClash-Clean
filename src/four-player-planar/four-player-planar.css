@@ -111,10 +111,7 @@
     transform-origin: right bottom;
 }
 
-.four-player-planar-active #p1-fighter-hud,
-.four-player-planar-active #p2-fighter-hud,
-.four-player-planar-active #p1-hud,
-.four-player-planar-active #p2-hud,
+.four-player-planar-active #hud > :not(#four-player-planar-hud),
 .four-player-planar-active #crosshair-container {
     display: none !important;
 }

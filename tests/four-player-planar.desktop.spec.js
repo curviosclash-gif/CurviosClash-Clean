@@ -54,6 +54,10 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
                     };
                 }),
                 actionHints: document.querySelectorAll('#four-player-planar-hud [data-fpp-action]').length,
+                legacyHudVisible: Array.from(document.querySelectorAll('#hud > :not(#four-player-planar-hud)'))
+                    .filter((element) => getComputedStyle(element).display !== 'none')
+                    .map((element) => element.id || element.className),
+                crosshairHidden: getComputedStyle(document.getElementById('crosshair-container')).display === 'none',
                 fighterHudHidden: getComputedStyle(document.getElementById('p1-fighter-hud')).display === 'none',
             };
         });
@@ -76,6 +80,8 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
             expect(card.rect.top >= state.viewport.height / 2).toBe(index >= 2);
         });
         expect(state.actionHints).toBe(0);
+        expect(state.legacyHudVisible).toEqual([]);
+        expect(state.crosshairHidden).toBeTruthy();
         expect(state.fighterHudHidden).toBeTruthy();
 
         await page.keyboard.down('KeyA');
