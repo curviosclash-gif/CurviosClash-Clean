@@ -26,6 +26,10 @@ export function recoverPlayerFromCollision(player, collision, source, entityMana
         );
         return;
     }
+    if (source === 'WALL' && typeof entityManager?._pushPlayerOutOfCollision === 'function') {
+        entityManager._pushPlayerOutOfCollision(player, collision?.normal || null, 1.6, collision, true);
+        return;
+    }
     if (typeof entityManager?._pushPlayerOutOfCollision !== 'function') return;
     if (entityManager._pushPlayerOutOfCollision(player, collision?.normal || null)) {
         player.arenaCollisionGraceTimer = Math.max(player.arenaCollisionGraceTimer || 0, 0.16);

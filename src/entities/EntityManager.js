@@ -386,8 +386,8 @@ export class EntityManager {
         player?.markRenderDiscontinuity?.('bounce-foam');
     }
 
-    _pushPlayerOutOfCollision(player, normal = null, distance = 1.6) {
-        return this._collisionResponseSystem.pushPlayerOutOfCollision(player, normal, distance);
+    _pushPlayerOutOfCollision(player, normal = null, distance = 1.6, collision = null, resolveHeading = false) {
+        return resolveHeading ? this._collisionResponseSystem.resolvePlayerWallCollision(player, collision) : this._collisionResponseSystem.pushPlayerOutOfCollision(player, normal, distance, collision);
     }
 
     renderInterpolatedTransforms(renderAlpha = 1, visualDelta = 0) {

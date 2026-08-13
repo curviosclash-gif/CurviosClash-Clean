@@ -132,6 +132,29 @@ test('a swept arena probe catches a wall the end-of-frame pose has already passe
     assert.equal(entityManager.events[0].cause, 'WALL');
 });
 
+test('an extended vehicle probe reports its offset for minimal wall resolution', () => {
+    const wall = new THREE.Box3(
+        new THREE.Vector3(-50, -50, -0.5),
+        new THREE.Vector3(50, 50, 0.5)
+    );
+    const player = createPlayerStub({ position: new THREE.Vector3(0, 0, 4) });
+    const entityManager = createEntityManagerStub({ players: [player], solidBox: wall });
+    const phase = new PlayerCollisionPhase(entityManager);
+    let seenCollision = null;
+    const strategy = {
+        handleWallCollision(_player, collision) {
+            seenCollision = collision;
+            return false;
+        },
+        handlePlayerCrash() { return false; },
+    };
+
+    assert.equal(phase.run(player, player.position.clone(), strategy), false);
+    assert.equal(seenCollision?.responseHasProbe, true);
+    assert.equal(seenCollision?.responseAlreadySeparated, false);
+    assert.equal(seenCollision?.responseProbeOffsetZ, -4);
+});
+
 test('wall damage is not billed again while the wall cooldown is still running', () => {
     const strategy = new HuntModeStrategy({
         entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),

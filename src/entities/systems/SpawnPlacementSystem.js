@@ -49,6 +49,7 @@ export class SpawnPlacementSystem {
         this._botSpawnCursor = 0;
         this._tmpSpawnProbe = new THREE.Vector3();
         this._tmpSpawnDirection = new THREE.Vector3();
+        this._tmpBounceDirection = new THREE.Vector3();
         this._recentSpawnPositions = [];
     }
 
@@ -292,18 +293,33 @@ export class SpawnPlacementSystem {
         return position;
     }
 
-    findSafeBouncePosition(player, baseDirection, normal = null, options = {}) {
+    findSafeBouncePosition(player, baseDirection, normal = null, options = {}, preferredDistance = 0) {
         const owner = this.owner;
         if (!owner || !player || !baseDirection) return;
 
         const pos = player.position;
+        this._tmpBounceDirection.copy(baseDirection);
+        if (this._tmpBounceDirection.lengthSq() <= 0.000001) return;
+        this._tmpBounceDirection.normalize();
+
+        const firstDistance = Number.isFinite(preferredDistance) && preferredDistance > 0
+            ? preferredDistance
+            : 0;
+        if (firstDistance > 0) {
+            owner._tmpVec2.copy(pos).addScaledVector(this._tmpBounceDirection, firstDistance);
+            if (this.isBotPositionSafe(player, owner._tmpVec2)) {
+                pos.copy(owner._tmpVec2);
+                return;
+            }
+        }
+
         const distances = Array.isArray(options.distances) && options.distances.length > 0
             ? options.distances
             : DEFAULT_SAFE_BOUNCE_DISTANCES;
 
         for (let i = 0; i < distances.length; i++) {
             const dist = distances[i];
-            owner._tmpVec2.copy(pos).addScaledVector(baseDirection, dist);
+            owner._tmpVec2.copy(pos).addScaledVector(this._tmpBounceDirection, dist);
             if (this.isBotPositionSafe(player, owner._tmpVec2)) {
                 pos.copy(owner._tmpVec2);
                 return;

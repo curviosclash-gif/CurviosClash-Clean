@@ -469,7 +469,9 @@ export class ArcadeModeStrategy extends GameModeContract {
         // Same guard as in Hunt: one crash must not bill the player once per frame for as
         // long as it stays inside the geometry.
         if ((player.wallDamageCooldown || 0) > 0) {
-            entityManager._pushPlayerOutOfCollision?.(player, arenaCollision.normal || null);
+            entityManager._pushPlayerOutOfCollision?.(
+                player, arenaCollision.normal || null, 1.6, arenaCollision, true
+            );
             return false;
         }
 
@@ -490,7 +492,9 @@ export class ArcadeModeStrategy extends GameModeContract {
             entityManager._killPlayer(player, 'WALL');
             return true;
         }
-        entityManager._pushPlayerOutOfCollision?.(player, arenaCollision.normal || null);
+        entityManager._pushPlayerOutOfCollision?.(
+            player, arenaCollision.normal || null, 1.6, arenaCollision, true
+        );
         return false;
     }
 

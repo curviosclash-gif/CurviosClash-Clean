@@ -12,6 +12,18 @@ export class PlayerCollisionPhase {
         this._tmpSweepPoint = new THREE.Vector3();
         this._tmpSweepLastFree = new THREE.Vector3();
         this._tmpCrashNormal = new THREE.Vector3();
+        this._tmpArenaNormal = new THREE.Vector3();
+        this._arenaCollisionResponse = {
+            hit: false,
+            kind: 'wall',
+            isWall: false,
+            normal: null,
+            responseHasProbe: false,
+            responseAlreadySeparated: false,
+            responseProbeOffsetX: 0,
+            responseProbeOffsetY: 0,
+            responseProbeOffsetZ: 0,
+        };
     }
 
     run(player, prevPos, strategy) {
@@ -68,34 +80,59 @@ export class PlayerCollisionPhase {
         // Swept first: the point probes below only see where the player ended up this
         // frame, so on a frame spike a fast vehicle passes straight through a thin wall.
         const sweptCollision = this._probeSweptArenaCollision(player, prevPos, hRadius);
-        if (sweptCollision) return sweptCollision;
+        if (sweptCollision) {
+            return this._prepareArenaCollisionResponse(sweptCollision, player.position, player, true);
+        }
 
         let arenaCollision = this._probeArenaCollision(player.position, hRadius);
-
-        if (!arenaCollision) {
-            player.getAimDirection(entityManager._tmpDir).multiplyScalar(4).add(player.position);
-            arenaCollision = this._probeArenaCollision(entityManager._tmpDir, hRadius);
+        if (arenaCollision) {
+            return this._prepareArenaCollisionResponse(arenaCollision, player.position, player);
         }
 
-        if (!arenaCollision) {
-            player.getDirection(entityManager._tmpVec).multiplyScalar(-1.5).add(player.position);
-            arenaCollision = this._probeArenaCollision(entityManager._tmpVec, hRadius);
+        player.getAimDirection(entityManager._tmpDir).multiplyScalar(4).add(player.position);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpDir, hRadius);
+        if (arenaCollision) {
+            return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpDir, player);
         }
 
-        if (!arenaCollision) {
-            entityManager._tmpVec.set(0, 1, 0).applyQuaternion(player.quaternion);
-            entityManager._tmpDir.crossVectors(entityManager._tmpVec, player.getDirection(entityManager._tmpVec2)).normalize();
-
-            entityManager._tmpVec2.copy(entityManager._tmpDir).multiplyScalar(2).add(player.position);
-            arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius);
-
-            if (!arenaCollision) {
-                entityManager._tmpVec2.copy(entityManager._tmpDir).multiplyScalar(-2).add(player.position);
-                arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius);
-            }
+        player.getDirection(entityManager._tmpVec).multiplyScalar(-1.5).add(player.position);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpVec, hRadius);
+        if (arenaCollision) {
+            return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpVec, player);
         }
 
-        return arenaCollision;
+        entityManager._tmpVec.set(0, 1, 0).applyQuaternion(player.quaternion);
+        entityManager._tmpDir.crossVectors(entityManager._tmpVec, player.getDirection(entityManager._tmpVec2)).normalize();
+
+        entityManager._tmpVec2.copy(entityManager._tmpDir).multiplyScalar(2).add(player.position);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius);
+        if (arenaCollision) {
+            return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpVec2, player);
+        }
+
+        entityManager._tmpVec2.copy(entityManager._tmpDir).multiplyScalar(-2).add(player.position);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius);
+        if (arenaCollision) {
+            return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpVec2, player);
+        }
+
+        return null;
+    }
+
+    _prepareArenaCollisionResponse(collision, probePoint, player, alreadySeparated = false) {
+        const response = this._arenaCollisionResponse;
+        response.hit = collision?.hit === true;
+        response.kind = collision?.kind || 'wall';
+        response.isWall = collision?.isWall === true;
+        response.normal = collision?.normal
+            ? this._tmpArenaNormal.copy(collision.normal)
+            : null;
+        response.responseHasProbe = !alreadySeparated && !!probePoint && !!player?.position;
+        response.responseAlreadySeparated = alreadySeparated;
+        response.responseProbeOffsetX = response.responseHasProbe ? probePoint.x - player.position.x : 0;
+        response.responseProbeOffsetY = response.responseHasProbe ? probePoint.y - player.position.y : 0;
+        response.responseProbeOffsetZ = response.responseHasProbe ? probePoint.z - player.position.z : 0;
+        return response;
     }
 
     _probeSweptArenaCollision(player, prevPos, probeRadius) {

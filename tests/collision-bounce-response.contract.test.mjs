@@ -3,6 +3,7 @@ import test from 'node:test';
 import * as THREE from 'three';
 
 import { CollisionResponseSystem, resolveNearestBoundsNormal } from '../src/entities/systems/CollisionResponseSystem.js';
+import { SpawnPlacementSystem } from '../src/entities/systems/SpawnPlacementSystem.js';
 
 const BOUNDS = Object.freeze({
     minX: -40, maxX: 40,
@@ -258,4 +259,77 @@ test('the push keeps the heading while the bounce rewrites it', () => {
 test('a bounce without an owner or player does nothing instead of throwing', () => {
     assert.doesNotThrow(() => new CollisionResponseSystem(null).bounceBot(createPlayerStub()));
     assert.doesNotThrow(() => new CollisionResponseSystem(createOwnerStub()).bounceBot(null));
+});
+
+test('the production bounce placement uses a unit direction instead of multiplying every distance', () => {
+    const owner = createOwnerStub();
+    let system = null;
+    const placement = new SpawnPlacementSystem(owner, {
+        isBotPositionSafe: (player, position) => system.isBotPositionSafe(player, position),
+    });
+    system = new CollisionResponseSystem(owner, placement);
+    const player = createPlayerStub({
+        position: new THREE.Vector3(),
+        direction: new THREE.Vector3(0, 0, -1),
+    });
+
+    system.bounceBot(player, new THREE.Vector3(0, 0, 1), 'WALL', { randomScale: 0 });
+
+    assert.ok(Math.abs(player.position.z - 1) < 1e-6, `expected the nearest safe shove, got ${player.position.z}`);
+});
+
+test('a probe contact receives only the minimum depenetration and a damped heading response', () => {
+    const owner = createOwnerStub({
+        checkCollision: (point, radius = 0) => point.z - radius <= 0,
+    });
+    const system = new CollisionResponseSystem(owner);
+    const player = createPlayerStub({
+        position: new THREE.Vector3(0, 0, 5),
+        direction: new THREE.Vector3(0, 0, -1),
+    });
+    const collision = {
+        normal: new THREE.Vector3(0, 0, 1),
+        responseHasProbe: true,
+        responseAlreadySeparated: false,
+        responseProbeOffsetX: 0,
+        responseProbeOffsetY: 0,
+        responseProbeOffsetZ: -4.2,
+    };
+
+    assert.equal(system.resolvePlayerWallCollision(player, collision), true);
+    assert.ok(player.position.z > 5.2 && player.position.z < 5.3, `minimal correction expected, got ${player.position.z}`);
+    assert.ok(headingOf(player).z > 0.99, 'a frontal impact must leave the vehicle pointing away from the wall');
+});
+
+test('a swept contact changes the heading without applying a second position correction', () => {
+    const system = new CollisionResponseSystem(createOwnerStub());
+    const player = createPlayerStub({
+        position: new THREE.Vector3(0, 0, 1.25),
+        direction: new THREE.Vector3(0, 0, -1),
+    });
+    const before = player.position.clone();
+
+    system.resolvePlayerWallCollision(player, {
+        normal: new THREE.Vector3(0, 0, 1),
+        responseAlreadySeparated: true,
+    });
+
+    assert.deepEqual(player.position.toArray(), before.toArray());
+    assert.ok(headingOf(player).z > 0.99);
+});
+
+test('a grazing human impact keeps its tangential travel instead of fully reflecting it', () => {
+    const system = new CollisionResponseSystem(createOwnerStub());
+    const player = createPlayerStub({
+        direction: new THREE.Vector3(1, 0, -0.1).normalize(),
+    });
+
+    system.resolvePlayerWallCollision(player, {
+        normal: new THREE.Vector3(0, 0, 1),
+        responseAlreadySeparated: true,
+    });
+
+    const heading = headingOf(player);
+    assert.ok(heading.x > 0.97, `tangential direction should survive, got ${heading.toArray()}`);
+    assert.ok(heading.z > 0, 'the small normal component must lead away from the wall');
 });

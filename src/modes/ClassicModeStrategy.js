@@ -119,8 +119,14 @@ export class ClassicModeStrategy extends GameModeContract {
             }
             if (entityManager.particles) entityManager.particles.spawnHit(player.position, player.color);
             player.hasShield = false;
-            player.getDirection(entityManager._tmpDir).multiplyScalar(2.2);
-            player.position.sub(entityManager._tmpDir);
+            if (typeof entityManager._pushPlayerOutOfCollision === 'function') {
+                entityManager._pushPlayerOutOfCollision(
+                    player, arenaCollision.normal || null, 1.6, arenaCollision, true
+                );
+            } else {
+                player.getDirection(entityManager._tmpDir).multiplyScalar(2.2);
+                player.position.sub(entityManager._tmpDir);
+            }
             return false;
         }
         if (entityManager.audio && !player.isBot) entityManager.audio.play('HIT');
