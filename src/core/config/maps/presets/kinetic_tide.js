@@ -31,9 +31,15 @@ const KINETIC_TIDE_LANDMARKS = [
     // Sector 1: the lock approach teaches the beat with three gates a third apart.
     landmark('dock-station', 'pm-aero-system', 'Aero_Station_01_Art', [-208, 0, -44], 44, 0.4),
     landmark('dock-hex', 'pm-aero-system', 'Aero_Ground_Hexagons_01_Art', [-186, 6, 34], 30),
+    // The offsets run backwards along the flight direction on purpose. Twenty authored
+    // units at map scale 3 is 60 world units, and at the base speed of 45 units per second
+    // that is exactly a third of a beat. A gate one third *behind* its predecessor
+    // therefore shows the same opening the moment the player reaches it, so the wave
+    // travels with them and one good entry timing carries through all three. Offsetting
+    // them forwards instead would shut the second gate in the player's face.
     setpiece('gate-one', '01_breath_gate', 'BreathGateLoop', 0, [-196, 10, 0], 26, Math.PI / 2),
-    setpiece('gate-two', '01_breath_gate', 'BreathGateLoop', 1 / 3, [-176, 11, 0], 26, Math.PI / 2),
-    setpiece('gate-three', '01_breath_gate', 'BreathGateLoop', 2 / 3, [-156, 12, 0], 26, Math.PI / 2),
+    setpiece('gate-two', '01_breath_gate', 'BreathGateLoop', 2 / 3, [-176, 11, 0], 26, Math.PI / 2),
+    setpiece('gate-three', '01_breath_gate', 'BreathGateLoop', 1 / 3, [-156, 12, 0], 26, Math.PI / 2),
     landmark('dock-door', 'pm-aero-system', 'Aero_Door_01', [-146, 10, 0], 22, Math.PI / 2),
 
     // Sector 2: the safe lane runs wide below, the fast lane threads the piston tunnel.

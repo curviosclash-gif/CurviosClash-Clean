@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 
+import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { KINETIC_TIDE_MAP } from '../src/core/config/maps/presets/kinetic_tide.js';
@@ -92,6 +93,41 @@ test('the three lock gates open one after another rather than together', () => {
     for (const phase of phases) {
         assert.ok(isBeatAlignedClipDuration(BEAT_SECONDS, { beatSeconds: BEAT_SECONDS }));
         assert.ok(phase >= 0 && phase < BEAT_SECONDS);
+    }
+});
+
+test('the lock chain stays flyable at the base speed', () => {
+    const gates = setpieces()
+        .filter((model) => model.url.endsWith('01_breath_gate.glb'))
+        .map((model) => ({
+            x: model.position[0],
+            clock: normalizeMapAnimationClock(model.animationClock, map.glbAnimationClock),
+        }))
+        .sort((left, right) => left.x - right.x);
+
+    const speed = CONFIG_SECTIONS.PLAYER.SPEED;
+    const mapScale = CONFIG_SECTIONS.ARENA.MAP_SCALE;
+    const entryX = gates[0].x;
+
+    // Where each gate stands in its loop at the moment a player flying the base speed
+    // actually arrives. All three have to agree: otherwise one entry timing opens the
+    // first gate and shuts the next, and the chain cannot be flown as a chain.
+    const phasesOnArrival = (startTime) => gates.map((gate) => {
+        const travelSeconds = ((gate.x - entryX) * mapScale) / speed;
+        return Number(resolveMapAnimationClipPhase(
+            startTime + travelSeconds,
+            gate.clock,
+            BEAT_SECONDS,
+        ).toFixed(6));
+    });
+
+    for (const startTime of [0, 0.7, 2, 3.9]) {
+        const phases = phasesOnArrival(startTime);
+        assert.equal(
+            new Set(phases).size,
+            1,
+            `entering at ${startTime}s should meet the same opening at every gate, got ${phases.join(', ')}`,
+        );
     }
 });
 
