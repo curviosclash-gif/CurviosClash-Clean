@@ -17,6 +17,7 @@ const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'maps', 'chrono_forge', 'glb'],
     ['assets', 'maps', 'kinetic_tide', 'glb'],
     ['assets', 'maps', 'verdant_aperture', 'glb'],
+    ['assets', 'maps', 'notre_dame', 'glb'],
 ];
 const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'downloaded_cc0');
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];
