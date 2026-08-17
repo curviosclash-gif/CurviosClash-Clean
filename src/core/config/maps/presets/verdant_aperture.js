@@ -77,6 +77,33 @@ function deck(y, joins, { thickness = 4 } = {}) {
 const ROOT_TO_CROWN = [[-45, -45], [45, 45]];
 const CROWN_TO_CANOPY = [[-45, 45], [45, -45], [15, 15]];
 
+/**
+ * How large each gating setpiece has to be authored.
+ *
+ * A cut-out is a square deck cell but the shutters are round, so covering the cell's width is
+ * not enough -- its four corners stay open, and a desktop sweep measured a join sitting 60%
+ * passable through the entire beat because of exactly that. The setpiece has to reach the cell
+ * *diagonal*, which is DECK_CELL * sqrt(2).
+ *
+ * targetSize is a model's largest dimension after the map scale is applied
+ * (see fitScale in GLBMapLoader), so it has to be divided by that scale, and scaled up again by
+ * how much of the model the shut collision bodies actually span -- the frames around them carry
+ * no collider in dynamic mode and cover nothing.
+ */
+function joinTargetSize(modelWidth, shutCoverageWidth) {
+    const reachNeeded = DECK_CELL * Math.SQRT2;
+    return Math.ceil((reachNeeded * modelWidth) / shutCoverageWidth);
+}
+
+const JOIN_TARGET_SIZE = {
+    // Blades span 10.8 of the shutter's 15.4 model units when shut.
+    leafShutter: joinTargetSize(15.4, 10.8),
+    // Petals span 12.0 of the blossom's 12.8.
+    bloomIris: joinTargetSize(12.8, 12.0),
+    // Panes span 10.8 across the narrow axis of the 24.0 wide louvre.
+    glassLouvre: joinTargetSize(24.0, 10.8),
+};
+
 const VERDANT_APERTURE_LANDMARKS = [
     // Root cellar: wet stone and overgrowth, the tightest level.
     landmark('root-palm', 'pm-avatar-garden', 'BasePalmTree01', [-96, 10, 96], 46, 0.4),
@@ -90,8 +117,8 @@ const VERDANT_APERTURE_LANDMARKS = [
     setpiece('vine-gate', '07_vine_gate', 'VineGateLoop', 0, [0, 28, 0], 34),
 
     // The two ways up into the crown hall, half a beat apart so they never show the same opening.
-    joinSetpiece(ROOT_TO_CROWN[0], LEVEL_ROOT_DECK, 'leaf-shutter-west', '01_leaf_shutter', 'LeafShutterLoop', 0, 40),
-    joinSetpiece(ROOT_TO_CROWN[1], LEVEL_ROOT_DECK, 'leaf-shutter-east', '01_leaf_shutter', 'LeafShutterLoop', 0.5, 40),
+    joinSetpiece(ROOT_TO_CROWN[0], LEVEL_ROOT_DECK, 'leaf-shutter-west', '01_leaf_shutter', 'LeafShutterLoop', 0, JOIN_TARGET_SIZE.leafShutter),
+    joinSetpiece(ROOT_TO_CROWN[1], LEVEL_ROOT_DECK, 'leaf-shutter-east', '01_leaf_shutter', 'LeafShutterLoop', 0.5, JOIN_TARGET_SIZE.leafShutter),
 
     // Crown hall: the main fighting floor, open in the middle, walled by drifting curtains.
     landmark('crown-bridge', 'pm-avatar-garden', 'Bridge01', [0, 62, -96], 52),
@@ -107,9 +134,9 @@ const VERDANT_APERTURE_LANDMARKS = [
     setpiece('heart-seed', '08_heart_seed', 'HeartSeedLoop', 0, [0, 64, 0], 30),
 
     // The three ways up onto the glass roof, spread across the beat.
-    joinSetpiece(CROWN_TO_CANOPY[0], LEVEL_CROWN_DECK, 'bloom-west', '02_bloom_iris', 'BloomIrisLoop', 0.25, 36),
-    joinSetpiece(CROWN_TO_CANOPY[1], LEVEL_CROWN_DECK, 'bloom-east', '02_bloom_iris', 'BloomIrisLoop', 0.75, 36),
-    joinSetpiece(CROWN_TO_CANOPY[2], LEVEL_CROWN_DECK, 'louvre-centre', '05_glass_louvre', 'GlassLouvreLoop', 0.5, 34),
+    joinSetpiece(CROWN_TO_CANOPY[0], LEVEL_CROWN_DECK, 'bloom-west', '02_bloom_iris', 'BloomIrisLoop', 0.25, JOIN_TARGET_SIZE.bloomIris),
+    joinSetpiece(CROWN_TO_CANOPY[1], LEVEL_CROWN_DECK, 'bloom-east', '02_bloom_iris', 'BloomIrisLoop', 0.75, JOIN_TARGET_SIZE.bloomIris),
+    joinSetpiece(CROWN_TO_CANOPY[2], LEVEL_CROWN_DECK, 'louvre-centre', '05_glass_louvre', 'GlassLouvreLoop', 0.5, JOIN_TARGET_SIZE.glassLouvre),
 
     // Glass roof: bright, exposed, and the only level with no cover at all.
     landmark('roof-crystal', 'pm-crystal-crossroads', 'Crystal_Cluster', [-84, 118, -78], 32, 0.8),
