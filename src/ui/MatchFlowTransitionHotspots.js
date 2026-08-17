@@ -174,6 +174,27 @@ export function requestArcadeReplayPlayback(runtimePort, game) {
     const replayResult = runtimePort?.requestArcadeReplayPlayback?.()
         ?? createTransitionArcadeAdapter(game).requestReplayPlayback();
     const replayCode = String(replayResult?.code || '').trim();
+    if (replayCode === 'replay_export_ready') {
+        const clip = getLastRoundGhostClip(runtimePort, game, {
+            includeBots: true,
+            maxSourceDuration: 12,
+            displayDuration: 8,
+        });
+        const playbackStarted = clip
+            && game?.entityManager?.playLastRoundGhost?.(clip, { loop: false }) === true;
+        if (playbackStarted) {
+            return {
+                ok: true,
+                code: 'replay_playback_started',
+                replayResult,
+                playback: {
+                    frameCount: Array.isArray(clip.frames) ? clip.frames.length : 0,
+                    sourceDuration: Math.max(0, Number(clip.sourceDuration) || 0),
+                    displayDuration: Math.max(0, Number(clip.displayDuration) || 0),
+                },
+            };
+        }
+    }
     if (
         replayResult?.ok === true
         || (replayCode !== 'replay_player_unavailable' && replayCode !== 'replay_unavailable')

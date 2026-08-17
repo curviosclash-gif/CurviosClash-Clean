@@ -357,11 +357,15 @@ export class MatchFlowArcadeOverlayController {
         replayBtn.type = 'button';
         replayBtn.className = 'arcade-overlay-action-btn';
         replayBtn.id = 'btn-arcade-overlay-replay';
-        replayBtn.textContent = 'Replay/Fallback';
+        replayBtn.textContent = 'Letzte Runde abspielen';
         
         replayBtn.addEventListener('click', () => {
             const result = requestArcadeReplayPlayback(this.runtimePort, this.game);
             const code = String(result?.code || 'replay_unknown');
+            if (code === 'replay_playback_started') {
+                this.game?._showStatusToast?.('Replay der letzten Runde wird abgespielt.', 1800, 'info');
+                return;
+            }
             if (code === 'replay_export_ready') {
                 const replayJson = typeof result?.replayJson === 'string' ? result.replayJson : '';
                 const copyPromise = replayJson

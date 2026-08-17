@@ -589,6 +589,91 @@ test('requestArcadeReplayPlayback falls back to current-route ghost playback whe
     ]);
 });
 
+test('requestArcadeReplayPlayback plays the recorded last round before using the Arcade export fallback', () => {
+    const calls = [];
+    const clip = {
+        sourceDuration: 4,
+        displayDuration: 8,
+        players: [{ idx: 0 }],
+        frames: [{ time: 0 }, { time: 4 }],
+    };
+    const game = {
+        recorder: {
+            getLastRoundGhostClip(players, options) {
+                calls.push(['clip', players, options]);
+                return clip;
+            },
+        },
+        entityManager: {
+            players: [{ index: 0 }],
+            playLastRoundGhost(requestedClip, options) {
+                calls.push(['play', requestedClip, options]);
+                return true;
+            },
+        },
+    };
+    const replayResult = {
+        ok: true,
+        code: 'replay_export_ready',
+        replayJson: '{"matchId":"arcade-run-replay"}',
+    };
+    const runtimePort = {
+        requestArcadeReplayPlayback() {
+            calls.push(['replay']);
+            return replayResult;
+        },
+    };
+
+    const result = requestArcadeReplayPlayback(runtimePort, game);
+
+    assert.equal(result?.ok, true);
+    assert.equal(result?.code, 'replay_playback_started');
+    assert.equal(result?.replayResult, replayResult);
+    assert.deepEqual(result?.playback, {
+        frameCount: 2,
+        sourceDuration: 4,
+        displayDuration: 8,
+    });
+    assert.deepEqual(calls, [
+        ['replay'],
+        ['clip', game.entityManager.players, {
+            includeBots: true,
+            maxSourceDuration: 12,
+            displayDuration: 8,
+        }],
+        ['play', clip, { loop: false }],
+    ]);
+});
+
+test('requestArcadeReplayPlayback preserves JSON export when no recorded round can be played', () => {
+    const replayResult = {
+        ok: true,
+        code: 'replay_export_ready',
+        replayJson: '{"matchId":"arcade-run-replay"}',
+    };
+    const game = {
+        recorder: {
+            getLastRoundGhostClip() {
+                return null;
+            },
+        },
+        entityManager: {
+            players: [],
+            playLastRoundGhost() {
+                assert.fail('playLastRoundGhost must not run without a clip');
+            },
+        },
+    };
+
+    const result = requestArcadeReplayPlayback({
+        requestArcadeReplayPlayback() {
+            return replayResult;
+        },
+    }, game);
+
+    assert.equal(result, replayResult);
+});
+
 test('MatchFlowLifecycleController startRound requests ghost playback by active route/map key', () => {
     const arcadeEventCalls = [];
     let resetRoundRuntimeCalls = 0;
