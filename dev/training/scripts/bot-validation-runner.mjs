@@ -849,11 +849,13 @@ async function runRound(page, scenario, scenarioIndex, scenarioCount, roundIndex
         page,
         `${roundLabel}:start-match`,
         resolveTimeout(EVAL_TIMEOUT_MS, `${roundLabel}:start-match`, deadlines),
-        () => {
+        async () => {
             const g = window.GAME_INSTANCE;
             if (!g) throw new Error('GAME_INSTANCE missing');
-            if (typeof g.startMatch !== 'function') throw new Error('startMatch missing');
-            g.startMatch();
+            if (typeof g.runtimeCoordinator?.startMatch !== 'function') {
+                throw new Error('runtimeCoordinator.startMatch missing');
+            }
+            await g.runtimeCoordinator.startMatch({ source: 'bot_validation' });
             return g.state;
         }
     );

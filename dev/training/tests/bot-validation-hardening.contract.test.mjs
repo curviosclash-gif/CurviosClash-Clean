@@ -28,7 +28,7 @@ test('heuristic validation selection filters before limiting and rejects unknown
     );
 });
 
-test('Arcade validation preserves the CLASSIC runtime contract and the Arcade semantic path', () => {
+test('Arcade validation preserves the ARCADE runtime contract and mode-specific setup state', () => {
     const service = new BotValidationService();
     let settingsChanged = 0;
     const game = {
@@ -45,8 +45,11 @@ test('Arcade validation preserves the CLASSIC runtime contract and the Arcade se
 
     const applied = service.applyScenario(game, 'H-ARCADE');
     assert.equal(applied.id, 'H-ARCADE');
+    assert.equal(applied.expectedRuntimeBotCount, 3);
     assert.equal(game.settings.localSettings.modePath, 'arcade');
-    assert.equal(game.settings.gameMode, 'CLASSIC');
+    assert.equal(game.settings.gameMode, 'ARCADE');
+    assert.equal(game.settings.mapKey, 'standard');
+    assert.equal(game.settings.localSettings.startSetup.modeSelections.arcade.mapKey, 'standard');
     assert.equal(game.settings.botPolicyStrategy, 'heuristic');
     assert.equal(game.settings.botDifficulty, 'NORMAL');
     assert.equal(game.settings.botHeuristicProfile, 'balanced');
@@ -137,8 +140,8 @@ test('runtime verification checks policy instances and separates semantic from i
             policyType: 'heuristic',
             snapshot: { profile: 'balanced', difficulty: 'normal' },
         }],
-        runtimeGameMode: 'CLASSIC',
-        entityGameMode: 'CLASSIC',
+        runtimeGameMode: 'ARCADE',
+        entityGameMode: 'ARCADE',
         semanticGameMode: 'ARCADE',
         modePath: 'arcade',
         arcadeEnabled: true,
@@ -148,7 +151,7 @@ test('runtime verification checks policy instances and separates semantic from i
     const valid = buildBotValidationRuntimeVerification(scenario, [sample]);
     assert.equal(valid.policy.ok, true);
     assert.equal(valid.mode.ok, true);
-    assert.equal(valid.mode.expectedRuntimeGameMode, 'CLASSIC');
+    assert.equal(valid.mode.expectedRuntimeGameMode, 'ARCADE');
 
     const invalid = buildBotValidationRuntimeVerification(scenario, [{
         ...sample,
@@ -168,8 +171,8 @@ test('runtime verification reports missing, additional, policyless, and botless 
             policyType: 'heuristic',
             snapshot: { profile: 'balanced', difficulty: 'hard' },
         })),
-        runtimeGameMode: 'CLASSIC',
-        entityGameMode: 'CLASSIC',
+        runtimeGameMode: 'ARCADE',
+        entityGameMode: 'ARCADE',
         semanticGameMode: 'ARCADE',
         modePath: 'arcade',
         arcadeEnabled: true,
@@ -198,6 +201,7 @@ test('runner applies selected ids, records real bot deaths, and analysis default
         readFile(new URL('../../../package.json', import.meta.url), 'utf8'),
     ]);
     assert.match(runnerSource, /applyBotValidationScenario\(scenarioId\)/);
+    assert.match(runnerSource, /await g\.runtimeCoordinator\.startMatch\(\{ source: 'bot_validation' \}\)/);
     assert.match(
         runnerSource,
         /waitForFunction\(\(\) => \{\s+const game = window\.GAME_INSTANCE;\s+return typeof game\?\.getBotValidationMatrix === 'function'\s+&& typeof game\?\.applyBotValidationScenario === 'function';/

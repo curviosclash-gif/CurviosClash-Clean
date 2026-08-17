@@ -1,4 +1,5 @@
 import { getBotValidationMatrix, resolveBotValidationScenario } from './BotValidationMatrix.js';
+import { writeHangarMapSelection } from '../../../../../src/ui/hangar/HangarSelectionWritebackContract.js';
 
 function normalizeLabel(label) {
     return String(label || 'BASELINE').trim().toUpperCase() || 'BASELINE';
@@ -47,7 +48,7 @@ function expectedModePath(gameMode) {
 }
 
 function expectedRuntimeGameMode(gameMode) {
-    return gameMode === 'ARCADE' ? 'CLASSIC' : gameMode;
+    return gameMode;
 }
 
 export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamples = []) {
@@ -269,6 +270,14 @@ export class BotValidationService {
         game.settings.numBots = scenario.bots;
         game.settings.mapKey = scenario.mapKey;
         game.settings.gameMode = expectedRuntimeGameMode(scenario.gameMode);
+        if (nextModePath === 'arcade' || nextModePath === 'fight') {
+            writeHangarMapSelection(
+                game.settings,
+                scenario.mapKey,
+                scenario.mapKey,
+                { modePath: nextModePath }
+            );
+        }
         game.settings.botPolicyStrategy = String(scenario.botPolicyStrategy || 'auto');
         game.settings.botDifficulty = scenario.botDifficulty || 'NORMAL';
         game.settings.botHeuristicProfile = scenario.heuristicProfile || 'balanced';

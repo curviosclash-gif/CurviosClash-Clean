@@ -42,6 +42,14 @@ import {
     createMockEditorManager,
 } from './core-targeted.shared.js';
 
+async function openMatchAdvancedSettings(page) {
+    await openStartSetupSection(page, 'match');
+    const details = page.locator('#submenu-game:not(.hidden) details.start-inline-advanced');
+    if (!await details.evaluate((node) => node.open)) {
+        await details.locator('summary').click();
+    }
+}
+
 test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
     test.describe.configure({ mode: 'serial' });
 
@@ -1962,7 +1970,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             game.settings.localSettings.modePath = 'normal';
             game.uiManager?.syncByChangeKeys?.(['session.modePath']);
         });
-        await openStartSetupSection(page, 'match');
+        await openMatchAdvancedSettings(page);
 
         const normalInitialState = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -2121,7 +2129,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-        await openStartSetupSection(page, 'match');
+        await openMatchAdvancedSettings(page);
         await page.selectOption('#arcade-ghost-duel-mode-select', 'self_longest_ghost');
         const normalMapKey = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -2137,6 +2145,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             )) || (mapOptionValues.includes('maze') ? 'maze' : (mapOptionValues[0] || 'standard'));
             return normalMapKey;
         });
+        await openStartSetupSection(page, 'map');
         await page.selectOption('#map-select', normalMapKey);
         const normalSeed = await seedGhostForMap(normalMapKey);
 
@@ -2179,7 +2188,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         await openCustomSubmenu(page);
         await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
         await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-        await openStartSetupSection(page, 'match');
+        await openMatchAdvancedSettings(page);
         await page.selectOption('#arcade-ghost-duel-mode-select', 'self_longest_ghost');
         const arcadeMapKey = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -2190,6 +2199,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
             return optionValues.find((mapKey) => game?.config?.MAPS?.[mapKey]?.parcours?.enabled === true)
                 || (optionValues.includes('parcours_rift') ? 'parcours_rift' : optionValues[0]);
         });
+        await openStartSetupSection(page, 'map');
         await page.selectOption('#map-select', arcadeMapKey);
         const arcadeSeed = await seedGhostForMap(arcadeMapKey);
 
@@ -2663,7 +2673,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.healedDelta).toBeGreaterThan(0);
         expect(state.healedPlayers).toBeGreaterThan(0);
         expect(state.postRunVisible).toBeTruthy();
-        expect(state.replayCode).toBe('replay_player_unavailable');
+        expect(state.replayCode).toBe('replay_export_ready');
         expect(state.replayButtonExists).toBeTruthy();
         expect(state.menuReplayLabel).toContain('Replay');
         expect(state.menuReplayLabel).not.toContain('Platzhalter');

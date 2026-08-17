@@ -1851,6 +1851,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
     test('T20am1: Arcade-Map- und Missionsfolge folgen dem aktiven Run-Seed', async () => {
         const { ArcadeRunRuntime } = await import('../src/core/arcade/ArcadeRunRuntime.js');
+        const { buildArcadeMissionSeed } = await import('../src/core/arcade/ArcadeObjectiveRuntimeOps.js');
         const { resolveMapSequence } = await import('../src/state/arcade/ArcadeMapProgression.js');
         const { assignSectorMissions } = await import('../src/state/arcade/ArcadeMissionState.js');
         const {
@@ -1907,24 +1908,32 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const actualMissions = Array.isArray(state?.missions?.missions)
                 ? state.missions.missions.map((mission) => mission.type)
                 : [];
+            const missionSeedOptions = {
+                scoreModel: state?.config?.scoreModel,
+                sectorIndex: 1,
+                templateId: 'sector_intro',
+                mapKey: state?.currentMapKey,
+            };
+            const expectedRunMissionSeed = buildArcadeMissionSeed({
+                ...missionSeedOptions,
+                activeSeed: runSeed,
+            });
+            const expectedConfigMissionSeed = buildArcadeMissionSeed({
+                ...missionSeedOptions,
+                activeSeed: configSeed,
+            });
             const expectedRunMissions = assignSectorMissions(
                 { id: 'sector_intro' },
                 mapMissions,
-                `${runSeed}-${state?.runId || ''}`,
-                0
-            ).map((mission) => mission.type);
-            const expectedConfigMissions = assignSectorMissions(
-                { id: 'sector_intro' },
-                mapMissions,
-                `${configSeed}-${state?.runId || ''}`,
-                0
+                expectedRunMissionSeed,
+                1
             ).map((mission) => mission.type);
 
             expect(state?.config?.seed).toBe(2);
             expect(state?.mapSequence || []).toEqual(expectedRunMaps);
             expect(state?.mapSequence || []).not.toEqual(expectedConfigMaps);
+            expect(expectedRunMissionSeed).not.toBe(expectedConfigMissionSeed);
             expect(actualMissions).toEqual(expectedRunMissions);
-            expect(actualMissions).not.toEqual(expectedConfigMissions);
         } finally {
             registerMapCatalogConfigSource(null);
         }

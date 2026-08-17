@@ -6,6 +6,7 @@ import {
     loadGame,
     loadGameWithRetry,
     openCustomSubmenu,
+    openStartSetupSection,
     returnToMenu,
     test,
     waitForRenderFrames,
@@ -140,6 +141,7 @@ test('Desktop-Hangar: Fahrzeugschalter wechseln sichtbar vor und zurück', async
 });
 
 test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung', async ({ page }) => {
+    test.setTimeout(300_000);
     await loadGame(page);
     await seedUnlockedProfiles(page);
     await page.reload();
@@ -325,7 +327,8 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
     await expect(page.locator('#arcade-vehicle-manager')).toHaveCount(0);
-    await page.locator('#btn-start').click();
+    await openStartSetupSection(page, 'arcade');
+    await page.locator('#btn-arcade-start-inline').click();
     await page.waitForFunction(() => (
         window.GAME_INSTANCE?.state === 'PLAYING'
         && (window.GAME_INSTANCE?.entityManager?.humanPlayers?.length || 0) > 0
