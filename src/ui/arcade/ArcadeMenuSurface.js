@@ -15,6 +15,7 @@ import {
     readArcadeLastRunRecord,
     readArcadeSeedRecord,
 } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
+import { createArcadeDailyMenuCard, renderArcadeDailyMenuState } from './ArcadeDailyMenuView.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -226,13 +227,15 @@ function buildArcadeSurface(level3Body, ui) {
     const replayButton = createElement('button', 'secondary-btn', t('menu.arcade.postrun.replay.label', 'Replay/Fallback'));
     replayButton.type = 'button';
     replayButton.id = 'btn-arcade-replay';
-    const dailyButton = createElement('button', 'secondary-btn', t('menu.arcade.postrun.daily.label', 'Daily starten'));
-    dailyButton.type = 'button';
-    dailyButton.id = 'btn-arcade-daily';
     postRunActions.appendChild(replayButton);
-    postRunActions.appendChild(dailyButton);
     postRunCard.appendChild(postRunActions);
     cardGrid.appendChild(postRunCard);
+
+    const { card: dailyCard, line: dailyLine, button: dailyButton } = createArcadeDailyMenuCard(
+        createElement,
+        t('menu.arcade.postrun.daily.label', 'Daily starten')
+    );
+    cardGrid.appendChild(dailyCard);
 
     const masteryCard = createElement('section', 'arcade-surface-card');
     masteryCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.mastery.title', 'Vehicle Mastery')));
@@ -274,6 +277,7 @@ function buildArcadeSurface(level3Body, ui) {
         runLine,
         seedLine,
         postRunLine,
+        dailyLine,
         masteryLine,
         metricScore: metricScore.value,
         metricMultiplier: metricMultiplier.value,
@@ -358,6 +362,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const dailySeed = computeDailySeed();
         const runtimeState = runtimeAccess?.getArcadeMenuSurfaceState?.() || null;
         const records = runtimeState?.records && typeof runtimeState.records === 'object' ? runtimeState.records : null;
+        const daily = runtimeState?.daily && typeof runtimeState.daily === 'object' ? runtimeState.daily : null;
         const replayState = runtimeState?.replay && typeof runtimeState.replay === 'object' ? runtimeState.replay : null;
         const postRunSummary = runtimeState?.postRunSummary && typeof runtimeState.postRunSummary === 'object'
             ? runtimeState.postRunSummary
@@ -370,6 +375,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
         refs.runLine.textContent = `${t('menu.arcade.runline.label', 'Aktueller Arcade-Layer')}: ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
+        renderArcadeDailyMenuState(refs.dailyLine, daily, dailySeed);
 
         refs.metricScore.textContent = records ? String(Math.max(0, Math.round(Number(records.lastScore) || 0))) : '0';
         refs.metricMultiplier.textContent = records

@@ -7,13 +7,8 @@ import {
     createArcadeRunRecords,
     createArcadeRunState,
 } from '../../state/arcade/ArcadeRunState.js';
-import {
-    applyArcadeComboDecay,
-    applyArcadeSectorScore,
-    applyComboAction,
-    buildArcadeRunSummary,
-    mergeArcadeRunRecords,
-} from '../../state/arcade/ArcadeScoreOps.js';
+import { applyArcadeComboDecay, applyArcadeSectorScore, applyComboAction, buildArcadeRunSummary } from '../../state/arcade/ArcadeScoreOps.js';
+import { createArcadeDailyProjection, mergeArcadeDailyRunRecords } from '../../state/arcade/ArcadeDailyState.js';
 import {
     resolveMapSequence,
     getMapKeyForSector,
@@ -693,6 +688,7 @@ export class ArcadeRunRuntime {
             phase: String(this._state?.phase || ''),
             isDailyChallenge: this._state?.isDailyChallenge === true,
             records: this.getRecordsSnapshot(),
+            daily: createArcadeDailyProjection(this._records),
             intermission: this.getIntermissionState(),
             postRunSummary: this.getPostRunSummary(),
             replay: this.getReplayState(),
@@ -1431,7 +1427,8 @@ export class ArcadeRunRuntime {
         });
         if (!summary) return this.getStateSnapshot();
 
-        this._records = mergeArcadeRunRecords(this._records, summary);
+        const { records, dailyResult } = mergeArcadeDailyRunRecords(this._records, summary);
+        this._records = records;
         const sectorHistory = Array.isArray(this._state.sectorHistory)
             ? this._state.sectorHistory.map((entry) => ({ ...entry }))
             : [];
@@ -1469,6 +1466,7 @@ export class ArcadeRunRuntime {
             rewardHistory: Array.isArray(this._state.rewardHistory)
                 ? this._state.rewardHistory.map((entry) => ({ ...entry }))
                 : [],
+            dailyResult,
         };
         const replayState = this.getReplayState();
         this._state = {

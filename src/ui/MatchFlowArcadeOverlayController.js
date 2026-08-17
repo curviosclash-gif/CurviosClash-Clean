@@ -278,6 +278,9 @@ export class MatchFlowArcadeOverlayController {
         const bestCombo = Math.max(0, Math.floor(toSafeNumber(summary.bestCombo, 0)));
         const missionRate = formatPercent(summary.missionCompletionRate);
         const xpEarned = Math.max(0, Math.round(toSafeNumber(summary.xpEarned, 0)));
+        const dailyResult = summary?.dailyResult && typeof summary.dailyResult === 'object'
+            ? summary.dailyResult
+            : null;
 
         const replay = runtimeState?.replay && typeof runtimeState.replay === 'object' ? runtimeState.replay : {};
         const replayHintText = replay.playbackAvailable
@@ -288,7 +291,7 @@ export class MatchFlowArcadeOverlayController {
         header.className = 'arcade-overlay-header';
         
         const h3 = document.createElement('h3');
-        h3.textContent = 'Arcade Run abgeschlossen';
+        h3.textContent = dailyResult ? 'Daily Challenge abgeschlossen' : 'Arcade Run abgeschlossen';
         header.appendChild(h3);
         
         const headerP = document.createElement('p');
@@ -341,6 +344,21 @@ export class MatchFlowArcadeOverlayController {
         multiP.textContent = `${Math.max(1, Math.round(toSafeNumber(summary.peakMultiplier, 1) * 10) / 10)}x Peak-Multi`;
         sect2.appendChild(multiP);
         bodyDiv.appendChild(sect2);
+
+        if (dailyResult) {
+            const dailySection = document.createElement('section');
+            dailySection.className = 'arcade-overlay-section';
+            const dailyHeading = document.createElement('h4');
+            dailyHeading.textContent = dailyResult.isNewBest === true ? 'Neuer Tagesbestwert' : 'Daily-Ergebnis';
+            dailySection.appendChild(dailyHeading);
+
+            const dailyText = document.createElement('p');
+            const attempt = Math.max(1, Math.floor(toSafeNumber(dailyResult.attempt, 1)));
+            const bestScore = Math.max(0, Math.round(toSafeNumber(dailyResult.bestScore, score)));
+            dailyText.textContent = `Versuch ${attempt} | Score ${score} | Tagesbestwert ${bestScore}`;
+            dailySection.appendChild(dailyText);
+            bodyDiv.appendChild(dailySection);
+        }
 
         // Section 3: Replay
         const sect3 = document.createElement('section');

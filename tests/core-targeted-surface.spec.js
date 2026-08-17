@@ -2630,6 +2630,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 actions: [],
             };
             runtime._state.postRunSummary = {
+                isDailyChallenge: true,
                 score: 4820,
                 bestCombo: 11,
                 missionCompletionRate: 0.67,
@@ -2640,6 +2641,15 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                     { sectorIndex: 1, mapKey: 'parcours_rift', awardedPoints: 1200 },
                     { sectorIndex: 2, mapKey: 'maze', awardedPoints: 1440 },
                 ],
+                dailyResult: {
+                    seed: 20260817,
+                    attempt: 2,
+                    score: 4820,
+                    previousBestScore: 4100,
+                    bestScore: 4820,
+                    isNewBest: true,
+                    tiedBest: false,
+                },
             };
             runtime._state.replay = { runReplayId: 'arcade-run-replay', playbackEnabled: true };
             game.state = 'MATCH_END';
@@ -2657,10 +2667,12 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                 healedDelta: Math.max(0, afterHp - beforeHp),
                 healedPlayers: Math.max(0, Number(healResult?.playersAffected) || 0),
                 postRunVisible: !!postRunPanel && !postRunPanel.classList.contains('hidden'),
+                postRunText: String(postRunPanel?.textContent || ''),
                 replayCode: String(game.runtimeFacade.arcadeRunRuntime?.requestReplayPlayback?.()?.code || ''),
                 replayButtonExists: !!replayBtn,
                 menuReplayLabel: String(document.querySelector('#btn-arcade-replay')?.textContent || ''),
                 menuDailyLabel: String(document.querySelector('#btn-arcade-daily')?.textContent || ''),
+                menuDailyStatus: String(document.querySelector('#arcade-daily-line')?.textContent || ''),
             };
         });
 
@@ -2673,12 +2685,16 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.healedDelta).toBeGreaterThan(0);
         expect(state.healedPlayers).toBeGreaterThan(0);
         expect(state.postRunVisible).toBeTruthy();
+        expect(state.postRunText).toContain('Daily Challenge abgeschlossen');
+        expect(state.postRunText).toContain('Neuer Tagesbestwert');
+        expect(state.postRunText).toContain('Tagesbestwert 4820');
         expect(state.replayCode).toBe('replay_export_ready');
         expect(state.replayButtonExists).toBeTruthy();
         expect(state.menuReplayLabel).toContain('Replay');
         expect(state.menuReplayLabel).not.toContain('Platzhalter');
         expect(state.menuDailyLabel).toContain('Daily');
         expect(state.menuDailyLabel).not.toContain('Platzhalter');
+        expect(state.menuDailyStatus).toContain('Heute');
 
         await returnToMenu(page);
     });
