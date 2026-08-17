@@ -28,20 +28,28 @@ function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     };
 }
 
-function setpiece(id, file, clipName, phaseOffsetBeats, position, targetSize, rotateY = 0) {
+function setpiece(id, file, clipName, phaseOffsetBeats, position, targetSize, rotation = [0, 0, 0]) {
     return {
         id: `verdant-aperture-${id}`,
         url: `assets/maps/verdant_aperture/glb/${file}.glb`,
         position,
-        rotation: [0, rotateY, 0],
+        rotation,
         targetSize,
         animationClock: { clipName, phaseOffsetBeats },
     };
 }
 
-/** A setpiece that gates a level join, placed straight into the hole its join punched. */
+/**
+ * A setpiece that gates a level join, placed straight into the hole its join punched.
+ *
+ * The quarter turn about X is what makes it a hatch rather than a doorway. The generator builds
+ * these rings in Blender's XZ plane, and the glTF export turns Blender's Z-up into Y-up, so the
+ * ring arrives standing on edge. Placed unrotated it spans the storeys vertically instead of
+ * filling the cut-out, which a desktop probe showed directly: the west shutter's colliders sat
+ * around y=253 while its slot sat at y=162, leaving the join itself completely unguarded.
+ */
 function joinSetpiece(join, y, id, file, clipName, phaseOffsetBeats, targetSize) {
-    return setpiece(id, file, clipName, phaseOffsetBeats, [join[0], y, join[1]], targetSize);
+    return setpiece(id, file, clipName, phaseOffsetBeats, [join[0], y, join[1]], targetSize, [Math.PI / 2, 0, 0]);
 }
 
 const LEVEL_ROOT_DECK = 54;
@@ -110,8 +118,8 @@ const VERDANT_APERTURE_LANDMARKS = [
     landmark('root-bush-west', 'pm-avatar-garden', 'Bush03', [-108, 10, -60], 26),
     landmark('root-bush-east', 'pm-avatar-garden', 'Bush05', [104, 10, 52], 28, 1.1),
     landmark('root-column', 'pm-crystal-crossroads', 'Column_SmallBroken_01', [36, 10, -104], 30),
-    setpiece('root-arch-west', '03_root_arch', 'RootArchLoop', 0, [-46, 26, -70], 30, Math.PI / 2),
-    setpiece('root-arch-east', '03_root_arch', 'RootArchLoop', 0.5, [46, 26, 70], 30, Math.PI / 2),
+    setpiece('root-arch-west', '03_root_arch', 'RootArchLoop', 0, [-46, 26, -70], 30, [0, Math.PI / 2, 0]),
+    setpiece('root-arch-east', '03_root_arch', 'RootArchLoop', 0.5, [46, 26, 70], 30, [0, Math.PI / 2, 0]),
     // The slowest barrier on the map divides the cellar down the middle; its gap climbs over a
     // full 24 seconds, so crossing here is a commitment rather than a reflex.
     setpiece('vine-gate', '07_vine_gate', 'VineGateLoop', 0, [0, 28, 0], 34),
@@ -126,8 +134,8 @@ const VERDANT_APERTURE_LANDMARKS = [
     landmark('crown-bush-north', 'pm-avatar-garden', 'Bush01', [-88, 62, 88], 30, 0.6),
     landmark('crown-bush-south', 'pm-avatar-garden', 'Bush06', [92, 62, -84], 30, 2.2),
     landmark('crown-arc', 'pm-crystal-crossroads', 'Arc', [0, 66, 104], 40, Math.PI / 2),
-    setpiece('canopy-west', '04_canopy_drift', 'CanopyDriftLoop', 0.5, [-74, 80, 0], 44, Math.PI / 2),
-    setpiece('canopy-east', '04_canopy_drift', 'CanopyDriftLoop', 0, [74, 80, 0], 44, Math.PI / 2),
+    setpiece('canopy-west', '04_canopy_drift', 'CanopyDriftLoop', 0.5, [-74, 80, 0], 44, [0, Math.PI / 2, 0]),
+    setpiece('canopy-east', '04_canopy_drift', 'CanopyDriftLoop', 0, [74, 80, 0], 44, [0, Math.PI / 2, 0]),
     setpiece('mill-north', '06_pollen_mill', 'PollenMillLoop', 0, [0, 80, -46], 28),
     setpiece('mill-south', '06_pollen_mill', 'PollenMillLoop', 0.5, [0, 80, 46], 28),
     // The prize sits in the open, readable from both the cellar holes and the roof.
