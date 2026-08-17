@@ -249,7 +249,7 @@ def build_leaf_shutter(scene, mats):
         blade = cube(
             f"leaf_blade_{index}",
             shut,
-            (2.7, 0.34, 2.2),
+            (2.7, 0.34, 3.2),
             mats["verdigris"],
             rotation=(0, -angle, 0),
         )
@@ -306,13 +306,13 @@ def build_bloom_iris(scene, mats):
 
     for index in range(6):
         angle = index * (2 * pi / 6)
-        hinge_at = (4.1 * cos(angle), 4.1 * sin(angle), 0.6)
+        hinge_at = (3.0 * cos(angle), 3.0 * sin(angle), 0.6)
 
         petal_rig = empty(f"BloomPetal{index}", hinge_at)
         petal = cube(
             f"bloom_petal_{index}",
-            (4.1 * cos(angle), 4.1 * sin(angle), 2.4),
-            (1.9, 0.4, 2.0),
+            (3.0 * cos(angle), 3.0 * sin(angle), 2.4),
+            (3.0, 2.4, 2.0),
             mats["verdigris"],
             rotation=(0, 0, angle),
         )
