@@ -238,14 +238,18 @@ def build_leaf_shutter(scene, mats):
 
     for index in range(8):
         angle = index * (2 * pi / 8)
-        shut = (3.3 * cos(angle), 0, 3.3 * sin(angle))
+        # The blade reaches from the centre outward and is wide enough to cover its sector at the
+        # outer rim, so the blades overlap like roof tiles near the hub -- the way a real iris
+        # shuts. Anything less leaves a permanent hole in the middle and slivers between blades,
+        # and the vehicle is small enough (0.8 hitbox radius) to slip through both.
+        shut = (2.7 * cos(angle), 0, 2.7 * sin(angle))
         aside = (7.0 * cos(angle), 0, 7.0 * sin(angle))
 
         leaf = empty(f"LeafBlade{index}", shut)
         blade = cube(
             f"leaf_blade_{index}",
             shut,
-            (2.1, 0.34, 0.95),
+            (2.7, 0.34, 2.2),
             mats["verdigris"],
             rotation=(0, -angle, 0),
         )
