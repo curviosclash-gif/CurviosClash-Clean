@@ -36,6 +36,7 @@ const COLLECTION_DEFINITIONS = [
             'chrono_forge_nexus',
             'eclipse_foundry',
             'kinetic_tide',
+            'verdant_aperture',
         ],
     },
     {

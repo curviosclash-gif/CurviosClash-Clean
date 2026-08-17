@@ -50,6 +50,7 @@ const BASE_MAP_KEYS = [
     'chrono_forge_nexus',
     'eclipse_foundry',
     'kinetic_tide',
+    'verdant_aperture',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
