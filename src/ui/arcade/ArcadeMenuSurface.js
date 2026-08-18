@@ -5,7 +5,7 @@ import {
     getArcadeVehicleProfileRecord,
     readArcadeVehicleProfileRecord,
 } from '../../shared/contracts/ArcadeVehicleProfileContract.js';
-import { applyHangarWindowStorageEvent, createHangarWindowLauncher, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
+import { applyHangarWindowStorageEvent, createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { readActiveHangarBuildFromStore } from '../hangar/HangarBuildPersistence.js';
 import {
     ARCADE_LAST_RUN_STORAGE_KEY,
@@ -15,7 +15,8 @@ import {
     readArcadeLastRunRecord,
     readArcadeSeedRecord,
 } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
-import { createArcadeDailyMenuCard, renderArcadeDailyMenuState } from './ArcadeDailyMenuView.js';
+import { renderArcadeDailyMenuState } from './ArcadeDailyMenuView.js';
+import { buildArcadeSurface } from './ArcadeMenuSurfaceDom.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
@@ -110,22 +111,6 @@ function formatRunTime(isoTime) {
     return `${day}.${month} ${hours}:${minutes}`;
 }
 
-function createElement(tag, className, textContent = '') {
-    const element = document.createElement(tag);
-    if (className) element.className = className;
-    if (textContent) element.textContent = textContent;
-    return element;
-}
-
-function createMetric(labelText, valueText = '-') {
-    const metric = createElement('div', 'arcade-hud-metric');
-    const label = createElement('span', 'arcade-hud-metric-label', labelText);
-    const value = createElement('strong', 'arcade-hud-metric-value', valueText);
-    metric.appendChild(label);
-    metric.appendChild(value);
-    return { metric, value };
-}
-
 function normalizeRuntimeAccess(runtimeAccess) {
     return runtimeAccess && typeof runtimeAccess === 'object'
         ? runtimeAccess
@@ -165,132 +150,6 @@ function resolveVehicleMasteryProfile(runtimeAccess, vehicleId) {
 
 function resolveVehicleMasteryMaxLevel() {
     return ARCADE_VEHICLE_PROFILE_MAX_LEVEL;
-}
-
-function buildArcadeSurface(level3Body, ui) {
-    const details = createElement('details', 'menu-section menu-accordion start-section-card arcade-inline-surface hidden');
-    details.id = 'arcade-inline-surface';
-    details.dataset.startSection = 'arcade';
-
-    const summary = createElement('summary', 'menu-accordion-summary');
-    const summaryTitle = createElement('span', 'section-title', t('menu.arcade.title', 'Arcade Run'));
-    const summaryCopy = createElement('span', 'menu-accordion-copy', t('menu.arcade.summary', 'Run-Layer, Score-Jagd und Seed-Anker'));
-    summary.appendChild(summaryTitle);
-    summary.appendChild(summaryCopy);
-    details.appendChild(summary);
-
-    const body = createElement('div', 'menu-accordion-body arcade-surface-body');
-
-    const runLine = createElement('p', 'menu-hint arcade-run-line');
-    runLine.id = 'arcade-run-line';
-    body.appendChild(runLine);
-
-    const cardGrid = createElement('div', 'arcade-surface-grid');
-
-    const seedCard = createElement('section', 'arcade-surface-card');
-    seedCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.seed.title', 'Seed und Challenge')));
-    const seedLine = createElement('p', 'arcade-surface-card-value');
-    seedLine.id = 'arcade-seed-line';
-    seedCard.appendChild(seedLine);
-    const seedActions = createElement('div', 'arcade-surface-actions');
-    const rerollSeedButton = createElement('button', 'secondary-btn', t('menu.arcade.seed.reroll.label', 'Seed neu rollen'));
-    rerollSeedButton.type = 'button';
-    rerollSeedButton.id = 'btn-arcade-seed-reroll';
-    const copySeedButton = createElement('button', 'secondary-btn', t('menu.arcade.seed.copy.label', 'Seed als Challenge nutzen'));
-    copySeedButton.type = 'button';
-    copySeedButton.id = 'btn-arcade-seed-copy';
-    seedActions.appendChild(rerollSeedButton);
-    seedActions.appendChild(copySeedButton);
-    seedCard.appendChild(seedActions);
-    cardGrid.appendChild(seedCard);
-
-    const hudCard = createElement('section', 'arcade-surface-card');
-    hudCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.hud.title', 'HUD Shell')));
-    const hudGrid = createElement('div', 'arcade-hud-shell-grid');
-    const metricScore = createMetric(t('menu.arcade.hud.score.label', 'Score'), '0');
-    const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'x-Multi'), 'x1.0');
-    const metricSector = createMetric(t('menu.arcade.hud.sector.label', 'Sektor'), '1');
-    const metricChain = createMetric(t('menu.arcade.hud.chain.label', 'Combo'), '0');
-    hudGrid.appendChild(metricScore.metric);
-    hudGrid.appendChild(metricMultiplier.metric);
-    hudGrid.appendChild(metricSector.metric);
-    hudGrid.appendChild(metricChain.metric);
-    hudCard.appendChild(hudGrid);
-    cardGrid.appendChild(hudCard);
-
-    const postRunCard = createElement('section', 'arcade-surface-card');
-    postRunCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.postrun.title', 'Post-Run Feedback')));
-    const postRunLine = createElement('p', 'arcade-surface-card-value');
-    postRunLine.id = 'arcade-post-run-line';
-    postRunCard.appendChild(postRunLine);
-    const postRunActions = createElement('div', 'arcade-surface-actions');
-    const replayButton = createElement('button', 'secondary-btn', t('menu.arcade.postrun.replay.label', 'Replay/Fallback'));
-    replayButton.type = 'button';
-    replayButton.id = 'btn-arcade-replay';
-    postRunActions.appendChild(replayButton);
-    postRunCard.appendChild(postRunActions);
-    cardGrid.appendChild(postRunCard);
-
-    const { card: dailyCard, line: dailyLine, button: dailyButton } = createArcadeDailyMenuCard(
-        createElement,
-        t('menu.arcade.postrun.daily.label', 'Daily starten')
-    );
-    cardGrid.appendChild(dailyCard);
-
-    const masteryCard = createElement('section', 'arcade-surface-card');
-    masteryCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.mastery.title', 'Vehicle Mastery')));
-    const masteryLine = createElement('p', 'arcade-surface-card-value');
-    masteryLine.id = 'arcade-mastery-line';
-    masteryCard.appendChild(masteryLine);
-    cardGrid.appendChild(masteryCard);
-
-    body.appendChild(cardGrid);
-
-    const { card: hangarLaunchCard, button: openHangarButton } = createHangarWindowLauncher(createElement);
-    body.appendChild(hangarLaunchCard);
-
-    const ctaRow = createElement('div', 'arcade-surface-cta');
-    const startRunButton = createElement('button', 'start-btn', t('menu.arcade.start.label', 'Arcade Run starten'));
-    startRunButton.type = 'button';
-    startRunButton.id = 'btn-arcade-start-inline';
-    ctaRow.appendChild(startRunButton);
-    body.appendChild(ctaRow);
-
-    details.appendChild(body);
-
-    const multiplayerSection = level3Body.querySelector('[data-start-section="multiplayer"]');
-    if (multiplayerSection && multiplayerSection.parentElement === level3Body) {
-        level3Body.insertBefore(details, multiplayerSection);
-    } else {
-        level3Body.appendChild(details);
-    }
-
-    ui.arcadeInlineSurface = details;
-    ui.arcadeStartInlineButton = startRunButton;
-    ui.arcadeSeedRerollButton = rerollSeedButton;
-    ui.arcadeSeedCopyButton = copySeedButton;
-    ui.arcadeReplayButton = replayButton;
-    ui.arcadeDailyButton = dailyButton;
-
-    return {
-        details,
-        runLine,
-        seedLine,
-        postRunLine,
-        dailyLine,
-        masteryLine,
-        metricScore: metricScore.value,
-        metricMultiplier: metricMultiplier.value,
-        metricSector: metricSector.value,
-        metricChain: metricChain.value,
-        startRunButton,
-        rerollSeedButton,
-        copySeedButton,
-        replayButton,
-        dailyButton,
-        hangarLaunchCard,
-        openHangarButton,
-    };
 }
 
 function shouldShowArcade(settings) {
