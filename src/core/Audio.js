@@ -3,6 +3,7 @@
 // ============================================
 
 import { createLogger } from '../shared/logging/Logger.js';
+import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
 
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
@@ -71,6 +72,7 @@ export class AudioManager {
 
         this.lastPlayTime = {};
         this.cooldowns = { ...SOUND_COOLDOWNS_MS };
+        this._explosionChain = createExplosionChainState();
 
         this._onInitInteraction = () => {
             this._init();
@@ -393,7 +395,15 @@ export class AudioManager {
         const now = this._resolveTime();
         const last = this.lastPlayTime[type] || 0;
         const cooldown = this.cooldowns[type] || DEFAULT_COOLDOWN_MS;
-        if (now - last < cooldown) return;
+        if (now - last < cooldown) {
+            // Only explosions answer a blocked shot, and only twice per window, so
+            // a chain reaction stays audible without a mass wipe turning to noise.
+            const echo = type === 'EXPLOSION' ? resolveExplosionEcho(this._explosionChain) : null;
+            if (!echo) return;
+            options = { ...options, ...echo };
+        } else if (type === 'EXPLOSION') {
+            resetExplosionChain(this._explosionChain);
+        }
         this.lastPlayTime[type] = now;
         this._recordDebugEvent(type, options);
 
@@ -401,10 +411,10 @@ export class AudioManager {
             case 'SHOOT': this._playShoot(options); break;
             case 'MG_SHOOT': this._playMgShoot(options); break;
             case 'ROCKET_SHOOT': this._playRocketShoot(options); break;
-            case 'EXPLOSION': this._playExplosion(options); break;
+            case 'EXPLOSION': playExplosionVoice(this, options); break;
             case 'HIT': this._playHit(options); break;
             case 'MG_HIT': this._playMgHit(options); break;
-            case 'ROCKET_IMPACT': this._playRocketImpact(options); break;
+            case 'ROCKET_IMPACT': playRocketImpactVoice(this, options); break;
             case 'SHIELD_HIT': this._playShieldHit(options); break;
             case 'POWERUP': this._playPowerup(options); break;
             case 'PICKUP': this._playPickup(options); break;
@@ -455,38 +465,6 @@ export class AudioManager {
         ], options);
     }
 
-    _playExplosion(options = {}) {
-        if (!this.buffers.explosion) return;
-        const gain = this._createVoiceGraph(options);
-        if (!gain) return;
-        const intensity = this._intensity(options, 1, 0.25, 1.5);
-        const atten = this._distanceAttenuation(options);
-        const noise = this.ctx.createBufferSource();
-        noise.buffer = this.buffers.explosion;
-
-        const filter = this.ctx.createBiquadFilter();
-        filter.type = 'lowpass';
-        filter.Q.value = 0.7;
-        filter.frequency.setValueAtTime(1400, this.ctx.currentTime);
-        filter.frequency.exponentialRampToValueAtTime(90, this.ctx.currentTime + 0.38);
-
-        this._envGain(gain, 0.85 * intensity * atten, 0.4, { attack: 0.004 });
-        noise.connect(filter);
-        filter.connect(gain);
-        noise.start();
-        this._releaseVoice(0.42);
-
-        this._playTone({
-            type: 'triangle',
-            startFreq: 180,
-            endFreq: 45,
-            duration: 0.28,
-            peak: 0.22 * intensity * atten,
-            attack: 0.01,
-            options,
-        });
-    }
-
     _playHit(options = {}) {
         const intensity = this._intensity(options, 0.9, 0.2, 1.4);
         this._playLayered([
@@ -506,20 +484,6 @@ export class AudioManager {
             attack: 0.004,
             options,
         });
-    }
-
-    _playRocketImpact(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.6);
-        this._playTone({
-            type: 'triangle',
-            startFreq: 150,
-            endFreq: 38,
-            duration: 0.3,
-            peak: 0.36 * intensity,
-            attack: 0.008,
-            options,
-        });
-        this._playExplosion({ ...options, intensity: intensity * 0.9 });
     }
 
     _playShieldHit(options = {}) {

@@ -120,12 +120,19 @@ function createMockAudioContext() {
         }
 
         createBufferSource() {
-            return {
+            const source = {
                 buffer: null,
+                // The real AudioBufferSourceNode carries this; the explosion voice
+                // detunes chained blasts through it.
+                playbackRate: { value: 1 },
                 connect() { return this; },
-                start() {},
+                start() { this.started = true; },
                 stop() {},
+                started: false,
             };
+            this.bufferSources = this.bufferSources || [];
+            this.bufferSources.push(source);
+            return source;
         }
 
         resume() {
@@ -431,6 +438,136 @@ test('AudioManager engine loop follows local player speed and stops when idle', 
             assert.equal(audio._engine.active, true);
             audio.stopEngine();
             assert.equal(audio._engine.active, false);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+// Builds an AudioManager wired to the mock context, with an explosion buffer in
+// place so the voice actually runs, and a clock the test drives by hand.
+function createExplosionHarness() {
+    const MockCtx = createMockAudioContext();
+    const audio = new AudioManager();
+    const ctx = new MockCtx();
+    audio.ctx = ctx;
+    audio.buffers.explosion = ctx.createBuffer(1, 64);
+    audio._sfxOut = () => ctx.destination;
+    audio._masterGain = ctx.createGain();
+    audio._sfxGain = ctx.createGain();
+    let now = 1_000;
+    audio._resolveTime = () => now;
+    return {
+        audio,
+        ctx,
+        advance(ms) { now += ms; },
+        // Every explosion starts one buffer source, so counting them counts blasts.
+        blastCount() { return (ctx.bufferSources || []).filter((source) => source.started).length; },
+        blastRates() { return (ctx.bufferSources || []).filter((s) => s.started).map((s) => s.playbackRate.value); },
+    };
+}
+
+test('a chain reaction is heard as several blasts, not one', async () => {
+    await withMockWindow(async () => {
+        const harness = createExplosionHarness();
+        const { audio } = harness;
+        try {
+            // Three kills inside a single cooldown window. Before this, the last two
+            // were dropped outright and a triple kill sounded like a single death.
+            audio.play('EXPLOSION');
+            harness.advance(40);
+            audio.play('EXPLOSION');
+            harness.advance(40);
+            audio.play('EXPLOSION');
+
+            assert.equal(harness.blastCount(), 3);
+            const rates = harness.blastRates();
+            assert.equal(rates[0], 1, 'the first kill is the undistorted one');
+            assert.notEqual(rates[1], rates[0], 'the second is detuned against the first');
+            assert.notEqual(rates[2], rates[1], 'and the third against the second');
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('a mass wipe stops at the chain limit instead of turning into noise', async () => {
+    await withMockWindow(async () => {
+        const harness = createExplosionHarness();
+        const { audio } = harness;
+        try {
+            for (let i = 0; i < 8; i += 1) {
+                audio.play('EXPLOSION');
+                harness.advance(10);
+            }
+
+            // One full blast plus two echoes; everything past that stays silent.
+            assert.equal(harness.blastCount(), 3);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('a kill after the window is a full blast again, not an echo', async () => {
+    await withMockWindow(async () => {
+        const harness = createExplosionHarness();
+        const { audio } = harness;
+        try {
+            audio.play('EXPLOSION');
+            harness.advance(20);
+            audio.play('EXPLOSION');
+
+            harness.advance(audio.cooldowns.EXPLOSION + 10);
+            audio.play('EXPLOSION');
+
+            const rates = harness.blastRates();
+            assert.equal(rates.length, 3);
+            assert.equal(rates.at(-1), 1, 'the chain resets once the window has passed');
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('the chain answer is exclusive to explosions', async () => {
+    await withMockWindow(async () => {
+        const harness = createExplosionHarness();
+        const { audio } = harness;
+        try {
+            let shots = 0;
+            audio._playShoot = () => { shots += 1; };
+
+            audio.play('SHOOT');
+            harness.advance(10);
+            audio.play('SHOOT');
+
+            // Rapid fire must still be throttled - only deaths get an echo.
+            assert.equal(shots, 1);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('a rocket impact bypasses the explosion cooldown without spending the chain', async () => {
+    await withMockWindow(async () => {
+        const harness = createExplosionHarness();
+        const { audio } = harness;
+        try {
+            // ROCKET_IMPACT drives the explosion voice directly: it is one event
+            // with its own cooldown, not a death in a chain of deaths.
+            audio.play('ROCKET_IMPACT');
+            harness.advance(10);
+            audio.play('EXPLOSION');
+            harness.advance(10);
+            audio.play('EXPLOSION');
+
+            const rates = harness.blastRates();
+            assert.equal(rates.length, 3, 'the impact and both deaths are all heard');
+            assert.equal(rates[0], 1, 'the rocket impact is undistorted');
+            assert.equal(rates[1], 1, 'the first death still gets a full blast');
+            assert.notEqual(rates[2], 1, 'only the second death is an echo');
         } finally {
             audio.dispose();
         }
