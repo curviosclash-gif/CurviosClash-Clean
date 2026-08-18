@@ -5,6 +5,16 @@ import { resolveBlastShake } from './BlastCameraShake.js';
 const MAX_ROCKET_BLASTS = 32;
 const DUMMY = new THREE.Object3D();
 
+// How long a blast lights the world. After this its core is glowing debris rather
+// than a flash, and lighting the arena from it would read as a lamp, not a bang.
+const LIGHT_FLASH_SECONDS = 0.15;
+// Lights fall off with the square of the distance, so intensity has to grow the
+// same way for a bigger blast to read as brighter instead of merely wider.
+const LIGHT_CANDELA_SCALE = 2;
+// Range cap as a multiple of the blast radius. Without it a single explosion
+// would tint the whole arena and pay for every fragment in it.
+const LIGHT_RANGE_FACTOR = 3.5;
+
 // The core-and-shockwave pass is not rocket-specific - it is the only effect in the
 // game that reads as a detonation rather than as flying debris, so every blast-scale
 // event picks its size here instead of growing its own effect.
@@ -56,6 +66,19 @@ export class RocketBlastEffect {
                 wireframe: true,
             })
         );
+
+        // One light for the whole game, created once and left in the scene for good.
+        // Adding or removing a light at runtime makes three.js recompile every
+        // shader that can see it, which would stutter at exactly the moment things
+        // are exploding - so it is driven to zero intensity instead of detached.
+        // The classic style skips it altogether: a light that is never used still
+        // costs a shader variant and per-fragment work, so not creating it is the
+        // only saving that is actually real.
+        this.light = null;
+        if (modernGraphics) {
+            this.light = new THREE.PointLight(0xffffff, 0, 0);
+            this.renderer?.addToScene?.(this.light);
+        }
     }
 
     _createMesh(geometry, material) {
@@ -181,6 +204,41 @@ export class RocketBlastEffect {
             if (this.coreMesh.instanceColor) this.coreMesh.instanceColor.needsUpdate = true;
             if (this.waveMesh.instanceColor) this.waveMesh.instanceColor.needsUpdate = true;
         }
+        this._updateBlastLight();
+    }
+
+    // The brightest blast owns the light. Which one that is changes as blasts age,
+    // so it is resolved every frame instead of latched on spawn: a big explosion
+    // going off beside a fading one takes the light over immediately, and the
+    // light returns to zero on its own once every flash has burned out.
+    _updateBlastLight() {
+        const light = this.light;
+        if (!light) return;
+
+        let bestScore = 0;
+        let bestIndex = -1;
+        for (let i = 0; i < this.count; i += 1) {
+            const age = this.maxLifetimes[i] - this.lifetimes[i];
+            if (age >= LIGHT_FLASH_SECONDS) continue;
+            const score = this.radii[i] * (1 - (age / LIGHT_FLASH_SECONDS));
+            if (score > bestScore) {
+                bestScore = score;
+                bestIndex = i;
+            }
+        }
+
+        if (bestIndex < 0) {
+            light.intensity = 0;
+            return;
+        }
+
+        const index3 = bestIndex * 3;
+        const radius = this.radii[bestIndex];
+        light.position.set(this.positions[index3], this.positions[index3 + 1], this.positions[index3 + 2]);
+        this._tmpColor.setRGB(this.colors[index3], this.colors[index3 + 1], this.colors[index3 + 2]);
+        light.color.copy(this._tmpColor.lerp(this._coreTint, 0.72));
+        light.intensity = bestScore * radius * LIGHT_CANDELA_SCALE;
+        light.distance = radius * LIGHT_RANGE_FACTOR;
     }
 
     _compact(source, target, remaining) {
@@ -206,6 +264,9 @@ export class RocketBlastEffect {
         this.count = 0;
         if (this.coreMesh) this.coreMesh.count = 0;
         if (this.waveMesh) this.waveMesh.count = 0;
+        // Darkened rather than detached, so a round change cannot leave the arena
+        // lit by an explosion that no longer exists.
+        if (this.light) this.light.intensity = 0;
     }
 
     dispose() {
@@ -219,6 +280,11 @@ export class RocketBlastEffect {
             this.renderer?.removeFromScene?.(this.waveMesh);
             disposeObject3DResources(this.waveMesh);
             this.waveMesh = null;
+        }
+        if (this.light) {
+            this.renderer?.removeFromScene?.(this.light);
+            this.light.dispose?.();
+            this.light = null;
         }
         this.renderer = null;
     }

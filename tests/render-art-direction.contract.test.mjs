@@ -42,9 +42,10 @@ test('particle pass uses an additive low-poly glow without adding a dependency',
     assert.equal(particles.mesh.material.depthWrite, false);
     assert.equal(particles.rocketBlastEffect.coreMesh.material.blending, THREE.AdditiveBlending);
     assert.equal(particles.rocketBlastEffect.waveMesh.material.wireframe, true);
+    // Particle mesh, blast core, blast shockwave and the single reused blast light.
     particles.dispose();
-    assert.equal(added.length, 3);
-    assert.equal(removed.length, 3);
+    assert.equal(added.length, 4);
+    assert.equal(removed.length, 4, 'everything put into the scene is taken back out');
 });
 
 test('rocket impacts animate a tier-scaled fireball and expanding shockwave', () => {
