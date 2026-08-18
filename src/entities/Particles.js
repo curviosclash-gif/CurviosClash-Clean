@@ -7,6 +7,7 @@ import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 import { RocketBlastEffect } from './effects/RocketBlastEffect.js';
+import { applyParticleColorRamp } from './effects/ParticleColorRamp.js';
 
 const MAX_PARTICLES = 1000;
 const DUMMY = new THREE.Object3D();
@@ -234,11 +235,14 @@ export class ParticleSystem {
     }
 
     spawnExplosion(position, color, options = {}) {
+        const presentationOverride = options?.presentationOverride === true;
+        if (this._presentationSuppressed && !presentationOverride) return;
         this.spawn(position, 30, color, 12.0, 0.7, 0.6, {
             gravity: -6.0,
             type: 'explosion',
-            presentationOverride: options?.presentationOverride === true,
+            presentationOverride,
         });
+        this.rocketBlastEffect?.spawn(position, options?.blast || 'DEATH', color);
     }
 
     spawnHit(position, color) {
@@ -356,7 +360,6 @@ export class ParticleSystem {
         }
 
         let aliveCount = 0;
-        let dirtyColor = false;
 
         for (let i = 0; i < this.count; i++) {
             this.lifetimes[i] -= dt;
@@ -394,12 +397,15 @@ export class ParticleSystem {
                     this.colors[dstIdx3] = this.colors[srcIdx3];
                     this.colors[dstIdx3 + 1] = this.colors[srcIdx3 + 1];
                     this.colors[dstIdx3 + 2] = this.colors[srcIdx3 + 2];
-
-                    // Update instance color at new index
-                    this._tmpColor.setRGB(this.colors[dstIdx3], this.colors[dstIdx3 + 1], this.colors[dstIdx3 + 2]);
-                    this.mesh.setColorAt(aliveCount, this._tmpColor);
-                    dirtyColor = true;
                 }
+
+                // The stored colour stays the untouched spawn colour - the ramp is
+                // re-derived every frame so a compacted particle keeps its place in
+                // the flash/burnout curve instead of freezing at its last shade.
+                const lifeRatio = this.lifetimes[aliveCount] / this.maxLifetimes[aliveCount];
+                this._tmpColor.setRGB(this.colors[dstIdx3], this.colors[dstIdx3 + 1], this.colors[dstIdx3 + 2]);
+                applyParticleColorRamp(this._tmpColor, lifeRatio);
+                this.mesh.setColorAt(aliveCount, this._tmpColor);
 
                 // Render Update
                 DUMMY.position.set(this.positions[dstIdx3], this.positions[dstIdx3 + 1], this.positions[dstIdx3 + 2]);
@@ -408,8 +414,7 @@ export class ParticleSystem {
                 DUMMY.rotation.x += this.velocities[dstIdx3 + 2] * dt;
                 DUMMY.rotation.y += this.velocities[dstIdx3] * dt;
 
-                const scale = this.scales[aliveCount] * (this.lifetimes[aliveCount] / this.maxLifetimes[aliveCount]);
-                DUMMY.scale.setScalar(scale);
+                DUMMY.scale.setScalar(this.scales[aliveCount] * lifeRatio);
                 DUMMY.updateMatrix();
 
                 this.mesh.setMatrixAt(aliveCount, DUMMY.matrix);
@@ -421,7 +426,7 @@ export class ParticleSystem {
         this.count = aliveCount;
         this.mesh.count = aliveCount;
         this.mesh.instanceMatrix.needsUpdate = true;
-        if (dirtyColor && this.mesh.instanceColor) {
+        if (this.mesh.instanceColor) {
             this.mesh.instanceColor.needsUpdate = true;
         }
     }

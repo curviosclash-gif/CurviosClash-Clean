@@ -66,7 +66,7 @@ export function createEntityRuntimeSupport(owner) {
                     type: projectile?.type,
                 })
             ));
-            if (owner.particles) owner.particles.spawnExplosion(target.position, 0xff0000);
+            if (owner.particles) owner.particles.spawnExplosion(target.position, 0xff0000, { blast: 'ITEM_BURST' });
             if (owner.audio) owner.audio.play('POWERUP');
         },
         onProjectileDamage: (target, projectileOwner, type, damageResult, projectile) => {

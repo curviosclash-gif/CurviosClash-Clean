@@ -79,6 +79,70 @@ test('rocket impacts animate a tier-scaled fireball and expanding shockwave', ()
     particles.dispose();
 });
 
+test('deaths detonate wider and slower than the strongest rocket tier', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+    });
+    const origin = new THREE.Vector3(1, 2, 3);
+
+    particles.spawnExplosion(origin, 0x44ff88);
+
+    assert.equal(particles.rocketBlastEffect.count, 1);
+    assert.ok(particles.rocketBlastEffect.radii[0] > 4.8, 'death blast outgrows the mega rocket blast');
+    assert.ok(particles.rocketBlastEffect.maxLifetimes[0] > 0.72, 'death blast outlasts the mega rocket blast');
+
+    particles.spawnExplosion(origin, 0xff0000, { blast: 'ITEM_BURST' });
+
+    assert.equal(particles.rocketBlastEffect.count, 2);
+    assert.ok(particles.rocketBlastEffect.radii[1] < 2.6, 'knocking an item loose stays below the weakest rocket');
+    particles.dispose();
+});
+
+test('suppressed presentation withholds the death blast, not just its particles', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+    });
+    const origin = new THREE.Vector3();
+
+    particles.setPresentationSuppressed(true);
+    particles.spawnExplosion(origin, 0xffffff);
+    assert.equal(particles.rocketBlastEffect.count, 0);
+
+    particles.spawnExplosion(origin, 0xffffff, { presentationOverride: true });
+    assert.equal(particles.rocketBlastEffect.count, 1);
+    particles.dispose();
+});
+
+test('particles flash hot on spawn and burn out before they vanish', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+        getGraphicsStyle: () => 'classic',
+    });
+    // No channel sits at full brightness, so the ramp stays measurable in both
+    // directions instead of clipping.
+    const base = new THREE.Color(0x3366cc);
+    const sampled = new THREE.Color();
+
+    // Zero speed and gravity keep the particle in place so only the ramp moves.
+    particles.spawn(new THREE.Vector3(), 1, 0x3366cc, 0, 0.5, 1.0, { gravity: 0 });
+
+    particles.update(0.01);
+    particles.mesh.getColorAt(0, sampled);
+    assert.ok(sampled.r > base.r, 'the flash phase pushes the dark channels toward white');
+    assert.ok(sampled.b > base.b, 'the flash phase brightens the identity colour');
+
+    // Spawn jitter puts the lifetime in [0.8, 1.2], so 0.71s elapsed always lands
+    // inside the burnout window while leaving the particle alive.
+    particles.update(0.7);
+    particles.mesh.getColorAt(0, sampled);
+    assert.equal(particles.count, 1);
+    assert.ok(sampled.b < base.b, 'burnout darkens the particle before it dies');
+    particles.dispose();
+});
+
 test('rocket blast saturation replaces an expiring blast instead of dropping the new impact', () => {
     const particles = new ParticleSystem({
         addToScene() {},

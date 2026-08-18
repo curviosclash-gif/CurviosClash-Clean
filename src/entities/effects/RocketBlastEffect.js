@@ -4,6 +4,22 @@ import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.j
 const MAX_ROCKET_BLASTS = 32;
 const DUMMY = new THREE.Object3D();
 
+// The core-and-shockwave pass is not rocket-specific - it is the only effect in the
+// game that reads as a detonation rather than as flying debris, so every blast-scale
+// event picks its size here instead of growing its own effect.
+const BLAST_PROFILES = Object.freeze({
+    ROCKET_WEAK: Object.freeze({ radius: 2.6, lifetime: 0.48 }),
+    ROCKET_MEDIUM: Object.freeze({ radius: 3.1, lifetime: 0.56 }),
+    ROCKET_HEAVY: Object.freeze({ radius: 3.8, lifetime: 0.64 }),
+    ROCKET_MEGA: Object.freeze({ radius: 4.8, lifetime: 0.72 }),
+    // A wrecked vehicle detonates wider and slower than the rocket that killed it,
+    // so a rocket kill reads as impact first and wreck second rather than as one
+    // doubled sphere.
+    DEATH: Object.freeze({ radius: 5.2, lifetime: 0.8 }),
+    // Knocking an item loose is a pickup-scale event, not a kill.
+    ITEM_BURST: Object.freeze({ radius: 1.6, lifetime: 0.34 }),
+});
+
 export class RocketBlastEffect {
     constructor(renderer, { modernGraphics = true } = {}) {
         this.renderer = renderer;
@@ -49,21 +65,10 @@ export class RocketBlastEffect {
         return mesh;
     }
 
-    spawn(position, rocketType, color) {
+    spawn(position, blastType, color) {
         if (!position || !this.coreMesh || !this.waveMesh) return;
 
-        let radius = 3.1;
-        let lifetime = 0.56;
-        if (rocketType === 'ROCKET_WEAK') {
-            radius = 2.6;
-            lifetime = 0.48;
-        } else if (rocketType === 'ROCKET_HEAVY') {
-            radius = 3.8;
-            lifetime = 0.64;
-        } else if (rocketType === 'ROCKET_MEGA') {
-            radius = 4.8;
-            lifetime = 0.72;
-        }
+        const { radius, lifetime } = BLAST_PROFILES[blastType] || BLAST_PROFILES.ROCKET_MEDIUM;
 
         let index = this.count;
         if (this.count < MAX_ROCKET_BLASTS) {
