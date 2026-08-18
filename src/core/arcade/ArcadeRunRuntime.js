@@ -36,30 +36,19 @@ import {
     updateSectorMissionState,
 } from '../../state/arcade/ArcadeMissionState.js';
 import {
-    ARCADE_RUN_LEVELUP_REWARDS,
-    ARCADE_SECTOR_MODIFIERS,
     resolveArcadeEndlessSectorDescriptor,
     resolveArcadeSectorRuntimeProfile,
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
-import {
-    getArcadeModifierRegistryDescriptor,
-    resolveArcadeModifierMeta,
-} from '../../shared/contracts/ArcadeModifierContract.js';
-import {
-    getArcadeRewardRegistryDescriptor,
-    resolveArcadeRewardMeta,
-} from '../../shared/contracts/ArcadeRewardContract.js';
-import {
-    getRuntimeMapCatalog,
-    getRuntimeMapDefinition,
-    listRuntimeMapPresetKeys,
-    resolveRuntimeMapPresetLabel,
-} from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
 import { assignArcadeSectorRuntimeState, updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
 import { applyParcoursLeaderboardEvent } from './ArcadeParcoursLeaderboardOps.js';
+import {
+    prepareArcadeIntermissionState,
+    resolveArcadeModifierScoreBonus,
+} from './ArcadeIntermissionPlanOps.js';
 import {
     clearGhostLibrarySaveTimer,
     flushArcadePersistenceSaves,
@@ -77,7 +66,7 @@ const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
 const DEFAULT_ARCADE_PERSISTENCE_SAVE_THROTTLE_MS = 250;
 const ARCADE_RUN_ABORT_REASONS = new Set(['ABORT', 'ABORTED', 'MATCH_ABORT', 'QUIT', 'RUN_ABORT']);
 
-import { toSafeNumber, computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
+import { toSafeInt, toSafeNumber, computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 
 function resolveLogger(logger) {
     if (logger && typeof logger.log === 'function') return logger;
@@ -86,11 +75,6 @@ function resolveLogger(logger) {
 
 function isPromiseLike(value) {
     return !!value && typeof value.then === 'function';
-}
-
-function toSafeInt(value, fallback = 0) {
-    const parsed = Math.floor(Number(value));
-    return Number.isFinite(parsed) ? parsed : fallback;
 }
 
 function clampIndex(index, maxExclusive) {
@@ -104,30 +88,6 @@ function toSafeBudgetLimit(value, fallback = 0) {
     const numeric = Math.trunc(Number(value));
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
 }
-
-function formatMapLabel(mapKey) {
-    const raw = String(mapKey || '').trim();
-    if (!raw) return 'Unbekannte Map';
-    const fromCatalog = resolveRuntimeMapPresetLabel(raw);
-    if (typeof fromCatalog === 'string' && fromCatalog.trim().length > 0) {
-        return fromCatalog.trim();
-    }
-    return raw.replace(/_/g, ' ');
-}
-
-function createModifierScoreBonusMap() {
-    const map = new Map();
-    for (let i = 0; i < ARCADE_SECTOR_MODIFIERS.length; i += 1) {
-        const entry = ARCADE_SECTOR_MODIFIERS[i];
-        if (!entry || typeof entry !== 'object') continue;
-        const id = String(entry.id || '').trim();
-        if (!id) continue;
-        map.set(id, Math.max(0, toSafeNumber(entry.scoreBonus, 0)));
-    }
-    return map;
-}
-
-const MODIFIER_SCORE_BONUS_BY_ID = createModifierScoreBonusMap();
 
 export class ArcadeRunRuntime {
     constructor(options = {}) {
@@ -517,137 +477,8 @@ export class ArcadeRunRuntime {
         });
     }
 
-    _resolveRewardChoicesForSector(sectorIndex) {
-        const sectorEntry = this._getEncounterSectorEntry(sectorIndex);
-        const rewardRegistryIds = getArcadeRewardRegistryDescriptor().entries
-            .map((entry) => String(entry.id || '').trim())
-            .filter(Boolean);
-        const sourceChoices = Array.isArray(sectorEntry?.rewardChoices) && sectorEntry.rewardChoices.length > 0
-            ? sectorEntry.rewardChoices
-            : (rewardRegistryIds.length > 0
-                ? rewardRegistryIds
-                : ARCADE_RUN_LEVELUP_REWARDS.map((entry) => entry.id));
-        const deduped = [];
-        const used = new Set();
-        for (let i = 0; i < sourceChoices.length; i += 1) {
-            const rewardId = String(sourceChoices[i] || '').trim();
-            if (!rewardId || used.has(rewardId)) continue;
-            used.add(rewardId);
-            const meta = resolveArcadeRewardMeta(rewardId);
-            deduped.push({
-                id: rewardId,
-                label: meta?.label || rewardId,
-                effectText: meta?.effectText || '',
-            });
-            if (deduped.length >= 3) break;
-        }
-        if (deduped.length > 0) return deduped;
-
-        const fallback = getArcadeRewardRegistryDescriptor().entries[0] || ARCADE_RUN_LEVELUP_REWARDS[0];
-        const fallbackId = String(fallback?.id || 'run_speed_t1');
-        const fallbackMeta = resolveArcadeRewardMeta(fallbackId);
-        return [{
-            id: fallbackId,
-            label: fallbackMeta?.label || fallbackId,
-            effectText: fallbackMeta?.effectText || '',
-        }];
-    }
-
-    _buildIntermissionChoices(nextSectorIndex) {
-        const sequence = Array.isArray(this._state?.mapSequence) ? this._state.mapSequence : [];
-        const targetIndex = Math.max(0, toSafeInt(nextSectorIndex, 1) - 1);
-        const baseMapKey = getMapKeyForSector(sequence, targetIndex);
-        const encounterEntry = this._getEncounterSectorEntry(nextSectorIndex);
-        const baseModifierId = String(encounterEntry?.modifierId || this._activeModifierId || '').trim();
-
-        const runtimeMapCatalog = getRuntimeMapCatalog();
-        const mapCatalogKeys = listRuntimeMapPresetKeys(runtimeMapCatalog);
-        const choices = [];
-        const pushChoice = (mapKey, modifierId, source) => {
-            const normalizedMapKey = String(mapKey || '').trim();
-            if (!normalizedMapKey) return;
-            const normalizedModifierId = String(modifierId || '').trim();
-            const id = `${source}-${normalizedMapKey}-${normalizedModifierId || 'none'}`;
-            if (choices.some((entry) => entry.id === id)) return;
-            const modifierMeta = resolveArcadeModifierMeta(normalizedModifierId);
-            choices.push({
-                id,
-                mapKey: normalizedMapKey,
-                mapLabel: formatMapLabel(normalizedMapKey),
-                modifierId: normalizedModifierId || null,
-                modifierLabel: modifierMeta?.label || (normalizedModifierId || 'Kein Modifier'),
-                modifierEffect: modifierMeta?.effectText || '',
-                source,
-                objectiveLabel: String(encounterEntry?.objectiveId || '').replace(/_/g, ' '),
-                squadLabel: String(encounterEntry?.squadId || '').replace(/_/g, ' '),
-            });
-        };
-
-        pushChoice(baseMapKey, baseModifierId, 'plan');
-
-        const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
-        const candidateMaps = mapCatalogKeys.filter((mapKey) => {
-            if (mapKey === baseMapKey) return false;
-            const definition = getRuntimeMapDefinition(mapKey, runtimeMapCatalog);
-            const mapIsParcours = definition?.parcours?.enabled === true;
-            return mapIsParcours === nextSectorIsParcours;
-        });
-        const modifierIds = getArcadeModifierRegistryDescriptor().entries
-            .map((entry) => String(entry.id || '').trim())
-            .filter(Boolean);
-        const altTargetCount = candidateMaps.length > 0 ? 3 : 1;
-        for (let i = 0; i < altTargetCount && choices.length < 3; i += 1) {
-            const mapIdx = (targetIndex + i) % Math.max(1, candidateMaps.length);
-            const modifierIdx = (targetIndex + i + 1) % Math.max(1, modifierIds.length);
-            const mapKey = candidateMaps[mapIdx] || baseMapKey;
-            const modifierId = modifierIds[modifierIdx] || baseModifierId;
-            pushChoice(mapKey, modifierId, 'alt');
-        }
-
-        return choices.slice(0, 3);
-    }
-
     _prepareIntermission(nowMs = Date.now()) {
-        if (!this._state) return null;
-        const nextSectorIndex = Math.max(1, toSafeInt(this._state.completedSectors, 0) + 1);
-        const choices = this._buildIntermissionChoices(nextSectorIndex);
-        const rewards = this._resolveRewardChoicesForSector(nextSectorIndex);
-        const selectedChoiceId = choices[0]?.id || null;
-        const selectedRewardId = rewards[0]?.id || null;
-        const selectedChoice = choices.find((entry) => entry.id === selectedChoiceId) || null;
-        const selectedReward = rewards.find((entry) => entry.id === selectedRewardId) || null;
-
-        const lastSectorSummary = this._state.lastSectorSummary || null;
-        const missionsCompleted = Math.max(0, toSafeInt(this._missionState?.completedCount, 0));
-        const missionsTotal = Math.max(0, toSafeInt(this._missionState?.missions?.length, 0));
-        const nextSectorEntry = this._getEncounterSectorEntry(nextSectorIndex);
-        const intermissionState = {
-            generatedAtMs: Math.max(0, toSafeNumber(nowMs, Date.now())),
-            nextSectorIndex,
-            selectedChoiceId,
-            selectedRewardId,
-            choices,
-            rewardChoices: rewards,
-            missionsCompleted,
-            missionsTotal,
-            lastSectorPoints: Math.max(0, toSafeNumber(lastSectorSummary?.awardedPoints, 0)),
-            lastSectorMultiplier: Math.max(1, toSafeNumber(lastSectorSummary?.multiplierApplied, 1)),
-            lastSectorXp: Math.max(0, toSafeNumber(this._state?.lastSectorXp?.earned, 0)),
-            nextSectorPreview: {
-                templateId: String(nextSectorEntry?.templateId || ''),
-                objectiveId: String(nextSectorEntry?.objectiveId || ''),
-                squadId: String(nextSectorEntry?.squadId || ''),
-                mapKey: String(selectedChoice?.mapKey || ''),
-                mapLabel: String(selectedChoice?.mapLabel || ''),
-                modifierId: String(selectedChoice?.modifierId || ''),
-                modifierLabel: String(selectedChoice?.modifierLabel || ''),
-                modifierEffect: String(selectedChoice?.modifierEffect || ''),
-            },
-            selectedRewardLabel: String(selectedReward?.label || ''),
-            selectedRewardEffect: String(selectedReward?.effectText || ''),
-        };
-        this._state.intermission = intermissionState;
-        return intermissionState;
+        return prepareArcadeIntermissionState(this, nowMs);
     }
 
     getIntermissionState() {
@@ -745,7 +576,7 @@ export class ArcadeRunRuntime {
                 this._state.encounterSequence[seqIndex] = {
                     ...currentEntry,
                     modifierId,
-                    scoreBonus: modifierId ? (MODIFIER_SCORE_BONUS_BY_ID.get(modifierId) || 0) : 0,
+                    scoreBonus: resolveArcadeModifierScoreBonus(modifierId),
                 };
             }
         }

@@ -16,6 +16,17 @@ export function toSafeNumber(value, fallback = 0) {
 }
 
 /**
+ * Round a value down to an integer, returning fallback if not finite.
+ * @param {*} value
+ * @param {number} [fallback=0]
+ * @returns {number}
+ */
+export function toSafeInt(value, fallback = 0) {
+    const parsed = Math.floor(Number(value));
+    return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+/**
  * Clamp a numeric value between min and max. Non-finite values use fallback.
  * @param {*} value
  * @param {number} min

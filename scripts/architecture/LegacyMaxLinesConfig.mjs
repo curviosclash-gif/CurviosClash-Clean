@@ -1,6 +1,6 @@
 export const LEGACY_MAX_LINES = Object.freeze({
     'src/core/Audio.js': 758,
-    'src/core/arcade/ArcadeRunRuntime.js': 1276,
+    'src/core/arcade/ArcadeRunRuntime.js': 1185,
     'src/core/GameDebugApi.js': 650,
     'src/core/GameRuntimeFacade.js': 485,
     'src/core/MediaRecorderSystem.js': 1461,
