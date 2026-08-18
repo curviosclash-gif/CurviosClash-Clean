@@ -184,6 +184,24 @@ test('killcam keeps scene replay aligned with its source-time camera pose', () =
     killcam.dispose();
 });
 
+test('the replay blast carries the same cause and weapon the live death would have used', () => {
+    const { killcam, player, killer, explosionCalls } = createKillcamFixture();
+
+    assert.equal(
+        killcam.onPlayerDied(player, { killer, cause: 'PROJECTILE', projectileType: 'ROCKET_MEGA' }),
+        true
+    );
+    killcam._triggerDeathExplosion();
+
+    // Without these the replay would scale its wreck off a blank cause and show a
+    // baseline pop where the live path shows a mega detonation.
+    const options = explosionCalls.at(-1)?.[2];
+    assert.equal(options?.presentationOverride, true);
+    assert.equal(options?.cause, 'PROJECTILE');
+    assert.equal(options?.projectileType, 'ROCKET_MEGA');
+    killcam.dispose();
+});
+
 test('pixel killcam records the live death frame before starting lossless playback', async () => {
     const calls = [];
     const terminalFrame = { time: 2000, width: 8, height: 4 };

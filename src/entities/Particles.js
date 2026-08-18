@@ -8,6 +8,7 @@ import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContrac
 import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 import { RocketBlastEffect } from './effects/RocketBlastEffect.js';
 import { applyParticleColorRamp } from './effects/ParticleColorRamp.js';
+import { resolveDeathExplosionScale } from './effects/DeathExplosionScale.js';
 
 const MAX_PARTICLES = 1000;
 const DUMMY = new THREE.Object3D();
@@ -237,12 +238,30 @@ export class ParticleSystem {
     spawnExplosion(position, color, options = {}) {
         const presentationOverride = options?.presentationOverride === true;
         if (this._presentationSuppressed && !presentationOverride) return;
-        this.spawn(position, 30, color, 12.0, 0.7, 0.6, {
-            gravity: -6.0,
-            type: 'explosion',
-            presentationOverride,
-        });
-        this.rocketBlastEffect?.spawn(position, options?.blast || 'DEATH', color);
+        const blast = options?.blast || 'DEATH';
+        const feedback = resolveGameplayConfig(this.configSource).HUNT?.FEEDBACK?.DEATH_EXPLOSION || {};
+        // Knocking an item loose keeps its authored pickup-scale burst - it is not
+        // a kill, so it must not grow with whatever happened to hit it.
+        const scale = blast === 'ITEM_BURST'
+            ? 1
+            : resolveDeathExplosionScale(feedback, options?.cause, options?.projectileType);
+
+        this.spawn(
+            position,
+            Math.max(1, Math.round((Number(feedback.count) || 30) * scale)),
+            color,
+            Math.max(0.1, (Number(feedback.speed) || 12.0) * scale),
+            Math.max(0.05, (Number(feedback.size) || 0.7) * scale),
+            Math.max(0.05, (Number(feedback.life) || 0.6) * scale),
+            {
+                gravity: Number(feedback.gravity) || -6.0,
+                type: 'explosion',
+                presentationOverride,
+            }
+        );
+        // Only the shockwave radius follows the scale, not its lifetime: a blast is
+        // a fast slap that gets wider, not a slow one that lingers.
+        this.rocketBlastEffect?.spawn(position, blast, color, scale);
     }
 
     spawnHit(position, color) {

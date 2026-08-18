@@ -163,6 +163,41 @@ export const HUNT_CONFIG = Object.freeze({
             gravity: -5.0,
             color: 0x44ccff,
         }),
+        // A death is the loudest moment in the game and used to be the only
+        // effect without a config block, so clipping a wall looked exactly like
+        // taking a mega rocket to the cockpit. The values below are the baseline
+        // burst; one scale factor grows the whole event from there - particle
+        // count, debris size, throw speed, burn time and shockwave radius alike -
+        // so a wreck reads as big as whatever caused it.
+        DEATH_EXPLOSION: Object.freeze({
+            count: 30,
+            speed: 12.0,
+            size: 0.7,
+            life: 0.6,
+            gravity: -6.0,
+            minScale: 0.6,
+            maxScale: 1.6,
+            causeScale: Object.freeze({
+                WALL: 0.8,
+                TRAIL: 0.9,
+                TRAIL_SELF: 0.8,
+                TRAIL_OTHER: 0.9,
+                PLAYER_CRASH: 1.15,
+                PROJECTILE: 1.0,
+                // A turret is a deployed machine, not a crewed vehicle.
+                TURRET: 0.7,
+            }),
+            // Rocket tiers already encode damage (30/60/120/210 against 100 HP),
+            // so the tier is the damage step - a separate damage lookup would
+            // only restate what the type already says.
+            projectileScale: Object.freeze({
+                MG_BULLET: 0.9,
+                ROCKET_WEAK: 1.1,
+                ROCKET_MEDIUM: 1.25,
+                ROCKET_HEAVY: 1.42,
+                ROCKET_MEGA: 1.6,
+            }),
+        }),
     }),
     ROCKET_TIERS: Object.freeze({
         WEAK: Object.freeze({ damage: 30, spawnChance: 0.5, trailBlastMeters: 6 }),

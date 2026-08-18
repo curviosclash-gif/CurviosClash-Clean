@@ -504,9 +504,10 @@ export class KillcamSystem {
         }
         if (typeof particles?.spawnExplosion === 'function') {
             try {
-                particles.spawnExplosion(focus, this._deadPlayerColor, {
-                    presentationOverride: true,
-                });
+                // The replay scales its blast from the same cause/projectile pair the
+                // live path uses, so the slow-motion wreck matches what it replaces.
+                const blast = { presentationOverride: true, ...(this._deathMetadata || {}) };
+                particles.spawnExplosion(focus, this._deadPlayerColor, blast);
             } catch {
                 // best-effort particle effect
             }

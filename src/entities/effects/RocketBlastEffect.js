@@ -65,10 +65,17 @@ export class RocketBlastEffect {
         return mesh;
     }
 
-    spawn(position, blastType, color) {
+    // `radiusScale` widens a profile without inventing a new one: a death caused by
+    // a mega rocket is the same kind of event as a death against a wall, just
+    // bigger. The lifetime deliberately stays at the profile value so a larger
+    // blast hits harder rather than hanging around longer.
+    spawn(position, blastType, color, radiusScale = 1) {
         if (!position || !this.coreMesh || !this.waveMesh) return;
 
-        const { radius, lifetime } = BLAST_PROFILES[blastType] || BLAST_PROFILES.ROCKET_MEDIUM;
+        const profile = BLAST_PROFILES[blastType] || BLAST_PROFILES.ROCKET_MEDIUM;
+        const scale = Number.isFinite(Number(radiusScale)) && Number(radiusScale) > 0 ? Number(radiusScale) : 1;
+        const radius = profile.radius * scale;
+        const lifetime = profile.lifetime;
 
         let index = this.count;
         if (this.count < MAX_ROCKET_BLASTS) {

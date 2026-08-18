@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { PARCOURS_MAPS } from '../src/core/config/maps/presets/parcours_maps.js';
 import { getArenaMaterialBundle } from '../src/entities/arena/ArenaBuildResourceCache.js';
 import { ParticleSystem } from '../src/entities/Particles.js';
+import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 
 test('desktop art pass keeps Rift landmarks visual-only and uses readable PBR surfaces', () => {
     const rift = PARCOURS_MAPS.parcours_rift;
@@ -140,6 +141,59 @@ test('particles flash hot on spawn and burn out before they vanish', () => {
     particles.mesh.getColorAt(0, sampled);
     assert.equal(particles.count, 1);
     assert.ok(sampled.b < base.b, 'burnout darkens the particle before it dies');
+    particles.dispose();
+});
+
+test('a death explosion scales with the cause and the weapon that landed it', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+    }, { HUNT: HUNT_CONFIG });
+    const origin = new THREE.Vector3();
+
+    particles.spawnExplosion(origin, 0xffffff, { cause: 'WALL' });
+    const wallCount = particles.count;
+    const wallRadius = particles.rocketBlastEffect.radii[0];
+    const wallLifetime = particles.rocketBlastEffect.maxLifetimes[0];
+
+    particles.clear();
+    particles.spawnExplosion(origin, 0xffffff, { cause: 'PROJECTILE', projectileType: 'ROCKET_MEGA' });
+    const megaCount = particles.count;
+    const megaRadius = particles.rocketBlastEffect.radii[0];
+
+    assert.ok(megaCount > wallCount, 'a mega rocket kill throws more debris than a wall death');
+    assert.ok(megaRadius > wallRadius, 'a mega rocket kill detonates wider than a wall death');
+    // The blast is a fast slap that gets wider, not a slow one that lingers.
+    assert.equal(particles.rocketBlastEffect.maxLifetimes[0], wallLifetime);
+
+    // A weak rocket has to land between the two, otherwise the tiers are decoration.
+    particles.clear();
+    particles.spawnExplosion(origin, 0xffffff, { cause: 'PROJECTILE', projectileType: 'ROCKET_WEAK' });
+    assert.ok(particles.rocketBlastEffect.radii[0] > wallRadius);
+    assert.ok(particles.rocketBlastEffect.radii[0] < megaRadius);
+    particles.dispose();
+});
+
+test('knocking an item loose stays pickup-sized even when a mega rocket did it', () => {
+    const particles = new ParticleSystem({
+        addToScene() {},
+        removeFromScene() {},
+    }, { HUNT: HUNT_CONFIG });
+    const origin = new THREE.Vector3();
+
+    particles.spawnExplosion(origin, 0xff0000, { blast: 'ITEM_BURST' });
+    const plainCount = particles.count;
+    const plainRadius = particles.rocketBlastEffect.radii[0];
+
+    particles.clear();
+    particles.spawnExplosion(origin, 0xff0000, {
+        blast: 'ITEM_BURST',
+        cause: 'PROJECTILE',
+        projectileType: 'ROCKET_MEGA',
+    });
+
+    assert.equal(particles.count, plainCount, 'an item burst does not grow with the weapon');
+    assert.equal(particles.rocketBlastEffect.radii[0], plainRadius);
     particles.dispose();
 });
 

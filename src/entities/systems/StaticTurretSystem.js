@@ -428,7 +428,7 @@ export class StaticTurretSystem {
             `${turret.id}:${reason}`
         );
         if (reason === 'destroyed') {
-            this.entityManager?.particles?.spawnExplosion?.(turret.position, TURRET_DESTROYED_COLOR);
+            this.entityManager?.particles?.spawnExplosion?.(turret.position, TURRET_DESTROYED_COLOR, { cause: 'TURRET' });
             if (!sourcePlayer?.isBot) this.entityManager?.audio?.play?.('HIT', { intensity: 0.8 });
         }
     }
