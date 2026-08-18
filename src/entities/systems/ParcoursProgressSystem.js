@@ -1,16 +1,15 @@
 import {
-    buildRouteFromParcours,
     createPlayerProgressState,
     formatDurationMs,
     normalizeString,
 } from './ParcoursProgressUtils.js';
-import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { resetParcoursProgressState, rewindParcoursProgressState } from './ParcoursProgressStateOps.js';
 import {
     buildRouteSnapshot,
     cancelGhostRecordingForPlayer,
     clearGhostRecording,
     playerOwnsGhostRecording,
+    resolveActiveParcoursRoute,
     resolveProgressPlayerIndex,
 } from './ParcoursProgressRuntime.js';
 import {
@@ -90,21 +89,23 @@ export class ParcoursProgressSystem {
     }
     startRound(players = []) {
         this._clearGhostRecording('round-start');
-        const entityRuntimeConfig = resolveEntityRuntimeConfig(this.entityManager);
-        const mapScale = Number(entityRuntimeConfig?.ARENA?.MAP_SCALE);
-        this._route = buildRouteFromParcours(this.entityManager?.arena?.currentMapDefinition?.parcours, {
-            positionScale: Number.isFinite(mapScale) && mapScale > 0 ? mapScale : 1,
-        });
+        this._route = resolveActiveParcoursRoute(this.entityManager);
         this._playerStates.clear();
         this._completionOrder.length = 0;
         this._respawnPlanByPlayer.clear();
-        if (!this._route) return;
+        // Arenas are prewarmed and reused across matches, so the rings survive a mode switch
+        // and have to be told again each round which way they belong.
+        const rt = this.entityManager?.arena?._portalGateSystem?.checkpointRingRuntime;
+        rt?.setRingsVisible?.(!!this._route);
+        if (!this._route) {
+            rt?.setProgressProvider?.(null);
+            return;
+        }
         if (!Array.isArray(players)) return;
         for (const player of players) {
             if (!player || !Number.isInteger(player.index)) continue;
             this._playerStates.set(player.index, createPlayerProgressState(this._route.totalCheckpoints));
         }
-        const rt = this.entityManager?.arena?._portalGateSystem?.checkpointRingRuntime;
         rt?.setProgressProvider?.(() => {
             const progressPlayerIndex = this._resolveProgressPlayerIndex(this.entityManager?.players || players);
             return this.getPlayerProgressSnapshot(progressPlayerIndex);

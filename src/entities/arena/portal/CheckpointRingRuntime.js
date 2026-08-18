@@ -50,6 +50,16 @@ export class CheckpointRingRuntime {
         this._particles = particles && typeof particles.spawn === 'function' ? particles : null;
     }
 
+    // The rings are built from the map definition alone, while running the route is a
+    // per-round decision. Prewarmed arenas are reused across matches, so a mode that does
+    // not run the route has to hide them again rather than rely on how they were built.
+    setRingsVisible(isVisible) {
+        const rings = Array.isArray(this.arena?.checkpointRings) ? this.arena.checkpointRings : [];
+        for (const entry of rings) {
+            if (entry?.mesh) entry.mesh.visible = isVisible !== false;
+        }
+    }
+
     resetRuntimeState() {
         this.spinAngle = 0;
         this._triggerAnimations.clear();

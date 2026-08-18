@@ -1,3 +1,22 @@
+import { isParcoursActiveForGameMode } from '../../shared/contracts/MapModeContract.js';
+import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+import { buildRouteFromParcours } from './ParcoursProgressUtils.js';
+
+/**
+ * The route is authored on the map, but only the modes built around it run it: the tutorial
+ * in Classic, the time trials in Arcade, and Hunt only where a map declares its course as a
+ * combat route. Without this gate an adventure map carries lit checkpoints into a deathmatch.
+ */
+export function resolveActiveParcoursRoute(entityManager) {
+    const mapDefinition = entityManager?.arena?.currentMapDefinition || null;
+    if (!isParcoursActiveForGameMode(mapDefinition, entityManager?.activeGameMode)) return null;
+
+    const mapScale = Number(resolveEntityRuntimeConfig(entityManager)?.ARENA?.MAP_SCALE);
+    return buildRouteFromParcours(mapDefinition.parcours, {
+        positionScale: Number.isFinite(mapScale) && mapScale > 0 ? mapScale : 1,
+    });
+}
+
 export function resolveProgressPlayerIndex(
     entityManager,
     route,

@@ -236,6 +236,9 @@ export const PARCOURS_MAPS = Object.freeze({
         parcours: {
             enabled: true,
             routeId: 'assault_mg_rockets_v2',
+            // The one course that is meant to be flown under fire: the checkpoints lead
+            // through the turret lines, so this route runs in Hunt as well.
+            gameModes: ['CLASSIC', 'HUNT', 'ARCADE'],
             rules: {
                 ordered: true,
                 bidirectionalCheckpoints: true,
