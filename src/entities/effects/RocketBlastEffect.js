@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.js';
+import { resolveBlastShake } from './BlastCameraShake.js';
 
 const MAX_ROCKET_BLASTS = 32;
 const DUMMY = new THREE.Object3D();
@@ -102,6 +103,7 @@ export class RocketBlastEffect {
         this._tmpColor.lerp(this._coreTint, 0.72);
         this.coreMesh.setColorAt(index, this._tmpColor);
 
+        this._shakeNearbyCameras(position, radius);
         this._writeMatrices(index, 0);
         this.coreMesh.count = this.count;
         this.waveMesh.count = this.count;
@@ -109,6 +111,26 @@ export class RocketBlastEffect {
         this.waveMesh.instanceMatrix.needsUpdate = true;
         if (this.coreMesh.instanceColor) this.coreMesh.instanceColor.needsUpdate = true;
         if (this.waveMesh.instanceColor) this.waveMesh.instanceColor.needsUpdate = true;
+    }
+
+    // Every local view gets its own distance check. That is what makes split-screen
+    // correct - two players sitting apart must not share one shake - and it also
+    // keeps bots out for free: a bot has no camera, so it can never be shaken.
+    _shakeNearbyCameras(position, radius) {
+        const renderer = this.renderer;
+        const cameras = renderer?.cameras;
+        if (!Array.isArray(cameras) || typeof renderer.triggerCameraShake !== 'function') return;
+        if (renderer.getCameraPerspectiveSettings?.()?.reduceMotion === true) return;
+
+        for (let i = 0; i < cameras.length; i += 1) {
+            const view = cameras[i]?.position;
+            if (!view) continue;
+            const dx = view.x - position.x;
+            const dy = view.y - position.y;
+            const dz = view.z - position.z;
+            const { intensity, duration } = resolveBlastShake(Math.sqrt(dx * dx + dy * dy + dz * dz), radius);
+            if (intensity > 0) renderer.triggerCameraShake(i, intensity, duration);
+        }
     }
 
     _writeMatrices(index, progress) {
