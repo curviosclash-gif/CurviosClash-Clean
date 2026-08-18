@@ -162,6 +162,12 @@ export const HUNT_CONFIG = Object.freeze({
             life: 0.45,
             gravity: -5.0,
             color: 0x44ccff,
+            // Total particles one burst may spend. A mega rocket destroys far more
+            // segments than countPerSegment can afford against the shared buffer,
+            // so beyond this the segments are thinned instead of the burst eating
+            // its own particles. 240 is 30 groups - a readable chain along 90 m
+            // that still leaves three quarters of the buffer for everything else.
+            maxParticlesPerBurst: 240,
         }),
         // A death is the loudest moment in the game and used to be the only
         // effect without a config block, so clipping a wall looked exactly like

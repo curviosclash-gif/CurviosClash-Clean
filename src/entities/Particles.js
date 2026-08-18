@@ -9,6 +9,7 @@ import { isModernGraphicsStyle } from '../shared/contracts/GraphicsStyleContract
 import { RocketBlastEffect } from './effects/RocketBlastEffect.js';
 import { applyParticleColorRamp } from './effects/ParticleColorRamp.js';
 import { resolveDeathExplosionScale } from './effects/DeathExplosionScale.js';
+import { selectTrailBlastIndices } from './effects/TrailBlastBudget.js';
 
 const MAX_PARTICLES = 1000;
 const DUMMY = new THREE.Object3D();
@@ -353,7 +354,11 @@ export class ParticleSystem {
         const countPerPoint = Math.max(1, Number(feedback.countPerSegment) || 8);
         const color = Number.isFinite(Number(trailColor)) ? Number(trailColor) : Number(feedback.color) || 0x44ccff;
 
-        for (const point of points || []) {
+        const list = Array.isArray(points) ? points : Array.from(points || []);
+        const indices = selectTrailBlastIndices(list.length, countPerPoint, feedback.maxParticlesPerBurst);
+
+        for (const index of indices) {
+            const point = list[index];
             if (!point) continue;
             this.spawn(
                 point,
