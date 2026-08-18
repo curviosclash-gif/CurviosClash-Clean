@@ -11,7 +11,6 @@ export const LEGACY_MAX_LINES = Object.freeze({
     'src/core/config/maps/presets/parcours_pack_v130.js': 620,
     'src/core/main.js': 560,
     'dev/training/src/entities/ai/training/WebSocketTrainerBridge.js': 700,
-    'src/entities/EntityManager.js': 547,
     'src/entities/systems/PlayerInputSystem.js': 515,
     'src/hunt/KillcamSystem.js': 729,
     'src/shared/contracts/BrowserDemoSurfacePolicyOverrideContract.js': 692,

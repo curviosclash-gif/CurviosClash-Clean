@@ -19,11 +19,7 @@ import {
     emitArcadeDamageEvent,
     emitArcadeGameplayEvent,
 } from './runtime/EntityArcadeGameplayEvents.js';
-import {
-    findNearestLiveCameraOpponentPosition,
-    findNearestProjectedCameraOpponentPosition,
-    updateEntityCameraContext,
-} from './runtime/EntityCameraContext.js';
+import { updateEntityCameras } from './runtime/EntityCameraUpdateOps.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -406,117 +402,7 @@ export class EntityManager {
     }
 
     updateCameras(dt, renderAlpha = 1, useRenderedTransforms = false, renderProjection = null) {
-        const projectedPlayers = Array.isArray(renderProjection?.players) ? renderProjection.players : null;
-        let projectedHumanCount = 0;
-        if (projectedPlayers) {
-            for (const player of projectedPlayers) {
-                if (player && player.isBot !== true) projectedHumanCount += 1;
-            }
-        }
-        if (projectedHumanCount > 0) {
-            for (const projectedPlayer of projectedPlayers) {
-                if (!projectedPlayer || projectedPlayer.isBot === true) continue;
-                const playerIndex = Number.isInteger(projectedPlayer?.playerIndex)
-                    ? projectedPlayer.playerIndex
-                    : -1;
-                if (playerIndex < 0 || playerIndex >= this.renderer.cameras.length) continue;
-                if (this._killcamSystem?.ownsCamera?.(playerIndex) === true) continue;
-
-                const mode = this.renderer.getCameraMode(playerIndex);
-                this._tmpCamRenderPos.set(
-                    Number(projectedPlayer?.position?.x) || 0,
-                    Number(projectedPlayer?.position?.y) || 0,
-                    Number(projectedPlayer?.position?.z) || 0
-                );
-                this._tmpCamRenderQuat.set(
-                    Number(projectedPlayer?.quaternion?.x) || 0,
-                    Number(projectedPlayer?.quaternion?.y) || 0,
-                    Number(projectedPlayer?.quaternion?.z) || 0,
-                    Number.isFinite(Number(projectedPlayer?.quaternion?.w))
-                        ? Number(projectedPlayer?.quaternion?.w)
-                        : 1
-                );
-
-                const dir = projectedPlayer?.alive !== false
-                    ? this._tmpDir2.set(
-                        Number(projectedPlayer?.direction?.x) || 0,
-                        Number(projectedPlayer?.direction?.y) || 0,
-                        Number(projectedPlayer?.direction?.z) || 0
-                    )
-                    : this._tmpDir2.set(0, 0, -1);
-                if (dir.lengthSq() <= 0.000001) {
-                    dir.set(0, 0, -1);
-                } else {
-                    dir.normalize();
-                }
-
-                const firstPersonAnchor = mode === 'FIRST_PERSON'
-                    ? this._tmpCamAnchor.set(
-                        Number(projectedPlayer?.firstPersonAnchor?.x) || 0,
-                        Number(projectedPlayer?.firstPersonAnchor?.y) || 0,
-                        Number(projectedPlayer?.firstPersonAnchor?.z) || 0
-                    )
-                    : null;
-                const otherPlayerPosition = findNearestProjectedCameraOpponentPosition(
-                    projectedPlayers,
-                    projectedPlayer,
-                    this._tmpVec2
-                );
-
-                this.renderer.updateCamera(
-                    playerIndex,
-                    this._tmpCamRenderPos,
-                    dir,
-                    dt,
-                    this._tmpCamRenderQuat,
-                    projectedPlayer?.cockpitCamera === true,
-                    projectedPlayer?.isBoosting === true,
-                    this.arena,
-                    firstPersonAnchor,
-                    updateEntityCameraContext(this._cameraContext, projectedPlayer, otherPlayerPosition)
-                );
-            }
-            this._killcamSystem?.applyCinematicCamera?.(dt);
-            return;
-        }
-
-        for (const player of this.players) {
-            if (!player.isBot && player.index < this.renderer.cameras.length) {
-                if (this._killcamSystem?.ownsCamera?.(player.index) === true) continue;
-                const mode = this.renderer.getCameraMode(player.index);
-                const reusedRenderedTransform = useRenderedTransforms
-                    && player.view?.copyRenderTransform?.(this._tmpCamRenderPos, this._tmpCamRenderQuat);
-                if (!reusedRenderedTransform) {
-                    player.resolveRenderTransform(renderAlpha, this._tmpCamRenderPos, this._tmpCamRenderQuat);
-                }
-                const dir = player.alive
-                    ? this._tmpDir2.set(0, 0, -1).applyQuaternion(this._tmpCamRenderQuat)
-                    : this._tmpDir2.set(0, 0, -1);
-                const firstPersonAnchor = mode === 'FIRST_PERSON'
-                    ? player.getFirstPersonCameraAnchor(this._tmpCamAnchor)
-                    : null;
-                const otherPlayerPosition = findNearestLiveCameraOpponentPosition(
-                    this.players,
-                    player,
-                    this._tmpCamRenderPos,
-                    renderAlpha,
-                    this._tmpVec2
-                );
-                this.renderer.updateCamera(
-                    player.index,
-                    this._tmpCamRenderPos,
-                    dir,
-                    dt,
-                    this._tmpCamRenderQuat,
-                    player.cockpitCamera,
-                    player.isBoosting,
-                    this.arena,
-                    firstPersonAnchor,
-                    updateEntityCameraContext(this._cameraContext, player, otherPlayerPosition)
-                );
-            }
-        }
-        this._killcamSystem?.applyCinematicCamera?.(dt);
+        updateEntityCameras(this, dt, renderAlpha, useRenderedTransforms, renderProjection);
     }
 
     playLastRoundGhost(clip, options = undefined) {
