@@ -12,9 +12,14 @@
 // the vessel is walled instead -- the island is its floor, two clerestory walls its sides, the
 // vault its ceiling -- and the flyable space is whatever the walls leave. Bores are kept only
 // where the building really is a hole in a wall: the west portals, the roses, the transept doors.
+// The piers that carry the arcade are boxes of their own in NotreDameInterior, and the standing
+// parts of the building site are in NotreDameSiteFrames.
 //
 // Coordinates are authored units with the church floor at y = 8; multiply by the map scale of 3
 // for world units. One real metre is 1.4 authored units, matching the generator.
+
+import { NOTRE_DAME_INTERIOR_PIERS } from './NotreDameInterior.js';
+import { NOTRE_DAME_SITE_FRAMES } from './NotreDameSiteFrames.js';
 
 const GROUND = 8;
 
@@ -226,6 +231,11 @@ const NOTRE_DAME_OBSTACLES = [
     ...aisleRing(NAVE_CENTRE, NAVE_END - NAVE_START, AISLE_HALF),
     ...aisleRing(CHOIR_CENTRE, CHOIR_END - CROSSING_END, AISLE_HALF),
 
+    // The arcade itself. The walls above give the vessel its shape; these are the piers that
+    // carry them, on the same bay the generator draws them on. Without them the interior is a
+    // hall with no columns in it -- forty of them, flown straight through.
+    ...NOTRE_DAME_INTERIOR_PIERS,
+
     // The apse is an ellipse in plan -- 13.9 m along the building, 19.4 m across, measured to the
     // outer face of the radiating chapels. Collision steps that curve in three, each step set a
     // little inside the ellipse. Erring inward is deliberate: at the east end a player may get
@@ -282,6 +292,11 @@ const NOTRE_DAME_OBSTACLES = [
     { pos: [-93.6, GROUND + 44, 0], size: [16, 3, 20] },
     { pos: [110, GROUND + 8, 0], size: [24, 3, 26] },
     { pos: [130, GROUND + 30, 0], size: [22, 4, 24] },
+
+    // --- What stands still on the reconstruction site ----------------------------------------
+    // 'dynamic' collides a mesh only while an animation moves it, which left the machines that do
+    // the moving as scenery: the jib blocks, the mast under it did not.
+    ...NOTRE_DAME_SITE_FRAMES,
 ];
 
 // Portals shortcut the long way round: up the facade, across the roof, and back down the nave.
