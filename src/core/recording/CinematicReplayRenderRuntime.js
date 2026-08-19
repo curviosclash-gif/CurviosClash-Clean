@@ -341,6 +341,7 @@ export function createCinematicReplayFrameRenderer({
     let previousMapBrightness = null;
     let previousViewDistance = null;
     let previousShadowQuality = null;
+    let previousBloomQuality = null;
 
     const applyReplayRendererSettings = (replay) => {
         const metadata = replay?.metadata && typeof replay.metadata === 'object' ? replay.metadata : {};
@@ -350,6 +351,7 @@ export function createCinematicReplayFrameRenderer({
         previousMapBrightness = renderer?.getMapBrightness?.() || null;
         previousViewDistance = renderer?.getViewDistance?.() ?? null;
         previousShadowQuality = renderer?.getShadowQuality?.() ?? null;
+        previousBloomQuality = renderer?.getBloomQuality?.() ?? null;
         renderer?.setRecordingCaptureSettings?.({
             ...(previousRecordingSettings || {}),
             profile: RECORDING_CAPTURE_PROFILE.CINEMATIC,
@@ -377,6 +379,9 @@ export function createCinematicReplayFrameRenderer({
         if (recordedLocalSettings.shadowQuality != null) {
             renderer?.setShadowQuality?.(recordedLocalSettings.shadowQuality);
         }
+        if (recordedLocalSettings.bloomQuality != null) {
+            renderer?.setBloomQuality?.(recordedLocalSettings.bloomQuality);
+        }
     };
 
     const restoreRendererSettings = () => {
@@ -390,12 +395,14 @@ export function createCinematicReplayFrameRenderer({
         if (previousMapBrightness) renderer?.setMapBrightness?.(previousMapBrightness);
         if (previousViewDistance != null) renderer?.setViewDistance?.(previousViewDistance);
         if (previousShadowQuality != null) renderer?.setShadowQuality?.(previousShadowQuality);
+        if (previousBloomQuality != null) renderer?.setBloomQuality?.(previousBloomQuality);
         previousRecordingSettings = null;
         previousCameraPerspectiveSettings = null;
         previousGraphicsStyle = null;
         previousMapBrightness = null;
         previousViewDistance = null;
         previousShadowQuality = null;
+        previousBloomQuality = null;
     };
 
     const resetReplaySession = async () => {

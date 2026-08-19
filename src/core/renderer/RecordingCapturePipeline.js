@@ -5,37 +5,15 @@ import { CameraRigSystem } from './CameraRigSystem.js';
 import { renderShortsFallbackFromSource } from './RecordingCaptureFallbackOps.js';
 import { drawHudOverlay, drawLetterboxOverlay, storeCaptureMeta } from './RecordingCaptureOverlayOps.js';
 import { RecordingOrbitCameraDirector, SLOT_STYLE } from './camera/RecordingOrbitCameraDirector.js';
-import {
-    createDefaultRecordingCaptureSettings,
-    RECORDING_CINEMATIC_QUALITY_PROFILE,
-    normalizeRecordingCaptureSettings,
-    RECORDING_CAPTURE_PROFILE,
-    RECORDING_HUD_MODE,
-} from '../../shared/contracts/RecordingCaptureContract.js';
+import { createDefaultRecordingCaptureSettings, RECORDING_CINEMATIC_QUALITY_PROFILE, normalizeRecordingCaptureSettings, RECORDING_CAPTURE_PROFILE, RECORDING_HUD_MODE } from '../../shared/contracts/RecordingCaptureContract.js';
 import { cloneJsonValue } from '../../shared/utils/JsonClone.js';
-import {
-    CAMERA_PERSPECTIVE_MODE,
-    createDefaultCameraPerspectiveSettings,
-    normalizeCameraPerspectiveSettings,
-} from '../../shared/contracts/CameraPerspectiveContract.js';
-import {
-  applyProjectionQuaternion,
-  applyProjectionVector3,
-  CinematicCaptureSubjectSelector,
-  createCanvasClone,
-  toPositiveEven,
-  toRatio,
-} from './RecordingCaptureProjectionOps.js';
-import {
-    createCaptureCameraContext,
-    resetCapturePerspectiveState,
-    setCaptureCameraFrameTiming,
-    syncCinematicCaptureSubject,
-    updateCaptureCameraContext,
-    updateShortsCaptureCamera,
-} from './RecordingCaptureCameraUpdateOps.js';
+import { CAMERA_PERSPECTIVE_MODE, createDefaultCameraPerspectiveSettings, normalizeCameraPerspectiveSettings } from '../../shared/contracts/CameraPerspectiveContract.js';
+import { resolveBloomQualityPreset } from '../../shared/contracts/BloomQualityContract.js';
+import { applyProjectionQuaternion, applyProjectionVector3, CinematicCaptureSubjectSelector, createCanvasClone, toPositiveEven, toRatio } from './RecordingCaptureProjectionOps.js';
+import { createCaptureCameraContext, resetCapturePerspectiveState, setCaptureCameraFrameTiming, syncCinematicCaptureSubject, updateCaptureCameraContext, updateShortsCaptureCamera } from './RecordingCaptureCameraUpdateOps.js';
 import { VIEWPORT_LAYOUTS, normalizeViewportLayout } from '../../shared/contracts/ViewportLayoutContract.js';
 import { buildStandardCaptureSegments } from './RecordingCaptureLayoutOps.js';
+import { ScenePostProcessingPipeline } from './ScenePostProcessingPipeline.js';
 
 const SHORTS_OUTPUT_ASPECT = Object.freeze({ width: 9, height: 16 });
 
@@ -51,6 +29,7 @@ export class RecordingCapturePipeline {
 
         this._active = false;
         this._settings = createDefaultRecordingCaptureSettings();
+        this._bloomPreset = resolveBloomQualityPreset();
         this._cameraPerspectiveSettings = createDefaultCameraPerspectiveSettings();
         this._captureCanvas = null;
         this._captureCtx = null;
@@ -65,6 +44,7 @@ export class RecordingCapturePipeline {
         // Dedicated cinematic renderer state for high-quality capture.
         this._cinematicCanvas = null;
         this._cinematicRenderer = null;
+        this._cinematicPostProcessingPipeline = null;
         this._cinematicRendererUnavailable = false;
         this._cinematicBaseFov = Math.max(1, Number(CONFIG?.CAMERA?.FOV) || 60);
         this._cinematicSubjectSelector = new CinematicCaptureSubjectSelector();
@@ -143,6 +123,11 @@ export class RecordingCapturePipeline {
             : [];
         players.sort((left, right) => (left.playerIndex || 0) - (right.playerIndex || 0));
         return players;
+    }
+
+    setBloomQuality(level) {
+        this._bloomPreset = resolveBloomQualityPreset(level);
+        this._cinematicPostProcessingPipeline?.setQualityPreset?.(this._bloomPreset);
     }
 
     _resolveRecordingPlayers(renderProjection) {
@@ -541,6 +526,11 @@ export class RecordingCapturePipeline {
                 this._cinematicRenderer.toneMapping = THREE.ACESFilmicToneMapping;
                 this._cinematicRenderer.toneMappingExposure = this.sourceRenderer?.toneMappingExposure || 1.2;
                 this._cinematicRenderer.setClearColor(CONFIG.COLORS.BACKGROUND);
+                this._cinematicPostProcessingPipeline = new ScenePostProcessingPipeline(
+                    this._cinematicRenderer,
+                    { width: safeWidth, height: safeHeight }
+                );
+                this._cinematicPostProcessingPipeline.setQualityPreset(this._bloomPreset);
             } catch {
                 this._cinematicRendererUnavailable = true;
                 this._cinematicRenderer = null;
@@ -555,6 +545,7 @@ export class RecordingCapturePipeline {
             this._cinematicRenderer.toneMappingExposure = this.sourceRenderer?.toneMappingExposure || 1.2;
             this._cinematicRenderer.setClearColor(CONFIG.COLORS.BACKGROUND);
             this._cinematicRenderer.setSize(safeWidth, safeHeight, false);
+            this._cinematicPostProcessingPipeline?.setSize?.(safeWidth, safeHeight);
         } catch {
             try {
                 this._cinematicRenderer?.dispose?.();
@@ -562,6 +553,8 @@ export class RecordingCapturePipeline {
                 // The failed context is discarded below.
             }
             this._cinematicRendererUnavailable = true;
+            this._cinematicPostProcessingPipeline?.dispose?.();
+            this._cinematicPostProcessingPipeline = null;
             this._cinematicRenderer = null;
             this._cinematicCanvas = null;
             return null;
@@ -706,7 +699,9 @@ export class RecordingCapturePipeline {
             this._cinematicOrbitPoseReady = true;
         }
 
-        cinRenderer.render(this.scene, camera);
+        if (!this._cinematicPostProcessingPipeline?.render?.(this.scene, camera)) {
+            cinRenderer.render(this.scene, camera);
+        }
         cinRenderer.getContext()?.flush?.();
 
         captureCtx.clearRect(0, 0, width, height);
@@ -751,6 +746,8 @@ export class RecordingCapturePipeline {
         this._shortsRenderer = null;
         this._shortsRendererUnavailable = false;
         this._shortsCanvas = null;
+        this._cinematicPostProcessingPipeline?.dispose?.();
+        this._cinematicPostProcessingPipeline = null;
         if (this._cinematicRenderer) { this._cinematicRenderer.dispose(); }
         this._cinematicRenderer = null;
         this._cinematicRendererUnavailable = false;
