@@ -12,8 +12,29 @@ import {
     waitForRenderFrames,
 } from './core-targeted.shared.js';
 
+import {
+    PLAYER_PROFILE_REGISTRY_STORAGE_KEY,
+    resolvePlayerScopedStorageKey,
+} from '../src/shared/contracts/PlayerProfileStorageContract.js';
+
 const HANGAR_BUILD_STORAGE_KEY = 'curviosclash.hangar.arcade-builds.v2';
 const BUILD_NAME = 'Desktop E2E Build';
+
+// Records are written through the active player profile, which stores them under a key scoped to
+// that profile rather than the legacy one. Reading the legacy key straight from localStorage only
+// works until a profile exists -- after that it is empty and every assertion on it reads "". The
+// runtime resolves the scoped key and falls back to the legacy one; a test that seeds the legacy
+// key and then reads back what the game wrote has to do the same.
+async function resolveProfileScopedKey(page, legacyStorageKey) {
+    const activeProfileId = await page.evaluate((registryKey) => {
+        try {
+            return String(JSON.parse(localStorage.getItem(registryKey) || "{}")?.activeProfileId || "");
+        } catch {
+            return "";
+        }
+    }, PLAYER_PROFILE_REGISTRY_STORAGE_KEY);
+    return resolvePlayerScopedStorageKey(activeProfileId, legacyStorageKey) || legacyStorageKey;
+}
 
 async function openArcadeHangar(page) {
     if (await page.locator('#menu-nav [data-session-type="single"]').first().isVisible()) {
@@ -334,10 +355,19 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
         && (window.GAME_INSTANCE?.entityManager?.humanPlayers?.length || 0) > 0
     ), null, { timeout: 60000 });
 
-    const runState = await page.evaluate(({ profileKey, lastRunKey }) => {
+    const scopedLastRunKey = await resolveProfileScopedKey(page, ARCADE_LAST_RUN_STORAGE_KEY);
+    const scopedProfileKey = await resolveProfileScopedKey(page, ARCADE_VEHICLE_PROFILE_STORAGE_KEY);
+    const runState = await page.evaluate(({ profileKey, lastRunKey, legacyProfileKey, legacyLastRunKey }) => {
+        const read = (scopedKey, legacyKey) => {
+            try {
+                return JSON.parse(localStorage.getItem(scopedKey) || localStorage.getItem(legacyKey) || "{}");
+            } catch {
+                return {};
+            }
+        };
         const game = window.GAME_INSTANCE;
-        const profileStore = JSON.parse(localStorage.getItem(profileKey) || '{}');
-        const snapshot = JSON.parse(localStorage.getItem(lastRunKey) || '{}');
+        const profileStore = read(profileKey, legacyProfileKey);
+        const snapshot = read(lastRunKey, legacyLastRunKey);
         const arcadeRuntime = game?.runtimeFacade?.arcadeRunRuntime;
         const activeProfile = arcadeRuntime?.getVehicleProfile?.();
         return {
@@ -347,7 +377,12 @@ test('Desktop-Hangar: 3D-Umbau, Speicherung, Run-Übernahme und Wiederöffnung',
             profileUpgrades: profileStore[snapshot.vehicleId]?.upgrades || {},
             activeProfileUpgrades: activeProfile?.upgrades || {},
         };
-    }, { profileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY, lastRunKey: ARCADE_LAST_RUN_STORAGE_KEY });
+    }, {
+        profileKey: scopedProfileKey,
+        lastRunKey: scopedLastRunKey,
+        legacyProfileKey: ARCADE_VEHICLE_PROFILE_STORAGE_KEY,
+        legacyLastRunKey: ARCADE_LAST_RUN_STORAGE_KEY,
+    });
     expect(runState.humanVehicleId).toBe(selectedVehicleId);
     expect(runState.snapshotVehicleId).toBe(selectedVehicleId);
     expect(runState.snapshotBuildId).not.toBe('');
