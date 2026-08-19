@@ -87,6 +87,7 @@ export class NetworkLobbyService {
             now: this._clock.nowMs,
         });
         this._actorId = '';
+        this._name = '';
         this._participantMetadata = options.participantMetadata && typeof options.participantMetadata === 'object'
             ? { ...options.participantMetadata }
             : null;
@@ -269,7 +270,9 @@ export class NetworkLobbyService {
 
     async host(options = {}) {
         const actorId = normalizeString(options.actorId, 'Host');
+        const name = normalizeString(options.name, actorId);
         this._actorId = actorId;
+        this._name = name;
         this._connectionPhase = 'connecting';
         this._hostSettingsSnapshot = deepClone(options.settingsSnapshot ?? this._hostSettingsSnapshot);
         const resolvedUrl = await tryResolveNetworkLobbyUrl(() => this._resolveHostSignalingUrl());
@@ -287,8 +290,8 @@ export class NetworkLobbyService {
             await this._transportSession.create({
                 maxPlayers: Number(options.maxPlayers || 10),
                 actorId,
-                name: actorId,
-                metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, actorId),
+                name,
+                metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, name),
             });
         } catch (error) {
             this._connectionPhase = 'disconnected';
@@ -316,12 +319,14 @@ export class NetworkLobbyService {
 
     async join(options = {}) {
         const actorId = normalizeString(options.actorId, 'Spieler');
+        const name = normalizeString(options.name, actorId);
         const requestedLobbyCode = normalizeLobbyCode(options.lobbyCode, '');
         if (!requestedLobbyCode) {
             return this._fail('Lobby-Code fehlt.', 'missing_lobby_code');
         }
 
         this._actorId = actorId;
+        this._name = name;
         this._connectionPhase = 'connecting';
         const resolvedUrl = await tryResolveNetworkLobbyUrl(
             () => this._resolveJoinSignalingUrl(requestedLobbyCode, options.signalingUrl)
@@ -350,7 +355,7 @@ export class NetworkLobbyService {
                 signalingUrl,
                 lobbyCode: requestedLobbyCode,
                 actorId,
-                name: actorId,
+                name,
                 participantMetadata: this._participantMetadata,
             }));
         } catch (error) {
@@ -422,7 +427,7 @@ export class NetworkLobbyService {
         this._hostSettingsSnapshot = deepClone(settingsSnapshot);
         this._transportSession.updateSettings({
             ...this._hostSettingsSnapshot,
-            metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, this._actorId),
+            metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, this._name || this._actorId),
         });
         return this.getSnapshot();
     }

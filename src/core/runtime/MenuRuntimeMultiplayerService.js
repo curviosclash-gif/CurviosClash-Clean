@@ -389,13 +389,12 @@ export async function handleMultiplayerHostAction({
         game._showStatusToast(hostGate.message || 'Hosting ist nicht verfuegbar.', hostGate.durationMs || 1800, 'error');
         return { ok: false, message: hostGate.message, reason: hostGate.reason };
     }
-    const accessContext = resolveMenuAccessContext?.();
-    const settingsSnapshot = captureSettingsSnapshot?.();
+    const accessContext = resolveMenuAccessContext?.(); const profile = game?.playerProfileManager?.getActiveProfile?.(); const settingsSnapshot = captureSettingsSnapshot?.();
     observeCapabilityFallback(runtimeSource, menuMultiplayerBridge, 'host', event?.lobbyCode);
     let result = null;
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.host({
-            actorId: accessContext?.actorId,
+            actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Host'),
             lobbyCode: String(event?.lobbyCode || '').trim(),
             settingsSnapshot,
         }));
@@ -448,7 +447,7 @@ export async function handleMultiplayerJoinAction({
         game._showStatusToast(ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, 1800, 'warning');
         return { ok: false, message: ONLINE_MENU_TRANSPORT_UNAVAILABLE_MESSAGE, reason: 'online_signaling_unconfigured' };
     }
-    const accessContext = resolveMenuAccessContext?.();
+    const accessContext = resolveMenuAccessContext?.(); const profile = game?.playerProfileManager?.getActiveProfile?.();
     observeCapabilityFallback(runtimeSource, menuMultiplayerBridge, 'join', event?.lobbyCode);
     const manualSignalingUrl = selectedTransport === MULTIPLAYER_TRANSPORTS.LAN
         ? normalizeString(event?.signalingUrl, '')
@@ -456,7 +455,7 @@ export async function handleMultiplayerJoinAction({
     let result = null;
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.join({
-            actorId: accessContext?.actorId,
+            actorId: profile?.id || accessContext?.actorId, name: String(profile?.displayName || accessContext?.actorId || 'Spieler'),
             lobbyCode: String(event?.lobbyCode || '').trim(),
             signalingUrl: manualSignalingUrl,
         }));
@@ -524,7 +523,7 @@ export async function handleMultiplayerReadyToggleAction({
     let result = null;
     try {
         result = await Promise.resolve(menuMultiplayerBridge?.toggleReady({
-            actorId: resolveMenuAccessContext?.()?.actorId,
+            actorId: game?.playerProfileManager?.getActiveProfile?.()?.id || resolveMenuAccessContext?.()?.actorId,
             ready: !!event?.ready,
         }));
     } catch (error) {

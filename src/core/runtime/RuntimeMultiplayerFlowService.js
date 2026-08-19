@@ -39,7 +39,7 @@ export function syncRuntimeMultiplayerContext({
     if (sessionContract.sessionType !== RUNTIME_SESSION_TYPES.MULTIPLAYER) return false;
 
     const accessContext = resolveMenuAccessContext?.();
-    menuMultiplayerBridge?.syncActorIdentity?.(accessContext?.actorId);
+    menuMultiplayerBridge?.syncActorIdentity?.(game?.playerProfileManager?.getActiveProfile?.()?.id || accessContext?.actorId);
     if (Array.isArray(changedKeys) && changedKeys.length > 0 && didHostChangeMatchSettings?.(changedKeys)) {
         menuMultiplayerBridge?.publishHostSettings?.(captureSettingsSnapshot?.());
     }

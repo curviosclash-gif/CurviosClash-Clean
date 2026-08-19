@@ -10,6 +10,7 @@ function snapshotHasPeer(snapshot, peerId, normalizeString) {
 
 export function hostStorageLobby(bridge, options, helpers) {
     const actorId = helpers.normalizeString(options.actorId, 'host');
+    const name = helpers.normalizeString(options.name, actorId);
     const requestedLobbyCode = helpers.normalizeLobbyCode(
         options.lobbyCode,
         helpers.generateLobbyCode(bridge._now, bridge._random)
@@ -50,6 +51,7 @@ export function hostStorageLobby(bridge, options, helpers) {
                 {
                     peerId: bridge._peerId,
                     actorId,
+                    name,
                     role: 'host',
                     ready: true,
                     joinedAt: now,
@@ -87,6 +89,7 @@ export function hostStorageLobby(bridge, options, helpers) {
 
 export function joinStorageLobby(bridge, options, helpers) {
     const actorId = helpers.normalizeString(options.actorId, 'player');
+    const name = helpers.normalizeString(options.name, actorId);
     const requestedLobbyCode = helpers.normalizeLobbyCode(options.lobbyCode, '');
     if (!requestedLobbyCode) {
         return bridge._fail('Lobby-Code fehlt.', 'missing_lobby_code');
@@ -123,6 +126,7 @@ export function joinStorageLobby(bridge, options, helpers) {
                 {
                     peerId: bridge._peerId,
                     actorId,
+                    name,
                     role: existingSnapshot.hostPeerId === bridge._peerId ? 'host' : 'client',
                     ready: false,
                     joinedAt: existingLocalMember?.joinedAt || now,

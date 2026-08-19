@@ -8,7 +8,7 @@ import {
 import { LOBBY_SERVICE_TRANSPORTS } from '../src/shared/contracts/LobbyServiceContract.js';
 import { MULTIPLAYER_TRANSPORTS } from '../src/shared/contracts/RuntimeSessionContract.js';
 
-test('LAN join action forwards manual signalingUrl and writes failed joins into UI status', async () => {
+test('LAN join uses player profile identity while access actor remains separate', async () => {
     const calls = [];
     const hostAddressInput = {
         attributes: new Map(),
@@ -33,6 +33,9 @@ test('LAN join action forwards manual signalingUrl and writes failed joins into 
         },
     };
     const game = {
+        playerProfileManager: {
+            getActiveProfile: () => ({ id: '00000000-0000-4000-8000-000000000099', displayName: 'Gunda' }),
+        },
         settings: {
             localSettings: {
                 multiplayerTransport: MULTIPLAYER_TRANSPORTS.LAN,
@@ -72,8 +75,9 @@ test('LAN join action forwards manual signalingUrl and writes failed joins into 
 
     assert.equal(result.ok, false);
     assert.deepEqual(calls[0], ['join', {
-        actorId: 'Client',
+        actorId: '00000000-0000-4000-8000-000000000099',
         lobbyCode: 'LAN-QA',
+        name: 'Gunda',
         signalingUrl: 'localhost:9090',
     }]);
     assert.equal(game.ui.multiplayerStatus.textContent, 'Join fehlgeschlagen: Host-Adresse ungueltig. Bitte Host:Port verwenden, z. B. localhost:9090.');

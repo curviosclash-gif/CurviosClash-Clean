@@ -65,8 +65,8 @@ function renderMultiplayerMembers(ui, sessionState, hasActiveLobbySession) {
 
         const name = doc.createElement('span');
         name.className = 'mp-player-name';
-        const actorId = String(member?.actorId || member?.peerId || 'Spieler').trim() || 'Spieler';
-        name.textContent = `${actorId}${member?.isHost === true ? ' · Host' : ''}${member?.isLocal === true ? ' · Du' : ''}`;
+        const displayName = String(member?.name || member?.actorId || member?.peerId || 'Spieler').trim() || 'Spieler';
+        name.textContent = `${displayName}${member?.isHost === true ? ' · Host' : ''}${member?.isLocal === true ? ' · Du' : ''}`;
 
         const ready = doc.createElement('span');
         ready.className = `mp-ready-indicator${member?.ready === true ? ' is-ready' : ''}`;

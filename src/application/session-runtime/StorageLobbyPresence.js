@@ -20,6 +20,7 @@ export function normalizeStorageLobbyMemberSnapshot(member, fallbackRole, now, h
     return {
         peerId,
         actorId: helpers.normalizeString(member?.actorId, role === 'host' ? 'host' : 'player'),
+        name: helpers.normalizeString(member?.name, member?.actorId || (role === 'host' ? 'Host' : 'Spieler')),
         role,
         ready: member?.ready === true,
         joinedAt,

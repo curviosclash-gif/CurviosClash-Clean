@@ -32,7 +32,7 @@ function renderPlayerCard(member) {
 
     const nameRow = createElement('div', 'mp-player-name');
     const roleLabel = member.isHost ? ' (Host)' : '';
-    nameRow.textContent = `${normalizeString(member.actorId, 'Spieler')}${roleLabel}`;
+    nameRow.textContent = `${normalizeString(member.name, normalizeString(member.actorId, 'Spieler'))}${roleLabel}`;
     card.appendChild(nameRow);
 
     const statusRow = createElement('div', 'mp-player-status');

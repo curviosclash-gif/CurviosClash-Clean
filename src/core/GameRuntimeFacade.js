@@ -281,7 +281,7 @@ export class GameRuntimeFacade {
         });
         this.menuMultiplayerBridge = runtimeState.menuMultiplayerBridge;
         game.menuMultiplayerBridge = this.menuMultiplayerBridge;
-        this.menuMultiplayerBridge?.syncActorIdentity?.(this._resolveMenuAccessContext()?.actorId);
+        this.menuMultiplayerBridge?.syncActorIdentity?.(game.playerProfileManager?.getActiveProfile?.()?.id || this._resolveMenuAccessContext()?.actorId);
         this._handleMultiplayerSessionStateChanged(this.menuMultiplayerBridge?.getSessionState?.());
         runtimeState.menuController?.dispose?.();
 
