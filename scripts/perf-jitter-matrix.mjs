@@ -37,6 +37,7 @@ const OUTPUT_PATH = String(process.env.PERF_RUCKLER_OUTPUT_PATH || `tmp/perf_jit
 const HEADED = String(process.env.PERF_RUCKLER_HEADED || '').trim() === '1';
 const VERBOSE = String(process.env.PERF_RUCKLER_VERBOSE || '').trim() === '1';
 const BLOOM_QUALITY = parsePositiveInt(process.env.PERF_RUCKLER_BLOOM_QUALITY, 0, 0, 2);
+const FORCE_HIGH_QUALITY = String(process.env.PERF_RUCKLER_FORCE_HIGH_QUALITY || '').trim() === '1';
 const SCENARIO_FILTER = String(process.env.PERF_RUCKLER_SCENARIOS || '')
     .split(/[,\s;]+/)
     .map((entry) => entry.trim().toUpperCase())
@@ -304,7 +305,7 @@ async function runSingleMatrixCase(page, scenario, options) {
     await ensureMenuState(page);
     const clipSessionId = `phase9-${String(scenario.id || 'scenario').toLowerCase()}-${options.cinematicEnabled ? 'cin' : 'plain'}-${options.recordingEnabled ? 'rec' : 'norec'}`;
 
-    const setup = await page.evaluate(async ({ scenarioId, cinematicEnabled, recordingEnabled, clipSessionId, bloomQuality }) => {
+    const setup = await page.evaluate(async ({ scenarioId, cinematicEnabled, recordingEnabled, clipSessionId, bloomQuality, forceHighQuality }) => {
         const game = window.GAME_INSTANCE;
         if (!game) throw new Error('GAME_INSTANCE missing');
         const debugApi = game.debugApi || window.GAME_DEBUG || null;
@@ -334,6 +335,7 @@ async function runSingleMatrixCase(page, scenario, options) {
         }
         game.renderer?.setShadowQuality?.(2);
         game.renderer?.setBloomQuality?.(bloomQuality);
+        game.renderer?.setRecordingQualityLock?.(forceHighQuality, 'perf-jitter');
         game._applySettingsToRuntime?.({ schedulePrewarm: false });
 
         if (typeof game.renderer?.setCinematicEnabled === 'function') {
@@ -389,6 +391,7 @@ async function runSingleMatrixCase(page, scenario, options) {
         recordingEnabled: options.recordingEnabled,
         clipSessionId,
         bloomQuality: BLOOM_QUALITY,
+        forceHighQuality: FORCE_HIGH_QUALITY,
     });
 
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: APP_READY_TIMEOUT_MS });
@@ -655,6 +658,7 @@ async function run() {
         const interactiveAggregateP99 = percentileFromSorted(interactiveFrameTimes, 0.99);
         const summary = {
             bloomQuality: BLOOM_QUALITY,
+            forceHighQuality: FORCE_HIGH_QUALITY,
             totalRuns: runs.length,
             passedRuns: runs.filter((entry) => entry.acceptance.pass).length,
             interactiveRuns: runs.filter((entry) => entry?.recording?.requested !== true).length,

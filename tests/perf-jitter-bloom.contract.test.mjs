@@ -7,4 +7,6 @@ test('jitter benchmark can explicitly measure bloom instead of the default OFF p
     assert.match(source, /PERF_RUCKLER_BLOOM_QUALITY/);
     assert.match(source, /setBloomQuality\?\.\(bloomQuality\)/);
     assert.match(source, /bloomQuality: BLOOM_QUALITY/);
+    assert.match(source, /PERF_RUCKLER_FORCE_HIGH_QUALITY/);
+    assert.match(source, /setRecordingQualityLock\?\.\(forceHighQuality, 'perf-jitter'\)/);
 });
