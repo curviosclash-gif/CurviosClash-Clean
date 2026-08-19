@@ -62,7 +62,7 @@ export class Trail {
         this.material = new THREE.MeshStandardMaterial({
             color: color,
             emissive: color,
-            emissiveIntensity: this.modernGraphics ? 0.92 : 0.48,
+            emissiveIntensity: this.modernGraphics ? 1.15 : 0.48,
             roughness: this.modernGraphics ? 0.34 : 0.5,
             metalness: this.modernGraphics ? 0.28 : 0.2,
         });
@@ -94,6 +94,9 @@ export class Trail {
             this.glowMesh.receiveShadow = false;
             this.glowMesh.frustumCulled = false;
             this.glowMesh.count = 0;
+            this.glowMesh.onBeforeRender = (activeRenderer) => {
+                this.glowMaterial.colorWrite = activeRenderer.getRenderTarget() === null;
+            };
         }
 
         // Render-only head segment. The collision trail keeps its existing
@@ -111,6 +114,7 @@ export class Trail {
             this.glowHeadMesh.receiveShadow = false;
             this.glowHeadMesh.frustumCulled = false;
             this.glowHeadMesh.visible = false;
+            this.glowHeadMesh.onBeforeRender = this.glowMesh.onBeforeRender;
         }
         this.headMesh.userData = {
             ...(this.headMesh.userData || {}),
@@ -520,5 +524,6 @@ export class Trail {
         this.headMesh = null;
         this.glowMesh = null;
         this.glowHeadMesh = null;
+        this.glowMaterial = null;
     }
 }
