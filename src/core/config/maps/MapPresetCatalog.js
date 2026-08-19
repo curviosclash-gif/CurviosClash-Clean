@@ -19,6 +19,7 @@ import { CHRONO_FORGE_NEXUS_MAP } from './presets/chrono_forge_nexus.js';
 import { ECLIPSE_FOUNDRY_MAP } from './presets/eclipse_foundry.js';
 import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
 import { VERDANT_APERTURE_MAP } from './presets/verdant_aperture.js';
+import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -42,4 +43,5 @@ export const MAP_PRESET_CATALOG = {
     ...(ECLIPSE_FOUNDRY_MAP || {}),
     ...(KINETIC_TIDE_MAP || {}),
     ...(VERDANT_APERTURE_MAP || {}),
+    ...(AETHERION_ORRERY_MAP || {}),
 };

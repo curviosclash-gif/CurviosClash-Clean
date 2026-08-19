@@ -28,6 +28,7 @@ test('renderer build copies every editor OBJ asset group', (context) => {
         'assets/maps/kinetic_tide/glb/08_reactor_heart.glb',
         'assets/maps/verdant_aperture/glb/08_heart_seed.glb',
         'assets/maps/notre_dame/glb/01_west_facade.glb',
+        'assets/maps/aetherion_orrery/glb/10_celestial_core.glb',
     ]) {
         assert.ok(statSync(path.join(outDir, relativePath)).size > 0, `${relativePath} was not copied`);
     }

@@ -37,6 +37,7 @@ const COLLECTION_DEFINITIONS = [
             'eclipse_foundry',
             'kinetic_tide',
             'verdant_aperture',
+            'aetherion_orrery',
         ],
     },
     {

@@ -51,6 +51,7 @@ const BASE_MAP_KEYS = [
     'eclipse_foundry',
     'kinetic_tide',
     'verdant_aperture',
+    'aetherion_orrery',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
