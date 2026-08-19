@@ -151,7 +151,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.controls.reset_keys.label': 'Standard-Tasten wiederherstellen',
     'menu.level4.gameplay.title': 'Spieloptionen',
     'menu.level4.advanced_map.title': 'Map-Details',
-    'menu.level4.tools.title': 'Profile',
+    'menu.level4.tools.title': 'Einstellungsprofile',
     'menu.level4.tools.profile_name.label': 'Profilname',
     'menu.level4.tools.profile_save.label': 'Profil speichern',
     'menu.level4.tools.profile_list.label': 'Gespeicherte Profile',

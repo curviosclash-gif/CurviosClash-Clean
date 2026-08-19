@@ -4,10 +4,13 @@
 
 import { RoundRecorder } from '../state/RoundRecorder.js';
 import { CUSTOM_MAP_KEY } from '../entities/MapSchema.js';
-import { ProfileUiController } from '../composition/core-ui/CoreUiAppPorts.js';
+import { PlayerProfileUiController, ProfileUiController } from '../composition/core-ui/CoreUiAppPorts.js';
 import { createCoreRuntimeAccess } from '../composition/core-ui/CoreRuntimeAccessFactory.js';
 import { SettingsManager } from './SettingsManager.js';
 import { ProfileManager } from './ProfileManager.js';
+import { PlayerProfileManager } from '../application/player-profile/PlayerProfileManager.js';
+import { createElectronPreloadHangarAdapter } from '../platform/electron/ElectronPlatformBridge.js';
+import { flushArcadePersistenceSavesResult } from './arcade/ArcadeRunPersistenceOps.js';
 import { createRoundStateController } from '../state/RoundStateController.js';
 import { PlayingStateSystem } from './PlayingStateSystem.js';
 import { RoundStateTickSystem } from '../state/RoundStateTickSystem.js';
@@ -49,7 +52,12 @@ export class Game {
     constructor() {
         this.settingsManager = new SettingsManager();
         this.profileManager = new ProfileManager(this.settingsManager.getProfileStorePort());
-
+        this.playerProfileManager = new PlayerProfileManager({
+            recordStore: this.settingsManager.getSettingsRecordStorePort(),
+            getPreferredSettingsProfileName: () => this.profileManager.getActiveProfileName(),
+        });
+        this.playerProfileBootstrap = this.playerProfileManager.bootstrap();
+        this.settingsManager.setPlayerProfileManager(this.playerProfileManager);
         this.profileDataOps = this.profileManager.getProfileDataOps();
 
         this.settings = this._loadSettings();
@@ -121,6 +129,12 @@ export class Game {
             profileControlStateOps: this.profileManager.getProfileControlStateOps(),
             profileUiStateOps: this.profileManager.getProfileUiStateOps(),
         });
+        this.playerProfileUiController = new PlayerProfileUiController({
+            playerProfileManager: this.playerProfileManager,
+            activateProfile: (profileId) => this._activatePlayerProfile(profileId),
+            showStatusToast: (msg, ms, tone) => this._showStatusToast(msg, ms, tone),
+        });
+        this.playerProfileUiController.init();
 
         // Backward-compat aliases — still referenced by UINavigationLifecycleController and GameRuntimeFacade
         this.activeProfileName = this.profileUiController.activeProfileName;
@@ -179,6 +193,34 @@ export class Game {
         this._playtestStartTimeoutId = null;
     }
 
+    async _activatePlayerProfile(profileId) {
+        if (this.state !== GAME_STATE_IDS.MENU) return { ok: false, reason: 'match_active' };
+        if (this.menuMultiplayerBridge?.getSessionState?.()?.joined === true) return { ok: false, reason: 'lobby_active' };
+        const hangar = createElectronPreloadHangarAdapter(globalThis);
+        if (typeof hangar.getStatus === 'function') {
+            try {
+                const status = await hangar.getStatus();
+                if (status?.hasUnsavedChanges === true) return { ok: false, reason: 'hangar_open' };
+                if (status?.open === true) await hangar.closeWindow?.();
+            } catch {
+                return { ok: false, reason: 'hangar_status_failed' };
+            }
+        }
+        const arcadeRuntime = this.runtimeCoordinator?.getRuntimeFacade?.()?.arcadeRunRuntime;
+        const flush = arcadeRuntime ? flushArcadePersistenceSavesResult(arcadeRuntime) : { ok: true, hadPending: false, failures: [] };
+        if (flush.ok !== true) return { ok: false, reason: 'persistence_failed', failures: flush.failures };
+        const changed = this.playerProfileManager.setActiveProfile(profileId);
+        if (!changed.ok) return changed;
+        const preferredSettingsProfileName = changed.profile.preferredSettingsProfileName;
+        if (preferredSettingsProfileName && this.profileManager.findProfileByName(preferredSettingsProfileName)) {
+            this._loadProfile(preferredSettingsProfileName);
+            this._saveSettings();
+        }
+        this._showStatusToast(`Spielerprofil wird geladen: ${changed.profile.displayName}`, 1100, 'success');
+        globalThis.setTimeout(() => globalThis.location?.reload?.(), 40);
+        return changed;
+    }
+
     _showMainNav() {
         this.runtimeCoordinator?.getUiManager?.()?.showMainNav?.();
     }
@@ -211,6 +253,9 @@ export class Game {
     }
 
     _onSettingsChanged(event = null) {
+        const preferredName = this.profileUiController?.loadedProfileName;
+        const activePlayerId = this.playerProfileManager?.getActiveProfile?.()?.id;
+        if (preferredName && activePlayerId) this.playerProfileManager.setPreferredSettingsProfile(activePlayerId, preferredName);
         this.runtimeCoordinator.onSettingsChanged(event);
     }
 
@@ -534,6 +579,8 @@ export class Game {
         }
 
         this.keyCapture = null;
+        this.playerProfileUiController?.dispose?.();
+        this.playerProfileUiController = null;
         const runtimeCoordinator = this.runtimeCoordinator;
         const runtimeFacade = runtimeCoordinator?.getRuntimeFacade?.();
 

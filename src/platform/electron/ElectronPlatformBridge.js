@@ -385,6 +385,7 @@ export function createElectronPreloadHangarAdapter(runtimeGlobal = globalThis) {
         ? dedicatedContract
         : resolveNamedContract(appRuntime, 'hangar');
     const openWindow = createCapabilityIntent(contract, contract?.openWindow, appRuntime, null);
+    const getStatus = createCapabilityIntent(contract, contract?.getStatus, appRuntime, null);
     const closeWindow = createCapabilityIntent(contract, contract?.closeWindow, appRuntime, null);
     const setUnsavedChanges = createCapabilityIntent(contract, contract?.setUnsavedChanges, appRuntime, null);
     const available = typeof openWindow === 'function';
@@ -393,6 +394,7 @@ export function createElectronPreloadHangarAdapter(runtimeGlobal = globalThis) {
         contractVersion: contract?.contractVersion || PRELOAD_CONTRACT_VERSIONS.hangar,
         isAvailable: () => available,
         openWindow,
+        getStatus,
         closeWindow,
         setUnsavedChanges,
     });

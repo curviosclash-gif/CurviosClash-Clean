@@ -8,7 +8,9 @@ function toSafeInt(value, fallback = 0) {
 }
 
 export function resolveArcadeSettingsRecordStore(runtime) {
-    return runtime.settingsManager?.getSettingsRecordStorePort?.() || null;
+    return runtime.settingsManager?.getPlayerRecordStorePort?.()
+        || runtime.settingsManager?.getSettingsRecordStorePort?.()
+        || null;
 }
 
 export function scheduleArcadeVehicleProfilesSave(runtime) {
@@ -76,6 +78,21 @@ export function flushArcadePersistenceSaves(runtime) {
     const flushedArcadeSaves = runtime._persistenceScheduler?.flushAll?.() === true;
     const flushedGhostSaves = flushPendingGhostLibrarySave(runtime);
     return flushedArcadeSaves || flushedGhostSaves;
+}
+
+export function flushArcadePersistenceSavesResult(runtime) {
+    const scheduled = runtime._persistenceScheduler?.flushAllResult?.()
+        || { ok: true, hadPending: false, failures: [] };
+    const hadGhostPending = !!runtime._pendingGhostLibrarySave;
+    const ghostOk = hadGhostPending ? flushPendingGhostLibrarySave(runtime) : true;
+    return {
+        ok: scheduled.ok === true && ghostOk,
+        hadPending: scheduled.hadPending === true || hadGhostPending,
+        failures: [
+            ...(Array.isArray(scheduled.failures) ? scheduled.failures : []),
+            ...(!ghostOk ? ['ghostLibrary'] : []),
+        ],
+    };
 }
 
 export function scheduleGhostLibrarySave(runtime, store, budgetOptions) {

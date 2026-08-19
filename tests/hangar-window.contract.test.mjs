@@ -57,10 +57,12 @@ test('desktop hangar explains that closing keeps the automatically saved draft',
     });
     await controller.openHangarWindow();
     assert.equal(controller.setUnsavedChanges(true), true);
+    assert.deepEqual(controller.getStatus(), { open: true, mode: 'arcade', hasUnsavedChanges: true });
     assert.equal(controller.closeHangarWindow(), false);
     assert.ok(controller.getWindow());
     assert.equal(dialogs[0].buttons[0], 'Schließen · Entwurf behalten');
     assert.match(dialogs[0].detail, /automatische Sicherung bleibt erhalten/);
     assert.equal(controller.closeHangarWindow(), true);
     assert.equal(controller.getWindow(), null);
+    assert.deepEqual(controller.getStatus(), { open: false, mode: null, hasUnsavedChanges: false });
 });

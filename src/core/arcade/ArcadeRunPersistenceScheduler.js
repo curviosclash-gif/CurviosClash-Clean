@@ -87,6 +87,19 @@ export class ArcadeRunPersistenceScheduler {
         return allFlushed;
     }
 
+    flushAllResult() {
+        const pendingKinds = Array.from(this._pendingSaves.keys());
+        const failures = [];
+        for (const kind of pendingKinds) {
+            if (!this.flush(kind)) failures.push(kind);
+        }
+        return {
+            ok: failures.length === 0,
+            hadPending: pendingKinds.length > 0,
+            failures,
+        };
+    }
+
     dispose() {
         for (const kind of Array.from(this._timers.keys())) {
             this._clearTimer(kind);

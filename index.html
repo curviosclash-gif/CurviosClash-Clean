@@ -46,6 +46,7 @@
                         <div class="menu-brand-copy">
                             <h1 id="main-menu-title" data-menu-text-id="menu.brand.title">Curvios Clash</h1>
                         </div>
+                        <p id="player-profile-summary" class="menu-hint">Spieler: Spieler 1</p>
                         <p id="menu-breadcrumb" class="menu-breadcrumb hidden" aria-hidden="true"></p>
                     </div>
 
@@ -831,9 +832,33 @@
                         <section id="level4-section-tools" class="level4-section-panel" data-level4-section="tools"
                             role="tabpanel" aria-labelledby="level4-tab-tools" aria-hidden="true">
                         <div class="menu-section">
+                            <h2 class="section-title">Spielerprofile</h2>
+                            <label for="player-profile-name">Spielername</label>
+                            <input type="text" id="player-profile-name" maxlength="32" placeholder="z. B. Gunda">
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-player-profile-create" class="secondary-btn">Neu</button>
+                                <button type="button" id="btn-player-profile-rename" class="secondary-btn">Umbenennen</button>
+                            </div>
+                            <label for="player-profile-select" class="secondary-btn-spaced">Lokale Spielerprofile</label>
+                            <select id="player-profile-select"></select>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-player-profile-activate" class="secondary-btn">Aktivieren</button>
+                                <button type="button" id="btn-player-profile-default" class="secondary-btn">Als Standard</button>
+                                <button type="button" id="btn-player-profile-archive" class="secondary-btn">Archivieren</button>
+                            </div>
+                            <label for="player-profile-transfer" class="secondary-btn-spaced">Spielerprofil-Transfer</label>
+                            <textarea id="player-profile-transfer" rows="4" placeholder="Spielerprofil-JSON einfügen"></textarea>
+                            <input type="file" id="player-profile-file" accept="application/json,.json" hidden>
+                            <div class="btn-group secondary-btn-spaced">
+                                <button type="button" id="btn-player-profile-export" class="secondary-btn">Exportieren</button>
+                                <button type="button" id="btn-player-profile-import" class="secondary-btn">Importieren</button>
+                            </div>
+                            <p id="player-profile-status" class="menu-hint" role="status" aria-live="polite">Bereit.</p>
+                        </div>
+                        <div class="menu-section">
                             <h2 class="section-title section-title-with-info"
                                 aria-description="Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.">
-                                <span data-menu-text-id="menu.level4.tools.title">Profile</span>
+                                <span data-menu-text-id="menu.level4.tools.title">Einstellungsprofile</span>
                                 <span class="menu-info-hint" aria-hidden="true"
                                     title="Speichere vollständige Einstellungen für unterschiedliche Spieler oder Geräte.">i</span>
                             </h2>

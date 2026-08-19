@@ -130,6 +130,8 @@ export class SettingsManager {
                 this.#settingsStore.loadJsonRecord(storageKey, fallbackValue)
             ),
             saveJsonRecord: (storageKey, value) => this.#settingsStore.saveJsonRecord(storageKey, value),
+            readJsonRecordResult: (storageKey) => this.#settingsStore.readJsonRecordResult(storageKey),
+            removeJsonRecord: (storageKey) => this.#settingsStore.removeJsonRecord(storageKey),
         });
         this.menuTextOverridePort = Object.freeze({
             listOverrides: () => this.textOverrideFacade.listMenuTextOverrides(),
@@ -318,6 +320,15 @@ export class SettingsManager {
 
     getSettingsRecordStorePort() {
         return this.settingsRecordStorePort;
+    }
+
+    setPlayerProfileManager(playerProfileManager = null) {
+        this.playerProfileManager = playerProfileManager;
+        return this.getPlayerRecordStorePort();
+    }
+
+    getPlayerRecordStorePort() {
+        return this.playerProfileManager?.getActiveRecordStorePort?.() || this.settingsRecordStorePort;
     }
 
     getSettingsDefaultsPort() {

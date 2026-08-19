@@ -57,10 +57,12 @@ function computeDailySeed() {
     return (year * 10000) + (month * 100) + day;
 }
 
-function loadSeed() {
-    const raw = safeReadLocalStorage(ARCADE_SEED_STORAGE_KEY);
+function loadSeed(store = null) {
+    const raw = store?.loadJsonRecord?.(ARCADE_SEED_STORAGE_KEY, null)
+        ?? safeReadLocalStorage(ARCADE_SEED_STORAGE_KEY);
     let parsed = raw;
     try {
+        if (typeof raw !== 'string') throw new TypeError('already_parsed');
         parsed = JSON.parse(raw);
     } catch {
         // Legacy seed payloads were stored as plain integer strings.
@@ -68,25 +70,30 @@ function loadSeed() {
     const result = readArcadeSeedRecord(parsed);
     if (result.record) {
         if (result.shouldPersist) {
-            safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(result.record));
+            if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_SEED_STORAGE_KEY, result.record);
+            else safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(result.record));
         }
         return result.record.seed;
     }
     return Math.floor(Math.random() * 1_000_000) + 1;
 }
 
-function saveSeed(seed) {
-    safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(createArcadeSeedRecord(seed)));
+function saveSeed(seed, store = null) {
+    const record = createArcadeSeedRecord(seed);
+    if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_SEED_STORAGE_KEY, record);
+    else safeWriteLocalStorage(ARCADE_SEED_STORAGE_KEY, JSON.stringify(record));
 }
 
-function loadLastRunSnapshot() {
-    const raw = safeReadLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY);
+function loadLastRunSnapshot(store = null) {
+    const raw = store?.loadJsonRecord?.(ARCADE_LAST_RUN_STORAGE_KEY, null)
+        ?? safeReadLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY);
     if (!raw) return null;
     try {
-        const parsed = JSON.parse(raw);
+        const parsed = typeof raw === 'string' ? JSON.parse(raw) : raw;
         const result = readArcadeLastRunRecord(parsed);
         if (result.record && result.shouldPersist) {
-            safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(result.record));
+            if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, result.record);
+            else safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(result.record));
         }
         return result.record;
     } catch {
@@ -94,11 +101,10 @@ function loadLastRunSnapshot() {
     }
 }
 
-function saveLastRunSnapshot(snapshot) {
-    safeWriteLocalStorage(
-        ARCADE_LAST_RUN_STORAGE_KEY,
-        JSON.stringify(createArcadeLastRunRecord(snapshot))
-    );
+function saveLastRunSnapshot(snapshot, store = null) {
+    const record = createArcadeLastRunRecord(snapshot);
+    if (store?.saveJsonRecord) store.saveJsonRecord(ARCADE_LAST_RUN_STORAGE_KEY, record);
+    else safeWriteLocalStorage(ARCADE_LAST_RUN_STORAGE_KEY, JSON.stringify(record));
 }
 
 function formatRunTime(isoTime) {
@@ -192,8 +198,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     const refs = buildArcadeSurface(level3Body, ui);
     refs.hangarLaunchCard.classList.toggle('hidden', !hangarWindow.isAvailable());
-    let activeSeed = loadSeed();
-    let lastRunSnapshot = loadLastRunSnapshot();
+    let activeProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
+    let activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
+    let lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
     const applySeedToSettings = (seedValue, { dailyChallenge = false } = {}) => {
         if (!settings.arcade || typeof settings.arcade !== 'object') {
             settings.arcade = {};
@@ -203,6 +210,12 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     const sync = () => {
+        const nextProfileId = runtimeAccess?.getActivePlayerProfile?.()?.id || '';
+        if (nextProfileId !== activeProfileId) {
+            activeProfileId = nextProfileId;
+            activeSeed = loadSeed(runtimeAccess?.getSettingsStore?.());
+            lastRunSnapshot = loadLastRunSnapshot(runtimeAccess?.getSettingsStore?.());
+        }
         const isArcade = shouldShowArcade(settings);
         refs.details.classList.toggle('hidden', !isArcade);
         if (!isArcade) {
@@ -288,7 +301,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         if (!shouldShowArcade(settings)) return;
         const snapshot = createArcadeRunSnapshot(settings, activeSeed, hangarBuild);
         lastRunSnapshot = snapshot;
-        saveLastRunSnapshot(snapshot);
+        saveLastRunSnapshot(snapshot, runtimeAccess?.getSettingsStore?.());
         sync();
     };
 
@@ -309,7 +322,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     bind(refs.rerollSeedButton, 'click', () => {
         activeSeed = Math.floor(Math.random() * 1_000_000) + 1;
-        saveSeed(activeSeed);
+        saveSeed(activeSeed, runtimeAccess?.getSettingsStore?.());
         applySeedToSettings(activeSeed, { dailyChallenge: false });
         sync();
         emit(eventTypes.SHOW_STATUS_TOAST, {
@@ -359,7 +372,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     bind(refs.dailyButton, 'click', () => {
         activeSeed = computeDailySeed();
-        saveSeed(activeSeed);
+        saveSeed(activeSeed, runtimeAccess?.getSettingsStore?.());
         applySeedToSettings(activeSeed, { dailyChallenge: true });
         sync();
         const prepared = prepareHangarRunStart();

@@ -28,6 +28,14 @@ function createHangarWindowController({
         return isWindowAlive(hangarWindow) ? hangarWindow : null;
     }
 
+    function getStatus() {
+        return {
+            open: isWindowAlive(hangarWindow),
+            mode: activeMode,
+            hasUnsavedChanges,
+        };
+    }
+
     function closeHangarWindow() {
         if (!isWindowAlive(hangarWindow)) { hangarWindow = null; return false; }
         const current = hangarWindow;
@@ -121,6 +129,7 @@ function createHangarWindowController({
         openHangarWindow,
         closeHangarWindow,
         setUnsavedChanges,
+        getStatus,
         getWindow,
     });
 }

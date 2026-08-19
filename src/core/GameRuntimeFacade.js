@@ -1,7 +1,6 @@
 import { createLogger } from '../shared/logging/Logger.js';
 import { SessionRuntimeCommandExecutor } from '../application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { prewarmMatchArenaSession } from '../state/MatchSessionFactory.js';
-import { createArcadeVehicleProfileWorkshopPort } from '../state/arcade/ArcadeVehicleProfileWorkshopPort.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../shared/contracts/MatchLifecycleContract.js';
 import { MENU_CONTROLLER_EVENT_CONTRACT_VERSION } from '../shared/contracts/MenuControllerContract.js';
@@ -29,6 +28,7 @@ import { GameRuntimeSettingsHandler } from './runtime/GameRuntimeSettingsHandler
 import { createSessionRuntimeCommandBackends } from './runtime/SessionRuntimeCommandBackendFactory.js';
 import { createMenuEventHandlerRegistry } from './runtime/menu-handlers/CreateMenuEventHandlerRegistry.js';
 import { createMenuMultiplayerBridge } from './runtime/MenuRuntimeMultiplayerService.js';
+import { createPlayerProfileMenuRuntimeAccess } from './runtime/PlayerProfileRuntimeAccess.js';
 import { ProfileLifecycleController } from './runtime/ProfileLifecycleController.js';
 import {
     createGameRuntimeRecordingFacadeSupport,
@@ -244,14 +244,13 @@ export class GameRuntimeFacade {
     requestArcadeReplayPlayback() { return this._arcadeSupport.requestReplayPlayback(); }
     _createMenuRuntimeAccess() {
         const game = this.game;
-        const settingsStore = game?.settingsManager?.getSettingsRecordStorePort?.() || null;
+        const playerProfileAccess = createPlayerProfileMenuRuntimeAccess(game);
         const getMediaRecorder = () => this.getRuntimeHandle('mediaRecorderSystem');
         return Object.freeze({
             getArcadeMenuSurfaceState: () => this.getArcadeMenuSurfaceState(),
             requestArcadeReplayPlayback: () => this.requestArcadeReplayPlayback(),
             showStatusToast: (message, duration, tone) => game?._showStatusToast?.(message, duration, tone),
-            getSettingsStore: () => settingsStore,
-            arcadeVehicleProfileWorkshop: createArcadeVehicleProfileWorkshopPort(settingsStore),
+            ...playerProfileAccess,
             listCinematicReplayRecordings: () => getMediaRecorder()?.listCinematicReplayRecordings?.() || [],
             subscribeCinematicReplayRecordings: (listener) => (
                 getMediaRecorder()?.subscribeCinematicReplayRecordings?.(listener) || (() => {})

@@ -1,8 +1,17 @@
 import { SettingsStore } from '../SettingsStore.js';
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
+import { PlayerProfileManager } from '../../application/player-profile/PlayerProfileManager.js';
 
 const store = new SettingsStore();
+const playerProfileManager = new PlayerProfileManager({ recordStore: Object.freeze({
+    loadJsonRecord: (key, fallback = null) => store.loadJsonRecord(key, fallback),
+    saveJsonRecord: (key, value) => store.saveJsonRecord(key, value),
+    readJsonRecordResult: (key) => store.readJsonRecordResult(key),
+    removeJsonRecord: (key) => store.removeJsonRecord(key),
+}) });
+playerProfileManager.bootstrap();
+const playerStore = playerProfileManager.getActiveRecordStorePort();
 const settings = store.loadSettings();
 const requestedMode = new URLSearchParams(globalThis.location.search).get('mode');
 const hangarMode = requestedMode === 'fight' ? 'fight' : 'arcade';
@@ -26,7 +35,7 @@ const workshop = setupArcadeHangarWorkshop({
     emit() {},
     eventTypes: {},
     runtimeAccess: {
-        getSettingsStore: () => store,
+        getSettingsStore: () => playerStore,
         loadSettings: () => store.loadSettings(),
         saveSettings(nextSettings) { return store.saveSettings(nextSettings); },
     },

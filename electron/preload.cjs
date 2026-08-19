@@ -116,6 +116,8 @@ function createRecordingContract() {
 function createHangarContract() {
     return createNamedContract('hangar', PRELOAD_CONTRACT_VERSIONS.hangar, {
         openWindow: createInvokeBridge('hangar-window:open'),
+        getStatus: createInvokeBridge('hangar-window:get-status'),
+        closeWindow: createInvokeBridge('hangar-window:close-from-main'),
     });
 }
 

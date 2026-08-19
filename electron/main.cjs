@@ -988,6 +988,14 @@ ipcMain.handle('hangar-window:open', withTrustedMainWindowSender(async (options 
     return { ok: result.ok === true, reused: result.reused === true };
 }));
 
+ipcMain.handle('hangar-window:get-status', withTrustedMainWindowSender(() => (
+    hangarWindowShellCapability.getStatus()
+)));
+
+ipcMain.handle('hangar-window:close-from-main', withTrustedMainWindowSender(() => ({
+    ok: hangarWindowShellCapability.closeHangarWindow(),
+})));
+
 ipcMain.handle('hangar-window:close', withTrustedHangarWindowSender(() => ({
     ok: hangarWindowShellCapability.closeHangarWindow(),
 })));

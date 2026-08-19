@@ -288,6 +288,23 @@ export class SettingsStore {
         }
     }
 
+    readJsonRecordResult(storageKey) {
+        const key = String(storageKey || '').trim();
+        if (!key) return { ok: false, status: 'read_failed', value: null, raw: null, reason: 'invalid_key' };
+        const result = this.storagePlatform?.driver?.readRaw?.(key);
+        if (!result?.ok) {
+            return { ok: false, status: 'read_failed', value: null, raw: null, reason: String(result?.reason || 'read_failed') };
+        }
+        if (typeof result.value !== 'string' || result.value.length === 0) {
+            return { ok: true, status: 'missing', value: null, raw: null, reason: 'missing' };
+        }
+        try {
+            return { ok: true, status: 'found', value: JSON.parse(result.value), raw: result.value, reason: 'ok' };
+        } catch {
+            return { ok: false, status: 'invalid', value: null, raw: result.value, reason: 'invalid_json' };
+        }
+    }
+
     saveJsonRecord(storageKey, value) {
         const key = String(storageKey || '').trim();
         if (!key) {
@@ -303,6 +320,16 @@ export class SettingsStore {
             'records',
             mapStorageWriteToPersistenceResult(result, { key })
         );
+    }
+
+    removeJsonRecord(storageKey) {
+        const key = String(storageKey || '').trim();
+        if (!key) return createPersistenceResult(false, SETTINGS_PERSISTENCE_REASONS.INVALID_KEY, { key });
+        const result = this.storagePlatform.remove(key);
+        return createPersistenceResult(result?.ok === true, result?.ok === true ? SETTINGS_PERSISTENCE_REASONS.OK : SETTINGS_PERSISTENCE_REASONS.STORAGE_FAILED, {
+            key,
+            storageReason: String(result?.reason || ''),
+        });
     }
 
     _resolveLegacyKeysForStorageKey(storageKey) {
