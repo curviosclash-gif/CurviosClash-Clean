@@ -2,7 +2,10 @@ const COLLECTION_DEFINITIONS = [
     {
         id: 'arena',
         label: 'Arenen',
-        mapKeys: ['standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze', 'trench'],
+        mapKeys: [
+            'standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze',
+            'trench', 'notre_dame_arena',
+        ],
     },
     {
         id: 'themed',
@@ -38,6 +41,7 @@ const COLLECTION_DEFINITIONS = [
             'kinetic_tide',
             'verdant_aperture',
             'aetherion_orrery',
+            'notre_dame',
         ],
     },
     {

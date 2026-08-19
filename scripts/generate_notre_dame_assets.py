@@ -98,6 +98,15 @@ SLATE = (0.20, 0.21, 0.24, 1.0)
 FOLIAGE = (0.17, 0.31, 0.13, 1.0)
 WATER = (0.15, 0.26, 0.31, 1.0)
 
+# The reconstruction site. Deliberately the only saturated colours on the map: against limestone
+# and lead, machine yellow reads instantly as "this moves", which is the readability language
+# here in place of the warning chevrons the machine maps use.
+CRANE_YELLOW = (0.86, 0.62, 0.10, 1.0)
+STEEL = (0.54, 0.56, 0.60, 1.0)
+TARPAULIN = (0.87, 0.86, 0.80, 1.0)
+ROPE = (0.33, 0.30, 0.24, 1.0)
+SIGNAL = (1.0, 0.48, 0.10, 1.0)
+
 
 def reset_scene(name):
     bpy.ops.wm.read_factory_settings(use_empty=True)
@@ -143,6 +152,11 @@ def build_materials():
         "slate": material("NDSlate", SLATE, roughness=0.78),
         "foliage": material("NDFoliage", FOLIAGE, roughness=0.92),
         "water": material("NDWater", WATER, metallic=0.2, roughness=0.22),
+        "crane": material("NDCrane", CRANE_YELLOW, metallic=0.3, roughness=0.5),
+        "steel": material("NDSteel", STEEL, metallic=0.65, roughness=0.42),
+        "tarp": material("NDTarp", TARPAULIN, roughness=0.72),
+        "rope": material("NDRope", ROPE, roughness=0.9),
+        "signal": material("NDSignal", SIGNAL, 3.4, 0.0, 0.2),
     }
 
 
@@ -1109,6 +1123,390 @@ def build_parvis_island(mats):
                (2.8, 2.8, 3.2), mats["foliage"], 8, 5)
 
 
+# --- The reconstruction site ------------------------------------------------------------------
+# Everything above is masonry and stands still. What moves on this map is the site that was set
+# up to rebuild it: tower cranes, hoists, scaffold lifts, sheeting. That choice keeps the
+# building honest -- no cathedral is a machine -- while still giving the map the moving obstacles
+# the mode needs. All eight loop on whole multiples of one six second beat, so the preset can
+# offset them against each other and the site reads as one rhythm rather than eight surprises.
+#
+# These are exported with their rigs intact and are NOT merged: the loader resolves which mesh a
+# clip drives by node, and merging would collapse the moving parts into one body.
+
+BEAT_SECONDS = 6
+
+
+def reset_animated_scene(name, duration_seconds):
+    if duration_seconds % BEAT_SECONDS != 0:
+        raise ValueError(f"{name}: {duration_seconds}s is not a whole multiple of the beat")
+    scene = reset_scene(name)
+    scene.frame_end = 1 + round(duration_seconds * FPS)
+    scene["loop_duration_seconds"] = duration_seconds
+    scene["beat_seconds"] = BEAT_SECONDS
+    return scene
+
+
+def empty(name, location=(0, 0, 0)):
+    obj = bpy.data.objects.new(name, None)
+    obj.empty_display_type = "PLAIN_AXES"
+    obj.location = location
+    bpy.context.collection.objects.link(obj)
+    return obj
+
+
+def parent_keep_world(child, parent):
+    world = child.matrix_world.copy()
+    child.parent = parent
+    child.matrix_world = world
+
+
+def keyframe(obj, frame, *, location=None, rotation=None, scale=None):
+    if location is not None:
+        obj.location = location
+        obj.keyframe_insert("location", frame=frame)
+    if rotation is not None:
+        obj.rotation_mode = "XYZ"
+        obj.rotation_euler = rotation
+        obj.keyframe_insert("rotation_euler", frame=frame)
+    if scale is not None:
+        obj.scale = scale
+        obj.keyframe_insert("scale", frame=frame)
+
+
+def beat_frame(scene, beats):
+    return scene.frame_start + round(beats * BEAT_SECONDS * FPS)
+
+
+def traveling_gap(rig, scene, total_beats, index, count, *, closed, opened):
+    """Each element owns one slot of the loop and steps aside during it, so the gap walks along
+    the barrier once per loop instead of blinking on and off everywhere at once. Borrowed from
+    the sheeting on a real site, where one bay at a time is unlaced for a lift to pass."""
+    width = total_beats / count
+    slot = index * width
+
+    def key(beats, state):
+        keyframe(rig, beat_frame(scene, beats), **state)
+
+    if slot > 0:
+        key(0, closed)
+    key(slot, closed)
+    key(slot + width * 0.3, opened)
+    key(slot + width * 0.7, opened)
+    key(slot + width, closed)
+    if slot + width < total_beats:
+        key(total_beats, closed)
+
+
+def lattice_mast(name, mats, *, base, height, width, segments):
+    """An open steel lattice: four legs and a bracing ring per segment. Cheap and unmistakably
+    site equipment rather than masonry."""
+    steel = mats["steel"]
+    for corner_x in (-1, 1):
+        for corner_y in (-1, 1):
+            cube(f"{name}_leg_{corner_x}_{corner_y}_nocol",
+                 (base[0] + corner_x * width, base[1] + corner_y * width, base[2] + height / 2),
+                 (0.16, 0.16, height / 2), steel)
+    for segment in range(segments):
+        ring_z = base[2] + height * (segment + 0.5) / segments
+        cube(f"{name}_ring_{segment}_nocol", (base[0], base[1], ring_z),
+             (width, width, 0.11), steel)
+
+
+def build_tower_crane(scene, mats):
+    """Four beats. The big yellow crane that stood over the crossing: the jib sweeps a full turn
+    per loop, so the way past it travels around the mast rather than opening and shutting.
+
+    The jib is the collision body -- coarse and low-poly on purpose, because it is the one mesh
+    the physics has to follow every frame -- while the lattice, the hook block and the counter
+    weight are decoration.
+    """
+    crane = mats["crane"]
+    lattice_mast("tower_crane_mast", mats, base=(0, 0, 0), height=54.0, width=1.5, segments=9)
+    cylinder("tower_crane_base_signal", (0, 0, 1.0), 3.2, 2.0, mats["signal"], vertices=12)
+
+    slew = empty("CraneSlew", (0, 0, 54.0))
+    # The jib: one long bar, the collision body a player has to fly around or under.
+    jib = cube("tower_crane_jib", (17.0, 0, 55.4), (17.0, 0.8, 0.8), crane)
+    tie = cube("tower_crane_tie_nocol", (9.0, 0, 59.0), (9.4, 0.2, 0.2), mats["steel"],
+               rotation=(0, 0.34, 0))
+    tower_top = cone("tower_crane_apex_nocol", (0, 0, 60.5), 1.4, 0.2, 6.0, crane, vertices=6)
+    counter = cube("tower_crane_counterweight", (-7.0, 0, 55.0), (4.0, 1.6, 1.4),
+                   mats["stone_dark"])
+    counter_jib = cube("tower_crane_counterjib_nocol", (-6.0, 0, 56.2), (6.2, 0.5, 0.35), crane)
+    # Hook block on a rope, hanging where the jib passes over the roof.
+    rope = cylinder("tower_crane_rope_nocol", (13.0, 0, 47.0), 0.09, 16.0, mats["rope"],
+                    vertices=6)
+    hook = cube("tower_crane_hook", (13.0, 0, 38.6), (0.9, 0.9, 1.1), mats["steel"])
+    lamp = sphere("tower_crane_jib_lamp_nocol", (32.0, 0, 55.4), (0.6, 0.6, 0.6),
+                  mats["signal"], 8, 5)
+    for obj in (jib, tie, tower_top, counter, counter_jib, rope, hook, lamp):
+        parent_keep_world(obj, slew)
+
+    keyframe(slew, beat_frame(scene, 0), rotation=(0, 0, 0))
+    keyframe(slew, beat_frame(scene, 4), rotation=(0, 0, 2 * pi))
+
+
+def build_scaffold_lift(scene, mats):
+    """One beat. The hoist that ran up the scaffold: two cages on one mast, counterweighted, so
+    one is always at the top while the other is at the bottom. The gap to slip through is
+    whichever level the cages are not on."""
+    steel = mats["steel"]
+    lattice_mast("scaffold_lift_mast", mats, base=(0, 0, 0), height=34.0, width=1.2, segments=7)
+    cube("scaffold_lift_foot_signal", (0, 0, 0.4), (3.0, 3.0, 0.4), mats["signal"])
+    for level in range(6):
+        # The scaffold decks the cages serve.
+        cube(f"scaffold_lift_deck_{level}_nocol", (0, 4.4, 4.0 + level * 5.4),
+             (2.6, 2.6, 0.14), mats["oak"])
+        cube(f"scaffold_lift_rail_{level}_nocol", (0, 6.8, 4.9 + level * 5.4),
+             (2.6, 0.08, 0.5), steel)
+
+    for index, side in enumerate((-1, 1)):
+        cage = empty(f"LiftCage{index}", (side * 2.2, 0, 3.0))
+        body = cube(f"scaffold_cage_{index}", (side * 2.2, 0, 3.0), (1.5, 1.5, 1.9),
+                    mats["crane"])
+        mesh_side = cube(f"scaffold_cage_{index}_mesh_nocol", (side * 3.6, 0, 3.0),
+                         (0.1, 1.5, 1.9), steel)
+        lamp = sphere(f"scaffold_cage_{index}_lamp_nocol", (side * 2.2, -1.7, 4.7),
+                      (0.34, 0.34, 0.34), mats["signal"], 8, 5)
+        for obj in (body, mesh_side, lamp):
+            parent_keep_world(obj, cage)
+
+        low = (side * 2.2, 0, 3.0)
+        high = (side * 2.2, 0, 30.0)
+        # Offset by half a beat between the two cages, so they pass each other mid-mast.
+        first, second = (low, high) if index == 0 else (high, low)
+        keyframe(cage, beat_frame(scene, 0), location=first)
+        keyframe(cage, beat_frame(scene, 0.5), location=second)
+        keyframe(cage, beat_frame(scene, 1), location=first)
+
+
+def build_stone_hoist(scene, mats):
+    """One beat. Dressed blocks on slings, swinging over the crossing. Five of them on staggered
+    phases, so the safe line through the group shifts continuously instead of the whole row
+    swinging as one wall."""
+    steel = mats["steel"]
+    cube("stone_hoist_beam", (0, 0, 22.0), (14.0, 0.7, 0.6), steel)
+    cube("stone_hoist_beam_signal", (0, -0.8, 21.3), (13.4, 0.14, 0.18), mats["signal"])
+    for side in (-1, 1):
+        lattice_mast(f"stone_hoist_tower_{side}", mats, base=(side * 13.4, 0, 0),
+                     height=21.4, width=0.9, segments=5)
+
+    for index in range(5):
+        offset_x = -10.0 + index * 5.0
+        pivot = empty(f"StoneSling{index}", (offset_x, 0, 21.6))
+        rope = cylinder(f"stone_rope_{index}_nocol", (offset_x, 0, 17.0), 0.07, 9.0,
+                        mats["rope"], vertices=6)
+        block = cube(f"stone_block_{index}", (offset_x, 0, 11.6), (1.5, 1.5, 1.2),
+                     mats["stone"])
+        strap = cube(f"stone_strap_{index}_nocol", (offset_x, 0, 12.9), (1.6, 0.12, 0.5),
+                     mats["crane"])
+        for obj in (rope, block, strap):
+            parent_keep_world(obj, pivot)
+
+        # A fifth of a beat of phase between neighbours: the group ripples instead of pulsing.
+        # Sampled at 20 steps per beat, which is fine enough that each block reaches its own
+        # extreme at its own moment -- at four steps two neighbours peaked on the same frame and
+        # the row briefly became a solid wall.
+        phase = index * 0.2
+        swing = 0.5
+        steps = 20
+        for step in range(steps + 1):
+            beats = step / steps
+            keyframe(pivot, beat_frame(scene, beats),
+                     rotation=(sin((beats - phase) * 2 * pi) * swing, 0, 0))
+
+
+def build_fleche_hoist(scene, mats):
+    """Two beats. The spire section being lifted into place, and the reason to cross the map:
+    the segment rises out of its cradle, hangs at the top of the loop, and settles back.
+
+    Nothing here blocks a lane. It is a prize marker, readable from every level of the map.
+    """
+    steel = mats["steel"]
+    cube("fleche_hoist_cradle", (0, 0, 1.2), (5.0, 5.0, 1.2), mats["oak"])
+    cube("fleche_hoist_cradle_signal", (0, 0, 2.5), (4.4, 4.4, 0.16), mats["signal"])
+    for corner_x in (-1, 1):
+        for corner_y in (-1, 1):
+            lattice_mast(
+                f"fleche_hoist_gantry_{corner_x}_{corner_y}", mats,
+                base=(corner_x * 6.5, corner_y * 6.5, 0), height=30.0, width=0.7, segments=6,
+            )
+    cube("fleche_hoist_head_nocol", (0, 0, 30.4), (7.2, 7.2, 0.5), steel)
+    for corner in (-1, 1):
+        cylinder(f"fleche_hoist_rope_{corner}_nocol", (corner * 2.4, 0, 24.0), 0.08, 13.0,
+                 mats["rope"], vertices=6)
+
+    # The segment itself: an octagonal spire section with its lead ribs.
+    segment = empty("FlecheSegment", (0, 0, 4.6))
+    cone_body = cone("fleche_segment_body", (0, 0, 4.6), 3.6, 1.4, 9.0, mats["lead"], vertices=8)
+    for index in range(8):
+        angle = index * (2 * pi / 8)
+        rib = cube(f"fleche_segment_rib_{index}_nocol",
+                   (2.5 * cos(angle), 2.5 * sin(angle), 4.6), (0.16, 0.16, 4.4), mats["lead"],
+                   rotation=(0, 0.12, angle))
+        parent_keep_world(rib, segment)
+    crown = torus("fleche_segment_crown_nocol", (0, 0, 9.2), 1.5, 0.18, mats["gold"],
+                  major_segments=14)
+    for obj in (cone_body, crown):
+        parent_keep_world(obj, segment)
+
+    keyframe(segment, beat_frame(scene, 0), location=(0, 0, 4.6))
+    keyframe(segment, beat_frame(scene, 0.8), location=(0, 0, 22.0))
+    keyframe(segment, beat_frame(scene, 1.2), location=(0, 0, 22.0))
+    keyframe(segment, beat_frame(scene, 2), location=(0, 0, 4.6))
+
+
+def build_tarpaulin_wall(scene, mats):
+    """Two beats. The sheeted hoarding that wrapped the works. Seven bays; one bay at a time is
+    drawn aside, so the opening walks along the wall and a player learns *where* to be rather
+    than counting out *when* to go."""
+    steel = mats["steel"]
+    cube("tarpaulin_wall_head", (0, 0, 18.4), (16.0, 0.6, 0.5), steel)
+    cube("tarpaulin_wall_head_signal", (0, -0.7, 17.8), (15.2, 0.14, 0.18), mats["signal"])
+    for side in (-1, 1):
+        cube(f"tarpaulin_wall_post_{side}", (side * 15.6, 0, 9.0), (0.5, 0.7, 9.0), steel)
+
+    for index in range(7):
+        offset_x = -12.0 + index * 4.0
+        shut = (offset_x, 0, 9.0)
+        aside = (offset_x + 3.6, 0, 9.0)
+
+        bay = empty(f"TarpBay{index}", shut)
+        sheet = cube(f"tarp_sheet_{index}", shut, (1.9, 0.14, 8.6), mats["tarp"])
+        batten = cube(f"tarp_batten_{index}_nocol", (offset_x, -0.2, 9.0), (1.95, 0.08, 0.16),
+                      steel)
+        lamp = sphere(f"tarp_lamp_{index}_nocol", (offset_x + 1.9, -0.4, 16.6),
+                      (0.3, 0.3, 0.3), mats["signal"], 8, 5)
+        for obj in (sheet, batten, lamp):
+            parent_keep_world(obj, bay)
+
+        traveling_gap(bay, scene, 2, index, 7,
+                      closed={"location": shut}, opened={"location": aside})
+
+
+def build_vault_gantry(scene, mats):
+    """Two beats. The rolling gantry that worked on the vaults from inside, running the length of
+    the nave and back. Indoors, so it is the one moving piece a player meets while flying the
+    interior, and it sweeps the corridor rather than blocking it."""
+    steel = mats["steel"]
+    # The gantry has to fit inside the central vessel, which is 12.5 m in the clear. Anything
+    # wider stands in the arcade piers, so the rails sit at 4.8 m either side of the axis and the
+    # whole frame stays under 11 m across.
+    for side in (-1, 1):
+        cube(f"vault_gantry_rail_{side}", (0, side * 4.8, 0.3), (26.0, 0.34, 0.3), steel)
+
+    carriage = empty("GantryCarriage", (0, 0, 0))
+    deck = cube("gantry_deck", (0, 0, 12.4), (2.4, 5.0, 0.4), mats["oak"])
+    for side in (-1, 1):
+        for end in (-1, 1):
+            leg = cube(f"gantry_leg_{side}_{end}_nocol", (end * 2.0, side * 4.6, 6.2),
+                       (0.2, 0.2, 6.2), steel)
+            parent_keep_world(leg, carriage)
+        brace = cube(f"gantry_brace_{side}_nocol", (0, side * 4.6, 8.4), (2.2, 0.14, 0.14), steel)
+        parent_keep_world(brace, carriage)
+    rail_top = cube("gantry_handrail_nocol", (0, 0, 13.6), (2.4, 5.0, 0.1), steel)
+    lamp = sphere("gantry_lamp_nocol", (0, 0, 14.2), (0.42, 0.42, 0.42), mats["signal"], 8, 5)
+    # A working platform slung under the deck, where the vault webs were repointed.
+    cradle = cube("gantry_cradle", (0, 0, 15.6), (1.8, 2.6, 0.3), mats["crane"])
+    for obj in (deck, rail_top, lamp, cradle):
+        parent_keep_world(obj, carriage)
+
+    keyframe(carriage, beat_frame(scene, 0), location=(-22.0, 0, 0))
+    keyframe(carriage, beat_frame(scene, 1), location=(22.0, 0, 0))
+    keyframe(carriage, beat_frame(scene, 2), location=(-22.0, 0, 0))
+
+
+def build_bell_swing(scene, mats):
+    """One beat. The bell frame in the south tower. Three bells on staggered phases, which is
+    what a real peal does -- they never swing together -- so the frame keeps a rolling rhythm
+    that the rest of the site can be read against."""
+    oak = mats["oak"]
+    # An open oak frame, not a pair of solid walls: a bell frame is a cage of posts and braces,
+    # and a closed one would hide the bells that are the whole point of the setpiece.
+    for side in (-1, 1):
+        for end in (-1, 1):
+            cube(f"bell_frame_post_{side}_{end}", (end * 5.0, side * 5.0, 5.0),
+                 (0.42, 0.42, 5.0), oak)
+        cube(f"bell_frame_sill_{side}_nocol", (0, side * 5.0, 0.5), (5.4, 0.38, 0.38), oak)
+        cube(f"bell_frame_plate_{side}_nocol", (0, side * 5.0, 9.8), (5.4, 0.38, 0.38), oak)
+        # Diagonal braces in the long faces, the way a bell frame resists the swing.
+        for end in (-1, 1):
+            _strut(f"bell_frame_brace_{side}_{end}_nocol", oak,
+                   start=(end * 4.8, side * 5.0, 1.0), end=(end * 1.6, side * 5.0, 9.4),
+                   thickness=0.3)
+    for end in (-1, 1):
+        cube(f"bell_frame_tie_{end}_nocol", (end * 5.0, 0, 9.8), (0.38, 5.0, 0.38), oak)
+    cube("bell_frame_head", (0, 0, 10.4), (5.4, 5.0, 0.45), oak)
+    cube("bell_frame_signal", (0, 0, 9.6), (4.8, 0.16, 0.16), mats["signal"])
+
+    for index in range(3):
+        offset_x = -3.2 + index * 3.2
+        headstock = empty(f"BellHeadstock{index}", (offset_x, 0, 9.4))
+        stock = cube(f"bell_stock_{index}_nocol", (offset_x, 0, 9.4), (0.9, 0.3, 0.22),
+                     oak)
+        # The bell body: a cone plus its rim, the coarse collision shape of this setpiece.
+        bell = cone(f"bell_body_{index}", (offset_x, 0, 7.6), 1.35, 0.45, 2.6,
+                    mats["copper"], vertices=10, rotation=(pi, 0, 0))
+        rim = torus(f"bell_rim_{index}_nocol", (offset_x, 0, 6.3), 1.35, 0.14, mats["copper"],
+                    major_segments=12)
+        clapper = sphere(f"bell_clapper_{index}_nocol", (offset_x, 0, 6.6),
+                         (0.24, 0.24, 0.3), mats["steel"], 6, 4)
+        wheel = torus(f"bell_wheel_{index}_nocol", (offset_x + 1.1, 0, 9.4), 1.5, 0.1, oak,
+                      (0, pi / 2, 0), 14)
+        for obj in (stock, bell, rim, clapper, wheel):
+            parent_keep_world(obj, headstock)
+
+        # Twelve samples per beat: a third of a beat of phase lands exactly on a sample, so all
+        # three bells reach their swing at three separate moments.
+        phase = index / 3
+        steps = 12
+        for step in range(steps + 1):
+            beats = step / steps
+            keyframe(headstock, beat_frame(scene, beats),
+                     rotation=(sin((beats - phase) * 2 * pi) * 0.85, 0, 0))
+
+
+def build_rose_ring(scene, mats):
+    """Two beats. The ring of scaffold that stood off the west rose while it was cleaned. Eight
+    bays with one socket left empty, and the whole ring turns -- so the gap rides around the
+    window once per loop. Nothing opens or shuts; the hole is simply always somewhere else."""
+    steel = mats["steel"]
+    cylinder("rose_ring_hub", (0, 0, 0), 1.7, 1.4, steel, vertices=12, rotation=(pi / 2, 0, 0))
+    cylinder("rose_ring_hub_signal", (0, -0.85, 0), 1.0, 0.16, mats["signal"], vertices=12,
+             rotation=(pi / 2, 0, 0))
+    for side in (-1, 1):
+        cube(f"rose_ring_stand_{side}", (side * 9.4, 0.8, 0), (0.42, 0.8, 9.2), steel)
+
+    ring = empty("RoseScaffoldRing", (0, 0, 0))
+    rim = torus("rose_ring_rim_nocol", (0, 0, 0), 8.6, 0.3, steel, (pi / 2, 0, 0), 20)
+    parent_keep_world(rim, ring)
+
+    for index in range(8):
+        angle = index * (2 * pi / 8)
+        if index == 0:
+            # The empty socket: this is the way through, and it travels with the ring.
+            for lamp_index, radius in enumerate((4.2, 6.0, 7.8)):
+                lamp = sphere(
+                    f"rose_gap_lamp_{lamp_index}_nocol",
+                    (radius * cos(angle), -0.6, radius * sin(angle)),
+                    (0.32, 0.32, 0.32), mats["signal"], 8, 5,
+                )
+                parent_keep_world(lamp, ring)
+            continue
+
+        bay = cube(f"rose_bay_{index}", (5.2 * cos(angle), 0, 5.2 * sin(angle)),
+                   (3.4, 0.42, 0.62), steel, rotation=(0, -angle, 0))
+        plank = cube(f"rose_plank_{index}_nocol", (5.2 * cos(angle), -0.5, 5.2 * sin(angle)),
+                     (3.3, 0.1, 0.5), mats["oak"], rotation=(0, -angle, 0))
+        tie = cube(f"rose_tie_{index}_nocol", (7.9 * cos(angle), 0, 7.9 * sin(angle)),
+                   (0.5, 0.4, 0.5), mats["crane"])
+        for obj in (bay, plank, tie):
+            parent_keep_world(obj, ring)
+
+    keyframe(ring, beat_frame(scene, 0), rotation=(0, 0, 0))
+    keyframe(ring, beat_frame(scene, 2), rotation=(0, 2 * pi, 0))
+
+
 ARCHITECTURE = (
     ("01_west_facade", build_west_facade),
     ("02_nave", build_nave),
@@ -1117,6 +1515,20 @@ ARCHITECTURE = (
     ("05_buttresses", build_buttresses),
     ("06_roof_fleche", build_roof_fleche),
     ("07_parvis_island", build_parvis_island),
+)
+
+# Loop lengths are whole multiples of the six second beat. The slow ones are slow on purpose:
+# the spire lift is the map's prize and the sheeting is its longest wait, while the bells and
+# the stone slings tick every beat to keep the site's pulse audible.
+SETPIECES = (
+    ("10_tower_crane", "TowerCraneLoop", 24, build_tower_crane),
+    ("11_scaffold_lift", "ScaffoldLiftLoop", 6, build_scaffold_lift),
+    ("12_stone_hoist", "StoneHoistLoop", 6, build_stone_hoist),
+    ("13_fleche_hoist", "FlecheHoistLoop", 12, build_fleche_hoist),
+    ("14_tarpaulin_wall", "TarpaulinWallLoop", 12, build_tarpaulin_wall),
+    ("15_vault_gantry", "VaultGantryLoop", 12, build_vault_gantry),
+    ("16_bell_swing", "BellSwingLoop", 6, build_bell_swing),
+    ("17_rose_ring", "RoseRingLoop", 12, build_rose_ring),
 )
 
 
@@ -1237,11 +1649,55 @@ def export_part(file_stem, builder):
     )
 
 
+def export_setpiece(file_stem, clip_name, duration, builder):
+    """Export one animated site piece. Unlike the architecture these keep every object separate:
+    the loader matches animation channels to nodes by name, and a merged object would collapse
+    the rigs it needs to drive."""
+    scene = reset_animated_scene(clip_name, duration)
+    builder(scene, build_materials())
+    for obj in bpy.context.scene.objects:
+        if obj.type == "MESH":
+            for layer in list(obj.data.uv_layers):
+                obj.data.uv_layers.remove(layer)
+    scene.frame_set(scene.frame_start)
+
+    lows, highs = scene_bounds()
+    triangles = triangle_count()
+    blend_path = SOURCE_DIR / f"{file_stem}.blend"
+    glb_path = GLB_DIR / f"{file_stem}.glb"
+    bpy.ops.wm.save_as_mainfile(filepath=str(blend_path), check_existing=False)
+    bpy.ops.export_scene.gltf(
+        filepath=str(glb_path),
+        export_format="GLB",
+        export_animations=True,
+        # SCENE mode exports exactly one clip named after the scene, which is what the runtime
+        # clock addresses by name.
+        export_animation_mode="SCENE",
+        export_anim_scene_split_object=False,
+        export_anim_slide_to_zero=True,
+        export_yup=True,
+        export_cameras=False,
+        export_lights=False,
+        export_extras=True,
+        export_apply=True,
+    )
+    print(
+        f"generated {glb_path.relative_to(ROOT)} "
+        f"clip={clip_name} loop={duration}s tris={triangles} "
+        f"center_x={(lows[0] + highs[0]) / 2:.2f} "
+        f"center_z={-(lows[1] + highs[1]) / 2:.2f} "
+        f"base_y={lows[2]:.2f} "
+        f"size=({highs[0] - lows[0]:.1f}, {highs[2] - lows[2]:.1f}, {highs[1] - lows[1]:.1f})"
+    )
+
+
 def main():
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     GLB_DIR.mkdir(parents=True, exist_ok=True)
     for part in ARCHITECTURE:
         export_part(*part)
+    for setpiece in SETPIECES:
+        export_setpiece(*setpiece)
 
 
 if __name__ == "__main__":

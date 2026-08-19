@@ -20,6 +20,7 @@ import { ECLIPSE_FOUNDRY_MAP } from './presets/eclipse_foundry.js';
 import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
 import { VERDANT_APERTURE_MAP } from './presets/verdant_aperture.js';
 import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
+import { NOTRE_DAME_MAPS } from './presets/notre_dame/index.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -44,4 +45,5 @@ export const MAP_PRESET_CATALOG = {
     ...(KINETIC_TIDE_MAP || {}),
     ...(VERDANT_APERTURE_MAP || {}),
     ...(AETHERION_ORRERY_MAP || {}),
+    ...(NOTRE_DAME_MAPS || {}),
 };

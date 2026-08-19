@@ -52,6 +52,8 @@ const BASE_MAP_KEYS = [
     'kinetic_tide',
     'verdant_aperture',
     'aetherion_orrery',
+    'notre_dame',
+    'notre_dame_arena',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(
