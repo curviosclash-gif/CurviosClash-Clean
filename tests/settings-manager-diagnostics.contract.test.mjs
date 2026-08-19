@@ -105,6 +105,7 @@ test('Menu config share preserves local and media runtime fields', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const source = manager.createDefaultSettings();
     source.localSettings.shadowQuality = 1;
+    source.localSettings.bloomQuality = 2;
     source.localSettings.startSetup.arcadeGhostDuelMode = 'self_longest_ghost';
     source.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = true;
     source.recording.profile = 'youtube_short';
@@ -116,6 +117,7 @@ test('Menu config share preserves local and media runtime fields', () => {
     const exported = JSON.parse(exportMenuConfigAsJson(source));
     const target = manager.createDefaultSettings();
     target.localSettings.shadowQuality = 3;
+    target.localSettings.bloomQuality = 0;
     target.localSettings.startSetup.arcadeGhostDuelMode = 'off';
     target.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = false;
     target.recording.profile = 'standard';
@@ -126,6 +128,7 @@ test('Menu config share preserves local and media runtime fields', () => {
 
     assert.equal(applyMenuConfigPayload(target, exported.payload), true);
     assert.equal(target.localSettings.shadowQuality, 1);
+    assert.equal(target.localSettings.bloomQuality, 2);
     assert.equal(target.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
     assert.equal(target.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, true);
     assert.equal(target.recording.profile, 'youtube_short');

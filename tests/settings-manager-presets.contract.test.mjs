@@ -29,6 +29,7 @@ test('Menu presets capture and apply local, recording and camera runtime fields'
         const settings = manager.createDefaultSettings();
         const accessContext = createOwnerAccessContext();
         settings.localSettings.shadowQuality = 1;
+        settings.localSettings.bloomQuality = 2;
         settings.localSettings.startSetup.arcadeGhostDuelMode = 'self_longest_ghost';
         settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = true;
         settings.gameplay.nextCheckpointGlowIntensity = 1.25;
@@ -47,6 +48,7 @@ test('Menu presets capture and apply local, recording and camera runtime fields'
         assert.equal(saveResult.success, true);
 
         settings.localSettings.shadowQuality = 3;
+        settings.localSettings.bloomQuality = 0;
         settings.localSettings.startSetup.arcadeGhostDuelMode = 'off';
         settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = false;
         settings.gameplay.nextCheckpointGlowIntensity = 0.75;
@@ -60,11 +62,13 @@ test('Menu presets capture and apply local, recording and camera runtime fields'
 
         assert.equal(applyResult.success, true);
         assert.ok(applyResult.changedKeys.includes(SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY));
+        assert.ok(applyResult.changedKeys.includes(SETTINGS_CHANGE_KEYS.LOCAL_BLOOM_QUALITY));
         assert.ok(applyResult.changedKeys.includes(SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE));
         assert.ok(applyResult.changedKeys.includes(SETTINGS_CHANGE_KEYS.GAMEPLAY_NEXT_CHECKPOINT_GLOW_INTENSITY));
         assert.ok(applyResult.changedKeys.includes(SETTINGS_CHANGE_KEYS.RECORDING_PROFILE));
         assert.ok(applyResult.changedKeys.includes(SETTINGS_CHANGE_KEYS.CAMERA_PERSPECTIVE_NORMAL));
         assert.equal(settings.localSettings.shadowQuality, 1);
+        assert.equal(settings.localSettings.bloomQuality, 2);
         assert.equal(settings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
         assert.equal(settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, true);
         assert.equal(settings.gameplay.nextCheckpointGlowIntensity, 1.25);

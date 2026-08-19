@@ -10,6 +10,7 @@ import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
 import { SceneRootManager } from './renderer/SceneRootManager.js';
 import { RenderQualityController } from './renderer/RenderQualityController.js';
 import { RecordingCapturePipeline } from './renderer/RecordingCapturePipeline.js';
+import { ScenePostProcessingPipeline } from './renderer/ScenePostProcessingPipeline.js';
 import {
     GRAPHICS_STYLES,
     normalizeGraphicsStyle,
@@ -80,17 +81,26 @@ export class Renderer {
         this.cameraShakeDurations = this.cameraRigSystem.cameraShakeDurations;
         this.cameraShakeIntensities = this.cameraRigSystem.cameraShakeIntensities;
 
+        this.postProcessingPipeline = new ScenePostProcessingPipeline(this.renderer, {
+            width: window.innerWidth,
+            height: window.innerHeight,
+        });
         this.viewportSystem = new RenderViewportSystem(this.renderer, {
             width: window.innerWidth,
             height: window.innerHeight,
             splitScreen: false,
+            postProcessingPipeline: this.postProcessingPipeline,
         });
         this._width = this.viewportSystem.width;
         this._height = this.viewportSystem.height;
         this.splitScreen = this.viewportSystem.splitScreen;
         this.viewportLayout = this.viewportSystem.layout;
 
-        this.qualityController = new RenderQualityController(this.renderer, this.scene);
+        this.qualityController = new RenderQualityController(
+            this.renderer,
+            this.scene,
+            this.postProcessingPipeline
+        );
         this.recordingCapturePipeline = new RecordingCapturePipeline({
             sourceCanvas: this.canvas,
             sourceRenderer: this.renderer,
@@ -464,6 +474,15 @@ export class Renderer {
         return this.qualityController.getShadowQuality();
     }
 
+    setBloomQuality(level) {
+        this.qualityController.setBloomQuality(level);
+        this.recordingCapturePipeline.setBloomQuality?.(level);
+    }
+
+    getBloomQuality() {
+        return this.qualityController.getBloomQuality();
+    }
+
     dispose() {
         if (this._onWindowResize) {
             window.removeEventListener('resize', this._onWindowResize);
@@ -482,6 +501,7 @@ export class Renderer {
         this.scene.environment = null;
         this._environmentRenderTarget?.dispose?.();
         this._environmentRenderTarget = null;
+        this.postProcessingPipeline.dispose();
         this.renderer.dispose();
     }
 }

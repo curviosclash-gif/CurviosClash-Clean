@@ -1,4 +1,5 @@
 import { DEFAULT_SHADOW_QUALITY, normalizeShadowQuality } from '../../shared/contracts/ShadowQualityContract.js';
+import { DEFAULT_BLOOM_QUALITY, normalizeBloomQuality } from '../../shared/contracts/BloomQualityContract.js';
 import { MATCH_LIFECYCLE_CONTRACT_VERSION } from '../../shared/contracts/MatchLifecycleContract.js';
 import { MULTIPLAYER_TRANSPORTS } from '../../shared/contracts/RuntimeSessionContract.js';
 import {
@@ -218,6 +219,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
+        bloomQuality: normalizeBloomQuality(source.bloomQuality, defaults.bloomQuality ?? DEFAULT_BLOOM_QUALITY),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
         hud: normalizeHudAppearance(source.hud, defaults.hud),
         startSetup,

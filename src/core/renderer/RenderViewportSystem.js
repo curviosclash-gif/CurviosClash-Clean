@@ -17,7 +17,9 @@ export class RenderViewportSystem {
         this.networkEnabled = !!options.networkEnabled;
         /** Index of the local player whose camera to follow in network mode. */
         this.localPlayerIndex = options.localPlayerIndex || 0;
+        this.postProcessingPipeline = options.postProcessingPipeline || null;
         this.renderer.setSize(this.width, this.height);
+        this.postProcessingPipeline?.setSize?.(this.width, this.height);
     }
 
     getAspect() {
@@ -74,7 +76,18 @@ export class RenderViewportSystem {
         this.width = window.innerWidth;
         this.height = window.innerHeight;
         this.renderer.setSize(this.width, this.height);
+        this.postProcessingPipeline?.setSize?.(this.width, this.height);
         this.updateCameraAspects(cameras);
+    }
+
+    _renderSingle(scene, camera, width, height) {
+        if (!camera) return;
+        this.renderer.setScissorTest(false);
+        this.renderer.setViewport(0, 0, width, height);
+        this.renderer.setScissor(0, 0, width, height);
+        if (!this.postProcessingPipeline?.render?.(scene, camera)) {
+            this.renderer.render(scene, camera);
+        }
     }
 
     render(scene, cameras) {
@@ -85,12 +98,7 @@ export class RenderViewportSystem {
         if (this.networkEnabled) {
             const camIdx = Math.min(this.localPlayerIndex, cameras.length - 1);
             const cam = cameras[Math.max(0, camIdx)] || cameras[0];
-            if (cam) {
-                this.renderer.setScissorTest(false);
-                this.renderer.setViewport(0, 0, w, h);
-                this.renderer.setScissor(0, 0, w, h);
-                this.renderer.render(scene, cam);
-            }
+            this._renderSingle(scene, cam, w, h);
             return;
         }
 
@@ -137,10 +145,7 @@ export class RenderViewportSystem {
         }
 
         if (cameras.length > 0) {
-            this.renderer.setScissorTest(false);
-            this.renderer.setViewport(0, 0, w, h);
-            this.renderer.setScissor(0, 0, w, h);
-            this.renderer.render(scene, cameras[0]);
+            this._renderSingle(scene, cameras[0], w, h);
         }
     }
 }

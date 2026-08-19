@@ -175,6 +175,8 @@ export function createGameUiRefs(doc = document) {
         viewDistanceLabel: doc.getElementById('view-distance-label'),
         shadowQualitySlider: doc.getElementById('shadow-quality-slider'),
         shadowQualityLabel: doc.getElementById('shadow-quality-label'),
+        bloomQualitySlider: doc.getElementById('bloom-quality-slider'),
+        bloomQualityLabel: doc.getElementById('bloom-quality-label'),
         recordingProfileSelect: doc.getElementById('recording-profile-select'),
         recordingHudModeSelect: doc.getElementById('recording-hud-mode-select'),
         recordingProfileHint: doc.getElementById('recording-profile-hint'),

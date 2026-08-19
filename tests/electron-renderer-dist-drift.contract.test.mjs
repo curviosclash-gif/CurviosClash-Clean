@@ -22,6 +22,8 @@ const CRITICAL_RENDERER_MARKERS = Object.freeze([
     'recording.profile',
     'shadow-quality-slider',
     'local.shadowQuality',
+    'bloom-quality-slider',
+    'local.bloomQuality',
     'next-checkpoint-glow-slider',
     'gameplay.nextCheckpointGlowIntensity',
     'mg-trail-aim-slider',

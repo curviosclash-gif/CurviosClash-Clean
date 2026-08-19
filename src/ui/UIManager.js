@@ -12,6 +12,7 @@ import { MenuStateMachine, MENU_STATE_IDS } from './menu/MenuStateMachine.js';
 import { listMenuTextCatalogEntries } from './menu/MenuTextCatalog.js';
 import { MenuTextRuntime } from './menu/MenuTextRuntime.js';
 import { DEFAULT_SHADOW_QUALITY, normalizeShadowQuality, resolveShadowQualityLabel } from '../shared/contracts/ShadowQualityContract.js';
+import { DEFAULT_BLOOM_QUALITY, normalizeBloomQuality, resolveBloomQualityLabel } from '../shared/contracts/BloomQualityContract.js';
 import { normalizeGraphicsStyle } from '../shared/contracts/GraphicsStyleContract.js';
 import { normalizeMapBrightness } from '../shared/contracts/MapBrightnessContract.js';
 import { normalizeViewDistance, resolveViewDistanceLabel } from '../shared/contracts/ViewDistanceContract.js';
@@ -514,6 +515,9 @@ export class UIManager {
         const shadowQuality = normalizeShadowQuality(settings?.localSettings?.shadowQuality, DEFAULT_SHADOW_QUALITY);
         if (ui.shadowQualitySlider) ui.shadowQualitySlider.value = String(shadowQuality);
         if (ui.shadowQualityLabel) ui.shadowQualityLabel.textContent = resolveShadowQualityLabel(shadowQuality);
+        const bloomQuality = normalizeBloomQuality(settings?.localSettings?.bloomQuality, DEFAULT_BLOOM_QUALITY);
+        if (ui.bloomQualitySlider) ui.bloomQualitySlider.value = String(bloomQuality);
+        if (ui.bloomQualityLabel) ui.bloomQualityLabel.textContent = resolveBloomQualityLabel(bloomQuality);
         ui.lockOnLabel.textContent = gp.lockOnAngle + '\u00B0';
         const recordingSettings = normalizeRecordingCaptureSettings(
             settings?.recording,

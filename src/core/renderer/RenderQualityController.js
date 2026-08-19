@@ -6,17 +6,26 @@ import {
     resolveShadowQualityPreset,
     SHADOW_QUALITY_LEVELS,
 } from './ShadowQuality.js';
+import {
+    BLOOM_QUALITY_LEVELS,
+    DEFAULT_BLOOM_QUALITY,
+    normalizeBloomQuality,
+    resolveBloomQualityPreset,
+} from '../../shared/contracts/BloomQualityContract.js';
 
 export class RenderQualityController {
-    constructor(renderer, scene) {
+    constructor(renderer, scene, postProcessingPipeline = null) {
         this.renderer = renderer;
         this.scene = scene;
         this.requestedQuality = 'HIGH';
         this.quality = 'HIGH';
         this.shadowQuality = DEFAULT_SHADOW_QUALITY;
+        this.bloomQuality = DEFAULT_BLOOM_QUALITY;
+        this.postProcessingPipeline = postProcessingPipeline;
         this.qualityLockReason = null;
         this.highQualityEnvironment = scene?.environment || null;
         this._applyShadowQuality();
+        this._applyBloomQuality();
     }
 
     setQuality(quality) {
@@ -78,6 +87,8 @@ export class RenderQualityController {
         }
 
         this._applyShadowQuality();
+        this._applyBloomQuality();
+        this.postProcessingPipeline?.setPixelRatio?.(this.renderer.getPixelRatio());
         this._refreshMaterials();
     }
 
@@ -93,6 +104,26 @@ export class RenderQualityController {
 
     getShadowQuality() {
         return this.shadowQuality;
+    }
+
+    setBloomQuality(level) {
+        const nextBloomQuality = normalizeBloomQuality(level);
+        if (this.bloomQuality === nextBloomQuality) return;
+        this.bloomQuality = nextBloomQuality;
+        this._applyBloomQuality();
+    }
+
+    getBloomQuality() {
+        return this.bloomQuality;
+    }
+
+    _applyBloomQuality() {
+        const effectiveBloomQuality = this.quality === 'HIGH'
+            ? this.bloomQuality
+            : BLOOM_QUALITY_LEVELS.OFF;
+        this.postProcessingPipeline?.setQualityPreset?.(
+            resolveBloomQualityPreset(effectiveBloomQuality)
+        );
     }
 
     _applyShadowQuality() {

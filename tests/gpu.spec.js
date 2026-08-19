@@ -270,6 +270,53 @@ test.describe('T21-40: Rendering & GPU', () => {
         expect(offState.shadows).toBeFalsy();
     });
 
+    test('T31b: Bloom nutzt Composer und SMAA nur im Einzelbild', async ({ page }) => {
+        await startGame(page);
+        await page.evaluate(() => {
+            const renderer = window.GAME_INSTANCE.renderer;
+            renderer.setViewportLayout('single');
+            renderer.setBloomQuality(2);
+        });
+        await waitForRenderFrames(page, 3);
+
+        const singleState = await page.evaluate(() => {
+            const renderer = window.GAME_INSTANCE.renderer;
+            const pipeline = renderer.postProcessingPipeline;
+            return {
+                enabled: pipeline.enabled,
+                passOrder: pipeline.composer?.passes?.map((pass) => {
+                    if (pass === pipeline.renderPass) return 'render';
+                    if (pass === pipeline.bloomPass) return 'bloom';
+                    if (pass === pipeline.smaaPass) return 'smaa';
+                    if (pass === pipeline.outputPass) return 'output';
+                    return 'unknown';
+                }) || [],
+                outputToneMapping: pipeline.outputPass?._toneMapping,
+                rendererToneMapping: renderer.renderer.toneMapping,
+            };
+        });
+        expect(singleState.enabled).toBeTruthy();
+        expect(singleState.passOrder).toEqual(['render', 'bloom', 'smaa', 'output']);
+        expect(singleState.outputToneMapping).toBe(singleState.rendererToneMapping);
+
+        const splitComposerCalls = await page.evaluate(() => {
+            const renderer = window.GAME_INSTANCE.renderer;
+            const pipeline = renderer.postProcessingPipeline;
+            if (renderer.cameras.length < 2) renderer.createCamera(1);
+            const originalRender = pipeline.render.bind(pipeline);
+            let calls = 0;
+            pipeline.render = (...args) => {
+                calls += 1;
+                return originalRender(...args);
+            };
+            renderer.setViewportLayout('two_columns');
+            renderer.render();
+            pipeline.render = originalRender;
+            return calls;
+        });
+        expect(splitComposerCalls).toBe(0);
+    });
+
     test('T32: Szene nutzt definierte Scene-Roots', async ({ page }) => {
         await startGame(page);
         const hasRoots = await page.evaluate(() => {

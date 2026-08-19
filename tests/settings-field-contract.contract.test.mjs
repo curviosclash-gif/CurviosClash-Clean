@@ -69,6 +69,7 @@ test('settings sanitizer is idempotent for malformed mixed input', () => {
             sessionType: 'lan',
             modePath: 'invalid',
             shadowQuality: 99,
+            bloomQuality: 99,
         },
     });
 

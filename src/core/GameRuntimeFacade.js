@@ -151,7 +151,7 @@ export class GameRuntimeFacade {
         const runtimeConfig = game.settingsManager.createRuntimeConfig(game.settings);
         const compatibilityConfig = applyRuntimeConfigCompatibility(runtimeConfig, CONFIG_BASE);
 
-        renderer?.setShadowQuality?.(game.settings?.localSettings?.shadowQuality);
+        renderer?.setShadowQuality?.(game.settings?.localSettings?.shadowQuality); renderer?.setBloomQuality?.(game.settings?.localSettings?.bloomQuality);
         renderer?.setRecordingCaptureSettings?.(runtimeConfig?.recording);
         renderer?.setCameraPerspectiveSettings?.(runtimeConfig?.cameraPerspective);
         mediaRecorderSystem?.setRecordingCaptureSettings?.(runtimeConfig?.recording);

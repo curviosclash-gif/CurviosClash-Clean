@@ -110,6 +110,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.graphics.map_brightness.label': 'Karten-Helligkeit',
     'menu.level4.graphics.view_distance.label': 'Sichtweite:',
     'menu.level4.graphics.shadow_quality.label': 'Schattenqualität:',
+    'menu.level4.graphics.bloom_quality.label': 'Bloom:',
     'menu.level4.camera.perspective.label': 'Video-Perspektive',
     'menu.level4.recording.profile.label': 'Aufnahmeprofil',
     'menu.level4.recording.hud_mode.label': 'HUD in der Aufnahme',

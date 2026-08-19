@@ -1,6 +1,7 @@
 import { CUSTOM_MAP_KEY } from '../../entities/MapSchema.js';
 import { GAME_MODE_TYPES, resolveActiveGameMode } from '../../hunt/HuntMode.js';
 import { normalizeShadowQuality } from '../../shared/contracts/ShadowQualityContract.js';
+import { normalizeBloomQuality } from '../../shared/contracts/BloomQualityContract.js';
 import { GAMEPLAY_COCKPIT_CAMERA_ENABLED } from '../../shared/contracts/CameraModeContract.js';
 import { clamp } from '../../utils/MathOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
@@ -479,6 +480,15 @@ export function setupMenuGameplayBindings(ctx) {
             }
             settings.localSettings.shadowQuality = normalizeShadowQuality(ui.shadowQualitySlider.value);
             queueInputSettingsChanged([keys.LOCAL_SHADOW_QUALITY]);
+        });
+    }
+    if (ui.bloomQualitySlider) {
+        bind(ui.bloomQualitySlider, 'input', () => {
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') {
+                settings.localSettings = {};
+            }
+            settings.localSettings.bloomQuality = normalizeBloomQuality(ui.bloomQualitySlider.value);
+            queueInputSettingsChanged([keys.LOCAL_BLOOM_QUALITY]);
         });
     }
     bindGraphicsStyleSelect(ctx); bindMenuRecordingCameraControls(ctx);

@@ -279,6 +279,9 @@ export function createRenderPort(game) {
         setShadowQuality(level) {
             getRuntimeComponents(game)?.renderer?.setShadowQuality?.(level);
         },
+        setBloomQuality(level) {
+            getRuntimeComponents(game)?.renderer?.setBloomQuality?.(level);
+        },
         syncPortalBeams(isEnabled) {
             const arena = getRuntimeState(game)?.arena || null;
             arena?.toggleBeams?.(!!isEnabled);

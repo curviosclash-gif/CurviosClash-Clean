@@ -52,6 +52,7 @@ export function orchestrateRuntimeSettingsChanged({
     game.renderer?.setMapBrightness?.(game.settings?.localSettings?.mapBrightness);
     game.renderer?.setViewDistance?.(game.settings?.localSettings?.viewDistance);
     game.renderer?.setShadowQuality?.(game.settings?.localSettings?.shadowQuality);
+    game.renderer?.setBloomQuality?.(game.settings?.localSettings?.bloomQuality);
     game.renderer?.setRecordingCaptureSettings?.(game.settings?.recording);
     game.renderer?.setCameraPerspectiveSettings?.(game.settings?.cameraPerspective);
     game.mediaRecorderSystem?.setRecordingCaptureSettings?.(game.settings?.recording);

@@ -283,7 +283,7 @@ test('handleLevel4ResetAction resets only the options shown in the gameplay pane
     const defaults = {
         gameplay: { speed: 35, portalCount: 8 },
         controls: { PLAYER_1: { LEFT: 'KeyA' } },
-        localSettings: { shadowQuality: 3 },
+        localSettings: { shadowQuality: 3, bloomQuality: 0 },
         portalsEnabled: true,
         autoRoll: true,
         invertPitch: { PLAYER_1: true, PLAYER_2: true },
@@ -297,7 +297,7 @@ test('handleLevel4ResetAction resets only the options shown in the gameplay pane
         settings: {
             gameplay: { speed: 12, portalCount: 2 },
             controls: { PLAYER_1: { LEFT: 'ArrowLeft' } },
-            localSettings: { shadowQuality: 0 },
+            localSettings: { shadowQuality: 0, bloomQuality: 2 },
             portalsEnabled: false,
             autoRoll: false,
             invertPitch: { PLAYER_1: false, PLAYER_2: false },
@@ -323,6 +323,7 @@ test('handleLevel4ResetAction resets only the options shown in the gameplay pane
     assert.deepEqual(game.settings.gameplay, defaults.gameplay);
     assert.deepEqual(game.settings.cameraPerspective, defaults.cameraPerspective);
     assert.deepEqual(game.settings.recording, defaults.recording);
+    assert.equal(game.settings.localSettings.bloomQuality, 0);
     assert.deepEqual(game.settings.controls, { PLAYER_1: { LEFT: 'ArrowLeft' } });
     assert.equal(game.settings.portalsEnabled, false);
     assert.equal(changed.length, 1);

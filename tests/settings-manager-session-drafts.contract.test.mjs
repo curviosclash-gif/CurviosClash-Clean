@@ -47,6 +47,7 @@ test('Menu session drafts preserve session fields without replacing the local di
     settings.localSettings.sessionType = 'single';
     settings.localSettings.themeMode = 'dunkel';
     settings.localSettings.shadowQuality = 1;
+    settings.localSettings.bloomQuality = 2;
     settings.localSettings.startSetup.arcadeGhostDuelMode = 'self_longest_ghost';
     settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = true;
     settings.gameplay.nextCheckpointGlowIntensity = 1.2;
@@ -61,6 +62,7 @@ test('Menu session drafts preserve session fields without replacing the local di
 
     settings.localSettings.themeMode = 'hell';
     settings.localSettings.shadowQuality = 3;
+    settings.localSettings.bloomQuality = 0;
     settings.localSettings.startSetup.arcadeGhostDuelMode = 'off';
     settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled = false;
     settings.gameplay.nextCheckpointGlowIntensity = 0.5;
@@ -75,6 +77,7 @@ test('Menu session drafts preserve session fields without replacing the local di
     assert.equal(applyResult.success, true);
     assert.equal(settings.localSettings.themeMode, 'hell');
     assert.equal(settings.localSettings.shadowQuality, 1);
+    assert.equal(settings.localSettings.bloomQuality, 2);
     assert.equal(settings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
     assert.equal(settings.localSettings.startSetup.arcadeGhostTrailCollisionEnabled, true);
     assert.equal(settings.gameplay.nextCheckpointGlowIntensity, 1.2);

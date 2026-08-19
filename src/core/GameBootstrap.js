@@ -89,6 +89,7 @@ export function bootstrapGameRuntime(game, options = {}) {
     renderer.setMapBrightness(game.settings?.localSettings?.mapBrightness);
     renderer.setViewDistance(game.settings?.localSettings?.viewDistance);
     renderer.setShadowQuality(game.settings?.localSettings?.shadowQuality);
+    renderer.setBloomQuality(game.settings?.localSettings?.bloomQuality);
     const recorderRuntimeConfig = resolveRecorderRuntimeConfig();
     let replaySessionPort = null;
     let mediaRecorderSystem = null;

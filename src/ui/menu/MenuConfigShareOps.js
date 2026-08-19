@@ -60,6 +60,7 @@ function createSharePayload(settings) {
         modePath: sanitizeString(source?.localSettings?.modePath, defaults.modePath),
         themeMode: sanitizeString(source?.localSettings?.themeMode, defaults.themeMode),
         shadowQuality: source?.localSettings?.shadowQuality ?? localDefaults.shadowQuality,
+        bloomQuality: source?.localSettings?.bloomQuality ?? localDefaults.bloomQuality,
         startSetup: {
             arcadeGhostDuelMode: sanitizeString(
                 source?.localSettings?.startSetup?.arcadeGhostDuelMode,
@@ -129,6 +130,7 @@ export function applyMenuConfigPayload(settings, payload) {
     settings.localSettings.themeMode = sanitizeString(payload.themeMode, settings.localSettings.themeMode || defaults.themeMode);
     const localDefaults = createMenuLocalSettingsDefaults();
     settings.localSettings.shadowQuality = payload.shadowQuality ?? settings.localSettings.shadowQuality ?? localDefaults.shadowQuality;
+    settings.localSettings.bloomQuality = payload.bloomQuality ?? settings.localSettings.bloomQuality ?? localDefaults.bloomQuality;
     settings.localSettings.startSetup = {
         ...(settings.localSettings.startSetup && typeof settings.localSettings.startSetup === 'object'
             ? settings.localSettings.startSetup
