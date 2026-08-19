@@ -80,9 +80,10 @@ test('the storey decks separate the levels and only open where a setpiece gates 
     // vehicle hitbox. Driving the clock through setGlbAnimationElapsedSeconds -- the same seam a
     // network resync uses -- makes this deterministic and instant. Waiting for the beat to pass
     // on its own is not an option: the test window throttles the loop roughly sixtyfold.
-    const sweep = await page.evaluate(({ hitbox, y, join, solid, half, beat, steps }) => {
+    const sweep = await page.evaluate(async ({ hitbox, y, join, solid, half, beat, steps }) => {
         const arena = window.GAME_INSTANCE.arena;
-        const step = half / 4;
+        const samplesPerAxis = 5;
+        const step = (half * 2) / (samplesPerAxis - 1);
 
         const scanCell = (centre) => {
             let free = 0;
@@ -104,12 +105,16 @@ test('the storey decks separate the levels and only open where a setpiece gates 
             arena.update(1 / 1000);
             joinSamples.push(scanCell(join));
             solidSamples.push(scanCell(solid));
+            // Keep the renderer responsive so a failed assertion or timeout can still tear
+            // the Electron worker down instead of waiting behind one long synchronous task.
+            await new Promise((resolve) => setTimeout(resolve, 0));
         }
         return {
             joinMin: Math.min(...joinSamples),
             joinMax: Math.max(...joinSamples),
             solidMax: Math.max(...solidSamples),
             sampleCount: joinSamples.length,
+            collisionProbeCount: steps * samplesPerAxis * samplesPerAxis * 2,
             joinByStep: joinSamples.map((value) => Number(value.toFixed(3))),
         };
     }, {
@@ -123,10 +128,10 @@ test('the storey decks separate the levels and only open where a setpiece gates 
     });
 
     // Reported so the numbers land in the run log and can go into a commit body as a proof.
-    // eslint-disable-next-line no-console
     console.log('verdant aperture join passability per beat step:', JSON.stringify(sweep));
 
     expect(sweep.sampleCount).toBe(24);
+    expect(sweep.collisionProbeCount).toBe(1200);
     // A cell of plain deck is a floor: nothing passes it at any point in the loop.
     expect(sweep.solidMax).toBe(0);
     // The gated join has to be usable at some point, or the level is sealed off.

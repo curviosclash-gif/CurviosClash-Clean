@@ -6,8 +6,6 @@ import {
     returnToMenu,
 } from './core-targeted.shared.js';
 
-const GHOST_LIBRARY_STORAGE_KEY = 'cuviosclash.arcade-ghost-library.v1';
-const GHOST_LIBRARY_SCHEMA_VERSION = 'arcade-ghost-library.v2';
 const SUPPORTED_MODE_PATHS = Object.freeze(['normal', 'fight', 'arcade']);
 const DEFAULT_MODE_PATHS = Object.freeze(['normal', 'fight', 'arcade']);
 
@@ -76,7 +74,7 @@ async function listVisibleMapKeys(page) {
 }
 
 async function seedGhostForMapAndEnableSelfDuel(page, { modePath, mapKey }) {
-    return page.evaluate(({ modePath, mapKey, ghostLibraryStorageKey, ghostLibrarySchemaVersion, seededGhostClip }) => {
+    return page.evaluate(async ({ modePath, mapKey, seededGhostClip }) => {
         const game = globalThis.GAME_INSTANCE;
         if (!game?.settings) {
             return { ok: false, reason: 'missing_game' };
@@ -100,12 +98,17 @@ async function seedGhostForMapAndEnableSelfDuel(page, { modePath, mapKey }) {
             mapSelect.dispatchEvent(new Event('change', { bubbles: true }));
         }
 
-        game.uiManager?.syncByChangeKeys?.([
+        const changedKeys = [
             'session.type',
             'session.modePath',
+            'session.gameMode',
+            'session.hunt.respawnEnabled',
             'mapKey',
             'startSetup.arcadeGhostDuelMode',
-        ]);
+        ];
+        game.settingsManager?.applyMenuCompatibilityRules?.(game.settings, { changedKeys });
+        await Promise.resolve(game.runtimeFacade?.onSettingsChanged?.({ changedKeys }));
+        game.uiManager?.syncByChangeKeys?.(changedKeys);
 
         const routeId = String(
             game?.config?.MAPS?.[mapKey]?.parcours?.routeId
@@ -116,37 +119,42 @@ async function seedGhostForMapAndEnableSelfDuel(page, { modePath, mapKey }) {
             return { ok: false, reason: 'missing_route', mapKey };
         }
 
-        const existingLibrary = JSON.parse(localStorage.getItem(ghostLibraryStorageKey) || '{}');
-        const nextEntry = {
+        const seedResult = game.runtimeFacade?.applyArcadeParcoursEvent?.({
+            type: 'finish',
             routeId,
-            canonicalRouteId: routeId,
             routeAliases: routeId === mapKey ? [] : [mapKey],
-            longestGhostClip: seededGhostClip,
-            durationMs: 3800,
-            updatedAt: new Date().toISOString(),
-        };
-        if (existingLibrary?.schemaVersion === ghostLibrarySchemaVersion && existingLibrary?.routes) {
-            if (!existingLibrary.aliasIndex || typeof existingLibrary.aliasIndex !== 'object') {
-                existingLibrary.aliasIndex = {};
-            }
-            existingLibrary.routes[routeId] = nextEntry;
-            existingLibrary.aliasIndex[routeId] = routeId;
-            if (routeId !== mapKey) {
-                existingLibrary.aliasIndex[mapKey] = routeId;
-            }
-        } else {
-            existingLibrary[routeId] = nextEntry;
+            totalTimeMs: 3800,
+            penaltyTimeMs: 0,
+            segmentSplitsMs: [],
+            ghostClip: seededGhostClip,
+            persistLibraryOnly: true,
+            source: 'desktop_allmaps_seed',
+        });
+        if (!seedResult?.longestGhostUpdated && seedResult?.longestGhostReason !== 'not_longer') {
+            return {
+                ok: false,
+                reason: `runtime_seed_failed:${seedResult?.longestGhostReason || 'missing_result'}`,
+                mapKey,
+                routeId,
+            };
         }
-        localStorage.setItem(ghostLibraryStorageKey, JSON.stringify(existingLibrary));
 
         return { ok: true, routeId };
     }, {
         modePath,
         mapKey,
-        ghostLibraryStorageKey: GHOST_LIBRARY_STORAGE_KEY,
-        ghostLibrarySchemaVersion: GHOST_LIBRARY_SCHEMA_VERSION,
         seededGhostClip: SEEDED_GHOST_CLIP,
     });
+}
+
+async function waitForMatchStart(page) {
+    return page.waitForFunction(() => {
+        const game = globalThis.GAME_INSTANCE;
+        if (game?.state === 'PLAYING') return 'playing';
+        if (game?.state === 'PAUSED') return 'paused';
+        const pendingStart = game?.runtimeFacade?.sessionHandler?._pendingStartMatch;
+        return pendingStart ? false : 'settled_without_playing';
+    }, null, { timeout: 60000 }).then((handle) => handle.jsonValue()).catch(() => 'timeout');
 }
 
 async function readGhostRuntimeState(page) {
@@ -198,12 +206,8 @@ test('Ghost-Selbstduell funktioniert im Desktop-Electron in Single normal/fight/
                 }
 
                 await page.click('#submenu-game:not(.hidden) #btn-start', { force: true });
-                const started = await page.waitForFunction(
-                    () => globalThis.GAME_INSTANCE?.state === 'PLAYING',
-                    null,
-                    { timeout: 20000 }
-                ).then(() => true).catch(() => false);
-                if (!started) {
+                const startState = await waitForMatchStart(page);
+                if (startState !== 'playing') {
                     const menuState = await page.evaluate(() => {
                         const game = globalThis.GAME_INSTANCE;
                         return {
@@ -219,6 +223,7 @@ test('Ghost-Selbstduell funktioniert im Desktop-Electron in Single normal/fight/
                         mapKey,
                         routeId: seedResult.routeId || '',
                         reason: 'start_timeout_not_playing',
+                        startState,
                         menuState,
                     });
                     continue;
