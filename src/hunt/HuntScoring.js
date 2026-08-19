@@ -114,7 +114,7 @@ export class HuntScoring {
     getScoreboard(players = []) {
         const rows = [];
         for (const player of players) {
-            if (!player || !Number.isInteger(player.index)) continue;
+            if (!player || player.entitySlotActive === false || !Number.isInteger(player.index)) continue;
             const stats = this._ensureStats(player.index);
             rows.push({
                 playerIndex: player.index,

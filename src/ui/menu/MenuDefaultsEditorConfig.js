@@ -176,6 +176,24 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     },
     fixedPresets: [
         {
+            id: 'endlosjagd',
+            name: 'Endlosjagd',
+            description: 'Endloser Kampf-Parcours mit deterministischem Streaming und Eskalation.',
+            lockedFields: ['localSettings.modePath', 'mode', 'gameMode', 'numBots', 'arcade.runType', 'arcade.combatProfile'],
+            values: {
+                'localSettings.modePath': 'arcade',
+                mode: '1p',
+                gameMode: 'ARCADE',
+                mapKey: 'standard',
+                numBots: 0,
+                botDifficulty: 'NORMAL',
+                winsNeeded: 1,
+                'arcade.runType': 'endless_parcours',
+                'arcade.combatProfile': 'hunt',
+                'gameplay.planarMode': false,
+            },
+        },
+        {
             id: 'arcade',
             name: 'Arcade',
             description: 'Schnelles Setup fuer direkten Einstieg.',

@@ -16,6 +16,10 @@ import {
     buildGameplayActionResult,
     encodeGameplayActionResultForLog,
 } from '../shared/contracts/GameplayActionResultContract.js';
+import {
+    removePowerupsByOwnerId,
+    spawnPowerupAtAnchor,
+} from './powerup/PowerupAnchoredSpawnOps.js';
 
 const SPAWN_TELEGRAPH_SECONDS = 0.75;
 const PICKUP_PREDICTION_GRACE_SECONDS = 0.35;
@@ -138,14 +142,15 @@ export class PowerupManager {
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
             : 0;
-        if (!this.networkReplica && authoredItemTarget > 0) {
+        const runtimeOwnsSpawns = strategy?.isEndlessParcours?.() === true;
+        if (!runtimeOwnsSpawns && !this.networkReplica && authoredItemTarget > 0) {
             while (this.items.length < authoredItemTarget) {
                 const previousCount = this.items.length;
                 this._spawnRandom();
                 if (this.items.length === previousCount) break;
             }
             this.spawnTimer = 0;
-        } else if (!this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
+        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
             this.spawnTimer = 0;
             this._spawnRandom();
         }
@@ -188,7 +193,7 @@ export class PowerupManager {
         const config = this.entityRuntimeConfig;
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
         const random = () => nextRuntimeRandom(strategy);
-        const modeType = String(strategy?.modeType || 'CLASSIC').trim().toUpperCase();
+        const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const itemSpawnAuthoring = resolveItemSpawnAuthoringContract(this.arena?.currentMapDefinition);
         const spawnableTypes = strategy
             ? strategy.filterSpawnableTypes(this.typeKeys, config.POWERUP.TYPES)
@@ -321,6 +326,14 @@ export class PowerupManager {
         const wire = new THREE.Mesh(this._sharedWireGeo, wireMat);
         mesh.add(wire);
         return mesh;
+    }
+
+    spawnAtAnchor(anchor) {
+        return spawnPowerupAtAnchor(this, anchor);
+    }
+
+    removeByOwnerId(ownerId) {
+        return removePowerupsByOwnerId(this, ownerId);
     }
 
 

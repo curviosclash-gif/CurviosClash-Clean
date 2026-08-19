@@ -86,6 +86,66 @@ test.describe('Desktop Smoke', () => {
         expect(errors).toHaveLength(0);
     });
 
+    test('starts the Endlosjagd Arcade preset with streamed Hunt combat HUD', async ({ page }) => {
+        const errors = collectErrors(page);
+        await waitForLoadedGame(page);
+        await page.locator('#menu-nav [data-session-type="single"]').click({ force: true });
+        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="arcade"]').click({ force: true });
+        await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]')
+            .evaluate((button) => button.click());
+        await expect(page.locator('#btn-arcade-endless-start-inline')).toBeVisible();
+        await page.locator('#btn-arcade-endless-start-inline').click({ force: true });
+        await page.waitForFunction(() => {
+            const game = window.GAME_INSTANCE;
+            const endless = game?.entityManager?.endlessParcoursRuntime;
+            const hud = document.getElementById('arcade-score-hud');
+            return game?.entityManager?.gameModeStrategy?.modeType === 'ARCADE'
+                && game?.runtimeConfig?.arcade?.runType === 'endless_parcours'
+                && game?.runtimeConfig?.arcade?.combatProfile === 'hunt'
+                && endless
+                && hud
+                && getComputedStyle(hud).display !== 'none';
+        }, null, { timeout: 60000 });
+        await waitForRenderFrames(page, 12);
+
+        const state = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const manager = game.entityManager;
+            const endless = manager.endlessParcoursRuntime;
+            return {
+                modeType: manager.gameModeStrategy.modeType,
+                combatModeType: manager.gameModeStrategy.getPickupModeType(),
+                playerCount: manager.players.length,
+                botSlots: manager.bots.length,
+                inactiveBots: manager.bots.filter((entry) => entry.player.entitySlotActive === false).length,
+                activeModules: endless.getDebugSnapshot().activeModules,
+                hudText: document.getElementById('arcade-score-hud')?.textContent || '',
+            };
+        });
+
+        expect(state).toMatchObject({
+            modeType: 'ARCADE',
+            combatModeType: 'HUNT',
+            playerCount: 13,
+            botSlots: 12,
+            inactiveBots: 12,
+        });
+        expect(state.activeModules).toBeLessThanOrEqual(5);
+        expect(state.hudText).toContain('Distanz');
+        expect(state.hudText).toContain('Gefahr');
+        expect(state.hudText).toContain('Bestwert');
+        await page.evaluate(() => {
+            window.GAME_INSTANCE.entityManager.humanPlayers[0].position.z = 121;
+        });
+        await page.waitForFunction(() => {
+            const endless = window.GAME_INSTANCE?.entityManager?.endlessParcoursRuntime;
+            return endless?.combatStarted === true && endless?.getHudState?.().activeBots >= 2;
+        }, null, { timeout: 5000 });
+        expect(errors).toHaveLength(0);
+
+        await returnToMenu(page);
+    });
+
     test('split-screen fight renders a complete HUD for each local player', async ({ page }, testInfo) => {
         const errors = collectErrors(page);
         await waitForLoadedGame(page);

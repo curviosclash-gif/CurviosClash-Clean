@@ -93,7 +93,12 @@ export class PlanarAimAssistSystem {
         gameLoop.setTimeScale(1.0);
         const strategy = entityManager.gameModeStrategy || null;
         const entityRuntimeConfig = this.runtimeAccess.getEntityRuntimeConfig?.() || null;
-        const modeType = String(strategy?.modeType || entityRuntimeConfig?.HUNT?.ACTIVE_MODE || 'CLASSIC').trim().toUpperCase();
+        const modeType = String(
+            strategy?.getPickupModeType?.()
+            || strategy?.modeType
+            || entityRuntimeConfig?.HUNT?.ACTIVE_MODE
+            || 'CLASSIC'
+        ).trim().toUpperCase();
         if (modeType === 'HUNT') {
             return;
         }

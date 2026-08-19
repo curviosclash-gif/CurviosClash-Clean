@@ -153,6 +153,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         ? game.huntState
         : {};
     const modeId = String(runtimeState?.activeGameMode || entityManager?.activeGameMode || game?.activeGameMode || '');
+    const combatModeId = String(entityManager?.gameModeStrategy?.getPickupModeType?.() || modeId);
     const gameStateId = String(sessionRuntime?.lifecycle?.gameStateId || game?.state || '');
     const parcoursHudState = entityManager?.getParcoursHudState?.(localPlayerIndex) || null;
     const scoreboardRows = authoritativeFightState?.scoreboardRows
@@ -163,6 +164,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         updatedAt: Date.now(),
         gameStateId,
         modeId,
+        combatModeId,
         isNetworkSession: facade?.isNetworkSession?.() === true,
         localPlayerIndex,
         localHumanCount: resolveLocalHumanCount(game, runtimeState),
@@ -171,7 +173,8 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         lockTargets,
         parcours: parcoursHudState,
         hunt: {
-            active: modeId === 'HUNT' && gameStateId !== GAME_STATE_IDS.MENU,
+            active: entityManager?.gameModeStrategy?.hasCombatHud?.() === true
+                && gameStateId !== GAME_STATE_IDS.MENU,
             killFeed: Array.isArray(huntState.killFeed) ? huntState.killFeed : [],
             overheatByPlayer: huntState.overheatByPlayer || {},
             damageIndicatorsByPlayer: huntState.damageIndicatorsByPlayer || {},
@@ -187,6 +190,8 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
             overtime: deathmatchState.overtime === true,
             authoritativeClient: entityManager?.isFightOutcomeAuthority === false,
         },
-        arcade: facade?.arcadeRunRuntime?.getHudState?.() || null,
+        arcade: entityManager?.endlessParcoursRuntime?.getHudState?.()
+            || facade?.arcadeRunRuntime?.getHudState?.()
+            || null,
     });
 }

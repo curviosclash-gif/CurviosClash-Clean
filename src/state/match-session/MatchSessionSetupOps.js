@@ -4,6 +4,7 @@ import {
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 
 export function disposeMatchSessionSystems(renderer, currentSession, options = {}) {
+    currentSession?.endlessParcoursRuntime?.dispose?.();
     if (currentSession?.entityManager) {
         currentSession.entityManager.dispose();
     }

@@ -16,6 +16,8 @@ function removeEffectsByRole(player, role) {
 }
 
 function resolveModeType(player) {
+    const strategyMode = player?.entityManager?.gameModeStrategy?.getPickupModeType?.();
+    if (strategyMode) return String(strategyMode).trim().toUpperCase();
     const config = resolveEntityRuntimeConfig(player);
     const enabled = config?.HUNT?.ENABLED !== false;
     const activeMode = String(config?.HUNT?.ACTIVE_MODE || config?.HUNT?.DEFAULT_MODE || 'CLASSIC').trim().toUpperCase();

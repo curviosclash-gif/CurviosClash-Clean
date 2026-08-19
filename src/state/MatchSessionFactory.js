@@ -25,6 +25,8 @@ import {
     trackPrewarmPromise,
 } from './match-session/MatchSessionPrewarmStore.js';
 import { isFourPlayerPlanarRuntime } from '../four-player-planar/FourPlayerPlanarContract.js';
+import { isEndlessParcoursConfig } from '../shared/contracts/EndlessParcoursContract.js';
+import { EndlessParcoursRuntime } from '../entities/endless/EndlessParcoursRuntime.js';
 
 export { disposeMatchSessionSystems } from './match-session/MatchSessionSetupOps.js';
 
@@ -207,6 +209,7 @@ export function createMatchSession({
             arena,
             powerupManager: null,
             entityManager: null,
+            endlessParcoursRuntime: null,
             mapResolution,
             arenaBuildResult: reusablePrewarmedArenaSession?.arenaBuildResult || null,
             effectiveMapKey,
@@ -239,6 +242,16 @@ export function createMatchSession({
                     isDesktopRuntime,
                 })
             );
+            if (isEndlessParcoursConfig(runtimeConfig)) {
+                createdSession.endlessParcoursRuntime = new EndlessParcoursRuntime({
+                    baseSeed: runtimeConfig?.arcade?.seed,
+                    renderer,
+                    arena,
+                    powerupManager: createdSession.powerupManager,
+                    entityManager: createdSession.entityManager,
+                    audio,
+                });
+            }
 
             const playerViewsReady = waitForPlayerViewsReady(createdSession.entityManager);
             if (isPromiseLike(playerViewsReady)) {
@@ -436,6 +449,7 @@ export function wireInitializedMatchRuntime({
             powerupManager: session.powerupManager,
             particles: session.particles,
             arena: session.arena,
+            endlessParcoursRuntime: session.endlessParcoursRuntime,
         },
     });
     try {

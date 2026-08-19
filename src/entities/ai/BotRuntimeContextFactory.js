@@ -13,6 +13,9 @@ const LEGACY_CONTROL_PROFILE_VERSION = 'legacy-v1';
 const ANY_PROFILE_TOKENS = new Set(['*', 'any', 'multi', 'multi-profile', 'multi-profile-training']);
 
 function resolveRuntimeMode(entityManager) {
+    if (entityManager?.combatModeType === GAME_MODE_TYPES.HUNT) {
+        return GAME_MODE_TYPES.HUNT;
+    }
     if (entityManager?.runtimeConfig?.arcade?.enabled === true) {
         return GAME_MODE_TYPES.ARCADE;
     }

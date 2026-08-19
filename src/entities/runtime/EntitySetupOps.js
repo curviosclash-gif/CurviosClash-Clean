@@ -64,7 +64,8 @@ export class EntitySetupOps {
         const setupContext = this.resolveSetupPlayerContext(options);
         this.resetSetupCollections();
         this.setupHumanPlayers(numHumans, setupContext);
-        this.setupBotPlayers(numHumans, numBots, setupContext);
+        const botSlotCount = owner.gameModeStrategy?.isEndlessParcours?.() ? 12 : numBots;
+        this.setupBotPlayers(numHumans, botSlotCount, setupContext);
     }
 
     applySetupRuntimeOptions(options = {}) {
@@ -95,7 +96,11 @@ export class EntitySetupOps {
         owner.gameModeStrategy = createGameModeStrategy(owner.activeGameMode, {
             entityRuntimeConfig: owner.entityRuntimeConfig,
             runtimeRng: owner.runtimeRng,
+            runType: owner.runtimeConfig?.arcade?.runType,
+            combatProfile: owner.runtimeConfig?.arcade?.combatProfile,
         });
+        owner.combatModeType = owner.gameModeStrategy.getPickupModeType();
+        if (owner.gameModeStrategy.hasCombatHud()) owner.huntEnabled = true;
         owner.botDifficulty = options.botDifficulty
             || owner.entityRuntimeConfig?.BOT?.ACTIVE_DIFFICULTY
             || owner.botDifficulty;
@@ -104,7 +109,7 @@ export class EntitySetupOps {
         owner.botPolicyType = resolveConfiguredBotPolicyType({
             requestedPolicyType: options.botPolicyType,
             runtimeConfig: owner.runtimeConfig,
-            activeGameMode: owner.activeGameMode,
+            activeGameMode: owner.combatModeType,
             planarMode: setupPlanarMode,
         });
     }
@@ -226,7 +231,7 @@ export class EntitySetupOps {
                 runtimeProfiler: owner.runtimeProfiler,
                 entityRuntimeConfig: owner.entityRuntimeConfig,
                 bridgeEnabled: owner.botBridgeEnabled,
-                activeGameMode: owner.activeGameMode,
+                activeGameMode: owner.combatModeType,
                 isDesktopRuntime: owner.botIsDesktopRuntime,
                 runtimeRng: owner.runtimeRng,
             });
@@ -238,6 +243,11 @@ export class EntitySetupOps {
             owner.players.push(player);
             owner.bots.push({ player, ai });
             owner.botByPlayer.set(player, ai);
+            if (owner.gameModeStrategy?.isEndlessParcours?.()) {
+                player.entitySlotActive = false;
+                player.alive = false;
+                player.view?.setVisible?.(false);
+            }
         }
     }
 }

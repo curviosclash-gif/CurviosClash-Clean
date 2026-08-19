@@ -60,6 +60,9 @@ export class ArcadeScoreHUD {
         this._breakdownWrap = null;
         this._scoreValue = null;
         this._comboValue = null;
+        this._metricLine = null;
+        this._endlessWrap = null;
+        this._endlessValues = {};
         this._comboMetricWrap = null;
         this._comboDecayValue = null;
         this._multiplierValue = null;
@@ -109,6 +112,7 @@ export class ArcadeScoreHUD {
         scoreLine.appendChild(this._scoreValue);
 
         const metricLine = createElement('div', 'arcade-score-hud-metrics');
+        this._metricLine = metricLine;
         metricLine.style.cssText = 'display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:5px;font-size:11px;';
         const comboMetric = this._createMetric(metricLine, 'Combo', '0');
         this._comboMetricWrap = comboMetric.wrap;
@@ -118,6 +122,20 @@ export class ArcadeScoreHUD {
         this._comboMetricWrap.appendChild(this._comboDecayValue);
         this._multiplierValue = this._createMetric(metricLine, 'Multi', 'x1.0').value;
         this._sectorValue = this._createMetric(metricLine, 'Sektor', '0').value;
+
+        this._endlessWrap = createElement('div', 'arcade-score-hud-endless');
+        this._endlessWrap.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;font-size:11px;';
+        const endlessMetrics = [
+            ['distance', 'Distanz'],
+            ['time', 'Zeit'],
+            ['kills', 'Kills'],
+            ['bots', 'Bots'],
+            ['threat', 'Gefahr'],
+            ['best', 'Bestwert'],
+        ];
+        for (const [key, label] of endlessMetrics) {
+            this._endlessValues[key] = this._createMetric(this._endlessWrap, label, '-').value;
+        }
 
         const breakdown = createElement('div', 'arcade-score-hud-breakdown');
         breakdown.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
@@ -176,6 +194,7 @@ export class ArcadeScoreHUD {
 
         this._container.appendChild(scoreLine);
         this._container.appendChild(metricLine);
+        this._container.appendChild(this._endlessWrap);
         this._container.appendChild(breakdown);
         this._container.appendChild(this._modifierWrap);
         this._container.appendChild(this._suddenDeathBanner);
@@ -219,6 +238,23 @@ export class ArcadeScoreHUD {
         }
 
         const score = hudState.score && typeof hudState.score === 'object' ? hudState.score : {};
+        const isEndless = String(hudState.runType || '') === 'endless_parcours';
+        if (this._metricLine) this._metricLine.style.display = isEndless ? 'none' : 'grid';
+        if (this._endlessWrap) this._endlessWrap.style.display = isEndless ? 'grid' : 'none';
+        if (isEndless) {
+            setNodeText(this._scoreValue, formatRounded(score.total));
+            setNodeText(this._endlessValues.distance, `${formatRounded(hudState.maxProgressMeters)} m`);
+            setNodeText(this._endlessValues.time, formatTimerMs(toSafeNumber(hudState.survivalSeconds) * 1000));
+            setNodeText(this._endlessValues.kills, formatRounded(hudState.botKills));
+            setNodeText(this._endlessValues.bots, `${formatRounded(hudState.activeBots)}/${formatRounded(hudState.botCapacity)}`);
+            setNodeText(this._endlessValues.threat, String(hudState.threatLevel || 'INTRO'));
+            setNodeText(this._endlessValues.best, formatRounded(hudState.recordScore));
+            if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
+            if (this._modifierWrap) this._modifierWrap.style.display = 'none';
+            this._suddenDeathBanner?.classList?.add('hidden');
+            this._transitionBanner?.classList?.add('hidden');
+            return;
+        }
         const breakdown = score.breakdown && typeof score.breakdown === 'object' ? score.breakdown : {};
         const nowMs = Math.max(0, toSafeNumber(hudState.nowMs, Date.now()));
         const comboWindowMs = Math.max(800, toSafeNumber(hudState.comboWindowMs, 5000));

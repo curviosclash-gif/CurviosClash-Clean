@@ -10,6 +10,10 @@ export const GAME_MODE_CONTRACT_VERSION = 'game-mode-contract.v1';
 
 export class GameModeContract {
     get modeType() { throw new Error('abstract: modeType'); }
+    getPickupModeType() { return this.modeType; }
+    getCombatProfile() { return ''; }
+    isEndlessParcours() { return false; }
+    hasCombatHud() { return this.modeType === 'HUNT'; }
 
     // --- Lifecycle (V84 / 84.3.1) ---
 

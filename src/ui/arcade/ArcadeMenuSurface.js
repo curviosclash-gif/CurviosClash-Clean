@@ -307,6 +307,23 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
     bind(refs.startRunButton, 'click', () => {
         applySeedToSettings(activeSeed, { dailyChallenge: false });
+        settings.arcade.runType = 'gauntlet';
+        settings.arcade.combatProfile = '';
+        const prepared = prepareHangarRunStart();
+        if (prepared?.ok === false) return;
+        recordRunStart(prepared?.build);
+        emit(eventTypes.START_MATCH);
+    });
+
+    bind(refs.startEndlessButton, 'click', () => {
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
+        settings.arcade.runType = 'endless_parcours';
+        settings.arcade.combatProfile = 'hunt';
+        settings.gameMode = 'ARCADE';
+        settings.mapKey = 'standard';
+        settings.numBots = 0;
+        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
+        settings.localSettings.modePath = 'arcade';
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
         recordRunStart(prepared?.build);
@@ -374,6 +391,8 @@ export function setupArcadeMenuSurface(ctx = {}) {
         activeSeed = computeDailySeed();
         saveSeed(activeSeed, runtimeAccess?.getSettingsStore?.());
         applySeedToSettings(activeSeed, { dailyChallenge: true });
+        settings.arcade.runType = 'gauntlet';
+        settings.arcade.combatProfile = '';
         sync();
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;

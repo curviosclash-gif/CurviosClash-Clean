@@ -74,6 +74,9 @@ export class Arena {
         this._authoredPlayerSpawn = null;
         this._authoredBotSpawns = [];
         this._authoredItemAnchors = [];
+        this.staticCollisionRevision = 0;
+        this._staticColliderBatches = new Map();
+        this._staticStreamingSnapshot = null;
 
         this._builder = new ArenaBuilder(this);
         this._collision = new ArenaCollision(this);
@@ -315,6 +318,87 @@ export class Arena {
         if (this._mergedFoamEdges) this._mergedFoamEdges.visible = visible;
     }
 
+    enterStaticStreamingMode(bounds) {
+        if (this._staticStreamingSnapshot) return;
+        const visibility = new Map();
+        for (const object of [
+            this._floorMesh,
+            this._mergedWallMesh,
+            this._mergedObstacleMesh,
+            this._mergedFoamMesh,
+            this._mergedObstacleEdges,
+            this._mergedFoamEdges,
+            this._glbScene,
+            ...this._aircraftDecorations.map((entry) => entry?.root),
+            ...this.portals.flatMap((entry) => [entry?.meshA, entry?.meshB]),
+            ...this.specialGates.map((entry) => entry?.mesh),
+            ...(this.exitPortals || []).map((entry) => entry?.mesh),
+            ...(this.checkpointRings || []).map((entry) => entry?.mesh),
+        ]) {
+            if (!object) continue;
+            visibility.set(object, object.visible);
+            object.visible = false;
+        }
+        this._staticStreamingSnapshot = {
+            bounds: { ...this.bounds },
+            obstacles: this.obstacles,
+            portalsEnabled: this.portalsEnabled,
+            portals: this.portals,
+            specialGates: this.specialGates,
+            exitPortals: this.exitPortals,
+            checkpointRings: this.checkpointRings,
+            visibility,
+        };
+        this.portalsEnabled = false;
+        this.portals = [];
+        this.specialGates = [];
+        this.exitPortals = [];
+        this.checkpointRings = [];
+        this.bounds = { ...bounds };
+        this._rebuildStaticColliderView();
+    }
+
+    exitStaticStreamingMode() {
+        const snapshot = this._staticStreamingSnapshot;
+        if (!snapshot) return;
+        this._staticColliderBatches.clear();
+        this.bounds = snapshot.bounds;
+        this.obstacles = snapshot.obstacles;
+        this.portalsEnabled = snapshot.portalsEnabled;
+        this.portals = snapshot.portals;
+        this.specialGates = snapshot.specialGates;
+        this.exitPortals = snapshot.exitPortals;
+        this.checkpointRings = snapshot.checkpointRings;
+        for (const [object, visible] of snapshot.visibility) object.visible = visible;
+        this._staticStreamingSnapshot = null;
+        this.staticCollisionRevision += 1;
+    }
+
+    registerStaticColliderBatch(ownerId, colliders) {
+        const id = String(ownerId || '').trim();
+        if (!id) throw new Error('Static collider batches require a stable owner id.');
+        this._staticColliderBatches.set(id, Array.isArray(colliders) ? colliders : []);
+        this._rebuildStaticColliderView();
+    }
+
+    unregisterStaticColliderBatch(ownerId) {
+        if (!this._staticColliderBatches.delete(String(ownerId || ''))) return false;
+        this._rebuildStaticColliderView();
+        return true;
+    }
+
+    getStaticColliderBatchCount() {
+        return this._staticColliderBatches.size;
+    }
+
+    _rebuildStaticColliderView() {
+        const base = this._staticStreamingSnapshot ? [] : this.obstacles;
+        const combined = [...base];
+        for (const colliders of this._staticColliderBatches.values()) combined.push(...colliders);
+        this.obstacles = combined;
+        this.staticCollisionRevision += 1;
+    }
+
     checkPortal(position, radius, entityId, previousPosition = null) {
         return this._portalGateSystem.checkPortal(position, radius, entityId, previousPosition);
     }
@@ -457,6 +541,9 @@ export class Arena {
         this.exitPortals = [];
         this.checkpointRings = [];
         this.obstacles = [];
+        this._staticColliderBatches.clear();
+        this._staticStreamingSnapshot = null;
+        this.staticCollisionRevision += 1;
         this._glbDynamicObstacles = [];
         this.currentMapDefinition = null;
         this.runtimeMapDefinition = null;

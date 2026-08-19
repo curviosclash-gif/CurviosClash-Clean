@@ -131,6 +131,7 @@ export class PlayingStateSystem {
             this._syncHuntOverheatSnapshot();
         } else {
             entityManager.update(dt, this.runtimeAccess.getInput?.(), renderFrameId);
+            entityManager?.endlessParcoursRuntime?.update?.(dt);
             this._syncHuntOverheatSnapshot();
             this.runtimeAccess.getPowerupManager?.()?.update?.(dt);
             this.runtimeAccess.getParticles?.()?.update?.(dt);

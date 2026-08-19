@@ -122,6 +122,7 @@ export class ArenaCollision {
         this._obstacleGrid = new Map();
         this._obstacleGridSource = null;
         this._obstacleGridSourceCount = -1;
+        this._obstacleGridRevision = -1;
         this._obstacleGridGlobal = [];
         this._obstacleCandidates = [];
         this._obstacleSeenAt = new WeakMap();
@@ -174,6 +175,7 @@ export class ArenaCollision {
         this._obstacleGridGlobal.length = 0;
         this._obstacleGridSource = obstacles;
         this._obstacleGridSourceCount = obstacles.length;
+        this._obstacleGridRevision = Number(this.arena?.staticCollisionRevision) || 0;
         this._dynamicObstacles.length = 0;
 
         for (const obstacle of obstacles) {
@@ -200,7 +202,10 @@ export class ArenaCollision {
     _getFastCollisionObstacles(position, radius) {
         const obstacles = Array.isArray(this.arena?.obstacles) ? this.arena.obstacles : [];
         if (obstacles.length < OBSTACLE_GRID_MIN_COUNT) return obstacles;
-        if (this._obstacleGridSource !== obstacles || this._obstacleGridSourceCount !== obstacles.length) {
+        const revision = Number(this.arena?.staticCollisionRevision) || 0;
+        if (this._obstacleGridSource !== obstacles
+            || this._obstacleGridSourceCount !== obstacles.length
+            || this._obstacleGridRevision !== revision) {
             this._rebuildObstacleGrid(obstacles);
         }
         if (this._dynamicGridDirty) this._rebuildDynamicGrid();

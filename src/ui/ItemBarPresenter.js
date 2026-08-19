@@ -65,7 +65,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
     const selectedIndex = inventoryLength > 0
         ? Math.max(0, Math.min(Number(player?.selectedItemIndex) || 0, inventoryLength - 1))
         : -1;
-    const modeType = String(projection?.modeId || 'CLASSIC').trim().toUpperCase();
+    const modeType = String(projection?.combatModeId || projection?.modeId || 'CLASSIC').trim().toUpperCase();
     const useCooldownRemaining = Math.max(0, Number(player?.itemUseCooldownRemaining || 0));
     const shootCooldownRemaining = Math.max(0, Number(player?.shootCooldown || 0));
 

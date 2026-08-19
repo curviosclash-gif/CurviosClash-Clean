@@ -8,6 +8,7 @@ import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
 import { deployMine } from './projectile/MineDeploymentOps.js';
 import { RocketTrailSystem } from './projectile/RocketTrailSystem.js';
+import { clearProjectilesForOwner, clearProjectilesInBounds } from './projectile/ProjectileCleanupOps.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { isPickupTypeShootable } from '../PickupRegistry.js';
 import { isRocketTierType, ROCKET_RANGE_MULTIPLIER } from '../../hunt/RocketPickupSystem.js';
@@ -90,7 +91,7 @@ export class ProjectileSystem {
         }
 
         const strategy = this.getStrategy();
-        const modeType = String(strategy?.modeType || 'CLASSIC').trim().toUpperCase();
+        const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const itemPreview = this.peekInventoryItem(player, preferredIndex, 'shoot');
         if (!itemPreview?.ok) {
             return buildGameplayActionResult({
@@ -281,6 +282,10 @@ export class ProjectileSystem {
     _releaseProjectileState(projectile) { this._statePool.release(projectile); }
 
     clearRocketTrailsForOwner(owner) { this._rocketTrailSystem.clearOwner(owner); }
+
+    clearForOwner(owner) { return clearProjectilesForOwner(this, owner); }
+
+    clearInBounds(minX, maxX, minZ, maxZ) { return clearProjectilesInBounds(this, minX, maxX, minZ, maxZ); }
 
     _acquireProjectileMesh(type, color) {
         const pool = this._getProjectilePool(type);

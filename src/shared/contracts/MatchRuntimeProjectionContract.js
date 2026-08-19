@@ -334,6 +334,7 @@ function createProjectionFromSource(source, players, sessionPlayers, lockTargets
         updatedAt,
         gameStateId: normalizeString(source.gameStateId, ''),
         modeId: normalizeString(source.modeId, ''),
+        combatModeId: normalizeString(source.combatModeId, source.modeId || ''),
         isNetworkSession: source.isNetworkSession === true,
         localPlayerIndex: Math.max(0, normalizeInt(source.localPlayerIndex, 0)),
         localHumanCount: Math.max(1, normalizeNonNegativeInt(source.localHumanCount, 1)),

@@ -12,6 +12,12 @@ import {
     normalizeArcadeRunRewardEffects,
 } from '../shared/contracts/ArcadeRunRewardEffectsContract.js';
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
+import { HuntModeStrategy } from './HuntModeStrategy.js';
+import {
+    ENDLESS_PARCOURS_COMBAT_PROFILE,
+    ENDLESS_PARCOURS_RUN_TYPE,
+    normalizeArcadeCombatProfile,
+} from '../shared/contracts/EndlessParcoursContract.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -71,6 +77,14 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._sdDamageMultiplier = 1.0;
         // 82.1.1: Current sector type (null = default arena)
         this._sectorType = null;
+        this._runType = String(options.runType || '').trim().toLowerCase();
+        this._combatProfile = normalizeArcadeCombatProfile(options.combatProfile, this._runType);
+        this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE
+            ? new HuntModeStrategy({
+                entityRuntimeConfig: options.entityRuntimeConfig,
+                runtimeRng: this.runtimeRng,
+            })
+            : null;
     }
 
     setNowMsSource(nowMs) {
@@ -166,6 +180,10 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     get modeType() { return 'ARCADE'; }
+    getPickupModeType() { return this._huntCombat ? 'HUNT' : this.modeType; }
+    getCombatProfile() { return this._combatProfile; }
+    isEndlessParcours() { return this._runType === ENDLESS_PARCOURS_RUN_TYPE; }
+    hasCombatHud() { return !!this._huntCombat; }
 
     // --- Sudden Death (61.6.2) ---
 
@@ -275,6 +293,7 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // --- Health & Damage ---
     resetPlayerHealth(player) {
+        if (this._huntCombat) return this._huntCombat.resetPlayerHealth(player);
         if (!player) return null;
         // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of base
         const hpBonus = Math.min(DEFAULT_MAX_HP * (UPGRADE_STAT_CAP_PCT / 100), Math.max(0, this._slotBonuses.maxHpBonus));
@@ -288,6 +307,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     applyDamage(player, amount, options) {
+        if (this._huntCombat) return this._huntCombat.applyDamage(player, amount, options);
         if (!player) return { applied: 0, absorbedByShield: 0, remainingHp: 0, isDead: true };
         // 61.6.2: Scale incoming damage by SD damage multiplier
         const rawDmg = Math.max(0, toSafe(amount, 0));
@@ -318,6 +338,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     applyHealing(player, amount) {
+        if (this._huntCombat) return this._huntCombat.applyHealing(player, amount);
         if (!player) return { healed: 0, hp: 0 };
         // 61.6.2: No healing in Sudden Death
         if (this._sdActive) return { healed: 0, hp: Math.max(0, toSafe(player.hp, 0)) };
@@ -375,6 +396,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     resolveCollisionDamage(cause) {
+        if (this._huntCombat) return this._huntCombat.resolveCollisionDamage(cause);
         const key = String(cause || '').toUpperCase();
         if (key === 'TRAIL' || key === 'TRAIL_SELF' || key === 'TRAIL_OTHER') return 34;
         if (key === 'PLAYER_CRASH') return 40;
@@ -382,12 +404,14 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     resolveCollisionCooldown(cause) {
+        if (this._huntCombat) return this._huntCombat.resolveCollisionCooldown(cause);
         const key = String(cause || '').toUpperCase();
         if (key === 'PLAYER_CRASH') return 0.5;
         return 0.6;
     }
 
     grantShield(player) {
+        if (this._huntCombat) return this._huntCombat.grantShield(player);
         if (!player) return 0;
         player.hasShield = true;
         player.maxShieldHp = DEFAULT_SHIELD_HP;
@@ -409,6 +433,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     // 61.4.1: heat_stress drains HP over time; no natural regen in Arcade
     // 61.6.2: Also aggregates SD stacked modifier effects
     updateHealthRegen(player, dt, entityManager = null) {
+        if (this._huntCombat) return this._huntCombat.updateHealthRegen(player, dt, entityManager);
         if (!player || player.hp <= 0) return null;
         const fx = this._getAggregatedModifierEffects();
         if (!fx || !fx.hpDrainPerSecond) return null;
@@ -449,6 +474,7 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // 82.8.1: Apply upgrade speed bonus to player base speed at spawn
     applySpawnStatBonuses(player) {
+        if (this._huntCombat) return this._huntCombat.applySpawnStatBonuses(player);
         if (!player) return;
         const speedMult = this.getSpeedMultiplier();
         if (!Number.isFinite(player._arcadeBaseSpeed)) player._arcadeBaseSpeed = player.baseSpeed;
@@ -466,6 +492,7 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // --- Collision Response ---
     handleWallCollision(player, arenaCollision, entityManager) {
+        if (this._huntCombat) return this._huntCombat.handleWallCollision(player, arenaCollision, entityManager);
         // Same guard as in Hunt: one crash must not bill the player once per frame for as
         // long as it stays inside the geometry.
         if ((player.wallDamageCooldown || 0) > 0) {
@@ -499,6 +526,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     handlePlayerCrash(player, otherPlayer, crashNormal, entityManager) {
+        if (this._huntCombat) return this._huntCombat.handlePlayerCrash(player, otherPlayer, crashNormal, entityManager);
         const crashDamage = this.resolveCollisionDamage('PLAYER_CRASH');
         const cooldown = this.resolveCollisionCooldown('PLAYER_CRASH');
         player.crashDamageCooldown = cooldown;
@@ -534,6 +562,9 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager) {
+        if (this._huntCombat) {
+            return this._huntCombat.handleTrailCollision(player, collision, trailCause, sourcePlayer, entityManager);
+        }
         const damageResult = this.applyDamage(player, this.resolveCollisionDamage('TRAIL'));
         entityManager._emitHuntDamageEvent({
             target: player,
@@ -550,12 +581,17 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     // --- Actions ---
-    requiresShootItemIndex() { return false; }
-    hasMachineGun() { return false; }
+    requiresShootItemIndex() { return this._huntCombat?.requiresShootItemIndex() || false; }
+    hasMachineGun() { return this._huntCombat?.hasMachineGun() || false; }
 
     // --- Projectiles ---
-    resolveRocketProjectileParams() { return null; }
-    resolveProjectileHitOnPlayer(target, projectile, _players, system) {
+    resolveRocketProjectileParams(type, config) {
+        return this._huntCombat?.resolveRocketProjectileParams(type, config) || null;
+    }
+    resolveProjectileHitOnPlayer(target, projectile, players, system) {
+        if (this._huntCombat) {
+            return this._huntCombat.resolveProjectileHitOnPlayer(target, projectile, players, system);
+        }
         if (target.hasShield) {
             target.hasShield = false;
         } else {
@@ -568,6 +604,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     isRespawnEnabled() { return false; }
 
     filterSpawnableTypes(typeKeys, powerupTypes) {
+        if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(typeKeys, powerupTypes);
         return typeKeys.filter((typeKey) => {
             const entry = powerupTypes[typeKey];
             if (!entry) return false;
@@ -577,6 +614,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     resolveSpawnType(spawnableTypes, config, context = {}) {
+        if (this._huntCombat) return this._huntCombat.resolveSpawnType(spawnableTypes, config, context);
         const candidates = context?.excludeType && spawnableTypes.length > 1
             ? spawnableTypes.filter((type) => type !== context.excludeType)
             : spawnableTypes;
@@ -586,6 +624,6 @@ export class ArcadeModeStrategy extends GameModeContract {
     // --- Features ---
     hasScoring() { return true; }
     hasDamageEvents() { return true; }
-    hasDestructibleTrails() { return false; }
+    hasDestructibleTrails() { return !!this._huntCombat; }
     isHudVisible() { return true; }
 }

@@ -203,6 +203,40 @@ export class EntityManager {
         this._spawnOps.spawnPlayer(player, spawnContext);
     }
 
+    activateBotSlot({ slot, position, direction = null, role = '', difficulty = null } = {}) {
+        const entry = this.bots[Math.trunc(Number(slot))];
+        const player = entry?.player;
+        if (!player || !position || player.entitySlotActive === true) return false;
+        player.entitySlotActive = true;
+        player.scenarioRole = String(role || 'pursuer');
+        player.scenarioAnchor = {
+            x: Number(position.x) || 0,
+            y: Number(position.y) || 0,
+            z: Number(position.z) || 0,
+        };
+        entry.ai?.reset?.();
+        if (difficulty) entry.ai?.setDifficulty?.(difficulty);
+        this._spawnOps.spawnPlayerAt(player, position, direction);
+        return true;
+    }
+
+    deactivateBotSlot(slot, _reason = '') {
+        const entry = this.bots[Math.trunc(Number(slot))];
+        const player = entry?.player;
+        if (!player) return false;
+        player.entitySlotActive = false;
+        player.kill();
+        player.trail?.clear?.();
+        if (Array.isArray(player.inventory)) player.inventory.length = 0;
+        if (Array.isArray(player.activeEffects)) player.activeEffects.length = 0;
+        player.selectedItemIndex = 0;
+        player.scenarioAnchor = null;
+        entry.ai?.reset?.();
+        this._projectileSystem?.clearForOwner?.(player);
+        this._lockOnCache?.delete?.(player);
+        return true;
+    }
+
     _getPlanarSpawnLevel() {
         const bounds = this.arena?.bounds || null;
         const fallback = bounds

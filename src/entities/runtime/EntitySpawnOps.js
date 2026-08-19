@@ -20,6 +20,14 @@ export class EntitySpawnOps {
         owner._spawnPlacementSystem?.resetAssignments?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {
+            if (player?.entitySlotActive === false) continue;
+            if (!player?.isBot && owner.gameModeStrategy?.isEndlessParcours?.()) {
+                const initialSpawn = owner.endlessParcoursRuntime?.getInitialHumanSpawn?.();
+                if (initialSpawn?.position) {
+                    this.spawnPlayerAt(player, initialSpawn.position, initialSpawn.direction);
+                    continue;
+                }
+            }
             this.spawnPlayer(player, spawnContext);
         }
         owner._staticTurretSystem?.startRound?.();
@@ -42,6 +50,12 @@ export class EntitySpawnOps {
             player,
         });
         const dir = owner._findSafeSpawnDirection(pos, player.hitboxRadius);
+        this.spawnPlayerAt(player, pos, dir);
+    }
+
+    spawnPlayerAt(player, pos, dir = null) {
+        const owner = this.entityManager;
+        if (!owner || !player || !pos) return;
         player.spawn(pos, dir);
         player.fightLastAttackerIndex = -1;
         player.fightTargetPlayerIndex = -1;

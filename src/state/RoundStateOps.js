@@ -47,6 +47,20 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
     const canWinMatch = humanPlayerCount > 1 || totalBots > 0;
     const matchWinner = canWinMatch ? (safePlayers.find((player) => player && player.score >= requiredWins) || null) : null;
 
+    if (reason.startsWith('ENDLESS_')) {
+        const summary = parcours?.endlessSummary || {};
+        return {
+            state: GAME_STATE_IDS.MATCH_END,
+            canWinMatch: false,
+            requiredWins,
+            matchWinner: null,
+            reason,
+            parcours,
+            messageText: `Endlosjagd beendet - Score ${Math.floor(Number(summary.score) || 0)}`,
+            messageSub: 'ENTER fuer neuen Lauf oder ESC fuer Menue',
+        };
+    }
+
     if (matchWinner) {
         const name = getResultPlayerName(matchWinner);
         if (reason === 'PARCOURS_COMPLETE') {

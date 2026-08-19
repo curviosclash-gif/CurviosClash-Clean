@@ -33,6 +33,7 @@ function resolveSimPorts(ports) {
         powerupManager: ports.powerupManager || null,
         particles: ports.particles || null,
         arena: ports.arena || null,
+        endlessParcoursRuntime: ports.endlessParcoursRuntime || null,
     };
 }
 
@@ -138,9 +139,10 @@ export class MatchKernel {
     }
 
     _tickRunning(dt, inputAdapter, frameId, emitResult = true) {
-        const { entityManager, powerupManager, particles, arena } = this._simPorts;
+        const { entityManager, endlessParcoursRuntime, powerupManager, particles, arena } = this._simPorts;
 
         if (entityManager) entityManager.update(dt, inputAdapter, frameId);
+        if (endlessParcoursRuntime) endlessParcoursRuntime.update(dt);
         if (powerupManager) powerupManager.update(dt);
         if (particles) particles.update(dt);
         if (arena) arena.update(dt);

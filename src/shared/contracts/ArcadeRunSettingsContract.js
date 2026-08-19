@@ -1,3 +1,10 @@
+import {
+    ENDLESS_PARCOURS_COMBAT_PROFILE,
+    ENDLESS_PARCOURS_RUN_TYPE,
+    normalizeArcadeCombatProfile,
+    normalizeArcadeRunType,
+} from './EndlessParcoursContract.js';
+
 // Persisted arcade run settings: the single source for the shape and the ranges.
 // Both the settings sanitizer (what survives a save) and the runtime config
 // (what a match actually runs with) normalize through this contract, so a value
@@ -19,6 +26,7 @@ export const ARCADE_RUN_PROFILE_SCHEMA_VERSION = 'arcade-run-profile.v2';
 const DEFAULTS = Object.freeze({
     profileId: 'arcade-default',
     runType: 'gauntlet',
+    combatProfile: '',
     scoreModel: CURRENT_ARCADE_SCORE_MODEL,
     seed: 0,
     sectorCount: 5,
@@ -61,9 +69,16 @@ export function createDefaultArcadeRunSettings() {
  */
 export function normalizeArcadeRunSettings(source) {
     const input = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
+    const runType = normalizeArcadeRunType(input.runType) === ENDLESS_PARCOURS_RUN_TYPE
+        ? ENDLESS_PARCOURS_RUN_TYPE
+        : DEFAULTS.runType;
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
-        runType: normalizeText(input.runType, DEFAULTS.runType),
+        runType,
+        combatProfile: runType === ENDLESS_PARCOURS_RUN_TYPE
+            && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE
+            ? ENDLESS_PARCOURS_COMBAT_PROFILE
+            : DEFAULTS.combatProfile,
         scoreModel: normalizeArcadeScoreModel(input.scoreModel),
         seed: clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
         sectorCount: clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),

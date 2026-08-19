@@ -7,6 +7,8 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     ARCADE_SECTOR_COUNT: 'arcade.sectorCount',
     ARCADE_COMBO_WINDOW: 'arcade.comboWindowMs',
     ARCADE_MAX_MULTIPLIER: 'arcade.maxMultiplier',
+    ARCADE_RUN_TYPE: 'arcade.runType',
+    ARCADE_COMBAT_PROFILE: 'arcade.combatProfile',
     LOCAL_THEME_MODE: 'local.themeMode',
     LOCAL_GRAPHICS_STYLE: 'local.graphicsStyle',
     LOCAL_MAP_BRIGHTNESS: 'local.mapBrightness',

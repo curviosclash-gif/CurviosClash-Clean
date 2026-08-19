@@ -150,7 +150,7 @@ export class HuntCombatSystem {
 
     useInventoryItem(player, preferredIndex = -1) {
         const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
-        const modeType = String(strategy?.modeType || 'CLASSIC').trim().toUpperCase();
+        const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const config = resolveEntityRuntimeConfig(this.runtime);
         const huntCombatActive = this._isHuntCombatStrategyActive();
         const cooldownRemaining = Math.max(0, Number(player?.itemUseCooldownRemaining || 0));

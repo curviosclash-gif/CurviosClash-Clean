@@ -32,8 +32,8 @@ export class RoundOutcomeSystem {
         this._requestedOutcome = null;
     }
 
-    requestRoundEnd({ winner = null, reason = 'OBJECTIVE', parcours = null } = {}) {
-        if (!winner || this._requestedOutcome) return false;
+    requestRoundEnd({ winner = null, allowNoWinner = false, reason = 'OBJECTIVE', parcours = null } = {}) {
+        if ((!winner && allowNoWinner !== true) || this._requestedOutcome) return false;
         this._requestedOutcome = {
             shouldEnd: true,
             winner,
@@ -56,10 +56,13 @@ export class RoundOutcomeSystem {
 
     _getCombatants() {
         const players = this.getPlayers();
-        if (Array.isArray(players) && players.length > 0) return players.filter(Boolean);
+        if (Array.isArray(players) && players.length > 0) {
+            return players.filter((player) => player && player.entitySlotActive !== false);
+        }
         return [
             ...(this.getHumanPlayers() || []),
-            ...(this.getBots() || []).map((entry) => entry?.player).filter(Boolean),
+            ...(this.getBots() || []).map((entry) => entry?.player)
+                .filter((player) => player && player.entitySlotActive !== false),
         ];
     }
 

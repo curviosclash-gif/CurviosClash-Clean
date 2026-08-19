@@ -402,7 +402,11 @@ export class TouchInputSource extends PlayerInputSource {
         const strategy = entityManager?.gameModeStrategy || null;
         return resolveInventoryActionAvailability({
             player,
-            modeType: projection?.modeId || strategy?.modeType || 'CLASSIC',
+            modeType: projection?.combatModeId
+                || strategy?.getPickupModeType?.()
+                || projection?.modeId
+                || strategy?.modeType
+                || 'CLASSIC',
             showMg: !!strategy?.hasMachineGun?.(),
         });
     }

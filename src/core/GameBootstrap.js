@@ -201,7 +201,8 @@ export function bootstrapGameRuntime(game, options = {}) {
         runtime: game,
         ports: runtimePorts,
         refs: createHuntHudDomRefs(document),
-        isHuntActive: (runtime) => runtime.activeGameMode === GAME_MODE_TYPES.HUNT && runtime.state !== 'MENU',
+        isHuntActive: (runtime) => runtime.entityManager?.gameModeStrategy?.hasCombatHud?.() === true
+            && runtime.state !== 'MENU',
         getBoostCapacity: () => Number(game.config?.PLAYER?.BOOST_DURATION) || 1,
     }));
     registerRuntimeHandle('screenShake', new ScreenShake(renderer));

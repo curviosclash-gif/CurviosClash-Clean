@@ -60,4 +60,5 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     }
     emitArcadeEliminationEvents(entityManager, player, cause, options);
     entityManager._eventBus.emitPlayerDied(player, cause);
+    entityManager.endlessParcoursRuntime?.handlePlayerDeath?.(player, cause, options);
 }

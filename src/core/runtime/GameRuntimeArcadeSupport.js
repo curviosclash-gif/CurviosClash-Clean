@@ -7,6 +7,7 @@ import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
+import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
 
 function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
@@ -126,6 +127,13 @@ export class GameRuntimeArcadeSupport {
         return this._getRuntimeState();
     }
 
+    _getEndlessRuntime(runtimeState = this.getRuntimeState()) {
+        return runtimeState?.endlessParcoursRuntime
+            || runtimeState?.entityManager?.endlessParcoursRuntime
+            || this.game?.entityManager?.endlessParcoursRuntime
+            || null;
+    }
+
     _activateRoundController() {
         const runtimeState = this.getRuntimeState();
         if (!runtimeState?.roundStateController) {
@@ -156,11 +164,12 @@ export class GameRuntimeArcadeSupport {
             return;
         }
         this.arcadeRunRuntime.configure(runtimeConfig);
-        if (runtimeConfig?.arcade?.enabled) {
+        if (runtimeConfig?.arcade?.enabled && !isEndlessParcoursConfig(runtimeConfig)) {
             this._activateRoundController();
             return;
         }
         this._deactivateRoundController();
+        if (isEndlessParcoursConfig(runtimeConfig)) return;
         this._unbindGameplayCallback();
         this.resetRunState({ preserveRecords: true });
     }
@@ -231,6 +240,11 @@ export class GameRuntimeArcadeSupport {
             this._pendingSectorTransition = null;
             return null;
         }
+        if (isEndlessParcoursConfig(runtimeConfig)) {
+            this._preparedEncounterPlan = null;
+            this._pendingSectorTransition = null;
+            return null;
+        }
 
         this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
@@ -292,6 +306,12 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
+        if (isEndlessParcoursConfig(runtimeConfig)) {
+            const runtime = this._getEndlessRuntime(runtimeState);
+            const recordStore = this.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
+            runtime?.setRecordStore?.(recordStore);
+            return runtime?.getHudState?.() || null;
+        }
         this._bindGameplayCallback(runtimeState);
         this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
         const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
@@ -325,14 +345,19 @@ export class GameRuntimeArcadeSupport {
     }
 
     getRunState() {
+        const endless = this._getEndlessRuntime();
+        if (endless) return endless.getHudState?.() || null;
         return this.arcadeRunRuntime.getStateSnapshot?.() || null;
     }
 
     getMenuSurfaceState() {
+        const endless = this._getEndlessRuntime();
+        if (endless) return endless.getHudState?.() || null;
         return this.arcadeRunRuntime.getMenuSurfaceState?.() || null;
     }
 
     tickSuddenDeath(dt = 0) {
+        if (this._getEndlessRuntime()) return null;
         // This established per-frame arcade seam also advances time-based missions.
         this.arcadeRunRuntime.tickGameplay?.(dt);
         if (this.arcadeRunRuntime.getPhase?.() !== 'sudden_death') {

@@ -106,6 +106,22 @@ function buildParcoursBlock(lastRoundMetrics) {
     };
 }
 
+function buildEndlessParcoursBlock(outcome) {
+    const summary = outcome?.parcours?.endlessSummary;
+    if (!summary || typeof summary !== 'object') return null;
+    return {
+        id: 'endless-parcours',
+        title: summary.isNewRecord === true ? 'Endlosjagd - Neuer Rekord' : 'Endlosjagd',
+        rows: [
+            { key: 'score', label: 'Score', value: String(Math.max(0, Math.floor(normalizeNumber(summary.score, 0)))) },
+            { key: 'distance', label: 'Distanz', value: `${Math.max(0, Math.floor(normalizeNumber(summary.distanceMeters, 0)))} m` },
+            { key: 'survival', label: 'Zeit', value: formatDuration(summary.survivalSeconds) },
+            { key: 'kills', label: 'Bot-Kills', value: String(Math.max(0, Math.floor(normalizeNumber(summary.botKills, 0)))) },
+            { key: 'modules', label: 'Module', value: String(Math.max(0, Math.floor(normalizeNumber(summary.completedModules, 0)))) },
+        ],
+    };
+}
+
 function buildMatchBlock(aggregateMetrics, outcome) {
     if (!aggregateMetrics) {
         return null;
@@ -126,7 +142,7 @@ function buildMatchBlock(aggregateMetrics, outcome) {
 
 function buildScoreboardRows(players, requiredWins) {
     const sortedPlayers = normalizeArray(players)
-        .filter(Boolean)
+        .filter((player) => player && player.entitySlotActive !== false)
         .slice()
         .sort((left, right) => {
             const scoreDelta = normalizeNumber(right?.score, 0) - normalizeNumber(left?.score, 0);
@@ -171,6 +187,7 @@ function buildPostMatchStatsSummary({ recorder, players = [], outcome = null } =
     const aggregateMetrics = recorder?.getAggregateMetrics?.() || null;
     const blocks = [
         buildRoundBlock(lastRoundMetrics, players, outcome),
+        buildEndlessParcoursBlock(outcome),
         buildParcoursBlock(lastRoundMetrics),
         buildMatchBlock(aggregateMetrics, outcome),
         buildScoreboardBlock(players, outcome),
