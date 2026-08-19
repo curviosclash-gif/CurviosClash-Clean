@@ -101,22 +101,35 @@ const AETHERION_GATES = [
 ];
 
 // Twelve route stages; CP03, CP06 and CP09 each expose a safe and a fast lane.
+//
+// The route runs with bidirectionalCheckpoints false, so a ring counts only when a player crosses
+// its plane along `forward`. That makes `forward` the direction the ring is flown at, not a
+// look-at: CP05, CP06_SAFE, CP07 and CP12 once pointed back down the line they are approached on,
+// so the safe lane stalled at CP06_SAFE and the fast lane at CP07 -- the ring was drawn, it just
+// never fired. Where a stage branches the two lanes can leave in opposite directions (CP05 sends
+// one out and one back in), so the vector follows the way in rather than any average of the ways
+// out, and the same rule keeps the respawn point behind the ring instead of past it.
+//
+// CP05 is the one that cannot follow its approach exactly. It sits inside the gallery block, so
+// the respawn point the rule puts behind it lands in stone; the vector is turned far enough out
+// of that block to clear it by 3 units and still meets the approach at 0.85. The ring being
+// buried is a placement problem of its own and is not solved here.
 const AETHERION_CHECKPOINTS = [
     { id: 'CP01', type: 'entry', pos: [0, 24, -138], radius: 7.0, forward: [0, 0, 1] },
     { id: 'CP02', type: 'foundry_branch', pos: [0, 28, -105], radius: 6.2, forward: [0, 0.05, 1], nextIds: ['CP03_SAFE', 'CP03_FAST'] },
     { id: 'CP03_SAFE', type: 'outer_safe', pos: [-122, 30, -60], radius: 6.0, forward: [-0.7, 0.02, 0.7], nextIds: ['CP04'] },
     { id: 'CP03_FAST', type: 'astrolabe_fast', pos: [0, 34, 15], radius: 4.8, forward: [-0.45, 0, 0.9], nextIds: ['CP04'] },
     { id: 'CP04', type: 'foundry_exit', pos: [-70, 30, 70], radius: 6.4, forward: [-0.55, 0.35, 0.75] },
-    { id: 'CP05', type: 'gallery_branch', pos: [88, 88, 46], radius: 6.0, forward: [-0.6, 0.1, 0.8], nextIds: ['CP06_SAFE', 'CP06_FAST'] },
-    { id: 'CP06_SAFE', type: 'outer_safe', pos: [128, 100, 88], radius: 6.0, forward: [-0.8, 0.2, 0.55], nextIds: ['CP07'] },
+    { id: 'CP05', type: 'gallery_branch', pos: [88, 88, 46], radius: 6.0, forward: [0.73, 0.26, -0.64], nextIds: ['CP06_SAFE', 'CP06_FAST'] },
+    { id: 'CP06_SAFE', type: 'outer_safe', pos: [128, 100, 88], radius: 6.0, forward: [0.68, 0.2, 0.71], nextIds: ['CP07'] },
     { id: 'CP06_FAST', type: 'meridian_fast', pos: [52, 94, 26], radius: 4.8, forward: [-0.8, 0.15, 0.55], nextIds: ['CP07'] },
-    { id: 'CP07', type: 'gallery_exit', pos: [14, 90, 112], radius: 6.4, forward: [0.75, 0.35, -0.55] },
+    { id: 'CP07', type: 'gallery_exit', pos: [14, 90, 112], radius: 6.4, forward: [-0.77, -0.07, 0.63] },
     { id: 'CP08', type: 'eclipse_branch', pos: [-52, 148, 88], radius: 5.8, forward: [-0.7, 0.05, -0.7], nextIds: ['CP09_SAFE', 'CP09_FAST'] },
-    { id: 'CP09_SAFE', type: 'outer_safe', pos: [-138, 154, 40], radius: 6.0, forward: [0.45, 0, -0.9], nextIds: ['CP10'] },
+    { id: 'CP09_SAFE', type: 'outer_safe', pos: [-138, 154, 40], radius: 6.0, forward: [-0.87, 0.06, -0.49], nextIds: ['CP10'] },
     { id: 'CP09_FAST', type: 'eclipse_fast', pos: [-30, 154, 18], radius: 4.6, forward: [0.25, 0, -0.97], nextIds: ['CP10'] },
     { id: 'CP10', type: 'crown_west', pos: [-82, 154, -72], radius: 5.8, forward: [0.65, 0, -0.75] },
     { id: 'CP11', type: 'crown_north', pos: [0, 154, -122], radius: 5.8, forward: [0.8, 0, 0.6] },
-    { id: 'CP12', type: 'core_approach', pos: [92, 154, -42], radius: 5.6, forward: [-0.7, 0, 0.7] },
+    { id: 'CP12', type: 'core_approach', pos: [92, 154, -42], radius: 5.6, forward: [0.75, 0, 0.66] },
 ];
 
 export const AETHERION_ORRERY_MAP = {

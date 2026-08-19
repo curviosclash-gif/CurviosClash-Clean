@@ -164,8 +164,11 @@ const ECLIPSE_FOUNDRY_CHECKPOINTS = [
     { id: 'CP06', type: 'crystal_iris', pos: [22, 67, 0], radius: 5.8, forward: [0.8, 0.15, 0.45] },
     { id: 'CP07', type: 'branch_entry', pos: [50, 71, 5], radius: 5.8, forward: [1, 0.1, 0], nextIds: ['CP08_BLUE', 'CP08_ORANGE'] },
     { id: 'CP08_BLUE', type: 'orbit_blue', pos: [82, 78, -47], radius: 5.2, forward: [0.5, 0.1, -0.85], nextIds: ['CP09'] },
-    { id: 'CP08_ORANGE', type: 'orbit_orange', pos: [80, 89, 41], radius: 4.6, forward: [0.7, 0.2, -0.6], nextIds: ['CP09'] },
-    { id: 'CP09', type: 'orbit_merge', pos: [110, 87, 0], radius: 6.0, forward: [0.7, 0.1, 0.7] },
+    { id: 'CP08_ORANGE', type: 'orbit_orange', pos: [80, 89, 41], radius: 4.6, forward: [0.63, 0.14, 0.76], nextIds: ['CP09'] },
+    // The merge ring takes the blue lane from the south and the orange lane from the north, so it
+    // faces the one direction both of them share -- east, along the building. Aimed diagonally it
+    // stood with its back to the orange lane, which crosses it backwards and never triggers it.
+    { id: 'CP09', type: 'orbit_merge', pos: [110, 87, 0], radius: 6.0, forward: [0.99, -0.08, 0.06] },
     { id: 'CP10', type: 'eclipse_temple', pos: [147, 94, 60], radius: 5.8, forward: [-0.2, 0.1, 1] },
     { id: 'CP11', type: 'branch_entry', pos: [105, 101, 94], radius: 5.7, forward: [-0.8, 0.2, 0.3], nextIds: ['CP12_PORTAL', 'CP12_TECH'] },
     { id: 'CP12_PORTAL', type: 'void_portal', pos: [61, 116, 108], radius: 5.0, forward: [-1, 0, -0.2], nextIds: ['CP13'] },
