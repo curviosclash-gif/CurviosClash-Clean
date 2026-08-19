@@ -1,6 +1,18 @@
 export const NEON_ABYSS_MAP = {
     neon_abyss: {
         name: 'Neon Abyss',
+        // Held dark on purpose. The key is turned down and the exposure with it, so the neon in the
+        // map reads as the light source it is drawn as instead of competing with a bright sun.
+        lighting: {
+            key: { direction: [15, 55, 20], color: 0x8fa8d8, intensity: 0.55 },
+            fill: { direction: [-25, 15, -20], color: 0xff5ce0, intensity: 0.5 },
+            rim: { direction: [-35, 12, -45], color: 0x2ff5d0, intensity: 1.1 },
+            hemisphere: { skyColor: 0x101830, groundColor: 0x2a1040 },
+            fog: { color: 0x05070f, near: 25, far: 110 },
+            skyDome: { zenithColor: 0x02030a, horizonColor: 0x1a0a35, nadirColor: 0x010206 },
+            starsVisible: false,
+            exposureOffset: -0.22,
+        },
         size: [160, 75, 160],
         preferAuthoredPortals: true,
         portalLevels: [12, 22, 37, 52, 67],

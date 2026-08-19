@@ -7,6 +7,18 @@
 export const MAGMA_MAZE_MAP = {
     magma_maze: {
         name: 'Magma Maze',
+        // The only map lit from below: the fill light points down-up out of the lava, which is
+        // what puts the glow on the underside of the walls. Smoke keeps the fog close and the stars out.
+        lighting: {
+            key: { direction: [25, 45, -20], color: 0xffd0a0, intensity: 1.1 },
+            fill: { direction: [0, -30, 0], color: 0xff5a1e, intensity: 0.85 },
+            rim: { direction: [-30, 10, -40], color: 0xff8c32, intensity: 0.8 },
+            hemisphere: { skyColor: 0x4a2418, groundColor: 0xff6420 },
+            fog: { color: 0x2a0c06, near: 30, far: 130 },
+            skyDome: { zenithColor: 0x140603, horizonColor: 0x6b2410, nadirColor: 0x40100a },
+            starsVisible: false,
+            exposureOffset: -0.08,
+        },
         size: [200, 50, 200],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

@@ -51,6 +51,21 @@ export const NOTRE_DAME_MAPS = {
     notre_dame: {
         ...NOTRE_DAME_COMMON,
         name: 'Notre-Dame',
+        // Late afternoon from the west, which is the side the facade was built to be seen from and
+        // the side the route flies in on. The fog is pushed out as far as the contract allows: this
+        // is the longest map in the pack, and the spire has to stay readable from the river.
+        // Only the route map carries this. The arena variant is deliberately left on the default
+        // for now, so the two can be compared side by side before the profile is shared.
+        lighting: {
+            key: { direction: [-60, 40, 15], color: 0xffe2b8, intensity: 1.45 },
+            fill: { direction: [30, 25, -20], color: 0x8fb4e0, intensity: 0.38 },
+            rim: { direction: [-35, 18, -45], color: 0x7fd0ff, intensity: 0.5 },
+            hemisphere: { skyColor: 0xbcd8f5, groundColor: 0x6a6055 },
+            fog: { color: 0x1a2338, near: 90, far: 200 },
+            skyDome: { zenithColor: 0x0a1a3a, horizonColor: 0xd8a468, nadirColor: 0x0a0d16 },
+            starsVisible: false,
+            exposureOffset: 0.1,
+        },
         playerSpawn: { x: -210, y: GROUND + 14, z: 0 },
         botSpawns: [
             { x: -210, y: GROUND + 14, z: -13 },

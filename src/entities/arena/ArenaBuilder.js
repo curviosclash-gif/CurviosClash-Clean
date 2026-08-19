@@ -23,6 +23,9 @@ export class ArenaBuilder {
         const scale = asPositiveScale(config.ARENA.MAP_SCALE, 1);
         const size = this._resolveScaledMapSize(mapResolution.map, mapResolution.fallbackMap, scale);
         const graphicsStyle = normalizeGraphicsStyle(this.arena.renderer?.getGraphicsStyle?.());
+        // Passed on every build, including the maps that state no profile: the renderer holds the
+        // last one it was given, so leaving it out would carry the previous map's lighting over.
+        this.arena.renderer?.setMapLighting?.(mapResolution.map?.lighting);
         this._applyArenaBounds(size);
 
         const buildSignature = createArenaBuildSignature({

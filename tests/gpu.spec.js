@@ -168,12 +168,7 @@ test.describe('T21-40: Rendering & GPU', () => {
         await startGame(page);
         const result = await page.evaluate(() => {
             const r = window.GAME_INSTANCE.renderer;
-            const read = () => ({
-                exposure: r.renderer.toneMappingExposure,
-                ambient: r._ambientLight.intensity,
-                fogNear: r.scene.fog.near,
-                fogFar: r.scene.fog.far,
-            });
+            const read = () => r.getSceneAppearance();
             r.setGraphicsStyle('modern');
             r.setMapBrightness('mittel');
             const medium = read();

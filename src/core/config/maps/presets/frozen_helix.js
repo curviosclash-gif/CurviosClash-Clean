@@ -7,6 +7,18 @@
 export const FROZEN_HELIX_MAP = {
     frozen_helix: {
         name: 'Frozen Helix',
+        // Snow throws most of the light back up, so the ground of the hemisphere is barely darker
+        // than its sky and the fog stays bright and far -- cold air is clear air.
+        lighting: {
+            key: { direction: [20, 60, 25], color: 0xf2fbff, intensity: 1.5 },
+            fill: { direction: [-30, 20, -15], color: 0x7fb8e8, intensity: 0.45 },
+            rim: { direction: [-35, 18, -45], color: 0x9fe8ff, intensity: 0.7 },
+            hemisphere: { skyColor: 0xd8f0ff, groundColor: 0x6f8fa8 },
+            fog: { color: 0x9fc4dd, near: 70, far: 200 },
+            skyDome: { zenithColor: 0x1b3f6b, horizonColor: 0x8fc0e0, nadirColor: 0x0d1c30 },
+            starsVisible: false,
+            exposureOffset: 0.12,
+        },
         size: [180, 110, 180],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
