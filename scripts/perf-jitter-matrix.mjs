@@ -36,6 +36,7 @@ const STEP_YIELD_EVERY_FRAMES = parsePositiveInt(process.env.PERF_RUCKLER_STEP_Y
 const OUTPUT_PATH = String(process.env.PERF_RUCKLER_OUTPUT_PATH || `tmp/perf_jitter_matrix_${Date.now()}.json`);
 const HEADED = String(process.env.PERF_RUCKLER_HEADED || '').trim() === '1';
 const VERBOSE = String(process.env.PERF_RUCKLER_VERBOSE || '').trim() === '1';
+const BLOOM_QUALITY = parsePositiveInt(process.env.PERF_RUCKLER_BLOOM_QUALITY, 0, 0, 2);
 const SCENARIO_FILTER = String(process.env.PERF_RUCKLER_SCENARIOS || '')
     .split(/[,\s;]+/)
     .map((entry) => entry.trim().toUpperCase())
@@ -303,7 +304,7 @@ async function runSingleMatrixCase(page, scenario, options) {
     await ensureMenuState(page);
     const clipSessionId = `phase9-${String(scenario.id || 'scenario').toLowerCase()}-${options.cinematicEnabled ? 'cin' : 'plain'}-${options.recordingEnabled ? 'rec' : 'norec'}`;
 
-    const setup = await page.evaluate(async ({ scenarioId, cinematicEnabled, recordingEnabled, clipSessionId }) => {
+    const setup = await page.evaluate(async ({ scenarioId, cinematicEnabled, recordingEnabled, clipSessionId, bloomQuality }) => {
         const game = window.GAME_INSTANCE;
         if (!game) throw new Error('GAME_INSTANCE missing');
         const debugApi = game.debugApi || window.GAME_DEBUG || null;
@@ -320,6 +321,7 @@ async function runSingleMatrixCase(page, scenario, options) {
             game.settings.localSettings = {};
         }
         game.settings.localSettings.shadowQuality = 2;
+        game.settings.localSettings.bloomQuality = bloomQuality;
         if (!game.settings.cockpitCamera || typeof game.settings.cockpitCamera !== 'object') {
             game.settings.cockpitCamera = {};
         }
@@ -331,6 +333,7 @@ async function runSingleMatrixCase(page, scenario, options) {
             }
         }
         game.renderer?.setShadowQuality?.(2);
+        game.renderer?.setBloomQuality?.(bloomQuality);
         game._applySettingsToRuntime?.({ schedulePrewarm: false });
 
         if (typeof game.renderer?.setCinematicEnabled === 'function') {
@@ -385,6 +388,7 @@ async function runSingleMatrixCase(page, scenario, options) {
         cinematicEnabled: options.cinematicEnabled,
         recordingEnabled: options.recordingEnabled,
         clipSessionId,
+        bloomQuality: BLOOM_QUALITY,
     });
 
     await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING', null, { timeout: APP_READY_TIMEOUT_MS });
@@ -650,6 +654,7 @@ async function run() {
             .sort((a, b) => a - b);
         const interactiveAggregateP99 = percentileFromSorted(interactiveFrameTimes, 0.99);
         const summary = {
+            bloomQuality: BLOOM_QUALITY,
             totalRuns: runs.length,
             passedRuns: runs.filter((entry) => entry.acceptance.pass).length,
             interactiveRuns: runs.filter((entry) => entry?.recording?.requested !== true).length,
