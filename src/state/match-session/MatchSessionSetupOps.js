@@ -35,7 +35,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
         configs.push({
             invertPitch: !!settings?.invertPitch?.[slot],
             cockpitCamera: true,
-            vehicleId: runtimeVehicles?.[slot] || fallbackVehicleId,
+            vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
             color: runtimeConfig?.session?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
                 ? FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]
