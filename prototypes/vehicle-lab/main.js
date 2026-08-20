@@ -14,8 +14,11 @@ import {
 } from './src/ArcadeBlueprintValidation.js';
 import { EDITOR_API_ROUTES } from '../../src/shared/contracts/EditorPathContract.js';
 import {
+    VEHICLE_LAB_HANGAR_MAX_PARTS,
     VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
     createVehicleLabHangarPublication,
+    describeVehicleLabHangarPublicationLimits,
+    findVehicleLabHangarPublication,
     normalizeVehicleLabHangarPublicationRecord,
     upsertVehicleLabHangarPublication,
 } from '../../src/shared/contracts/VehicleLabHangarPublishContract.js';
@@ -1028,10 +1031,42 @@ class VehicleLabApp {
                     currentPublicationRecord = JSON.parse(localStorage.getItem(VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY) || 'null');
                 } catch { currentPublicationRecord = null; }
                 currentPublicationRecord = normalizeVehicleLabHangarPublicationRecord(currentPublicationRecord);
+
+                // Namen wie "Mein Schiff!" und "Mein Schiff?" ergeben denselben
+                // Schluessel. Ohne Rueckfrage wuerde die zweite Fassung die
+                // erste wortlos aus dem Hangar werfen.
+                const existing = findVehicleLabHangarPublication(currentPublicationRecord, publication.vehicleId);
+                if (existing && existing.label !== publication.label) {
+                    const confirmed = await this.ui.requestDialog({
+                        title: 'Bereits veroeffentlicht',
+                        message: `Unter diesem Schluessel liegt bereits „${existing.label}" im Hangar. Ersetzen?`,
+                        confirmLabel: 'Ersetzen',
+                        danger: true,
+                    });
+                    if (confirmed === null) {
+                        this.ui.showToast('Veröffentlichen abgebrochen; der bestehende Eintrag bleibt.', 'info');
+                        return;
+                    }
+                }
+
                 localStorage.setItem(
                     VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
                     JSON.stringify(upsertVehicleLabHangarPublication(currentPublicationRecord, publication))
                 );
+
+                const limits = describeVehicleLabHangarPublicationLimits(saved.vehicle.config);
+                if (limits.droppedParts > 0) {
+                    this.ui.showToast(
+                        `${limits.droppedParts} Bauteile wurden nicht übernommen (Grenze: ${VEHICLE_LAB_HANGAR_MAX_PARTS}).`,
+                        'warning'
+                    );
+                }
+                if (limits.clampedSizes > 0) {
+                    this.ui.showToast(
+                        `${limits.clampedSizes} Bauteile wurden auf die im Hangar erlaubte Größe gestutzt.`,
+                        'warning'
+                    );
+                }
                 this.ui.showToast(`${publication.label} veröffentlicht; ${publication.parts.length} Bauteile liegen jetzt im Hangar bereit.`, 'success');
                 this.setStatus(`${publication.label} veröffentlicht – Spielseite zum Aktualisieren neu laden.`, 'success');
                 this.ui.updateSaveState('saved', 'Im Hangar veröffentlicht');

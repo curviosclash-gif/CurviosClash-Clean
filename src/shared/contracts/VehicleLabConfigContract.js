@@ -198,6 +198,19 @@ export function formatVehicleLabConfigIssues(result) {
 }
 
 /**
+ * Zerlegt Umlaute und Akzente in ihre Grundbuchstaben ("Ümläut" wird zu
+ * "Umlaut"). Grundlage jeder Namensregel im Vehicle Lab; wer stattdessen nur
+ * unerlaubte Zeichen filtert, macht aus "Müll" ein "M-ll".
+ * @param {string} text
+ * @returns {string}
+ */
+export function foldVehicleLabDiacritics(text) {
+    return String(text || '')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '');
+}
+
+/**
  * Bildet aus einem Fahrzeugnamen den technischen Schluessel.
  * Umlaute und Akzente werden in ihre Grundbuchstaben zerlegt ("muell" statt
  * "m-ll"), alles Uebrige wird zu Bindestrichen. Einzige Namensregel des
@@ -207,9 +220,7 @@ export function formatVehicleLabConfigIssues(result) {
  * @returns {string}
  */
 export function createVehicleLabSlug(label, fallback = 'vehicle') {
-    return String(label || '')
-        .normalize('NFD')
-        .replace(/[\u0300-\u036f]/g, '')
+    return foldVehicleLabDiacritics(label)
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')

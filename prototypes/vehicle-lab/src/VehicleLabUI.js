@@ -1,5 +1,10 @@
 import { buildVehicleLabSelectionKey } from './VehicleLabSelection.js';
 import { VEHICLE_LAB_PART_ROLES } from '../../../src/shared/contracts/VehicleLabConfigContract.js';
+import { VEHICLE_LAB_HANGAR_MIN_PART_SIZE } from '../../../src/shared/contracts/VehicleLabHangarPublishContract.js';
+
+// Kleinste sinnvolle Kantenlaenge. Darunter ist ein Bauteil unsichtbar,
+// verbraucht aber weiter Budget - und der Hangar wuerde es ohnehin anheben.
+const MIN_PART_DIMENSION = VEHICLE_LAB_HANGAR_MIN_PART_SIZE;
 
 const OPTION_LABELS = Object.freeze({
     auto: 'Automatisch (alter Name)',
@@ -367,13 +372,13 @@ export class VehicleLabUI {
             if (!part.size) part.size = [1, 1, 1];
             part.size[i] = val;
             onUpdate('size');
-        });
+        }, { min: MIN_PART_DIMENSION });
 
         this.createVectorRow(container, 'Skalierung', part.scale || [1, 1, 1], (i, val) => {
             if (!part.scale) part.scale = [1, 1, 1];
-            part.scale[i] = Math.max(0.1, val);
+            part.scale[i] = Math.max(MIN_PART_DIMENSION, val);
             onUpdate('scale');
-        });
+        }, { min: MIN_PART_DIMENSION });
         this.createActionRow(container, 'Skalierung zurücksetzen', () => {
             part.scale = [1, 1, 1];
             onUpdate('scale');
@@ -481,7 +486,7 @@ export class VehicleLabUI {
         container.appendChild(sel);
     }
 
-    createVectorRow(container, label, vector, onChange) {
+    createVectorRow(container, label, vector, onChange, { min = null } = {}) {
         const lbl = document.createElement('label');
         lbl.textContent = label;
         container.appendChild(lbl);
@@ -495,11 +500,21 @@ export class VehicleLabUI {
             const inp = document.createElement('input');
             inp.type = 'number';
             inp.step = '0.1';
+            if (min !== null) inp.min = String(min);
             inp.value = val.toFixed(2);
             inp.setAttribute('aria-label', `${label} ${axis.textContent}`);
             inp.onchange = (e) => {
-                const val = parseFloat(e.target.value);
-                onChange(i, Number.isNaN(val) ? vector[i] : val);
+                const parsed = parseFloat(e.target.value);
+                if (Number.isNaN(parsed)) {
+                    inp.value = vector[i].toFixed(2);
+                    onChange(i, vector[i]);
+                    return;
+                }
+                // Null und negative Masse lassen das Bauteil verschwinden,
+                // waehrend es weiter Budget verbraucht. Deshalb geklemmt.
+                const clamped = min !== null ? Math.max(min, parsed) : parsed;
+                if (clamped !== parsed) inp.value = clamped.toFixed(2);
+                onChange(i, clamped);
             };
             component.appendChild(axis);
             component.appendChild(inp);

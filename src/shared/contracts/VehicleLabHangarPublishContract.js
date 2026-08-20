@@ -1,4 +1,9 @@
+import { foldVehicleLabDiacritics } from './VehicleLabConfigContract.js';
+
 export const VEHICLE_LAB_HANGAR_PUBLISH_VERSION = 'vehicle-lab-hangar-publish.v1';
+export const VEHICLE_LAB_HANGAR_MAX_PARTS = 48;
+export const VEHICLE_LAB_HANGAR_MIN_PART_SIZE = 0.1;
+export const VEHICLE_LAB_HANGAR_MAX_PART_SIZE = 3;
 export const VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY = 'curviosclash.vehicle-lab.hangar-parts.v1';
 
 const FAMILY_SLOTS = Object.freeze({
@@ -10,11 +15,15 @@ const FAMILY_SLOTS = Object.freeze({
 });
 
 function slug(value, fallback = 'part') {
-    return String(value || '').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || fallback;
+    return foldVehicleLabDiacritics(value).trim().toLowerCase()
+        .replace(/[^a-z0-9]+/g, '-')
+        .replace(/^-+|-+$/g, '') || fallback;
 }
 
 function vehicleKey(value) {
-    return String(value || '').trim().toLowerCase()
+    // Behaelt den Unterstrich, damit bereits vergebene Kennungen der Form
+    // editor_vehicle_<name> unveraendert bleiben.
+    return foldVehicleLabDiacritics(value).trim().toLowerCase()
         .replace(/[^a-z0-9_-]+/g, '-')
         .replace(/^-+|-+$/g, '') || 'custom-vehicle';
 }
@@ -42,12 +51,46 @@ function flattenParts(parts, result = []) {
     return result;
 }
 
+/**
+ * Meldet, was eine Veroeffentlichung am Entwurf kuerzen wuerde.
+ * Die Veroeffentlichung selbst kappt still; wer den Nutzer warnen will, fragt
+ * vorher hier nach.
+ * @param {object} config
+ * @returns {{droppedParts: number, clampedSizes: number, totalParts: number}}
+ */
+export function describeVehicleLabHangarPublicationLimits(config = {}) {
+    const flat = flattenParts(config.parts);
+    const droppedParts = Math.max(0, flat.length - VEHICLE_LAB_HANGAR_MAX_PARTS);
+    let clampedSizes = 0;
+    for (const part of flat.slice(0, VEHICLE_LAB_HANGAR_MAX_PARTS)) {
+        const size = Array.isArray(part.size) ? part.size : (Array.isArray(part.scale) ? part.scale : [1, 1, 1]);
+        const clamped = size.slice(0, 3).some((value) => {
+            const numeric = Number(value) || 1;
+            return numeric < VEHICLE_LAB_HANGAR_MIN_PART_SIZE || numeric > VEHICLE_LAB_HANGAR_MAX_PART_SIZE;
+        });
+        if (clamped) clampedSizes += 1;
+    }
+    return { droppedParts, clampedSizes, totalParts: flat.length };
+}
+
+/**
+ * Sucht eine bereits veroeffentlichte Fassung desselben Fahrzeugs.
+ * @param {object} source
+ * @param {string} vehicleId
+ * @returns {object|null}
+ */
+export function findVehicleLabHangarPublication(source, vehicleId) {
+    const record = normalizeVehicleLabHangarPublicationRecord(source);
+    const key = String(vehicleId || '').trim();
+    return record.publications.find((entry) => entry.vehicleId === key) || null;
+}
+
 export function createVehicleLabHangarPublication(config = {}, options = {}) {
     const vehicleId = vehicleKey(options.vehicleId || config.label);
     const publishedAtMs = Math.max(0, Number(options.publishedAtMs) || Date.now());
     const primaryColor = Number(config.primaryColor);
     const appearanceColor = Number.isFinite(primaryColor) ? primaryColor : 0x60a5fa;
-    const parts = flattenParts(config.parts).slice(0, 48).map((part, index) => {
+    const parts = flattenParts(config.parts).slice(0, VEHICLE_LAB_HANGAR_MAX_PARTS).map((part, index) => {
         const family = resolveFamily(part);
         const id = `lab-${vehicleId}-${slug(part.name || part.geo, `part-${index + 1}`)}-${index + 1}`;
         const size = Array.isArray(part.size) ? part.size : (Array.isArray(part.scale) ? part.scale : [1, 1, 1]);
@@ -63,7 +106,10 @@ export function createVehicleLabHangarPublication(config = {}, options = {}) {
             visual: 'lab',
             appearance: {
                 geometry: String(part.geo || 'box').toLowerCase(),
-                size: size.slice(0, 3).map((value) => Math.max(0.1, Math.min(3, Number(value) || 1))),
+                size: size.slice(0, 3).map((value) => Math.max(
+                    VEHICLE_LAB_HANGAR_MIN_PART_SIZE,
+                    Math.min(VEHICLE_LAB_HANGAR_MAX_PART_SIZE, Number(value) || 1)
+                )),
                 color: appearanceColor,
             },
             costs: { budget: 7, mass: 5, energy: 4, heat: 3 },
