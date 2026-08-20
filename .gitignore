@@ -16,6 +16,8 @@
 android-classic/.gradle/
 android-classic/app/build/
 *.log
+**/__pycache__/
+*.pyc
 .env.local
 .env.*.local
 .playwright-*.lock
