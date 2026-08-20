@@ -68,3 +68,29 @@ export function progressionDetailText(progression) {
     if (progression.xpForNextLevel <= 0) return `Höchstes Level erreicht · ${base}`;
     return `Noch ${progression.xpRemaining} XP bis Level ${progression.level + 1} · ${base}`;
 }
+
+/**
+ * Formatiert eine Stueckzahl fuer die Bestandsanzeige.
+ * Unbegrenzte Bestaende sind intern `Infinity`; ungeprueft landet dieser
+ * englische Programmierwert mitten im deutschen Satz.
+ * @param {number} value
+ * @returns {string}
+ */
+export function stoneCountText(value) {
+    const numeric = Number(value);
+    if (numeric === Number.POSITIVE_INFINITY) return 'unbegrenzt';
+    if (!Number.isFinite(numeric)) return '0';
+    return String(Math.max(0, Math.trunc(numeric)));
+}
+
+/**
+ * Bestandszeile einer Steinkarte.
+ * @param {{available: number, equipped: number, owned: number}} availability
+ * @returns {string}
+ */
+export function stoneInventoryText(availability = {}) {
+    const available = stoneCountText(availability.available);
+    const equipped = stoneCountText(availability.equipped);
+    const owned = stoneCountText(availability.owned);
+    return `Bestand: ${available} frei · ${equipped}/${owned} eingesetzt`;
+}

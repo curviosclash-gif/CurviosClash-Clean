@@ -21,6 +21,7 @@ import {
     progressionDetailText,
     progressionSummaryText,
     signed,
+    stoneInventoryText,
 } from './HangarWorkshopRenderText.js';
 
 function button(className, text) {
@@ -159,7 +160,7 @@ export function createArcadeHangarWorkshopRenderer(options) {
                 el('span', 'hangar-part-stats', partStatsText(part)),
                 el('span', 'hangar-part-run-bonuses', `Run: ${partRunBonusesText(part, paired ? 2 : 1, mode)}`),
                 el('span', 'hangar-part-costs', partCostsText(part, paired)),
-                el('span', 'hangar-stone-inventory', `Bestand: ${availability.available} frei · ${availability.equipped}/${availability.owned} eingesetzt`),
+                el('span', 'hangar-stone-inventory', stoneInventoryText(availability)),
                 el('span', lock && !purchase ? 'hangar-part-lock-reason' : 'hangar-part-drag-hint', purchase ? 'Vorschau öffnen oder ausdrücklich kaufen' : (lock ? card.dataset.lockedReason : 'Anklicken oder auf eine Fassung ziehen'))
             );
             card.appendChild(selectButton);

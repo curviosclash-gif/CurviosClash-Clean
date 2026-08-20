@@ -588,6 +588,13 @@ class VehicleLabApp {
         const rebuildTypes = new Set(['geo', 'size', 'material', 'color', 'emissive', 'mirror', 'anim']);
         if (rebuildTypes.has(type)) {
             this.rebuildVehicle();
+            if (type === 'geo') {
+                // Die Grundabmessungen heissen je nach Form anders (Kante beim
+                // Quader, Radius bei der Kugel). Panel neu zeichnen, sonst
+                // stehen dort die Beschriftungen der alten Form.
+                const changedPart = this.resolveSelectedPart();
+                if (changedPart) this.ui.showProperties(changedPart, (nextType) => this.onPropUpdate(nextType));
+            }
         } else {
             const part = this.resolveSelectedPart();
             const object = this.findSelectedObject();

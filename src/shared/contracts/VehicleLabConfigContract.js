@@ -236,22 +236,58 @@ function normalizeVehicleId(value, fallbackLabel = '') {
     return /^editor_vehicle_[a-z0-9-]+$/.test(id) ? id : createVehicleId(fallbackLabel);
 }
 
-export function estimateVehicleLabHitboxRadius(vehicleConfig) {
-    let maxCandidate = 0;
-    const visit = (part) => {
-        if (!part || typeof part !== 'object') return;
-        const pos = Array.isArray(part.pos) ? part.pos : [0, 0, 0];
+export const VEHICLE_LAB_HITBOX_SCALE = 0.35;
+export const VEHICLE_LAB_HITBOX_MIN_RADIUS = 0.6;
+export const VEHICLE_LAB_HITBOX_MAX_RADIUS = 2.5;
+
+function collectVehicleLabBounds(parts, offset, bounds) {
+    for (const part of Array.isArray(parts) ? parts : []) {
+        if (!part || typeof part !== 'object') continue;
+        const rawPos = Array.isArray(part.pos) ? part.pos : [0, 0, 0];
         const size = Array.isArray(part.size) && part.size.length > 0 ? part.size : [1, 1, 1];
         const scale = Array.isArray(part.scale) && part.scale.length > 0 ? part.scale : [1, 1, 1];
-        const maxPos = Math.max(...pos.slice(0, 3).map((value) => Math.abs(Number(value) || 0)));
-        const maxSize = Math.max(...size.slice(0, 3).map((value) => Math.abs(Number(value) || 0)), 1);
-        const maxScale = Math.max(...scale.slice(0, 3).map((value) => Math.abs(Number(value) || 0)), 1);
-        maxCandidate = Math.max(maxCandidate, maxPos + (maxSize * maxScale));
-        if (Array.isArray(part.children)) part.children.forEach(visit);
-    };
-    if (Array.isArray(vehicleConfig?.parts)) vehicleConfig.parts.forEach(visit);
-    if (maxCandidate <= 0) return 1.2;
-    return Math.max(0.6, Math.min(2.5, Number((maxCandidate / 6).toFixed(2))));
+        const pos = [0, 1, 2].map((axis) => (Number(rawPos[axis]) || 0) + offset[axis]);
+        for (const axis of [0, 1, 2]) {
+            const extent = Number(size[axis]) || Number(size[0]) || 1;
+            const factor = Number(scale[axis]) || 1;
+            const half = Math.abs(extent * factor) / 2;
+            bounds.min[axis] = Math.min(bounds.min[axis], pos[axis] - half);
+            bounds.max[axis] = Math.max(bounds.max[axis], pos[axis] + half);
+        }
+        collectVehicleLabBounds(part.children, pos, bounds);
+    }
+    return bounds;
+}
+
+/**
+ * Schaetzt den Kollisionsradius eines im Lab gebauten Fahrzeugs.
+ *
+ * Grundlage ist die halbe Raumdiagonale der umschliessenden Box, also die
+ * tatsaechliche Ausdehnung aller Bauteile. Der Faktor ist daran geeicht, dass
+ * die Vorlage lab_jet_fighter (halbe Diagonale 4.11) ungefaehr den Radius des
+ * eingebauten Jet-Fighter trifft; die eingebauten Fahrzeuge liegen zwischen
+ * 0.8 und 1.6. Die frueheren Werte kamen aus "groesster Einzelwert geteilt
+ * durch sechs" und wuchsen deshalb nicht mit dem Fahrzeug.
+ *
+ * @param {object} vehicleConfig
+ * @returns {number}
+ */
+export function estimateVehicleLabHitboxRadius(vehicleConfig) {
+    const bounds = collectVehicleLabBounds(vehicleConfig?.parts, [0, 0, 0], {
+        min: [Infinity, Infinity, Infinity],
+        max: [-Infinity, -Infinity, -Infinity],
+    });
+    if (!Number.isFinite(bounds.min[0])) return 1.2;
+
+    const extents = [0, 1, 2].map((axis) => Math.max(0, bounds.max[axis] - bounds.min[axis]));
+    const halfDiagonal = Math.hypot(...extents) / 2;
+    if (halfDiagonal <= 0) return VEHICLE_LAB_HITBOX_MIN_RADIUS;
+
+    const scaled = halfDiagonal * VEHICLE_LAB_HITBOX_SCALE;
+    return Math.max(
+        VEHICLE_LAB_HITBOX_MIN_RADIUS,
+        Math.min(VEHICLE_LAB_HITBOX_MAX_RADIUS, Number(scaled.toFixed(2)))
+    );
 }
 
 function normalizeCatalogVehicle(entry) {

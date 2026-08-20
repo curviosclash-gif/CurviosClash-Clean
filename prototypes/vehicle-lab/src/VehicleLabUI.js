@@ -1,4 +1,5 @@
 import { buildVehicleLabSelectionKey } from './VehicleLabSelection.js';
+import { describeGeometryDimensions } from './VehicleLabGeometryLabels.js';
 import { VEHICLE_LAB_PART_ROLES } from '../../../src/shared/contracts/VehicleLabConfigContract.js';
 import { VEHICLE_LAB_HANGAR_MIN_PART_SIZE } from '../../../src/shared/contracts/VehicleLabHangarPublishContract.js';
 
@@ -372,7 +373,7 @@ export class VehicleLabUI {
             if (!part.size) part.size = [1, 1, 1];
             part.size[i] = val;
             onUpdate('size');
-        }, { min: MIN_PART_DIMENSION });
+        }, { min: MIN_PART_DIMENSION, axisLabels: describeGeometryDimensions(part.geo) });
 
         this.createVectorRow(container, 'Skalierung', part.scale || [1, 1, 1], (i, val) => {
             if (!part.scale) part.scale = [1, 1, 1];
@@ -486,7 +487,7 @@ export class VehicleLabUI {
         container.appendChild(sel);
     }
 
-    createVectorRow(container, label, vector, onChange, { min = null } = {}) {
+    createVectorRow(container, label, vector, onChange, { min = null, axisLabels = null } = {}) {
         const lbl = document.createElement('label');
         lbl.textContent = label;
         container.appendChild(lbl);
@@ -496,10 +497,17 @@ export class VehicleLabUI {
             const component = document.createElement('label');
             component.className = 'vector-component';
             const axis = document.createElement('span');
-            axis.textContent = ['X', 'Y', 'Z'][i] || String(i + 1);
+            axis.textContent = (axisLabels && axisLabels[i]) || ['X', 'Y', 'Z'][i] || String(i + 1);
+            const unused = !!axisLabels && i >= axisLabels.length;
+            if (unused) {
+                axis.textContent = '–';
+                component.classList.add('vector-component--unused');
+                component.title = 'Diese Form wertet den Wert nicht aus.';
+            }
             const inp = document.createElement('input');
             inp.type = 'number';
             inp.step = '0.1';
+            inp.disabled = unused;
             if (min !== null) inp.min = String(min);
             inp.value = val.toFixed(2);
             inp.setAttribute('aria-label', `${label} ${axis.textContent}`);

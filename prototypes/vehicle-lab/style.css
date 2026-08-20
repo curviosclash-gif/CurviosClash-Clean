@@ -139,6 +139,8 @@ button:disabled { cursor: not-allowed; opacity: 0.42; }
 .vector-components { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .vector-component { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: center; gap: 3px; color: var(--muted); font-size: 0.65rem; }
 .vector-component input { min-width: 0; }
+.vector-component--unused { opacity: 0.45; }
+.vector-component--unused input { cursor: not-allowed; }
 
 .sidebar__list { max-height: 190px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px; }
 .parts-tree { flex: 1; max-height: none; margin-top: 8px; }

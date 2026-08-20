@@ -3,11 +3,16 @@ import test from 'node:test';
 
 import { createRendererShellBuildConfig } from '../dev/vite/rendererShellConfig.js';
 
+import { VEHICLE_PRESETS } from '../prototypes/vehicle-lab/src/VehiclePresets.js';
+
 import {
     VEHICLE_LAB_CATALOG_STORAGE_KEY,
     VEHICLE_LAB_CONFIG_LIMITS,
+    VEHICLE_LAB_HITBOX_MAX_RADIUS,
+    VEHICLE_LAB_HITBOX_MIN_RADIUS,
     createVehicleLabSlug,
     deleteVehicleLabCatalogVehicle,
+    estimateVehicleLabHitboxRadius,
     loadVehicleLabCatalog,
     normalizeVehicleLabConfig,
     renameVehicleLabCatalogVehicle,
@@ -207,4 +212,47 @@ test('Vehicle Lab slug falls back when a name carries no usable characters', () 
     assert.equal(createVehicleLabSlug(''), 'vehicle');
     assert.equal(createVehicleLabSlug('   ', 'fahrzeug'), 'fahrzeug');
     assert.equal(createVehicleLabSlug('!!!', 'fahrzeug'), 'fahrzeug');
+});
+
+test('Vehicle Lab hitbox radius grows with the actual vehicle extent', () => {
+    const small = { label: 'Klein', parts: [{ name: 'Core', geo: 'box', size: [1, 1, 1] }] };
+    const medium = { label: 'Mittel', parts: [{ name: 'Core', geo: 'box', size: [3, 1, 4] }] };
+    const large = { label: 'Gross', parts: [{ name: 'Core', geo: 'box', size: [6, 2, 8] }] };
+
+    const radii = [small, medium, large].map(estimateVehicleLabHitboxRadius);
+
+    // Die alte Schaetzung nahm den groessten Einzelwert geteilt durch sechs und
+    // wuchs deshalb nicht verlaesslich mit dem Fahrzeug.
+    assert.ok(radii[0] < radii[1], `${radii[0]} < ${radii[1]}`);
+    assert.ok(radii[1] < radii[2], `${radii[1]} < ${radii[2]}`);
+});
+
+test('Vehicle Lab hitbox radius counts part positions, not just sizes', () => {
+    const compact = { label: 'Eng', parts: [
+        { name: 'L-Wing', geo: 'box', size: [1, 1, 1], pos: [-0.5, 0, 0] },
+        { name: 'R-Wing', geo: 'box', size: [1, 1, 1], pos: [0.5, 0, 0] },
+    ] };
+    const spread = { label: 'Weit', parts: [
+        { name: 'L-Wing', geo: 'box', size: [1, 1, 1], pos: [-4, 0, 0] },
+        { name: 'R-Wing', geo: 'box', size: [1, 1, 1], pos: [4, 0, 0] },
+    ] };
+
+    assert.ok(estimateVehicleLabHitboxRadius(compact) < estimateVehicleLabHitboxRadius(spread));
+});
+
+test('Vehicle Lab hitbox radius stays inside the range of the built-in ships', () => {
+    // Die eingebauten Fahrzeuge liegen zwischen 0.8 und 1.6.
+    for (const preset of VEHICLE_PRESETS) {
+        const radius = estimateVehicleLabHitboxRadius(preset);
+        assert.ok(radius >= VEHICLE_LAB_HITBOX_MIN_RADIUS, `${preset.id}: ${radius}`);
+        assert.ok(radius <= 1.8, `${preset.id}: ${radius} liegt ueber den eingebauten Fahrzeugen`);
+    }
+});
+
+test('Vehicle Lab hitbox radius clamps absurd builds instead of trusting them', () => {
+    const huge = { label: 'Riesig', parts: [{ name: 'Core', geo: 'box', size: [400, 400, 400] }] };
+    const empty = { label: 'Leer', parts: [] };
+
+    assert.equal(estimateVehicleLabHitboxRadius(huge), VEHICLE_LAB_HITBOX_MAX_RADIUS);
+    assert.equal(estimateVehicleLabHitboxRadius(empty), 1.2);
 });

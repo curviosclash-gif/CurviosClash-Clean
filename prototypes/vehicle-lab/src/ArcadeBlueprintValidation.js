@@ -39,6 +39,19 @@ export function buildValidatedArcadeBlueprint(config, options = {}) {
     };
 }
 
+/**
+ * Formatiert eine Budgetzahl fuer die deutsche Oberflaeche.
+ * Ohne das liest sich der Rohwert 13.771 wie dreizehntausend statt 13,77 und
+ * ein voellig unauffaelliges Fahrzeug wirkt weit ueber Budget.
+ * @param {number} value
+ * @returns {string}
+ */
+function formatBudgetNumber(value) {
+    const numeric = Number(value);
+    if (!Number.isFinite(numeric)) return '0';
+    return numeric.toLocaleString('de-DE', { maximumFractionDigits: 2 });
+}
+
 export function describeArcadeBlueprintStatus(result) {
     const blueprint = result?.blueprint || null;
     const validation = result?.validation || null;
@@ -55,10 +68,10 @@ export function describeArcadeBlueprintStatus(result) {
     return [
         `Blueprint ${status}`,
         missingRoles.length > 0 ? `Fehlt: ${missingRoles.join(', ')}` : '',
-        `Budget ${stats.budgetUsed || 0}/${limits.editorBudget || 0}`,
-        `Masse ${stats.massUsed || 0}/${limits.massBudget || 0}`,
-        `Energie ${stats.powerUsed || 0}/${limits.powerBudget || 0}`,
-        `Hitze ${stats.heatUsed || 0}/${limits.heatBudget || 0}`,
+        `Budget ${formatBudgetNumber(stats.budgetUsed)}/${formatBudgetNumber(limits.editorBudget)}`,
+        `Masse ${formatBudgetNumber(stats.massUsed)}/${formatBudgetNumber(limits.massBudget)}`,
+        `Energie ${formatBudgetNumber(stats.powerUsed)}/${formatBudgetNumber(limits.powerBudget)}`,
+        `Hitze ${formatBudgetNumber(stats.heatUsed)}/${formatBudgetNumber(limits.heatBudget)}`,
     ].filter(Boolean).join(' | ');
 }
 
