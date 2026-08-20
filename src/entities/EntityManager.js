@@ -339,6 +339,10 @@ export class EntityManager {
         return this._parcoursProgressSystem?.getRouteSnapshot?.() || null;
     }
 
+    getStaticTurretSnapshot() {
+        return this._staticTurretSystem?.createNetworkSnapshot?.() || [];
+    }
+
     _checkLockOn(player) {
         return this._huntCombatSystem.checkLockOn(player);
     }

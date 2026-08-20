@@ -26,7 +26,7 @@ test('Kinetic Tide accepts both alternatives of every route branch in the deskto
     const runs = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const manager = game.entityManager;
-        const system = manager._parcoursProgressSystem;
+        const system = manager.runtimePorts.spawn.parcoursProgressSystem;
         const player = manager.players[0];
         const route = system.getRouteSnapshot();
         const stages = new Map();
@@ -94,8 +94,10 @@ test('Kinetic Tide respawns three times at the last checkpoint and then at check
     const result = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
         const manager = game.entityManager;
-        const system = manager._parcoursProgressSystem;
-        const respawnSystem = manager._respawnSystem;
+        const system = manager.runtimePorts.spawn.parcoursProgressSystem;
+        const respawnSystem = manager.runtimePorts.spawn.respawnSystem;
+        const roundOutcomeSystem = manager.runtimePorts.combat.roundOutcomeSystem;
+        const lifecycle = manager.runtimePorts.runtimeContext.callbacks.lifecycle;
         const player = manager.players[0];
         const route = system.getRouteSnapshot();
         const firstCheckpoint = route.checkpoints.find((checkpoint) => checkpoint.routeIndex === 0);
@@ -125,10 +127,10 @@ test('Kinetic Tide respawns three times at the last checkpoint and then at check
         const deaths = [];
         let now = 2000;
         for (let deathNumber = 1; deathNumber <= 4; deathNumber++) {
-            manager._killPlayer(player, 'WALL');
+            lifecycle.killPlayer(player, 'WALL');
             const pending = respawnSystem.pendingByPlayer.get(player.index);
             const beforeRespawn = system.getPlayerProgressSnapshot(player.index, now);
-            const outcome = manager._roundOutcomeSystem.resolve();
+            const outcome = roundOutcomeSystem.resolve();
             const expectedPosition = pending?.parcoursPlan?.position?.slice?.() || [];
 
             respawnSystem.update((pending?.remaining || 0) + 0.01);

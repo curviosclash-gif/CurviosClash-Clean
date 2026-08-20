@@ -180,7 +180,6 @@ test('Aetherion shortcuts close and open while its outer ascent stays clear', as
         };
     }, { scale: MAP_SCALE, steps: 48, beat: 12 });
 
-    // eslint-disable-next-line no-console
     console.log('aetherion twelve-second collision sweep:', JSON.stringify(sweep));
     expect(sweep.safeFailures).toBe(0);
     expect(Object.keys(sweep.motion)).toHaveLength(12);
@@ -247,7 +246,6 @@ test('Aetherion route heatmap keeps the outer line safe and times all three fast
         };
     }, { scale: MAP_SCALE, steps: 48, beat: 12 });
 
-    // eslint-disable-next-line no-console
     console.log('aetherion physical route heatmap:', JSON.stringify(heatmap));
     expect(heatmap.hitbox).toBeGreaterThan(0);
     for (const id of ['outer_ascent', 'safe_foundry', 'safe_gallery', 'safe_crown']) {
@@ -276,8 +274,8 @@ test('five Aetherion Hunt bots traverse a five-minute accelerated desktop run', 
             finite: true,
             inBounds: true,
         }]));
-        const originalResolve = manager._roundOutcomeSystem.resolve;
-        manager._roundOutcomeSystem.resolve = () => ({ shouldEnd: false });
+        const previousOutcomeAuthority = manager.isFightOutcomeAuthority;
+        manager.isFightOutcomeAuthority = false;
         const dt = 1 / 30;
         const ticks = 300 * 30;
         try {
@@ -303,13 +301,14 @@ test('five Aetherion Hunt bots traverse a five-minute accelerated desktop run', 
                 }
             }
         } finally {
-            manager._roundOutcomeSystem.resolve = originalResolve;
+            manager.isFightOutcomeAuthority = previousOutcomeAuthority;
         }
         return {
             seconds: ticks * dt,
             botRoles: bots.map((bot) => bot.scenarioRole),
             aliveBots: bots.filter((bot) => bot.alive).length,
-            turretShots: manager._staticTurretSystem.turrets.reduce((sum, turret) => sum + turret.shotsFired, 0),
+            turretShots: manager.getStaticTurretSnapshot()
+                .reduce((sum, turret) => sum + turret.shotsFired, 0),
             stats: [...stats.entries()].map(([index, state]) => ({
                 index,
                 visitedCells: state.cells.size,
@@ -320,7 +319,6 @@ test('five Aetherion Hunt bots traverse a five-minute accelerated desktop run', 
         };
     });
 
-    // eslint-disable-next-line no-console
     console.log('aetherion accelerated hunt run:', JSON.stringify(run));
     expect(run.seconds).toBe(300);
     expect(run.botRoles).toEqual(['guard', 'flanker', 'pursuer', 'interceptor', 'flanker']);
