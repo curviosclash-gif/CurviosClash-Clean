@@ -197,15 +197,27 @@ export function formatVehicleLabConfigIssues(result) {
     return [...(result?.errors || []), ...(result?.warnings || [])].join('\n');
 }
 
-function createVehicleId(label) {
-    const slug = String(label || '')
+/**
+ * Bildet aus einem Fahrzeugnamen den technischen Schluessel.
+ * Umlaute und Akzente werden in ihre Grundbuchstaben zerlegt ("muell" statt
+ * "m-ll"), alles Uebrige wird zu Bindestrichen. Einzige Namensregel des
+ * Vehicle Lab: Katalog, Dateiname und Hangar-Veroeffentlichung nutzen sie.
+ * @param {string} label
+ * @param {string} [fallback]
+ * @returns {string}
+ */
+export function createVehicleLabSlug(label, fallback = 'vehicle') {
+    return String(label || '')
         .normalize('NFD')
         .replace(/[\u0300-\u036f]/g, '')
         .toLowerCase()
         .replace(/[^a-z0-9]+/g, '-')
         .replace(/^-+|-+$/g, '')
-        .slice(0, 48) || 'vehicle';
-    return `editor_vehicle_${slug}`;
+        .slice(0, 48) || fallback;
+}
+
+function createVehicleId(label) {
+    return `editor_vehicle_${createVehicleLabSlug(label)}`;
 }
 
 function normalizeVehicleId(value, fallbackLabel = '') {

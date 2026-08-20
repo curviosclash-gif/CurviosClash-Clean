@@ -2,7 +2,7 @@
 // electron/main.cjs - Electron main process
 // ============================================
 
-const { app, BrowserWindow, ipcMain, dialog, Tray, nativeImage, globalShortcut } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, Tray, nativeImage, globalShortcut, session } = require('electron');
 const path = require('node:path');
 const {
     copyFileSync,
@@ -28,7 +28,9 @@ const {
     createEditorWindowOpenHandler,
     createPlaytestWindowOpenHandler,
     createSecureWindowWebPreferences,
+    isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
+const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
 const {
     assertTrustedWindowSender,
     isTrustedWindowSender,
@@ -514,6 +516,10 @@ async function createWindow() {
 
     mainWindow.webContents.on('will-navigate', (event) => {
         event.preventDefault();
+    });
+    installEditorDownloadTarget(session.defaultSession, {
+        isTrustedEditorUrl: (url) => isTrustedEditorUrl(url, appServer.url),
+        getDownloadsDirectory: () => app.getPath('downloads'),
     });
     mainWindow.webContents.setWindowOpenHandler(createEditorWindowOpenHandler(appServer.url));
     mainWindow.webContents.on('did-create-window', (editorWindow, details) => {

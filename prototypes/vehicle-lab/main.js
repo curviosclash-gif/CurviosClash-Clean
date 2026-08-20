@@ -20,6 +20,7 @@ import {
     upsertVehicleLabHangarPublication,
 } from '../../src/shared/contracts/VehicleLabHangarPublishContract.js';
 import {
+    createVehicleLabSlug,
     deleteVehicleLabCatalogVehicle,
     formatVehicleLabConfigIssues,
     loadVehicleLabCatalog,
@@ -34,6 +35,19 @@ import { AuthoringTelemetrySession } from '../../src/state/AuthoringTelemetrySes
 const VEHICLE_LAB_CONFIG_STORAGE_KEY = 'vehicle_lab_config';
 const VEHICLE_LAB_RECOVERY_STORAGE_KEY = 'vehicle_lab_recovery_config';
 const GAME_VEHICLE_REFERENCES = listVehicleLabGameReferences();
+
+function countVehicleParts(parts) {
+    let total = 0;
+    for (const part of Array.isArray(parts) ? parts : []) {
+        if (!part || typeof part !== 'object') continue;
+        total += 1 + countVehicleParts(part.children);
+    }
+    return total;
+}
+
+function buildVehicleFileBaseName(label) {
+    return createVehicleLabSlug(label, 'fahrzeug');
+}
 
 function toBlueprintId(value) {
     return String(value || 'custom_blueprint')
@@ -882,6 +896,9 @@ class VehicleLabApp {
                 try {
                     const config = JSON.parse(re.target.result);
                     this.applyVehicleConfigToEditor(config);
+                    const importedLabel = String(this.vehicle?.config?.label || 'Fahrzeug');
+                    const importedParts = countVehicleParts(this.vehicle?.config?.parts);
+                    this.ui.showToast(`${importedLabel} importiert; ${importedParts} Bauteile geladen.`, 'success');
                     this.authoringTelemetry.recordCounter('import');
                     this.authoringTelemetry.recordOutcome('import_succeeded', true, { flush: true });
                 } catch (err) {
@@ -895,19 +912,44 @@ class VehicleLabApp {
     }
 
     exportJson() {
+        const fileName = `${buildVehicleFileBaseName(this.vehicle.config.label)}.json`;
         const data = JSON.stringify(this.vehicle.config, null, 2);
         const blob = new Blob([data], { type: 'application/json' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = `${this.vehicle.config.label || 'ship'}.json`;
-        a.click();
-        URL.revokeObjectURL(url);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = fileName;
+        anchor.rel = 'noopener';
+        anchor.style.display = 'none';
+        // Der Anker muss im Dokument haengen und die Blob-Adresse ueber den Klick
+        // hinaus gueltig bleiben. Wird sie sofort freigegeben, bricht Electron den
+        // Download ab und hinterlaesst nur eine namenlose .tmp-Datei.
+        document.body.appendChild(anchor);
+        try {
+            anchor.click();
+        } catch (error) {
+            URL.revokeObjectURL(url);
+            anchor.remove();
+            this.authoringTelemetry.recordError('export_failed');
+            this.ui.showToast(`Export fehlgeschlagen: ${error.message}`, 'error');
+            return;
+        }
+        setTimeout(() => {
+            URL.revokeObjectURL(url);
+            anchor.remove();
+        }, 0);
         this.authoringTelemetry.recordCounter('export');
         this.authoringTelemetry.recordOutcome('export_succeeded', true, { flush: true });
-        this.ui.showToast('JSON exportiert.', 'success');
+        this.ui.showToast(`${fileName} in den Download-Ordner exportiert.`, 'success');
     }
 
+    /**
+     * Spricht die Editor-Schnittstelle fuer Festplattenzugriffe an.
+     * Unterscheidet bewusst drei Faelle, damit die Oberflaeche keinen Erfolg
+     * meldet, wenn es die Schnittstelle im Desktop-Betrieb gar nicht gibt:
+     * geschrieben, nicht vorhanden (404), sonstiger Fehler.
+     * @returns {Promise<{ok: boolean, unavailable: boolean, payload: object|null, error: string|null}>}
+     */
     async requestDiskApi(route, body) {
         try {
             const response = await fetch(route, {
@@ -915,11 +957,19 @@ class VehicleLabApp {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(body),
             });
-            if (!response.ok) return null;
+            if (response.status === 404) {
+                return { ok: false, unavailable: true, payload: null, error: null };
+            }
+            if (!response.ok) {
+                return { ok: false, unavailable: false, payload: null, error: `HTTP ${response.status}` };
+            }
             const payload = await response.json();
-            return payload?.ok ? payload : null;
-        } catch {
-            return null;
+            if (!payload?.ok) {
+                return { ok: false, unavailable: false, payload, error: String(payload?.error || 'Unbekannter Fehler') };
+            }
+            return { ok: true, unavailable: false, payload, error: null };
+        } catch (error) {
+            return { ok: false, unavailable: true, payload: null, error: String(error?.message || error) };
         }
     }
 
@@ -962,7 +1012,7 @@ class VehicleLabApp {
             });
             this.catalogRecord = saveVehicleLabCatalog(saved.record, localStorage);
             this.savedVehicles = this.catalogRecord.vehicles;
-            void this.requestDiskApi(EDITOR_API_ROUTES.SAVE_VEHICLE_DISK, {
+            const diskResult = await this.requestDiskApi(EDITOR_API_ROUTES.SAVE_VEHICLE_DISK, {
                 jsonText: JSON.stringify(saved.vehicle.config),
                 vehicleName: saved.vehicle.label,
                 arcadeBlueprint: guardResult.blueprint,
@@ -982,15 +1032,27 @@ class VehicleLabApp {
                     VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
                     JSON.stringify(upsertVehicleLabHangarPublication(currentPublicationRecord, publication))
                 );
-                this.ui.showToast(`${publication.label} veröffentlicht; ${publication.parts.length} Bauteile sind im Hangar verfügbar.`, 'success');
+                this.ui.showToast(`${publication.label} veröffentlicht; ${publication.parts.length} Bauteile liegen jetzt im Hangar bereit.`, 'success');
                 this.setStatus(`${publication.label} veröffentlicht – Spielseite zum Aktualisieren neu laden.`, 'success');
                 this.ui.updateSaveState('saved', 'Im Hangar veröffentlicht');
                 this.authoringTelemetry.recordCounter('publish');
                 this.authoringTelemetry.recordOutcome('publish_succeeded', true, { flush: true });
-            } else {
-                this.ui.showToast(`${saved.vehicle.label} gespeichert; Spielseite zum Auswählen neu laden.`, 'success');
+            } else if (diskResult.ok) {
+                this.ui.showToast(`${saved.vehicle.label} als Datei gespeichert; Spielseite zum Auswählen neu laden.`, 'success');
                 this.setStatus(`${saved.vehicle.label} als Fahrzeug gespeichert.`, 'success');
                 this.ui.updateSaveState('saved', 'Fahrzeug gespeichert');
+                this.authoringTelemetry.recordCounter('save');
+                this.authoringTelemetry.recordOutcome('save_succeeded', true, { flush: true });
+            } else {
+                // Ohne Festplatten-Schnittstelle bleibt das Fahrzeug allein im
+                // Speicher dieser App. Das muss die Meldung sagen, sonst haelt
+                // man es faelschlich fuer gesichert.
+                const reason = diskResult.unavailable
+                    ? 'nur in dieser App gespeichert – keine Datei auf der Festplatte'
+                    : `nur in dieser App gespeichert (${diskResult.error})`;
+                this.ui.showToast(`${saved.vehicle.label} ${reason}. Zum Sichern „JSON exportieren" verwenden.`, 'warning');
+                this.setStatus(`${saved.vehicle.label} ${reason}.`, 'warning');
+                this.ui.updateSaveState('saved', 'Nur in dieser App gespeichert');
                 this.authoringTelemetry.recordCounter('save');
                 this.authoringTelemetry.recordOutcome('save_succeeded', true, { flush: true });
             }
@@ -1025,7 +1087,7 @@ class VehicleLabApp {
             vehicleName: normalized.config.label,
             jsonText: JSON.stringify({ ...normalized.config, id: vehicleId }),
         });
-        if (!result) {
+        if (!result.ok) {
             this.authoringTelemetry.recordError('save_failed');
             this.ui.showToast('Produktives Speichern benötigt die lokale Entwickler-API.', 'error');
             this.ui.updateSaveState('error', 'Produktives Speichern fehlgeschlagen');

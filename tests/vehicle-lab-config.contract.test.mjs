@@ -6,6 +6,7 @@ import { createRendererShellBuildConfig } from '../dev/vite/rendererShellConfig.
 import {
     VEHICLE_LAB_CATALOG_STORAGE_KEY,
     VEHICLE_LAB_CONFIG_LIMITS,
+    createVehicleLabSlug,
     deleteVehicleLabCatalogVehicle,
     loadVehicleLabCatalog,
     normalizeVehicleLabConfig,
@@ -183,4 +184,27 @@ test('desktop build ships Vehicle Lab while the mobile target remains game-only'
         env: { VITE_APP_MODE: 'app', VITE_APP_TARGET: 'mobile-classic' },
     });
     assert.deepEqual(Object.keys(mobile.rollupOptions.input), ['app']);
+});
+
+test('Vehicle Lab slug transliterates diacritics instead of dropping them', () => {
+    // Die alte Publish-Regel zerlegte "Müll" zu "m-ll" und machte den Namen
+    // unkenntlich. Die gemeinsame Regel behaelt den Grundbuchstaben.
+    assert.equal(createVehicleLabSlug('Müll'), 'mull');
+    assert.equal(createVehicleLabSlug('Prüfschiff Ümläut'), 'prufschiff-umlaut');
+    assert.equal(createVehicleLabSlug('Café Ångström'), 'cafe-angstrom');
+});
+
+test('Vehicle Lab slug maps umlaut and base letter onto the same key', () => {
+    // Bewusst festgehalten: "Müll" und "Mull" ergeben denselben Schluessel.
+    // Eine Umschrift nach "muell" wuerde alle bereits gespeicherten
+    // Fahrzeugkennungen aendern. Solche Zusammenstoesse werden deshalb beim
+    // Speichern und Veroeffentlichen abgefragt, nicht in der Namensregel.
+    assert.equal(createVehicleLabSlug('Müll'), createVehicleLabSlug('Mull'));
+    assert.notEqual(createVehicleLabSlug('Müll'), createVehicleLabSlug('Mall'));
+});
+
+test('Vehicle Lab slug falls back when a name carries no usable characters', () => {
+    assert.equal(createVehicleLabSlug(''), 'vehicle');
+    assert.equal(createVehicleLabSlug('   ', 'fahrzeug'), 'fahrzeug');
+    assert.equal(createVehicleLabSlug('!!!', 'fahrzeug'), 'fahrzeug');
 });

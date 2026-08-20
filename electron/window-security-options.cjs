@@ -17,6 +17,22 @@ const TRUSTED_EDITOR_PATHS = new Set([
     '/prototypes/vehicle-lab/index.html',
 ]);
 
+/**
+ * Prueft, ob eine Adresse zu einem der Autorenwerkzeuge gehoert.
+ * @param {string} url
+ * @param {string} appServerUrl
+ * @returns {boolean}
+ */
+function isTrustedEditorUrl(url, appServerUrl) {
+    try {
+        const target = new URL(url);
+        return target.origin === new URL(appServerUrl).origin
+            && TRUSTED_EDITOR_PATHS.has(target.pathname);
+    } catch {
+        return false;
+    }
+}
+
 function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath) {
     const trustedOrigin = new URL(appServerUrl).origin;
     return ({ url } = {}) => {
@@ -56,4 +72,5 @@ module.exports = {
     createEditorWindowOpenHandler,
     createPlaytestWindowOpenHandler,
     createSecureWindowWebPreferences,
+    isTrustedEditorUrl,
 };
