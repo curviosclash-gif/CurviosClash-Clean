@@ -1359,23 +1359,42 @@ def build_fleche_hoist(scene, mats):
 def build_tarpaulin_wall(scene, mats):
     """Two beats. The sheeted hoarding that wrapped the works. Seven bays; one bay at a time is
     drawn aside, so the opening walks along the wall and a player learns *where* to be rather
-    than counting out *when* to go."""
+    than counting out *when* to go.
+
+    The wall is set out across the building, on Y, and every bay draws aside on Y as well. That
+    is the whole point of it: a run comes up the river along X, so a hoarding set out on X would
+    hang edge-on in the flight line -- seven sheets lying along the route for their full length,
+    a face no one ever sees, and a gap traveling away from the player instead of across them.
+    The battens, lamps and the signal strip sit on -X, the side a run approaches from.
+
+    The bay spacing is what a run has to fly through, so it is stated rather than inlined. Three
+    of the seven openings fall inside CP02, which is 9.1 m across here: the middle one and its
+    two neighbours. Narrowing the spacing until all seven fit inside the ring was tried and is
+    worse -- at 1.5 m the opening is 5 world units wide against the 16 it has now, and a run
+    cannot thread it at flying speed. A wide gap that comes round three times a loop beats a
+    permanent one too narrow to use."""
     steel = mats["steel"]
-    cube("tarpaulin_wall_head", (0, 0, 18.4), (16.0, 0.6, 0.5), steel)
-    cube("tarpaulin_wall_head_signal", (0, -0.7, 17.8), (15.2, 0.14, 0.18), mats["signal"])
+    bay_spacing = 4.0
+    half_span = bay_spacing * 3
+    cube("tarpaulin_wall_head", (0, 0, 18.4), (0.6, half_span + bay_spacing, 0.5), steel)
+    cube("tarpaulin_wall_head_signal", (-0.7, 0, 17.8), (0.14, half_span + bay_spacing * 0.8, 0.18),
+         mats["signal"])
     for side in (-1, 1):
-        cube(f"tarpaulin_wall_post_{side}", (side * 15.6, 0, 9.0), (0.5, 0.7, 9.0), steel)
+        cube(f"tarpaulin_wall_post_{side}", (0, side * (half_span + bay_spacing * 0.9), 9.0),
+             (0.7, 0.5, 9.0), steel)
 
     for index in range(7):
-        offset_x = -12.0 + index * 4.0
-        shut = (offset_x, 0, 9.0)
-        aside = (offset_x + 3.6, 0, 9.0)
+        offset_y = -half_span + index * bay_spacing
+        shut = (0, offset_y, 9.0)
+        # A bay slides just under one spacing aside, so it ends up behind its neighbour and the
+        # opening it leaves is the full width of the bay.
+        aside = (0, offset_y + bay_spacing * 0.9, 9.0)
 
         bay = empty(f"TarpBay{index}", shut)
-        sheet = cube(f"tarp_sheet_{index}", shut, (1.9, 0.14, 8.6), mats["tarp"])
-        batten = cube(f"tarp_batten_{index}_nocol", (offset_x, -0.2, 9.0), (1.95, 0.08, 0.16),
-                      steel)
-        lamp = sphere(f"tarp_lamp_{index}_nocol", (offset_x + 1.9, -0.4, 16.6),
+        sheet = cube(f"tarp_sheet_{index}", shut, (0.14, bay_spacing * 0.475, 8.6), mats["tarp"])
+        batten = cube(f"tarp_batten_{index}_nocol", (-0.2, offset_y, 9.0),
+                      (0.08, bay_spacing * 0.4875, 0.16), steel)
+        lamp = sphere(f"tarp_lamp_{index}_nocol", (-0.4, offset_y + bay_spacing * 0.475, 16.6),
                       (0.3, 0.3, 0.3), mats["signal"], 8, 5)
         for obj in (sheet, batten, lamp):
             parent_keep_world(obj, bay)

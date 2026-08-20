@@ -185,6 +185,32 @@ function openingMoments(glb) {
     });
 }
 
+/**
+ * How far each rig has travelled from its resting pose at its widest, as a vector rather than a
+ * distance -- which tells the direction a gap opens in, not only that it opens.
+ */
+function openingTravels(glb) {
+    const { document } = glb;
+    const animation = document.animations[0];
+    return animation.channels.map((channel) => {
+        const sampler = animation.samplers[channel.sampler];
+        const values = readFloatAccessor(glb, sampler.output);
+        const resting = values[0];
+
+        let widest = 0;
+        let offset = resting.map(() => 0);
+        for (const value of values) {
+            const delta = value.map((entry, axis) => entry - resting[axis]);
+            const distance = Math.hypot(...delta);
+            if (distance > widest) {
+                widest = distance;
+                offset = delta;
+            }
+        }
+        return { node: String(document.nodes[channel.target.node]?.name || ''), offset };
+    });
+}
+
 function triangleCount(document) {
     let count = 0;
     for (const mesh of document.meshes || []) {
@@ -357,6 +383,34 @@ test('the sheeting opens one bay at a time instead of everywhere at once', () =>
         assert.ok(
             Math.abs(stride - expectedStride) <= expectedStride * 0.25,
             `the sheeting keeps an even stride near ${expectedStride.toFixed(2)}s, got ${stride.toFixed(2)}s`,
+        );
+    }
+});
+
+test('the hoarding stands across the approach instead of along it', () => {
+    const glb = readGlb(path.join(ASSET_ROOT, 'glb', '14_tarpaulin_wall.glb'));
+
+    // glTF X runs along the building, which is the line a run flies in on from the river, and
+    // glTF Z runs across it. A barrier meant to be flown through has to be wide across and thin
+    // along. Built the other way round it hangs edge-on in the flight line: its face is never in
+    // front of anyone, its sheets lie on the route for their whole length, and the traveling gap
+    // opens along the flight path instead of across it.
+    const box = boundingBox(glb.document);
+    assert.ok(
+        box.span.z > box.span.x * 4,
+        `the hoarding spans wider across the approach (${box.span.z.toFixed(1)} m) `
+        + `than along it (${box.span.x.toFixed(1)} m)`,
+    );
+
+    // The same rule for the movement: each bay draws aside across the approach, so the opening
+    // walks along the face a player is looking at.
+    const travels = openingTravels(glb);
+    assert.equal(travels.length, 7, 'all seven bays are animated');
+    for (const entry of travels) {
+        assert.ok(
+            Math.abs(entry.offset[2]) > Math.abs(entry.offset[0]) * 4,
+            `${entry.node} draws aside across the approach, `
+            + `got along=${entry.offset[0].toFixed(2)} across=${entry.offset[2].toFixed(2)}`,
         );
     }
 });
