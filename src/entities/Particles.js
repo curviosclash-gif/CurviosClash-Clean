@@ -58,6 +58,12 @@ export class ParticleSystem {
         this.mesh = new THREE.InstancedMesh(geometry, material, MAX_PARTICLES);
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.mesh.count = 0;
+        // An InstancedMesh caches its bounding sphere on the first frustum test and
+        // never recomputes it. Particles move every frame, so the cached hull is wrong
+        // immediately - and while the mesh starts empty, that hull is empty too, which
+        // culls every explosion for the rest of the session. Every other instanced
+        // effect in the game opts out of culling for the same reason.
+        this.mesh.frustumCulled = false;
 
         this.renderer.addToScene(this.mesh);
 
@@ -352,7 +358,11 @@ export class ParticleSystem {
     spawnTrailExplosion(points, trailColor = null) {
         const feedback = resolveGameplayConfig(this.configSource).HUNT?.FEEDBACK?.TRAIL_EXPLOSION || {};
         const countPerPoint = Math.max(1, Number(feedback.countPerSegment) || 8);
-        const color = Number.isFinite(Number(trailColor)) ? Number(trailColor) : Number(feedback.color) || 0x44ccff;
+        // Number(null) is 0 and passes isFinite, so without the explicit null check the
+        // only caller - which passes no colour at all - paints the burst black.
+        const hasTrailColor = trailColor !== null && trailColor !== undefined
+            && Number.isFinite(Number(trailColor));
+        const color = hasTrailColor ? Number(trailColor) : Number(feedback.color) || 0x44ccff;
 
         const list = Array.isArray(points) ? points : Array.from(points || []);
         const indices = selectTrailBlastIndices(list.length, countPerPoint, feedback.maxParticlesPerBurst);

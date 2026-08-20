@@ -85,6 +85,10 @@ export class RocketBlastEffect {
         const mesh = new THREE.InstancedMesh(geometry, material, MAX_ROCKET_BLASTS);
         mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         mesh.count = 0;
+        // Culling would use the bounding sphere cached while this mesh was still empty,
+        // which hides the core and the shockwave for good. Blasts are short and rare,
+        // so drawing them unconditionally is cheaper than keeping a hull up to date.
+        mesh.frustumCulled = false;
         this.renderer?.addToScene?.(mesh);
         return mesh;
     }
