@@ -2,7 +2,9 @@ import { expect, test } from './helpers.desktop.js';
 import { collectErrors, returnToMenu, waitForLoadedGame } from './helpers.js';
 
 async function openFourPlayerSetup(page) {
-    await page.evaluate(() => window.GAME_INSTANCE?._showMainNav?.());
+    await page.evaluate(() => (
+        window.GAME_INSTANCE?.runtimeCoordinator?.getUiManager?.()?.showMainNav?.()
+    ));
     await page.locator('[data-session-type="splitscreen"]').click();
     await expect(page.locator('#submenu-custom')).toBeVisible();
     if (!await page.locator('#four-player-planar-setup').isVisible()) {
@@ -113,7 +115,10 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         await returnToMenu(page);
         await page.waitForFunction(() => window.GAME_INSTANCE?.renderer?.viewportLayout === 'single');
         const cleanup = await page.evaluate(() => ({
-            sourceCount: window.GAME_INSTANCE?.input?._playerSources?.size || 0,
+            sourceCount: Array.from(
+                { length: 4 },
+                (_, index) => window.GAME_INSTANCE?.input?.getPlayerSource?.(index)
+            ).filter(Boolean).length,
             hudHidden: document.getElementById('four-player-planar-hud')?.classList.contains('hidden'),
             activeClass: document.documentElement.classList.contains('four-player-planar-active'),
         }));

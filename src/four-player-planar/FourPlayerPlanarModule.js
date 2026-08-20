@@ -165,7 +165,14 @@ export class FourPlayerPlanarModule {
             this._listen(control, 'change', () => this._persistSetupSelection());
         }
         for (const sessionButton of this.document.querySelectorAll('[data-session-type]')) {
-            this._listen(sessionButton, 'click', () => queueMicrotask(() => this.syncSetupUi()));
+            this._listen(sessionButton, 'click', () => {
+                const scheduleFrame = this.document.defaultView?.requestAnimationFrame;
+                if (typeof scheduleFrame === 'function') {
+                    scheduleFrame.call(this.document.defaultView, () => this.syncSetupUi());
+                } else {
+                    queueMicrotask(() => this.syncSetupUi());
+                }
+            });
         }
         for (const standardModeButton of this.document.querySelectorAll('#submenu-custom [data-mode-path]')) {
             this._listen(standardModeButton, 'click', () => {
