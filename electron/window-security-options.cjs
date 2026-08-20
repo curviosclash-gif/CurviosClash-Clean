@@ -17,6 +17,16 @@ const TRUSTED_EDITOR_PATHS = new Set([
     '/prototypes/vehicle-lab/index.html',
 ]);
 
+// Beide Autorenwerkzeuge sind dreispaltig aufgebaut. Unter dieser Breite
+// fallen Bauteilliste und Eigenschaften unter die 3D-Ansicht und man scrollt
+// fuer jede Aenderung; das Standardfenster von 800x600 war unbenutzbar.
+const EDITOR_WINDOW_BOUNDS = Object.freeze({
+    width: 1440,
+    height: 900,
+    minWidth: 1100,
+    minHeight: 700,
+});
+
 /**
  * Prueft, ob eine Adresse zu einem der Autorenwerkzeuge gehoert.
  * @param {string} url
@@ -42,6 +52,7 @@ function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath) {
                 return {
                     action: 'allow',
                     overrideBrowserWindowOptions: {
+                        ...(TRUSTED_EDITOR_PATHS.has(target.pathname) ? EDITOR_WINDOW_BOUNDS : {}),
                         webPreferences: createSecureWindowWebPreferences(),
                     },
                 };
@@ -69,6 +80,7 @@ function createPlaytestWindowOpenHandler(appServerUrl) {
 }
 
 module.exports = {
+    EDITOR_WINDOW_BOUNDS,
     createEditorWindowOpenHandler,
     createPlaytestWindowOpenHandler,
     createSecureWindowWebPreferences,

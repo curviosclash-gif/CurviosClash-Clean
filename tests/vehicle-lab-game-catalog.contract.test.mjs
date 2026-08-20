@@ -5,6 +5,7 @@ import { AircraftMesh } from '../src/entities/aircraft-mesh.js';
 import { GameVehicleReferenceMesh } from '../prototypes/vehicle-lab/src/GameVehicleReferenceMesh.js';
 import { listVehicleLabGameReferences } from '../prototypes/vehicle-lab/src/VehicleLabGameVehicleCatalog.js';
 import { VEHICLE_PRESETS } from '../prototypes/vehicle-lab/src/VehiclePresets.js';
+import { buildValidatedArcadeBlueprint } from '../prototypes/vehicle-lab/src/ArcadeBlueprintValidation.js';
 
 test('Vehicle Lab exposes every built-in game vehicle as a reference', () => {
     const references = listVehicleLabGameReferences();
@@ -31,4 +32,28 @@ test('editable Lab presets do not collide with game vehicle ids', () => {
 
     assert.ok(VEHICLE_PRESETS.every((preset) => !gameIds.has(preset.id)));
     assert.ok(VEHICLE_PRESETS.every((preset) => preset.label.startsWith('Lab-Vorlage:')));
+});
+
+test('every shipped lab preset passes the blueprint check it is shown against', () => {
+    // Fuenf der sechs Vorlagen luden frueher mit "Blueprint ungueltig", weil die
+    // Pflichtrollen aus englischen Namensfragmenten geraten wurden und
+    // Bauteile wie "Saucer" oder "Arm-BL" dabei durchfielen.
+    for (const preset of VEHICLE_PRESETS) {
+        const result = buildValidatedArcadeBlueprint(preset);
+        assert.equal(
+            result.validation.ok,
+            true,
+            `${preset.id}: ${(result.validation.errors || []).join('; ')}`,
+        );
+    }
+});
+
+test('lab presets state their gameplay roles instead of relying on part names', () => {
+    const required = ['core', 'nose', 'wing_left', 'wing_right', 'engine_left', 'engine_right'];
+    for (const preset of VEHICLE_PRESETS) {
+        const roles = new Set(preset.parts.map((part) => part.role).filter(Boolean));
+        for (const role of required) {
+            assert.ok(roles.has(role), `${preset.id} nennt keine Rolle ${role}`);
+        }
+    }
 });

@@ -1,5 +1,7 @@
 import { buildVehicleLabSelectionKey } from './VehicleLabSelection.js';
 import { describeGeometryDimensions } from './VehicleLabGeometryLabels.js';
+
+export const VEHICLE_LAB_DRAFT_OPTION_VALUE = '__vehicle_lab_draft__';
 import { VEHICLE_LAB_PART_ROLES } from '../../../src/shared/contracts/VehicleLabConfigContract.js';
 import { VEHICLE_LAB_HANGAR_MIN_PART_SIZE } from '../../../src/shared/contracts/VehicleLabHangarPublishContract.js';
 
@@ -149,12 +151,31 @@ export class VehicleLabUI {
         });
     }
 
-    setPresetSelection(vehicleId) {
+    /**
+     * Waehlt die Vorlage aus, aus der der aktuelle Entwurf stammt.
+     * Sobald der Entwurf davon abweicht, wechselt die Auswahl auf den Eintrag
+     * "Eigener Entwurf": sonst steht dort weiter die Herkunftsvorlage, und ein
+     * erneuter Klick darauf wuerde die eigene Arbeit ueberschreiben.
+     * @param {string} vehicleId
+     * @param {{modified?: boolean}} [options]
+     */
+    setPresetSelection(vehicleId, { modified = false } = {}) {
         const select = document.getElementById('presetSelect');
         if (!select) return;
         const requestedId = String(vehicleId || '');
         const hasOption = Array.from(select.options || []).some((option) => option.value === requestedId);
-        if (hasOption) select.value = requestedId;
+        if (!modified && hasOption) {
+            select.value = requestedId;
+            return;
+        }
+        const draftOption = Array.from(select.options || []).find(
+            (option) => option.value === VEHICLE_LAB_DRAFT_OPTION_VALUE
+        );
+        if (draftOption) select.value = VEHICLE_LAB_DRAFT_OPTION_VALUE;
+    }
+
+    markDraftModified() {
+        this.setPresetSelection('', { modified: true });
     }
 
     setReferenceMode(active, label = '') {

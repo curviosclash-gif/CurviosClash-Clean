@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { VehicleLabCore } from './src/VehicleLabCore.js';
 import { VehicleLabViewport } from './src/VehicleLabViewport.js';
-import { VehicleLabUI } from './src/VehicleLabUI.js';
+import { VEHICLE_LAB_DRAFT_OPTION_VALUE, VehicleLabUI } from './src/VehicleLabUI.js';
 import { VehicleHistory } from './src/VehicleHistory.js';
 import { ModularVehicleMesh } from './src/ModularVehicleMesh.js';
 import { VEHICLE_PRESETS } from './src/VehiclePresets.js';
@@ -283,6 +283,12 @@ class VehicleLabApp {
 
     initPresets() {
         const select = document.getElementById('presetSelect');
+
+        const draftOption = document.createElement('option');
+        draftOption.value = VEHICLE_LAB_DRAFT_OPTION_VALUE;
+        draftOption.textContent = 'Eigener Entwurf';
+        select.appendChild(draftOption);
+
         const labGroup = document.createElement('optgroup');
         labGroup.label = 'Bearbeitbare Lab-Vorlagen';
         VEHICLE_PRESETS.forEach(p => {
@@ -602,6 +608,7 @@ class VehicleLabApp {
         }
         this.updateArcadeBlueprintStatus();
         this.markSceneMetricsDirty();
+        this.ui.markDraftModified();
         this.setStatus(type === 'add' ? 'Bauteil hinzugefügt.' : 'Änderungen ausstehend.', 'warning');
         this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
         this.debouncedSave();
@@ -633,6 +640,7 @@ class VehicleLabApp {
             }
         }
         this.updateArcadeBlueprintStatus();
+        this.ui.markDraftModified();
         this.ui.updateSaveState('dirty', 'Entwurf wird gesichert');
         this.debouncedSave();
         this.updateUI();
