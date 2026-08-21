@@ -85,6 +85,10 @@ export class GameRuntimeArcadeSupport {
             : null;
         this._preparedEncounterPlan = null;
         this._pendingSectorTransition = null;
+        // Ein Sektorwechsel, der Karte oder Bot-Anzahl aendert, baut die Laufzeitsitzung
+        // neu auf. Deren Teardown raeumt sonst den laufenden Run mit ab, obwohl er
+        // zwischen zwei Sektoren steht und weiterlaufen soll.
+        this._sectorRebuildInFlight = false;
         this.arcadeRunRuntime = new ArcadeRunRuntime({
             settingsManager: this.game?.settingsManager || null,
             replayRecorder: this._arcadeReplayRecorder,
@@ -171,7 +175,8 @@ export class GameRuntimeArcadeSupport {
         this._deactivateRoundController();
         if (isEndlessParcoursConfig(runtimeConfig)) return;
         this._unbindGameplayCallback();
-        this.resetRunState({ preserveRecords: true });
+        // Arcade ist abgeschaltet: hier gibt es keinen Sektorwechsel zu schuetzen.
+        this.resetRunState({ preserveRecords: true, force: true });
     }
 
     _bindGameplayCallback(runtimeState = this.getRuntimeState()) {
@@ -295,6 +300,7 @@ export class GameRuntimeArcadeSupport {
             botCount: nextBotCount,
             requiresSessionRebuild,
         };
+        this._sectorRebuildInFlight = requiresSessionRebuild;
         this._applySectorRuntimeProfile?.(resolvedTransition);
         return resolvedTransition;
     }
@@ -316,6 +322,8 @@ export class GameRuntimeArcadeSupport {
         this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
         const strategy = runtimeState?.entityManager?.gameModeStrategy || null;
         this.arcadeRunRuntime.setStrategy(strategy);
+        // Die neue Sitzung steht; ab hier darf ein Reset den Run wieder verwerfen.
+        this._sectorRebuildInFlight = false;
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
         if (existing && String(existing.phase || '').toLowerCase() !== 'finished') {
             return existing;
@@ -336,6 +344,13 @@ export class GameRuntimeArcadeSupport {
     }
 
     resetRunState(options = undefined) {
+        // Zwischen zwei Sektoren laeuft der Run weiter, auch wenn die Sitzung dafuer
+        // neu aufgebaut wird. Nur ein ausdrueckliches force (Matchende, Rueckkehr ins
+        // Menue, abgeschalteter Arcade-Modus) verwirft ihn.
+        if (this._sectorRebuildInFlight && options?.force !== true) {
+            return this.arcadeRunRuntime.getStateSnapshot?.() || null;
+        }
+        this._sectorRebuildInFlight = false;
         this._preparedEncounterPlan = null;
         this._pendingSectorTransition = null;
         return this.arcadeRunRuntime.resetRunState({

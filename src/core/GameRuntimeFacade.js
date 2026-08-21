@@ -235,7 +235,7 @@ export class GameRuntimeFacade {
     consumePendingArcadeSectorTransition() { return this._arcadeSupport.consumePendingSectorTransition(); }
     applyArcadeParcoursEvent(data = null) { return this._arcadeSupport.applyParcoursEvent(data); }
 
-    _resetArcadeRunState() { this._arcadeSupport.resetRunState({ preserveRecords: true }); }
+    _resetArcadeRunState(options = undefined) { this._arcadeSupport.resetRunState({ preserveRecords: true, ...(options || {}) }); }
     getArcadeRunState() { return this._arcadeSupport.getRunState(); }
     getArcadeMenuSurfaceState() { return this._arcadeSupport.getMenuSurfaceState(); }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }

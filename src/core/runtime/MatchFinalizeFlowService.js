@@ -106,7 +106,8 @@ export function finalizeMatchFlow(facade, options = undefined, fallbackReason = 
         facade?.game?.hudRuntimeSystem?.clearNetworkScoreboard?.();
     }
     if (requestedPlan.resetArcadeRunState) {
-        facade?._resetArcadeRunState?.();
+        // Das Match endet hier endgueltig; der Run darf nicht als Sektorwechsel ueberleben.
+        facade?._resetArcadeRunState?.({ force: true });
     }
 
     const sessionFinalizePromise = (() => {
