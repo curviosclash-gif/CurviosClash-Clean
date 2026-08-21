@@ -307,10 +307,25 @@ export class AudioManager {
         if (this._activeVoices >= MAX_ACTIVE_VOICES) return null;
         const gain = this.ctx.createGain();
         let tail = gain;
-        const pan = Number(options.pan);
-        if (Number.isFinite(pan) && typeof this.ctx.createStereoPanner === 'function') {
+        const spatialPosition = options.spatialPosition;
+        const hasSpatialPosition = spatialPosition
+            && [spatialPosition.x, spatialPosition.y, spatialPosition.z]
+                .every((value) => Number.isFinite(Number(value)));
+        if (hasSpatialPosition && typeof this.ctx.createPanner === 'function') {
+            const panner = this.ctx.createPanner();
+            panner.panningModel = 'HRTF';
+            panner.distanceModel = 'inverse';
+            panner.refDistance = 1;
+            panner.maxDistance = 10000;
+            panner.rolloffFactor = 0;
+            panner.positionX.value = Number(spatialPosition.x);
+            panner.positionY.value = Number(spatialPosition.y);
+            panner.positionZ.value = Number(spatialPosition.z);
+            gain.connect(panner);
+            tail = panner;
+        } else if (Number.isFinite(Number(options.pan)) && typeof this.ctx.createStereoPanner === 'function') {
             const panner = this.ctx.createStereoPanner();
-            panner.pan.value = this._clamp(pan, -1, 1);
+            panner.pan.value = this._clamp(Number(options.pan), -1, 1);
             gain.connect(panner);
             tail = panner;
         }

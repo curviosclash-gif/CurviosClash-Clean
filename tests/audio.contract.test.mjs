@@ -53,6 +53,8 @@ function createMockAudioContext() {
             this.destination = {};
             this.gains = [];
             this.oscillators = [];
+            this.panners = [];
+            this.stereoPanners = [];
         }
 
         createGain() {
@@ -109,10 +111,28 @@ function createMockAudioContext() {
         }
 
         createStereoPanner() {
-            return {
+            const panner = {
                 pan: { value: 0 },
                 connect() { return this; },
             };
+            this.stereoPanners.push(panner);
+            return panner;
+        }
+
+        createPanner() {
+            const panner = {
+                panningModel: 'equalpower',
+                distanceModel: 'inverse',
+                refDistance: 1,
+                maxDistance: 10000,
+                rolloffFactor: 1,
+                positionX: { value: 0 },
+                positionY: { value: 0 },
+                positionZ: { value: 0 },
+                connect() { return this; },
+            };
+            this.panners.push(panner);
+            return panner;
         }
 
         createBuffer(channels, bufferSize) {
@@ -299,6 +319,43 @@ test('AudioManager initializes dedicated music, UI and ambience buses', async ()
             assert.equal(audio._ambienceGain.gain.value, 0.2);
             assert.equal(audio.music.state, 'menu');
             assert.ok(audio.music._sceneGain);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('AudioManager prefers HRTF positioning and keeps stereo pan as fallback', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'pointerdown' });
+
+            audio._createVoiceGraph({
+                pan: -1,
+                spatialPosition: { x: 4, y: 2, z: -7 },
+            });
+            assert.equal(audio.ctx.panners.length, 1);
+            assert.equal(audio.ctx.stereoPanners.length, 0);
+            assert.deepEqual({
+                model: audio.ctx.panners[0].panningModel,
+                rolloff: audio.ctx.panners[0].rolloffFactor,
+                x: audio.ctx.panners[0].positionX.value,
+                y: audio.ctx.panners[0].positionY.value,
+                z: audio.ctx.panners[0].positionZ.value,
+            }, {
+                model: 'HRTF',
+                rolloff: 0,
+                x: 4,
+                y: 2,
+                z: -7,
+            });
+
+            audio.ctx.createPanner = undefined;
+            audio._createVoiceGraph({ pan: -0.6, spatialPosition: { x: -4, y: 0, z: 2 } });
+            assert.equal(audio.ctx.stereoPanners.length, 1);
+            assert.equal(audio.ctx.stereoPanners[0].pan.value, -0.6);
         } finally {
             audio.dispose();
         }

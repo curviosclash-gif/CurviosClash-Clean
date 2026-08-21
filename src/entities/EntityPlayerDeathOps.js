@@ -50,7 +50,7 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     if (!suppressLiveDeathEffects) {
         entityManager.audio?.play?.(
             'EXPLOSION',
-            resolveWorldAudioOptions(entityManager.players, player.position)
+            resolveWorldAudioOptions(entityManager, player.position)
         );
     }
     if (entityManager.recorder) {

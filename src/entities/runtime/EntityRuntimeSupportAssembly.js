@@ -36,7 +36,7 @@ export function createEntityRuntimeSupport(owner) {
                 if (owner.particles) owner.particles.spawnRocketImpact(position, projectile?.type, color);
                 owner.audio?.play?.(
                     'ROCKET_IMPACT',
-                    resolveWorldAudioOptions(owner.players, position)
+                    resolveWorldAudioOptions(owner, position)
                 );
                 return;
             }
