@@ -5,6 +5,8 @@ import { getVehicleIds, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry
 import { resolveInventoryActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isMapEligibleForModePath } from '../shared/contracts/MapModeContract.js';
+import { FourPlayerPlanarHudView } from '../ui/four-player-planar/FourPlayerPlanarHudView.js';
+import { FourPlayerPlanarSetupView } from '../ui/four-player-planar/FourPlayerPlanarSetupView.js';
 import { createFourPlayerPlanarInputSource } from './FourPlayerPlanarInputSource.js';
 import {
     FOUR_PLAYER_PLANAR_HUMAN_COUNT,
@@ -16,34 +18,6 @@ import {
     normalizeFourPlayerPlanarSettings,
 } from './FourPlayerPlanarContract.js';
 
-function createOption(documentRef, value, label) {
-    const option = documentRef.createElement('option');
-    option.value = value;
-    option.textContent = label;
-    return option;
-}
-
-function createStaticElement(documentRef, markup) {
-    const range = documentRef.createRange();
-    const fragment = range.createContextualFragment(String(markup || '').trim());
-    return fragment.firstElementChild;
-}
-
-function colorToCss(color) {
-    return `#${Number(color).toString(16).padStart(6, '0')}`;
-}
-
-function formatKeyCode(code) {
-    const labels = {
-        ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑', ArrowDown: '↓',
-        PageUp: 'Bild ↑', PageDown: 'Bild ↓',
-    };
-    if (labels[code]) return labels[code];
-    if (String(code).startsWith('Key')) return String(code).slice(3);
-    if (String(code).startsWith('Numpad')) return `Num ${String(code).slice(6)}`;
-    return String(code);
-}
-
 function resolveMapLabel(mapKey, definition) {
     return String(definition?.name || definition?.label || mapKey);
 }
@@ -53,160 +27,62 @@ function resolveVehicleLabel(vehicleId) {
     return String(definition?.name || definition?.label || vehicleId);
 }
 
-function isMobileProductSurface(documentRef) {
-    const appTarget = String(documentRef?.documentElement?.dataset?.appTarget || '').trim().toLowerCase();
-    return appTarget === 'mobile-classic' || appTarget === 'mobile-arcade';
-}
-
 export class FourPlayerPlanarModule {
-    constructor({ game, documentRef = globalThis.document } = {}) {
-        this.game = game || null;
-        this.document = documentRef || null;
-        this._listeners = [];
-        this._setupNodes = null;
-        this._hudRoot = null;
-        this._hudRows = [];
+    constructor({ runtimePort, setupView = null, hudView = null, documentRef = globalThis.document } = {}) {
+        this.runtime = runtimePort || null;
+        this.setupView = setupView || new FourPlayerPlanarSetupView({ documentRef });
+        this.hudView = hudView || new FourPlayerPlanarHudView({ documentRef });
         this._matchActive = false;
         this._rollKeyCapture = null;
         this._lastHudValues = Array.from({ length: FOUR_PLAYER_PLANAR_HUMAN_COUNT }, () => ({}));
     }
 
     mountSetupUi() {
-        if (!this.document || isMobileProductSurface(this.document) || this._setupNodes) return false;
-        const grid = this.document.querySelector('#submenu-custom .level2-mode-grid');
-        const submenuBody = this.document.querySelector('#submenu-custom .submenu-body');
-        if (!grid || !submenuBody) return false;
-
-        const card = createStaticElement(this.document, `
-            <button type="button" id="btn-four-player-planar"
-                class="mode-btn menu-choice-card four-player-planar-entry hidden">
-                <span class="menu-choice-eyebrow">Lokales Modul</span>
-                <span class="menu-choice-title">4 Spieler – Planar</span>
-                <span class="menu-choice-copy">Classic oder Hunt im 2×2-Splitscreen</span>
-            </button>`);
-        grid.appendChild(card);
-
-        const surface = createStaticElement(this.document, `
-            <section id="four-player-planar-setup" class="menu-section four-player-planar-setup hidden"
-                aria-labelledby="four-player-planar-setup-title">
-              <div class="four-player-planar-setup-header">
-                <button type="button" class="back-btn" data-four-player-planar-back aria-label="Zurück zur Spielstilwahl">← Zurück</button>
-                <div>
-                    <h2 id="four-player-planar-setup-title" class="section-title">4 Spieler – Planar</h2>
-                    <p class="menu-hint">Vier lokale Tastaturspieler · Third Person · Pitch gesperrt</p>
-                </div>
-            </div>
-            <div class="four-player-planar-fields">
-                <label>Modus<select data-four-player-planar-mode>
-                    <option value="classic">Classic</option>
-                    <option value="hunt">Hunt</option>
-                </select></label>
-                <label>Karte<select data-four-player-planar-map></select></label>
-                <label>Gemeinsames Fahrzeug<select data-four-player-planar-vehicle></select></label>
-                <label>Bots <span data-four-player-planar-bot-label>0</span>
-                    <input data-four-player-planar-bots type="range" min="0" max="6" step="1" value="0">
-                </label>
-            </div>
-            <details class="four-player-planar-controls">
-                <summary>Tastenbelegung</summary>
-                <div class="four-player-planar-keys" aria-label="Tastenbelegung für vier Spieler"></div>
-                <p class="menu-hint" data-four-player-planar-key-hint>Roll-Taste anklicken und neue Taste drücken.</p>
-            </details>
-            <p class="menu-hint">Hinweis: Hardwarebedingtes Keyboard-Ghosting kann bei manchen Tastaturen auftreten.</p>
-            <button type="button" class="start-btn" data-four-player-planar-start>4-Spieler-Match starten</button>
-            </section>`);
-        submenuBody.appendChild(surface);
-
-        const mapSelect = surface.querySelector('[data-four-player-planar-map]');
-        for (const [mapKey, definition] of Object.entries(CONFIG.MAPS || {})) {
-            mapSelect.appendChild(createOption(this.document, mapKey, resolveMapLabel(mapKey, definition)));
-        }
-        const vehicleSelect = surface.querySelector('[data-four-player-planar-vehicle]');
-        for (const vehicleId of getVehicleIds()) {
-            vehicleSelect.appendChild(createOption(this.document, vehicleId, resolveVehicleLabel(vehicleId)));
-        }
-        const keys = surface.querySelector('.four-player-planar-keys');
-        FOUR_PLAYER_PLANAR_KEY_BINDINGS.forEach((binding, index) => {
-            const row = createStaticElement(this.document, `
-                <div class="four-player-planar-key-row">
-                    <strong>P${index + 1}</strong>
-                    <span>Lenken / Aktion: ${binding.label}</span>
-                    <button type="button" class="secondary-btn" data-four-player-roll-key="left" data-player-index="${index}"></button>
-                    <button type="button" class="secondary-btn" data-four-player-roll-key="right" data-player-index="${index}"></button>
-                </div>`);
-            row.style.setProperty('--player-color', colorToCss(FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]));
-            keys.appendChild(row);
+        const mounted = this.setupView.mount({
+            keyBindings: FOUR_PLAYER_PLANAR_KEY_BINDINGS,
+            playerColors: FOUR_PLAYER_PLANAR_PLAYER_COLORS,
+            mapOptions: Object.entries(CONFIG.MAPS || {})
+                .map(([mapKey, definition]) => ({ value: mapKey, label: resolveMapLabel(mapKey, definition) })),
+            vehicleOptions: getVehicleIds()
+                .map((vehicleId) => ({ value: vehicleId, label: resolveVehicleLabel(vehicleId) })),
+            handlers: {
+                onOpenRequested: () => this.openSetup(),
+                onCloseRequested: () => this.closeSetup(),
+                onStartRequested: () => this.startMatch(),
+                onRollKeyRequested: (request) => this._beginRollKeyCapture(request),
+                onKeyDown: (event) => this._captureRollKey(event),
+                onControlChanged: () => this._persistSetupSelection(),
+                onSessionTypeChanged: () => this.syncSetupUi(),
+                onStandardModeSelected: () => this._selectStandardSplitScreen(),
+            },
         });
-
-        this._setupNodes = {
-            card,
-            surface,
-            standardSections: Array.from(submenuBody.children).filter((node) => node !== surface),
-            mode: surface.querySelector('[data-four-player-planar-mode]'),
-            map: mapSelect,
-            vehicle: vehicleSelect,
-            bots: surface.querySelector('[data-four-player-planar-bots]'),
-            botLabel: surface.querySelector('[data-four-player-planar-bot-label]'),
-            rollButtons: Array.from(surface.querySelectorAll('[data-four-player-roll-key]')),
-            keyHint: surface.querySelector('[data-four-player-planar-key-hint]'),
-            back: surface.querySelector('[data-four-player-planar-back]'),
-            start: surface.querySelector('[data-four-player-planar-start]'),
-        };
-
-        this._listen(card, 'click', () => this.openSetup());
-        this._listen(this._setupNodes.back, 'click', () => this.closeSetup());
-        this._listen(this._setupNodes.start, 'click', () => this.startMatch());
-        for (const button of this._setupNodes.rollButtons) {
-            this._listen(button, 'click', () => this._beginRollKeyCapture(button));
-        }
-        this._listen(this.document, 'keydown', (event) => this._captureRollKey(event));
-        for (const control of [this._setupNodes.mode, this._setupNodes.map, this._setupNodes.vehicle, this._setupNodes.bots]) {
-            this._listen(control, 'input', () => this._persistSetupSelection());
-            this._listen(control, 'change', () => this._persistSetupSelection());
-        }
-        for (const sessionButton of this.document.querySelectorAll('[data-session-type]')) {
-            this._listen(sessionButton, 'click', () => {
-                const scheduleFrame = this.document.defaultView?.requestAnimationFrame;
-                if (typeof scheduleFrame === 'function') {
-                    scheduleFrame.call(this.document.defaultView, () => this.syncSetupUi());
-                } else {
-                    queueMicrotask(() => this.syncSetupUi());
-                }
-            });
-        }
-        for (const standardModeButton of this.document.querySelectorAll('#submenu-custom [data-mode-path]')) {
-            this._listen(standardModeButton, 'click', () => {
-                if (this.game?.settings?.localSettings) {
-                    this.game.settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.STANDARD;
-                }
-                this.closeSetup();
-            });
-        }
+        if (!mounted) return false;
         this.syncSetupUi();
         return true;
     }
 
-    _listen(target, type, handler) {
-        if (!target?.addEventListener) return;
-        target.addEventListener(type, handler);
-        this._listeners.push(() => target.removeEventListener(type, handler));
+    _selectStandardSplitScreen() {
+        const localSettings = this.runtime?.ensureLocalSettings?.();
+        if (localSettings) localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.STANDARD;
+        this.closeSetup();
     }
 
     _resolveSelection() {
-        const rawMode = this.game?.settings?.localSettings?.fourPlayerPlanar?.mode;
+        const settings = this.runtime?.getSettings?.();
+        const rawMode = settings?.localSettings?.fourPlayerPlanar?.mode;
         const normalizedMode = String(rawMode || '').toLowerCase() === FOUR_PLAYER_PLANAR_MODES.HUNT
             ? FOUR_PLAYER_PLANAR_MODES.HUNT
             : FOUR_PLAYER_PLANAR_MODES.CLASSIC;
         const mapKeys = this._getEligibleMapKeys(normalizedMode);
         const vehicleIds = new Set(getVehicleIds());
-        const currentMapKey = String(this.game?.settings?.mapKey || '');
+        const currentMapKey = String(settings?.mapKey || '');
         return normalizeFourPlayerPlanarSettings(
-            this.game?.settings?.localSettings?.fourPlayerPlanar,
+            settings?.localSettings?.fourPlayerPlanar,
             {
                 allowedMapKeys: mapKeys,
                 allowedVehicleIds: vehicleIds,
                 fallbackMapKey: mapKeys.has(currentMapKey) ? currentMapKey : (mapKeys.values().next().value || 'standard'),
-                fallbackVehicleId: this.game?.settings?.vehicles?.PLAYER_1 || vehicleIds.values().next().value || 'ship5',
+                fallbackVehicleId: settings?.vehicles?.PLAYER_1 || vehicleIds.values().next().value || 'ship5',
             }
         );
     }
@@ -219,45 +95,27 @@ export class FourPlayerPlanarModule {
     }
 
     syncSetupUi() {
-        if (!this._setupNodes) return;
-        const isSplitScreen = String(this.game?.settings?.localSettings?.sessionType || '').toLowerCase() === 'splitscreen';
-        this._setupNodes.card.classList.toggle('hidden', !isSplitScreen);
-        this._setupNodes.card.setAttribute('aria-hidden', String(!isSplitScreen));
+        if (!this.setupView.isMounted()) return;
+        const sessionType = this.runtime?.getSettings?.()?.localSettings?.sessionType;
+        const isSplitScreen = String(sessionType || '').toLowerCase() === 'splitscreen';
+        this.setupView.setEntryVisible(isSplitScreen);
         if (!isSplitScreen) this.closeSetup();
         const selection = this._resolveSelection();
-        this._setupNodes.mode.value = selection.mode;
-        this._setupNodes.map.value = selection.mapKey;
-        this._setupNodes.vehicle.value = selection.vehicleId;
-        this._setupNodes.bots.value = String(selection.botCount);
-        this._setupNodes.botLabel.textContent = String(selection.botCount);
-        this._syncRollKeyButtons(selection.rollBindings);
+        this.setupView.applySelection(selection);
+        this.setupView.syncRollKeyButtons(selection.rollBindings);
     }
 
-    _syncRollKeyButtons(rollBindings) {
-        for (const button of this._setupNodes?.rollButtons || []) {
-            const playerIndex = Number(button.dataset.playerIndex);
-            const direction = button.dataset.fourPlayerRollKey;
-            const code = rollBindings?.[playerIndex]?.[direction] || '';
-            button.textContent = `${direction === 'left' ? 'Rolle links' : 'Rolle rechts'}: ${formatKeyCode(code)}`;
-        }
-    }
-
-    _beginRollKeyCapture(button) {
-        const playerIndex = Number(button?.dataset?.playerIndex);
-        const direction = button?.dataset?.fourPlayerRollKey;
+    _beginRollKeyCapture({ playerIndex, direction } = {}) {
         if (!Number.isInteger(playerIndex) || !['left', 'right'].includes(direction)) return;
-        this._syncRollKeyButtons(this._resolveSelection().rollBindings);
+        this.setupView.syncRollKeyButtons(this._resolveSelection().rollBindings);
         this._rollKeyCapture = { playerIndex, direction };
-        button.textContent = 'Taste drücken …';
-        if (this._setupNodes?.keyHint) {
-            this._setupNodes.keyHint.textContent = `Neue Taste für P${playerIndex + 1} drücken · Esc bricht ab.`;
-        }
+        this.setupView.showRollKeyCapture(playerIndex, direction);
     }
 
     _captureRollKey(event) {
         const capture = this._rollKeyCapture;
         if (!capture) {
-            const rollBindings = this.game?.runtimeConfig?.session?.fourPlayerPlanar?.rollBindings || [];
+            const rollBindings = this.runtime?.getRuntimeConfig?.()?.session?.fourPlayerPlanar?.rollBindings || [];
             if (this._matchActive && rollBindings.some((binding) => binding.left === event.code || binding.right === event.code)) {
                 event.preventDefault();
             }
@@ -268,20 +126,12 @@ export class FourPlayerPlanarModule {
         const selection = this._resolveSelection();
         if (event.code === 'Escape') {
             this._rollKeyCapture = null;
-            this._syncRollKeyButtons(selection.rollBindings);
-            if (this._setupNodes?.keyHint) this._setupNodes.keyHint.textContent = 'Tastenauswahl abgebrochen.';
+            this.setupView.syncRollKeyButtons(selection.rollBindings);
+            this.setupView.setKeyHint('Tastenauswahl abgebrochen.');
             return;
         }
-        const occupied = new Set(FOUR_PLAYER_PLANAR_KEY_BINDINGS
-            .flatMap((binding) => [binding.left, binding.right, binding.action]));
-        for (const code of Object.values(this.game?.input?.bindings?.GLOBAL || {})) occupied.add(code);
-        selection.rollBindings.forEach((binding, playerIndex) => {
-            for (const direction of ['left', 'right']) {
-                if (playerIndex !== capture.playerIndex || direction !== capture.direction) occupied.add(binding[direction]);
-            }
-        });
-        if (occupied.has(event.code) || event.code === 'Enter') {
-            if (this._setupNodes?.keyHint) this._setupNodes.keyHint.textContent = `${formatKeyCode(event.code)} ist bereits belegt.`;
+        if (this._isKeyCodeOccupied(event.code, selection, capture)) {
+            this.setupView.showKeyOccupied(event.code);
             return;
         }
         const rollBindings = selection.rollBindings.map((binding) => ({ ...binding }));
@@ -290,62 +140,73 @@ export class FourPlayerPlanarModule {
             ...selection,
             rollBindings,
         });
-        this.game.settings.localSettings.fourPlayerPlanar = normalizedSelection;
+        const localSettings = this.runtime?.ensureLocalSettings?.();
+        if (localSettings) localSettings.fourPlayerPlanar = normalizedSelection;
         this._rollKeyCapture = null;
-        this._syncRollKeyButtons(normalizedSelection.rollBindings);
-        if (this._setupNodes?.keyHint) this._setupNodes.keyHint.textContent = 'Tastenbelegung gespeichert.';
-        this.game._onSettingsChanged?.();
+        this.setupView.syncRollKeyButtons(normalizedSelection.rollBindings);
+        this.setupView.setKeyHint('Tastenbelegung gespeichert.');
+        this.runtime?.notifySettingsChanged?.();
+    }
+
+    _isKeyCodeOccupied(code, selection, capture) {
+        if (code === 'Enter') return true;
+        const occupied = new Set(FOUR_PLAYER_PLANAR_KEY_BINDINGS
+            .flatMap((binding) => [binding.left, binding.right, binding.action]));
+        for (const boundCode of Object.values(this.runtime?.getGlobalKeyBindings?.() || {})) occupied.add(boundCode);
+        selection.rollBindings.forEach((binding, playerIndex) => {
+            for (const direction of ['left', 'right']) {
+                if (playerIndex !== capture.playerIndex || direction !== capture.direction) occupied.add(binding[direction]);
+            }
+        });
+        return occupied.has(code);
     }
 
     openSetup() {
-        if (!this._setupNodes) return;
-        if (!this.game.settings.localSettings) this.game.settings.localSettings = {};
-        this.game.settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+        if (!this.setupView.isMounted()) return;
+        const localSettings = this.runtime?.ensureLocalSettings?.();
+        if (localSettings) localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
         this.syncSetupUi();
-        for (const node of this._setupNodes.standardSections) node.classList.add('four-player-planar-standard-hidden');
-        this._setupNodes.surface.classList.remove('hidden');
-        this._setupNodes.mode.focus?.();
+        this.setupView.openSetup();
     }
 
     closeSetup() {
-        if (!this._setupNodes) return;
+        if (!this.setupView.isMounted()) return;
         this._rollKeyCapture = null;
-        for (const node of this._setupNodes.standardSections) node.classList.remove('four-player-planar-standard-hidden');
-        this._setupNodes.surface.classList.add('hidden');
+        this.setupView.closeSetup();
     }
 
     _persistSetupSelection() {
-        if (!this._setupNodes || !this.game?.settings) return;
-        if (!this.game.settings.localSettings) this.game.settings.localSettings = {};
-        const requestedMode = this._setupNodes.mode.value;
-        const eligibleMapKeys = this._getEligibleMapKeys(requestedMode);
+        const controls = this.setupView.readControls();
+        const localSettings = this.runtime?.ensureLocalSettings?.();
+        if (!controls || !localSettings) return;
+        const eligibleMapKeys = this._getEligibleMapKeys(controls.mode);
         const selection = normalizeFourPlayerPlanarSettings({
-            mode: requestedMode,
-            mapKey: this._setupNodes.map.value,
-            vehicleId: this._setupNodes.vehicle.value,
-            botCount: this._setupNodes.bots.value,
-            rollBindings: this.game.settings.localSettings?.fourPlayerPlanar?.rollBindings,
+            mode: controls.mode,
+            mapKey: controls.mapKey,
+            vehicleId: controls.vehicleId,
+            botCount: controls.botCount,
+            rollBindings: localSettings.fourPlayerPlanar?.rollBindings,
         }, {
             allowedMapKeys: eligibleMapKeys,
             allowedVehicleIds: new Set(getVehicleIds()),
             fallbackMapKey: eligibleMapKeys.values().next().value || 'standard',
         });
-        this.game.settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
-        this.game.settings.localSettings.fourPlayerPlanar = selection;
-        this._setupNodes.map.value = selection.mapKey;
-        this._setupNodes.botLabel.textContent = String(selection.botCount);
-        this.game._onSettingsChanged?.();
+        localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+        localSettings.fourPlayerPlanar = selection;
+        this.setupView.applyNormalizedSelection(selection);
+        this.runtime?.notifySettingsChanged?.();
     }
 
     startMatch() {
-        if (!this.game?.settings) return false;
+        const settings = this.runtime?.getSettings?.();
+        if (!settings) return false;
         this._persistSetupSelection();
         const selection = this._resolveSelection();
-        const settings = this.game.settings;
-        settings.localSettings.sessionType = 'splitscreen';
-        settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
-        settings.localSettings.fourPlayerPlanar = selection;
-        settings.localSettings.modePath = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'fight' : 'normal';
+        const localSettings = this.runtime.ensureLocalSettings();
+        localSettings.sessionType = 'splitscreen';
+        localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+        localSettings.fourPlayerPlanar = selection;
+        localSettings.modePath = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'fight' : 'normal';
         settings.mode = '2p';
         settings.gameMode = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'HUNT' : 'CLASSIC';
         settings.mapKey = selection.mapKey;
@@ -356,24 +217,25 @@ export class FourPlayerPlanarModule {
         if (!settings.vehicles) settings.vehicles = {};
         settings.vehicles.PLAYER_1 = selection.vehicleId;
         settings.vehicles.PLAYER_2 = selection.vehicleId;
-        this.game._onSettingsChanged?.();
-        this.game.startMatch?.();
+        this.runtime.notifySettingsChanged();
+        this.runtime.startMatch();
         return true;
     }
 
     isRuntimeActive() {
-        return isFourPlayerPlanarRuntime(this.game?.runtimeConfig);
+        return isFourPlayerPlanarRuntime(this.runtime?.getRuntimeConfig?.());
     }
 
     configureInputSources(inputManager) {
         if (!this.isRuntimeActive() || !inputManager?.setPlayerSource) return false;
-        const mode = this.game.runtimeConfig?.session?.fourPlayerPlanar?.mode || FOUR_PLAYER_PLANAR_MODES.CLASSIC;
-        const rollBindings = this.game.runtimeConfig?.session?.fourPlayerPlanar?.rollBindings || [];
+        const session = this.runtime.getRuntimeConfig()?.session?.fourPlayerPlanar;
+        const mode = session?.mode || FOUR_PLAYER_PLANAR_MODES.CLASSIC;
+        const rollBindings = session?.rollBindings || [];
         for (let playerIndex = 0; playerIndex < FOUR_PLAYER_PLANAR_HUMAN_COUNT; playerIndex += 1) {
             inputManager.setPlayerSource(playerIndex, createFourPlayerPlanarInputSource({
                 inputManager,
                 playerIndex,
-                getPlayer: () => this.game?.entityManager?.players?.[playerIndex] || null,
+                getPlayer: () => this.runtime?.getPlayers?.()?.[playerIndex] || null,
                 getMode: () => mode,
                 rollBinding: rollBindings[playerIndex],
             }));
@@ -384,65 +246,38 @@ export class FourPlayerPlanarModule {
     activateMatch() {
         if (this._matchActive) return;
         this._matchActive = true;
-        this.document?.documentElement?.classList?.add('four-player-planar-active');
-        this._ensureHud();
-        this._hudRoot?.classList?.remove('hidden');
+        this.hudView.setRuntimeSurfaceActive(true);
+        this.hudView.ensureRows({
+            playerCount: FOUR_PLAYER_PLANAR_HUMAN_COUNT,
+            playerColors: FOUR_PLAYER_PLANAR_PLAYER_COLORS,
+        });
+        this.hudView.setVisible(true);
     }
 
     deactivateMatch() {
-        if (!this._matchActive && !this._hudRoot) return;
+        if (!this._matchActive && !this.hudView.hasRoot()) return;
         this._matchActive = false;
-        this.document?.documentElement?.classList?.remove('four-player-planar-active');
-        this._hudRoot?.classList?.add('hidden');
+        this.hudView.setRuntimeSurfaceActive(false);
+        this.hudView.setVisible(false);
         this._lastHudValues.forEach((state) => {
             for (const key of Object.keys(state)) delete state[key];
         });
     }
 
-    _ensureHud() {
-        if (this._hudRoot || !this.document) return;
-        const hud = this.document.getElementById('hud');
-        if (!hud) return;
-        const root = this.document.createElement('div');
-        root.id = 'four-player-planar-hud';
-        root.className = 'four-player-planar-hud hidden';
-        for (let index = 0; index < FOUR_PLAYER_PLANAR_HUMAN_COUNT; index += 1) {
-            const row = createStaticElement(this.document, `
-                <section class="four-player-planar-hud-quadrant q${index + 1}" aria-label="HUD Spieler ${index + 1}">
-                    <div class="four-player-planar-hud-card">
-                        <strong data-fpp-player>P${index + 1}</strong>
-                        <span data-fpp-stat>–</span>
-                        <span data-fpp-item>Kein Item</span>
-                    </div>
-                </section>`);
-            row.style.setProperty('--player-color', colorToCss(FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]));
-            root.appendChild(row);
-            this._hudRows.push({
-                stat: row.querySelector('[data-fpp-stat]'),
-                item: row.querySelector('[data-fpp-item]'),
-            });
-        }
-        hud.appendChild(root);
-        this._hudRoot = root;
-    }
-
     update() {
         const runtimeActive = this.isRuntimeActive()
-            && this.game?.state !== GAME_STATE_IDS.MENU;
+            && this.runtime?.getGameStateId?.() !== GAME_STATE_IDS.MENU;
         if (!runtimeActive) {
             this.deactivateMatch();
             return;
         }
         this.activateMatch();
-        const hunt = this.game.runtimeConfig?.session?.fourPlayerPlanar?.mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
-        const players = this.game?.entityManager?.players || [];
+        const hunt = this.runtime.getRuntimeConfig()?.session?.fourPlayerPlanar?.mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
+        const players = this.runtime.getPlayers();
+        this.runtime.forceThirdPersonCameras(FOUR_PLAYER_PLANAR_HUMAN_COUNT);
         for (let index = 0; index < FOUR_PLAYER_PLANAR_HUMAN_COUNT; index += 1) {
-            if (index < (this.game?.renderer?.cameraModes?.length || 0)) {
-                this.game.renderer.cameraModes[index] = 0;
-            }
             const player = players[index];
-            const row = this._hudRows[index];
-            if (!player || !row) continue;
+            if (!player || !this.hudView.hasRow(index)) continue;
             const availability = resolveInventoryActionAvailability({
                 player,
                 modeType: hunt ? 'HUNT' : 'CLASSIC',
@@ -455,20 +290,15 @@ export class FourPlayerPlanarModule {
             for (const key of ['stat', 'item']) {
                 if (previous[key] === values[key]) continue;
                 previous[key] = values[key];
-                row[key].textContent = values[key];
+                this.hudView.setRowText(index, key, values[key]);
             }
         }
     }
 
     dispose() {
         this.deactivateMatch();
-        for (const disposeListener of this._listeners.splice(0)) disposeListener();
-        this._hudRoot?.remove?.();
-        this._setupNodes?.surface?.remove?.();
-        this._setupNodes?.card?.remove?.();
-        this._hudRoot = null;
-        this._hudRows.length = 0;
-        this._setupNodes = null;
-        this.game = null;
+        this.setupView.dispose();
+        this.hudView.dispose();
+        this.runtime = null;
     }
 }
