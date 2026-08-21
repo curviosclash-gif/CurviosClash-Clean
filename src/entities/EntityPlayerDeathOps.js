@@ -2,6 +2,7 @@ import {
     emitHuntEliminationFeed,
     rememberFightDeath,
 } from '../hunt/HuntEliminationFeed.js';
+import { resolveWorldAudioOptions } from './audio/WorldAudioOptions.js';
 import { emitArcadeEliminationEvents } from './runtime/EntityArcadeGameplayEvents.js';
 
 export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {}) {
@@ -46,8 +47,12 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
         });
     }
     const killer = options?.killer || null;
-    const playExplosion = !player.isBot || (killer && !killer.isBot);
-    if (!suppressLiveDeathEffects && playExplosion) entityManager.audio?.play?.('EXPLOSION');
+    if (!suppressLiveDeathEffects) {
+        entityManager.audio?.play?.(
+            'EXPLOSION',
+            resolveWorldAudioOptions(entityManager.players, player.position)
+        );
+    }
     if (entityManager.recorder) {
         const killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
         entityManager.recorder.markPlayerDeath(player, cause);

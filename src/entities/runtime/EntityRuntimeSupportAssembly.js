@@ -5,6 +5,7 @@ import { SpawnPlacementSystem } from '../systems/SpawnPlacementSystem.js';
 import { CollisionResponseSystem } from '../systems/CollisionResponseSystem.js';
 import { EntityRuntimeContext } from './EntityRuntimeContext.js';
 import { EntityEventBus } from './EntityEventBus.js';
+import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
 import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
 import {
@@ -33,7 +34,10 @@ export function createEntityRuntimeSupport(owner) {
         onProjectileHit: (position, color, projectileOwner, projectile) => {
             if (isRocketTierType(projectile?.type)) {
                 if (owner.particles) owner.particles.spawnRocketImpact(position, projectile?.type, color);
-                if (owner.audio && !projectileOwner?.isBot) owner.audio.play('ROCKET_IMPACT');
+                owner.audio?.play?.(
+                    'ROCKET_IMPACT',
+                    resolveWorldAudioOptions(owner.players, position)
+                );
                 return;
             }
             if (owner.particles) owner.particles.spawnHit(position, color);
