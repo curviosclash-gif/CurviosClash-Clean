@@ -20,6 +20,7 @@ import {
 import { createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
 import { bindGraphicsStyleSelect } from './MenuGraphicsStyleBindings.js';
+import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
     const settings = ctx.settings;
@@ -470,6 +471,35 @@ export function setupMenuGameplayBindings(ctx) {
             settings.gameplay.fightPlayerHp = preset.fightPlayerHp;
             settings.gameplay.fightMgDamage = preset.fightMgDamage;
             emitSettingsChangedImmediate([keys.GAMEPLAY_FIGHT_PLAYER_HP, keys.GAMEPLAY_FIGHT_MG_DAMAGE]);
+        });
+    }
+
+    const updateAudioSetting = (key, value, changedKey) => {
+        if (!settings.localSettings || typeof settings.localSettings !== 'object') {
+            settings.localSettings = {};
+        }
+        const audioSettings = normalizeAudioSettings(settings.localSettings.audio);
+        audioSettings[key] = value;
+        settings.localSettings.audio = normalizeAudioSettings(audioSettings);
+        queueInputSettingsChanged([changedKey]);
+    };
+    if (ui.audioEnabledToggle) {
+        bind(ui.audioEnabledToggle, 'change', () => {
+            updateAudioSetting('enabled', ui.audioEnabledToggle.checked, keys.LOCAL_AUDIO_ENABLED);
+        });
+    }
+    const audioVolumeBindings = [
+        [ui.audioMasterVolumeSlider, 'masterVolume', keys.LOCAL_AUDIO_MASTER_VOLUME],
+        [ui.audioMusicVolumeSlider, 'musicVolume', keys.LOCAL_AUDIO_MUSIC_VOLUME],
+        [ui.audioSfxVolumeSlider, 'sfxVolume', keys.LOCAL_AUDIO_SFX_VOLUME],
+        [ui.audioEngineVolumeSlider, 'engineVolume', keys.LOCAL_AUDIO_ENGINE_VOLUME],
+        [ui.audioUiVolumeSlider, 'uiVolume', keys.LOCAL_AUDIO_UI_VOLUME],
+        [ui.audioAmbienceVolumeSlider, 'ambienceVolume', keys.LOCAL_AUDIO_AMBIENCE_VOLUME],
+    ];
+    for (const [slider, settingKey, changedKey] of audioVolumeBindings) {
+        if (!slider) continue;
+        bind(slider, 'input', () => {
+            updateAudioSetting(settingKey, clamp(Number(slider.value) / 100, 0, 1), changedKey);
         });
     }
 

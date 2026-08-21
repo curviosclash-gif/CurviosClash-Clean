@@ -3,15 +3,16 @@
 // ============================================
 
 import { createLogger } from '../shared/logging/Logger.js';
+import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContract.js';
 import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
+import { MUSIC_STATES, ProceduralMusicDirector } from './audio/ProceduralMusicDirector.js';
+import { playGameplayVoice } from './audio/GameplayVoices.js';
 
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
-const DEFAULT_MASTER_VOLUME = 0.18;
-const DEFAULT_SFX_VOLUME = 1;
-const DEFAULT_ENGINE_VOLUME = 0.55;
 const MAX_ACTIVE_VOICES = 18;
 const ENGINE_IDLE_GAIN = 0.0001;
+const HIGH_IMPACT_EVENTS = new Set(['EXPLOSION', 'ROCKET_IMPACT', 'FIGHT_KILL', 'PARCOURS_FINISH']);
 
 const SOUND_COOLDOWNS_MS = Object.freeze({
     SHOOT: 100,
@@ -40,7 +41,7 @@ const SOUND_COOLDOWNS_MS = Object.freeze({
     UI_REJECT: 80,
 });
 
-const AUDIO_INIT_EVENT_TYPES = ['click', 'keydown', 'touchstart'];
+const AUDIO_INIT_EVENT_TYPES = ['pointerdown', 'click', 'keydown', 'touchstart'];
 
 function isDevEnvironment() {
     try {
@@ -51,17 +52,27 @@ function isDevEnvironment() {
 }
 
 export class AudioManager {
-    constructor() {
+    constructor(settings = {}) {
+        const audioSettings = normalizeAudioSettings(settings);
         this.ctx = null;
-        this.enabled = true;
-        this.volume = DEFAULT_MASTER_VOLUME;
-        this.sfxVolume = DEFAULT_SFX_VOLUME;
-        this.engineVolume = DEFAULT_ENGINE_VOLUME;
+        this.enabled = audioSettings.enabled;
+        this.volume = audioSettings.masterVolume;
+        this.sfxVolume = audioSettings.sfxVolume;
+        this.engineVolume = audioSettings.engineVolume;
+        this.musicVolume = audioSettings.musicVolume;
+        this.uiVolume = audioSettings.uiVolume;
+        this.ambienceVolume = audioSettings.ambienceVolume;
         this.buffers = {};
         this._masterGain = null;
         this._sfxGain = null;
         this._engineGain = null;
+        this._musicGain = null;
+        this._uiGain = null;
+        this._ambienceGain = null;
+        this._compressor = null;
+        this._outputNode = null;
         this._engine = null;
+        this._ambience = null;
         this._activeVoices = 0;
         this._isDevEnvironment = isDevEnvironment();
         this._audioInitFailed = false;
@@ -73,6 +84,7 @@ export class AudioManager {
         this.lastPlayTime = {};
         this.cooldowns = { ...SOUND_COOLDOWNS_MS };
         this._explosionChain = createExplosionChainState();
+        this.music = new ProceduralMusicDirector(this);
 
         this._onInitInteraction = () => {
             this._init();
@@ -85,12 +97,12 @@ export class AudioManager {
     }
 
     _addWindowListener(type, listener) {
-        window.addEventListener(type, listener);
+        window.addEventListener(type, listener, true);
         this._registeredWindowListeners.push({ type, listener });
     }
 
     _removeWindowListener(type, listener) {
-        window.removeEventListener(type, listener);
+        window.removeEventListener(type, listener, true);
         if (!this._registeredWindowListeners.length) return;
         this._registeredWindowListeners = this._registeredWindowListeners.filter((entry) =>
             !(entry.type === type && entry.listener === listener)
@@ -130,17 +142,43 @@ export class AudioManager {
             this._masterGain = this.ctx.createGain();
             this._sfxGain = this.ctx.createGain();
             this._engineGain = this.ctx.createGain();
+            this._musicGain = this.ctx.createGain();
+            this._uiGain = this.ctx.createGain();
+            this._ambienceGain = this.ctx.createGain();
             this._sfxGain.connect(this._masterGain);
             this._engineGain.connect(this._masterGain);
-            this._masterGain.connect(this.ctx.destination);
+            this._musicGain.connect(this._masterGain);
+            this._uiGain.connect(this._masterGain);
+            this._ambienceGain.connect(this._masterGain);
+            if (typeof this.ctx.createDynamicsCompressor === 'function') {
+                this._compressor = this.ctx.createDynamicsCompressor();
+                this._compressor.threshold.value = -12;
+                this._compressor.knee.value = 12;
+                this._compressor.ratio.value = 5;
+                this._compressor.attack.value = 0.004;
+                this._compressor.release.value = 0.18;
+                this._masterGain.connect(this._compressor);
+                this._compressor.connect(this.ctx.destination);
+                this._outputNode = this._compressor;
+            } else {
+                this._masterGain.connect(this.ctx.destination);
+                this._outputNode = this._masterGain;
+            }
             this._applyBusGains();
             this._generateBuffers();
+            this._ensureAmbienceNodes();
+            if (this.enabled) this.music.start();
         } catch (error) {
             this.enabled = false;
             this.ctx = null;
             this._masterGain = null;
             this._sfxGain = null;
             this._engineGain = null;
+            this._musicGain = null;
+            this._uiGain = null;
+            this._ambienceGain = null;
+            this._compressor = null;
+            this._outputNode = null;
             this.buffers = {};
             this._audioInitFailed = true;
             logger.warn('AudioContext initialization failed; audio muted.', error);
@@ -151,7 +189,7 @@ export class AudioManager {
     }
 
     _generateBuffers() {
-        const duration = 0.42;
+        const duration = 1.25;
         const bufferSize = Math.max(1, Math.floor(this.ctx.sampleRate * duration));
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
@@ -163,6 +201,7 @@ export class AudioManager {
             data[i] = (white * 0.55 + prev * 0.45) * envelope;
         }
         this.buffers.explosion = buffer;
+        this.buffers.musicNoise = buffer;
     }
 
     _clamp(value, min, max) {
@@ -174,10 +213,25 @@ export class AudioManager {
         if (this._masterGain) this._masterGain.gain.value = master;
         if (this._sfxGain) this._sfxGain.gain.value = this._clamp(this.sfxVolume, 0, 1);
         if (this._engineGain) this._engineGain.gain.value = this._clamp(this.engineVolume, 0, 1);
+        if (this._musicGain) this._musicGain.gain.value = this._clamp(this.musicVolume, 0, 1);
+        if (this._uiGain) this._uiGain.gain.value = this._clamp(this.uiVolume, 0, 1);
+        if (this._ambienceGain) this._ambienceGain.gain.value = this._clamp(this.ambienceVolume, 0, 1);
     }
 
     _sfxOut() {
         return this._sfxGain || this._masterGain || this.ctx.destination;
+    }
+
+    _musicOut() {
+        return this._musicGain || this._masterGain || this.ctx?.destination || null;
+    }
+
+    _uiOut() {
+        return this._uiGain || this._sfxOut();
+    }
+
+    _ambienceOut() {
+        return this._ambienceGain || this._masterGain || this.ctx?.destination || null;
     }
 
     acquireRecordingStream() {
@@ -187,14 +241,15 @@ export class AudioManager {
         }
         try {
             const destination = this.ctx.createMediaStreamDestination();
-            this._masterGain.connect(destination);
+            const outputNode = this._outputNode || this._masterGain;
+            outputNode.connect(destination);
             const stream = destination.stream;
             const release = () => {
                 const activeDestination = this._recordingDestinations.get(stream);
                 if (!activeDestination) return;
                 this._recordingDestinations.delete(stream);
                 try {
-                    this._masterGain?.disconnect?.(activeDestination);
+                    outputNode?.disconnect?.(activeDestination);
                 } catch {
                     // The AudioContext may already be closing.
                 }
@@ -227,7 +282,13 @@ export class AudioManager {
         return this._clamp(1 / (1 + distance * 0.045), 0.18, 1);
     }
 
-    _createVoiceGraph(options = {}) {
+    _resolveVoiceDestination(bus = 'sfx') {
+        if (bus === 'ui') return this._uiOut();
+        if (bus === 'ambience') return this._ambienceOut();
+        return this._sfxOut();
+    }
+
+    _createVoiceGraph(options = {}, bus = 'sfx') {
         if (this._activeVoices >= MAX_ACTIVE_VOICES) return null;
         const gain = this.ctx.createGain();
         let tail = gain;
@@ -238,7 +299,7 @@ export class AudioManager {
             gain.connect(panner);
             tail = panner;
         }
-        tail.connect(this._sfxOut());
+        tail.connect(this._resolveVoiceDestination(bus));
         this._activeVoices += 1;
         return gain;
     }
@@ -293,7 +354,7 @@ export class AudioManager {
         ramp = 'exp',
         options = {},
     }) {
-        const gain = this._createVoiceGraph(options);
+        const gain = this._createVoiceGraph(options, options.bus);
         if (!gain) return;
         const atten = this._distanceAttenuation(options);
         this._envGain(gain, peak * atten, duration, { attack, hold });
@@ -302,7 +363,7 @@ export class AudioManager {
     }
 
     _playLayered(layers, options = {}) {
-        const gain = this._createVoiceGraph(options);
+        const gain = this._createVoiceGraph(options, options.bus);
         if (!gain) return;
         const atten = this._distanceAttenuation(options);
         const duration = Math.max(...layers.map((layer) => layer.duration || 0.15), 0.08);
@@ -326,6 +387,48 @@ export class AudioManager {
             );
         }
         this._releaseVoice(duration);
+    }
+
+    _playNoise({
+        duration = 0.1,
+        peak = 0.1,
+        filterType = 'bandpass',
+        startFrequency = 1800,
+        endFrequency = 420,
+        options = {},
+        bus = 'sfx',
+    } = {}) {
+        const buffer = this.buffers.musicNoise;
+        if (!buffer) return;
+        const gain = this._createVoiceGraph(options, bus);
+        if (!gain) return;
+        const source = this.ctx.createBufferSource();
+        const filter = this.ctx.createBiquadFilter();
+        const t = this.ctx.currentTime;
+        const atten = this._distanceAttenuation(options);
+        source.buffer = buffer;
+        if (source.playbackRate) source.playbackRate.value = 0.94 + Math.random() * 0.12;
+        filter.type = filterType;
+        filter.Q.value = filterType === 'bandpass' ? 0.9 : 0.5;
+        filter.frequency.setValueAtTime(Math.max(40, startFrequency), t);
+        filter.frequency.exponentialRampToValueAtTime?.(Math.max(40, endFrequency), t + duration);
+        this._envGain(gain, peak * atten, duration, { attack: 0.003 });
+        source.connect(filter);
+        filter.connect(gain);
+        source.start(t);
+        source.stop?.(t + duration + 0.02);
+        this._releaseVoice(duration);
+    }
+
+    _duckMusic(amount = 0.42, duration = 0.24) {
+        const gain = this._musicGain?.gain;
+        if (!gain || !this.ctx) return;
+        const t = this.ctx.currentTime;
+        const base = this._clamp(this.musicVolume, 0, 1);
+        gain.cancelScheduledValues?.(t);
+        gain.setValueAtTime?.(Math.max(0.0001, gain.value), t);
+        gain.setTargetAtTime?.(Math.max(0.0001, base * amount), t, 0.018);
+        gain.setTargetAtTime?.(base, t + duration, 0.09);
     }
 
     _recordDebugEvent(type, options = {}) {
@@ -360,6 +463,38 @@ export class AudioManager {
         return this.volume;
     }
 
+    applySettings(settings = {}) {
+        const wasEnabled = this.enabled;
+        const normalized = normalizeAudioSettings(settings, this.getSettings());
+        this.enabled = normalized.enabled;
+        this.volume = normalized.masterVolume;
+        this.sfxVolume = normalized.sfxVolume;
+        this.engineVolume = normalized.engineVolume;
+        this.musicVolume = normalized.musicVolume;
+        this.uiVolume = normalized.uiVolume;
+        this.ambienceVolume = normalized.ambienceVolume;
+        this._applyBusGains();
+        if (!this.enabled) {
+            this.stopEngine();
+            this.music?.stop?.();
+        } else {
+            if (!wasEnabled && this.ctx) this.music?.start?.({ crossfade: true });
+        }
+        return this.getSettings();
+    }
+
+    getSettings() {
+        return {
+            enabled: this.enabled,
+            masterVolume: this.volume,
+            musicVolume: this.musicVolume,
+            sfxVolume: this.sfxVolume,
+            engineVolume: this.engineVolume,
+            uiVolume: this.uiVolume,
+            ambienceVolume: this.ambienceVolume,
+        };
+    }
+
     setSfxVolume(volume) {
         this.sfxVolume = this._clamp(Number(volume) || 0, 0, 1);
         this._applyBusGains();
@@ -372,10 +507,33 @@ export class AudioManager {
         return this.engineVolume;
     }
 
+    setMusicVolume(volume) {
+        this.musicVolume = this._clamp(Number(volume) || 0, 0, 1);
+        this._applyBusGains();
+        return this.musicVolume;
+    }
+
+    setUiVolume(volume) {
+        this.uiVolume = this._clamp(Number(volume) || 0, 0, 1);
+        this._applyBusGains();
+        return this.uiVolume;
+    }
+
+    setAmbienceVolume(volume) {
+        this.ambienceVolume = this._clamp(Number(volume) || 0, 0, 1);
+        this._applyBusGains();
+        return this.ambienceVolume;
+    }
+
     setMuted(muted) {
         this.enabled = muted !== true;
         this._applyBusGains();
-        if (!this.enabled) this.stopEngine();
+        if (!this.enabled) {
+            this.stopEngine();
+            this.music?.stop?.();
+        } else if (this.ctx) {
+            this.music?.start?.({ crossfade: true });
+        }
         this._debugLog(`Audio ${this.enabled ? 'ENABLED' : 'DISABLED'}`);
         return !this.enabled;
     }
@@ -386,6 +544,22 @@ export class AudioManager {
 
     toggleMute() {
         return this.setMuted(this.enabled);
+    }
+
+    setMusicState(state, options = {}) {
+        const resolvedState = this.music?.setState?.(state, options) || MUSIC_STATES.MENU;
+        this._setAmbienceForState(resolvedState);
+        return resolvedState;
+    }
+
+    setMusicIntensity(value) {
+        return this.music?.setIntensity?.(value) ?? 0;
+    }
+
+    setPaused(paused) {
+        this.music?.setPaused?.(paused === true);
+        if (paused === true) this.stopEngine();
+        return paused === true;
     }
 
     play(type, options = {}) {
@@ -406,6 +580,7 @@ export class AudioManager {
         }
         this.lastPlayTime[type] = now;
         this._recordDebugEvent(type, options);
+        if (HIGH_IMPACT_EVENTS.has(type)) this._duckMusic();
 
         switch (type) {
             case 'SHOOT': this._playShoot(options); break;
@@ -436,271 +611,97 @@ export class AudioManager {
         }
     }
 
-    _playShoot(options = {}) {
-        const intensity = this._intensity(options, 0.85, 0.2, 1.3);
-        this._playLayered([
-            { type: 'square', startFreq: 760, endFreq: 140, duration: 0.09, peak: 0.28 * intensity, attack: 0.004 },
-            { type: 'triangle', startFreq: 420, endFreq: 90, duration: 0.11, peak: 0.16 * intensity },
-        ], options);
+    _playShoot(options = {}) { playGameplayVoice(this, 'SHOOT', options); }
+    _playMgShoot(options = {}) { playGameplayVoice(this, 'MG_SHOOT', options); }
+    _playRocketShoot(options = {}) { playGameplayVoice(this, 'ROCKET_SHOOT', options); }
+    _playHit(options = {}) { playGameplayVoice(this, 'HIT', options); }
+    _playMgHit(options = {}) { playGameplayVoice(this, 'MG_HIT', options); }
+    _playShieldHit(options = {}) { playGameplayVoice(this, 'SHIELD_HIT', options); }
+    _playPowerup(options = {}) { playGameplayVoice(this, 'POWERUP', options); }
+    _playPickup(options = {}) { playGameplayVoice(this, 'PICKUP', options); }
+    _playPortal(options = {}) { playGameplayVoice(this, 'PORTAL', options); }
+    _playSlingshot(options = {}) { playGameplayVoice(this, 'SLINGSHOT', options); }
+    _playBoost(options = {}) { playGameplayVoice(this, 'BOOST', options); }
+    _playParcoursCheckpoint(options = {}) { playGameplayVoice(this, 'PARCOURS_CP', options); }
+    _playParcoursBranch(options = {}) { playGameplayVoice(this, 'PARCOURS_BRANCH', options); }
+    _playParcoursFinish(options = {}) { playGameplayVoice(this, 'PARCOURS_FINISH', options); }
+    _playParcoursWrong(options = {}) { playGameplayVoice(this, 'PARCOURS_WRONG', options); }
+    _playParcoursTimeout(options = {}) { playGameplayVoice(this, 'PARCOURS_TIMEOUT', options); }
+    _playFightKill(options = {}) { playGameplayVoice(this, 'FIGHT_KILL', options); }
+    _playFightAssist(options = {}) { playGameplayVoice(this, 'FIGHT_ASSIST', options); }
+    _playFightLead(options = {}) { playGameplayVoice(this, 'FIGHT_LEAD', options); }
+    _playUiDrop(options = {}) { playGameplayVoice(this, 'UI_DROP', options); }
+    _playUiPickup(options = {}) { playGameplayVoice(this, 'UI_PICKUP', options); }
+    _playUiReject(options = {}) { playGameplayVoice(this, 'UI_REJECT', options); }
+    _ensureAmbienceNodes() {
+        if (!this.ctx || this._ambience || !this.buffers.musicNoise) return;
+        const source = this.ctx.createBufferSource();
+        const filter = this.ctx.createBiquadFilter();
+        const gain = this.ctx.createGain();
+        source.buffer = this.buffers.musicNoise;
+        source.loop = true;
+        filter.type = 'bandpass';
+        filter.frequency.value = 240;
+        filter.Q.value = 0.45;
+        gain.gain.value = 0.012;
+        source.connect(filter);
+        filter.connect(gain);
+        gain.connect(this._ambienceOut());
+        source.start(this.ctx.currentTime);
+        this._ambience = { source, filter, gain };
+        this._setAmbienceForState(this.music?.state || MUSIC_STATES.MENU);
     }
 
-    _playMgShoot(options = {}) {
-        const intensity = this._intensity(options, 0.75, 0.2, 1.2);
-        this._playTone({
-            type: 'square',
-            startFreq: 1500,
-            endFreq: 280,
-            duration: 0.05,
-            peak: 0.16 * intensity,
-            attack: 0.003,
-            options,
-        });
-    }
-
-    _playRocketShoot(options = {}) {
-        const intensity = this._intensity(options, 0.9, 0.25, 1.3);
-        this._playLayered([
-            { type: 'sawtooth', startFreq: 240, endFreq: 64, duration: 0.26, peak: 0.3 * intensity, attack: 0.02 },
-            { type: 'triangle', startFreq: 110, endFreq: 48, duration: 0.3, peak: 0.18 * intensity },
-        ], options);
-    }
-
-    _playHit(options = {}) {
-        const intensity = this._intensity(options, 0.9, 0.2, 1.4);
-        this._playLayered([
-            { type: 'sawtooth', startFreq: 210 * (0.9 + intensity * 0.15), endFreq: 48, duration: 0.11, peak: 0.42 * intensity, attack: 0.004 },
-            { type: 'triangle', startFreq: 320, endFreq: 80, duration: 0.09, peak: 0.18 * intensity },
-        ], options);
-    }
-
-    _playMgHit(options = {}) {
-        const intensity = this._intensity(options, 0.8, 0.2, 1.4);
-        this._playTone({
-            type: 'triangle',
-            startFreq: 980,
-            endFreq: 260,
-            duration: 0.07,
-            peak: 0.24 * intensity,
-            attack: 0.004,
-            options,
-        });
-    }
-
-    _playShieldHit(options = {}) {
-        const intensity = this._intensity(options, 0.9, 0.2, 1.3);
-        const depleted = options.depleted === true;
-        this._playLayered([
-            {
-                type: 'sine',
-                startFreq: depleted ? 640 : 820,
-                endFreq: depleted ? 140 : 280,
-                duration: depleted ? 0.28 : 0.16,
-                peak: 0.22 * intensity,
-                attack: 0.006,
-            },
-            {
-                type: 'triangle',
-                startFreq: depleted ? 980 : 1240,
-                endFreq: depleted ? 220 : 420,
-                duration: depleted ? 0.22 : 0.12,
-                peak: 0.14 * intensity,
-            },
-        ], options);
-    }
-
-    _playPowerup(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.3);
-        this._playTone({
-            type: 'sine',
-            startFreq: 420,
-            endFreq: 1180,
-            duration: 0.2,
-            peak: 0.34 * intensity,
-            attack: 0.012,
-            ramp: 'linear',
-            options,
-        });
-    }
-
-    _playPickup(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.3);
-        this._playLayered([
-            { type: 'sine', startFreq: 520, endFreq: 880, duration: 0.1, peak: 0.22 * intensity, attack: 0.008, ramp: 'linear' },
-            { type: 'triangle', startFreq: 780, endFreq: 1240, duration: 0.14, peak: 0.16 * intensity, ramp: 'linear' },
-        ], options);
-    }
-
-    _playPortal(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.3);
-        this._playLayered([
-            { type: 'sine', startFreq: 220, endFreq: 660, duration: 0.24, peak: 0.24 * intensity, attack: 0.02, ramp: 'linear' },
-            { type: 'triangle', startFreq: 880, endFreq: 240, duration: 0.28, peak: 0.14 * intensity },
-        ], options);
-    }
-
-    _playSlingshot(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.4);
-        this._playLayered([
-            { type: 'sawtooth', startFreq: 90, endFreq: 260, duration: 0.22, peak: 0.26 * intensity, attack: 0.015, ramp: 'linear' },
-            { type: 'triangle', startFreq: 180, endFreq: 420, duration: 0.18, peak: 0.14 * intensity, ramp: 'linear' },
-        ], options);
-    }
-
-    _playBoost(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.4);
-        this._playLayered([
-            { type: 'triangle', startFreq: 90, endFreq: 320, duration: 0.28, peak: 0.28 * intensity, attack: 0.02, ramp: 'linear' },
-            { type: 'sawtooth', startFreq: 60, endFreq: 180, duration: 0.32, peak: 0.12 * intensity, ramp: 'linear' },
-        ], options);
-    }
-
-    _playParcoursCheckpoint(options = {}) {
-        const intensity = this._intensity(options, 0.9, 0.25, 1.3);
-        this._playLayered([
-            { type: 'sine', startFreq: 1420, endFreq: 980, duration: 0.12, peak: 0.16 * intensity, attack: 0.006 },
-            { type: 'triangle', startFreq: 2120, endFreq: 1560, duration: 0.09, peak: 0.1 * intensity },
-        ], options);
-    }
-
-    _playParcoursBranch(options = {}) {
-        const intensity = this._intensity(options, 1, 0.3, 1.4);
-        this._playLayered([
-            { type: 'triangle', startFreq: 960, endFreq: 720, duration: 0.2, peak: 0.2 * intensity, attack: 0.01 },
-            { type: 'square', startFreq: 1480, endFreq: 1180, duration: 0.15, peak: 0.1 * intensity },
-        ], options);
-    }
-
-    _playParcoursFinish(options = {}) {
-        const intensity = this._intensity(options, 1.05, 0.35, 1.6);
-        this._playLayered([
-            { type: 'triangle', startFreq: 240, endFreq: 360, duration: 0.5, peak: 0.22 * intensity, attack: 0.02, hold: 0.08, ramp: 'linear' },
-            { type: 'sine', startFreq: 480, endFreq: 720, duration: 0.46, peak: 0.18 * intensity, ramp: 'linear' },
-            { type: 'triangle', startFreq: 720, endFreq: 1080, duration: 0.34, peak: 0.14 * intensity, ramp: 'linear' },
-        ], options);
-    }
-
-    _playParcoursWrong(options = {}) {
-        const intensity = this._intensity(options, 0.95, 0.3, 1.3);
-        this._playLayered([
-            { type: 'sawtooth', startFreq: 280, endFreq: 120, duration: 0.18, peak: 0.22 * intensity, attack: 0.008 },
-            { type: 'square', startFreq: 190, endFreq: 90, duration: 0.22, peak: 0.12 * intensity },
-        ], options);
-    }
-
-    _playParcoursTimeout(options = {}) {
-        const intensity = this._intensity(options, 0.9, 0.3, 1.3);
-        this._playTone({
-            type: 'triangle',
-            startFreq: 360,
-            endFreq: 140,
-            duration: 0.28,
-            peak: 0.2 * intensity,
-            attack: 0.02,
-            options,
-        });
-    }
-
-    _playFightKill(options = {}) {
-        const intensity = this._intensity(options, 1, 0.35, 1.5);
-        this._playLayered([
-            { type: 'sawtooth', startFreq: 340, endFreq: 68, duration: 0.3, peak: 0.3 * intensity, attack: 0.008 },
-            { type: 'square', startFreq: 920, endFreq: 210, duration: 0.1, peak: 0.16 * intensity, attack: 0.003 },
-        ], options);
-    }
-
-    _playFightAssist(options = {}) {
-        const intensity = this._intensity(options, 0.85, 0.3, 1.3);
-        this._playLayered([
-            { type: 'triangle', startFreq: 420, endFreq: 560, duration: 0.14, peak: 0.16 * intensity, attack: 0.01, ramp: 'linear' },
-            { type: 'sine', startFreq: 640, endFreq: 820, duration: 0.16, peak: 0.12 * intensity, ramp: 'linear' },
-        ], options);
-    }
-
-    _playFightLead(options = {}) {
-        const intensity = this._intensity(options, 0.95, 0.35, 1.4);
+    _setAmbienceForState(state) {
+        const ambience = this._ambience;
+        if (!ambience || !this.ctx) return;
+        const targets = {
+            [MUSIC_STATES.MENU]: { gain: 0.009, frequency: 210 },
+            [MUSIC_STATES.RACE]: { gain: 0.018, frequency: 360 },
+            [MUSIC_STATES.FIGHT]: { gain: 0.024, frequency: 480 },
+            [MUSIC_STATES.RESULTS]: { gain: 0.012, frequency: 280 },
+        };
+        const target = targets[state] || targets[MUSIC_STATES.MENU];
         const t = this.ctx.currentTime;
-        const gain = this._createVoiceGraph(options);
-        if (!gain) return;
-        this._envGain(gain, 0.24 * intensity, 0.44, { attack: 0.015, hold: 0.08 });
-        const root = this.ctx.createOscillator();
-        const fifth = this.ctx.createOscillator();
-        root.type = 'triangle';
-        fifth.type = 'sine';
-        root.frequency.setValueAtTime(330, t);
-        root.frequency.setValueAtTime(415, t + 0.12);
-        root.frequency.setValueAtTime(494, t + 0.24);
-        fifth.frequency.setValueAtTime(494, t);
-        fifth.frequency.setValueAtTime(622, t + 0.12);
-        fifth.frequency.setValueAtTime(740, t + 0.24);
-        root.connect(gain);
-        fifth.connect(gain);
-        root.start(t);
-        fifth.start(t);
-        root.stop(t + 0.44);
-        fifth.stop(t + 0.4);
-        this._releaseVoice(0.44);
-    }
-
-    _playUiDrop(options = {}) {
-        this._playTone({
-            type: 'sine',
-            startFreq: 520,
-            endFreq: 700,
-            duration: 0.09,
-            peak: 0.12,
-            attack: 0.006,
-            ramp: 'linear',
-            options,
-        });
-    }
-
-    _playUiPickup(options = {}) {
-        this._playTone({
-            type: 'sine',
-            startFreq: 260,
-            endFreq: 360,
-            duration: 0.09,
-            peak: 0.11,
-            attack: 0.006,
-            ramp: 'linear',
-            options,
-        });
-    }
-
-    _playUiReject(options = {}) {
-        this._playTone({
-            type: 'sawtooth',
-            startFreq: 140,
-            endFreq: 70,
-            duration: 0.11,
-            peak: 0.12,
-            attack: 0.005,
-            options,
-        });
+        ambience.gain.gain.setTargetAtTime?.(target.gain, t, 0.35);
+        ambience.filter.frequency.setTargetAtTime?.(target.frequency, t, 0.45);
     }
 
     _ensureEngineNodes() {
         if (!this.ctx || this._engine) return;
         const body = this.ctx.createOscillator();
         const hum = this.ctx.createOscillator();
+        const turbine = this.ctx.createOscillator();
         const filter = this.ctx.createBiquadFilter();
+        const turbineFilter = this.ctx.createBiquadFilter();
         const gain = this.ctx.createGain();
+        const turbineGain = this.ctx.createGain();
         body.type = 'sawtooth';
         hum.type = 'triangle';
+        turbine.type = 'sine';
         filter.type = 'lowpass';
         filter.frequency.value = 420;
         filter.Q.value = 0.6;
+        turbineFilter.type = 'bandpass';
+        turbineFilter.frequency.value = 1100;
+        turbineFilter.Q.value = 1.1;
         gain.gain.value = ENGINE_IDLE_GAIN;
+        turbineGain.gain.value = ENGINE_IDLE_GAIN;
         body.frequency.value = 70;
         hum.frequency.value = 140;
+        turbine.frequency.value = 420;
         body.connect(filter);
         hum.connect(filter);
+        turbine.connect(turbineFilter);
         filter.connect(gain);
+        turbineFilter.connect(turbineGain);
         gain.connect(this._engineGain || this._masterGain || this.ctx.destination);
+        turbineGain.connect(this._engineGain || this._masterGain || this.ctx.destination);
         const t = this.ctx.currentTime;
         body.start(t);
         hum.start(t);
-        this._engine = { body, hum, filter, gain, active: true };
+        turbine.start(t);
+        this._engine = { body, hum, turbine, filter, turbineFilter, gain, turbineGain, active: true };
     }
 
     updateEngine(state = {}) {
@@ -726,13 +727,19 @@ export class AudioManager {
         const ratio = this._clamp(speed / baseSpeed, 0.35, 3.0);
         const targetBody = 58 + ratio * 78 + (boosting ? 36 : 0);
         const targetHum = targetBody * 2.05;
+        const targetTurbine = targetBody * (4.6 + ratio * 0.25);
         const targetFilter = 280 + ratio * 260 + (boosting ? 180 : 0);
+        const targetTurbineFilter = 780 + ratio * 420 + (boosting ? 540 : 0);
         const targetGain = (0.018 + ratio * 0.06) * (boosting ? 1.55 : 1);
+        const targetTurbineGain = (0.008 + ratio * 0.015) * (boosting ? 1.8 : 1);
         const t = this.ctx.currentTime;
         engine.body.frequency.setTargetAtTime(targetBody, t, 0.05);
         engine.hum.frequency.setTargetAtTime(targetHum, t, 0.05);
+        engine.turbine.frequency.setTargetAtTime(targetTurbine, t, 0.045);
         engine.filter.frequency.setTargetAtTime(targetFilter, t, 0.08);
+        engine.turbineFilter.frequency.setTargetAtTime(targetTurbineFilter, t, 0.08);
         engine.gain.gain.setTargetAtTime(targetGain, t, 0.06);
+        engine.turbineGain.gain.setTargetAtTime(targetTurbineGain, t, 0.06);
         engine.active = true;
     }
 
@@ -742,6 +749,8 @@ export class AudioManager {
         const t = this.ctx.currentTime;
         engine.gain.gain.cancelScheduledValues(t);
         engine.gain.gain.setTargetAtTime(ENGINE_IDLE_GAIN, t, 0.04);
+        engine.turbineGain.gain.cancelScheduledValues?.(t);
+        engine.turbineGain.gain.setTargetAtTime?.(ENGINE_IDLE_GAIN, t, 0.04);
         engine.active = false;
     }
 
@@ -773,8 +782,9 @@ export class AudioManager {
 
     dispose() {
         this.stopEngine();
+        this.music?.dispose?.();
         for (const [stream, destination] of this._recordingDestinations) {
-            try { this._masterGain?.disconnect?.(destination); } catch { /* best effort */ }
+            try { (this._outputNode || this._masterGain)?.disconnect?.(destination); } catch { /* best effort */ }
             for (const track of stream?.getTracks?.() || []) {
                 try { track.stop(); } catch { /* best effort */ }
             }
@@ -783,7 +793,12 @@ export class AudioManager {
         if (this._engine) {
             try { this._engine.body.stop(); } catch { /* ignore */ }
             try { this._engine.hum.stop(); } catch { /* ignore */ }
+            try { this._engine.turbine.stop(); } catch { /* ignore */ }
             this._engine = null;
+        }
+        if (this._ambience) {
+            try { this._ambience.source.stop(); } catch { /* ignore */ }
+            this._ambience = null;
         }
         this._removeInitListeners();
         this._removeAllWindowListeners();
@@ -795,6 +810,11 @@ export class AudioManager {
         this._masterGain = null;
         this._sfxGain = null;
         this._engineGain = null;
+        this._musicGain = null;
+        this._uiGain = null;
+        this._ambienceGain = null;
+        this._compressor = null;
+        this._outputNode = null;
         this.buffers = {};
         this._debugEvents = [];
         this._registeredWindowListeners = [];

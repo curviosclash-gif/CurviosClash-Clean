@@ -12,6 +12,7 @@ import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleCont
 import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessContract.js';
 import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
+import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import {
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
@@ -221,6 +222,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         bloomQuality: normalizeBloomQuality(source.bloomQuality, defaults.bloomQuality ?? DEFAULT_BLOOM_QUALITY),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
+        audio: normalizeAudioSettings(source.audio, defaults.audio),
         hud: normalizeHudAppearance(source.hud, defaults.hud),
         startSetup,
         toolsState,

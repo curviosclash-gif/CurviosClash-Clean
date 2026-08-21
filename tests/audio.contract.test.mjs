@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { AudioManager } from '../src/core/Audio.js';
+import { ProceduralMusicDirector } from '../src/core/audio/ProceduralMusicDirector.js';
 
 function createMockWindow() {
     const listeners = new Map();
@@ -64,6 +65,8 @@ function createMockAudioContext() {
                     setTargetAtTime(value) { this.value = value; },
                 },
                 connect() { return this; },
+                disconnect() { this.disconnected = true; },
+                disconnected: false,
             };
             this.gains.push(gain);
             return gain;
@@ -169,7 +172,7 @@ test('AudioManager registers and disposes init listeners without KeyM mute bindi
 
         audio.dispose();
 
-        assert.deepEqual(mockWindow.getRemovedTypesForListener(initHandler), ['click', 'keydown', 'touchstart']);
+        assert.deepEqual(mockWindow.getRemovedTypesForListener(initHandler), ['click', 'keydown', 'pointerdown', 'touchstart']);
         assert.equal(audio._onMuteToggle, undefined);
     });
 });
@@ -258,6 +261,70 @@ test('AudioManager master volume clamps and applies to bus', async () => {
             assert.equal(audio._sfxGain.gain.value, 0.5);
             assert.equal(audio.setEngineVolume(0.25), 0.25);
             assert.equal(audio._engineGain.gain.value, 0.25);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('AudioManager initializes dedicated music, UI and ambience buses', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager({
+            masterVolume: 0.4,
+            musicVolume: 0.3,
+            uiVolume: 0.6,
+            ambienceVolume: 0.2,
+        });
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+
+            assert.ok(audio._musicGain);
+            assert.ok(audio._uiGain);
+            assert.ok(audio._ambienceGain);
+            assert.equal(audio._musicGain.gain.value, 0.3);
+            assert.equal(audio._uiGain.gain.value, 0.6);
+            assert.equal(audio._ambienceGain.gain.value, 0.2);
+            assert.equal(audio.music.state, 'menu');
+            assert.ok(audio.music._sceneGain);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('AudioManager applies persistent settings and music lifecycle states', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            assert.equal(audio.setMusicState('fight', { intensity: 0.9 }), 'fight');
+            assert.equal(audio.music.intensity, 0.9);
+            assert.equal(audio.setPaused(true), true);
+            assert.equal(audio.music.paused, true);
+
+            const settings = audio.applySettings({
+                enabled: true,
+                masterVolume: 0.5,
+                musicVolume: 0.25,
+                sfxVolume: 0.75,
+                engineVolume: 0.4,
+                uiVolume: 0.65,
+                ambienceVolume: 0.15,
+            });
+
+            assert.deepEqual(settings, {
+                enabled: true,
+                masterVolume: 0.5,
+                musicVolume: 0.25,
+                sfxVolume: 0.75,
+                engineVolume: 0.4,
+                uiVolume: 0.65,
+                ambienceVolume: 0.15,
+            });
+            assert.equal(audio.music.paused, true);
+            assert.equal(audio._musicGain.gain.value, 0.25);
         } finally {
             audio.dispose();
         }
@@ -379,10 +446,59 @@ test('AudioManager initializes once on first interaction and removes init listen
         assert.ok(audio._masterGain);
         assert.ok(audio._sfxGain);
         assert.ok(audio._engineGain);
-        assert.deepEqual(mockWindow.getRemovedTypesForListener(initHandler), ['click', 'keydown', 'touchstart']);
+        assert.deepEqual(mockWindow.getRemovedTypesForListener(initHandler), ['click', 'keydown', 'pointerdown', 'touchstart']);
 
         audio.dispose();
         assert.equal(audio.ctx, null);
+    });
+});
+
+test('AudioManager initializes before pointer-driven hangar interactions', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'pointerdown' });
+            audio.play('UI_PICKUP');
+
+            assert.ok(audio.ctx);
+            assert.deepEqual(audio.getRecentEvents(1).map((entry) => entry.type), ['UI_PICKUP']);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('ProceduralMusicDirector skips stale steps after scheduler throttling', () => {
+    const audio = { ctx: { currentTime: 120 } };
+    const director = new ProceduralMusicDirector(audio);
+    let scheduledSteps = 0;
+    director._generation = 1;
+    director._nextStepTime = 0;
+    director._scheduleStep = () => {
+        scheduledSteps += 1;
+    };
+
+    director._schedule(1);
+
+    assert.ok(scheduledSteps <= 2);
+    assert.ok(director._nextStepTime > audio.ctx.currentTime);
+    director.dispose();
+});
+
+test('ProceduralMusicDirector disconnects current and retired scene gains on dispose', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        mockWindow.dispatchEvent({ type: 'pointerdown' });
+        const menuGain = audio.music._sceneGain;
+        audio.setMusicState('race');
+        const raceGain = audio.music._sceneGain;
+
+        audio.dispose();
+
+        assert.equal(menuGain.disconnected, true);
+        assert.equal(raceGain.disconnected, true);
     });
 });
 

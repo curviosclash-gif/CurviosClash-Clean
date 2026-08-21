@@ -2,6 +2,7 @@ import { SettingsStore } from '../SettingsStore.js';
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 import { PlayerProfileManager } from '../../application/player-profile/PlayerProfileManager.js';
+import { AudioManager } from '../../core/Audio.js';
 
 const store = new SettingsStore();
 const playerProfileManager = new PlayerProfileManager({ recordStore: Object.freeze({
@@ -13,6 +14,8 @@ const playerProfileManager = new PlayerProfileManager({ recordStore: Object.free
 playerProfileManager.bootstrap();
 const playerStore = playerProfileManager.getActiveRecordStorePort();
 const settings = store.loadSettings();
+const audio = new AudioManager(settings?.localSettings?.audio);
+audio.setMusicState('menu');
 const requestedMode = new URLSearchParams(globalThis.location.search).get('mode');
 const hangarMode = requestedMode === 'fight' ? 'fight' : 'arcade';
 const hangarWindow = createElectronPreloadHangarAdapter(globalThis);
@@ -30,6 +33,7 @@ function bind(element, eventName, handler, options) {
 const workshop = setupArcadeHangarWorkshop({
     mode: hangarMode,
     settings,
+    audio,
     ui: {},
     bind,
     emit() {},
@@ -68,5 +72,6 @@ bind(globalThis, 'beforeunload', (event) => {
 bind(globalThis, 'unload', () => {
     workshop?.flushDraft?.();
     workshop?.dispose?.();
+    audio.dispose();
     cleanups.splice(0).forEach((cleanup) => cleanup());
 }, { once: true });

@@ -41,6 +41,7 @@ import { UINavigationLifecycleController } from './UINavigationLifecycleControll
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../shared/contracts/SettingsRuntimeLimitsContract.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
+import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContract.js';
 function applyRangeInputLimits(input, limits) {
     if (!input || !limits || typeof limits !== 'object') return;
     if (Number.isFinite(Number(limits.min))) input.min = String(limits.min);
@@ -451,6 +452,26 @@ export class UIManager {
         const runtimeConfig = this._getGameplayConfig();
         const runtimeLimits = this._runtimeSettingLimits;
         const mobileControls = normalizeMobileClassicControlSettings(settings?.localSettings?.mobileControls);
+        const audioSettings = normalizeAudioSettings(settings?.localSettings?.audio);
+        if (ui.audioEnabledToggle) ui.audioEnabledToggle.checked = audioSettings.enabled;
+        const audioVolumeFields = [
+            [ui.audioMasterVolumeSlider, ui.audioMasterVolumeLabel, audioSettings.masterVolume],
+            [ui.audioMusicVolumeSlider, ui.audioMusicVolumeLabel, audioSettings.musicVolume],
+            [ui.audioSfxVolumeSlider, ui.audioSfxVolumeLabel, audioSettings.sfxVolume],
+            [ui.audioEngineVolumeSlider, ui.audioEngineVolumeLabel, audioSettings.engineVolume],
+            [ui.audioUiVolumeSlider, ui.audioUiVolumeLabel, audioSettings.uiVolume],
+            [ui.audioAmbienceVolumeSlider, ui.audioAmbienceVolumeLabel, audioSettings.ambienceVolume],
+        ];
+        for (const [slider, label, value] of audioVolumeFields) {
+            const percent = Math.round(value * 100);
+            if (slider) slider.value = String(percent);
+            if (label) label.textContent = `${percent}%`;
+        }
+        if (ui.audioSettingsHint) {
+            ui.audioSettingsHint.textContent = audioSettings.enabled
+                ? 'Dynamische Musik · getrennte Effekt-, Motor- und Atmosphärenmischung'
+                : 'Audio ist vollständig deaktiviert';
+        }
         if (ui.mouseSteeringToggle) {
             ui.mouseSteeringToggle.checked = settings?.localSettings?.mouseSteering === true;
         }

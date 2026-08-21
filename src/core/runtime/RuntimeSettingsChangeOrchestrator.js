@@ -56,6 +56,7 @@ export function orchestrateRuntimeSettingsChanged({
     game.renderer?.setRecordingCaptureSettings?.(game.settings?.recording);
     game.renderer?.setCameraPerspectiveSettings?.(game.settings?.cameraPerspective);
     game.mediaRecorderSystem?.setRecordingCaptureSettings?.(game.settings?.recording);
+    game.audio?.applySettings?.(game.settings?.localSettings?.audio);
     if (game.uiManager) {
         if (Array.isArray(changedKeys) && changedKeys.length > 0 && typeof game.uiManager.syncByChangeKeys === 'function') {
             game.uiManager.syncByChangeKeys(changedKeys);

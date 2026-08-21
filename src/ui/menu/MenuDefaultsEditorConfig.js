@@ -8,6 +8,7 @@ import { GRAPHICS_STYLES } from '../../shared/contracts/GraphicsStyleContract.js
 import { DEFAULT_MAP_BRIGHTNESS } from '../../shared/contracts/MapBrightnessContract.js';
 import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContract.js';
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
+import { createDefaultAudioSettings, normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 import {
     SPLIT_SCREEN_VARIANTS,
@@ -116,6 +117,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         shadowQuality: DEFAULT_SHADOW_QUALITY,
         bloomQuality: DEFAULT_BLOOM_QUALITY,
         mouseSteering: false,
+        audio: createDefaultAudioSettings(),
         hud: createDefaultHudAppearance(),
         startSetup: {
             mapSearch: '',
@@ -408,6 +410,10 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             shadowQuality: String(localSettings.shadowQuality || MENU_DEFAULT_EDITOR_CONFIG.localSettings.shadowQuality),
             bloomQuality: String(localSettings.bloomQuality ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.bloomQuality),
             mouseSteering: localSettings.mouseSteering === true,
+            audio: normalizeAudioSettings(
+                localSettings.audio,
+                MENU_DEFAULT_EDITOR_CONFIG.localSettings.audio
+            ),
             startSetup: deepClone(localSettings.startSetup || MENU_DEFAULT_EDITOR_CONFIG.localSettings.startSetup),
             toolsState: deepClone(localSettings.toolsState || MENU_DEFAULT_EDITOR_CONFIG.localSettings.toolsState),
             eventPlaylistState: deepClone(localSettings.eventPlaylistState || MENU_DEFAULT_EDITOR_CONFIG.localSettings.eventPlaylistState),

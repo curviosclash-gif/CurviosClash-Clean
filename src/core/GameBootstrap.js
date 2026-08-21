@@ -84,7 +84,7 @@ export function bootstrapGameRuntime(game, options = {}) {
         throw new Error('Cannot initialize game runtime: missing #game-canvas element.');
     }
     const renderer = new Renderer(canvas);
-    const audio = new AudioManager();
+    const audio = new AudioManager(game.settings?.localSettings?.audio);
     renderer.setGraphicsStyle(game.settings?.localSettings?.graphicsStyle);
     renderer.setMapBrightness(game.settings?.localSettings?.mapBrightness);
     renderer.setViewDistance(game.settings?.localSettings?.viewDistance);

@@ -1,0 +1,22 @@
+{
+  "schemaVersion": 1,
+  "policy": "project-original-or-cc0",
+  "runtimeGenerated": [
+    {
+      "id": "audio-runtime",
+      "source": "src/core/Audio.js",
+      "license": "project-original"
+    },
+    {
+      "id": "procedural-sfx",
+      "source": "src/core/audio/GameplayVoices.js",
+      "license": "project-original"
+    },
+    {
+      "id": "procedural-music",
+      "source": "src/core/audio/ProceduralMusicDirector.js",
+      "license": "project-original"
+    }
+  ],
+  "thirdPartyAssets": []
+}

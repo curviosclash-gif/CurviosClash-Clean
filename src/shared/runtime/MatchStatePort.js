@@ -1,5 +1,29 @@
 import { GAME_STATE_IDS, normalizeGameStateId } from '../contracts/GameStateIds.js';
 
+function syncAudioLifecycle(game, state) {
+    const audio = game?.audio;
+    if (!audio) return;
+    if (state === GAME_STATE_IDS.MENU) {
+        audio.setPaused?.(false);
+        audio.setMusicState?.('menu');
+        return;
+    }
+    if (state === GAME_STATE_IDS.PAUSED) {
+        audio.setPaused?.(true);
+        return;
+    }
+    if (state === GAME_STATE_IDS.ROUND_END || state === GAME_STATE_IDS.MATCH_END) {
+        audio.setPaused?.(false);
+        audio.setMusicState?.('results');
+        return;
+    }
+    if (state === GAME_STATE_IDS.PLAYING) {
+        const modePath = String(game?.settings?.localSettings?.modePath || '').trim().toLowerCase();
+        audio.setPaused?.(false);
+        audio.setMusicState?.(modePath === 'fight' ? 'fight' : 'race');
+    }
+}
+
 export function createMatchStatePort(game) {
     return {
         applyLifecycleTransition(transition = null) {
@@ -12,12 +36,14 @@ export function createMatchStatePort(game) {
             if (transition.huntStatePatch && game.huntState) {
                 Object.assign(game.huntState, { ...transition.huntStatePatch });
             }
+            syncAudioLifecycle(game, game.state);
             return true;
         },
         enterRoundEnd(roundPause = 3) {
             if (!game) return false;
             game.state = GAME_STATE_IDS.ROUND_END;
             game.roundPause = Number.isFinite(Number(roundPause)) ? Number(roundPause) : 3;
+            syncAudioLifecycle(game, game.state);
             return true;
         },
         applyRoundEndTransition(transition = null) {
@@ -26,6 +52,7 @@ export function createMatchStatePort(game) {
                 ? Number(transition.roundPause)
                 : game.roundPause;
             game.state = normalizeGameStateId(transition.nextState, GAME_STATE_IDS.ROUND_END);
+            syncAudioLifecycle(game, game.state);
             return true;
         },
         setRoundPause(value) {
