@@ -1,5 +1,5 @@
 // ============================================
-// Audio.js - Synthesized Sound Effects (No assets needed)
+// Audio.js - Mixed recorded and synthesized game audio
 // ============================================
 
 import { createLogger } from '../shared/logging/Logger.js';
@@ -7,11 +7,12 @@ import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContrac
 import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
 import { MUSIC_STATES, ProceduralMusicDirector } from './audio/ProceduralMusicDirector.js';
 import { playGameplayVoice } from './audio/GameplayVoices.js';
+import { loadRecordedAudioSamples, playRecordedAudioSample } from './audio/RecordedAudioSamples.js';
+import { disposeEngineVoice, ensureEngineVoice, stopEngineVoice, updateEngineVoice } from './audio/EngineVoice.js';
 
 const logger = createLogger('AudioManager');
 const DEFAULT_COOLDOWN_MS = 50;
 const MAX_ACTIVE_VOICES = 18;
-const ENGINE_IDLE_GAIN = 0.0001;
 const HIGH_IMPACT_EVENTS = new Set(['EXPLOSION', 'ROCKET_IMPACT', 'FIGHT_KILL', 'PARCOURS_FINISH']);
 
 const SOUND_COOLDOWNS_MS = Object.freeze({
@@ -80,6 +81,9 @@ export class AudioManager {
         this._maxDebugEvents = 24;
         this._registeredWindowListeners = [];
         this._recordingDestinations = new Map();
+        this._voiceReleaseTimers = new Set();
+        this._sampleLoadPromise = null;
+        this._recordedMgIndex = 0;
 
         this.lastPlayTime = {};
         this.cooldowns = { ...SOUND_COOLDOWNS_MS };
@@ -166,6 +170,7 @@ export class AudioManager {
             }
             this._applyBusGains();
             this._generateBuffers();
+            this._sampleLoadPromise = loadRecordedAudioSamples(this);
             this._ensureAmbienceNodes();
             if (this.enabled) this.music.start();
         } catch (error) {
@@ -192,16 +197,22 @@ export class AudioManager {
         const duration = 1.25;
         const bufferSize = Math.max(1, Math.floor(this.ctx.sampleRate * duration));
         const buffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+        const textureBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
         const data = buffer.getChannelData(0);
+        const textureData = textureBuffer.getChannelData(0);
         let prev = 0;
+        let texturePrev = 0;
         for (let i = 0; i < bufferSize; i++) {
             const white = Math.random() * 2 - 1;
+            const textureWhite = Math.random() * 2 - 1;
             prev = (prev * 0.96) + (white * 0.04);
+            texturePrev = (texturePrev * 0.82) + (textureWhite * 0.18);
             const envelope = 1 - (i / bufferSize);
             data[i] = (white * 0.55 + prev * 0.45) * envelope;
+            textureData[i] = textureWhite * 0.72 + texturePrev * 0.28;
         }
         this.buffers.explosion = buffer;
-        this.buffers.musicNoise = buffer;
+        this.buffers.musicNoise = textureBuffer;
     }
 
     _clamp(value, min, max) {
@@ -288,6 +299,10 @@ export class AudioManager {
         return this._sfxOut();
     }
 
+    _playRecordedSample(key, config = {}) {
+        return playRecordedAudioSample(this, key, config);
+    }
+
     _createVoiceGraph(options = {}, bus = 'sfx') {
         if (this._activeVoices >= MAX_ACTIVE_VOICES) return null;
         const gain = this.ctx.createGain();
@@ -306,9 +321,12 @@ export class AudioManager {
 
     _releaseVoice(duration = 0.2) {
         const ms = Math.max(50, Math.ceil((Number(duration) || 0.2) * 1000) + 30);
-        setTimeout(() => {
+        const timer = setTimeout(() => {
+            this._voiceReleaseTimers.delete(timer);
             this._activeVoices = Math.max(0, this._activeVoices - 1);
         }, ms);
+        timer?.unref?.();
+        this._voiceReleaseTimers.add(timer);
     }
 
     _envGain(gainNode, peak, duration, options = {}) {
@@ -569,7 +587,8 @@ export class AudioManager {
         const now = this._resolveTime();
         const last = this.lastPlayTime[type] || 0;
         const cooldown = this.cooldowns[type] || DEFAULT_COOLDOWN_MS;
-        if (now - last < cooldown) {
+        const cooldownBlocked = now - last < cooldown;
+        if (cooldownBlocked) {
             // Only explosions answer a blocked shot, and only twice per window, so
             // a chain reaction stays audible without a mass wipe turning to noise.
             const echo = type === 'EXPLOSION' ? resolveExplosionEcho(this._explosionChain) : null;
@@ -578,7 +597,7 @@ export class AudioManager {
         } else if (type === 'EXPLOSION') {
             resetExplosionChain(this._explosionChain);
         }
-        this.lastPlayTime[type] = now;
+        if (!cooldownBlocked) this.lastPlayTime[type] = now;
         this._recordDebugEvent(type, options);
         if (HIGH_IMPACT_EVENTS.has(type)) this._duckMusic();
 
@@ -668,90 +687,15 @@ export class AudioManager {
     }
 
     _ensureEngineNodes() {
-        if (!this.ctx || this._engine) return;
-        const body = this.ctx.createOscillator();
-        const hum = this.ctx.createOscillator();
-        const turbine = this.ctx.createOscillator();
-        const filter = this.ctx.createBiquadFilter();
-        const turbineFilter = this.ctx.createBiquadFilter();
-        const gain = this.ctx.createGain();
-        const turbineGain = this.ctx.createGain();
-        body.type = 'sawtooth';
-        hum.type = 'triangle';
-        turbine.type = 'sine';
-        filter.type = 'lowpass';
-        filter.frequency.value = 420;
-        filter.Q.value = 0.6;
-        turbineFilter.type = 'bandpass';
-        turbineFilter.frequency.value = 1100;
-        turbineFilter.Q.value = 1.1;
-        gain.gain.value = ENGINE_IDLE_GAIN;
-        turbineGain.gain.value = ENGINE_IDLE_GAIN;
-        body.frequency.value = 70;
-        hum.frequency.value = 140;
-        turbine.frequency.value = 420;
-        body.connect(filter);
-        hum.connect(filter);
-        turbine.connect(turbineFilter);
-        filter.connect(gain);
-        turbineFilter.connect(turbineGain);
-        gain.connect(this._engineGain || this._masterGain || this.ctx.destination);
-        turbineGain.connect(this._engineGain || this._masterGain || this.ctx.destination);
-        const t = this.ctx.currentTime;
-        body.start(t);
-        hum.start(t);
-        turbine.start(t);
-        this._engine = { body, hum, turbine, filter, turbineFilter, gain, turbineGain, active: true };
+        ensureEngineVoice(this);
     }
 
     updateEngine(state = {}) {
-        if (!this.enabled || !this.ctx) {
-            this.stopEngine();
-            return;
-        }
-        if (this.ctx.state === 'suspended') this.ctx.resume();
-
-        const alive = state.alive !== false;
-        const speed = Math.max(0, Number(state.speed) || 0);
-        const baseSpeed = Math.max(1, Number(state.baseSpeed) || 18);
-        const boosting = state.boosting === true;
-        if (!alive || speed < 0.35) {
-            this.stopEngine();
-            return;
-        }
-
-        this._ensureEngineNodes();
-        const engine = this._engine;
-        if (!engine) return;
-
-        const ratio = this._clamp(speed / baseSpeed, 0.35, 3.0);
-        const targetBody = 58 + ratio * 78 + (boosting ? 36 : 0);
-        const targetHum = targetBody * 2.05;
-        const targetTurbine = targetBody * (4.6 + ratio * 0.25);
-        const targetFilter = 280 + ratio * 260 + (boosting ? 180 : 0);
-        const targetTurbineFilter = 780 + ratio * 420 + (boosting ? 540 : 0);
-        const targetGain = (0.018 + ratio * 0.06) * (boosting ? 1.55 : 1);
-        const targetTurbineGain = (0.008 + ratio * 0.015) * (boosting ? 1.8 : 1);
-        const t = this.ctx.currentTime;
-        engine.body.frequency.setTargetAtTime(targetBody, t, 0.05);
-        engine.hum.frequency.setTargetAtTime(targetHum, t, 0.05);
-        engine.turbine.frequency.setTargetAtTime(targetTurbine, t, 0.045);
-        engine.filter.frequency.setTargetAtTime(targetFilter, t, 0.08);
-        engine.turbineFilter.frequency.setTargetAtTime(targetTurbineFilter, t, 0.08);
-        engine.gain.gain.setTargetAtTime(targetGain, t, 0.06);
-        engine.turbineGain.gain.setTargetAtTime(targetTurbineGain, t, 0.06);
-        engine.active = true;
+        updateEngineVoice(this, state);
     }
 
     stopEngine() {
-        const engine = this._engine;
-        if (!engine || !this.ctx) return;
-        const t = this.ctx.currentTime;
-        engine.gain.gain.cancelScheduledValues(t);
-        engine.gain.gain.setTargetAtTime(ENGINE_IDLE_GAIN, t, 0.04);
-        engine.turbineGain.gain.cancelScheduledValues?.(t);
-        engine.turbineGain.gain.setTargetAtTime?.(ENGINE_IDLE_GAIN, t, 0.04);
-        engine.active = false;
+        stopEngineVoice(this);
     }
 
     syncEngineFromPlayers(players = [], options = {}) {
@@ -790,12 +734,9 @@ export class AudioManager {
             }
         }
         this._recordingDestinations.clear();
-        if (this._engine) {
-            try { this._engine.body.stop(); } catch { /* ignore */ }
-            try { this._engine.hum.stop(); } catch { /* ignore */ }
-            try { this._engine.turbine.stop(); } catch { /* ignore */ }
-            this._engine = null;
-        }
+        for (const timer of this._voiceReleaseTimers) clearTimeout(timer);
+        this._voiceReleaseTimers.clear();
+        disposeEngineVoice(this);
         if (this._ambience) {
             try { this._ambience.source.stop(); } catch { /* ignore */ }
             this._ambience = null;
@@ -815,6 +756,8 @@ export class AudioManager {
         this._ambienceGain = null;
         this._compressor = null;
         this._outputNode = null;
+        this._sampleLoadPromise = null;
+        this._recordedMgIndex = 0;
         this.buffers = {};
         this._debugEvents = [];
         this._registeredWindowListeners = [];

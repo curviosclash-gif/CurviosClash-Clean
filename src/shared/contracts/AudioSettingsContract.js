@@ -15,7 +15,7 @@ export const DEFAULT_AUDIO_SETTINGS = Object.freeze({
     masterVolume: 0.32,
     musicVolume: 0.34,
     sfxVolume: 0.9,
-    engineVolume: 0.58,
+    engineVolume: 0.38,
     uiVolume: 0.72,
     ambienceVolume: 0.32,
 });

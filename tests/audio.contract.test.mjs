@@ -80,7 +80,10 @@ function createMockAudioContext() {
                     setValueAtTime(value) { this.value = value; },
                     exponentialRampToValueAtTime() {},
                     linearRampToValueAtTime() {},
-                    setTargetAtTime(value) { this.value = value; },
+                    setTargetAtTime(value) {
+                        this.value = value;
+                        this.targetCalls = (this.targetCalls || 0) + 1;
+                    },
                 },
                 connect() { return this; },
                 start() {},
@@ -125,13 +128,18 @@ function createMockAudioContext() {
         createBufferSource() {
             const source = {
                 buffer: null,
+                loop: false,
                 // The real AudioBufferSourceNode carries this; the explosion voice
                 // detunes chained blasts through it.
                 playbackRate: { value: 1 },
                 connect() { return this; },
-                start() { this.started = true; },
+                start(...args) {
+                    this.started = true;
+                    this.startArgs = args;
+                },
                 stop() {},
                 started: false,
+                startArgs: [],
             };
             this.bufferSources = this.bufferSources || [];
             this.bufferSources.push(source);
@@ -146,6 +154,10 @@ function createMockAudioContext() {
         close() {
             this.state = 'closed';
             return Promise.resolve();
+        }
+
+        decodeAudioData(bytes) {
+            return Promise.resolve({ duration: 8, byteLength: bytes.byteLength });
         }
     };
 }
@@ -287,6 +299,75 @@ test('AudioManager initializes dedicated music, UI and ambience buses', async ()
             assert.equal(audio._ambienceGain.gain.value, 0.2);
             assert.equal(audio.music.state, 'menu');
             assert.ok(audio.music._sceneGain);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('AudioManager loads CC0 recordings and slices real machine-gun shots', async () => {
+    await withMockWindow(async (mockWindow) => {
+        const requestedUrls = [];
+        mockWindow.AudioContext = createMockAudioContext();
+        mockWindow.fetch = async (url) => {
+            requestedUrls.push(String(url));
+            return {
+                ok: true,
+                arrayBuffer: async () => new ArrayBuffer(16),
+            };
+        };
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'pointerdown' });
+            await audio._sampleLoadPromise;
+
+            assert.equal(requestedUrls.length, 3);
+            assert.equal(audio.buffers.machineGun.duration, 8);
+            assert.equal(audio.buffers.explosionHeavy.duration, 8);
+            assert.equal(audio.buffers.explosionDebris.duration, 8);
+
+            audio._resolveTime = () => 1000;
+            audio.play('MG_SHOOT');
+            const recordedShot = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.machineGun);
+            assert.ok(recordedShot);
+            assert.deepEqual(recordedShot.startArgs, [0, 0, 0.09]);
+
+            audio.play('EXPLOSION');
+            const heavyBlast = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.explosionHeavy);
+            const debris = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.explosionDebris);
+            assert.ok(heavyBlast?.started);
+            assert.ok(debris?.started);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('recorded explosion tails leave voice capacity for machine-gun feedback', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        mockWindow.fetch = async () => ({
+            ok: true,
+            arrayBuffer: async () => new ArrayBuffer(16),
+        });
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'pointerdown' });
+            await audio._sampleLoadPromise;
+
+            let now = 1000;
+            audio._resolveTime = () => now;
+            for (let i = 0; i < 6; i += 1) {
+                audio.play('ROCKET_IMPACT');
+                now += audio.cooldowns.ROCKET_IMPACT + 10;
+                await new Promise((resolve) => setTimeout(resolve, audio.cooldowns.ROCKET_IMPACT + 10));
+            }
+
+            const shotsBefore = audio.ctx.bufferSources.filter((source) => source.buffer === audio.buffers.machineGun).length;
+            audio.play('MG_SHOOT');
+            const shotsAfter = audio.ctx.bufferSources.filter((source) => source.buffer === audio.buffers.machineGun).length;
+            assert.equal(shotsAfter, shotsBefore + 1);
+            assert.ok(audio._activeVoices < 18);
         } finally {
             audio.dispose();
         }
@@ -552,6 +633,12 @@ test('AudioManager engine loop follows local player speed and stops when idle', 
 
             audio.updateEngine({ alive: true, speed: 22, baseSpeed: 18, boosting: true });
             assert.equal(audio._engine.active, true);
+            assert.ok(audio._engine.air);
+            assert.ok(audio._engine.gain.gain.value < 0.08);
+            assert.ok(audio._engine.turbineGain.gain.value < 0.02);
+            const bodyAutomationCount = audio._engine.body.frequency.targetCalls;
+            audio.updateEngine({ alive: true, speed: 22, baseSpeed: 18, boosting: true });
+            assert.equal(audio._engine.body.frequency.targetCalls, bodyAutomationCount);
             audio.stopEngine();
             assert.equal(audio._engine.active, false);
         } finally {
@@ -640,6 +727,26 @@ test('a kill after the window is a full blast again, not an echo', async () => {
             const rates = harness.blastRates();
             assert.equal(rates.length, 3);
             assert.equal(rates.at(-1), 1, 'the chain resets once the window has passed');
+        } finally {
+            audio.dispose();
+        }
+    });
+});
+
+test('explosion echoes do not extend the original chain window', async () => {
+    await withMockWindow(async () => {
+        const harness = createExplosionHarness();
+        const { audio } = harness;
+        try {
+            audio.play('EXPLOSION');
+            harness.advance(audio.cooldowns.EXPLOSION - 10);
+            audio.play('EXPLOSION');
+            harness.advance(audio.cooldowns.EXPLOSION - 10);
+            audio.play('EXPLOSION');
+
+            const rates = harness.blastRates();
+            assert.equal(rates.length, 3);
+            assert.equal(rates.at(-1), 1, 'a new full blast starts outside the original window');
         } finally {
             audio.dispose();
         }

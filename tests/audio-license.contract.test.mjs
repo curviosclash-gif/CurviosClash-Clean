@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { access, readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import test from 'node:test';
@@ -39,9 +40,14 @@ test('audio asset manifest permits only project-original or CC0 sources', async 
             await access(path.join(ROOT, entry.source));
         }
         if (entry.license === 'CC0-1.0') {
+            assert.ok(String(entry.author || '').trim().length > 0);
             assert.match(String(entry.sourceUrl || ''), /^https:\/\//);
+            assert.match(String(entry.downloadUrl || ''), /^https:\/\//);
             assert.match(String(entry.licenseUrl || ''), /^https:\/\//);
             assert.match(String(entry.sha256 || ''), /^[a-f0-9]{64}$/i);
+            const bytes = await readFile(path.join(AUDIO_DIRECTORY, entry.file));
+            const actualHash = createHash('sha256').update(bytes).digest('hex');
+            assert.equal(actualHash, entry.sha256, `audio hash mismatch: ${entry.file}`);
         }
     }
 });

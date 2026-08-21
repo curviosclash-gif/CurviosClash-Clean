@@ -18,5 +18,36 @@
       "license": "project-original"
     }
   ],
-  "thirdPartyAssets": []
+  "thirdPartyAssets": [
+    {
+      "id": "machine-gun-burst",
+      "file": "sfx/machine-gun-burst.mp3",
+      "author": "qubodup",
+      "sourceUrl": "https://freesound.org/people/qubodup/sounds/482122/",
+      "downloadUrl": "https://cdn.freesound.org/previews/482/482122_71257-hq.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "ac12c79b300f6436519cf5d8978d6aaa994eb3258e9dcd59499378b873135562"
+    },
+    {
+      "id": "explosion-heavy",
+      "file": "sfx/explosion-heavy.mp3",
+      "author": "SamsterBirdies",
+      "sourceUrl": "https://freesound.org/people/SamsterBirdies/sounds/591998/",
+      "downloadUrl": "https://cdn.freesound.org/previews/591/591998_5487341-hq.mp3",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "032fbaf12e88733fe263f0e88e56ba76c018584ac3013a3dbbe2e14fdff43b9a"
+    },
+    {
+      "id": "explosion-debris",
+      "file": "sfx/explosion-debris.wav",
+      "author": "Spring Spring",
+      "sourceUrl": "https://opengameart.org/content/mechanical-explosion",
+      "downloadUrl": "https://opengameart.org/sites/default/files/mechanical_explosion.wav",
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "13e9f713bd0d5921b223b01d29d68bb7625a1a1fbf1894af35ebfd5ef72c8632"
+    }
+  ]
 }

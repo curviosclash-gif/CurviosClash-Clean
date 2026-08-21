@@ -16,6 +16,17 @@ function playShoot(audio, options) {
 
 function playMgShoot(audio, options) {
     const intensity = audio._intensity(options, 0.75, 0.2, 1.2);
+    const shotIndex = audio._recordedMgIndex || 0;
+    audio._recordedMgIndex = (shotIndex + 1) % 14;
+    const playedRecording = audio._playRecordedSample?.('machineGun', {
+        offset: shotIndex * 0.098,
+        duration: 0.09,
+        peak: 0.2 * intensity,
+        playbackRate: 0.97 + ((shotIndex % 3) * 0.015),
+        filter: { type: 'highpass', frequency: 65, q: 0.55 },
+        options,
+    });
+    if (playedRecording) return;
     audio._playTone({
         type: 'square', startFreq: 1500, endFreq: 280, duration: 0.05,
         peak: 0.16 * intensity, attack: 0.003, options,

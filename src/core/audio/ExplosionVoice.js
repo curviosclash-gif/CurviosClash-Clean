@@ -67,11 +67,32 @@ function resolveEchoShape(options) {
  */
 export function playExplosionVoice(audio, options = {}) {
     if (!audio?.buffers?.explosion) return;
-    const gain = audio._createVoiceGraph(options);
-    if (!gain) return;
     const echo = resolveEchoShape(options);
     const intensity = audio._intensity(options, 1, 0.25, 1.5) * echo.gain;
     const atten = audio._distanceAttenuation(options);
+    const recordedRate = 1 + ((echo.detune - 1) * 0.35);
+    const playedRecording = audio._playRecordedSample?.('explosionHeavy', {
+        duration: 1.9,
+        reservationDuration: 0.55,
+        peak: 0.72 * intensity,
+        playbackRate: recordedRate,
+        filter: { type: 'highpass', frequency: 32, q: 0.5 },
+        options,
+    });
+    if (playedRecording) {
+        audio._playRecordedSample?.('explosionDebris', {
+            duration: 0.9,
+            reservationDuration: 0.35,
+            peak: 0.24 * intensity,
+            playbackRate: recordedRate,
+            filter: { type: 'highpass', frequency: 110, q: 0.6 },
+            options,
+        });
+        return;
+    }
+
+    const gain = audio._createVoiceGraph(options);
+    if (!gain) return;
     const noise = audio.ctx.createBufferSource();
     noise.buffer = audio.buffers.explosion;
     // Detuning the noise burst is what makes a second kill sound like its own
