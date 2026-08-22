@@ -177,7 +177,8 @@ export class AudioManager {
             this._generateBuffers();
             const context = this.ctx;
             this._sampleLoadPromise = loadRecordedAudioSamples(this).then((samples) => {
-                if (this.ctx === context && this.enabled && samples.classicalMusic) {
+                const hasRecordedMusic = samples.classicalMusic || samples.fightMusic || samples.arcadeMusic;
+                if (this.ctx === context && this.enabled && hasRecordedMusic) {
                     this.music.start({ crossfade: true });
                 }
                 return samples;

@@ -1,7 +1,9 @@
 export const MUSIC_STATES = Object.freeze({
     MENU: 'menu',
     RACE: 'race',
+    CLASSIC: 'classic',
     FIGHT: 'fight',
+    ARCADE: 'arcade',
     RESULTS: 'results',
 });
 
@@ -10,6 +12,17 @@ const LOOK_AHEAD_SECONDS = 0.18;
 const SCHEDULER_INTERVAL_MS = 70;
 const RETIRED_SCENE_LIFETIME_MS = 900;
 const MIN_GAIN = 0.0001;
+const RECORDED_MUSIC_BY_STATE = Object.freeze({
+    [MUSIC_STATES.MENU]: 'classicalMusic',
+    [MUSIC_STATES.RACE]: 'classicalMusic',
+    [MUSIC_STATES.CLASSIC]: 'classicalMusic',
+    [MUSIC_STATES.FIGHT]: 'fightMusic',
+    [MUSIC_STATES.ARCADE]: 'arcadeMusic',
+});
+const RECORDED_LOOP_STARTS = Object.freeze({
+    fightMusic: 2,
+    arcadeMusic: 2,
+});
 
 const SCENES = Object.freeze({
     [MUSIC_STATES.MENU]: Object.freeze({
@@ -70,6 +83,7 @@ export class ProceduralMusicDirector {
         this._sceneGain = null;
         this._recordedSource = null;
         this._recordedGain = null;
+        this._recordedKey = null;
         this._recordedActive = false;
         this._retiredSceneGains = new Map();
         this._generation = 0;
@@ -112,10 +126,13 @@ export class ProceduralMusicDirector {
         const destination = this.audio?._musicOut?.();
         if (!ctx || !destination) return false;
 
-        const recordedBuffer = this.audio?.buffers?.classicalMusic;
-        if (recordedBuffer) return this._startRecorded(recordedBuffer, destination, options);
+        const recordedSelection = this._resolveRecordedSelection();
+        if (recordedSelection) {
+            return this._startRecorded(recordedSelection.key, recordedSelection.buffer, destination, options);
+        }
 
         this._cancelScheduler();
+        this._retireRecordedSource(ctx);
         const previousGain = this._sceneGain;
         if (previousGain?.gain) {
             const t = ctx.currentTime;
@@ -138,7 +155,29 @@ export class ProceduralMusicDirector {
         return true;
     }
 
-    _startRecorded(buffer, destination, options = {}) {
+    _resolveRecordedSelection() {
+        const key = this.state === MUSIC_STATES.RESULTS
+            ? (this._recordedKey || 'classicalMusic')
+            : RECORDED_MUSIC_BY_STATE[this.state];
+        const buffer = key ? this.audio?.buffers?.[key] : null;
+        return buffer ? { key, buffer } : null;
+    }
+
+    _retireRecordedSource(ctx) {
+        if (!this._recordedSource) return;
+        const previousSource = this._recordedSource;
+        const previousGain = this._recordedGain;
+        previousGain?.gain?.cancelScheduledValues?.(ctx.currentTime);
+        previousGain?.gain?.setTargetAtTime?.(MIN_GAIN, ctx.currentTime, 0.08);
+        try { previousSource.stop?.(ctx.currentTime + 0.6); } catch { /* best effort */ }
+        this._retireSceneGain(previousGain);
+        this._recordedSource = null;
+        this._recordedGain = null;
+        this._recordedKey = null;
+        this._recordedActive = false;
+    }
+
+    _startRecorded(key, buffer, destination, options = {}) {
         const ctx = this.audio?.ctx;
         if (!ctx || !buffer || !destination) return false;
         this._cancelScheduler();
@@ -151,17 +190,23 @@ export class ProceduralMusicDirector {
             this._retireSceneGain(previousGain);
         }
 
+        if (this._recordedSource && this._recordedKey !== key) {
+            this._retireRecordedSource(ctx);
+        }
+
         if (!this._recordedSource) {
             const gain = ctx.createGain();
             const source = ctx.createBufferSource();
             gain.gain.value = options.crossfade === true ? MIN_GAIN : (this.paused ? 0.24 : 1);
             source.buffer = buffer;
             source.loop = true;
+            source.loopStart = RECORDED_LOOP_STARTS[key] || 0;
             source.connect(gain);
             gain.connect(destination);
             source.start(ctx.currentTime);
             this._recordedSource = source;
             this._recordedGain = gain;
+            this._recordedKey = key;
         }
 
         const target = this.paused ? 0.24 : 1;
@@ -200,7 +245,10 @@ export class ProceduralMusicDirector {
 
     _schedule(generation) {
         const ctx = this.audio?.ctx;
-        const scene = SCENES[this.state];
+        const proceduralState = this.state === MUSIC_STATES.CLASSIC || this.state === MUSIC_STATES.ARCADE
+            ? MUSIC_STATES.RACE
+            : this.state;
+        const scene = SCENES[proceduralState];
         if (!ctx || !scene || generation !== this._generation) return;
         const secondsPerStep = (60 / scene.bpm) / 4;
         if (this._nextStepTime < ctx.currentTime - secondsPerStep) {
@@ -336,6 +384,7 @@ export class ProceduralMusicDirector {
         try { this._recordedGain?.disconnect?.(); } catch { /* best effort */ }
         this._recordedSource = null;
         this._recordedGain = null;
+        this._recordedKey = null;
         this._recordedActive = false;
         this._disconnectRetiredSceneGains();
         this.audio = null;

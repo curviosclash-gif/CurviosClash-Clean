@@ -20,7 +20,8 @@ function syncAudioLifecycle(game, state) {
     if (state === GAME_STATE_IDS.PLAYING) {
         const modePath = String(game?.settings?.localSettings?.modePath || '').trim().toLowerCase();
         audio.setPaused?.(false);
-        audio.setMusicState?.(modePath === 'fight' ? 'fight' : 'race');
+        const musicState = modePath === 'fight' ? 'fight' : (modePath === 'arcade' ? 'arcade' : 'classic');
+        audio.setMusicState?.(musicState);
     }
 }
 

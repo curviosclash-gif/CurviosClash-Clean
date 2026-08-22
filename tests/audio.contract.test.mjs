@@ -380,15 +380,19 @@ test('AudioManager maps the selected recordings to weapons, hits and explosions'
             mockWindow.dispatchEvent({ type: 'pointerdown' });
             await audio._sampleLoadPromise;
 
-            assert.equal(requestedUrls.length, 6);
+            assert.equal(requestedUrls.length, 8);
             assert.ok(requestedUrls.some((url) => url.endsWith('/machine-gun-autocannon.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/rocket-launch-heavy.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/armor-hit-break.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/mozart-nachtmusik-advent-chamber.mp3')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/beethoven-5-skidmore-fight.mp3')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/chopin-nocturne-frank-levy-arcade.mp3')));
             assert.equal(audio.buffers.machineGun.duration, 8);
             assert.equal(audio.buffers.rocketLaunch.duration, 8);
             assert.equal(audio.buffers.armorHit.duration, 8);
             assert.equal(audio.buffers.classicalMusic.duration, 8);
+            assert.equal(audio.buffers.fightMusic.duration, 8);
+            assert.equal(audio.buffers.arcadeMusic.duration, 8);
             assert.equal(audio.buffers.rocketExplosion.duration, 8);
             assert.equal(audio.buffers.vehicleExplosion.duration, 8);
 
@@ -504,7 +508,7 @@ test('AudioManager applies persistent settings and music lifecycle states', asyn
     });
 });
 
-test('recorded classical music loops once across state changes and cleans up', async () => {
+test('recorded music follows classic, fight and arcade modes without duplicate sources', async () => {
     await withMockWindow(async (mockWindow) => {
         mockWindow.AudioContext = createMockAudioContext();
         mockWindow.fetch = async () => ({
@@ -512,39 +516,49 @@ test('recorded classical music loops once across state changes and cleans up', a
             arrayBuffer: async () => new ArrayBuffer(16),
         });
         const audio = new AudioManager();
-        let recordedSource = null;
-        let recordedGain = null;
+        let arcadeSource = null;
+        let arcadeGain = null;
         try {
             mockWindow.dispatchEvent({ type: 'click' });
             await audio._sampleLoadPromise;
 
-            recordedSource = audio.music._recordedSource;
-            recordedGain = audio.music._recordedGain;
-            assert.ok(recordedSource?.started);
-            assert.equal(recordedSource.buffer, audio.buffers.classicalMusic);
-            assert.equal(recordedSource.loop, true);
+            const menuSource = audio.music._recordedSource;
+            assert.ok(menuSource?.started);
+            assert.equal(menuSource.buffer, audio.buffers.classicalMusic);
+            assert.equal(menuSource.loopStart, 0);
 
-            audio.setMusicState('race');
+            audio.setMusicState('classic');
+            assert.equal(audio.music._recordedSource, menuSource);
             audio.setMusicState('fight');
-            assert.equal(audio.music._recordedSource, recordedSource);
-            assert.equal(
-                audio.ctx.bufferSources.filter((source) => source.buffer === audio.buffers.classicalMusic).length,
-                1
-            );
+            const fightSource = audio.music._recordedSource;
+            assert.notEqual(fightSource, menuSource);
+            assert.equal(fightSource.buffer, audio.buffers.fightMusic);
+            assert.equal(fightSource.loopStart, 2);
+            assert.equal(menuSource.stopped, true);
+
+            audio.setMusicState('results');
+            assert.equal(audio.music._recordedSource, fightSource);
+            audio.setMusicState('arcade');
+            arcadeSource = audio.music._recordedSource;
+            arcadeGain = audio.music._recordedGain;
+            assert.notEqual(arcadeSource, fightSource);
+            assert.equal(arcadeSource.buffer, audio.buffers.arcadeMusic);
+            assert.equal(arcadeSource.loopStart, 2);
+            assert.equal(fightSource.stopped, true);
 
             audio.setPaused(true);
-            assert.equal(recordedGain.gain.value, 0.24);
+            assert.equal(arcadeGain.gain.value, 0.24);
             audio.setMuted(true);
-            assert.equal(recordedSource.stopped, false);
+            assert.equal(arcadeSource.stopped, false);
             audio.setMuted(false);
-            assert.equal(audio.music._recordedSource, recordedSource);
+            assert.equal(audio.music._recordedSource, arcadeSource);
             audio.setPaused(false);
-            assert.equal(recordedGain.gain.value, 1);
+            assert.equal(arcadeGain.gain.value, 1);
         } finally {
             audio.dispose();
         }
-        assert.equal(recordedSource?.stopped, true);
-        assert.equal(recordedGain?.disconnected, true);
+        assert.equal(arcadeSource?.stopped, true);
+        assert.equal(arcadeGain?.disconnected, true);
     });
 });
 

@@ -75,6 +75,30 @@
       "sha256": "64fe574ab0fca59e8badb07d250fdf2c4c0f64b6e6ac47a1188760760b0bb13e"
     },
     {
+      "id": "beethoven-5-skidmore-fight",
+      "file": "music/beethoven-5-skidmore-fight.mp3",
+      "author": "Skidmore College Orchestra",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_i._allegro_con_brio.ogg",
+      "downloadUrl": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Ludwig%20van%20Beethoven%20-%20symphony%20no.%205%20in%20c%20minor%2C%20op.%2067%20-%20i.%20allegro%20con%20brio.ogg",
+      "license": "PDM-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "attribution": "Beethoven: Symphony No. 5, 1st movement, performed by Skidmore College Orchestra; source: Wikimedia Commons / Musopen.",
+      "modifications": "A 28-second excerpt was created, loudness normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis to MP3 by CurviosClash.",
+      "sha256": "5193b50dcb4d34e3ab2baac9a454a087f134c54b3abe6155845a3df5cea9058a"
+    },
+    {
+      "id": "chopin-nocturne-frank-levy-arcade",
+      "file": "music/chopin-nocturne-frank-levy-arcade.mp3",
+      "author": "Frank Levy / Musopen",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Chopin_-_Nocturne_No._2_in_E-flat_major,_Op._9_No._2_(Frank_Levy).flac",
+      "downloadUrl": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Chopin%20-%20Nocturne%20No.%202%20in%20E-flat%20major%2C%20Op.%209%20No.%202%20%28Frank%20Levy%29.flac",
+      "license": "PDM-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/mark/1.0/",
+      "attribution": "Chopin: Nocturne in E-flat major, Op. 9 No. 2, performed by Frank Levy; source: Wikimedia Commons / Musopen.",
+      "modifications": "A 28-second excerpt was created, loudness normalized, given a two-second loop crossfade and transcoded from FLAC to MP3 by CurviosClash.",
+      "sha256": "7454ac15831ea8223ea675b0b554130fe7bd279ca6a4bab20341eebb65e2398d"
+    },
+    {
       "id": "explosion-heavy",
       "file": "sfx/explosion-heavy.mp3",
       "author": "SamsterBirdies",

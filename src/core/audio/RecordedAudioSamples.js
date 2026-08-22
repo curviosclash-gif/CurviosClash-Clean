@@ -3,6 +3,8 @@ export const RECORDED_SAMPLE_KEYS = Object.freeze({
     ROCKET_LAUNCH: 'rocketLaunch',
     ARMOR_HIT: 'armorHit',
     CLASSICAL_MUSIC: 'classicalMusic',
+    FIGHT_MUSIC: 'fightMusic',
+    ARCADE_MUSIC: 'arcadeMusic',
     ROCKET_EXPLOSION: 'rocketExplosion',
     VEHICLE_EXPLOSION: 'vehicleExplosion',
 });
@@ -17,6 +19,8 @@ const SAMPLE_URLS = Object.freeze({
     [RECORDED_SAMPLE_KEYS.ROCKET_LAUNCH]: new URL('../../../assets/audio/sfx/rocket-launch-heavy.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.ARMOR_HIT]: new URL('../../../assets/audio/sfx/armor-hit-break.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.CLASSICAL_MUSIC]: new URL('../../../assets/audio/music/mozart-nachtmusik-advent-chamber.mp3', import.meta.url).href,
+    [RECORDED_SAMPLE_KEYS.FIGHT_MUSIC]: new URL('../../../assets/audio/music/beethoven-5-skidmore-fight.mp3', import.meta.url).href,
+    [RECORDED_SAMPLE_KEYS.ARCADE_MUSIC]: new URL('../../../assets/audio/music/chopin-nocturne-frank-levy-arcade.mp3', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.ROCKET_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-rocket-deep.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-vehicle-metal.wav', import.meta.url).href,
 });

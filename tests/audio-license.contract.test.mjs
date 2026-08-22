@@ -7,7 +7,7 @@ import test from 'node:test';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const AUDIO_DIRECTORY = path.join(ROOT, 'assets', 'audio');
 const AUDIO_FILE_PATTERN = /\.(?:aac|flac|m4a|mp3|ogg|opus|wav|webm)$/i;
-const ALLOWED_LICENSES = new Set(['project-original', 'CC0-1.0', 'CC-BY-SA-2.0']);
+const ALLOWED_LICENSES = new Set(['project-original', 'CC0-1.0', 'CC-BY-SA-2.0', 'PDM-1.0']);
 
 async function listFiles(directory) {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -52,6 +52,10 @@ test('audio asset manifest permits only approved free sources', async () => {
         if (entry.license === 'CC-BY-SA-2.0') {
             assert.ok(String(entry.modifications || '').trim().length > 0);
             assert.match(String(entry.attribution || ''), /Advent Chamber Orchestra/);
+        }
+        if (entry.license === 'PDM-1.0') {
+            assert.ok(String(entry.attribution || '').trim().length > 0);
+            assert.ok(String(entry.modifications || '').trim().length > 0);
         }
     }
 });

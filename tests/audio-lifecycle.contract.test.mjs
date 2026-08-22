@@ -17,7 +17,7 @@ function createHarness(modePath = 'normal') {
     return { calls, game, port: createMatchStatePort(game) };
 }
 
-test('match state audio lifecycle selects menu, race, pause and result scenes', () => {
+test('match state audio lifecycle selects menu, classic, pause and result scenes', () => {
     const { calls, port } = createHarness('normal');
 
     port.applyLifecycleTransition({ state: GAME_STATE_IDS.PLAYING });
@@ -27,9 +27,9 @@ test('match state audio lifecycle selects menu, race, pause and result scenes', 
     port.applyLifecycleTransition({ state: GAME_STATE_IDS.MENU });
 
     assert.deepEqual(calls, [
-        ['paused', false], ['music', 'race'],
+        ['paused', false], ['music', 'classic'],
         ['paused', true],
-        ['paused', false], ['music', 'race'],
+        ['paused', false], ['music', 'classic'],
         ['paused', false], ['music', 'results'],
         ['paused', false], ['music', 'menu'],
     ]);
@@ -39,4 +39,14 @@ test('fight mode selects the dedicated fight music scene', () => {
     const { calls, port } = createHarness('fight');
     port.applyLifecycleTransition({ state: GAME_STATE_IDS.PLAYING });
     assert.deepEqual(calls, [['paused', false], ['music', 'fight']]);
+});
+
+test('arcade and quick action select their intended music scenes', () => {
+    const arcade = createHarness('arcade');
+    arcade.port.applyLifecycleTransition({ state: GAME_STATE_IDS.PLAYING });
+    assert.deepEqual(arcade.calls, [['paused', false], ['music', 'arcade']]);
+
+    const quickAction = createHarness('quick_action');
+    quickAction.port.applyLifecycleTransition({ state: GAME_STATE_IDS.PLAYING });
+    assert.deepEqual(quickAction.calls, [['paused', false], ['music', 'classic']]);
 });

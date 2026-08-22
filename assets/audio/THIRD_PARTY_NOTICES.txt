@@ -10,3 +10,21 @@ License text: https://creativecommons.org/licenses/by-sa/2.0/
 Changes made by CurviosClash: A 26-second excerpt was created, loudness
 normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis
 to MP3. The adapted audio remains available under CC BY-SA 2.0.
+
+Beethoven: Symphony No. 5 in C minor, Op. 67, 1st movement
+Performance: Skidmore College Orchestra
+Source: https://commons.wikimedia.org/wiki/File:Ludwig_van_Beethoven_-_symphony_no._5_in_c_minor,_op._67_-_i._allegro_con_brio.ogg
+Status: Dedicated to the public domain worldwide; attribution requested.
+Public Domain Mark: https://creativecommons.org/publicdomain/mark/1.0/
+
+Changes made by CurviosClash: A 28-second excerpt was created, loudness
+normalized, given a two-second loop crossfade and transcoded to MP3.
+
+Chopin: Nocturne in E-flat major, Op. 9 No. 2
+Performance: Frank Levy
+Source: https://commons.wikimedia.org/wiki/File:Chopin_-_Nocturne_No._2_in_E-flat_major,_Op._9_No._2_(Frank_Levy).flac
+Status: Released into the public domain worldwide by Musopen.
+Public Domain Mark: https://creativecommons.org/publicdomain/mark/1.0/
+
+Changes made by CurviosClash: A 28-second excerpt was created, loudness
+normalized, given a two-second loop crossfade and transcoded from FLAC to MP3.
