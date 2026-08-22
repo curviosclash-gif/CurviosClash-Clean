@@ -362,7 +362,7 @@ test('AudioManager prefers HRTF positioning and keeps stereo pan as fallback', a
     });
 });
 
-test('AudioManager maps the selected CC0 recordings to rockets and vehicle explosions', async () => {
+test('AudioManager maps the selected recordings to weapons, hits and explosions', async () => {
     await withMockWindow(async (mockWindow) => {
         const requestedUrls = [];
         mockWindow.AudioContext = createMockAudioContext();
@@ -378,9 +378,13 @@ test('AudioManager maps the selected CC0 recordings to rockets and vehicle explo
             mockWindow.dispatchEvent({ type: 'pointerdown' });
             await audio._sampleLoadPromise;
 
-            assert.equal(requestedUrls.length, 3);
+            assert.equal(requestedUrls.length, 5);
             assert.ok(requestedUrls.some((url) => url.endsWith('/machine-gun-autocannon.wav')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/rocket-launch-heavy.wav')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/armor-hit-break.wav')));
             assert.equal(audio.buffers.machineGun.duration, 8);
+            assert.equal(audio.buffers.rocketLaunch.duration, 8);
+            assert.equal(audio.buffers.armorHit.duration, 8);
             assert.equal(audio.buffers.rocketExplosion.duration, 8);
             assert.equal(audio.buffers.vehicleExplosion.duration, 8);
 
@@ -389,6 +393,16 @@ test('AudioManager maps the selected CC0 recordings to rockets and vehicle explo
             const recordedShot = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.machineGun);
             assert.ok(recordedShot);
             assert.deepEqual(recordedShot.startArgs, [0, 0, 0.12]);
+
+            audio.play('ROCKET_SHOOT');
+            const rocketLaunch = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.rocketLaunch);
+            assert.ok(rocketLaunch?.started);
+            assert.deepEqual(rocketLaunch.startArgs, [0, 0, 1.9]);
+
+            audio.play('HIT');
+            const armorHit = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.armorHit);
+            assert.ok(armorHit?.started);
+            assert.deepEqual(armorHit.startArgs, [0, 0, 1.3]);
 
             audio.play('EXPLOSION');
             const vehicleBlast = audio.ctx.bufferSources.find(

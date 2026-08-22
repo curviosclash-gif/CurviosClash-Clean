@@ -43,6 +43,15 @@ function playMgShoot(audio, options) {
 
 function playRocketShoot(audio, options) {
     const intensity = audio._intensity(options, 0.9, 0.25, 1.3);
+    const playedRecording = audio._playRecordedSample?.('rocketLaunch', {
+        duration: 1.9,
+        reservationDuration: 0.45,
+        peak: 0.34 * intensity,
+        playbackRate: 1,
+        filter: { type: 'highpass', frequency: 42, q: 0.55 },
+        options,
+    });
+    if (playedRecording) return;
     audio._playLayered([
         { type: 'sawtooth', startFreq: 240, endFreq: 64, duration: 0.26, peak: 0.3 * intensity, attack: 0.02 },
         { type: 'triangle', startFreq: 110, endFreq: 48, duration: 0.3, peak: 0.18 * intensity },
@@ -59,6 +68,15 @@ function playRocketShoot(audio, options) {
 
 function playHit(audio, options) {
     const intensity = audio._intensity(options, 0.9, 0.2, 1.4);
+    const playedRecording = audio._playRecordedSample?.('armorHit', {
+        duration: 1.3,
+        reservationDuration: 0.24,
+        peak: 0.3 * intensity,
+        playbackRate: 1,
+        filter: { type: 'highpass', frequency: 48, q: 0.5 },
+        options,
+    });
+    if (playedRecording) return;
     audio._playLayered([
         { type: 'sawtooth', startFreq: 210 * (0.9 + intensity * 0.15), endFreq: 48, duration: 0.11, peak: 0.42 * intensity, attack: 0.004 },
         { type: 'triangle', startFreq: 320, endFreq: 80, duration: 0.09, peak: 0.18 * intensity },

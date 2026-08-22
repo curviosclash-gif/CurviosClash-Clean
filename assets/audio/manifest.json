@@ -49,6 +49,20 @@
       "sha256": "f2e87e3f40df77036c4a30cbe04dbb3254daa80012c3b1645da8a8a8c80803da"
     },
     {
+      "id": "rocket-launch-heavy",
+      "file": "sfx/rocket-launch-heavy.wav",
+      "license": "project-original",
+      "source": "src/core/audio/GameplayVoices.js",
+      "sha256": "87dc0f653546bfaaa9a346853b1776d46cf7a90526311cb07963221b79c2a4aa"
+    },
+    {
+      "id": "armor-hit-break",
+      "file": "sfx/armor-hit-break.wav",
+      "license": "project-original",
+      "source": "src/core/audio/GameplayVoices.js",
+      "sha256": "d4a12a627746febeb39437b96d04b82a68c2852e1f88640252c251712eee99c2"
+    },
+    {
       "id": "explosion-heavy",
       "file": "sfx/explosion-heavy.mp3",
       "author": "SamsterBirdies",
