@@ -163,6 +163,12 @@ export class ArcadeModeStrategy extends GameModeContract {
     }
 
     // 61.8.1: Apply vehicle upgrade slot bonuses (turning, speed, max HP)
+    // Hangar-Boni gehoeren dem Piloten, der sie gekauft hat. Die Strategie haelt sie
+    // fuer das ganze Match, also muss jede Anwendung fragen, wen sie vor sich hat --
+    // sonst fliegen die Gegner mit derselben Aufruestung. Ohne bekannten Spieler
+    // bleibt es beim alten Verhalten, damit vorhandene Aufrufer weiter funktionieren.
+    _upgradeBonusesFor(player) { return player?.isBot === true ? NULL_SLOT_BONUSES : this._slotBonuses; }
+
     applyVehicleUpgrades(bonuses) {
         if (!bonuses || typeof bonuses !== 'object') {
             this._slotBonuses = NULL_SLOT_BONUSES;
@@ -296,7 +302,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         if (this._huntCombat) return this._huntCombat.resetPlayerHealth(player);
         if (!player) return null;
         // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of base
-        const hpBonus = Math.min(DEFAULT_MAX_HP * (UPGRADE_STAT_CAP_PCT / 100), Math.max(0, this._slotBonuses.maxHpBonus));
+        const hpBonus = Math.min(DEFAULT_MAX_HP * (UPGRADE_STAT_CAP_PCT / 100), Math.max(0, this._upgradeBonusesFor(player).maxHpBonus));
         player.maxHp = DEFAULT_MAX_HP + hpBonus + this._runRewardEffects.maxHpBonus;
         player.hp = player.maxHp;
         player.maxShieldHp = DEFAULT_SHIELD_HP;
@@ -456,17 +462,17 @@ export class ArcadeModeStrategy extends GameModeContract {
     // 61.4.1: tight_turns — multiplier applied to turn rate
     // 61.6.2: Also aggregates SD stacked modifier effects
     // 61.8.1: T2 Wing adds +10% turning on top of modifier; 82.8.4: capped at +50%
-    getTurnRateMultiplier() {
+    getTurnRateMultiplier(player = null) {
         const fx = this._getAggregatedModifierEffects();
         const modifierMultiplier = (fx && fx.turnRateMultiplier) ? fx.turnRateMultiplier : 1.0;
-        const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._slotBonuses.turningBonusPct);
+        const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._upgradeBonusesFor(player).turningBonusPct);
         const upgradeMultiplier = 1.0 + (cappedPct / 100);
         return modifierMultiplier * upgradeMultiplier;
     }
 
     // 61.8.1: T2 Engine adds +8% speed; 82.8.4: capped at +50%
-    getSpeedMultiplier() {
-        const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._slotBonuses.speedBonusPct);
+    getSpeedMultiplier(player = null) {
+        const cappedPct = Math.min(UPGRADE_STAT_CAP_PCT, this._upgradeBonusesFor(player).speedBonusPct);
         const upgradeMultiplier = 1.0 + (cappedPct / 100);
         const rewardMultiplier = 1.0 + (this._runRewardEffects.speedBonusPct / 100);
         return upgradeMultiplier * rewardMultiplier;
@@ -476,7 +482,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     applySpawnStatBonuses(player) {
         if (this._huntCombat) return this._huntCombat.applySpawnStatBonuses(player);
         if (!player) return;
-        const speedMult = this.getSpeedMultiplier();
+        const speedMult = this.getSpeedMultiplier(player);
         if (!Number.isFinite(player._arcadeBaseSpeed)) player._arcadeBaseSpeed = player.baseSpeed;
         player.baseSpeed = player._arcadeBaseSpeed * speedMult;
         player.speed = player.baseSpeed;
