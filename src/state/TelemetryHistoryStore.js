@@ -75,9 +75,69 @@ function mergeItemUseTypeCounts(target, source) {
     });
 }
 
+function normalizeStringArray(source, maxEntries = 8) {
+    if (!Array.isArray(source)) return [];
+    return source
+        .map((entry) => sanitizeString(entry, ''))
+        .filter(Boolean)
+        .slice(0, maxEntries);
+}
+
+function normalizePerformance(source = null) {
+    const value = source && typeof source === 'object' ? source : {};
+    return {
+        sampleCount: toNonNegativeInt(value.sampleCount, 0),
+        frameAvgMs: toNonNegativeNumber(value.frameAvgMs ?? value.frameMs?.avg, 0),
+        frameP95Ms: toNonNegativeNumber(value.frameP95Ms ?? value.frameMs?.p95, 0),
+        frameP99Ms: toNonNegativeNumber(value.frameP99Ms ?? value.frameMs?.p99, 0),
+        frameMaxMs: toNonNegativeNumber(value.frameMaxMs ?? value.frameMs?.max, 0),
+        spikeCount: toNonNegativeInt(value.spikeCount ?? value.spikes?.recent, 0),
+        subsystems: value.subsystems && typeof value.subsystems === 'object'
+            ? Object.fromEntries(Object.entries(value.subsystems).slice(0, 16).map(([key, metric]) => [
+                sanitizeString(key, 'unknown'),
+                toNonNegativeNumber(metric?.avg ?? metric, 0),
+            ]))
+            : {},
+    };
+}
+
+function normalizeArcadeTelemetry(source = null) {
+    const value = source && typeof source === 'object' ? source : {};
+    const lastSector = value.lastSector && typeof value.lastSector === 'object' ? value.lastSector : null;
+    const run = value.run && typeof value.run === 'object' ? value.run : null;
+    return {
+        enabled: value.enabled === true,
+        runId: sanitizeString(value.runId, ''),
+        phase: sanitizeString(value.phase, ''),
+        currentMapKey: sanitizeString(value.currentMapKey, ''),
+        activeVehicleId: sanitizeString(value.activeVehicleId, ''),
+        lastSector: lastSector ? {
+            sectorIndex: toNonNegativeInt(lastSector.sectorIndex, 0),
+            modifierId: sanitizeString(lastSector.modifierId, ''),
+            awardedPoints: toNonNegativeNumber(lastSector.awardedPoints, 0),
+            comboAtSectorEnd: toNonNegativeInt(lastSector.comboAtSectorEnd, 0),
+            missionsCompleted: toNonNegativeInt(lastSector.missionsCompleted, 0),
+            missionsTotal: toNonNegativeInt(lastSector.missionsTotal, 0),
+            xpEarned: toNonNegativeNumber(lastSector.xpEarned, 0),
+        } : null,
+        run: run ? {
+            score: toNonNegativeNumber(run.score, 0),
+            peakMultiplier: toNonNegativeNumber(run.peakMultiplier, 1),
+            peakCombo: toNonNegativeInt(run.peakCombo, 0),
+            completedSectors: toNonNegativeInt(run.completedSectors, 0),
+            isDailyChallenge: run.isDailyChallenge === true,
+            aborted: run.aborted === true,
+            terminalReason: sanitizeString(run.terminalReason, ''),
+            rewardIds: normalizeStringArray(run.rewardIds, 32),
+        } : null,
+    };
+}
+
 function normalizeEntry(source) {
     const s = source && typeof source === 'object' ? source : {};
+    const context = s.context && typeof s.context === 'object' ? s.context : {};
     return {
+        telemetrySchemaVersion: sanitizeString(s.telemetrySchemaVersion, 'round-telemetry.v1'),
         at: sanitizeString(s.at, new Date().toISOString()),
         mapKey: sanitizeString(s.mapKey, 'unknown'),
         mode: sanitizeString(s.mode, 'classic'),
@@ -98,7 +158,40 @@ function normalizeEntry(source) {
         parcoursCompleted: s.parcoursCompleted === true,
         parcoursRouteId: sanitizeString(s.parcoursRouteId, ''),
         parcoursCompletionTimeMs: toNonNegativeNumber(s.parcoursCompletionTimeMs),
+        appVersion: sanitizeString(context.appVersion ?? s.appVersion, 'dev'),
+        buildId: sanitizeString(context.buildId ?? s.buildId, 'dev'),
+        mapRevision: sanitizeString(context.mapRevision ?? s.mapRevision, 'unknown'),
+        sessionType: sanitizeString(context.sessionType ?? s.sessionType, 'single'),
+        modePath: sanitizeString(context.modePath ?? s.modePath, ''),
+        platform: sanitizeString(context.platform ?? s.platform, 'unknown'),
+        graphicsQuality: sanitizeString(context.graphicsQuality ?? s.graphicsQuality, 'unknown'),
+        playerCount: toNonNegativeInt(context.playerCount ?? s.playerCount, 0),
+        humanCount: toNonNegativeInt(context.humanCount ?? s.humanCount, 0),
+        botCount: toNonNegativeInt(context.botCount ?? s.botCount, 0),
+        botDifficulty: sanitizeString(context.botDifficulty ?? s.botDifficulty, 'unknown'),
+        botPolicy: sanitizeString(context.botPolicy ?? s.botPolicy, 'unknown'),
+        vehicles: normalizeStringArray(context.vehicles ?? s.vehicles),
+        performance: normalizePerformance(s.performance),
+        arcade: normalizeArcadeTelemetry(s.arcade),
     };
+}
+
+function matchesFilters(entry, filters = null) {
+    const value = filters && typeof filters === 'object' ? filters : {};
+    const equalsIfSet = (actual, expected) => {
+        const normalized = sanitizeString(expected, '');
+        return !normalized || normalized === 'all' || actual === normalized;
+    };
+    if (!equalsIfSet(entry.buildId, value.buildId)) return false;
+    if (!equalsIfSet(entry.mapKey, value.mapKey)) return false;
+    if (!equalsIfSet(entry.mode, value.mode)) return false;
+    const sinceDays = toNonNegativeInt(value.sinceDays, 0);
+    if (sinceDays > 0) {
+        const timestamp = Date.parse(entry.at);
+        const cutoff = Date.now() - sinceDays * 24 * 60 * 60 * 1000;
+        if (!Number.isFinite(timestamp) || timestamp < cutoff) return false;
+    }
+    return true;
 }
 
 function isRetryableDbError(error) {
@@ -243,15 +336,15 @@ export class TelemetryHistoryStore {
         }), 0);
     }
 
-    async getSummary() {
+    async getEntries(filters = null) {
         return this._runWithDbRetry(async (db) => new Promise((resolve, reject) => {
             try {
                 const tx = db.transaction(STORE_NAME, 'readonly');
                 const store = tx.objectStore(STORE_NAME);
                 const req = store.getAll();
                 req.onsuccess = () => {
-                    const rows = req.result || [];
-                    resolve(this._computeSummary(rows));
+                    const rows = (req.result || []).map(normalizeEntry).filter((entry) => matchesFilters(entry, filters));
+                    resolve(rows);
                 };
                 req.onerror = () => reject(req.error || new Error('summary-failed'));
                 tx.onerror = () => reject(tx.error || new Error('summary-tx-failed'));
@@ -259,7 +352,15 @@ export class TelemetryHistoryStore {
             } catch (error) {
                 reject(error);
             }
-        }), this._emptySummary());
+        }), []);
+    }
+
+    async getSummary(filters = null) {
+        return this._computeSummary(await this.getEntries(filters));
+    }
+
+    summarizeEntries(rows = []) {
+        return this._computeSummary(Array.isArray(rows) ? rows : []);
     }
 
     _computeSummary(rows) {
@@ -281,6 +382,14 @@ export class TelemetryHistoryStore {
         let totalParcoursCompletionTimeMs = 0;
         const mapCounts = {};
         const modeCounts = {};
+        const buildCounts = {};
+        let performanceRounds = 0;
+        let totalFrameP95Ms = 0;
+        let totalFrameP99Ms = 0;
+        let totalFrameSpikes = 0;
+        let arcadeSectors = 0;
+        let arcadeMissionsCompleted = 0;
+        let arcadeMissionsTotal = 0;
 
         for (let i = 0; i < rows.length; i++) {
             const r = rows[i];
@@ -298,6 +407,17 @@ export class TelemetryHistoryStore {
             totalShieldAbsorb += toNonNegativeNumber(r.shieldAbsorb, 0);
             totalHpDamage += toNonNegativeNumber(r.hpDamage, 0);
             totalStuckEvents += toNonNegativeInt(r.stuckEvents);
+            if (toNonNegativeInt(r.performance?.sampleCount, 0) > 0) {
+                performanceRounds += 1;
+                totalFrameP95Ms += toNonNegativeNumber(r.performance?.frameP95Ms, 0);
+                totalFrameP99Ms += toNonNegativeNumber(r.performance?.frameP99Ms, 0);
+                totalFrameSpikes += toNonNegativeInt(r.performance?.spikeCount, 0);
+            }
+            if (r.arcade?.enabled === true && r.arcade?.lastSector) {
+                arcadeSectors += 1;
+                arcadeMissionsCompleted += toNonNegativeInt(r.arcade.lastSector.missionsCompleted, 0);
+                arcadeMissionsTotal += toNonNegativeInt(r.arcade.lastSector.missionsTotal, 0);
+            }
             if (r.parcoursCompleted === true) {
                 parcoursCompletions += 1;
                 totalParcoursCompletionTimeMs += toNonNegativeNumber(r.parcoursCompletionTimeMs);
@@ -310,6 +430,9 @@ export class TelemetryHistoryStore {
 
             const md = sanitizeString(r.mode, 'classic');
             modeCounts[md] = (modeCounts[md] || 0) + 1;
+
+            const buildId = sanitizeString(r.buildId, 'dev');
+            buildCounts[buildId] = (buildCounts[buildId] || 0) + 1;
         }
 
         const rounds = rows.length;
@@ -341,6 +464,15 @@ export class TelemetryHistoryStore {
                 : 0,
             topMaps: this._topEntries(mapCounts, 3),
             topModes: this._topEntries(modeCounts, 3),
+            topBuilds: this._topEntries(buildCounts, 5),
+            performanceRounds,
+            averageFrameP95Ms: performanceRounds > 0 ? totalFrameP95Ms / performanceRounds : 0,
+            averageFrameP99Ms: performanceRounds > 0 ? totalFrameP99Ms / performanceRounds : 0,
+            frameSpikesPerRound: performanceRounds > 0 ? totalFrameSpikes / performanceRounds : 0,
+            arcadeSectors,
+            arcadeMissionCompletionRate: arcadeMissionsTotal > 0
+                ? arcadeMissionsCompleted / arcadeMissionsTotal
+                : 0,
         };
     }
 
@@ -373,6 +505,13 @@ export class TelemetryHistoryStore {
             averageParcoursCompletionTimeMs: 0,
             topMaps: [],
             topModes: [],
+            topBuilds: [],
+            performanceRounds: 0,
+            averageFrameP95Ms: 0,
+            averageFrameP99Ms: 0,
+            frameSpikesPerRound: 0,
+            arcadeSectors: 0,
+            arcadeMissionCompletionRate: 0,
         };
     }
 

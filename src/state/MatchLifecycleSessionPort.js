@@ -137,6 +137,7 @@ export function createMatchSessionPort(runtime) {
             entityManager.resetKillcamFrameCapture?.();
             powerupManager.clear();
 
+            runtime?.runtimePerfProfiler?.beginTelemetryInterval?.();
             runtime?.recorder?.startRound?.(entityManager.players);
             entityManager.spawnAll();
             runtime?.recorder?.captureSnapshotNow?.(entityManager);

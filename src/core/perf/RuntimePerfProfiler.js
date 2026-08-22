@@ -7,6 +7,7 @@ const DEFAULT_STATS_WINDOW = 300;
 const DEFAULT_SPIKE_THRESHOLD_MS = 30;
 const DEFAULT_SPIKE_LOG_LIMIT = 64;
 const DEFAULT_SPIKE_LOG_COOLDOWN_MS = 1500;
+const TELEMETRY_HISTOGRAM_MAX_MS = 1000;
 
 const SUBSYSTEM_IDS = Object.freeze([
     'update',
@@ -83,6 +84,14 @@ export class RuntimePerfProfiler {
         this._frameTimesMs = new Float32Array(this.bufferSize);
         this._subsystemBuffers = SUBSYSTEM_IDS.map(() => new Float32Array(this.bufferSize));
         this._currentFrameSubsystemMs = new Float32Array(SUBSYSTEM_IDS.length);
+        this._telemetryHistogram = new Uint32Array(TELEMETRY_HISTOGRAM_MAX_MS + 1);
+        this._telemetrySubsystemTotals = new Float64Array(SUBSYSTEM_IDS.length);
+        this._telemetryIntervalActive = false;
+        this._telemetrySampleCount = 0;
+        this._telemetryFrameSumMs = 0;
+        this._telemetryFrameMinMs = Number.POSITIVE_INFINITY;
+        this._telemetryFrameMaxMs = 0;
+        this._telemetrySpikeCount = 0;
 
         this._writeIndex = 0;
         this._sampleCount = 0;
@@ -96,6 +105,58 @@ export class RuntimePerfProfiler {
         this._currentFrameBotSensing = createBotSensingDetailState();
         this._lastSpikeLogTimestampMs = -Infinity;
         this._suppressedSpikeLogs = 0;
+        this._resetTelemetryInterval(false);
+    }
+
+    _resetTelemetryInterval(active) {
+        this._telemetryHistogram.fill(0);
+        this._telemetrySubsystemTotals.fill(0);
+        this._telemetryIntervalActive = active === true;
+        this._telemetrySampleCount = 0;
+        this._telemetryFrameSumMs = 0;
+        this._telemetryFrameMinMs = Number.POSITIVE_INFINITY;
+        this._telemetryFrameMaxMs = 0;
+        this._telemetrySpikeCount = 0;
+    }
+
+    beginTelemetryInterval() {
+        this._resetTelemetryInterval(true);
+    }
+
+    _resolveTelemetryPercentile(ratio) {
+        if (this._telemetrySampleCount <= 0) return 0;
+        const target = Math.max(1, Math.ceil(this._telemetrySampleCount * ratio));
+        let seen = 0;
+        for (let i = 0; i < this._telemetryHistogram.length; i++) {
+            seen += this._telemetryHistogram[i];
+            if (seen >= target) return i;
+        }
+        return TELEMETRY_HISTOGRAM_MAX_MS;
+    }
+
+    getTelemetryIntervalSnapshot() {
+        const count = this._telemetrySampleCount;
+        const subsystems = {};
+        for (let i = 0; i < SUBSYSTEM_IDS.length; i++) {
+            subsystems[SUBSYSTEM_IDS[i]] = {
+                avg: count > 0 ? this._telemetrySubsystemTotals[i] / count : 0,
+            };
+        }
+        return {
+            sampleCount: count,
+            frameMs: {
+                avg: count > 0 ? this._telemetryFrameSumMs / count : 0,
+                min: count > 0 && Number.isFinite(this._telemetryFrameMinMs) ? this._telemetryFrameMinMs : 0,
+                max: count > 0 ? this._telemetryFrameMaxMs : 0,
+                p95: this._resolveTelemetryPercentile(0.95),
+                p99: this._resolveTelemetryPercentile(0.99),
+            },
+            spikes: {
+                thresholdMs: this.spikeThresholdMs,
+                recent: this._telemetrySpikeCount,
+            },
+            subsystems,
+        };
     }
 
     getSubsystemIds() {
@@ -205,6 +266,22 @@ export class RuntimePerfProfiler {
         this._sampleCount = Math.min(this.bufferSize, this._sampleCount + 1);
         this._frameActive = false;
         this._lastFrameTimestampMs = resolvedTimestampMs;
+
+        if (this._telemetryIntervalActive) {
+            this._telemetrySampleCount += 1;
+            this._telemetryFrameSumMs += resolvedFrameTimeMs;
+            if (resolvedFrameTimeMs < this._telemetryFrameMinMs) this._telemetryFrameMinMs = resolvedFrameTimeMs;
+            if (resolvedFrameTimeMs > this._telemetryFrameMaxMs) this._telemetryFrameMaxMs = resolvedFrameTimeMs;
+            const histogramIndex = Math.max(0, Math.min(
+                TELEMETRY_HISTOGRAM_MAX_MS,
+                Math.round(resolvedFrameTimeMs)
+            ));
+            this._telemetryHistogram[histogramIndex] += 1;
+            for (let i = 0; i < this._telemetrySubsystemTotals.length; i++) {
+                this._telemetrySubsystemTotals[i] += this._currentFrameSubsystemMs[i];
+            }
+            if (resolvedFrameTimeMs >= this.spikeThresholdMs) this._telemetrySpikeCount += 1;
+        }
 
         if (resolvedFrameTimeMs >= this.spikeThresholdMs) {
             this._spikeCountTotal += 1;

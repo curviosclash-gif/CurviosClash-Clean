@@ -57,7 +57,11 @@ export class GameRuntimeMenuActionHandler {
             this._facade?._recordMenuTelemetry?.('backtrack', { fromPanelId, trigger });
         }
         if (fromPanelId === 'submenu-game' && trigger !== 'level4_close') {
-            this._facade?._recordMenuTelemetry?.('abort', { fromPanelId, trigger });
+            this._facade?._recordMenuTelemetry?.('abort', {
+                fromPanelId,
+                trigger,
+                reason: trigger || 'menu_navigation',
+            });
         }
     }
 

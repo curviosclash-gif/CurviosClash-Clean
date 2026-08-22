@@ -7,6 +7,7 @@ import {
     normalizeAuthoringTelemetryTool,
 } from '../shared/contracts/AuthoringTelemetryContract.js';
 import { AuthoringTelemetryStore } from './AuthoringTelemetryStore.js';
+import { TelemetryPreferencesStore } from '../shared/telemetry/TelemetryPreferencesStore.js';
 
 const COUNTERS = new Set(AUTHORING_TELEMETRY_COUNTERS);
 const OUTCOMES = new Set(AUTHORING_TELEMETRY_OUTCOMES);
@@ -72,6 +73,7 @@ export class AuthoringTelemetrySession {
     constructor(options = {}) {
         this.tool = normalizeAuthoringTelemetryTool(options.tool);
         this.store = options.store || new AuthoringTelemetryStore({ runtimeGlobal: options.runtimeGlobal });
+        this.preferencesStore = options.preferencesStore || new TelemetryPreferencesStore({ runtimeGlobal: options.runtimeGlobal });
         this.runtimeGlobal = options.runtimeGlobal || globalThis;
         this.documentRef = options.documentRef || this.runtimeGlobal?.document || null;
         this.now = typeof options.now === 'function' ? options.now : () => Date.now();
@@ -95,13 +97,19 @@ export class AuthoringTelemetrySession {
         this._onPageHide = () => this.end({ completed: this.outcomes.completed === true });
         this.documentRef?.addEventListener?.('visibilitychange', this._onVisibilityChange);
         this.runtimeGlobal?.addEventListener?.('pagehide', this._onPageHide, { once: true });
-        this._emitLifecycle('started', {
-            startedAt: new Date(this.startedAtMs).toISOString(),
-        });
+        if (this._isCollectionEnabled()) {
+            this._emitLifecycle('started', {
+                startedAt: new Date(this.startedAtMs).toISOString(),
+            });
+        }
+    }
+
+    _isCollectionEnabled() {
+        return this.preferencesStore?.isCollectionEnabled?.() !== false;
     }
 
     _emitLifecycle(event, data = {}) {
-        if (!this.lifecycleSink || !this.tool) return false;
+        if (!this.lifecycleSink || !this.tool || !this._isCollectionEnabled()) return false;
         try {
             return this.lifecycleSink({
                 schemaVersion: LOCAL_WORKFLOW_SCHEMA_VERSION,
@@ -136,14 +144,14 @@ export class AuthoringTelemetrySession {
     }
 
     recordCounter(code, count = 1) {
-        if (this.ended || !COUNTERS.has(code)) return false;
+        if (this.ended || !this._isCollectionEnabled() || !COUNTERS.has(code)) return false;
         increment(this.counters, code, count);
         increment(this.pendingCounters, code, count);
         return true;
     }
 
     recordOutcome(code, passed = true, { flush = false } = {}) {
-        if (this.ended || !OUTCOMES.has(code)) return false;
+        if (this.ended || !this._isCollectionEnabled() || !OUTCOMES.has(code)) return false;
         this.outcomes[code] = passed === true;
         increment(this.pendingOutcomes, code, passed === true ? 1 : 0);
         if (passed === true && COMPLETION_OUTCOMES.has(code) && this.outcomes.completed !== true) {
@@ -155,7 +163,7 @@ export class AuthoringTelemetrySession {
     }
 
     recordError(code, count = 1, { flush = true } = {}) {
-        if (this.ended || !ERRORS.has(code)) return false;
+        if (this.ended || !this._isCollectionEnabled() || !ERRORS.has(code)) return false;
         increment(this.errors, code, count);
         increment(this.pendingErrors, code, count);
         if (flush) this.flush();
@@ -163,7 +171,7 @@ export class AuthoringTelemetrySession {
     }
 
     flush() {
-        if (this.ended || !this.tool) return false;
+        if (this.ended || !this.tool || !this._isCollectionEnabled()) return false;
         this._captureActiveDuration();
         const delta = {
             durationActiveMs: this.pendingDurationMs,
@@ -189,6 +197,12 @@ export class AuthoringTelemetrySession {
 
     end({ completed = false } = {}) {
         if (this.ended || !this.tool) return false;
+        if (!this._isCollectionEnabled()) {
+            this.ended = true;
+            this.documentRef?.removeEventListener?.('visibilitychange', this._onVisibilityChange);
+            this.runtimeGlobal?.removeEventListener?.('pagehide', this._onPageHide);
+            return false;
+        }
         if (completed && this.outcomes.completed !== true) this.recordOutcome('completed', true);
         this._captureActiveDuration();
         this.flush();

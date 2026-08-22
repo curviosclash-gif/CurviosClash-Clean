@@ -1,3 +1,5 @@
+import { setupMenuTelemetryControls } from './MenuDeveloperStateSync.js';
+
 export function setupMenuDevPanelBindings(ctx) {
     const ui = ctx.ui;
     const emit = ctx.emit;
@@ -144,5 +146,7 @@ export function setupMenuDevPanelBindings(ctx) {
             });
         });
     }
+
+    setupMenuTelemetryControls(ctx);
 
 }

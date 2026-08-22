@@ -1224,6 +1224,32 @@
                             <p class="debug-hint">Drücke <kbd>O</kbd> im Spiel für FPS-Overlay</p>
                             <p class="debug-hint">Drücke <kbd>P</kbd> im Spiel für Grafik-Toggle</p>
                         </div>
+                        <section id="developer-telemetry-panel" class="menu-section developer-telemetry-panel" aria-labelledby="developer-telemetry-title">
+                            <h2 id="developer-telemetry-title" class="section-title">Lokale Telemetrie</h2>
+                            <label class="developer-telemetry-consent">
+                                <input type="checkbox" id="telemetry-collection-toggle" checked>
+                                Anonyme lokale Telemetrie erfassen
+                            </label>
+                            <p class="debug-hint">Bleibt auf diesem Gerät. Keine Übertragung an externe Dienste.</p>
+                            <div class="developer-telemetry-filters" aria-label="Telemetrie filtern">
+                                <label>Build<select id="telemetry-filter-build"><option value="">Alle</option></select></label>
+                                <label>Map<select id="telemetry-filter-map"><option value="">Alle</option></select></label>
+                                <label>Modus<select id="telemetry-filter-mode"><option value="">Alle</option></select></label>
+                                <label>Zeitraum<select id="telemetry-filter-period"><option value="">Gesamt</option><option value="1">24 Stunden</option><option value="7">7 Tage</option><option value="30">30 Tage</option></select></label>
+                            </div>
+                            <div class="developer-telemetry-actions">
+                                <button type="button" id="btn-telemetry-refresh" class="secondary-btn">Aktualisieren</button>
+                                <button type="button" id="btn-telemetry-export-json" class="secondary-btn">JSON exportieren</button>
+                                <button type="button" id="btn-telemetry-export-csv" class="secondary-btn">CSV exportieren</button>
+                                <button type="button" id="btn-telemetry-reset" class="secondary-btn">Daten zurücksetzen</button>
+                            </div>
+                            <p id="telemetry-status" class="debug-hint" role="status" aria-live="polite"></p>
+                            <div id="developer-telemetry-dashboard" class="developer-telemetry-dashboard"></div>
+                            <details>
+                                <summary>Rohdaten</summary>
+                                <pre id="developer-telemetry-output" class="developer-telemetry-output">Keine Telemetrie vorhanden.</pre>
+                            </details>
+                        </section>
                     </div>
                 </div>
 

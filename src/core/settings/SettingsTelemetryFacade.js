@@ -136,7 +136,67 @@ function normalizeTelemetryRecentRounds(source) {
             parcoursCompleted: entry?.parcoursCompleted === true,
             parcoursRouteId: sanitizeTelemetryKey(entry?.parcoursRouteId, ''),
             parcoursCompletionTimeMs: toNonNegativeNumber(entry?.parcoursCompletionTimeMs, 0),
+            telemetrySchemaVersion: sanitizeTelemetryKey(entry?.telemetrySchemaVersion, 'round-telemetry.v1'),
+            appVersion: sanitizeTelemetryKey(entry?.appVersion, 'dev'),
+            buildId: sanitizeTelemetryKey(entry?.buildId, 'dev'),
+            mapRevision: sanitizeTelemetryKey(entry?.mapRevision, 'unknown'),
+            performance: entry?.performance && typeof entry.performance === 'object'
+                ? { ...entry.performance }
+                : null,
+            arcade: entry?.arcade && typeof entry.arcade === 'object'
+                ? { ...entry.arcade }
+                : null,
         }));
+}
+
+function normalizeCountMap(source = null) {
+    const normalized = {};
+    if (!source || typeof source !== 'object' || Array.isArray(source)) return normalized;
+    Object.entries(source).forEach(([key, value]) => {
+        const normalizedKey = sanitizeTelemetryKey(key, '');
+        if (normalizedKey) normalized[normalizedKey] = toNonNegativeInt(value, 0);
+    });
+    return normalized;
+}
+
+function normalizeFunnelSnapshot(source = null) {
+    const value = source && typeof source === 'object' ? source : {};
+    const eventCounts = normalizeCountMap(value.eventCounts);
+    const attempts = toNonNegativeInt(eventCounts.start_attempt, 0);
+    const rounds = toNonNegativeInt(eventCounts.round_end, 0);
+    const matches = toNonNegativeInt(eventCounts.match_end, 0);
+    const aborts = toNonNegativeInt(eventCounts.abort, 0);
+    return {
+        eventCounts,
+        abortReasonCounts: normalizeCountMap(value.abortReasonCounts),
+        quickStartVariantCounts: normalizeCountMap(value.quickStartVariantCounts),
+        sessionTypeCounts: normalizeCountMap(value.sessionTypeCounts),
+        startToRoundRate: attempts > 0 ? Math.min(1, rounds / attempts) : 0,
+        startToMatchRate: attempts > 0 ? Math.min(1, matches / attempts) : 0,
+        abortRate: attempts > 0 ? Math.min(1, aborts / attempts) : 0,
+    };
+}
+
+function normalizeArcadeSnapshot(source = null) {
+    const value = source && typeof source === 'object' ? source : {};
+    const runs = toNonNegativeInt(value.runs, 0);
+    const sectors = toNonNegativeInt(value.sectors, 0);
+    const missionsTotal = toNonNegativeInt(value.missionsTotal, 0);
+    return {
+        sectors,
+        runs,
+        abortedRuns: toNonNegativeInt(value.abortedRuns, 0),
+        dailyRuns: toNonNegativeInt(value.dailyRuns, 0),
+        averageScore: runs > 0 ? toNonNegativeNumber(value.totalScore, 0) / runs : 0,
+        averagePeakCombo: runs > 0 ? toNonNegativeNumber(value.totalPeakCombo, 0) / runs : 0,
+        averagePeakMultiplier: runs > 0 ? toNonNegativeNumber(value.totalPeakMultiplier, 0) / runs : 0,
+        averageCompletedSectors: runs > 0 ? toNonNegativeInt(value.totalCompletedSectors, 0) / runs : 0,
+        missionCompletionRate: missionsTotal > 0 ? toNonNegativeInt(value.missionsCompleted, 0) / missionsTotal : 0,
+        totalXpEarned: toNonNegativeNumber(value.totalXpEarned, 0),
+        rewardChoiceCounts: normalizeCountMap(value.rewardChoiceCounts),
+        modifierCounts: normalizeCountMap(value.modifierCounts),
+        terminalReasonCounts: normalizeCountMap(value.terminalReasonCounts),
+    };
 }
 
 export function normalizeTelemetrySnapshot(snapshot) {
@@ -166,6 +226,8 @@ export function normalizeTelemetrySnapshot(snapshot) {
         quickStartCount: toNonNegativeInt(source.quickStartCount, 0),
         startAttempts: toNonNegativeInt(source.startAttempts, 0),
         lastEvents: Array.isArray(source.events) ? source.events.slice(-15) : [],
+        funnel: normalizeFunnelSnapshot(source.funnelSummary),
+        arcade: normalizeArcadeSnapshot(source.arcadeSummary),
         balance: {
             rounds,
             matches,
@@ -203,6 +265,8 @@ export function normalizeTelemetrySnapshot(snapshot) {
 export function createSettingsTelemetryFacade(options = {}) {
     const menuTelemetryStore = options.menuTelemetryStore;
     const telemetryHistoryStore = options.telemetryHistoryStore;
+    const authoringTelemetryStore = options.authoringTelemetryStore;
+    const telemetryPreferencesStore = options.telemetryPreferencesStore;
 
     function getMenuTelemetrySnapshot(settings = null) {
         const snapshot = normalizeTelemetrySnapshot(menuTelemetryStore.getSnapshot());
@@ -226,20 +290,74 @@ export function createSettingsTelemetryFacade(options = {}) {
             };
         }
         const normalizedType = typeof eventType === 'string' ? eventType.trim().toLowerCase() : '';
-        if (normalizedType === 'round_end' && payload && telemetryHistoryStore?.recordRound) {
+        if (
+            normalizedType === 'round_end'
+            && payload
+            && telemetryPreferencesStore?.isCollectionEnabled?.() !== false
+            && telemetryHistoryStore?.recordRound
+        ) {
             telemetryHistoryStore.recordRound(payload).catch(() => {});
         }
         return snapshot;
     }
 
-    function getTelemetryHistorySummary() {
+    function getTelemetryHistorySummary(filters = null) {
         if (!telemetryHistoryStore?.getSummary) return {};
-        return telemetryHistoryStore.getSummary();
+        return telemetryHistoryStore.getSummary(filters);
+    }
+
+    function getTelemetryPreferences() {
+        return telemetryPreferencesStore?.getSnapshot?.() || { collectionEnabled: true };
+    }
+
+    function setTelemetryCollectionEnabled(enabled) {
+        return telemetryPreferencesStore?.setCollectionEnabled?.(enabled)
+            || { collectionEnabled: enabled === true, saved: false };
+    }
+
+    async function getTelemetryExportSnapshot(filters = null) {
+        const historyEntries = telemetryHistoryStore?.getEntries
+            ? await telemetryHistoryStore.getEntries(filters)
+            : [];
+        const historySummary = telemetryHistoryStore?.summarizeEntries
+            ? telemetryHistoryStore.summarizeEntries(historyEntries)
+            : {};
+        return {
+            schemaVersion: 'curviosclash-telemetry-export.v1',
+            exportedAt: new Date().toISOString(),
+            filters: filters && typeof filters === 'object' ? { ...filters } : {},
+            preferences: getTelemetryPreferences(),
+            gameplay: getMenuTelemetrySnapshot(),
+            historySummary,
+            historyEntries,
+            authoring: authoringTelemetryStore?.getSnapshot?.() || null,
+        };
+    }
+
+    async function clearTelemetry(settings = null) {
+        const gameplay = menuTelemetryStore?.clear?.();
+        const normalizedGameplay = normalizeTelemetrySnapshot(gameplay);
+        if (settings && typeof settings === 'object') {
+            ensureMenuContractState(settings);
+            settings.localSettings.telemetryState = normalizedGameplay;
+        }
+        const authoringCleared = authoringTelemetryStore?.clear?.() !== false;
+        const historyCleared = telemetryHistoryStore?.clear ? await telemetryHistoryStore.clear() : true;
+        return {
+            ok: authoringCleared && historyCleared,
+            gameplay: normalizedGameplay,
+            authoringCleared,
+            historyCleared,
+        };
     }
 
     return {
         getMenuTelemetrySnapshot,
         recordMenuTelemetry,
         getTelemetryHistorySummary,
+        getTelemetryPreferences,
+        setTelemetryCollectionEnabled,
+        getTelemetryExportSnapshot,
+        clearTelemetry,
     };
 }

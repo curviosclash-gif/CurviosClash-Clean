@@ -9,10 +9,7 @@ import {
 } from '../../state/arcade/ArcadeRunState.js';
 import { applyArcadeComboDecay, applyArcadeSectorScore, applyComboAction, buildArcadeRunSummary } from '../../state/arcade/ArcadeScoreOps.js';
 import { createArcadeDailyProjection, mergeArcadeDailyRunRecords } from '../../state/arcade/ArcadeDailyState.js';
-import {
-    resolveMapSequence,
-    getMapKeyForSector,
-} from '../../state/arcade/ArcadeMapProgression.js';
+import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
     loadVehicleProfiles,
@@ -41,6 +38,7 @@ import {
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { ArcadeRunPersistenceScheduler } from './ArcadeRunPersistenceScheduler.js';
+import { createArcadeTelemetrySnapshot } from './ArcadeTelemetrySnapshot.js';
 import { applyArcadeIntermissionEffects, captureArcadeHumanVitals, syncArcadeRunRewardEffects } from './ArcadeIntermissionEffects.js';
 import { applyArcadeMasteryScoreBonus, syncArcadeMasteryPerks } from './ArcadeMasteryPerkRuntimeOps.js';
 import { assignArcadeSectorRuntimeState, updateArcadeObjectiveRuntimeState } from './ArcadeObjectiveRuntimeOps.js';
@@ -491,6 +489,8 @@ export class ArcadeRunRuntime {
         if (!summary || typeof summary !== 'object') return null;
         return JSON.parse(JSON.stringify(summary));
     }
+
+    getTelemetrySnapshot(terminalReason = '') { return createArcadeTelemetrySnapshot({ enabled: this._enabled, state: this._state, activeVehicleId: this._activeVehicleId, terminalReason }); }
 
     getReplayState() {
         const replay = this._state?.replay && typeof this._state.replay === 'object'

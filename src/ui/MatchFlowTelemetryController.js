@@ -12,6 +12,58 @@ function normalizeTelemetryString(value, fallback = 'unknown') {
     return normalized || fallback;
 }
 
+function resolvePlatformLabel(game) {
+    const productSurfaceId = game?.uiManager?.resolveSurfacePolicy?.(game?.settings)?.productSurfaceId
+        || game?.uiManager?._runtimeFeatureFlags?.surfacePolicy?.productSurfaceId;
+    if (productSurfaceId) return normalizeTelemetryString(productSurfaceId, 'unknown');
+    if (typeof navigator !== 'undefined') {
+        return normalizeTelemetryString(navigator.userAgentData?.platform || navigator.platform, 'browser');
+    }
+    return 'unknown';
+}
+
+function buildTelemetryContext(game) {
+    const runtimeConfig = game?.runtimeConfig || {};
+    const session = runtimeConfig.session || {};
+    const players = Array.isArray(game?.entityManager?.players) ? game.entityManager.players : [];
+    const vehicles = Object.values(runtimeConfig.player?.vehicles || {})
+        .map((value) => normalizeTelemetryString(value, ''))
+        .filter(Boolean);
+    const buildInfo = game?.buildInfoController || {};
+    return {
+        appVersion: normalizeTelemetryString(buildInfo.appVersion, 'dev'),
+        buildId: normalizeTelemetryString(buildInfo.buildId, 'dev'),
+        mapRevision: normalizeTelemetryString(game?.arena?.getTelemetryMapRevision?.(), 'unknown'),
+        sessionType: normalizeTelemetryString(session.sessionType, 'single'),
+        modePath: normalizeTelemetryString(session.modePath || game?.settings?.localSettings?.modePath, 'normal'),
+        platform: resolvePlatformLabel(game),
+        graphicsQuality: normalizeTelemetryString(game?.renderer?.getQualityState?.()?.effectiveQuality, 'unknown'),
+        playerCount: players.length,
+        humanCount: players.reduce((count, player) => count + (player?.isBot === true ? 0 : 1), 0),
+        botCount: players.reduce((count, player) => count + (player?.isBot === true ? 1 : 0), 0),
+        botDifficulty: normalizeTelemetryString(runtimeConfig.bot?.activeDifficulty, 'unknown'),
+        botPolicy: normalizeTelemetryString(runtimeConfig.bot?.policyType || runtimeConfig.bot?.policyStrategy, 'unknown'),
+        vehicles: [...new Set(vehicles)].slice(0, 8),
+    };
+}
+
+function buildPerformanceTelemetry(game) {
+    const snapshot = game?.runtimePerfProfiler?.getTelemetryIntervalSnapshot?.();
+    if (!snapshot || typeof snapshot !== 'object') return null;
+    return {
+        sampleCount: Math.max(0, Number(snapshot.sampleCount) || 0),
+        frameAvgMs: Math.max(0, Number(snapshot.frameMs?.avg) || 0),
+        frameP95Ms: Math.max(0, Number(snapshot.frameMs?.p95) || 0),
+        frameP99Ms: Math.max(0, Number(snapshot.frameMs?.p99) || 0),
+        frameMaxMs: Math.max(0, Number(snapshot.frameMs?.max) || 0),
+        spikeCount: Math.max(0, Number(snapshot.spikes?.recent) || 0),
+        subsystems: Object.fromEntries(Object.entries(snapshot.subsystems || {}).map(([id, metric]) => [
+            id,
+            Math.max(0, Number(metric?.avg) || 0),
+        ])),
+    };
+}
+
 function collectHumanPlayerIndices(players) {
     const humanIndices = new Set();
     if (!Array.isArray(players)) return humanIndices;
@@ -179,6 +231,9 @@ export class MatchFlowTelemetryController {
         const kills = sumHumanScoreboardKills(scoreboardRows, humanPlayers);
 
         return {
+            telemetrySchemaVersion: 'round-telemetry.v2',
+            context: buildTelemetryContext(game),
+            performance: buildPerformanceTelemetry(game),
             mapKey: normalizeTelemetryString(game?.arena?.currentMapKey || game?.mapKey, 'standard'),
             mode: normalizeTelemetryString(game?.activeGameMode || game?.runtimeConfig?.session?.activeGameMode, 'classic').toLowerCase(),
             state: normalizeGameStateId(roundEndPlan?.outcome?.state, GAME_STATE_IDS.ROUND_END),

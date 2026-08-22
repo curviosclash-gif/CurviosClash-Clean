@@ -405,15 +405,21 @@ export class GameRuntimeArcadeSupport {
 
     recordRoundEndTelemetry(payload = null, { recordMenuTelemetry = null } = {}) {
         this.arcadeRunRuntime.handleRoundEndTelemetry(payload);
+        const enrichedPayload = payload && typeof payload === 'object'
+            ? { ...payload, arcade: this.arcadeRunRuntime.getTelemetrySnapshot?.(payload.reason) || null }
+            : payload;
         return typeof recordMenuTelemetry === 'function'
-            ? recordMenuTelemetry('round_end', payload)
+            ? recordMenuTelemetry('round_end', enrichedPayload)
             : undefined;
     }
 
     recordMatchEndTelemetry(payload = null, { recordMenuTelemetry = null } = {}) {
         this.arcadeRunRuntime.handleMatchEndTelemetry(payload);
+        const enrichedPayload = payload && typeof payload === 'object'
+            ? { ...payload, arcade: this.arcadeRunRuntime.getTelemetrySnapshot?.(payload.reason) || null }
+            : payload;
         return typeof recordMenuTelemetry === 'function'
-            ? recordMenuTelemetry('match_end', payload)
+            ? recordMenuTelemetry('match_end', enrichedPayload)
             : undefined;
     }
 }

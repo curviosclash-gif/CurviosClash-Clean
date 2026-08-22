@@ -25,6 +25,13 @@ function formatDecimal(value) {
     return normalized.toFixed(1);
 }
 
+function topCountLabel(source = null) {
+    const entries = source && typeof source === 'object' ? Object.entries(source) : [];
+    if (entries.length === 0) return '-';
+    const [key, count] = entries.sort((left, right) => Number(right[1]) - Number(left[1]))[0];
+    return `${key} (${Math.max(0, Number(count) || 0)})`;
+}
+
 function clearContainer(container) {
     if (!container) return;
     container.replaceChildren();
@@ -149,7 +156,7 @@ function renderAuthoringTelemetry(container, snapshot = null) {
     container.appendChild(grid);
 }
 
-export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null, authoringTelemetrySnapshot = null) {
+export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null, authoringTelemetrySnapshot = null, historySummary = null) {
     if (!container) return;
     clearContainer(container);
 
@@ -190,10 +197,28 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     const modesCard = createCard(grid, 'modes', 'Top Modi');
     renderBucketRows(modesCard, snapshot.topModes, 'Noch keine Modi');
 
+    const funnel = snapshot.funnel || {};
+    const funnelCard = createCard(grid, 'funnel', 'Start-Funnel');
+    appendRow(funnelCard, 'funnel-attempts', 'Startversuche', String(Math.max(0, Number(funnel.eventCounts?.start_attempt) || 0)));
+    appendRow(funnelCard, 'funnel-round-rate', 'Start → Runde', formatPercent(funnel.startToRoundRate));
+    appendRow(funnelCard, 'funnel-match-rate', 'Start → Match', formatPercent(funnel.startToMatchRate));
+    appendRow(funnelCard, 'funnel-abort-rate', 'Abbruchrate', formatPercent(funnel.abortRate));
+    appendRow(funnelCard, 'funnel-abort-reason', 'Top-Abbruchgrund', topCountLabel(funnel.abortReasonCounts));
+
+    const arcade = snapshot.arcade || {};
+    const arcadeCard = createCard(grid, 'arcade', 'Arcade');
+    appendRow(arcadeCard, 'arcade-runs', 'Runs / Sektoren', `${Math.max(0, Number(arcade.runs) || 0)} / ${Math.max(0, Number(arcade.sectors) || 0)}`);
+    appendRow(arcadeCard, 'arcade-score', 'Ø Score', formatDecimal(arcade.averageScore));
+    appendRow(arcadeCard, 'arcade-combo', 'Ø Peak-Combo', formatDecimal(arcade.averagePeakCombo));
+    appendRow(arcadeCard, 'arcade-missions', 'Missionen', formatPercent(arcade.missionCompletionRate));
+    appendRow(arcadeCard, 'arcade-xp', 'XP gesamt', String(Math.round(Math.max(0, Number(arcade.totalXpEarned) || 0))));
+    appendRow(arcadeCard, 'arcade-reward', 'Top-Belohnung', topCountLabel(arcade.rewardChoiceCounts));
+
     container.appendChild(grid);
     renderTelemetryHeatmapSection(container, snapshot.topMaps);
     renderRecentRoundsCard(container, snapshot.recentRounds);
     renderAuthoringTelemetry(container, authoringTelemetrySnapshot);
+    renderTelemetryHistorySection(container, historySummary);
 }
 
 export function renderTelemetryHistorySection(container, historySummary) {
@@ -219,6 +244,10 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-items-r', 'Items/R', formatDecimal(historySummary.itemUsesPerRound));
     appendRow(list, 'history-parcours-rate', 'Parcours-Rate', formatPercent(historySummary.parcoursCompletionRate));
     appendRow(list, 'history-parcours-time', 'Parcours-Zeit', formatDurationMs(historySummary.averageParcoursCompletionTimeMs));
+    appendRow(list, 'history-frame-p95', 'Ø Frame p95', `${formatDecimal(historySummary.averageFrameP95Ms)} ms`);
+    appendRow(list, 'history-frame-p99', 'Ø Frame p99', `${formatDecimal(historySummary.averageFrameP99Ms)} ms`);
+    appendRow(list, 'history-frame-spikes', 'Spikes/Runde', formatDecimal(historySummary.frameSpikesPerRound));
+    appendRow(list, 'history-arcade-missions', 'Arcade-Missionen', formatPercent(historySummary.arcadeMissionCompletionRate));
 
     if (Array.isArray(historySummary.topMaps) && historySummary.topMaps.length > 0) {
         const mapsStr = historySummary.topMaps.map((m) => `${m.key}(${m.count})`).join(', ');
@@ -227,6 +256,10 @@ export function renderTelemetryHistorySection(container, historySummary) {
     if (Array.isArray(historySummary.topModes) && historySummary.topModes.length > 0) {
         const modesStr = historySummary.topModes.map((m) => `${m.key}(${m.count})`).join(', ');
         appendRow(list, 'history-top-modes', 'Top Modi', modesStr);
+    }
+    if (Array.isArray(historySummary.topBuilds) && historySummary.topBuilds.length > 0) {
+        const buildsStr = historySummary.topBuilds.map((entry) => `${entry.key}(${entry.count})`).join(', ');
+        appendRow(list, 'history-top-builds', 'Top Builds', buildsStr);
     }
 
     section.appendChild(list);

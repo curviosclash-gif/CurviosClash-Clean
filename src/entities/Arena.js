@@ -88,6 +88,14 @@ export class Arena {
         return this._glbAnimation.elapsedSeconds;
     }
 
+    getTelemetryMapRevision() {
+        const explicitRevision = this.currentMapDefinition?.revision
+            || this.currentMapDefinition?.version
+            || this.runtimeMapDefinition?.revision
+            || this.runtimeMapDefinition?.version;
+        return String(explicitRevision || this._lastBuildSignature || 'unknown').slice(0, 192);
+    }
+
     setGlbAnimationTracks(tracks) {
         this._glbAnimation.setTracks(tracks);
     }

@@ -9,6 +9,15 @@ import {
 } from '../StorageKeys.js';
 import { PersistentStore } from '../base/PersistentStore.js';
 import { resolveStorePlatformOptions, loadVersionedRecord } from '../base/PersistentStoreLoadUtils.js';
+import { TelemetryPreferencesStore } from '../../shared/telemetry/TelemetryPreferencesStore.js';
+import {
+    createDefaultArcadeSummary,
+    createDefaultFunnelSummary,
+    normalizeArcadeSummary,
+    normalizeFunnelSummary,
+    recordArcadeTelemetry,
+    recordFunnelTelemetry,
+} from './MenuTelemetryAggregateOps.js';
 
 const MENU_TELEMETRY_STORAGE_KEY = STORAGE_KEYS.menuTelemetry;
 const MENU_TELEMETRY_STORAGE_LEGACY_KEYS = LEGACY_STORAGE_KEYS.menuTelemetry;
@@ -201,6 +210,16 @@ function normalizeRecentRoundEntry(entry) {
         parcoursCompleted: source.parcoursCompleted === true,
         parcoursRouteId: sanitizeBucketKey(source.parcoursRouteId, ''),
         parcoursCompletionTimeMs: toNonNegativeNumber(source.parcoursCompletionTimeMs, 0),
+        telemetrySchemaVersion: sanitizeBucketKey(source.telemetrySchemaVersion, 'round-telemetry.v1'),
+        appVersion: sanitizeBucketKey(source.context?.appVersion, 'dev'),
+        buildId: sanitizeBucketKey(source.context?.buildId, 'dev'),
+        mapRevision: sanitizeBucketKey(source.context?.mapRevision, 'unknown'),
+        performance: source.performance && typeof source.performance === 'object'
+            ? { ...source.performance }
+            : null,
+        arcade: source.arcade && typeof source.arcade === 'object'
+            ? { ...source.arcade }
+            : null,
     };
 }
 
@@ -221,6 +240,8 @@ function createDefaultState() {
         startAttempts: 0,
         events: [],
         balanceSummary: createDefaultBalanceSummary(),
+        funnelSummary: createDefaultFunnelSummary(),
+        arcadeSummary: createDefaultArcadeSummary(),
         recentRounds: [],
     };
 }
@@ -235,6 +256,8 @@ function normalizeTelemetryState(source) {
         startAttempts: toNonNegativeInt(normalizedSource.startAttempts, 0),
         events: Array.isArray(normalizedSource.events) ? normalizedSource.events.slice(-MAX_EVENTS) : [],
         balanceSummary: normalizeBalanceSummary(normalizedSource.balanceSummary),
+        funnelSummary: normalizeFunnelSummary(normalizedSource.funnelSummary),
+        arcadeSummary: normalizeArcadeSummary(normalizedSource.arcadeSummary),
         recentRounds: Array.isArray(normalizedSource.recentRounds)
             ? normalizedSource.recentRounds.map((entry) => normalizeRecentRoundEntry(entry))
             : [],
@@ -247,6 +270,7 @@ export class MenuTelemetryStore extends PersistentStore {
             ...options,
             ...resolveStorePlatformOptions(options, MENU_TELEMETRY_STORAGE_KEY, MENU_TELEMETRY_STORAGE_LEGACY_KEYS),
         });
+        this.preferencesStore = options.preferencesStore || new TelemetryPreferencesStore(options);
     }
 
     _loadState() {
@@ -445,6 +469,7 @@ export class MenuTelemetryStore extends PersistentStore {
     }
 
     recordEvent(eventType, payload = null) {
+        if (this.preferencesStore?.isCollectionEnabled?.() === false) return this._loadState();
         const state = this._loadState();
         const normalizedEventType = sanitizeEventType(eventType);
         const recordedAt = new Date().toISOString();
@@ -454,6 +479,8 @@ export class MenuTelemetryStore extends PersistentStore {
         if (normalizedEventType === 'start_attempt') state.startAttempts += 1;
         if (normalizedEventType === 'round_end') this._recordRoundBalance(state, payload, recordedAt);
         if (normalizedEventType === 'match_end') this._recordMatchBalance(state, payload, recordedAt);
+        recordFunnelTelemetry(state, normalizedEventType, payload);
+        recordArcadeTelemetry(state, normalizedEventType, payload);
 
         state.events.push({
             type: normalizedEventType,

@@ -16,6 +16,7 @@ import {
 import { createRuntimeConfigSnapshot } from './RuntimeConfig.js';
 import { TelemetryHistoryStore } from '../state/TelemetryHistoryStore.js';
 import { AuthoringTelemetryStore } from '../state/AuthoringTelemetryStore.js';
+import { TelemetryPreferencesStore } from '../shared/telemetry/TelemetryPreferencesStore.js';
 import {
     cloneDefaultControlsSnapshot,
     createSettingsDefaultsPortForRuntime,
@@ -50,6 +51,7 @@ export class SettingsManager {
     #menuTelemetryStore;
     #authoringTelemetryStore;
     #telemetryHistoryStore;
+    #telemetryPreferencesStore;
 
     /**
      * @param {SettingsManagerOptions} [options]
@@ -88,7 +90,11 @@ export class SettingsManager {
                 ? desktopMenuTextOverrides.overrides
                 : null,
         });
-        this.#menuTelemetryStore = new MenuTelemetryStore(storeOptions);
+        this.#telemetryPreferencesStore = new TelemetryPreferencesStore(storeOptions);
+        this.#menuTelemetryStore = new MenuTelemetryStore({
+            ...storeOptions,
+            preferencesStore: this.#telemetryPreferencesStore,
+        });
         this.#authoringTelemetryStore = new AuthoringTelemetryStore(storeOptions);
         this.#telemetryHistoryStore = options.telemetryHistoryStore || new TelemetryHistoryStore();
     }
@@ -108,6 +114,8 @@ export class SettingsManager {
         this.telemetryFacade = createSettingsTelemetryFacade({
             menuTelemetryStore: this.#menuTelemetryStore,
             telemetryHistoryStore: this.#telemetryHistoryStore,
+            authoringTelemetryStore: this.#authoringTelemetryStore,
+            telemetryPreferencesStore: this.#telemetryPreferencesStore,
         });
         this.botPolicyFacade = createSettingsBotPolicyFacade();
     }
@@ -294,8 +302,24 @@ export class SettingsManager {
         return this.botPolicyFacade.setBotPolicyStrategy(settings, strategy);
     }
 
-    getTelemetryHistorySummary() {
-        return this.telemetryFacade.getTelemetryHistorySummary();
+    getTelemetryHistorySummary(filters = null) {
+        return this.telemetryFacade.getTelemetryHistorySummary(filters);
+    }
+
+    getTelemetryPreferences() {
+        return this.telemetryFacade.getTelemetryPreferences();
+    }
+
+    setTelemetryCollectionEnabled(enabled) {
+        return this.telemetryFacade.setTelemetryCollectionEnabled(enabled);
+    }
+
+    getTelemetryExportSnapshot(filters = null) {
+        return this.telemetryFacade.getTelemetryExportSnapshot(filters);
+    }
+
+    clearTelemetry(settings = null) {
+        return this.telemetryFacade.clearTelemetry(settings);
     }
 
     // Diagnostics

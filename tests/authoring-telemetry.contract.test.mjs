@@ -209,6 +209,27 @@ test('automated browser runs do not pollute local authoring telemetry', () => {
     assert.equal(beaconCalls, 0);
 });
 
+test('authoring telemetry honors the shared collection opt-out', () => {
+    let beaconCalls = 0;
+    const storagePlatform = createMemoryStoragePlatform();
+    const store = new AuthoringTelemetryStore({ storagePlatform });
+    const session = new AuthoringTelemetrySession({
+        tool: AUTHORING_TELEMETRY_TOOLS.VEHICLE_LAB,
+        store,
+        preferencesStore: { isCollectionEnabled: () => false },
+        runtimeGlobal: createEventTarget({
+            Blob,
+            navigator: { userAgent: 'Electron test', sendBeacon: () => { beaconCalls += 1; } },
+        }),
+        documentRef: createEventTarget({ visibilityState: 'visible' }),
+    });
+
+    session.recordCounter('save', 1);
+    session.end({ completed: true });
+    assert.equal(beaconCalls, 0);
+    assert.equal(store.getSnapshot().tools.vehicle_lab.sessions, 0);
+});
+
 test('settings manager exposes the shared authoring snapshot to the developer dashboard', () => {
     const storagePlatform = createMemoryStoragePlatform();
     const store = new AuthoringTelemetryStore({ storagePlatform });
