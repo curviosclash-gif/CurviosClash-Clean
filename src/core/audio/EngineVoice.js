@@ -5,6 +5,7 @@ export function ensureEngineVoice(audio) {
     const body = audio.ctx.createOscillator();
     const hum = audio.ctx.createOscillator();
     const turbine = audio.ctx.createOscillator();
+    const mechanicalPulse = audio.ctx.createOscillator();
     const air = audio.ctx.createBufferSource();
     const filter = audio.ctx.createBiquadFilter();
     const turbineFilter = audio.ctx.createBiquadFilter();
@@ -12,9 +13,11 @@ export function ensureEngineVoice(audio) {
     const gain = audio.ctx.createGain();
     const turbineGain = audio.ctx.createGain();
     const airGain = audio.ctx.createGain();
+    const mechanicalPulseGain = audio.ctx.createGain();
     body.type = 'triangle';
     hum.type = 'sine';
     turbine.type = 'triangle';
+    mechanicalPulse.type = 'sawtooth';
     air.buffer = audio.buffers.musicNoise;
     air.loop = true;
     filter.type = 'lowpass';
@@ -29,13 +32,17 @@ export function ensureEngineVoice(audio) {
     gain.gain.value = ENGINE_IDLE_GAIN;
     turbineGain.gain.value = ENGINE_IDLE_GAIN;
     airGain.gain.value = ENGINE_IDLE_GAIN;
+    mechanicalPulseGain.gain.value = 0.002;
     body.frequency.value = 56;
     hum.frequency.value = 110;
     turbine.frequency.value = 240;
+    mechanicalPulse.frequency.value = 18;
     body.connect(filter);
     hum.connect(filter);
     turbine.connect(turbineFilter);
     air.connect(airFilter);
+    mechanicalPulse.connect(mechanicalPulseGain);
+    mechanicalPulseGain.connect(gain.gain);
     filter.connect(gain);
     turbineFilter.connect(turbineGain);
     airFilter.connect(airGain);
@@ -47,9 +54,11 @@ export function ensureEngineVoice(audio) {
     body.start(time);
     hum.start(time);
     turbine.start(time);
+    mechanicalPulse.start(time);
     air.start(time);
     audio._engine = {
-        body, hum, turbine, air, filter, turbineFilter, airFilter, gain, turbineGain, airGain,
+        body, hum, turbine, mechanicalPulse, air, filter, turbineFilter, airFilter,
+        gain, turbineGain, airGain, mechanicalPulseGain,
         active: true,
         lastRatio: Number.NaN,
         lastBoosting: false,
@@ -91,15 +100,19 @@ export function updateEngineVoice(audio, state = {}) {
     const bodyGain = (0.014 + ratio * 0.024) * (boosting ? 1.18 : 1);
     const turbineGain = (0.002 + ratio * 0.0045) * (boosting ? 1.35 : 1);
     const airGain = (0.0015 + ratio * 0.0035) * (boosting ? 1.75 : 1);
+    const mechanicalPulseFrequency = 13 + ratio * 5 + (boosting ? 3 : 0);
+    const mechanicalPulseDepth = (0.0016 + ratio * 0.00135) * (boosting ? 1.2 : 1);
     engine.body.frequency.setTargetAtTime(bodyFrequency, time, 0.12);
     engine.hum.frequency.setTargetAtTime(humFrequency, time, 0.12);
     engine.turbine.frequency.setTargetAtTime(turbineFrequency, time, 0.1);
+    engine.mechanicalPulse.frequency.setTargetAtTime(mechanicalPulseFrequency, time, 0.12);
     engine.filter.frequency.setTargetAtTime(filterFrequency, time, 0.14);
     engine.turbineFilter.frequency.setTargetAtTime(turbineFilterFrequency, time, 0.14);
     engine.airFilter.frequency.setTargetAtTime(airFilterFrequency, time, 0.16);
     engine.gain.gain.setTargetAtTime(bodyGain, time, 0.14);
     engine.turbineGain.gain.setTargetAtTime(turbineGain, time, 0.14);
     engine.airGain.gain.setTargetAtTime(airGain, time, 0.16);
+    engine.mechanicalPulseGain.gain.setTargetAtTime(mechanicalPulseDepth, time, 0.14);
     engine.active = true;
     engine.lastRatio = ratio;
     engine.lastBoosting = boosting;
@@ -119,7 +132,13 @@ export function stopEngineVoice(audio) {
 
 export function disposeEngineVoice(audio) {
     if (!audio._engine) return;
-    for (const source of [audio._engine.body, audio._engine.hum, audio._engine.turbine, audio._engine.air]) {
+    for (const source of [
+        audio._engine.body,
+        audio._engine.hum,
+        audio._engine.turbine,
+        audio._engine.mechanicalPulse,
+        audio._engine.air,
+    ]) {
         try { source.stop(); } catch { /* best effort */ }
     }
     audio._engine = null;

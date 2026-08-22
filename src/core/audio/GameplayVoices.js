@@ -19,10 +19,10 @@ function playMgShoot(audio, options) {
     const shotIndex = audio._recordedMgIndex || 0;
     audio._recordedMgIndex = (shotIndex + 1) % 14;
     const playedRecording = audio._playRecordedSample?.('machineGun', {
-        offset: shotIndex * 0.098,
-        duration: 0.09,
-        peak: 0.2 * intensity,
-        playbackRate: 0.97 + ((shotIndex % 3) * 0.015),
+        offset: shotIndex * 0.136,
+        duration: 0.12,
+        peak: 0.22 * intensity,
+        playbackRate: 0.985 + ((shotIndex % 3) * 0.012),
         filter: { type: 'highpass', frequency: 65, q: 0.55 },
         options,
     });

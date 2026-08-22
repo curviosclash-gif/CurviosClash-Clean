@@ -379,6 +379,7 @@ test('AudioManager maps the selected CC0 recordings to rockets and vehicle explo
             await audio._sampleLoadPromise;
 
             assert.equal(requestedUrls.length, 3);
+            assert.ok(requestedUrls.some((url) => url.endsWith('/machine-gun-autocannon.wav')));
             assert.equal(audio.buffers.machineGun.duration, 8);
             assert.equal(audio.buffers.rocketExplosion.duration, 8);
             assert.equal(audio.buffers.vehicleExplosion.duration, 8);
@@ -387,7 +388,7 @@ test('AudioManager maps the selected CC0 recordings to rockets and vehicle explo
             audio.play('MG_SHOOT');
             const recordedShot = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.machineGun);
             assert.ok(recordedShot);
-            assert.deepEqual(recordedShot.startArgs, [0, 0, 0.09]);
+            assert.deepEqual(recordedShot.startArgs, [0, 0, 0.12]);
 
             audio.play('EXPLOSION');
             const vehicleBlast = audio.ctx.bufferSources.find(
@@ -707,6 +708,10 @@ test('AudioManager engine loop follows local player speed and stops when idle', 
             audio.updateEngine({ alive: true, speed: 22, baseSpeed: 18, boosting: true });
             assert.equal(audio._engine.active, true);
             assert.ok(audio._engine.air);
+            assert.ok(audio._engine.mechanicalPulse);
+            assert.equal(audio._engine.mechanicalPulse.type, 'sawtooth');
+            assert.ok(audio._engine.mechanicalPulse.frequency.value > 18);
+            assert.ok(audio._engine.mechanicalPulseGain.gain.value > 0.002);
             assert.ok(audio._engine.gain.gain.value < 0.08);
             assert.ok(audio._engine.turbineGain.gain.value < 0.02);
             const bodyAutomationCount = audio._engine.body.frequency.targetCalls;

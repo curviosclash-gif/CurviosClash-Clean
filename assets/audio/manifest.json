@@ -30,6 +30,25 @@
       "sha256": "ac12c79b300f6436519cf5d8978d6aaa994eb3258e9dcd59499378b873135562"
     },
     {
+      "id": "machine-gun-autocannon",
+      "file": "sfx/machine-gun-autocannon.wav",
+      "author": "qubodup (CurviosClash edit)",
+      "sourceUrl": "https://freesound.org/people/qubodup/sounds/482122/",
+      "downloadUrl": "https://cdn.freesound.org/previews/482/482122_71257-hq.mp3",
+      "derivedFrom": [
+        "machine-gun-burst"
+      ],
+      "sources": [
+        {
+          "author": "qubodup",
+          "sourceUrl": "https://freesound.org/people/qubodup/sounds/482122/"
+        }
+      ],
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "f2e87e3f40df77036c4a30cbe04dbb3254daa80012c3b1645da8a8a8c80803da"
+    },
+    {
       "id": "explosion-heavy",
       "file": "sfx/explosion-heavy.mp3",
       "author": "SamsterBirdies",

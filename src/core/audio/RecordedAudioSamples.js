@@ -5,7 +5,7 @@ export const RECORDED_SAMPLE_KEYS = Object.freeze({
 });
 
 const SAMPLE_URLS = Object.freeze({
-    [RECORDED_SAMPLE_KEYS.MACHINE_GUN]: new URL('../../../assets/audio/sfx/machine-gun-burst.mp3', import.meta.url).href,
+    [RECORDED_SAMPLE_KEYS.MACHINE_GUN]: new URL('../../../assets/audio/sfx/machine-gun-autocannon.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.ROCKET_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-rocket-deep.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-vehicle-metal.wav', import.meta.url).href,
 });
