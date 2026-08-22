@@ -4,7 +4,7 @@
 
 import * as THREE from 'three';
 import { SceneLightingRig } from './renderer/SceneLightingRig.js';
-import { createSceneEnvironment } from './renderer/SceneEnvironmentFactory.js';
+import { SceneEnvironmentController } from './renderer/SceneEnvironmentFactory.js';
 import { CONFIG } from './Config.js';
 import { CameraRigSystem } from './renderer/CameraRigSystem.js';
 import { RenderViewportSystem } from './renderer/RenderViewportSystem.js';
@@ -47,7 +47,6 @@ export class Renderer {
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
-        this._environmentRenderTarget = null;
         this._graphicsStyle = GRAPHICS_STYLES.MODERN;
         this._mapBrightness = DEFAULT_MAP_BRIGHTNESS;
         this._viewDistance = DEFAULT_VIEW_DISTANCE;
@@ -58,7 +57,7 @@ export class Renderer {
             renderer: this.renderer,
             config: CONFIG,
         });
-        this._environmentRenderTarget = createSceneEnvironment(this.renderer, this.scene);
+        this._environmentController = new SceneEnvironmentController(this.renderer, this.scene);
         this.setGraphicsStyle(this._graphicsStyle);
 
         this.sceneRootManager = new SceneRootManager(this.scene);
@@ -165,12 +164,19 @@ export class Renderer {
     // und eine gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Schriebe eine der Quellen
     // woanders, wuerde sie von der naechsten ueberschrieben.
     _applySceneAppearance() {
-        this._lightingRig.apply({
+        const lighting = this._lightingRig.apply({
             graphicsStyle: this._graphicsStyle,
             mapLighting: this._mapLighting,
             brightnessFactors: resolveMapBrightnessFactors(this._mapBrightness),
             viewDistance: this._viewDistance,
         });
+        // The reflection has to follow the same lighting the rig just applied, otherwise the metal
+        // in the scene keeps mirroring whatever sky the previous map had.
+        this._environmentController.apply(this._graphicsStyle, lighting);
+    }
+
+    getEnvironmentKey() {
+        return this._environmentController.getActiveKey();
     }
 
     // The four values _applySceneAppearance writes, in one read. It exists so a caller can check
@@ -394,9 +400,7 @@ export class Renderer {
         this.recordingCapturePipeline.dispose();
         this.clearScene();
         this._lightingRig.dispose();
-        this.scene.environment = null;
-        this._environmentRenderTarget?.dispose?.();
-        this._environmentRenderTarget = null;
+        this._environmentController.dispose();
         this.postProcessingPipeline.dispose();
         this.renderer.dispose();
     }

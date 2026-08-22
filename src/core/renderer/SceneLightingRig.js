@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { resolveMapLighting } from '../../shared/contracts/MapLightingContract.js';
 import { resolveFogRange } from '../../shared/contracts/ViewDistanceContract.js';
+import { applySkyGradientColors } from './SceneEnvironmentFactory.js';
 
 const MODERN_STYLE = 'modern';
 
@@ -31,10 +32,7 @@ export class SceneLightingRig {
         this.config = config;
         this._modernBackgroundColor = new THREE.Color(0x050816);
         this._classicLighting = createClassicLighting(config);
-        this._skySample = new THREE.Color();
-        this._skyZenith = new THREE.Color();
-        this._skyHorizon = new THREE.Color();
-        this._skyNadir = new THREE.Color();
+        this._skyRadius = Math.max(120, (Number(config.CAMERA.FAR) || 200) - 5);
         this._setupLights();
         this._setupAtmosphere();
     }
@@ -59,7 +57,7 @@ export class SceneLightingRig {
     }
 
     _setupAtmosphere() {
-        const radius = Math.max(120, (Number(this.config.CAMERA.FAR) || 200) - 5);
+        const radius = this._skyRadius;
         const skyGeometry = new THREE.SphereGeometry(radius, 32, 18);
         skyGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(
             skyGeometry.getAttribute('position').count * 3,
@@ -154,23 +152,7 @@ export class SceneLightingRig {
     }
 
     _applySkyDomeColors(colors) {
-        const positions = this.skyDome.geometry.getAttribute('position');
-        const attribute = this.skyDome.geometry.getAttribute('color');
-        this._skyZenith.setHex(colors.zenithColor);
-        this._skyHorizon.setHex(colors.horizonColor);
-        this._skyNadir.setHex(colors.nadirColor);
-        const radius = this.skyDome.geometry.boundingSphere?.radius
-            || Math.max(120, (Number(this.config.CAMERA.FAR) || 200) - 5);
-        for (let i = 0; i < positions.count; i += 1) {
-            const y = THREE.MathUtils.clamp(positions.getY(i) / radius, -1, 1);
-            if (y >= 0) {
-                this._skySample.copy(this._skyHorizon).lerp(this._skyZenith, Math.pow(y, 0.62));
-            } else {
-                this._skySample.copy(this._skyHorizon).lerp(this._skyNadir, Math.pow(-y, 0.7));
-            }
-            attribute.setXYZ(i, this._skySample.r, this._skySample.g, this._skySample.b);
-        }
-        attribute.needsUpdate = true;
+        applySkyGradientColors(this.skyDome.geometry, colors, this._skyRadius);
     }
 
     dispose() {
