@@ -42,6 +42,7 @@ import {
 } from '../mobile-classic/MobileClassicApp.js';
 import { installDesktopTuningRuntimeBridge } from '../dev/tuning/TuningRuntimeIpcBridge.js';
 import { FourPlayerPlanarModule } from '../four-player-planar/FourPlayerPlanarModule.js';
+import { createFourPlayerPlanarRuntimePort } from '../four-player-planar/FourPlayerPlanarRuntimePort.js';
 
 /* global __APP_VERSION__, __BUILD_TIME__, __BUILD_ID__ */
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -98,7 +99,9 @@ export class Game {
         this._disposePromise = null;
         this._playtestStartTimeoutId = null;
         this.runtimeCoordinator = new GameRuntimeCoordinator({ runtime: this });
-        this.fourPlayerPlanar = new FourPlayerPlanarModule({ game: this });
+        this.fourPlayerPlanar = new FourPlayerPlanarModule({
+            runtimePort: createFourPlayerPlanarRuntimePort({ getRuntime: () => this }),
+        });
         this.fourPlayerPlanar.mountSetupUi();
         this._boundKeyCaptureHandler = (event) => this.runtimeCoordinator?.getRuntimeHandle?.('keybindEditorController')?.handleKeyCapture?.(event);
 
