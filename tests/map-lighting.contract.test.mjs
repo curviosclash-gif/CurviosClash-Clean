@@ -110,7 +110,12 @@ test('scene lighting rig applies map profile before brightness and explicit view
         viewDistance: 0,
     });
 
-    assert.deepEqual(rig.keyLight.position.toArray(), [1, 2, 3]);
+    // The profile owns the direction the key light comes from. Its distance belongs to the shadow
+    // coverage instead, so the position is that direction pushed out far enough to see the map.
+    const keyDirection = rig.keyLight.position.clone()
+        .sub(new THREE.Vector3(...rig.getShadowCoverage().center))
+        .normalize();
+    assert.ok(keyDirection.distanceTo(new THREE.Vector3(1, 2, 3).normalize()) < 0.0001);
     assert.equal(rig.keyLight.color.getHex(), 0xff0000);
     assert.equal(rig.keyLight.intensity, 2);
     assert.equal(renderer.toneMappingExposure, 0.625);

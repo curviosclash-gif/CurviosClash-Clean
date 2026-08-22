@@ -179,6 +179,16 @@ export class Renderer {
         return this._environmentController.getActiveKey();
     }
 
+    // Called by the arena once it knows how large the map actually is, so shadows cover the whole
+    // level instead of a fixed box around the origin.
+    setShadowCoverage(bounds) {
+        return this._lightingRig.setShadowCoverage(bounds);
+    }
+
+    getShadowCoverage() {
+        return this._lightingRig.getShadowCoverage();
+    }
+
     // The four values _applySceneAppearance writes, in one read. It exists so a caller can check
     // what the scene ended up at without reaching into whichever object currently holds the lights.
     getSceneAppearance() {

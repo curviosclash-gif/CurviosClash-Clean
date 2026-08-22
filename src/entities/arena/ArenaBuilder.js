@@ -148,6 +148,9 @@ export class ArenaBuilder {
             minY: 0, maxY: sy,
             minZ: -halfZ, maxZ: halfZ,
         };
+        // The shadow camera has to learn the map size here, or it keeps covering a fixed box around
+        // the origin and everything further out loses its shadow entirely.
+        this.arena.renderer?.setShadowCoverage?.(this.arena.bounds);
     }
 
     _resolveMaterialBundle({ sx, sy, sz }) {
