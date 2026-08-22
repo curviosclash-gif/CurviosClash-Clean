@@ -48,6 +48,49 @@
       "license": "CC0-1.0",
       "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
       "sha256": "13e9f713bd0d5921b223b01d29d68bb7625a1a1fbf1894af35ebfd5ef72c8632"
+    },
+    {
+      "id": "explosion-rocket-deep",
+      "file": "sfx/explosion-rocket-deep.wav",
+      "author": "SamsterBirdies (CurviosClash edit)",
+      "sourceUrl": "https://freesound.org/people/SamsterBirdies/sounds/591998/",
+      "downloadUrl": "https://cdn.freesound.org/previews/591/591998_5487341-hq.mp3",
+      "derivedFrom": [
+        "explosion-heavy"
+      ],
+      "sources": [
+        {
+          "author": "SamsterBirdies",
+          "sourceUrl": "https://freesound.org/people/SamsterBirdies/sounds/591998/"
+        }
+      ],
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "554c75c177de3ba430fca7f04b0b277bc82bb1ca1457347a8d23b2e94918e650"
+    },
+    {
+      "id": "explosion-vehicle-metal",
+      "file": "sfx/explosion-vehicle-metal.wav",
+      "author": "SamsterBirdies + Spring Spring (CurviosClash edit)",
+      "sourceUrl": "https://freesound.org/people/SamsterBirdies/sounds/591998/",
+      "downloadUrl": "https://cdn.freesound.org/previews/591/591998_5487341-hq.mp3",
+      "derivedFrom": [
+        "explosion-heavy",
+        "explosion-debris"
+      ],
+      "sources": [
+        {
+          "author": "SamsterBirdies",
+          "sourceUrl": "https://freesound.org/people/SamsterBirdies/sounds/591998/"
+        },
+        {
+          "author": "Spring Spring",
+          "sourceUrl": "https://opengameart.org/content/mechanical-explosion"
+        }
+      ],
+      "license": "CC0-1.0",
+      "licenseUrl": "https://creativecommons.org/publicdomain/zero/1.0/",
+      "sha256": "560bd86565ab436fb218039ba325f7b97a57f7c2c12f73780f339d580008c2ca"
     }
   ]
 }

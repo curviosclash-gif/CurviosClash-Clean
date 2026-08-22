@@ -1,13 +1,13 @@
 export const RECORDED_SAMPLE_KEYS = Object.freeze({
     MACHINE_GUN: 'machineGun',
-    EXPLOSION_HEAVY: 'explosionHeavy',
-    EXPLOSION_DEBRIS: 'explosionDebris',
+    ROCKET_EXPLOSION: 'rocketExplosion',
+    VEHICLE_EXPLOSION: 'vehicleExplosion',
 });
 
 const SAMPLE_URLS = Object.freeze({
     [RECORDED_SAMPLE_KEYS.MACHINE_GUN]: new URL('../../../assets/audio/sfx/machine-gun-burst.mp3', import.meta.url).href,
-    [RECORDED_SAMPLE_KEYS.EXPLOSION_HEAVY]: new URL('../../../assets/audio/sfx/explosion-heavy.mp3', import.meta.url).href,
-    [RECORDED_SAMPLE_KEYS.EXPLOSION_DEBRIS]: new URL('../../../assets/audio/sfx/explosion-debris.wav', import.meta.url).href,
+    [RECORDED_SAMPLE_KEYS.ROCKET_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-rocket-deep.wav', import.meta.url).href,
+    [RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-vehicle-metal.wav', import.meta.url).href,
 });
 
 async function loadSample(audio, context, fetcher, key, url) {

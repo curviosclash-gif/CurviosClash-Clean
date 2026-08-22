@@ -362,7 +362,7 @@ test('AudioManager prefers HRTF positioning and keeps stereo pan as fallback', a
     });
 });
 
-test('AudioManager loads CC0 recordings and slices real machine-gun shots', async () => {
+test('AudioManager maps the selected CC0 recordings to rockets and vehicle explosions', async () => {
     await withMockWindow(async (mockWindow) => {
         const requestedUrls = [];
         mockWindow.AudioContext = createMockAudioContext();
@@ -380,8 +380,8 @@ test('AudioManager loads CC0 recordings and slices real machine-gun shots', asyn
 
             assert.equal(requestedUrls.length, 3);
             assert.equal(audio.buffers.machineGun.duration, 8);
-            assert.equal(audio.buffers.explosionHeavy.duration, 8);
-            assert.equal(audio.buffers.explosionDebris.duration, 8);
+            assert.equal(audio.buffers.rocketExplosion.duration, 8);
+            assert.equal(audio.buffers.vehicleExplosion.duration, 8);
 
             audio._resolveTime = () => 1000;
             audio.play('MG_SHOOT');
@@ -390,10 +390,26 @@ test('AudioManager loads CC0 recordings and slices real machine-gun shots', asyn
             assert.deepEqual(recordedShot.startArgs, [0, 0, 0.09]);
 
             audio.play('EXPLOSION');
-            const heavyBlast = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.explosionHeavy);
-            const debris = audio.ctx.bufferSources.find((source) => source.buffer === audio.buffers.explosionDebris);
-            assert.ok(heavyBlast?.started);
-            assert.ok(debris?.started);
+            const vehicleBlast = audio.ctx.bufferSources.find(
+                (source) => source.buffer === audio.buffers.vehicleExplosion
+            );
+            assert.ok(vehicleBlast?.started);
+            assert.equal(
+                audio.ctx.bufferSources.some((source) => source.buffer === audio.buffers.rocketExplosion),
+                false
+            );
+
+            audio.play('ROCKET_IMPACT');
+            const rocketBlast = audio.ctx.bufferSources.find(
+                (source) => source.buffer === audio.buffers.rocketExplosion
+            );
+            assert.ok(rocketBlast?.started);
+            assert.equal(
+                audio.ctx.bufferSources.filter(
+                    (source) => source.buffer === audio.buffers.vehicleExplosion
+                ).length,
+                1
+            );
         } finally {
             audio.dispose();
         }

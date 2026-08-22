@@ -9,6 +9,8 @@
 // The explosion voice itself lives here too, because it is the only sound whose
 // shape now depends on where it sits in a chain.
 
+import { RECORDED_SAMPLE_KEYS } from './RecordedAudioSamples.js';
+
 // Extra blasts allowed inside one cooldown window. Three explosions per fifth of
 // a second reads as a chain; beyond that it turns to mush.
 const MAX_CHAIN_ECHOES = 2;
@@ -21,6 +23,11 @@ const ECHO_SHAPES = Object.freeze([
     Object.freeze({ chainDetune: 0.88, chainGain: 0.72 }),
     Object.freeze({ chainDetune: 1.14, chainGain: 0.58 }),
 ]);
+
+const RECORDED_EXPLOSION_SHAPES = Object.freeze({
+    [RECORDED_SAMPLE_KEYS.ROCKET_EXPLOSION]: Object.freeze({ duration: 3.2, peak: 0.72 }),
+    [RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION]: Object.freeze({ duration: 2.55, peak: 0.72 }),
+});
 
 export function createExplosionChainState() {
     return { echoes: 0 };
@@ -64,32 +71,28 @@ function resolveEchoShape(options) {
  *
  * @param {object} audio - The AudioManager.
  * @param {object} [options] - Play options, including any chain echo shape.
+ * @param {'rocketExplosion'|'vehicleExplosion'} [sampleKey] - Selected CC0 recording.
  */
-export function playExplosionVoice(audio, options = {}) {
+export function playExplosionVoice(
+    audio,
+    options = {},
+    sampleKey = RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION
+) {
     if (!audio?.buffers?.explosion) return;
     const echo = resolveEchoShape(options);
     const intensity = audio._intensity(options, 1, 0.25, 1.5) * echo.gain;
     const atten = audio._distanceAttenuation(options);
     const recordedRate = 1 + ((echo.detune - 1) * 0.35);
-    const playedRecording = audio._playRecordedSample?.('explosionHeavy', {
-        duration: 1.9,
+    const recording = RECORDED_EXPLOSION_SHAPES[sampleKey]
+        || RECORDED_EXPLOSION_SHAPES[RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION];
+    const playedRecording = audio._playRecordedSample?.(sampleKey, {
+        duration: recording.duration,
         reservationDuration: 0.55,
-        peak: 0.72 * intensity,
+        peak: recording.peak * intensity,
         playbackRate: recordedRate,
-        filter: { type: 'highpass', frequency: 32, q: 0.5 },
         options,
     });
-    if (playedRecording) {
-        audio._playRecordedSample?.('explosionDebris', {
-            duration: 0.9,
-            reservationDuration: 0.35,
-            peak: 0.24 * intensity,
-            playbackRate: recordedRate,
-            filter: { type: 'highpass', frequency: 110, q: 0.6 },
-            options,
-        });
-        return;
-    }
+    if (playedRecording) return;
 
     const gain = audio._createVoiceGraph(options);
     if (!gain) return;
@@ -142,5 +145,9 @@ export function playRocketImpactVoice(audio, options = {}) {
         attack: 0.008,
         options,
     });
-    playExplosionVoice(audio, { ...options, intensity: intensity * 0.9 });
+    playExplosionVoice(
+        audio,
+        { ...options, intensity: intensity * 0.9 },
+        RECORDED_SAMPLE_KEYS.ROCKET_EXPLOSION
+    );
 }
