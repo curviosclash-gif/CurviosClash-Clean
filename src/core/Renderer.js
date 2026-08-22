@@ -378,6 +378,14 @@ export class Renderer {
         return this.qualityController.getBloomQuality();
     }
 
+    // Anisotropic filtering is a hardware limit, so only the renderer knows it. Scene builders
+    // read it from here instead of importing three's capabilities themselves - entities must not
+    // reach into core.
+    getMaxAnisotropy() {
+        const supported = Number(this.renderer.capabilities?.getMaxAnisotropy?.());
+        return Number.isFinite(supported) && supported > 1 ? Math.trunc(supported) : 1;
+    }
+
     dispose() {
         if (this._onWindowResize) {
             window.removeEventListener('resize', this._onWindowResize);

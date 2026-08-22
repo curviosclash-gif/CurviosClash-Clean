@@ -64,8 +64,9 @@ function createCheckerTexture(lightColor, darkColor, graphicsStyle) {
     const ctx = canvas.getContext('2d');
     const light = `#${lightColor.toString(16).padStart(6, '0')}`;
     const dark = `#${darkColor.toString(16).padStart(6, '0')}`;
+    const modern = isModernGraphicsStyle(graphicsStyle);
 
-    if (isModernGraphicsStyle(graphicsStyle)) {
+    if (modern) {
         ctx.fillStyle = dark;
         ctx.fillRect(0, 0, size, size);
 
@@ -100,8 +101,11 @@ function createCheckerTexture(lightColor, darkColor, graphicsStyle) {
     const texture = new THREE.CanvasTexture(canvas);
     texture.wrapS = THREE.RepeatWrapping;
     texture.wrapT = THREE.RepeatWrapping;
-    texture.magFilter = THREE.NearestFilter;
-    texture.minFilter = THREE.NearestMipmapLinearFilter;
+    // The classic checkerboard wants hard pixel edges, so it keeps nearest sampling. The modern
+    // grid tiles across dozens of metres and lies flat under the camera, where nearest sampling
+    // turns it into shimmering mush towards the horizon.
+    texture.magFilter = modern ? THREE.LinearFilter : THREE.NearestFilter;
+    texture.minFilter = modern ? THREE.LinearMipmapLinearFilter : THREE.NearestMipmapLinearFilter;
     texture.colorSpace = THREE.SRGBColorSpace;
     texture.needsUpdate = true;
     return texture;
@@ -152,6 +156,13 @@ export function getCheckpointLabelTexture(label) {
 
 function round2(value) {
     return Math.round((Number(value) || 0) * 100) / 100;
+}
+
+// Anisotropy is a hardware ceiling reported by the renderer. Below 1 it is meaningless, and a
+// fractional value would make two otherwise identical bundles miss the cache.
+function normalizeAnisotropy(value) {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) && numeric > 1 ? Math.trunc(numeric) : 1;
 }
 
 function stableSerialize(value) {
@@ -212,10 +223,12 @@ export function getArenaMaterialBundle({
     sy,
     sz,
     graphicsStyle = 'modern',
+    maxAnisotropy = 1,
 }) {
     const modern = isModernGraphicsStyle(graphicsStyle);
     const resolvedLightColor = modern ? 0x243b58 : checkerLightColor;
     const resolvedDarkColor = modern ? 0x0d1626 : checkerDarkColor;
+    const resolvedAnisotropy = normalizeAnisotropy(maxAnisotropy);
     const bundleKey = [
         graphicsStyle,
         resolvedLightColor,
@@ -224,6 +237,9 @@ export function getArenaMaterialBundle({
         round2(sx),
         round2(sy),
         round2(sz),
+        // Without the anisotropy in the key the cache would hand back the previously filtered
+        // textures and the setting would silently do nothing.
+        resolvedAnisotropy,
     ].join('|');
 
     if (MATERIAL_BUNDLE_CACHE.has(bundleKey)) {
@@ -231,7 +247,10 @@ export function getArenaMaterialBundle({
     }
 
     const baseChecker = getBaseCheckerTexture(resolvedLightColor, resolvedDarkColor, graphicsStyle);
+    // Clones share the image data but carry their own filter settings, so anisotropy has to be
+    // set per clone rather than once on the cached base texture.
     const floorTexture = baseChecker.clone();
+    floorTexture.anisotropy = resolvedAnisotropy;
     floorTexture.needsUpdate = true;
     floorTexture.repeat.set(
         Math.max(1, sx / checkerWorldSize),
@@ -239,6 +258,7 @@ export function getArenaMaterialBundle({
     );
 
     const wallTexture = baseChecker.clone();
+    wallTexture.anisotropy = resolvedAnisotropy;
     wallTexture.needsUpdate = true;
     wallTexture.repeat.set(
         Math.max(1, sx / checkerWorldSize),

@@ -161,6 +161,7 @@ export class ArenaBuilder {
             sy,
             sz,
             graphicsStyle: this.arena.renderer?.getGraphicsStyle?.(),
+            maxAnisotropy: this.arena.renderer?.getMaxAnisotropy?.() ?? 1,
         });
     }
 

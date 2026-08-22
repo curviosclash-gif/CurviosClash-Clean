@@ -29,6 +29,35 @@ test('desktop art pass keeps Rift landmarks visual-only and uses readable PBR su
     assert.ok(bundle.obstacleMat.emissiveIntensity > 0);
 });
 
+test('arena textures carry the reported anisotropy and cache one bundle per level', () => {
+    const params = {
+        checkerLightColor: 0x243b58,
+        checkerDarkColor: 0x0d1626,
+        checkerWorldSize: 18,
+        sx: 120,
+        sy: 40,
+        sz: 120,
+        graphicsStyle: 'modern',
+    };
+
+    const sharp = getArenaMaterialBundle({ ...params, maxAnisotropy: 16 });
+    assert.equal(sharp.floorTexture.anisotropy, 16);
+    assert.equal(sharp.wallTexture.anisotropy, 16);
+
+    // Without the anisotropy in the cache key this would hand back the bundle above, and the
+    // setting would silently do nothing on every map built after the first one.
+    const blurry = getArenaMaterialBundle({ ...params, maxAnisotropy: 1 });
+    assert.notEqual(blurry, sharp);
+    assert.equal(blurry.floorTexture.anisotropy, 1);
+
+    // Identical inputs must still share one bundle, or every map build would leak textures.
+    assert.equal(getArenaMaterialBundle({ ...params, maxAnisotropy: 16 }), sharp);
+
+    // A renderer that cannot report a ceiling falls back to 1 instead of leaking NaN into the key.
+    const fallback = getArenaMaterialBundle({ ...params, sx: 121, maxAnisotropy: Number.NaN });
+    assert.equal(fallback.floorTexture.anisotropy, 1);
+});
+
 test('particle pass uses an additive low-poly glow without adding a dependency', () => {
     const added = [];
     const removed = [];
