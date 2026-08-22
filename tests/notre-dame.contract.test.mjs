@@ -70,6 +70,7 @@ test('the map places the cathedral, not a pile of separate models', () => {
     assert.equal(map.glbModels.length, 15);
     assert.equal(new Set(map.glbModels.map((model) => model.id)).size, 15);
     assert.equal(map.glbColliderMode, 'dynamic');
+    assert.equal(map.glbAuthoredObstaclesCollisionOnly, true);
     for (const model of map.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
         // targetSize would normalise each file to a size of its own and tear the building into
@@ -77,6 +78,14 @@ test('the map places the cathedral, not a pile of separate models', () => {
         assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
         assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
     }
+});
+
+test('only GLB maps whose authored obstacles duplicate complete model surfaces hide them', () => {
+    const collisionOnlyMaps = Object.entries(MAP_PRESET_CATALOG)
+        .filter(([, definition]) => definition.glbAuthoredObstaclesCollisionOnly === true)
+        .map(([mapKey]) => mapKey)
+        .sort();
+    assert.deepEqual(collisionOnlyMaps, ['notre_dame', 'notre_dame_arena']);
 });
 
 test('the parts land back in the positions they were modelled in', () => {
@@ -388,6 +397,7 @@ test('the arena variant reuses the building instead of duplicating it', () => {
     assert.equal(arena.gates, map.gates);
     assert.deepEqual(arena.size, map.size);
     assert.equal(arena.glbColliderMode, 'dynamic');
+    assert.equal(arena.glbAuthoredObstaclesCollisionOnly, true);
 
     // What actually differs: no ordered route, and spawns spread around the building rather than
     // queued on the river.

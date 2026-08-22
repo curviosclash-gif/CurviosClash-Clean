@@ -42,6 +42,10 @@ const NOTRE_DAME_COMMON = {
     // the authored boxes and hollow bores in NotreDameStructure, because a mesh collider is an
     // axis-aligned box per mesh and would fill every arch it touches.
     glbColliderMode: 'dynamic',
+    // Those authored boxes describe collision already drawn by the cathedral GLBs. Keeping them
+    // out of the render stage prevents coplanar surfaces and transparent depth writes from
+    // flickering, while a partial or failed GLB load still restores the visible fallback boxes.
+    glbAuthoredObstaclesCollisionOnly: true,
     glbLoadConcurrency: 3,
     items: NOTRE_DAME_ITEMS,
     aircraft: NOTRE_DAME_AIRCRAFT,

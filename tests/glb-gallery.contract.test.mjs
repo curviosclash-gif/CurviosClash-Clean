@@ -14,6 +14,7 @@ import {
     loadGLBMap,
     loadGLBMapCollection,
     resolveGLBCollectionFootprint,
+    shouldDiscardAuthoredObstacleVisuals,
 } from '../src/entities/GLBMapLoader.js';
 import { Arena } from '../src/entities/Arena.js';
 import { ArenaCollision } from '../src/entities/arena/ArenaCollision.js';
@@ -155,6 +156,60 @@ test('GLB animation playback uses the first exported clip and is owned by the ar
     arena._clearLoadedGlbScene();
     assert.equal(arena.glbAnimationElapsedSeconds, 0);
     assert.equal(arena._glbScene, null);
+});
+
+test('collision-only authored GLB obstacles stay visible when model loading fails', async () => {
+    const sceneObjects = new Set();
+    const arena = new Arena({
+        addToScene(object) { sceneObjects.add(object); },
+        removeFromScene(object) { sceneObjects.delete(object); },
+        setMapLighting() {},
+        setShadowCoverage() {},
+        getGraphicsStyle() { return 'modern'; },
+        getMaxAnisotropy() { return 1; },
+    });
+    arena.runtimeMapKey = 'broken-collision-only-glb';
+    arena.runtimeMapDefinition = {
+        name: 'Broken collision-only GLB',
+        size: [40, 24, 40],
+        glbModel: 'assets/maps/does-not-exist.glb',
+        glbColliderMode: 'fallbackOnly',
+        glbAuthoredObstaclesCollisionOnly: true,
+        obstacles: [{ pos: [0, 4, 0], size: [8, 8, 8] }],
+        portals: [],
+        gates: [],
+    };
+
+    const result = await arena.build(arena.runtimeMapKey);
+
+    assert.equal(result.usedGlbModel, false);
+    assert.match(result.glbLoadError, /fetch|load|url|parse/i);
+    assert.ok(arena._mergedObstacleMesh);
+    assert.ok(arena._mergedObstacleEdges);
+    assert.ok(sceneObjects.has(arena._mergedObstacleMesh));
+    const authoredObstacle = arena.obstacles.find((entry) => !entry.isWall);
+    const obstacleCenter = authoredObstacle.box.getCenter(new THREE.Vector3());
+    assert.equal(arena.checkCollisionFast(obstacleCenter, 0.1), true);
+    arena.dispose();
+});
+
+test('partial GLB collection warnings keep collision-only authored visuals as fallback', () => {
+    const map = { glbAuthoredObstaclesCollisionOnly: true };
+    assert.equal(shouldDiscardAuthoredObstacleVisuals({
+        usedGlbModel: true,
+        loadWarnings: [],
+        map,
+    }), true);
+    assert.equal(shouldDiscardAuthoredObstacleVisuals({
+        usedGlbModel: true,
+        loadWarnings: ['one collection model failed'],
+        map,
+    }), false);
+    assert.equal(shouldDiscardAuthoredObstacleVisuals({
+        usedGlbModel: false,
+        loadWarnings: ['all models failed'],
+        map,
+    }), false);
 });
 
 test('GLB mesh colliders follow triangle geometry instead of the enclosing box', async () => {

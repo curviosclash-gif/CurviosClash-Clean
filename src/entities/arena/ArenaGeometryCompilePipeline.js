@@ -165,6 +165,19 @@ export class ArenaGeometryCompilePipeline {
         }
     }
 
+    discardObstacleVisualStage() {
+        const arena = this.arena;
+        for (const key of [
+            '_pendingObstacleGeos',
+            '_pendingFoamGeos',
+            '_pendingObstacleEdgeGeos',
+            '_pendingFoamEdgeGeos',
+        ]) {
+            for (const geometry of arena[key] || []) geometry.dispose();
+            arena[key] = [];
+        }
+    }
+
     flushMergeStage(materialBundle) {
         const arena = this.arena;
 

@@ -40,11 +40,25 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
         tracks: window.GAME_INSTANCE.arena._glbAnimation.trackCount,
         warnings: window.GAME_INSTANCE.arena._glbLoadWarnings.length,
         colliderMode: window.GAME_INSTANCE.arena.currentMapDefinition?.glbColliderMode,
+        authoredObstacleCount: window.GAME_INSTANCE.arena.obstacles
+            .filter((entry) => !entry.isWall && !entry.dynamic).length,
+        authoredObstacleVisuals: [
+            window.GAME_INSTANCE.arena._mergedObstacleMesh,
+            window.GAME_INSTANCE.arena._mergedFoamMesh,
+            window.GAME_INSTANCE.arena._mergedObstacleEdges,
+            window.GAME_INSTANCE.arena._mergedFoamEdges,
+        ].filter(Boolean).length,
+        authoredCollisionSolid: window.GAME_INSTANCE.arena
+            .checkCollisionFast({ x: -249, y: 168, z: -60.9 }, 0.1),
     }));
+    expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         parcours: false,
         tracks: 8,
         warnings: 0,
         colliderMode: 'dynamic',
+        authoredObstacleCount: state.authoredObstacleCount,
+        authoredObstacleVisuals: 0,
+        authoredCollisionSolid: true,
     });
 });

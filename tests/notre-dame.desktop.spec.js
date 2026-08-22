@@ -44,16 +44,28 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
             warningCount: arena._glbLoadWarnings.length,
             colliderMode: arena.currentMapDefinition?.glbColliderMode,
             glbSceneChildren: arena._glbScene?.children?.length || 0,
+            authoredObstacleCount: arena.obstacles.filter((entry) => !entry.isWall && !entry.dynamic).length,
+            authoredObstacleVisuals: [
+                arena._mergedObstacleMesh,
+                arena._mergedFoamMesh,
+                arena._mergedObstacleEdges,
+                arena._mergedFoamEdges,
+            ].filter(Boolean).length,
+            authoredCollisionSolid: arena.checkCollisionFast({ x: -249, y: 168, z: -60.9 }, 0.1),
         };
     });
 
     // Only the site moves, so only eight of the fifteen carry a clip.
+    expect(state.authoredObstacleCount).toBeGreaterThan(0);
     expect(state).toEqual({
         mapKey: 'notre_dame',
         trackCount: 8,
         warningCount: 0,
         colliderMode: 'dynamic',
         glbSceneChildren: 15,
+        authoredObstacleCount: state.authoredObstacleCount,
+        authoredObstacleVisuals: 0,
+        authoredCollisionSolid: true,
     });
 
     const initialElapsed = await page.evaluate(() => (

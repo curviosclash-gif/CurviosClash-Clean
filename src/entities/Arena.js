@@ -8,6 +8,7 @@ import {
     normalizeGLBModelCollection,
     resolveGLBCollectionFootprint,
     resolveGLBFootprint,
+    shouldDiscardAuthoredObstacleVisuals,
 } from './GLBMapLoader.js';
 import { GlbAnimationDriver } from './arena/GlbAnimationDriver.js';
 import { refreshDynamicMeshCollider } from './arena/StaticMeshCollider.js';
@@ -253,6 +254,14 @@ export class Arena {
                     obstacleDefs: buildContext.obstacleDefs,
                     scale: buildContext.scale,
                 });
+                const collisionOnlyObstacleVisuals = shouldDiscardAuthoredObstacleVisuals({
+                    usedGlbModel,
+                    loadWarnings: this._glbLoadWarnings,
+                    map: buildContext.map,
+                });
+                if (collisionOnlyObstacleVisuals) {
+                    this._builder.geometryPipeline.discardObstacleVisualStage();
+                }
             }
 
             this._builder.geometryPipeline.flushMergeStage(buildContext.materialBundle);

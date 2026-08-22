@@ -59,6 +59,13 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
     return normalized;
 }
 
+export function shouldDiscardAuthoredObstacleVisuals({ usedGlbModel, loadWarnings, map } = {}) {
+    return usedGlbModel === true
+        && Array.isArray(loadWarnings)
+        && loadWarnings.length === 0
+        && map?.glbAuthoredObstaclesCollisionOnly === true;
+}
+
 /**
  * Picks the clip a setpiece should play. A named clip that the file does not contain falls
  * back to the first one, so a renamed export degrades to the old behaviour instead of
