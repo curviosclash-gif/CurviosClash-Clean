@@ -21,8 +21,8 @@
     "legacySurface_GameRuntimePorts_fallbacks_totalFiles": 0,
     "legacySurface_curviosApp_totalFiles": 3,
     "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3,
-    "electronPreloadExposures": 7,
+    "electronPreloadExposures": 8,
     "electronIpcRendererChannels": 11,
-    "electronIpcMainChannels": 24
+    "electronIpcMainChannels": 25
   }
 }

@@ -43,7 +43,7 @@ function isTrustedEditorUrl(url, appServerUrl) {
     }
 }
 
-function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath) {
+function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath, editorPreloadPath = undefined) {
     const trustedOrigin = new URL(appServerUrl).origin;
     return ({ url } = {}) => {
         try {
@@ -53,7 +53,11 @@ function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath) {
                     action: 'allow',
                     overrideBrowserWindowOptions: {
                         ...(TRUSTED_EDITOR_PATHS.has(target.pathname) ? EDITOR_WINDOW_BOUNDS : {}),
-                        webPreferences: createSecureWindowWebPreferences(),
+                        webPreferences: createSecureWindowWebPreferences(
+                            TRUSTED_EDITOR_PATHS.has(target.pathname)
+                                ? { preload: editorPreloadPath }
+                                : {}
+                        ),
                     },
                 };
             }
@@ -64,10 +68,16 @@ function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath) {
     };
 }
 
-function createEditorWindowOpenHandler(appServerUrl) {
+/**
+ * @param {string} appServerUrl
+ * @param {{editorPreloadPath?: string}} [options] Preload fuer die
+ *   Autorenwerkzeuge; ohne diesen Pfad haben sie keinen Dateizugriff.
+ */
+function createEditorWindowOpenHandler(appServerUrl, { editorPreloadPath } = {}) {
     return createSameOriginWindowOpenHandler(
         appServerUrl,
         (target) => TRUSTED_EDITOR_PATHS.has(target.pathname),
+        editorPreloadPath,
     );
 }
 

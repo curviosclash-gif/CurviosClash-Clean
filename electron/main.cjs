@@ -31,7 +31,9 @@ const {
     isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
 const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
+const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');
 const {
+    UNTRUSTED_IPC_SENDER_CODE,
     assertTrustedWindowSender,
     isTrustedWindowSender,
 } = require('./ipc-sender-guard.cjs');
@@ -51,6 +53,23 @@ function isTrustedMainWindowSender(event) {
 function withTrustedMainWindowSender(handler) {
     return (event, ...args) => {
         assertTrustedWindowSender(event, mainWindow);
+        return handler(...args);
+    };
+}
+
+// Autorenfenster entstehen erst beim Oeffnen und werden hier gefuehrt, damit
+// ihre Dateizugriffe dieselbe Senderpruefung durchlaufen wie jede andere
+// privilegierte IPC (ADR 0001).
+const editorWindows = new Set();
+
+function withTrustedEditorWindowSender(handler) {
+    return (event, ...args) => {
+        const sender = [...editorWindows].find((candidate) => isTrustedWindowSender(event, candidate));
+        if (!sender) {
+            const error = new Error('Desktop capability request came from an unknown renderer.');
+            error.code = UNTRUSTED_IPC_SENDER_CODE;
+            throw error;
+        }
         return handler(...args);
     };
 }
@@ -521,8 +540,12 @@ async function createWindow() {
         isTrustedEditorUrl: (url) => isTrustedEditorUrl(url, appServer.url),
         getDownloadsDirectory: () => app.getPath('downloads'),
     });
-    mainWindow.webContents.setWindowOpenHandler(createEditorWindowOpenHandler(appServer.url));
+    mainWindow.webContents.setWindowOpenHandler(createEditorWindowOpenHandler(appServer.url, {
+        editorPreloadPath: path.join(__dirname, 'editor-preload.cjs'),
+    }));
     mainWindow.webContents.on('did-create-window', (editorWindow, details) => {
+        editorWindows.add(editorWindow);
+        editorWindow.on('closed', () => editorWindows.delete(editorWindow));
         const isMapEditor = new URL(details.url).pathname === '/editor/map-editor-3d.html';
         editorWindow.webContents.setWindowOpenHandler(isMapEditor
             ? createPlaytestWindowOpenHandler(appServer.url)
@@ -981,6 +1004,31 @@ function startDiscoveryListener() {
     });
     discoverySocket.bind(DISCOVERY_PORT, '0.0.0.0');
 }
+
+const editorVehicleStore = createEditorVehicleStore({
+    getVehiclesDirectory: () => path.join(app.getPath('userData'), 'vehicles'),
+});
+
+const EDITOR_DISK_HANDLERS = Object.freeze({
+    'save-vehicle': (payload) => editorVehicleStore.saveVehicle(payload),
+    'list-vehicles': () => editorVehicleStore.listVehicles(),
+    'get-vehicle': (payload) => editorVehicleStore.getVehicle(payload),
+    'rename-vehicle': (payload) => editorVehicleStore.renameVehicle(payload),
+    'delete-vehicle': (payload) => editorVehicleStore.deleteVehicle(payload),
+});
+
+// Ein Kanal fuer alle Dateizugriffe der Autorenwerkzeuge. Die Aktion wird
+// gegen die feste Liste oben geprueft, damit ein unbekannter Befehl nicht
+// durchrutscht.
+ipcMain.handle('editor-disk:request', withTrustedEditorWindowSender((request = {}) => {
+    const handler = EDITOR_DISK_HANDLERS[String(request?.action || '')];
+    if (!handler) return { ok: false, error: 'unknown_action' };
+    try {
+        return handler(request?.payload || {});
+    } catch (error) {
+        return { ok: false, error: String(error?.message || error) };
+    }
+}));
 
 ipcMain.handle('get-lan-server-status', withTrustedMainWindowSender(
     () => lanHostShellCapability.getStatus()

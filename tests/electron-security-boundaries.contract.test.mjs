@@ -61,12 +61,20 @@ test('main window allows only same-origin editor popups with isolated renderers'
     const appUrl = 'http://127.0.0.1:38765/';
     const handleWindowOpen = createEditorWindowOpenHandler(appUrl);
     const resolveAppUrl = (viewPath, baseUrl = appUrl) => new URL(viewPath, baseUrl).href;
+    const handleWithPreload = createEditorWindowOpenHandler(appUrl, { editorPreloadPath: '/pfad/editor-preload.cjs' });
     for (const url of [EDITOR_VIEW_PATHS.MAP_EDITOR, EDITOR_VIEW_PATHS.VEHICLE_LAB].map((viewPath) => resolveAppUrl(viewPath))) {
         const result = handleWindowOpen({ url });
         assert.equal(result.action, 'allow');
         assert.equal(result.overrideBrowserWindowOptions.webPreferences.contextIsolation, true);
         assert.equal(result.overrideBrowserWindowOptions.webPreferences.nodeIntegration, false);
         assert.equal(result.overrideBrowserWindowOptions.webPreferences.sandbox, true);
+        assert.equal(result.overrideBrowserWindowOptions.webPreferences.preload, undefined);
+
+        // Mit Preload bleibt die Sandbox bestehen; nur der Dateizugriff kommt hinzu.
+        const withPreload = handleWithPreload({ url });
+        assert.equal(withPreload.overrideBrowserWindowOptions.webPreferences.preload, '/pfad/editor-preload.cjs');
+        assert.equal(withPreload.overrideBrowserWindowOptions.webPreferences.sandbox, true);
+        assert.equal(withPreload.overrideBrowserWindowOptions.webPreferences.contextIsolation, true);
     }
 
     for (const url of [
@@ -79,7 +87,11 @@ test('main window allows only same-origin editor popups with isolated renderers'
     }
 
     const source = readSource('../electron/main.cjs');
-    assert.match(source, /setWindowOpenHandler\(createEditorWindowOpenHandler\(appServer\.url\)\)/);
+    assert.match(source, /setWindowOpenHandler\(createEditorWindowOpenHandler\(appServer\.url,/);
+    // Autorenfenster bekommen ein eigenes, schmales Preload - niemals das des
+    // Hauptfensters, das die vollen Desktop-Faehigkeiten traegt.
+    assert.match(source, /editorPreloadPath:\s*path\.join\(__dirname,\s*'editor-preload\.cjs'\)/);
+    assert.doesNotMatch(source, /editorPreloadPath:\s*path\.join\(__dirname,\s*'preload\.cjs'\)/);
     assert.match(source, /'did-create-window'[\s\S]*createPlaytestWindowOpenHandler\(appServer\.url\)/);
     assert.match(source, /playtestWindow\.webContents\.setWindowOpenHandler\(\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\)\)/);
 });

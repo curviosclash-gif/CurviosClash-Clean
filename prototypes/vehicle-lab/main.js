@@ -12,7 +12,10 @@ import {
     describeArcadeBlueprintStatus,
     formatArcadeBlueprintValidationMessage,
 } from './src/ArcadeBlueprintValidation.js';
-import { EDITOR_API_ROUTES } from '../../src/shared/contracts/EditorPathContract.js';
+import {
+    EDITOR_API_ROUTES,
+    EDITOR_DISK_ACTION_BY_ROUTE,
+} from '../../src/shared/contracts/EditorPathContract.js';
 import {
     VEHICLE_LAB_HANGAR_MAX_PARTS,
     VEHICLE_LAB_HANGAR_PUBLISH_STORAGE_KEY,
@@ -479,13 +482,8 @@ class VehicleLabApp {
     async loadGameVehicleReference(vehicle) {
         this.flushPendingSave();
         this.captureRecoveryDraft();
-        let config = null;
-        try {
-            const query = new URLSearchParams({ vehicleId: vehicle.id });
-            const response = await fetch(`${EDITOR_API_ROUTES.GET_VEHICLE_DISK}?${query.toString()}`);
-            const payload = response.ok ? await response.json() : null;
-            if (payload?.ok) config = payload.config;
-        } catch { /* An unmodified product vehicle has no authored disk override yet. */ }
+        // Ein unveraendertes Spielmodell hat noch keine eigene Fassung.
+        let config = await this.readVehicleFromDisk(vehicle.id);
         config ||= {
             id: vehicle.id,
             label: vehicle.label,
@@ -518,18 +516,14 @@ class VehicleLabApp {
 
         // Existing developer-disk vehicles are migrated once; packaged desktop needs no API.
         try {
-            const response = await fetch(EDITOR_API_ROUTES.LIST_VEHICLES_DISK, { method: 'GET' });
-            const payload = response.ok ? await response.json() : null;
-            if (!payload?.ok || !Array.isArray(payload.vehicles)) return;
-            const missing = payload.vehicles.filter((entry) => (
+            const diskVehicles = await this.listVehiclesFromDisk();
+            if (!diskVehicles) return;
+            const missing = diskVehicles.filter((entry) => (
                 !this.catalogRecord.vehicles.some((current) => current.id === entry.id)
             ));
             const configs = await Promise.all(missing.map(async (entry) => {
-                const query = new URLSearchParams({ vehicleId: entry.id });
-                const itemResponse = await fetch(`${EDITOR_API_ROUTES.GET_VEHICLE_DISK}?${query.toString()}`);
-                if (!itemResponse.ok) return null;
-                const item = await itemResponse.json();
-                return item?.ok ? { ...entry, config: item.config } : null;
+                const config = await this.readVehicleFromDisk(entry.id);
+                return config ? { ...entry, config } : null;
             }));
             configs.filter(Boolean).forEach((entry) => {
                 const result = upsertVehicleLabCatalogVehicle(this.catalogRecord, entry.config, {
@@ -968,7 +962,74 @@ class VehicleLabApp {
      * geschrieben, nicht vorhanden (404), sonstiger Fehler.
      * @returns {Promise<{ok: boolean, unavailable: boolean, payload: object|null, error: string|null}>}
      */
+    /**
+     * Waehlt den Weg zur Festplatte: in der Desktop-App ueber den
+     * Hauptprozess, im Entwicklungsserver ueber die HTTP-Route.
+     */
     async requestDiskApi(route, body) {
+        const desktopDisk = globalThis.__CURVIOS_EDITOR_DISK__;
+        const action = EDITOR_DISK_ACTION_BY_ROUTE[route];
+        if (desktopDisk && action) return this.requestDesktopDisk(desktopDisk, action, body);
+        return this.requestDiskApiOverHttp(route, body);
+    }
+
+    /** Liest ein einzelnes Fahrzeug, in der Desktop-App ueber den Hauptprozess. */
+    async readVehicleFromDisk(vehicleId) {
+        const desktopDisk = globalThis.__CURVIOS_EDITOR_DISK__;
+        if (desktopDisk) {
+            const result = await desktopDisk.getVehicle({ vehicleId }).catch(() => null);
+            return result?.ok ? result.config : null;
+        }
+        try {
+            const query = new URLSearchParams({ vehicleId });
+            const response = await fetch(`${EDITOR_API_ROUTES.GET_VEHICLE_DISK}?${query.toString()}`);
+            const payload = response.ok ? await response.json() : null;
+            return payload?.ok ? payload.config : null;
+        } catch {
+            return null;
+        }
+    }
+
+    /** Listet gespeicherte Fahrzeuge, in der Desktop-App ueber den Hauptprozess. */
+    async listVehiclesFromDisk() {
+        const desktopDisk = globalThis.__CURVIOS_EDITOR_DISK__;
+        if (desktopDisk) {
+            const result = await desktopDisk.listVehicles().catch(() => null);
+            return Array.isArray(result?.vehicles) ? result.vehicles : null;
+        }
+        try {
+            const response = await fetch(EDITOR_API_ROUTES.LIST_VEHICLES_DISK, { method: 'GET' });
+            const payload = response.ok ? await response.json() : null;
+            return Array.isArray(payload?.vehicles) ? payload.vehicles : null;
+        } catch {
+            return null;
+        }
+    }
+
+    async requestDesktopDisk(desktopDisk, action, body) {
+        const methodByAction = {
+            'save-vehicle': 'saveVehicle',
+            'list-vehicles': 'listVehicles',
+            'get-vehicle': 'getVehicle',
+            'rename-vehicle': 'renameVehicle',
+            'delete-vehicle': 'deleteVehicle',
+        };
+        const method = desktopDisk[methodByAction[action]];
+        if (typeof method !== 'function') {
+            return { ok: false, unavailable: true, payload: null, error: null };
+        }
+        try {
+            const payload = await method.call(desktopDisk, body || {});
+            if (!payload?.ok) {
+                return { ok: false, unavailable: false, payload, error: String(payload?.error || 'Unbekannter Fehler') };
+            }
+            return { ok: true, unavailable: false, payload, error: null };
+        } catch (error) {
+            return { ok: false, unavailable: false, payload: null, error: String(error?.message || error) };
+        }
+    }
+
+    async requestDiskApiOverHttp(route, body) {
         try {
             const response = await fetch(route, {
                 method: 'POST',
