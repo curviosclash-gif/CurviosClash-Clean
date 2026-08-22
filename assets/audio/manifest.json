@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "policy": "project-original-or-cc0",
+  "policy": "project-original-or-approved-free",
   "runtimeGenerated": [
     {
       "id": "audio-runtime",
@@ -61,6 +61,18 @@
       "license": "project-original",
       "source": "src/core/audio/GameplayVoices.js",
       "sha256": "d4a12a627746febeb39437b96d04b82a68c2852e1f88640252c251712eee99c2"
+    },
+    {
+      "id": "mozart-nachtmusik-advent-chamber",
+      "file": "music/mozart-nachtmusik-advent-chamber.mp3",
+      "author": "Advent Chamber Orchestra",
+      "sourceUrl": "https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg",
+      "downloadUrl": "https://commons.wikimedia.org/wiki/Special:Redirect/file/Mozart%20-%20Eine%20kleine%20Nachtmusik%20-%201.%20Allegro.ogg",
+      "license": "CC-BY-SA-2.0",
+      "licenseUrl": "https://creativecommons.org/licenses/by-sa/2.0/",
+      "attribution": "Mozart: Eine kleine Nachtmusik, 1st movement, performed by Advent Chamber Orchestra; source: Wikimedia Commons; CC BY-SA 2.0.",
+      "modifications": "A 26-second excerpt was created, loudness normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis to MP3 by CurviosClash.",
+      "sha256": "64fe574ab0fca59e8badb07d250fdf2c4c0f64b6e6ac47a1188760760b0bb13e"
     },
     {
       "id": "explosion-heavy",

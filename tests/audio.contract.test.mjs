@@ -157,8 +157,9 @@ function createMockAudioContext() {
                     this.started = true;
                     this.startArgs = args;
                 },
-                stop() {},
+                stop() { this.stopped = true; },
                 started: false,
+                stopped: false,
                 startArgs: [],
             };
             this.bufferSources = this.bufferSources || [];
@@ -312,6 +313,7 @@ test('AudioManager initializes dedicated music, UI and ambience buses', async ()
             mockWindow.dispatchEvent({ type: 'click' });
 
             assert.ok(audio._musicGain);
+            assert.match(audio.thirdPartyAudioNoticeUrl, /THIRD_PARTY_NOTICES\.txt/);
             assert.ok(audio._uiGain);
             assert.ok(audio._ambienceGain);
             assert.equal(audio._musicGain.gain.value, 0.3);
@@ -378,13 +380,15 @@ test('AudioManager maps the selected recordings to weapons, hits and explosions'
             mockWindow.dispatchEvent({ type: 'pointerdown' });
             await audio._sampleLoadPromise;
 
-            assert.equal(requestedUrls.length, 5);
+            assert.equal(requestedUrls.length, 6);
             assert.ok(requestedUrls.some((url) => url.endsWith('/machine-gun-autocannon.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/rocket-launch-heavy.wav')));
             assert.ok(requestedUrls.some((url) => url.endsWith('/armor-hit-break.wav')));
+            assert.ok(requestedUrls.some((url) => url.endsWith('/mozart-nachtmusik-advent-chamber.mp3')));
             assert.equal(audio.buffers.machineGun.duration, 8);
             assert.equal(audio.buffers.rocketLaunch.duration, 8);
             assert.equal(audio.buffers.armorHit.duration, 8);
+            assert.equal(audio.buffers.classicalMusic.duration, 8);
             assert.equal(audio.buffers.rocketExplosion.duration, 8);
             assert.equal(audio.buffers.vehicleExplosion.duration, 8);
 
@@ -497,6 +501,50 @@ test('AudioManager applies persistent settings and music lifecycle states', asyn
         } finally {
             audio.dispose();
         }
+    });
+});
+
+test('recorded classical music loops once across state changes and cleans up', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        mockWindow.fetch = async () => ({
+            ok: true,
+            arrayBuffer: async () => new ArrayBuffer(16),
+        });
+        const audio = new AudioManager();
+        let recordedSource = null;
+        let recordedGain = null;
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            await audio._sampleLoadPromise;
+
+            recordedSource = audio.music._recordedSource;
+            recordedGain = audio.music._recordedGain;
+            assert.ok(recordedSource?.started);
+            assert.equal(recordedSource.buffer, audio.buffers.classicalMusic);
+            assert.equal(recordedSource.loop, true);
+
+            audio.setMusicState('race');
+            audio.setMusicState('fight');
+            assert.equal(audio.music._recordedSource, recordedSource);
+            assert.equal(
+                audio.ctx.bufferSources.filter((source) => source.buffer === audio.buffers.classicalMusic).length,
+                1
+            );
+
+            audio.setPaused(true);
+            assert.equal(recordedGain.gain.value, 0.24);
+            audio.setMuted(true);
+            assert.equal(recordedSource.stopped, false);
+            audio.setMuted(false);
+            assert.equal(audio.music._recordedSource, recordedSource);
+            audio.setPaused(false);
+            assert.equal(recordedGain.gain.value, 1);
+        } finally {
+            audio.dispose();
+        }
+        assert.equal(recordedSource?.stopped, true);
+        assert.equal(recordedGain?.disconnected, true);
     });
 });
 

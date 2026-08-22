@@ -2,14 +2,21 @@ export const RECORDED_SAMPLE_KEYS = Object.freeze({
     MACHINE_GUN: 'machineGun',
     ROCKET_LAUNCH: 'rocketLaunch',
     ARMOR_HIT: 'armorHit',
+    CLASSICAL_MUSIC: 'classicalMusic',
     ROCKET_EXPLOSION: 'rocketExplosion',
     VEHICLE_EXPLOSION: 'vehicleExplosion',
 });
+
+export const AUDIO_THIRD_PARTY_NOTICE_URL = new URL(
+    '../../../assets/audio/THIRD_PARTY_NOTICES.txt?no-inline',
+    import.meta.url
+).href;
 
 const SAMPLE_URLS = Object.freeze({
     [RECORDED_SAMPLE_KEYS.MACHINE_GUN]: new URL('../../../assets/audio/sfx/machine-gun-autocannon.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.ROCKET_LAUNCH]: new URL('../../../assets/audio/sfx/rocket-launch-heavy.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.ARMOR_HIT]: new URL('../../../assets/audio/sfx/armor-hit-break.wav', import.meta.url).href,
+    [RECORDED_SAMPLE_KEYS.CLASSICAL_MUSIC]: new URL('../../../assets/audio/music/mozart-nachtmusik-advent-chamber.mp3', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.ROCKET_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-rocket-deep.wav', import.meta.url).href,
     [RECORDED_SAMPLE_KEYS.VEHICLE_EXPLOSION]: new URL('../../../assets/audio/sfx/explosion-vehicle-metal.wav', import.meta.url).href,
 });

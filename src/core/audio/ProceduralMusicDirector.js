@@ -68,6 +68,9 @@ export class ProceduralMusicDirector {
         this._step = 0;
         this._nextStepTime = 0;
         this._sceneGain = null;
+        this._recordedSource = null;
+        this._recordedGain = null;
+        this._recordedActive = false;
         this._retiredSceneGains = new Map();
         this._generation = 0;
     }
@@ -95,7 +98,7 @@ export class ProceduralMusicDirector {
 
     setPaused(paused) {
         this.paused = paused === true;
-        const param = this._sceneGain?.gain;
+        const param = this._recordedGain?.gain || this._sceneGain?.gain;
         const ctx = this.audio?.ctx;
         if (param && ctx) {
             const target = this.paused ? 0.24 : 1;
@@ -108,6 +111,9 @@ export class ProceduralMusicDirector {
         const ctx = this.audio?.ctx;
         const destination = this.audio?._musicOut?.();
         if (!ctx || !destination) return false;
+
+        const recordedBuffer = this.audio?.buffers?.classicalMusic;
+        if (recordedBuffer) return this._startRecorded(recordedBuffer, destination, options);
 
         this._cancelScheduler();
         const previousGain = this._sceneGain;
@@ -129,6 +135,39 @@ export class ProceduralMusicDirector {
         this._nextStepTime = ctx.currentTime + 0.04;
         const generation = ++this._generation;
         this._schedule(generation);
+        return true;
+    }
+
+    _startRecorded(buffer, destination, options = {}) {
+        const ctx = this.audio?.ctx;
+        if (!ctx || !buffer || !destination) return false;
+        this._cancelScheduler();
+
+        if (this._sceneGain?.gain) {
+            const previousGain = this._sceneGain;
+            previousGain.gain.cancelScheduledValues?.(ctx.currentTime);
+            previousGain.gain.setTargetAtTime?.(MIN_GAIN, ctx.currentTime, 0.08);
+            this._sceneGain = null;
+            this._retireSceneGain(previousGain);
+        }
+
+        if (!this._recordedSource) {
+            const gain = ctx.createGain();
+            const source = ctx.createBufferSource();
+            gain.gain.value = options.crossfade === true ? MIN_GAIN : (this.paused ? 0.24 : 1);
+            source.buffer = buffer;
+            source.loop = true;
+            source.connect(gain);
+            gain.connect(destination);
+            source.start(ctx.currentTime);
+            this._recordedSource = source;
+            this._recordedGain = gain;
+        }
+
+        const target = this.paused ? 0.24 : 1;
+        this._recordedGain?.gain?.cancelScheduledValues?.(ctx.currentTime);
+        this._recordedGain?.gain?.setTargetAtTime?.(target, ctx.currentTime, options.crossfade === true ? 0.18 : 0.04);
+        this._recordedActive = true;
         return true;
     }
 
@@ -278,6 +317,11 @@ export class ProceduralMusicDirector {
     stop() {
         this._cancelScheduler();
         const ctx = this.audio?.ctx;
+        if (this._recordedGain?.gain && ctx) {
+            this._recordedGain.gain.cancelScheduledValues?.(ctx.currentTime);
+            this._recordedGain.gain.setTargetAtTime?.(MIN_GAIN, ctx.currentTime, 0.03);
+            this._recordedActive = false;
+        }
         const sceneGain = this._sceneGain;
         if (sceneGain?.gain && ctx) {
             sceneGain.gain.setTargetAtTime?.(MIN_GAIN, ctx.currentTime, 0.03);
@@ -288,6 +332,11 @@ export class ProceduralMusicDirector {
 
     dispose() {
         this.stop();
+        try { this._recordedSource?.stop?.(); } catch { /* best effort */ }
+        try { this._recordedGain?.disconnect?.(); } catch { /* best effort */ }
+        this._recordedSource = null;
+        this._recordedGain = null;
+        this._recordedActive = false;
         this._disconnectRetiredSceneGains();
         this.audio = null;
     }

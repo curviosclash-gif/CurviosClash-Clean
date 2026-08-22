@@ -7,7 +7,7 @@ import test from 'node:test';
 const ROOT = path.resolve(import.meta.dirname, '..');
 const AUDIO_DIRECTORY = path.join(ROOT, 'assets', 'audio');
 const AUDIO_FILE_PATTERN = /\.(?:aac|flac|m4a|mp3|ogg|opus|wav|webm)$/i;
-const ALLOWED_LICENSES = new Set(['project-original', 'CC0-1.0']);
+const ALLOWED_LICENSES = new Set(['project-original', 'CC0-1.0', 'CC-BY-SA-2.0']);
 
 async function listFiles(directory) {
     const entries = await readdir(directory, { withFileTypes: true });
@@ -18,12 +18,12 @@ async function listFiles(directory) {
     return nested.flat();
 }
 
-test('audio asset manifest permits only project-original or CC0 sources', async () => {
+test('audio asset manifest permits only approved free sources', async () => {
     const manifestPath = path.join(AUDIO_DIRECTORY, 'manifest.json');
     const manifest = JSON.parse(await readFile(manifestPath, 'utf8'));
 
     assert.equal(manifest.schemaVersion, 1);
-    assert.equal(manifest.policy, 'project-original-or-cc0');
+    assert.equal(manifest.policy, 'project-original-or-approved-free');
     assert.ok(Array.isArray(manifest.runtimeGenerated));
     assert.ok(Array.isArray(manifest.thirdPartyAssets));
 
@@ -39,7 +39,7 @@ test('audio asset manifest permits only project-original or CC0 sources', async 
             assert.equal(typeof entry.source, 'string');
             await access(path.join(ROOT, entry.source));
         }
-        if (entry.license === 'CC0-1.0') {
+        if (entry.license !== 'project-original') {
             assert.ok(String(entry.author || '').trim().length > 0);
             assert.match(String(entry.sourceUrl || ''), /^https:\/\//);
             assert.match(String(entry.downloadUrl || ''), /^https:\/\//);
@@ -48,6 +48,10 @@ test('audio asset manifest permits only project-original or CC0 sources', async 
             const bytes = await readFile(path.join(AUDIO_DIRECTORY, entry.file));
             const actualHash = createHash('sha256').update(bytes).digest('hex');
             assert.equal(actualHash, entry.sha256, `audio hash mismatch: ${entry.file}`);
+        }
+        if (entry.license === 'CC-BY-SA-2.0') {
+            assert.ok(String(entry.modifications || '').trim().length > 0);
+            assert.match(String(entry.attribution || ''), /Advent Chamber Orchestra/);
         }
     }
 });

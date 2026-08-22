@@ -1,0 +1,12 @@
+CurviosClash Audio – Third-Party Notices
+
+Mozart: Eine kleine Nachtmusik, 1st movement
+Performance: Advent Chamber Orchestra
+Musical director: Roxanna Pavel Goldstein
+Source: https://commons.wikimedia.org/wiki/File:Mozart_-_Eine_kleine_Nachtmusik_-_1._Allegro.ogg
+License: Creative Commons Attribution-ShareAlike 2.0 Generic
+License text: https://creativecommons.org/licenses/by-sa/2.0/
+
+Changes made by CurviosClash: A 26-second excerpt was created, loudness
+normalized, given a two-second loop crossfade and transcoded from Ogg Vorbis
+to MP3. The adapted audio remains available under CC BY-SA 2.0.

@@ -7,7 +7,11 @@ import { normalizeAudioSettings } from '../shared/contracts/AudioSettingsContrac
 import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, resetExplosionChain, resolveExplosionEcho } from './audio/ExplosionVoice.js';
 import { MUSIC_STATES, ProceduralMusicDirector } from './audio/ProceduralMusicDirector.js';
 import { playGameplayVoice } from './audio/GameplayVoices.js';
-import { loadRecordedAudioSamples, playRecordedAudioSample } from './audio/RecordedAudioSamples.js';
+import {
+    AUDIO_THIRD_PARTY_NOTICE_URL,
+    loadRecordedAudioSamples,
+    playRecordedAudioSample,
+} from './audio/RecordedAudioSamples.js';
 import { disposeEngineVoice, ensureEngineVoice, stopEngineVoice, updateEngineVoice } from './audio/EngineVoice.js';
 
 const logger = createLogger('AudioManager');
@@ -84,6 +88,7 @@ export class AudioManager {
         this._voiceReleaseTimers = new Set();
         this._sampleLoadPromise = null;
         this._recordedMgIndex = 0;
+        this.thirdPartyAudioNoticeUrl = AUDIO_THIRD_PARTY_NOTICE_URL;
 
         this.lastPlayTime = {};
         this.cooldowns = { ...SOUND_COOLDOWNS_MS };
@@ -170,7 +175,13 @@ export class AudioManager {
             }
             this._applyBusGains();
             this._generateBuffers();
-            this._sampleLoadPromise = loadRecordedAudioSamples(this);
+            const context = this.ctx;
+            this._sampleLoadPromise = loadRecordedAudioSamples(this).then((samples) => {
+                if (this.ctx === context && this.enabled && samples.classicalMusic) {
+                    this.music.start({ crossfade: true });
+                }
+                return samples;
+            });
             this._ensureAmbienceNodes();
             if (this.enabled) this.music.start();
         } catch (error) {
