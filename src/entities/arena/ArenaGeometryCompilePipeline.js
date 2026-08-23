@@ -104,9 +104,11 @@ export class ArenaGeometryCompilePipeline {
             const obstacleOptions = {
                 kind: isFoamObstacle ? 'foam' : 'hard',
                 rotateY: Number(obs.rotateY) || 0,
+                renderWithGlb: obs.renderWithGlb === true,
             };
 
-            if (String(obs.shape || '').toLowerCase() === 'tube') {
+            const obstacleShape = String(obs.shape || '').toLowerCase();
+            if (obstacleShape === 'tube' || obstacleShape === 'beam') {
                 const start = Array.isArray(obs.start) ? obs.start : [];
                 const end = Array.isArray(obs.end) ? obs.end : [];
                 const innerRadius = Number(obs.radius);
@@ -120,7 +122,7 @@ export class ArenaGeometryCompilePipeline {
                     end[1] * scale,
                     end[2] * scale,
                     innerRadius * scale,
-                    obstacleOptions,
+                    { ...obstacleOptions, solid: obstacleShape === 'beam' },
                 );
                 continue;
             }
@@ -173,8 +175,12 @@ export class ArenaGeometryCompilePipeline {
             '_pendingObstacleEdgeGeos',
             '_pendingFoamEdgeGeos',
         ]) {
-            for (const geometry of arena[key] || []) geometry.dispose();
-            arena[key] = [];
+            const preserved = [];
+            for (const geometry of arena[key] || []) {
+                if (geometry.userData?.renderWithGlb === true) preserved.push(geometry);
+                else geometry.dispose();
+            }
+            arena[key] = preserved;
         }
     }
 
@@ -249,6 +255,7 @@ export class ArenaGeometryCompilePipeline {
 
         const worldGeo = geo.clone();
         worldGeo.applyMatrix4(transform);
+        worldGeo.userData.renderWithGlb = options.renderWithGlb === true;
         const box = createGeometryBounds(worldGeo);
         const obstacle = { box, isWall: false, kind };
         if (rotateY !== 0) obstacle.meshCollider = createGeometryCollider(worldGeo);
@@ -262,6 +269,7 @@ export class ArenaGeometryCompilePipeline {
         const edgeGeo = new THREE.EdgesGeometry(geo);
         const worldEdgeGeo = edgeGeo.clone();
         worldEdgeGeo.applyMatrix4(transform);
+        worldEdgeGeo.userData.renderWithGlb = options.renderWithGlb === true;
 
         if (isFoam) {
             arena._pendingFoamEdgeGeos.push(worldEdgeGeo);
@@ -284,7 +292,8 @@ export class ArenaGeometryCompilePipeline {
         if (!Number.isFinite(length) || length <= 0.001) return;
 
         const safeInnerRadius = asPositiveNumber(innerRadius, 1);
-        const wallThickness = resolveStandaloneTunnelWallThickness(safeInnerRadius);
+        const solid = options.solid === true;
+        const wallThickness = solid ? 0 : resolveStandaloneTunnelWallThickness(safeInnerRadius);
         const outerRadius = safeInnerRadius + wallThickness;
 
         const midpoint = start.clone().lerp(end, 0.5);
@@ -307,13 +316,14 @@ export class ArenaGeometryCompilePipeline {
                 bx,
                 by,
                 bz,
-                innerRadius: safeInnerRadius,
+                innerRadius: solid ? 0 : safeInnerRadius,
                 outerRadius,
                 lengthSq: length * length,
             },
         });
 
         const worldGeo = geo.clone();
+        worldGeo.userData.renderWithGlb = options.renderWithGlb === true;
         if (isFoam) {
             arena._pendingFoamGeos.push(worldGeo);
         } else {
@@ -321,6 +331,7 @@ export class ArenaGeometryCompilePipeline {
         }
 
         const edgeGeo = new THREE.EdgesGeometry(geo);
+        edgeGeo.userData.renderWithGlb = options.renderWithGlb === true;
         if (isFoam) {
             arena._pendingFoamEdgeGeos.push(edgeGeo);
         } else {
@@ -342,6 +353,7 @@ export class ArenaGeometryCompilePipeline {
         const transform = createObstacleTransform(x, y, z, rotateY);
         const worldGeo = geo.clone();
         worldGeo.applyMatrix4(transform);
+        worldGeo.userData.renderWithGlb = options.renderWithGlb === true;
         const box = createGeometryBounds(worldGeo);
         const obstacle = {
             box,
@@ -361,6 +373,7 @@ export class ArenaGeometryCompilePipeline {
         const edgeGeo = new THREE.EdgesGeometry(geo);
         const worldEdgeGeo = edgeGeo.clone();
         worldEdgeGeo.applyMatrix4(transform);
+        worldEdgeGeo.userData.renderWithGlb = options.renderWithGlb === true;
         if (isFoam) {
             arena._pendingFoamEdgeGeos.push(worldEdgeGeo);
         } else {

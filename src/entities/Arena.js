@@ -245,13 +245,17 @@ export class Arena {
         let usedGlbModel = false;
         const finalizeBuild = () => {
             // 'dynamic' only adds colliders for the moving GLB parts, so the authored box
-            // obstacles stay responsible for the static set dressing.
+            // obstacles stay responsible for the static set dressing. Exact scene collision can
+            // still request a small supplemental set for things no GLB surface represents.
             const useFallbackObstacles = !usedGlbModel
                 || buildContext.glbColliderMode === 'fallbackOnly'
                 || buildContext.glbColliderMode === 'dynamic';
-            if (useFallbackObstacles) {
+            const obstacleDefs = useFallbackObstacles
+                ? buildContext.obstacleDefs
+                : buildContext.obstacleDefs.filter((obstacle) => obstacle?.compileWithGlb === true);
+            if (obstacleDefs.length > 0) {
                 this._builder.geometryPipeline.compileObstacleStage({
-                    obstacleDefs: buildContext.obstacleDefs,
+                    obstacleDefs,
                     scale: buildContext.scale,
                 });
                 const collisionOnlyObstacleVisuals = shouldDiscardAuthoredObstacleVisuals({

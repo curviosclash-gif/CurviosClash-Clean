@@ -60,10 +60,9 @@ const NOTRE_DAME_COMMON = {
     glbModels: NOTRE_DAME_MODELS,
     // One beat for the whole site; each piece states its own offset against it.
     glbAnimationClock: { beatSeconds: NOTRE_DAME_BEAT_SECONDS },
-    // Only the moving site equipment gets mesh colliders. The building carries its collision on
-    // the authored boxes and hollow bores in NotreDameStructure, because a mesh collider is an
-    // axis-aligned box per mesh and would fill every arch it touches.
-    glbColliderMode: 'dynamic',
+    // Static fabric uses the loader's triangle/BVH collider, so every portal, gallery and arch
+    // follows the surface that is actually drawn. Moving site meshes remain dynamic colliders.
+    glbColliderMode: 'scene',
     // Those authored boxes describe collision already drawn by the cathedral GLBs. Keeping them
     // out of the render stage prevents coplanar surfaces and transparent depth writes from
     // flickering, while a partial or failed GLB load still restores the visible fallback boxes.

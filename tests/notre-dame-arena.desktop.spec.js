@@ -56,9 +56,9 @@ test('the Notre-Dame arena flies the same building without a route', async ({ pa
         parcours: false,
         tracks: 8,
         warnings: 0,
-        colliderMode: 'dynamic',
+        colliderMode: 'scene',
         authoredObstacleCount: state.authoredObstacleCount,
-        authoredObstacleVisuals: 0,
+        authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
     });
 });

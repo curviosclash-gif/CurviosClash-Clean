@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
+import * as THREE from 'three';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
@@ -54,6 +55,43 @@ function boundingBox(url) {
     return { low, high };
 }
 
+/** Bounding box with glTF node transforms applied, including animated-rig children at frame 0. */
+function sceneBoundingBox(url) {
+    const bytes = readFileSync(path.resolve(url));
+    const jsonLength = bytes.readUInt32LE(12);
+    const document = JSON.parse(bytes.subarray(20, 20 + jsonLength).toString('utf8').trimEnd());
+    const bounds = new THREE.Box3().makeEmpty();
+
+    const visit = (nodeIndex, parentMatrix) => {
+        const node = document.nodes?.[nodeIndex];
+        if (!node) return;
+        const local = new THREE.Matrix4();
+        if (Array.isArray(node.matrix)) local.fromArray(node.matrix);
+        else {
+            local.compose(
+                new THREE.Vector3().fromArray(node.translation || [0, 0, 0]),
+                new THREE.Quaternion().fromArray(node.rotation || [0, 0, 0, 1]),
+                new THREE.Vector3().fromArray(node.scale || [1, 1, 1]),
+            );
+        }
+        const world = new THREE.Matrix4().multiplyMatrices(parentMatrix, local);
+        const mesh = document.meshes?.[node.mesh];
+        for (const primitive of mesh?.primitives || []) {
+            const accessor = document.accessors?.[primitive.attributes?.POSITION];
+            if (!accessor?.min || !accessor?.max) continue;
+            bounds.union(new THREE.Box3(
+                new THREE.Vector3().fromArray(accessor.min),
+                new THREE.Vector3().fromArray(accessor.max),
+            ).applyMatrix4(world));
+        }
+        for (const child of node.children || []) visit(child, world);
+    };
+
+    const scene = document.scenes?.[document.scene || 0];
+    for (const nodeIndex of scene?.nodes || []) visit(nodeIndex, new THREE.Matrix4());
+    return { low: bounds.min.toArray(), high: bounds.max.toArray() };
+}
+
 test('Notre-Dame is registered everywhere a map has to appear', () => {
     assert.equal(MAP_PRESET_CATALOG.notre_dame, map);
     assert.equal(MAP_PRESETS_BASE.notre_dame, map);
@@ -69,7 +107,7 @@ test('Notre-Dame is registered everywhere a map has to appear', () => {
 test('the map places the cathedral, not a pile of separate models', () => {
     assert.equal(map.glbModels.length, 15);
     assert.equal(new Set(map.glbModels.map((model) => model.id)).size, 15);
-    assert.equal(map.glbColliderMode, 'dynamic');
+    assert.equal(map.glbColliderMode, 'scene');
     assert.equal(map.glbAuthoredObstaclesCollisionOnly, true);
     for (const model of map.glbModels) {
         assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
@@ -213,7 +251,8 @@ function isSolid(point) {
     for (const obstacle of map.obstacles) {
         if (String(obstacle.kind || 'hard') === 'foam') continue;
 
-        if (String(obstacle.shape || '') === 'tube') {
+        const shape = String(obstacle.shape || '');
+        if (shape === 'tube' || shape === 'beam') {
             const [ax, ay, az] = obstacle.start;
             const [bx, by, bz] = obstacle.end;
             const abx = bx - ax; const aby = by - ay; const abz = bz - az;
@@ -224,8 +263,12 @@ function isSolid(point) {
             const dy = py - (ay + aby * along);
             const dz = pz - (az + abz * along);
             const distance = Math.hypot(dx, dy, dz);
-            const outer = obstacle.radius + Math.max(0.25, Math.min(1.2, obstacle.radius * 0.18));
-            if (distance <= outer && distance >= obstacle.radius) return true;
+            if (shape === 'beam') {
+                if (distance <= obstacle.radius) return true;
+            } else {
+                const outer = obstacle.radius + Math.max(0.25, Math.min(1.2, obstacle.radius * 0.18));
+                if (distance <= outer && distance >= obstacle.radius) return true;
+            }
             continue;
         }
 
@@ -279,6 +322,15 @@ test('nothing the route asks a player to reach is buried in the collision', () =
     }
 });
 
+test('landing collision that has no matching GLB surface remains visible', () => {
+    const landingPlatforms = map.obstacles.filter((obstacle) => obstacle.renderWithGlb === true);
+    assert.equal(landingPlatforms.length, 5);
+    assert.deepEqual(
+        landingPlatforms.map((obstacle) => obstacle.pos),
+        [[-150, 20, 0], [-112, 14, 0], [-93.6, 52, 0], [110, 16, 0], [130, 38, 0]],
+    );
+});
+
 test('the interior is the hall it is drawn as, floor to vault to attic', () => {
     // A bore is a cylinder and a gothic vessel is a tall rectangle, so the interior is walled
     // rather than drilled. What that has to produce, measured up the middle of the nave in
@@ -324,7 +376,7 @@ test('no collision stands where the map draws nothing at all', () => {
     // not catch a block that is merely in the wrong place -- but it does catch the case that bit
     // this map twice: collision floating in open air with no geometry anywhere near it.
     const placed = map.glbModels.map((model) => {
-        const box = boundingBox(model.url);
+        const box = sceneBoundingBox(model.url);
         const centreX = (box.low[0] + box.high[0]) / 2;
         const centreZ = (box.low[2] + box.high[2]) / 2;
         return {
@@ -348,7 +400,7 @@ test('no collision stands where the map draws nothing at all', () => {
     for (const obstacle of map.obstacles) {
         // The island and its quays are the ground plane, deliberately below everything drawn.
         if (String(obstacle.kind || 'hard') === 'foam') continue;
-        const centre = String(obstacle.shape || '') === 'tube'
+        const centre = ['tube', 'beam'].includes(String(obstacle.shape || ''))
             ? obstacle.start.map((value, axis) => (value + obstacle.end[axis]) / 2)
             : obstacle.pos;
         assert.ok(covered(centre), `collision at ${centre.map((v) => v.toFixed(1))} has geometry around it`);
@@ -404,7 +456,7 @@ test('the arena variant reuses the building instead of duplicating it', () => {
     assert.equal(arena.portals, map.portals);
     assert.equal(arena.audioProfile, map.audioProfile);
     assert.deepEqual(arena.size, map.size);
-    assert.equal(arena.glbColliderMode, 'dynamic');
+    assert.equal(arena.glbColliderMode, 'scene');
     assert.equal(arena.glbAuthoredObstaclesCollisionOnly, true);
 
     // What actually differs: no ordered route, its own readable light and mirrored combat

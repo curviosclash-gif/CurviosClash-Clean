@@ -4,11 +4,8 @@ import test from 'node:test';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { createSolidProbe } from './helpers/notre-dame-collision-utils.mjs';
 
-// The map runs in glbColliderMode 'dynamic': only meshes an animation moves get a collider from
-// the loader. Everything else is drawn but not there unless NotreDameStructure authors a box for
-// it. The existing suite checks one direction of that bargain -- no collision where nothing is
-// drawn. This file checks the other one, which is the direction a player actually notices: stone
-// they can see has to be stone they can hit.
+// The running map uses exact GLB triangle collision. These authored definitions are its visible
+// supplements and its load-failure fallback, so they still need to stay aligned with the model.
 
 const map = NOTRE_DAME_MAPS.notre_dame;
 const isSolid = createSolidProbe(map.obstacles);
@@ -103,21 +100,45 @@ test('the apse hemicycle piers are solid', () => {
 // machine that does the moving as scenery -- a 54 m crane mast a player passes through while
 // the jib above it blocks normally.
 const SITE_FRAMES = [
-    { id: 'tower crane mast', pos: [17.0, 45.8, -90.0] },
-    { id: 'stone hoist west tower', pos: [-28.8, 23.0, -55.0] },
-    { id: 'stone hoist east tower', pos: [8.8, 23.0, -55.0] },
-    { id: 'scaffold lift mast', pos: [-40.0, 31.8, 47.8] },
-    { id: 'vault gantry west leg', pos: [-68.6, 16.7, 6.4] },
-    { id: 'vault gantry east leg', pos: [-63.0, 16.7, -6.4] },
-    { id: 'hoarding west post', pos: [-171.8, 20.6, 0.0] },
-    { id: 'hoarding east post', pos: [-128.2, 20.6, 0.0] },
-    { id: 'fleche hoist gantry north-west', pos: [120.9, 29.0, 9.1] },
-    { id: 'fleche hoist gantry south-east', pos: [139.1, 29.0, -9.1] },
+    { id: 'tower crane mast leg', pos: [14.9, 45.8, -92.1] },
+    { id: 'stone hoist west-tower leg', pos: [-30.06, 23.0, -56.26] },
+    { id: 'stone hoist east-tower leg', pos: [7.54, 23.0, -53.74] },
+    { id: 'stone hoist beam', pos: [-10.0, 38.8, -55.0] },
+    { id: 'scaffold lift mast leg', pos: [-41.68, 31.8, 46.12] },
+    { id: 'scaffold deck', pos: [-40.0, 28.7, 41.6] },
+    { id: 'hoarding south post', pos: [-149.9, 20.6, -21.84] },
+    { id: 'hoarding north post', pos: [-149.9, 20.6, 21.84] },
+    { id: 'hoarding head rail', pos: [-149.9, 33.76, 0.0] },
+    { id: 'fleche hoist cradle', pos: [130.0, 9.68, 0.0] },
+    { id: 'fleche hoist head', pos: [130.0, 50.56, 0.0] },
 ];
 
 test('the standing frames of the reconstruction site are solid', () => {
     for (const frame of SITE_FRAMES) {
         assert.ok(isSolid(frame.pos), `${frame.id} is solid`);
+    }
+});
+
+test('open lattice centres and stale moving-frame positions stay flyable', () => {
+    const openings = [
+        ['tower crane centre', [17.0, 45.8, -90.0]],
+        ['stone hoist west centre', [-28.8, 23.0, -55.0]],
+        ['stone hoist east centre', [8.8, 23.0, -55.0]],
+        ['scaffold mast centre', [-40.0, 31.8, 47.8]],
+        ['old hoarding west post', [-171.8, 20.6, 0.0]],
+        ['old hoarding east post', [-128.2, 20.6, 0.0]],
+        ['vault gantry start leg', [-68.6, 16.7, 6.4]],
+        ['fleche north-west cell', [120.9, 29.0, 9.1]],
+        ['fleche south-east cell', [139.1, 29.0, -9.1]],
+    ];
+    for (const [id, pos] of openings) {
+        assert.ok(!isSolid(pos), `${id} is flyable`);
+    }
+});
+
+test('all three west portal openings stay flyable', () => {
+    for (const z of [-18.9, 0, 18.9]) {
+        assert.ok(!isSolid([-83, GROUND + 9, z]), `portal opening at z=${z} is flyable`);
     }
 });
 

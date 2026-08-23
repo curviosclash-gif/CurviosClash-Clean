@@ -1231,10 +1231,10 @@ def build_tower_crane(scene, mats):
     jib = cube("tower_crane_jib", (17.0, 0, 55.4), (17.0, 0.8, 0.8), crane)
     tie = cube("tower_crane_tie_nocol", (9.0, 0, 59.0), (9.4, 0.2, 0.2), mats["steel"],
                rotation=(0, 0.34, 0))
-    tower_top = cone("tower_crane_apex_nocol", (0, 0, 60.5), 1.4, 0.2, 6.0, crane, vertices=6)
+    tower_top = cone("tower_crane_apex", (0, 0, 60.5), 1.4, 0.2, 6.0, crane, vertices=6)
     counter = cube("tower_crane_counterweight", (-7.0, 0, 55.0), (4.0, 1.6, 1.4),
                    mats["stone_dark"])
-    counter_jib = cube("tower_crane_counterjib_nocol", (-6.0, 0, 56.2), (6.2, 0.5, 0.35), crane)
+    counter_jib = cube("tower_crane_counterjib", (-6.0, 0, 56.2), (6.2, 0.5, 0.35), crane)
     # Hook block on a rope, hanging where the jib passes over the roof.
     rope = cylinder("tower_crane_rope_nocol", (13.0, 0, 47.0), 0.09, 16.0, mats["rope"],
                     vertices=6)
@@ -1420,7 +1420,7 @@ def build_vault_gantry(scene, mats):
     deck = cube("gantry_deck", (0, 0, 12.4), (2.4, 5.0, 0.4), mats["oak"])
     for side in (-1, 1):
         for end in (-1, 1):
-            leg = cube(f"gantry_leg_{side}_{end}_nocol", (end * 2.0, side * 4.6, 6.2),
+            leg = cube(f"gantry_leg_{side}_{end}", (end * 2.0, side * 4.6, 6.2),
                        (0.2, 0.2, 6.2), steel)
             parent_keep_world(leg, carriage)
         brace = cube(f"gantry_brace_{side}_nocol", (0, side * 4.6, 8.4), (2.2, 0.14, 0.14), steel)
@@ -1705,6 +1705,13 @@ def export_part(file_stem, builder):
     builder(build_materials())
     # Part name without the numeric prefix: 01_west_facade -> west_facade.
     merged = merge_static_meshes(file_stem.split("_", 1)[1])
+    if file_stem == "07_parvis_island":
+        for name in merged:
+            obj = bpy.data.objects.get(name)
+            if obj is None:
+                continue
+            if "_nocol" not in obj.name.lower() and "_foam" not in obj.name.lower():
+                obj.name = f"{obj.name}_foam"
     scene.frame_set(scene.frame_start)
 
     lows, highs = scene_bounds()

@@ -113,6 +113,11 @@ function readGlbJson(filePath) {
     return readGlb(filePath).document;
 }
 
+function nodeNames(fileStem) {
+    const document = readGlbJson(path.join(ASSET_ROOT, 'glb', `${fileStem}.glb`));
+    return (document.nodes || []).map((node) => String(node.name || '')).filter(Boolean);
+}
+
 /** Reads a float accessor into rows, so animation times and values compare directly. */
 function readFloatAccessor({ document, binary }, accessorIndex) {
     const accessor = document.accessors[accessorIndex];
@@ -157,6 +162,30 @@ function animatedMeshNames(document) {
     }
     return [...names];
 }
+
+test('scene collision keeps foam and moving structural members correctly typed', () => {
+    const parvisColliders = nodeNames('07_parvis_island')
+        .filter((name) => !name.toLowerCase().includes('_nocol'));
+    assert.ok(parvisColliders.length > 0, 'the island exports collidable ground meshes');
+    assert.ok(
+        parvisColliders.every((name) => name.toLowerCase().includes('_foam')),
+        'every collidable island mesh keeps the foam response',
+    );
+
+    const crane = new Set(nodeNames('10_tower_crane'));
+    assert.ok(crane.has('tower_crane_apex'), 'the moving crane apex collides with its rig');
+    assert.ok(crane.has('tower_crane_counterjib'), 'the moving counter-jib collides with its rig');
+
+    const gantry = new Set(nodeNames('15_vault_gantry'));
+    for (const side of [-1, 1]) {
+        for (const end of [-1, 1]) {
+            assert.ok(
+                gantry.has(`gantry_leg_${side}_${end}`),
+                `moving gantry leg ${side}/${end} keeps dynamic collision`,
+            );
+        }
+    }
+});
 
 /**
  * The moment in the loop at which each rig is furthest from its resting pose -- in other words,

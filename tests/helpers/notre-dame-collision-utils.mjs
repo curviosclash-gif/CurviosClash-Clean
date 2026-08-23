@@ -18,7 +18,8 @@ export function createSolidProbe(obstacles) {
         for (const obstacle of obstacles) {
             if (String(obstacle.kind || 'hard') === 'foam') continue;
 
-            if (String(obstacle.shape || '') === 'tube') {
+            const shape = String(obstacle.shape || '');
+            if (shape === 'tube' || shape === 'beam') {
                 const [ax, ay, az] = obstacle.start;
                 const [bx, by, bz] = obstacle.end;
                 const abx = bx - ax; const aby = by - ay; const abz = bz - az;
@@ -29,8 +30,12 @@ export function createSolidProbe(obstacles) {
                 const dy = py - (ay + aby * along);
                 const dz = pz - (az + abz * along);
                 const distance = Math.hypot(dx, dy, dz);
-                const outer = obstacle.radius + Math.max(0.25, Math.min(1.2, obstacle.radius * 0.18));
-                if (distance <= outer && distance >= obstacle.radius) return true;
+                if (shape === 'beam') {
+                    if (distance <= obstacle.radius) return true;
+                } else {
+                    const outer = obstacle.radius + Math.max(0.25, Math.min(1.2, obstacle.radius * 0.18));
+                    if (distance <= outer && distance >= obstacle.radius) return true;
+                }
                 continue;
             }
 

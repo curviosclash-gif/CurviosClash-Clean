@@ -1,10 +1,9 @@
 // Collision, boosts and pickups for both Notre-Dame maps.
 //
-// The map runs with glbColliderMode 'dynamic', which means the loader only gives colliders to
-// meshes an animation moves. Everything the building blocks is therefore authored here. That is
-// not a workaround: the generator joins by material, so each of the seven building files holds
-// only a handful of meshes, and a mesh collider is one axis-aligned box per mesh -- switching the
-// loader to 'mesh' would not seal the arches, it would turn half the cathedral into one block.
+// The running map uses exact triangle/BVH collision from its GLBs. The definitions here are the
+// load-failure fallback plus the small supplemental set marked compileWithGlb for collision that
+// has no matching GLB surface. Keeping the fallback aligned still matters: a partial load must not
+// replace a portal or gallery opening with an invisible block.
 //
 // The interior is built from slabs, not from bored blocks. A bore is a cylinder and the inside of
 // a gothic vessel is a tall rectangle: any cylinder wide enough to fly at the vault leaves the
@@ -140,14 +139,29 @@ function buttressRow(startX, bays, pierCentre) {
             row.push(
                 // The pier: 3 m along the building, 3.8 m across, standing 18 m to its head.
                 { pos: [x, GROUND + 12.6, side * pierCentre], size: [4.2, 25.2, 5.32] },
-                // The lower flyer, springing off the pier head and landing on the clerestory.
-                {
-                    shape: 'tube',
-                    kind: 'hard',
-                    start: [x, GROUND + 25.76, side * pierCentre],
-                    end: [x, GROUND + 32.9, side * 12.74],
-                    radius: 1.6,
-                },
+                // The lower flyer is the same six-segment curve the generator draws. These are
+                // solid narrow beams, not hollow tubes: the old tube proxy left the visible axis
+                // open and collided in a ring of empty air around every one of the 30 flyers.
+                ...Array.from({ length: 6 }, (_, step) => {
+                    const point = (index) => {
+                        const t = index / 6;
+                        const startZ = side * pierCentre;
+                        const endZ = side * 12.74;
+                        return [
+                            x,
+                            GROUND + 25.76 + (32.9 - 25.76) * t
+                                + Math.sin(t * Math.PI) * Math.abs(endZ - startZ) * 0.16,
+                            startZ + (endZ - startZ) * t,
+                        ];
+                    };
+                    return {
+                        shape: 'beam',
+                        kind: 'hard',
+                        start: point(step),
+                        end: point(step + 1),
+                        radius: 0.42,
+                    };
+                }),
             );
         }
     }
@@ -202,20 +216,53 @@ function transeptArm(side) {
     ];
 }
 
+function westTowerAroundPortal(side) {
+    const towerCentreZ = side * 20.3;
+    const towerMinZ = towerCentreZ - 10;
+    const towerMaxZ = towerCentreZ + 10;
+    const portalCentreZ = side * 18.9;
+    const portalMinZ = portalCentreZ - 5.5;
+    const portalMaxZ = portalCentreZ + 5.5;
+    const lowerTop = GROUND + 16;
+    const galleryAirMin = 56.3;
+    const galleryAirMax = 66.38;
+    const towerTop = GROUND + 96;
+    const boxes = [
+        {
+            pos: [-83, (lowerTop + galleryAirMin) / 2, towerCentreZ],
+            size: [13, galleryAirMin - lowerTop, 20],
+        },
+        {
+            pos: [-83, (galleryAirMax + towerTop) / 2, towerCentreZ],
+            size: [13, towerTop - galleryAirMax, 20],
+        },
+    ];
+    for (const [minZ, maxZ] of [[towerMinZ, portalMinZ], [portalMaxZ, towerMaxZ]]) {
+        if (maxZ <= minZ) continue;
+        boxes.push({
+            pos: [-83, (GROUND + lowerTop) / 2, (minZ + maxZ) / 2],
+            size: [13, lowerTop - GROUND, maxZ - minZ],
+        });
+    }
+    return boxes;
+}
+
 const NOTRE_DAME_OBSTACLES = [
     // --- The island it all stands on -------------------------------------------------------
-    { pos: [-31, 4, 0], size: [364, 8, 200], kind: 'foam' },
-    { pos: [-31, 1, 96], size: [364, 3, 60], kind: 'foam' },
-    { pos: [-31, 1, -96], size: [364, 3, 60], kind: 'foam' },
+    { pos: [-31, 4, 0], size: [364, 8, 200], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 1, 96], size: [364, 3, 60], kind: 'foam', compileWithGlb: true },
+    { pos: [-31, 1, -96], size: [364, 3, 60], kind: 'foam', compileWithGlb: true },
 
     // --- West front ------------------------------------------------------------------------
-    // The two towers are solid. Between them the portals are the only way in at ground level.
-    { pos: [-83, GROUND + 48, -20.3], size: [13, 96, 20] },
-    { pos: [-83, GROUND + 48, 20.3], size: [13, 96, 20] },
+    // The two towers remain solid around the side portal bores. A single full-height box here
+    // used to overlap both bores, so only the central portal could actually be flown through.
+    ...westTowerAroundPortal(-1),
+    ...westTowerAroundPortal(1),
     // Wall band above the portals, pierced by the rose. The rose itself is left open: flying
     // through it is the reward for taking the scaffold route up the facade.
     { pos: [-83, GROUND + 24, 0], size: [13, 12, 22] },
-    { pos: [-83, GROUND + 50, 0], size: [13, 20, 22] },
+    { pos: [-83, 52.15, 0], size: [13, 8.3, 22] },
+    { pos: [-83, 67.19, 0], size: [13, 1.62, 22] },
     { pos: [-83, GROUND + 37, 0], size: [13, 14, 40], tunnel: { radius: 6.2, axis: 'x' } },
     // The three portals, as one bore each. The central block reaches out to the tower faces at
     // 10.3 so no open strip is left between it and the towers.
@@ -270,10 +317,10 @@ const NOTRE_DAME_OBSTACLES = [
     // Fifty metres of the tallest thing on the map, stepped down in five stages so the collision
     // follows the taper of the octagonal shaft instead of standing as one column.
     { pos: [CROSSING_CENTRE, 75.2, 0], size: [14, 8.4, 14] },
-    { pos: [CROSSING_CENTRE, 88.5, 0], size: [10.1, 18.2, 10.1] },
-    { pos: [CROSSING_CENTRE, 106.7, 0], size: [6.7, 18.2, 6.7] },
-    { pos: [CROSSING_CENTRE, 124.9, 0], size: [3.4, 18.2, 3.4] },
-    { pos: [CROSSING_CENTRE, SPIRE_TIP - 4.2, 0], size: [2.2, 8.4, 2.2] },
+    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 79.4, 0], end: [CROSSING_CENTRE, 97.6, 0], radius: 4.18 },
+    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 97.6, 0], end: [CROSSING_CENTRE, 115.8, 0], radius: 2.41 },
+    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 115.8, 0], end: [CROSSING_CENTRE, 134.0, 0], radius: 0.64 },
+    { shape: 'beam', kind: 'hard', start: [CROSSING_CENTRE, 134.0, 0], end: [CROSSING_CENTRE, SPIRE_TIP, 0], radius: 0.45 },
 
     // --- Flying buttresses -------------------------------------------------------------------
     // The gaps between the piers are the outdoor route, so the piers have to stand on the bays
@@ -287,11 +334,11 @@ const NOTRE_DAME_OBSTACLES = [
     // inside the turning rose scaffold, the last two on the quay and the spire hoist. There is
     // deliberately none over the roof at the crest -- nothing is drawn there, so nothing collides
     // there; the ring at that point is flown through like every other ring on the route.
-    { pos: [-150, GROUND + 12, 0], size: [22, 3, 26] },
-    { pos: [-112, GROUND + 6, 0], size: [26, 3, 30] },
-    { pos: [-93.6, GROUND + 44, 0], size: [16, 3, 20] },
-    { pos: [110, GROUND + 8, 0], size: [24, 3, 26] },
-    { pos: [130, GROUND + 30, 0], size: [22, 4, 24] },
+    { pos: [-150, GROUND + 12, 0], size: [22, 3, 26], renderWithGlb: true, compileWithGlb: true },
+    { pos: [-112, GROUND + 6, 0], size: [26, 3, 30], renderWithGlb: true, compileWithGlb: true },
+    { pos: [-93.6, GROUND + 44, 0], size: [16, 3, 20], renderWithGlb: true, compileWithGlb: true },
+    { pos: [110, GROUND + 8, 0], size: [24, 3, 26], renderWithGlb: true, compileWithGlb: true },
+    { pos: [130, GROUND + 30, 0], size: [22, 4, 24], renderWithGlb: true, compileWithGlb: true },
 
     // --- What stands still on the reconstruction site ----------------------------------------
     // 'dynamic' collides a mesh only while an animation moves it, which left the machines that do

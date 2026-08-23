@@ -64,10 +64,10 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         mapKey: 'notre_dame',
         trackCount: 8,
         warningCount: 0,
-        colliderMode: 'dynamic',
+        colliderMode: 'scene',
         glbSceneChildren: 15,
         authoredObstacleCount: state.authoredObstacleCount,
-        authoredObstacleVisuals: 0,
+        authoredObstacleVisuals: 2,
         authoredCollisionSolid: true,
     });
 
@@ -163,6 +163,53 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
     // 8 + 96 * 1.4 authored units, times the map scale of 3, is about 427.
     expect(roof.maxY).toBeGreaterThan(390);
     expect(roof.maxY).toBeLessThan(450);
+
+    // Use the same five probes as PlayerCollisionPhase: centre, nose, tail and both sides. A
+    // radiusless point at the middle of an opening is not enough; that was how the full lattice
+    // boxes and the two blocked side portals escaped the earlier coverage tests.
+    const blockedOpenings = await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
+        const radius = 1.1;
+        const targets = [
+            ['portal-south', [-83, 17, -18.9], [1, 0, 0]],
+            ['portal-centre', [-83, 17, 0], [1, 0, 0]],
+            ['portal-north', [-83, 17, 18.9], [1, 0, 0]],
+            ['gallery-south', [-83, 61.2, -20.3], [1, 0, 0]],
+            ['gallery-centre', [-83, 61.2, 0], [1, 0, 0]],
+            ['gallery-north', [-83, 61.2, 20.3], [1, 0, 0]],
+            ['tower-crane-lattice', [17, 45.8, -90], [1, 0, 0]],
+            ['stone-hoist-west-lattice', [-28.8, 23, -55], [1, 0, 0]],
+            ['stone-hoist-east-lattice', [8.8, 23, -55], [1, 0, 0]],
+            ['scaffold-lattice', [-40, 31.8, 47.8], [1, 0, 0]],
+            ['fleche-north-west-cell', [120.9, 29, 9.1], [1, 0, 0]],
+            ['fleche-south-east-cell', [139.1, 29, -9.1], [1, 0, 0]],
+            ['old-hoarding-west-post', [-171.8, 20.6, 0], [1, 0, 0]],
+            ['old-hoarding-east-post', [-128.2, 20.6, 0], [1, 0, 0]],
+            ['old-flyer-tube-ring', [-70.57, 37.33, 22.47], [1, 0, 0]],
+        ];
+        const hit = (point) => arena.checkCollisionFast({
+            x: point[0], y: point[1], z: point[2],
+        }, radius);
+        const blocked = [];
+        for (const elapsed of [0, 3, 6, 9, 12]) {
+            arena.setGlbAnimationElapsedSeconds(elapsed);
+            arena.update(0);
+            for (const [id, authored, direction] of targets) {
+                const point = authored.map((value) => value * 3);
+                const side = [-direction[2], 0, direction[0]];
+                const probes = [
+                    point,
+                    point.map((value, axis) => value + direction[axis] * 4),
+                    point.map((value, axis) => value - direction[axis] * 1.5),
+                    point.map((value, axis) => value + side[axis] * 2),
+                    point.map((value, axis) => value - side[axis] * 2),
+                ];
+                if (probes.some(hit)) blocked.push(`${id}@${elapsed}`);
+            }
+        }
+        return blocked;
+    });
+    expect(blockedOpenings).toEqual([]);
 
     const collisionSweep = await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
