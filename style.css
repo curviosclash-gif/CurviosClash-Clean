@@ -18,6 +18,56 @@
     --menu-theme-display-font: 'Segoe UI', Consolas, 'Liberation Mono', monospace;
 }
 
+#app-boot-screen {
+    position: fixed;
+    inset: 0;
+    z-index: 10000;
+    display: grid;
+    place-items: center;
+    padding: 24px;
+    color: #e6f4ff;
+    background: #050510;
+    font-family: var(--menu-theme-ui-font);
+}
+
+#app-boot-screen[hidden] {
+    display: none;
+}
+
+.app-boot-screen__content {
+    display: grid;
+    justify-items: center;
+    gap: 14px;
+    text-align: center;
+}
+
+.app-boot-screen__title {
+    font-family: var(--menu-theme-display-font);
+    font-size: clamp(2rem, 7vw, 4rem);
+    font-weight: 900;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.app-boot-screen__spinner {
+    width: 42px;
+    height: 42px;
+    border: 4px solid rgba(0, 170, 255, 0.25);
+    border-top-color: #00ddff;
+    border-radius: 50%;
+    animation: app-boot-spin 0.8s linear infinite;
+}
+
+@keyframes app-boot-spin {
+    to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .app-boot-screen__spinner {
+        animation: none;
+    }
+}
+
 * {
     margin: 0;
     padding: 0;

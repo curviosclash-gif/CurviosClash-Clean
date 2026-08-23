@@ -202,7 +202,13 @@ export class MatchFlowUiController {
         const requestedMapKey = this.game?.runtimeConfig?.session?.mapKey || this.game?.mapKey || 'standard';
         const mapSelection = resolveArenaMapSelection(requestedMapKey);
         const mapDefinition = mapSelection?.mapDefinition || null;
-        if (!hasGLBMapSource(mapDefinition)) return null;
+        const mapName = String(mapDefinition?.name || requestedMapKey || 'Arena');
+        if (!hasGLBMapSource(mapDefinition)) {
+            return deriveMatchLoadingUiState({
+                messageText: `Lade ${mapName}...`,
+                messageSub: 'Arena wird vorbereitet',
+            });
+        }
         const footprint = resolveGLBMapSourceFootprint(mapDefinition);
         const COLLIDER_LABELS = {
             fallbackOnly: 'Box-Collider',
@@ -213,10 +219,24 @@ export class MatchFlowUiController {
             ? 'eingebettet'
             : (footprint.sourceKind === 'collection' ? `${footprint.modelCount} Modelle` : footprint.sourceKind);
         return deriveMatchLoadingUiState({
-            messageText: `Lade ${String(mapDefinition?.name || requestedMapKey)}...`,
+            messageText: `Lade ${mapName}...`,
             messageSub: `GLB-Umgebung wird vorbereitet (${sourceLabel}, ${colliderLabel})`,
         });
     }
+
+    waitForMatchLoadingFrame() {
+        return new Promise((resolve) => {
+            const requestFrame = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+                ? window.requestAnimationFrame.bind(window)
+                : null;
+            if (requestFrame) {
+                requestFrame(() => requestFrame(resolve));
+                return;
+            }
+            resolve();
+        });
+    }
+
     _buildRoundEndTelemetryPayload(roundEndPlan) {
         return this.telemetryController.buildRoundEndTelemetryPayload(roundEndPlan);
     }
@@ -331,9 +351,7 @@ export class MatchFlowUiController {
         this.applyLifecycleTransition(matchStartTransition);
         this.applyMatchStartUiState(matchStartTransition.uiState);
         const loadingUiState = this._resolveMatchLoadingUiState();
-        if (loadingUiState) {
-            this.applyMatchUiState(loadingUiState);
-        }
+        this.applyMatchUiState(loadingUiState);
 
         return true;
     }

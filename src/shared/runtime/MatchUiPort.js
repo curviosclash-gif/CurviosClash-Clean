@@ -8,6 +8,7 @@ export function createMatchUiPort(game) {
     const controller = () => getMatchFlowUiController(game);
     return {
         prepareMatchStartProjection: () => controller()?.prepareMatchStartProjection?.(),
+        waitForMatchLoadingFrame: () => controller()?.waitForMatchLoadingFrame?.(),
         configureMatchInputSources: () => controller()?.configureMatchInputSources?.(),
         completeMatchStartProjection: (initializedMatch) => controller()?.completeMatchStartProjection?.(initializedMatch),
         bindMatchStartRuntime: () => controller()?.bindMatchStartRuntime?.(),

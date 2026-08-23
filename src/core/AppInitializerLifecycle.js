@@ -37,6 +37,32 @@ function getRuntimeWindow() {
     return /** @type {RuntimeWindow} */ (window);
 }
 
+function getBootScreen() {
+    return typeof document !== 'undefined' && typeof document.getElementById === 'function'
+        ? document.getElementById('app-boot-screen')
+        : null;
+}
+
+function hideBootScreen() {
+    const bootScreen = getBootScreen();
+    if (!bootScreen) return;
+    bootScreen.setAttribute?.('aria-hidden', 'true');
+    bootScreen.hidden = true;
+}
+
+function waitForRenderedFrame() {
+    return new Promise((resolve) => {
+        const requestFrame = typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function'
+            ? window.requestAnimationFrame.bind(window)
+            : null;
+        if (requestFrame) {
+            requestFrame(resolve);
+            return;
+        }
+        resolve();
+    });
+}
+
 function clearPublishedRuntimeHandles(runtimeWindow) {
     if (!runtimeWindow) return;
     runtimeWindow.GAME_INSTANCE = null;
@@ -192,6 +218,10 @@ async function mountGameInstance(createGame) {
     } catch (error) {
         logger.debug('Failed to schedule E2E test API bridge import.', error);
     }
+
+    // The static screen must survive until the mounted menu gets one paint.
+    await waitForRenderedFrame();
+    hideBootScreen();
 }
 
 /**
@@ -207,6 +237,8 @@ export function initializeGameApp({ createGame }) {
     const start = () => {
         mountQueue = mountQueue.then(() => mountGameInstance(createGame)).catch((error) => {
             logger.error('Fatal Game Init Error:', error);
+            // Do not leave the boot screen above the existing runtime error UI.
+            hideBootScreen();
             showRuntimeErrorOverlay({
                 title: 'INIT ERROR',
                 lines: [resolveErrorMessage(error)],

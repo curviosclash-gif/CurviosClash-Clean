@@ -526,6 +526,7 @@ async function createWindow() {
         width: 1280,
         height: 720,
         title: 'CurviosClash',
+        backgroundColor: '#050510',
         show: shouldShowWindow,
         webPreferences: createSecureWindowWebPreferences({
             preload: path.join(__dirname, 'preload.cjs'),

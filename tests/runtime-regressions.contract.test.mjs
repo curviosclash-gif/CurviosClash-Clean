@@ -194,6 +194,21 @@ test('MatchFlowUiController prepares presentation and input without creating a m
     assert.equal(typeof controller.sessionOrchestrator.createMatchSession, 'undefined');
 });
 
+test('MatchFlowUiController shows a generic loading state when a map has no GLB source', () => {
+    const controller = new MatchFlowUiController({
+        game: {
+            runtimeConfig: { session: { mapKey: 'standard' } },
+            ui: {},
+        },
+        sessionOrchestrator: {},
+    });
+
+    const state = controller._resolveMatchLoadingUiState();
+
+    assert.equal(state.visibility.messageOverlayHidden, false);
+    assert.equal(state.messageSub, 'Arena wird vorbereitet');
+});
+
 test('MatchStartRuntimeService ignores a late session init after cancellation', async () => {
     let resolveSessionInit;
     let createMatchCalls = 0;
@@ -228,6 +243,68 @@ test('MatchStartRuntimeService ignores a late session init after cancellation', 
     assert.equal(await startPromise, false);
     assert.equal(createMatchCalls, 0);
     assert.equal(startRoundCalls, 0);
+});
+
+test('MatchStartRuntimeService waits for the loading frame and honors cancellation there', async () => {
+    let resolveLoadingFrame;
+    let initializeCalls = 0;
+    const service = new MatchStartRuntimeService({
+        facade: {
+            getRuntimeHandle: () => ({ createMatchSession: () => ({}) }),
+            getPorts: () => ({
+                lifecyclePort: {
+                    initializeSession() {
+                        initializeCalls += 1;
+                        return true;
+                    },
+                },
+                matchUiPort: {
+                    prepareMatchStartProjection: () => true,
+                    waitForMatchLoadingFrame: () => new Promise((resolve) => { resolveLoadingFrame = resolve; }),
+                },
+            }),
+        },
+    });
+
+    const startPromise = service.execute();
+    service.cancel();
+    resolveLoadingFrame();
+
+    assert.equal(await startPromise, false);
+    assert.equal(initializeCalls, 0);
+});
+
+test('MatchFlowUiController waits through a paint before continuing match initialization', async () => {
+    const originalWindow = globalThis.window;
+    const frameCallbacks = [];
+    globalThis.window = {
+        requestAnimationFrame(callback) {
+            frameCallbacks.push(callback);
+            return frameCallbacks.length;
+        },
+    };
+    const controller = new MatchFlowUiController({
+        game: { ui: {} },
+        sessionOrchestrator: {},
+    });
+
+    try {
+        let resolved = false;
+        const loadingFrame = controller.waitForMatchLoadingFrame().then(() => { resolved = true; });
+        assert.equal(frameCallbacks.length, 1);
+
+        frameCallbacks.shift()(0);
+        await Promise.resolve();
+        assert.equal(resolved, false);
+        assert.equal(frameCallbacks.length, 1);
+
+        frameCallbacks.shift()(16);
+        await loadingFrame;
+        assert.equal(resolved, true);
+    } finally {
+        if (typeof originalWindow === 'undefined') delete globalThis.window;
+        else globalThis.window = originalWindow;
+    }
 });
 
 test('InputManager clears assigned touch sources on blur-state reset', () => {
@@ -360,6 +437,46 @@ test('AppInitializer aborts remount when previous dispose fails before publishin
             assert.equal(window.GAME_INSTANCE, null);
             assert.equal(window.GAME_RUNTIME, null);
             assert.equal(window.GAME_DEBUG, null);
+        } finally {
+            resetAppInitializerForTests();
+        }
+    });
+});
+
+test('AppInitializer hides the boot screen only after a rendered frame of a successful mount', async () => {
+    await withMockRuntimeGlobals(async ({ window }) => {
+        resetAppInitializerForTests();
+        const bootScreen = {
+            hidden: false,
+            attributes: new Map(),
+            setAttribute(name, value) {
+                this.attributes.set(name, value);
+            },
+        };
+        let frameCallback = null;
+        globalThis.document = {
+            getElementById: (id) => (id === 'app-boot-screen' ? bootScreen : null),
+        };
+        window.requestAnimationFrame = (callback) => {
+            frameCallback = callback;
+            return 1;
+        };
+
+        try {
+            const mount = mountGameInstanceForTests(() => ({
+                runtimeFacade: {},
+                debugApi: {},
+            }));
+            await Promise.resolve();
+
+            assert.equal(bootScreen.hidden, false);
+            assert.equal(typeof frameCallback, 'function');
+
+            frameCallback();
+            await mount;
+
+            assert.equal(bootScreen.hidden, true);
+            assert.equal(bootScreen.attributes.get('aria-hidden'), 'true');
         } finally {
             resetAppInitializerForTests();
         }

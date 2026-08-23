@@ -58,6 +58,13 @@ export class MatchStartRuntimeService {
         if (matchUiPort.prepareMatchStartProjection() === false) {
             return false;
         }
+        const loadingFrame = matchUiPort.waitForMatchLoadingFrame?.();
+        if (isPromiseLike(loadingFrame)) {
+            await Promise.resolve(loadingFrame);
+        }
+        if (generation !== this._generation) {
+            return false;
+        }
         const sessionInitialized = await Promise.resolve(lifecyclePort?.initializeSession?.());
         if (sessionInitialized === false || generation !== this._generation) {
             return false;
