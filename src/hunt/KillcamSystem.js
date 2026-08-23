@@ -8,6 +8,7 @@ import {
     hideKillcamLivePresentation,
     restoreKillcamLivePresentation,
 } from './KillcamPresentationOps.js';
+import { isPixelCaptureEligible, isSingleNodeSession, resolveRespawnDelaySeconds } from './KillcamEligibility.js';
 import { KillcamPixelReplayBuffer } from '../core/recording/KillcamPixelReplayBuffer.js';
 
 const KILLCAM_SOURCE_WINDOW_SECONDS = 2;
@@ -57,13 +58,6 @@ const SHOT_SEQUENCE = Object.freeze([
     }),
 ]);
 
-function isSingleNodeSession(entityManager) {
-    if (!entityManager) return false;
-    if (entityManager.runtimeConfig?.session?.networkEnabled === true) return false;
-    const humans = Array.isArray(entityManager.humanPlayers) ? entityManager.humanPlayers : [];
-    return humans.length === 1;
-}
-
 // Compute a uniform rate multiplier so that the cumulative replay-time advance,
 // driven by per-shot `timeScale` values, reaches exactly `sourceDuration`
 // at the wall-clock instant the explosion is triggered (triggerRatio * displayDuration).
@@ -97,15 +91,6 @@ function computeReplayRateCalibration(displayDuration, sourceDuration, triggerRa
     return baseConsumed > 1e-6 ? safeSource / baseConsumed : 1;
 }
 
-function resolveRespawnDelaySeconds(respawnSystem, player) {
-    const directRemaining = respawnSystem?.getRemainingForPlayer?.(player);
-    if (Number.isFinite(Number(directRemaining))) {
-        return Math.max(0, Number(directRemaining));
-    }
-    const remaining = respawnSystem?.getRemainingByPlayer?.() || {};
-    return Math.max(0, Number(remaining[player?.index]) || 0);
-}
-
 function hasFinitePosition(value) {
     return Number.isFinite(Number(value?.x))
         && Number.isFinite(Number(value?.y))
@@ -137,6 +122,7 @@ export class KillcamSystem {
         this._pixelReplayPending = null;
         this._pixelTerminalCapturePending = false;
         this._pixelReplayRequestId = 0;
+        this._pixelCaptureWasEligible = false;
         this._elapsed = 0;
         this._displayDuration = 0;
         this._deadPlayerIndex = -1;
@@ -180,6 +166,10 @@ export class KillcamSystem {
 
     isActive() { return this._active; }
 
+    isPixelCaptureEligible(allowPendingTerminalCapture = false) {
+        return isPixelCaptureEligible(this, allowPendingTerminalCapture);
+    }
+
     ownsCamera(playerIndex = KILLCAM_CAMERA_INDEX) { return this._active && this._sceneReplayActive && !this._pixelReplayActive && playerIndex === KILLCAM_CAMERA_INDEX; }
 
     getTimeScale() {
@@ -221,7 +211,7 @@ export class KillcamSystem {
             displayDuration,
             camera,
         };
-        if (this.pixelReplayBuffer?.canReplay?.() === true) {
+        if (this.pixelReplayBuffer?.canReplay?.() === true && this.isPixelCaptureEligible()) {
             this._pixelReplayPending = context;
             this._pixelTerminalCapturePending = false;
             this._pixelReplayRequestId++;
@@ -238,6 +228,12 @@ export class KillcamSystem {
         const pixelBuffer = this.pixelReplayBuffer;
         if (!pixelBuffer || this._active) return Promise.resolve(null);
         const pending = this._pixelReplayPending;
+        if (!this.isPixelCaptureEligible(pending != null)) {
+            if (pending != null || this._pixelCaptureWasEligible) this.resetPixelCapture();
+            this._pixelCaptureWasEligible = false;
+            return Promise.resolve(null);
+        }
+        this._pixelCaptureWasEligible = true;
         if (!pending) return pixelBuffer.captureFrame?.() || Promise.resolve(null);
         if (this._pixelTerminalCapturePending) return Promise.resolve(null);
 
@@ -280,6 +276,7 @@ export class KillcamSystem {
     resetPixelCapture() {
         this.clear();
         this.pixelReplayBuffer?.resetCapture?.();
+        this._pixelCaptureWasEligible = false;
     }
 
     _startSceneReplay({
@@ -754,6 +751,7 @@ export class KillcamSystem {
         this._pixelReplayRequestId++;
         this._pixelReplayPending = null;
         this._pixelTerminalCapturePending = false;
+        this._pixelCaptureWasEligible = false;
         // Released unconditionally: a suppression that outlives its replay silently kills
         // every explosion and impact in the live scene, so the reset must not depend on
         // the scene-replay flag still being set.
