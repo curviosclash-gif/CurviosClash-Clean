@@ -10,6 +10,14 @@ const MODERN_STYLE = 'modern';
 const LIGHT_SPACE_MATRIX = new THREE.Matrix4();
 const CORNER_POINT = new THREE.Vector3();
 
+// Atmosphere geometry is local to the camera rather than the map origin. onBeforeRender runs for
+// every viewport, so split-screen cameras each receive their own sky without a render-loop branch
+// or per-frame allocations.
+function followActiveCamera(_renderer, _scene, camera) {
+    this.position.copy(camera.position);
+    this.updateMatrixWorld(true);
+}
+
 function createClassicLighting(config) {
     return {
         key: { direction: [30, 50, 30], color: 0xffffff, intensity: 0.8 },
@@ -183,6 +191,8 @@ export class SceneLightingRig {
         this.skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
         this.skyDome.name = 'scene-atmosphere-sky';
         this.skyDome.renderOrder = -1000;
+        this.skyDome.frustumCulled = false;
+        this.skyDome.onBeforeRender = followActiveCamera;
 
         const starPositions = this._createStarPositions(radius, 360);
         const starGeometry = new THREE.BufferGeometry();
@@ -199,6 +209,8 @@ export class SceneLightingRig {
         this.starField = new THREE.Points(starGeometry, starMaterial);
         this.starField.name = 'scene-atmosphere-stars';
         this.starField.renderOrder = -900;
+        this.starField.frustumCulled = false;
+        this.starField.onBeforeRender = followActiveCamera;
         this.scene.add(this.skyDome, this.starField);
     }
 

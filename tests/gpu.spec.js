@@ -200,6 +200,44 @@ test.describe('T21-40: Rendering & GPU', () => {
         expect(result.afterModern).toEqual(result.bright);
     });
 
+    test('T31c: Atmosphaere folgt der aktiven Kamera ausserhalb des Kartenursprungs', async ({ page }) => {
+        await startGame(page);
+        const result = await page.evaluate(() => {
+            const gameRenderer = window.GAME_INSTANCE.renderer;
+            const camera = gameRenderer.cameras[0];
+            const lightingRig = gameRenderer._lightingRig;
+            const originalPosition = camera.position.clone();
+            const originalQuaternion = camera.quaternion.clone();
+            const originalGraphicsStyle = gameRenderer.getGraphicsStyle();
+            const farPosition = { x: -420, y: 24, z: 180 };
+
+            try {
+                gameRenderer.setGraphicsStyle('modern');
+                camera.position.set(farPosition.x, farPosition.y, farPosition.z);
+                camera.updateMatrixWorld();
+                gameRenderer.render();
+                return {
+                    skyPosition: lightingRig.skyDome.position.toArray(),
+                    starPosition: lightingRig.starField.position.toArray(),
+                    skyFrustumCulled: lightingRig.skyDome.frustumCulled,
+                    starsFrustumCulled: lightingRig.starField.frustumCulled,
+                    farPosition: [farPosition.x, farPosition.y, farPosition.z],
+                };
+            } finally {
+                camera.position.copy(originalPosition);
+                camera.quaternion.copy(originalQuaternion);
+                camera.updateMatrixWorld();
+                gameRenderer.setGraphicsStyle(originalGraphicsStyle);
+                gameRenderer.render();
+            }
+        });
+
+        expect(result.skyPosition).toEqual(result.farPosition);
+        expect(result.starPosition).toEqual(result.farPosition);
+        expect(result.skyFrustumCulled).toBeFalsy();
+        expect(result.starsFrustumCulled).toBeFalsy();
+    });
+
     test('T31a: Schattenqualitaets-Slider steuert Shadow-Maps im Menue', async ({ page }) => {
         await loadGame(page);
         await openLevel4Drawer(page, { section: 'gameplay' });

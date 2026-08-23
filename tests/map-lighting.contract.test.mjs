@@ -162,6 +162,37 @@ test('scene lighting rig applies map profile before brightness and explicit view
     assert.equal(scene.children.length, 0);
 });
 
+test('scene lighting atmosphere follows every active camera without frustum culling', () => {
+    const scene = new THREE.Scene();
+    scene.fog = new THREE.Fog(0, 1, 2);
+    const rig = new SceneLightingRig({
+        scene,
+        renderer: { toneMappingExposure: 0 },
+        config: {
+            COLORS: { BACKGROUND: 0x080812, AMBIENT_LIGHT: 0x334466 },
+            CAMERA: { FAR: 200 },
+            RENDER: { SHADOW_MAP_SIZE: 256 },
+        },
+    });
+    const cameras = [
+        new THREE.PerspectiveCamera(60, 1, 0.1, 200),
+        new THREE.PerspectiveCamera(60, 1, 0.1, 200),
+    ];
+    cameras[0].position.set(-420, 24, 180);
+    cameras[1].position.set(610, 48, -360);
+
+    for (const camera of cameras) {
+        camera.updateMatrixWorld();
+        rig.skyDome.onBeforeRender(null, scene, camera);
+        rig.starField.onBeforeRender(null, scene, camera);
+        assert.deepEqual(rig.skyDome.position.toArray(), camera.position.toArray());
+        assert.deepEqual(rig.starField.position.toArray(), camera.position.toArray());
+    }
+    assert.equal(rig.skyDome.frustumCulled, false);
+    assert.equal(rig.starField.frustumCulled, false);
+    rig.dispose();
+});
+
 test('ArenaBuilder resets map lighting when switching to a map without a profile', () => {
     const lighting = { key: { intensity: 2 } };
     const calls = [];
