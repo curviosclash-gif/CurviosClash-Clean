@@ -41,7 +41,7 @@ test('view distance normalization snaps to steps and clamps to the usable range'
     assert.equal(normalizeViewDistance(Number.NaN), DEFAULT_VIEW_DISTANCE);
 });
 
-test('automatic view distance follows the map brightness', () => {
+test('automatic view distance is independent of the map brightness', () => {
     const auto = (brightness) => resolveFogRange({
         viewDistance: VIEW_DISTANCE_AUTO,
         brightnessFogFactor: resolveMapBrightnessFactors(brightness).fog,
@@ -49,13 +49,9 @@ test('automatic view distance follows the map brightness', () => {
         baseFar: BASE_FAR,
     });
 
-    assert.deepEqual(auto('mittel'), { near: 55, far: 190 });
-    assert.deepEqual(auto('hell'), { near: 55, far: 190 });
-
-    // 'dunkel' bringt die kurze Nacht-Sichtweite weiterhin von selbst mit.
-    const dark = auto('dunkel');
-    assert.equal(dark.far, 85.5);
-    assert.ok(dark.near < 25);
+    for (const brightness of ['dunkel', 'mittel', 'hell']) {
+        assert.deepEqual(auto(brightness), { near: 55, far: 190 });
+    }
 });
 
 test('an explicit view distance overrides the brightness for every level', () => {

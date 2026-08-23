@@ -16,12 +16,11 @@ export const MAP_BRIGHTNESS_ORDER = Object.freeze([
 // Belichtung: das hebt dunkle Bereiche an, ohne dass helle Flaechen bei 'hell' ausbrennen.
 //
 // 'dunkel' ist bewusst eine Nachtstimmung: Ambient faellt stark ab, sodass nur noch das
-// gerichtete Key-Light traegt (harte Kontraste, schwarze Schatten), und der Fog rueckt nah
-// heran fuer kurze Sichtweite.
-// 'hell' laesst den Fog unveraendert - die Kamera-Far-Plane liegt bei 200 und der Fog endet
-// bereits bei 190, nach oben ist also kein Spielraum.
+// gerichtete Key-Light traegt (harte Kontraste, schwarze Schatten). Die Helligkeit aendert
+// die Sichtweite nicht; kurze Sichtweite wird ausschliesslich ueber den Sichtweitenregler
+// eingestellt.
 const MAP_BRIGHTNESS_FACTORS = Object.freeze({
-    [MAP_BRIGHTNESS_LEVELS.DARK]: Object.freeze({ exposure: 0.62, ambient: 0.28, fog: 0.45 }),
+    [MAP_BRIGHTNESS_LEVELS.DARK]: Object.freeze({ exposure: 0.62, ambient: 0.28, fog: 1 }),
     [MAP_BRIGHTNESS_LEVELS.MEDIUM]: Object.freeze({ exposure: 1, ambient: 1, fog: 1 }),
     [MAP_BRIGHTNESS_LEVELS.BRIGHT]: Object.freeze({ exposure: 1.3, ambient: 1.55, fog: 1 }),
 });

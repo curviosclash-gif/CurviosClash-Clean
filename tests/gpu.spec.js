@@ -188,9 +188,9 @@ test.describe('T21-40: Rendering & GPU', () => {
         expect(result.dark.ambient).toBeLessThan(result.medium.ambient);
         expect(result.bright.ambient).toBeGreaterThan(result.medium.ambient);
 
-        // 'dunkel' zieht zusaetzlich die Sichtweite zusammen, 'hell' laesst sie unveraendert.
-        expect(result.dark.fogFar).toBeLessThan(result.medium.fogFar);
-        expect(result.dark.fogNear).toBeLessThan(result.medium.fogNear);
+        // Karten-Helligkeit und Sichtweite sind entkoppelt.
+        expect(result.dark.fogFar).toBe(result.medium.fogFar);
+        expect(result.dark.fogNear).toBe(result.medium.fogNear);
         expect(result.bright.fogFar).toBe(result.medium.fogFar);
 
         // Der Grafikstil liefert nur die Basiswerte - er darf die gewaehlte Helligkeit

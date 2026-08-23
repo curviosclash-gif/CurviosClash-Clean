@@ -37,7 +37,7 @@ test('mittel stays perfectly neutral so the default look never shifts', () => {
     assert.equal(medium.fog, 1);
 });
 
-test('dunkel reads as night: little light and a short view distance', () => {
+test('dunkel reads as night without changing the automatic view distance', () => {
     const dark = resolveMapBrightnessFactors('dunkel');
 
     // Ambient bricht deutlich staerker ein als die Belichtung - damit traegt fast nur noch
@@ -45,15 +45,13 @@ test('dunkel reads as night: little light and a short view distance', () => {
     assert.ok(dark.ambient < 0.4);
     assert.ok(dark.ambient < dark.exposure);
 
-    // Fog rueckt spuerbar heran: mehr als ein Drittel Sichtweite muss wegfallen.
-    assert.ok(dark.fog < 0.7);
-    assert.ok(dark.fog > 0);
+    assert.equal(dark.fog, 1);
 });
 
-test('hell leaves the view distance alone because the camera far plane caps it', () => {
-    // CONFIG.CAMERA.FAR liegt bei 200 und der Fog endet bei 'Neu' schon bei 190 -
-    // nach oben ist kein Spielraum, 'hell' darf den Fog daher nicht strecken.
-    assert.equal(resolveMapBrightnessFactors('hell').fog, 1);
+test('all brightness levels leave the automatic view distance alone', () => {
+    for (const brightness of MAP_BRIGHTNESS_ORDER) {
+        assert.equal(resolveMapBrightnessFactors(brightness).fog, 1);
+    }
 });
 
 test('map brightness factors rise strictly from dunkel over mittel zu hell', () => {

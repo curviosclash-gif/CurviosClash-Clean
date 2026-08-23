@@ -1,6 +1,6 @@
-// Sichtweite in Welteinheiten. 0 bedeutet 'Automatisch': dann bestimmt die
-// Karten-Helligkeit die Sichtweite ('dunkel' rueckt den Fog fuer Nachtstimmung heran).
-// Jeder Wert > 0 ueberschreibt das und gilt unabhaengig von der Helligkeitsstufe.
+// Sichtweite in Welteinheiten. 0 bedeutet 'Automatisch': dann gelten die Fog-Basiswerte
+// des Grafikstils unabhaengig von der Karten-Helligkeit. Jeder Wert > 0 ueberschreibt diese
+// Basiswerte.
 export const VIEW_DISTANCE_AUTO = 0;
 export const VIEW_DISTANCE_MIN = 20;
 // CONFIG.CAMERA.FAR liegt bei 200 - jenseits davon wird ohnehin weggeschnitten.
@@ -29,9 +29,10 @@ export function resolveViewDistanceLabel(value) {
     return normalized === VIEW_DISTANCE_AUTO ? 'Automatisch' : String(normalized);
 }
 
-// Liefert die konkrete Fog-Spanne. Der Grafikstil gibt die Basis vor, die Helligkeitsstufe
-// einen Faktor darauf - eine explizite Sichtweite ersetzt beides fuer die Reichweite.
-// Der Fog-Beginn skaliert proportional mit, damit der Verlauf seine Form behaelt.
+// Liefert die konkrete Fog-Spanne. Der Grafikstil gibt die Basis vor; die Karten-Helligkeit
+// liefert dafuer bewusst immer den neutralen Faktor 1. Eine explizite Sichtweite ersetzt die
+// Basis fuer die Reichweite. Der Fog-Beginn skaliert proportional mit, damit der Verlauf seine
+// Form behaelt.
 export function resolveFogRange({ viewDistance, brightnessFogFactor = 1, baseNear, baseFar }) {
     const safeBaseFar = Number(baseFar) > 0 ? Number(baseFar) : 1;
     const safeBaseNear = Number(baseNear) >= 0 ? Number(baseNear) : 0;
