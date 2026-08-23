@@ -19,6 +19,9 @@ export function createPlayerProgressSnapshot(route, state, now) {
         passedMask: Array.from(state.passedMask),
         passedCheckpointIds,
         expectedCheckpointIds: expectedEntries.map((entry) => entry.id),
+        expectedCheckpointLabels: expectedEntries
+            .map((entry) => String(entry.params?.label || '').trim())
+            .filter(Boolean),
         startedAtMs: state.startedAtMs,
         lastCheckpointAtMs: state.lastCheckpointAtMs,
         wrongOrderCount: state.wrongOrderCount,
@@ -48,6 +51,7 @@ export function createPlayerHudState(snapshot) {
         penaltyTimeMs: snapshot.penaltyTimeMs,
         segmentElapsedMs: snapshot.segmentElapsedMs,
         passedCheckpointIds: [...snapshot.passedCheckpointIds],
+        expectedCheckpointLabels: [...(snapshot.expectedCheckpointLabels || [])],
         hasError: snapshot.hasError,
         errorMessage: snapshot.errorMessage,
         wrongOrderCount: snapshot.wrongOrderCount,

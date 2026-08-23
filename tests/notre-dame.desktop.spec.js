@@ -25,6 +25,7 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         game.runtimeFacade?.onSettingsChanged?.({ changedKeys: ['bots.count'] });
     });
 
+    const loadStartedAt = await page.evaluate(() => performance.now());
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame'
@@ -35,6 +36,8 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
         timeout: 150_000,
         message: 'Notre-Dame should load all fifteen parts and animate the eight site pieces',
     }).toBeTruthy();
+    const loadDurationMs = await page.evaluate((startedAt) => performance.now() - startedAt, loadStartedAt);
+    expect(loadDurationMs).toBeLessThan(120_000);
 
     const state = await page.evaluate(() => {
         const arena = window.GAME_INSTANCE.arena;
@@ -160,4 +163,77 @@ test('Notre-Dame loads as one cathedral with its site running on the shared beat
     // 8 + 96 * 1.4 authored units, times the map scale of 3, is about 427.
     expect(roof.maxY).toBeGreaterThan(390);
     expect(roof.maxY).toBeLessThan(450);
+
+    const collisionSweep = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        const movingIds = arena.currentMapDefinition.glbModels
+            .filter((model) => model.animationClock)
+            .map((model) => model.id);
+        const groupFor = (obstacle) => {
+            let node = obstacle?.meshCollider?.mesh || null;
+            while (node) {
+                if (node.userData?.glbModelId) return node.userData.glbModelId;
+                node = node.parent;
+            }
+            return '';
+        };
+        const grouped = Object.fromEntries(movingIds.map((id) => [id, []]));
+        arena._glbDynamicObstacles.forEach((obstacle) => {
+            const id = groupFor(obstacle);
+            if (grouped[id]) grouped[id].push(obstacle);
+        });
+        const baseline = new Map();
+        const motion = Object.fromEntries(movingIds.map((id) => [id, {
+            colliderCount: grouped[id].length,
+            maxTravel: 0,
+            blockedSamples: 0,
+        }]));
+        const center = game.entityManager.players[0].position.clone();
+        for (let step = 0; step <= 24; step += 1) {
+            arena.setGlbAnimationElapsedSeconds(step * 0.5);
+            arena.update(0);
+            for (const id of movingIds) {
+                for (const obstacle of grouped[id]) {
+                    obstacle.box.getCenter(center);
+                    const key = obstacle.meshCollider.mesh.uuid;
+                    const first = baseline.get(key);
+                    if (!first) baseline.set(key, center.clone());
+                    else motion[id].maxTravel = Math.max(motion[id].maxTravel, center.distanceTo(first));
+                    if (arena.checkCollisionFast(center, 0.1)) motion[id].blockedSamples += 1;
+                }
+            }
+        }
+        return motion;
+    });
+    expect(Object.keys(collisionSweep)).toHaveLength(8);
+    for (const [id, result] of Object.entries(collisionSweep)) {
+        expect(result.colliderCount, `${id} keeps dynamic collision`).toBeGreaterThan(0);
+        expect(result.maxTravel, `${id} moves that collision across its beat`).toBeGreaterThan(0.5);
+        expect(result.blockedSamples, `${id} collides at its visible poses`).toBeGreaterThan(result.colliderCount);
+    }
+
+    const performanceBudget = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const drawCalls = [];
+        const renderTimes = [];
+        for (let frame = 0; frame < 30; frame += 1) {
+            const startedAt = performance.now();
+            game.renderer.render();
+            renderTimes.push(performance.now() - startedAt);
+            drawCalls.push(Number(game.renderer?.renderer?.info?.render?.calls) || 0);
+        }
+        drawCalls.sort((left, right) => left - right);
+        renderTimes.sort((left, right) => left - right);
+        const p95Index = Math.min(drawCalls.length - 1, Math.ceil(drawCalls.length * 0.95) - 1);
+        return {
+            sampleCount: drawCalls.length,
+            drawCallsP95: drawCalls[p95Index],
+            renderMsP95: renderTimes[p95Index],
+        };
+    });
+    expect(performanceBudget.sampleCount).toBe(30);
+    expect(performanceBudget.drawCallsP95).toBeGreaterThan(0);
+    expect(performanceBudget.drawCallsP95).toBeLessThanOrEqual(260);
+    expect(performanceBudget.renderMsP95).toBeLessThan(100);
 });

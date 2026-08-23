@@ -15,6 +15,8 @@ import {
     NOTRE_DAME_PORTALS,
     NOTRE_DAME_GATES,
     NOTRE_DAME_ITEMS,
+    NOTRE_DAME_ARENA_GATES,
+    NOTRE_DAME_ARENA_ITEMS,
     NOTRE_DAME_AIRCRAFT,
 } from './NotreDameStructure.js';
 import {
@@ -24,6 +26,26 @@ import {
 } from './NotreDameRoute.js';
 
 const MAP_SIZE = [460, 150, 320];
+const NOTRE_DAME_AUDIO_PROFILE = Object.freeze({
+    id: 'notre_dame',
+    interiorBounds: Object.freeze({
+        min: Object.freeze([-76.65, GROUND, -29.5]),
+        max: Object.freeze([89.25, GROUND + 64, 29.5]),
+    }),
+    constructionCenters: Object.freeze([
+        Object.freeze([-150, GROUND + 16, 0]),
+        Object.freeze([-40, GROUND + 24, 45]),
+        Object.freeze([17, GROUND + 30, -52]),
+        Object.freeze([130, GROUND + 34, 0]),
+    ]),
+    constructionRadius: 48,
+    bell: Object.freeze({
+        position: Object.freeze([-83, GROUND + 70, -20.3]),
+        intervalSeconds: 6,
+        phaseOffsetSeconds: 4,
+        audibleRadius: 150,
+    }),
+});
 
 // Shared by both maps on this building: the fabric, the site, and the collision that makes the
 // interior flyable.
@@ -47,6 +69,7 @@ const NOTRE_DAME_COMMON = {
     // flickering, while a partial or failed GLB load still restores the visible fallback boxes.
     glbAuthoredObstaclesCollisionOnly: true,
     glbLoadConcurrency: 3,
+    audioProfile: NOTRE_DAME_AUDIO_PROFILE,
     items: NOTRE_DAME_ITEMS,
     aircraft: NOTRE_DAME_AIRCRAFT,
 };
@@ -99,6 +122,18 @@ export const NOTRE_DAME_MAPS = {
     notre_dame_arena: {
         ...NOTRE_DAME_COMMON,
         name: 'Notre-Dame Arena',
+        lighting: {
+            key: { direction: [45, 55, -35], color: 0xcfe8ff, intensity: 1.35 },
+            fill: { direction: [-40, 24, 30], color: 0xffc98c, intensity: 0.34 },
+            rim: { direction: [10, 28, 55], color: 0x7fdcff, intensity: 0.62 },
+            hemisphere: { skyColor: 0x9ebbd8, groundColor: 0x4b4d54 },
+            fog: { color: 0x142238, near: 78, far: 190 },
+            skyDome: { zenithColor: 0x08172e, horizonColor: 0x7898b7, nadirColor: 0x080c14 },
+            starsVisible: false,
+            exposureOffset: 0.04,
+        },
+        gates: NOTRE_DAME_ARENA_GATES,
+        items: NOTRE_DAME_ARENA_ITEMS,
         playerSpawn: { x: -112, y: GROUND + 16, z: 0 },
         botSpawns: [
             { x: -112, y: GROUND + 16, z: -24 },

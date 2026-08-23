@@ -8,6 +8,10 @@ import { createExplosionChainState, playExplosionVoice, playRocketImpactVoice, r
 import { MUSIC_STATES, ProceduralMusicDirector } from './audio/ProceduralMusicDirector.js';
 import { playGameplayVoice } from './audio/GameplayVoices.js';
 import {
+    disposeMapAmbienceVoice,
+    syncMapAmbienceVoice,
+} from './audio/MapAmbienceVoice.js';
+import {
     AUDIO_THIRD_PARTY_NOTICE_URL,
     loadRecordedAudioSamples,
     playRecordedAudioSample,
@@ -78,6 +82,12 @@ export class AudioManager {
         this._outputNode = null;
         this._engine = null;
         this._ambience = null;
+        this._mapAmbience = null;
+        this._mapAmbienceSyncOptions = {
+            profile: null,
+            playerPosition: null,
+            mapScale: 1,
+        };
         this._activeVoices = 0;
         this._isDevEnvironment = isDevEnvironment();
         this._audioInitFailed = false;
@@ -751,6 +761,31 @@ export class AudioManager {
         });
     }
 
+    syncMapAmbienceFromPlayers(players = [], options = {}) {
+        if (!this._mapAmbienceSyncOptions) return 'unavailable';
+        const list = Array.isArray(players) ? players : [];
+        const localIndex = Number(options.localPlayerIndex);
+        let source = Number.isInteger(localIndex)
+            ? list.find((player) => player && player.index === localIndex && player.isBot !== true)
+            : null;
+        if (!source) source = list.find((player) => player && player.isBot !== true && player.alive !== false) || null;
+        const syncOptions = this._mapAmbienceSyncOptions;
+        syncOptions.profile = options.mapDefinition?.audioProfile || null;
+        syncOptions.playerPosition = source?.alive === false ? null : source?.position;
+        syncOptions.mapScale = options.mapScale;
+        syncOptions.elapsedSeconds = options.elapsedSeconds;
+        return syncMapAmbienceVoice(this, syncOptions);
+    }
+
+    clearMapAmbience() {
+        const syncOptions = this._mapAmbienceSyncOptions;
+        if (!syncOptions) return 'unavailable';
+        syncOptions.profile = null;
+        syncOptions.playerPosition = null;
+        syncOptions.elapsedSeconds = 0;
+        return syncMapAmbienceVoice(this, syncOptions);
+    }
+
     dispose() {
         this.stopEngine();
         this.music?.dispose?.();
@@ -764,6 +799,7 @@ export class AudioManager {
         for (const timer of this._voiceReleaseTimers) clearTimeout(timer);
         this._voiceReleaseTimers.clear();
         disposeEngineVoice(this);
+        disposeMapAmbienceVoice(this);
         if (this._ambience) {
             try { this._ambience.source.stop(); } catch { /* ignore */ }
             this._ambience = null;
@@ -789,5 +825,6 @@ export class AudioManager {
         this._debugEvents = [];
         this._registeredWindowListeners = [];
         this._activeVoices = 0;
+        this._mapAmbienceSyncOptions = null;
     }
 }

@@ -1,6 +1,12 @@
 export class EntityTickPipeline {
     constructor(entityManager) {
         this.entityManager = entityManager || null;
+        this._mapAmbienceOptions = {
+            localPlayerIndex: 0,
+            mapDefinition: null,
+            mapScale: 1,
+            elapsedSeconds: 0,
+        };
     }
 
     update(dt, inputManager, renderFrameId = 0) {
@@ -32,6 +38,12 @@ export class EntityTickPipeline {
             owner.audio?.syncEngineFromPlayers?.(owner.players, {
                 localPlayerIndex: owner.renderer?.viewportSystem?.localPlayerIndex,
             });
+            const ambienceOptions = this._mapAmbienceOptions;
+            ambienceOptions.localPlayerIndex = owner.renderer?.viewportSystem?.localPlayerIndex;
+            ambienceOptions.mapDefinition = owner.arena?.currentMapDefinition;
+            ambienceOptions.mapScale = owner.entityRuntimeConfig?.ARENA?.MAP_SCALE;
+            ambienceOptions.elapsedSeconds = owner.arena?.glbAnimationElapsedSeconds;
+            owner.audio?.syncMapAmbienceFromPlayers?.(owner.players, ambienceOptions);
 
             const outcome = owner._roundOutcomeSystem.resolve();
             if (outcome.shouldEnd) {

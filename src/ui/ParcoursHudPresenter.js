@@ -91,6 +91,9 @@ export function renderParcoursPanel(refs, hudState, game, persistTutorial) {
         isSuccess = true;
     } else if (hudState.hasError && hudState.errorMessage) {
         statusText = hudState.errorMessage;
+    } else if (Array.isArray(hudState.expectedCheckpointLabels)
+        && hudState.expectedCheckpointLabels.length > 1) {
+        statusText = `Wegwahl: ${hudState.expectedCheckpointLabels.join(' · ')}`;
     }
     if (isClassicTutorialRoute(hudState.routeId)) {
         statusText = resolveClassicTutorialHint(current, hudState.completed);

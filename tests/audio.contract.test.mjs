@@ -3,6 +3,7 @@ import test from 'node:test';
 
 import { AudioManager } from '../src/core/Audio.js';
 import { ProceduralMusicDirector } from '../src/core/audio/ProceduralMusicDirector.js';
+import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 
 function createMockWindow() {
     const listeners = new Map();
@@ -323,6 +324,66 @@ test('AudioManager initializes dedicated music, UI and ambience buses', async ()
             assert.ok(audio.music._sceneGain);
         } finally {
             audio.dispose();
+        }
+    });
+});
+
+test('Notre-Dame ambience crossfades by zone, rings on the shared beat and cleans up', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        const map = NOTRE_DAME_MAPS.notre_dame;
+        const mapScale = 3;
+        const player = {
+            index: 0,
+            alive: true,
+            isBot: false,
+            position: { x: -220 * mapScale, y: 22 * mapScale, z: 0 },
+        };
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: { id: 'grid' },
+                mapScale,
+                elapsedSeconds: 0,
+            }), 'none');
+            assert.equal(audio._mapAmbience, null);
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: map,
+                mapScale,
+                elapsedSeconds: 0,
+            }), 'outdoor');
+            const state = audio._mapAmbience;
+            const outdoorSource = state.outdoor.source;
+            assert.ok(outdoorSource.started);
+            assert.ok(state.outdoor.gain.gain.value > state.interior.gain.gain.value);
+
+            player.position.x = -40 * mapScale;
+            player.position.y = 28 * mapScale;
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: map,
+                mapScale,
+                elapsedSeconds: 3.9,
+            }), 'interior');
+            assert.equal(audio._mapAmbience, state);
+            assert.equal(state.outdoor.source, outdoorSource);
+            assert.ok(state.interior.gain.gain.value > state.outdoor.gain.gain.value);
+
+            const voicesBeforeBell = audio._activeVoices;
+            audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: map,
+                mapScale,
+                elapsedSeconds: 4.1,
+            });
+            assert.equal(audio._activeVoices, voicesBeforeBell + 1);
+            assert.equal(audio.clearMapAmbience(), 'none');
+            assert.equal(state.zone, 'none');
+
+            audio.dispose();
+            assert.equal(outdoorSource.stopped, true);
+            assert.equal(audio._mapAmbience, null);
+        } finally {
+            if (audio.ctx) audio.dispose();
         }
     });
 });

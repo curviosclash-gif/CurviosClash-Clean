@@ -179,6 +179,14 @@ test('the route runs three branches through the building and stays inside the ar
     assert.equal(route.branches.length, 3);
     assert.ok(route.branches.every((branch) => branch.validMerge));
     assert.ok(route.branches.every((branch) => branch.nextCheckpointIds.length === 2));
+    const branchOptions = route.checkpoints.filter((checkpoint) => checkpoint.isBranchOption);
+    assert.equal(branchOptions.length, 6);
+    assert.deepEqual(
+        branchOptions.map((checkpoint) => checkpoint.params.label),
+        ['Rose hoch', 'Portal niedrig', 'Dachstuhl hoch', 'Seitenschiff niedrig', 'Chor hoch', 'Umgang niedrig'],
+    );
+    assert.deepEqual(new Set(branchOptions.map((checkpoint) => checkpoint.params.height)), new Set(['high', 'low']));
+    assert.equal(new Set(branchOptions.map((checkpoint) => checkpoint.params.color)).size, 2);
     assert.equal(map.portals.length, 4);
     assert.equal(map.gates.filter((gate) => gate.type === 'boost').length, 7);
     assert.equal(map.gates.filter((gate) => gate.type === 'slingshot').length, 3);
@@ -252,13 +260,13 @@ test('nothing the route asks a player to reach is buried in the collision', () =
     const anchors = [
         ...map.parcours.checkpoints.map((entry) => [entry.id, entry.pos]),
         [map.parcours.finish.id, map.parcours.finish.pos],
-        ...map.items.map((item) => [item.id, [item.x, item.y, item.z]]),
-        ...map.gates.map((gate) => [gate.id, gate.pos]),
         ...map.portals.flatMap((portal, index) => ([
             [`portal${index}a`, portal.a], [`portal${index}b`, portal.b],
         ])),
     ];
     for (const variant of [NOTRE_DAME_MAPS.notre_dame, NOTRE_DAME_MAPS.notre_dame_arena]) {
+        variant.items.forEach((item) => anchors.push([item.id, [item.x, item.y, item.z]]));
+        variant.gates.forEach((gate) => anchors.push([gate.id, gate.pos]));
         const spawn = variant.playerSpawn;
         anchors.push([`${variant.name} spawn`, [spawn.x, spawn.y, spawn.z]]);
         variant.botSpawns.forEach((bot, index) => {
@@ -394,14 +402,29 @@ test('the arena variant reuses the building instead of duplicating it', () => {
     assert.equal(arena.glbModels, map.glbModels);
     assert.equal(arena.obstacles, map.obstacles);
     assert.equal(arena.portals, map.portals);
-    assert.equal(arena.gates, map.gates);
+    assert.equal(arena.audioProfile, map.audioProfile);
     assert.deepEqual(arena.size, map.size);
     assert.equal(arena.glbColliderMode, 'dynamic');
     assert.equal(arena.glbAuthoredObstaclesCollisionOnly, true);
 
-    // What actually differs: no ordered route, and spawns spread around the building rather than
-    // queued on the river.
+    // What actually differs: no ordered route, its own readable light and mirrored combat
+    // resources instead of the west-to-east route rewards.
     assert.equal(arena.parcours, undefined);
+    assert.notEqual(arena.lighting, map.lighting);
+    assert.notEqual(arena.gates, map.gates);
+    assert.notEqual(arena.items, map.items);
+    assert.equal(arena.gates.length, 8);
+    assert.equal(arena.items.length, 10);
+    for (const collection of [arena.gates, arena.items]) {
+        const byId = new Map(collection.map((entry) => [entry.id, entry]));
+        for (const entry of collection.filter((candidate) => candidate.id.endsWith('_north'))) {
+            const south = byId.get(entry.id.replace(/_north$/, '_south'));
+            assert.ok(south, `${entry.id} has a mirrored south partner`);
+            const northZ = Number(entry.z ?? entry.pos?.[2]);
+            const southZ = Number(south.z ?? south.pos?.[2]);
+            assert.equal(northZ, -southZ, `${entry.id} mirrors across the nave axis`);
+        }
+    }
     assert.ok(arena.botSpawns.length > map.botSpawns.length);
     assert.notDeepEqual(arena.playerSpawn, map.playerSpawn);
 

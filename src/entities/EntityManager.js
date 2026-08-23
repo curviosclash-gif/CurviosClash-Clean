@@ -534,6 +534,7 @@ export class EntityManager {
     }
 
     _teardownRuntime({ disposeProjectileSystem = false } = {}) {
+        this.audio?.clearMapAmbience?.();
         for (const player of this.players) {
             if (player) player.dispose();
         }

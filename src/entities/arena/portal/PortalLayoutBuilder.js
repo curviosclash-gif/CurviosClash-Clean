@@ -208,8 +208,11 @@ export class PortalLayoutBuilder {
 
             const number = cp.routeIndex + 1;
             const visualRadius = Math.max(3.2, asPositiveNumber(cp.radius, 4.2) * 0.75) * scale;
+            const branchColor = Number(cp.params?.color);
             const mesh = createCheckpointRingMesh(pos, rotation, number, this.arena.renderer, visualRadius, {
-                color: cp.isBranchOption ? CHECKPOINT_BRANCH_COLOR : undefined,
+                color: cp.isBranchOption
+                    ? (Number.isFinite(branchColor) ? branchColor : CHECKPOINT_BRANCH_COLOR)
+                    : undefined,
                 visualKind: cp.isBranchOption ? 'branch' : 'default',
             });
             if (!mesh) continue;

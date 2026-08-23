@@ -41,6 +41,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         radius: 4.6,
         forward: [1, -0.15, 0],
         nextIds: ['CP06'],
+        params: { label: 'Rose hoch', height: 'high', color: 0xffbf45 },
     },
     // Low line: straight in through the central portal.
     {
@@ -50,6 +51,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         radius: 4.4,
         forward: [1, 0.05, 0],
         nextIds: ['CP06'],
+        params: { label: 'Portal niedrig', height: 'low', color: 0x4da6ff },
     },
     { id: 'CP06', type: 'nave_merge', pos: [-62, GROUND + 22, 0], radius: 6.2, forward: [1, 0, 0] },
     {
@@ -68,6 +70,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         radius: 4.8,
         forward: [1, -0.1, 0],
         nextIds: ['CP09'],
+        params: { label: 'Dachstuhl hoch', height: 'high', color: 0xffbf45 },
     },
     // The aisle: tighter, darker, and it passes the gantry sweeping the nave beside it. The ring
     // sits on the flight line through the aisle, not up against its ceiling.
@@ -78,6 +81,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         radius: 4.2,
         forward: [1, 0.05, 0.2],
         nextIds: ['CP09'],
+        params: { label: 'Seitenschiff niedrig', height: 'low', color: 0x4da6ff },
     },
     { id: 'CP09', type: 'crossing', pos: [CROSSING_CENTRE, GROUND + 30, 0], radius: 6.6, forward: [1, 0, 0] },
     {
@@ -95,6 +99,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         radius: 5.0,
         forward: [1, 0, 0],
         nextIds: ['CP12'],
+        params: { label: 'Chor hoch', height: 'high', color: 0xffbf45 },
     },
     {
         id: 'CP11_AMBULATORY',
@@ -103,6 +108,7 @@ const NOTRE_DAME_CHECKPOINTS = [
         radius: 4.2,
         forward: [1, 0.1, 0.3],
         nextIds: ['CP12'],
+        params: { label: 'Umgang niedrig', height: 'low', color: 0x4da6ff },
     },
     // Both choir branches meet inside the apse and leave east through the opening in its end
     // wall, so the ring stands in the vessel and faces the way out rather than up into the roof.

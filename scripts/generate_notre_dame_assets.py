@@ -1130,8 +1130,10 @@ def build_parvis_island(mats):
 # the mode needs. All eight loop on whole multiples of one six second beat, so the preset can
 # offset them against each other and the site reads as one rhythm rather than eight surprises.
 #
-# These are exported with their rigs intact and are NOT merged: the loader resolves which mesh a
-# clip drives by node, and merging would collapse the moving parts into one body.
+# These are exported with their rigs intact. Their moving collision bodies remain individual so
+# the loader can follow them, but static roots and decorative children can share a mesh when they
+# share a material. That preserves the motion and the collision/_nocol split without paying a
+# glTF node and primitive for every rope, lamp, and lattice strut.
 
 BEAT_SECONDS = 6
 
@@ -1603,6 +1605,70 @@ def merge_static_meshes(part_name):
     return merged
 
 
+def join_mesh_group(members, name):
+    """Join a same-parent mesh group and give the surviving node a stable, readable name."""
+    bpy.ops.object.select_all(action="DESELECT")
+    for member in members:
+        member.select_set(True)
+    bpy.context.view_layer.objects.active = members[0]
+    if len(members) > 1:
+        bpy.ops.object.join()
+    target = bpy.context.view_layer.objects.active
+    target.name = name
+    target.data.name = f"{name}_mesh"
+    return target
+
+
+def merge_animated_meshes(file_stem):
+    """Trim animated export primitives without changing what animation or collision follows.
+
+    Root meshes never inherit an animated transform, so they can be joined by material and the
+    _nocol collision marker. Under a rig, only decorative (_nocol) direct children join, again
+    per material and parent. Collidable children deliberately stay one mesh each: in particular,
+    the rose-ring bays stay separate so their open socket remains a real gap while the ring turns.
+    Readability landmarks are excluded so their authored node names survive the export.
+    """
+    landmark_names = {
+        "tower_crane_base_signal",
+        "scaffold_lift_foot_signal",
+        "stone_hoist_beam_signal",
+        "fleche_hoist_cradle_signal",
+        "tarpaulin_wall_head_signal",
+        "gantry_cradle",
+        "bell_frame_signal",
+        "rose_ring_hub_signal",
+    }
+    meshes = [obj for obj in bpy.context.scene.objects if obj.type == "MESH"]
+    groups = {}
+    for obj in meshes:
+        if obj.name in landmark_names:
+            continue
+        material_name = obj.data.materials[0].name if obj.data.materials else "plain"
+        decorative = "_nocol" in obj.name.lower()
+        if obj.parent is None:
+            key = ("root", material_name, decorative)
+        elif decorative:
+            key = ("decorative", obj.parent.name, material_name)
+        else:
+            continue
+        groups.setdefault(key, []).append(obj)
+
+    merged = []
+    for key, members in sorted(groups.items(), key=lambda entry: str(entry[0])):
+        kind = key[0]
+        material_name = key[-1] if kind == "decorative" else key[1]
+        decorative = kind == "decorative" or key[2]
+        material_suffix = material_name[2:].lower() if material_name.startswith("ND") else material_name
+        parent_suffix = "root" if kind == "root" else key[1].lower()
+        suffix = "_nocol" if decorative else ""
+        merged.append(join_mesh_group(
+            members,
+            f"{file_stem}_{parent_suffix}_{material_suffix}{suffix}",
+        ).name)
+    bpy.ops.object.select_all(action="DESELECT")
+    return merged
+
+
 def scene_bounds():
     """Bounding box of everything in the scene, in cathedral metres.
 
@@ -1669,15 +1735,14 @@ def export_part(file_stem, builder):
 
 
 def export_setpiece(file_stem, clip_name, duration, builder):
-    """Export one animated site piece. Unlike the architecture these keep every object separate:
-    the loader matches animation channels to nodes by name, and a merged object would collapse
-    the rigs it needs to drive."""
+    """Export one animated site piece with its moving colliders and readability names intact."""
     scene = reset_animated_scene(clip_name, duration)
     builder(scene, build_materials())
     for obj in bpy.context.scene.objects:
         if obj.type == "MESH":
             for layer in list(obj.data.uv_layers):
                 obj.data.uv_layers.remove(layer)
+    merged = merge_animated_meshes(file_stem)
     scene.frame_set(scene.frame_start)
 
     lows, highs = scene_bounds()
@@ -1702,7 +1767,7 @@ def export_setpiece(file_stem, clip_name, duration, builder):
     )
     print(
         f"generated {glb_path.relative_to(ROOT)} "
-        f"clip={clip_name} loop={duration}s tris={triangles} "
+        f"clip={clip_name} loop={duration}s tris={triangles} nodes={len(merged)} "
         f"center_x={(lows[0] + highs[0]) / 2:.2f} "
         f"center_z={-(lows[1] + highs[1]) / 2:.2f} "
         f"base_y={lows[2]:.2f} "

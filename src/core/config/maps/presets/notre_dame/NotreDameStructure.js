@@ -336,6 +336,30 @@ const NOTRE_DAME_ITEMS = [
     { id: 'nd_shield_spire', type: 'item_shield', pickupType: 'SHIELD', x: 130, y: GROUND + 34, z: 0, weight: 1.0 },
 ];
 
+const NOTRE_DAME_ARENA_GATES = [
+    { id: 'nd_arena_parvis_north', type: 'boost', pos: [-112, GROUND + 14, 24], forward: [1, 0, -0.15], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
+    { id: 'nd_arena_parvis_south', type: 'boost', pos: [-112, GROUND + 14, -24], forward: [1, 0, 0.15], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
+    { id: 'nd_arena_nave_west_sling', type: 'slingshot', pos: [-44, GROUND + 26, 0], forward: [1, 0.2, 0], up: [0, 1, 0], params: { duration: 1.3, forwardImpulse: 30, liftImpulse: 10, cooldown: 1.0 } },
+    { id: 'nd_arena_choir_east_sling', type: 'slingshot', pos: [52, GROUND + 26, 0], forward: [-1, 0.2, 0], up: [0, 1, 0], params: { duration: 1.3, forwardImpulse: 30, liftImpulse: 10, cooldown: 1.0 } },
+    { id: 'nd_arena_transept_north', type: 'boost', pos: [CROSSING_CENTRE, GROUND + 30, 48], forward: [0, 0, -1], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
+    { id: 'nd_arena_transept_south', type: 'boost', pos: [CROSSING_CENTRE, GROUND + 30, -48], forward: [0, 0, 1], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
+    { id: 'nd_arena_apse_north', type: 'boost', pos: [79, GROUND + 23, 4], forward: [-1, 0, -0.15], params: { duration: 0.9, forwardImpulse: 34, bonusSpeed: 42, cooldown: 0.7 } },
+    { id: 'nd_arena_apse_south', type: 'boost', pos: [79, GROUND + 23, -4], forward: [-1, 0, 0.15], params: { duration: 0.9, forwardImpulse: 34, bonusSpeed: 42, cooldown: 0.7 } },
+];
+
+const NOTRE_DAME_ARENA_ITEMS = [
+    { id: 'nd_arena_shield_parvis_north', type: 'item_shield', pickupType: 'SHIELD', x: -112, y: GROUND + 12, z: 20, weight: 1.0 },
+    { id: 'nd_arena_shield_parvis_south', type: 'item_shield', pickupType: 'SHIELD', x: -112, y: GROUND + 12, z: -20, weight: 1.0 },
+    { id: 'nd_arena_speed_nave_north', type: 'item_battery', pickupType: 'SPEED_UP', x: -44, y: GROUND + 24, z: 5, weight: 1.1 },
+    { id: 'nd_arena_speed_nave_south', type: 'item_battery', pickupType: 'SPEED_UP', x: -44, y: GROUND + 24, z: -5, weight: 1.1 },
+    { id: 'nd_arena_rocket_transept_north', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: CROSSING_CENTRE, y: GROUND + 30, z: 40, weight: 0.9 },
+    { id: 'nd_arena_rocket_transept_south', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: CROSSING_CENTRE, y: GROUND + 30, z: -40, weight: 0.9 },
+    { id: 'nd_arena_ghost_choir_north', type: 'item_coin', pickupType: 'GHOST', x: 48, y: GROUND + 26, z: 5, weight: 0.8 },
+    { id: 'nd_arena_ghost_choir_south', type: 'item_coin', pickupType: 'GHOST', x: 48, y: GROUND + 26, z: -5, weight: 0.8 },
+    { id: 'nd_arena_heavy_apse_north', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 79, y: GROUND + 23, z: 4, weight: 0.7 },
+    { id: 'nd_arena_heavy_apse_south', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 79, y: GROUND + 23, z: -4, weight: 0.7 },
+];
+
 const NOTRE_DAME_AIRCRAFT = [
     { id: 'nd_river_barge', jetId: 'ship8', x: -170, y: GROUND + 40, z: 70, scale: 1.1, rotateY: 0.3 },
     { id: 'nd_site_patrol', jetId: 'ship4', x: 30, y: GROUND + 74, z: -80, scale: 0.9, rotateY: -1.1 },
@@ -365,5 +389,7 @@ export {
     NOTRE_DAME_PORTALS,
     NOTRE_DAME_GATES,
     NOTRE_DAME_ITEMS,
+    NOTRE_DAME_ARENA_GATES,
+    NOTRE_DAME_ARENA_ITEMS,
     NOTRE_DAME_AIRCRAFT,
 };

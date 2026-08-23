@@ -66,6 +66,9 @@ const PARTS = Object.freeze({
 // preset offset them against each other into a single rhythm.
 const BEAT_SECONDS = 6;
 const TRIANGLE_BUDGET_PER_SETPIECE = 6_000;
+// Static roots and decorative rig children are batched by material. Moving collision bodies
+// remain distinct, so this budget protects the draw-call win without sealing the rose-ring gap.
+const TOTAL_SETPIECE_PRIMITIVE_BUDGET = 110;
 const SETPIECES = Object.freeze({
     '10_tower_crane': { clip: 'TowerCraneLoop', duration: 24, landmark: 'tower_crane_base_signal' },
     '11_scaffold_lift': { clip: 'ScaffoldLiftLoop', duration: 6, landmark: 'scaffold_lift_foot_signal' },
@@ -223,6 +226,13 @@ function triangleCount(document) {
     return count;
 }
 
+function primitiveCount(document) {
+    return (document.meshes || []).reduce(
+        (count, mesh) => count + (mesh.primitives || []).length,
+        0,
+    );
+}
+
 /**
  * Bounding box of the whole file, read from the POSITION accessors' declared min/max. Those are
  * mandatory in glTF, so the box can be derived without decoding a single vertex.
@@ -317,6 +327,7 @@ test('Notre-Dame keeps editable Blender sources and merged, texture-free exports
 });
 
 test('the reconstruction site loops on the shared beat and separates its collision', () => {
+    let totalPrimitives = 0;
     for (const [name, expected] of Object.entries(SETPIECES)) {
         const blendPath = path.join(ASSET_ROOT, 'blender', `${name}.blend`);
         const glbPath = path.join(ASSET_ROOT, 'glb', `${name}.glb`);
@@ -343,6 +354,7 @@ test('the reconstruction site loops on the shared beat and separates its collisi
             triangleCount(document) <= TRIANGLE_BUDGET_PER_SETPIECE,
             `${name} stays within the ${TRIANGLE_BUDGET_PER_SETPIECE} triangle budget`,
         );
+        totalPrimitives += primitiveCount(document);
 
         // The split that makes the map affordable: a moving mesh gets a collider, so exactly
         // one coarse body per moving part carries collision while the detail rides along as
@@ -358,6 +370,11 @@ test('the reconstruction site loops on the shared beat and separates its collisi
             `${name} separates animated visual detail from collision`,
         );
     }
+    assert.ok(
+        totalPrimitives <= TOTAL_SETPIECE_PRIMITIVE_BUDGET,
+        `reconstruction-site exports stay within ${TOTAL_SETPIECE_PRIMITIVE_BUDGET} primitives `
+        + `(got ${totalPrimitives})`,
+    );
 });
 
 test('the sheeting opens one bay at a time instead of everywhere at once', () => {

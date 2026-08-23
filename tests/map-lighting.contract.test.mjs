@@ -76,12 +76,18 @@ test('map lighting resolver fills partial profiles from the supplied renderer ba
     assert.deepEqual(normalizeMapLighting({}, 'invalid-fallback'), DEFAULT_MAP_LIGHTING);
 });
 
-test('only the four selected presets define lighting and all others resolve to default', () => {
+test('only the selected presets define lighting and all others resolve to default', () => {
     const litMapKeys = Object.entries(MAP_PRESET_CATALOG)
         .filter(([, map]) => map?.lighting)
         .map(([mapKey]) => mapKey)
         .sort();
-    assert.deepEqual(litMapKeys, ['frozen_helix', 'magma_maze', 'neon_abyss', 'notre_dame']);
+    assert.deepEqual(litMapKeys, [
+        'frozen_helix',
+        'magma_maze',
+        'neon_abyss',
+        'notre_dame',
+        'notre_dame_arena',
+    ]);
     assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.standard?.lighting), DEFAULT_MAP_LIGHTING);
     for (const mapKey of litMapKeys) {
         assert.deepEqual(normalizeMapLighting(MAP_PRESET_CATALOG[mapKey].lighting), MAP_PRESET_CATALOG[mapKey].lighting);
