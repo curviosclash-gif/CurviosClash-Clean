@@ -2,7 +2,7 @@ import { SettingsStore } from '../SettingsStore.js';
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 import { PlayerProfileManager } from '../../application/player-profile/PlayerProfileManager.js';
-import { AudioManager } from '../../core/Audio.js';
+import { createHangarAudioPort } from '../../composition/core-ui/CoreHangarAudioPort.js';
 
 const store = new SettingsStore();
 const playerProfileManager = new PlayerProfileManager({ recordStore: Object.freeze({
@@ -14,8 +14,7 @@ const playerProfileManager = new PlayerProfileManager({ recordStore: Object.free
 playerProfileManager.bootstrap();
 const playerStore = playerProfileManager.getActiveRecordStorePort();
 const settings = store.loadSettings();
-const audio = new AudioManager(settings?.localSettings?.audio);
-audio.setMusicState('menu');
+const audio = createHangarAudioPort(settings?.localSettings?.audio);
 const requestedMode = new URLSearchParams(globalThis.location.search).get('mode');
 const hangarMode = requestedMode === 'fight' ? 'fight' : 'arcade';
 const hangarWindow = createElectronPreloadHangarAdapter(globalThis);
