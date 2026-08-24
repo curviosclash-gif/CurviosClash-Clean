@@ -68,6 +68,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         this._random = this.runtimeRng.next;
         this._activeModifierId = null;
         this._slotBonuses = NULL_SLOT_BONUSES;
+        /** @type {any} */
         this._runRewardEffects = createDefaultArcadeRunRewardEffects();
         this._roundScores = {};
         // 61.6.2: Sudden Death state

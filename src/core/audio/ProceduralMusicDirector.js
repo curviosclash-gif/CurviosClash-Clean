@@ -74,6 +74,7 @@ function automateGain(param, startTime, peak, duration, attack = 0.01) {
 export class ProceduralMusicDirector {
     constructor(audio) {
         this.audio = audio;
+        /** @type {'menu'|'race'|'classic'|'fight'|'arcade'|'results'} */
         this.state = MUSIC_STATES.MENU;
         this.intensity = 0.65;
         this.paused = false;

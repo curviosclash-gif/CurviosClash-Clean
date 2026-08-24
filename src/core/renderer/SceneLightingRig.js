@@ -233,6 +233,7 @@ export class SceneLightingRig {
         return positions;
     }
 
+    /** @param {{graphicsStyle?: unknown, mapLighting?: any, brightnessFactors: any, viewDistance?: unknown}} options */
     apply({ graphicsStyle, mapLighting, brightnessFactors, viewDistance }) {
         const modern = graphicsStyle === MODERN_STYLE;
         const styleLighting = modern ? undefined : this._classicLighting;

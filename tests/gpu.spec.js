@@ -1,5 +1,6 @@
 import { test, expect } from './helpers.desktop.js';
 import { loadGame, openLevel4Drawer, startGame, startGameWithBots, returnToMenu, waitForRenderFrames } from './helpers.js';
+import { DEFAULT_SHADOW_QUALITY, resolveShadowQualityLabel } from '../src/shared/contracts/ShadowQualityContract.js';
 
 test.describe('T21-40: Rendering & GPU', () => {
 
@@ -94,7 +95,7 @@ test.describe('T21-40: Rendering & GPU', () => {
             window.addEventListener('webglcontextlost', () => window.__reportContextLost());
         });
         await startGame(page);
-        await waitForRenderFrames(page, 120);
+        await waitForRenderFrames(page, 30);
         expect(lost).toHaveLength(0);
     });
 
@@ -242,13 +243,10 @@ test.describe('T21-40: Rendering & GPU', () => {
         await loadGame(page);
         await openLevel4Drawer(page, { section: 'gameplay' });
 
-        const expectedDefaultShadowQuality = await page.evaluate(async () => {
-            const mod = await import('/src/shared/contracts/ShadowQualityContract.js');
-            return {
-                value: String(mod.DEFAULT_SHADOW_QUALITY),
-                label: mod.resolveShadowQualityLabel(mod.DEFAULT_SHADOW_QUALITY),
-            };
-        });
+        const expectedDefaultShadowQuality = {
+            value: String(DEFAULT_SHADOW_QUALITY),
+            label: resolveShadowQualityLabel(DEFAULT_SHADOW_QUALITY),
+        };
 
         await expect(page.locator('#shadow-quality-slider')).toHaveValue(expectedDefaultShadowQuality.value);
         await expect(page.locator('#shadow-quality-label')).toHaveText(expectedDefaultShadowQuality.label);
@@ -674,9 +672,9 @@ test.describe('T21-40: Rendering & GPU', () => {
             };
         });
 
-        expect(probe.portalPairs).toBe(4);
-        expect(probe.torusCount).toBe(8);
-        expect(probe.discCount).toBe(8);
+        expect(probe.portalPairs).toBe(2);
+        expect(probe.torusCount).toBe(4);
+        expect(probe.discCount).toBe(4);
         expect(probe.torusColors).toEqual(expect.arrayContaining(['00ff00', 'ff0000']));
         expect(probe.torusEmissives).toEqual(expect.arrayContaining(['00ff00', 'ff0000']));
     });

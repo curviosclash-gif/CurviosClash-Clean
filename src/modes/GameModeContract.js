@@ -9,6 +9,7 @@
 export const GAME_MODE_CONTRACT_VERSION = 'game-mode-contract.v1';
 
 export class GameModeContract {
+    /** @returns {string} */
     get modeType() { throw new Error('abstract: modeType'); }
     getPickupModeType() { return this.modeType; }
     getCombatProfile() { return ''; }

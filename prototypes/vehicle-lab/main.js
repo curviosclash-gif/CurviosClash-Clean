@@ -895,8 +895,8 @@ class VehicleLabApp {
         const input = document.createElement('input');
         input.type = 'file';
         input.accept = 'application/json';
-        input.onchange = (e) => {
-            const file = e.target.files[0];
+        input.onchange = () => {
+            const file = input.files?.[0];
             if (!file) return;
             if (file.size > 2 * 1024 * 1024) {
                 this.authoringTelemetry.recordError('import_failed');
@@ -906,7 +906,7 @@ class VehicleLabApp {
             const reader = new FileReader();
             reader.onload = (re) => {
                 try {
-                    const config = JSON.parse(re.target.result);
+                    const config = JSON.parse(String(re.target?.result || ''));
                     this.applyVehicleConfigToEditor(config);
                     const importedLabel = String(this.vehicle?.config?.label || 'Fahrzeug');
                     const importedParts = countVehicleParts(this.vehicle?.config?.parts);

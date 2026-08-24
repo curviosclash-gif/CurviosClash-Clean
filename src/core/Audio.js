@@ -154,7 +154,7 @@ export class AudioManager {
 
     _init() {
         if (this.ctx || this._audioInitFailed) return;
-        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        const AudioContext = window.AudioContext || /** @type {Window & {webkitAudioContext?: typeof globalThis.AudioContext}} */ (window).webkitAudioContext;
         if (!AudioContext) return;
         try {
             this.ctx = new AudioContext();
@@ -398,6 +398,9 @@ export class AudioManager {
         return osc;
     }
 
+    /**
+     * @param {{type?: OscillatorType, startFreq?: number, endFreq?: number, duration?: number, peak?: number, attack?: number, hold?: number, ramp?: string, options?: any}} tone
+     */
     _playTone({
         type = 'sine',
         startFreq = 440,

@@ -66,8 +66,10 @@ function withTrustedEditorWindowSender(handler) {
     return (event, ...args) => {
         const sender = [...editorWindows].find((candidate) => isTrustedWindowSender(event, candidate));
         if (!sender) {
-            const error = new Error('Desktop capability request came from an unknown renderer.');
-            error.code = UNTRUSTED_IPC_SENDER_CODE;
+            const error = Object.assign(
+                new Error('Desktop capability request came from an unknown renderer.'),
+                { code: UNTRUSTED_IPC_SENDER_CODE }
+            );
             throw error;
         }
         return handler(...args);

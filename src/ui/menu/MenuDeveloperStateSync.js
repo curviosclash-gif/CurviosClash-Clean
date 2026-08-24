@@ -54,6 +54,7 @@ function downloadTelemetryFile(filename, contents, mimeType) {
     return true;
 }
 
+/** @param {{ui?: any, game?: any, settingsManager?: any}} [context] */
 export async function refreshTelemetryPanel({ ui, game, settingsManager = game?.settingsManager } = {}) {
     if (!ui?.developerTelemetryPanel || !settingsManager) return null;
     if (ui.telemetryStatus) ui.telemetryStatus.textContent = 'Telemetrie wird geladen …';
@@ -80,6 +81,7 @@ export async function refreshTelemetryPanel({ ui, game, settingsManager = game?.
     }
 }
 
+/** @param {{ui?: any, game?: any, bind?: Function}} [ctx] */
 export function setupMenuTelemetryControls(ctx = {}) {
     const { ui, game, bind } = ctx;
     const settingsManager = game?.settingsManager;

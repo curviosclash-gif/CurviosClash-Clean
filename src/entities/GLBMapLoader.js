@@ -59,6 +59,9 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
     return normalized;
 }
 
+/**
+ * @param {{usedGlbModel?: boolean, loadWarnings?: unknown[], map?: {glbAuthoredObstaclesCollisionOnly?: boolean}}} [options]
+ */
 export function shouldDiscardAuthoredObstacleVisuals({ usedGlbModel, loadWarnings, map } = {}) {
     return usedGlbModel === true
         && Array.isArray(loadWarnings)

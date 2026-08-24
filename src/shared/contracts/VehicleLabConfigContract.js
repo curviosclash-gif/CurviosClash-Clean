@@ -133,7 +133,7 @@ export function normalizeVehicleLabConfig(raw, options = {}) {
         if (role !== 'auto' && VEHICLE_LAB_ROLE_SET.has(role)) normalized.role = role;
         else delete normalized.role;
 
-        if (part.color !== undefined) normalized.color = normalizeColor(part.color, '#ffffff');
+        if (part.color !== undefined) normalized.color = normalizeColor(part.color, 0xffffff);
         if (part.opacity !== undefined) normalized.opacity = finiteNumber(part.opacity, 1, 0, 1);
         if (part.emissive !== undefined) normalized.emissive = normalizeColor(part.emissive, 0x000000);
         normalized.emissiveIntensity = finiteNumber(part.emissiveIntensity, 0, 0, 20);

@@ -28,6 +28,9 @@ function resolveVehicleLabel(vehicleId) {
 }
 
 export class FourPlayerPlanarModule {
+    /**
+     * @param {{runtimePort?: any, setupView?: FourPlayerPlanarSetupView|null, hudView?: FourPlayerPlanarHudView|null, documentRef?: Document}} [options]
+     */
     constructor({ runtimePort, setupView = null, hudView = null, documentRef = globalThis.document } = {}) {
         this.runtime = runtimePort || null;
         this.setupView = setupView || new FourPlayerPlanarSetupView({ documentRef });
@@ -105,6 +108,7 @@ export class FourPlayerPlanarModule {
         this.setupView.syncRollKeyButtons(selection.rollBindings);
     }
 
+    /** @param {{playerIndex?: number, direction?: string}} [request] */
     _beginRollKeyCapture({ playerIndex, direction } = {}) {
         if (!Number.isInteger(playerIndex) || !['left', 'right'].includes(direction)) return;
         this.setupView.syncRollKeyButtons(this._resolveSelection().rollBindings);
@@ -287,7 +291,7 @@ export class FourPlayerPlanarModule {
                 item: availability.hasItem ? availability.type : 'Kein Item',
             };
             const previous = this._lastHudValues[index];
-            for (const key of ['stat', 'item']) {
+            for (const key of /** @type {Array<'stat'|'item'>} */ (['stat', 'item'])) {
                 if (previous[key] === values[key]) continue;
                 previous[key] = values[key];
                 this.hudView.setRowText(index, key, values[key]);

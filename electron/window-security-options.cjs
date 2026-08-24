@@ -1,3 +1,11 @@
+/**
+ * @typedef {object} SecureWindowWebPreferencesOptions
+ * @property {string} [preload]
+ * @property {boolean} [sandbox]
+ * @property {boolean} [backgroundThrottling]
+ */
+
+/** @param {SecureWindowWebPreferencesOptions} [options] */
 function createSecureWindowWebPreferences({
     preload,
     sandbox = true,
@@ -43,6 +51,12 @@ function isTrustedEditorUrl(url, appServerUrl) {
     }
 }
 
+/**
+ * @param {string} appServerUrl
+ * @param {(target: URL) => boolean} isAllowedPath
+ * @param {string|undefined} editorPreloadPath
+ * @returns {(details?: {url?: string}) => {action: 'allow'|'deny', overrideBrowserWindowOptions?: object}}
+ */
 function createSameOriginWindowOpenHandler(appServerUrl, isAllowedPath, editorPreloadPath = undefined) {
     const trustedOrigin = new URL(appServerUrl).origin;
     return ({ url } = {}) => {

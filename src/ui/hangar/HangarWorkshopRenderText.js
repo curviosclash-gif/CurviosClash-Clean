@@ -88,7 +88,7 @@ export function stoneCountText(value) {
  * @param {{available: number, equipped: number, owned: number}} availability
  * @returns {string}
  */
-export function stoneInventoryText(availability = {}) {
+export function stoneInventoryText(availability = { available: 0, equipped: 0, owned: 0 }) {
     const available = stoneCountText(availability.available);
     const equipped = stoneCountText(availability.equipped);
     const owned = stoneCountText(availability.owned);

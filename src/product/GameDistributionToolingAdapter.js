@@ -16,10 +16,12 @@ export function installPlaytestReturnControl() {
 
 export function installDesktopTuningRuntimeBridge() {}
 
+/** @param {{ui?: any}} [context] */
 export function syncMenuDeveloperState({ ui } = {}) {
     if (ui?.developerTelemetryPanel) ui.developerTelemetryPanel.hidden = true;
 }
 
+/** @param {{ui?: any}} [context] */
 export function setupMenuTelemetryControls({ ui } = {}) {
     if (ui?.developerTelemetryPanel) ui.developerTelemetryPanel.hidden = true;
 }

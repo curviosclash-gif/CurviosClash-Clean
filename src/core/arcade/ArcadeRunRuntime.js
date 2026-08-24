@@ -815,7 +815,7 @@ export class ArcadeRunRuntime {
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {
             const runtimeMapCatalog = getRuntimeMapCatalog();
-            const mapSequence = resolveMapSequence(options.encounterPlan, activeRunSeed, runtimeMapCatalog);
+            const mapSequence = resolveMapSequence(options.encounterPlan, String(activeRunSeed), runtimeMapCatalog);
             this._state.mapSequence = mapSequence;
             if (mapSequence.length > 0) {
                 this._state.currentMapKey = mapSequence[0];

@@ -37,7 +37,7 @@ test.describe('Vehicle Lab', () => {
         await expect(page.locator('#standardVehiclesList button', { hasText: 'Auswählen' })).toHaveCount(21);
 
         await page.locator('#presetSelect').selectOption('lab_spaceship');
-        await expect(page.locator('#partsList .part-item')).toHaveCount(6);
+        await expect(page.locator('#partsList .part-item')).toHaveCount(8);
         await expect(page.locator('#shipLabel')).toHaveValue('Lab-Vorlage: Raumschiff');
         await expect(page.locator('[data-camera-view="fit"]')).toHaveAttribute('aria-pressed', 'true');
         await expect(page.locator('#workshopStatusMessage')).toContainText('Entwurf geladen');
@@ -115,8 +115,8 @@ test.describe('Vehicle Lab', () => {
 
         await expect(page.locator('#compareVehicleSelect')).toHaveValue('lab_spaceship');
         await expect(page.locator('[data-metric="parts"] .compare-current')).toHaveText('8');
-        await expect(page.locator('[data-metric="parts"] .compare-baseline')).toHaveText('6');
-        await expect(page.locator('[data-metric="parts"] .compare-delta')).toHaveText('+2');
+        await expect(page.locator('[data-metric="parts"] .compare-baseline')).toHaveText('8');
+        await expect(page.locator('[data-metric="parts"] .compare-delta')).toHaveText('0');
         await expect(page.locator('#workshopBlueprintState')).toContainText('Blueprint');
 
         await page.locator('#btnAddPart').click();
@@ -284,7 +284,7 @@ test.describe('Vehicle Lab', () => {
         await page.locator('#workshopDialogInput').fill('Desktop Testflieger');
         await page.locator('#workshopDialogConfirm').click();
 
-        await expect(page.locator('#workshopSaveState')).toHaveText('Fahrzeug gespeichert');
+        await expect(page.locator('#workshopSaveState')).toHaveText('Nur in dieser App gespeichert');
         const catalog = await page.evaluate(() => JSON.parse(
             localStorage.getItem('curviosclash.vehicle-lab.catalog.v1')
         ));
@@ -321,7 +321,7 @@ test.describe('Vehicle Lab', () => {
         await page.locator('#partsList .part-item').first().click();
 
         await expect(page.locator('[data-transform-mode="translate"]')).toHaveAttribute('aria-pressed', 'true');
-        await expect(page.locator('#propertiesContainer input[aria-label="Grundabmessungen X"]')).toBeVisible();
+        await expect(page.locator('#propertiesContainer input[aria-label="Grundabmessungen Radius oben"]')).toBeVisible();
         const positionZ = page.locator('#propertiesContainer input[aria-label="Position Z"]');
         const beforeZ = await positionZ.inputValue();
         await page.keyboard.press('s');

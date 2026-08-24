@@ -119,7 +119,10 @@ export class VehicleLabUI {
 
         document.getElementById('shipLabel').oninput = (e) => this.callbacks.onGlobalUpdate('label', e.target.value);
         document.getElementById('shipPrimaryColor').onchange = (e) => this.callbacks.onGlobalUpdate('color', e.target.value);
-        document.getElementById('workshopDialogCancel').onclick = () => document.getElementById('workshopDialog').close('cancel');
+        document.getElementById('workshopDialogCancel').onclick = () => {
+            const dialog = /** @type {HTMLDialogElement|null} */ (document.getElementById('workshopDialog'));
+            dialog?.close('cancel');
+        };
     }
 
     getSnapSettings() {
@@ -160,7 +163,7 @@ export class VehicleLabUI {
      * @param {{modified?: boolean}} [options]
      */
     setPresetSelection(vehicleId, { modified = false } = {}) {
-        const select = document.getElementById('presetSelect');
+        const select = /** @type {HTMLSelectElement|null} */ (document.getElementById('presetSelect'));
         if (!select) return;
         const requestedId = String(vehicleId || '');
         const hasOption = Array.from(select.options || []).some((option) => option.value === requestedId);
@@ -532,8 +535,8 @@ export class VehicleLabUI {
             if (min !== null) inp.min = String(min);
             inp.value = val.toFixed(2);
             inp.setAttribute('aria-label', `${label} ${axis.textContent}`);
-            inp.onchange = (e) => {
-                const parsed = parseFloat(e.target.value);
+            inp.onchange = () => {
+                const parsed = parseFloat(inp.value);
                 if (Number.isNaN(parsed)) {
                     inp.value = vector[i].toFixed(2);
                     onChange(i, vector[i]);
@@ -712,11 +715,14 @@ export class VehicleLabUI {
         window.setTimeout(() => toast.remove(), 3600);
     }
 
+    /**
+     * @param {{title?: string, message?: string, inputLabel?: string, inputValue?: string, confirmLabel?: string, danger?: boolean}} [options]
+     */
     requestDialog({ title, message, inputLabel = '', inputValue = '', confirmLabel = 'Bestätigen', danger = false } = {}) {
-        const dialog = document.getElementById('workshopDialog');
-        const input = document.getElementById('workshopDialogInput');
+        const dialog = /** @type {HTMLDialogElement} */ (document.getElementById('workshopDialog'));
+        const input = /** @type {HTMLInputElement} */ (document.getElementById('workshopDialogInput'));
         const label = document.getElementById('workshopDialogInputLabel');
-        const confirm = document.getElementById('workshopDialogConfirm');
+        const confirm = /** @type {HTMLButtonElement} */ (document.getElementById('workshopDialogConfirm'));
         document.getElementById('workshopDialogTitle').textContent = title || 'Vehicle Lab';
         document.getElementById('workshopDialogMessage').textContent = message || '';
         confirm.textContent = confirmLabel;

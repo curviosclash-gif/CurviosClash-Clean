@@ -33,11 +33,11 @@ const MAP_BRIGHTNESS_LABELS = Object.freeze({
 
 export function normalizeMapBrightness(value, fallback = DEFAULT_MAP_BRIGHTNESS) {
     const normalized = String(value || '').trim().toLowerCase();
-    if (MAP_BRIGHTNESS_ORDER.includes(normalized)) {
+    if (MAP_BRIGHTNESS_ORDER.some((level) => level === normalized)) {
         return normalized;
     }
     const normalizedFallback = String(fallback || '').trim().toLowerCase();
-    return MAP_BRIGHTNESS_ORDER.includes(normalizedFallback)
+    return MAP_BRIGHTNESS_ORDER.some((level) => level === normalizedFallback)
         ? normalizedFallback
         : DEFAULT_MAP_BRIGHTNESS;
 }

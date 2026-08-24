@@ -8,6 +8,13 @@ const VEHICLE_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
 const MAX_VEHICLES = 200;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 
+/**
+ * @typedef {object} EditorVehicleRequest
+ * @property {string} [vehicleId]
+ * @property {string} [vehicleName]
+ * @property {string} [jsonText]
+ */
+
 function isValidVehicleId(vehicleId) {
     return VEHICLE_ID_PATTERN.test(String(vehicleId || ''));
 }
@@ -81,6 +88,7 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         return { ok: true, vehicles };
     }
 
+    /** @param {EditorVehicleRequest} [request] */
     function getVehicle({ vehicleId } = {}) {
         const filePath = resolveVehicleFile(vehicleId);
         if (!filePath || !existsSync(filePath)) return { ok: false, error: 'unknown_vehicle' };
@@ -89,6 +97,7 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         return { ok: true, vehicleId, config };
     }
 
+    /** @param {EditorVehicleRequest} [request] */
     function saveVehicle({ jsonText, vehicleName, vehicleId } = {}) {
         const payload = String(jsonText || '');
         if (!payload) return { ok: false, error: 'empty_payload' };
@@ -106,6 +115,7 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         return { ok: true, vehicleId: resolvedId, filePath };
     }
 
+    /** @param {EditorVehicleRequest} [request] */
     function renameVehicle({ vehicleId, vehicleName } = {}) {
         const sourcePath = resolveVehicleFile(vehicleId);
         if (!sourcePath || !existsSync(sourcePath)) return { ok: false, error: 'unknown_vehicle' };
@@ -121,6 +131,7 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         return { ok: true, vehicleId: nextId };
     }
 
+    /** @param {EditorVehicleRequest} [request] */
     function deleteVehicle({ vehicleId } = {}) {
         const filePath = resolveVehicleFile(vehicleId);
         if (!filePath || !existsSync(filePath)) return { ok: false, error: 'unknown_vehicle' };

@@ -77,6 +77,7 @@ export class Game {
             damageIndicatorsByPlayer: {},
         };
 
+        /** @type {string} */
         this.state = GAME_STATE_IDS.MENU;
         this.roundPause = 0;
         this.roundStateController = createRoundStateController({ defaultRoundPause: 3.0 });

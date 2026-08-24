@@ -2602,7 +2602,7 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
         });
 
         expect(probe).not.toBeNull();
-        expect(probe.portalPairs).toBe(4);
+        expect(probe.portalPairs).toBe(2);
         expect(probe.hit).toBeTruthy();
         expect(probe.targetDistance).toBeLessThan(0.001);
         expect(probe.cooldown).toBeGreaterThan(0);

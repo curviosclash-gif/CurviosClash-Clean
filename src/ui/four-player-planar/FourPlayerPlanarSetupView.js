@@ -50,8 +50,8 @@ export class FourPlayerPlanarSetupView {
 
     /**
      * @param {object} [options]
-     * @param {Array<{label: string}>} [options.keyBindings]
-     * @param {number[]} [options.playerColors]
+     * @param {ReadonlyArray<{label: string}>} [options.keyBindings]
+     * @param {ReadonlyArray<number>} [options.playerColors]
      * @param {Array<{value: string, label: string}>} [options.mapOptions]
      * @param {Array<{value: string, label: string}>} [options.vehicleOptions]
      * @param {object} [options.handlers]
@@ -159,10 +159,10 @@ export class FourPlayerPlanarSetupView {
             this._listen(control, 'input', () => handlers.onControlChanged?.());
             this._listen(control, 'change', () => handlers.onControlChanged?.());
         }
-        for (const sessionButton of this.document.querySelectorAll('[data-session-type]')) {
+        for (const sessionButton of Array.from(this.document.querySelectorAll('[data-session-type]'))) {
             this._listen(sessionButton, 'click', () => this._scheduleFrame(() => handlers.onSessionTypeChanged?.()));
         }
-        for (const standardModeButton of this.document.querySelectorAll('#submenu-custom [data-mode-path]')) {
+        for (const standardModeButton of Array.from(this.document.querySelectorAll('#submenu-custom [data-mode-path]'))) {
             this._listen(standardModeButton, 'click', () => handlers.onStandardModeSelected?.());
         }
     }

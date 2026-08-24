@@ -175,6 +175,7 @@ export class UIManager {
         }
     }
 
+    /** @param {any} settings @param {(menuUiContext: any) => any} runSync */
     _runSyncCycle(settings = this.settings, runSync = () => {}) {
         const cycleSettings = settings || this.settings;
         const menuUiContext = this._resolveMenuUiContext(cycleSettings);

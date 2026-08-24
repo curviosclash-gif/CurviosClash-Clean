@@ -33,7 +33,7 @@ export class FourPlayerPlanarHudView {
     /**
      * @param {object} options
      * @param {number} options.playerCount
-     * @param {number[]} options.playerColors
+     * @param {ReadonlyArray<number>} options.playerColors
      * @returns {boolean}
      */
     ensureRows({ playerCount, playerColors = [] }) {

@@ -3,6 +3,9 @@ import { toSafeInt, toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 
 const ABORT_REASONS = new Set(['ABORT', 'ABORTED', 'MATCH_ABORT', 'QUIT', 'RUN_ABORT']);
 
+/**
+ * @param {{enabled?: boolean, state?: any, activeVehicleId?: unknown, terminalReason?: unknown}} [options]
+ */
 export function createArcadeTelemetrySnapshot({ enabled, state, activeVehicleId, terminalReason = '' } = {}) {
     if (enabled !== true || !state) return { enabled: false };
     const history = Array.isArray(state.sectorHistory) ? state.sectorHistory : [];

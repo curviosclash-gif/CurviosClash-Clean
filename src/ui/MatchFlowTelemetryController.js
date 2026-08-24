@@ -17,7 +17,8 @@ function resolvePlatformLabel(game) {
         || game?.uiManager?._runtimeFeatureFlags?.surfacePolicy?.productSurfaceId;
     if (productSurfaceId) return normalizeTelemetryString(productSurfaceId, 'unknown');
     if (typeof navigator !== 'undefined') {
-        return normalizeTelemetryString(navigator.userAgentData?.platform || navigator.platform, 'browser');
+        const clientNavigator = /** @type {Navigator & {userAgentData?: {platform?: string}}} */ (navigator);
+        return normalizeTelemetryString(clientNavigator.userAgentData?.platform || clientNavigator.platform, 'browser');
     }
     return 'unknown';
 }

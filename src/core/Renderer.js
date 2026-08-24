@@ -47,7 +47,9 @@ export class Renderer {
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
+        /** @type {'classic'|'modern'} */
         this._graphicsStyle = GRAPHICS_STYLES.MODERN;
+        /** @type {string} */
         this._mapBrightness = DEFAULT_MAP_BRIGHTNESS;
         this._viewDistance = DEFAULT_VIEW_DISTANCE;
         // The map may carry its own lighting profile; undefined means the style base stands.
