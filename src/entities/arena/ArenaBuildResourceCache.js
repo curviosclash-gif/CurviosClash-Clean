@@ -277,7 +277,11 @@ export function getArenaMaterialBundle({
             metalness: modern ? 0.2 : 0.1,
             emissive: modern ? 0x061221 : 0x000000,
             emissiveIntensity: modern ? 0.32 : 1,
-            side: THREE.DoubleSide,
+            // Boundary walls are closed boxes. Rendering their back faces as a second transparent
+            // layer makes the merged box triangles blend into large diagonal plates when the camera
+            // flies close to a wall. Front faces cover both the arena-facing and outside surfaces of
+            // the box, while keeping every visible wall at one stable opacity.
+            side: THREE.FrontSide,
         }),
         floorMat: new THREE.MeshStandardMaterial({
             color: 0xffffff,
