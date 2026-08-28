@@ -268,6 +268,7 @@ export class Arena {
                 }
             }
 
+            this._builder.refitShadowCoverage(this._glbScene, this.bounds);
             this._builder.geometryPipeline.flushMergeStage(buildContext.materialBundle);
             this._portalGateSystem.build(buildContext.map, buildContext.scale);
             if (includeAuthoredAircraft) {

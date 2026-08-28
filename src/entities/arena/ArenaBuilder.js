@@ -4,6 +4,7 @@ import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialB
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
 import { AuthoredMapLightRig } from './AuthoredMapLightRig.js';
+import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -162,6 +163,17 @@ export class ArenaBuilder {
         // The shadow camera has to learn the map size here, or it keeps covering a fixed box around
         // the origin and everything further out loses its shadow entirely.
         this.arena.renderer?.setShadowCoverage?.(this.arena.bounds);
+    }
+
+    // _applyArenaBounds has to fit the shadow frustum to the arena box, because that is all that
+    // exists at build time - the GLBs load asynchronously afterwards. This is the second pass, once
+    // the geometry is there: a map whose content is far smaller than the box it is allowed to use
+    // gets its shadow texels spent on the content instead of on empty air.
+    refitShadowCoverage(glbScene, arenaBounds) {
+        const bounds = resolveVisibleShadowBounds({ scene: glbScene, arenaBounds });
+        if (!bounds) return null;
+        this.arena.renderer?.setShadowCoverage?.(bounds);
+        return bounds;
     }
 
     _resolveMaterialBundle({ sx, sy, sz }) {
