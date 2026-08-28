@@ -75,6 +75,16 @@ const NOTRE_DAME_COMMON = {
     // apse. The lamps sit above head height so the vaults catch them, and they deliberately do not
     // cast shadows - the point is that some of this reaches the outside through the portals, the
     // rose and the clerestory, which a shadow-casting light would stop at the first wall.
+    //
+    // The ranges look far too long for interior lamps, and by intent they are: AuthoredMapLightRig
+    // scales `distance` by the map factor of three, so 70 becomes 210 world units - further than
+    // the camera draws. Shortening them is not a free correction, though. They are currently the
+    // only thing lighting the ground beyond the building, and cutting them to the length of the
+    // nave turned the downward view into exactly the flat dark plate that
+    // notre-dame-atmosphere.desktop.spec.js exists to prevent: its flat-dark ratio went from 0.034
+    // to 0.095 against a 0.089 limit. Raising only the intensities failed the same assertion on
+    // the arena variant. The ranges therefore stay until the distance itself is lit - which is the
+    // same open question as the view distance.
     lights: [
         // Right behind the west front, close enough that the facade itself picks the glow up and the
         // portals and the rose read as lit from within when the map is approached from the river.
@@ -100,7 +110,18 @@ export const NOTRE_DAME_MAPS = {
             key: { direction: [-60, 40, 15], color: 0xffe2b8, intensity: 1.45 },
             fill: { direction: [30, 25, -20], color: 0x8fb4e0, intensity: 0.38 },
             rim: { direction: [-35, 18, -45], color: 0x7fd0ff, intensity: 0.5 },
-            hemisphere: { skyColor: 0xbcd8f5, groundColor: 0x6a6055 },
+            // The hemisphere light reaches inside the building exactly as strongly as it
+            // reaches the roof, and it arrives from every direction at once, so nothing in the
+            // nave could fall into shadow - the interior was lit by the sky rather than by its own
+            // lamps, and the stained glass washed out to white. Colour is the only ambient dial a
+            // map has, because the rig fixes the intensity. Measured against the previous values:
+            // saturation in the aisle rose from 0.33 to 0.45, in the choir from 0.29 to 0.42.
+            //
+            // The exposure offset deliberately stays where it is. It looks like the same dial and
+            // is not: the sky dome is untone-mapped by design, so exposure darkens the masonry and
+            // leaves the sky untouched. Measured, lowering it cost the sky a third of its colour
+            // steps and pushed the buttress run to nearly 60% near-black.
+            hemisphere: { skyColor: 0x4c5f73, groundColor: 0x2b271f },
             // River mist. It stays darkest overhead, but its lower end keeps enough warm colour for
             // the long nave and the quays to recede instead of ending on a black plate. A small
             // height falloff lets the towers separate from the ground layer without exposing a hard
@@ -147,7 +168,9 @@ export const NOTRE_DAME_MAPS = {
             key: { direction: [45, 55, -35], color: 0xcfe8ff, intensity: 1.35 },
             fill: { direction: [-40, 24, 30], color: 0xffc98c, intensity: 0.34 },
             rim: { direction: [10, 28, 55], color: 0x7fdcff, intensity: 0.62 },
-            hemisphere: { skyColor: 0x9ebbd8, groundColor: 0x4b4d54 },
+            // Pulled down in the same proportion as the route profile, because both maps share
+            // the lamps in NOTRE_DAME_COMMON and a bright ambient here would undo the same effect.
+            hemisphere: { skyColor: 0x44505d, groundColor: 0x1e1f22 },
             // The arena is fought inside and around the building, so the layer sits higher and
             // calmer than on the route while retaining the same readable dusk endpoints.
             fog: {
