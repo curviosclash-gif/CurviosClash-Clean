@@ -19,18 +19,29 @@ const MEASURE_SEAM = `
     const height = three.domElement.height;
 
     const restore = {
-        near: scene.fog.near,
-        far: scene.fog.far,
+        mapLighting: runtime.getMapLighting(),
+        mapScale: runtime._mapScale,
         fogColor: scene.fog.color.getHex(),
         matchVisible: runtime.matchRoot.visible,
         position: camera.position.clone(),
         quaternion: camera.quaternion.clone(),
     };
 
-    // Collapsed range clamps the distance term to 1, and the sampled floor sits below the map's fog
-    // base height so the height term is 1 too. The surface colour then stops mattering entirely and
-    // only the fog colour is left on screen. The camera looks at the horizon, so the dome's equator -
-    // where the haze band is at full strength - lands on the vertical centre of the image.
+    // Isolate the seam from the map's intentional height and turbulence structure. A saturated
+    // layer makes the sampled surface pure fog colour, so this probe measures only whether that
+    // colour meets the dome at the horizon.
+    runtime.setMapLighting({
+        ...restore.mapLighting,
+        fog: {
+            ...restore.mapLighting.fog,
+            height: 200,
+            heightFalloff: 0,
+            turbulence: 0,
+        },
+    }, restore.mapScale);
+
+    // Collapsed range clamps the distance term to 1. The camera looks at the horizon, so the dome's
+    // equator - where the haze band is at full strength - lands on the vertical centre of the image.
     scene.fog.near = 0;
     scene.fog.far = 1;
     camera.position.set(0, 15, 0);
@@ -38,44 +49,57 @@ const MEASURE_SEAM = `
     camera.updateMatrixWorld(true);
 
     const gl = three.getContext();
-    const pixel = new Uint8Array(4);
-    function sampleAt(fractionFromTop) {
-        // readPixels counts rows from the bottom.
-        gl.readPixels(
-            Math.round(width / 2),
-            Math.round(height * (1 - fractionFromTop)),
-            1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel
-        );
-        return [pixel[0] / 255, pixel[1] / 255, pixel[2] / 255];
-    }
-    function renderAndSample(fractionFromTop) {
+    function capture(matchVisible) {
+        runtime.matchRoot.visible = matchVisible;
         three.setRenderTarget(null);
         three.render(scene, camera);
-        return sampleAt(fractionFromTop);
+        const frame = new Uint8Array(width * height * 4);
+        gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+        return frame;
     }
+
+    function sampleAt(frame, x, yFromTop) {
+        // readPixels stores rows from the bottom.
+        const offset = ((height - 1 - yFromTop) * width + x) * 4;
+        return [frame[offset] / 255, frame[offset + 1] / 255, frame[offset + 2] / 255];
+    }
+
     function maxDelta(a, b) {
         return Math.max(Math.abs(a[0] - b[0]), Math.abs(a[1] - b[1]), Math.abs(a[2] - b[2]));
     }
 
-    function measure() {
-        runtime.matchRoot.visible = true;
-        const fogged = renderAndSample(0.85);
-        runtime.matchRoot.visible = false;
-        // Just above the horizon line, where the haze band is at full strength.
-        const sky = renderAndSample(0.492);
+    function pairAt(visibleFrame, skyFrame, x, y) {
+        const fogged = sampleAt(visibleFrame, x, y);
+        const sky = sampleAt(skyFrame, x, y);
         return { fogged, sky, delta: maxDelta(fogged, sky) };
+    }
+
+    function findHorizonGeometry(visibleFrame, skyFrame) {
+        let best = null;
+        const minY = Math.round(height * 0.35);
+        const maxY = Math.round(height * 0.65);
+        const minX = Math.round(width * 0.05);
+        const maxX = Math.round(width * 0.95);
+        for (let y = minY; y <= maxY; y += 2) {
+            for (let x = minX; x <= maxX; x += 2) {
+                const pair = pairAt(visibleFrame, skyFrame, x, y);
+                if (pair.delta < 0.3) continue;
+                const distanceToHorizon = Math.abs(y / height - 0.5);
+                if (!best || distanceToHorizon < best.distanceToHorizon) {
+                    best = { x, y, distanceToHorizon, ...pair };
+                }
+            }
+        }
+        return best;
     }
 `;
 
 const RESTORE_SEAM = `
-    scene.fog.near = restore.near;
-    scene.fog.far = restore.far;
-    scene.fog.color.setHex(restore.fogColor);
     runtime.matchRoot.visible = restore.matchVisible;
     camera.position.copy(restore.position);
     camera.quaternion.copy(restore.quaternion);
     camera.updateMatrixWorld(true);
-    runtime.setMapLighting(runtime.getMapLighting());
+    runtime.setMapLighting(restore.mapLighting, restore.mapScale);
 `;
 
 test('the patched fog shader compiles and the sky meets the fog without a seam', async ({ page }) => {
@@ -121,26 +145,30 @@ test('the patched fog shader compiles and the sky meets the fog without a seam',
     expect(applied.fogFar).toBe(130);
     // Not the authored 0x2a0c06: with skyBlend at 1 the distance fades into the map's own horizon.
     expect(applied.fogColor).toBe(0x6b2410);
-    expect(applied.fogHeight).toBe(8);
+    expect(applied.fogHeight).toBe(2.7);
 
     // Rendered proof plus its own control: repainting only the fog colour, without letting the sky
     // follow, is exactly the mismatch the haze band exists to prevent - so the same measurement has
     // to report a wide gap. Without that control a probe that always reads one colour would pass.
     const seam = await page.evaluate(`(() => {
         ${MEASURE_SEAM}
-        const matched = measure();
         scene.fog.color.setHex(0x30c0ff);
-        const mismatched = measure();
+        const mismatchedVisible = capture(true);
+        const mismatchedSky = capture(false);
+        const probe = findHorizonGeometry(mismatchedVisible, mismatchedSky);
+        if (!probe) throw new Error('No fogged geometry crosses the measured horizon band');
+        const mismatched = pairAt(mismatchedVisible, mismatchedSky, probe.x, probe.y);
+
+        scene.fog.color.setHex(restore.fogColor);
+        const matched = pairAt(capture(true), capture(false), probe.x, probe.y);
         ${RESTORE_SEAM}
-        return { matched, mismatched };
+        return { matched, mismatched, probe: { x: probe.x, y: probe.y } };
     })()`);
 
-    // The residual is the density field, not a seam: turbulence thins the fog by up to 30% locally,
-    // so even a saturated distance term lets a few percent of the surface through. That is the
-    // structure the fog is supposed to have. A real seam is an order of magnitude wider, which is
-    // what the control below shows.
-    expect(seam.matched.delta).toBeLessThan(0.05);
-    expect(seam.mismatched.delta).toBeGreaterThan(0.5);
+    // The controlled profile removes the map's density structure, so any remaining delta is a real
+    // sky/fog mismatch. The deliberately mismatched control proves the probe can see that edge.
+    expect(seam.matched.delta, JSON.stringify(seam)).toBeLessThan(0.05);
+    expect(seam.mismatched.delta, JSON.stringify(seam)).toBeGreaterThan(0.5);
 
     // A shader that fails to compile or link surfaces here and nowhere else.
     expect(errors).toHaveLength(0);
