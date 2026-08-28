@@ -71,6 +71,20 @@ const NOTRE_DAME_COMMON = {
     audioProfile: NOTRE_DAME_AUDIO_PROFILE,
     items: NOTRE_DAME_ITEMS,
     aircraft: NOTRE_DAME_AIRCRAFT,
+    // Warm light inside the nave, running the length of the building between the west front and the
+    // apse. The lamps sit above head height so the vaults catch them, and they deliberately do not
+    // cast shadows - the point is that some of this reaches the outside through the portals, the
+    // rose and the clerestory, which a shadow-casting light would stop at the first wall.
+    lights: [
+        // Right behind the west front, close enough that the facade itself picks the glow up and the
+        // portals and the rose read as lit from within when the map is approached from the river.
+        { id: 'nd_west_front', x: -72, y: GROUND + 26, z: 0, color: 0xff8c3a, intensity: 6000, distance: 70 },
+        { id: 'nd_nave_west', x: -60, y: GROUND + 16, z: 0, color: 0xff7a26, intensity: 4000, distance: 55 },
+        { id: 'nd_nave_mid', x: -28, y: GROUND + 16, z: 0, color: 0xff8a34, intensity: 4000, distance: 55 },
+        { id: 'nd_crossing', x: 4, y: GROUND + 22, z: 0, color: 0xffa04a, intensity: 5200, distance: 65 },
+        { id: 'nd_choir', x: 38, y: GROUND + 16, z: 0, color: 0xff7a26, intensity: 4000, distance: 55 },
+        { id: 'nd_apse', x: 72, y: GROUND + 14, z: 0, color: 0xff6a1c, intensity: 3400, distance: 50 },
+    ],
 };
 
 export const NOTRE_DAME_MAPS = {
