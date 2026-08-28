@@ -11,10 +11,32 @@ const SAMPLE_COLOR = new THREE.Color();
 const ZENITH_COLOR = new THREE.Color();
 const HORIZON_COLOR = new THREE.Color();
 const NADIR_COLOR = new THREE.Color();
+const HAZE_COLOR = new THREE.Color();
+
+// How far above and below the horizon the sky blends into the fog colour, as a fraction of the dome
+// radius. Wide enough that the dome's vertex rows can carry a gradient rather than a single ring.
+//
+// The width interacts with the map's skyBlend: a narrow band lets the authored sky colour return
+// within a few degrees of the horizon, which draws a visible stripe when the fog colour is far from
+// the sky colour. The answer to that is a skyBlend closer to the middle, not a wider band - a wide
+// band pulls the fog colour high up the sky and flattens the whole gradient.
+// Exported because the fog has to follow the same curve. A fully fogged surface and the sky right
+// behind it on screen must land on the same colour, or the surface keeps a silhouette at any
+// distance - which is the one edge no amount of density shaping can remove.
+export const HAZE_BAND = 0.3;
+
+function smoothstep(t) {
+    return t * t * (3 - 2 * t);
+}
 
 // Shared with the sky dome in SceneLightingRig so the reflection and the visible sky cannot drift
 // apart: both read the same three colours through the same curve.
-export function applySkyGradientColors(geometry, colors, radius) {
+//
+// hazeColor is the scene's fog colour. Distant geometry converges on exactly that colour, so the sky
+// has to arrive at it too - otherwise the fog ends in a hard edge against a differently coloured
+// horizon and reads as a flat surface instead of as distance. The reflection dome passes nothing
+// here: it is only ever sampled as a blurred mirror, where a horizon band is invisible.
+export function applySkyGradientColors(geometry, colors, radius, hazeColor = null) {
     const positions = geometry.getAttribute('position');
     let target = geometry.getAttribute('color');
     if (!target || target.count !== positions.count) {
@@ -24,12 +46,18 @@ export function applySkyGradientColors(geometry, colors, radius) {
     ZENITH_COLOR.setHex(colors.zenithColor);
     HORIZON_COLOR.setHex(colors.horizonColor);
     NADIR_COLOR.setHex(colors.nadirColor);
+    const hazed = hazeColor !== null && hazeColor !== undefined;
+    if (hazed) HAZE_COLOR.setHex(hazeColor);
     for (let i = 0; i < positions.count; i += 1) {
         const y = THREE.MathUtils.clamp(positions.getY(i) / radius, -1, 1);
         if (y >= 0) {
             SAMPLE_COLOR.copy(HORIZON_COLOR).lerp(ZENITH_COLOR, Math.pow(y, 0.62));
         } else {
             SAMPLE_COLOR.copy(HORIZON_COLOR).lerp(NADIR_COLOR, Math.pow(-y, 0.7));
+        }
+        if (hazed) {
+            const nearness = Math.max(0, 1 - Math.abs(y) / HAZE_BAND);
+            if (nearness > 0) SAMPLE_COLOR.lerp(HAZE_COLOR, smoothstep(nearness));
         }
         target.setXYZ(i, SAMPLE_COLOR.r, SAMPLE_COLOR.g, SAMPLE_COLOR.b);
     }

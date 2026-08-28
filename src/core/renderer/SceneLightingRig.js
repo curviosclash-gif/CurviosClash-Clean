@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { resolveMapLighting } from '../../shared/contracts/MapLightingContract.js';
 import { resolveFogRange } from '../../shared/contracts/ViewDistanceContract.js';
 import { applySkyGradientColors } from './SceneEnvironmentFactory.js';
+import { applyAtmosphericFogSettings } from './AtmosphericFogShaderPatch.js';
 
 const MODERN_STYLE = 'modern';
 
@@ -9,6 +10,18 @@ const MODERN_STYLE = 'modern';
 // and a vector per call would still be pure waste.
 const LIGHT_SPACE_MATRIX = new THREE.Matrix4();
 const CORNER_POINT = new THREE.Vector3();
+const ATMOSPHERE_COLOR = new THREE.Color();
+const HORIZON_COLOR = new THREE.Color();
+
+// What distant surfaces actually turn into. The map may author a fog colour, but by default it is
+// pulled all the way to the sky's own horizon colour: a fog colour darker than the sky makes the
+// distance collapse into a black plate, which is the opposite of depth. Both the scene fog and the
+// haze band on the dome read this one value, so the two can never disagree.
+function resolveAtmosphereColor(lighting) {
+    ATMOSPHERE_COLOR.setHex(lighting.fog.color);
+    HORIZON_COLOR.setHex(lighting.skyDome.horizonColor);
+    return ATMOSPHERE_COLOR.lerp(HORIZON_COLOR, lighting.fog.skyBlend).getHex();
+}
 
 // Atmosphere geometry is local to the camera rather than the map origin. onBeforeRender runs for
 // every viewport, so split-screen cameras each receive their own sky without a render-loop branch
@@ -177,10 +190,19 @@ export class SceneLightingRig {
 
     _setupAtmosphere() {
         const radius = this._skyRadius;
-        const skyGeometry = new THREE.SphereGeometry(radius, 32, 18);
+        // The horizon haze is carried by vertex colours, so the ring count sets how smooth the band
+        // can be. 18 rings put barely one row inside it and produced a visible step.
+        const skyGeometry = new THREE.SphereGeometry(radius, 48, 32);
         skyGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(
             skyGeometry.getAttribute('position').count * 3,
         ), 3));
+        // toneMapped stays off, and that is what makes the sky meet the fog. three includes
+        // fog_fragment *after* tonemapping_fragment and colorspace_fragment, and uploads fogColor in
+        // the output colour space - so a fully fogged surface displays the authored fog colour
+        // untouched by ACES. An untone-mapped dome displays its authored colours the same way, which
+        // means an authored colour on both sides lands on the same pixel value. Turning tone mapping
+        // on here would darken only the sky and open the seam it is meant to close; measured on
+        // magma_maze, the horizon dropped from 0.165 to 0.077 while the fog stayed at 0.165.
         const skyMaterial = new THREE.MeshBasicMaterial({
             side: THREE.BackSide,
             vertexColors: true,
@@ -234,15 +256,16 @@ export class SceneLightingRig {
     }
 
     /** @param {{graphicsStyle?: unknown, mapLighting?: any, brightnessFactors: any, viewDistance?: unknown}} options */
-    apply({ graphicsStyle, mapLighting, brightnessFactors, viewDistance }) {
+    apply({ graphicsStyle, mapLighting, brightnessFactors, viewDistance, mapScale = 1 }) {
         const modern = graphicsStyle === MODERN_STYLE;
         const styleLighting = modern ? undefined : this._classicLighting;
         const lighting = resolveMapLighting(mapLighting, styleLighting);
         const baseExposure = modern ? 1.05 : 1.2;
         const baseAmbientIntensity = modern ? 0.58 : 0.8;
 
+        const atmosphereColor = resolveAtmosphereColor(lighting);
         this.scene.background = modern ? this._modernBackgroundColor : null;
-        this.scene.fog.color.setHex(lighting.fog.color);
+        this.scene.fog.color.setHex(atmosphereColor);
         this.renderer.toneMappingExposure = Math.max(0, baseExposure + lighting.exposureOffset)
             * brightnessFactors.exposure;
         this.ambientLight.color.setHex(lighting.hemisphere.skyColor);
@@ -254,9 +277,14 @@ export class SceneLightingRig {
         this.keyLight.shadow.bias = modern ? -0.0002 : 0;
         this.keyLight.shadow.normalBias = modern ? 0.025 : 0;
         this.rimLight.visible = modern;
-        this.skyDome.visible = modern;
+        // The classic style used to hide the dome and clear to a fixed background colour. A map with
+        // its own fog colour then met that fixed colour at the horizon, which is the same seam the
+        // haze band closes in the modern style. Keep the authored gradient in both styles and let the
+        // shared haze band close only the horizon; flattening the whole classic dome turns any open
+        // view between the checker walls into a single-colour plate.
+        this.skyDome.visible = true;
         this.starField.visible = modern && lighting.starsVisible;
-        this._applySkyDomeColors(lighting.skyDome);
+        this._applySkyDomeColors(lighting.skyDome, atmosphereColor);
 
         const fog = resolveFogRange({
             viewDistance,
@@ -266,6 +294,17 @@ export class SceneLightingRig {
         });
         this.scene.fog.near = fog.near;
         this.scene.fog.far = fog.far;
+        // Height and structure are not part of THREE.Fog, so they travel to the patched shader
+        // chunks instead of onto the scene. Same single-writer rule as everything else here.
+        // The height terms are authored in the same space as the spawns, so they scale with the map.
+        // The falloff is a reciprocal length and therefore scales the other way; without that, a map
+        // scaled up would keep its layer just as thin while the world around it grew.
+        const scale = Number(mapScale) > 0 ? Number(mapScale) : 1;
+        applyAtmosphericFogSettings({
+            ...lighting.fog,
+            height: lighting.fog.height * scale,
+            heightFalloff: lighting.fog.heightFalloff / scale,
+        });
         return lighting;
     }
 
@@ -284,8 +323,8 @@ export class SceneLightingRig {
         this._placeKeyLight();
     }
 
-    _applySkyDomeColors(colors) {
-        applySkyGradientColors(this.skyDome.geometry, colors, this._skyRadius);
+    _applySkyDomeColors(colors, hazeColor) {
+        applySkyGradientColors(this.skyDome.geometry, colors, this._skyRadius, hazeColor);
     }
 
     dispose() {

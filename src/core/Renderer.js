@@ -3,6 +3,10 @@
 // ============================================
 
 import * as THREE from 'three';
+import {
+    installAtmosphericFog,
+    setAtmosphericFogClipDistance,
+} from './renderer/AtmosphericFogShaderPatch.js';
 import { SceneLightingRig } from './renderer/SceneLightingRig.js';
 import { SceneEnvironmentController } from './renderer/SceneEnvironmentFactory.js';
 import { CONFIG } from './Config.js';
@@ -29,6 +33,12 @@ import {
 export class Renderer {
     constructor(canvas) {
         this.canvas = canvas;
+        // Has to happen before the first material compiles, otherwise three caches a program built
+        // from its own fog chunks and the scene keeps the flat distance-only fog.
+        installAtmosphericFog();
+        // The fog has to be fully closed by the time the camera stops drawing, otherwise geometry
+        // vanishes while still faintly visible - a hard ring at a fixed distance.
+        setAtmosphericFogClipDistance(CONFIG.CAMERA.FAR);
 
         this.renderer = new THREE.WebGLRenderer({
             canvas: this.canvas,
@@ -54,6 +64,7 @@ export class Renderer {
         this._viewDistance = DEFAULT_VIEW_DISTANCE;
         // The map may carry its own lighting profile; undefined means the style base stands.
         this._mapLighting = undefined;
+        this._mapScale = 1;
         this._lightingRig = new SceneLightingRig({
             scene: this.scene,
             renderer: this.renderer,
@@ -148,8 +159,14 @@ export class Renderer {
 
     // Called by the arena on every map build, with undefined for maps that state no profile --
     // otherwise a map without one would keep the lighting of whichever map ran before it.
-    setMapLighting(profile) {
+    // mapScale is the factor the arena applies to everything a map authors. The fog's height terms
+    // are authored in that same space, but the shader compares them against world coordinates, so
+    // they have to travel with it - otherwise a map scaled by three has its fog layer sitting at a
+    // third of the height it states, and everything above stays unfogged.
+    setMapLighting(profile, mapScale = 1) {
         this._mapLighting = profile;
+        const numericScale = Number(mapScale);
+        this._mapScale = Number.isFinite(numericScale) && numericScale > 0 ? numericScale : 1;
         this._applySceneAppearance();
         return this._mapLighting;
     }
@@ -169,6 +186,7 @@ export class Renderer {
         const lighting = this._lightingRig.apply({
             graphicsStyle: this._graphicsStyle,
             mapLighting: this._mapLighting,
+            mapScale: this._mapScale,
             brightnessFactors: resolveMapBrightnessFactors(this._mapBrightness),
             viewDistance: this._viewDistance,
         });

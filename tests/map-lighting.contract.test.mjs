@@ -16,7 +16,18 @@ test('default map lighting matches the existing modern renderer look', () => {
     assert.deepEqual(DEFAULT_MAP_LIGHTING.key.direction, [30, 50, 30]);
     assert.equal(DEFAULT_MAP_LIGHTING.key.color, 0xfff4e8);
     assert.equal(DEFAULT_MAP_LIGHTING.hemisphere.skyColor, 0x9bc8ff);
-    assert.deepEqual(DEFAULT_MAP_LIGHTING.fog, { color: 0x0b1020, near: 55, far: 190 });
+    assert.deepEqual(DEFAULT_MAP_LIGHTING.fog, {
+        color: 0x0b1020,
+        near: 55,
+        far: 190,
+        height: 18,
+        heightFalloff: 0.014,
+        turbulence: 0.12,
+        skyBlend: 1,
+        colorHigh: 0x0b1020,
+        colorLow: 0x0b1020,
+        clipClosureStart: 0.8,
+    });
     assert.equal(DEFAULT_MAP_LIGHTING.starsVisible, true);
     assert.equal(DEFAULT_MAP_LIGHTING.exposureOffset, 0);
     assert.ok(Object.isFrozen(DEFAULT_MAP_LIGHTING));
@@ -29,7 +40,11 @@ test('map lighting normalization rejects invalid values and hard-clamps hostile 
         fill: { direction: [0, 0, 0], color: '#00ffaa', intensity: -25 },
         rim: { direction: 'below', color: 'not-a-color', intensity: Number.NaN },
         hemisphere: { skyColor: -1, groundColor: 0x123456 },
-        fog: { color: '#abcdef', near: -100, far: 1e9 },
+        fog: {
+            color: '#abcdef', near: -100, far: 1e9,
+            height: -50, heightFalloff: 9, turbulence: 7, skyBlend: 4,
+            colorHigh: 'not-a-colour', colorLow: '#102030', clipClosureStart: 12,
+        },
         skyDome: { zenithColor: null, horizonColor: 0x334455, nadirColor: 12.8 },
         starsVisible: 'yes',
         exposureOffset: 50,
@@ -44,7 +59,20 @@ test('map lighting normalization rejects invalid values and hard-clamps hostile 
     assert.deepEqual(normalized.rim, DEFAULT_MAP_LIGHTING.rim);
     assert.equal(normalized.hemisphere.skyColor, 0);
     assert.equal(normalized.hemisphere.groundColor, 0x123456);
-    assert.deepEqual(normalized.fog, { color: 0xabcdef, near: 0, far: 200 });
+    // A hostile height falloff would make the fog vanish one metre above the base, and a turbulence
+    // above 1 would drive the density negative and brighten surfaces instead of dimming them.
+    assert.deepEqual(normalized.fog, {
+        color: 0xabcdef,
+        near: 0,
+        far: 200,
+        height: 0,
+        heightFalloff: 0.5,
+        turbulence: 1,
+        skyBlend: 1,
+        colorHigh: DEFAULT_MAP_LIGHTING.fog.colorHigh,
+        colorLow: 0x102030,
+        clipClosureStart: 0.95,
+    });
     assert.equal(normalized.skyDome.zenithColor, DEFAULT_MAP_LIGHTING.skyDome.zenithColor);
     assert.equal(normalized.skyDome.horizonColor, 0x334455);
     assert.equal(normalized.skyDome.nadirColor, 13);
@@ -69,7 +97,19 @@ test('map lighting resolver fills partial profiles from the supplied renderer ba
     assert.equal(resolved.key.color, 0xff0000);
     assert.equal(resolved.key.intensity, 0.8);
     assert.deepEqual(resolved.key.direction, DEFAULT_MAP_LIGHTING.key.direction);
-    assert.deepEqual(resolved.fog, { color: 0x080812, near: 20, far: 20 });
+    // The classic base states no height or structure, so those fall through to the defaults.
+    assert.deepEqual(resolved.fog, {
+        color: 0x080812,
+        near: 20,
+        far: 20,
+        height: DEFAULT_MAP_LIGHTING.fog.height,
+        heightFalloff: DEFAULT_MAP_LIGHTING.fog.heightFalloff,
+        turbulence: DEFAULT_MAP_LIGHTING.fog.turbulence,
+        skyBlend: DEFAULT_MAP_LIGHTING.fog.skyBlend,
+        colorHigh: DEFAULT_MAP_LIGHTING.fog.colorHigh,
+        colorLow: DEFAULT_MAP_LIGHTING.fog.colorLow,
+        clipClosureStart: DEFAULT_MAP_LIGHTING.fog.clipClosureStart,
+    });
     assert.equal(resolved.starsVisible, true);
     assert.equal(resolved.exposureOffset, -0.5);
     assert.deepEqual(resolveMapLighting(null), normalizeMapLighting(undefined));
@@ -126,7 +166,9 @@ test('scene lighting rig applies map profile before brightness and explicit view
     assert.equal(rig.keyLight.intensity, 2);
     assert.equal(renderer.toneMappingExposure, 0.625);
     assert.equal(rig.ambientLight.intensity, 0.145);
-    assert.equal(scene.fog.color.getHex(), 0x123456);
+    // The profile states no sky, so the default horizon stands - and with the default skyBlend of 1
+    // that horizon, not the authored 0x123456, is what the distance fades into.
+    assert.equal(scene.fog.color.getHex(), DEFAULT_MAP_LIGHTING.skyDome.horizonColor);
     assert.equal(scene.fog.near, 10);
     assert.equal(scene.fog.far, 50);
     assert.equal(rig.starField.visible, false);
@@ -151,12 +193,16 @@ test('scene lighting rig applies map profile before brightness and explicit view
     assert.equal(rig.keyLight.intensity, 0.8);
     assert.equal(rig.fillLight.intensity, 0.3);
     assert.equal(rig.ambientLight.intensity, 0.8);
-    assert.equal(scene.fog.color.getHex(), 0x080812);
+    // Same rule in the classic style: the horizon of its own sky is the distant colour, not the
+    // background hex the fog used to carry.
+    assert.equal(scene.fog.color.getHex(), 0x17355a);
     assert.equal(scene.fog.near, 50);
     assert.equal(scene.fog.far, 200);
     assert.equal(scene.background, null);
     assert.equal(rig.rimLight.visible, false);
-    assert.equal(rig.skyDome.visible, false);
+    // Classic keeps a visible dome so its authored gradient can meet the fog without a cleared
+    // background seam - see atmosphere-horizon-seam.contract.test.mjs.
+    assert.equal(rig.skyDome.visible, true);
     assert.equal(rig.starField.visible, false);
     rig.dispose();
     assert.equal(scene.children.length, 0);

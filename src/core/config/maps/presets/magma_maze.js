@@ -14,7 +14,15 @@ export const MAGMA_MAZE_MAP = {
             fill: { direction: [0, -30, 0], color: 0xff5a1e, intensity: 0.85 },
             rim: { direction: [-30, 10, -40], color: 0xff8c32, intensity: 0.8 },
             hemisphere: { skyColor: 0x4a2418, groundColor: 0xff6420 },
-            fog: { color: 0x2a0c06, near: 30, far: 130 },
+            // Heat haze over the lava: a low, restless layer under a 50 metre ceiling.
+            fog: {
+                color: 0x2a0c06, near: 30, far: 130,
+                // 0.035 was the steepest profile on any map and left the fog at 0.34 under the 50
+                // metre ceiling. The layer still sits low, it just no longer runs out of density
+                // before the far end of the hall.
+                height: 2.7, heightFalloff: 0.042, turbulence: 0.3, skyBlend: 1,
+                colorHigh: 0x2a0c06, colorLow: 0x2a0c06, clipClosureStart: 0.8,
+            },
             skyDome: { zenithColor: 0x140603, horizonColor: 0x6b2410, nadirColor: 0x40100a },
             starsVisible: false,
             exposureOffset: -0.08,

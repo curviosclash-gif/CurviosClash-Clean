@@ -8,7 +8,16 @@ export const NEON_ABYSS_MAP = {
             fill: { direction: [-25, 15, -20], color: 0xff5ce0, intensity: 0.5 },
             rim: { direction: [-35, 12, -45], color: 0x2ff5d0, intensity: 1.1 },
             hemisphere: { skyColor: 0x101830, groundColor: 0x2a1040 },
-            fog: { color: 0x05070f, near: 25, far: 110 },
+            // A chasm: the haze pools at the bottom and thins out fast, so the upper walls stay
+            // readable while the floor disappears.
+            fog: {
+                color: 0x05070f, near: 25, far: 110,
+                // The falloff used to be 0.03, which capped the fog at 0.40 forty metres up: the
+                // distance stopped closing and the clip term had to finish it. Air over a chasm does
+                // thin out, but not to the point where a wall 110 metres away is still crisp.
+                height: 10, heightFalloff: 0.012, turbulence: 0.25, skyBlend: 1,
+                colorHigh: 0x05070f, colorLow: 0x05070f, clipClosureStart: 0.8,
+            },
             skyDome: { zenithColor: 0x02030a, horizonColor: 0x1a0a35, nadirColor: 0x010206 },
             starsVisible: false,
             exposureOffset: -0.22,

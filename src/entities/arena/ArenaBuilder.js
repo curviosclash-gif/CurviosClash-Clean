@@ -25,7 +25,13 @@ export class ArenaBuilder {
         const graphicsStyle = normalizeGraphicsStyle(this.arena.renderer?.getGraphicsStyle?.());
         // Passed on every build, including the maps that state no profile: the renderer holds the
         // last one it was given, so leaving it out would carry the previous map's lighting over.
-        this.arena.renderer?.setMapLighting?.(mapResolution.map?.lighting);
+        // Only the maps that scale their authored anchors state their fog heights in that space too.
+        // A map without the flag authors in world units already, and scaling those would move its
+        // fog layer somewhere it never asked for.
+        this.arena.renderer?.setMapLighting?.(
+            mapResolution.map?.lighting,
+            mapResolution.map?.scaleAuthoredAnchors === true ? scale : 1
+        );
         this._applyArenaBounds(size);
 
         const buildSignature = createArenaBuildSignature({

@@ -14,7 +14,12 @@ export const FROZEN_HELIX_MAP = {
             fill: { direction: [-30, 20, -15], color: 0x7fb8e8, intensity: 0.45 },
             rim: { direction: [-35, 18, -45], color: 0x9fe8ff, intensity: 0.7 },
             hemisphere: { skyColor: 0xd8f0ff, groundColor: 0x6f8fa8 },
-            fog: { color: 0x9fc4dd, near: 70, far: 200 },
+            // Ice fog fills most of the 110 metre shaft, so it thins out slowly and sits high.
+            fog: {
+                color: 0x9fc4dd, near: 70, far: 200,
+                height: 11.7, heightFalloff: 0.03, turbulence: 0.18, skyBlend: 1,
+                colorHigh: 0x9fc4dd, colorLow: 0x9fc4dd, clipClosureStart: 0.8,
+            },
             skyDome: { zenithColor: 0x1b3f6b, horizonColor: 0x8fc0e0, nadirColor: 0x0d1c30 },
             starsVisible: false,
             exposureOffset: 0.12,
