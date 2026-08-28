@@ -201,6 +201,25 @@ test('the fog is fully closed by the camera far plane', () => {
     assert.ok(setAtmosphericFogClipDistance('nonsense') > 1000);
 });
 
+test('opted-in boundary walls release their alpha with the same continuous fog curve', () => {
+    withInstalledFog(() => {
+        const source = THREE.ShaderChunk.fog_fragment;
+        assert.ok(
+            source.includes('#ifdef ATMOSPHERIC_FOG_ALPHA_FADE'),
+            'alpha fading is an explicit material opt-in'
+        );
+        assert.ok(
+            source.includes('gl_FragColor.a *= 1.0 - clampedFogFactor;'),
+            'the wall disappears exactly as the fog closes'
+        );
+        assert.equal(
+            source.match(/clamp\( fogFactor, 0\.0, 1\.0 \)/g)?.length,
+            1,
+            'RGB and alpha share one clamped fog result'
+        );
+    });
+});
+
 // Where the closure starts was one shared constant, and two maps pulled it in opposite directions:
 // tuning it for a thin fog washed a dense one flat from half the view distance onwards. It is a map
 // value now, so neither has to be tuned at the other's expense.

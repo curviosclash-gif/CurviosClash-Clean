@@ -71,10 +71,12 @@ test('classic and modern arena materials keep their distinct art direction', () 
 
     assert.equal(classic.wallMat.opacity, 0.9);
     assert.equal(classic.wallMat.side, THREE.FrontSide);
+    assert.equal(classic.wallMat.defines.ATMOSPHERIC_FOG_ALPHA_FADE, 1);
     assert.equal(classic.floorMat.metalness, 0.05);
     assert.equal(classic.obstacleMat.emissive.getHex(), 0x000000);
     assert.equal(modern.wallMat.opacity, 0.84);
     assert.equal(modern.wallMat.side, THREE.FrontSide);
+    assert.equal(modern.wallMat.defines.ATMOSPHERIC_FOG_ALPHA_FADE, 1);
     assert.equal(modern.floorMat.metalness, 0.18);
     assert.equal(modern.obstacleMat.emissive.getHex(), 0x07182b);
 });

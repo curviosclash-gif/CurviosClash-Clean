@@ -273,6 +273,11 @@ export function getArenaMaterialBundle({
             map: wallTexture,
             transparent: true,
             opacity: modern ? 0.84 : 0.9,
+            // At grazing angles a finite boundary wall has a real end silhouette even when its
+            // fogged colour already matches the sky. The atmospheric fog chunk uses this opt-in
+            // define to release only the wall alpha with the same curve. Close walls keep their
+            // authored opacity; unrelated transparent scene materials are not affected.
+            defines: { ATMOSPHERIC_FOG_ALPHA_FADE: 1 },
             roughness: modern ? 0.68 : 0.75,
             metalness: modern ? 0.2 : 0.1,
             emissive: modern ? 0x061221 : 0x000000,

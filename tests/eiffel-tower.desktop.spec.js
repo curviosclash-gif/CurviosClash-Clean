@@ -14,7 +14,7 @@ const SCALE = 3;
 const FIRST_DECK = 42.58;
 const TOP_DECK = 173.66;
 
-test('the Eiffel Tower loads as one tower with its galleries open in the middle', async ({ page }) => {
+test('the Eiffel Tower loads as one tower with its galleries open in the middle', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
@@ -87,6 +87,137 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         summitSolid: true,
         aboveAntennaOpen: true,
     });
+
+    const wallFade = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game.renderer;
+        const three = runtime.renderer;
+        const camera = runtime.cameras[0];
+        const width = three.domElement.width;
+        const height = three.domElement.height;
+        const gl = three.getContext();
+        let wallMesh = null;
+        runtime.matchRoot.traverse((object) => {
+            if (object.isMesh && object.material?.defines?.ATMOSPHERIC_FOG_ALPHA_FADE === 1) {
+                wallMesh = object;
+            }
+        });
+        if (!wallMesh) throw new Error('Arena boundary wall mesh was not found');
+
+        const original = {
+            cameraPosition: camera.position.clone(),
+            cameraQuaternion: camera.quaternion.clone(),
+            defines: { ...wallMesh.material.defines },
+            meshVisibility: [],
+        };
+        runtime.matchRoot.traverse((object) => {
+            if (object.isMesh) {
+                original.meshVisibility.push([object, object.visible]);
+                object.visible = object === wallMesh;
+            }
+        });
+
+        function capture({ fade, wallVisible }) {
+            wallMesh.visible = wallVisible;
+            if (fade) {
+                wallMesh.material.defines.ATMOSPHERIC_FOG_ALPHA_FADE = 1;
+            } else {
+                delete wallMesh.material.defines.ATMOSPHERIC_FOG_ALPHA_FADE;
+            }
+            wallMesh.material.needsUpdate = true;
+            three.setRenderTarget(null);
+            three.render(runtime.scene, camera);
+            const frame = new Uint8Array(width * height * 4);
+            gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+            return {
+                frame,
+                image: three.domElement.toDataURL('image/png'),
+            };
+        }
+
+        function maxRgbDelta(first, second, offset) {
+            return Math.max(
+                Math.abs(first[offset] - second[offset]),
+                Math.abs(first[offset + 1] - second[offset + 1]),
+                Math.abs(first[offset + 2] - second[offset + 2])
+            );
+        }
+
+        function analyze(production, knownBad, sky) {
+            let transitionPixels = 0;
+            let productionTransitionDelta = 0;
+            let knownBadTransitionDelta = 0;
+            let nearPixels = 0;
+            let nearChanged = 0;
+            const minY = Math.floor(height * 0.15);
+            const maxY = Math.ceil(height * 0.85);
+            for (let y = minY; y < maxY; y += 1) {
+                for (let x = 0; x < width; x += 1) {
+                    const offset = (y * width + x) * 4;
+                    const knownBadDelta = maxRgbDelta(knownBad, sky, offset);
+                    const productionDelta = maxRgbDelta(production, sky, offset);
+                    if (knownBadDelta >= 4 && knownBadDelta <= 48) {
+                        transitionPixels += 1;
+                        knownBadTransitionDelta += knownBadDelta;
+                        productionTransitionDelta += productionDelta;
+                    } else if ((x <= width * 0.1 || x >= width * 0.9) && knownBadDelta >= 20) {
+                        nearPixels += 1;
+                        if (maxRgbDelta(production, knownBad, offset) > 2) nearChanged += 1;
+                    }
+                }
+            }
+            return {
+                transitionPixels,
+                transitionRatio: productionTransitionDelta / Math.max(1, knownBadTransitionDelta),
+                nearPixels,
+                nearChangedRatio: nearChanged / Math.max(1, nearPixels),
+            };
+        }
+
+        let production;
+        let knownBad;
+        let sky;
+        try {
+            const bounds = game.arena.bounds;
+            const cameraX = bounds.maxX - 48;
+            const cameraY = bounds.maxY * 0.32;
+            camera.position.set(cameraX, cameraY, 0);
+            camera.lookAt(cameraX, cameraY, bounds.maxZ + 100);
+            camera.updateMatrixWorld(true);
+            knownBad = capture({ fade: false, wallVisible: true });
+            production = capture({ fade: true, wallVisible: true });
+            sky = capture({ fade: true, wallVisible: false });
+        } finally {
+            Object.assign(wallMesh.material.defines, original.defines);
+            wallMesh.material.needsUpdate = true;
+            for (const [object, visible] of original.meshVisibility) object.visible = visible;
+            camera.position.copy(original.cameraPosition);
+            camera.quaternion.copy(original.cameraQuaternion);
+            camera.updateMatrixWorld(true);
+        }
+
+        return {
+            define: original.defines.ATMOSPHERIC_FOG_ALPHA_FADE,
+            metrics: analyze(production.frame, knownBad.frame, sky.frame),
+            images: {
+                knownBad: knownBad.image,
+                production: production.image,
+                sky: sky.image,
+            },
+        };
+    });
+
+    for (const [name, image] of Object.entries(wallFade.images)) {
+        await testInfo.attach(`eiffel-wall-grazing-${name}.png`, {
+            body: Buffer.from(image.split(',')[1], 'base64'),
+            contentType: 'image/png',
+        });
+    }
+    expect(wallFade.define).toBe(1);
+    expect(wallFade.metrics.transitionPixels).toBeGreaterThan(100);
+    expect(wallFade.metrics.transitionRatio).toBeLessThan(0.8);
+    expect(wallFade.metrics.nearPixels).toBeGreaterThan(100);
+    expect(wallFade.metrics.nearChangedRatio).toBeLessThan(0.02);
 
     await page.evaluate(() => window.GAME_INSTANCE?.returnToMenu?.());
 });
