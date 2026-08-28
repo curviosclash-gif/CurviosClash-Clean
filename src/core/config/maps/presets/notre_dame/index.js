@@ -101,8 +101,16 @@ export const NOTRE_DAME_MAPS = {
             fill: { direction: [30, 25, -20], color: 0x8fb4e0, intensity: 0.38 },
             rim: { direction: [-35, 18, -45], color: 0x7fd0ff, intensity: 0.5 },
             hemisphere: { skyColor: 0xbcd8f5, groundColor: 0x6a6055 },
-            fog: { color: 0x1a2338, near: 90, far: 200 },
-            skyDome: { zenithColor: 0x0a1a3a, horizonColor: 0xd8a468, nadirColor: 0x0a0d16 },
+            // River mist. It stays darkest overhead, but its lower end keeps enough warm colour for
+            // the long nave and the quays to recede instead of ending on a black plate. A small
+            // height falloff lets the towers separate from the ground layer without exposing a hard
+            // clip silhouette, and the sky blend keeps distant masonry inside the dusk palette.
+            fog: {
+                color: 0x3a0a04, near: 90, far: 200,
+                height: 7.3, heightFalloff: 0.012, turbulence: 0.2, skyBlend: 0.45,
+                colorHigh: 0x1b0c0e, colorLow: 0x260e0f, clipClosureStart: 0.8,
+            },
+            skyDome: { zenithColor: 0x050912, horizonColor: 0x32100a, nadirColor: 0x160b16 },
             starsVisible: false,
             exposureOffset: 0.1,
         },
@@ -140,8 +148,14 @@ export const NOTRE_DAME_MAPS = {
             fill: { direction: [-40, 24, 30], color: 0xffc98c, intensity: 0.34 },
             rim: { direction: [10, 28, 55], color: 0x7fdcff, intensity: 0.62 },
             hemisphere: { skyColor: 0x9ebbd8, groundColor: 0x4b4d54 },
-            fog: { color: 0x142238, near: 78, far: 190 },
-            skyDome: { zenithColor: 0x08172e, horizonColor: 0x7898b7, nadirColor: 0x080c14 },
+            // The arena is fought inside and around the building, so the layer sits higher and
+            // calmer than on the route while retaining the same readable dusk endpoints.
+            fog: {
+                color: 0x3a0a04, near: 78, far: 190,
+                height: 10, heightFalloff: 0.012, turbulence: 0.16, skyBlend: 0.45,
+                colorHigh: 0x1b0c0e, colorLow: 0x260e0f, clipClosureStart: 0.8,
+            },
+            skyDome: { zenithColor: 0x050912, horizonColor: 0x32100a, nadirColor: 0x160b16 },
             starsVisible: false,
             exposureOffset: 0.04,
         },

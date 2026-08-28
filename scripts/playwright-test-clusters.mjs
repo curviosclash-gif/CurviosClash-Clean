@@ -22,6 +22,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/aetherion-orrery.desktop.spec.js',
             'tests/notre-dame.desktop.spec.js',
             'tests/notre-dame-arena.desktop.spec.js',
+            'tests/notre-dame-atmosphere.desktop.spec.js',
             'tests/hud-layout.spec.js',
             'tests/killcam-pixel.desktop.spec.js',
             'tests/killcam.desktop.spec.js',
