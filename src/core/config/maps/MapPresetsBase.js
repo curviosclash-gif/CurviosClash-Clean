@@ -54,6 +54,8 @@ const BASE_MAP_KEYS = [
     'aetherion_orrery',
     'notre_dame',
     'notre_dame_arena',
+    'eiffel_tower',
+    'eiffel_tower_arena',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(

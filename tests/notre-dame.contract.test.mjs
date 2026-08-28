@@ -123,7 +123,12 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         .filter(([, definition]) => definition.glbAuthoredObstaclesCollisionOnly === true)
         .map(([mapKey]) => mapKey)
         .sort();
-    assert.deepEqual(collisionOnlyMaps, ['notre_dame', 'notre_dame_arena']);
+    assert.deepEqual(collisionOnlyMaps, [
+        'eiffel_tower',
+        'eiffel_tower_arena',
+        'notre_dame',
+        'notre_dame_arena',
+    ]);
 });
 
 test('the parts land back in the positions they were modelled in', () => {
