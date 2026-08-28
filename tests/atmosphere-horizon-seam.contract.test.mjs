@@ -4,7 +4,12 @@ import * as THREE from 'three';
 
 import { CONFIG } from '../src/core/Config.js';
 import { SceneLightingRig } from '../src/core/renderer/SceneLightingRig.js';
-import { resolveEnvironmentKey } from '../src/core/renderer/SceneEnvironmentFactory.js';
+import {
+    HAZE_BAND,
+    resolveEnvironmentKey,
+    SKY_LOWER_EXPONENT,
+    SKY_UPPER_EXPONENT,
+} from '../src/core/renderer/SceneEnvironmentFactory.js';
 import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
 
 // The magma map's own values - the point of the seam is that these two are deliberately different.
@@ -32,24 +37,22 @@ function applyStyle(rig, graphicsStyle) {
     });
 }
 
-// The dome carries its gradient as vertex colours, so a band is read back by finding the vertex
-// closest to the wanted height rather than by evaluating the curve a second time.
+// The dome evaluates this curve per fragment. Sampling the material inputs here verifies the same
+// curve at representative elevations without depending on the dome's triangle layout.
 function sampleDomeColor(rig, normalizedHeight) {
-    const geometry = rig.skyDome.geometry;
-    const positions = geometry.getAttribute('position');
-    const colors = geometry.getAttribute('color');
-    const radius = Math.max(1, rig._skyRadius);
-    let bestIndex = 0;
-    let bestDistance = Infinity;
-    for (let i = 0; i < positions.count; i += 1) {
-        const distance = Math.abs(positions.getY(i) / radius - normalizedHeight);
-        if (distance < bestDistance) {
-            bestDistance = distance;
-            bestIndex = i;
-        }
-    }
-    assert.ok(bestDistance < 0.05, `the dome has a vertex band near height ${normalizedHeight}`);
-    return new THREE.Color(colors.getX(bestIndex), colors.getY(bestIndex), colors.getZ(bestIndex));
+    const elevation = THREE.MathUtils.clamp(normalizedHeight, -1, 1);
+    const { uniforms } = rig.skyDome.material;
+    const base = elevation >= 0
+        ? uniforms.horizonColor.value.clone().lerp(
+            uniforms.zenithColor.value,
+            Math.pow(elevation, SKY_UPPER_EXPONENT)
+        )
+        : uniforms.horizonColor.value.clone().lerp(
+            uniforms.nadirColor.value,
+            Math.pow(-elevation, SKY_LOWER_EXPONENT)
+        );
+    const nearness = Math.max(0, 1 - Math.abs(elevation) / HAZE_BAND);
+    return base.lerp(uniforms.hazeColor.value, nearness * nearness * (3 - 2 * nearness));
 }
 
 function assertColorMatchesHex(actual, expectedHex, message) {

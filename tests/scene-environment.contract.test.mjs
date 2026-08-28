@@ -6,6 +6,11 @@ import {
     applySkyGradientColors,
     resolveEnvironmentKey,
 } from '../src/core/renderer/SceneEnvironmentFactory.js';
+import {
+    createSkyDomeMaterial,
+    SKY_DOME_SHADER_SOURCES,
+    updateSkyDomeMaterial,
+} from '../src/core/renderer/SkyDomeMaterial.js';
 import { resolveMapLighting } from '../src/shared/contracts/MapLightingContract.js';
 
 const SKY = Object.freeze({
@@ -53,6 +58,42 @@ test('the gradient reuses an existing colour attribute instead of growing the ge
 
     assert.equal(first, second, 'a second pass writes into the same buffer');
     assert.ok(second.getY(0) > 0.99, 'the repaint actually took');
+});
+
+test('the visible sky evaluates its normalized direction per fragment with the shared haze curve', () => {
+    const material = createSkyDomeMaterial();
+
+    assert.equal(material.isShaderMaterial, true);
+    assert.equal(material.side, THREE.BackSide);
+    assert.equal(material.depthWrite, false);
+    assert.equal(material.fog, false);
+    assert.equal(material.toneMapped, false);
+    assert.match(SKY_DOME_SHADER_SOURCES.vertex, /normalize\( position \)/);
+    assert.match(SKY_DOME_SHADER_SOURCES.fragment, /normalize\( vSkyDirection \)/);
+    assert.match(SKY_DOME_SHADER_SOURCES.fragment, /pow\( elevation, 0\.62 \)/);
+    assert.match(SKY_DOME_SHADER_SOURCES.fragment, /pow\( -elevation, 0\.70 \)/);
+    assert.match(SKY_DOME_SHADER_SOURCES.fragment, /smoothstep\( 0\.0, 1\.0, hazeNearness \)/);
+    assert.match(SKY_DOME_SHADER_SOURCES.fragment, /#include <colorspace_fragment>/);
+});
+
+test('the visible sky mutates existing uniform colours across map changes', () => {
+    const material = createSkyDomeMaterial();
+    const uniforms = material.uniforms;
+    const zenith = uniforms.zenithColor.value;
+    const haze = uniforms.hazeColor.value;
+
+    updateSkyDomeMaterial(material, SKY, 0x112233);
+    updateSkyDomeMaterial(material, {
+        zenithColor: 0x00ff00,
+        horizonColor: 0x00ffff,
+        nadirColor: 0x000000,
+    }, 0x445566);
+
+    assert.equal(material.uniforms, uniforms);
+    assert.equal(uniforms.zenithColor.value, zenith);
+    assert.equal(uniforms.hazeColor.value, haze);
+    assert.equal(uniforms.zenithColor.value.getHex(), 0x00ff00);
+    assert.equal(uniforms.hazeColor.value.getHex(), 0x445566);
 });
 
 test('the classic style keeps the neutral room reflection', () => {

@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { resolveMapLighting } from '../../shared/contracts/MapLightingContract.js';
 import { resolveFogRange } from '../../shared/contracts/ViewDistanceContract.js';
-import { applySkyGradientColors } from './SceneEnvironmentFactory.js';
+import { createSkyDomeMaterial, updateSkyDomeMaterial } from './SkyDomeMaterial.js';
 import { applyAtmosphericFogSettings } from './AtmosphericFogShaderPatch.js';
 
 const MODERN_STYLE = 'modern';
@@ -190,12 +190,7 @@ export class SceneLightingRig {
 
     _setupAtmosphere() {
         const radius = this._skyRadius;
-        // The horizon haze is carried by vertex colours, so the ring count sets how smooth the band
-        // can be. 18 rings put barely one row inside it and produced a visible step.
         const skyGeometry = new THREE.SphereGeometry(radius, 48, 32);
-        skyGeometry.setAttribute('color', new THREE.BufferAttribute(new Float32Array(
-            skyGeometry.getAttribute('position').count * 3,
-        ), 3));
         // toneMapped stays off, and that is what makes the sky meet the fog. three includes
         // fog_fragment *after* tonemapping_fragment and colorspace_fragment, and uploads fogColor in
         // the output colour space - so a fully fogged surface displays the authored fog colour
@@ -203,13 +198,7 @@ export class SceneLightingRig {
         // means an authored colour on both sides lands on the same pixel value. Turning tone mapping
         // on here would darken only the sky and open the seam it is meant to close; measured on
         // magma_maze, the horizon dropped from 0.165 to 0.077 while the fog stayed at 0.165.
-        const skyMaterial = new THREE.MeshBasicMaterial({
-            side: THREE.BackSide,
-            vertexColors: true,
-            depthWrite: false,
-            fog: false,
-            toneMapped: false,
-        });
+        const skyMaterial = createSkyDomeMaterial();
         this.skyDome = new THREE.Mesh(skyGeometry, skyMaterial);
         this.skyDome.name = 'scene-atmosphere-sky';
         this.skyDome.renderOrder = -1000;
@@ -324,7 +313,7 @@ export class SceneLightingRig {
     }
 
     _applySkyDomeColors(colors, hazeColor) {
-        applySkyGradientColors(this.skyDome.geometry, colors, this._skyRadius, hazeColor);
+        updateSkyDomeMaterial(this.skyDome.material, colors, hazeColor);
     }
 
     dispose() {

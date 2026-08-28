@@ -24,6 +24,8 @@ const HAZE_COLOR = new THREE.Color();
 // behind it on screen must land on the same colour, or the surface keeps a silhouette at any
 // distance - which is the one edge no amount of density shaping can remove.
 export const HAZE_BAND = 0.3;
+export const SKY_UPPER_EXPONENT = 0.62;
+export const SKY_LOWER_EXPONENT = 0.7;
 
 function smoothstep(t) {
     return t * t * (3 - 2 * t);
@@ -51,9 +53,9 @@ export function applySkyGradientColors(geometry, colors, radius, hazeColor = nul
     for (let i = 0; i < positions.count; i += 1) {
         const y = THREE.MathUtils.clamp(positions.getY(i) / radius, -1, 1);
         if (y >= 0) {
-            SAMPLE_COLOR.copy(HORIZON_COLOR).lerp(ZENITH_COLOR, Math.pow(y, 0.62));
+            SAMPLE_COLOR.copy(HORIZON_COLOR).lerp(ZENITH_COLOR, Math.pow(y, SKY_UPPER_EXPONENT));
         } else {
-            SAMPLE_COLOR.copy(HORIZON_COLOR).lerp(NADIR_COLOR, Math.pow(-y, 0.7));
+            SAMPLE_COLOR.copy(HORIZON_COLOR).lerp(NADIR_COLOR, Math.pow(-y, SKY_LOWER_EXPONENT));
         }
         if (hazed) {
             const nearness = Math.max(0, 1 - Math.abs(y) / HAZE_BAND);
