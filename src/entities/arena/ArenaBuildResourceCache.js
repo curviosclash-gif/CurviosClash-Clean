@@ -291,6 +291,12 @@ export function getArenaMaterialBundle({
         floorMat: new THREE.MeshStandardMaterial({
             color: 0xffffff,
             map: floorTexture,
+            // The floor reaches the camera's clip distance, where an opaque last pixel otherwise
+            // leaves a geometric horizon even after its RGB matches the sky. Transparency enables
+            // the same fog-alpha release as the walls; depth writing stays enabled, so nearby
+            // vehicles and scenery retain the existing occlusion behaviour.
+            transparent: true,
+            defines: { ATMOSPHERIC_FOG_ALPHA_FADE: 1 },
             roughness: modern ? 0.76 : 0.9,
             metalness: modern ? 0.18 : 0.05,
             emissive: modern ? 0x040a12 : 0x000000,

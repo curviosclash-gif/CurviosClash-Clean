@@ -180,12 +180,12 @@ const FOG_FRAGMENT = /* glsl */`
 	float clampedFogFactor = clamp( fogFactor, 0.0, 1.0 );
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, clampedFogFactor );
 
-	// A boundary wall seen almost parallel to its surface ends in a real geometric silhouette:
-	// one ray misses it and the next one still hits it close to the clip distance. Matching the
-	// fragment's RGB to the sky removes most of that step, but a transparent wall still composites
-	// its authored opacity at the last visible pixel. Opted-in boundary materials therefore release
-	// their alpha with the same continuous fog curve. Nearby walls are unchanged, and other fogged
-	// transparent materials keep their authored opacity.
+	// Arena boundaries end in real geometric silhouettes: a grazing ray can miss a wall while its
+	// neighbour still hits it, and the floor itself ends at the camera's clip distance. Matching a
+	// fragment's RGB to the sky removes most of that step, but the last visible surface pixel can
+	// still keep its authored coverage. Opted-in boundary materials therefore release their alpha
+	// with the same continuous fog curve. Nearby surfaces are unchanged, and other fogged transparent
+	// materials keep their authored opacity.
 	#ifdef ATMOSPHERIC_FOG_ALPHA_FADE
 
 		gl_FragColor.a *= 1.0 - clampedFogFactor;

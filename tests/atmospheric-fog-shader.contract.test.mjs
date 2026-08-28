@@ -201,7 +201,7 @@ test('the fog is fully closed by the camera far plane', () => {
     assert.ok(setAtmosphericFogClipDistance('nonsense') > 1000);
 });
 
-test('opted-in boundary walls release their alpha with the same continuous fog curve', () => {
+test('opted-in arena boundaries release their alpha with the same continuous fog curve', () => {
     withInstalledFog(() => {
         const source = THREE.ShaderChunk.fog_fragment;
         assert.ok(

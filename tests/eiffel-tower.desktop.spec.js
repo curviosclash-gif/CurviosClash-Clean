@@ -98,7 +98,11 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
         const gl = three.getContext();
         let wallMesh = null;
         runtime.matchRoot.traverse((object) => {
-            if (object.isMesh && object.material?.defines?.ATMOSPHERIC_FOG_ALPHA_FADE === 1) {
+            if (
+                object.isMesh
+                && object.castShadow === true
+                && object.material?.defines?.ATMOSPHERIC_FOG_ALPHA_FADE === 1
+            ) {
                 wallMesh = object;
             }
         });
@@ -218,6 +222,140 @@ test('the Eiffel Tower loads as one tower with its galleries open in the middle'
     expect(wallFade.metrics.transitionRatio).toBeLessThan(0.8);
     expect(wallFade.metrics.nearPixels).toBeGreaterThan(100);
     expect(wallFade.metrics.nearChangedRatio).toBeLessThan(0.02);
+
+    const floorFade = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const runtime = game.renderer;
+        const three = runtime.renderer;
+        const camera = runtime.cameras[0];
+        const width = three.domElement.width;
+        const height = three.domElement.height;
+        const gl = three.getContext();
+        let floorMesh = null;
+        runtime.matchRoot.traverse((object) => {
+            if (
+                object.isMesh
+                && object.geometry?.type === 'PlaneGeometry'
+                && object.material?.defines?.ATMOSPHERIC_FOG_ALPHA_FADE === 1
+            ) {
+                floorMesh = object;
+            }
+        });
+        if (!floorMesh) throw new Error('Arena floor mesh was not found');
+
+        const original = {
+            cameraPosition: camera.position.clone(),
+            cameraQuaternion: camera.quaternion.clone(),
+            defines: { ...floorMesh.material.defines },
+            meshVisibility: [],
+        };
+        runtime.matchRoot.traverse((object) => {
+            if (object.isMesh) {
+                original.meshVisibility.push([object, object.visible]);
+                object.visible = object === floorMesh;
+            }
+        });
+
+        function capture({ fade, floorVisible }) {
+            floorMesh.visible = floorVisible;
+            if (fade) {
+                floorMesh.material.defines.ATMOSPHERIC_FOG_ALPHA_FADE = 1;
+            } else {
+                delete floorMesh.material.defines.ATMOSPHERIC_FOG_ALPHA_FADE;
+            }
+            floorMesh.material.needsUpdate = true;
+            three.setRenderTarget(null);
+            three.render(runtime.scene, camera);
+            const frame = new Uint8Array(width * height * 4);
+            gl.readPixels(0, 0, width, height, gl.RGBA, gl.UNSIGNED_BYTE, frame);
+            return {
+                frame,
+                image: three.domElement.toDataURL('image/png'),
+            };
+        }
+
+        function maxRgbDelta(first, second, offset) {
+            return Math.max(
+                Math.abs(first[offset] - second[offset]),
+                Math.abs(first[offset + 1] - second[offset + 1]),
+                Math.abs(first[offset + 2] - second[offset + 2])
+            );
+        }
+
+        function analyze(production, knownBad, sky) {
+            let transitionPixels = 0;
+            let productionTransitionDelta = 0;
+            let knownBadTransitionDelta = 0;
+            let nearPixels = 0;
+            let nearChanged = 0;
+            const distantFloorEnd = Math.floor(height * 0.55);
+            const closeFloorEnd = Math.floor(height * 0.2);
+            for (let y = 0; y < distantFloorEnd; y += 1) {
+                for (let x = 0; x < width; x += 1) {
+                    const offset = (y * width + x) * 4;
+                    const knownBadDelta = maxRgbDelta(knownBad, sky, offset);
+                    const productionDelta = maxRgbDelta(production, sky, offset);
+                    if (knownBadDelta >= 4 && knownBadDelta <= 48) {
+                        transitionPixels += 1;
+                        knownBadTransitionDelta += knownBadDelta;
+                        productionTransitionDelta += productionDelta;
+                    } else if (y < closeFloorEnd && knownBadDelta >= 48) {
+                        nearPixels += 1;
+                        if (maxRgbDelta(production, knownBad, offset) > 2) nearChanged += 1;
+                    }
+                }
+            }
+            return {
+                transitionPixels,
+                transitionRatio: productionTransitionDelta / Math.max(1, knownBadTransitionDelta),
+                nearPixels,
+                nearChangedRatio: nearChanged / Math.max(1, nearPixels),
+            };
+        }
+
+        let production;
+        let knownBad;
+        let sky;
+        try {
+            const bounds = game.arena.bounds;
+            camera.position.set(0, 32, 0);
+            camera.lookAt(0, 0, bounds.maxZ + 100);
+            camera.updateMatrixWorld(true);
+            knownBad = capture({ fade: false, floorVisible: true });
+            production = capture({ fade: true, floorVisible: true });
+            sky = capture({ fade: true, floorVisible: false });
+        } finally {
+            delete floorMesh.material.defines.ATMOSPHERIC_FOG_ALPHA_FADE;
+            Object.assign(floorMesh.material.defines, original.defines);
+            floorMesh.material.needsUpdate = true;
+            for (const [object, visible] of original.meshVisibility) object.visible = visible;
+            camera.position.copy(original.cameraPosition);
+            camera.quaternion.copy(original.cameraQuaternion);
+            camera.updateMatrixWorld(true);
+        }
+
+        return {
+            define: original.defines.ATMOSPHERIC_FOG_ALPHA_FADE,
+            metrics: analyze(production.frame, knownBad.frame, sky.frame),
+            images: {
+                knownBad: knownBad.image,
+                production: production.image,
+                sky: sky.image,
+            },
+        };
+    });
+
+    for (const [name, image] of Object.entries(floorFade.images)) {
+        await testInfo.attach(`eiffel-floor-horizon-${name}.png`, {
+            body: Buffer.from(image.split(',')[1], 'base64'),
+            contentType: 'image/png',
+        });
+    }
+    expect(floorFade.define).toBe(1);
+    expect(floorFade.metrics.transitionPixels).toBeGreaterThan(100);
+    expect(floorFade.metrics.transitionRatio).toBeLessThan(0.8);
+    expect(floorFade.metrics.nearPixels).toBeGreaterThan(100);
+    expect(floorFade.metrics.nearChangedRatio).toBeLessThan(0.02);
 
     await page.evaluate(() => window.GAME_INSTANCE?.returnToMenu?.());
 });
