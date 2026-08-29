@@ -61,6 +61,7 @@ test('game Electron manifest stays aligned with its locked runtime', () => {
 
 test('release waits for native x64 and ARM64 installed-product proofs', () => {
     const workflow = readFileSync(sourcePath('game-export/release.yml', '.github/workflows/release.yml'), 'utf8');
+    const releaseVerify = readFileSync('scripts/release-verify.mjs', 'utf8');
     assert.match(workflow, /runner: windows-latest/);
     assert.match(workflow, /runner: windows-11-arm/);
     assert.match(workflow, /needs: package-and-test/);
@@ -69,6 +70,8 @@ test('release waits for native x64 and ARM64 installed-product proofs', () => {
     assert.match(workflow, /npm run release:verify/);
     assert.match(workflow, /RELEASE-SIGNING\.txt/);
     assert.match(workflow, /--notes-file release\/RELEASE-NOTES\.md/);
+    assert.match(releaseVerify, /Import-Module Microsoft\.PowerShell\.Security -ErrorAction Stop/);
+    assert.match(releaseVerify, /PSModulePath/);
 });
 
 test('installer smoke runs copied bytes outside the checkout and preserves its proof', () => {

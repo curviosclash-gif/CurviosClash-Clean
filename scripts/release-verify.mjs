@@ -24,6 +24,15 @@ if (tag) assert.equal(tag, `v${rootPackage.version}`, `Tag ${tag} does not match
 const directoryEntries = existsSync(artifactDirectory) ? await readdir(artifactDirectory) : [];
 const lines = [];
 const signatureStatuses = [];
+const windowsPowerShellEnvironment = process.platform === 'win32'
+    ? {
+        ...process.env,
+        PSModulePath: [
+            path.join(process.env.ProgramFiles || 'C:\\Program Files', 'WindowsPowerShell', 'Modules'),
+            path.join(process.env.SystemRoot || 'C:\\Windows', 'System32', 'WindowsPowerShell', 'v1.0', 'Modules'),
+        ].join(path.delimiter),
+    }
+    : process.env;
 for (const architecture of architectures) {
     const fileName = `CurviosClash-Setup-${rootPackage.version}-${architecture}.exe`;
     assert.equal(directoryEntries.includes(fileName), true, `Release installer is missing: ${fileName}`);
@@ -38,8 +47,8 @@ for (const architecture of architectures) {
         const signatureStatus = execFileSync('powershell', [
             '-NoProfile',
             '-Command',
-            `(Get-AuthenticodeSignature -LiteralPath '${filePath.replaceAll("'", "''")}').Status`,
-        ], { encoding: 'utf8' }).trim();
+            `Import-Module Microsoft.PowerShell.Security -ErrorAction Stop; (Get-AuthenticodeSignature -LiteralPath '${filePath.replaceAll("'", "''")}').Status`,
+        ], { encoding: 'utf8', env: windowsPowerShellEnvironment }).trim();
         if (process.env.CSC_LINK) assert.equal(signatureStatus, 'Valid', `Signed release required for ${fileName}.`);
         proof.signatureStatus = signatureStatus;
         signatureStatuses.push(signatureStatus);
