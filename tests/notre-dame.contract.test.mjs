@@ -128,6 +128,8 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'eiffel_tower_arena',
         'notre_dame',
         'notre_dame_arena',
+        'notre_dame_fire',
+        'notre_dame_fire_arena',
     ]);
 });
 

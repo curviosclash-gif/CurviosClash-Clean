@@ -47,9 +47,11 @@ const NOTRE_DAME_AUDIO_PROFILE = Object.freeze({
     }),
 });
 
-// Shared by both maps on this building: the fabric, the site, and the collision that makes the
-// interior flyable.
-const NOTRE_DAME_COMMON = {
+// Shared by every map on this building: the fabric, the site, and the collision that makes the
+// interior flyable. Exported because the fire maps in ../notre_dame_fire build on the same
+// cathedral -- the geometry is the expensive part, and loading a second copy of it would cost
+// what the shared arrays exist to save.
+export const NOTRE_DAME_COMMON = {
     size: MAP_SIZE,
     scaleAuthoredAnchors: true,
     preferAuthoredPortals: true,

@@ -129,6 +129,8 @@ test('only the selected presets define lighting and all others resolve to defaul
         'neon_abyss',
         'notre_dame',
         'notre_dame_arena',
+        'notre_dame_fire',
+        'notre_dame_fire_arena',
     ]);
     assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.standard?.lighting), DEFAULT_MAP_LIGHTING);
     for (const mapKey of litMapKeys) {

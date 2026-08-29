@@ -4,7 +4,7 @@ const COLLECTION_DEFINITIONS = [
         label: 'Arenen',
         mapKeys: [
             'standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze',
-            'trench', 'notre_dame_arena', 'eiffel_tower_arena',
+            'trench', 'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_arena',
         ],
     },
     {
@@ -42,6 +42,7 @@ const COLLECTION_DEFINITIONS = [
             'verdant_aperture',
             'aetherion_orrery',
             'notre_dame',
+            'notre_dame_fire',
             'eiffel_tower',
         ],
     },

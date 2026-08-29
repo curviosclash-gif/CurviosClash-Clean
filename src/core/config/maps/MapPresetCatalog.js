@@ -21,6 +21,7 @@ import { KINETIC_TIDE_MAP } from './presets/kinetic_tide.js';
 import { VERDANT_APERTURE_MAP } from './presets/verdant_aperture.js';
 import { AETHERION_ORRERY_MAP } from './presets/aetherion_orrery.js';
 import { NOTRE_DAME_MAPS } from './presets/notre_dame/index.js';
+import { NOTRE_DAME_FIRE_MAPS } from './presets/notre_dame_fire/index.js';
 import { EIFFEL_TOWER_MAPS } from './presets/eiffel_tower/index.js';
 
 export const MAP_PRESET_CATALOG = {
@@ -47,5 +48,6 @@ export const MAP_PRESET_CATALOG = {
     ...(VERDANT_APERTURE_MAP || {}),
     ...(AETHERION_ORRERY_MAP || {}),
     ...(NOTRE_DAME_MAPS || {}),
+    ...(NOTRE_DAME_FIRE_MAPS || {}),
     ...(EIFFEL_TOWER_MAPS || {}),
 };
