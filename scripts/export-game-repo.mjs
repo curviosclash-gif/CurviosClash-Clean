@@ -35,6 +35,12 @@ function replaceRequired(source, search, replacement, label) {
     return source.replace(search, replacement);
 }
 
+function replacePatternRequired(source, pattern, replacement, label) {
+    const result = source.replace(pattern, replacement);
+    assert.notEqual(result, source, `Game export transform drifted: ${label}`);
+    return result;
+}
+
 function transformCoreMain(source) {
     let result = source;
     result = replaceRequired(result, "from './PlaytestLaunchParams.js';", "from '../product/GameDistributionToolingAdapter.js';", 'playtest launch adapter');
@@ -62,21 +68,56 @@ function transformSettingsManager(source) {
     );
 }
 
-function transformElectronMain(source) {
+export function transformElectronMain(source) {
     let result = source;
-    result = result.replace(', globalShortcut', '');
+    result = replaceRequired(result, ', globalShortcut, session', '', 'Electron authoring APIs');
     result = result.replace("const { createTuningWindowController } = require('./tuning-window.cjs');\n", '');
     result = result.replace("const { registerTuningIpc } = require('./tuning-ipc.cjs');\n", '');
-    result = result.replace(/const \{\n    createEditorWindowOpenHandler,\n    createPlaytestWindowOpenHandler,\n    createSecureWindowWebPreferences,\n\} = require\('\.\/window-security-options\.cjs'\);/, "const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');");
+    result = replacePatternRequired(
+        result,
+        /const \{\n    createEditorWindowOpenHandler,\n    createPlaytestWindowOpenHandler,\n    createSecureWindowWebPreferences,\n    isTrustedEditorUrl,\n\} = require\('\.\/window-security-options\.cjs'\);/,
+        "const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');",
+        'editor window security imports'
+    );
+    result = replaceRequired(
+        result,
+        "const { installEditorDownloadTarget } = require('./editor-download-target.cjs');\n",
+        '',
+        'editor download target import'
+    );
+    result = replaceRequired(
+        result,
+        "const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');\n",
+        '',
+        'editor vehicle store import'
+    );
+    result = replaceRequired(result, '    UNTRUSTED_IPC_SENDER_CODE,\n', '', 'editor sender error import');
+    result = replacePatternRequired(
+        result,
+        /\n\/\/ Autorenfenster[\s\S]*?\nfunction withTrustedHangarWindowSender/,
+        '\nfunction withTrustedHangarWindowSender',
+        'editor window sender guard'
+    );
     result = result.replace('let disposeTuningIpc = null;\n', '');
     result = result.replace(/const TUNING_CONSOLE_CAPABILITY_CONTRACT_VERSION[\s\S]*?const TUNING_CONSOLE_HOTKEY = 'F7';\n/, '');
-    result = result.replace(/    mainWindow\.webContents\.setWindowOpenHandler\(createEditorWindowOpenHandler\(appServer\.url\)\);[\s\S]*?    \}\);\n    await mainWindow\.loadURL/, "    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));\n    await mainWindow.loadURL");
+    result = replacePatternRequired(
+        result,
+        /    installEditorDownloadTarget\(session\.defaultSession,[\s\S]*?    \}\);\n    await mainWindow\.loadURL/,
+        "    mainWindow.webContents.setWindowOpenHandler(() => ({ action: 'deny' }));\n    await mainWindow.loadURL",
+        'editor and playtest window creation'
+    );
     result = result.replace(/\nfunction resolveTuningConsoleCapabilityState\(\) \{[\s\S]*?\n\}\n\nfunction resolveSharedMenuDefaults/, '\nfunction resolveSharedMenuDefaults');
     result = result.replace(/\nconst tuningWindowShellCapability = createTuningWindowController\([\s\S]*?\n\}\);\nconst recordingVideoExportJob/, '\nconst recordingVideoExportJob');
     result = result.replace(/\nfunction registerTuningShortcut\(\) \{[\s\S]*?\nasync function startDesktopShell\(\) \{\n    registerTuningBridgeIpc\(\);\n    await desktopWindowShellCapability\.start\(\);\n    createTray\(\);\n    registerTuningShortcut\(\);\n\}/, '\nasync function startDesktopShell() {\n    await desktopWindowShellCapability.start();\n    createTray();\n}');
     result = result.replace(/\n    unregisterTuningShortcut\(\);\n    tuningWindowShellCapability\.closeTuningWindow\(\);/g, '');
     result = result.replace(/\n    disposeTuningBridgeIpc\(\);/g, '');
-    assert.doesNotMatch(result, /tuning|TUNING|globalShortcut|createEditorWindowOpenHandler|createPlaytestWindowOpenHandler/i);
+    result = replacePatternRequired(
+        result,
+        /\nconst editorVehicleStore = createEditorVehicleStore\([\s\S]*?\n\}\)\);\n\nipcMain\.handle\('get-lan-server-status'/,
+        "\nipcMain.handle('get-lan-server-status'",
+        'editor vehicle store IPC'
+    );
+    assert.doesNotMatch(result, /editor|playtest|tuning|globalShortcut/i);
     return result;
 }
 

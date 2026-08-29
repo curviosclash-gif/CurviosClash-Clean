@@ -29,7 +29,7 @@ const asarCommand = path.resolve('electron/node_modules/@electron/asar/bin/asar.
 const asarList = spawnSync(process.execPath, [asarCommand, 'list', asarPath], { encoding: 'utf8' });
 assert.equal(asarList.status, 0, asarList.stderr || 'Unable to inspect app.asar.');
 const asarEntries = asarList.stdout.split(/\r?\n/).filter(Boolean);
-const forbiddenAsarPath = asarEntries.find((entry) => /(?:tuning|vehicle-lab|dev\/training|mobile-classic|mobile-arcade)/i.test(entry));
+const forbiddenAsarPath = asarEntries.find((entry) => /(?:editor(?:[-/]|$)|tuning|vehicle-lab|dev\/training|mobile-classic|mobile-arcade)/i.test(entry));
 assert.equal(forbiddenAsarPath, undefined, `Forbidden game asar entry: ${forbiddenAsarPath}`);
 
 async function listFiles(directory) {
@@ -45,7 +45,7 @@ async function listFiles(directory) {
 const resourceFiles = await listFiles(resourcesDirectory);
 const relativePaths = resourceFiles.map((filePath) => path.relative(resourcesDirectory, filePath).replace(/\\/g, '/'));
 const forbiddenResource = relativePaths.find((entry) => (
-    /(?:^|\/)(?:editor|vehicle-lab|training|mobile-classic|mobile-arcade)(?:\/|$)/i.test(entry)
+    /(?:^|\/)(?:(?:editor|vehicle-lab|training|mobile-classic|mobile-arcade)(?:\/|$)|editor-[^/]*\.(?:cjs|js|mjs)$)/i.test(entry)
     || /(?:AuthoringTelemetry|MenuDeveloperStateSync|MenuTelemetryDashboard)/i.test(entry)
 ));
 assert.equal(forbiddenResource, undefined, `Forbidden packaged resource: ${forbiddenResource}`);

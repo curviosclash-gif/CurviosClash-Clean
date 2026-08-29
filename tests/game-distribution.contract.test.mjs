@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
+import { transformElectronMain } from '../scripts/export-game-repo.mjs';
 
 const isExportedRepository = existsSync('.game-export.json');
 const sourcePath = (templatePath, exportedPath) => (
@@ -17,6 +18,16 @@ test('game build has exactly the player and hangar HTML entry points', () => {
     assert.doesNotMatch(exportedViteConfig, /editor\/map-editor|prototypes\/vehicle-lab/);
 });
 
+test('game Electron main strips authoring-only capabilities and denies popups', () => {
+    const source = readFileSync('electron/main.cjs', 'utf8');
+    const gameMain = isExportedRepository ? source : transformElectronMain(source);
+    assert.match(gameMain, /setWindowOpenHandler\(\(\) => \(\{ action: 'deny' \}\)\)/);
+    assert.doesNotMatch(
+        gameMain,
+        /editor|playtest|tuning|globalShortcut|session\.defaultSession|UNTRUSTED_IPC_SENDER_CODE/i
+    );
+});
+
 test('offline installers have stable architecture-specific names and per-user NSIS policy', () => {
     const builderConfig = readFileSync(sourcePath('game-export/electron-builder.yml', 'electron/game-builder.yml'), 'utf8');
     assert.match(builderConfig, /artifactName: CurviosClash-Setup-\$\{version\}-\$\{arch\}\.\$\{ext\}/);
@@ -24,6 +35,16 @@ test('offline installers have stable architecture-specific names and per-user NS
     assert.match(builderConfig, /allowElevation: false/);
     assert.match(builderConfig, /deleteAppDataOnUninstall: false/);
     assert.doesNotMatch(builderConfig, /tuning|editor\/|vehicle-lab/i);
+});
+
+test('game Electron manifest stays aligned with its locked runtime', () => {
+    const manifest = JSON.parse(readFileSync(
+        sourcePath('game-export/electron-package.json', 'electron/package.json'),
+        'utf8'
+    ));
+    const lock = JSON.parse(readFileSync('electron/package-lock.json', 'utf8'));
+    assert.equal(manifest.devDependencies.electron, lock.packages[''].devDependencies.electron);
+    assert.equal(manifest.devDependencies['electron-builder'], lock.packages[''].devDependencies['electron-builder']);
 });
 
 test('release waits for native x64 and ARM64 installed-product proofs', () => {
