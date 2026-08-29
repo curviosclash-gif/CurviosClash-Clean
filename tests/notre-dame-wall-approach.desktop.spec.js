@@ -173,20 +173,44 @@ test('near-wall flight keeps the Electron arena walls visually continuous', asyn
         contentType: 'application/json',
     });
 
-    async function poseLiveWallApproach(side) {
-        return page.evaluate((requestedSide) => {
+    const liveProfiles = await page.evaluate(() => {
+        const runtime = window.GAME_INSTANCE.renderer;
+        const authored = structuredClone(runtime.getMapLighting());
+        const atmosphereColor = runtime.scene.fog.color.getHex();
+        return {
+            authored,
+            mapScale: Number(runtime._mapScale) || 1,
+            flat: {
+                ...authored,
+                fog: {
+                    ...authored.fog,
+                    color: atmosphereColor,
+                    skyBlend: 0,
+                },
+                skyDome: {
+                    zenithColor: atmosphereColor,
+                    horizonColor: atmosphereColor,
+                    nadirColor: atmosphereColor,
+                },
+            },
+        };
+    });
+
+    async function poseLiveWallApproach(profile) {
+        return page.evaluate(({ requestedProfile, mapScale }) => {
             const game = window.GAME_INSTANCE;
             const player = game.entityManager.players[0];
             const rig = game.renderer.cameraRigSystem;
             const bounds = game.arena.bounds;
             const wallMaterial = game.arena._wallMat;
 
-            wallMaterial.side = requestedSide;
+            game.renderer.setMapLighting(requestedProfile, mapScale);
+            wallMaterial.side = 0;
             wallMaterial.needsUpdate = true;
             player.position.set(bounds.maxX - 4, bounds.maxY * 0.28, 0);
             player.quaternion.setFromUnitVectors(
                 player._tmpDir.set(0, 0, -1),
-                player._tmpVec.set(1, 0, 0)
+                player._tmpVec.set(0, 0, 1)
             );
             player.speed = 0;
             player.isBoosting = false;
@@ -202,22 +226,22 @@ test('near-wall flight keeps the Electron arena walls visually continuous', asyn
                 camera: rig.cameras[0].position.toArray(),
                 side: wallMaterial.side,
             };
-        }, side);
+        }, { requestedProfile: profile, mapScale: liveProfiles.mapScale });
     }
 
-    const liveKnownBad = await poseLiveWallApproach(THREE.DoubleSide);
-    await testInfo.attach('wall-live-flight-known-bad.png', {
+    const liveKnownBad = await poseLiveWallApproach(liveProfiles.flat);
+    await testInfo.attach('wall-live-flight-flat-classic-sky.png', {
         body: await page.screenshot(),
         contentType: 'image/png',
     });
-    const liveProduction = await poseLiveWallApproach(THREE.FrontSide);
-    await testInfo.attach('wall-live-flight-production.png', {
+    const liveProduction = await poseLiveWallApproach(liveProfiles.authored);
+    await testInfo.attach('wall-live-flight-production-gradient.png', {
         body: await page.screenshot(),
         contentType: 'image/png',
     });
-    expect(liveKnownBad.side).toBe(THREE.DoubleSide);
+    expect(liveKnownBad.side).toBe(THREE.FrontSide);
     expect(liveProduction.side).toBe(THREE.FrontSide);
-    expect(liveProduction.camera[0]).toBeLessThan(liveProduction.player[0]);
+    expect(liveProduction.camera[2]).toBeLessThan(liveProduction.player[2]);
 
     console.log('NOTRE_DAME_WALL_APPROACH_PROOF', JSON.stringify(proof));
     expect(proof.isElectron).toBe(true);
