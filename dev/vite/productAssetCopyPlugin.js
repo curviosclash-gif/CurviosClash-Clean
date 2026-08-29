@@ -18,6 +18,7 @@ const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'maps', 'kinetic_tide', 'glb'],
     ['assets', 'maps', 'verdant_aperture', 'glb'],
     ['assets', 'maps', 'notre_dame', 'glb'],
+    ['assets', 'maps', 'notre_dame_fire', 'glb'],
     ['assets', 'maps', 'aetherion_orrery', 'glb'],
     ['assets', 'maps', 'eiffel_tower', 'glb'],
 ];

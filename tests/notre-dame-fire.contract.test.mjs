@@ -1,10 +1,13 @@
 import assert from 'node:assert/strict';
+import { existsSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
+import { NOTRE_DAME_FIRE_REPLACED_MODEL_IDS } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
 import { MAP_LIGHT_SOURCE_LIMIT } from '../src/shared/contracts/MapLightSourcesContract.js';
 
@@ -30,15 +33,53 @@ test('both fire maps are registered everywhere a map has to appear', () => {
 
 test('the fire maps fly the same cathedral instead of loading a second copy', () => {
     // Identity, not equality. The geometry is what this map costs; a copy would double the load
-    // and let the two buildings drift apart while the fire pieces are still being swapped in.
+    // and let the two buildings drift apart.
     for (const map of [fire, fireArena]) {
-        assert.equal(map.glbModels, restoration.glbModels);
+        assert.equal(map.glbModels, fire.glbModels);
         assert.equal(map.obstacles, restoration.obstacles);
         assert.equal(map.portals, restoration.portals);
         assert.deepEqual(map.size, restoration.size);
         assert.equal(map.glbColliderMode, 'scene');
         assert.equal(map.glbAuthoredObstaclesCollisionOnly, true);
     }
+});
+
+test('only the parts that burned are rebuilt, and the rest are the very same objects', () => {
+    const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
+    const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
+
+    assert.equal(fire.glbModels.length, 16);
+    assert.equal(burnt.length, 4);
+    assert.equal(carried.length, 12);
+    // The whole point of filtering rather than re-listing: an unburnt part is the same object the
+    // intact map holds, so it cannot pick up a different scale, position or url over time.
+    for (const model of carried) {
+        assert.ok(
+            restoration.glbModels.includes(model),
+            `${model.id} is carried over from the intact map, not re-declared`,
+        );
+    }
+    for (const id of NOTRE_DAME_FIRE_REPLACED_MODEL_IDS) {
+        assert.ok(
+            restoration.glbModels.some((model) => model.id === id),
+            `${id} exists on the intact map`,
+        );
+        assert.ok(
+            !fire.glbModels.some((model) => model.id === id),
+            `${id} is replaced rather than left standing beside its burnt version`,
+        );
+    }
+});
+
+test('every burnt part points at a file that exists and shares the one scale factor', () => {
+    const METRE = 1.4;
+    for (const model of fire.glbModels) {
+        assert.ok(existsSync(path.resolve(model.url)), `${model.id} references a local GLB`);
+        // targetSize would normalise each file to a size of its own and tear the building apart.
+        assert.equal(model.scale, METRE, `${model.id} shares the one scale factor`);
+        assert.equal(model.targetSize, undefined, `${model.id} must not be size-normalised`);
+    }
+    assert.equal(new Set(fire.glbModels.map((model) => model.id)).size, fire.glbModels.length);
 });
 
 test('the fire light is held separately from the restoration map it was taken from', () => {

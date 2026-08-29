@@ -2,13 +2,17 @@
 // vault, three breaches open into the nave. The same building as ../notre_dame, at the same scale
 // and in the same coordinate system -- what differs is its condition and its light.
 //
-// This first step deliberately changes only the light and the name. Fabric, collision and route
-// are still the restoration map's, shared by reference rather than copied: the geometry is what
-// this map costs, and a second copy of it would double the load for nothing. The burnt roof, the
-// vault breaches and the fire itself replace those shared pieces one at a time, and each swap is
-// then visibly a swap rather than a whole new map appearing at once.
+// Three of the fifteen parts are swapped for burnt versions and one is added; the rest of the
+// building, the site and the route are still the restoration map's, shared by reference rather
+// than copied. See NotreDameFireModels.js for what changed and why the rest cannot drift.
 //
-// The light is the exception, and it is copied on purpose. See NotreDameFireLighting.js.
+// The light is copied rather than shared, on purpose. See NotreDameFireLighting.js.
+//
+// The authored obstacle set is deliberately still the intact one. Those boxes only ever compile
+// when a GLB fails to load, and they are what keeps a match playable in that case -- a fallback
+// that still has a roof is a better failure than a cathedral with no upper storey at all. What
+// the fire changed is carried by the models, because with glbColliderMode 'scene' the drawn
+// surface is the collision.
 
 import { NOTRE_DAME_COMMON } from '../notre_dame/index.js';
 import {
@@ -26,9 +30,11 @@ import {
     NOTRE_DAME_FIRE_ARENA_LIGHTING,
     NOTRE_DAME_FIRE_LIGHTS,
 } from './NotreDameFireLighting.js';
+import { NOTRE_DAME_FIRE_MODELS } from './NotreDameFireModels.js';
 
 const NOTRE_DAME_FIRE_COMMON = {
     ...NOTRE_DAME_COMMON,
+    glbModels: NOTRE_DAME_FIRE_MODELS,
     lights: NOTRE_DAME_FIRE_LIGHTS,
 };
 
