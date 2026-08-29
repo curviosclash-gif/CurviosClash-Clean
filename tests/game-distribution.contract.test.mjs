@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
 import test from 'node:test';
-import { transformElectronMain } from '../scripts/export-game-repo.mjs';
 
 const isExportedRepository = existsSync('.game-export.json');
 const sourcePath = (templatePath, exportedPath) => (
@@ -18,14 +17,25 @@ test('game build has exactly the player and hangar HTML entry points', () => {
     assert.doesNotMatch(exportedViteConfig, /editor\/map-editor|prototypes\/vehicle-lab/);
 });
 
-test('game Electron main strips authoring-only capabilities and denies popups', () => {
+test('game Electron main strips authoring-only capabilities and denies popups', async () => {
     const source = readFileSync('electron/main.cjs', 'utf8');
-    const gameMain = isExportedRepository ? source : transformElectronMain(source);
+    const gameMain = isExportedRepository
+        ? source
+        : (await import('../scripts/export-game-repo.mjs')).transformElectronMain(source);
     assert.match(gameMain, /setWindowOpenHandler\(\(\) => \(\{ action: 'deny' \}\)\)/);
     assert.doesNotMatch(
         gameMain,
         /editor|playtest|tuning|globalShortcut|session\.defaultSession|UNTRUSTED_IPC_SENDER_CODE/i
     );
+});
+
+test('game menu bindings route developer telemetry to the distribution adapter', async () => {
+    const source = readFileSync('src/ui/menu/MenuDevPanelBindings.js', 'utf8');
+    const gameBindings = isExportedRepository
+        ? source
+        : (await import('../scripts/export-game-repo.mjs')).transformMenuDevPanelBindings(source);
+    assert.match(gameBindings, /\.\.\/\.\.\/product\/GameDistributionToolingAdapter\.js/);
+    assert.doesNotMatch(gameBindings, /MenuDeveloperStateSync/);
 });
 
 test('offline installers have stable architecture-specific names and per-user NSIS policy', () => {

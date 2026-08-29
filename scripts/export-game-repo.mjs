@@ -59,6 +59,17 @@ function transformUiManager(source) {
     );
 }
 
+export function transformMenuDevPanelBindings(source) {
+    const result = replaceRequired(
+        source,
+        "from './MenuDeveloperStateSync.js';",
+        "from '../../product/GameDistributionToolingAdapter.js';",
+        'developer menu binding adapter'
+    );
+    assert.doesNotMatch(result, /MenuDeveloperStateSync/);
+    return result;
+}
+
 function transformSettingsManager(source) {
     return replaceRequired(
         source,
@@ -144,6 +155,7 @@ function transformIndexHtml(source) {
 function transformGameFile(relativePath, source) {
     if (relativePath === 'src/core/main.js') return transformCoreMain(source);
     if (relativePath === 'src/ui/UIManager.js') return transformUiManager(source);
+    if (relativePath === 'src/ui/menu/MenuDevPanelBindings.js') return transformMenuDevPanelBindings(source);
     if (relativePath === 'src/core/SettingsManager.js') return transformSettingsManager(source);
     if (relativePath === 'src/ui/StorageKeys.js') {
         return source.replace(

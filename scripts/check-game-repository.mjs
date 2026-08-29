@@ -7,7 +7,7 @@ import process from 'node:process';
 const root = path.resolve(process.argv[2] || '.');
 const forbiddenPathPattern = /(?:^|\/)(?:(?:\.opencode|android-classic|editor|prototypes|tools|dev\/training|src\/dev|tuning-console|vehicle-lab)(?:\/|$)|editor-[^/]*\.(?:cjs|js|mjs)$)/i;
 const forbiddenProductSourcePattern = /(?:^|\/)(?:AuthoringTelemetry|MenuDeveloperStateSync|MenuTelemetryDashboard|MenuTelemetryHeatmap)[^/]*\.js$/i;
-const forbiddenImportPattern = /(?:from\s*|import\s*\(|require\s*\()\s*['"][^'"]*(?:\/(?:editor|prototypes|vehicle-lab)\/|\/dev\/training\/|\/src\/dev\/|(?:^|\/)tuning(?:[-/]))[^'"]*['"]/i;
+const forbiddenImportPattern = /(?:from\s*|import\s*\(|require\s*\()\s*['"][^'"]*(?:\/(?:editor|prototypes|vehicle-lab)\/|\/dev\/training\/|\/src\/dev\/|MenuDeveloperStateSync\.js|(?:^|\/)tuning(?:[-/]))[^'"]*['"]/i;
 
 async function listFiles(directory) {
     const files = [];
