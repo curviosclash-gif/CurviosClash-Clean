@@ -48,6 +48,29 @@ function burnt(id, file, centreMetres, baseMetres) {
     };
 }
 
+/**
+ * A burning piece. Same placement rule as the static parts, plus its clip and where it runs
+ * against the shared six second beat the whole site keeps.
+ *
+ * @param {string} id
+ * @param {string} file basename under assets/maps/notre_dame_fire/glb
+ * @param {string} clipName
+ * @param {number} phaseOffsetBeats
+ * @param {number} centreMetres where the part's bounding box centres along the building
+ * @param {number} baseMetres height of the part's underside above the church floor
+ * @param {number} centreAcrossMetres where it centres across the building
+ */
+function fire(id, file, clipName, phaseOffsetBeats, centreMetres, baseMetres, centreAcrossMetres) {
+    return {
+        id: `notre-dame-fire-${id}`,
+        url: `assets/maps/notre_dame_fire/glb/${file}.glb`,
+        position: [centreMetres * METRE, GROUND + baseMetres * METRE, centreAcrossMetres * METRE],
+        rotation: [0, 0, 0],
+        scale: METRE,
+        animationClock: { clipName, phaseOffsetBeats },
+    };
+}
+
 const NOTRE_DAME_FIRE_DAMAGE = [
     // The nave, with the north aisle vault down in the bay beside the crossing.
     burnt('nave', '02_nave_burnt', -24.68, -0.8),
@@ -60,5 +83,19 @@ const NOTRE_DAME_FIRE_DAMAGE = [
     burnt('fleche-debris', '20_fleche_debris', 12.25, -0.23),
 ];
 
-export const NOTRE_DAME_FIRE_MODELS = [...SURVIVING, ...NOTRE_DAME_FIRE_DAMAGE];
+// The fire. None of it collides and none of it casts a shadow; it is what the map looks like.
+// The three run against each other rather than together: the breaches on the beat, the roof a
+// third behind it so the line of fire along the building never pulses as one block, and the ember
+// column on its own two-beat loop so nothing about the rise reads as periodic.
+const NOTRE_DAME_FIRE_FLAMES = [
+    fire('breaches', '30_fire_breaches', 'FireBreachesLoop', 0, 9.52, 8.2, -7.23),
+    fire('attic', '31_fire_attic', 'FireAtticLoop', 1 / 3, 2.49, 31.91, 0.03),
+    fire('embers', '32_ember_column', 'EmberColumnLoop', 0, 11.12, 32.95, 1.32),
+];
+
+export const NOTRE_DAME_FIRE_MODELS = [
+    ...SURVIVING,
+    ...NOTRE_DAME_FIRE_DAMAGE,
+    ...NOTRE_DAME_FIRE_FLAMES,
+];
 export const NOTRE_DAME_FIRE_REPLACED_MODEL_IDS = REPLACED_MODEL_IDS;

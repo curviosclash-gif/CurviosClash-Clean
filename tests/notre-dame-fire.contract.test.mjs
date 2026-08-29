@@ -48,8 +48,9 @@ test('only the parts that burned are rebuilt, and the rest are the very same obj
     const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
     const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
 
-    assert.equal(fire.glbModels.length, 16);
-    assert.equal(burnt.length, 4);
+    // Twelve parts carried over, four rebuilt burnt, three that are the fire itself.
+    assert.equal(fire.glbModels.length, 19);
+    assert.equal(burnt.length, 7);
     assert.equal(carried.length, 12);
     // The whole point of filtering rather than re-listing: an unburnt part is the same object the
     // intact map holds, so it cannot pick up a different scale, position or url over time.
@@ -113,6 +114,23 @@ test('both fire profiles are lit as a night fire rather than as a dusk', () => {
         assert.ok(lighting.skyDome.zenithColor < 0x0a0f20, 'the zenith stays night');
         // Stars over a smoke column read as a mistake.
         assert.equal(lighting.starsVisible, false);
+    }
+});
+
+test('the sun no longer lights a cathedral that has no roof', () => {
+    // The profiles started as a copy of the restoration map's late afternoon, which that map can
+    // carry because its roof keeps the key light out of the nave. This one has no roof: the same
+    // key reached straight down into the building and lit it like a hall, and dimming the fire's
+    // own point lights did nothing because that was never where the brightness came from.
+    //
+    // Asserted as an absolute rather than against the restoration map, which is free to move back
+    // towards daylight without dragging this one along.
+    for (const lighting of [fire.lighting, fireArena.lighting]) {
+        assert.ok(lighting.key.intensity <= 0.5, 'the key is night, not afternoon');
+        assert.ok(lighting.fill.intensity <= 0.2, 'the fill does not undo it');
+        // Colour is the only ambient dial a map has, so a bright sky colour is the other way the
+        // interior can be flooded from outside.
+        assert.ok(lighting.hemisphere.skyColor < 0x333a44, 'the ambient sky stays dark');
     }
 });
 
