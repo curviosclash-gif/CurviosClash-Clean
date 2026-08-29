@@ -19,7 +19,9 @@ for (const requiredPath of [
     path.join(resourcesDirectory, 'dist-app', 'index.html'),
     path.join(resourcesDirectory, 'dist-app', 'hangar.html'),
     path.join(resourcesDirectory, 'server', 'lan-signaling.js'),
+    path.join(resourcesDirectory, 'src', 'four-player-planar', 'FourPlayerPlanarContract.js'),
     path.join(resourcesDirectory, 'src', 'product', 'GameDistributionToolingAdapter.js'),
+    path.join(resourcesDirectory, 'src', 'shared', 'telemetry', 'TelemetryPreferencesStore.js'),
     path.join(resourcesDirectory, 'app.asar.unpacked', 'node_modules', 'ffmpeg-static', 'ffmpeg.exe'),
 ]) {
     assert.equal(existsSync(requiredPath), true, `Packaged game resource is missing: ${requiredPath}`);

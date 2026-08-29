@@ -35,6 +35,7 @@ extraResources:
       - core/settings/SettingsOverrideRangeContract.js
       - entities/GeneratedLocalMaps.js
       - entities/PickupRegistry.js
+      - four-player-planar/FourPlayerPlanarContract.js
       - hunt/HuntConfig.js
       - hunt/HuntMode.js
       - platform/PlatformCapabilityAdapterSupport.js
@@ -47,6 +48,7 @@ extraResources:
       - shared/logging/Logger.js
       - shared/runtime/BrowserStoragePorts.js
       - shared/storage/*.js
+      - shared/telemetry/TelemetryPreferencesStore.js
       - shared/utils/CanonicalJson.js
       - shared/utils/JsonClone.js
       - state/storage/*.js

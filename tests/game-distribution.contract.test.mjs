@@ -44,6 +44,8 @@ test('offline installers have stable architecture-specific names and per-user NS
     assert.match(builderConfig, /perMachine: false/);
     assert.match(builderConfig, /allowElevation: false/);
     assert.match(builderConfig, /deleteAppDataOnUninstall: false/);
+    assert.match(builderConfig, /four-player-planar\/FourPlayerPlanarContract\.js/);
+    assert.match(builderConfig, /shared\/telemetry\/TelemetryPreferencesStore\.js/);
     assert.doesNotMatch(builderConfig, /tuning|editor\/|vehicle-lab/i);
 });
 
