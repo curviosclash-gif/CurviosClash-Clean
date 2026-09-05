@@ -175,11 +175,10 @@ function buildCanonicalRouteStages(canonicalIds, nextCanonicalIdsById) {
             validMerge,
         });
 
-        if (!validMerge || !mergeCheckpointId) continue;
         for (const childId of nextIds) {
             branchMetaByCanonicalId.set(childId, {
                 branchParentId: canonicalId,
-                mergeCheckpointId,
+                mergeCheckpointId: validMerge ? mergeCheckpointId : null,
             });
         }
     }
@@ -383,11 +382,36 @@ export function buildRouteFromParcours(parcoursRaw, options = {}) {
     };
 }
 
+export function resolveExpectedCheckpointEntries(route, state) {
+    if (!route || !state || route.totalCheckpoints <= 0) return [];
+    const expectedIndex = Math.max(0, Math.min(route.totalCheckpoints - 1, state.nextCheckpointIndex));
+    const entries = route.entriesByCheckpointIndex[expectedIndex] || [];
+    if (expectedIndex <= 0 || entries.length <= 1) return entries;
+
+    const previousCheckpointId = state.stageCheckpointIds?.[expectedIndex - 1] || '';
+    if (!previousCheckpointId) return entries;
+    let previous = null;
+    for (let index = 0; index < route.checkpoints.length; index += 1) {
+        if (route.checkpoints[index]?.id !== previousCheckpointId) continue;
+        previous = route.checkpoints[index];
+        break;
+    }
+    const allowedIds = Array.isArray(previous?.nextCheckpointIds) ? previous.nextCheckpointIds : [];
+    if (allowedIds.length === 0) return entries;
+    const allowedEntries = state.expectedEntriesScratch || (state.expectedEntriesScratch = []);
+    allowedEntries.length = 0;
+    for (const entry of entries) {
+        if (allowedIds.includes(entry.id)) allowedEntries.push(entry);
+    }
+    return allowedEntries.length > 0 ? allowedEntries : entries;
+}
+
 export function createPlayerProgressState(totalCheckpoints) {
     return {
         nextCheckpointIndex: 0,
         passedMask: new Uint8Array(Math.max(0, totalCheckpoints)),
         stageCheckpointIds: new Array(Math.max(0, totalCheckpoints)).fill(''),
+        expectedEntriesScratch: [],
         startedAtMs: 0,
         lastCheckpointAtMs: 0,
         wrongOrderCount: 0,

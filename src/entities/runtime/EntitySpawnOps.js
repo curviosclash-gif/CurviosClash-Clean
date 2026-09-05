@@ -10,6 +10,7 @@ export class EntitySpawnOps {
         if (!owner) return;
         owner._roundEnded = false;
         owner._simulationClockMs = 0;
+        owner.arena?.setGlbAnimationElapsedSeconds?.(0);
         owner._respawnSystem.reset();
         owner._huntScoring.reset();
         owner._roundOutcomeSystem.reset();
@@ -17,6 +18,7 @@ export class EntitySpawnOps {
         owner._authoritativeHuntState = null;
         owner._lastAppliedAuthoritativeOutcomeKey = '';
         owner._parcoursProgressSystem?.startRound?.(owner.players);
+        owner._mapHazardSystem?.startRound?.();
         owner._spawnPlacementSystem?.resetAssignments?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {

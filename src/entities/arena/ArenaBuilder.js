@@ -4,6 +4,8 @@ import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialB
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
 import { AuthoredMapLightRig } from './AuthoredMapLightRig.js';
+import { MapFireFxController } from './MapFireFxController.js';
+import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 
 function asPositiveScale(value, fallback = 1) {
@@ -16,6 +18,8 @@ export class ArenaBuilder {
         this.arena = arena;
         this.geometryPipeline = new ArenaGeometryCompilePipeline(arena);
         this.mapLightRig = new AuthoredMapLightRig(arena.renderer);
+        this.fireFxController = new MapFireFxController(arena.renderer);
+        this.mapHazardVisualController = new MapHazardVisualController(arena.renderer);
     }
 
     build(mapKey, { previousBuildSignature = null } = {}) {
@@ -38,6 +42,8 @@ export class ArenaBuilder {
         // Rebuilt on every build for the same reason: the rig clears what the previous map placed,
         // so a map without its own lamps does not inherit them.
         this.mapLightRig.build(mapResolution.map, scale);
+        this.fireFxController.build(mapResolution.map, scale, this.mapLightRig.lights);
+        this.mapHazardVisualController.build(mapResolution.map, scale);
         this._applyArenaBounds(size);
 
         const buildSignature = createArenaBuildSignature({

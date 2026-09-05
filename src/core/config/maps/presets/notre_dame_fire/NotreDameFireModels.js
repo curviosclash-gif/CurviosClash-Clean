@@ -1,10 +1,9 @@
 // The burnt cathedral, assembled from the parts the fire changed plus the ones it did not.
 //
-// Three parts are swapped for burnt versions and one is new; everything else -- the west front,
-// the choir and apse, the buttresses, the island and all eight moving site pieces -- is carried
-// over as the very same object from the intact map. That is the point of filtering the list
-// instead of writing a second one: a part that did not burn cannot drift, because there is only
-// one of it.
+// Three parts are swapped for burnt versions and one is new. The surviving fabric -- west front,
+// choir, buttresses and island -- is carried over by reference. The later restoration machinery is
+// deliberately absent: a lifting gantry and reconstructed spire beside the 2019 blaze told two
+// incompatible moments at once.
 //
 // The placement numbers below are the bounding-box report the generator prints for each export,
 // not estimates. The loader recentres every GLB on its own box and drops its lower edge onto the
@@ -29,7 +28,21 @@ const REPLACED_MODEL_IDS = new Set([
     'notre-dame-roof-fleche',
 ]);
 
-const SURVIVING = NOTRE_DAME_MODELS.filter((model) => !REPLACED_MODEL_IDS.has(model.id));
+export const NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS = new Set([
+    'notre-dame-hoarding',
+    'notre-dame-rose-scaffold',
+    'notre-dame-scaffold-lift',
+    'notre-dame-vault-gantry',
+    'notre-dame-bells',
+    'notre-dame-stone-hoist',
+    'notre-dame-tower-crane',
+    'notre-dame-fleche-hoist',
+]);
+
+const SURVIVING = NOTRE_DAME_MODELS.filter((model) => (
+    !REPLACED_MODEL_IDS.has(model.id)
+    && !NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS.has(model.id)
+));
 
 /**
  * A burnt part, placed the same way the intact parts are.

@@ -1,4 +1,5 @@
 const NOTRE_DAME_PROFILE_ID = 'notre_dame';
+const NOTRE_DAME_FIRE_PROFILE_ID = 'notre_dame_fire';
 const SILENT_GAIN = 0.0001;
 
 function clamp(value, min, max) {
@@ -55,6 +56,7 @@ export function ensureMapAmbienceVoice(audio) {
         profileId: '',
         zone: 'none',
         lastBellIndex: null,
+        lastCollapseIndex: null,
         lastElapsedSeconds: 0,
         outdoor: createNoiseLayer(audio, {
             filterType: 'bandpass', frequency: 520, q: 0.32, playbackRate: 0.72,
@@ -64,6 +66,12 @@ export function ensureMapAmbienceVoice(audio) {
         }),
         construction: createNoiseLayer(audio, {
             filterType: 'bandpass', frequency: 940, q: 0.72, playbackRate: 1.18,
+        }),
+        fire: createNoiseLayer(audio, {
+            filterType: 'bandpass', frequency: 1240, q: 0.58, playbackRate: 1.34,
+        }),
+        wind: createNoiseLayer(audio, {
+            filterType: 'lowpass', frequency: 380, q: 0.45, playbackRate: 0.67,
         }),
         machinery: createMechanicalLayer(audio),
     };
@@ -97,12 +105,33 @@ function resolveNearestConstructionDistance(profile, position, scale) {
 function silenceMapAmbience(audio, state) {
     if (!state || !audio?.ctx) return;
     const time = audio.ctx.currentTime;
-    for (const layer of [state.outdoor, state.interior, state.construction, state.machinery]) {
+    for (const layer of [state.outdoor, state.interior, state.construction, state.fire, state.wind, state.machinery]) {
         setTarget(layer?.gain?.gain, SILENT_GAIN, time, 0.3);
     }
     state.profileId = '';
     state.zone = 'none';
     state.lastBellIndex = null;
+    state.lastCollapseIndex = null;
+}
+
+function playNotreDameCollapse(audio, profile, position, scale) {
+    const collapse = profile?.collapse;
+    if (!Array.isArray(collapse?.position) || !position) return;
+    const dx = Number(collapse.position[0]) * scale - position.x;
+    const dy = Number(collapse.position[1]) * scale - position.y;
+    const dz = Number(collapse.position[2]) * scale - position.z;
+    const distance = Math.hypot(dx, dy, dz);
+    const audibleRadius = Math.max(1, Number(collapse.audibleRadius) * scale || 420);
+    if (distance > audibleRadius) return;
+    audio._playLayered([
+        { type: 'sine', startFreq: 56, endFreq: 31, duration: 1.7, peak: 0.16, attack: 0.02, hold: 0.1 },
+        { type: 'triangle', startFreq: 104, endFreq: 47, duration: 0.8, peak: 0.07, attack: 0.008 },
+        { type: 'square', startFreq: 38, endFreq: 24, duration: 0.35, peak: 0.025, attack: 0.004 },
+    ], {
+        bus: 'ambience',
+        distance: distance / Math.max(1, scale),
+        pan: clamp(dz / audibleRadius, -0.8, 0.8),
+    });
 }
 
 function playNotreDameBell(audio, profile, position, scale) {
@@ -128,7 +157,7 @@ function playNotreDameBell(audio, profile, position, scale) {
 export function syncMapAmbienceVoice(audio, options = {}) {
     const profile = options.profile;
     const profileId = String(profile?.id || '').trim();
-    if (profileId !== NOTRE_DAME_PROFILE_ID || !options.playerPosition) {
+    if ((profileId !== NOTRE_DAME_PROFILE_ID && profileId !== NOTRE_DAME_FIRE_PROFILE_ID) || !options.playerPosition) {
         silenceMapAmbience(audio, audio?._mapAmbience);
         return 'none';
     }
@@ -145,10 +174,15 @@ export function syncMapAmbienceVoice(audio, options = {}) {
     const zone = inside ? 'interior' : (constructionMix > 0.08 ? 'construction' : 'outdoor');
     const time = audio.ctx.currentTime;
 
-    setTarget(state.outdoor.gain.gain, inside ? 0.0025 : 0.015, time);
-    setTarget(state.interior.gain.gain, inside ? 0.022 : SILENT_GAIN, time);
-    setTarget(state.construction.gain.gain, SILENT_GAIN + constructionMix * 0.012, time);
-    setTarget(state.machinery.gain.gain, SILENT_GAIN + constructionMix * 0.007, time);
+    const isFire = profileId === NOTRE_DAME_FIRE_PROFILE_ID;
+    const fireMix = isFire ? clamp(0.55 + 0.3 * Math.sin((Number(options.elapsedSeconds) || 0) * 1.37), 0.2, 1) : 0;
+    const windMix = isFire ? clamp(0.5 + 0.35 * Math.sin((Number(options.elapsedSeconds) || 0) * 0.41 + 1.2), 0.15, 1) : 0;
+    setTarget(state.outdoor.gain.gain, inside ? 0.0025 : (isFire ? 0.011 : 0.015), time);
+    setTarget(state.interior.gain.gain, inside ? (isFire ? 0.018 : 0.022) : SILENT_GAIN, time);
+    setTarget(state.construction.gain.gain, SILENT_GAIN + constructionMix * (isFire ? 0.002 : 0.012), time);
+    setTarget(state.machinery.gain.gain, SILENT_GAIN + constructionMix * (isFire ? 0.001 : 0.007), time);
+    setTarget(state.fire.gain.gain, isFire ? (inside ? 0.018 : 0.009) * fireMix : SILENT_GAIN, time);
+    setTarget(state.wind.gain.gain, isFire ? (inside ? 0.004 : 0.012) * windMix : SILENT_GAIN, time);
     setTarget(state.interior.filter.frequency, inside ? 165 : 260, time, 0.6);
 
     const elapsedSeconds = Math.max(0, Number(options.elapsedSeconds) || 0);
@@ -165,6 +199,22 @@ export function syncMapAmbienceVoice(audio, options = {}) {
         state.lastBellIndex = bellIndex;
     }
 
+    if (isFire) {
+        const collapseInterval = Math.max(1, Number(profile.collapse?.intervalSeconds) || 23);
+        const collapsePhase = Math.max(0, Number(profile.collapse?.phaseOffsetSeconds) || 0);
+        const collapseIndex = Math.floor((elapsedSeconds - collapsePhase) / collapseInterval);
+        if (restarted) {
+            state.lastCollapseIndex = collapseIndex;
+        } else if (collapseIndex >= 0 && state.lastCollapseIndex !== null && collapseIndex > state.lastCollapseIndex) {
+            playNotreDameCollapse(audio, profile, position, scale);
+            state.lastCollapseIndex = collapseIndex;
+        } else if (state.lastCollapseIndex === null) {
+            state.lastCollapseIndex = collapseIndex;
+        }
+    } else {
+        state.lastCollapseIndex = null;
+    }
+
     state.profileId = profileId;
     state.zone = zone;
     state.lastElapsedSeconds = elapsedSeconds;
@@ -174,7 +224,7 @@ export function syncMapAmbienceVoice(audio, options = {}) {
 export function disposeMapAmbienceVoice(audio) {
     const state = audio?._mapAmbience;
     if (!state) return;
-    for (const layer of [state.outdoor, state.interior, state.construction]) {
+    for (const layer of [state.outdoor, state.interior, state.construction, state.fire, state.wind]) {
         try { layer?.source?.stop?.(); } catch { /* AudioContext may already be closed. */ }
         try { layer?.gain?.disconnect?.(); } catch { /* best effort */ }
     }

@@ -254,6 +254,11 @@ function interpolateSceneEntries(target, leftEntries, rightEntries, alpha) {
 }
 
 function buildReplayNetworkSnapshot(target, leftSnapshot, rightSnapshot, alpha) {
+    target.mapElapsedSeconds = THREE.MathUtils.lerp(
+        toFiniteNumber(leftSnapshot?.mapElapsedSeconds, toFiniteNumber(leftSnapshot?.timeMs, 0) * 0.001),
+        toFiniteNumber(rightSnapshot?.mapElapsedSeconds, toFiniteNumber(rightSnapshot?.timeMs, 0) * 0.001),
+        alpha
+    );
     interpolateSceneEntries(
         target.projectiles,
         leftSnapshot?.projectiles,
@@ -492,6 +497,7 @@ export function createCinematicReplayFrameRenderer({
             Math.max(0, toFiniteNumber(timeMs, leftTimeMs) - leftTimeMs) / 1000
         );
         replaySession?.arena?.update?.(Math.max(0, toFiniteNumber(dt, 1 / 60)));
+        replaySession?.arena?.setGlbAnimationElapsedSeconds?.(networkSnapshot.mapElapsedSeconds);
         renderer.setRecordingActive?.(true);
         renderer.setRecordingQualityLock?.(true, 'cinematic-replay-render');
         renderer.prepareRecordingCaptureFrame?.({

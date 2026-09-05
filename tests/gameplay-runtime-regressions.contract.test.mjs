@@ -62,10 +62,14 @@ test('network snapshot reconciles Player hp, shield, inventory, alive state and 
         shieldHP: 7,
         speed: 18,
     };
-    const snapshot = createGameStateSnapshot({ players: [hostPlayer] }, { frame: 9 });
+    const snapshot = createGameStateSnapshot({
+        players: [hostPlayer],
+        arena: { glbAnimationElapsedSeconds: 12.75 },
+    }, { frame: 9 });
 
     assert.equal(snapshot.players[0].health, 23);
     assert.deepEqual(snapshot.players[0].rot, [0, 1, 0, 0]);
+    assert.equal(snapshot.mapElapsedSeconds, 12.75);
 
     const visibility = [];
     const clientPlayer = {

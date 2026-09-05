@@ -6,15 +6,32 @@ import test from 'node:test';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
-import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
-import { NOTRE_DAME_FIRE_REPLACED_MODEL_IDS } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
+import { NOTRE_DAME_FIRE_AUDIO_PROFILE, NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
+import {
+    NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS,
+    NOTRE_DAME_FIRE_REPLACED_MODEL_IDS,
+} from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
+import {
+    NOTRE_DAME_FIRE_CHECKPOINTS,
+    NOTRE_DAME_FIRE_FINISH,
+} from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireRoute.js';
 import { resolveMapPickerCollection } from '../src/ui/menu/MenuMapCollectionCatalog.js';
 import { MAP_LIGHT_SOURCE_LIMIT } from '../src/shared/contracts/MapLightSourcesContract.js';
+import { NOTRE_DAME_FIRE_HAZARDS } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireHazards.js';
 
 const fire = NOTRE_DAME_FIRE_MAPS.notre_dame_fire;
 const fireArena = NOTRE_DAME_FIRE_MAPS.notre_dame_fire_arena;
 const restoration = NOTRE_DAME_MAPS.notre_dame;
 const restorationArena = NOTRE_DAME_MAPS.notre_dame_arena;
+
+test('the fire maps use their own deterministic emergency ambience profile', () => {
+    assert.equal(NOTRE_DAME_FIRE_AUDIO_PROFILE.id, 'notre_dame_fire');
+    assert.equal(fire.audioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
+    assert.equal(fireArena.audioProfile, NOTRE_DAME_FIRE_AUDIO_PROFILE);
+    assert.equal(fire.audioProfile.interiorBounds, restoration.audioProfile.interiorBounds);
+    assert.equal(fire.audioProfile.constructionCenters, restoration.audioProfile.constructionCenters);
+    assert.ok(fire.audioProfile.collapse.intervalSeconds >= 20);
+});
 
 test('both fire maps are registered everywhere a map has to appear', () => {
     assert.equal(MAP_PRESET_CATALOG.notre_dame_fire, fire);
@@ -44,14 +61,14 @@ test('the fire maps fly the same cathedral instead of loading a second copy', ()
     }
 });
 
-test('only the parts that burned are rebuilt, and the rest are the very same objects', () => {
+test('the fire keeps surviving fabric but removes the later restoration site', () => {
     const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
     const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
 
-    // Twelve parts carried over, four rebuilt burnt, three that are the fire itself.
-    assert.equal(fire.glbModels.length, 19);
+    // Four surviving fabric parts, four rebuilt burnt parts and three fire effects.
+    assert.equal(fire.glbModels.length, 11);
     assert.equal(burnt.length, 7);
-    assert.equal(carried.length, 12);
+    assert.equal(carried.length, 4);
     // The whole point of filtering rather than re-listing: an unburnt part is the same object the
     // intact map holds, so it cannot pick up a different scale, position or url over time.
     for (const model of carried) {
@@ -69,6 +86,10 @@ test('only the parts that burned are rebuilt, and the rest are the very same obj
             !fire.glbModels.some((model) => model.id === id),
             `${id} is replaced rather than left standing beside its burnt version`,
         );
+    }
+    for (const id of NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS) {
+        assert.ok(restoration.glbModels.some((model) => model.id === id), `${id} belongs to the restoration site`);
+        assert.ok(!fire.glbModels.some((model) => model.id === id), `${id} is absent on the night of the fire`);
     }
 });
 
@@ -135,11 +156,36 @@ test('the sun no longer lights a cathedral that has no roof', () => {
 });
 
 test('the fire route is ranked on its own identity', () => {
-    // The stages are still the restoration map's, but they stop being the same course the moment
-    // the vault opens. A shared id would rank runs through two different buildings against each
-    // other, and ghosts recorded here would replay against a building that is still standing.
+    // A shared id would rank runs through two different buildings against each other, and ghosts
+    // recorded here would replay against a building that is still standing.
     assert.equal(fire.parcours.routeId, 'notre_dame_fire_v1');
     assert.notEqual(fire.parcours.routeId, restoration.parcours.routeId);
+    assert.equal(fire.parcours.checkpoints, NOTRE_DAME_FIRE_CHECKPOINTS);
+    assert.equal(fire.parcours.finish, NOTRE_DAME_FIRE_FINISH);
+    assert.notEqual(fire.parcours.checkpoints, restoration.parcours.checkpoints);
+    assert.notEqual(fire.parcours.finish, restoration.parcours.finish);
+    assert.equal(fire.parcours.finish.id, 'FIRE_EVACUATION');
+});
+
+test('the fire arena spreads movement over the roof, transept, apse and buttresses', () => {
+    const spawns = fireArena.botSpawns;
+    assert.ok(spawns.some((entry) => entry.y >= 60), 'one spawn starts at the open roof');
+    assert.ok(spawns.some((entry) => Math.abs(entry.z) >= 50), 'transept spawns approach from both sides');
+    assert.ok(spawns.some((entry) => entry.x >= 80), 'the apse has its own start vector');
+    assert.ok(fireArena.items.some((entry) => entry.id === 'ndf_heavy_buttress'));
+    assert.ok(fireArena.gates.some((entry) => entry.id === 'ndf_roof_dive'));
+    assert.notEqual(fireArena.gates, restorationArena.gates);
+    assert.notEqual(fireArena.items, restorationArena.items);
+});
+
+test('the fire maps share fair telegraphed hazards while the restoration stays static', () => {
+    assert.equal(fire.mapHazards, NOTRE_DAME_FIRE_HAZARDS);
+    assert.equal(fireArena.mapHazards, NOTRE_DAME_FIRE_HAZARDS);
+    assert.equal(restoration.mapHazards, undefined);
+    assert.equal(restorationArena.mapHazards, undefined);
+    assert.ok(fire.mapHazards.length >= 3);
+    assert.ok(fire.mapHazards.every((hazard) => hazard.telegraphSeconds >= 3));
+    assert.ok(fire.mapHazards.every((hazard) => hazard.activeSeconds <= 1));
 });
 
 test('the interior lamps leave room for the fire that replaces them', () => {

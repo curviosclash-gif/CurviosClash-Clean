@@ -9,6 +9,7 @@ import { EntitySetupOps } from './EntitySetupOps.js';
 import { EntitySpawnOps } from './EntitySpawnOps.js';
 import { EntityTickPipeline } from './EntityTickPipeline.js';
 import { StaticTurretSystem } from '../systems/StaticTurretSystem.js';
+import { MapHazardSystem } from '../systems/MapHazardSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     return {
@@ -20,6 +21,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         respawnSystem: new RespawnSystem(runtimeContext),
         huntCombatSystem: new HuntCombatSystem(runtimeContext),
         staticTurretSystem: new StaticTurretSystem(owner),
+        mapHazardSystem: new MapHazardSystem(owner),
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,
             getHumanPlayers: () => owner.humanPlayers,

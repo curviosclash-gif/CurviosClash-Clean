@@ -52,6 +52,7 @@ function bindRuntimePorts(owner, runtime) {
     owner._respawnSystem = runtime?.systems?.respawnSystem || null;
     owner._huntCombatSystem = runtime?.systems?.huntCombatSystem || null;
     owner._staticTurretSystem = runtime?.systems?.staticTurretSystem || null;
+    owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null;
     owner._roundOutcomeSystem = runtime?.systems?.roundOutcomeSystem || null;
     owner._setupOps = runtime?.systems?.setupOps || null;
     owner._spawnOps = runtime?.systems?.spawnOps || null;
@@ -289,7 +290,7 @@ export class EntityManager {
 
     requestRoundEnd(request = {}) { return this.isFightOutcomeAuthority !== false && this._roundOutcomeSystem?.requestRoundEnd?.(request) === true; }
 
-    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); }
+    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); this._mapHazardSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); if (Number.isFinite(Number(snapshot?.mapElapsedSeconds))) this.arena?.setGlbAnimationElapsedSeconds?.(snapshot.mapElapsedSeconds); }
 
     _getPendingHumanRespawns(players = this.humanPlayers) {
         if (!this.gameModeStrategy?.isRespawnEnabled()) return 0;
@@ -558,6 +559,7 @@ export class EntityManager {
         } else {
             this._staticTurretSystem?.clear?.();
         }
+        this._mapHazardSystem?.clear?.();
         this._huntScoring.reset();
         this._simulationClockMs = 0;
 

@@ -1475,6 +1475,20 @@ test('MatchKernel signalRoundEnd stays idempotent during round-end lifecycle', (
     assert.equal(kernel.roundPause, 1);
 });
 
+test('MatchKernel poses moving map collision before entity simulation', () => {
+    const order = [];
+    const kernel = new MatchKernel({
+        simPorts: {
+            arena: { update: () => order.push('arena') },
+            entityManager: { update: () => order.push('entities') },
+            powerupManager: { update: () => order.push('powerups') },
+        },
+    });
+    kernel.boot();
+    kernel.tick({ fixedStepSeconds: 1 / 60, frameId: 1 }, {});
+    assert.deepEqual(order, ['arena', 'entities', 'powerups']);
+});
+
 test('GameRuntimeCoordinator completes resource cleanup when an earlier disposer fails', async () => {
     const calls = [];
     const disposeError = new Error('facade dispose failed');

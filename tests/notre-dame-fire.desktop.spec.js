@@ -1,5 +1,6 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { writeFile } from 'node:fs/promises';
 
 // What the fire actually changed about flying this building, measured in the running app rather
 // than argued from the model files.
@@ -39,18 +40,18 @@ async function startFireArena(page) {
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_fire_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 19
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 11
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
-        message: 'twelve carried parts, four burnt ones and three that are the fire',
+        message: 'four surviving fabric parts, four burnt ones and three fire effects',
     }).toBeTruthy();
 }
 
 // One test, not two. A desktop run keeps a single window and loading this cathedral is the
 // expensive part, so both questions are asked of the same loaded arena. Splitting them cost a
 // second full load of sixteen parts and timed the harness out on teardown under cluster load.
-test('the fire opens the roof and puts the spire on the floor', async ({ page }) => {
+test('the fire opens the roof and puts the spire on the floor', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     await startFireArena(page);
 
@@ -109,4 +110,57 @@ test('the fire opens the roof and puts the spire on the floor', async ({ page })
     expect(crossing.debrisSolidCount).toBeGreaterThan(0);
     expect(crossing.routeHeightClear).toBe(true);
     expect(crossing.aboveDebrisClear).toBe(true);
+
+    const atmosphere = await page.evaluate(() => {
+        const arena = window.GAME_INSTANCE.arena;
+        const fx = arena._builder.fireFxController;
+        const hazards = arena._builder.mapHazardVisualController;
+        const crossingLight = fx.lightTracks.find((entry) => (
+            entry.light?.userData?.authoredLightId === 'ndf_crossing_breach'
+        ));
+        arena.setGlbAnimationElapsedSeconds(0);
+        const smokeAtStart = Array.from(fx.layers.smoke.positions.slice(0, 12));
+        const lightAtStart = crossingLight?.light?.intensity || 0;
+        const telegraphAtStart = hazards.visuals[0]?.mesh?.visible === true;
+        arena.setGlbAnimationElapsedSeconds(3.5);
+        return {
+            fireLayerNames: fx.group.children.map((child) => child.name),
+            smokeMoved: smokeAtStart.some((value, index) => (
+                Math.abs(value - fx.layers.smoke.positions[index]) > 0.001
+            )),
+            lightMoved: Math.abs(lightAtStart - (crossingLight?.light?.intensity || 0)) > 0.001,
+            hazardCount: hazards.visuals.length,
+            telegraphAtStart,
+            firstHazardActiveColor: hazards.visuals[0]?.material?.color?.getHex?.() || 0,
+            firstHazardExpectedColor: hazards.visuals[0]?.hazard?.activeColor || 0,
+        };
+    });
+    expect(atmosphere.fireLayerNames).toEqual([
+        'map-fire-smoke',
+        'map-fire-embers',
+        'map-fire-ash',
+    ]);
+    expect(atmosphere.smokeMoved).toBe(true);
+    expect(atmosphere.lightMoved).toBe(true);
+    expect(atmosphere.hazardCount).toBe(4);
+    expect(atmosphere.telegraphAtStart).toBe(true);
+    expect(atmosphere.firstHazardActiveColor).toBe(atmosphere.firstHazardExpectedColor);
+    const dynamicsImage = await page.evaluate(() => {
+        const runtime = window.GAME_INSTANCE.renderer;
+        const camera = runtime.cameras[0];
+        camera.position.set(0, 140, 230);
+        camera.lookAt(0, 105, 0);
+        camera.far = 2000;
+        camera.updateProjectionMatrix();
+        camera.updateMatrixWorld(true);
+        runtime.renderer.setRenderTarget(null);
+        runtime.renderer.render(runtime.scene, camera);
+        return runtime.renderer.domElement.toDataURL('image/png');
+    });
+    const dynamicsScreenshot = testInfo.outputPath('notre-dame-fire-dynamics.png');
+    await writeFile(dynamicsScreenshot, Buffer.from(dynamicsImage.split(',')[1], 'base64'));
+    await testInfo.attach('notre-dame-fire-dynamics.png', {
+        path: dynamicsScreenshot,
+        contentType: 'image/png',
+    });
 });
