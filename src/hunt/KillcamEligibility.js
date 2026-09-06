@@ -15,6 +15,7 @@ function isHuntMode(entityManager) {
 }
 
 export function isPixelCaptureEligible(killcam, allowPendingTerminalCapture = false) {
+    if (killcam?.pixelReplayEnabled !== true) return false;
     if (!isSingleNodeSession(killcam?.entityManager) || !isHuntMode(killcam?.entityManager)) return false;
     if (killcam?.respawnSystem?.isEnabled?.() !== true || killcam?._active) return false;
     return allowPendingTerminalCapture || killcam?._pixelReplayPending == null;

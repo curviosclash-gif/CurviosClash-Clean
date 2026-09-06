@@ -12,6 +12,7 @@ function createKillcamFixture({
     reduceMotion = false,
     arena = null,
     pixelReplayBuffer = null,
+    pixelReplayEnabled,
     activeGameMode = 'HUNT',
     respawnEnabled = true,
 } = {}) {
@@ -119,6 +120,7 @@ function createKillcamFixture({
         },
         replaySystem,
         pixelReplayBuffer,
+        pixelReplayEnabled,
     });
     return {
         camera,
@@ -205,7 +207,74 @@ test('the replay blast carries the same cause and weapon the live death would ha
     killcam.dispose();
 });
 
-test('pixel killcam records the live death frame before starting lossless playback', async () => {
+test('default Hunt killcam performs no pixel captures and starts scene replay on death', async () => {
+    let captures = 0;
+    const pixelReplayBuffer = {
+        canReplay: () => true,
+        captureFrame() { captures += 1; },
+        dispose() {},
+    };
+    const { killcam, player, playbackCalls } = createKillcamFixture({
+        pixelReplayBuffer,
+        pixelReplayEnabled: false,
+    });
+
+    assert.equal(killcam.pixelReplayEnabled, false);
+    assert.equal(await killcam.captureRenderedFrame(), null);
+    assert.equal(captures, 0);
+    assert.equal(killcam.onPlayerDied(player), true);
+    assert.equal(killcam.isActive(), true);
+    assert.equal(killcam.getPixelReplayState().active, false);
+    assert.equal(playbackCalls.length, 1);
+    killcam.dispose();
+});
+
+test('pixel replay can be explicitly enabled and disabled without retaining its buffer', () => {
+    const { killcam } = createKillcamFixture();
+
+    assert.equal(killcam.setPixelReplayEnabled(true), true);
+    assert.ok(killcam.pixelReplayBuffer);
+    assert.equal(killcam.setPixelReplayEnabled(false), false);
+    assert.equal(killcam.pixelReplayBuffer, null);
+    killcam.dispose();
+});
+
+test('an injected pixel buffer remains an opt-in and is disposed exactly once', () => {
+    let disposeCalls = 0;
+    const pixelReplayBuffer = {
+        resetCapture() {},
+        clearPlayback() {},
+        dispose() { disposeCalls += 1; },
+    };
+    const { killcam } = createKillcamFixture({ pixelReplayBuffer });
+
+    assert.equal(killcam.pixelReplayEnabled, true);
+    assert.equal(killcam.pixelReplayBuffer, pixelReplayBuffer);
+    assert.equal(killcam.setPixelReplayEnabled(false), false);
+    assert.equal(disposeCalls, 1);
+    killcam.dispose();
+    assert.equal(disposeCalls, 1);
+});
+
+test('pixel replay toggles never interrupt an active scene killcam', () => {
+    const { killcam, player, playbackCalls } = createKillcamFixture();
+
+    assert.equal(killcam.onPlayerDied(player), true);
+    assert.equal(killcam.setPixelReplayEnabled(true), false);
+    assert.equal(killcam.isActive(), true);
+    assert.equal(playbackCalls.length, 1);
+
+    killcam.clear();
+    assert.equal(killcam.setPixelReplayEnabled(true), true);
+    killcam.pixelReplayBuffer.canReplay = () => false;
+    assert.equal(killcam.onPlayerDied(player), true);
+    assert.equal(killcam.setPixelReplayEnabled(false), true);
+    assert.equal(killcam.isActive(), true);
+    assert.equal(playbackCalls.length, 2);
+    killcam.dispose();
+});
+
+test('pixel killcam records the live death frame before starting lossless playback when explicitly enabled', async () => {
     const calls = [];
     const terminalFrame = { time: 2000, width: 8, height: 4 };
     const pixelReplayBuffer = {
@@ -223,7 +292,7 @@ test('pixel killcam records the live death frame before starting lossless playba
         getState: () => ({ supported: true, playbackFrameCount: 60 }),
         dispose() {},
     };
-    const { killcam, player } = createKillcamFixture({ pixelReplayBuffer });
+    const { killcam, player } = createKillcamFixture({ pixelReplayBuffer, pixelReplayEnabled: true });
 
     assert.equal(killcam.onPlayerDied(player), true);
     assert.equal(killcam.isActive(), false);
@@ -253,6 +322,7 @@ test('pixel capture stays off for classic and arcade matches with respawn disabl
             activeGameMode,
             respawnEnabled: false,
             pixelReplayBuffer,
+            pixelReplayEnabled: true,
         });
 
         await killcam.captureRenderedFrame();
@@ -268,7 +338,10 @@ test('pixel capture stays off for network sessions', async () => {
         resetCapture() {},
         dispose() {},
     };
-    const { entityManager, killcam } = createKillcamFixture({ pixelReplayBuffer });
+    const { entityManager, killcam } = createKillcamFixture({
+        pixelReplayBuffer,
+        pixelReplayEnabled: true,
+    });
     entityManager.runtimeConfig = { session: { networkEnabled: true } };
 
     await killcam.captureRenderedFrame();
@@ -283,7 +356,10 @@ test('pixel capture requires exactly one human player', async () => {
         resetCapture() {},
         dispose() {},
     };
-    const { entityManager, killcam } = createKillcamFixture({ pixelReplayBuffer });
+    const { entityManager, killcam } = createKillcamFixture({
+        pixelReplayBuffer,
+        pixelReplayEnabled: true,
+    });
     entityManager.humanPlayers.push({ index: 2, isBot: false });
 
     await killcam.captureRenderedFrame();
@@ -291,14 +367,14 @@ test('pixel capture requires exactly one human player', async () => {
     killcam.dispose();
 });
 
-test('eligible single-player Hunt captures frames but never during replay playback', async () => {
+test('pixel replay opt-in captures frames but never during replay playback', async () => {
     let captures = 0;
     const pixelReplayBuffer = {
         captureFrame() { captures += 1; },
         resetCapture() {},
         dispose() {},
     };
-    const { killcam } = createKillcamFixture({ pixelReplayBuffer });
+    const { killcam } = createKillcamFixture({ pixelReplayBuffer, pixelReplayEnabled: true });
 
     await killcam.captureRenderedFrame();
     assert.equal(captures, 1);
@@ -317,7 +393,7 @@ test('losing pixel-capture eligibility clears stale frames once', async () => {
         resetCapture() { resets += 1; },
         dispose() {},
     };
-    const { entityManager, killcam } = createKillcamFixture({ pixelReplayBuffer });
+    const { entityManager, killcam } = createKillcamFixture({ pixelReplayBuffer, pixelReplayEnabled: true });
 
     await killcam.captureRenderedFrame();
     entityManager.activeGameMode = 'CLASSIC';
@@ -337,7 +413,7 @@ test('pixel capture reset clears pending replay work and capture resources', () 
         resetCapture() { resetCalls += 1; },
         dispose() {},
     };
-    const { killcam, player } = createKillcamFixture({ pixelReplayBuffer });
+    const { killcam, player } = createKillcamFixture({ pixelReplayBuffer, pixelReplayEnabled: true });
     killcam._pixelReplayPending = { player };
 
     killcam.resetPixelCapture();

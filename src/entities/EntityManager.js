@@ -126,6 +126,7 @@ export class EntityManager {
         this._killcamSystem = new KillcamSystem({
             renderer, entityManager: this, recorder, respawnSystem: this._respawnSystem,
             replaySystem: this._killcamReplaySystem,
+            pixelReplayEnabled: options?.enablePixelKillcamReplay === true,
         });
         this.projectiles = this.runtime.systems.projectileSystem.projectiles;
         this.botPolicyRegistry = new BotPolicyRegistry();
