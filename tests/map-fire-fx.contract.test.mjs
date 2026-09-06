@@ -12,9 +12,9 @@ import {
 test('map fire FX accepts a bounded deterministic presentation profile', () => {
     const normalized = normalizeMapFireFx(NOTRE_DAME_FIRE_FX);
     assert.ok(normalized);
-    assert.equal(normalized.emitters.length, 3);
+    assert.equal(normalized.emitters.length, 8);
     assert.ok(normalized.smoke.count > 0);
-    assert.ok(normalized.embers.count > 0);
+    assert.equal(normalized.embers.count, MAP_FIRE_FX_LIMITS.maxParticlesPerLayer);
     assert.ok(normalized.ash.count > 0);
     assert.ok(normalized.flicker.length > 0);
     assert.ok(normalized.smoke.count <= MAP_FIRE_FX_LIMITS.maxParticlesPerLayer);
@@ -66,12 +66,18 @@ test('fire FX follows absolute match time, flickers authored lights and disposes
     assert.equal(group.name, 'map-fire-fx');
     assert.equal(group.children.length, 3);
     assert.equal(controller.layers.smoke.positions.length, NOTRE_DAME_FIRE_FX.smoke.count * 3);
+    assert.equal(controller.layers.embers.positions.length, 128 * 3);
 
     controller.update(3.25);
     const firstSmoke = [...controller.layers.smoke.positions];
     const firstEmbers = [...controller.layers.embers.positions];
     const firstIntensity = light.intensity;
     controller.update(9.5);
+    assert.notDeepEqual(
+        [...controller.layers.embers.positions],
+        firstEmbers,
+        'embers move as absolute match time advances'
+    );
     controller.update(3.25);
     assert.deepEqual([...controller.layers.smoke.positions], firstSmoke);
     assert.deepEqual([...controller.layers.embers.positions], firstEmbers);

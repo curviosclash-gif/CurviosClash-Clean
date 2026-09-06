@@ -19,18 +19,13 @@ const TRIANGLE_BUDGET_PER_PART = 18_000;
 // Metres, in the shared cathedral coordinate system: glTF X is length along the building, glTF Y
 // is height above the church floor, glTF Z is width across it. These are the numbers the preset
 // places by, so they are asserted rather than trusted.
-// The building parts are symmetrical about the axis and centre on it. The fire is not: two of the
-// three breaches are on the north side, so the flame part carries a real offset across the
-// building and the preset has to place it there.
+// The building parts are symmetrical about the axis and centre on it.
 const PARTS = Object.freeze({
     '02_nave_burnt': { centerX: -24.68, centerZ: 0, floorY: -0.8, spanY: 34.1 },
     '03_transept_burnt': { centerX: 12.25, centerZ: 0, floorY: -0.8, spanY: 41.9 },
     // The intact roof part is 82.1 m tall because the spire is in it. This one is not.
     '06_roof_burnt': { centerX: 3.79, centerZ: 0, floorY: 14.06, spanY: 21.5 },
     '20_fleche_debris': { centerX: 12.25, centerZ: 0.01, floorY: -0.23, spanY: 9.8 },
-    '30_fire_breaches': { centerX: 9.52, centerZ: -7.23, floorY: 8.2, spanY: 30.5 },
-    '31_fire_attic': { centerX: 2.49, centerZ: 0.03, floorY: 31.91, spanY: 9.8 },
-    '32_ember_column': { centerX: 11.12, centerZ: 1.32, floorY: 32.95, spanY: 23.9 },
 });
 
 function readGlbJson(fileStem) {
@@ -40,13 +35,7 @@ function readGlbJson(fileStem) {
     return JSON.parse(bytes.subarray(20, 20 + jsonLength).toString('utf8').trimEnd());
 }
 
-/** Bounding box with every node transform applied, at the first frame.
- *
- *  The static parts bake their transforms into their vertices when they are merged, so for those
- *  the accessor bounds would already be world space. The animated fire parts do not: their meshes
- *  hang under keyframed rigs and carry the rig's placement in the node, so reading the accessors
- *  alone puts the crossing fire near the origin. This is also exactly what the loader does when it
- *  decides where to put a model, which is why the test has to agree with it. */
+/** Bounding box with every node transform applied. */
 function boundingBox(document, { collidableOnly = false } = {}) {
     const bounds = new THREE.Box3().makeEmpty();
 
@@ -206,76 +195,6 @@ test('the roof no longer carries a lid over the nave', () => {
     assert.ok(overall.high[1] < 36, `the roof still reaches ${overall.high[1].toFixed(1)} m`);
 });
 
-test('nothing about the fire can stop a ship or cast a shadow', () => {
-    // The whole premise of this map is that the fire is scenery. Two markers carry that, and both
-    // survive only if they are still in the node name after merge_animated_meshes renames it:
-    // _nocol keeps a mesh out of collision (GLBMapLoader), _noshadow keeps it from being picked as
-    // a shadow caster. The merge rebuilds names from rig and material, which is why the flame
-    // materials themselves are named _noshadow.
-    for (const fileStem of ['30_fire_breaches', '31_fire_attic', '32_ember_column']) {
-        const names = meshNodeNames(fileStem);
-        assert.ok(names.length > 0, `${fileStem} exports nodes`);
-        for (const name of names) {
-            const lower = name.toLowerCase();
-            assert.ok(lower.includes('_nocol'), `${fileStem}: ${name} would collide`);
-            assert.ok(lower.includes('_noshadow'), `${fileStem}: ${name} would cast a shadow`);
-        }
-    }
-});
-
-test('every fire loop is a whole multiple of the beat the site runs on', () => {
-    // The preset offsets these against each other on one shared six second beat. A loop that is
-    // not a whole multiple of it drifts out of that rhythm a little more on every repeat.
-    const BEAT_SECONDS = 6;
-    const expected = {
-        '30_fire_breaches': { clip: 'FireBreachesLoop', seconds: 6 },
-        '31_fire_attic': { clip: 'FireAtticLoop', seconds: 6 },
-        '32_ember_column': { clip: 'EmberColumnLoop', seconds: 12 },
-    };
-    for (const [fileStem, { clip, seconds }] of Object.entries(expected)) {
-        const document = readGlbJson(fileStem);
-        assert.equal(document.animations?.length, 1, `${fileStem} exports exactly one clip`);
-        assert.equal(document.animations[0].name, clip);
-        const duration = Math.max(...document.animations[0].samplers.map((sampler) => (
-            Number(document.accessors?.[sampler.input]?.max?.[0]) || 0
-        )));
-        assert.ok(
-            Math.abs(duration - seconds) < 0.05,
-            `${fileStem} loops in ${duration.toFixed(2)}s, expected ${seconds}`,
-        );
-        assert.equal(seconds % BEAT_SECONDS, 0, `${fileStem} is a whole number of beats`);
-
-        const model = NOTRE_DAME_FIRE_MODELS.find((entry) => entry.url.endsWith(`${fileStem}.glb`));
-        assert.equal(model?.animationClock?.clipName, clip, `${fileStem} is addressed by its clip`);
-    }
-});
-
-test('no fire part claims more room than the building it burns in', () => {
-    // A guard against a specific and quiet failure. Root meshes are merged into the frame of
-    // whichever one the exporter makes active, so if those meshes carry rotations, a tilted frame
-    // swings the rest of the run through it and the part's bounding box grows far beyond the
-    // geometry. Measured once: a 0.7 radian tilt on the attic coals reported a 105 m wide bed for
-    // a 10 m one. Nothing warns about it -- the part simply gets placed wrong.
-    const TRANSEPT_WIDTH = 48;
-    for (const fileStem of ['30_fire_breaches', '31_fire_attic', '32_ember_column']) {
-        const { low, high } = boundingBox(readGlbJson(fileStem));
-        const width = high[2] - low[2];
-        assert.ok(
-            width < TRANSEPT_WIDTH,
-            `${fileStem} reports ${width.toFixed(1)} m across, wider than the cathedral`,
-        );
-    }
-});
-
-test('the ember column keeps a real bounding box at the frame it is placed by', () => {
-    // The loader places every model by the bounding box of its first frame. An effect that scales
-    // its meshes to nothing at the start of the loop collapses that box to a point, and the whole
-    // column would then hang off a single coordinate instead of standing where it was authored.
-    const { low, high } = boundingBox(readGlbJson('32_ember_column'));
-    assert.ok(high[1] - low[1] > 15, 'the column has height at frame one');
-    assert.ok(high[0] - low[0] > 1, 'the column has width at frame one');
-});
-
 test('the debris cone is an obstacle and the broken rims are not', () => {
     // A ship must be stopped by the spire on the floor and must never catch on the jagged edge of
     // a hole it is flying through.
@@ -295,4 +214,3 @@ test('the debris cone is an obstacle and the broken rims are not', () => {
         );
     }
 });
-

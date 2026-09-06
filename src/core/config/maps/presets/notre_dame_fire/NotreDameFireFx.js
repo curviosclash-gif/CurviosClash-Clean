@@ -1,30 +1,64 @@
 import { GROUND } from '../notre_dame/NotreDameStructure.js';
 
-// A small deterministic presentation layer around the three places that actually burn. The GLB
-// flames provide the close silhouette; these particles carry smoke and ash far enough that the
-// fire can be read during the western approach and from the arena's lower routes.
+// A deterministic, all-particle fire layer. Sparks are the fire's visible language: they rise
+// from several roof breaches instead of forming opaque, static-looking flame cones.
 export const NOTRE_DAME_FIRE_FX = Object.freeze({
     emitters: Object.freeze([
         Object.freeze({
-            position: Object.freeze([-38, GROUND + 44, 0]),
-            radius: 14,
-            smokeHeight: 74,
-            emberHeight: 30,
+            position: Object.freeze([-46, GROUND + 39, -10]),
+            radius: 11,
+            smokeHeight: 58,
+            emberHeight: 34,
             phase: 0.08,
         }),
         Object.freeze({
-            position: Object.freeze([17, GROUND + 40, -7]),
-            radius: 17,
-            smokeHeight: 92,
-            emberHeight: 38,
-            phase: 0.41,
+            position: Object.freeze([-26, GROUND + 48, 8]),
+            radius: 12,
+            smokeHeight: 66,
+            emberHeight: 40,
+            phase: 0.21,
         }),
         Object.freeze({
-            position: Object.freeze([54, GROUND + 45, 1]),
+            position: Object.freeze([-4, GROUND + 51, -6]),
             radius: 13,
-            smokeHeight: 68,
-            emberHeight: 27,
+            smokeHeight: 74,
+            emberHeight: 43,
+            phase: 0.36,
+        }),
+        Object.freeze({
+            position: Object.freeze([13, GROUND + 42, 9]),
+            radius: 15,
+            smokeHeight: 80,
+            emberHeight: 46,
+            phase: 0.49,
+        }),
+        Object.freeze({
+            position: Object.freeze([28, GROUND + 47, -11]),
+            radius: 12,
+            smokeHeight: 70,
+            emberHeight: 39,
+            phase: 0.61,
+        }),
+        Object.freeze({
+            position: Object.freeze([47, GROUND + 43, 7]),
+            radius: 11,
+            smokeHeight: 62,
+            emberHeight: 35,
             phase: 0.73,
+        }),
+        Object.freeze({
+            position: Object.freeze([63, GROUND + 38, -5]),
+            radius: 10,
+            smokeHeight: 54,
+            emberHeight: 31,
+            phase: 0.86,
+        }),
+        Object.freeze({
+            position: Object.freeze([79, GROUND + 34, 6]),
+            radius: 9,
+            smokeHeight: 48,
+            emberHeight: 28,
+            phase: 0.97,
         }),
     ]),
     smoke: Object.freeze({
@@ -35,11 +69,11 @@ export const NOTRE_DAME_FIRE_FX = Object.freeze({
         opacity: 0.28,
     }),
     embers: Object.freeze({
-        count: 58,
+        count: 128,
         color: 0xff7b24,
-        size: 0.72,
-        lifetime: 4.8,
-        opacity: 0.92,
+        size: 0.82,
+        lifetime: 5.6,
+        opacity: 0.96,
     }),
     ash: Object.freeze({
         count: 72,

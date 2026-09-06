@@ -40,11 +40,11 @@ async function startFireArena(page) {
     await page.click('#btn-start');
     await expect.poll(() => page.evaluate(() => (
         window.GAME_INSTANCE?.arena?.currentMapKey === 'notre_dame_fire_arena'
-        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 11
+        && window.GAME_INSTANCE?.arena?._glbScene?.children?.length === 8
         && !window.GAME_INSTANCE?.arena?._glbLoadError
     )), {
         timeout: 150_000,
-        message: 'four surviving fabric parts, four burnt ones and three fire effects',
+        message: 'four surviving fabric parts and four burnt ones; fire is particle-only',
     }).toBeTruthy();
 }
 
@@ -125,6 +125,7 @@ test('the fire opens the roof and puts the spire on the floor', async ({ page },
         arena.setGlbAnimationElapsedSeconds(3.5);
         return {
             fireLayerNames: fx.group.children.map((child) => child.name),
+            emberCount: fx.layers.embers.positions.length / 3,
             smokeMoved: smokeAtStart.some((value, index) => (
                 Math.abs(value - fx.layers.smoke.positions[index]) > 0.001
             )),
@@ -140,6 +141,7 @@ test('the fire opens the roof and puts the spire on the floor', async ({ page },
         'map-fire-embers',
         'map-fire-ash',
     ]);
+    expect(atmosphere.emberCount).toBe(128);
     expect(atmosphere.smokeMoved).toBe(true);
     expect(atmosphere.lightMoved).toBe(true);
     expect(atmosphere.hazardCount).toBe(4);

@@ -8,6 +8,7 @@ import { MAP_PRESETS_BASE } from '../src/core/config/maps/MapPresetsBase.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
 import { NOTRE_DAME_FIRE_AUDIO_PROFILE, NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 import {
+    NOTRE_DAME_FIRE_MODELS,
     NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS,
     NOTRE_DAME_FIRE_REPLACED_MODEL_IDS,
 } from '../src/core/config/maps/presets/notre_dame_fire/NotreDameFireModels.js';
@@ -65,10 +66,20 @@ test('the fire keeps surviving fabric but removes the later restoration site', (
     const burnt = fire.glbModels.filter((model) => model.url.includes('notre_dame_fire'));
     const carried = fire.glbModels.filter((model) => !model.url.includes('notre_dame_fire'));
 
-    // Four surviving fabric parts, four rebuilt burnt parts and three fire effects.
-    assert.equal(fire.glbModels.length, 11);
-    assert.equal(burnt.length, 7);
+    // Four surviving fabric parts plus four rebuilt, damaged parts. Fire is particle-only.
+    assert.equal(fire.glbModels.length, 8);
+    assert.equal(burnt.length, 4);
     assert.equal(carried.length, 4);
+    assert.equal(fire.glbModels, NOTRE_DAME_FIRE_MODELS);
+    assert.ok(
+        fire.glbModels.every((model) => (
+            !model.url.includes('30_fire_')
+            && !model.url.includes('31_fire_')
+            && !model.url.includes('32_ember_')
+            && model.animationClock === undefined
+        )),
+        'the fire contains no cone or ember GLB effect',
+    );
     // The whole point of filtering rather than re-listing: an unburnt part is the same object the
     // intact map holds, so it cannot pick up a different scale, position or url over time.
     for (const model of carried) {
