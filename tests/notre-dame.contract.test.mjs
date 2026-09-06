@@ -124,6 +124,8 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         .map(([mapKey]) => mapKey)
         .sort();
     assert.deepEqual(collisionOnlyMaps, [
+        'burg_falkenwacht',
+        'burg_falkenwacht_arena',
         'eiffel_tower',
         'eiffel_tower_arena',
         'notre_dame',

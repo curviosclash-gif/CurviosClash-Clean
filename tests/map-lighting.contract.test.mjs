@@ -122,6 +122,8 @@ test('only the selected presets define lighting and all others resolve to defaul
         .map(([mapKey]) => mapKey)
         .sort();
     assert.deepEqual(litMapKeys, [
+        'burg_falkenwacht',
+        'burg_falkenwacht_arena',
         'eiffel_tower',
         'eiffel_tower_arena',
         'frozen_helix',

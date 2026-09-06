@@ -5,6 +5,7 @@ const COLLECTION_DEFINITIONS = [
         mapKeys: [
             'standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze',
             'trench', 'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_arena',
+            'burg_falkenwacht_arena',
         ],
     },
     {
@@ -44,6 +45,7 @@ const COLLECTION_DEFINITIONS = [
             'notre_dame',
             'notre_dame_fire',
             'eiffel_tower',
+            'burg_falkenwacht',
         ],
     },
     {

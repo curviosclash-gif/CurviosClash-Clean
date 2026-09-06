@@ -21,6 +21,7 @@ const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'maps', 'notre_dame_fire', 'glb'],
     ['assets', 'maps', 'aetherion_orrery', 'glb'],
     ['assets', 'maps', 'eiffel_tower', 'glb'],
+    ['assets', 'maps', 'burg_falkenwacht', 'glb'],
 ];
 const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'downloaded_cc0');
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];
