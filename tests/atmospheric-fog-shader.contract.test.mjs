@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import * as THREE from 'three';
+import { ATMOSPHERE_GRADIENT_GLSL } from '../src/core/renderer/AtmosphereGradient.js';
+import { SKY_DOME_SHADER_SOURCES } from '../src/core/renderer/SkyDomeMaterial.js';
 
 import {
     applyAtmosphericFogSettings,
@@ -16,6 +18,22 @@ function assertRgbCloseTo(actual, expected, message) {
     const delta = Math.max(...expected.map((value, index) => Math.abs(actual[index] - value)));
     assert.ok(delta < 0.002, `${message} (got ${actual.map((v) => v.toFixed(4))}, delta ${delta})`);
 }
+
+test('opaque fog uses the sky gradient in linear light and map changes reset its uniforms', () => {
+    withInstalledFog(() => {
+        assert.ok(THREE.ShaderChunk.fog_pars_fragment.includes(ATMOSPHERE_GRADIENT_GLSL));
+        assert.ok(SKY_DOME_SHADER_SOURCES.fragment.includes(ATMOSPHERE_GRADIENT_GLSL));
+        assert.ok(THREE.ShaderChunk.fog_fragment.includes('linearToOutputTexel( vec4( skyTint, 1.0 ) )'));
+        const shared = getAtmosphericFogUniforms();
+        const sky = { zenithColor: 0x808080, horizonColor: 0xaabbcc, nadirColor: 0x223344 };
+        applyAtmosphericFogSettings({ skyDome: sky, atmosphereColor: 0x556677 });
+        assert.equal(shared.fogSkyEnabled.value, 1);
+        assert.ok(Math.abs(shared.fogSkyZenith.value.r - 0.21586) < 0.001);
+        assert.equal(shared.fogSkyHaze.value.getHex(), 0x556677);
+        applyAtmosphericFogSettings({});
+        assert.equal(shared.fogSkyEnabled.value, 0, 'direct callers without a sky retain their authored tint');
+    });
+});
 
 // The shader's closure term, mirrored here so the curve can be measured outside a GPU.
 function clipClosure(depth, clip = 200, start = 0.8) {

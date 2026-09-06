@@ -1,9 +1,5 @@
 import * as THREE from 'three';
-import {
-    HAZE_BAND,
-    SKY_LOWER_EXPONENT,
-    SKY_UPPER_EXPONENT,
-} from './SceneEnvironmentFactory.js';
+import { ATMOSPHERE_GRADIENT_GLSL } from './AtmosphereGradient.js';
 
 const SKY_DOME_VERTEX_SHADER = /* glsl */`
 varying vec3 vSkyDirection;
@@ -23,15 +19,13 @@ uniform vec3 nadirColor;
 uniform vec3 hazeColor;
 varying vec3 vSkyDirection;
 
+${ATMOSPHERE_GRADIENT_GLSL}
+
 void main() {
 
 	vec3 direction = normalize( vSkyDirection );
 	float elevation = clamp( direction.y, -1.0, 1.0 );
-	vec3 skyColor = elevation >= 0.0
-		? mix( horizonColor, zenithColor, pow( elevation, ${SKY_UPPER_EXPONENT.toFixed(2)} ) )
-		: mix( horizonColor, nadirColor, pow( -elevation, ${SKY_LOWER_EXPONENT.toFixed(2)} ) );
-	float hazeNearness = max( 0.0, 1.0 - abs( elevation ) / ${HAZE_BAND.toFixed(3)} );
-	skyColor = mix( skyColor, hazeColor, smoothstep( 0.0, 1.0, hazeNearness ) );
+	vec3 skyColor = atmosphereGradient( elevation, zenithColor, horizonColor, nadirColor, hazeColor );
 	gl_FragColor = vec4( skyColor, 1.0 );
 	#include <colorspace_fragment>
 

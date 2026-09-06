@@ -12,6 +12,17 @@ import { SceneLightingRig } from '../src/core/renderer/SceneLightingRig.js';
 import { ArenaBuilder } from '../src/entities/arena/ArenaBuilder.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
+test('Falkenwacht spreads its high-altitude closure across at least 80 world units', () => {
+    for (const key of ['burg_falkenwacht', 'burg_falkenwacht_arena']) {
+        const fog = MAP_PRESET_CATALOG[key].lighting.fog;
+        const closureWidth = 200 * (1 - fog.clipClosureStart);
+        assert.ok(closureWidth >= 80, key);
+        // Even without natural mist, a one-unit step must not add over 2% opacity.
+        assert.ok(1.5 / closureWidth < 0.02, key);
+        assert.ok(fog.heightFalloff <= 0.06, key);
+    }
+});
+
 test('default map lighting matches the existing modern renderer look', () => {
     assert.deepEqual(DEFAULT_MAP_LIGHTING.key.direction, [30, 50, 30]);
     assert.equal(DEFAULT_MAP_LIGHTING.key.color, 0xfff4e8);

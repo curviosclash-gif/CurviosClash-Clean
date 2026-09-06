@@ -6,8 +6,9 @@ const lighting = {
     fill: { direction: [35, 40, -25], color: 0xb5cff0, intensity: 0.48 },
     rim: { direction: [-25, 30, -50], color: 0xffd6a0, intensity: 0.5 },
     hemisphere: { skyColor: 0xaac8e0, groundColor: 0x635440 },
-    fog: { color: 0xa6b6b4, near: 150, far: 200, height: 5, heightFalloff: 0.12,
-        turbulence: 0.06, skyBlend: 1, colorHigh: 0x9eb8ce, colorLow: 0x8d947d, clipClosureStart: 0.9 },
+    // Thin valley mist needs a long closure above the castle, not a last-20-unit curtain.
+    fog: { color: 0xa6b6b4, near: 150, far: 200, height: 5, heightFalloff: 0.06,
+        turbulence: 0.06, skyBlend: 1, colorHigh: 0x9eb8ce, colorLow: 0x8d947d, clipClosureStart: 0.6 },
     skyDome: { zenithColor: 0x447db0, horizonColor: 0xcad4cc, nadirColor: 0x686e53 },
     starsVisible: false,
     exposureOffset: 0.08,

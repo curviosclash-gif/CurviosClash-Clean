@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { HAZE_BAND } from './SceneEnvironmentFactory.js';
+import { ATMOSPHERE_GRADIENT_GLSL } from './AtmosphereGradient.js';
 
 // Three's own fog is a pure distance ramp: smoothstep(fogNear, fogFar, depth). It saturates
 // completely at fogFar, so every surface beyond that distance lands on one identical colour, at
@@ -82,7 +83,13 @@ const FOG_PARS_FRAGMENT = /* glsl */`
 	uniform float fogClipClosureStart;
 	uniform vec3 fogHighColor;
 	uniform vec3 fogLowColor;
+	uniform vec3 fogSkyZenith;
+	uniform vec3 fogSkyHorizon;
+	uniform vec3 fogSkyNadir;
+	uniform vec3 fogSkyHaze;
+	uniform float fogSkyEnabled;
 	varying vec3 vFogViewOffset;
+	${ATMOSPHERE_GRADIENT_GLSL}
 
 	#ifdef FOG_EXP2
 
@@ -178,6 +185,11 @@ const FOG_FRAGMENT = /* glsl */`
 	vec3 fogTint = mix( fogEdgeColor, fogColor, fogHaze * fogHaze * ( 3.0 - 2.0 * fogHaze ) );
 
 	float clampedFogFactor = clamp( fogFactor, 0.0, 1.0 );
+	// Retain the authored tint nearby, but converge on the actual sky at every angle.
+	if ( fogSkyEnabled > 0.5 ) {
+		vec3 skyTint = atmosphereGradient( fogElevation, fogSkyZenith, fogSkyHorizon, fogSkyNadir, fogSkyHaze );
+		fogTint = mix( fogTint, linearToOutputTexel( vec4( skyTint, 1.0 ) ).rgb, clampedFogFactor );
+	}
 	gl_FragColor.rgb = mix( gl_FragColor.rgb, fogTint, clampedFogFactor );
 
 	// Arena boundaries end in real geometric silhouettes: a grazing ray can miss a wall while its
@@ -200,6 +212,11 @@ const FOG_FRAGMENT = /* glsl */`
 // shared object injected through onBeforeCompile survives, because the renderer keeps exactly the
 // object it was given (WebGLRenderer.getProgram: materialProperties.uniforms = parameters.uniforms).
 const sharedFogUniforms = {
+    fogSkyZenith: { value: new THREE.Color() },
+    fogSkyHorizon: { value: new THREE.Color() },
+    fogSkyNadir: { value: new THREE.Color() },
+    fogSkyHaze: { value: new THREE.Color() },
+    fogSkyEnabled: { value: 0 },
     fogHeightBase: { value: 0 },
     fogHeightFalloff: { value: 0 },
     fogTurbulence: { value: 0 },
@@ -225,6 +242,9 @@ let originalOnBeforeCompile = null;
 let originalChunks = null;
 
 function injectAtmosphericFogUniforms(shader) {
+    for (const name of ['fogSkyZenith', 'fogSkyHorizon', 'fogSkyNadir', 'fogSkyHaze', 'fogSkyEnabled']) {
+        shader.uniforms[name] = sharedFogUniforms[name];
+    }
     shader.uniforms.fogHeightBase = sharedFogUniforms.fogHeightBase;
     shader.uniforms.fogHeightFalloff = sharedFogUniforms.fogHeightFalloff;
     shader.uniforms.fogTurbulence = sharedFogUniforms.fogTurbulence;
@@ -274,6 +294,14 @@ export function isAtmosphericFogInstalled() {
  * @param {{height?: unknown, heightFalloff?: unknown, turbulence?: unknown, colorHigh?: unknown, colorLow?: unknown}} settings
  */
 export function applyAtmosphericFogSettings(settings) {
+    const sky = settings?.skyDome;
+    sharedFogUniforms.fogSkyEnabled.value = sky ? 1 : 0;
+    if (sky) {
+        sharedFogUniforms.fogSkyZenith.value.setHex(sky.zenithColor);
+        sharedFogUniforms.fogSkyHorizon.value.setHex(sky.horizonColor);
+        sharedFogUniforms.fogSkyNadir.value.setHex(sky.nadirColor);
+        sharedFogUniforms.fogSkyHaze.value.setHex(settings.atmosphereColor);
+    }
     const height = Number(settings?.height);
     const heightFalloff = Number(settings?.heightFalloff);
     const turbulence = Number(settings?.turbulence);

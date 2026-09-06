@@ -291,6 +291,8 @@ export class SceneLightingRig {
         const scale = Number(mapScale) > 0 ? Number(mapScale) : 1;
         applyAtmosphericFogSettings({
             ...lighting.fog,
+            skyDome: lighting.skyDome,
+            atmosphereColor,
             height: lighting.fog.height * scale,
             heightFalloff: lighting.fog.heightFalloff / scale,
         });

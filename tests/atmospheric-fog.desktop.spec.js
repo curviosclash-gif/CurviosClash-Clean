@@ -102,7 +102,11 @@ const RESTORE_SEAM = `
     runtime.setMapLighting(restore.mapLighting, restore.mapScale);
 `;
 
-test('the patched fog shader compiles and the sky meets the fog without a seam', async ({ page }) => {
+for (const profile of [
+    { key: 'magma_maze', near: 30, far: 130, color: 0x6b2410, height: 2.7 },
+    { key: 'burg_falkenwacht', near: 150, far: 200, color: 0xcad4cc, height: 5 },
+]) {
+test(`${profile.key}: fog compiles and meets the sky at multiple elevations`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const errors = collectErrors(page);
 
@@ -110,10 +114,10 @@ test('the patched fog shader compiles and the sky meets the fog without a seam',
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
     await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    await page.selectOption('#map-select', 'magma_maze');
+    await page.selectOption('#map-select', profile.key);
     await page.waitForFunction(
-        () => window.GAME_INSTANCE?.settings?.mapKey === 'magma_maze',
-        null,
+        (key) => window.GAME_INSTANCE?.settings?.mapKey === key,
+        profile.key,
         { timeout: 5000 }
     );
     await page.evaluate(() => {
@@ -125,11 +129,12 @@ test('the patched fog shader compiles and the sky meets the fog without a seam',
     });
     await page.click('#btn-start');
     await page.waitForFunction(
-        () => window.GAME_INSTANCE?.arena?.currentMapKey === 'magma_maze',
-        null,
+        (key) => window.GAME_INSTANCE?.arena?.currentMapKey === key,
+        profile.key,
         { timeout: 60_000 }
     );
     await waitForRenderFrames(page, 8);
+    await page.screenshot({ path: testInfo.outputPath('map-atmosphere.png') });
 
     // The map's own profile has to arrive at the scene, not just sit in the preset.
     const applied = await page.evaluate(() => {
@@ -141,17 +146,21 @@ test('the patched fog shader compiles and the sky meets the fog without a seam',
             fogHeight: runtime.getMapLighting()?.fog?.height ?? null,
         };
     });
-    expect(applied.fogNear).toBe(30);
-    expect(applied.fogFar).toBe(130);
+    expect(applied.fogNear).toBe(profile.near);
+    expect(applied.fogFar).toBe(profile.far);
     // Not the authored 0x2a0c06: with skyBlend at 1 the distance fades into the map's own horizon.
-    expect(applied.fogColor).toBe(0x6b2410);
-    expect(applied.fogHeight).toBe(2.7);
+    expect(applied.fogColor).toBe(profile.color);
+    expect(applied.fogHeight).toBe(profile.height);
 
     // Rendered proof plus its own control: repainting only the fog colour, without letting the sky
     // follow, is exactly the mismatch the haze band exists to prevent - so the same measurement has
     // to report a wide gap. Without that control a probe that always reads one colour would pass.
     const seam = await page.evaluate(`(() => {
         ${MEASURE_SEAM}
+        const shader = { uniforms: {} };
+        scene.getObjectByName('scene-atmosphere-sky').material.onBeforeCompile(shader, three);
+        const skyHaze = shader.uniforms.fogSkyHaze.value.clone();
+        shader.uniforms.fogSkyHaze.value.setHex(0x30c0ff);
         scene.fog.color.setHex(0x30c0ff);
         const mismatchedVisible = capture(true);
         const mismatchedSky = capture(false);
@@ -160,6 +169,7 @@ test('the patched fog shader compiles and the sky meets the fog without a seam',
         const mismatched = pairAt(mismatchedVisible, mismatchedSky, probe.x, probe.y);
 
         scene.fog.color.setHex(restore.fogColor);
+        shader.uniforms.fogSkyHaze.value.copy(skyHaze);
         const matched = pairAt(capture(true), capture(false), probe.x, probe.y);
         ${RESTORE_SEAM}
         return { matched, mismatched, probe: { x: probe.x, y: probe.y } };
@@ -170,6 +180,32 @@ test('the patched fog shader compiles and the sky meets the fog without a seam',
     expect(seam.matched.delta, JSON.stringify(seam)).toBeLessThan(0.05);
     expect(seam.mismatched.delta, JSON.stringify(seam)).toBeGreaterThan(0.5);
 
+    // A horizon-only probe misses the old mismatch at steep viewing angles. Compare fully
+    // fogged map geometry with the sky behind it above and below the haze band as well.
+    const angledSeams = await page.evaluate(`(() => {
+        ${MEASURE_SEAM}
+        const shader = { uniforms: {} };
+        scene.getObjectByName('scene-atmosphere-sky').material.onBeforeCompile(shader, three);
+        const names = ['fogSkyZenith', 'fogSkyHorizon', 'fogSkyNadir', 'fogSkyHaze'];
+        const saved = names.map(name => shader.uniforms[name].value.clone());
+        const samples = [];
+        for (const slope of [-0.6, 0.6]) {
+            camera.lookAt(0, 15 + slope * 100, -100);
+            camera.updateMatrixWorld(true);
+            for (const name of names) shader.uniforms[name].value.setHex(0x30c0ff);
+            const probe = findHorizonGeometry(capture(true), capture(false));
+            names.forEach((name, i) => shader.uniforms[name].value.copy(saved[i]));
+            if (!probe) throw new Error('No geometry for angled seam probe: ' + slope);
+            samples.push({ slope, ...pairAt(capture(true), capture(false), probe.x, probe.y) });
+        }
+        ${RESTORE_SEAM}
+        return samples;
+    })()`);
+    for (const seamAtAngle of angledSeams) {
+        expect(seamAtAngle.delta, JSON.stringify(seamAtAngle)).toBeLessThan(0.05);
+    }
+
     // A shader that fails to compile or link surfaces here and nowhere else.
     expect(errors).toHaveLength(0);
 });
+}
