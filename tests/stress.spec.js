@@ -279,6 +279,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
         await loadGame(page);
         await openMultiplayerSubmenu(page);
         await page.fill('#multiplayer-lobby-code', 'STRESS-T75');
+        await page.click('[data-connection-intent-target="host"]');
         await page.click('#btn-multiplayer-host');
         await page.waitForFunction(() => {
             const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();

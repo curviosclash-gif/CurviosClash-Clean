@@ -172,10 +172,17 @@ function syncMapSelect({
     }
     let hasPreviousOption = Array.from(ui.mapSelect.options).some((option) => option.value === previousValue);
     const previousMapDefinition = runtimeMaps?.[previousValue];
+    // Explicit tutorial/scenario starts must survive UI synchronization even when
+    // their map is intentionally absent from the general picker.
+    const scenario = previousMapDefinition?.singlePlayerScenario;
+    const isActiveScenario = scenario?.enabled === true
+        && settings?.localSettings?.sessionType === 'single'
+        && settings?.gameMode === scenario.gameMode
+        && modePath === scenario.modePath;
     const canRetainPreviousMap = previousValue === 'custom'
         ? hasStoredCustomMap()
         : !!previousMapDefinition
-            && previousMapDefinition.hiddenFromMapPicker !== true
+            && (previousMapDefinition.hiddenFromMapPicker !== true || isActiveScenario)
             && isMapEligibleForModePath(previousMapDefinition, modePath)
             && surfacePolicyPort.isMapAllowed(previousValue, modePath);
     if (!hasPreviousOption && canRetainPreviousMap) {
@@ -184,6 +191,7 @@ function syncMapSelect({
         const option = document.createElement('option');
         option.value = previousValue;
         option.textContent = formatMapLabel(previousEntry);
+        option.hidden = previousMapDefinition?.hiddenFromMapPicker === true;
         if (option.dataset) option.dataset.filterRetained = 'true';
         assignMapOptionCollection(option, previousEntry);
         ui.mapSelect.appendChild(option);

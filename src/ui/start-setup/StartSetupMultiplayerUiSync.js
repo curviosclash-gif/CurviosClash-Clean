@@ -25,6 +25,20 @@ function resolveModeLabel(modePath) {
     return 'Klassisch';
 }
 
+export function formatMenuRulesSummary(settings, modePath) {
+    if (modePath === 'arcade') {
+        const sectors = settings?.arcade?.sectorCount;
+        return sectors ? `${sectors} Sektoren · Punkte sammeln` : 'Sektoren meistern · Punkte sammeln';
+    }
+    const count = Math.max(0, Number(settings?.numBots) || 0);
+    const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[settings?.botDifficulty] || 'Normal';
+    const bots = count ? `${count} Bots · ${difficulty}` : 'Ohne Bots';
+    const objective = settings?.gameMode === 'HUNT' && settings?.hunt?.respawnEnabled
+        ? `${settings.hunt.deathmatchKillLimit || 10} Abschüsse`
+        : `${settings?.winsNeeded || 1} ${Number(settings?.winsNeeded || 1) === 1 ? 'Sieg' : 'Siege'}`;
+    return `${bots} · ${objective}`;
+}
+
 function clearElementChildren(element) {
     if (!element) return;
     while (element.firstChild) {
@@ -105,6 +119,7 @@ function createSummaryBlocks({
         { label: 'Spielstil', value: resolveModeLabel(modePath) },
         { label: 'Karte', value: mapPreview.name },
         { label: 'Flugzeug', value: vehiclePreviewP1.label },
+        { label: 'Regeln', value: formatMenuRulesSummary(settings, modePath) },
         {
             label: 'Ghost',
             value: resolveArcadeGhostDuelModeLabel(ghostDuelState.effectiveMode),
@@ -126,7 +141,7 @@ function createSummaryBlocks({
     if (sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {
         const hasCode = String(resolvedMultiplayerSessionState?.lobbyCode || ui.multiplayerLobbyCodeInput?.value || '').trim();
         const readySummary = hasActiveLobbySession
-            ? ` | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} ready`
+            ? ` | ${resolvedMultiplayerSessionState.readyCount}/${resolvedMultiplayerSessionState.memberCount} bereit`
             : '';
         const roleSummary = hasActiveLobbySession
             ? (resolvedMultiplayerSessionState.isHost ? 'Host' : surfaceEntryCopy.multiplayerClientRoleLabel)
@@ -233,9 +248,11 @@ export function renderStartSetupSummaryAndPreview({
     }
     if (ui.quickStartLastSummary) {
         ui.quickStartLastSummary.textContent = [
+            resolveSessionLabel(surfaceEntryCopy, sessionType),
             resolveModeLabel(modePath),
             mapPreview.name,
             vehiclePreviewP1.label,
+            formatMenuRulesSummary(settings, modePath),
         ].join(' · ');
     }
     renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2);
@@ -286,7 +303,7 @@ export function syncStartSetupMultiplayerUi({
                     ? 'Online ist derzeit nicht eingerichtet. Bitte LAN verwenden.'
                     : 'Online-Lobby als Internet-Pfad nutzen.';
             } else if (allowed) {
-                button.title = 'LAN als produktiven Host-/Join-Pfad nutzen.';
+                button.title = 'Mit anderen Spielern im lokalen Netzwerk spielen.';
             } else {
                 button.title = '';
             }
@@ -295,7 +312,7 @@ export function syncStartSetupMultiplayerUi({
     if (ui.multiplayerTransportHint) {
         ui.multiplayerTransportHint.textContent = multiplayerTransportUiState.isOnlineUnconfigured
             ? 'Auswahl: Online | nicht konfiguriert, bitte LAN verwenden'
-            : `Produktiver Transport: ${multiplayerTransportUiState.selectedTransportLabel}`;
+            : `Verbindung: ${multiplayerTransportUiState.selectedTransportLabel}`;
     }
     const showOpenLobbies = isMultiplayerSession && sessionContract.isLegacyTransport !== true;
     const canBrowseOpenLobbies = showOpenLobbies

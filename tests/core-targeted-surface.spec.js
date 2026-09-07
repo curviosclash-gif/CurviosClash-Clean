@@ -494,7 +494,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(Number(await speedSlider.inputValue())).toBeGreaterThan(speedBefore);
         expect(await page.evaluate(() => document.activeElement?.id || '')).toBe('speed-slider');
 
-        await page.click('#level4-group-camera > summary');
+        await page.click('#level4-tab-graphics');
         const cameraSelect = page.locator('#normal-camera-perspective-select');
         await cameraSelect.selectOption('classic');
         await cameraSelect.focus();
@@ -1431,9 +1431,10 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             slider.value = '30';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
         });
-        await page.click('#level4-group-camera > summary');
+        await page.click('#level4-tab-graphics');
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_action');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
+        await page.click('#level4-tab-gameplay');
         await page.click('#btn-level4-reset');
         await expect(page.locator('#btn-level4-reset')).toHaveAttribute('data-reset-armed', 'true');
         await page.click('#btn-level4-reset');

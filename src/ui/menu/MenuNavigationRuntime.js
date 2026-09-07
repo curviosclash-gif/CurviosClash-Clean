@@ -3,27 +3,11 @@ import {
     resolveDebugAccessPolicy,
     resolveDeveloperAccessPolicy,
 } from './MenuAccessPolicy.js';
+import { isAvailable, getFocusableElements, focusWithoutScroll, moveMainMenuFocus, adjustGamepadControl } from './MenuNavigationFocusOps.js';
 import { MENU_STATE_IDS } from './MenuStateMachine.js';
 
 function normalizeId(value) {
     return typeof value === 'string' ? value.trim() : '';
-}
-
-function getFocusableElements(container) {
-    if (!container) return [];
-    return Array.from(container.querySelectorAll(
-        'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
-    )).filter((element) => !element.closest?.('[inert], [aria-hidden="true"], .hidden, details:not([open])')
-        && element.getAttribute?.('aria-disabled') !== 'true');
-}
-
-function focusWithoutScroll(element) {
-    if (!element || typeof element.focus !== 'function') return;
-    try {
-        element.focus({ preventScroll: true });
-    } catch {
-        element.focus();
-    }
 }
 
 function isMobileMenuDocument(doc) {
@@ -87,6 +71,7 @@ export class MenuNavigationRuntime {
         this._gamepadLoopHandle = null;
         this._gamepadButtonStateByIndex = new Map();
         this._activeSessionType = '';
+        this._returnFocusByPanel = new Map();
     }
 
     init() {
@@ -191,6 +176,7 @@ export class MenuNavigationRuntime {
             }
         }
         this._stopGamepadLoop();
+        this._returnFocusByPanel.clear();
         this._initialized = false;
     }
 
@@ -234,11 +220,16 @@ export class MenuNavigationRuntime {
             return false;
         }
 
+        const previousPanel = this._submenuPanels.find((panel) => !panel.classList.contains('hidden'));
+        const previousFocus = targetPanel.ownerDocument?.activeElement;
         const semanticState = normalizeId(panelConfig?.semanticId, panelId);
         const transition = this.stateMachine?.transition
             ? this.stateMachine.transition(semanticState, metadata)
             : { state: semanticState };
         if (transition?.blocked) return false;
+        if (isAvailable(previousFocus)) {
+            this._returnFocusByPanel.set(previousPanel?.id || 'main', previousFocus);
+        }
 
         this._submenuPanels.forEach((panel) => {
             const isTarget = panel === targetPanel;
@@ -274,7 +265,10 @@ export class MenuNavigationRuntime {
         this.onMenuStateChanged?.(transition);
 
         const callbackFocusTarget = targetPanel.ownerDocument?.activeElement || null;
-        if (!targetPanel.contains?.(callbackFocusTarget)) {
+        const returnFocus = metadata?.backNavigation && this._returnFocusByPanel.get(panelId);
+        if (returnFocus && isAvailable(returnFocus)) {
+            focusWithoutScroll(returnFocus);
+        } else if (!targetPanel.contains?.(callbackFocusTarget)) {
             const [focusTarget] = getFocusableElements(targetPanel);
             focusWithoutScroll(focusTarget);
         }
@@ -302,8 +296,9 @@ export class MenuNavigationRuntime {
         this.onPanelChanged?.(null, null, transition, metadata && typeof metadata === 'object' ? { ...metadata } : null);
         this.onMenuStateChanged?.(transition);
 
-        const firstVisibleButton = this._getVisibleMainActions()[0] || null;
-        this.focusMainAction();
+        const previousFocus = this._returnFocusByPanel.get('main');
+        const firstVisibleButton = isAvailable(previousFocus) ? previousFocus : this._getVisibleMainActions()[0] || null;
+        this.focusMainAction({ fallbackTarget: firstVisibleButton });
         queueMicrotask(() => {
             this.focusMainAction({ onlyIfFocusLost: true, fallbackTarget: firstVisibleButton });
         });
@@ -323,7 +318,7 @@ export class MenuNavigationRuntime {
     }
 
     _handleMenuKeyDown(event) {
-        if (!event) return;
+        if (!event || event.defaultPrevented) return;
         if (event.key === 'Tab') {
             const focusScope = this._isLevel4Open()
                 ? (this.ui.level4Drawer || document.getElementById('submenu-level4'))
@@ -370,7 +365,7 @@ export class MenuNavigationRuntime {
     }
 
     _trapFocus(event, container) {
-        const focusables = getFocusableElements(container);
+        const focusables = getFocusableElements(container).filter((element) => element.getAttribute?.('tabindex') !== '-1');
         if (focusables.length === 0) return false;
         const first = focusables[0];
         const last = focusables[focusables.length - 1];
@@ -391,12 +386,9 @@ export class MenuNavigationRuntime {
 
     _getVisibleMainActions() {
         const menuRoot = this.ui.mainMenu || document.getElementById('main-menu');
-        const primaryActions = Array.from(menuRoot?.querySelectorAll?.('[data-menu-main-action]') || []);
-        return [...primaryActions, ...this._getVisibleNavButtons()].filter((button) => (
-            !button.classList.contains('hidden')
-            && button.getAttribute('aria-hidden') !== 'true'
-            && !button.disabled
-        ));
+        return Array.from(menuRoot?.querySelectorAll?.(
+            '[data-menu-main-action], .nav-btn, .menu-utility-shell button, .menu-tutorial-entry'
+        ) || []).filter(isAvailable);
     }
 
     _getVisiblePanelElement() {
@@ -415,14 +407,16 @@ export class MenuNavigationRuntime {
         elements[nextIndex].focus();
     }
 
-    _moveFocusByDirection(direction) {
+    _moveFocusByDirection(direction, { gamepad = false } = {}) {
+        const active = document.activeElement;
+        const delta = direction === 'left' || direction === 'up' ? -1 : 1;
+        if (gamepad && adjustGamepadControl(active, direction)) return;
         if ((direction === 'left' || direction === 'right') && this._moveStartSetupChoice(direction)) {
             return;
         }
-        const delta = direction === 'left' || direction === 'up' ? -1 : 1;
         const state = this.stateMachine?.getState?.() || MENU_STATE_IDS.MAIN;
-        if (state === MENU_STATE_IDS.MAIN) {
-            this._moveFocusInCollection(this._getVisibleMainActions(), delta);
+        if (state === MENU_STATE_IDS.MAIN && !this._isLevel4Open()) {
+            moveMainMenuFocus(this._getVisibleMainActions(), direction, active);
             return;
         }
 
@@ -452,8 +446,8 @@ export class MenuNavigationRuntime {
 
     _activateFocusedElement(event = null) {
         const activeElement = document.activeElement;
-        if (!activeElement || typeof activeElement.click !== 'function') return;
-        if (!activeElement.matches('button, [role="button"], .nav-btn, .secondary-btn, .mode-btn')) return;
+        if (!isAvailable(activeElement) || typeof activeElement.click !== 'function') return;
+        if (!activeElement.matches('button, summary, input[type="checkbox"], input[type="radio"], [role="button"], .nav-btn, .secondary-btn, .mode-btn')) return;
         event?.preventDefault?.();
         activeElement.click();
     }
@@ -519,10 +513,10 @@ export class MenuNavigationRuntime {
             return isPressed && !wasPressed;
         };
 
-        if (consumePress(14)) this._moveFocusByDirection('left');
-        if (consumePress(15)) this._moveFocusByDirection('right');
-        if (consumePress(12)) this._moveFocusByDirection('up');
-        if (consumePress(13)) this._moveFocusByDirection('down');
+        if (consumePress(14)) this._moveFocusByDirection('left', { gamepad: true });
+        if (consumePress(15)) this._moveFocusByDirection('right', { gamepad: true });
+        if (consumePress(12)) this._moveFocusByDirection('up', { gamepad: true });
+        if (consumePress(13)) this._moveFocusByDirection('down', { gamepad: true });
         if (consumePress(0)) this._activateFocusedElement();
         if (consumePress(1) && (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN)) {
             this._goBackFromCurrent('controller_back');

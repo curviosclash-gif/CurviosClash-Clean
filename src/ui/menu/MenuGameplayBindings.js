@@ -105,8 +105,8 @@ export function setupMenuGameplayBindings(ctx) {
         });
     }
 
-    if (ui.classicTutorialButton) {
-        bind(ui.classicTutorialButton, 'click', () => {
+    [ui.classicTutorialButton, ui.mainTutorialButton].filter(Boolean).forEach((button) => {
+        bind(button, 'click', () => {
             settings.mode = '1p';
             settings.gameMode = GAME_MODE_TYPES.CLASSIC;
             settings.numBots = 0;
@@ -125,7 +125,7 @@ export function setupMenuGameplayBindings(ctx) {
             ]);
             emit(eventTypes.START_MATCH);
         });
-    }
+    });
 
     if (ui.openFightHangarButton) {
         const hangarWindowAvailable = hangarWindow.isAvailable();

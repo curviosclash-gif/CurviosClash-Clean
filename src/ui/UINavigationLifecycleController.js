@@ -112,7 +112,8 @@ export class UINavigationLifecycleController {
             this.manager._listen(button, 'keydown', (event) => {
                 if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown'].includes(event.key)) return;
                 event.preventDefault();
-                const tabs = this.ui.level4SectionTabs.filter(Boolean);
+                event.stopPropagation();
+                const tabs = this.ui.level4SectionTabs.filter((tab) => !tab.disabled && tab.getClientRects().length > 0);
                 const currentIndex = tabs.indexOf(button);
                 if (currentIndex < 0 || tabs.length === 0) return;
                 const delta = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1;
@@ -156,6 +157,8 @@ export class UINavigationLifecycleController {
             this.ui.level4ResetButton.setAttribute('aria-hidden', String(!resetVisible));
             this.ui.level4ResetButton.disabled = !resetVisible;
         }
+        const scopeHint = this.ui.level4Drawer?.querySelector?.('#level4-reset-scope');
+        scopeHint?.classList.toggle('hidden', resolvedSectionId !== LEVEL4_SECTION_IDS.GAMEPLAY);
         if (options.focus) {
             const focusTarget = tabs.find((button) => this._resolveLevel4Section(button?.dataset?.level4SectionTarget, '') === resolvedSectionId);
             focusWithoutScroll(focusTarget);
@@ -227,7 +230,7 @@ export class UINavigationLifecycleController {
         if (open && !wasOpen) {
             focusWithoutScroll(this.ui.closeLevel4Button || drawer.querySelector('button'));
             if (menuScrollContainer) menuScrollContainer.scrollTop = 0;
-        } else if (wasOpen) {
+        } else if (!open && wasOpen) {
             const returnTarget = String(drawer.dataset?.level4ReturnTarget || 'game').trim().toLowerCase();
             delete drawer.dataset.level4ReturnTarget;
             if (returnTarget === 'main') {
@@ -484,10 +487,14 @@ export class UINavigationLifecycleController {
         const activeSectionLabel = {
             [LEVEL4_SECTION_IDS.CONTROLS]: 'Steuerung',
             [LEVEL4_SECTION_IDS.MOBILE_CONTROLS]: 'Mobile',
-            [LEVEL4_SECTION_IDS.GAMEPLAY]: 'Gameplay',
+            [LEVEL4_SECTION_IDS.GAMEPLAY]: 'Spielregeln',
+            [LEVEL4_SECTION_IDS.AUDIO]: 'Audio',
+            [LEVEL4_SECTION_IDS.GRAPHICS]: 'Grafik & Kamera',
+            [LEVEL4_SECTION_IDS.RECORDING]: 'Aufnahme',
+            [LEVEL4_SECTION_IDS.HUD]: 'HUD',
             [LEVEL4_SECTION_IDS.ADVANCED_MAP]: 'Map-Details',
             [LEVEL4_SECTION_IDS.TOOLS]: 'Profile',
-            [LEVEL4_SECTION_IDS.PRESETS]: 'Presets',
+            [LEVEL4_SECTION_IDS.PRESETS]: 'Vorlagen',
             [LEVEL4_SECTION_IDS.UTILITIES]: 'Werkzeuge',
         }[activeSection] || 'Profile';
 

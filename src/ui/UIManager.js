@@ -628,7 +628,7 @@ export class UIManager {
                 sessionType,
                 multiplayerTransport: settings?.localSettings?.multiplayerTransport,
             });
-            this.ui.multiplayerStatus.textContent = `${surfaceEntryCopy.multiplayerDisconnectedStatus} · ${sessionContract.transportAudienceLabel}`;
+            this.ui.multiplayerStatus.textContent = `Noch nicht verbunden · ${sessionContract.transportAudienceLabel}. Erstelle eine Lobby oder tritt einer bei.`;
             if (this.ui.startButton) {
                 this.ui.startButton.disabled = false;
                 this.ui.startButton.title = surfaceEntryCopy.multiplayerJoinWaitTitle;

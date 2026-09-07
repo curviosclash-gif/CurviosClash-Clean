@@ -61,7 +61,7 @@
                         <button type="button" id="btn-quick-last-settings"
                             class="start-btn menu-primary-start" data-menu-main-action
                             data-menu-action="quickstart-last">
-                            <span class="menu-primary-start-label" data-menu-text-id="menu.level2.quick_last.label">Letzte Runde starten</span>
+                            <span class="menu-primary-start-label" data-menu-text-id="menu.level2.quick_last.label">Sofort spielen</span>
                             <span id="quick-last-summary" class="menu-primary-start-summary" data-menu-text-id="menu.level1.quick_last.summary">Mit der letzten Auswahl sofort spielen</span>
                         </button>
                     </div>
@@ -81,6 +81,8 @@
                             <span class="nav-btn-label" data-menu-text-id="menu.level1.splitscreen.label">Geteilter Bildschirm</span>
                         </button>
                     </div>
+
+                    <button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Neu hier? Steuerung lernen</button>
 
                     <div class="menu-utility-shell" role="navigation" aria-label="Weitere Bereiche">
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
@@ -117,7 +119,7 @@
                     <div class="submenu-body level3-body">
                         <nav class="start-step-rail" aria-label="Match-Vorbereitung">
                             <div class="start-step-rail-heading">
-                                <span class="start-step-rail-kicker" data-menu-text-id="menu.level3.rail.kicker">Launch Bay</span>
+                                <span class="start-step-rail-kicker" data-menu-text-id="menu.level3.rail.kicker">Startvorbereitung</span>
                                 <strong data-menu-text-id="menu.level3.rail.title">Vorbereitung</strong>
                             </div>
                             <button type="button" class="start-step-tab active" data-start-section-target="map"
@@ -128,7 +130,7 @@
                             <button type="button" class="start-step-tab" data-start-section-target="vehicle"
                                 aria-controls="start-vehicle-section">
                                 <span class="start-step-index" aria-hidden="true">2</span>
-                                <span><strong>Flugzeug</strong><small>Airframe bestimmen</small></span>
+                                <span><strong>Flugzeug</strong><small>Flugzeug auswählen</small></span>
                             </button>
                             <button type="button" class="start-step-tab" data-start-section-target="match"
                                 aria-controls="start-match-section">
@@ -139,7 +141,7 @@
                             <button type="button" class="start-step-tab start-step-tab-utility"
                                 data-start-section-target="presets">
                                 <span class="start-step-tab-glyph" aria-hidden="true">◆</span>
-                                <span><strong>Presets</strong><small>Schnelle Kombinationen</small></span>
+                                <span><strong>Vorlagen</strong><small>Schnelle Kombinationen</small></span>
                             </button>
                             <button type="button" class="start-step-tab start-step-tab-utility"
                                 data-start-section-target="arcade" aria-controls="arcade-inline-surface">
@@ -155,19 +157,28 @@
                                 <span class="menu-accordion-copy" data-menu-text-id="menu.level3.multiplayer.inline.description">Lobby verbinden, Teilnehmer prüfen und gemeinsam starten</span>
                             </summary>
                             <div class="menu-accordion-body">
-                                <p id="multiplayer-lobby-state" class="menu-hint">Lobbystatus: nicht verbunden</p>
+                                <details class="multiplayer-connection-details"><summary>Verbindungsdetails</summary><p id="multiplayer-lobby-state" class="menu-hint">Nicht verbunden</p></details>
                                 <p id="multiplayer-status" class="menu-field-hint" role="status" aria-live="polite">
                                     Lobby inaktiv | Rolle: nicht verbunden
                                 </p>
 
-                                <div id="multiplayer-connection-controls">
-                                    <p id="multiplayer-transport-hint" class="menu-hint">Produktiver Transport: LAN</p>
+                                <div id="multiplayer-connection-controls" data-connection-intent="join">
+                                    <div class="mp-intent-choices" role="group" aria-label="Mehrspieler starten">
+                                        <button type="button" class="secondary-btn" data-connection-intent-target="host" data-requires-cap="host" aria-pressed="false">Spiel erstellen</button>
+                                        <button type="button" class="secondary-btn active" data-connection-intent-target="join" aria-pressed="true">Spiel beitreten</button>
+                                    </div>
+                                    <p class="mp-host-help">Erstelle eine Lobby und teile anschließend den Code mit deinen Mitspielern.</p>
+                                    <p class="mp-join-help">Wähle eine Lobby oder gib den Code deiner Mitspieler ein.</p>
+                                    <div class="mp-transport-fields">
+                                    <p id="multiplayer-transport-hint" class="menu-hint">Verbindung: LAN</p>
                                     <div class="btn-group secondary-btn-spaced" role="group" aria-label="Multiplayer-Transport">
                                         <button type="button" id="btn-multiplayer-transport-lan" class="secondary-btn active"
                                             data-multiplayer-transport="lan" aria-pressed="true">LAN</button>
                                         <button type="button" id="btn-multiplayer-transport-online" class="secondary-btn"
                                             data-multiplayer-transport="online" aria-pressed="false">Online</button>
                                     </div>
+                                    </div>
+                                    <div class="mp-join-fields">
                                     <div id="multiplayer-open-lobbies-controls" class="hidden">
                                         <label id="multiplayer-open-lobbies-label" for="multiplayer-open-lobbies" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
                                         <div class="btn-group secondary-btn-spaced">
@@ -179,15 +190,20 @@
                                             </button>
                                         </div>
                                     </div>
+                                    </div>
+                                    <div class="mp-code-fields">
                                     <label for="multiplayer-lobby-code" data-menu-text-id="menu.level3.multiplayer.code.label">Lobby-Code</label>
                                     <input type="text" id="multiplayer-lobby-code" maxlength="32" placeholder="z. B. TEST-1234"
                                         autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <div class="mp-join-fields">
                                     <details id="multiplayer-manual-address" class="multiplayer-manual-address">
                                         <summary>Manuelle LAN-Adresse</summary>
                                         <label for="multiplayer-host-address" data-menu-text-id="menu.level3.multiplayer.host_address.label">Host-Adresse</label>
                                         <input type="text" id="multiplayer-host-address" maxlength="96" placeholder="localhost:9090"
                                             autocomplete="off" spellcheck="false">
                                     </details>
+                                    </div>
                                     <div class="btn-group secondary-btn-spaced">
                                         <button type="button" id="btn-multiplayer-host" class="secondary-btn"
                                             data-menu-action="multiplayer-host" data-requires-cap="host">Lobby erstellen</button>
@@ -454,9 +470,9 @@
                                     <div class="menu-section">
                                         <label for="bot-difficulty" data-menu-text-id="menu.level3.match.bot_difficulty.label">Bot-Schwierigkeit</label>
                                         <select id="bot-difficulty">
-                                            <option value="EASY">Easy</option>
+                                            <option value="EASY">Leicht</option>
                                             <option value="NORMAL">Normal</option>
-                                            <option value="HARD" selected>Hard</option>
+                                            <option value="HARD" selected>Schwer</option>
                                         </select>
                                     </div>
                                     <div class="menu-section">
@@ -557,18 +573,19 @@
                     <div class="level4-header">
                         <div>
                             <h3 id="submenu-level4-title" class="submenu-title" data-menu-text-id="menu.level4.title">Erweiterte Optionen</h3>
-                            <p class="menu-hint menu-copy-secondary">Änderungen werden automatisch gespeichert. Detailbereiche lassen sich ohne horizontalen Bildlauf öffnen.</p>
+                            <p class="menu-hint menu-copy-secondary">Änderungen werden automatisch gespeichert.</p>
                         </div>
                         <div class="btn-group">
                             <button type="button" id="btn-level4-reset" class="secondary-btn"
                                 data-menu-text-id="menu.level4.reset.label"
-                                data-reset-label="Spieloptionen zurücksetzen"
-                                data-reset-confirm-label="Zum Bestätigen erneut klicken">Spieloptionen zurücksetzen</button>
+                                data-reset-label="Spiel-, Grafik- &amp; Aufnahmeoptionen zurücksetzen"
+                                data-reset-confirm-label="Zum Bestätigen erneut klicken" aria-describedby="level4-reset-scope">Spiel-, Grafik- &amp; Aufnahmeoptionen zurücksetzen</button>
                             <button type="button" id="btn-close-level4" class="secondary-btn" data-back
                                 data-back-target="submenu-game" data-menu-action="back"
                                 data-menu-text-id="menu.level4.close.label">Schließen</button>
                         </div>
                     </div>
+                    <p id="level4-reset-scope" class="menu-reset-scope">Zurücksetzen betrifft Spielgefühl, Kampf-, Portal-, Grafik-, Kamera- und Aufnahmeoptionen. Audio, HUD und Tastenbelegung bleiben erhalten.</p>
                     <div class="submenu-body level4-body">
                         <div class="level4-layout">
                             <div class="level4-section-nav" role="tablist" aria-label="Bereiche der erweiterten Optionen">
@@ -580,7 +597,11 @@
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.mobile_controls.label">Mobile</button>
                                 <button type="button" id="level4-tab-gameplay" class="level4-section-tab"
                                     data-level4-section-target="gameplay" role="tab" aria-controls="level4-section-gameplay"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.gameplay.label">Gameplay</button>
+                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.gameplay.label">Spielregeln</button>
+                                <button type="button" id="level4-tab-audio" class="level4-section-tab" data-level4-section-target="audio" role="tab" aria-controls="level4-section-audio" aria-selected="false" data-menu-text-id="menu.level4.tabs.audio.label">Audio</button>
+                                <button type="button" id="level4-tab-graphics" class="level4-section-tab" data-level4-section-target="graphics" role="tab" aria-controls="level4-section-graphics" aria-selected="false" data-menu-text-id="menu.level4.tabs.graphics.label">Grafik &amp; Kamera</button>
+                                <button type="button" id="level4-tab-recording" class="level4-section-tab" data-level4-section-target="recording" role="tab" aria-controls="level4-section-recording" aria-selected="false" data-menu-text-id="menu.level4.tabs.recording.label">Aufnahme</button>
+                                <button type="button" id="level4-tab-hud" class="level4-section-tab" data-level4-section-target="hud" role="tab" aria-controls="level4-section-hud" aria-selected="false" data-menu-text-id="menu.level4.tabs.hud.label">HUD</button>
                                 <button type="button" id="level4-tab-advanced-map" class="level4-section-tab"
                                     data-level4-section-target="advanced_map" role="tab" aria-controls="level4-section-advanced-map"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.advanced_map.label">Map-Details</button>
@@ -589,7 +610,7 @@
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.tools.label">Profile</button>
                                 <button type="button" id="level4-tab-presets" class="level4-section-tab"
                                     data-level4-section-target="presets" role="tab" aria-controls="level4-section-presets"
-                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.presets.label">Presets</button>
+                                    aria-selected="false" data-menu-text-id="menu.level4.tabs.presets.label">Vorlagen</button>
                                 <button type="button" id="level4-tab-utilities" class="level4-section-tab"
                                     data-level4-section-target="utilities" role="tab" aria-controls="level4-section-utilities"
                                     aria-selected="false" data-menu-text-id="menu.level4.tabs.utilities.label">Werkzeuge</button>
@@ -717,7 +738,18 @@
                                 </div>
                             </details>
 
-                            <details id="level4-group-audio" class="level4-option-group">
+
+
+
+
+
+
+
+                        </div>
+                        </section>
+
+                        <section id="level4-section-audio" class="level4-section-panel" data-level4-section="audio" role="tabpanel" aria-labelledby="level4-tab-audio" aria-hidden="true"><div class="menu-section"><h2 class="section-title">Audio</h2>
+                            <details id="level4-group-audio" class="level4-option-group" open>
                                 <summary>Audio</summary>
                                 <div class="level4-option-group-body">
                                     <label class="toggle-row secondary-btn-spaced">
@@ -739,8 +771,10 @@
                                     <p id="audio-settings-hint" class="field-hint">Dynamische Musik · getrennte Effekt-, Motor- und Atmosphärenmischung</p>
                                 </div>
                             </details>
+</div></section>
 
-                            <details id="level4-group-camera" class="level4-option-group">
+                        <section id="level4-section-graphics" class="level4-section-panel" data-level4-section="graphics" role="tabpanel" aria-labelledby="level4-tab-graphics" aria-hidden="true"><div class="menu-section"><h2 class="section-title">Grafik &amp; Kamera</h2>
+                            <details id="level4-group-camera" class="level4-option-group" open>
                                 <summary>Kamera &amp; Grafik</summary>
                                 <div class="level4-option-group-body">
                                     <label for="graphics-style-select" data-menu-text-id="menu.level4.graphics.style.label">Grafikstil</label>
@@ -795,8 +829,10 @@
                                     </div>
                                 </div>
                             </details>
+</div></section>
 
-                            <details id="level4-group-recording" class="level4-option-group">
+                        <section id="level4-section-recording" class="level4-section-panel" data-level4-section="recording" role="tabpanel" aria-labelledby="level4-tab-recording" aria-hidden="true"><div class="menu-section"><h2 class="section-title">Aufnahme</h2>
+                            <details id="level4-group-recording" class="level4-option-group" open>
                                 <summary>Aufnahme</summary>
                                 <div class="level4-option-group-body">
                                     <label for="recording-profile-select" data-menu-text-id="menu.level4.recording.profile.label">Aufnahmeprofil</label>
@@ -821,8 +857,10 @@
                                     <p id="cinematic-replay-library-hint" class="field-hint">F9 beendet die Aufnahme und legt sie hier zum späteren Rendern ab.</p>
                                 </div>
                             </details>
+</div></section>
 
-                            <details id="level4-group-hud" class="level4-option-group">
+                        <section id="level4-section-hud" class="level4-section-panel" data-level4-section="hud" role="tabpanel" aria-labelledby="level4-tab-hud" aria-hidden="true"><div class="menu-section"><h2 class="section-title">HUD</h2>
+                            <details id="level4-group-hud" class="level4-option-group" open>
                                 <summary>HUD</summary>
                                 <div class="level4-option-group-body">
                                     <label for="hud-scale-slider"><span data-menu-text-id="menu.level4.hud.scale.label">HUD-Größe:</span> <span id="hud-scale-label">100%</span></label>
@@ -839,8 +877,7 @@
                                     <p id="hud-appearance-hint" class="field-hint">HUD: 100% – 100% – Grün</p>
                                 </div>
                             </details>
-                        </div>
-                        </section>
+</div></section>
 
                         <section id="level4-section-advanced-map" class="level4-section-panel" data-level4-section="advanced_map"
                             role="tabpanel" aria-labelledby="level4-tab-advanced-map" aria-hidden="true">
@@ -1072,25 +1109,22 @@
                             </h2>
                             <div class="level2-mode-grid">
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="arcade"
-                                    aria-description="Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.">
+                                    aria-description="Fliege durch Sektoren, sammle Punkte und verbessere deinen Arcade-Lauf.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.arcade.label">Arcade</span>
-                                    <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
-                                        title="Schneller Einstieg mit lockerer Balance und kurzer Lernkurve.">i</span>
+                                    <span class="menu-choice-copy" data-menu-text-id="menu.level2.arcade.description">Fliege durch Sektoren, sammle Punkte und verbessere deinen Arcade-Lauf.</span>
                                 </button>
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="fight"
-                                    aria-description="Direkter Schlagabtausch im Kampfmodus mit schnellerem Tempo.">
+                                    aria-description="Kämpfe mit Waffen gegen andere Piloten und erreiche das Abschussziel.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.fight.label">Kampf</span>
-                                    <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
-                                        title="Direkter Schlagabtausch im Kampfmodus mit schnellerem Tempo.">i</span>
+                                    <span class="menu-choice-copy" data-menu-text-id="menu.level2.fight.description">Kämpfe mit Waffen gegen andere Piloten und erreiche das Abschussziel.</span>
                                 </button>
                                 <button type="button" class="mode-btn mode-path-btn menu-choice-card" data-mode-path="normal"
-                                    aria-description="Der klassische Start mit freier Wahl von Karte, Flugzeug und Regeln.">
+                                    aria-description="Weiche Hindernissen und Spuren aus und bleibe als Letzter im Rennen.">
                                     <span class="menu-choice-eyebrow">Mit Vorgabe</span>
                                     <span class="menu-choice-title" data-menu-text-id="menu.level2.normal.label">Klassisch</span>
-                                    <span class="menu-info-hint menu-choice-copy" aria-hidden="true"
-                                        title="Der klassische Start mit freier Wahl von Karte, Flugzeug und Regeln.">i</span>
+                                    <span class="menu-choice-copy" data-menu-text-id="menu.level2.normal.description">Weiche Hindernissen und Spuren aus und bleibe als Letzter im Rennen.</span>
                                 </button>
                             </div>
                         </div>
