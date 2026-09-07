@@ -189,7 +189,7 @@ function createGalleryContent() {
             const z = (rowIndex - (ROW_COUNT - 1) * 0.5) * SLOT_SPACING;
             glbModels.push(Object.freeze({
                 id: `${pack.id}/${modelName}`,
-                url: `assets/models/downloaded_cc0/${pack.id}/${modelName}.glb`,
+                url: `assets/models/${pack.id === 'pm-avatar-garden' ? 'optimized_cc0' : 'downloaded_cc0'}/${pack.id}/${modelName}.glb`,
                 position: Object.freeze([x, MODEL_BASE_Y, z]),
                 rotation: Object.freeze([0, Math.PI, 0]),
                 targetSize: MODEL_TARGET_SIZE,

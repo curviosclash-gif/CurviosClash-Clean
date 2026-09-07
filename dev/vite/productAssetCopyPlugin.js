@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 const __dirname = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', '..');
 
 const OBJ_ASSET_COPY_ENTRIES = [
+    ['assets', 'models', 'optimized_cc0'],
     ['assets', 'items'],
     ['assets', 'portals'],
     ['assets', 'trails'],

@@ -234,8 +234,7 @@ export class Arena {
         const glbModels = normalizeGLBModelCollection(buildContext.glbModels, {
             animationClock: buildContext.glbAnimationClock,
         });
-        const hasGlbCollection = glbModels.length > 0;
-        this._glbFootprint = hasGlbCollection
+        this._glbFootprint = glbModels.length > 0
             ? resolveGLBCollectionFootprint(glbModels, { colliderMode: buildContext.glbColliderMode })
             : (buildContext.glbModel
                 ? resolveGLBFootprint(buildContext.glbModel, { colliderMode: buildContext.glbColliderMode })
@@ -277,7 +276,9 @@ export class Arena {
                 this._clearAuthoredAircraftDecorations();
             }
             this._builder.compileParticleStage(buildContext.sx, buildContext.sy, buildContext.sz);
-            this._lastBuildSignature = buildContext.buildSignature;
+            // A degraded build must retry its assets on the next round instead of
+            // permanently reusing the fallback after a transient load failure.
+            this._lastBuildSignature = this._glbLoadError ? null : buildContext.buildSignature;
             return {
                 ...buildContext,
                 usedGlbModel,
@@ -287,15 +288,16 @@ export class Arena {
             };
         };
 
-        if (!buildContext.glbModel && !hasGlbCollection) {
+        if (!buildContext.glbModel && glbModels.length === 0) {
             return finalizeBuild();
         }
 
-        const glbLoad = hasGlbCollection
+        const glbLoad = glbModels.length > 0
             ? loadGLBMapCollection(glbModels, {
                 loadDelayMs: buildContext.glbLoadDelayMs,
                 concurrency: buildContext.glbLoadConcurrency,
                 placementScale: buildContext.scale,
+                requireComplete: buildContext.glbColliderMode !== 'fallbackOnly',
                 sceneName: `glbMap-${this.currentMapKey}`,
                 collectColliders: buildContext.glbColliderMode !== 'fallbackOnly',
                 colliderMode: buildContext.glbColliderMode,

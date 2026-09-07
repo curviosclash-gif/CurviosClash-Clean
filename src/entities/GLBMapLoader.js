@@ -4,6 +4,7 @@ import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationCloc
 import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
 import { normalizeAllowedGLBUrl } from './mapSchema/MapSchemaGlbOps.js';
+import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
 const DEFAULT_GLB_SHADOW_CASTER_BUDGET = 24;
@@ -360,6 +361,21 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
     };
 
     await Promise.all(Array.from({ length: concurrency }, () => loadNext()));
+
+    // A gameplay collection owns one collision layout. Mixing surviving meshes with
+    // its full fallback would block real openings; return the whole map to fallback.
+    // Editors can still preview partial collections by leaving requireComplete unset.
+    if (options.requireComplete === true && warnings.some(Boolean)) {
+        for (const loaded of loadedModels) {
+            if (!loaded) continue;
+            for (const mixer of loaded.result.animationMixers) {
+                mixer.stopAllAction();
+                mixer.uncacheRoot(mixer.getRoot());
+            }
+            disposeObject3DResources(loaded.result.scene);
+        }
+        throw new Error(`Incomplete GLB collection: ${warnings.filter(Boolean).join('; ')}`);
+    }
 
     const scene = new THREE.Group();
     scene.name = String(options.sceneName || 'glbMapCollection');

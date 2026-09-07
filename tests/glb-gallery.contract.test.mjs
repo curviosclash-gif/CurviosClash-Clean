@@ -3,6 +3,7 @@ import { existsSync } from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
 import * as THREE from 'three';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 
 import {
     GLB_GALLERY_MAPS,
@@ -114,6 +115,38 @@ test('GLB collection loader limits concurrency, normalizes slots and tolerates p
     disposeObject3DResources(result.scene);
 });
 
+test('required collections dispose successful siblings before falling back and can retry cleanly', async () => {
+    let fail = true;
+    let disposed = 0;
+    const loader = { async loadAsync(url) {
+        await Promise.resolve();
+        if (fail && url.includes('broken')) throw new Error('missing architecture');
+        const geometry = new THREE.BoxGeometry(2, 2, 2);
+        const material = new THREE.MeshBasicMaterial({ map: new THREE.Texture() });
+        for (const resource of [geometry, material, material.map]) {
+            resource.addEventListener('dispose', () => { disposed++; });
+        }
+        const scene = new THREE.Group();
+        scene.add(new THREE.Mesh(geometry, material));
+        return { scene, animations: [new THREE.AnimationClip('move', 1, [
+            new THREE.NumberKeyframeTrack('.position[x]', [0, 1], [0, 1]),
+        ])] };
+    } };
+    const models = [{ url: '/good.glb' }, { url: '/broken.glb' }];
+    await assert.rejects(loadGLBMapCollection(models, { loader, requireComplete: true }), /Incomplete GLB collection/);
+    assert.equal(disposed, 3, 'geometry, material and texture of the surviving sibling are released');
+    fail = false;
+    const retry = await loadGLBMapCollection(models, { loader, requireComplete: true });
+    assert.equal(retry.loadedCount, 2);
+    assert.deepEqual(retry.warnings, []);
+    for (const mixer of retry.animationMixers) {
+        mixer.stopAllAction();
+        mixer.uncacheRoot(mixer.getRoot());
+    }
+    disposeObject3DResources(retry.scene);
+    assert.equal(disposed, 9);
+});
+
 test('GLB animation playback uses the first exported clip and is owned by the arena lifecycle', async () => {
     const scene = new THREE.Group();
     const animatedNode = new THREE.Object3D();
@@ -210,6 +243,46 @@ test('partial GLB collection warnings keep collision-only authored visuals as fa
         loadWarnings: ['all models failed'],
         map,
     }), false);
+});
+
+test('a partially missing gameplay collection uses visible fallback and retries on restart', async (t) => {
+    let broken = true;
+    let disposed = 0;
+    t.mock.method(GLTFLoader.prototype, 'loadAsync', async (url) => {
+        if (broken && url.includes('missing')) throw new Error('missing wall');
+        const scene = new THREE.Group();
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        geometry.addEventListener('dispose', () => { disposed++; });
+        scene.add(new THREE.Mesh(geometry, new THREE.MeshBasicMaterial()));
+        return { scene };
+    });
+    const arena = new Arena({
+        addToScene() {}, removeFromScene() {}, setMapLighting() {}, setShadowCoverage() {},
+        getGraphicsStyle() { return 'modern'; }, getMaxAnisotropy() { return 1; },
+    });
+    arena.runtimeMapKey = 'partial-map';
+    arena.runtimeMapDefinition = {
+        size: [40, 24, 40], glbColliderMode: 'mesh', glbAuthoredObstaclesCollisionOnly: true,
+        glbModels: [{ url: '/wall.glb' }, { url: '/missing.glb' }],
+        obstacles: [{ pos: [0, 4, 0], size: [8, 8, 8] }], portals: [], gates: [],
+    };
+    try {
+        const first = await arena.build(arena.runtimeMapKey);
+        assert.equal(first.usedGlbModel, false);
+        assert.match(first.glbLoadError, /Incomplete/);
+        assert.ok(arena._mergedObstacleMesh);
+        assert.equal(arena._glbScene, null);
+        assert.equal(disposed, 1);
+        assert.equal(arena.checkCollisionFast(new THREE.Vector3(0, 4, 0), 0.1), true);
+        broken = false;
+        const retry = await arena.build(arena.runtimeMapKey);
+        assert.equal(retry.rebuildPolicy, 'rebuild');
+        assert.equal(retry.usedGlbModel, true);
+        assert.equal(retry.glbLoadError, null);
+        assert.equal(arena._glbScene.children.length, 2);
+        assert.equal(arena._mergedObstacleMesh, null);
+    } finally { arena.dispose(); }
+    assert.equal(disposed, 3);
 });
 
 test('GLB mesh colliders follow triangle geometry instead of the enclosing box', async () => {

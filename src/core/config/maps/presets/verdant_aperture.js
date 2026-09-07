@@ -21,7 +21,7 @@ const BEAT_SECONDS = 6;
 function landmark(id, pack, model, position, targetSize, rotateY = 0) {
     return {
         id: `verdant-aperture-${id}`,
-        url: `assets/models/downloaded_cc0/${pack}/${model}.glb`,
+        url: `assets/models/${pack === 'pm-avatar-garden' ? 'optimized_cc0' : 'downloaded_cc0'}/${pack}/${model}.glb`,
         position,
         rotation: [0, rotateY, 0],
         targetSize,
@@ -251,8 +251,8 @@ export const VERDANT_APERTURE_MAP = {
         items: [
             // Rockets sit behind the traveling openings: the rocket is the only weapon the moving
             // geometry actually affects, so reading an opening has to be what earns one.
-            { id: 'verdant_rocket_west', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 60, z: -45, weight: 1.2 },
-            { id: 'verdant_rocket_east', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 45, y: 60, z: 45, weight: 1.2 },
+            { id: 'verdant_rocket_west', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 64, z: -35, weight: 1.2 },
+            { id: 'verdant_rocket_east', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 45, y: 64, z: 35, weight: 1.2 },
             { id: 'verdant_rocket_heart', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: 70, z: 0, weight: 0.6 },
             { id: 'verdant_rocket_bloom', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -45, y: 118, z: 45, weight: 0.9 },
             // Shields in the open crown hall, where the MG rules and cover does not help.
@@ -263,7 +263,7 @@ export const VERDANT_APERTURE_MAP = {
             { id: 'verdant_speed_roof', type: 'item_battery', pickupType: 'SPEED_UP', x: -80, y: 132, z: 0, weight: 1.0 },
             { id: 'verdant_ghost_cellar', type: 'item_coin', pickupType: 'GHOST', x: 0, y: 26, z: 60, weight: 0.8 },
             { id: 'verdant_thick_roof', type: 'item_coin', pickupType: 'THICK', x: 80, y: 132, z: 0, weight: 0.8 },
-            { id: 'verdant_rare_heart', type: 'item_crystal', pickupType: 'SHIELD', x: 0, y: 74, z: 0, weight: 0.5 },
+            { id: 'verdant_rare_heart', type: 'item_crystal', pickupType: 'SHIELD', x: 0, y: 74, z: 12, weight: 0.5 },
         ],
         aircraft: [
             { id: 'verdant_wreck_cellar', jetId: 'ship6', x: -104, y: 20, z: 40, scale: 1.1, rotateY: 0.9 },

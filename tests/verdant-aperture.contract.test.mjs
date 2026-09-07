@@ -152,11 +152,12 @@ test('rocket pickups sit at the level joins the movement actually gates', () => 
     const rockets = map.items.filter((item) => item.type === 'item_rocket');
     assert.ok(rockets.length >= 3, 'the map hands out rockets as its signature reward');
 
-    const joinColumns = new Set(setpieces()
+    const joinColumns = setpieces()
         .filter((model) => model.position[1] === ROOT_DECK_Y || model.position[1] === CROWN_DECK_Y)
-        .map((model) => `${model.position[0]}/${model.position[2]}`));
+        .map((model) => [model.position[0], model.position[2]]);
 
-    const atJoin = rockets.filter((item) => joinColumns.has(`${item.x}/${item.z}`));
+    // Rewards sit just beyond the join, clear of the crown's static walls.
+    const atJoin = rockets.filter((item) => joinColumns.some(([x, z]) => Math.hypot(item.x - x, item.z - z) <= 10));
     assert.ok(
         atJoin.length >= 3,
         `most rockets sit under or above a gated join, got ${atJoin.length} of ${rockets.length}`,
