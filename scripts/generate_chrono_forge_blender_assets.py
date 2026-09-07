@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Generate the animated, collision-free Chrono-Forge Nexus setpieces."""
+"""Generate the animated Chrono-Forge Nexus setpieces and their editable sources."""
 
+import argparse
 from math import cos, pi, sin
 from pathlib import Path
+import sys
 
 import bpy
 
@@ -35,7 +37,7 @@ def reset_scene(name, duration_seconds):
     return scene
 
 
-def material(name, color, emission_strength=0.0, metallic=0.7):
+def material(name, color, emission_strength=0.0, metallic=0.7, roughness=0.28):
     value = bpy.data.materials.get(name) or bpy.data.materials.new(name)
     value.diffuse_color = color
     value.use_nodes = True
@@ -44,7 +46,7 @@ def material(name, color, emission_strength=0.0, metallic=0.7):
     metallic_input = shader.inputs.get("Metallic IOR Level") or shader.inputs.get("Metallic")
     if metallic_input:
         metallic_input.default_value = metallic
-    shader.inputs["Roughness"].default_value = 0.28
+    shader.inputs["Roughness"].default_value = roughness
     if emission_strength > 0:
         shader.inputs["Emission Color"].default_value = color
         shader.inputs["Emission Strength"].default_value = emission_strength
@@ -213,11 +215,78 @@ def build_chronometer(scene, mats):
 
 
 def build_temple_gates(scene, mats):
-    cube("temple_arch_top", (0, 0, 6.4), (5.5, 0.8, 0.7), mats["brass"])
-    cube("temple_arch_left", (-4.8, 0, 3.0), (0.7, 0.8, 3.4), mats["brass"])
-    cube("temple_arch_right", (4.8, 0, 3.0), (0.7, 0.8, 3.4), mats["brass"])
-    left = cube("temple_gate_left", (-2.25, 0, 3.0), (2.15, 0.35, 2.8), mats["blue"])
-    right = cube("temple_gate_right", (2.25, 0, 3.0), (2.15, 0.35, 2.8), mats["orange"])
+    bronze = material("TempleBrushedBronze", (0.46, 0.23, 0.07, 1), metallic=0.8, roughness=0.38)
+    iron = material("TempleForgedIron", (0.045, 0.07, 0.095, 1), metallic=0.65, roughness=0.62)
+    inset = material("TempleCeramicInset", (0.11, 0.15, 0.18, 1), metallic=0.1, roughness=0.82)
+    blue = material("TempleBlueSignal", BLUE, 1.4, 0.15, roughness=0.42)
+    amber = material("TempleAmberSignal", ORANGE, 1.4, 0.15, roughness=0.42)
+
+    # Keep the original outer silhouette: targetSize placement depends on its bounds.
+    for name, location, scale in (
+        ("top", (0, 0, 6.4), (5.5, 0.8, 0.7)),
+        ("left", (-4.8, 0, 2.65), (0.7, 0.8, 3.05)),
+        ("right", (4.8, 0, 2.65), (0.7, 0.8, 3.05)),
+    ):
+        arch = cube(f"temple_arch_{name}", location, scale, bronze)
+        bevel = arch.modifiers.new("Soft machined edges", "BEVEL")
+        bevel.width = 0.09
+        bevel.segments = 2
+        bpy.context.view_layer.objects.active = arch
+        bpy.ops.object.modifier_apply(modifier=bevel.name)
+
+    # The two original cuboids remain the only moving collision surfaces. Decorative
+    # panels follow their parent, but never add invisible bumps to the flight opening.
+    left = cube("temple_gate_left", (-2.25, 0, 3.0), (2.15, 0.35, 2.8), iron)
+    right = cube("temple_gate_right", (2.25, 0, 3.0), (2.15, 0.35, 2.8), iron)
+    detail_groups = {}
+
+    def detail(parent, location, scale, mat, angle=0):
+        obj = cube("temple_detail", location, scale, mat)
+        obj.parent = parent
+        obj.rotation_euler[1] = angle
+        detail_groups.setdefault((parent, mat), []).append(obj)
+
+    # Matching front/back markings keep the gate readable from either approach.
+    for face in (-1, 1):
+        for side, signal in ((-1, blue), (1, amber)):
+            detail(None, (side * 4.8, face * 0.81, 3), (0.48, 0.025, 2.65), iron)
+            detail(None, (side * 4.8, face * 0.85, 3), (0.07, 0.018, 2.25), signal)
+            for z in (0.35, 5.5):
+                detail(None, (side * 4.8, face * 0.855, z), (0.5, 0.02, 0.08), inset)
+        detail(None, (0, face * 0.81, 6.4), (3.9, 0.025, 0.4), iron)
+        for x in (-0.42, 0, 0.42):
+            detail(None, (x, face * 0.855, 6.4), (0.065, 0.02, 0.25), bronze)
+
+        for leaf, side, signal in ((left, -1, blue), (right, 1, amber)):
+            detail(leaf, (0, face * 0.37, 0), (1.78, 0.025, 2.36), inset)
+            for z in (-2.48, 2.48):
+                detail(leaf, (0, face * 0.41, z), (1.88, 0.025, 0.065), bronze)
+            for x in (-1.88, 1.88):
+                detail(leaf, (x, face * 0.41, 0), (0.065, 0.025, 2.48), bronze)
+            # Bright inner edges outline the actual opening; chevrons show leaf travel.
+            detail(leaf, (-side * 2.04, face * 0.41, 0), (0.045, 0.02, 2.5), signal)
+            for offset in (-0.55, 0.55):
+                for upper in (-1, 1):
+                    detail(leaf, (offset, face * 0.425, upper * 0.28),
+                           (0.4, 0.02, 0.06), signal, side * upper * pi / 4)
+            for z in (-1.65, 1.65):
+                for x in (-0.7, 0, 0.7):
+                    detail(leaf, (x, face * 0.41, z), (0.2, 0.02, 0.035), iron)
+
+    # Batch details by material and moving parent, keeping draw calls and collider work
+    # bounded even though the authored Blender model has many small mechanical parts.
+    bpy.context.view_layer.update()
+    for (parent, mat), objects in detail_groups.items():
+        bpy.ops.object.select_all(action="DESELECT")
+        for obj in objects:
+            obj.select_set(True)
+        bpy.context.view_layer.objects.active = objects[0]
+        bpy.ops.object.join()
+        joined = objects[0]
+        prefix = parent.name if parent else "temple_arch"
+        joined.name = f"{prefix}_detail_{mat.name}_noshadow_nocol"
+        joined.data.name = f"{joined.name}_mesh"
+
     first, quarter, third_quarter, last = scene.frame_start, 1 + 2 * FPS, 1 + 8 * FPS, scene.frame_end
     for obj, closed_x, open_x in ((left, -2.25, -4.0), (right, 2.25, 4.0)):
         keyframe(obj, first, location=(closed_x, 0, 3.0))
@@ -341,10 +410,15 @@ def export_setpiece(file_stem, clip_name, duration, builder):
 
 
 def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--setpiece", action="append", choices=[entry[0] for entry in SETPIECES],
+                        help="Generate only this setpiece; repeat to select more than one.")
+    args = parser.parse_args(sys.argv[sys.argv.index("--") + 1:] if "--" in sys.argv else [])
     SOURCE_DIR.mkdir(parents=True, exist_ok=True)
     GLB_DIR.mkdir(parents=True, exist_ok=True)
     for setpiece in SETPIECES:
-        export_setpiece(*setpiece)
+        if not args.setpiece or setpiece[0] in args.setpiece:
+            export_setpiece(*setpiece)
 
 
 if __name__ == "__main__":
