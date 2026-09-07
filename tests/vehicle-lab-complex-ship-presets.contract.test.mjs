@@ -3,6 +3,13 @@ import test from 'node:test';
 
 import { VEHICLE_PRESETS } from '../prototypes/vehicle-lab/src/VehiclePresets.js';
 import {
+    VEHICLE_DEFINITIONS,
+    createVehicleMesh,
+    getVehicleIds,
+    listVehicleDescriptors,
+} from '../src/entities/vehicle-registry.js';
+import { RuntimeModularVehicleMesh } from '../src/entities/runtime-modular-vehicle-mesh.js';
+import {
     VEHICLE_LAB_HITBOX_MIN_RADIUS,
     estimateVehicleLabHitboxRadius,
     normalizeVehicleLabConfig,
@@ -52,6 +59,26 @@ test('Vehicle Lab ships the complete complex fleet with stable unique ids', () =
     const ships = getComplexShips();
     assert.equal(new Set(ships.map((ship) => ship.id)).size, COMPLEX_SHIP_IDS.length);
     assert.deepEqual(ships.map((ship) => ship.id), [...COMPLEX_SHIP_IDS]);
+});
+
+test('complex fleet is built into the productive game vehicle registry', () => {
+    const ids = getVehicleIds();
+    const descriptors = listVehicleDescriptors();
+
+    for (const id of COMPLEX_SHIP_IDS) {
+        const definition = VEHICLE_DEFINITIONS.find((candidate) => candidate.id === id);
+        const descriptor = descriptors.find((candidate) => candidate.id === id);
+        assert.ok(ids.includes(id), `${id}: nicht in der Spielauswahl`);
+        assert.ok(definition, `${id}: keine Runtime-Definition`);
+        assert.equal(definition.isBuiltIn, true, `${id}: nicht als eingebaut markiert`);
+        assert.equal(descriptor?.isGeneratedModular, true, `${id}: nicht modular`);
+        assert.doesNotMatch(definition.label, /^Lab-Vorlage:/, `${id}: Werkzeuglabel im Spiel`);
+
+        const mesh = createVehicleMesh(id, 0x60a5fa);
+        assert.ok(mesh instanceof RuntimeModularVehicleMesh, `${id}: falscher Mesh-Typ`);
+        assert.equal(mesh.config.id, id);
+        mesh.dispose();
+    }
 });
 
 test('complex fleet presets contain nested, animated, role-complete assemblies', () => {
