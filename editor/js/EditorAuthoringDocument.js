@@ -69,7 +69,7 @@ export function normalizeWorkspaceMetadata(value = {}) {
     return result;
 }
 
-export function createEditorAuthoringDocument({ map, workspaceMetadata = {}, layerState = {}, viewState = null } = {}) {
+export function createEditorAuthoringDocument({ map = null, workspaceMetadata = {}, layerState = {}, viewState = null, playerSpawnPlaced = null } = {}) {
     if (!map || typeof map !== 'object' || Array.isArray(map)) {
         throw new Error('Editor-Dokument benoetigt ein gueltiges Map-Objekt.');
     }
@@ -77,6 +77,7 @@ export function createEditorAuthoringDocument({ map, workspaceMetadata = {}, lay
         contractVersion: EDITOR_AUTHORING_DOCUMENT_VERSION,
         map,
         authoring: {
+            ...(typeof playerSpawnPlaced === 'boolean' ? { playerSpawnPlaced } : {}),
             workspaceMetadata: normalizeWorkspaceMetadata(workspaceMetadata),
             layerState: normalizeLayerState(layerState),
             viewState: viewState && typeof viewState === 'object' ? viewState : null,
@@ -102,6 +103,7 @@ export function parseEditorAuthoringDocument(input) {
 
     return {
         isAuthoringDocument: true,
+        playerSpawnPlaced: typeof value.authoring?.playerSpawnPlaced === 'boolean' ? value.authoring.playerSpawnPlaced : null,
         map: value.map,
         workspaceMetadata: normalizeWorkspaceMetadata(value.authoring?.workspaceMetadata),
         layerState: normalizeLayerState(value.authoring?.layerState),

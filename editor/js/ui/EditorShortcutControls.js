@@ -24,20 +24,24 @@ export function bindEditorShortcutControls(editor) {
 
     const transformButtons = Array.from(document.querySelectorAll('[data-transform-mode]'));
     const syncTransformModeUi = () => {
-        const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
+        const selected = editor.core.transformControl.object?.userData?.editorGroupPivot
+            ? editor.core.transformControl.object
+            : (editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null);
         const attached = !!selected && editor.core.transformControl.object === selected;
         const mode = editor.core.transformControl.mode;
         transformButtons.forEach((button) => {
             const buttonMode = button.dataset.transformMode;
-            button.disabled = !attached || (buttonMode === 'scale' && !editor.mapManager?.canScaleObject?.(selected));
+            button.disabled = !attached || (buttonMode === 'scale' && !selected?.userData?.editorGroupPivot && !editor.mapManager?.canScaleObject?.(selected));
             button.classList.toggle('active', attached && buttonMode === mode);
             button.setAttribute('aria-pressed', String(attached && buttonMode === mode));
         });
     };
     const setTransformMode = (mode) => {
-        const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
+        const selected = editor.core.transformControl.object?.userData?.editorGroupPivot
+            ? editor.core.transformControl.object
+            : (editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null);
         if (!selected || editor.core.transformControl.object !== selected) return false;
-        if (mode === 'scale' && !editor.mapManager?.canScaleObject?.(selected)) {
+        if (mode === 'scale' && !selected?.userData?.editorGroupPivot && !editor.mapManager?.canScaleObject?.(selected)) {
             editor.notify?.('Dieser Objekttyp besitzt keine speicherbare Skalierung.', 'warn');
             syncTransformModeUi();
             return false;

@@ -1,3 +1,4 @@
+import { pickEditorObject } from './EditorRaySelection.js';
 import * as THREE from 'three';
 import { getCurrentToolSubtype, getYLayerValue, isYLayerEnabled } from './EditorFormState.js';
 
@@ -34,12 +35,14 @@ export function bindEditorCanvasInteractionControls(editor) {
     editor.core.transformControl.addEventListener('dragging-changed', (e) => {
         isDraggingTransform = e.value;
         if (e.value) {
+            if (editor.beginGroupTransform?.()) return;
             const activeObject = editor.core.transformControl.object;
             const managed = editor.mapManager?.resolveManagedObject?.(activeObject) || activeObject;
             if (managed && editor.isManagedObjectAlive(managed)) {
                 editor.beginHistoryGesture('transform', `Transform ${managed.userData?.type || 'object'}`);
             }
         } else {
+            editor.endGroupTransform?.();
             editor.commitHistoryGesture('transform');
             editor.mapManager?.queueSceneUiRefresh?.();
         }
@@ -48,6 +51,7 @@ export function bindEditorCanvasInteractionControls(editor) {
     editor.core.transformControl.addEventListener('objectChange', () => {
         const activeObject = editor.core.transformControl.object;
         if (!activeObject) return;
+        if (editor.applyGroupTransform?.()) return;
 
         const managedObject = editor.mapManager?.notifyObjectMutated?.(activeObject, {
             workspace: false,
@@ -98,19 +102,9 @@ export function bindEditorCanvasInteractionControls(editor) {
         editor.raycaster.setFromCamera(editor.mouse, editor.core.camera);
 
         if (editor.currentTool === "select") {
-            const groundPosition = getGroundPos(e);
-            const nearbyObjects = groundPosition
-                ? editor.mapManager?.queryObjectsNear?.(groundPosition, 900) || []
-                : [];
-            const selectionCandidates = nearbyObjects.length > 0
-                ? nearbyObjects
-                : editor.core.objectsContainer.children;
-            const intersects = editor.raycaster.intersectObjects(selectionCandidates, true);
-            if (intersects.length > 0) {
-                editor.selectObject(editor.resolveSelectableObject(intersects[0].object));
-            } else {
-                editor.selectObject(null);
-            }
+            const object = pickEditorObject(editor);
+            if (e.shiftKey && object) editor.toggleMarkedObject?.(object);
+            else { editor.clearMarkedObjects?.(); editor.selectObject(object); }
             return;
         }
 

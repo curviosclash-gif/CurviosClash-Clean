@@ -16,6 +16,11 @@ const editorDisk = Object.freeze({
     getVehicle: (payload) => request('get-vehicle', payload),
     renameVehicle: (payload) => request('rename-vehicle', payload),
     deleteVehicle: (payload) => request('delete-vehicle', payload),
+    onDownloadCompleted(callback) {
+        const listener = (_event, result) => callback(result);
+        ipcRenderer.on('editor-download:completed', listener);
+        return () => ipcRenderer.removeListener('editor-download:completed', listener);
+    },
 });
 
 contextBridge.exposeInMainWorld('__CURVIOS_EDITOR_DISK__', editorDisk);
