@@ -8,7 +8,7 @@ import {
 } from '../../../../../../src/entities/ai/observation/ObservationSchemaV2.js';
 import { deriveTrainingDomain } from '../../../state/training/TrainingDomain.js';
 import { TRAINING_CONTRACT_VERSION as TRAINING_CONTRACT_VERSION_SHARED } from '../../../shared/contracts/TrainingRuntimeContract.js';
-import { toFiniteNumber } from '../../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../../src/shared/utils/MathOps.js';
 
 export const TRAINING_CONTRACT_VERSION = TRAINING_CONTRACT_VERSION_SHARED;
 export const TRAINING_OPERATION_RESET = 'reset';

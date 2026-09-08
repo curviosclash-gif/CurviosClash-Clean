@@ -5,7 +5,7 @@
 import { OBSERVATION_LENGTH_V1 } from '../../../../src/entities/ai/observation/ObservationSchemaV1.js';
 import { TrainingTransportFacade } from '../entities/ai/training/TrainingTransportFacade.js';
 import { encodeModeId } from '../../../../src/shared/contracts/EntityModeContract.js';
-import { toFiniteNumber } from '../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../src/shared/utils/MathOps.js';
 
 const DEFAULT_TRAINING_MODE = 'classic';
 const DEFAULT_MATCH_ID = 'developer-training';

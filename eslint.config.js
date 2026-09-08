@@ -119,7 +119,6 @@ export default [
                 { type: 'mobile', pattern: 'src/mobile-*/**/*.js', mode: 'file' },
                 { type: 'product', pattern: 'src/product/**/*.js', mode: 'file' },
                 { type: 'dev-tuning', pattern: 'src/dev/**/*.js', mode: 'file' },
-                { type: 'utils', pattern: 'src/utils/**/*.js', mode: 'file' },
                 { type: 'contracts', pattern: 'src/shared/contracts/**/*.js', mode: 'file' },
                 { type: 'shared', pattern: 'src/shared/**/*.js', mode: 'file' }
             ],

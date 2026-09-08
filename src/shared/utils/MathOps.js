@@ -4,6 +4,16 @@
 
 /**
  * Clamp a numeric value to [min, max]. Non-finite inputs return min.
+ *
+ * This differs from the hand-written clamps still scattered through the code
+ * base, and the difference is deliberate. The common local form
+ * `Math.min(max, Math.max(min, value))` propagates NaN, so a broken input
+ * silently travels on as NaN; this one substitutes min instead. The local
+ * forms also disagree with each other when min > max. Replacing a local copy
+ * with this function is therefore a behaviour change, not a cleanup — check
+ * what the call site does with a non-finite value before switching it over.
+ * See tests/shared-math-and-normalize.contract.test.mjs, which pins both.
+ *
  * @param {number} value
  * @param {number} min
  * @param {number} max

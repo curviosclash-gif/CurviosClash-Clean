@@ -2,7 +2,7 @@ import {
     MOBILE_CLASSIC_TILT_SENSITIVITY_LIMITS,
     normalizeMobileClassicControlSettings,
 } from '../../shared/contracts/MobileClassicControlsContract.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 
 function ensureMobileControls(settings) {
     if (!settings.localSettings || typeof settings.localSettings !== 'object') {

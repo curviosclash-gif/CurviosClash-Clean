@@ -1,4 +1,4 @@
-import { clamp01 } from '../utils/MathOps.js';
+import { clamp01 } from '../shared/utils/MathOps.js';
 import { createHuntHudDomRefs } from './dom/HuntHudDomRefs.js';
 import {
     HUD_ARC_SEGMENT_COUNT,

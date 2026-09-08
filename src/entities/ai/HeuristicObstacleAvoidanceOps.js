@@ -9,7 +9,7 @@ import {
     WALL_DISTANCE_UP,
 } from './observation/ObservationSchemaV1.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 import { readObservationValue } from './HeuristicBotPolicyOps.js';
 
 export function resolveBoostPressureCeiling(baseCeiling, profile) {

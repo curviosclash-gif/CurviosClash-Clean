@@ -2,7 +2,7 @@
 // ObservationNormalizeOps.js - normalization helpers for bot observations
 // ============================================
 
-import { clamp, clamp01 } from '../../../utils/MathOps.js';
+import { clamp, clamp01 } from '../../../shared/utils/MathOps.js';
 export { clamp, clamp01 };
 
 export function toBinaryFlag(value) {

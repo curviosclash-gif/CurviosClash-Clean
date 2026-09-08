@@ -9,7 +9,7 @@ import {
     pushLatencySample,
     pushTelemetrySample,
 } from './WebSocketTrainerBridgeTelemetry.js';
-import { clamp } from '../../../../../../src/utils/MathOps.js';
+import { clamp } from '../../../../../../src/shared/utils/MathOps.js';
 function toSafeUrl(value, fallback) {
     return typeof value === 'string' && value.trim() ? value.trim() : fallback;
 }

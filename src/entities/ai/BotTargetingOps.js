@@ -3,7 +3,7 @@
 // ============================================
 
 import { PERCEPTION_THRESHOLDS } from './perception/EnvironmentSamplingOps.js';
-import { clamp01 } from '../../utils/MathOps.js';
+import { clamp01 } from '../../shared/utils/MathOps.js';
 
 const TARGET_RETAIN_BONUS = 0.08;
 const TARGET_SWITCH_MARGIN = 0.015;

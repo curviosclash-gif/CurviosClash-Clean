@@ -18,7 +18,7 @@ import {
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
-import { clamp } from '../utils/MathOps.js';
+import { clamp } from '../shared/utils/MathOps.js';
 export { clamp };
 
 export function resolveHealthRatio(player) {

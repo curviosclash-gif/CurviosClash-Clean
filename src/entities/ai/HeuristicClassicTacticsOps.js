@@ -19,7 +19,7 @@ import {
     isRocketPickupType,
     normalizePickupType,
 } from '../PickupRegistry.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 import { BOT_ITEM_RULES } from './BotTuningConfig.js';
 import { hasYaw, readObservationValue, resolveSelectedItemIndex } from './HeuristicBotPolicyOps.js';
 import { resolveBoostPressureCeiling } from './HeuristicBotSafetyOps.js';

@@ -21,7 +21,7 @@ import {
 } from '../../../../../../src/entities/ai/observation/ObservationSchemaV1.js';
 import { TrainingTransportFacade } from './TrainingTransportFacade.js';
 import { encodeModeId } from '../../../../../../src/shared/contracts/EntityModeContract.js';
-import { clamp01 } from '../../../../../../src/utils/MathOps.js';
+import { clamp01 } from '../../../../../../src/shared/utils/MathOps.js';
 import {
     TRAINING_AUTOMATION_RUN_CONTRACT_VERSION,
     buildTrainingKpiSnapshot,

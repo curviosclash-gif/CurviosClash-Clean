@@ -1,4 +1,4 @@
-import { toFiniteNumber } from '../../utils/MathOps.js';
+import { toFiniteNumber } from '../utils/MathOps.js';
 
 export const MG_TRAIL_AIM_RADIUS_LIMITS = Object.freeze({ min: 0.2, max: 6 });
 export const FIGHT_MG_DAMAGE_LIMITS = Object.freeze({ min: 4, max: 20 });

@@ -3,7 +3,7 @@ import {
     liftObservationWithRuntimeNearContext,
 } from '../observation/RuntimeNearObservationAdapter.js';
 import { OBSERVATION_SCHEMA_VERSION_V2 } from '../observation/ObservationSchemaV2.js';
-import { toFiniteNumber } from '../../../utils/MathOps.js';
+import { toFiniteNumber } from '../../../shared/utils/MathOps.js';
 
 export const RUNTIME_INFERENCE_DOMAIN_VERSION = 'mode-planar-control-v2';
 

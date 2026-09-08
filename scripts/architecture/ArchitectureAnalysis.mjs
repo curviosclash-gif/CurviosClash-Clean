@@ -466,7 +466,6 @@ function classifyEdgeViolations(edges) {
             edge.from.startsWith('src/shared/contracts/')
             && edge.to.startsWith('src/')
             && !edge.to.startsWith('src/shared/')
-            && !edge.to.startsWith('src/utils/')
         ) {
             sharedContractsToImplementationImports.push({
                 ...edge,

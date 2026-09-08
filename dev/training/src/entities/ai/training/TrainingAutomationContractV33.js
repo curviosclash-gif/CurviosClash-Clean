@@ -3,7 +3,7 @@
 // ============================================
 
 import { deriveTrainingDomain } from '../../../state/training/TrainingDomain.js';
-import { toFiniteNumber } from '../../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../../src/shared/utils/MathOps.js';
 import {
     DEFAULT_TRAINING_ENVIRONMENT_PROFILE,
     normalizeTrainingEnvironmentProfile,

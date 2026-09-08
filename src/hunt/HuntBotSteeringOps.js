@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
-import { clamp } from '../utils/MathOps.js';
+import { clamp } from '../shared/utils/MathOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 

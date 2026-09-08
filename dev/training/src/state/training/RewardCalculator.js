@@ -28,7 +28,7 @@
 // Trainer clamps rewards to [-rewardClamp, +rewardClamp] (default +-10)
 // ============================================
 
-import { toFiniteNumber } from '../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../src/shared/utils/MathOps.js';
 
 const REWARD_PRECISION = 1_000_000;
 

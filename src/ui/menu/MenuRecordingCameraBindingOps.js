@@ -4,7 +4,7 @@ import {
     CAMERA_PERSPECTIVE_MODE,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { RECORDING_CAPTURE_PROFILE, RECORDING_HUD_MODE } from '../../shared/contracts/RecordingCaptureContract.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 
 export function resolveRecordingProfileLabel(profile) {
     if (profile === RECORDING_CAPTURE_PROFILE.CINEMATIC) return 'Cinematic Replay Render';

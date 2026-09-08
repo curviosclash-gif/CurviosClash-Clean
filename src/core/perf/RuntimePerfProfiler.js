@@ -1,4 +1,4 @@
-import { toFiniteNumber } from '../../utils/MathOps.js';
+import { toFiniteNumber } from '../../shared/utils/MathOps.js';
 import { createLogger } from '../../shared/logging/Logger.js';
 
 const logger = createLogger('PerfSpike');
