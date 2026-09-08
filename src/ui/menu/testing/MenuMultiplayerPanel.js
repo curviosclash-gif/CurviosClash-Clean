@@ -27,6 +27,7 @@ import { resolveMenuCatalogText } from '../MenuTextCatalog.js';
 import { renderLobbyView, updateLobbyView, disposeLobbyView } from './MenuLobbyRenderer.js';
 import { createMenuMultiplayerDiscoveryPort } from '../multiplayer/MenuMultiplayerDiscoveryPort.js';
 import { createMenuMultiplayerHostIpResolver } from '../multiplayer/MenuMultiplayerHostIpResolver.js';
+import { normalizeString } from '../../../shared/contracts/ContractNormalizeUtils.js';
 
 const MULTIPLAYER_MAX_PLAYERS = 10;
 
@@ -37,11 +38,6 @@ const PANEL_VIEW = Object.freeze({
     JOIN_LOBBY: 'join_lobby',
     DISCOVERY: 'discovery',
 });
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);

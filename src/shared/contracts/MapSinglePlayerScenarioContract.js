@@ -1,13 +1,10 @@
+import { normalizeString } from './ContractNormalizeUtils.js';
+
 const VALID_MODE_PATHS = new Set(['normal', 'arcade', 'fight']);
 const VALID_GAME_MODES = new Set(['CLASSIC', 'HUNT', 'ARCADE']);
 const VALID_BOT_ROLES = new Set(['guard', 'flanker', 'pursuer', 'interceptor']);
 const VALID_TURRET_WEAPONS = new Set(['mg', 'rocket']);
 const VALID_TURRET_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY']);
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 export function resolveMapSinglePlayerScenario(mapDefinition = null) {
     const source = mapDefinition?.singlePlayerScenario;

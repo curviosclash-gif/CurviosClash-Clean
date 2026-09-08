@@ -3,6 +3,7 @@ import { SETTINGS_CHANGE_KEYS } from '../SettingsChangeKeys.js';
 import { findFixedMenuPresetById } from './MenuPresetCatalog.js';
 import { MENU_DEVELOPER_ACCESS_MODES } from './MenuStateContracts.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import {
     isMapEligibleForModePath,
     resolveModePathFallbackMapKey,
@@ -76,11 +77,6 @@ const MENU_COMPATIBILITY_RULE_TRIGGER_KEYS = Object.freeze({
         SETTINGS_CHANGE_KEYS.DEVELOPER_MODE_ENABLED,
     ]),
 });
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function addChangedKey(result, key) {
     if (typeof key !== 'string' || !key.trim()) return;

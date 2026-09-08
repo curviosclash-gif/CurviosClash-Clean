@@ -1,3 +1,5 @@
+import { normalizeString } from './ContractNormalizeUtils.js';
+
 export const ARCADE_SEED_STORAGE_KEY = 'cuviosclash.arcade.seed.v1';
 export const ARCADE_SEED_SCHEMA_VERSION = 'arcade-seed.v1';
 export const ARCADE_LAST_RUN_STORAGE_KEY = 'cuviosclash.arcade.last_run.v1';
@@ -5,11 +7,6 @@ export const ARCADE_LAST_RUN_SCHEMA_VERSION = 'arcade-last-run.v1';
 
 function isRecord(value) {
     return !!value && typeof value === 'object' && !Array.isArray(value);
-}
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
 }
 
 function normalizeInteger(value, fallback = 0, min = 0, max = Number.MAX_SAFE_INTEGER) {

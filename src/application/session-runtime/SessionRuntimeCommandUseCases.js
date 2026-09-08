@@ -2,13 +2,9 @@ import { SESSION_FINALIZE_TRIGGERS } from '../../shared/contracts/MatchLifecycle
 import { SESSION_RUNTIME_COMMAND_TYPES } from '../../shared/contracts/SessionRuntimeCommandContract.js';
 import { SESSION_RUNTIME_EVENT_TYPES } from '../../shared/contracts/SessionRuntimeEventContract.js';
 import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeObservability.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 const INVALID_COMMAND_ERROR_MESSAGE = 'invalid session runtime command';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function createObservedCommandInput(command = null, fallbackType = 'invalid_command') {
     const payload = command?.payload && typeof command.payload === 'object' && !Array.isArray(command.payload)

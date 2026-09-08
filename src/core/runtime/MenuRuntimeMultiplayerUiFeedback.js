@@ -1,7 +1,4 @@
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 export function setMultiplayerStatus(game, message) {
     const status = game?.ui?.multiplayerStatus;

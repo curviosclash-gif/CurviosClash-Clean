@@ -1,9 +1,5 @@
 import { GAME_STATE_IDS } from '../contracts/GameStateIds.js';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../contracts/ContractNormalizeUtils.js';
 
 function normalizeNullableString(value) {
     const normalized = normalizeString(value, '');

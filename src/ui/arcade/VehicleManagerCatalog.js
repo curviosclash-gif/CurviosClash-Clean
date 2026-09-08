@@ -1,4 +1,5 @@
 import { VEHICLE_DEFINITIONS } from '../../entities/vehicle-registry.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 const LIGHT_CATEGORY_IDS = new Set(['aircraft', 'arrow', 'drone']);
 const SPECIAL_CATEGORY_IDS = new Set(['manta', 'orb']);
@@ -38,11 +39,6 @@ const VEHICLE_MANAGER_INTERACTION_RULES = Object.freeze({
         compactListMaxWidth: 700,
     }),
 });
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);

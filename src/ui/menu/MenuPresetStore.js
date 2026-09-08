@@ -6,15 +6,11 @@ import {
 } from '../StorageKeys.js';
 import { PersistentStore } from '../base/PersistentStore.js';
 import { resolveStorePlatformOptions, loadVersionedRecord } from '../base/PersistentStoreLoadUtils.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 const MENU_PRESET_STORAGE_KEY = STORAGE_KEYS.menuPresets;
 const MENU_PRESET_STORAGE_LEGACY_KEYS = LEGACY_STORAGE_KEYS.menuPresets;
 const MENU_PRESET_STORAGE_SCHEMA_VERSION = 'menu-preset-store.v1';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function clonePreset(preset) {
     if (!preset || typeof preset !== 'object') return null;

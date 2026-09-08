@@ -1,5 +1,6 @@
 import { resolveArtifactVersionState } from '../../../shared/contracts/ArtifactVersionMigrationContract.js';
 import { isArcadeVehicleUpgradeSlot } from '../../../shared/contracts/ArcadeVehicleProfileContract.js';
+import { normalizeString } from '../../../shared/contracts/ContractNormalizeUtils.js';
 
 const VEHICLE_LOADOUT_PRESET_STORAGE_KEY = 'cuviosclash.arcade-vehicle-loadouts.v1';
 const VEHICLE_LOADOUT_PRESET_SCHEMA = 'arcade-vehicle-loadouts.v1';
@@ -17,11 +18,6 @@ function warnPersistenceFailure(contextLabel, result) {
             ? { ...result.metadata }
             : null,
     });
-}
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
 }
 
 function normalizeVehicleId(value, fallback = 'ship5') {

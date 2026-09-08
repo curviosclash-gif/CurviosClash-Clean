@@ -1,9 +1,5 @@
 import { createPlatformCapabilityDescriptor } from '../shared/contracts/PlatformCapabilityContract.js';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
 
 function toDescriptor(source = null) {
     return source && typeof source === 'object' ? source : {};

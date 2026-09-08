@@ -1,3 +1,5 @@
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+
 import {
     PLATFORM_CAPABILITY_IDS,
 } from '../../shared/contracts/PlatformCapabilityContract.js';
@@ -13,11 +15,6 @@ import {
 const BROWSER_DEMO_PROVIDER_OPTIONS = Object.freeze({
     productSurfaceId: PLATFORM_PRODUCT_SURFACE_IDS.BROWSER_DEMO,
 });
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function normalizeSaveResult(result, defaultSaved = true) {
     if (result && typeof result === 'object') {

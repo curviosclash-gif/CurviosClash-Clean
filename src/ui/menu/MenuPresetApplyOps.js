@@ -1,14 +1,11 @@
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+
 import {
     getSettingsFieldDescriptor,
     SETTINGS_PRESET_VALUE_PATHS,
 } from '../SettingsFieldRegistry.js';
 
 export const MENU_PRESET_VALUE_PATHS = SETTINGS_PRESET_VALUE_PATHS;
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function isPrimitiveEqual(left, right) {
     if (Number.isNaN(left) && Number.isNaN(right)) return true;

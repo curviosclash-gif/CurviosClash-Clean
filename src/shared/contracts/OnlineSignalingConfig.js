@@ -1,7 +1,4 @@
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from './ContractNormalizeUtils.js';
 
 export function resolveConfiguredOnlineSignalingUrl(options = {}) {
     const source = options && typeof options === 'object' ? options : {};
