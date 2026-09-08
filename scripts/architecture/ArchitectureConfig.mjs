@@ -2,28 +2,11 @@ export function createEdgeKey(fromFile, toFile) {
     return `${fromFile} -> ${toFile}`;
 }
 
-function pair(left, right) {
-    return /** @type {[string, string]} */ ([left, right]);
-}
-
 /** @type {[string, string][]} */
 const legacyStateToUiImportEntries = [];
 
 /** @type {[string, string][]} */
-const legacyUiToStateImportEntries = [
-    pair(
-        createEdgeKey('src/ui/arcade/ArcadeVehicleManager.js', 'src/state/arcade/ArcadeVehicleProfile.js'),
-        'Arcade vehicle manager still loads/saves profiles directly; awaiting contract-based refactor via ArcadeVehicleProfileContract (V58.3 follow-up).'
-    ),
-    pair(
-        createEdgeKey('src/ui/SettingsStore.js', 'src/state/storage/StoragePlatform.js'),
-        'UI settings store still reuses shared storage platform contract pending complete command/reducer storage abstraction.'
-    ),
-    pair(
-        createEdgeKey('src/ui/base/PersistentStoreLoadUtils.js', 'src/state/storage/StoragePlatform.js'),
-        'PersistentStoreLoadUtils centralises StoragePlatform construction for PersistentStore subclasses (V91 91.3.5: 4 per-store imports consolidated here).'
-    ),
-];
+const legacyUiToStateImportEntries = [];
 
 /** @type {[string, string][]} */
 const legacyCoreToUiImportEntries = [];
@@ -102,9 +85,9 @@ export const BOUNDARY_MATRIX = Object.freeze({
             currentAllowlist: 'LEGACY_UI_TO_STATE_IMPORTS',
             currentBudgetKey: 'uiToStateImportEdges',
             owner: 'UI compatibility adapters',
-            status: 'frozen-baseline',
-            targetPhase: '96.8',
-            targetState: 'no new UI-to-state imports; existing 3-edge baseline can only shrink behind command/reducer or storage contracts',
+            status: 'enforced-zero',
+            targetPhase: 'complete',
+            targetState: '0 productive imports; the former 3-edge baseline is gone because UI now reaches storage through src/shared/storage',
             preferredPaths: Object.freeze([
                 'Read-only UI snapshots',
                 'Intent commands',
