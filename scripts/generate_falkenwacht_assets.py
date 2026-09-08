@@ -36,9 +36,21 @@ MATERIALS = {
     'Blue': ((0.045, 0.15, 0.37, 1), 0, 0),
     'Red': ((0.48, 0.045, 0.026, 1), 0, 0),
     'Gold': ((0.86, 0.56, 0.12, 1), 0, 0.15),
-    'Flame': ((1, 0.34, 0.035, 1), 2.8, 0),
+    # Emission stays below 2. Above that the tone mapping clips the flame to a flat white blob and
+    # the authored colour stops being visible at all; a darker base with less strength reads as
+    # brighter fire, not dimmer.
+    'Flame': ((0.85, 0.26, 0.03, 1), 1.7, 0),
 }
 toolkit.MATERIAL_COLORS.update(MATERIALS)
+# How far each material may shade away from its authored colour. Masonry and ground carry the most
+# because they are drawn as many repeated blocks -- that is where per-element variation turns a flat
+# surface into one made of pieces. Metal and cloth vary far less in reality, and Flame is emissive,
+# which the toolkit excludes on its own.
+toolkit.MATERIAL_GRAIN.update({
+    'Stone': 0.11, 'Ashlar': 0.12, 'Mortar': 0.12, 'Paving': 0.11,
+    'Roof': 0.12, 'RoofLight': 0.12, 'Wood': 0.10, 'Planks': 0.10,
+    'Grass': 0.13, 'Earth': 0.12, 'Iron': 0.05, 'Blue': 0.06, 'Red': 0.06, 'Gold': 0.04,
+})
 fallback = []
 models = []
 
@@ -319,6 +331,9 @@ def export(stem, builder, clip=None, duration=0):
     for material in bpy.data.materials:
         if material.use_nodes:
             material.node_tree.nodes.get('Principled BSDF').inputs['Roughness'].default_value = .86
+    if not clip:
+        toolkit.bake_ambient_occlusion(list(scene.objects))
+    toolkit.prune_neutral_vertex_colors()
     lows, highs = toolkit.scene_bounds()
     position = [(lows[0]+highs[0])/2, lows[2], -(lows[1]+highs[1])/2]
     models.append({'id': f'falkenwacht-{stem}', 'url': f'assets/maps/burg_falkenwacht/glb/{stem}.glb',
@@ -330,7 +345,8 @@ def export(stem, builder, clip=None, duration=0):
     bpy.ops.export_scene.gltf(filepath=str(ASSETS/'glb'/f'{stem}.glb'), export_format='GLB',
         export_animations=bool(clip), export_animation_mode='SCENE', export_anim_scene_split_object=False,
         export_anim_slide_to_zero=True, export_yup=True, export_cameras=False, export_lights=False,
-        export_extras=True, export_apply=True)
+        export_extras=True, export_apply=True,
+        export_vertex_color='ACTIVE', export_all_vertex_colors=False)
     print(f'{stem}: {triangles} triangles, placement {position}')
 
 
