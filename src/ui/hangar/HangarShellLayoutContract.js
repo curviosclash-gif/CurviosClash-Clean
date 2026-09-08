@@ -1,3 +1,13 @@
+// ============================================
+// NICHT IN BENUTZUNG (Stand 2026-09-08)
+// ============================================
+// Entworfene Regionen- und Ablaufbeschreibung der Hangar-Oberflaeche. Kein
+// Aufrufer in `src/`; die produktive Oberflaeche baut sich in
+// `src/ui/hangar/ArcadeHangarWorkshop.js` selbst auf. Datei bleibt absichtlich
+// erhalten, zusammen mit HangarDesktopEntryContract.js und
+// HangarLifecycleContract.js, die nur von hier aus benutzt werden.
+// ============================================
+
 import {
     resolveHangarDesktopLoop,
     HANGAR_MODES,
@@ -10,8 +20,6 @@ import {
 } from './HangarSelectionWritebackContract.js';
 import { resolveDesktopHangarEntryByMode } from './HangarDesktopEntryContract.js';
 import { resolveHangarLifecycleContract } from './HangarLifecycleContract.js';
-import { listHangarVerificationTargets } from './HangarVerificationTargetContract.js';
-import { resolveArcadeVehicleManagerLegacyStatus } from './ArcadeVehicleManagerLegacyContract.js';
 import {
     resolveHangarWorkshopModule,
     resolveHangarWorkshopViewSwitch,
@@ -122,13 +130,6 @@ export const HANGAR_SHELL_MODE_REGION_EXTENSIONS = Object.freeze({
     ]),
 });
 
-export const HANGAR_SHELL_SURFACE_STATUS = Object.freeze({
-    runtimeStatus: 'productively-wired',
-    productivity: 'desktop-workshop',
-    activeProductSurface: 'src/ui/hangar/ArcadeHangarWorkshop.js',
-    note: 'ArcadeMenuSurface launches the dedicated desktop window; HangarWindowApp mounts the workshop while preserving the established selection ports.',
-});
-
 function cloneCommonRegion(region) {
     return {
         id: region.id,
@@ -171,8 +172,6 @@ export function resolveHangarShellLayout(rawMode) {
     const mode = resolveHangarMode(flow.mode);
     const desktopEntry = resolveDesktopHangarEntryByMode(mode);
     const lifecycleContract = resolveHangarLifecycleContract(mode);
-    const verificationTargets = listHangarVerificationTargets();
-    const arcadeVehicleManagerLegacy = resolveArcadeVehicleManagerLegacyStatus();
     const desktopLoop = resolveHangarDesktopLoop(mode);
     const workshopModule = resolveHangarWorkshopModule(mode);
     const workshopNavigation = resolveHangarWorkshopViewSwitch(mode);
@@ -194,13 +193,6 @@ export function resolveHangarShellLayout(rawMode) {
                 ),
             })
             : null,
-        verificationTargets: Object.freeze(
-            (Array.isArray(verificationTargets) ? verificationTargets : []).map((target) => Object.freeze({ ...target }))
-        ),
-        arcadeVehicleManagerLegacy: arcadeVehicleManagerLegacy
-            ? Object.freeze({ ...arcadeVehicleManagerLegacy })
-            : null,
-        surfaceStatus: Object.freeze({ ...HANGAR_SHELL_SURFACE_STATUS }),
         commonRegions: listHangarShellCommonRegions(),
         modeExtensions: listHangarShellModeRegionExtensions(mode),
         desktopLoop: desktopLoop

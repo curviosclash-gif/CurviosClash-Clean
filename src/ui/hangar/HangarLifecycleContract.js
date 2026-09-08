@@ -1,3 +1,13 @@
+// ============================================
+// NICHT IN BENUTZUNG (Stand 2026-09-08)
+// ============================================
+// Ableitung der Hangar-Uebergaenge aus Modus-, Fluss- und Writeback-Vertraegen.
+// Kein Aufrufer in `src/` ausser HangarShellLayoutContract.js, das selbst
+// ungenutzt ist. Datei bleibt absichtlich erhalten: der Vertragstest
+// hangar-desktop-flow prueft an ihr, dass Navigations-Ereignisse und
+// Capability-IDs projektweit zusammenpassen.
+// ============================================
+
 import {
     HANGAR_CAPABILITY_IDS,
     HANGAR_NAV_EVENTS,
