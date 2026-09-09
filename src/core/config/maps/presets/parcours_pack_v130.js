@@ -1,3 +1,5 @@
+import { WIND_CATHEDRAL_WORLD_LIGHTING, WIND_CATHEDRAL_WORLD_LIGHTS } from './world_appearance.js';
+
 const BASE_PARCOURS_RULES = Object.freeze({
     ordered: true,
     resetOnDeath: true,
@@ -412,6 +414,12 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     wind_cathedral: {
         name: 'Windkathedrale',
         size: [180, 120, 180],
+        lighting: WIND_CATHEDRAL_WORLD_LIGHTING,
+        glbModels: [{ id: 'wind-cathedral-world', url: 'assets/maps/wind_cathedral/glb/01_world.glb',
+            position: [0, -0.12, 0], scale: 1 }],
+        glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
+        lights: WIND_CATHEDRAL_WORLD_LIGHTS,
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
         portalLevels: [18, 42, 68, 92],

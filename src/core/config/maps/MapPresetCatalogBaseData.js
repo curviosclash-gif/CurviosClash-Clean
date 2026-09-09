@@ -3,11 +3,17 @@
 // ============================================
 
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
+import { STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_BASE_DATA = {
     standard: {
         name: 'Standard Arena',
         size: [80, 30, 80],
+        glbModels: [{ id: 'standard-world', url: 'assets/maps/standard/glb/01_world.glb',
+            position: [0, -0.12, 0], scale: 1 }],
+        glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
+        lighting: STANDARD_WORLD_LIGHTING,
         obstacles: [
             { pos: [0, 5, 0], size: [4, 10, 4] },
             { pos: [20, 5, 20], size: [3, 10, 3] },

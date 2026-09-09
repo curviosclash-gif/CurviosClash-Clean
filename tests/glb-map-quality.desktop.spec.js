@@ -70,7 +70,7 @@ for (const key of ['rift_bazaar', 'aether_relay', 'verdant_aperture', 'glb_galle
             await game.runtimeFacade.restartRound();
             result.reused = oldScene === arena._glbScene;
             await game.runtimeFacade.returnToMenu();
-            game.settings.mapKey = 'standard';
+            game.settings.mapKey = 'empty';
             await game.runtimeFacade.startMatch();
             result.disposed = disposed;
             result.released = arena._glbScene === null && arena._glbAnimation.trackCount === 0;

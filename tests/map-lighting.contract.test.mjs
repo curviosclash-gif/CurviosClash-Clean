@@ -144,8 +144,10 @@ test('only the selected presets define lighting and all others resolve to defaul
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'standard',
+        'wind_cathedral',
     ]);
-    assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.standard?.lighting), DEFAULT_MAP_LIGHTING);
+    assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.empty?.lighting), DEFAULT_MAP_LIGHTING);
     for (const mapKey of litMapKeys) {
         assert.deepEqual(normalizeMapLighting(MAP_PRESET_CATALOG[mapKey].lighting), MAP_PRESET_CATALOG[mapKey].lighting);
     }

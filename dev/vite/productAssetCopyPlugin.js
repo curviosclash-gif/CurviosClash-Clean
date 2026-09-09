@@ -1,4 +1,4 @@
-import { cpSync, existsSync, mkdirSync } from 'node:fs';
+import { cpSync, existsSync, mkdirSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -15,14 +15,6 @@ const OBJ_ASSET_COPY_ENTRIES = [
     ['assets', 'models', 'jets', 'cc0', 'funky_aircraft_control.obj'],
     ['assets', 'models', 'jets', 'cc0', 'pinnace_lo.obj'],
     ['assets', 'models', 'jets', 'cc0', 'spaceship_pack', 'dist', 'obj_mtl'],
-    ['assets', 'maps', 'chrono_forge', 'glb'],
-    ['assets', 'maps', 'kinetic_tide', 'glb'],
-    ['assets', 'maps', 'verdant_aperture', 'glb'],
-    ['assets', 'maps', 'notre_dame', 'glb'],
-    ['assets', 'maps', 'notre_dame_fire', 'glb'],
-    ['assets', 'maps', 'aetherion_orrery', 'glb'],
-    ['assets', 'maps', 'eiffel_tower', 'glb'],
-    ['assets', 'maps', 'burg_falkenwacht', 'glb'],
 ];
 const GLB_GALLERY_ASSET_SOURCE_DIR = path.resolve(__dirname, 'assets', 'models', 'downloaded_cc0');
 const GLB_GALLERY_ASSET_OUTPUT_SEGMENTS = ['assets', 'models', 'downloaded_cc0'];
@@ -37,7 +29,13 @@ export function copyObjVehicleAssetsPlugin() {
             resolvedOutDir = path.resolve(config.root, config.build.outDir || 'dist');
         },
         writeBundle() {
-            for (const pathSegments of OBJ_ASSET_COPY_ENTRIES) {
+            // Each map pack owns a runtime glb directory and editable sources in
+            // blender. Discover runtime packs so a new map cannot be omitted here.
+            const mapsRoot = path.resolve(__dirname, 'assets', 'maps');
+            const mapEntries = readdirSync(mapsRoot, { withFileTypes: true })
+                .filter((entry) => entry.isDirectory())
+                .map((entry) => ['assets', 'maps', entry.name, 'glb']);
+            for (const pathSegments of [...OBJ_ASSET_COPY_ENTRIES, ...mapEntries]) {
                 const sourcePath = path.resolve(__dirname, ...pathSegments);
                 if (!existsSync(sourcePath)) continue;
                 const targetPath = path.join(resolvedOutDir, ...pathSegments);
