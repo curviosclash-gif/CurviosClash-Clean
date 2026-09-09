@@ -94,6 +94,9 @@ function resolveRendererManualChunk(id, env = process.env) {
     return undefined;
 }
 
+/** Fester Entwicklungsport - siehe strictPort unten. */
+export const RENDERER_DEV_SERVER_PORT = 5173;
+
 export function createRendererShellServerConfig(env = process.env) {
     const warmupClientFiles = resolvePlaywrightWarmupClientFiles(env);
     const isPlaywright = !!env?.PW_RUN_TAG;
@@ -101,6 +104,16 @@ export function createRendererShellServerConfig(env = process.env) {
     return {
         open: !isPlaywright && !env?.CI,
         hmr: isPlaywright ? false : undefined,
+        // Playwright waehlt seinen Port bewusst pro Lauf und uebergibt ihn auf der
+        // Kommandozeile; nur der normale Entwicklungslauf wird hier festgenagelt.
+        //
+        // Ohne strictPort weicht Vite bei belegtem 5173 still auf einen anderen Port
+        // aus. Weil localStorage und IndexedDB an der Herkunft (inklusive Port)
+        // haengen, faengt die Telemetrie dann unbemerkt bei null an, und die
+        // gesammelten Runden liegen verstreut in Datenbanken, die niemand mehr
+        // findet. Ein Abbruch mit klarer Fehlermeldung ist das kleinere Uebel.
+        port: isPlaywright ? undefined : RENDERER_DEV_SERVER_PORT,
+        strictPort: isPlaywright ? undefined : true,
         warmup: warmupClientFiles.length > 0
             ? { clientFiles: warmupClientFiles }
             : undefined,
