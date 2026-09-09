@@ -59,6 +59,8 @@ function normalizeTelemetryBucketSnapshot(source) {
         totalShieldAbsorb: toNonNegativeNumber(bucket.totalShieldAbsorb, 0),
         totalHpDamage: toNonNegativeNumber(bucket.totalHpDamage, 0),
         totalStuckEvents: toNonNegativeInt(bucket.totalStuckEvents, 0),
+        totalSpawnDeaths: toNonNegativeInt(bucket.totalSpawnDeaths, 0),
+        totalKills: toNonNegativeInt(bucket.totalKills, 0),
         parcoursCompletions: toNonNegativeInt(bucket.parcoursCompletions, 0),
         totalParcoursCompletionTimeMs: toNonNegativeNumber(bucket.totalParcoursCompletionTimeMs, 0),
         heatmap: normalizeHeatmapCells(bucket.heatmap, ROUND_HEATMAP_MAX_MERGED_CELLS),
@@ -94,6 +96,8 @@ function deriveTelemetryTopBuckets(source, fallbackKey) {
                 shieldAbsorbPerRound: bucket.rounds > 0 ? bucket.totalShieldAbsorb / bucket.rounds : 0,
                 hpDamagePerRound: bucket.rounds > 0 ? bucket.totalHpDamage / bucket.rounds : 0,
                 stuckEventsPerRound: bucket.rounds > 0 ? bucket.totalStuckEvents / bucket.rounds : 0,
+                spawnDeathsPerRound: bucket.rounds > 0 ? bucket.totalSpawnDeaths / bucket.rounds : 0,
+                killsPerRound: bucket.rounds > 0 ? bucket.totalKills / bucket.rounds : 0,
                 parcoursCompletionRate: bucket.rounds > 0 ? bucket.parcoursCompletions / bucket.rounds : 0,
                 averageParcoursCompletionTimeMs: bucket.parcoursCompletions > 0
                     ? bucket.totalParcoursCompletionTimeMs / bucket.parcoursCompletions
@@ -133,9 +137,12 @@ function normalizeTelemetryRecentRounds(source) {
             shieldAbsorb: toNonNegativeNumber(entry?.shieldAbsorb, 0),
             hpDamage: toNonNegativeNumber(entry?.hpDamage, 0),
             stuckEvents: toNonNegativeInt(entry?.stuckEvents, 0),
+            spawnDeaths: toNonNegativeInt(entry?.spawnDeaths, 0),
+            kills: toNonNegativeInt(entry?.kills, 0),
             parcoursCompleted: entry?.parcoursCompleted === true,
             parcoursRouteId: sanitizeTelemetryKey(entry?.parcoursRouteId, ''),
             parcoursCompletionTimeMs: toNonNegativeNumber(entry?.parcoursCompletionTimeMs, 0),
+            parcoursCheckpointCount: toNonNegativeInt(entry?.parcoursCheckpointCount, 0),
             telemetrySchemaVersion: sanitizeTelemetryKey(entry?.telemetrySchemaVersion, 'round-telemetry.v1'),
             appVersion: sanitizeTelemetryKey(entry?.appVersion, 'dev'),
             buildId: sanitizeTelemetryKey(entry?.buildId, 'dev'),
@@ -218,6 +225,8 @@ export function normalizeTelemetrySnapshot(snapshot) {
     const totalShieldAbsorb = toNonNegativeNumber(balanceSource.totalShieldAbsorb, 0);
     const totalHpDamage = toNonNegativeNumber(balanceSource.totalHpDamage, 0);
     const totalStuckEvents = toNonNegativeInt(balanceSource.totalStuckEvents, 0);
+    const totalSpawnDeaths = toNonNegativeInt(balanceSource.totalSpawnDeaths, 0);
+    const totalKills = toNonNegativeInt(balanceSource.totalKills, 0);
     const parcoursCompletions = toNonNegativeInt(balanceSource.parcoursCompletions, 0);
     const totalParcoursCompletionTimeMs = toNonNegativeNumber(balanceSource.totalParcoursCompletionTimeMs, 0);
     return {
@@ -250,6 +259,8 @@ export function normalizeTelemetrySnapshot(snapshot) {
             shieldAbsorbPerRound: rounds > 0 ? totalShieldAbsorb / rounds : 0,
             hpDamagePerRound: rounds > 0 ? totalHpDamage / rounds : 0,
             stuckEventsPerRound: rounds > 0 ? totalStuckEvents / rounds : 0,
+            spawnDeathsPerRound: rounds > 0 ? totalSpawnDeaths / rounds : 0,
+            killsPerRound: rounds > 0 ? totalKills / rounds : 0,
             parcoursCompletions,
             parcoursCompletionRate: rounds > 0 ? parcoursCompletions / rounds : 0,
             averageParcoursCompletionTimeMs: parcoursCompletions > 0

@@ -32,15 +32,35 @@ function syncFilterOptions(select, values) {
     select.value = uniqueValues.includes(currentValue) ? currentValue : '';
 }
 
+// Flache Spalten, damit die Datei ohne Nacharbeit in eine Tabellenkalkulation passt.
+// Die Kampf- und Bildzeitwerte fehlten hier lange: exportiert wurde genau das,
+// womit sich Balancing nicht beantworten laesst.
+const TELEMETRY_CSV_FIELDS = [
+    'at', 'buildId', 'appVersion', 'mapKey', 'mapRevision', 'mode', 'modePath', 'sessionType',
+    'platform', 'graphicsQuality', 'playerCount', 'humanCount', 'botCount', 'botDifficulty',
+    'botPolicy', 'winnerType', 'reason', 'duration', 'selfCollisions', 'itemUses', 'stuckEvents',
+    'kills', 'spawnDeaths', 'mgHits', 'rocketHits', 'hpDamage', 'shieldAbsorb',
+    'parcoursCompleted', 'parcoursCompletionTimeMs', 'parcoursCheckpointCount',
+];
+
+const TELEMETRY_CSV_DERIVED_FIELDS = [
+    ['frameAvgMs', (row) => row?.performance?.frameAvgMs],
+    ['frameP95Ms', (row) => row?.performance?.frameP95Ms],
+    ['frameP99Ms', (row) => row?.performance?.frameP99Ms],
+    ['frameSpikes', (row) => row?.performance?.spikeCount],
+    ['arcadeScore', (row) => row?.arcade?.run?.score],
+    ['arcadeSector', (row) => row?.arcade?.lastSector?.sectorIndex],
+    ['arcadeModifier', (row) => row?.arcade?.lastSector?.modifierId],
+];
+
 function telemetryRowsToCsv(rows) {
-    const fields = [
-        'at', 'buildId', 'appVersion', 'mapKey', 'mapRevision', 'mode', 'modePath', 'sessionType',
-        'platform', 'graphicsQuality', 'playerCount', 'humanCount', 'botCount', 'botDifficulty',
-        'botPolicy', 'winnerType', 'reason', 'duration', 'selfCollisions', 'itemUses', 'stuckEvents',
-        'parcoursCompleted', 'parcoursCompletionTimeMs',
-    ];
     const escapeCell = (value) => `"${String(value ?? '').replaceAll('"', '""')}"`;
-    return [fields.join(','), ...rows.map((row) => fields.map((field) => escapeCell(row?.[field])).join(','))].join('\n');
+    const header = [...TELEMETRY_CSV_FIELDS, ...TELEMETRY_CSV_DERIVED_FIELDS.map(([name]) => name)];
+    const toLine = (row) => [
+        ...TELEMETRY_CSV_FIELDS.map((field) => escapeCell(row?.[field])),
+        ...TELEMETRY_CSV_DERIVED_FIELDS.map(([, read]) => escapeCell(read(row))),
+    ].join(',');
+    return [header.join(','), ...rows.map(toLine)].join('\n');
 }
 
 function downloadTelemetryFile(filename, contents, mimeType) {

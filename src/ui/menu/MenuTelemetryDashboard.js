@@ -188,6 +188,8 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     appendRow(balanceCard, 'average-round-duration', 'Avg. Rundendauer', formatDuration(balance?.averageRoundDuration));
     appendRow(balanceCard, 'self-collisions-per-round', 'Selfcrash/R', formatDecimal(balance?.selfCollisionsPerRound));
     appendRow(balanceCard, 'item-uses-per-round', 'Items/R', formatDecimal(balance?.itemUsesPerRound));
+    appendRow(balanceCard, 'kills-per-round', 'Kills/R', formatDecimal(balance?.killsPerRound));
+    appendRow(balanceCard, 'spawn-deaths-per-round', 'Spawn-Tode/R', formatDecimal(balance?.spawnDeathsPerRound));
     appendRow(balanceCard, 'parcours-rate', 'Parcours-Rate', formatPercent(balance?.parcoursCompletionRate));
     appendRow(balanceCard, 'parcours-time', 'Parcours-Zeit', formatDurationMs(balance?.averageParcoursCompletionTimeMs));
 
@@ -242,6 +244,8 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));
     appendRow(list, 'history-self-cr', 'Selfcrash/R', formatDecimal(historySummary.selfCollisionsPerRound));
     appendRow(list, 'history-items-r', 'Items/R', formatDecimal(historySummary.itemUsesPerRound));
+    appendRow(list, 'history-kills-r', 'Kills/R', formatDecimal(historySummary.killsPerRound));
+    appendRow(list, 'history-spawn-deaths-r', 'Spawn-Tode/R', formatDecimal(historySummary.spawnDeathsPerRound));
     appendRow(list, 'history-parcours-rate', 'Parcours-Rate', formatPercent(historySummary.parcoursCompletionRate));
     appendRow(list, 'history-parcours-time', 'Parcours-Zeit', formatDurationMs(historySummary.averageParcoursCompletionTimeMs));
     appendRow(list, 'history-frame-p95', 'Ø Frame p95', `${formatDecimal(historySummary.averageFrameP95Ms)} ms`);
@@ -264,4 +268,12 @@ export function renderTelemetryHistorySection(container, historySummary) {
 
     section.appendChild(list);
     container.appendChild(section);
+
+    // Diese Draufsicht folgt den aktiven Filtern. Genau darin liegt der Unterschied
+    // zur Heatmap weiter oben: dort summieren sich alle Builds, hier laesst sich
+    // "vor dem Fix" gegen "nach dem Fix" stellen.
+    renderTelemetryHeatmapSection(container, historySummary.mapHeatmaps, {
+        title: 'Haeufungspunkte im aktiven Filter',
+        sectionId: 'history-heatmap',
+    });
 }

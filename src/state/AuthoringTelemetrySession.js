@@ -13,6 +13,10 @@ const COUNTERS = new Set(AUTHORING_TELEMETRY_COUNTERS);
 const OUTCOMES = new Set(AUTHORING_TELEMETRY_OUTCOMES);
 const ERRORS = new Set(AUTHORING_TELEMETRY_ERRORS);
 const COMPLETION_OUTCOMES = new Set(['save_succeeded', 'export_succeeded', 'publish_succeeded']);
+// Bewusst ein Ziel ausserhalb dieses Repos: 4318 ist der OTLP-Standardport, der
+// Empfaenger ist ein lokal laufender Workflow-Mitschreiber. Laeuft keiner, geht der
+// Beacon still ins Leere - das ist der gewollte Normalfall und kein Fehler. Die
+// Auswertung im Spiel haengt nicht daran, sie liest den AuthoringTelemetryStore.
 const LOCAL_WORKFLOW_ENDPOINT = 'http://127.0.0.1:4318/v1/authoring';
 const LOCAL_WORKFLOW_SCHEMA_VERSION = 'codex-workflow.authoring.v1';
 
