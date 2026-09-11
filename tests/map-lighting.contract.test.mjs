@@ -15,7 +15,7 @@ import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRun
 test('Falkenwacht spreads its high-altitude closure across at least 80 world units', () => {
     for (const key of ['burg_falkenwacht', 'burg_falkenwacht_arena']) {
         const fog = MAP_PRESET_CATALOG[key].lighting.fog;
-        const closureWidth = 200 * (1 - fog.clipClosureStart);
+        const closureWidth = fog.far * (1 - fog.clipClosureStart);
         assert.ok(closureWidth >= 80, key);
         // Even without natural mist, a one-unit step must not add over 2% opacity.
         assert.ok(1.5 / closureWidth < 0.02, key);
@@ -75,7 +75,7 @@ test('map lighting normalization rejects invalid values and hard-clamps hostile 
     assert.deepEqual(normalized.fog, {
         color: 0xabcdef,
         near: 0,
-        far: 200,
+        far: 600,
         height: 0,
         heightFalloff: 0.5,
         turbulence: 1,

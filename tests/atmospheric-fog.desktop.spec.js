@@ -104,7 +104,7 @@ const RESTORE_SEAM = `
 
 for (const profile of [
     { key: 'magma_maze', near: 30, far: 130, color: 0x6b2410, height: 2.7 },
-    { key: 'burg_falkenwacht', near: 150, far: 200, color: 0xcad4cc, height: 5 },
+    { key: 'burg_falkenwacht', near: 450, far: 600, color: 0xcad4cc, height: 5 },
 ]) {
 test(`${profile.key}: fog compiles and meets the sky at multiple elevations`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
@@ -144,10 +144,12 @@ test(`${profile.key}: fog compiles and meets the sky at multiple elevations`, as
             fogFar: runtime.scene.fog.far,
             fogColor: runtime.scene.fog.color.getHex(),
             fogHeight: runtime.getMapLighting()?.fog?.height ?? null,
+            cameraFar: runtime.cameras[0].far,
         };
     });
     expect(applied.fogNear).toBe(profile.near);
     expect(applied.fogFar).toBe(profile.far);
+    expect(applied.cameraFar).toBe(Math.max(200, profile.far));
     // Not the authored 0x2a0c06: with skyBlend at 1 the distance fades into the map's own horizon.
     expect(applied.fogColor).toBe(profile.color);
     expect(applied.fogHeight).toBe(profile.height);

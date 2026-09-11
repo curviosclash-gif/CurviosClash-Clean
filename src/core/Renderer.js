@@ -190,6 +190,16 @@ export class Renderer {
             brightnessFactors: resolveMapBrightnessFactors(this._mapBrightness),
             viewDistance: this._viewDistance,
         });
+        // Authored long-range fog needs matching clipping, including after a map switch.
+        this._cameraFar = Math.max(CONFIG.CAMERA.FAR, this.scene.fog.far);
+        setAtmosphericFogClipDistance(this._cameraFar);
+        if (this.cameras) {
+            for (const camera of this.cameras) {
+                if (camera.far === this._cameraFar) continue;
+                camera.far = this._cameraFar;
+                camera.updateProjectionMatrix();
+            }
+        }
         // The reflection has to follow the same lighting the rig just applied, otherwise the metal
         // in the scene keeps mirroring whatever sky the previous map had.
         this._environmentController.apply(this._graphicsStyle, lighting);
@@ -220,7 +230,10 @@ export class Renderer {
         };
     }
     createCamera(_index) {
-        return this.cameraRigSystem.createCamera(this._getAspect());
+        const camera = this.cameraRigSystem.createCamera(this._getAspect());
+        camera.far = this._cameraFar;
+        camera.updateProjectionMatrix();
+        return camera;
     }
 
     setSplitScreen(enabled) {
