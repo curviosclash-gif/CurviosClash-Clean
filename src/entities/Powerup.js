@@ -6,6 +6,7 @@ import * as THREE from 'three';
 import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
+import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
 import {
     isPickupTypeAllowedForMode,
     normalizePickupType,
@@ -136,9 +137,8 @@ export class PowerupManager {
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
         const spawnRateMul = (strategy && typeof strategy.getSpawnRateMultiplier === 'function')
             ? strategy.getSpawnRateMultiplier() : 1.0;
-        const effectiveInterval = spawnRateMul > 0
-            ? config.POWERUP.SPAWN_INTERVAL / spawnRateMul
-            : config.POWERUP.SPAWN_INTERVAL;
+        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE);
+        const effectiveInterval = resolvePowerupSpawnInterval(config.POWERUP, fieldLimit, spawnRateMul);
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
             : 0;
@@ -150,7 +150,7 @@ export class PowerupManager {
                 if (this.items.length === previousCount) break;
             }
             this.spawnTimer = 0;
-        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
+        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < fieldLimit) {
             this.spawnTimer = 0;
             this._spawnRandom();
         }
