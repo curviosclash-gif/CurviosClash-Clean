@@ -83,6 +83,50 @@ test('mouse steering maps canvas position to analog axes and preserves keyboard 
     assert.equal(windowTarget.listenerCount(), 0);
 });
 
+test('mouse actions fire MG on left click, rockets on middle click and cycle items on wheel', () => {
+    const canvas = createEventTarget();
+    const keyboard = { shootMG: false, shootItem: false, useItem: false, nextItem: false };
+    const source = createMouseSteeringInputSource({ getKeyboardInput: () => keyboard }, false, { target: canvas });
+    const event = (button) => ({ button, preventDefault() {} });
+    try {
+        source.bind(0);
+        canvas.dispatch('mousedown', event(0));
+        assert.equal(source.poll().shootMG, true);
+        assert.equal(source.poll().shootMG, true);
+        assert.equal(source.poll().useItem, false);
+        assert.equal(source.poll().shootItem, false);
+        canvas.dispatch('mouseup', event(0));
+        assert.equal(source.poll().shootMG, false);
+        canvas.dispatch('mousedown', event(0));
+        canvas.dispatch('mouseup', event(0));
+        assert.equal(source.poll().shootMG, true, 'short clicks survive until polling');
+        assert.equal(source.poll().shootMG, false);
+        canvas.dispatch('mousedown', event(1));
+        assert.equal(source.poll().shootItem, true);
+        assert.equal(source.poll().shootItem, false);
+        for (const deltaY of [-100, 100]) {
+            let prevented = false;
+            canvas.dispatch('wheel', { deltaY, preventDefault() { prevented = true; } });
+            assert.equal(prevented, true);
+            assert.equal(source.poll().nextItem, true);
+            assert.equal(source.poll().nextItem, false);
+        }
+        for (const reset of [() => source.clearInputState(), () => canvas.dispatch('pointerleave'), () => source.bind(0)]) {
+            canvas.dispatch('mousedown', event(0));
+            canvas.dispatch('mousedown', event(1));
+            reset();
+            assert.equal(source.poll().shootMG, false);
+            assert.equal(source.poll().shootItem, false);
+        }
+        keyboard.useItem = true;
+        canvas.dispatch('mousedown', event(0));
+        assert.equal(source.poll().useItem, true, 'keyboard item use remains available');
+    } finally {
+        source.dispose();
+    }
+    assert.equal(canvas.listenerCount(), 0);
+});
+
 test('mouse steering restores the canvas cursor across rebind and disposal', () => {
     const canvas = createEventTarget({ left: 0, top: 0, width: 200, height: 100 });
     canvas.style.cursor = 'crosshair';
