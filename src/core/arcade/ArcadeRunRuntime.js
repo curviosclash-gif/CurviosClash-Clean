@@ -1,3 +1,4 @@
+import { recordArcadeDailyResult, finalizeArcadeRun } from './ArcadeRunCompletionOps.js';
 import {
     ARCADE_RUN_PHASES,
     beginArcadeSector,
@@ -7,8 +8,8 @@ import {
     createArcadeRunRecords,
     createArcadeRunState,
 } from '../../state/arcade/ArcadeRunState.js';
-import { applyArcadeComboDecay, applyArcadeSectorScore, applyComboAction, buildArcadeRunSummary } from '../../state/arcade/ArcadeScoreOps.js';
-import { createArcadeDailyProjection, mergeArcadeDailyRunRecords } from '../../state/arcade/ArcadeDailyState.js';
+import { applyArcadeComboDecay, applyArcadeSectorScore, applyComboAction } from '../../state/arcade/ArcadeScoreOps.js';
+import { createArcadeDailyProjection } from '../../state/arcade/ArcadeDailyState.js';
 import { resolveMapSequence, getMapKeyForSector } from '../../state/arcade/ArcadeMapProgression.js';
 import {
     calculateSectorXp,
@@ -64,6 +65,8 @@ const DEFAULT_GHOST_LIBRARY_SAVE_THROTTLE_MS = 250;
 const DEFAULT_ARCADE_PERSISTENCE_SAVE_THROTTLE_MS = 250;
 const ARCADE_RUN_ABORT_REASONS = new Set(['ABORT', 'ABORTED', 'MATCH_ABORT', 'QUIT', 'RUN_ABORT']);
 
+import { LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { toSafeInt, toSafeNumber, computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 
 function resolveLogger(logger) {
@@ -103,6 +106,7 @@ export class ArcadeRunRuntime {
         this._missionState = null;
         this._hudEventSequence = 0;
         this._hudEvents = [];
+        this._getMissionCapabilities = options.getMissionCapabilities || null;
         this._getObjectiveParticipants = typeof options.getObjectiveParticipants === 'function' ? options.getObjectiveParticipants : null;
         this._requestRoundEnd = typeof options.requestRoundEnd === 'function' ? options.requestRoundEnd : null;
         this._sectorElapsedSeconds = 0;
@@ -196,11 +200,24 @@ export class ArcadeRunRuntime {
     configure(runtimeConfig = null) {
         this.flushPersistenceSaves();
         const nextConfig = createArcadeRunConfig(runtimeConfig?.arcade || null);
+        if (!nextConfig.enabled && this._state && !this._state.finishedAtIso) {
+            this._finalizeRun(this.now());
+            this.flushPersistenceSaves();
+        }
         const store = this._resolveSettingsRecordStore();
+        const continuing = nextConfig.enabled && this._state && !this._state.finishedAtIso;
+        if (continuing && this._state.config.dailyChallenge) {
+            nextConfig.seed = this._state.config.seed;
+            runtimeConfig.arcade.seed = nextConfig.seed;
+        }
         this._config = nextConfig;
         const ghostLibraryBudget = this._resolveGhostLibraryBudgetOptions(runtimeConfig?.arcade);
         this._enabled = nextConfig.enabled === true;
-        this._records = this._readRecordsFromStorage();
+        if (!continuing) this._records = this._readRecordsFromStorage();
+        const legacy = store?.loadJsonRecord?.(LEGACY_ARCADE_RUN_PROFILE_STORAGE_KEY, null);
+        this._legacyRecords = legacy?.scoreModel === 'arcade-score.v2' ? {
+            bestScore: Math.max(0, Number(legacy.bestScore) || 0), runsPlayed: Math.max(0, Number(legacy.runsPlayed) || 0),
+        } : null;
         this._leaderboard = loadLeaderboard(store);
         this._ghostLibrary = loadGhostLibrary(store, ghostLibraryBudget, {
             onMigrationWrite: ({ telemetryDelta }) => this._mergeGhostLibraryTelemetryDelta(telemetryDelta),
@@ -318,6 +335,11 @@ export class ArcadeRunRuntime {
         this._onSuddenDeathEntered = typeof handler === 'function' ? handler : null;
     }
 
+    _restoreSuddenDeath() {
+        this._strategy?.enterSuddenDeath?.();
+        this._strategy?.tickSuddenDeath?.(Math.max(0, (this._state.gameplayTimeMs - this._state.suddenDeathStartedAtMs) / 1000));
+    }
+
     _notifySuddenDeathEntered() {
         if (this._onSuddenDeathEntered) {
             try { this._onSuddenDeathEntered(); } catch { /* no-op */ }
@@ -352,16 +374,20 @@ export class ArcadeRunRuntime {
         };
     }
 
+    _getVehicleBonuses(profile = this.getVehicleProfile()) {
+        return this._config.dailyChallenge ? null : getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses);
+    }
+
     setStrategy(strategy) {
         this._strategy = strategy || null;
         if (!this._strategy) return;
         try { this._strategy.setActiveModifier?.(this._activeModifierId); } catch { /* no-op */ }
         try { this._strategy.setSectorType?.(this._currentSectorType); } catch { /* no-op */ }
         const profile = this.getVehicleProfile();
-        try { this._strategy.applyVehicleUpgrades?.(getSlotStatBonuses(profile?.upgrades, profile?.hangarBonuses)); } catch { /* no-op */ }
+        try { this._strategy.applyVehicleUpgrades?.(this._getVehicleBonuses(profile)); } catch { /* no-op */ }
         syncArcadeRunRewardEffects(this._state, this._strategy);
         if (this._state?.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
-            try { this._strategy.enterSuddenDeath?.(); } catch { /* no-op */ }
+            this._restoreSuddenDeath();
         }
     }
 
@@ -476,6 +502,8 @@ export class ArcadeRunRuntime {
     }
 
     _prepareIntermission(nowMs = Date.now()) {
+        if (this._state?.phase === ARCADE_RUN_PHASES.VICTORY) return null;
+        this._state.intermissionPaused = false;
         return prepareArcadeIntermissionState(this, nowMs);
     }
 
@@ -519,6 +547,10 @@ export class ArcadeRunRuntime {
             phase: String(this._state?.phase || ''),
             isDailyChallenge: this._state?.isDailyChallenge === true,
             records: this.getRecordsSnapshot(),
+            legacyRecords: this._legacyRecords || null,
+            victory: this._state?.victory || null,
+            dailyResult: this._state?.dailyResult || null,
+            intermissionPaused: this._state?.intermissionPaused === true,
             daily: createArcadeDailyProjection(this._records),
             intermission: this.getIntermissionState(),
             postRunSummary: this.getPostRunSummary(),
@@ -633,7 +665,7 @@ export class ArcadeRunRuntime {
 
     getHudState() {
         if (!this._enabled || !this._state) return null;
-        const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
+        const nowMs = this._state.gameplayTimeMs;
         const score = this._state.score && typeof this._state.score === 'object'
             ? this._state.score
             : {};
@@ -647,7 +679,7 @@ export class ArcadeRunRuntime {
         // Profiles are canonicalized when loaded or changed. Re-normalizing the full
         // Hangar progression here would allocate several collections every HUD frame.
         const profile = this._vehicleProfiles?.[this._activeVehicleId] || null;
-        const profileBonuses = profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null;
+        const profileBonuses = this._config.dailyChallenge ? null : (profile ? getSlotStatBonuses(profile.upgrades, profile.hangarBonuses) : null);
         const vehicleStats = {
             level: profile?.level ?? 1,
             speedBonusPct: Math.min(50, profileBonuses?.speedBonusPct || 0),
@@ -659,6 +691,7 @@ export class ArcadeRunRuntime {
             parcoursXpGain,
             parcoursSegmentSplit,
             parcoursPenalty,
+            ghostStatus: this._peekHudEvent('ghost_status')?.message || '',
             events: this._hudEvents,
             vehicleStats,
             phase: String(this._state.phase || ''),
@@ -679,6 +712,8 @@ export class ArcadeRunRuntime {
                 multiplier: Math.max(1, toSafeNumber(score.multiplier, 1)),
                 lastComboAtMs: Math.max(0, toSafeNumber(score.lastComboAtMs, 0)),
                 breakdown: {
+                    completion: breakdown.completion || 0, checkpoints: breakdown.checkpoints || 0,
+                    time: breakdown.time || 0, precision: breakdown.precision || 0,
                     base: Math.max(0, toSafeNumber(breakdown.base, 0)),
                     survival: Math.max(0, toSafeNumber(breakdown.survival, 0)),
                     kills: Math.max(0, toSafeNumber(breakdown.kills, 0)),
@@ -702,7 +737,7 @@ export class ArcadeRunRuntime {
     _applyComboDecayAt(nowMs) {
         if (!this._state?.score) return;
         const frozenUntil = Math.max(0, toSafeNumber(this._state.comboFreezeUntilMs, 0));
-        if (nowMs <= frozenUntil) return;
+        if (frozenUntil > 0 && nowMs <= frozenUntil) return;
         const decayedScore = applyArcadeComboDecay(this._state.score, this._state.config, nowMs, this._state.masteryPerks);
         if (decayedScore !== this._state.score) {
             this._state = { ...this._state, score: decayedScore };
@@ -715,6 +750,7 @@ export class ArcadeRunRuntime {
         if (phase !== ARCADE_RUN_PHASES.SECTOR_ACTIVE && phase !== ARCADE_RUN_PHASES.SUDDEN_DEATH) {
             return null;
         }
+        this._state.gameplayTimeMs += Math.max(0, toSafeNumber(dt, 0)) * 1000;
         this._sectorElapsedSeconds += Math.max(0, toSafeNumber(dt, 0));
         const elapsedSecond = Math.floor(this._sectorElapsedSeconds);
         if (elapsedSecond <= this._lastMissionTickSecond) return null;
@@ -728,13 +764,12 @@ export class ArcadeRunRuntime {
      */
     applyGameplayEvent(event) {
         if (!this._enabled || !this._state) return null;
-        const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
+        const nowMs = this._state.gameplayTimeMs;
         const eventWithTime = { ...event, nowMs };
 
         this._applyComboDecayAt(nowMs);
 
         // Update missions first so allCompleted flag reflects current action
-        updateArcadeObjectiveRuntimeState(this, eventWithTime);
         const wasAllCompleted = this._missionState?.allCompleted === true;
         this.updateMissions(eventWithTime);
 
@@ -755,7 +790,9 @@ export class ArcadeRunRuntime {
                     ...this._state.score,
                     total: Math.max(0, toSafeNumber(this._state.score.total, 0) + bonus),
                     lastMissionBonus: bonus,
-                    lastComboAtMs: Math.max(toSafeNumber(this._state.score.lastComboAtMs, 0), nowMs),
+                    lastComboAtMs: nowMs,
+                    comboDecayApplied: 0,
+                    comboDecayRule: null,
                 },
             };
         }
@@ -766,6 +803,7 @@ export class ArcadeRunRuntime {
             this._state = { ...this._state, score: newScore };
         }
 
+        updateArcadeObjectiveRuntimeState(this, eventWithTime);
         return this.getStateSnapshot();
     }
 
@@ -798,7 +836,7 @@ export class ArcadeRunRuntime {
         this._state.rewardHistory = [];
         this._state.postRunSummary = null;
         this._state.lastIntermissionHeal = null;
-        this._state.suddenDeathStartedAtMs = 0;
+        this._state.suddenDeathStartedAtMs = null;
         this._state.replay = {
             ...(this._state.replay && typeof this._state.replay === 'object' ? this._state.replay : {}),
             playbackEnabled: runConfig.replayHooksEnabled === true,
@@ -810,7 +848,7 @@ export class ArcadeRunRuntime {
         this._vehicleProfiles = loadVehicleProfiles(store);
         const activeProfile = this.getVehicleProfile();
         syncArcadeMasteryPerks(this._state, activeProfile);
-        this._notifyVehicleUpgradesChanged(getSlotStatBonuses(activeProfile?.upgrades, activeProfile?.hangarBonuses));
+        this._notifyVehicleUpgradesChanged(this._getVehicleBonuses(activeProfile));
 
         // Resolve map sequence from encounter plan if available
         if (options.encounterPlan) {
@@ -853,7 +891,8 @@ export class ArcadeRunRuntime {
      * All players on the same calendar day get the same sector sequence. (61.10.1)
      */
     startDailyChallenge(options = {}) {
-        const seed = computeDailySeed(options.date || null);
+        const seed = options.date || !this._config.dailyChallenge
+            ? computeDailySeed(options.date || null) : this._config.seed;
         return this.startRun({ ...options, dailyChallenge: true, seed });
     }
 
@@ -920,10 +959,10 @@ export class ArcadeRunRuntime {
 
         // 61.6.2: Notify when Sudden Death phase is entered
         if (this._state.phase === ARCADE_RUN_PHASES.SUDDEN_DEATH) {
-            if (!this._state.suddenDeathStartedAtMs || this._state.suddenDeathStartedAtMs <= 0) {
-                this._state.suddenDeathStartedAtMs = nowMs;
+            if (this._state.suddenDeathStartedAtMs == null) {
+                this._state.suddenDeathStartedAtMs = this._state.gameplayTimeMs;
             }
-            this._notifySuddenDeathEntered();
+            this._restoreSuddenDeath();
         }
 
         // Assign new missions for the sector
@@ -963,6 +1002,7 @@ export class ArcadeRunRuntime {
     completeParcoursSector(parcoursResult = {}, options = {}) {
         if (!this._enabled || !this._state) return null;
         if (!this.isCurrentSectorParcours()) return null;
+        if (!['sector_active', 'sudden_death'].includes(this._state.phase)) return null;
 
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
         const completionMs = Math.max(0, toSafeNumber(parcoursResult?.parcours?.completionTimeMs, 0));
@@ -971,15 +1011,20 @@ export class ArcadeRunRuntime {
             elapsed: completionMs > 0 ? completionMs / 1000 : this._sectorElapsedSeconds,
         });
         this._state = completeArcadeSector(this._state, nowMs);
-        // Parcours completion: human player always continues (not finished by death)
+        const map = getRuntimeMapDefinition(this._state.currentMapKey);
+        const references = (map?.missions || []).filter(m => m.type === 'TIME_TRIAL')
+            .map(m => Number(m.params?.target)).filter(value => value > 0 && Number.isFinite(value));
+        this._state.lastCompletedSectorResult = { ...this._state.lastCompletedSectorResult,
+            parcours: { ...parcoursResult.parcours, referenceTimeMs: (references.length ? Math.min(...references) : 60) * 1000 } };
+        // Preserve the result before the next sector changes the map.
         this._prepareIntermission(nowMs);
 
         const scoreTotal = Math.max(0, toSafeNumber(this._state?.score?.total, 0));
         const sectorLabel = `${this._state.completedSectors}/${this._state.config.sectorCount}`;
         const completionSec = completionMs > 0 ? (completionMs / 1000).toFixed(2) : '?';
         const requiredWins = Math.max(1, Number(options?.winsNeeded) || 1);
-        const messageText = `Parcours abgeschlossen — ${completionSec}s | Sektor ${sectorLabel}`;
-        const messageSub = 'Intermission: naechster Sektor';
+        const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!' : `Parcours abgeschlossen — ${completionSec}s | Sektor ${sectorLabel}`;
+        const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : 'Intermission: nächster Sektor';
 
         return {
             outcome: {
@@ -1014,6 +1059,7 @@ export class ArcadeRunRuntime {
             return baseController?.deriveOnRoundEndPlan?.(players, inputs) || null;
         }
 
+        if (![ARCADE_RUN_PHASES.SECTOR_ACTIVE, ARCADE_RUN_PHASES.SUDDEN_DEATH].includes(this._state.phase)) return null;
         this._pendingHumanVitals = captureArcadeHumanVitals(players);
 
         const outcomeReason = String(inputs?.reason || '').trim().toUpperCase();
@@ -1060,10 +1106,10 @@ export class ArcadeRunRuntime {
         const combo = Math.max(0, Math.floor(toSafeNumber(this._state?.score?.combo, 0)));
         const multiplier = Math.max(1, toSafeNumber(this._state?.score?.multiplier, 1));
         const sectorLabel = `${this._state.completedSectors}/${this._state.config.sectorCount}`;
-        const messageText = finished
+        const messageText = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run geschafft!' : finished
             ? `Arcade Run beendet - Score ${Math.round(scoreTotal)}`
             : `Sektor ${sectorLabel} abgeschlossen`;
-        const messageSub = finished
+        const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : finished
             ? 'ENTER fuer neuen Run oder ESC fuer Menue'
             : `Intermission: Combo ${combo} / x${multiplier}`;
 
@@ -1100,9 +1146,22 @@ export class ArcadeRunRuntime {
         }
 
         const nowMs = Math.max(0, toSafeNumber(this.now(), Date.now()));
-        this._state = applyArcadeSectorScore(this._state, payload, { nowMs, masteryPerks: this._state.masteryPerks });
-        this._applySectorXpReward(payload);
+        const lastScoredSector = this._state.score.lastScoredSector;
+        this._state = applyArcadeSectorScore(this._state, payload, { nowMs: this._state.gameplayTimeMs, masteryPerks: this._state.masteryPerks });
+        if (this._state.score.lastScoredSector > lastScoredSector) this._applySectorXpReward(payload);
         this._recordSectorHistoryEntry(payload, nowMs);
+        if (this._state.phase === ARCADE_RUN_PHASES.VICTORY && !this._state.victory) {
+            this._state.victory = { score: this._state.score.total, xpEarned: this._state.xpEarned,
+                completedSectors: this._state.completedSectors, lastSector: this._state.lastSectorSummary };
+            this._recordDailyResult(nowMs);
+        }
+        if (this._state.intermission) {
+            this._state.intermission.lastSectorPoints = this._state.lastSectorSummary?.awardedPoints || 0;
+            this._state.intermission.lastSectorXp = this._state.xpEarned - (this._state.sectorStartXp || 0);
+            this._state.intermission.missionBonus = this._state.lastSectorSummary?.missionBonus || 0;
+            this._state.intermission.scoreFactor = this._state.lastSectorSummary?.scoreFactor || 1;
+            this._state.intermission.breakdown = this._state.lastSectorSummary?.breakdown || null;
+        }
 
         const payloadState = String(payload.state || '').trim().toUpperCase();
         if (payloadState === 'MATCH_END' || this._state.phase === ARCADE_RUN_PHASES.FINISHED) {
@@ -1177,10 +1236,11 @@ export class ArcadeRunRuntime {
         if (baseXp <= 0) return null;
 
         let profile = getOrCreateProfile(this._vehicleProfiles, this._activeVehicleId);
-        const perks = getMasteryPerks(profile.level);
+        const perks = getMasteryPerks(this._config.dailyChallenge ? 1 : profile.level);
         const xpEarned = Math.max(1, Math.round(baseXp * (1 + perks.xpBonusPct / 100)));
 
         const result = addXp(profile, xpEarned);
+        if (this._state) this._state.xpEarned += xpEarned;
         this._vehicleProfiles[this._activeVehicleId] = result.profile;
         syncArcadeMasteryPerks(this._state, result.profile);
         this._scheduleVehicleProfilesSave();
@@ -1215,12 +1275,13 @@ export class ArcadeRunRuntime {
 
         let profile = getOrCreateProfile(this._vehicleProfiles, this._activeVehicleId);
         // 61.8.2: Apply mastery XP perk before awarding XP
-        const perks = getMasteryPerks(profile.level);
+        const perks = getMasteryPerks(this._config.dailyChallenge ? 1 : profile.level);
         const baseXp = calculateSectorXp(telemetry);
         const xpEarned = baseXp <= 0 ? 0 : Math.round(baseXp * (1 + perks.xpBonusPct / 100));
         if (xpEarned <= 0) return;
 
         const result = addXp(profile, xpEarned);
+        if (this._state) this._state.xpEarned += xpEarned;
         profile = result.profile;
         this._vehicleProfiles[this._activeVehicleId] = profile;
         syncArcadeMasteryPerks(this._state, profile);
@@ -1237,94 +1298,34 @@ export class ArcadeRunRuntime {
         }
     }
 
-    _finalizeRun(nowMs = Date.now()) {
-        if (!this._state) return null;
-        if (this._state.persistedAtIso) {
-            return this.getStateSnapshot();
-        }
-        if (this._state.finishedAtIso) {
-            this.flushPersistenceSaves();
-            return this.getStateSnapshot();
-        }
+    _recordDailyResult(nowMs = Date.now()) { return recordArcadeDailyResult(this, nowMs); }
 
-        const replaySnapshot = this._stopReplayRecording();
-        this._latestReplaySnapshot = replaySnapshot && typeof replaySnapshot === 'object'
-            ? { ...replaySnapshot }
-            : null;
-        const replayId = typeof replaySnapshot?.matchId === 'string' ? replaySnapshot.matchId : '';
-        const summary = buildArcadeRunSummary(this._state, {
-            endedAtMs: nowMs,
-            replayId,
-        });
-        if (!summary) return this.getStateSnapshot();
+    isIntermissionPaused() { return this._state?.intermissionPaused === true; }
 
-        const { records, dailyResult } = mergeArcadeDailyRunRecords(this._records, summary);
-        this._records = records;
-        const sectorHistory = Array.isArray(this._state.sectorHistory)
-            ? this._state.sectorHistory.map((entry) => ({ ...entry }))
-            : [];
-        const missionsCompleted = sectorHistory.reduce((sum, entry) => sum + Math.max(0, toSafeInt(entry?.missionsCompleted, 0)), 0);
-        const missionsTotal = sectorHistory.reduce((sum, entry) => sum + Math.max(0, toSafeInt(entry?.missionsTotal, 0)), 0);
-        const missionCompletionRate = missionsTotal > 0 ? missionsCompleted / missionsTotal : 0;
-        const xpEarned = sectorHistory.reduce((sum, entry) => sum + Math.max(0, toSafeNumber(entry?.xpEarned, 0)), 0);
-        const scorePerSector = sectorHistory.map((entry) => ({
-            sectorIndex: Math.max(0, toSafeInt(entry?.sectorIndex, 0)),
-            mapKey: String(entry?.mapKey || ''),
-            modifierId: String(entry?.modifierId || ''),
-            awardedPoints: Math.max(0, toSafeNumber(entry?.awardedPoints, 0)),
-            comboAtSectorEnd: Math.max(0, toSafeInt(entry?.comboAtSectorEnd, 0)),
-        }));
-        const postRunSummary = {
-            generatedAtIso: new Date(Math.max(0, toSafeNumber(nowMs, Date.now()))).toISOString(),
-            runId: String(summary.runId || ''),
-            isDailyChallenge: summary.isDailyChallenge === true,
-            seed: Math.max(0, toSafeInt(summary.seed, 0)),
-            score: Math.max(0, toSafeNumber(summary.score, 0)),
-            peakMultiplier: Math.max(1, toSafeNumber(summary.peakMultiplier, 1)),
-            bestCombo: Math.max(0, toSafeInt(summary.peakCombo, 0)),
-            completedSectors: Math.max(0, toSafeInt(summary.completedSectors, 0)),
-            missionCompletionRate,
-            missionsCompleted,
-            missionsTotal,
-            xpEarned: Math.max(0, Math.round(xpEarned)),
-            xpAnimation: {
-                from: 0,
-                to: Math.max(0, Math.round(xpEarned)),
-                durationMs: 900,
-            },
-            scorePerSector,
-            sectorHistory,
-            rewardHistory: Array.isArray(this._state.rewardHistory)
-                ? this._state.rewardHistory.map((entry) => ({ ...entry }))
-                : [],
-            dailyResult,
-        };
-        const replayState = this.getReplayState();
-        this._state = {
-            ...this._state,
-            phase: ARCADE_RUN_PHASES.FINISHED,
-            finishedAtIso: summary.finishedAtIso,
-            persistedAtIso: '',
-            updatedAtIso: summary.finishedAtIso,
-            records: createArcadeRunRecords(this._records),
-            postRunSummary,
-            replay: {
-                runReplayId: replayId,
-                playbackEnabled: replayState.playbackEnabled,
-                payloadAvailable: replayState.payloadAvailable,
-            },
-        };
-        const finalizedRunId = String(summary.runId || '');
-        this._scheduleRecordsSave(this._records, () => {
-            if (String(this._state?.runId || '') !== finalizedRunId) return;
-            this._state.persistedAtIso = summary.finishedAtIso;
-            this._state.updatedAtIso = summary.finishedAtIso;
-        });
-        return this.getStateSnapshot();
+    setIntermissionPaused(paused) {
+        if (this._state?.phase !== ARCADE_RUN_PHASES.INTERMISSION) return false;
+        this._state.intermissionPaused = paused === true;
+        return true;
     }
+
+    resolveVictoryChoice(choice) {
+        if (this._state?.phase !== ARCADE_RUN_PHASES.VICTORY || !this._state.victory) return null;
+        if (choice === 'finish') {
+            this._finalizeRun(this.now());
+            this.flushPersistenceSaves();
+            return { nextState: 'MATCH_END', roundPause: 0 };
+        }
+        if (choice !== 'continue') return null;
+        this._state.phase = ARCADE_RUN_PHASES.INTERMISSION;
+        this._prepareIntermission(this.now());
+        return { nextState: 'ROUND_END', roundPause: this._config.intermissionSeconds };
+    }
+
+    _finalizeRun(nowMs = Date.now()) { return finalizeArcadeRun(this, nowMs); }
 
     resetRunState(options = {}) {
         const preserveRecords = options?.preserveRecords === true;
+        if (this._state && !this._state.finishedAtIso) this._finalizeRun(this.now());
         this.flushPersistenceSaves();
         this._ghostRecorder?.reset?.();
         const replayRecorder = this.replayRecorder;

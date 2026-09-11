@@ -110,6 +110,30 @@ test('runtime context exposes Arcade semantics while retaining the internal CLAS
     assert.equal(context.entityManager, entityManager);
 });
 
+test('endless bots retain their own difficulty across repeated runtime context updates', () => {
+    const easyBot = Object.assign(createPlayer(1), { endlessDifficulty: 'EASY' });
+    const hardBot = Object.assign(createPlayer(2), { endlessDifficulty: 'HARD' });
+    const entityManager = {
+        activeGameMode: 'CLASSIC',
+        huntEnabled: true,
+        botDifficulty: 'NORMAL',
+        players: [easyBot, hardBot],
+        projectiles: [],
+        runtimeConfig: {
+            session: { activeGameMode: 'CLASSIC' },
+            arcade: { enabled: true, seed: 17 },
+            bot: { activeDifficulty: 'NORMAL' },
+            gameplay: { planarMode: false },
+        },
+        getTrailSpatialIndex: () => null,
+    };
+
+    for (const dt of [1 / 60, 1 / 30, 1 / 120]) {
+        assert.equal(createBotRuntimeContext(entityManager, easyBot, dt).difficulty, 'EASY');
+        assert.equal(createBotRuntimeContext(entityManager, hardBot, dt).difficulty, 'HARD');
+    }
+});
+
 test('3D target steering pitches toward targets above and below the bot', () => {
     const player = createPlayer(1);
     const policy = new HeuristicBotPolicy();

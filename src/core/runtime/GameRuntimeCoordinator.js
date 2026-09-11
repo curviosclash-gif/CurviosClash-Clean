@@ -148,6 +148,8 @@ export class GameRuntimeCoordinator {
         return this.getRuntimeFacade()?.selectArcadeIntermissionChoice?.(choiceId);
     }
 
+    resolveArcadeVictoryChoice(choice) { return this.getRuntimeFacade()?.resolveArcadeVictoryChoice(choice); }
+    setArcadeIntermissionPaused(paused) { return this.getRuntimeFacade()?.setArcadeIntermissionPaused(paused); }
     selectArcadeReward(rewardId) {
         return this.getRuntimeFacade()?.selectArcadeReward?.(rewardId);
     }

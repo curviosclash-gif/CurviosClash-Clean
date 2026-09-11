@@ -3,6 +3,7 @@ export const ARCADE_GHOST_DUEL_CONTRACT_VERSION = 'arcade-ghost-duel.v1';
 export const ARCADE_GHOST_DUEL_MODES = Object.freeze({
     OFF: 'off',
     SELF_LONGEST_GHOST: 'self_longest_ghost',
+    SELF_BEST_TIME_GHOST: 'self_best_time_ghost',
 });
 
 /** @type {Set<string>} */
@@ -25,7 +26,7 @@ export function normalizeArcadeGhostDuelMode(value, fallback = ARCADE_GHOST_DUEL
 }
 
 export function isArcadeGhostDuelPlaybackEnabled(mode) {
-    return normalizeArcadeGhostDuelMode(mode) === ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST;
+    return normalizeArcadeGhostDuelMode(mode) !== ARCADE_GHOST_DUEL_MODES.OFF;
 }
 
 export function normalizeArcadeGhostTrailCollisionEnabled(value, fallback = false) {

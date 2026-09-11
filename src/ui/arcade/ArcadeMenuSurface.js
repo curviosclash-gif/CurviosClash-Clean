@@ -1,3 +1,4 @@
+import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRulesContract.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
     ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
@@ -17,14 +18,18 @@ import {
 } from '../../shared/contracts/ArcadeMenuPersistenceContract.js';
 import { renderArcadeDailyMenuState } from './ArcadeDailyMenuView.js';
 import { buildArcadeSurface } from './ArcadeMenuSurfaceDom.js';
-
-function t(textId, fallback) {
-    return resolveMenuCatalogText(textId, fallback);
-}
+import {
+    ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
+    summarizeEndlessRecordsLine,
+} from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
     return normalized || fallback;
+}
+
+function t(textId, fallback) {
+    return resolveMenuCatalogText(textId, fallback);
 }
 
 function toInt(value, fallback = 0) {
@@ -164,6 +169,8 @@ function shouldShowArcade(settings) {
 }
 
 function createArcadeRunSnapshot(settings, seed, hangarBuild = null) {
+    settings = resolveArcadeDailySettings(settings);
+    if (settings.arcade?.dailyChallenge) seed = settings.arcade.seed;
     return createArcadeLastRunRecord({
         at: new Date().toISOString(),
         mapKey: normalizeString(settings?.mapKey, 'standard'),
@@ -245,7 +252,14 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
         const phaseLabel = runtimeState?.phase ? ` | ${String(runtimeState.phase).toUpperCase()}` : '';
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
-        refs.runLine.textContent = `${t('menu.arcade.runline.label', 'Aktueller Arcade-Layer')}: ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
+        refs.runLine.textContent = settings.arcade?.dailyChallenge
+            ? 'Daily: Solo · ship5 ohne Leistungsboni · 5 Sektoren · NORMAL. Ergebnis bis zum Boss zählt.'
+            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
+        refs.recordsLine.textContent = `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
+            + (runtimeState?.legacyRecords ? ` | Bisherige Wertung: ${Math.round(runtimeState.legacyRecords.bestScore)} Punkte` : '');
+        refs.endlessRecordsLine.textContent = summarizeEndlessRecordsLine(
+            runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null) || null
+        );
         refs.seedLine.textContent = `${t('menu.arcade.seed.current.label', 'Run-Seed')}: ${activeSeed} | ${t('menu.arcade.seed.daily.label', 'Daily')}: ${dailySeed}`;
         renderArcadeDailyMenuState(refs.dailyLine, daily, dailySeed);
 
@@ -270,8 +284,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
         }
         if (replayState) {
             refs.replayButton.disabled = replayState.payloadAvailable !== true;
+            refs.replayButton.textContent = 'Replay exportieren';
             refs.replayButton.title = replayState.payloadAvailable === true
-                ? 'Replay/Fallback aus letztem Run'
+                ? 'Aufzeichnung des letzten Runs'
                 : 'Noch kein Replay verfuegbar';
         } else {
             refs.replayButton.disabled = true;
@@ -288,6 +303,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     };
 
     const prepareHangarRunStart = () => {
+        if (settings.arcade?.dailyChallenge) return { ok: true, build: null };
         const vehicleId = normalizeString(settings?.vehicles?.PLAYER_1, 'ship5').toLowerCase();
         const build = readActiveHangarBuildFromStore({
             store: runtimeAccess?.getSettingsStore?.(),
@@ -358,6 +374,27 @@ export function setupArcadeMenuSurface(ctx = {}) {
         });
     });
 
+    bind(refs.applySeedButton, 'click', () => {
+        const requested = Math.floor(Number(refs.seedInput?.value));
+        if (!Number.isFinite(requested) || requested < 1 || requested > 2_147_483_647) {
+            emit(eventTypes.SHOW_STATUS_TOAST, {
+                message: t('menu.arcade.seed.invalid.toast', 'Seed muss zwischen 1 und 2147483647 liegen.'),
+                tone: 'warning',
+                duration: 1600,
+            });
+            return;
+        }
+        activeSeed = requested;
+        saveSeed(activeSeed, runtimeAccess?.getSettingsStore?.());
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
+        sync();
+        emit(eventTypes.SHOW_STATUS_TOAST, {
+            message: `${t('menu.arcade.seed.applied.toast', 'Seed uebernommen')}: ${activeSeed}`,
+            tone: 'info',
+            duration: 1300,
+        });
+    });
+
     bind(refs.replayButton, 'click', () => {
         const result = runtimeAccess?.requestArcadeReplayPlayback?.();
         const code = String(result?.code || 'replay_unavailable');
@@ -388,20 +425,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
     });
 
     bind(refs.dailyButton, 'click', () => {
-        activeSeed = computeDailySeed();
-        saveSeed(activeSeed, runtimeAccess?.getSettingsStore?.());
-        applySeedToSettings(activeSeed, { dailyChallenge: true });
-        settings.arcade.runType = 'gauntlet';
-        settings.arcade.combatProfile = '';
-        sync();
-        const prepared = prepareHangarRunStart();
-        if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.SHOW_STATUS_TOAST, {
-            message: `${t('menu.arcade.postrun.daily.toast', 'Daily-Challenge startet mit Seed')}: ${activeSeed}`,
-            tone: 'info',
-            duration: 1400,
-        });
+        if (!settings.arcade) settings.arcade = {};
+        settings.arcade.dailyChallenge = true;
+        recordRunStart(null);
         emit(eventTypes.START_MATCH);
     });
 

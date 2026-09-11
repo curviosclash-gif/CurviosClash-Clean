@@ -26,6 +26,7 @@ const MAP_FILTER_OPTIONS = Object.freeze([
 ]);
 
 export function resolveArcadeGhostDuelModeLabel(mode) {
+    if (mode === ARCADE_GHOST_DUEL_MODES.SELF_BEST_TIME_GHOST) return 'Persönliche Bestzeit';
     return mode === ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST
         ? 'Selbstduell (laengste Spur)'
         : 'Aus';
@@ -62,13 +63,13 @@ function syncGhostDuelControls(ui, ghostDuelState) {
         ui.arcadeGhostDuelModeSelect.value = ghostDuelState.configuredMode;
         ui.arcadeGhostDuelModeSelect.disabled = !ghostDuelState.duelSelectable;
         ui.arcadeGhostDuelModeSelect.title = ghostDuelState.duelSelectable
-            ? 'Spielt im Einzelspieler deine laengste gespeicherte Spur ab.'
+            ? 'Spielt im Einzelspieler die längste Spur oder deine persönliche Bestzeit ab.'
             : 'Nur im Einzelspieler aktiv.';
     }
     if (ui.arcadeGhostDuelModeHint) {
         if (ghostDuelState.duelSelectable) {
             ui.arcadeGhostDuelModeHint.textContent = `Aktiv: ${resolveArcadeGhostDuelModeLabel(ghostDuelState.configuredMode)}`;
-        } else if (ghostDuelState.configuredMode === ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST) {
+        } else if (ghostDuelState.configuredMode !== ARCADE_GHOST_DUEL_MODES.OFF) {
             ui.arcadeGhostDuelModeHint.textContent = 'Gespeichert: Selbstduell ist aktiv, sobald Single gewaehlt ist.';
         } else {
             ui.arcadeGhostDuelModeHint.textContent = 'Nur im Einzelspieler aktiv.';

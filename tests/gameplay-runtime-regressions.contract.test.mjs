@@ -438,7 +438,7 @@ test('Arcade runtime decays an idle combo during gameplay but respects combo fre
     };
 
     nowMs = 6000;
-    runtime.applyGameplayEvent({ type: 'tick' });
+    runtime.tickGameplay(6);
     assert.ok(runtime._state.score.combo < 6);
     assert.ok(runtime._state.score.multiplier < 4);
 

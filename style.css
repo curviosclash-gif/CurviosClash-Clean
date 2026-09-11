@@ -2622,6 +2622,9 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 #arcade-overlay-panel {
+    pointer-events: auto;
+    max-height: calc(100vh - 180px);
+    overflow-y: auto;
     width: min(920px, calc(100% - 32px));
     margin-top: 18px;
     padding: 14px 16px;
@@ -7747,3 +7750,22 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     box-shadow: inset 0 -3px var(--menu-theme-accent);
 }
 #btn-classic-tutorial .menu-choice-copy { color: #fff; }
+
+#arcade-overlay-panel button:focus-visible {
+    outline: 3px solid #fff0b0;
+    outline-offset: 3px;
+}
+
+#message-overlay.has-arcade-results #message-stats { display: none; }
+#arcade-overlay-panel .arcade-overlay-continue {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 10px;
+}
+#arcade-overlay-panel .arcade-overlay-section { align-content: start; }
+
+body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
+    #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay
+) { visibility: hidden; }

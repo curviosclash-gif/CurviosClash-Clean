@@ -2,69 +2,93 @@ import * as THREE from 'three';
 import {
     calculateEndlessScore,
     ENDLESS_PARCOURS_ACTIVE_WINDOW,
-    ENDLESS_PARCOURS_BOT_CAPACITY,
     ENDLESS_PARCOURS_END_REASONS,
     ENDLESS_PARCOURS_MODULE_LENGTH,
     resolveEndlessDesiredBotCount,
     resolveEndlessDifficultyTier,
-    resolveEndlessReinforcementDelay,
     resolveEndlessThreatLevel,
 } from '../../shared/contracts/EndlessParcoursContract.js';
 import {
-    loadEndlessParcoursRecords,
-    normalizeEndlessParcoursRecords,
-    saveEndlessParcoursRecords,
-    updateEndlessParcoursRecords,
-} from '../../state/arcade/EndlessParcoursRecords.js';
-import { generateEndlessParcoursModule } from './EndlessParcoursGenerator.js';
+    ENDLESS_PARCOURS_ELITE,
+    ENDLESS_PARCOURS_STREAK,
+    resolveEndlessSpeedMultiplier,
+    resolveEndlessVoidWarning,
+} from '../../shared/contracts/EndlessParcoursStageContract.js';
+import { normalizeEndlessParcoursRecords } from '../../state/arcade/EndlessParcoursRecords.js';
+import { ENDLESS_COURSE_HALF_WIDTH } from './EndlessParcoursConnectors.js';
+import { EndlessParcoursPath } from './EndlessParcoursPath.js';
 import {
-    countActiveEndlessBotSlots,
-    countPendingEndlessBotSlots,
-} from './EndlessParcoursRuntimeCounters.js';
+    buildEndlessModuleInstance,
+    resolveEndlessActiveColliders,
+    resolveModuleCenterAtZ,
+    syncEndlessCycleColliders,
+} from './EndlessParcoursModuleBuilder.js';
 import {
+    buildEndlessDebugSnapshot,
+    buildEndlessHudState,
+} from './EndlessParcoursProjection.js';
+import {
+    collectEndlessRunXp,
+    finalizeEndlessRun,
+    retryEndlessSettlement,
+    setEndlessRecordStore,
+    setEndlessRunProfile,
+} from './EndlessParcoursProgressionOps.js';
+import {
+    createEndlessBotSlots,
+    createEndlessRuntimeState,
+} from './EndlessParcoursRuntimeState.js';
+import {
+    clearEndlessElite,
     findSafeEndlessSpawnAnchor,
-    resolveEndlessBotRole,
+    isEndlessAnchorDirectionAllowed,
 } from './EndlessParcoursBotDirectorOps.js';
+import { reconcileEndlessBots } from './EndlessParcoursSlotOps.js';
+import {
+    advanceEndlessWave,
+    beginEndlessAttackWave,
+    onEndlessExchangeSlotFreed,
+} from './EndlessParcoursWaveOps.js';
+import {
+    breakEndlessStreak,
+    handleEndlessCheckpointCrossing,
+    registerEndlessShakeoff,
+    registerEndlessStreakEvent,
+    tryEndlessRevive,
+    updateEndlessStreak,
+} from './EndlessParcoursRunOps.js';
+import {
+    registerEndlessObjectiveCheckpoint,
+    registerEndlessPlayerDamage,
+    syncEndlessFlightObjective,
+    updateEndlessSideRoute,
+} from './EndlessParcoursObjectiveOps.js';
+import {
+    applyEndlessStagePalette,
+    createEndlessMaterials,
+    switchEndlessStage,
+    updateEndlessStageEffects,
+} from './EndlessParcoursStageOps.js';
 
-const COURSE_HALF_WIDTH = 27;
-const COURSE_VOID_HALF_WIDTH = 42;
+const COURSE_VOID_MARGIN = 15;
 const COURSE_MIN_Y = -24;
 const COURSE_MAX_Y = 64;
 const BOT_SPAWN_MIN_DISTANCE_SQ = 18 * 18;
-const BOT_SPAWN_DEFER_SECONDS = 0.5;
-const WALL_THICKNESS = 3;
-const WALL_HEIGHT = 34;
+let endlessRunSequence = 0;
+
 function safeDateIso() {
     try { return new Date().toISOString(); } catch { return ''; }
 }
 
-function createBoxCollider({ x, y, z, sx, sy, sz }, originZ, ownerId, index, kind = 'hard') {
-    const centerX = Number(x) || 0;
-    const centerY = Number(y) || 0;
-    const centerZ = originZ + (Number(z) || 0);
-    const halfX = Math.max(0.01, Number(sx) || 1) * 0.5;
-    const halfY = Math.max(0.01, Number(sy) || 1) * 0.5;
-    const halfZ = Math.max(0.01, Number(sz) || 1) * 0.5;
-    return {
-        id: `${ownerId}:collider:${index}`,
-        ownerId,
-        kind,
-        isWall: kind === 'wall',
-        box: new THREE.Box3(
-            new THREE.Vector3(centerX - halfX, centerY - halfY, centerZ - halfZ),
-            new THREE.Vector3(centerX + halfX, centerY + halfY, centerZ + halfZ)
-        ),
-    };
-}
-
-function setSharedResourceFlag(resource) {
-    if (!resource) return resource;
-    resource.userData = resource.userData || {};
-    resource.userData.__sharedNoDispose = true;
-    return resource;
-}
-
 export class EndlessParcoursRuntime {
+    // Der Laufzustand kommt gebuendelt aus createEndlessRuntimeState. Die Felder,
+    // die diese Klasse selbst liest, werden hier deklariert, damit der
+    // Typcheck sie kennt - die Werte setzt der Konstruktor.
+    /** @type {number} */ survivalSeconds;
+    /** @type {number} */ botKills;
+    /** @type {number} */ eliteKills;
+    /** @type {number} */ bonusScore;
+
     constructor({
         baseSeed = 1,
         renderer = null,
@@ -74,6 +98,7 @@ export class EndlessParcoursRuntime {
         audio = null,
         wallClockIso = safeDateIso,
     } = {}) {
+        Object.assign(this, createEndlessRuntimeState());
         this.baseSeed = Math.max(1, Number(baseSeed) >>> 0);
         this.renderer = renderer;
         this.arena = arena;
@@ -81,45 +106,26 @@ export class EndlessParcoursRuntime {
         this.entityManager = entityManager;
         this.audio = audio;
         this.wallClockIso = typeof wallClockIso === 'function' ? wallClockIso : safeDateIso;
+        endlessRunSequence += 1;
+        const runTimestamp = Date.parse(this.wallClockIso());
+        const runTimePart = Number.isFinite(runTimestamp) ? runTimestamp.toString(36) : 'unknown';
+        this.runId = `endless-${this.baseSeed.toString(36)}-${runTimePart}-${endlessRunSequence.toString(36)}`;
         this.activeModules = new Map();
-        this.maxProgressMeters = 0;
-        this.completedModules = 0;
-        this.survivalSeconds = 0;
-        this.elapsedCombatSeconds = 0;
-        this.combatStarted = false;
-        this.botKills = 0;
-        this.score = 0;
-        this.currentModuleIndex = 0;
-        this._nextEscalationBoundary = 45;
-        this._lastThreatLevel = 'INTRO';
-        this._lastAnnouncedBotTarget = 0;
-        this._pendingFinalReason = '';
-        this._finalized = false;
-        this._disposed = false;
-        this._summary = null;
-        this._recordStore = null;
         this._records = normalizeEndlessParcoursRecords();
-        this._isNewRecord = false;
-        this._lastPersistenceResult = { ok: true, reason: 'not_attempted' };
         this._startSpeed = Math.max(0.001, Number(entityManager?.humanPlayers?.[0]?.baseSpeed) || 1);
+        this._path = new EndlessParcoursPath({ baseSeed: this.baseSeed });
+        this._sideRouteStates = new Map();
+        this._rewardedSideRoutes = new Set();
         this._tmpDirection = new THREE.Vector3();
         this._tmpDelta = new THREE.Vector3();
         this._tmpSpawnPosition = new THREE.Vector3();
         this._tmpSpawnDirection = new THREE.Vector3(0, 0, 1);
-        this._candidateSpawnAnchor = { id: '', x: 0, y: 0, z: 0 };
-        this._selectedSpawnAnchor = { id: '', x: 0, y: 0, z: 0 };
-        this._sharedGeometry = setSharedResourceFlag(new THREE.BoxGeometry(1, 1, 1));
-        this._materials = {
-            floor: setSharedResourceFlag(new THREE.MeshStandardMaterial({ color: 0x183047, emissive: 0x07131f, roughness: 0.8 })),
-            wall: setSharedResourceFlag(new THREE.MeshStandardMaterial({ color: 0x245a82, emissive: 0x0a2d4a, emissiveIntensity: 0.45 })),
-            obstacle: setSharedResourceFlag(new THREE.MeshStandardMaterial({ color: 0xb13a56, emissive: 0x4a0b18, emissiveIntensity: 0.5 })),
-            gate: setSharedResourceFlag(new THREE.MeshStandardMaterial({ color: 0x5de2ff, emissive: 0x16738d, emissiveIntensity: 0.9 })),
-        };
-        this._botSlots = [];
-        const bots = Array.isArray(entityManager?.bots) ? entityManager.bots : [];
-        for (let slot = 0; slot < Math.min(ENDLESS_PARCOURS_BOT_CAPACITY, bots.length); slot += 1) {
-            this._botSlots.push({ slot, player: bots[slot]?.player || null, state: 'idle', life: 0, eligibleAt: 0 });
-        }
+        this._candidateSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false };
+        this._selectedSpawnAnchor = { id: '', x: 0, y: 0, z: 0, ahead: false };
+        this._sharedGeometry = new THREE.BoxGeometry(1, 1, 1);
+        this._sharedGeometry.userData = { __sharedNoDispose: true };
+        this._materials = createEndlessMaterials();
+        this._botSlots = createEndlessBotSlots(entityManager?.bots);
         this.entityManager.endlessParcoursRuntime = this;
         this.arena?.enterStaticStreamingMode?.({
             minX: -1000,
@@ -129,13 +135,25 @@ export class EndlessParcoursRuntime {
             minZ: -1000,
             maxZ: 1_000_000,
         });
+        this._activePaletteTier = 0;
+        applyEndlessStagePalette(this._materials, 0);
         this._syncModules(0, 1);
     }
 
     setRecordStore(store) {
-        this._recordStore = store || null;
-        this._records = loadEndlessParcoursRecords(this._recordStore);
-        return this.getRecordsSnapshot();
+        return setEndlessRecordStore(this, store);
+    }
+
+    setRunProfile(options = {}) {
+        return setEndlessRunProfile(this, options);
+    }
+
+    collectRunXp(kind, count = 1) {
+        return collectEndlessRunXp(this, kind, count);
+    }
+
+    retrySettlement() {
+        return retryEndlessSettlement(this);
     }
 
     getRecordsSnapshot() {
@@ -149,96 +167,114 @@ export class EndlessParcoursRuntime {
         };
     }
 
+    handleGameplayEvent(event = null) {
+        if (!event || this._disposed || this._finalized) return;
+        if (String(event.type || '').toLowerCase() === 'damage') {
+            registerEndlessPlayerDamage(this);
+            breakEndlessStreak(this);
+        }
+    }
+
+    onCheckpointPassed(index) {
+        if (Math.floor(Number(index) || 0) <= 0) return;
+        const module = this._path.getModule(index, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
+        registerEndlessObjectiveCheckpoint(this, index, module.area);
+    }
+
+    /**
+     * Der Rekordmarker steht mitten in der Strecke. Weil der Rekord erst nach dem
+     * Konstruktor geladen wird, traegt er sich hier fuer schon gebaute Bausteine nach.
+     */
+    _refreshRecordMarkers() {
+        const record = Math.max(0, Number(
+            this._records?.bestDistance?.distanceMeters ?? this._records?.best?.distanceMeters
+        ) || 0);
+        if (record <= 0) return;
+        for (const [index, instance] of this.activeModules) {
+            if (instance.recordMarker) continue;
+            const { originZ, length } = instance.module;
+            if (record < originZ || record >= originZ + length) continue;
+            this._removeModule(instance);
+            this.activeModules.set(index, this._instantiateModule(instance.module));
+        }
+    }
+
     handlePlayerDeath(player, cause = 'UNKNOWN', options = {}) {
         if (this._disposed || this._finalized || !player) return;
         if (!player.isBot) {
+            if (tryEndlessRevive(this, player)) return;
             this._pendingFinalReason = String(cause || '').toUpperCase() === ENDLESS_PARCOURS_END_REASONS.VOID
                 ? ENDLESS_PARCOURS_END_REASONS.VOID
                 : ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH;
             return;
         }
         const slotState = this._botSlots.find((entry) => entry.player === player);
-        if (!slotState || slotState.state !== 'active') return;
+        if (!slotState || !['active', 'retreating', 'exchange_retreat'].includes(slotState.state)) return;
+        if (options?.activationGeneration != null
+            && Number(options.activationGeneration) !== slotState.activationGeneration) return;
+        if (options?.botSlot != null && Number(options.botSlot) !== slotState.slot) return;
+        if (options?.runId != null && String(options.runId) !== this.runId) return;
+        const wasExchange = slotState.state === 'exchange_retreat';
+        const wasElite = player.isEndlessElite === true;
+        clearEndlessElite(player);
         this.entityManager?.deactivateBotSlot?.(slotState.slot, 'bot_eliminated');
-        slotState.state = 'pending';
-        slotState.eligibleAt = this.elapsedCombatSeconds + resolveEndlessReinforcementDelay(this.elapsedCombatSeconds);
-        if (options?.killer && options.killer.isBot !== true) this.botKills += 1;
-    }
-
-    _createScaledMesh(material, x, y, z, sx, sy, sz) {
-        const mesh = new THREE.Mesh(this._sharedGeometry, material);
-        mesh.position.set(x, y, z);
-        mesh.scale.set(sx, sy, sz);
-        mesh.castShadow = false;
-        mesh.receiveShadow = true;
-        return mesh;
+        slotState.state = 'idle';
+        slotState.plannedAnchor = null;
+        slotState.plannedElite = false;
+        slotState.telegraphedAt = -1;
+        slotState.eligibleAt = 0;
+        player.endlessForcedRetreat = false;
+        player.endlessRetreatReason = '';
+        if (wasExchange) onEndlessExchangeSlotFreed(this, slotState);
+        if (!options?.killer || options.killer.isBot === true) return;
+        this.botKills += 1;
+        this.collectRunXp('kill', 1);
+        registerEndlessStreakEvent(this, 'kill', ENDLESS_PARCOURS_STREAK.killBaseScore);
+        if (!wasElite) return;
+        this.eliteKills += 1;
+        this.bonusScore += Math.max(
+            0,
+            ENDLESS_PARCOURS_ELITE.killScore - ENDLESS_PARCOURS_STREAK.killBaseScore
+        );
+        this.audio?.play?.('FIGHT_LEAD');
+        this.entityManager?._notifyPlayerFeedback?.(options.killer, 'Anfuehrer bezwungen');
     }
 
     _instantiateModule(module) {
-        const ownerId = `endless-module:${module.moduleIndex}`;
-        const group = new THREE.Group();
-        group.name = ownerId;
-        group.userData.endlessModuleIndex = module.moduleIndex;
-        group.add(this._createScaledMesh(
-            this._materials.floor,
-            0, -3, module.originZ + module.length * 0.5,
-            COURSE_HALF_WIDTH * 2, 1.2, module.length
-        ));
-        group.add(this._createScaledMesh(
-            this._materials.wall,
-            -COURSE_HALF_WIDTH, WALL_HEIGHT * 0.5 - 2, module.originZ + module.length * 0.5,
-            WALL_THICKNESS, WALL_HEIGHT, module.length
-        ));
-        group.add(this._createScaledMesh(
-            this._materials.wall,
-            COURSE_HALF_WIDTH, WALL_HEIGHT * 0.5 - 2, module.originZ + module.length * 0.5,
-            WALL_THICKNESS, WALL_HEIGHT, module.length
-        ));
-        const colliders = [
-            createBoxCollider({ x: -COURSE_HALF_WIDTH, y: WALL_HEIGHT * 0.5 - 2, z: module.length * 0.5, sx: WALL_THICKNESS, sy: WALL_HEIGHT, sz: module.length }, module.originZ, ownerId, 0, 'wall'),
-            createBoxCollider({ x: COURSE_HALF_WIDTH, y: WALL_HEIGHT * 0.5 - 2, z: module.length * 0.5, sx: WALL_THICKNESS, sy: WALL_HEIGHT, sz: module.length }, module.originZ, ownerId, 1, 'wall'),
-        ];
-        for (let index = 0; index < module.colliders.length; index += 1) {
-            const definition = module.colliders[index];
-            const worldZ = module.originZ + definition.z;
-            group.add(this._createScaledMesh(
-                this._materials.obstacle,
-                definition.x, definition.y, worldZ,
-                definition.sx, definition.sy, definition.sz
-            ));
-            colliders.push(createBoxCollider(definition, module.originZ, ownerId, index + 2));
-        }
-        const checkpoint = this._createScaledMesh(
-            this._materials.gate,
-            0, 9, module.checkpointZ,
-            COURSE_HALF_WIDTH * 1.7, 0.5, 0.6
-        );
-        checkpoint.name = `${ownerId}:checkpoint`;
-        group.add(checkpoint);
-        this.renderer?.addToScene?.(group);
-        this.arena?.registerStaticColliderBatch?.(ownerId, colliders);
+        const instance = buildEndlessModuleInstance({
+            module,
+            geometry: this._sharedGeometry,
+            materials: this._materials,
+            recordDistanceMeters: this._records?.bestDistance?.distanceMeters
+                ?? this._records?.best?.distanceMeters
+                ?? 0,
+        });
+        syncEndlessCycleColliders(instance, this.elapsedCombatSeconds, this._materials);
+        this.renderer?.addToScene?.(instance.group);
+        this.arena?.registerStaticColliderBatch?.(instance.ownerId, resolveEndlessActiveColliders(instance));
         for (let index = 0; index < module.pickups.length; index += 1) {
             const pickup = module.pickups[index];
+            const center = resolveModuleCenterAtZ(module, module.originZ + pickup.z);
             this.powerupManager?.spawnAtAnchor?.({
-                ownerId,
+                ownerId: instance.ownerId,
                 id: pickup.id,
                 type: pickup.type,
-                x: pickup.x,
-                y: pickup.y,
+                x: center.x + pickup.x,
+                y: center.y + pickup.y - 8,
                 z: module.originZ + pickup.z,
             });
         }
-        return { ownerId, module, group, colliders };
+        return instance;
     }
 
-    _removeModule(instance) {
+    _removeModule(instance, options = {}) {
         if (!instance) return;
         const { ownerId, module, group } = instance;
-        this._deactivateBotsInModule(module);
+        this._deactivateBotsInModule(module, options);
         this.powerupManager?.removeByOwnerId?.(ownerId);
         this.entityManager?._projectileSystem?.clearInBounds?.(
-            -COURSE_VOID_HALF_WIDTH,
-            COURSE_VOID_HALF_WIDTH,
+            -1000,
+            1000,
             module.originZ,
             module.originZ + module.length
         );
@@ -247,16 +283,23 @@ export class EndlessParcoursRuntime {
         this.renderer?.removeFromScene?.(group);
     }
 
-    _deactivateBotsInModule(module) {
+    _deactivateBotsInModule(module, options = {}) {
+        let shaken = 0;
         for (let index = 0; index < this._botSlots.length; index += 1) {
             const state = this._botSlots[index];
             const z = Number(state.player?.position?.z);
             if (state.state !== 'active' || !Number.isFinite(z)) continue;
             if (z < module.originZ || z > module.originZ + module.length) continue;
+            clearEndlessElite(state.player);
             this.entityManager?.deactivateBotSlot?.(state.slot, 'module_unloaded');
             state.state = 'idle';
-            state.eligibleAt = this.elapsedCombatSeconds;
+            state.plannedAnchor = null;
+            state.telegraphedAt = -1;
+            state.eligibleAt = 0;
+            if (options.awardShakeoff === true
+                && module.originZ + module.length < this.maxProgressMeters) shaken += 1;
         }
+        if (shaken > 0 && this.combatStarted) registerEndlessShakeoff(this, shaken);
     }
 
     _syncModules(currentModuleIndex, difficultyTier) {
@@ -264,22 +307,31 @@ export class EndlessParcoursRuntime {
         const maxIndex = currentModuleIndex + ENDLESS_PARCOURS_ACTIVE_WINDOW.ahead;
         for (let index = minIndex; index <= maxIndex; index += 1) {
             if (this.activeModules.has(index)) continue;
-            const previous = index > 0
-                ? generateEndlessParcoursModule({ baseSeed: this.baseSeed, moduleIndex: index - 1, difficultyTier })
-                : null;
-            const module = generateEndlessParcoursModule({
-                baseSeed: this.baseSeed,
-                moduleIndex: index,
-                previousConnector: previous?.exitConnector || 'straight',
-                difficultyTier,
-            });
-            this.activeModules.set(index, this._instantiateModule(module));
+            this.activeModules.set(index, this._instantiateModule(this._path.getModule(index, difficultyTier)));
         }
         for (const [index, instance] of this.activeModules) {
             if (index >= minIndex && index <= maxIndex) continue;
-            this._removeModule(instance);
+            this._removeModule(instance, { awardShakeoff: index < minIndex });
             this.activeModules.delete(index);
         }
+    }
+
+    _syncCycleColliders() {
+        for (const instance of this.activeModules.values()) {
+            if (!syncEndlessCycleColliders(instance, this.elapsedCombatSeconds, this._materials)) continue;
+            this.arena?.registerStaticColliderBatch?.(instance.ownerId, resolveEndlessActiveColliders(instance));
+        }
+    }
+
+    /**
+     * Korridormitte an einer Weltposition. Ohne diese Umrechnung waeren
+     * Sturzgrenze und Seitenwaende in einer geknickten Passage falsch platziert.
+     */
+    _resolveCenterAtZ(worldZ) {
+        const index = Math.max(0, Math.floor((Number(worldZ) || 0) / ENDLESS_PARCOURS_MODULE_LENGTH));
+        const instance = this.activeModules.get(index);
+        if (!instance) return { x: 0, y: 0 };
+        return resolveModuleCenterAtZ(instance.module, worldZ);
     }
 
     _isSpawnAnchorSafe(anchor, human) {
@@ -291,60 +343,22 @@ export class EndlessParcoursRuntime {
             if (player.position.distanceToSquared(this._tmpSpawnPosition) < BOT_SPAWN_MIN_DISTANCE_SQ) return false;
         }
         if (this.arena?.checkCollisionFast?.(this._tmpSpawnPosition, 2.5)) return false;
-        if (human?.alive) {
-            human.getDirection(this._tmpDirection).normalize();
-            this._tmpDelta.subVectors(this._tmpSpawnPosition, human.position);
-            if (this._tmpDelta.lengthSq() > 0.001 && this._tmpDirection.dot(this._tmpDelta.normalize()) > 0.05) return false;
-        }
-        return true;
+        if (!human?.alive) return true;
+        human.getDirection(this._tmpDirection).normalize();
+        this._tmpDelta.subVectors(this._tmpSpawnPosition, human.position);
+        const distance = this._tmpDelta.length();
+        if (distance <= 0.03) return false;
+        const forwardDot = this._tmpDirection.dot(this._tmpDelta.divideScalar(distance));
+        return isEndlessAnchorDirectionAllowed(this, anchor, human, forwardDot, distance);
     }
 
-    _findSafeSpawnAnchor(slotState) {
-        return findSafeEndlessSpawnAnchor(this, slotState);
-    }
-
-    _resolveBotRole(slotState) {
-        return resolveEndlessBotRole(this, slotState);
-    }
-
-    _tryActivateSlot(slotState) {
-        const anchor = this._findSafeSpawnAnchor(slotState);
-        if (!anchor) return false;
-        const tier = resolveEndlessDifficultyTier(this.elapsedCombatSeconds);
-        const difficulty = tier <= 1 ? 'EASY' : (tier === 2 ? 'NORMAL' : 'HARD');
-        slotState.life += 1;
-        const activated = this.entityManager?.activateBotSlot?.({
-            slot: slotState.slot,
-            position: anchor,
-            direction: this._tmpSpawnDirection,
-            role: this._resolveBotRole(slotState),
-            difficulty,
-            life: slotState.life,
-        }) === true;
-        if (!activated) return false;
-        slotState.state = 'active';
-        slotState.eligibleAt = 0;
-        return true;
-    }
-
-    _reconcileBots() {
-        if (!this.combatStarted) return;
-        const desired = resolveEndlessDesiredBotCount(this.elapsedCombatSeconds);
-        for (let index = 0; index < this._botSlots.length; index += 1) {
-            const state = this._botSlots[index];
-            if (state.state !== 'pending' || state.eligibleAt > this.elapsedCombatSeconds) continue;
-            if (!this._tryActivateSlot(state)) state.eligibleAt = this.elapsedCombatSeconds + BOT_SPAWN_DEFER_SECONDS;
-        }
-        let reserved = countActiveEndlessBotSlots(this._botSlots) + countPendingEndlessBotSlots(this._botSlots);
-        for (let index = 0; reserved < desired && index < this._botSlots.length; index += 1) {
-            const state = this._botSlots[index];
-            if (state.state !== 'idle' || state.eligibleAt > this.elapsedCombatSeconds) continue;
-            if (this._tryActivateSlot(state)) reserved += 1;
-            else state.eligibleAt = this.elapsedCombatSeconds + BOT_SPAWN_DEFER_SECONDS;
-        }
+    _findSafeSpawnAnchor(slotState, options = {}) {
+        return findSafeEndlessSpawnAnchor(this, slotState, options);
     }
 
     _announceEscalation() {
+        const tier = resolveEndlessDifficultyTier(this.elapsedCombatSeconds);
+        switchEndlessStage(this, this.combatStarted ? tier : 0);
         const threat = resolveEndlessThreatLevel(this.elapsedCombatSeconds);
         const botTarget = resolveEndlessDesiredBotCount(this.elapsedCombatSeconds);
         if (threat === this._lastThreatLevel && botTarget === this._lastAnnouncedBotTarget) return;
@@ -352,35 +366,77 @@ export class EndlessParcoursRuntime {
         this._lastAnnouncedBotTarget = botTarget;
         const human = this.entityManager?.humanPlayers?.[0] || null;
         this.entityManager?._notifyPlayerFeedback?.(human, `Bedrohungsstufe: ${threat} | Jaeger: ${botTarget}`);
-        this.audio?.play?.('POWERUP');
     }
 
     _updateProgress(player) {
         const progress = Math.max(0, Number(player?.position?.z) || 0);
+        this.currentModuleIndex = Math.max(0, Math.floor(progress / ENDLESS_PARCOURS_MODULE_LENGTH));
         if (progress <= this.maxProgressMeters) return;
         this.maxProgressMeters = progress;
+        handleEndlessCheckpointCrossing(this, progress);
         const completed = Math.max(0, Math.floor(progress / ENDLESS_PARCOURS_MODULE_LENGTH));
         if (completed > this.completedModules) {
             this.completedModules = completed;
-            const speedMultiplier = 1 + Math.min(0.35, Math.floor(completed / 4) * 0.05);
-            player?.setControlOptions?.({ speed: this._startSpeed * speedMultiplier });
+            player?.setControlOptions?.({ speed: this._startSpeed * resolveEndlessSpeedMultiplier(completed) });
         }
         if (!this.combatStarted && progress >= ENDLESS_PARCOURS_MODULE_LENGTH) {
             this.combatStarted = true;
             this.elapsedCombatSeconds = 0;
             this._lastThreatLevel = 'EASY';
+            beginEndlessAttackWave(this, 1);
         }
-        this.currentModuleIndex = Math.max(0, Math.floor(progress / ENDLESS_PARCOURS_MODULE_LENGTH));
+    }
+
+    /**
+     * Beobachtet Treffer und Aufnahmen am Spieler. So bleibt die Serie ohne
+     * zusaetzlichen Ereignis-Kanal an das Kampfgeschehen gekoppelt.
+     */
+    _trackHumanEvents(human) {
+        const hp = Number(human?.hp);
+        const shield = Number(human?.shieldHP);
+        if (Number.isFinite(hp)) {
+            if (this._lastHumanHp !== null && hp < this._lastHumanHp) {
+                registerEndlessPlayerDamage(this);
+                breakEndlessStreak(this);
+            }
+            this._lastHumanHp = hp;
+        }
+        if (Number.isFinite(shield)) {
+            if (this._lastHumanShield !== null && shield < this._lastHumanShield) {
+                registerEndlessPlayerDamage(this);
+                breakEndlessStreak(this);
+            }
+            this._lastHumanShield = shield;
+        }
+        const inventory = Array.isArray(human?.inventory) ? human.inventory.length : 0;
+        if (this._lastInventoryCount !== null && inventory > this._lastInventoryCount) {
+            registerEndlessStreakEvent(this, 'pickup', ENDLESS_PARCOURS_STREAK.pickupBaseScore);
+        }
+        this._lastInventoryCount = inventory;
+    }
+
+    _updateWarnings(human, dt) {
+        if (this.spawnWarning) {
+            this.spawnWarning.remaining -= dt;
+            if (this.spawnWarning.remaining <= 0) this.spawnWarning = null;
+        }
+        const previous = this.voidWarning.warning === true;
+        this.voidWarning = resolveEndlessVoidWarning(Number(human?.position?.z) || 0, this.maxProgressMeters);
+        if (this.voidWarning.warning && !previous && this.voidWarning.remainingMeters > 0) {
+            this.audio?.play?.('PARCOURS_WRONG');
+            this.entityManager?._notifyPlayerFeedback?.(human, 'Zurueckgefallen - sofort vorwaerts');
+        }
     }
 
     _isOutsideCourse(player) {
         const x = Number(player?.position?.x) || 0;
         const y = Number(player?.position?.y) || 0;
         const z = Number(player?.position?.z) || 0;
-        return Math.abs(x) > COURSE_VOID_HALF_WIDTH
-            || y < COURSE_MIN_Y
-            || y > COURSE_MAX_Y
-            || z < this.maxProgressMeters - (ENDLESS_PARCOURS_MODULE_LENGTH * 2 + 30);
+        const center = this._resolveCenterAtZ(z);
+        return Math.abs(x - center.x) > ENDLESS_COURSE_HALF_WIDTH + COURSE_VOID_MARGIN
+            || y < center.y + COURSE_MIN_Y
+            || y > center.y + COURSE_MAX_Y
+            || this.voidWarning.remainingMeters <= 0;
     }
 
     tick(dt = 0) {
@@ -388,23 +444,30 @@ export class EndlessParcoursRuntime {
         const safeDt = Math.max(0, Number(dt) || 0);
         const human = this.entityManager?.humanPlayers?.[0] || null;
         this.survivalSeconds += safeDt;
+        if (this.combatStarted) this._trackHumanEvents(human);
         this._updateProgress(human);
-        const tier = resolveEndlessDifficultyTier(this.elapsedCombatSeconds);
-        this._syncModules(this.currentModuleIndex, tier);
+        this._syncModules(this.currentModuleIndex, resolveEndlessDifficultyTier(this.elapsedCombatSeconds));
         if (this._pendingFinalReason) return this.finalize(this._pendingFinalReason);
         if (!human?.alive) return this.finalize(ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH);
+        this._updateWarnings(human, safeDt);
         if (this._isOutsideCourse(human)) {
             this.entityManager?._killPlayer?.(human, ENDLESS_PARCOURS_END_REASONS.VOID);
-            return this.finalize(ENDLESS_PARCOURS_END_REASONS.VOID);
+            if (!this._pendingFinalReason && human.alive !== true) {
+                return this.finalize(ENDLESS_PARCOURS_END_REASONS.VOID);
+            }
         }
         if (this.combatStarted) {
             this.elapsedCombatSeconds += safeDt;
-            while (this.elapsedCombatSeconds >= this._nextEscalationBoundary) {
-                this._nextEscalationBoundary += 45;
-            }
+            const module = this.activeModules.get(this.currentModuleIndex)?.module;
+            if (module) syncEndlessFlightObjective(this, module.moduleIndex, module.area);
+            updateEndlessSideRoute(this, human);
+            updateEndlessStreak(this);
+            advanceEndlessWave(this, safeDt);
             this._announceEscalation();
-            this._reconcileBots();
+            this._syncCycleColliders();
+            reconcileEndlessBots(this);
         }
+        updateEndlessStageEffects(this, safeDt);
         this.score = calculateEndlessScore(this);
         return null;
     }
@@ -413,88 +476,35 @@ export class EndlessParcoursRuntime {
         return this.tick(dt);
     }
 
-    _buildSummary(reason) {
-        const summary = {
-            runType: 'endless_parcours',
-            reason: String(reason || ''),
-            score: calculateEndlessScore(this),
-            distanceMeters: this.maxProgressMeters,
-            survivalSeconds: this.survivalSeconds,
-            completedModules: this.completedModules,
-            botKills: this.botKills,
-            seed: this.baseSeed,
-            isNewRecord: false,
-        };
-        return summary;
-    }
-
+    /**
+     * @param {string} [reason] Grund aus ENDLESS_PARCOURS_END_REASONS
+     * @param {{ persist?: boolean, requestRoundEnd?: boolean }} [options]
+     */
     finalize(reason = ENDLESS_PARCOURS_END_REASONS.PLAYER_DEATH, options = {}) {
-        if (this._finalized) return this._summary;
-        this._finalized = true;
-        this._pendingFinalReason = '';
-        this._summary = this._buildSummary(reason);
-        const shouldPersist = options.persist !== false && reason !== ENDLESS_PARCOURS_END_REASONS.ABORT;
-        if (shouldPersist) {
-            const update = updateEndlessParcoursRecords(this._records, this._summary, this.wallClockIso());
-            this._records = update.records;
-            this._isNewRecord = update.isNewRecord;
-            this._summary.isNewRecord = update.isNewRecord;
-            this._lastPersistenceResult = saveEndlessParcoursRecords(this._recordStore, this._records);
-        }
-        if (options.requestRoundEnd !== false) {
-            this.entityManager?.requestRoundEnd?.({
-                winner: null,
-                allowNoWinner: true,
-                reason,
-                parcours: { endless: true, endlessSummary: { ...this._summary } },
-            });
-        }
-        return this._summary;
+        return finalizeEndlessRun(this, reason, options);
     }
 
     getHudState() {
         if (this._disposed) return null;
-        const activeBots = countActiveEndlessBotSlots(this._botSlots);
-        return {
-            runType: 'endless_parcours',
-            phase: this._finalized ? 'finished' : 'running',
-            seed: this.baseSeed,
-            score: { total: calculateEndlessScore(this) },
-            maxProgressMeters: this.maxProgressMeters,
-            survivalSeconds: this.survivalSeconds,
-            completedModules: this.completedModules,
-            botKills: this.botKills,
-            activeBots,
-            botCapacity: ENDLESS_PARCOURS_BOT_CAPACITY,
-            threatLevel: this.combatStarted ? resolveEndlessThreatLevel(this.elapsedCombatSeconds) : 'INTRO',
-            recordScore: this._records.best.score,
-            recordDistanceMeters: this._records.best.distanceMeters,
-            isNewRecord: this._isNewRecord,
-            postRunSummary: this._summary,
-            persistence: this._lastPersistenceResult,
-        };
+        return buildEndlessHudState(this);
     }
 
     getDebugSnapshot() {
-        return {
-            activeModules: this.activeModules.size,
-            colliderBatches: this.arena?.getStaticColliderBatchCount?.() || 0,
-            pickups: Array.isArray(this.powerupManager?.items) ? this.powerupManager.items.length : 0,
-            spawnAnchors: Array.from(this.activeModules.values()).reduce((total, entry) => total + entry.module.botAnchors.length, 0),
-            activeBots: countActiveEndlessBotSlots(this._botSlots),
-            botSlots: this._botSlots.map((entry) => ({ slot: entry.slot, playerIndex: entry.player?.index, state: entry.state, life: entry.life })),
-        };
+        return buildEndlessDebugSnapshot(this);
     }
 
     dispose() {
         if (this._disposed) return;
         if (!this._finalized) this.finalize(ENDLESS_PARCOURS_END_REASONS.ABORT, { persist: false, requestRoundEnd: false });
         for (let index = 0; index < this._botSlots.length; index += 1) {
+            clearEndlessElite(this._botSlots[index].player);
             this.entityManager?.deactivateBotSlot?.(this._botSlots[index].slot, 'runtime_dispose');
             this._botSlots[index].state = 'idle';
         }
         for (const instance of this.activeModules.values()) this._removeModule(instance);
         this.activeModules.clear();
+        this._sideRouteStates.clear();
+        this._rewardedSideRoutes.clear();
         this.arena?.exitStaticStreamingMode?.();
         this._sharedGeometry?.dispose?.();
         for (const material of Object.values(this._materials)) material?.dispose?.();

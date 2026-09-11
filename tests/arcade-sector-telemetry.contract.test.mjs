@@ -123,7 +123,7 @@ test('Sudden-death sector result survives intermission for score, combo and hist
         nowMs: 0,
         runId: 'sudden-death-sector-result',
     });
-    state.completedSectors = 1;
+    state.completedSectors = 2;
     state = beginArcadeSector(state, 100);
     assert.equal(state.phase, 'sudden_death');
     state = completeArcadeSector(state, 200);

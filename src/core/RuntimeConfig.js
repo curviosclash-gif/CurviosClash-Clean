@@ -1,3 +1,4 @@
+import { resolveArcadeDailySettings, ARCADE_DAILY_RULES_VERSION } from '../shared/contracts/ArcadeDailyRulesContract.js';
 import { CONFIG, CONFIG_BASE } from './Config.js';
 import { GAME_MODE_TYPES, isHuntMode, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotPolicyTypes.js';
@@ -193,7 +194,7 @@ export function createRuntimeConfigSnapshot(settings, {
     settingsDefaultsPort = null,
     runtimeGlobal = globalThis,
 } = {}) {
-    const source = settings && typeof settings === 'object' ? settings : {};
+    const source = resolveArcadeDailySettings(settings && typeof settings === 'object' ? settings : {});
     const runtimeLimits = createRuntimeSettingsLimitsForRuntime(settingsDefaultsPort || runtimeGlobal);
     const gameplaySource = source.gameplay && typeof source.gameplay === 'object' ? source.gameplay : {};
     const huntSource = source.hunt && typeof source.hunt === 'object' ? source.hunt : {};
@@ -397,6 +398,7 @@ export function createRuntimeConfigSnapshot(settings, {
             // values a match runs with can never drift apart.
             ...normalizeArcadeRunSettings(arcadeSource),
             enabled: arcadeEnabled,
+            dailyRulesVersion: arcadeSource.dailyChallenge === true ? ARCADE_DAILY_RULES_VERSION : null,
             seed: resolveArcadeSeed(source, activeGameMode),
             ghostDuelMode: arcadeGhostDuelMode,
             ghostTrailCollisionEnabled: arcadeGhostTrailCollisionEnabled,

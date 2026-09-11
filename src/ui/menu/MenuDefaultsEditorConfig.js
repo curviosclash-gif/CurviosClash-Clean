@@ -182,7 +182,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         {
             id: 'endlosjagd',
             name: 'Endlosjagd',
-            description: 'Endloser Kampf-Parcours mit deterministischem Streaming und Eskalation.',
+            description: 'Endloser Kampf-Parcours: Tore geben Punkte, Serie und eine Rettung; die Strecke knickt, Schleusen takten, Anfuehrer ruecken nach.',
             lockedFields: ['localSettings.modePath', 'mode', 'gameMode', 'numBots', 'arcade.runType', 'arcade.combatProfile'],
             values: {
                 'localSettings.modePath': 'arcade',

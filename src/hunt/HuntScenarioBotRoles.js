@@ -13,6 +13,8 @@ const SCENARIO_BOT_TUNING = Object.freeze({
     flanker: Object.freeze({ role: 'flanker', aggressionBonus: 0.2, retreatVitality: 0.3, anchorRadius: 0, flankOffset: 18, chaseBoostDistance: 34, prefersRocket: false }),
     pursuer: Object.freeze({ role: 'pursuer', aggressionBonus: 0.3, retreatVitality: 0.22, anchorRadius: 0, flankOffset: 0, chaseBoostDistance: 24, prefersRocket: false }),
     interceptor: Object.freeze({ role: 'interceptor', aggressionBonus: 0.24, retreatVitality: 0.26, anchorRadius: 0, flankOffset: 0, chaseBoostDistance: 30, prefersRocket: true }),
+    // Der Anfuehrer der Endlosjagd zieht durch und weicht kaum zurueck.
+    elite: Object.freeze({ role: 'elite', aggressionBonus: 0.42, retreatVitality: 0.12, anchorRadius: 0, flankOffset: 0, chaseBoostDistance: 20, prefersRocket: true }),
 });
 
 export function resolveScenarioBotTuning(player = null) {
@@ -55,7 +57,7 @@ export function applyScenarioRoleMovement({
         policy._tmpRoleTarget.z += tuning.flankOffset * side;
         clearSteering(input);
         steerToward(policy, input, player, policy._tmpRoleTarget);
-    } else if (tuning.role === 'interceptor' && distSq > 18 * 18) {
+    } else if ((tuning.role === 'interceptor' || tuning.role === 'elite') && distSq > 18 * 18) {
         policy._tmpRoleTarget.copy(enemy.position);
         if (typeof enemy.getDirection === 'function') {
             enemy.getDirection(policy._tmpRoleForward);

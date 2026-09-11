@@ -59,3 +59,8 @@ export function createPlayerHudState(snapshot) {
         checkpointRespawnsUsed: snapshot.checkpointRespawnsUsed,
     };
 }
+
+export function createParcoursOutcomeCounters(state) {
+    return { wrongOrderCount: state?.wrongOrderCount || 0, resetCount: state?.resetCount || 0,
+        checkpointRespawnsUsed: state?.checkpointRespawnsUsed || 0 };
+}

@@ -89,7 +89,7 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     const targetIndex = Math.max(0, toSafeInt(nextSectorIndex, 1) - 1);
     const baseMapKey = getMapKeyForSector(sequence, targetIndex);
     const encounterEntry = runtime._getEncounterSectorEntry(nextSectorIndex);
-    const baseModifierId = String(encounterEntry?.modifierId || runtime._activeModifierId || '').trim();
+    const baseModifierId = encounterEntry?.parcoursEnabled ? '' : String(encounterEntry?.modifierId || runtime._activeModifierId || '').trim();
 
     const runtimeMapCatalog = getRuntimeMapCatalog();
     const mapCatalogKeys = listRuntimeMapPresetKeys(runtimeMapCatalog);
@@ -131,7 +131,7 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
         const mapIdx = (targetIndex + i) % Math.max(1, candidateMaps.length);
         const modifierIdx = (targetIndex + i + 1) % Math.max(1, modifierIds.length);
         const mapKey = candidateMaps[mapIdx] || baseMapKey;
-        const modifierId = modifierIds[modifierIdx] || baseModifierId;
+        const modifierId = nextSectorIsParcours ? '' : (modifierIds[modifierIdx] || baseModifierId);
         pushChoice(mapKey, modifierId, 'alt');
     }
 
@@ -141,6 +141,7 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
 export function prepareArcadeIntermissionState(runtime, nowMs = Date.now()) {
     if (!runtime._state) return null;
     const nextSectorIndex = Math.max(1, toSafeInt(runtime._state.completedSectors, 0) + 1);
+    runtime._ensureEncounterSectorEntry(nextSectorIndex);
     const choices = buildArcadeIntermissionChoices(runtime, nextSectorIndex);
     const rewards = resolveArcadeRewardChoices(runtime, nextSectorIndex);
     const selectedChoiceId = choices[0]?.id || null;
@@ -163,7 +164,10 @@ export function prepareArcadeIntermissionState(runtime, nowMs = Date.now()) {
         missionsTotal,
         lastSectorPoints: Math.max(0, toSafeNumber(lastSectorSummary?.awardedPoints, 0)),
         lastSectorMultiplier: Math.max(1, toSafeNumber(lastSectorSummary?.multiplierApplied, 1)),
-        lastSectorXp: Math.max(0, toSafeNumber(runtime._state?.lastSectorXp?.earned, 0)),
+        breakdown: lastSectorSummary?.breakdown || null,
+        missionBonus: lastSectorSummary?.missionBonus || 0,
+        scoreFactor: lastSectorSummary?.scoreFactor || 1,
+        lastSectorXp: Math.max(0, (runtime._state.xpEarned || 0) - (runtime._state.sectorStartXp || 0)),
         nextSectorPreview: {
             templateId: String(nextSectorEntry?.templateId || ''),
             objectiveId: String(nextSectorEntry?.objectiveId || ''),

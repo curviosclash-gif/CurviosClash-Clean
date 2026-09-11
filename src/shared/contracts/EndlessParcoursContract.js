@@ -75,14 +75,53 @@ export function resolveEndlessReinforcementDelay(elapsedCombatSeconds) {
     return Math.max(4, 10 - Math.floor(Math.max(0, Number(elapsedCombatSeconds) || 0) / 90));
 }
 
+/**
+ * `bonusScore` sammelt alles, was ein Lauf zusaetzlich verdient: Torbelohnung,
+ * Serienzuschlag, abgeschuettelte Verfolger und Anfuehrer-Abschuesse. Ohne
+ * dieses Feld bleibt die Formel wortgleich zur ersten Fassung.
+ *
+ * @param {{ maxProgressMeters?: unknown, survivalSeconds?: unknown, botKills?: unknown, completedModules?: unknown, bonusScore?: unknown }} [source]
+ * @returns {number}
+ */
 export function calculateEndlessScore({
     maxProgressMeters = 0,
     survivalSeconds = 0,
     botKills = 0,
     completedModules = 0,
+    bonusScore = 0,
 } = {}) {
     return Math.floor(Math.max(0, Number(maxProgressMeters) || 0) * 10)
         + Math.floor(Math.max(0, Number(survivalSeconds) || 0) * 5)
         + Math.max(0, Math.floor(Number(botKills) || 0)) * 250
-        + Math.max(0, Math.floor(Number(completedModules) || 0)) * 100;
+        + Math.max(0, Math.floor(Number(completedModules) || 0)) * 100
+        + Math.max(0, Math.floor(Number(bonusScore) || 0));
+}
+
+export const ENDLESS_PARCOURS_MILESTONES = Object.freeze([
+    Object.freeze({ id: 'distance-1000', label: '1000 m ueberlebt', metric: 'distanceMeters', threshold: 1000 }),
+    Object.freeze({ id: 'distance-2500', label: '2500 m ueberlebt', metric: 'distanceMeters', threshold: 2500 }),
+    Object.freeze({ id: 'distance-5000', label: '5000 m ueberlebt', metric: 'distanceMeters', threshold: 5000 }),
+    Object.freeze({ id: 'survival-300', label: '5 Minuten gejagt', metric: 'survivalSeconds', threshold: 300 }),
+    Object.freeze({ id: 'survival-600', label: '10 Minuten gejagt', metric: 'survivalSeconds', threshold: 600 }),
+    Object.freeze({ id: 'kills-10', label: '10 Jaeger erledigt', metric: 'botKills', threshold: 10 }),
+    Object.freeze({ id: 'kills-25', label: '25 Jaeger erledigt', metric: 'botKills', threshold: 25 }),
+    Object.freeze({ id: 'elite-1', label: 'Ersten Anfuehrer bezwungen', metric: 'eliteKills', threshold: 1 }),
+    Object.freeze({ id: 'streak-5', label: 'Serie x5 gehalten', metric: 'bestStreak', threshold: 5 }),
+    Object.freeze({ id: 'score-50000', label: '50000 Punkte', metric: 'score', threshold: 50000 }),
+]);
+
+/**
+ * Liefert die IDs der Meilensteine, die dieser Lauf erreicht hat.
+ *
+ * @param {Record<string, unknown> | null} [summary]
+ * @returns {string[]}
+ */
+export function resolveEndlessMilestones(summary = null) {
+    const source = summary && typeof summary === 'object' ? summary : {};
+    const reached = [];
+    for (const milestone of ENDLESS_PARCOURS_MILESTONES) {
+        const value = Number(source[milestone.metric]) || 0;
+        if (value >= milestone.threshold) reached.push(milestone.id);
+    }
+    return reached;
 }

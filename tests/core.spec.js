@@ -86,7 +86,9 @@ test.describe('Desktop Smoke', () => {
         expect(errors).toHaveLength(0);
     });
 
-    test('starts the Endlosjagd Arcade preset with streamed Hunt combat HUD', async ({ page }) => {
+    test('starts the Endlosjagd Arcade preset with streamed Hunt combat HUD', async ({ page }, testInfo) => {
+        test.setTimeout(180000);
+        await page.setViewportSize({ width: 1280, height: 720 });
         const errors = collectErrors(page);
         await waitForLoadedGame(page);
         await page.locator('#menu-nav [data-session-type="single"]').click({ force: true });
@@ -94,6 +96,11 @@ test.describe('Desktop Smoke', () => {
         await page.locator('#submenu-game:not(.hidden) [data-start-section-target="arcade"]')
             .evaluate((button) => button.click());
         await expect(page.locator('#btn-arcade-endless-start-inline')).toBeVisible();
+        // Ein gesetzter Seed erzeugt dieselbe Strecke erneut, damit sich Laeufe teilen lassen.
+        await expect(page.locator('#arcade-endless-records-line')).toContainText('Endlosjagd');
+        await page.locator('#input-arcade-seed').fill('4242');
+        await page.locator('#btn-arcade-seed-apply').click({ force: true });
+        await expect(page.locator('#arcade-seed-line')).toContainText('4242');
         await page.locator('#btn-arcade-endless-start-inline').click({ force: true });
         await page.waitForFunction(() => {
             const game = window.GAME_INSTANCE;
@@ -134,16 +141,147 @@ test.describe('Desktop Smoke', () => {
         expect(state.hudText).toContain('Distanz');
         expect(state.hudText).toContain('Gefahr');
         expect(state.hudText).toContain('Bestwert');
+        expect(state.hudText).toContain('Serie');
+        expect(state.hudText).toContain('Tore');
         await page.evaluate(() => {
-            window.GAME_INSTANCE.entityManager.humanPlayers[0].position.z = 121;
+            const game = window.GAME_INSTANCE;
+            game.entityManager.humanPlayers[0].position.z = 121;
+            // Desktop-GPU-Last darf die verbindlichen 1,2s Atempause, 1s Warnung
+            // und 1,5s Aktivierungsabstand nicht in einen Wallclock-Flake verwandeln.
+            for (let step = 0; step < 40; step += 1) {
+                game.entityManager.endlessParcoursRuntime.update(0.1);
+            }
         });
         await page.waitForFunction(() => {
             const endless = window.GAME_INSTANCE?.entityManager?.endlessParcoursRuntime;
             return endless?.combatStarted === true && endless?.getHudState?.().activeBots >= 2;
         }, null, { timeout: 5000 });
+
+        // Das Tor am Ende des Intros muss wirken: Punkte, Serie und Rettungsfenster.
+        const afterFirstGate = await page.evaluate(
+            () => window.GAME_INSTANCE.entityManager.endlessParcoursRuntime.getHudState()
+        );
+        expect(afterFirstGate.seed).toBe(4242);
+        expect(afterFirstGate.checkpointsPassed).toBeGreaterThanOrEqual(1);
+        expect(afterFirstGate.streak).toBeGreaterThanOrEqual(1);
+        expect(afterFirstGate.bonusScore).toBeGreaterThan(0);
+        expect(afterFirstGate.reviveArmed).toBe(true);
+        expect(afterFirstGate.area).toBe('industrial');
+        await expect(page.locator('#arcade-endless-overlay')).toHaveCount(1);
+        const revive = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const endless = game.entityManager.endlessParcoursRuntime;
+            const human = game.entityManager.humanPlayers[0];
+            const speed = human.baseSpeed;
+            const maxHp = human.maxHp;
+            human.alive = false;
+            endless.handlePlayerDeath(human, 'PROJECTILE');
+            return {
+                alive: human.alive,
+                speed: human.baseSpeed,
+                maxHp: human.maxHp,
+                speedBefore: speed,
+                maxHpBefore: maxHp,
+                reviveCount: endless.reviveCount,
+                respiteActive: endless.respiteUntilSeconds > endless.elapsedCombatSeconds,
+            };
+        });
+        expect(revive).toMatchObject({ alive: true, reviveCount: 1, respiteActive: true });
+        expect(revive.speed).toBe(revive.speedBefore);
+        expect(revive.maxHp).toBe(revive.maxHpBefore);
+        await page.screenshot({ path: testInfo.outputPath('endless-flight-combat-1280.png') });
+
+        // Weiter die Strecke entlang: die Anschluesse duerfen nicht alle gerade sein.
+        const connectors = await page.evaluate(async () => {
+            const game = window.GAME_INSTANCE;
+            const endless = game.entityManager.endlessParcoursRuntime;
+            const seen = new Set();
+            for (let step = 2; step < 26; step += 1) {
+                game.entityManager.humanPlayers[0].position.z = step * 120 + 10;
+                await new Promise((resolve) => requestAnimationFrame(() => resolve()));
+                for (const id of endless.getDebugSnapshot().connectors) seen.add(id);
+            }
+            return [...seen];
+        });
+        expect(connectors.length).toBeGreaterThan(1);
+        expect(connectors.some((id) => id !== 'straight')).toBe(true);
+
+        const laterState = await page.evaluate(
+            () => window.GAME_INSTANCE.entityManager.endlessParcoursRuntime.getHudState()
+        );
+        expect(laterState.checkpointsPassed).toBeGreaterThan(afterFirstGate.checkpointsPassed);
+        expect(laterState.maxProgressMeters).toBeGreaterThan(2000);
+        // Mehrere Tore in Folge muessen die Serie ueber den Grundwert heben.
+        expect(laterState.streakMultiplier).toBeGreaterThan(1);
+        expect(laterState.bonusScore).toBeGreaterThan(afterFirstGate.bonusScore);
+
+        const waveEleven = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            const manager = game.entityManager;
+            const endless = manager.endlessParcoursRuntime;
+            const human = manager.humanPlayers[0];
+            endless._botSlots.forEach((slot, index) => {
+                const position = human.position.clone();
+                position.set((index % 4) * 6 - 9, 8 + Math.floor(index / 4) * 4, human.position.z - 40 - index * 3);
+                if (slot.player.entitySlotActive !== true) {
+                    manager.activateBotSlot({ slot: slot.slot, position, role: 'pursuer', difficulty: 'HARD' });
+                }
+                slot.state = 'active';
+                slot.activatedOrder = index + 1;
+                slot.player.alive = true;
+                slot.player.entitySlotActive = true;
+                slot.player.isEndlessElite = false;
+            });
+            endless.waveNumber = 10;
+            endless.wavePhase = 'resupply';
+            endless.wavePhaseElapsedSeconds = 9.99;
+            const resupply = endless.getHudState().wave.phase;
+            endless.update(0.02);
+            return {
+                resupply,
+                wave: endless.waveNumber,
+                phase: endless.wavePhase,
+                occupied: endless.getDebugSnapshot().occupiedBots,
+                exchanges: endless._botSlots.filter((slot) => slot.state === 'exchange_retreat').length,
+            };
+        });
+        expect(waveEleven).toEqual({ resupply: 'resupply', wave: 11, phase: 'attack', occupied: 12, exchanges: 1 });
+
+        const pauses = await page.evaluate(() => {
+            const endless = window.GAME_INSTANCE.entityManager.endlessParcoursRuntime;
+            endless.wavePhaseElapsedSeconds = 29.99;
+            endless.update(0.02);
+            const retreat = endless.wavePhase;
+            endless._botSlots.forEach((slot) => {
+                if (slot.state === 'retreating' || slot.state === 'exchange_retreat') {
+                    slot.retreatUntilSeconds = endless.elapsedCombatSeconds + 0.01;
+                }
+            });
+            endless.wavePhaseElapsedSeconds = 3.99;
+            endless.update(0.02);
+            return { retreat, rest: endless.wavePhase, lastCompleted: endless.lastCompletedWave };
+        });
+        expect(pauses).toEqual({ retreat: 'retreat', rest: 'rest', lastCompleted: 11 });
+        await page.setViewportSize({ width: 1920, height: 1080 });
+        await page.screenshot({ path: testInfo.outputPath('endless-wave11-rest-1920.png') });
+
+        const completedRunId = await page.evaluate(() => {
+            const endless = window.GAME_INSTANCE.entityManager.endlessParcoursRuntime;
+            endless.finalize('ENDLESS_PLAYER_DEATH');
+            return endless.runId;
+        });
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'MATCH_END');
+        await expect(page.locator('#message-stats')).toContainText('Speicherung');
+        await page.keyboard.press('Enter');
+        await page.waitForFunction((previousRunId) => {
+            const game = window.GAME_INSTANCE;
+            const endless = game?.entityManager?.endlessParcoursRuntime;
+            return game?.state === 'PLAYING' && endless?.runId && endless.runId !== previousRunId;
+        }, completedRunId, { timeout: 60000 });
         expect(errors).toHaveLength(0);
 
         await returnToMenu(page);
+        await expect(page.locator('.hangar-window-open')).toBeVisible();
     });
 
     test('split-screen fight renders a complete HUD for each local player', async ({ page }, testInfo) => {

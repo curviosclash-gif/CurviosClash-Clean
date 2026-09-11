@@ -1,3 +1,4 @@
+import { createParcoursOutcomeCounters } from './ParcoursProgressSnapshot.js';
 import {
     createPlayerProgressState,
     formatDurationMs,
@@ -511,6 +512,7 @@ export class ParcoursProgressSystem {
             parcours: {
                 routeId: this._route.routeId,
                 checkpointCount: this._route.totalCheckpoints,
+                ...createParcoursOutcomeCounters(this._playerStates.get(completion.playerIndex)),
                 completionTimeMs: completion.completionTimeMs,
                 penaltyTimeMs: Math.max(0, Math.trunc(Number(completion.penaltyTimeMs) || 0)),
                 completedAtMs: completion.completedAtMs,

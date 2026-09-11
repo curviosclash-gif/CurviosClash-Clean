@@ -7,6 +7,8 @@ import {
 } from '../../shared/contracts/ArcadeMissionContract.js';
 import { toSafeNumber, createSeededRandom, normalizeSeed } from '../../shared/utils/ArcadeUtils.js';
 
+import { eligibleArcadeMission } from './ArcadeMissionEligibility.js';
+
 const MISSION_DESCRIPTOR_TYPE_IDS = new Set(listArcadeMissionDescriptors().map((entry) => entry.id));
 
 function isKnownMissionType(typeId) {
@@ -41,6 +43,9 @@ export function updateMissionProgress(mission, event) {
     const progress = { ...mission.progress };
 
     switch (mission.type) {
+        case 'PARCOURS_COMPLETE':
+            if (event.type === 'sector_complete') progress.finished = true;
+            break;
         case 'KILL_COUNT':
             if (event.type === 'kill') {
                 progress.kills = (progress.kills || 0) + toSafeNumber(event.count, 1);
@@ -102,7 +107,7 @@ export function updateMissionProgress(mission, event) {
                 const nowMs = toSafeNumber(event.nowMs, Date.now());
                 const gapMs = 10000; // 10s gap resets chain
                 const lastMs = toSafeNumber(progress.lastPickupMs, 0);
-                if (lastMs > 0 && (nowMs - lastMs) <= gapMs) {
+                if (progress.chain > 0 && (nowMs - lastMs) <= gapMs) {
                     progress.chain = (progress.chain || 1) + 1;
                 } else {
                     progress.chain = 1;
@@ -146,7 +151,7 @@ export function checkMissionComplete(mission) {
 
 // ─── Mission Assignment ───
 
-export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNumber) {
+export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNumber, context = null) {
     const assignmentSeed = `${seed}-missions-${sectorNumber}`;
     const randomFn = createSeededRandom(assignmentSeed);
     const missionCount = 1 + (randomFn() > 0.5 ? 1 : 0); // 1-2 missions
@@ -160,7 +165,10 @@ export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNu
         const templateId = String(sectorTemplate?.id || sectorTemplate || 'sector_intro');
         pool = buildGenericMissionPool(templateId);
     }
-    pool = pool.filter((entry) => isKnownMissionType(entry?.type));
+    const authored = Array.isArray(mapMissions) && mapMissions.length > 0;
+    pool = pool.filter((entry) => isKnownMissionType(entry?.type))
+        .map(entry => eligibleArcadeMission(entry, context, authored)).filter(Boolean);
+    if (!pool.length && context?.parcoursEnabled) pool = [{ type: 'PARCOURS_COMPLETE', params: {}, weight: 1 }];
 
     if (pool.length === 0) return [];
 
@@ -168,6 +176,9 @@ export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNu
     const usedTypes = new Set();
 
     for (let i = 0; i < missionCount && pool.length > 0; i += 1) {
+        pool = pool.filter(entry => !usedTypes.has(entry.type))
+            .map(entry => eligibleArcadeMission(entry, context, authored, missions)).filter(Boolean);
+        if (!pool.length) break;
         // Weighted random selection
         const totalWeight = pool.reduce((sum, entry) => sum + toSafeNumber(entry.weight, 1), 0);
         let roll = randomFn() * totalWeight;
@@ -200,7 +211,8 @@ export function assignSectorMissions(sectorTemplate, mapMissions, seed, sectorNu
     // 61.3.4: Optional bonus mission in non-intro sectors (50% chance, harder params)
     const templateId = String(sectorTemplate?.id || sectorTemplate || 'sector_intro');
     if (templateId !== 'sector_intro' && randomFn() < 0.5) {
-        const bonusPool = buildBonusMissionPool(templateId, usedTypes);
+        const bonusPool = buildBonusMissionPool(templateId, usedTypes)
+            .map(entry => eligibleArcadeMission(entry, context, false, missions)).filter(Boolean);
         if (bonusPool.length > 0) {
             const bonusEntry = bonusPool[Math.floor(randomFn() * bonusPool.length)];
             const bonusInstance = createMissionInstance(bonusEntry.type, bonusEntry.params);

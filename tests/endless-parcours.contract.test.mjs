@@ -147,8 +147,14 @@ test('runtime keeps streaming resources bounded and activates stable slots after
     assert.equal(bots.filter((entry) => entry.player.alive).length, 0);
 
     human.position.z = 121;
-    runtime.update(1);
+    runtime.update(0);
     assert.equal(runtime.combatStarted, true);
+    assert.ok(runtime.getHudState().spawnWarning);
+    runtime.update(1);
+    runtime.update(0);
+    runtime.update(1.5);
+    runtime.update(0);
+    runtime.update(1.5);
     assert.equal(bots.filter((entry) => entry.player.alive).length, 2);
 
     for (let moduleIndex = 2; moduleIndex < 80; moduleIndex += 1) {
@@ -168,17 +174,23 @@ test('runtime keeps streaming resources bounded and activates stable slots after
     assert.equal(sceneObjects.size, 0);
 });
 
-test('bot death reuses the same slot only after its deterministic reinforcement delay', () => {
+test('bot death is not refilled within a wave and its stable slot is reusable next wave', () => {
     const { runtime, human, bots } = createRuntimeHarness(99);
     human.position.z = 121;
+    runtime.update(0);
     runtime.update(1);
+    runtime.update(0.2);
     const entry = bots.find((bot) => bot.player.alive);
     const playerIndex = entry.player.index;
     entry.player.alive = false;
     runtime.handlePlayerDeath(entry.player, 'ROCKET', { killer: human });
     runtime.update(3);
     assert.equal(entry.player.alive, false);
-    runtime.update(8);
+    runtime.update(30);
+    runtime.update(4);
+    runtime.update(15);
+    runtime.update(0);
+    runtime.update(1);
     assert.equal(entry.player.index, playerIndex);
     assert.equal(entry.player.alive, true);
     assert.equal(runtime.botKills, 1);

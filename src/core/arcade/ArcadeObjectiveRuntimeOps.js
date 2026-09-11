@@ -9,10 +9,10 @@ import {
 import { ARCADE_SECTOR_OBJECTIVES } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { getRuntimeMapCatalog, getRuntimeMapDefinition } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 
-const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v1';
+const ARCADE_MISSION_GENERATOR_VERSION = 'arcade-missions.v2';
 
 export function buildArcadeMissionSeed({
-    scoreModel = 'arcade-score.v2',
+    scoreModel = 'arcade-score.v3',
     activeSeed = 0,
     sectorIndex = 1,
     encounterId = '',
@@ -21,7 +21,7 @@ export function buildArcadeMissionSeed({
 } = {}) {
     return [
         ARCADE_MISSION_GENERATOR_VERSION,
-        String(scoreModel || 'arcade-score.v2'),
+        String(scoreModel || 'arcade-score.v3'),
         Math.max(0, Number(activeSeed) || 0),
         Math.max(1, Number(sectorIndex) || 1),
         String(encounterId || templateId || 'sector_intro'),
@@ -36,6 +36,8 @@ function resolveObjectiveDefinition(objectiveId) {
 
 export function assignArcadeSectorRuntimeState(runtime) {
     if (!runtime?._state) return;
+    runtime._state.sectorStartXp = runtime._state.xpEarned || 0;
+    if (runtime._state.score) runtime._state.score.lastMissionBonus = 0;
     const sectorIndex = Math.max(1, Number(runtime._state.sectorIndex) || 1);
     const encounterEntry = runtime._getEncounterSectorEntry(sectorIndex);
     const templateId = String(encounterEntry?.templateId || 'sector_intro').trim() || 'sector_intro';
@@ -44,6 +46,20 @@ export function assignArcadeSectorRuntimeState(runtime) {
     const mapMissions = Array.isArray(mapDefinition?.missions) && mapDefinition.missions.length > 0
         ? mapDefinition.missions
         : null;
+    const objective = resolveObjectiveDefinition(encounterEntry?.objectiveId);
+    const profile = runtime.getSectorRuntimeProfile(sectorIndex);
+    const capabilities = runtime._getMissionCapabilities?.() || {};
+    const context = {
+        botCount: profile.botCount, respawnEnabled: false,
+        parcoursEnabled: profile.parcoursEnabled,
+        hasItems: capabilities.hasItems ?? ((mapDefinition?.items?.length || 0) > 0),
+        hasExitPortal: !!mapDefinition?.exitPortal,
+        hasHealing: capabilities.hasHealing === true,
+        unavoidableDamage: runtime._activeModifierId === 'heat_stress'
+            || runtime._strategy?.getSuddenDeathState?.()?.stackedModifiers?.includes('heat_stress') === true,
+        maximumDurationSec: objective?.id === 'survive_window' ? objective.durationSec : 0,
+        minimumDurationSec: ['survive_window', 'hazard_lane'].includes(objective?.id) ? objective.durationSec : 0,
+    };
     const missions = assignSectorMissions(
         { id: templateId },
         mapMissions,
@@ -55,7 +71,8 @@ export function assignArcadeSectorRuntimeState(runtime) {
             templateId,
             mapKey,
         }),
-        sectorIndex
+        sectorIndex,
+        context
     );
     runtime._missionState = createSectorMissionState(missions);
     runtime._state.objectiveState = createArcadeObjectiveState(
@@ -73,14 +90,12 @@ export function updateArcadeObjectiveRuntimeState(runtime, event) {
     const next = updateArcadeObjectiveState(runtime._state.objectiveState, event);
     runtime._state.objectiveState = next;
     if (!next?.shouldEnd || next.roundEndRequested) return next;
+    next.roundEndRequested = true;
     const accepted = runtime._requestRoundEnd?.({
         reason: 'ARCADE_OBJECTIVE',
         objectiveId: next.objectiveId,
         objective: { ...next },
     }) === true;
-    if (accepted) {
-        next.roundEndRequested = true;
-        runtime._state.objectiveState = next;
-    }
+    if (!accepted) next.roundEndRequested = false;
     return next;
 }

@@ -12,6 +12,8 @@ export function createArcadePort({ getRuntimeCoordinator, getRuntimeFacade }) {
             return getRuntimeCoordinator()?.selectArcadeIntermissionChoice?.(choiceId)
                 ?? getRuntimeFacade()?.selectArcadeIntermissionChoice?.(choiceId);
         },
+        resolveVictoryChoice(choice) { return getRuntimeFacade()?.resolveArcadeVictoryChoice?.(choice); },
+        setIntermissionPaused(paused) { return getRuntimeFacade()?.setArcadeIntermissionPaused?.(paused); },
         selectReward(rewardId) {
             return getRuntimeCoordinator()?.selectArcadeReward?.(rewardId)
                 ?? getRuntimeFacade()?.selectArcadeReward?.(rewardId);

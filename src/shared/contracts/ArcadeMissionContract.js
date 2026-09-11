@@ -18,6 +18,11 @@ function freezeMissionType(typeDef) {
 }
 
 export const MISSION_TYPES = Object.freeze({
+    PARCOURS_COMPLETE: freezeMissionType({
+        id: 'PARCOURS_COMPLETE', label: 'Parcours abschließen', icon: 'flag', defaultParams: {},
+        check: (progress) => progress.finished === true,
+        format: (progress) => progress.finished ? 'Geschafft' : 'Alle Checkpoints durchfliegen',
+    }),
     KILL_COUNT: freezeMissionType({
         id: 'KILL_COUNT',
         label: 'Eliminate',

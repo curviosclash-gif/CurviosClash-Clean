@@ -56,8 +56,12 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             matchWinner: null,
             reason,
             parcours,
-            messageText: `Endlosjagd beendet - Score ${Math.floor(Number(summary.score) || 0)}`,
-            messageSub: 'ENTER fuer neuen Lauf oder ESC fuer Menue',
+            messageText: summary.isNewRecord === true
+                ? `Neuer Rekord - Score ${Math.floor(Number(summary.score) || 0)}`
+                : `Endlosjagd beendet - Score ${Math.floor(Number(summary.score) || 0)}`,
+            messageSub: Array.isArray(summary.newMilestones) && summary.newMilestones.length > 0
+                ? `${summary.newMilestones.length} neue Meilensteine - ENTER fuer neuen Lauf`
+                : 'ENTER fuer neuen Lauf oder ESC fuer Menue',
         };
     }
 

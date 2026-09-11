@@ -21,6 +21,12 @@ function normalizeRouteCandidates(routeId, routeAliases = null) {
     return candidates;
 }
 
+function boundedGhost(clip, budget) {
+    if (!clip) return null;
+    const result = upsertLongestGhostByRoute({}, 'best', clip, 0, { budgetOptions: budget });
+    return getLongestGhostByRoute(result.ghostLibrary, 'best', budget)?.longestGhostClip || null;
+}
+
 function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget) {
     if (routeCandidates.length === 0) {
         return { started: false, reason: 'invalid_route', routeCandidates };
@@ -30,7 +36,20 @@ function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget) {
     }
     let clipToPlay = null;
     let selectedRouteId = '';
-    for (let i = 0; i < routeCandidates.length; i += 1) {
+    const bestTimeMode = runtime._config?.ghostDuelMode === 'self_best_time_ghost';
+    if (bestTimeMode) {
+        const bestRouteCandidates = new Set(routeCandidates);
+        for (const routeId of routeCandidates) {
+            const route = getLongestGhostByRoute(runtime._ghostLibrary, routeId, ghostLibraryBudget);
+            if (route?.routeId) bestRouteCandidates.add(route.routeId);
+            for (const alias of route?.routeAliases || []) bestRouteCandidates.add(alias);
+        }
+        const best = [...bestRouteCandidates].map(routeId => ({ routeId, entry: getBestEntry(runtime._leaderboard, routeId) }))
+            .filter(candidate => candidate.entry).sort((a, b) => a.entry.totalTimeMs - b.entry.totalTimeMs)[0];
+        selectedRouteId = best?.routeId || '';
+        clipToPlay = boundedGhost(best?.entry?.ghostClip, ghostLibraryBudget);
+    }
+    for (let i = 0; !bestTimeMode && i < routeCandidates.length; i += 1) {
         const longestGhost = getLongestGhostByRoute(
             runtime._ghostLibrary,
             routeCandidates[i],
@@ -41,7 +60,11 @@ function resolveGhostStart(runtime, data, routeCandidates, ghostLibraryBudget) {
         selectedRouteId = String(longestGhost.routeId || routeCandidates[i] || '').trim();
         break;
     }
-    if (!clipToPlay) return { started: false, reason: 'ghost_not_found', routeCandidates };
+    if (!clipToPlay) {
+        runtime._enqueueHudEvent?.('ghost_status', { message: bestTimeMode ? 'Zur Bestzeit ist kein Ghost gespeichert.' : 'Noch kein Ghost gespeichert.' });
+        return { started: false, reason: bestTimeMode ? 'best_ghost_not_found' : 'ghost_not_found', routeCandidates };
+    }
+    runtime._enqueueHudEvent?.('ghost_status', { message: bestTimeMode ? 'Ghost: persönliche Bestzeit' : 'Ghost: längste Spur' });
 
     const source = String(data?.source || '').trim().toLowerCase();
     if (
@@ -121,6 +144,11 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
 
     if (!persistLibraryOnly) {
         const best = getBestEntry(runtime._leaderboard, primaryRouteId);
+        const safeClip = boundedGhost(data.ghostClip, ghostLibraryBudget);
+        if (best && data.totalTimeMs === best.totalTimeMs && !best.ghostClip && safeClip) {
+            runtime._leaderboard = { ...runtime._leaderboard, [primaryRouteId]: runtime._leaderboard[primaryRouteId]
+                .map((entry, index) => index === 0 ? { ...entry, ghostClip: safeClip } : entry) };
+        }
         isBestTime = !best || data.totalTimeMs < best.totalTimeMs;
         runtime._leaderboard = insertLeaderboardEntry(runtime._leaderboard, primaryRouteId, {
             totalTimeMs: data.totalTimeMs,
@@ -128,7 +156,7 @@ function resolveFinish(runtime, data, routeCandidates, primaryRouteId, ghostLibr
             segmentSplitsMs: data.segmentSplitsMs,
             vehicleId,
             date: recordedAtIso,
-            ghostClip: isBestTime ? (data.ghostClip || null) : null,
+            ghostClip: isBestTime ? safeClip : null,
         });
         runtime._scheduleLeaderboardSave();
         inserted = true;

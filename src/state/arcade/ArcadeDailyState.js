@@ -56,6 +56,8 @@ export function createArcadeDailyRunResult({
         seed,
         attempt: completedForSeed ? completedDaily.runsPlayed : (hadPreviousAttempt ? previousDaily.runsPlayed + 1 : 1),
         score,
+        succeeded: summary.succeeded === true,
+        completedSectors: toNonNegativeInteger(summary.completedSectors),
         previousBestScore,
         bestScore: completedForSeed ? completedDaily.bestScore : Math.max(previousBestScore, score),
         isNewBest: !hadPreviousAttempt || score > previousBestScore,

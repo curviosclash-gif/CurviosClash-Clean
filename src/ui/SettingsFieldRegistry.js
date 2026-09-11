@@ -69,7 +69,7 @@ const ENUM_OPTIONS_BY_CHANGE_KEY = new Map([
     [SETTINGS_CHANGE_KEYS.BOTS_POLICY_STRATEGY, ['auto', 'heuristic', 'rule-based', 'bridge']],
     [SETTINGS_CHANGE_KEYS.LOCAL_SHADOW_QUALITY, [0, 1, 2, 3]],
     [SETTINGS_CHANGE_KEYS.LOCAL_BLOOM_QUALITY, [0, 1, 2]],
-    [SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE, ['off', 'self_longest_ghost']],
+    [SETTINGS_CHANGE_KEYS.ARCADE_GHOST_DUEL_MODE, ['off', 'self_longest_ghost', 'self_best_time_ghost']],
     [SETTINGS_CHANGE_KEYS.ARCADE_RUN_TYPE, ['gauntlet', 'endless_parcours']],
     [SETTINGS_CHANGE_KEYS.ARCADE_COMBAT_PROFILE, ['', 'hunt']],
     [SETTINGS_CHANGE_KEYS.RECORDING_PROFILE, ['standard', 'youtube_short', 'cinematic']],
