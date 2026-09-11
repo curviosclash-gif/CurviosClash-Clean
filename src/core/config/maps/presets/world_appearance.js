@@ -21,3 +21,45 @@ export const WIND_CATHEDRAL_WORLD_LIGHTS = [
     { id: 'wind_aisle', x: -32, y: 37, z: 8, color: 0xffebc5, intensity: 2800, distance: 85 },
     { id: 'wind_crown', x: 25, y: 90, z: 6, color: 0xc3edff, intensity: 3600, distance: 75 },
 ];
+
+function classicWorld(key, floorY, lighting) {
+    return {
+        glbModels: [{ id: `${key}-world`, url: `assets/maps/${key}/glb/01_world.glb`,
+            position: [0, floorY, 0], scale: 1 }],
+        glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
+        lighting: normalizeMapLighting(lighting),
+    };
+}
+
+export const CLASSIC_WORLD_APPEARANCE = {
+    maze: classicWorld('maze', -.12, {
+        key: { color: 0xffe5c4, intensity: 1.65 },
+        fill: { color: 0xb4d9ed, intensity: .75 },
+        fog: { near: 100, far: 200, height: 2, heightFalloff: .1 },
+    }),
+    // These authored foundations extend below ground; the GLB placement follows them.
+    complex: classicWorld('complex', -2.5, {
+        key: { color: 0xe0f2ff, intensity: 1.75 },
+        fill: { color: 0x9ab6f5, intensity: .8 },
+        fog: { near: 100, far: 200, height: 2, heightFalloff: .1 },
+    }),
+    pyramid: classicWorld('pyramid', -.12, {
+        key: { color: 0xffd697, intensity: 1.9 },
+        fill: { color: 0xbcd5ef, intensity: .65 },
+        hemisphere: { skyColor: 0xf2dfb6, groundColor: 0x846b49 },
+        skyDome: { zenithColor: 0x4d789a, horizonColor: 0xccbd9a, nadirColor: 0x6b5740 },
+        fog: { near: 110, far: 200, height: 1, heightFalloff: .15 },
+        starsVisible: false,
+    }),
+    vertical_maze: classicWorld('vertical_maze', -.12, {
+        key: { color: 0xffe1bd, intensity: 1.75 },
+        fill: { color: 0xacd5ef, intensity: .8 },
+        fog: { near: 110, far: 200, height: 2, heightFalloff: .15 },
+    }),
+    trench: classicWorld('trench', -.12, {
+        key: { color: 0xffe3b8, intensity: 1.8 },
+        fill: { color: 0xa3cbef, intensity: .8 },
+        fog: { near: 110, far: 200, height: 2, heightFalloff: .12 },
+    }),
+};

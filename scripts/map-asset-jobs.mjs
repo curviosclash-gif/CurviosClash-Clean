@@ -13,6 +13,11 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     standard: 'generate_map_world.py',
     wind_cathedral: 'generate_map_world.py',
     chrono_forge_nexus: 'generate_map_world.py',
+    maze: 'generate_map_world.py',
+    complex: 'generate_map_world.py',
+    pyramid: 'generate_map_world.py',
+    vertical_maze: 'generate_map_world.py',
+    trench: 'generate_map_world.py',
 });
 
 export function parseMapAssetArgs(args) {

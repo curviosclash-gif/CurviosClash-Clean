@@ -11,7 +11,16 @@ import { createMapWorldSource } from '../scripts/map-world-source.mjs';
 import { geometryOnlyGlbLoader } from './helpers/glb-geometry-loader.mjs';
 import { copyObjVehicleAssetsPlugin } from '../dev/vite/productAssetCopyPlugin.js';
 
-const KEYS = ['standard', 'wind_cathedral', 'chrono_forge_nexus'];
+const KEYS = [
+    'standard',
+    'wind_cathedral',
+    'chrono_forge_nexus',
+    'maze',
+    'complex',
+    'pyramid',
+    'vertical_maze',
+    'trench',
+];
 const quantize = (x, y, z) => [x, y, z].map((v) => Math.round(v * 1000)).join(',');
 
 test('desktop asset copy includes every local map pack and excludes Blender sources', () => {
@@ -77,7 +86,7 @@ for (const key of KEYS) {
                     }
                 }
                 const bounds = new Box3().setFromObject(loaded.scene);
-                assert.ok(Math.abs(bounds.min.y / scale + .12) < .001);
+                assert.ok(Math.abs(bounds.min.y / scale - model.position[1]) < .001);
                 assert.ok(Math.abs(bounds.min.x / scale + source.definition.size[0] / 2) < .001);
                 assert.ok(Math.abs(bounds.max.z / scale - source.definition.size[2] / 2) < .001);
             } finally {

@@ -135,16 +135,21 @@ test('only the selected presets define lighting and all others resolve to defaul
     assert.deepEqual(litMapKeys, [
         'burg_falkenwacht',
         'burg_falkenwacht_arena',
+        'complex',
         'eiffel_tower',
         'eiffel_tower_arena',
         'frozen_helix',
         'magma_maze',
+        'maze',
         'neon_abyss',
         'notre_dame',
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'pyramid',
         'standard',
+        'trench',
+        'vertical_maze',
         'wind_cathedral',
     ]);
     assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.empty?.lighting), DEFAULT_MAP_LIGHTING);

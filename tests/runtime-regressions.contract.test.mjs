@@ -197,7 +197,7 @@ test('MatchFlowUiController prepares presentation and input without creating a m
 test('MatchFlowUiController shows a generic loading state when a map has no GLB source', () => {
     const controller = new MatchFlowUiController({
         game: {
-            runtimeConfig: { session: { mapKey: 'standard' } },
+            runtimeConfig: { session: { mapKey: 'empty' } },
             ui: {},
         },
         sessionOrchestrator: {},

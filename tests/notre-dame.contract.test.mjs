@@ -126,12 +126,20 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
     assert.deepEqual(collisionOnlyMaps, [
         'burg_falkenwacht',
         'burg_falkenwacht_arena',
+        'chrono_forge_nexus',
+        'complex',
         'eiffel_tower',
         'eiffel_tower_arena',
+        'maze',
         'notre_dame',
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'pyramid',
+        'standard',
+        'trench',
+        'vertical_maze',
+        'wind_cathedral',
     ]);
 });
 

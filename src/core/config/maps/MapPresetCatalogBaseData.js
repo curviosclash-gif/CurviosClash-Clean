@@ -3,7 +3,7 @@
 // ============================================
 
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
-import { STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
+import { CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_BASE_DATA = {
     standard: {
@@ -54,6 +54,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         portals: []
     },
     maze: {
+        ...CLASSIC_WORLD_APPEARANCE.maze,
         name: 'Labyrinth',
         size: [80, 25, 80],
         obstacles: [
@@ -73,6 +74,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     complex: {
+        ...CLASSIC_WORLD_APPEARANCE.complex,
         name: 'Komplex',
         size: [90, 30, 90],
         obstacles: [
@@ -94,6 +96,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     pyramid: {
+        ...CLASSIC_WORLD_APPEARANCE.pyramid,
         name: 'Pyramide',
         size: [80, 35, 80],
         obstacles: [
@@ -111,6 +114,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     vertical_maze: {
+        ...CLASSIC_WORLD_APPEARANCE.vertical_maze,
         name: 'Vertikales Labyrinth',
         size: [100, 45, 100],
         obstacles: [
@@ -130,6 +134,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     trench: {
+        ...CLASSIC_WORLD_APPEARANCE.trench,
         name: 'Der Graben',
         size: [60, 40, 160],
         obstacles: [

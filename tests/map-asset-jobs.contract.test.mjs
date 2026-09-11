@@ -20,10 +20,10 @@ test('all includes each built-in map and deduplicates shared Blender packs', () 
     const plan = resolveMapAssetJobs({ all: true });
     assert.equal(plan.selectedMaps.length, 59);
     assert.equal(plan.selectedMaps.includes('custom'), false);
-    assert.equal(plan.jobs.length, 11);
-    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 11);
+    assert.equal(plan.jobs.length, 16);
+    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 16);
     for (const job of plan.jobs) assert.equal(job.parts.length, new Set(job.parts).size);
-    assert.ok(plan.nativeMaps.includes('maze'), 'unconverted geometry is reported explicitly');
+    assert.equal(plan.nativeMaps.includes('maze'), false);
     assert.equal(plan.nativeMaps.includes('standard'), false);
 });
 
@@ -55,13 +55,13 @@ test('the actual dry-run command needs no Blender executable and writes no asset
     assert.equal(result.status, 0, result.stderr);
     const plan = JSON.parse(result.stdout);
     assert.equal(plan.selectedMaps.length, 59);
-    assert.equal(plan.jobs.length, 11);
+    assert.equal(plan.jobs.length, 16);
 });
 
-test('mixed generation rejects missing coverage before invoking Blender for any map', () => {
+test('mixed generation resolves converted reference worlds before invoking Blender', () => {
     const result = spawnSync(process.execPath, ['scripts/generate-map-assets.mjs', '--map', 'standard',
-        '--map', 'maze', '--blender', 'this-executable-must-not-run'], { encoding: 'utf8', windowsHide: true });
+        '--map', 'empty', '--blender', 'this-executable-must-not-run'], { encoding: 'utf8', windowsHide: true });
     assert.equal(result.status, 1);
-    assert.match(result.stderr, /No Blender generator registered for: maze\. No assets were written/);
+    assert.match(result.stderr, /No Blender generator registered for: empty\. No assets were written/);
     assert.doesNotMatch(result.stderr, /Blender failed/);
 });

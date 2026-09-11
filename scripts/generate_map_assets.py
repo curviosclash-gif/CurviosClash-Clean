@@ -18,6 +18,11 @@ GENERATORS = {
     'standard': 'generate_map_world',
     'wind_cathedral': 'generate_map_world',
     'chrono_forge_nexus': 'generate_map_world',
+    'maze': 'generate_map_world',
+    'complex': 'generate_map_world',
+    'pyramid': 'generate_map_world',
+    'vertical_maze': 'generate_map_world',
+    'trench': 'generate_map_world',
 }
 
 

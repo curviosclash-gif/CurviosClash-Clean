@@ -33,6 +33,36 @@ STYLES = {
         'signal': (0.06, 0.63, 0.85), 'foam': (0.10, 0.52, 0.50),
         'tile': 20, 'roughness': 0.71,
     },
+    'maze': {
+        'floor': (0.14, 0.18, 0.21), 'body': (0.55, 0.60, 0.61),
+        'panel': (0.11, 0.20, 0.24), 'trim': (0.88, 0.58, 0.23),
+        'signal': (0.18, 0.72, 0.86), 'foam': (0.13, 0.58, 0.54),
+        'tile': 8, 'roughness': 0.72,
+    },
+    'complex': {
+        'floor': (0.12, 0.16, 0.22), 'body': (0.48, 0.57, 0.70),
+        'panel': (0.10, 0.17, 0.29), 'trim': (0.54, 0.72, 0.93),
+        'signal': (0.26, 0.82, 1.00), 'foam': (0.10, 0.48, 0.62),
+        'tile': 9, 'roughness': 0.58,
+    },
+    'pyramid': {
+        'floor': (0.34, 0.27, 0.18), 'body': (0.73, 0.58, 0.35),
+        'panel': (0.31, 0.22, 0.13), 'trim': (0.94, 0.72, 0.35),
+        'signal': (1.00, 0.52, 0.12), 'foam': (0.18, 0.57, 0.50),
+        'tile': 10, 'roughness': 0.86,
+    },
+    'vertical_maze': {
+        'floor': (0.13, 0.19, 0.23), 'body': (0.58, 0.64, 0.67),
+        'panel': (0.10, 0.22, 0.27), 'trim': (0.76, 0.58, 0.32),
+        'signal': (0.18, 0.76, 0.94), 'foam': (0.12, 0.58, 0.57),
+        'tile': 10, 'roughness': 0.70,
+    },
+    'trench': {
+        'floor': (0.18, 0.17, 0.16), 'body': (0.48, 0.42, 0.35),
+        'panel': (0.17, 0.20, 0.20), 'trim': (0.77, 0.50, 0.24),
+        'signal': (0.95, 0.47, 0.12), 'foam': (0.12, 0.50, 0.47),
+        'tile': 10, 'roughness': 0.82,
+    },
 }
 
 
@@ -98,32 +128,47 @@ def build_ground(canvases, size, style, key, rng):
             box(c, 'Signal', (side * sx * .24, .025, 0), (sx * .38, .008, .14))
 
 
-def detail_box(canvas, obstacle, key):
+def detail_box(canvas, obstacle, key, arena_size):
     if obstacle.get('tunnel') or obstacle.get('shape') or obstacle.get('rotateY'):
         return
     x, y, z = obstacle['pos']
     w, h, d = obstacle['size']
     if min(w, h, d) < .8:
         return
+    limit_x, limit_z = arena_size[0] / 2, arena_size[2] / 2
+
+    def x_face_fits(side, offset, thickness):
+        return abs(x + side * (w / 2 + offset)) + thickness / 2 <= limit_x + .001
+
+    def z_face_fits(side, offset, thickness):
+        return abs(z + side * (d / 2 + offset)) + thickness / 2 <= limit_z + .001
+
     # Shallow cladding only: never place a decorative solid across a flight gap.
     if h > max(w, d) * 1.4:
         for side in (-1, 1):
             for fraction in (-.28, .28):
-                box(canvas, 'Panel', (x + fraction*w, y, z + side*(d/2+.012)),
-                    (max(.08, w*.07), h*.8, .02))
-                box(canvas, 'Panel', (x + side*(w/2+.012), y, z + fraction*d),
-                    (.02, h*.8, max(.08, d*.07)))
+                if z_face_fits(side, .012, .02):
+                    box(canvas, 'Panel', (x + fraction*w, y, z + side*(d/2+.012)),
+                        (max(.08, w*.07), h*.8, .02))
+                if x_face_fits(side, .012, .02):
+                    box(canvas, 'Panel', (x + side*(w/2+.012), y, z + fraction*d),
+                        (.02, h*.8, max(.08, d*.07)))
         for level in (-.40, .36):
             for side in (-1, 1):
-                box(canvas, 'Trim', (x, y + h*level, z + side*(d/2+.014)), (w, .12, .025))
-                box(canvas, 'Trim', (x + side*(w/2+.014), y+h*level, z), (.025, .12, d))
+                if z_face_fits(side, .014, .025):
+                    box(canvas, 'Trim', (x, y + h*level, z + side*(d/2+.014)), (w, .12, .025))
+                if x_face_fits(side, .014, .025):
+                    box(canvas, 'Trim', (x + side*(w/2+.014), y+h*level, z), (.025, .12, d))
         if key != 'wind_cathedral':
             for side in (-1, 1):
-                box(canvas, 'Signal', (x, y+h*.23, z+side*(d/2+.015)), (w*.6, .14, .025))
+                if z_face_fits(side, .015, .025):
+                    box(canvas, 'Signal', (x, y+h*.23, z+side*(d/2+.015)), (w*.6, .14, .025))
     else:
         for side in (-1, 1):
-            box(canvas, 'Trim', (x, y+h*.24, z+side*(d/2+.012)), (w, .12, .02))
-            box(canvas, 'Trim', (x+side*(w/2+.012), y+h*.24, z), (.02, .12, d))
+            if z_face_fits(side, .012, .02):
+                box(canvas, 'Trim', (x, y+h*.24, z+side*(d/2+.012)), (w, .12, .02))
+            if x_face_fits(side, .012, .02):
+                box(canvas, 'Trim', (x+side*(w/2+.012), y+h*.24, z), (.02, .12, d))
 
 
 def generate(key, output_dir=None):
@@ -152,7 +197,7 @@ def generate(key, output_dir=None):
         center = sum((Vector(v) for v in vertices), Vector()) / len(vertices)
         canvas = canvases[(center.x >= 0, center.y <= 0)]
         canvas._add('Foam' if mesh['kind'] == 'foam' else 'Body', True, vertices, faces, Matrix.Identity(4))
-        detail_box(canvas, mesh['authored'], key)
+        detail_box(canvas, mesh['authored'], key, size)
     meshes = []
     for (east, south), canvas in canvases.items():
         meshes.extend(canvas.emit(f'world_{int(east)}{int(south)}'))
@@ -170,7 +215,10 @@ def generate(key, output_dir=None):
             obj.name = obj.name.replace('_nocol', '_noshadow_nocol')
     bpy.context.view_layer.update()
     lows, highs = canvas_tools.scene_bounds()
-    expected = (-size[0]/2, -size[2]/2, -.12)
+    model = next((entry for entry in definition.get('glbModels', ())
+                  if f'/maps/{key}/' in entry.get('url', '')), None)
+    authored_floor = float(model.get('position', (0, -.12, 0))[1]) if model else -.12
+    expected = (-size[0]/2, -size[2]/2, authored_floor)
     if any(abs(lows[i]-expected[i]) > .002 for i in range(3)):
         raise ValueError(f'World exceeds its stable placement bounds: {lows}, expected {expected}')
     if abs(highs[0]-size[0]/2) > .002 or abs(highs[1]-size[2]/2) > .002:

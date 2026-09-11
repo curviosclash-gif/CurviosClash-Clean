@@ -18,7 +18,16 @@ async function selectMap(page, mapKey) {
     await page.waitForFunction(() => window.GAME_INSTANCE.settings.numBots === 4);
 }
 
-for (const mapKey of ['standard', 'wind_cathedral', 'chrono_forge_nexus']) {
+for (const mapKey of [
+    'standard',
+    'wind_cathedral',
+    'chrono_forge_nexus',
+    'maze',
+    'complex',
+    'pyramid',
+    'vertical_maze',
+    'trench',
+]) {
     test(`${mapKey}: Blender world renders without duplicate fallback surfaces on desktop`, async ({ page }, testInfo) => {
         test.setTimeout(180000);
         await selectMap(page, mapKey);
