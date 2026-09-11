@@ -154,6 +154,7 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
     let mgDown = false;
     let mgPressed = false;
     let rocketPressed = false;
+    let useItemPressed = false;
     let itemScrollPending = false;
 
     const resetPointer = () => {
@@ -163,25 +164,29 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
         mgDown = false;
         mgPressed = false;
         rocketPressed = false;
+        useItemPressed = false;
         itemScrollPending = false;
     };
     const handleMouseDown = (event) => {
-        if (event.button === 0) {
+        if (event.button === 2) {
             mgDown = true;
             mgPressed = true;
         } else if (event.button === 1) {
             rocketPressed = true;
+        } else if (event.button === 0) {
+            useItemPressed = true;
         } else return;
         event.preventDefault();
     };
     const handleMouseUp = (event) => {
-        if (event.button === 0) mgDown = false;
+        if (event.button === 2) mgDown = false;
     };
     const handleWheel = (event) => {
         if (!event.deltaY) return;
         itemScrollPending = true;
         event.preventDefault();
     };
+    const handleContextMenu = (event) => event.preventDefault();
     const handleAuxClick = (event) => {
         if (event.button === 1) event.preventDefault();
     };
@@ -216,6 +221,7 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             target?.addEventListener?.('mousedown', handleMouseDown);
             target?.addEventListener?.('mouseup', handleMouseUp);
             target?.addEventListener?.('auxclick', handleAuxClick);
+            target?.addEventListener?.('contextmenu', handleContextMenu);
             target?.addEventListener?.('wheel', handleWheel, { passive: false });
             globalThis.window?.addEventListener?.('blur', resetPointer);
         },
@@ -225,6 +231,7 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             target?.removeEventListener?.('mousedown', handleMouseDown);
             target?.removeEventListener?.('mouseup', handleMouseUp);
             target?.removeEventListener?.('auxclick', handleAuxClick);
+            target?.removeEventListener?.('contextmenu', handleContextMenu);
             target?.removeEventListener?.('wheel', handleWheel);
             globalThis.window?.removeEventListener?.('blur', resetPointer);
             if (target?.style) target.style.cursor = previousCursor;
@@ -237,7 +244,7 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             if (!inputManager || this.playerIndex < 0) return null;
             const inputPlayerIndex = keyboardPlayerIndex ?? this.playerIndex;
             const keyboardInput = inputManager.getKeyboardInput(inputPlayerIndex, { includeSecondaryBindings });
-            if (!pointerActive && !mgDown && !mgPressed && !rocketPressed && !itemScrollPending) return keyboardInput;
+            if (!pointerActive && !mgDown && !mgPressed && !rocketPressed && !useItemPressed && !itemScrollPending) return keyboardInput;
             Object.assign(output, keyboardInput);
             if (pointerActive) {
                 output.pitchAxis = pitchAxis;
@@ -245,9 +252,11 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             }
             output.shootMG = !!keyboardInput.shootMG || mgDown || mgPressed;
             output.shootItem = !!keyboardInput.shootItem || rocketPressed;
+            output.useItem = !!keyboardInput.useItem || useItemPressed;
             output.nextItem = !!keyboardInput.nextItem || itemScrollPending;
             mgPressed = false;
             rocketPressed = false;
+            useItemPressed = false;
             itemScrollPending = false;
             return output;
         },

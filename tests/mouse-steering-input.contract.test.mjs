@@ -83,22 +83,22 @@ test('mouse steering maps canvas position to analog axes and preserves keyboard 
     assert.equal(windowTarget.listenerCount(), 0);
 });
 
-test('mouse actions fire MG on left click, rockets on middle click and cycle items on wheel', () => {
+test('mouse actions fire MG on right click, use items on left click, rockets on middle click and cycle items on wheel', () => {
     const canvas = createEventTarget();
     const keyboard = { shootMG: false, shootItem: false, useItem: false, nextItem: false };
     const source = createMouseSteeringInputSource({ getKeyboardInput: () => keyboard }, false, { target: canvas });
     const event = (button) => ({ button, preventDefault() {} });
     try {
         source.bind(0);
-        canvas.dispatch('mousedown', event(0));
+        canvas.dispatch('mousedown', event(2));
         assert.equal(source.poll().shootMG, true);
         assert.equal(source.poll().shootMG, true);
         assert.equal(source.poll().useItem, false);
         assert.equal(source.poll().shootItem, false);
-        canvas.dispatch('mouseup', event(0));
+        canvas.dispatch('mouseup', event(2));
         assert.equal(source.poll().shootMG, false);
-        canvas.dispatch('mousedown', event(0));
-        canvas.dispatch('mouseup', event(0));
+        canvas.dispatch('mousedown', event(2));
+        canvas.dispatch('mouseup', event(2));
         assert.equal(source.poll().shootMG, true, 'short clicks survive until polling');
         assert.equal(source.poll().shootMG, false);
         canvas.dispatch('mousedown', event(1));
@@ -112,14 +112,26 @@ test('mouse actions fire MG on left click, rockets on middle click and cycle ite
             assert.equal(source.poll().nextItem, false);
         }
         for (const reset of [() => source.clearInputState(), () => canvas.dispatch('pointerleave'), () => source.bind(0)]) {
-            canvas.dispatch('mousedown', event(0));
+            canvas.dispatch('mousedown', event(2));
             canvas.dispatch('mousedown', event(1));
+            canvas.dispatch('mousedown', event(0));
             reset();
+            assert.equal(source.poll().useItem, false);
             assert.equal(source.poll().shootMG, false);
             assert.equal(source.poll().shootItem, false);
         }
-        keyboard.useItem = true;
         canvas.dispatch('mousedown', event(0));
+        canvas.dispatch('mouseup', event(0));
+        const itemInput = source.poll();
+        assert.equal(itemInput.useItem, true);
+        assert.equal(itemInput.shootMG, false);
+        assert.equal(itemInput.shootItem, false);
+        assert.equal(source.poll().useItem, false);
+        let contextPrevented = false;
+        canvas.dispatch('contextmenu', { preventDefault() { contextPrevented = true; } });
+        assert.equal(contextPrevented, true);
+        keyboard.useItem = true;
+        canvas.dispatch('mousedown', event(2));
         assert.equal(source.poll().useItem, true, 'keyboard item use remains available');
     } finally {
         source.dispose();
