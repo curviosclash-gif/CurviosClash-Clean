@@ -1,3 +1,5 @@
+import { isDestructibleTurret, isTurretCombatActive } from '../../shared/contracts/TurretCombatContract.js';
+import { createTrailTargetDescriptor } from '../../hunt/HuntTargetingOps.js';
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
@@ -65,13 +67,14 @@ export class StaticTurretSystem {
         this._nextTurretId = 1;
         this._nextCreatedSequence = 1;
         const owner = this.entityManager;
-        if (!owner || String(owner.gameModeStrategy?.modeType || '').toUpperCase() !== 'HUNT') return 0;
+        if (!owner) return 0;
         const mapDefinition = owner.arena?.currentMapDefinition;
-        const definitions = resolveMapStaticTurretDefinitions(mapDefinition);
         const authoredScale = mapDefinition?.scaleAuthoredAnchors === true
             ? Math.max(0.001, Number(resolveGameplayConfig(owner).ARENA?.MAP_SCALE) || 1)
             : 1;
+        const definitions = resolveMapStaticTurretDefinitions(mapDefinition, { preserveSpatialRange: mapDefinition?.scaleAuthoredAnchors === true });
         for (let i = 0; i < definitions.length; i += 1) {
+            if (!isTurretCombatActive(owner.gameModeStrategy, definitions[i].allowedModes)) continue;
             this.turrets.push(this._createTurret(definitions[i], authoredScale));
         }
         return this.turrets.length;
@@ -82,31 +85,35 @@ export class StaticTurretSystem {
         const aimDirection = new THREE.Vector3(1, 0, 0);
         const root = createStaticTurretVisual(this, definition, position, authoredScale);
         const deployed = definition.deployed === true;
-        const maxHp = deployed
+        const destructible = definition.destructible ?? deployed;
+        const maxHp = destructible
             ? clampFinite(definition.maxHp, 45, 1, 500)
             : Number.POSITIVE_INFINITY;
         const source = {
             index: -1,
             isBot: true,
             staticTurret: true,
+            turretId: definition.id,
+            targetPlayers: definition.targetPlayers || 'humans',
             alive: true,
             combatLabel: `Geschuetz ${definition.id}`,
             position,
             getAimDirection: (out) => out.copy(aimDirection),
         };
-        return {
+        const turret = {
             ...definition,
-            range: definition.range * authoredScale,
+            range: Math.min(definition.range, 180) * authoredScale,
             authoredScale,
             position,
             aimDirection,
             root,
             source,
             deployed,
+            destructible,
             ownerIndex: Number.isInteger(definition.ownerIndex) ? definition.ownerIndex : -1,
             maxHp,
-            hp: deployed ? clampFinite(definition.hp, maxHp, 0, maxHp) : maxHp,
-            hitboxRadius: clampFinite(definition.hitboxRadius, 2.2, 0.5, 8),
+            hp: destructible ? clampFinite(definition.hp, maxHp, 0, maxHp) : maxHp,
+            hitboxRadius: clampFinite(definition.hitboxRadius, 2.2, 0.5, 8) * authoredScale,
             cooldownRemaining: definition.phase,
             flashRemaining: 0,
             shotsFired: 0,
@@ -125,13 +132,16 @@ export class StaticTurretSystem {
             networkShotsInitialized: false,
             createdSequence: this._nextCreatedSequence++,
         };
+        if (destructible) turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
+        return turret;
     }
 
-    _resolveTurretConfig() {
-        const config = resolveGameplayConfig(this.entityManager).HUNT?.MG_TURRET || {};
+    _resolveTurretConfig(weapon = 'mg') {
+        const rocket = weapon === 'rocket';
+        const config = resolveGameplayConfig(this.entityManager).HUNT?.[rocket ? 'ROCKET_TURRET' : 'MG_TURRET'] || {};
         return {
-            range: clampFinite(config.RANGE, 58, 8, 120),
-            cooldown: clampFinite(config.COOLDOWN, 0.24, 0.1, 2),
+            range: clampFinite(config.RANGE, rocket ? 90 : 58, 8, 120),
+            cooldown: clampFinite(config.COOLDOWN, rocket ? 3.4 : 0.24, 0.1, rocket ? 12 : 2),
             damage: clampFinite(config.DAMAGE, 3, 1, 20),
             duration: clampFinite(config.DURATION_SECONDS, 20, 3, 60),
             maxHp: clampFinite(config.MAX_HP, 45, 10, 200),
@@ -180,13 +190,13 @@ export class StaticTurretSystem {
         return arena.checkCollisionFast(this._tmpMuzzle, config.hitboxRadius) ? null : this._tmpMuzzle;
     }
 
-    _enforceOwnerLimit(player, maxPerOwner) {
+    _enforceOwnerLimit(player, maxPerOwner, weapon = 'mg') {
         let count = 0;
         let oldestIndex = -1;
         let oldestSequence = Infinity;
         for (let i = 0; i < this.turrets.length; i += 1) {
             const turret = this.turrets[i];
-            if (!turret?.deployed || resolveOwnerIndex(turret) !== player.index) continue;
+            if (!turret?.deployed || resolveOwnerIndex(turret) !== player.index || turret.weapon !== weapon) continue;
             count += 1;
             if (turret.createdSequence < oldestSequence) {
                 oldestSequence = turret.createdSequence;
@@ -198,27 +208,32 @@ export class StaticTurretSystem {
         }
     }
 
-    deployForPlayer(player) {
+    deployForPlayer(player, weapon = 'mg') {
+        if (weapon !== 'mg' && weapon !== 'rocket') return null;
+        const allowedModes = weapon === 'rocket' ? ['HUNT', 'ARCADE'] : ['HUNT'];
         const owner = this.entityManager;
         if (
             !owner
             || this.networkReplica
-            || String(owner.gameModeStrategy?.modeType || '').toUpperCase() !== 'HUNT'
+            || !isTurretCombatActive(owner.gameModeStrategy, allowedModes)
             || !player?.alive
             || !player.position
         ) {
             return null;
         }
-        const config = this._resolveTurretConfig();
+        const config = this._resolveTurretConfig(weapon);
         const position = this._resolveDeploymentPosition(player, config);
         if (!position) {
             owner.recorder?.logEvent?.('TURRET_DEPLOY_FAILED', player.index, 'blocked');
             return null;
         }
-        this._enforceOwnerLimit(player, config.maxPerOwner);
+        this._enforceOwnerLimit(player, config.maxPerOwner, weapon);
         const definition = {
             id: `player_${player.index}_${this._nextTurretId++}`,
-            weapon: 'mg',
+            weapon,
+            allowedModes,
+            targetPlayers: 'all',
+            targetTrails: true,
             pos: [position.x, position.y, position.z],
             range: config.range,
             cooldown: config.cooldown,
@@ -242,7 +257,6 @@ export class StaticTurretSystem {
         turret.ownerPlayer = player;
         turret.source = player;
         turret.expiresRemaining = config.duration;
-        turret.takeDamage = (amount, options = {}) => this.damageTurret(turret, amount, options);
         this.turrets.push(turret);
         owner.particles?.spawnHit?.(turret.position, player.color || TURRET_MG_COLOR);
         if (!player.isBot) owner.audio?.play?.('POWERUP');
@@ -294,7 +308,7 @@ export class StaticTurretSystem {
     }
 
     damageTurret(turret, amount, options = {}) {
-        if (!turret?.deployed || turret.hp <= 0 || this.networkReplica) {
+        if (!isDestructibleTurret(turret) || turret.hp <= 0 || this.networkReplica) {
             return { applied: 0, hpApplied: 0, remainingHp: Math.max(0, Number(turret?.hp) || 0), isDead: turret?.hp <= 0 };
         }
         const requested = Math.max(0, Number(amount) || 0);
@@ -323,14 +337,17 @@ export class StaticTurretSystem {
         if (turret.aimDirection.lengthSq() <= 0.000001) return;
         this._tmpMuzzle.copy(turret.position).addScaledVector(turret.aimDirection, 4.2 * turret.authoredScale);
         if (turret.weapon === 'rocket') {
-            this.entityManager?._projectileSystem?.spawnExternalProjectile?.({
+            const projectile = this.entityManager?._projectileSystem?.spawnExternalProjectile?.({
                 owner: turret.source,
                 type: turret.rocketType,
                 position: this._tmpMuzzle,
                 direction: turret.aimDirection,
-                target,
+                target: target.isTrail ? createTrailTargetDescriptor(target.entry, target.position) : target,
+                turretTargeting: { targetPlayers: turret.targetPlayers || (turret.deployed ? 'all' : 'humans'), targetTrails: turret.targetTrails === true },
+                sourceTurretId: turret.id,
                 speedMultiplier: 0.82,
             });
+            if (!projectile) return;
             if (this._shouldPlayTurretAudio(turret)) {
                 this.entityManager?.audio?.play?.('ROCKET_SHOOT', { intensity: 0.35 });
             }
@@ -386,7 +403,8 @@ export class StaticTurretSystem {
             if (turret.root?.userData?.muzzleFlash && turret.flashRemaining <= 0) {
                 turret.root.userData.muzzleFlash.visible = false;
             }
-            const target = this.networkReplica ? null : resolveStaticTurretTarget(this, turret, safeDt);
+            const combatActive = isTurretCombatActive(this.entityManager?.gameModeStrategy, turret.allowedModes);
+            const target = this.networkReplica || !combatActive ? null : resolveStaticTurretTarget(this, turret, safeDt);
             const aimDot = updateStaticTurretVisual(this, turret, target, safeDt);
             if (this.networkReplica) {
                 i += 1;
@@ -420,7 +438,7 @@ export class StaticTurretSystem {
         if (turret?.root) this.entityManager?.renderer?.removeFromScene?.(turret.root);
         this._disposeTurretVisual(turret);
         this.turrets.splice(index, 1);
-        if (!turret?.deployed || this.networkReplica) return;
+        if (!isDestructibleTurret(turret) || this.networkReplica) return;
         const ownerIndex = resolveOwnerIndex(turret);
         this.entityManager?.recorder?.logEvent?.(
             reason === 'destroyed' ? 'TURRET_DESTROYED' : 'TURRET_REMOVED',
@@ -449,11 +467,20 @@ export class StaticTurretSystem {
         return this.turrets;
     }
 
-    getHudStateForPlayer(playerIndex) {
+    getHudStatesForPlayer(playerIndex) {
+        const states = [];
+        for (const weapon of ['mg', 'rocket']) {
+            const state = this.getHudStateForPlayer(playerIndex, weapon);
+            if (state) states.push({ ...state, weapon });
+        }
+        return states;
+    }
+
+    getHudStateForPlayer(playerIndex, weapon = null) {
         let active = null;
         let count = 0;
         for (const turret of this.turrets) {
-            if (!turret?.deployed || resolveOwnerIndex(turret) !== playerIndex) continue;
+            if (!turret?.deployed || resolveOwnerIndex(turret) !== playerIndex || (weapon && turret.weapon !== weapon)) continue;
             count += 1;
             if (!active || turret.createdSequence > active.createdSequence) active = turret;
         }

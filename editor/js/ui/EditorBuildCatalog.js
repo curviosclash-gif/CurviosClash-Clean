@@ -9,6 +9,7 @@ import {
 import { GLB_GALLERY_MAPS } from '../../../src/core/config/maps/presets/glb_gallery.js';
 
 const CATEGORY_META = Object.freeze({
+    gameplay: Object.freeze({ id: 'gameplay', label: 'Gameplay', accentColor: '#ff4d6d', description: 'Automatische Geschuetze fuer Kampfmodi.' }),
     build: Object.freeze({
         id: 'build',
         label: 'Bauen',
@@ -92,6 +93,7 @@ function createBuildEntry({
 export const EDITOR_BUILD_CATEGORIES = Object.freeze([
     CATEGORY_META.build,
     CATEGORY_META.flow,
+    CATEGORY_META.gameplay,
     CATEGORY_META.pickups,
     CATEGORY_META.aircraft,
     CATEGORY_META.glb,
@@ -498,6 +500,16 @@ export const EDITOR_BUILD_ITEMS = Object.freeze([
         keywords: ['item', 'ring']
     }),
     createBuildEntry({
+        id: 'gameplay-rocket-turret', tool: 'turret', subType: 'rocket', categoryId: 'gameplay',
+        label: 'Automatischer Raketenwerfer', description: 'Zerstoerbares festes Geschuetz. Fight/Hunt und Arcade-Endlos mit Hunt-Kampf.',
+        previewGlyph: 'RW', previewToken: 'rocket-turret', sortOrder: 1, keywords: ['geschuetz', 'rakete', 'turret'],
+    }),
+    createBuildEntry({
+        id: 'pickups-rocket-turret', tool: 'item', subType: 'item_rocket_turret', categoryId: 'pickups',
+        label: 'Raketenwerfer-Power-up', description: 'Aufsammeln und fuer 20 Sekunden aufstellen. Fight/Hunt und Arcade-Endlos mit Hunt-Kampf.',
+        previewGlyph: 'RW', previewToken: 'item-rocket-turret', sortOrder: 49, keywords: ['geschuetz', 'rakete', 'powerup'],
+    }),
+    createBuildEntry({
         id: 'pickups-rocket',
         tool: 'item',
         subType: 'item_rocket',
@@ -859,6 +871,7 @@ export function getEditorBuildCategories() {
 }
 
 export function resolveEditorBuildEntryAssetId(entry) {
+    if (entry?.tool === 'turret' || entry?.subType === 'item_rocket_turret') return null;
     if (!entry) return null;
     if (entry.tool === 'item' || entry.tool === 'aircraft' || entry.tool === 'glb') return entry.subType || null;
     if (entry.tool === 'portal' && typeof entry.subType === 'string' && entry.subType.startsWith('portal_')) return entry.subType;

@@ -25,10 +25,10 @@ test('EDITOR_AUTHORING_CONTRACT_VERSION is a non-empty string', () => {
     assert.ok(EDITOR_AUTHORING_CONTRACT_VERSION.length > 0);
 });
 
-test('EDITOR_OBJECT_TYPES contains all nine authoritative types', () => {
-    const expected = ['hard', 'foam', 'portal', 'spawn', 'item', 'aircraft', 'glb', 'tunnel', 'checkpoint'];
+test('EDITOR_OBJECT_TYPES contains all ten authoritative types', () => {
+    const expected = ['hard', 'foam', 'portal', 'spawn', 'item', 'aircraft', 'glb', 'tunnel', 'checkpoint', 'turret'];
     const actual = Object.values(EDITOR_OBJECT_TYPES);
-    assert.equal(actual.length, expected.length, 'Object type count must be 9');
+    assert.equal(actual.length, expected.length, 'Object type count must be 10');
     for (const type of expected) {
         assert.ok(actual.includes(type), `Expected object type "${type}" in EDITOR_OBJECT_TYPES`);
     }

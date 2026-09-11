@@ -303,7 +303,7 @@ function invokeFallbackPolicyUpdate(policy, dt, player, runtimeContext) {
         dt,
         player,
         runtimeContext?.arena,
-        runtimeContext?.players,
+        runtimeContext?.navigationPlayers || runtimeContext?.players,
         runtimeContext?.projectiles
     );
 }
@@ -328,7 +328,9 @@ export class HuntBotPolicy {
         if (!player || !player.alive) return input;
         const huntConfig = resolveGameplayConfig(player).HUNT;
 
-        const allPlayers = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
+        const allPlayers = Array.isArray(runtimeContext?.visiblePlayers)
+            ? runtimeContext.visiblePlayers
+            : (Array.isArray(runtimeContext?.players) ? runtimeContext.players : []);
         const snapshot = resolveSensorSnapshot(this);
         const huntTarget = runtimeContext?.huntTarget || null;
         const preferred = getPreferredFightEnemy(player, allPlayers, this._tmpToEnemy, runtimeContext?.dt);
@@ -340,7 +342,13 @@ export class HuntBotPolicy {
         );
         const enemy = (sharedTargetAccepted ? targetPlayer : null)
             || preferred.enemy
-            || (snapshot?.targetPlayer && snapshot.targetPlayer.alive ? snapshot.targetPlayer : null);
+            || (
+                snapshot?.targetPlayer
+                && snapshot.targetPlayer.alive
+                && allPlayers.includes(snapshot.targetPlayer)
+                    ? snapshot.targetPlayer
+                    : null
+            );
         const distSq = sharedTargetAccepted && Number.isFinite(huntTarget?.distance)
             ? huntTarget.distance * huntTarget.distance
             : (preferred.enemy ? preferred.distSq : snapshot?.targetDistanceSq);

@@ -92,7 +92,7 @@ export function createEntityRuntimeSupport(owner) {
             });
             if (damageResult?.isDead) {
                 owner._killPlayer(target, 'PROJECTILE', {
-                    killer: projectileOwner || null,
+                    killer: projectileOwner?.staticTurret ? null : projectileOwner || null,
                     impactPoint: projectile?.position || target?.position || null,
                     projectileType: type || projectile?.type || null,
                 });
@@ -173,12 +173,17 @@ export function createEntityRuntimeSupport(owner) {
             combat: {
                 shootItemProjectile: (player, preferredIndex = -1) => projectileSystem.shootItemProjectile(player, preferredIndex),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
+                deployRocketTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player, 'rocket') || null,
                 deployMgTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player) || null,
                 getMgTurretTargets: () => owner._staticTurretSystem?.getDestructibleTargets?.() || [],
                 damageMgTurret: (turret, amount, options = {}) => (
                     owner._staticTurretSystem?.damageTurret?.(turret, amount, options) || null
                 ),
                 resetRespawnCombatState: (player) => owner._overheatGunSystem.resetPlayer(player?.index),
+            },
+            globalEffects: {
+                canActivateFog: () => owner._globalFogEffectSystem?.networkReplica !== true,
+                activateFog: () => owner._globalFogEffectSystem?.activate?.() === true,
             },
             spawn: {
                 getPlanarSpawnLevel: () => owner._getPlanarSpawnLevel(),

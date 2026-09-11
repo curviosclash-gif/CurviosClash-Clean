@@ -1,3 +1,4 @@
+import { isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
 import * as THREE from 'three';
 
 function clampFinite(value, fallback, min, max) {
@@ -7,8 +8,7 @@ function clampFinite(value, fallback, min, max) {
 }
 
 function isPlayerTargetEligible(turret, candidate) {
-    if (candidate === turret.ownerPlayer || !candidate?.alive || !candidate.position) return false;
-    return (candidate.spawnProtectionTimer || 0) <= 0;
+    return candidate?.alive && isTurretTargetPlayerEligible(candidate, turret.ownerPlayer, turret.targetPlayers);
 }
 
 function isTargetStillValid(system, turret, target) {
@@ -16,7 +16,7 @@ function isTargetStillValid(system, turret, target) {
     if (target.isTrail) {
         if (!target.entry || target.entry.destroyed) return false;
         const owner = system.entityManager?.players?.[target.entry.playerIndex];
-        if ((owner?.spawnProtectionTimer || 0) > 0) return false;
+        if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer, turret.targetPlayers)) return false;
     } else if (!isPlayerTargetEligible(turret, target)) {
         return false;
     }
@@ -61,9 +61,9 @@ function findTrailTarget(system, turret, nearestDistanceSq) {
             const cell = grid.get((cellX + 1000) * 2000 + (cellZ + 1000));
             if (!cell) continue;
             for (const entry of cell) {
-                if (!entry || entry.destroyed || entry.playerIndex === turret.ownerPlayer.index) continue;
+                if (!entry || entry.destroyed) continue;
                 const owner = system.entityManager?.players?.[entry.playerIndex];
-                if ((owner?.spawnProtectionTimer || 0) > 0) continue;
+                if (!isTurretTargetPlayerEligible(owner, turret.ownerPlayer, turret.targetPlayers)) continue;
                 if (entry._turretTrailQueryStamp === queryStamp) continue;
                 entry._turretTrailQueryStamp = queryStamp;
                 const fromX = Number(entry.fromX) || 0;
@@ -97,7 +97,7 @@ function findTrailTarget(system, turret, nearestDistanceSq) {
 }
 
 function findTarget(system, turret) {
-    const candidates = turret.ownerPlayer
+    const candidates = turret.ownerPlayer || turret.targetPlayers === 'all'
         ? (system.entityManager?.players || [])
         : (system.entityManager?.humanPlayers || []);
     let nearest = null;
@@ -110,7 +110,7 @@ function findTarget(system, turret) {
         nearest = candidate;
         nearestDistanceSq = distanceSq;
     }
-    if (turret.ownerPlayer) {
+    if (turret.targetTrails === true || (turret.ownerPlayer && turret.targetTrails !== false)) {
         const trailTarget = findTrailTarget(system, turret, nearestDistanceSq);
         if (trailTarget) return trailTarget;
     }

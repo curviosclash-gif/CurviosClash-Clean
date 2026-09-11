@@ -825,7 +825,9 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
         await page.locator('#dockSearch').fill('Rakete');
         await expect(page.locator('#dockCards [data-entry-id="pickups-rocket"]')).toBeVisible();
-        await expect(page.locator('#dockCards [data-entry-id]')).toHaveCount(1);
+        await expect(page.locator('#dockCards [data-entry-id="pickups-rocket-turret"]')).toBeVisible();
+        await expect(page.locator('#dockCards [data-entry-id="gameplay-rocket-turret"]')).toBeVisible();
+        await expect(page.locator('#dockCards [data-entry-id]')).toHaveCount(3);
 
         await page.locator('#dockSearch').fill('');
         await activateDockEntry(page, 'build', 'build-hard');
@@ -1132,4 +1134,52 @@ test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
         const afterRightClick = JSON.parse(await page.locator('#jsonOutput').inputValue());
         expect(afterRightClick.hardBlocks).toHaveLength(0);
     });
+});
+
+
+test('Raketenwerfer: Editor properties, duplicate, undo and saved roundtrip', async ({ page }, testInfo) => {
+    await loadEditorPage(page);
+    await activateDockEntry(page, 'gameplay', 'gameplay-rocket-turret');
+    await clickCanvas(page, 0.42);
+    await activateInspectorTab(page, 'selection');
+    await expect(page.locator('#propTurretFields')).toBeVisible();
+    await expect(page.locator('#propTurretRange')).toHaveValue('90');
+    await page.locator('#propTurretRange').fill('120');
+    await page.locator('#propTurretRange').press('Tab');
+    await page.locator('#propTurretCooldown').fill('4.5');
+    await page.locator('#propTurretCooldown').press('Tab');
+    await page.locator('#propTurretRocketType').selectOption('ROCKET_MEDIUM');
+    await page.locator('#propTurretHp').fill('130');
+    await page.locator('#propTurretHp').press('Tab');
+    const result = await page.evaluate(() => {
+        const { ui } = window.CURVIOS_EDITOR;
+        const manager = ui.mapManager;
+        const selected = ui.selectedObject;
+        const id = selected.userData.id;
+        const saved = manager.generateJSONExport(ui.getArenaSizeForExport());
+        ui.executeHistoryMutation('Duplicate launcher', () => {
+            const props = { ...selected.userData };
+            delete props.id;
+            delete props.editorObjectId;
+            manager.createMesh('turret', 'rocket', selected.position.x + 50, selected.position.y, selected.position.z, 0, props);
+        });
+        const count = () => manager.core.objectsContainer.children.filter((entry) => entry.userData.type === 'turret').length;
+        const duplicateCount = count();
+        ui.commandHistory.undo();
+        const undoCount = count();
+        ui.commandHistory.redo();
+        const redoCount = count();
+        manager.importFromJSON(saved);
+        const loaded = manager.getObjectById(id);
+        ui.selectObject(loaded);
+        return { duplicateCount, undoCount, redoCount, settings: JSON.parse(saved).staticTurrets[0],
+            loadedHp: loaded.userData.maxHp, preview: !!ui.turretRangePreview };
+    });
+    expect(result.duplicateCount).toBe(2);
+    expect(result.undoCount).toBe(1);
+    expect(result.redoCount).toBe(2);
+    expect(result.settings).toMatchObject({ rocketType: 'ROCKET_MEDIUM', maxHp: 130, cooldown: 4.5, destructible: true });
+    expect(result.loadedHp).toBe(130);
+    expect(result.preview).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('rocket-turret-editor.png') });
 });

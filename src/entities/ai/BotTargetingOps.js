@@ -17,6 +17,13 @@ function resolveTargetVulnerability(target) {
     return 1 - clamp01(hp / maxHp);
 }
 
+export function isTargetVisibleToPlayer(player, target) {
+    return player?.entityManager?.isPositionVisibleDuringGlobalFog?.(
+        player?.position,
+        target?.position
+    ) !== false;
+}
+
 export function selectTarget(bot, player, allPlayers) {
     const previousTarget = bot.state.targetPlayer || null;
     const retainBonus = Number.isFinite(Number(bot.profile?.targetRetainBonus))
@@ -40,7 +47,7 @@ export function selectTarget(bot, player, allPlayers) {
 
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
-        if (!other || other === player || !other.alive) continue;
+        if (!other || other === player || !other.alive || !isTargetVisibleToPlayer(player, other)) continue;
 
         bot._tmpVec.subVectors(other.position, player.position);
         const distSq = bot._tmpVec.lengthSq();
@@ -98,7 +105,7 @@ export function estimateEnemyPressure(bot, position, owner, allPlayers) {
     let nearestDistSq = Infinity;
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
-        if (!other || other === owner || !other.alive) continue;
+        if (!other || other === owner || !other.alive || !isTargetVisibleToPlayer(owner, other)) continue;
         const d = other.position.distanceToSquared(position);
         if (d < nearestDistSq) nearestDistSq = d;
     }

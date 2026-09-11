@@ -611,7 +611,8 @@ export class ArcadeModeStrategy extends GameModeContract {
     isRespawnEnabled() { return false; }
 
     filterSpawnableTypes(typeKeys, powerupTypes) {
-        if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(typeKeys, powerupTypes);
+        if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(
+            this.isSectorParcours() ? typeKeys.filter((type) => type !== 'ROCKET_TURRET') : typeKeys, powerupTypes);
         return typeKeys.filter((typeKey) => {
             const entry = powerupTypes[typeKey];
             if (!entry) return false;

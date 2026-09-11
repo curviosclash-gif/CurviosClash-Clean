@@ -171,7 +171,9 @@ function applyBreakawaySteering(policy, input, player, enemy, arena) {
 }
 
 export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeContext, observation) {
-    const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
+    const players = Array.isArray(runtimeContext?.visiblePlayers)
+        ? runtimeContext.visiblePlayers
+        : (Array.isArray(runtimeContext?.players) ? runtimeContext.players : []);
     const huntTarget = runtimeContext?.huntTarget || null;
     const preferred = getPreferredFightEnemy(player, players, policy._tmpToEnemy, runtimeContext?.dt);
     const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, players);
@@ -180,6 +182,23 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         || preferred.candidateCount <= 1
         || targetPlayer.index === player.fightLastAttackerIndex
     ) ? targetPlayer : preferred.enemy;
+    if (player?.endlessForcedRetreat === true) {
+        clearSteeringInput(input);
+        applyRetreatSteering(policy, input, player, enemy);
+        input.boost = true;
+        input.shootMG = false;
+        input.shootItem = false;
+        input.shootItemIndex = -1;
+        input.useItem = -1;
+        return {
+            intent: 'retreat',
+            retreatReason: String(player.endlessRetreatReason || 'endless_wave'),
+            targetDistanceRatio: 1,
+            targetPlayerIndex: Number.isInteger(enemy?.index) ? enemy.index : -1,
+            targetReachable: true,
+            selectedItemReason: '',
+        };
+    }
     const healthRatio = resolveHealthRatio(player);
     const shieldRatio = resolveShieldRatio(player);
     const enemyHealthRatio = resolveHealthRatio(enemy);

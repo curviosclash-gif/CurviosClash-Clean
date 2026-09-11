@@ -62,6 +62,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
         projectiles,
         powerups,
         turrets,
+        globalFog: entityManager?.getGlobalFogState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 },
         mapElapsedSeconds: toFiniteNumber(entityManager?.arena?.glbAnimationElapsedSeconds, 0),
         fight: createHuntNetworkState(entityManager),
         roundState: roundState ? {

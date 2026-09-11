@@ -13,6 +13,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/arcade-hangar-workshop.desktop.spec.js',
             'tests/atmospheric-fog.desktop.spec.js',
             'tests/fog-edge-proof.desktop.spec.js',
+            'tests/global-fog-pickup.desktop.spec.js',
             'tests/chrono-forge-nexus.desktop.spec.js',
             'tests/eclipse-foundry.desktop.spec.js',
             'tests/hangar-window.desktop.spec.js',
@@ -34,6 +35,8 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/parcours-assault.desktop.spec.js',
             'tests/player-profiles.desktop.spec.js',
             'tests/render-smoothing.desktop.spec.js',
+            'tests/rocket-turret.desktop.spec.js',
+            'tests/weapon-fan-pickups.desktop.spec.js',
         ],
     },
     {

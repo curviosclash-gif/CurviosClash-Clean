@@ -29,6 +29,11 @@ import {
     DEFAULT_VIEW_DISTANCE,
     normalizeViewDistance,
 } from '../shared/contracts/ViewDistanceContract.js';
+import { resolveMapLighting } from '../shared/contracts/MapLightingContract.js';
+import {
+    createGlobalFogEffectState,
+    resolveGlobalFogMapRange,
+} from '../shared/contracts/GlobalFogEffectContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -65,6 +70,8 @@ export class Renderer {
         // The map may carry its own lighting profile; undefined means the style base stands.
         this._mapLighting = undefined;
         this._mapScale = 1;
+        this._globalFogEffect = createGlobalFogEffectState();
+        this._globalFogVisibilityRange = 0;
         this._lightingRig = new SceneLightingRig({
             scene: this.scene,
             renderer: this.renderer,
@@ -175,6 +182,22 @@ export class Renderer {
         return this._mapLighting;
     }
 
+    setGlobalFogEffect(value = null) {
+        const next = createGlobalFogEffectState(value);
+        const activeChanged = this._globalFogEffect.active !== next.active;
+        this._globalFogEffect = next;
+        if (activeChanged) this._applySceneAppearance();
+        return this.getGlobalFogEffect();
+    }
+
+    getGlobalFogEffect() {
+        return { ...this._globalFogEffect };
+    }
+
+    getGlobalFogVisibilityRange() {
+        return this._globalFogVisibilityRange;
+    }
+
     // Der Grafikstil liefert die Basiswerte, die Helligkeitsstufe einen Faktor darauf, und
     // eine explizit gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Nur diese eine
     // Stelle schreibt - sonst ueberschreiben sich die Quellen gegenseitig.
@@ -183,12 +206,16 @@ export class Renderer {
     // und eine gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Schriebe eine der Quellen
     // woanders, wuerde sie von der naechsten ueberschrieben.
     _applySceneAppearance() {
+        const normalMapLighting = resolveMapLighting(this._mapLighting);
+        const globalFogRange = resolveGlobalFogMapRange(normalMapLighting, CONFIG.CAMERA.FAR);
+        this._globalFogVisibilityRange = globalFogRange.far;
         const lighting = this._lightingRig.apply({
             graphicsStyle: this._graphicsStyle,
             mapLighting: this._mapLighting,
             mapScale: this._mapScale,
             brightnessFactors: resolveMapBrightnessFactors(this._mapBrightness),
             viewDistance: this._viewDistance,
+            globalFogRange: this._globalFogEffect?.active === true ? globalFogRange : null,
         });
         // Authored long-range fog needs matching clipping, including after a map switch.
         this._cameraFar = Math.max(CONFIG.CAMERA.FAR, this.scene.fog.far);

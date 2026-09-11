@@ -1,8 +1,5 @@
-import {
-    DEFAULT_ARENA_SIZE,
-    MAP_SCHEMA_COLLECTION_LIMITS,
-    MAP_SCHEMA_VERSION,
-} from './MapSchemaConstants.js';
+import { resolveMapStaticTurretDefinitions } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
+import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_COLLECTION_LIMITS, MAP_SCHEMA_VERSION } from './MapSchemaConstants.js';
 import { getPickupDefinition, normalizePickupType } from '../PickupRegistry.js';
 import { normalizeAllowedGLBUrl, sanitizeGLBModels } from './MapSchemaGlbOps.js';
 import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
@@ -527,6 +524,7 @@ export function normalizeMapSchemaDocument(rawMap, options = {}) {
 
     const normalized = withOptionalStringField({
         schemaVersion: MAP_SCHEMA_VERSION,
+        staticTurrets: resolveMapStaticTurretDefinitions({ staticTurrets: asLimitedArray(rawMap.staticTurrets, 'staticTurrets') }, { preserveSpatialRange: true }),
         arenaSize,
         tunnels: asLimitedArray(rawMap.tunnels, 'tunnels').map((entry) => sanitizeTunnel(entry)),
         hardBlocks: asLimitedArray(rawMap.hardBlocks, 'hardBlocks').map((entry) => sanitizeBlock(entry)),

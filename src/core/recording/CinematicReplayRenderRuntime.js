@@ -254,6 +254,10 @@ function interpolateSceneEntries(target, leftEntries, rightEntries, alpha) {
 }
 
 function buildReplayNetworkSnapshot(target, leftSnapshot, rightSnapshot, alpha) {
+    const fogSnapshot = alpha < 0.5 ? leftSnapshot?.globalFog : rightSnapshot?.globalFog;
+    const fogRemaining = Math.max(0, toFiniteNumber(fogSnapshot?.remainingSeconds, 0));
+    target.globalFog = { active: fogSnapshot?.active === true && fogRemaining > 0, remainingSeconds: fogRemaining,
+        visibilityRange: Math.max(0, toFiniteNumber(fogSnapshot?.visibilityRange, 0)) };
     target.mapElapsedSeconds = THREE.MathUtils.lerp(
         toFiniteNumber(leftSnapshot?.mapElapsedSeconds, toFiniteNumber(leftSnapshot?.timeMs, 0) * 0.001),
         toFiniteNumber(rightSnapshot?.mapElapsedSeconds, toFiniteNumber(rightSnapshot?.timeMs, 0) * 0.001),
@@ -335,7 +339,7 @@ export function createCinematicReplayFrameRenderer({
     prepareReplaySession = prepareDefaultReplaySession,
     disposeReplaySession = disposeDefaultReplaySession,
 } = {}) {
-    const networkSnapshot = { projectiles: [], powerups: [], turrets: [] };
+    const networkSnapshot = { projectiles: [], powerups: [], turrets: [], globalFog: null };
     const replayAliveState = new Map();
     let activeReplay = null;
     let activeReplaySession = null;

@@ -244,8 +244,8 @@ export class SceneLightingRig {
         return positions;
     }
 
-    /** @param {{graphicsStyle?: unknown, mapLighting?: any, brightnessFactors: any, viewDistance?: unknown}} options */
-    apply({ graphicsStyle, mapLighting, brightnessFactors, viewDistance, mapScale = 1 }) {
+    /** @param {{graphicsStyle?: unknown, mapLighting?: any, brightnessFactors: any, viewDistance?: unknown, globalFogRange?: any}} options */
+    apply({ graphicsStyle, mapLighting, brightnessFactors, viewDistance, mapScale = 1, globalFogRange = null }) {
         const modern = graphicsStyle === MODERN_STYLE;
         const styleLighting = modern ? undefined : this._classicLighting;
         const lighting = resolveMapLighting(mapLighting, styleLighting);
@@ -275,12 +275,21 @@ export class SceneLightingRig {
         this.starField.visible = modern && lighting.starsVisible;
         this._applySkyDomeColors(lighting.skyDome, atmosphereColor);
 
-        const fog = resolveFogRange({
+        const baseFog = globalFogRange && Number(globalFogRange.far) > 0
+            ? globalFogRange
+            : lighting.fog;
+        const resolvedFog = resolveFogRange({
             viewDistance,
-            brightnessFogFactor: brightnessFactors.fog,
-            baseNear: lighting.fog.near,
-            baseFar: lighting.fog.far,
+            brightnessFogFactor: globalFogRange ? 1 : brightnessFactors.fog,
+            baseNear: baseFog.near,
+            baseFar: baseFog.far,
         });
+        const fog = globalFogRange
+            ? {
+                near: Math.min(Number(baseFog.near) || 0, resolvedFog.near),
+                far: Math.min(Number(baseFog.far) || 1, resolvedFog.far),
+            }
+            : resolvedFog;
         this.scene.fog.near = fog.near;
         this.scene.fog.far = fog.far;
         // Height and structure are not part of THREE.Fog, so they travel to the patched shader
@@ -294,7 +303,7 @@ export class SceneLightingRig {
             skyDome: lighting.skyDome,
             atmosphereColor,
             height: lighting.fog.height * scale,
-            heightFalloff: lighting.fog.heightFalloff / scale,
+            heightFalloff: globalFogRange ? 0 : lighting.fog.heightFalloff / scale,
         });
         return lighting;
     }

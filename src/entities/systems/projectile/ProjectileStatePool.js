@@ -1,8 +1,19 @@
+import { isHuntTargetDescriptor } from '../../../hunt/HuntTargetingOps.js';
 import * as THREE from 'three';
 
 export function configureProjectileRange(projectile, config, multiplier = 1) {
     projectile.ttl = config.LIFE_TIME * multiplier;
     projectile.maxDistance = config.MAX_DISTANCE * multiplier;
+}
+
+export function configureExternalProjectileTarget(projectile, options) {
+    const target = options.target;
+    projectile.target = isHuntTargetDescriptor(target)
+        ? { ...target, point: target.point ? { ...target.point } : undefined, position: { ...target.position } }
+        : (target?.alive ? target : null);
+    projectile.turretTargeting = options.turretTargeting ? { ...options.turretTargeting } : null;
+    projectile.sourceTurretId = String(options.sourceTurretId || '');
+    projectile.homingReacquireTimer = projectile.homingReacquireInterval;
 }
 
 export class ProjectileStatePool {
@@ -30,6 +41,8 @@ export class ProjectileStatePool {
             traveled: 0,
             maxDistance: Infinity,
             target: null,
+            turretTargeting: null,
+            sourceTurretId: '',
             detonated: false,
             huntRocket: false,
             homingEnabled: false,
@@ -65,6 +78,8 @@ export class ProjectileStatePool {
         projectile.traveled = 0;
         projectile.maxDistance = Infinity;
         projectile.target = null;
+        projectile.turretTargeting = null;
+        projectile.sourceTurretId = '';
         projectile.detonated = false;
         projectile.huntRocket = false;
         projectile.homingEnabled = false;

@@ -13,6 +13,7 @@ export const EDITOR_OBJECT_TYPES = Object.freeze({
     GLB: 'glb',
     TUNNEL: 'tunnel',
     CHECKPOINT: 'checkpoint',
+    TURRET: 'turret',
 });
 
 // Default gameplay behavior for authored item models. `item_box` intentionally
@@ -30,6 +31,7 @@ export const EDITOR_ITEM_PICKUP_TYPE_BY_SUBTYPE = Object.freeze({
     item_pyramid: 'THICK',
     item_ring: 'GHOST',
     item_rocket: 'ROCKET_WEAK',
+    item_rocket_turret: 'ROCKET_TURRET',
     item_shield: 'SHIELD',
     item_sphere: 'THIN',
     item_star: 'SPEED_UP',

@@ -63,9 +63,10 @@ export class PowerupModelFactory {
             if (visualKind === 'thin') return this._createThinTrailModel(color);
             if (visualKind === 'shield') return this._createShieldModel(color);
             if (visualKind === 'health') return this._createHealthModel(color);
-            if (visualKind === 'turret') return this._createTurretModel(color);
+            if (visualKind === 'turret' || visualKind === 'rocket-turret') return this._createTurretModel(color, visualKind === 'rocket-turret');
             if (visualKind === 'slow-time') return this._createSlowTimeModel(color);
             if (visualKind === 'ghost') return this._createGhostModel(color);
+            if (visualKind === 'fog') return this._createFogModel(color);
             if (visualKind === 'invert') return this._createInvertModel(color);
             if (visualKind === 'trail-gap') return this._createTrailGapModel(color);
             if (visualKind === 'emp') return this._createEmpModel(color);
@@ -74,6 +75,9 @@ export class PowerupModelFactory {
             if (visualKind === 'purge') return this._createPurgeModel(color);
             if (visualKind === 'swap') return this._createSwapModel(color);
             if (visualKind === 'mine') return this._createMineModel(color);
+            if (visualKind === 'weapon-fan') {
+                return this._createWeaponFanModel(color, visualDescriptor?.fanProjectiles || 3);
+            }
             if (visualKind === 'rocket') {
                 return this._createRocketModel(
                     color,
@@ -121,14 +125,14 @@ export class PowerupModelFactory {
         return group;
     }
 
-    _createTurretModel(color) {
+    _createTurretModel(color, rocket = false) {
         const group = new THREE.Group();
         const body = new THREE.Mesh(this._geometries.sphere, createStandardMaterial(color, {
             emissiveIntensity: 0.5,
             roughness: 0.35,
             metalness: 0.75,
         }));
-        const barrel = new THREE.Mesh(this._geometries.rod, createStandardMaterial(0xffffff, {
+        const barrel = new THREE.Mesh(rocket ? this._geometries.thickRod : this._geometries.rod, createStandardMaterial(0xffffff, {
             emissiveIntensity: 0.2,
             roughness: 0.3,
             metalness: 0.8,
@@ -280,6 +284,27 @@ export class PowerupModelFactory {
         return group;
     }
 
+    _createFogModel(color) {
+        const group = new THREE.Group();
+        const material = createStandardMaterial(color, {
+            emissiveIntensity: 0.24,
+            roughness: 0.82,
+            metalness: 0.08,
+            transparent: true,
+            opacity: 0.9,
+        });
+        const center = new THREE.Mesh(this._geometries.sphere, material);
+        const left = center.clone();
+        const right = center.clone();
+        center.scale.set(1.1, 0.8, 0.9);
+        left.position.set(-this.size * 0.34, -this.size * 0.08, 0);
+        left.scale.set(0.78, 0.62, 0.72);
+        right.position.set(this.size * 0.34, -this.size * 0.06, 0);
+        right.scale.set(0.86, 0.68, 0.78);
+        group.add(center, left, right);
+        return group;
+    }
+
     _createInvertModel(color) {
         const group = new THREE.Group();
         const ringA = new THREE.Mesh(this._geometries.ring, createStandardMaterial(color, {
@@ -385,6 +410,55 @@ export class PowerupModelFactory {
             spike.scale.setScalar(0.55);
             group.add(spike);
         }
+        return group;
+    }
+
+    _createWeaponFanModel(color, projectileCount) {
+        const group = new THREE.Group();
+        const count = Math.max(3, Math.min(5, Math.floor(Number(projectileCount) || 3)));
+        const core = new THREE.Mesh(this._geometries.octa, createStandardMaterial(color, {
+            emissiveIntensity: 0.7, roughness: 0.2, metalness: 0.72,
+        }));
+        core.scale.setScalar(0.72);
+        group.add(core);
+        for (let i = 0; i < count; i += 1) {
+            const marker = new THREE.Mesh(this._geometries.rod, createStandardMaterial(0xffffff, {
+                emissiveIntensity: 0.45,
+                roughness: 0.25,
+                metalness: 0.55,
+            }));
+            const angle = count === 1 ? 0 : -Math.PI / 6 + (Math.PI / 3) * i / (count - 1);
+            marker.rotation.z = angle;
+            marker.position.set(Math.sin(angle) * this.size * 0.42, Math.cos(angle) * this.size * 0.42, 0);
+            marker.scale.set(0.65, 0.68, 0.65);
+            group.add(marker);
+        }
+
+        const label = new THREE.Group();
+        const labelMaterial = createBasicMaterial(0xffffff, { depthWrite: false });
+        const addBar = (x, y, scaleX, scaleY, rotation = 0) => {
+            const bar = new THREE.Mesh(this._geometries.cube, labelMaterial);
+            bar.position.set(x, y, 0);
+            bar.scale.set(scaleX, scaleY, 0.035);
+            bar.rotation.z = rotation;
+            label.add(bar);
+        };
+        addBar(-0.32, 0, 0.18, 0.035, Math.PI / 4);
+        addBar(-0.32, 0, 0.18, 0.035, -Math.PI / 4);
+        const segments = count === 3 ? ['t', 'm', 'b', 'rt', 'rb']
+            : count === 4 ? ['m', 'lt', 'rt', 'rb'] : ['t', 'm', 'b', 'lt', 'rb'];
+        for (const segment of segments) {
+            const horizontal = segment === 't' || segment === 'm' || segment === 'b';
+            const x = horizontal ? 0.2 : (segment.startsWith('l') ? 0.06 : 0.34);
+            const y = segment === 't' ? 0.22 : segment === 'b' ? -0.22
+                : segment === 'm' ? 0 : segment.endsWith('t') ? 0.11 : -0.11;
+            addBar(x, y, horizontal ? 0.15 : 0.035, horizontal ? 0.035 : 0.11);
+        }
+        label.position.set(0, this.size * 0.92, this.size * 0.5);
+        label.scale.setScalar(this.size);
+        Object.assign(label.userData, { weaponFanLabel: true, markerText: `×${count}` });
+        group.add(label);
+        Object.assign(group.userData, { fanProjectiles: count, markerText: `×${count}` });
         return group;
     }
 

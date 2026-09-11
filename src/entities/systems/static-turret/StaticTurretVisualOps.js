@@ -36,6 +36,7 @@ export function createStaticTurretVisual(system, definition, position, authoredS
     const weaponMaterial = definition.weapon === 'rocket' ? system._rocketMaterial : system._mgMaterial;
     headPivot.add(new THREE.Mesh(system._headGeometry, weaponMaterial));
     const barrel = new THREE.Mesh(system._barrelGeometry, weaponMaterial);
+    if (definition.weapon === 'rocket') barrel.scale.set(3.2, 3.2, 1);
     barrel.position.z = 2.1;
     headPivot.add(barrel);
     const flash = new THREE.Mesh(system._flashGeometry, system._flashMaterial);
@@ -45,7 +46,7 @@ export function createStaticTurretVisual(system, definition, position, authoredS
 
     const disposableMaterials = [accentMaterial];
     let healthFill = null;
-    if (definition.deployed === true) {
+    if (definition.destructible === true || definition.deployed === true) {
         const healthBack = new THREE.Mesh(system._healthBarGeometry, system._healthBackMaterial);
         healthBack.position.set(0, 2.65, 0);
         root.add(healthBack);

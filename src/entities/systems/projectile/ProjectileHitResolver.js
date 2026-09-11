@@ -1,7 +1,15 @@
+import { isDestructibleTurret, isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
 import { HUNT_CONFIG } from '../../../hunt/HuntConfig.js';
 import { isHuntHealthActive } from '../../../hunt/HealthSystem.js';
 import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketPickupSystem.js';
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
+
+function resolveEndlessProjectileDamage(owner, damage) {
+    const multiplier = owner?.isBot
+        ? Math.max(0, Math.min(1.5, Number(owner.endlessDamageMultiplier) || 1))
+        : 1;
+    return damage * multiplier;
+}
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
 import { getPickupDefinition } from '../../PickupRegistry.js';
 
@@ -83,13 +91,17 @@ export class ProjectileHitResolver {
 
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
-            if (projectile.owner?.staticTurret === true && target.isBot === true) continue;
+            if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;
+            if (projectile.turretTargeting && !isTurretTargetPlayerEligible(target, projectile.owner, projectile.turretTargeting.targetPlayers)) continue;
 
             const distanceToTarget = target.position.distanceTo(projectile.position);
             if (distanceToTarget > explosionRadius) continue;
 
             const damageFalloff = 1 - (distanceToTarget / explosionRadius) * explosionDamageFalloff;
-            const explosionDamage = Math.max(1, Math.floor(damageAtCenter * damageFalloff));
+            const explosionDamage = Math.max(1, Math.floor(resolveEndlessProjectileDamage(
+                projectile.owner,
+                damageAtCenter * damageFalloff
+            )));
             const damageResult = target.takeDamage(explosionDamage);
             this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
         }
@@ -99,10 +111,11 @@ export class ProjectileHitResolver {
         const turrets = this.system?.getTurrets?.() || [];
         for (const turret of turrets) {
             if (
-                !turret?.deployed
+                !isDestructibleTurret(turret)
                 || turret.hp <= 0
                 || turret.ownerPlayer === projectile.owner
-                || turret.ownerIndex === projectile.owner?.index
+                || (turret.deployed && turret.ownerIndex === projectile.owner?.index)
+                || (projectile.sourceTurretId && turret.id === projectile.sourceTurretId)
                 || !turret.position
             ) continue;
             if (!this._isProjectileSweepTouchingTarget(projectile, turret)) continue;
@@ -184,7 +197,8 @@ export class ProjectileHitResolver {
         let hit = false;
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner) continue;
-            if (projectile.owner?.staticTurret === true && target.isBot === true) continue;
+            if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;
+            if (projectile.turretTargeting && !isTurretTargetPlayerEligible(target, projectile.owner, projectile.turretTargeting.targetPlayers)) continue;
 
             hit = this._isProjectileSweepTouchingTarget(projectile, target);
 
@@ -193,7 +207,10 @@ export class ProjectileHitResolver {
 
             const huntRocketHit = isHuntHealthActive(resolveEntityRuntimeConfig(this.system)) && isRocketTierType(projectile.type);
             if (huntRocketHit) {
-                const damage = resolveRocketTierDamage(projectile.type, this.system);
+                const damage = resolveEndlessProjectileDamage(
+                    projectile.owner,
+                    resolveRocketTierDamage(projectile.type, this.system)
+                );
                 const damageResult = target.takeDamage(damage);
                 this.system?.onProjectilePowerup?.(target, projectile);
                 this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
@@ -210,7 +227,10 @@ export class ProjectileHitResolver {
                 projectile.owner.refreshObbCollisionQuery?.();
                 this.system?.onProjectilePowerup?.(target, projectile);
             } else if (projectile.type === 'MINE') {
-                const damage = Math.max(1, Number(getPickupDefinition('MINE')?.damage) || 25);
+                const damage = resolveEndlessProjectileDamage(
+                    projectile.owner,
+                    Math.max(1, Number(getPickupDefinition('MINE')?.damage) || 25)
+                );
                 const damageResult = target.takeDamage(damage);
                 this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
             } else {

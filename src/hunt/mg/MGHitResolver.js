@@ -1,3 +1,4 @@
+import { isDestructibleTurret } from '../../shared/contracts/TurretCombatContract.js';
 import * as THREE from 'three';
 import {
     createHuntTargetingScratch,
@@ -24,9 +25,10 @@ export class MGHitResolver {
         this._targetingTelemetry = createHuntTargetingTelemetry();
     }
 
-    resolveHit(player, mg, outMuzzle = null, outAim = null) {
+    resolveHit(player, mg, outMuzzle = null, outAim = null, aimDirection = null) {
         const maxRange = Math.max(10, Number(mg.RANGE || 95));
-        this.resolveAimDirection(player, this._tmpAim, mg);
+        if (aimDirection?.lengthSq?.() > 0.000001) this._tmpAim.copy(aimDirection).normalize();
+        else this.resolveAimDirection(player, this._tmpAim, mg);
         const muzzleOffset = Math.max(0, Number(resolveGameplayConfig(player).HUNT?.TARGETING?.MUZZLE_OFFSET || 2.1));
         this._tmpMuzzle.copy(player.position).addScaledVector(this._tmpAim, muzzleOffset);
         if (outMuzzle) outMuzzle.copy(this._tmpMuzzle);
@@ -86,7 +88,7 @@ export class MGHitResolver {
         let distance = Math.min(maxRange, nearestDistance);
         for (const turret of turrets) {
             if (
-                !turret?.deployed
+                !isDestructibleTurret(turret)
                 || turret.hp <= 0
                 || turret.ownerPlayer === attacker
                 || turret.ownerIndex === attacker?.index
@@ -142,7 +144,7 @@ export class MGHitResolver {
             }
         }
         for (const turret of this.runtime?.combat?.getMgTurretTargets?.() || []) {
-            if (!turret?.deployed || turret.hp <= 0 || turret.ownerIndex === player.index || !turret.position) continue;
+            if (!isDestructibleTurret(turret) || turret.hp <= 0 || turret.ownerIndex === player.index || !turret.position) continue;
             this._tmpHit.subVectors(turret.position, player.position);
             const distanceSq = this._tmpHit.lengthSq();
             if (distanceSq <= 0.000001 || distanceSq > maxRangeSq) continue;
@@ -203,7 +205,10 @@ export class MGHitResolver {
         const minFalloff = clamp(Number(mg.MIN_FALLOFF || 0.5), 0.2, 1);
         const baseDamage = Math.max(1, Number(mg.DAMAGE || 9));
         const distRatio = clamp(distance / maxRange, 0, 1);
-        const damage = baseDamage * (1 - (1 - minFalloff) * distRatio);
+        const endlessMultiplier = attacker?.isBot
+            ? Math.max(0, Math.min(1.5, Number(attacker.endlessDamageMultiplier) || 1))
+            : 1;
+        const damage = baseDamage * (1 - (1 - minFalloff) * distRatio) * endlessMultiplier;
 
         const damageResult = target.takeDamage(damage);
         this.runtime?.events?.emitHuntDamageEvent({
@@ -223,7 +228,7 @@ export class MGHitResolver {
     }
 
     applyTurretHit(attacker, turret, distance, mg) {
-        if (!turret?.deployed || turret.hp <= 0) return;
+        if (!isDestructibleTurret(turret) || turret.hp <= 0) return;
         const maxRange = Math.max(10, Number(mg.RANGE || 95));
         const minFalloff = clamp(Number(mg.MIN_FALLOFF || 0.5), 0.2, 1);
         const baseDamage = Math.max(1, Number(mg.DAMAGE || 9));

@@ -173,10 +173,13 @@ export class StateReconciler {
     }
 
     reconcile(localPlayers, entityManager) {
-        if (!this._lastStateUpdate || !localPlayers) return;
+        if (!this._lastStateUpdate) return;
+
+        entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
+        applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
 
         const serverPlayers = this._lastStateUpdate?.state?.players;
-        if (!serverPlayers) return;
+        if (!Array.isArray(localPlayers) || !serverPlayers) return;
 
         for (const serverPlayer of serverPlayers) {
             const localPlayer = localPlayers.find((player) => player.index === serverPlayer.index);
@@ -188,8 +191,6 @@ export class StateReconciler {
             this._reconcileEffects(localPlayer, serverPlayer);
             this._reconcileAuthoritativeFields(localPlayer, serverPlayer);
         }
-        entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
-        applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
     }
 
     _reconcileAuthoritativeFields(localPlayer, serverPlayer) {

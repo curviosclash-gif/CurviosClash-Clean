@@ -360,7 +360,9 @@ export class HuntHUD {
             refs.respawn.setAttribute?.('aria-hidden', String(!respawnTxt));
         }
         const turretState = player?.turret || null;
-        const turretTxt = turretState
+        const turretTxt = player?.turrets?.length
+            ? player.turrets.map((entry) => `${entry.weapon === 'rocket' ? 'Raketenwerfer' : 'MG'} ${Math.ceil(entry.remainingSeconds)} s · ${Math.ceil(entry.hp)}/${Math.ceil(entry.maxHp)} HP`).join(' | ')
+            : turretState
             ? `Geschütz ${Math.ceil(turretState.remainingSeconds)} s · ${Math.ceil(turretState.hp)}/${Math.ceil(turretState.maxHp)} HP`
             : '';
         if (refs.turret) {

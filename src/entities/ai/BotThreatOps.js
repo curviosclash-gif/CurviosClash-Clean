@@ -147,7 +147,11 @@ export function evaluatePursuit(bot, player) {
     if (bot.sense.immediateDanger || bot.sense.forwardRisk > AI_SENSOR_THREAT_POLICY.pursuitForwardRiskCeiling) return;
 
     const target = bot.state.targetPlayer;
-    if (!target || !target.alive) return;
+    if (
+        !target
+        || !target.alive
+        || player?.entityManager?.isPositionVisibleDuringGlobalFog?.(player.position, target.position) === false
+    ) return;
 
     const pursuitRadius = bot.profile.pursuitRadius || 35;
     if (bot.sense.targetDistanceSq > pursuitRadius * pursuitRadius) return;

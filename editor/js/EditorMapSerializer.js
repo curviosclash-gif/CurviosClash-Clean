@@ -121,6 +121,7 @@ export function generateJSONExport(manager, arenaSize) {
         botSpawns: [],
         portals: [],
         items: [],
+        staticTurrets: [],
         aircraft: [],
         glbModels: [],
         playerSpawn: { x: -800, y: arenaSize.height * 0.55, z: 0 },
@@ -203,6 +204,15 @@ export function generateJSONExport(manager, arenaSize) {
                 itemEntry.weight = Number(u.weight);
             }
             payload.items.push(itemEntry);
+        }
+        else if (u.type === 'turret') {
+            payload.staticTurrets.push({
+                id: u.id, weapon: u.weapon, pos: [p.x, p.y, p.z],
+                range: u.range, cooldown: u.cooldown, rocketType: u.rocketType,
+                damage: u.damage, phase: u.phase, destructible: u.destructible,
+                maxHp: u.maxHp, targetPlayers: u.targetPlayers,
+                targetTrails: u.targetTrails, allowedModes: u.allowedModes,
+            });
         }
         else if (u.type === 'aircraft') {
             payload.aircraft.push({
@@ -420,6 +430,10 @@ export function importFromJSON(manager, jsonString, options = {}) {
                     weight: b.weight,
                     rotateY: b.rotateY || 0
                 }, { updateUi: false }));
+            }
+
+            for (const turret of data.staticTurrets || []) {
+                manager.createMesh('turret', turret.weapon, ...turret.pos, 0, turret, { updateUi: false });
             }
 
             if (data.aircraft) {

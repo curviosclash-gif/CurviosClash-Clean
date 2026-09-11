@@ -10,6 +10,7 @@ import { EntitySpawnOps } from './EntitySpawnOps.js';
 import { EntityTickPipeline } from './EntityTickPipeline.js';
 import { StaticTurretSystem } from '../systems/StaticTurretSystem.js';
 import { MapHazardSystem } from '../systems/MapHazardSystem.js';
+import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     return {
@@ -20,6 +21,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         overheatGunSystem: new OverheatGunSystem(owner, runtimeContext),
         respawnSystem: new RespawnSystem(runtimeContext),
         huntCombatSystem: new HuntCombatSystem(runtimeContext),
+        globalFogEffectSystem: new GlobalFogEffectSystem(owner),
         staticTurretSystem: new StaticTurretSystem(owner),
         mapHazardSystem: new MapHazardSystem(owner),
         roundOutcomeSystem: new RoundOutcomeSystem({

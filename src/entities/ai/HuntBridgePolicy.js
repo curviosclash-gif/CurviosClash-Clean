@@ -50,7 +50,9 @@ function hasYawCommand(action) {
 }
 
 function resolveHuntBridgePriorities(player, runtimeContext) {
-    const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
+    const players = Array.isArray(runtimeContext?.visiblePlayers)
+        ? runtimeContext.visiblePlayers
+        : (Array.isArray(runtimeContext?.players) ? runtimeContext.players : []);
     const observation = runtimeContext?.observation || null;
     const huntTarget = runtimeContext?.huntTarget || null;
     const targetDistanceRatio = clamp(resolveObservationValue(observation, TARGET_DISTANCE_RATIO, 1), 0, 1);

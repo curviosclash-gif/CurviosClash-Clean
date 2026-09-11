@@ -152,8 +152,11 @@ function createCachedRuntimeContext() {
         player: null,
         arena: null,
         players: [],
+        visiblePlayers: [],
+        navigationPlayers: [],
         projectiles: [],
         powerups: [],
+        visiblePowerups: [],
         trailSpatialIndex: null,
         mode: GAME_MODE_TYPES.CLASSIC,
         rules: {
@@ -203,8 +206,14 @@ function resolveCachedRuntimeContext(player) {
 export function createBotRuntimeContext(entityManager, player, dt = 0, options = {}) {
     const entityRuntimeConfig = resolveEntityRuntimeConfig(entityManager);
     const mode = resolveRuntimeMode(entityManager);
-    const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
+    const allPlayers = Array.isArray(entityManager?.players) ? entityManager.players : [];
     const projectiles = Array.isArray(entityManager?.projectiles) ? entityManager.projectiles : [];
+    const allPowerups = Array.isArray(entityManager?.powerupManager?.items)
+        ? entityManager.powerupManager.items
+        : [];
+    const globalFog = entityManager?._globalFogEffectSystem || null;
+    const visiblePlayers = globalFog?.filterVisiblePlayers?.(player, allPlayers) || allPlayers;
+    const visiblePowerups = globalFog?.filterVisiblePowerups?.(player, allPowerups) || allPowerups;
     const planarMode = !!(entityManager?.runtimeConfig?.gameplay?.planarMode ?? entityRuntimeConfig?.GAMEPLAY?.PLANAR_MODE);
     const includeObservationContext = options?.includeObservationContext !== false;
     const runtimeContext = resolveCachedRuntimeContext(player);
@@ -256,17 +265,19 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.entityManager = entityManager || null;
     runtimeContext.runtimeConfig = entityManager?.runtimeConfig || null;
     runtimeContext.difficulty = String(
-        entityManager?.runtimeConfig?.bot?.activeDifficulty
+        player?.endlessDifficulty
+        || entityManager?.runtimeConfig?.bot?.activeDifficulty
         || entityManager?.botDifficulty
         || ''
     );
     runtimeContext.player = player || null;
     runtimeContext.arena = entityManager?.arena || null;
-    runtimeContext.players = players;
+    runtimeContext.players = visiblePlayers;
+    runtimeContext.visiblePlayers = visiblePlayers;
+    runtimeContext.navigationPlayers = allPlayers;
     runtimeContext.projectiles = projectiles;
-    runtimeContext.powerups = Array.isArray(entityManager?.powerupManager?.items)
-        ? entityManager.powerupManager.items
-        : [];
+    runtimeContext.powerups = visiblePowerups;
+    runtimeContext.visiblePowerups = visiblePowerups;
     runtimeContext.trailSpatialIndex = entityManager?.getTrailSpatialIndex?.() || entityManager?._trailSpatialIndex || null;
     runtimeContext.mode = mode;
 
@@ -304,7 +315,7 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.observationContext = includeObservationContext
         ? createObservationContext({
             arena: runtimeContext.arena,
-            players,
+            players: visiblePlayers,
             projectiles,
             mode,
             planarMode: rules.planarMode,

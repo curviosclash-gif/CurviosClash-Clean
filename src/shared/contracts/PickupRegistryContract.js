@@ -1,5 +1,6 @@
 import { PICKUP_EXPANSION_DEFINITIONS } from './PickupExpansionDefinitionsContract.js';
 import { ROCKET_PICKUP_DEFINITIONS } from './RocketPickupDefinitionsContract.js';
+import { WEAPON_FAN_PICKUP_DEFINITIONS } from './WeaponFanPickupDefinitionsContract.js';
 
 const ALL_GAME_MODES = Object.freeze(['CLASSIC', 'ARCADE', 'HUNT']);
 const DEFAULT_BOT_RULE = Object.freeze({
@@ -209,6 +210,30 @@ export const PICKUP_REGISTRY = Object.freeze({
             combatSelf: 0.85,
         },
     }),
+    ROCKET_TURRET: createPickupDefinition({
+        name: 'Raketenwerfer',
+        color: 0xff4d6d,
+        icon: 'RW',
+        duration: 0,
+        selfUsable: true,
+        shootable: false,
+        offensive: true,
+        projectileOnly: false,
+        allowedModes: ['HUNT'],
+        observationSlot: 13,
+        visualKind: 'rocket-turret',
+        actionRole: 'deployment',
+        stackPolicy: 'instant',
+        aliases: ['ITEM_ROCKET_TURRET', 'RAKETENWERFER'],
+        spawnWeights: { CLASSIC: 0, ARCADE: 0, HUNT: 0.225 },
+        botRule: {
+            self: 0.65,
+            offense: 0.75,
+            defensiveScale: 0.2,
+            emergencyScale: 0.15,
+            combatSelf: 0.85,
+        },
+    }),
     SLOW_TIME: createPickupDefinition({
         name: 'Zeitlupe',
         color: 0x44ff88,
@@ -276,6 +301,35 @@ export const PICKUP_REGISTRY = Object.freeze({
             combatSelf: -0.4,
         },
     }),
+    FOG: createPickupDefinition({
+        name: 'Nebel',
+        description: 'Reduziert die Sicht aller Spieler 8 Sekunden lang. Weitere Nutzungen verlängern den Nebel.',
+        color: 0xd7dce2,
+        icon: '☁',
+        duration: 8,
+        selfUsable: true,
+        shootable: false,
+        offensive: false,
+        projectileOnly: false,
+        allowedModes: ALL_GAME_MODES,
+        observationSlot: 19,
+        visualKind: 'fog',
+        actionRole: 'global',
+        effectCategory: 'global-fog',
+        stackPolicy: 'add-duration',
+        aliases: ['ITEM_FOG', 'NEBEL'],
+        spawnWeights: { CLASSIC: 0.7, ARCADE: 0.7, HUNT: 0.7 },
+        botRule: {
+            self: 0.45,
+            offense: 0.25,
+            defensiveScale: 0.5,
+            emergencyScale: 0.15,
+            combatSelf: 0.35,
+        },
+    }),
+    ...Object.fromEntries(
+        Object.entries(WEAPON_FAN_PICKUP_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])
+    ),
     ...Object.fromEntries(Object.entries(PICKUP_EXPANSION_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])),
     ...Object.fromEntries(
         Object.entries(ROCKET_PICKUP_DEFINITIONS).map(([type, definition]) => [type, createPickupDefinition(definition)])
@@ -380,6 +434,7 @@ export function getPickupVisualDescriptor(type) {
         animation: definition.animationKind,
         rocketTier: definition.rocketTier || null,
         tierLabel: definition.rocketTierLabel || '',
+        fanProjectiles: Number.isFinite(Number(definition.fanProjectiles)) ? Number(definition.fanProjectiles) : 0,
     });
 }
 
@@ -425,6 +480,7 @@ export function createPickupBotRuleMap() {
 function createPickupTypeConfigEntry(definition) {
     const entry = {
         name: definition.name,
+        description: String(definition.description || ''),
         color: definition.color,
         icon: definition.icon,
         duration: Number.isFinite(Number(definition.duration)) ? Number(definition.duration) : 0,
@@ -447,6 +503,9 @@ function createPickupTypeConfigEntry(definition) {
     }
     if (Number.isFinite(Number(definition.pickupRadiusMultiplier))) {
         entry.pickupRadiusMultiplier = Number(definition.pickupRadiusMultiplier);
+    }
+    if (Number.isFinite(Number(definition.fanProjectiles))) {
+        entry.fanProjectiles = Number(definition.fanProjectiles);
     }
     if (definition.allowedModes.length === 1 && definition.allowedModes[0] === 'HUNT') {
         entry.huntOnly = true;

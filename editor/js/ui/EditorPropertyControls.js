@@ -1,8 +1,10 @@
+import { bindEditorTurretProperties } from './EditorTurretProperties.js';
 import { readPositivePropertyFieldNumber, readPropertyFieldNumber } from './EditorFormState.js';
 
 export function bindEditorPropertyControls(editor) {
     if (!editor) return;
     const dom = editor.dom;
+    bindEditorTurretProperties(editor);
     const isLocked = (object) => editor.isObjectLocked(object);
 
     const updateTransformField = (field, label, applyValue) => {

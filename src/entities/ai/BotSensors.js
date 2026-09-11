@@ -304,7 +304,12 @@ export class BotSensors {
         this.sense.targetAimDot = 0;
 
         const target = this.state?.targetPlayer || null;
-        if (!player || !target || !target.alive) return;
+        if (
+            !player
+            || !target
+            || !target.alive
+            || player?.entityManager?.isPositionVisibleDuringGlobalFog?.(player.position, target.position) === false
+        ) return;
 
         player.getDirection(this._tmpForward).normalize();
         this._buildBasis(this._tmpForward);

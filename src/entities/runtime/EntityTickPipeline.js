@@ -17,6 +17,7 @@ export class EntityTickPipeline {
         const simulationNowMs = owner._simulationClockMs;
 
         owner._lockOnCache.clear();
+        owner._globalFogEffectSystem?.update?.(safeDt);
         owner._staticTurretSystem?.update?.(safeDt);
         owner._projectileSystem.update(dt);
         owner._overheatGunSystem.update(dt);
@@ -47,6 +48,7 @@ export class EntityTickPipeline {
 
             const outcome = owner._roundOutcomeSystem.resolve();
             if (outcome.shouldEnd) {
+                owner._globalFogEffectSystem?.reset?.();
                 owner._roundEnded = true;
                 owner._lastRoundOutcome = outcome;
                 owner.audio?.stopEngine?.();

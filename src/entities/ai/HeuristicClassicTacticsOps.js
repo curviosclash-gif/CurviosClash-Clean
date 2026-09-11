@@ -92,7 +92,9 @@ export function applyHeuristicClassicBehavior(policy, input, dt, player, runtime
     const pressureLevel = clamp(readObservationValue(observation, PRESSURE_LEVEL, 0), 0, 1);
     const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
     const openness = clamp(readObservationValue(observation, LOCAL_OPENNESS_RATIO, 0), 0, 1);
-    const players = Array.isArray(runtimeContext?.players) ? runtimeContext.players : [];
+    const players = Array.isArray(runtimeContext?.visiblePlayers)
+        ? runtimeContext.visiblePlayers
+        : (Array.isArray(runtimeContext?.players) ? runtimeContext.players : []);
     const nearest = getNearestEnemy(player, players, policy._tmpToEnemy);
     const state = policy._classicState;
     state.commitTimer = Math.max(0, state.commitTimer - Math.max(0, Math.min(Number(dt) || 0, 0.12)));

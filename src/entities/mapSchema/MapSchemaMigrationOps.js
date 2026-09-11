@@ -44,6 +44,7 @@ function sanitizeLegacyRuntimeMapDocument(rawMap, warnings) {
         schemaVersion: MAP_SCHEMA_VERSION,
         arenaSize: { width, height, depth },
         tunnels: [],
+        staticTurrets: asArray(rawMap.staticTurrets),
         hardBlocks,
         foamBlocks: [],
         portals,

@@ -278,6 +278,10 @@ export class FourPlayerPlanarModule {
         this.activateMatch();
         const hunt = this.runtime.getRuntimeConfig()?.session?.fourPlayerPlanar?.mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
         const players = this.runtime.getPlayers();
+        const globalFog = this.runtime.getGlobalFogState?.();
+        const fogLabel = globalFog?.active === true && Number(globalFog.remainingSeconds) > 0
+            ? `☁ Nebel ${Math.ceil(Number(globalFog.remainingSeconds))}s`
+            : '';
         this.runtime.forceThirdPersonCameras(FOUR_PLAYER_PLANAR_HUMAN_COUNT);
         for (let index = 0; index < FOUR_PLAYER_PLANAR_HUMAN_COUNT; index += 1) {
             const player = players[index];
@@ -286,9 +290,10 @@ export class FourPlayerPlanarModule {
                 player,
                 modeType: hunt ? 'HUNT' : 'CLASSIC',
             });
+            const itemLabel = availability.hasItem ? availability.type : 'Kein Item';
             const values = {
                 stat: hunt ? `HP ${Math.max(0, Math.ceil(Number(player.hp) || 0))}` : `Punkte ${Number(player.score) || 0}`,
-                item: availability.hasItem ? availability.type : 'Kein Item',
+                item: fogLabel ? `${itemLabel} · ${fogLabel}` : itemLabel,
             };
             const previous = this._lastHudValues[index];
             for (const key of /** @type {Array<'stat'|'item'>} */ (['stat', 'item'])) {

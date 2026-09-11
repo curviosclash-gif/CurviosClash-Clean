@@ -314,6 +314,11 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_purge', pickupType: 'PURGE', x: 16, y: 12, z: 0 },
             { id: 'item_showcase_swap', pickupType: 'SWAP', x: 32, y: 12, z: 0 },
             { id: 'item_showcase_mine', pickupType: 'MINE', x: 48, y: 12, z: 0 },
+            { id: 'item_showcase_rocket_turret', pickupType: 'ROCKET_TURRET', x: -32, y: 12, z: 36 },
+            { id: 'item_showcase_fog', pickupType: 'FOG', x: -16, y: 12, z: 36 },
+            { id: 'item_showcase_fan_3', pickupType: 'FAN_3', x: 0, y: 12, z: 36 },
+            { id: 'item_showcase_fan_4', pickupType: 'FAN_4', x: 16, y: 12, z: 36 },
+            { id: 'item_showcase_fan_5', pickupType: 'FAN_5', x: 32, y: 12, z: 36 },
         ],
     },
     showcase_nexus: {

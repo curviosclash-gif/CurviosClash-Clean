@@ -239,6 +239,13 @@ export function updateReplayProjection(projection, leftSnapshot, rightSnapshot, 
         projection.localPlayerIndex
     )));
     projection.localHumanCount = Math.max(1, Math.trunc(toFiniteNumber(metadata?.numHumans, 1)));
+    const fogSnapshot = alpha < 0.5 ? leftSnapshot?.globalFog : rightSnapshot?.globalFog;
+    const fogRemaining = Math.max(0, toFiniteNumber(fogSnapshot?.remainingSeconds, 0));
+    projection.globalFog = {
+        active: fogSnapshot?.active === true && fogRemaining > 0,
+        remainingSeconds: fogRemaining,
+        visibilityRange: Math.max(0, toFiniteNumber(fogSnapshot?.visibilityRange, 0)),
+    };
     for (let index = 0; index < leftPlayers.length; index++) {
         const left = leftPlayers[index];
         const playerIndex = Number.isInteger(left?.index) ? left.index : index;

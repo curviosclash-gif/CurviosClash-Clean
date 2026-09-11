@@ -1,3 +1,4 @@
+import { getEditorTurretAuthoringScale } from './EditorTurretProperties.js';
 import { pickEditorObject } from './EditorRaySelection.js';
 import * as THREE from 'three';
 import { getCurrentToolSubtype, getYLayerValue, isYLayerEnabled } from './EditorFormState.js';
@@ -135,6 +136,7 @@ export function bindEditorCanvasInteractionControls(editor) {
         const subType = getCurrentToolSubtype(editor);
 
         editor.previewMesh = editor.mapManager.createMesh(editor.currentTool, subType, p.x, y, p.z, 0, {
+            ...(editor.currentTool === 'turret' ? { turretAuthoringScale: getEditorTurretAuthoringScale(editor) } : {}),
             sizeX: editor.snapSize,
             sizeZ: editor.snapSize,
             sizeY: editor.ARENA_H * 0.7,

@@ -418,10 +418,10 @@ export class HudRuntimeSystem {
             this._getPlayerKeyBindings(playerIndex)
         );
         this._updateCooldownIndicator(container, player);
-        this._updateActiveEffectBar(container, player);
+        this._updateActiveEffectBar(container, player, projection?.globalFog);
     }
 
-    _updateActiveEffectBar(container, player) {
+    _updateActiveEffectBar(container, player, globalFog = null) {
         if (!this._activeEffectBars) this._activeEffectBars = new WeakMap();
         let effectBar = this._activeEffectBars.get(container);
         if (!effectBar) {
@@ -432,7 +432,7 @@ export class HudRuntimeSystem {
             container.parentNode?.insertBefore(effectBar, container.nextSibling);
             this._activeEffectBars.set(container, effectBar);
         }
-        updateActiveEffectBar(effectBar, player);
+        updateActiveEffectBar(effectBar, player, globalFog);
     }
 
     _updateCooldownIndicator(container, player) {
