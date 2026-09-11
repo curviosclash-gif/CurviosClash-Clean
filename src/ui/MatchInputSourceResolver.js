@@ -147,6 +147,7 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
         : null;
     const output = {};
     let target = null;
+    let previousCursor = '';
     let pointerActive = false;
     let pitchAxis = 0;
     let yawAxis = 0;
@@ -177,6 +178,11 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             this.playerIndex = playerIndex;
             this.active = true;
             target = options.target || globalThis.document?.getElementById?.('game-canvas');
+            if (target?.style) {
+                previousCursor = target.style.cursor;
+                // Keep the cursor visible on the separate menu and pause overlays.
+                target.style.cursor = 'none';
+            }
             target?.addEventListener?.('pointermove', handlePointerMove);
             target?.addEventListener?.('pointerleave', resetPointer);
             globalThis.window?.addEventListener?.('blur', resetPointer);
@@ -185,6 +191,7 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             target?.removeEventListener?.('pointermove', handlePointerMove);
             target?.removeEventListener?.('pointerleave', resetPointer);
             globalThis.window?.removeEventListener?.('blur', resetPointer);
+            if (target?.style) target.style.cursor = previousCursor;
             target = null;
             resetPointer();
             this.playerIndex = -1;

@@ -12,6 +12,7 @@ import { ensureMenuContractState } from '../src/ui/menu/MenuStateContracts.js';
 function createEventTarget(rect = null) {
     const listeners = new Map();
     return {
+        style: { cursor: '' },
         addEventListener(type, handler) {
             listeners.set(type, handler);
         },
@@ -80,6 +81,33 @@ test('mouse steering maps canvas position to analog axes and preserves keyboard 
 
     assert.equal(canvas.listenerCount(), 0);
     assert.equal(windowTarget.listenerCount(), 0);
+});
+
+test('mouse steering restores the canvas cursor across rebind and disposal', () => {
+    const canvas = createEventTarget({ left: 0, top: 0, width: 200, height: 100 });
+    canvas.style.cursor = 'crosshair';
+    const source = createMouseSteeringInputSource(null, false, { target: canvas });
+
+    try {
+        source.bind(0);
+        assert.equal(canvas.style.cursor, 'none');
+
+        source.bind(0);
+        assert.equal(canvas.style.cursor, 'none');
+        source.unbind();
+        assert.equal(canvas.style.cursor, 'crosshair');
+
+        canvas.style.cursor = '';
+        source.bind(0);
+        assert.equal(canvas.style.cursor, 'none');
+    } finally {
+        source.dispose();
+    }
+
+    assert.equal(canvas.style.cursor, '');
+    assert.equal(canvas.listenerCount(), 0);
+    source.dispose();
+    assert.equal(canvas.style.cursor, '');
 });
 
 test('mouse steering is opt-in, persisted, and selected for desktop player one', () => {
