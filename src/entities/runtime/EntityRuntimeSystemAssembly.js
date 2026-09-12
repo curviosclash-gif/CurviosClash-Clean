@@ -11,9 +11,10 @@ import { EntityTickPipeline } from './EntityTickPipeline.js';
 import { StaticTurretSystem } from '../systems/StaticTurretSystem.js';
 import { MapHazardSystem } from '../systems/MapHazardSystem.js';
 import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
+import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
-    return {
+    const systems = {
         projectileSystem: support?.projectileSystem || null,
         playerInputSystem: new PlayerInputSystem(owner),
         playerLifecycleSystem: new PlayerLifecycleSystem(owner),
@@ -24,6 +25,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         globalFogEffectSystem: new GlobalFogEffectSystem(owner),
         staticTurretSystem: new StaticTurretSystem(owner),
         mapHazardSystem: new MapHazardSystem(owner),
+        exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,
             getHumanPlayers: () => owner.humanPlayers,
@@ -41,4 +43,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         spawnOps: new EntitySpawnOps(owner),
         tickPipeline: new EntityTickPipeline(owner),
     };
+    systems.exclusionZoneSystem = new ExclusionZoneSystem(owner, {
+        projectileSystem: systems.projectileSystem,
+    });
+    return systems;
 }

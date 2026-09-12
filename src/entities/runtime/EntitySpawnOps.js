@@ -20,6 +20,7 @@ export class EntitySpawnOps {
         owner._lastAppliedAuthoritativeOutcomeKey = '';
         owner._parcoursProgressSystem?.startRound?.(owner.players);
         owner._mapHazardSystem?.startRound?.();
+        owner._exclusionZoneSystem?.startRound?.();
         owner._spawnPlacementSystem?.resetAssignments?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {
@@ -79,6 +80,7 @@ export class EntitySpawnOps {
         }
         player.shootCooldown = 0;
         owner._parcoursProgressSystem?.onPlayerSpawn?.(player, { reason: 'spawn_all' });
+        owner._exclusionZoneSystem?.resetPlayer?.(player);
         if (owner.recorder) {
             owner.recorder.markPlayerSpawn(player);
             owner.recorder.logEvent('SPAWN', player.index, player.isBot ? 'bot=1' : 'bot=0');

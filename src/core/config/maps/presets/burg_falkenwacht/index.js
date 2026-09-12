@@ -38,6 +38,7 @@ const spawns = [
 
 const common = {
     size: [460, 150, 360],
+    exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
     scaleAuthoredAnchors: true,
     preferAuthoredPortals: true,
     portals: [],

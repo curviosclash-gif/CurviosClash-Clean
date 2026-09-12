@@ -84,19 +84,19 @@ export class PlayerCollisionPhase {
             return this._prepareArenaCollisionResponse(sweptCollision, player.position, player, true);
         }
 
-        let arenaCollision = this._probeArenaCollision(player.position, hRadius);
+        let arenaCollision = this._probeArenaCollision(player.position, hRadius, player.isBot);
         if (arenaCollision) {
             return this._prepareArenaCollisionResponse(arenaCollision, player.position, player);
         }
 
         player.getAimDirection(entityManager._tmpDir).multiplyScalar(4).add(player.position);
-        arenaCollision = this._probeArenaCollision(entityManager._tmpDir, hRadius);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpDir, hRadius, player.isBot);
         if (arenaCollision) {
             return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpDir, player);
         }
 
         player.getDirection(entityManager._tmpVec).multiplyScalar(-1.5).add(player.position);
-        arenaCollision = this._probeArenaCollision(entityManager._tmpVec, hRadius);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpVec, hRadius, player.isBot);
         if (arenaCollision) {
             return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpVec, player);
         }
@@ -105,13 +105,13 @@ export class PlayerCollisionPhase {
         entityManager._tmpDir.crossVectors(entityManager._tmpVec, player.getDirection(entityManager._tmpVec2)).normalize();
 
         entityManager._tmpVec2.copy(entityManager._tmpDir).multiplyScalar(2).add(player.position);
-        arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius, player.isBot);
         if (arenaCollision) {
             return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpVec2, player);
         }
 
         entityManager._tmpVec2.copy(entityManager._tmpDir).multiplyScalar(-2).add(player.position);
-        arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius);
+        arenaCollision = this._probeArenaCollision(entityManager._tmpVec2, hRadius, player.isBot);
         if (arenaCollision) {
             return this._prepareArenaCollisionResponse(arenaCollision, entityManager._tmpVec2, player);
         }
@@ -150,7 +150,7 @@ export class PlayerCollisionPhase {
         this._tmpSweepLastFree.copy(prevPos);
         for (let step = 1; step <= steps; step++) {
             this._tmpSweepPoint.lerpVectors(prevPos, player.position, step / steps);
-            const info = this._probeArenaCollision(this._tmpSweepPoint, probeRadius);
+            const info = this._probeArenaCollision(this._tmpSweepPoint, probeRadius, player.isBot);
             if (!info) {
                 this._tmpSweepLastFree.copy(this._tmpSweepPoint);
                 continue;
@@ -200,8 +200,12 @@ export class PlayerCollisionPhase {
         return false;
     }
 
-    _probeArenaCollision(point, probeRadius = 0.4) {
+    _probeArenaCollision(point, probeRadius = 0.4, botNavigation = false) {
         const entityManager = this.entityManager;
+        if (botNavigation && typeof entityManager.arena.getBotCollisionInfo === 'function') {
+            const info = entityManager.arena.getBotCollisionInfo(point, probeRadius);
+            return info?.hit ? info : null;
+        }
         if (typeof entityManager.arena.getCollisionInfo === 'function') {
             const info = entityManager.arena.getCollisionInfo(point, probeRadius);
             return info?.hit ? info : null;

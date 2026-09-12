@@ -43,7 +43,7 @@ export function scanProbeRay(bot, player, arena, allPlayers, direction, lookAhea
     );
 
     for (let d = step; d <= lookAhead; d += step) {
-        if (arena.checkCollisionFast(bot._tmpVec, radius)) {
+        if ((arena.checkBotCollisionFast || arena.checkCollisionFast).call(arena, bot._tmpVec, radius)) {
             out.wallDist = d;
             if (d <= step * AI_SENSOR_PROBE_POLICY.immediateDangerStepMultiplier) out.immediateDanger = true;
             break;

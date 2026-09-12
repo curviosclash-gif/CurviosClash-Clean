@@ -60,6 +60,13 @@ export class ProjectileStatePool {
             rocketTrailLastPosition: new THREE.Vector3(),
             traversalId: '',
             networkId: '',
+            environmentProjectile: false,
+            targetPlayerIndex: -1,
+            targetReacquireDisabled: false,
+            ignoresTrails: false,
+            ignoresTurrets: false,
+            zoneProjectile: false,
+            zoneSequence: 0,
         };
     }
 
@@ -97,6 +104,13 @@ export class ProjectileStatePool {
         projectile.rocketTrailLastPosition.set(0, 0, 0);
         projectile.traversalId = '';
         projectile.networkId = '';
+        projectile.environmentProjectile = false;
+        projectile.targetPlayerIndex = -1;
+        projectile.targetReacquireDisabled = false;
+        projectile.ignoresTrails = false;
+        projectile.ignoresTurrets = false;
+        projectile.zoneProjectile = false;
+        projectile.zoneSequence = 0;
         this.pool.push(projectile);
     }
 

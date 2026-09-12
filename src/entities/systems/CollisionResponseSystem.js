@@ -75,7 +75,7 @@ export class CollisionResponseSystem {
     isBotPositionSafe(player, position) {
         const owner = this.owner;
         if (!owner || !player || !position) return false;
-        if (owner.arena.checkCollision(position, player.hitboxRadius)) return false;
+        if ((owner.arena.checkBotCollisionFast || owner.arena.checkCollision).call(owner.arena, position, player.hitboxRadius)) return false;
         const hit = owner.checkGlobalCollision(position, player.hitboxRadius, player.index, 20);
         return !hit;
     }

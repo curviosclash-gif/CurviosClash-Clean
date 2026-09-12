@@ -115,7 +115,7 @@ export function estimateEnemyPressure(bot, position, owner, allPlayers) {
 }
 
 export function estimatePointRisk(bot, point, player, arena, allPlayers) {
-    const wallHit = arena.checkCollisionFast(point, player.hitboxRadius * 2.0) ? 1 : 0;
+    const wallHit = (arena.checkBotCollisionFast || arena.checkCollisionFast).call(arena, point, player.hitboxRadius * 2.0) ? 1 : 0;
     const trailHit = bot.checkTrailHit(point, player, allPlayers) ? 1 : 0;
     const enemyPressure = estimateEnemyPressure(bot, point, player, allPlayers);
     return wallHit * 1.2 + trailHit * 1.5 + enemyPressure * 0.6;

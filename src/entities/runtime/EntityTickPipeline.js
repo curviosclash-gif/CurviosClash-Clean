@@ -19,6 +19,7 @@ export class EntityTickPipeline {
         owner._lockOnCache.clear();
         owner._globalFogEffectSystem?.update?.(safeDt);
         owner._staticTurretSystem?.update?.(safeDt);
+        owner._exclusionZoneSystem?.update?.(safeDt);
         owner._projectileSystem.update(dt);
         owner._overheatGunSystem.update(dt);
         owner._respawnSystem.update(dt);

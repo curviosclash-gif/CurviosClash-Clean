@@ -280,6 +280,10 @@ const PLAYERS = Object.freeze({
         type: 'sawtooth', startFreq: 140, endFreq: 70, duration: 0.11,
         peak: 0.12, attack: 0.005,
     }),
+    EXCLUSION_WARNING: (audio, options) => audio._playLayered([
+        { type: 'sine', startFreq: 620, endFreq: 620, duration: 0.12, peak: 0.08, attack: 0.008 },
+        { type: 'triangle', startFreq: 410, endFreq: 350, duration: 0.2, peak: 0.055, attack: 0.012 },
+    ], options),
 });
 
 export function playGameplayVoice(audio, type, options = {}) {

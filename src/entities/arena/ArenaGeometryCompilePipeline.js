@@ -83,18 +83,20 @@ export class ArenaGeometryCompilePipeline {
         arena._pendingFoamGeos = [];
         arena._pendingObstacleEdgeGeos = [];
         arena._pendingFoamEdgeGeos = [];
+        arena._exclusionBoundaryVisual?.clear?.();
     }
 
-    compileWallStage({ sx, sy, sz, scale }) {
+    compileWallStage({ sx, sy, sz, scale, openFaces = [] }) {
         const t = resolveGameplayConfig(this.arena).ARENA.WALL_THICKNESS * scale;
         const halfX = sx / 2;
         const halfY = sy / 2;
         const halfZ = sz / 2;
-        this._addWall(0, halfY, halfZ + t / 2, sx + 2 * t, sy, t);
-        this._addWall(0, halfY, -halfZ - t / 2, sx + 2 * t, sy, t);
-        this._addWall(-halfX - t / 2, halfY, 0, t, sy, sz);
-        this._addWall(halfX + t / 2, halfY, 0, t, sy, sz);
-        this._addWall(0, sy + t / 2, 0, sx, t, sz);
+        const open = new Set(openFaces);
+        if (!open.has('maxZ')) this._addWall(0, halfY, halfZ + t / 2, sx + 2 * t, sy, t);
+        if (!open.has('minZ')) this._addWall(0, halfY, -halfZ - t / 2, sx + 2 * t, sy, t);
+        if (!open.has('minX')) this._addWall(-halfX - t / 2, halfY, 0, t, sy, sz);
+        if (!open.has('maxX')) this._addWall(halfX + t / 2, halfY, 0, t, sy, sz);
+        if (!open.has('maxY')) this._addWall(0, sy + t / 2, 0, sx, t, sz);
     }
 
     compileObstacleStage({ obstacleDefs, scale }) {

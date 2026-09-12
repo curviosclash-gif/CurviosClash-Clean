@@ -210,6 +210,7 @@ const VERDANT_APERTURE_GATES = [
 export const VERDANT_APERTURE_MAP = {
     verdant_aperture: {
         name: 'Verdant Aperture',
+        exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [300, 200, 300],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

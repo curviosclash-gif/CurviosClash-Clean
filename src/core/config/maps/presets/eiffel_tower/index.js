@@ -37,6 +37,7 @@ const MAP_SIZE = [200, 220, 200];
 // lattice flyable.
 const EIFFEL_TOWER_COMMON = {
     size: MAP_SIZE,
+    exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
     scaleAuthoredAnchors: true,
     preferAuthoredPortals: true,
     portalLevels: [up(20), up(58), up(120), up(200), up(280)],

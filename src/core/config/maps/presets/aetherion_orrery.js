@@ -135,6 +135,7 @@ const AETHERION_CHECKPOINTS = [
 export const AETHERION_ORRERY_MAP = {
     aetherion_orrery: {
         name: 'Aetherion Orrery',
+        exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [320, 210, 320],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,

@@ -189,11 +189,11 @@ export class StateReconciler {
             this._reconcileRotation(localPlayer, serverPlayer);
             this._reconcileVelocity(localPlayer, serverPlayer);
             this._reconcileEffects(localPlayer, serverPlayer);
-            this._reconcileAuthoritativeFields(localPlayer, serverPlayer);
+            this._reconcileAuthoritativeFields(localPlayer, serverPlayer, entityManager);
         }
     }
 
-    _reconcileAuthoritativeFields(localPlayer, serverPlayer) {
+    _reconcileAuthoritativeFields(localPlayer, serverPlayer, entityManager = null) {
         if (typeof serverPlayer.alive === 'boolean') {
             const aliveChanged = localPlayer.alive !== serverPlayer.alive;
             localPlayer.alive = serverPlayer.alive;
@@ -234,6 +234,11 @@ export class StateReconciler {
         }
         if (typeof serverPlayer.speed === 'number') {
             localPlayer.speed = serverPlayer.speed;
+        }
+        if (serverPlayer.exclusionZone && typeof serverPlayer.exclusionZone === 'object') {
+            const zoneSystem = entityManager?._exclusionZoneSystem;
+            if (zoneSystem?.applyNetworkState) zoneSystem.applyNetworkState(localPlayer, serverPlayer.exclusionZone);
+            else localPlayer.exclusionZoneState = { ...serverPlayer.exclusionZone };
         }
     }
 

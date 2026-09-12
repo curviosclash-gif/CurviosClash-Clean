@@ -14,6 +14,7 @@ import { GlbAnimationDriver } from './arena/GlbAnimationDriver.js';
 import { refreshDynamicMeshCollider } from './arena/StaticMeshCollider.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
+import { ExclusionBoundaryVisual } from './arena/ExclusionBoundaryVisual.js';
 
 const AIRCRAFT_DECORATION_PALETTE = Object.freeze([
     0xe5e7eb,
@@ -55,7 +56,7 @@ export class Arena {
         this.runtimeConfig = null;
         this.runtimeMapKey = null;
         this.runtimeMapDefinition = null;
-        this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 };
+        this.bounds = { minX: 0, maxX: 0, minY: 0, maxY: 0, minZ: 0, maxZ: 0 }; this.openFaces = Object.freeze([]);
 
         this.particles = null;
         this._floorMesh = null;
@@ -81,7 +82,7 @@ export class Arena {
 
         this._builder = new ArenaBuilder(this);
         this._collision = new ArenaCollision(this);
-        this._portalGateSystem = new PortalGateSystem(this);
+        this._portalGateSystem = new PortalGateSystem(this); this._exclusionBoundaryVisual = new ExclusionBoundaryVisual(renderer);
     }
 
     /** Elapsed match time the animated setpieces are posed for. */
@@ -431,13 +432,9 @@ export class Arena {
         return this._portalGateSystem.checkExitPortal(position, radius, entityId);
     }
 
-    getCollisionInfo(position, radius) {
-        return this._collision.getCollisionInfo(position, radius);
-    }
-
-    checkCollisionFast(position, radius = 0) {
-        return this._collision.checkCollisionFast(position, radius);
-    }
+    getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); }
+    checkCollisionFast(position, radius = 0) { return this._collision.checkCollisionFast(position, radius); }
+    getBotCollisionInfo(position, radius) { return this._collision.getBotCollisionInfo(position, radius); } checkBotCollisionFast(position, radius = 0) { return this._collision.checkBotCollisionFast(position, radius); } checkWorldGeometryCollision(position, radius = 0) { return this._collision.checkWorldGeometryCollision(position, radius); }
 
     checkSpecialGates(position, previousPosition, radius, entityId) {
         return this._portalGateSystem.checkSpecialGates(position, previousPosition, radius, entityId);
@@ -510,7 +507,7 @@ export class Arena {
 
     update(dt) {
         this._portalGateSystem.update(dt);
-        this._glbAnimation.advance(dt); this._builder.fireFxController.update(this._glbAnimation.elapsedSeconds); this._builder.mapHazardVisualController.update(this._glbAnimation.elapsedSeconds);
+        this._glbAnimation.advance(dt); this._builder.fireFxController.update(this._glbAnimation.elapsedSeconds); this._builder.mapHazardVisualController.update(this._glbAnimation.elapsedSeconds); this._exclusionBoundaryVisual.update(dt);
         this._refreshDynamicObstacles();
         for (const entry of this._aircraftDecorations) {
             entry?.mesh?.tick?.(dt);
@@ -540,7 +537,7 @@ export class Arena {
         this._mergedFoamEdges = null;
         this.particles = null;
 
-        this._clearLoadedGlbScene(); this._builder.fireFxController.dispose(); this._builder.mapHazardVisualController.dispose();
+        this._clearLoadedGlbScene(); this._builder.fireFxController.dispose(); this._builder.mapHazardVisualController.dispose(); this._exclusionBoundaryVisual.dispose();
         this._clearAuthoredAircraftDecorations();
 
         for (const portal of this.portals || []) {

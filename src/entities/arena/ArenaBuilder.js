@@ -7,6 +7,7 @@ import { AuthoredMapLightRig } from './AuthoredMapLightRig.js';
 import { MapFireFxController } from './MapFireFxController.js';
 import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
+import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -29,6 +30,7 @@ export class ArenaBuilder {
 
         const scale = asPositiveScale(config.ARENA.MAP_SCALE, 1);
         const size = this._resolveScaledMapSize(mapResolution.map, mapResolution.fallbackMap, scale);
+        this.arena.openFaces = resolveMapExclusionZone(mapResolution.map).openFaces;
         const graphicsStyle = normalizeGraphicsStyle(this.arena.renderer?.getGraphicsStyle?.());
         // Passed on every build, including the maps that state no profile: the renderer holds the
         // last one it was given, so leaving it out would carry the previous map's lighting over.
@@ -69,7 +71,14 @@ export class ArenaBuilder {
             materialBundle = this._resolveMaterialBundle(size);
             this._assignArenaMaterials(materialBundle);
             this._compileFloorStage(size.sx, size.sz, materialBundle.floorMat);
-            this.geometryPipeline.compileWallStage({ sx: size.sx, sy: size.sy, sz: size.sz, scale });
+            this.geometryPipeline.compileWallStage({
+                sx: size.sx,
+                sy: size.sy,
+                sz: size.sz,
+                scale,
+                openFaces: this.arena.openFaces,
+            });
+            this.arena._exclusionBoundaryVisual?.build?.(this.arena.openFaces, this.arena.bounds);
         }
 
         return {
@@ -219,6 +228,7 @@ export class ArenaBuilder {
     }
 
     _hasCompiledGeometry() {
-        return !!this.arena._floorMesh?.parent && !!this.arena._mergedWallMesh?.parent;
+        const hasExpectedWalls = this.arena.openFaces?.length === 5 || !!this.arena._mergedWallMesh?.parent;
+        return !!this.arena._floorMesh?.parent && hasExpectedWalls;
     }
 }

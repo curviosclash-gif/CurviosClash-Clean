@@ -302,7 +302,7 @@ export class ProjectileSimulationOps {
             projectile.previousPosition?.copy?.(projectile.position);
             projectile.mesh.position.copy(projectile.position);
             this.system?._rocketTrailSystem?.resetProjectileSample?.(projectile);
-            projectile.target = null;
+            if (!projectile.targetReacquireDisabled) projectile.target = null;
             projectile.homingReacquireTimer = Math.max(
                 rocketRuntime.homingMinReacquireInterval,
                 Number(projectile.homingReacquireInterval || rocketRuntime.homingReacquireInterval)
@@ -324,8 +324,8 @@ export class ProjectileSimulationOps {
                 currentTarget = null;
                 projectile.homingReacquireTimer = 0;
             }
-            if ((!currentTarget && (!projectile.turretTargeting || projectile.target || projectile.homingReacquireTimer <= 0))
-                || (!projectile.turretTargeting && projectile.homingReacquireTimer <= 0)) {
+            if (!projectile.targetReacquireDisabled && ((!currentTarget && (!projectile.turretTargeting || projectile.target || projectile.homingReacquireTimer <= 0))
+                || (!projectile.turretTargeting && projectile.homingReacquireTimer <= 0))) {
                 projectile.target = this.acquireHomingTarget(projectile, players, trailSpatialIndex);
                 projectile.homingReacquireTimer = Math.max(
                     rocketRuntime.homingMinReacquireInterval,

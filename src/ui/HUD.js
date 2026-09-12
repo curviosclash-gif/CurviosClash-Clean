@@ -45,6 +45,13 @@ export class HUD {
         this.classicBoostText = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost-text');
         this.lifeBar = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-bar');
         this.lifeFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-fill');
+        const playerHud = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud');
+        this.exclusionZoneStatus = document.createElement('div');
+        this.exclusionZoneStatus.className = 'exclusion-zone-status hidden';
+        this._setAttribute(this.exclusionZoneStatus, 'role', 'status');
+        this._setAttribute(this.exclusionZoneStatus, 'aria-live', 'polite');
+        this._setAttribute(this.exclusionZoneStatus, 'aria-atomic', 'true');
+        playerHud?.appendChild(this.exclusionZoneStatus);
         initializeHudSegmentedArc(this.classicBoostFill, 'horizontal');
 
         // Tapes (Scales)
@@ -218,9 +225,12 @@ export class HUD {
 
     update(player, _dt, context = {}) {
         if (!player || !player.alive) {
+            this._updateExclusionZoneStatus(null);
             this.setVisibility(false);
             return;
         }
+
+        this._updateExclusionZoneStatus(player.exclusionZoneState);
 
         const fallbackGameplayConfig = resolveGameplayConfig({
             config: this.configSource,
@@ -423,5 +433,20 @@ export class HUD {
         } else {
             this._setClassFlag(this.lockReticle, 'hidden', true);
         }
+    }
+
+    _updateExclusionZoneStatus(state) {
+        const phase = String(state?.phase || 'SAFE');
+        const active = phase === 'GRACE' || phase === 'SALVO';
+        this._setClassFlag(this.exclusionZoneStatus, 'hidden', !active);
+        if (!active) {
+            this._setText(this.exclusionZoneStatus, '');
+            return;
+        }
+        const detail = phase === 'GRACE'
+            ? `${Math.max(0, Math.ceil(Number(state?.countdownSeconds) || 0))} s`
+            : `STUFE ${String(state?.stage || 'WEAK')}`;
+        this._setText(this.exclusionZoneStatus, `ABSCHUSSZONE · ${detail}`);
+        this._setClassFlag(this.exclusionZoneStatus, 'salvo', phase === 'SALVO');
     }
 }

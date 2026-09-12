@@ -50,6 +50,9 @@ export class ProjectileSystem {
         this.onProjectileHit = typeof options.onProjectileHit === 'function' ? options.onProjectileHit : (() => { });
         this.onProjectilePowerup = typeof options.onProjectilePowerup === 'function' ? options.onProjectilePowerup : (() => { });
         this.onProjectileDamage = typeof options.onProjectileDamage === 'function' ? options.onProjectileDamage : (() => { });
+        this.applyEnvironmentDamage = typeof options.applyEnvironmentDamage === 'function'
+            ? options.applyEnvironmentDamage
+            : (() => null);
         this.onTrailSegmentHit = typeof options.onTrailSegmentHit === 'function' ? options.onTrailSegmentHit : (() => { });
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
@@ -91,7 +94,16 @@ export class ProjectileSystem {
         const config = this.entityRuntimeConfig;
         const power = config?.POWERUP?.TYPES?.[type];
         const strategy = this.getStrategy();
-        const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
+        const environmentProjectile = options.environmentProjectile === true;
+        const rocketConfig = config?.HUNT?.ROCKET || {};
+        const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || (environmentProjectile ? {
+            visualScale: type === 'ROCKET_HEAVY' ? 2.2 : (type === 'ROCKET_MEDIUM' ? 1.95 : 1.7),
+            collisionRadiusMultiplier: Math.max(1, Number(rocketConfig.COLLISION_RADIUS_MULTIPLIER) || 1.65),
+            homingTurnRate: Math.max(0.1, Number(rocketConfig.HOMING_TURN_RATE) || 10),
+            homingLockOnAngle: Math.max(5, Number(rocketConfig.HOMING_LOCK_ON_ANGLE) || 48),
+            homingRange: Math.max(10, Number(rocketConfig.HOMING_RANGE) || 140),
+            homingReacquireInterval: Math.max(0.04, Number(rocketConfig.HOMING_REACQUIRE_INTERVAL) || 0.08),
+        } : null);
         if (!power || !rocketParams) return null;
 
         this._tmpDir.set(
@@ -107,7 +119,6 @@ export class ProjectileSystem {
             Number(position.z) || 0
         );
 
-        const rocketConfig = config?.HUNT?.ROCKET || {};
         const speedMultiplier = Math.max(0.2, Math.min(3, Number(options.speedMultiplier) || 1));
         const visualScale = Math.max(1, Number(rocketParams.visualScale) || 1);
         const collisionRadiusMultiplier = Math.max(1, Number(rocketParams.collisionRadiusMultiplier) || 1);
@@ -144,12 +155,43 @@ export class ProjectileSystem {
         );
         projectile.homingReacquireTimer = 0;
         configureExternalProjectileTarget(projectile, options);
+        projectile.environmentProjectile = environmentProjectile;
+        projectile.targetPlayerIndex = Number.isInteger(options.targetPlayerIndex)
+            ? options.targetPlayerIndex
+            : -1;
+        projectile.targetReacquireDisabled = environmentProjectile || options.targetReacquireDisabled === true;
+        projectile.ignoresTrails = environmentProjectile || options.ignoresTrails === true;
+        projectile.ignoresTurrets = environmentProjectile || options.ignoresTurrets === true;
+        projectile.zoneProjectile = options.zoneProjectile === true;
+        projectile.zoneSequence = Math.max(0, Number(options.zoneSequence) || 0);
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
         this._rocketTrailSystem.initializeProjectile(projectile);
         this.projectiles.push(projectile);
         this.onShoot(owner, type, projectile);
         return projectile;
+    }
+
+    trimZoneProjectiles(targetPlayerIndex, maxForTarget = 12, maxGlobal = 64) {
+        const targetLimit = Math.max(0, Math.trunc(Number(maxForTarget) || 0));
+        const globalLimit = Math.max(0, Math.trunc(Number(maxGlobal) || 0));
+        const collect = (targetOnly) => this.projectiles
+            .map((projectile, index) => ({ projectile, index }))
+            .filter(({ projectile }) => projectile?.zoneProjectile === true
+                && (!targetOnly || projectile.targetPlayerIndex === targetPlayerIndex))
+            .sort((a, b) => (Number(a.projectile.zoneSequence) || 0) - (Number(b.projectile.zoneSequence) || 0));
+        let targetEntries = collect(true);
+        while (targetEntries.length > targetLimit) {
+            const oldest = targetEntries.shift();
+            const index = this.projectiles.indexOf(oldest.projectile);
+            if (index >= 0) this._removeProjectileAt(index);
+        }
+        let globalEntries = collect(false);
+        while (globalEntries.length > globalLimit) {
+            const oldest = globalEntries.shift();
+            const index = this.projectiles.indexOf(oldest.projectile);
+            if (index >= 0) this._removeProjectileAt(index);
+        }
     }
 
     _acquireProjectileState() {
@@ -325,6 +367,9 @@ export class ProjectileSystem {
             projectile.owner = players.find((player) => player?.index === entry.owner) || null;
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
+            projectile.environmentProjectile = entry.environmentProjectile === true;
+            projectile.targetPlayerIndex = Number.isInteger(entry.targetPlayerIndex) ? entry.targetPlayerIndex : -1;
+            projectile.zoneProjectile = entry.zoneProjectile === true;
             projectile.mesh.position.copy(projectile.position);
             projectile.visualScale = Math.max(0.01, Number(entry.visualScale) || 1);
             projectile.mesh.scale.setScalar(projectile.visualScale);

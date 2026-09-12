@@ -26,7 +26,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
     for (let i = 0; i < allProjectiles.length; i++) {
         const proj = allProjectiles[i];
         if (!proj || proj.active === false) continue;
-        projectiles.push({
+        const serializedProjectile = {
             id: proj.id || proj.traversalId || i,
             pos: vecToArray(proj.position),
             vel: vecToArray(proj.velocity),
@@ -34,7 +34,13 @@ export function createGameStateSnapshot(entityManager, roundState) {
             type: proj.type || 'mg',
             ttl: toFiniteNumber(proj.ttl, 0),
             radius: toFiniteNumber(proj.radius, 0),
-        });
+        };
+        if (proj.environmentProjectile === true || proj.zoneProjectile === true) {
+            serializedProjectile.environmentProjectile = proj.environmentProjectile === true;
+            serializedProjectile.targetPlayerIndex = Number.isInteger(proj.targetPlayerIndex) ? proj.targetPlayerIndex : -1;
+            serializedProjectile.zoneProjectile = proj.zoneProjectile === true;
+        }
+        projectiles.push(serializedProjectile);
     }
 
     const powerups = [];
@@ -91,6 +97,17 @@ export function serializePlayer(player) {
         hasShield: player.hasShield === true,
         shieldHP: toFiniteNumber(player.shieldHP, 0),
         speed: toFiniteNumber(player.speed, 0),
+        exclusionZone: serializeExclusionZoneState(player.exclusionZoneState),
+    };
+}
+
+function serializeExclusionZoneState(state) {
+    const phase = ['SAFE', 'GRACE', 'SALVO'].includes(state?.phase) ? state.phase : 'SAFE';
+    return {
+        phase,
+        elapsedSeconds: Math.max(0, toFiniteNumber(state?.elapsedSeconds, 0)),
+        countdownSeconds: Math.max(0, Math.ceil(toFiniteNumber(state?.countdownSeconds, 0))),
+        stage: typeof state?.stage === 'string' ? state.stage : '',
     };
 }
 

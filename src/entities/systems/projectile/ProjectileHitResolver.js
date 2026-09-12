@@ -83,6 +83,7 @@ export class ProjectileHitResolver {
     }
 
     _applyRocketExplosion(projectile, players, directHitTarget) {
+        if (projectile?.environmentProjectile) return;
         const rocketConfig = resolveEntityRuntimeConfig(this.system)?.HUNT?.ROCKET || HUNT_CONFIG.ROCKET;
         const explosionRadius = Math.max(1, Number(rocketConfig?.EXPLOSION_RADIUS || 25));
         const explosionDamageFalloff = Math.max(0, Math.min(1, Number(rocketConfig?.EXPLOSION_DAMAGE_FALLOFF || 0.5)));
@@ -108,6 +109,7 @@ export class ProjectileHitResolver {
     }
 
     _resolveTurretHit(projectile, players) {
+        if (projectile?.ignoresTurrets) return false;
         const turrets = this.system?.getTurrets?.() || [];
         for (const turret of turrets) {
             if (
@@ -153,7 +155,7 @@ export class ProjectileHitResolver {
             return false;
         }
 
-        const trailHit = this._resolveTrailHit(projectile, trailSpatialIndex);
+        const trailHit = projectile.ignoresTrails ? null : this._resolveTrailHit(projectile, trailSpatialIndex);
         if (trailHit) {
             if (this._tmpVec) {
                 if (trailHit.closestPoint) {
@@ -197,6 +199,7 @@ export class ProjectileHitResolver {
         let hit = false;
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner) continue;
+            if (projectile.environmentProjectile && Number(target.index) !== projectile.targetPlayerIndex) continue;
             if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;
             if (projectile.turretTargeting && !isTurretTargetPlayerEligible(target, projectile.owner, projectile.turretTargeting.targetPlayers)) continue;
 
@@ -204,6 +207,11 @@ export class ProjectileHitResolver {
 
             if (!hit) continue;
             this.detonateProjectile(projectile);
+
+            if (projectile.environmentProjectile) {
+                this.system?.applyEnvironmentDamage?.(target, projectile);
+                break;
+            }
 
             const huntRocketHit = isHuntHealthActive(resolveEntityRuntimeConfig(this.system)) && isRocketTierType(projectile.type);
             if (huntRocketHit) {

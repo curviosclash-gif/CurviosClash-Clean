@@ -188,6 +188,9 @@ export function recordHeuristicBounce(state, type, normal = null) {
 }
 
 export function checkArenaCollision(arena, position, radius) {
+    if (typeof arena?.checkBotCollisionFast === 'function') {
+        return !!arena.checkBotCollisionFast(position, radius);
+    }
     if (typeof arena?.checkCollisionFast === 'function') {
         return !!arena.checkCollisionFast(position, radius);
     }

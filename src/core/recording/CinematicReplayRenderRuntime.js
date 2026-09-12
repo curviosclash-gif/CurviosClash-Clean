@@ -132,8 +132,8 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
         player.speed = Math.max(0, toFiniteNumber(projected.speed, player.speed));
         player.boostCharge = Math.max(0, toFiniteNumber(projected.boostCharge, player.boostCharge));
         player.isBoosting = projected.isBoosting === true;
-        player.hasShield = projected.hasShield === true;
-        player.shieldHP = Math.max(0, toFiniteNumber(projected.shieldHP, player.shieldHP));
+        player.hasShield = projected.hasShield === true; player.shieldHP = Math.max(0, toFiniteNumber(projected.shieldHP, player.shieldHP));
+        player.exclusionZoneState = projected.exclusionZoneState;
         player.maxShieldHp = Math.max(0, toFiniteNumber(projected.maxShieldHp, player.maxShieldHp));
         player.shieldHitFeedback = Math.max(
             0,

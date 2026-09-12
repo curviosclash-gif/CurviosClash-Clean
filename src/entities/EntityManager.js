@@ -51,7 +51,7 @@ function bindRuntimePorts(owner, runtime) {
     owner._huntCombatSystem = runtime?.systems?.huntCombatSystem || null;
     owner._globalFogEffectSystem = runtime?.systems?.globalFogEffectSystem || null;
     owner._staticTurretSystem = runtime?.systems?.staticTurretSystem || null;
-    owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null;
+    owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null; owner._exclusionZoneSystem = runtime?.systems?.exclusionZoneSystem || null;
     owner._roundOutcomeSystem = runtime?.systems?.roundOutcomeSystem || null;
     owner._setupOps = runtime?.systems?.setupOps || null;
     owner._spawnOps = runtime?.systems?.spawnOps || null;
@@ -110,7 +110,7 @@ export class EntityManager {
         this.botDifficulty = this.entityRuntimeConfig.BOT?.ACTIVE_DIFFICULTY
             || this.entityRuntimeConfig.BOT?.DEFAULT_DIFFICULTY
             || 'NORMAL';
-        this.runtime = assembleEntityRuntime(this);
+        this._exclusionZoneSystem = null; this.runtime = assembleEntityRuntime(this);
         bindRuntimePorts(this, this.runtime);
         this._lastRoundGhostSystem = new LastRoundGhostSystem(renderer, {
             entityManager: this,
@@ -292,7 +292,9 @@ export class EntityManager {
 
     requestRoundEnd(request = {}) { return this.isFightOutcomeAuthority !== false && this._roundOutcomeSystem?.requestRoundEnd?.(request) === true; }
 
-    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); this._mapHazardSystem?.setNetworkReplica?.(enabled); this._globalFogEffectSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); this._globalFogEffectSystem?.applyNetworkSnapshot?.(snapshot?.globalFog); if (Number.isFinite(Number(snapshot?.mapElapsedSeconds))) this.arena?.setGlbAnimationElapsedSeconds?.(snapshot.mapElapsedSeconds); } getGlobalFogState() { return this._globalFogEffectSystem?.getState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 }; } getGlobalFogVisibilityRange() { return this._globalFogEffectSystem?.getVisibilityRange?.() ?? Infinity; } isPositionVisibleDuringGlobalFog(observerPosition, targetPosition) { return this._globalFogEffectSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false; }
+    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); this._mapHazardSystem?.setNetworkReplica?.(enabled); this._globalFogEffectSystem?.setNetworkReplica?.(enabled); this._exclusionZoneSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); this._globalFogEffectSystem?.applyNetworkSnapshot?.(snapshot?.globalFog); if (Number.isFinite(Number(snapshot?.mapElapsedSeconds))) this.arena?.setGlbAnimationElapsedSeconds?.(snapshot.mapElapsedSeconds); } getGlobalFogState() { return this._globalFogEffectSystem?.getState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 }; } getGlobalFogVisibilityRange() { return this._globalFogEffectSystem?.getVisibilityRange?.() ?? Infinity; } isPositionVisibleDuringGlobalFog(observerPosition, targetPosition) { return this._globalFogEffectSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false; }
+
+    getExclusionZoneState(playerIndex) { return this._exclusionZoneSystem?.getPlayerState?.(playerIndex) || null; }
 
     _getPendingHumanRespawns(players = this.humanPlayers) {
         if (!this.gameModeStrategy?.isRespawnEnabled()) return 0;
@@ -342,9 +344,7 @@ export class EntityManager {
         return this._parcoursProgressSystem?.getRouteSnapshot?.() || null;
     }
 
-    getStaticTurretSnapshot() {
-        return this._staticTurretSystem?.createNetworkSnapshot?.() || [];
-    }
+    getStaticTurretSnapshot() { return this._staticTurretSystem?.createNetworkSnapshot?.() || []; }
 
     _checkLockOn(player) {
         return this._huntCombatSystem.checkLockOn(player);
@@ -561,7 +561,7 @@ export class EntityManager {
         } else {
             this._staticTurretSystem?.clear?.();
         }
-        this._mapHazardSystem?.clear?.();
+        this._mapHazardSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
         this._globalFogEffectSystem?.reset?.();
         this._huntScoring.reset();
         this._simulationClockMs = 0;

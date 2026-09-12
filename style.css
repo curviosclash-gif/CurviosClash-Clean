@@ -2000,6 +2000,39 @@ input[type="range"]::-webkit-slider-thumb {
     scale: var(--hud-scale, 1);
 }
 
+.exclusion-zone-status {
+    position: absolute;
+    top: 22%;
+    left: 50%;
+    z-index: 110;
+    margin: 0;
+    width: max-content;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid rgba(255, 116, 72, 0.82);
+    border-left-width: 4px;
+    background: rgba(48, 10, 6, 0.76);
+    color: #ffd0c2;
+    font-size: 0.78rem;
+    font-weight: 800;
+    letter-spacing: 0.11em;
+    text-shadow: 0 0 8px rgba(255, 62, 24, 0.65);
+    box-shadow: 0 0 16px rgba(255, 62, 24, 0.16);
+    transform: translateX(-50%) scale(var(--hud-scale, 1));
+    transform-origin: center top;
+    animation: exclusion-zone-pulse 1.1s ease-in-out infinite;
+}
+
+.exclusion-zone-status.salvo {
+    border-color: #ff3b22;
+    color: #fff4ef;
+    animation-duration: 0.55s;
+}
+
+@keyframes exclusion-zone-pulse {
+    0%, 100% { opacity: 0.72; }
+    50% { opacity: 1; }
+}
+
 .player-hud-summary {
     display: contents;
 }

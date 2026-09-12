@@ -7,12 +7,28 @@ import { EntityRuntimeContext } from './EntityRuntimeContext.js';
 import { EntityEventBus } from './EntityEventBus.js';
 import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
-import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
+import { isRocketTierType, resolveRocketTierDamage } from '../../hunt/RocketPickupSystem.js';
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
     encodeGameplayActionResultForLog,
 } from '../../shared/contracts/GameplayActionResultContract.js';
+
+export function applyEnvironmentProjectileDamage(owner, target, projectile) {
+    if (!target?.alive) return null;
+    if (target.hasShield === true || Number(target.shieldHP) > 0) {
+        target.hasShield = false;
+        target.shieldHP = 0;
+        owner.audio?.play?.('SHIELD_HIT', { intensity: 0.75, depleted: true });
+        owner.particles?.spawnHit?.(target.position, target.color);
+        return { applied: 0, absorbedByShield: 1, remainingHp: target.hp, isDead: false };
+    }
+    const damage = resolveRocketTierDamage(projectile?.type, owner);
+    return owner._applyModeDamage(target, damage, 'EXCLUSION_ZONE', {
+        impactPoint: projectile?.position || target.position,
+        nowSeconds: Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
+    });
+}
 
 export function createEntityRuntimeSupport(owner) {
     let eventBus = null;
@@ -98,6 +114,7 @@ export function createEntityRuntimeSupport(owner) {
                 });
             }
         },
+        applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
         runtimeProfiler: owner.runtimeProfiler || null,
     });
 

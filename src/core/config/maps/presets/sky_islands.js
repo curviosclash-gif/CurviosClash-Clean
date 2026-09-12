@@ -7,6 +7,7 @@
 export const SKY_ISLANDS_MAP = {
     sky_islands: {
         name: 'Sky Islands',
+        exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
         size: [200, 110, 200],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
