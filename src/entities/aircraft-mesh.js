@@ -26,14 +26,18 @@ export class AircraftMesh extends THREE.Group {
             metalness: 0.2
         });
 
+        // Alpha glass instead of transmission: a transmissive material makes three render the whole
+        // opaque scene a second time into an offscreen target, for a canopy of about one metre.
+        // With thickness 0 there was no refraction to lose, so the authored opacity carries the look.
         this.cockpitMat = new THREE.MeshPhysicalMaterial({
             color: 0x1e293b,
-            transmission: 0.5,
-            opacity: 0.7,
-            roughness: 0.2,
+            transparent: true,
+            opacity: 0.62,
+            envMapIntensity: 1.5,
+            roughness: 0.18,
             metalness: 0.1,
             clearcoat: 1.0,
-            clearcoatRoughness: 0.1
+            clearcoatRoughness: 0.08
         });
 
         this.glowMat = new THREE.MeshBasicMaterial({

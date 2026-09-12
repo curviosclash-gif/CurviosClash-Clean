@@ -203,7 +203,9 @@ export class DroneMesh extends THREE.Group {
         // Kamera-Linse
         const lensGeo = new THREE.CylinderGeometry(0.14, 0.14, 0.16, 10);
         lensGeo.rotateX(Math.PI / 2);
-        const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x0011ff, transmission: 0.4, roughness: 0.0, metalness: 0.0 });
+        // Alpha glass instead of transmission, see aircraft-mesh: the lens is a few centimetres wide
+        // and is not worth a second full render of the scene.
+        const lensMat = new THREE.MeshPhysicalMaterial({ color: 0x0011ff, transparent: true, opacity: 0.55, envMapIntensity: 1.5, roughness: 0.0, metalness: 0.0 });
         const lens = new THREE.Mesh(lensGeo, lensMat);
         lens.position.set(0, -0.1, -1.56);
         this.add(lens);
