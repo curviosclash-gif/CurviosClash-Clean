@@ -120,6 +120,10 @@ export class ProjectileSystem {
         );
 
         const speedMultiplier = Math.max(0.2, Math.min(3, Number(options.speedMultiplier) || 1));
+        const homingTurnRateMultiplier = Math.max(
+            0.1,
+            Math.min(3, Number(options.homingTurnRateMultiplier) || 1)
+        );
         const visualScale = Math.max(1, Number(rocketParams.visualScale) || 1);
         const collisionRadiusMultiplier = Math.max(1, Number(rocketParams.collisionRadiusMultiplier) || 1);
         const rocketGroup = this._acquireProjectileMesh(type, power.color);
@@ -144,7 +148,10 @@ export class ProjectileSystem {
         projectile.radius = Math.max(0.05, Number(config?.PROJECTILE?.RADIUS) || 0.5) * collisionRadiusMultiplier;
         configureProjectileRange(projectile, config.PROJECTILE, ROCKET_RANGE_MULTIPLIER);
         projectile.traveled = 0;
-        projectile.homingTurnRate = Math.max(0.1, Number(rocketParams.homingTurnRate) || 10);
+        projectile.homingTurnRate = Math.max(
+            0.1,
+            (Number(rocketParams.homingTurnRate) || 10) * homingTurnRateMultiplier
+        );
         projectile.homingLockOnAngle = Math.max(5, Number(rocketParams.homingLockOnAngle) || 48);
         projectile.homingRange = Math.max(10, Number(rocketParams.homingRange) || 140);
         projectile.homingReacquireInterval = Math.max(

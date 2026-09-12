@@ -18,9 +18,9 @@ const ENVIRONMENT_OWNER = Object.freeze({
 });
 
 const SALVO_STAGES = Object.freeze([
-    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 48 }),
-    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 60 }),
-    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 72 }),
+    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, speedMultiplier: 0.55, turnRateMultiplier: 0.35 }),
+    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, speedMultiplier: 0.65, turnRateMultiplier: 0.4 }),
+    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, speedMultiplier: 0.75, turnRateMultiplier: 0.45 }),
 ]);
 
 const DIRECTION_COUNT = 32;
@@ -229,7 +229,8 @@ export class ExclusionZoneSystem {
                 environmentProjectile: true,
                 zoneProjectile: true,
                 zoneSequence: ++this._projectileSequence,
-                speedMultiplier: stage.key === 'HEAVY' ? 1.15 : (stage.key === 'MEDIUM' ? 1.05 : 0.9),
+                speedMultiplier: stage.speedMultiplier,
+                homingTurnRateMultiplier: stage.turnRateMultiplier,
             });
             if (projectile) spawned += 1;
         }

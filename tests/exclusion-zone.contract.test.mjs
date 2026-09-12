@@ -21,6 +21,9 @@ import { ClassicModeStrategy } from '../src/modes/ClassicModeStrategy.js';
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
 import { ProjectileSimulationOps } from '../src/entities/systems/projectile/ProjectileSimulationOps.js';
+import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
+import { CONFIG_BASE } from '../src/core/Config.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 function createArena(openFaces = []) {
     const arena = {
@@ -123,20 +126,26 @@ test('zone enters after fully crossing, grants exactly ten seconds and escalates
         && projectile.targetReacquireDisabled
         && projectile.ignoresTrails
         && projectile.ignoresTurrets));
-    assert.ok(projectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 48) < 1e-9));
+    assert.ok(projectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 96) < 1e-9
+        && projectile.speedMultiplier === 0.55
+        && projectile.homingTurnRateMultiplier === 0.35));
 
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'MEDIUM');
     assert.equal(projectiles.length, 12);
     const mediumProjectiles = projectiles.filter((projectile) => projectile.type === 'ROCKET_MEDIUM');
     assert.equal(mediumProjectiles.length, 6);
-    assert.ok(mediumProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 60) < 1e-9));
+    assert.ok(mediumProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 120) < 1e-9
+        && projectile.speedMultiplier === 0.65
+        && projectile.homingTurnRateMultiplier === 0.4));
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'HEAVY');
     assert.equal(projectiles.length, 12);
     const heavyProjectiles = projectiles.filter((projectile) => projectile.type === 'ROCKET_HEAVY');
     assert.equal(heavyProjectiles.length, 8);
-    assert.ok(heavyProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 72) < 1e-9));
+    assert.ok(heavyProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 144) < 1e-9
+        && projectile.speedMultiplier === 0.75
+        && projectile.homingTurnRateMultiplier === 0.45));
 });
 
 test('hysteresis resets only after a clear return and re-entry starts a fresh countdown', () => {
@@ -246,6 +255,36 @@ test('fixed environment target never reacquires a closer bystander', () => {
     };
     ops.stepProjectile(projectile, 0, 0.01, null, [fixedTarget, bystander], null, 0);
     assert.equal(projectile.target, fixedTarget);
+});
+
+test('zone projectile launch tuning reduces speed and homing without changing ordinary rockets', () => {
+    const owner = createPlayer(0);
+    const target = createPlayer(1);
+    const system = new ProjectileSystem({
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE),
+        getStrategy: () => new ClassicModeStrategy(),
+    });
+    try {
+        const baseOptions = {
+            owner,
+            target,
+            type: 'ROCKET_WEAK',
+            position: owner.position,
+            direction: new THREE.Vector3(1, 0, 0),
+            environmentProjectile: true,
+        };
+        const ordinary = system.spawnExternalProjectile(baseOptions);
+        const avoidable = system.spawnExternalProjectile({
+            ...baseOptions,
+            speedMultiplier: 0.55,
+            homingTurnRateMultiplier: 0.35,
+        });
+        assert.ok(ordinary && avoidable);
+        assert.ok(Math.abs(avoidable.velocity.length() - ordinary.velocity.length() * 0.55) < 1e-9);
+        assert.ok(Math.abs(avoidable.homingTurnRate - ordinary.homingTurnRate * 0.35) < 1e-9);
+    } finally {
+        system.dispose();
+    }
 });
 
 test('environment damage consumes one shield hit and then delegates lethal Classic damage', () => {
