@@ -20,6 +20,7 @@ import {
     clearPrewarmedArenaSession,
     consumePrewarmedArenaSessionIfMatch,
     getActivePrewarmPromiseForRenderer,
+    getPrewarmSceneGeneration,
     storePrewarmedArenaSession,
     trackPrewarmPromise,
 } from './match-session/MatchSessionPrewarmStore.js';
@@ -106,6 +107,7 @@ export async function prewarmMatchArenaSession({
 
     const prewarmPromise = (async () => {
         renderer.clearMatchScene();
+        const sceneGeneration = getPrewarmSceneGeneration();
 
         const arena = new Arena(renderer);
         arena.portalsEnabled = !!portalsEnabled;
@@ -115,6 +117,18 @@ export async function prewarmMatchArenaSession({
         const arenaBuildResult = await arena.build(effectiveMapKey, {
             includeAuthoredAircraft: false,
         });
+
+        if (sceneGeneration !== getPrewarmSceneGeneration()) {
+            // A finalize cleared matchRoot mid-build; late GLB parts must not linger either.
+            arena.dispose();
+            return {
+                prewarmed: false,
+                reusedExisting: false,
+                effectiveMapKey,
+                sessionKey,
+                arenaBuildResult: null,
+            };
+        }
 
         storePrewarmedArenaSession({
             renderer,

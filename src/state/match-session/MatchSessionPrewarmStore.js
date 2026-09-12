@@ -1,9 +1,21 @@
 let prewarmedArenaSession = null;
 let prewarmedArenaSessionPromise = null;
 let prewarmedArenaSessionMeta = null;
+let prewarmSceneGeneration = 0;
 
 export function clearPrewarmedArenaSession() {
     prewarmedArenaSession = null;
+}
+
+// The prewarmed arena lives in matchRoot. Whoever clears matchRoot outside the prewarm
+// orphans it: drop the stored arena and mark a still running prewarm as stale.
+export function invalidatePrewarmedArenaSession() {
+    prewarmedArenaSession = null;
+    prewarmSceneGeneration += 1;
+}
+
+export function getPrewarmSceneGeneration() {
+    return prewarmSceneGeneration;
 }
 
 export function storePrewarmedArenaSession(session) {
