@@ -6,7 +6,7 @@ export const EXCLUSION_ZONE_PHASES = Object.freeze({
     SALVO: 'SALVO',
 });
 
-export const EXCLUSION_ZONE_GRACE_SECONDS = 10;
+export const EXCLUSION_ZONE_GRACE_SECONDS = 5;
 export const EXCLUSION_ZONE_HYSTERESIS = 0.35;
 export const EXCLUSION_ZONE_MAX_PLAYER_ROCKETS = 12;
 export const EXCLUSION_ZONE_MAX_GLOBAL_ROCKETS = 64;
@@ -18,9 +18,9 @@ const ENVIRONMENT_OWNER = Object.freeze({
 });
 
 const SALVO_STAGES = Object.freeze([
-    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, speedMultiplier: 0.55, turnRateMultiplier: 0.35, minimumLifetimeSeconds: 24 }),
-    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, speedMultiplier: 0.65, turnRateMultiplier: 0.4, minimumLifetimeSeconds: 20 }),
-    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, speedMultiplier: 0.75, turnRateMultiplier: 0.45, minimumLifetimeSeconds: 18 }),
+    Object.freeze({ key: 'WEAK', from: 5, until: 15, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, speedMultiplier: 0.55, turnRateMultiplier: 0.35, minimumLifetimeSeconds: 24 }),
+    Object.freeze({ key: 'MEDIUM', from: 15, until: 25, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, speedMultiplier: 0.65, turnRateMultiplier: 0.4, minimumLifetimeSeconds: 20 }),
+    Object.freeze({ key: 'HEAVY', from: 25, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, speedMultiplier: 0.75, turnRateMultiplier: 0.45, minimumLifetimeSeconds: 18 }),
 ]);
 
 const DIRECTION_COUNT = 32;
@@ -48,8 +48,8 @@ function createState() {
 }
 
 function stageForTime(elapsedSeconds) {
-    if (elapsedSeconds >= 30) return SALVO_STAGES[2];
-    if (elapsedSeconds >= 20) return SALVO_STAGES[1];
+    if (elapsedSeconds >= SALVO_STAGES[2].from) return SALVO_STAGES[2];
+    if (elapsedSeconds >= SALVO_STAGES[1].from) return SALVO_STAGES[1];
     return SALVO_STAGES[0];
 }
 

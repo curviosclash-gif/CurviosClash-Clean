@@ -110,12 +110,12 @@ test('physical boundary opens only authored faces while floor, closed faces and 
     assert.equal(arena.collision.checkBotCollisionFast(new THREE.Vector3(11.5, 5, 0), 1), true);
 });
 
-test('zone enters after fully crossing, grants exactly ten seconds and escalates deterministic salvos', () => {
+test('zone enters after fully crossing, grants exactly five seconds and escalates deterministic salvos', () => {
     const { players, projectiles, system } = createZoneHarness();
     const player = players[0];
     player.position.x = 12;
 
-    system.update(9.999);
+    system.update(4.999);
     assert.equal(player.exclusionZoneState.phase, EXCLUSION_ZONE_PHASES.GRACE);
     assert.equal(projectiles.length, 0);
     system.update(0.001);
@@ -158,7 +158,7 @@ test('hysteresis resets only after a clear return and re-entry starts a fresh co
     const { players, projectiles, system } = createZoneHarness();
     const player = players[0];
     player.position.x = 12;
-    system.update(10);
+    system.update(5);
     assert.equal(projectiles.length, 4);
 
     player.position.x = 10.8;
@@ -171,7 +171,7 @@ test('hysteresis resets only after a clear return and re-entry starts a fresh co
     player.position.x = 12;
     system.update(1);
     assert.equal(player.exclusionZoneState.phase, EXCLUSION_ZONE_PHASES.GRACE);
-    assert.equal(player.exclusionZoneState.countdownSeconds, 9);
+    assert.equal(player.exclusionZoneState.countdownSeconds, 4);
 });
 
 test('bots, ghosts, dead and spawn-protected players never trigger salvos and reset cleanly', () => {
@@ -328,7 +328,7 @@ test('environment damage consumes one shield hit and then delegates lethal Class
 
 test('snapshots add zone state and target binding without changing the established player schema', () => {
     const player = createPlayer(0);
-    player.exclusionZoneState = { phase: 'GRACE', elapsedSeconds: 3.25, countdownSeconds: 7, stage: '' };
+    player.exclusionZoneState = { phase: 'GRACE', elapsedSeconds: 3.25, countdownSeconds: 2, stage: '' };
     const projectile = {
         active: true,
         id: 'zone-1',
@@ -343,7 +343,7 @@ test('snapshots add zone state and target binding without changing the establish
     };
     const snapshot = createGameStateSnapshot({ players: [player], projectiles: [projectile] }, null);
     assert.deepEqual(snapshot.players[0].exclusionZone, {
-        phase: 'GRACE', elapsedSeconds: 3.25, countdownSeconds: 7, stage: '',
+        phase: 'GRACE', elapsedSeconds: 3.25, countdownSeconds: 2, stage: '',
     });
     assert.equal(snapshot.projectiles[0].targetPlayerIndex, 0);
     assert.equal(snapshot.projectiles[0].environmentProjectile, true);
@@ -361,7 +361,7 @@ test('parallel intruders keep independent deterministic salvos and disconnected 
     for (const harness of [first, second]) {
         harness.players[0].position.x = 12;
         harness.players[1].position.x = 13;
-        harness.system.update(10);
+        harness.system.update(5);
         assert.equal(harness.projectiles.filter((entry) => entry.targetPlayerIndex === 0).length, 4);
         assert.equal(harness.projectiles.filter((entry) => entry.targetPlayerIndex === 1).length, 4);
     }
@@ -399,10 +399,10 @@ test('replay projection preserves the discrete exclusion-zone phase for HUD play
 test('local HUD projection preserves authoritative countdown state', () => {
     const projected = createMatchRuntimePlayerProjection({
         playerIndex: 0,
-        exclusionZoneState: { phase: 'GRACE', elapsedSeconds: 4.1, countdownSeconds: 6, stage: '' },
+        exclusionZoneState: { phase: 'GRACE', elapsedSeconds: 4.1, countdownSeconds: 1, stage: '' },
     });
     assert.deepEqual(projected.exclusionZoneState, {
-        phase: 'GRACE', elapsedSeconds: 4.1, countdownSeconds: 6, stage: '',
+        phase: 'GRACE', elapsedSeconds: 4.1, countdownSeconds: 1, stage: '',
     });
 });
 
