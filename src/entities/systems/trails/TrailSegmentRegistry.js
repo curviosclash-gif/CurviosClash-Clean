@@ -13,6 +13,10 @@ export class TrailSegmentRegistry {
     constructor(options = {}) {
         this.gridSize = asPositiveNumber(options.gridSize, 10);
         this.spatialGrid = options.spatialGrid instanceof Map ? options.spatialGrid : new Map();
+        // Counts every change to the grid contents. The collision query reuses the candidate list of
+        // a cell neighbourhood across the probes of one ray scan and needs a cheap way to notice
+        // that a segment appeared or vanished in between.
+        this.version = 0;
         this._entryLookup = new Map();
         this._keysBuffer = [];
         this._keyArrayPool = [];
@@ -84,6 +88,7 @@ export class TrailSegmentRegistry {
             if (!this.spatialGrid.has(key)) this.spatialGrid.set(key, new Set());
             this.spatialGrid.get(key).add(entry);
         }
+        this.version += 1;
         this._entryLookup.set(nextLookupKey, entry);
 
         let keyRef = keys.length === 1 ? keys[0] : null;
@@ -137,6 +142,7 @@ export class TrailSegmentRegistry {
         const cell = this.spatialGrid.get(key);
         if (cell) {
             cell.delete(entry);
+            this.version += 1;
             if (cell.size === 0) {
                 this.spatialGrid.delete(key);
             }
@@ -196,6 +202,7 @@ export class TrailSegmentRegistry {
     destroySegment(entry) {
         if (!entry || entry.destroyed) return false;
         entry.destroyed = true;
+        this.version += 1;
 
         const keyRef = entry._gridKeyRef;
         if (keyRef !== null && keyRef !== undefined) {
@@ -221,5 +228,6 @@ export class TrailSegmentRegistry {
     clear() {
         this.spatialGrid.clear();
         this._entryLookup.clear();
+        this.version += 1;
     }
 }
