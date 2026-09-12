@@ -123,13 +123,20 @@ test('zone enters after fully crossing, grants exactly ten seconds and escalates
         && projectile.targetReacquireDisabled
         && projectile.ignoresTrails
         && projectile.ignoresTurrets));
+    assert.ok(projectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 48) < 1e-9));
 
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'MEDIUM');
     assert.equal(projectiles.length, 12);
+    const mediumProjectiles = projectiles.filter((projectile) => projectile.type === 'ROCKET_MEDIUM');
+    assert.equal(mediumProjectiles.length, 6);
+    assert.ok(mediumProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 60) < 1e-9));
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'HEAVY');
     assert.equal(projectiles.length, 12);
+    const heavyProjectiles = projectiles.filter((projectile) => projectile.type === 'ROCKET_HEAVY');
+    assert.equal(heavyProjectiles.length, 8);
+    assert.ok(heavyProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 72) < 1e-9));
 });
 
 test('hysteresis resets only after a clear return and re-entry starts a fresh countdown', () => {

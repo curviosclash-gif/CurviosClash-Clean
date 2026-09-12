@@ -18,9 +18,9 @@ const ENVIRONMENT_OWNER = Object.freeze({
 });
 
 const SALVO_STAGES = Object.freeze([
-    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 24 }),
-    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 30 }),
-    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 36 }),
+    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 48 }),
+    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 60 }),
+    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 72 }),
 ]);
 
 const DIRECTION_COUNT = 32;
