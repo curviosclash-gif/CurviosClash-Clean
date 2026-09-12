@@ -128,7 +128,9 @@ test('zone enters after fully crossing, grants exactly ten seconds and escalates
         && projectile.ignoresTurrets));
     assert.ok(projectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 96) < 1e-9
         && projectile.speedMultiplier === 0.55
-        && projectile.homingTurnRateMultiplier === 0.35));
+        && projectile.homingTurnRateMultiplier === 0.35
+        && projectile.minimumLifetimeSeconds === 24
+        && projectile.minimumTravelDistance === 720));
 
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'MEDIUM');
@@ -137,7 +139,9 @@ test('zone enters after fully crossing, grants exactly ten seconds and escalates
     assert.equal(mediumProjectiles.length, 6);
     assert.ok(mediumProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 120) < 1e-9
         && projectile.speedMultiplier === 0.65
-        && projectile.homingTurnRateMultiplier === 0.4));
+        && projectile.homingTurnRateMultiplier === 0.4
+        && projectile.minimumLifetimeSeconds === 20
+        && projectile.minimumTravelDistance === 720));
     system.update(10);
     assert.equal(player.exclusionZoneState.stage, 'HEAVY');
     assert.equal(projectiles.length, 12);
@@ -145,7 +149,9 @@ test('zone enters after fully crossing, grants exactly ten seconds and escalates
     assert.equal(heavyProjectiles.length, 8);
     assert.ok(heavyProjectiles.every((projectile) => Math.abs(projectile.position.distanceTo(player.position) - 144) < 1e-9
         && projectile.speedMultiplier === 0.75
-        && projectile.homingTurnRateMultiplier === 0.45));
+        && projectile.homingTurnRateMultiplier === 0.45
+        && projectile.minimumLifetimeSeconds === 18
+        && projectile.minimumTravelDistance === 720));
 });
 
 test('hysteresis resets only after a clear return and re-entry starts a fresh countdown', () => {
@@ -278,10 +284,17 @@ test('zone projectile launch tuning reduces speed and homing without changing or
             ...baseOptions,
             speedMultiplier: 0.55,
             homingTurnRateMultiplier: 0.35,
+            zoneProjectile: true,
+            minimumLifetimeSeconds: 24,
+            minimumTravelDistance: 720,
         });
         assert.ok(ordinary && avoidable);
         assert.ok(Math.abs(avoidable.velocity.length() - ordinary.velocity.length() * 0.55) < 1e-9);
         assert.ok(Math.abs(avoidable.homingTurnRate - ordinary.homingTurnRate * 0.35) < 1e-9);
+        assert.equal(ordinary.ttl, 9);
+        assert.equal(ordinary.maxDistance, 420);
+        assert.equal(avoidable.ttl, 24);
+        assert.equal(avoidable.maxDistance, 720);
     } finally {
         system.dispose();
     }

@@ -18,12 +18,13 @@ const ENVIRONMENT_OWNER = Object.freeze({
 });
 
 const SALVO_STAGES = Object.freeze([
-    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, speedMultiplier: 0.55, turnRateMultiplier: 0.35 }),
-    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, speedMultiplier: 0.65, turnRateMultiplier: 0.4 }),
-    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, speedMultiplier: 0.75, turnRateMultiplier: 0.45 }),
+    Object.freeze({ key: 'WEAK', from: 10, until: 20, count: 4, interval: 3, type: 'ROCKET_WEAK', spawnDistance: 96, speedMultiplier: 0.55, turnRateMultiplier: 0.35, minimumLifetimeSeconds: 24 }),
+    Object.freeze({ key: 'MEDIUM', from: 20, until: 30, count: 6, interval: 2, type: 'ROCKET_MEDIUM', spawnDistance: 120, speedMultiplier: 0.65, turnRateMultiplier: 0.4, minimumLifetimeSeconds: 20 }),
+    Object.freeze({ key: 'HEAVY', from: 30, until: Infinity, count: 8, interval: 1, type: 'ROCKET_HEAVY', spawnDistance: 144, speedMultiplier: 0.75, turnRateMultiplier: 0.45, minimumLifetimeSeconds: 18 }),
 ]);
 
 const DIRECTION_COUNT = 32;
+const ZONE_PROJECTILE_MINIMUM_TRAVEL_DISTANCE = 720;
 const PRECOMPUTED_DIRECTIONS = Object.freeze(Array.from({ length: DIRECTION_COUNT }, (_, index) => {
     const y = 1 - (2 * (index + 0.5)) / DIRECTION_COUNT;
     const radius = Math.sqrt(Math.max(0, 1 - y * y));
@@ -231,6 +232,8 @@ export class ExclusionZoneSystem {
                 zoneSequence: ++this._projectileSequence,
                 speedMultiplier: stage.speedMultiplier,
                 homingTurnRateMultiplier: stage.turnRateMultiplier,
+                minimumLifetimeSeconds: stage.minimumLifetimeSeconds,
+                minimumTravelDistance: ZONE_PROJECTILE_MINIMUM_TRAVEL_DISTANCE,
             });
             if (projectile) spawned += 1;
         }

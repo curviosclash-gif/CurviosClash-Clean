@@ -147,6 +147,10 @@ export class ProjectileSystem {
         );
         projectile.radius = Math.max(0.05, Number(config?.PROJECTILE?.RADIUS) || 0.5) * collisionRadiusMultiplier;
         configureProjectileRange(projectile, config.PROJECTILE, ROCKET_RANGE_MULTIPLIER);
+        if (options.zoneProjectile === true) {
+            projectile.ttl = Math.max(projectile.ttl, Number(options.minimumLifetimeSeconds) || 0);
+            projectile.maxDistance = Math.max(projectile.maxDistance, Number(options.minimumTravelDistance) || 0);
+        }
         projectile.traveled = 0;
         projectile.homingTurnRate = Math.max(
             0.1,
