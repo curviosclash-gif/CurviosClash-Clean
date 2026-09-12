@@ -110,7 +110,7 @@ function hasConfiguredProfileMatch(botConfig, rampControlProfileId) {
     return false;
 }
 
-function resolveControlDynamics(entityManager, player) {
+function resolveControlDynamics(entityManager, player, target = null) {
     const entityRuntimeConfig = resolveEntityRuntimeConfig(entityManager);
     const runtimePlayerConfig = entityManager?.runtimeConfig?.player || null;
     const speed = toPositiveNumber(
@@ -134,13 +134,38 @@ function resolveControlDynamics(entityManager, player) {
         8.5
     );
 
-    return {
-        speed,
-        turnSpeed,
-        rollSpeed,
-        rampAttackRate,
-        rampReleaseRate,
-    };
+    const out = target || {};
+    out.speed = speed;
+    out.turnSpeed = turnSpeed;
+    out.rollSpeed = rollSpeed;
+    out.rampAttackRate = rampAttackRate;
+    out.rampReleaseRate = rampReleaseRate;
+    return out;
+}
+
+// Both profile ids are template strings over the control values, and this runs for every bot in
+// every simulation step while those values practically never change. They are rebuilt only when one
+// of the inputs actually differs.
+function resolveControlProfileIds(cache, mode, planarMode, control) {
+    if (cache.mode === mode
+        && cache.planarMode === planarMode
+        && cache.speed === control.speed
+        && cache.turnSpeed === control.turnSpeed
+        && cache.rollSpeed === control.rollSpeed
+        && cache.rampAttackRate === control.rampAttackRate
+        && cache.rampReleaseRate === control.rampReleaseRate) {
+        return cache;
+    }
+    cache.mode = mode;
+    cache.planarMode = planarMode;
+    cache.speed = control.speed;
+    cache.turnSpeed = control.turnSpeed;
+    cache.rollSpeed = control.rollSpeed;
+    cache.rampAttackRate = control.rampAttackRate;
+    cache.rampReleaseRate = control.rampReleaseRate;
+    cache.rampControlProfileId = buildRampControlProfileId(mode, planarMode, control);
+    cache.legacyControlProfileId = buildLegacyControlProfileId(mode, planarMode, control);
+    return cache;
 }
 
 function createCachedRuntimeContext() {
@@ -237,9 +262,12 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
         discreteRateThreshold: 0.18,
     });
 
-    const resolvedControl = resolveControlDynamics(entityManager, player);
-    const rampControlProfileId = buildRampControlProfileId(mode, planarMode, resolvedControl);
-    const legacyControlProfileId = buildLegacyControlProfileId(mode, planarMode, resolvedControl);
+    const profileCache = runtimeContext._controlProfileCache
+        || (runtimeContext._controlProfileCache = { mode: '', planarMode: null, control: {} });
+    const resolvedControl = resolveControlDynamics(entityManager, player, profileCache.control);
+    const profileIds = resolveControlProfileIds(profileCache, mode, planarMode, resolvedControl);
+    const rampControlProfileId = profileIds.rampControlProfileId;
+    const legacyControlProfileId = profileIds.legacyControlProfileId;
 
     const runtimeBotConfig = entityManager?.runtimeConfig?.bot || null;
     const botRampFeatureEnabled = !!(
