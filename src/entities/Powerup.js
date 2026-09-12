@@ -7,6 +7,7 @@ import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
 import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
+import { isSharedPowerupMaterial } from './powerup/PowerupSharedMaterials.js';
 import {
     isPickupTypeAllowedForMode,
     normalizePickupType,
@@ -45,10 +46,13 @@ function nextRuntimeRandom(strategy = null) {
 function disposeMeshMaterials(mesh) {
     mesh?.traverse?.((node) => {
         if (!node?.material) return;
-        if (Array.isArray(node.material)) {
-            node.material.forEach((material) => material?.dispose?.());
-        } else {
-            node.material.dispose?.();
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        for (const material of materials) {
+            // Pickup models share their materials across every item that looks the same, the way the
+            // geometries have always been shared. Collecting one item must not dispose a material
+            // that the rest of the field is still drawing with.
+            if (isSharedPowerupMaterial(material)) continue;
+            material?.dispose?.();
         }
     });
 }

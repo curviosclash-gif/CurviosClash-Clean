@@ -1,27 +1,9 @@
 import * as THREE from 'three';
 import { getPickupVisualDescriptor } from './PickupRegistry.js';
+import { createBasicMaterial, createStandardMaterial } from './powerup/PowerupSharedMaterials.js';
 
-function createStandardMaterial(color, options = {}) {
-    return new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: Number(options.emissiveIntensity) || 0.5,
-        roughness: Number(options.roughness) || 0.3,
-        metalness: Number(options.metalness) || 0.65,
-        transparent: !!options.transparent,
-        opacity: Number.isFinite(options.opacity) ? options.opacity : 1.0,
-    });
-}
-
-function createBasicMaterial(color, options = {}) {
-    return new THREE.MeshBasicMaterial({
-        color,
-        transparent: !!options.transparent,
-        opacity: Number.isFinite(options.opacity) ? options.opacity : 1.0,
-        wireframe: !!options.wireframe,
-        depthWrite: options.depthWrite !== false,
-    });
-}
+// Materials live in their own module: identical pickup looks share one instance, which keeps this
+// file under the line budget and the sharing rule in one place.
 
 export class PowerupModelFactory {
     constructor(size = 1.5) {
