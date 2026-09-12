@@ -59,6 +59,10 @@ export class Renderer {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.setClearColor(CONFIG.COLORS.BACKGROUND);
+        // three verifies every freshly linked program with a synchronous getProgramInfoLog and waits
+        // for the driver to finish. That is a development aid; in the shipped build it only turns the
+        // first frame that uses a material into a stall.
+        this.renderer.debug.checkShaderErrors = Boolean(import.meta?.env?.DEV);
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
@@ -375,6 +379,24 @@ export class Renderer {
 
     render() {
         this.viewportSystem.render(this.scene, this.cameras);
+    }
+
+    /**
+     * Builds the shader programs of the current match scene ahead of the first drawn frame.
+     * Deliberately the synchronous compile: compileAsync polls currentProgram.isReady() on its own
+     * timer, and a match that tears down its scene before that poll finishes leaves the program
+     * undefined, which throws outside any promise chain.
+     * @returns {boolean} whether a compile ran for this scene
+     */
+    precompileMatchScene() {
+        const camera = this.cameras?.[0] || null;
+        if (!camera) return false;
+        try {
+            this.renderer.compile(this.scene, camera);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     _getAspect() {
