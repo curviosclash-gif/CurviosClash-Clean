@@ -46,6 +46,7 @@ export class MGHitResolver {
             trailHitRadius: Number(mg.TRAIL_HIT_RADIUS),
             trailSelfSkipRecent: Number(mg.TRAIL_SELF_SKIP_RECENT),
             allowSelfTrailFallback: true,
+            preferPlayerTargets: true,
             runtimeProfiler: this.runtime?.services?.runtimeProfiler || this.runtime?.runtimeProfiler || null,
             targetingTelemetry: this._targetingTelemetry,
             scratch: this._targetingScratch,

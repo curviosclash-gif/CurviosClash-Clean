@@ -354,6 +354,7 @@ export function resolveHuntLineTarget({
     trailHitRadius = 0.78,
     trailSelfSkipRecent = 0,
     allowSelfTrailFallback = false,
+    preferPlayerTargets = false,
     optimizedTrailScan = undefined,
     optimizedTrailScanStepMultiplier = undefined,
     optimizedTrailScanMaxStep = undefined,
@@ -424,7 +425,7 @@ export function resolveHuntLineTarget({
         bestPlayer = createPlayerTargetDescriptor(target, entryDistance, reusable.hitPoint);
     }
 
-    if (maxTrailRange > 0 && trailSpatialIndex?.checkProjectileTrailCollision) {
+    if (!(preferPlayerTargets && bestPlayer) && maxTrailRange > 0 && trailSpatialIndex?.checkProjectileTrailCollision) {
         const selfSkipRecent = Math.max(0, Math.floor(Number(trailSelfSkipRecent) || 0));
         const skipSelfCompletely = Math.max(
             selfSkipRecent + 1,

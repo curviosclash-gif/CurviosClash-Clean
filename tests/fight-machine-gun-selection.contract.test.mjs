@@ -5,6 +5,8 @@ import * as THREE from 'three';
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { OverheatGunSystem } from '../src/hunt/OverheatGunSystem.js';
 import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
+import { resolveHuntLineTarget, isTrailTargetDescriptor } from '../src/hunt/HuntTargetingOps.js';
+import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import {
     FIGHT_MACHINE_GUN_MODELS,
     normalizeFightMachineGunId,
@@ -126,6 +128,7 @@ test('Bot MG aim assist stays inside the configured targeting cone', () => {
     assert.equal(resolver.resolveHit(player, mg).target, null);
 
     player.isBot = false;
+    mg.HUMAN_AIM_ASSIST_ENABLED = false;
     target.position.set(5, 0, -30);
     assert.equal(resolver.resolveHit(player, mg).target, null);
 });
@@ -164,6 +167,82 @@ test('Human Fight MG aim assist acquires, holds, and releases targets without st
     target.position.set(5.4, 0, -30);
     assert.equal(resolver.resolveHit(player, mg).target, null);
     assert.equal(player.fightAimAssistTargetIndex, -1);
+});
+
+test('Default MG targeting acquires wider targets and keeps HUD and firing aligned for every model', () => {
+    for (const model of FIGHT_MACHINE_GUN_MODELS) {
+        const player = {
+            alive: true, isBot: false, index: 0,
+            position: new THREE.Vector3(),
+            fightLoadout: { machineGunId: model.id },
+            getAimDirection: (out) => out.set(0, 0, -1),
+        };
+        const target = { alive: true, index: 1, position: new THREE.Vector3(), hitboxRadius: 0.8 };
+        const runtime = {
+            players: [player, target],
+            entityRuntimeConfig: { ...DEFAULT_ENTITY_RUNTIME_CONFIG, HUNT: HUNT_CONFIG },
+            cache: { lockOn: new Map() },
+            callbacks: { getStrategy: () => ({ hasMachineGun: () => true }) },
+        };
+        const resolver = new MGHitResolver(runtime);
+        const combat = new HuntCombatSystem(runtime);
+        const mg = resolveFightMachineGunConfig(HUNT_CONFIG.MG, model.id);
+        const check = (angle, distance, expected) => {
+            const radians = angle * Math.PI / 180;
+            target.position.set(Math.sin(radians) * distance, 0, -Math.cos(radians) * distance);
+            runtime.cache.lockOn.clear();
+            assert.equal(combat.checkLockOn(player)?.playerIndex ?? null, expected, `${model.id} HUD at ${angle} degrees`);
+            assert.equal(resolver.resolveHit(player, mg).target?.playerIndex ?? null, expected, `${model.id} shot at ${angle} degrees`);
+            assert.deepEqual(player.getAimDirection(new THREE.Vector3()).toArray(), [0, 0, -1]);
+        };
+        check(13, 30, null);
+        check(11, 30, target.index);
+        assert.equal(player.fightAimAssistLockRemaining, 0.4);
+        check(17, 30, target.index);
+        check(19, 30, null);
+        check(11, 30, target.index);
+        check(11, mg.RANGE + 5, null);
+        check(11, 30, target.index);
+        target.alive = false;
+        check(11, 30, null);
+    }
+});
+
+test('MG and HUD prefer aircraft over nearer trails and fall back to trails without an aircraft', () => {
+    const player = {
+        alive: true, isBot: false, index: 0, position: new THREE.Vector3(),
+        getAimDirection: (out) => out.set(0, 0, -1),
+    };
+    const target = { alive: true, index: 1, position: new THREE.Vector3(0, 0, -30), hitboxRadius: 0.8 };
+    const trailSpatialIndex = {
+        checkProjectileTrailCollision(probe, radius) {
+            if (Math.abs(probe.z + 10) > 0.5 + radius) return null;
+            return {
+                entry: { playerIndex: 1, segmentIdx: 0, fromX: -1, fromY: 0, fromZ: -10, toX: 1, toY: 0, toZ: -10 },
+                closestPoint: { closestX: 0, closestY: 0, closestZ: -10 },
+            };
+        },
+    };
+    const runtime = {
+        players: [player, target], trails: { spatialIndex: trailSpatialIndex },
+        entityRuntimeConfig: { ...DEFAULT_ENTITY_RUNTIME_CONFIG, HUNT: HUNT_CONFIG },
+        cache: { lockOn: new Map() },
+        callbacks: { getStrategy: () => ({ hasMachineGun: () => true }) },
+    };
+    const mg = HUNT_CONFIG.MG;
+    const resolver = new MGHitResolver(runtime);
+    const combat = new HuntCombatSystem(runtime);
+    assert.equal(isTrailTargetDescriptor(resolveHuntLineTarget({
+        sourcePlayer: player, players: runtime.players, trailSpatialIndex,
+        origin: player.position, direction: new THREE.Vector3(0, 0, -1),
+        playerRange: mg.RANGE, trailRange: mg.RANGE,
+    })), true, 'shared targeting preserves nearest-hit behavior by default');
+    assert.equal(resolver.resolveHit(player, mg).target?.playerIndex, target.index);
+    assert.equal(combat.checkLockOn(player)?.playerIndex, target.index);
+    target.alive = false;
+    runtime.cache.lockOn.clear();
+    assert.equal(isTrailTargetDescriptor(resolver.resolveHit(player, mg).trail), true);
+    assert.equal(isTrailTargetDescriptor(combat.checkLockOn(player)), true);
 });
 
 test('Fight HUD lock-on uses the same assisted MG direction and weapon range as firing', () => {
