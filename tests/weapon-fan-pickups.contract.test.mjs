@@ -66,17 +66,17 @@ function signedFanAngle(direction) {
 
 test('fan pickup registry is Hunt-only with approved durations, weights, colors and additive stacking', () => {
     const expected = [
-        ['FAN_3', 3, 0.6],
-        ['FAN_4', 4, 0.3],
-        ['FAN_5', 5, 0.1],
+        ['FAN_3', 3],
+        ['FAN_4', 4],
+        ['FAN_5', 5],
     ];
     const colors = new Set();
-    for (const [type, projectileCount, weight] of expected) {
+    for (const [type, projectileCount] of expected) {
         const definition = getPickupDefinition(type);
         assert.equal(definition.duration, 40);
         assert.equal(definition.fanProjectiles, projectileCount);
-        assert.equal(definition.spawnWeights.HUNT, weight);
-        assert.equal(CONFIG_BASE.HUNT.PICKUP_WEIGHTS[type], weight);
+        assert.ok(definition.spawnWeights.HUNT > 0);
+        assert.equal(CONFIG_BASE.HUNT.PICKUP_WEIGHTS[type], definition.spawnWeights.HUNT);
         assert.equal(definition.stackPolicy, 'add-instance');
         assert.equal(isPickupTypeAllowedForMode(type, 'HUNT'), true);
         assert.equal(isPickupTypeAllowedForMode(type, 'CLASSIC'), false);

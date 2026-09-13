@@ -145,7 +145,7 @@ test('Fight rocket tiers use triple damage and trail destruction', () => {
     assert.deepEqual(rocketTypes.map((type) => resolveRocketTrailBlastMeters(type, fightConfig)), [6, 12, 30, 90]);
 });
 
-test('Fight random pickups keep the 70 percent rocket pool and configured non-rocket weights', () => {
+test('Fight fans receive 5/4/3 percent and every other base spawn chance shrinks proportionally', () => {
     const nonRocketTypes = getPickupTypes().filter((type) => (
         isPickupTypeAllowedForMode(type, 'HUNT')
         && !isRocketPickupType(type)
@@ -166,10 +166,19 @@ test('Fight random pickups keep the 70 percent rocket pool and configured non-ro
     const launcherChance = nonRocketChance * launcherWeight / totalNonRocketWeight;
     const otherChance = nonRocketChance - turretChance - launcherChance;
 
-    assert.equal(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE, 0.70);
+    const remainingScale = 0.88 / (1 - 0.30 / 31.7);
+    assert.ok(Math.abs(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE / 0.70 - remainingScale) < 1e-12);
     assert.ok(standardOtherWeights.every((weight) => weight === 1));
     assert.equal(weights.FOG, 0.7);
-    assert.deepEqual([weights.FAN_3, weights.FAN_4, weights.FAN_5], [0.6, 0.3, 0.1]);
+    for (const [type, chance] of [['FAN_3', 0.05], ['FAN_4', 0.04], ['FAN_5', 0.03]]) {
+        assert.ok(Math.abs(nonRocketChance * weights[type] / totalNonRocketWeight - chance) < 1e-12, type);
+    }
+    for (const type of nonRocketTypes.filter((type) => !type.startsWith('FAN_'))) {
+        const previousChance = 0.30 * (weights[type] ?? 1) / 31.7;
+        const nextChance = nonRocketChance * (weights[type] ?? 1) / totalNonRocketWeight;
+        assert.ok(Math.abs(nextChance / previousChance - remainingScale) < 1e-12, type);
+    }
+    assert.deepEqual(Object.values(HUNT_CONFIG.ROCKET_TIERS).map((tier) => tier.spawnChance), [0.5, 0.28, 0.18, 0.03]);
     assert.equal(turretWeight, 10);
     assert.equal(launcherWeight, 5);
     assert.ok(Math.abs(turretChance + launcherChance + otherChance - nonRocketChance) < Number.EPSILON);

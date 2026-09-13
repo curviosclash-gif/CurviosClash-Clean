@@ -1,3 +1,5 @@
+import { WEAPON_FAN_PICKUP_DEFINITIONS } from '../shared/contracts/WeaponFanPickupDefinitionsContract.js';
+
 export const HUNT_CONFIG = Object.freeze({
     DEFAULT_MODE: 'HUNT',
     DEFAULT_RESPAWN_ENABLED: true,
@@ -228,7 +230,9 @@ export const HUNT_CONFIG = Object.freeze({
         HEAVY: Object.freeze({ damage: 120, spawnChance: 0.18, trailBlastMeters: 30 }),
         MEGA: Object.freeze({ damage: 210, spawnChance: 0.03, trailBlastMeters: 90 }),
     }),
-    ROCKET_PICKUP_SPAWN_CHANCE: 0.70,
+    // Previously fans occupied 0.30 * 1 / 31.7 of all spawns. Reserve 12 percent
+    // for them now and scale every other pickup, including rockets, equally.
+    ROCKET_PICKUP_SPAWN_CHANCE: 0.70 * 0.88 / (1 - 0.30 / 31.7),
     PICKUP_WEIGHTS: Object.freeze({
         SHIELD: 1.0,
         HEALTH: 1.0,
@@ -242,9 +246,9 @@ export const HUNT_CONFIG = Object.freeze({
         SLOW_DOWN: 1.0,
         INVERT: 1.0,
         FOG: 0.7,
-        FAN_3: 0.6,
-        FAN_4: 0.3,
-        FAN_5: 0.1,
+        FAN_3: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_3.spawnWeights.HUNT,
+        FAN_4: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_4.spawnWeights.HUNT,
+        FAN_5: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_5.spawnWeights.HUNT,
     }),
     TRAIL_SEGMENT_HP: 3,
     RESPAWN: Object.freeze({
