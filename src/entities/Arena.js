@@ -443,6 +443,7 @@ export class Arena {
     getTraversalSignalForEntity(entityId) {
         return this._portalGateSystem.getTraversalSignalForEntity(entityId);
     }
+    getMapExpansionHudState() { return this._builder.expansionController.getHudState(); }
 
     checkCollision(position, radius) {
         return this.checkCollisionFast(position, radius);
@@ -537,7 +538,7 @@ export class Arena {
         this._mergedFoamEdges = null;
         this.particles = null;
 
-        this._clearLoadedGlbScene(); this._builder.fireFxController.dispose(); this._builder.mapHazardVisualController.dispose(); this._exclusionBoundaryVisual.dispose();
+        this._clearLoadedGlbScene(); this._builder.fireFxController.dispose(); this._builder.mapHazardVisualController.dispose(); this._builder.expansionController.clear(); this._exclusionBoundaryVisual.dispose();
         this._clearAuthoredAircraftDecorations();
 
         for (const portal of this.portals || []) {

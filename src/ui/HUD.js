@@ -8,6 +8,7 @@ import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
 } from './HudSegmentedArc.js';
+import { formatMapExpansionStatus } from './MapExpansionStatusText.js';
 
 function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -52,6 +53,14 @@ export class HUD {
         this._setAttribute(this.exclusionZoneStatus, 'aria-live', 'polite');
         this._setAttribute(this.exclusionZoneStatus, 'aria-atomic', 'true');
         playerHud?.appendChild(this.exclusionZoneStatus);
+        // Shares the layout of the exclusion-zone line; a growing map never has open faces, so
+        // the two announcements do not compete for the same spot.
+        this.mapExpansionStatus = document.createElement('div');
+        this.mapExpansionStatus.className = 'exclusion-zone-status map-expansion-status hidden';
+        this._setAttribute(this.mapExpansionStatus, 'role', 'status');
+        this._setAttribute(this.mapExpansionStatus, 'aria-live', 'polite');
+        this._setAttribute(this.mapExpansionStatus, 'aria-atomic', 'true');
+        playerHud?.appendChild(this.mapExpansionStatus);
         initializeHudSegmentedArc(this.classicBoostFill, 'horizontal');
 
         // Tapes (Scales)
@@ -226,11 +235,13 @@ export class HUD {
     update(player, _dt, context = {}) {
         if (!player || !player.alive) {
             this._updateExclusionZoneStatus(null);
+            this._updateMapExpansionStatus(null);
             this.setVisibility(false);
             return;
         }
 
         this._updateExclusionZoneStatus(player.exclusionZoneState);
+        this._updateMapExpansionStatus(player.mapExpansion);
 
         const fallbackGameplayConfig = resolveGameplayConfig({
             config: this.configSource,
@@ -448,5 +459,12 @@ export class HUD {
             : `STUFE ${String(state?.stage || 'WEAK')}`;
         this._setText(this.exclusionZoneStatus, `ABSCHUSSZONE · ${detail}`);
         this._setClassFlag(this.exclusionZoneStatus, 'salvo', phase === 'SALVO');
+    }
+
+    _updateMapExpansionStatus(state) {
+        const text = formatMapExpansionStatus(state);
+        this._setClassFlag(this.mapExpansionStatus, 'hidden', !text);
+        this._setText(this.mapExpansionStatus, text);
+        this._setClassFlag(this.mapExpansionStatus, 'opening', state?.phase === 'OPENING');
     }
 }

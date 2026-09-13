@@ -167,6 +167,20 @@ function createExclusionZoneProjection(value = null) {
     };
 }
 
+// The map expansion is the same for every player; it rides on each player projection because
+// every HUD instance draws its own copy of the announcement.
+function createMapExpansionProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const phase = ['TELEGRAPH', 'OPENING'].includes(source.phase) ? source.phase : 'IDLE';
+    const active = source.active === true && phase !== 'IDLE';
+    return {
+        active,
+        phase: active ? phase : 'IDLE',
+        secondsUntilOpen: active ? Math.max(0, normalizeNumber(source.secondsUntilOpen, 0)) : 0,
+        label: active ? normalizeString(source.label, '').slice(0, 40) : '',
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -205,6 +219,7 @@ function createPlayerProjection(value = null) {
         planarMode: value.planarMode === true,
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
         exclusionZoneState: createExclusionZoneProjection(value.exclusionZoneState),
+        mapExpansion: createMapExpansionProjection(value.mapExpansion),
         traversal: createTraversalProjection(value.traversal),
         turrets: Array.isArray(value.turrets) ? value.turrets.filter((entry) => entry && (entry.weapon === 'mg' || entry.weapon === 'rocket')).map((entry) => ({
             weapon: entry.weapon,

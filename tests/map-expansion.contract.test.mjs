@@ -6,6 +6,9 @@ import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { Arena } from '../src/entities/Arena.js';
 import { ArenaExpansionController } from '../src/entities/arena/ArenaExpansionController.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
+import { createMatchRuntimePlayerProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
+import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
+import { formatMapExpansionStatus } from '../src/ui/MapExpansionStatusText.js';
 import {
     MAP_EXPANSION_PHASES,
     MAP_EXPANSION_RANGES,
@@ -188,4 +191,145 @@ test('a growing arena opens with the match clock and follows host and restart ov
 
     arena.setGlbAnimationElapsedSeconds(25);
     assert.deepEqual(blocked(), [false, false], 'a host time jump lands on the same stage as playing through');
+});
+
+test('stage walls announce, sink away and hand their faces over to the next stage', () => {
+    const added = [];
+    const removed = [];
+    const arena = {
+        bounds: { minX: -50, maxX: 50, minY: 0, maxY: 60, minZ: -50, maxZ: 50 },
+        openFaces: [],
+        renderer: { addToScene: (object) => added.push(object), removeFromScene: (object) => removed.push(object) },
+        entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_SECTIONS),
+    };
+    const controller = new ArenaExpansionController(arena);
+    controller.build({
+        expansion: {
+            stages: [
+                { size: [40, 20, 40] },
+                { atSeconds: 30, telegraphSeconds: 8, openSeconds: 2, size: [100, 20, 100] },
+                { atSeconds: 60, telegraphSeconds: 4, openSeconds: 2, size: [100, 60, 100] },
+            ],
+        },
+    }, 1);
+
+    assert.equal(added.length, 1);
+    const group = added[0];
+    const wall = (stage, face) => group.getObjectByName(`map-expansion-wall-${stage}-${face}`);
+    const visible = () => group.children.filter((mesh) => mesh.visible).map((mesh) => mesh.name).sort();
+    const { idleMaterial, warningMaterial } = controller.walls;
+    const coreWalls = ['maxX', 'maxY', 'maxZ', 'minX', 'minZ'].map((face) => `map-expansion-wall-0-${face}`);
+
+    assert.equal(group.children.length, 6, 'five core walls and the low roof of the wide stage; nothing on the outer bounds');
+    assert.deepEqual(visible(), coreWalls);
+    assert.equal(wall(0, 'maxX').position.x, 21, 'the wall stands just outside the collision bounds');
+    assert.equal(wall(0, 'maxX').material, idleMaterial);
+
+    controller.update(24);
+    assert.equal(wall(0, 'maxX').material, warningMaterial);
+    assert.equal(wall(0, 'maxY').material, idleMaterial, 'the roof does not move when the next stage keeps the height');
+    assert.ok(warningMaterial.emissiveIntensity > idleMaterial.emissiveIntensity);
+
+    controller.update(29);
+    assert.equal(wall(0, 'maxX').position.y, -1, 'half way through the opening the side wall has sunk half its travel');
+    assert.equal(wall(0, 'maxY').visible, false);
+    assert.equal(wall(1, 'maxY').visible, true, 'the incoming stage already stands on the face that does not move');
+    assert.equal(arena.bounds.maxX, 20, 'the core still collides while its walls sink');
+
+    controller.update(30);
+    assert.deepEqual(visible(), ['map-expansion-wall-1-maxY']);
+    assert.equal(wall(1, 'maxY').material, idleMaterial);
+
+    controller.update(59);
+    assert.equal(wall(1, 'maxY').material, warningMaterial);
+    assert.equal(wall(1, 'maxY').position.y, 41, 'the roof lifts towards the tall stage');
+
+    controller.update(60);
+    assert.deepEqual(visible(), []);
+
+    controller.update(0);
+    assert.deepEqual(visible(), coreWalls, 'a restart shows the core again');
+    assert.equal(wall(0, 'maxX').position.y, 10);
+
+    controller.clear();
+    controller.clear();
+    assert.deepEqual(removed, [group]);
+});
+
+test('the HUD announcement is projected from the arena and reads as a countdown', () => {
+    const arena = { bounds: { minX: -50, maxX: 50, minY: 0, maxY: 40, minZ: -50, maxZ: 50 }, openFaces: [] };
+    const controller = new ArenaExpansionController(arena);
+    controller.build({
+        expansion: {
+            stages: [
+                { size: [40, 20, 40] },
+                { atSeconds: 30, telegraphSeconds: 8, openSeconds: 2, label: 'Nord/Süd', size: [100, 20, 100] },
+            ],
+        },
+    }, 1);
+    const projectAt = (seconds) => {
+        controller.update(seconds);
+        return createMatchRuntimePlayerProjection({ playerIndex: 0, mapExpansion: controller.getHudState() }).mapExpansion;
+    };
+    const inactive = { active: false, phase: 'IDLE', secondsUntilOpen: 0, label: '' };
+
+    assert.deepEqual(projectAt(10), inactive);
+    assert.deepEqual(projectAt(24), { active: true, phase: 'TELEGRAPH', secondsUntilOpen: 6, label: 'Nord/Süd' });
+    assert.equal(formatMapExpansionStatus(projectAt(24)), 'SEKTOR NORD/SÜD · ÖFFNET IN 6 s');
+    assert.equal(formatMapExpansionStatus(projectAt(29)), 'SEKTOR NORD/SÜD · ÖFFNET');
+    assert.deepEqual(projectAt(30), inactive);
+    assert.equal(formatMapExpansionStatus(projectAt(30)), '');
+
+    assert.deepEqual(createMatchRuntimePlayerProjection({ playerIndex: 0 }).mapExpansion, inactive);
+    assert.deepEqual(
+        createMatchRuntimePlayerProjection({ playerIndex: 0, mapExpansion: { active: true, phase: 'COMPLETE', label: 'x' } }).mapExpansion,
+        inactive,
+    );
+    assert.equal(
+        formatMapExpansionStatus({ active: true, phase: 'TELEGRAPH', secondsUntilOpen: 3.2, label: '  ' }),
+        'NEUER SEKTOR · ÖFFNET IN 4 s',
+    );
+    assert.equal(formatMapExpansionStatus(null), '');
+});
+
+test('the runtime projection carries the arena announcement to every player HUD', async () => {
+    const arena = new Arena({
+        addToScene() {}, removeFromScene() {}, setMapLighting() {}, setShadowCoverage() {},
+        getGraphicsStyle() { return 'modern'; }, getMaxAnisotropy() { return 1; },
+    });
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, CONFIG_SECTIONS);
+    arena.runtimeMapKey = 'growing-hud-probe';
+    arena.entityRuntimeConfig = entityRuntimeConfig;
+    arena.runtimeMapDefinition = {
+        size: [100, 40, 100],
+        obstacles: [],
+        portals: [],
+        gates: [],
+        expansion: {
+            stages: [
+                { size: [40, 20, 40] },
+                { atSeconds: 30, telegraphSeconds: 8, openSeconds: 2, label: 'Nord', size: [100, 40, 100] },
+            ],
+        },
+    };
+    await arena.build(arena.runtimeMapKey);
+    const players = [0, 1].map((index) => ({
+        index,
+        alive: true,
+        cameraMode: 0,
+        position: { x: 0, y: 5, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        entityRuntimeConfig,
+    }));
+    const projectAt = (seconds) => {
+        // The same seam a host snapshot or a replay uses to set the map time.
+        arena.setGlbAnimationElapsedSeconds(seconds);
+        return buildMatchRuntimeProjection({ game: { entityManager: { players, arena } } })
+            .players.map((player) => player.mapExpansion);
+    };
+    const announced = { active: true, phase: 'TELEGRAPH', secondsUntilOpen: 6, label: 'Nord' };
+    const inactive = { active: false, phase: 'IDLE', secondsUntilOpen: 0, label: '' };
+
+    assert.deepEqual(projectAt(24), [announced, announced]);
+    assert.deepEqual(projectAt(30), [inactive, inactive]);
 });
