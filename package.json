@@ -97,7 +97,7 @@
     "quality": "npm run council:check && npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract:coverage && npm run test:dev:training && npm run test:contract:dist"
   },
   "dependencies": {
-    "@capacitor/android": "8.3.4",
+    "@capacitor/android": "8.5.0",
     "@capacitor/core": "8.3.4",
     "mp4-muxer": "^5.2.2",
     "three": "^0.160.0"
