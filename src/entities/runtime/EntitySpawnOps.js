@@ -1,4 +1,5 @@
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -53,8 +54,18 @@ export class EntitySpawnOps {
             planarLevel: context.planarSpawnLevel,
             player,
         });
-        const dir = owner._findSafeSpawnDirection(pos, player.hitboxRadius);
+        const dir = this._resolveRouteSpawnDirection(player, pos)
+            || owner._findSafeSpawnDirection(pos, player.hitboxRadius);
         this.spawnPlayerAt(player, pos, dir);
+    }
+
+    // Humans on a parcours route start facing the route. Bots keep the safe free lane, so
+    // their spread across the spawn points stays as it was.
+    _resolveRouteSpawnDirection(player, position) {
+        if (!position || player?.isBot === true) return null;
+        const route = this.entityManager?._parcoursProgressSystem?.getRouteSnapshot?.() || null;
+        const facing = resolveParcoursSpawnDirection(route, position);
+        return facing ? position.clone().set(facing[0], facing[1], facing[2]) : null;
     }
 
     spawnPlayerAt(player, pos, dir = null) {

@@ -38,6 +38,14 @@ test('T60e: sichtbarer Parcours-Start-Ring triggert den ersten Checkpoint', asyn
         const playerSpawn = [player.position.x, player.position.y, player.position.z];
         const snapshotBefore = system.getPlayerProgressSnapshot(player.index);
         const cp01 = route.checkpoints.find((entry) => entry.id === 'CP01') || null;
+        // Read before the probe below moves the ship. Compared with the ring's own forward
+        // direction rather than the way to the ring, because at flight speed the ship may
+        // already have passed a ring only 30 units ahead of its spawn.
+        const facing = player.getDirection(player.position.clone());
+        const ringForward = Array.isArray(cp01?.forward) ? cp01.forward : [0, 0, 0];
+        const facingLength = Math.hypot(facing.x, facing.z) || 1;
+        const ringLength = Math.hypot(ringForward[0], ringForward[2]) || 1;
+        const startFacingDot = ((facing.x * ringForward[0]) + (facing.z * ringForward[2])) / (facingLength * ringLength);
         const triggerAt = (pos, forward, nowMs) => {
             const prev = {
                 x: pos[0] - ((forward?.[0] || 1) * 1.0),
@@ -80,6 +88,7 @@ test('T60e: sichtbarer Parcours-Start-Ring triggert den ersten Checkpoint', asyn
             error: '',
             playerSpawn,
             snapshotBefore,
+            startFacingDot,
             visibleRingPos,
             routePos,
             authoredPos,
@@ -95,6 +104,7 @@ test('T60e: sichtbarer Parcours-Start-Ring triggert den ersten Checkpoint', asyn
 
     expect(probe.error).toBe('');
     expect(probe.snapshotBefore?.nextCheckpointIndex).toBe(0);
+    expect(probe.startFacingDot, 'the ship starts facing along the route, not across it').toBeGreaterThan(0.9);
     expect(probe.distanceVisibleToRoute).toBeLessThan(0.001);
     expect(probe.visibleHitType).toBe('checkpoint');
     expect(probe.visibleNextIndex).toBe(1);

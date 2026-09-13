@@ -20,6 +20,22 @@ export function resolveModeParcoursRoute(entityManager, route) {
     return merged;
 }
 
+// A ship starting on a route faces the first ring, level, instead of the widest free lane.
+// Once the spawn already lies on or past that ring's plane it follows the ring's forward
+// direction instead, because a directional ring only counts when it is crossed front-first.
+export function resolveParcoursSpawnDirection(route, position) {
+    const ring = route?.checkpoints?.find?.((entry) => entry?.routeIndex === 0) || null;
+    if (!ring || !Array.isArray(ring.pos) || !position) return null;
+    const forward = Array.isArray(ring.forward) ? ring.forward : null;
+    const toRingX = ring.pos[0] - (Number(position.x) || 0);
+    const toRingZ = ring.pos[2] - (Number(position.z) || 0);
+    const inFrontOfRing = !forward || (toRingX * forward[0]) + (toRingZ * forward[2]) > 0;
+    const x = inFrontOfRing ? toRingX : forward[0];
+    const z = inFrontOfRing ? toRingZ : forward[2];
+    const length = Math.hypot(x, z);
+    return length > 1e-6 ? [x / length, 0, z / length] : null;
+}
+
 function resolveRespawnCheckpoint(route, state, restartAtFirstCheckpoint) {
     if (!route || !state) return null;
     if (restartAtFirstCheckpoint || state.nextCheckpointIndex <= 0) {
