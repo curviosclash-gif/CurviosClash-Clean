@@ -108,7 +108,7 @@ export class Arena {
      * back onto the pose the other players already see.
      */
     setGlbAnimationElapsedSeconds(seconds) {
-        this._glbAnimation.setElapsedSeconds(seconds); this._builder.fireFxController.update(this._glbAnimation.elapsedSeconds); this._builder.mapHazardVisualController.update(this._glbAnimation.elapsedSeconds); this._refreshDynamicObstacles();
+        this._glbAnimation.setElapsedSeconds(seconds); this._builder.updateMapClock(this._glbAnimation.elapsedSeconds); this._refreshDynamicObstacles();
     }
 
     _clearLoadedGlbScene() {
@@ -507,7 +507,7 @@ export class Arena {
 
     update(dt) {
         this._portalGateSystem.update(dt);
-        this._glbAnimation.advance(dt); this._builder.fireFxController.update(this._glbAnimation.elapsedSeconds); this._builder.mapHazardVisualController.update(this._glbAnimation.elapsedSeconds); this._exclusionBoundaryVisual.update(dt);
+        this._glbAnimation.advance(dt); this._builder.updateMapClock(this._glbAnimation.elapsedSeconds); this._exclusionBoundaryVisual.update(dt);
         this._refreshDynamicObstacles();
         for (const entry of this._aircraftDecorations) {
             entry?.mesh?.tick?.(dt);

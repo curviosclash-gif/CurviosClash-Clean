@@ -8,6 +8,7 @@ import { MapFireFxController } from './MapFireFxController.js';
 import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
+import { ArenaExpansionController } from './ArenaExpansionController.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -21,6 +22,7 @@ export class ArenaBuilder {
         this.mapLightRig = new AuthoredMapLightRig(arena.renderer);
         this.fireFxController = new MapFireFxController(arena.renderer);
         this.mapHazardVisualController = new MapHazardVisualController(arena.renderer);
+        this.expansionController = new ArenaExpansionController(arena);
     }
 
     build(mapKey, { previousBuildSignature = null } = {}) {
@@ -80,6 +82,9 @@ export class ArenaBuilder {
             });
             this.arena._exclusionBoundaryVisual?.build?.(this.arena.openFaces, this.arena.bounds);
         }
+        // Last, so everything above is built for the whole map: only the collision bounds
+        // start at the first stage of a growing map.
+        this.expansionController.build(mapResolution.map, scale);
 
         return {
             map: mapResolution.map,
@@ -101,6 +106,15 @@ export class ArenaBuilder {
             buildSignature,
             rebuildPolicy: canReuse ? 'reuse' : 'rebuild',
         };
+    }
+
+    // One match time drives everything on the map that changes during a round. The frame
+    // update and a host, replay or restart override both come through here, so the fire, the
+    // hazards and the arena size can never disagree about where in the round it is.
+    updateMapClock(elapsedSeconds) {
+        this.fireFxController.update(elapsedSeconds);
+        this.mapHazardVisualController.update(elapsedSeconds);
+        this.expansionController.update(elapsedSeconds);
     }
 
     compileParticleStage(sx, sy, sz) {
@@ -185,7 +199,12 @@ export class ArenaBuilder {
     // the geometry is there: a map whose content is far smaller than the box it is allowed to use
     // gets its shadow texels spent on the content instead of on empty air.
     refitShadowCoverage(glbScene, arenaBounds) {
-        const bounds = resolveVisibleShadowBounds({ scene: glbScene, arenaBounds });
+        // A growing map starts on smaller collision bounds, but its shadows have to cover the
+        // stages that open later as well.
+        const bounds = resolveVisibleShadowBounds({
+            scene: glbScene,
+            arenaBounds: this.expansionController.outerBounds || arenaBounds,
+        });
         if (!bounds) return null;
         this.arena.renderer?.setShadowCoverage?.(bounds);
         return bounds;
