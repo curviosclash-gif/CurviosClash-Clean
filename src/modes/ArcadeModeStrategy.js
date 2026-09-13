@@ -54,6 +54,9 @@ export const ARCADE_SECTOR_TYPES = Object.freeze({
     ARENA: 'sector_arena',
     PARCOURS: 'sector_parcours',
 });
+// A parcours sector on a map without authored respawns forgives three deaths at the last
+// checkpoint; the fourth ends the run. Maps that author their own respawn keep it.
+const ARCADE_PARCOURS_SECTOR_RULES = Object.freeze({ respawnOnDeath: true, lastCheckpointRespawns: 3, endRunWhenRespawnsExhausted: true });
 
 export class ArcadeModeStrategy extends GameModeContract {
     constructor(options = {}) {
@@ -255,6 +258,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     isSectorParcours() {
         return this._sectorType === ARCADE_SECTOR_TYPES.PARCOURS;
     }
+    getParcoursRespawnFallback() { return this.isSectorParcours() ? ARCADE_PARCOURS_SECTOR_RULES : null; }
 
     // 61.4.1: Active sector modifier
     setActiveModifier(modifierId) {

@@ -18,7 +18,7 @@ import {
     createPlayerHudState,
     createPlayerProgressSnapshot,
 } from './ParcoursProgressSnapshot.js';
-import { applyParcoursDeathRespawn } from './ParcoursRespawnOps.js';
+import { applyParcoursDeathRespawn, resolveModeParcoursRoute } from './ParcoursRespawnOps.js';
 
 const NO_EXPECTED_ENTRIES = Object.freeze([]);
 
@@ -74,7 +74,7 @@ export class ParcoursProgressSystem {
         return !!this._route;
     }
     isRespawnEnabled() {
-        return this._route?.rules?.respawnOnDeath === true;
+        return resolveModeParcoursRoute(this.entityManager, this._route)?.rules?.respawnOnDeath === true;
     }
     takeRespawnPlan(playerOrIndex) {
         const playerIndex = Number.isInteger(playerOrIndex) ? playerOrIndex : playerOrIndex?.index;
@@ -220,8 +220,8 @@ export class ParcoursProgressSystem {
 
         const reason = normalizeString(options.cause, 'death');
         this._cancelGhostRecordingForPlayer(player, `death:${reason}`);
-        if (this._route.rules.respawnOnDeath) {
-            const result = applyParcoursDeathRespawn(this._route, state, player, {
+        if (this.isRespawnEnabled()) {
+            const result = applyParcoursDeathRespawn(resolveModeParcoursRoute(this.entityManager, this._route), state, player, {
                 now: this.nowProvider(),
                 reason,
                 setErrorState: this._setErrorState.bind(this),

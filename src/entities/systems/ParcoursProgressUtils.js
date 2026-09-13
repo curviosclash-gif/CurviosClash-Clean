@@ -207,6 +207,7 @@ export function buildRouteFromParcours(parcoursRaw, options = {}) {
         respawnOnDeath: rawRules.respawnOnDeath === true,
         lastCheckpointRespawns: Math.max(0, Math.trunc(toFiniteNumber(rawRules.lastCheckpointRespawns, 0))),
         respawnDelaySeconds: Math.max(0.1, toFiniteNumber(rawRules.respawnDelaySeconds, 3)),
+        endRunWhenRespawnsExhausted: rawRules.endRunWhenRespawnsExhausted === true,
         maxSegmentTimeMs: Math.max(0, Math.trunc(toFiniteNumber(rawRules.maxSegmentTimeMs, 0))),
         cooldownMs: Math.max(0, Math.trunc(toFiniteNumber(rawRules.cooldownMs, 450))),
         allowLaneAliases: rawRules.allowLaneAliases !== false,

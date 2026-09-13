@@ -155,6 +155,8 @@ test('Parcours RespawnSystem uses the authored checkpoint position and keeps Arc
         getPlayers: () => [player],
         isRespawnEnabled: () => false,
         isEliminationSuppressed: () => true,
+        // The moment between death and respawn: onPlayerDied above queued a checkpoint plan.
+        isRespawnPending: () => true,
     });
     player.alive = false;
     assert.deepEqual(outcome.resolve(), {

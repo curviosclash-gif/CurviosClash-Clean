@@ -108,6 +108,8 @@ export class GameModeContract {
 
     // --- Spawning ---
     isRespawnEnabled(config) { void config; return false; }
+    // Respawn rules a mode supplies for parcours routes that author none, e.g. in an Arcade sector.
+    getParcoursRespawnFallback() { return null; }
     filterSpawnableTypes(typeKeys, powerupTypes, huntModeActive) { void powerupTypes; void huntModeActive; return typeKeys; }
     // Jede konkrete Strategie setzt this._random aus dem gesetzten Runtime-Wuerfel und
     // ueberschreibt diese Methode. Die Basis darf trotzdem nicht auf den globalen Zufall

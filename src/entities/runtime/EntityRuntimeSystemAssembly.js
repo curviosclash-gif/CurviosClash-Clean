@@ -33,6 +33,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getScoreboard: () => owner.getHuntScoreboard(),
             isRespawnEnabled: () => owner.gameModeStrategy?.isRespawnEnabled?.() === true,
             isEliminationSuppressed: () => owner._parcoursProgressSystem?.isRespawnEnabled?.() === true,
+            isRespawnPending: (player) => owner._respawnSystem?.isRespawnPending?.(player) === true,
             isOutcomeAuthority: () => owner.isFightOutcomeAuthority !== false,
             getDeathmatchKillLimit: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,
             getDeathmatchTimeLimitSeconds: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_TIME_LIMIT_SECONDS || 0,
