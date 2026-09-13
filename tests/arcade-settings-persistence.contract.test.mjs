@@ -1,3 +1,4 @@
+import { computeDailySeed } from '../src/shared/utils/ArcadeUtils.js';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
@@ -67,12 +68,13 @@ test('the runtime honours a persisted sector count', () => {
     assert.equal(runtimeConfig.arcade.sectorCount, 8);
 });
 
-test('the runtime keeps the persisted daily challenge flag and seed', () => {
+test('the runtime keeps the daily flag but resolves today without overwriting the saved seed', () => {
     const settings = sanitize(savedWithArcade({ dailyChallenge: true, seed: 20260810 }));
     settings.localSettings.modePath = 'arcade';
     const runtimeConfig = createRuntimeConfigSnapshot(settings);
     assert.equal(runtimeConfig.arcade.dailyChallenge, true);
-    assert.equal(runtimeConfig.arcade.seed, 20260810);
+    assert.equal(runtimeConfig.arcade.seed, computeDailySeed());
+    assert.equal(settings.arcade.seed, 20260810);
 });
 
 test('the default seed keeps deriving from map, mode and bot count', () => {

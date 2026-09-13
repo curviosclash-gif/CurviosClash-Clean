@@ -538,6 +538,11 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         },
     };
     const captureCanvas = { width: 1920, height: 1080 };
+    const arenaTimes = [];
+    const arena = {
+        update(dt) { arenaTimes.push(['update', dt]); },
+        setGlbAnimationElapsedSeconds(seconds) { arenaTimes.push(['set', seconds]); },
+    };
     const renderer = {
         setRecordingActive() {},
         setRecordingQualityLock() {},
@@ -552,7 +557,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         renderer,
         prepareReplaySession: async () => {
             preparedSessions += 1;
-            return { entityManager, particles: null, arena: null };
+            return { entityManager, particles: null, arena };
         },
         disposeReplaySession: async () => {
             disposedSessions += 1;
@@ -577,6 +582,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
         replay,
         projection,
         leftSnapshot: {
+            mapElapsedSeconds: 10,
             projectiles: [{
                 id: 'rocket-1',
                 type: 'rocket',
@@ -595,6 +601,7 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
             }],
         },
         rightSnapshot: {
+            mapElapsedSeconds: 14,
             projectiles: [{
                 id: 'rocket-1',
                 type: 'rocket',
@@ -633,6 +640,8 @@ test('cinematic replay frame renderer rebuilds and resets player trails', async 
     assert.equal(networkReplicaEnabled, true);
     assert.equal(networkSnapshots[0].projectiles[0].pos[0], 2);
     assert.equal(networkSnapshots[0].powerups[0].pos[0], 4);
+    assert.equal(networkSnapshots[0].mapElapsedSeconds, 12);
+    assert.deepEqual(arenaTimes.slice(0, 2), [['update', 1 / 60], ['set', 12]]);
     assert.deepEqual(visibility, [true, false]);
     assert.deepEqual(visualOptions, { dt: 1 / 60, emitParticles: false });
     assert.deepEqual(calls, [

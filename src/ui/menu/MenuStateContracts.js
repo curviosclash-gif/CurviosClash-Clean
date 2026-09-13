@@ -13,6 +13,7 @@ import { normalizeMapBrightness } from '../../shared/contracts/MapBrightnessCont
 import { normalizeViewDistance } from '../../shared/contracts/ViewDistanceContract.js';
 import { normalizeHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import {
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
@@ -72,6 +73,10 @@ export const LEVEL4_SECTION_IDS = Object.freeze({
     CONTROLS: 'controls',
     MOBILE_CONTROLS: 'mobile_controls',
     GAMEPLAY: 'gameplay',
+    AUDIO: 'audio',
+    GRAPHICS: 'graphics',
+    RECORDING: 'recording',
+    HUD: 'hud',
     ADVANCED_MAP: 'advanced_map',
     TOOLS: 'tools',
     PRESETS: 'presets',
@@ -82,11 +87,6 @@ const VALID_LEVEL4_SECTION_SET = new Set(Object.values(LEVEL4_SECTION_IDS));
 
 function normalizeBoolean(value, fallback) {
     return typeof value === 'boolean' ? value : fallback;
-}
-
-function normalizeString(value, fallback) {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
 }
 
 function normalizeSessionType(value, fallback = MENU_SESSION_TYPES.SINGLE) {

@@ -1,7 +1,7 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-test('desktop killcam replays the bandwidth-bounded rendered framebuffer exactly', async ({ page }, testInfo) => {
+test('desktop killcam replays the bandwidth-bounded rendered framebuffer when explicitly enabled', async ({ page }, testInfo) => {
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
@@ -20,7 +20,10 @@ test('desktop killcam replays the bandwidth-bounded rendered framebuffer exactly
     ), null, { timeout: 30000 });
 
     await page.evaluate(() => {
-        const player = window.GAME_INSTANCE?.entityManager?.humanPlayers?.[0];
+        const entityManager = window.GAME_INSTANCE?.entityManager;
+        const killcam = entityManager?._killcamSystem;
+        const player = entityManager?.humanPlayers?.[0];
+        killcam?.setPixelReplayEnabled?.(true);
         if (player) player.spawnProtectionTimer = 999;
     });
     await page.waitForFunction(() => {

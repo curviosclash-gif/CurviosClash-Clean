@@ -36,6 +36,9 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         getPlayers() {
             return runtime()?.entityManager?.players || [];
         },
+        getGlobalFogState() {
+            return runtime()?.entityManager?.getGlobalFogState?.() || null;
+        },
         /** Forces third person on every local viewport of the planar match. */
         forceThirdPersonCameras(playerCount) {
             const cameraModes = runtime()?.renderer?.cameraModes;

@@ -3,6 +3,39 @@ import {
     rewindParcoursProgressState,
 } from './ParcoursProgressStateOps.js';
 
+const modeRulesByRoute = new WeakMap();
+
+// A mode may supply respawn rules for routes that author none, so a death there cannot freeze
+// the round. A map that authors its own respawn keeps it untouched. Callers read this at use
+// time rather than when the route is built, because Arcade sets the sector type apart from the
+// round start. The merged route is cached so per-frame reads allocate nothing.
+export function resolveModeParcoursRoute(entityManager, route) {
+    const overrides = entityManager?.gameModeStrategy?.getParcoursRespawnFallback?.() || null;
+    if (!route || !overrides || typeof overrides !== 'object') return route;
+    if (route.rules?.respawnOnDeath === true) return route;
+    const cached = modeRulesByRoute.get(route);
+    if (cached?.overrides === overrides) return cached.route;
+    const merged = { ...route, rules: { ...route.rules, ...overrides } };
+    modeRulesByRoute.set(route, { overrides, route: merged });
+    return merged;
+}
+
+// A ship starting on a route faces the first ring, level, instead of the widest free lane.
+// Once the spawn already lies on or past that ring's plane it follows the ring's forward
+// direction instead, because a directional ring only counts when it is crossed front-first.
+export function resolveParcoursSpawnDirection(route, position) {
+    const ring = route?.checkpoints?.find?.((entry) => entry?.routeIndex === 0) || null;
+    if (!ring || !Array.isArray(ring.pos) || !position) return null;
+    const forward = Array.isArray(ring.forward) ? ring.forward : null;
+    const toRingX = ring.pos[0] - (Number(position.x) || 0);
+    const toRingZ = ring.pos[2] - (Number(position.z) || 0);
+    const inFrontOfRing = !forward || (toRingX * forward[0]) + (toRingZ * forward[2]) > 0;
+    const x = inFrontOfRing ? toRingX : forward[0];
+    const z = inFrontOfRing ? toRingZ : forward[2];
+    const length = Math.hypot(x, z);
+    return length > 1e-6 ? [x / length, 0, z / length] : null;
+}
+
 function resolveRespawnCheckpoint(route, state, restartAtFirstCheckpoint) {
     if (!route || !state) return null;
     if (restartAtFirstCheckpoint || state.nextCheckpointIndex <= 0) {
@@ -43,6 +76,14 @@ export function applyParcoursDeathRespawn(route, state, player, options = {}) {
     const limit = Math.max(0, Math.trunc(Number(route?.rules?.lastCheckpointRespawns) || 0));
     const used = Math.max(0, Math.trunc(Number(state?.checkpointRespawnsUsed) || 0)) + 1;
     const restartAtFirstCheckpoint = used > limit;
+    if (restartAtFirstCheckpoint && route?.rules?.endRunWhenRespawnsExhausted === true) {
+        // No plan means no respawn; progress stays untouched so the run's result still counts.
+        return {
+            feedback: 'Respawns verbraucht: Run beendet',
+            logDetails: `cause=${options.reason || 'death'} respawn=none used=${limit}/${limit}`,
+            plan: null,
+        };
+    }
     const respawnEntry = resolveRespawnCheckpoint(route, state, restartAtFirstCheckpoint);
 
     if (restartAtFirstCheckpoint) {

@@ -32,6 +32,14 @@ function resolveTransportCandidate(value) {
     return normalizeString(value, '');
 }
 
+/**
+ * Ohne diese Angabe leitet der Typecheck den Ersatzwert aus dem Vorgabewert ab
+ * und verengt ihn auf das Literal 'lan'. Mehrere Aufrufer reichen bewusst den
+ * leeren String durch, um "kein Transport gesetzt" von "LAN" zu unterscheiden.
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
 export function normalizeLobbyServiceTransport(value, fallback = LOBBY_SERVICE_TRANSPORTS.LAN) {
     const normalized = resolveTransportCandidate(value).toLowerCase();
     return VALID_LOBBY_SERVICE_TRANSPORTS.has(normalized) ? normalized : fallback;

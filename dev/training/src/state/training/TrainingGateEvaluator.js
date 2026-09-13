@@ -9,7 +9,7 @@ import {
     createTrainingGateThresholds,
 } from './TrainingGateThresholds.js';
 import { deriveTrainingOpsKpis } from './TrainingOpsKpiContractV36.js';
-import { toFiniteNumber } from '../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../src/shared/utils/MathOps.js';
 
 function roundMetric(value) {
     return Math.round(toFiniteNumber(value, 0) * 1_000_000) / 1_000_000;

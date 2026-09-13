@@ -118,7 +118,15 @@ test('human kill events identify the victim required by bounty hunt', () => {
 
     emitArcadeEliminationEvents(owner, bot, 'TRAIL_OTHER', { killer: human });
 
-    assert.deepEqual(events, [{ type: 'kill', playerIndex: 0, victimIndex: 1, count: 1 }]);
+    assert.deepEqual(events, [{
+        type: 'kill',
+        playerIndex: 0,
+        victimIndex: 1,
+        count: 1,
+        runId: '',
+        botSlot: null,
+        activationGeneration: null,
+    }]);
 });
 
 test('a non-lethal own-trail hit invalidates clean objectives immediately', () => {

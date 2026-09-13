@@ -1,4 +1,4 @@
-import { toFiniteNumber } from '../../utils/MathOps.js';
+import { toFiniteNumber } from '../../shared/utils/MathOps.js';
 
 export const ENCODE_QUEUE_SOFT_LIMIT = 2;
 export const ENCODE_QUEUE_DROP_LIMIT = 10;

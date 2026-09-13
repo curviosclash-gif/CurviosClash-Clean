@@ -1,3 +1,11 @@
+// ============================================
+// NICHT IN BENUTZUNG (Stand 2026-09-08)
+// ============================================
+// Aufloesung der Desktop-Einstiegspunkte in den Hangar. Kein Aufrufer in `src/`
+// ausser HangarShellLayoutContract.js, das selbst ungenutzt ist. Datei bleibt
+// absichtlich erhalten.
+// ============================================
+
 import {
     HANGAR_CAPABILITY_IDS,
     HANGAR_MODES,

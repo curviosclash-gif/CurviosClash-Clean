@@ -83,6 +83,11 @@ function installEditorDownloadTarget(downloadSession, {
         if (!EDITOR_DOWNLOAD_EXTENSIONS.has(path.extname(fileName).toLowerCase())) return;
 
         let targetPath = '';
+        item.once('done', (doneEvent, state) => {
+            const result = { state, savePath: item.getSavePath() || targetPath, fileName, url: item.getURL?.() || '' };
+            if (!webContents?.isDestroyed?.()) webContents?.send?.('editor-download:completed', result);
+            onCompleted?.(result);
+        });
         try {
             targetPath = resolveFreeTargetPath(getDownloadsDirectory(), fileName);
             item.setSavePath(targetPath);
@@ -91,9 +96,6 @@ function installEditorDownloadTarget(downloadSession, {
             return;
         }
 
-        item.once('done', (doneEvent, state) => {
-            onCompleted?.({ state, savePath: item.getSavePath() || targetPath, fileName });
-        });
     };
 
     downloadSession.on('will-download', handler);

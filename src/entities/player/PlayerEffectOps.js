@@ -255,7 +255,8 @@ export function applyPlayerPowerup(player, type, options = {}) {
         const sameReplaceCategory = definition.stackPolicy === 'replace-category'
             && effectCategory
             && activeDefinition?.effectCategory === effectCategory;
-        if (sameType || sameReplaceCategory) {
+        const sameTypeReplaces = sameType && definition.stackPolicy !== 'add-instance';
+        if (sameTypeReplaces || sameReplaceCategory) {
             removeEffectAtIndex(player, i);
         }
     }

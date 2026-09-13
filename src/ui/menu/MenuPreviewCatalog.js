@@ -3,11 +3,7 @@ import { hasGLBMapSource, resolveGLBMapSourceFootprint } from '../../entities/GL
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolvePortalMode } from '../../shared/contracts/PortalAuthoringContract.js';
 import { compareMapPickerEntries, resolveMapPickerCollection } from './MenuMapCollectionCatalog.js';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 function toNumber(value, fallback = 0) {
     const parsed = Number(value);

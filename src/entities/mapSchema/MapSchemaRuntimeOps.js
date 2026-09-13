@@ -332,6 +332,11 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
                 normalized.arenaSize.depth * invScale,
             ],
             obstacles,
+            staticTurrets: normalized.staticTurrets.map((turret) => ({
+                ...turret,
+                pos: scalePosArray(turret.pos, invScale),
+                range: turret.range * invScale,
+            })),
             portals,
             portalLevels: normalized.portalLevels.map((level) => level * invScale),
             portalMode,

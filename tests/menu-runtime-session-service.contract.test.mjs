@@ -279,7 +279,7 @@ test('handleQuickStartRandomStartAction handles a rejecting match start without 
     assert.equal(calls.toasts[0]?.tone, 'error');
 });
 
-test('handleLevel4ResetAction resets only the options shown in the gameplay panel', () => {
+test('handleLevel4ResetAction preserves audio, HUD and controls when resetting game, graphics and recording options', () => {
     const defaults = {
         gameplay: { speed: 35, portalCount: 8 },
         controls: { PLAYER_1: { LEFT: 'KeyA' } },
@@ -297,7 +297,7 @@ test('handleLevel4ResetAction resets only the options shown in the gameplay pane
         settings: {
             gameplay: { speed: 12, portalCount: 2 },
             controls: { PLAYER_1: { LEFT: 'ArrowLeft' } },
-            localSettings: { shadowQuality: 0, bloomQuality: 2 },
+            localSettings: { shadowQuality: 0, bloomQuality: 2, audio: { masterVolume: 0.42 }, hud: { scale: 1.2 } },
             portalsEnabled: false,
             autoRoll: false,
             invertPitch: { PLAYER_1: false, PLAYER_2: false },
@@ -326,6 +326,8 @@ test('handleLevel4ResetAction resets only the options shown in the gameplay pane
     assert.equal(game.settings.localSettings.bloomQuality, 0);
     assert.deepEqual(game.settings.controls, { PLAYER_1: { LEFT: 'ArrowLeft' } });
     assert.equal(game.settings.portalsEnabled, false);
+    assert.deepEqual(game.settings.localSettings.audio, { masterVolume: 0.42 });
+    assert.deepEqual(game.settings.localSettings.hud, { scale: 1.2 });
     assert.equal(changed.length, 1);
     assert.match(toasts[0]?.message || '', /Spieloptionen zurückgesetzt/);
 });

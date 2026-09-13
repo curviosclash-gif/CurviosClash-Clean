@@ -97,12 +97,20 @@ export class GameRuntimeArcadeSupport {
             getObjectiveParticipants: () => buildObjectiveParticipants(
                 this.getRuntimeState()?.entityManager || this.game?.entityManager
             ),
+            getMissionCapabilities: () => ({
+                hasItems: Number(this.getRuntimeState()?.runtimeConfig?.powerup?.maxOnField) > 0,
+                hasHealing: false,
+            }),
             requestRoundEnd: (request) => requestObjectiveRoundEnd(
                 this.getRuntimeState()?.entityManager || this.game?.entityManager,
                 request
             ),
         });
-        this._arcadeGameplayEventHandler = (event) => this.arcadeRunRuntime.applyGameplayEvent(event);
+        this._arcadeGameplayEventHandler = (event) => {
+            const endless = this._getEndlessRuntime();
+            if (endless) return endless.handleGameplayEvent?.(event);
+            return this.arcadeRunRuntime.applyGameplayEvent(event);
+        };
 
         const withArcadeStrategy = (handler) => {
             const strategy = this.getRuntimeState()?.entityManager?.gameModeStrategy
@@ -313,9 +321,15 @@ export class GameRuntimeArcadeSupport {
             return null;
         }
         if (isEndlessParcoursConfig(runtimeConfig)) {
+            this._bindGameplayCallback(runtimeState);
             const runtime = this._getEndlessRuntime(runtimeState);
             const recordStore = this.game?.settingsManager?.getPlayerRecordStorePort?.() || null;
             runtime?.setRecordStore?.(recordStore);
+            runtime?.setRunProfile?.({
+                recordStore,
+                vehicleId: this._resolveActiveVehicleId(runtimeConfig),
+                strategy: runtimeState?.entityManager?.gameModeStrategy || null,
+            });
             return runtime?.getHudState?.() || null;
         }
         this._bindGameplayCallback(runtimeState);

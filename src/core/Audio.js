@@ -47,7 +47,7 @@ const SOUND_COOLDOWNS_MS = Object.freeze({
     FIGHT_LEAD: 800,
     UI_DROP: 40,
     UI_PICKUP: 40,
-    UI_REJECT: 80,
+    UI_REJECT: 80, EXCLUSION_WARNING: 900,
 });
 
 const AUDIO_INIT_EVENT_TYPES = ['pointerdown', 'click', 'keydown', 'touchstart'];
@@ -665,7 +665,7 @@ export class AudioManager {
             case 'FIGHT_LEAD': this._playFightLead(options); break;
             case 'UI_DROP': this._playUiDrop(options); break;
             case 'UI_PICKUP': this._playUiPickup(options); break;
-            case 'UI_REJECT': this._playUiReject(options); break;
+            case 'UI_REJECT': this._playUiReject(options); break; case 'EXCLUSION_WARNING': this._playExclusionWarning(options); break;
             default: break;
         }
     }
@@ -691,7 +691,7 @@ export class AudioManager {
     _playFightLead(options = {}) { playGameplayVoice(this, 'FIGHT_LEAD', options); }
     _playUiDrop(options = {}) { playGameplayVoice(this, 'UI_DROP', options); }
     _playUiPickup(options = {}) { playGameplayVoice(this, 'UI_PICKUP', options); }
-    _playUiReject(options = {}) { playGameplayVoice(this, 'UI_REJECT', options); }
+    _playUiReject(options = {}) { playGameplayVoice(this, 'UI_REJECT', options); } _playExclusionWarning(options = {}) { playGameplayVoice(this, 'EXCLUSION_WARNING', options); }
     _ensureAmbienceNodes() {
         if (!this.ctx || this._ambience || !this.buffers.musicNoise) return;
         const source = this.ctx.createBufferSource();

@@ -27,6 +27,7 @@ export const ARCADE_RUN_PHASES = Object.freeze({
     WARMUP: 'warmup',
     SECTOR_ACTIVE: 'sector_active',
     INTERMISSION: 'intermission',
+    VICTORY: 'victory',
     SUDDEN_DEATH: 'sudden_death',
     FINISHED: 'finished',
 });
@@ -57,7 +58,11 @@ function createEmptyBreakdown(source = null) {
     const cleanSector = Math.max(0, toSafeNumber(input.cleanSector, 0));
     const risk = Math.max(0, toSafeNumber(input.risk, 0));
     const penalty = Math.max(0, toSafeNumber(input.penalty, 0));
-    const total = Math.max(0, toSafeNumber(input.total, base + survival + kills + cleanSector + risk - penalty));
+    const completion = Math.max(0, toSafeNumber(input.completion, 0));
+    const checkpoints = Math.max(0, toSafeNumber(input.checkpoints, 0));
+    const time = Math.max(0, toSafeNumber(input.time, 0));
+    const precision = Math.max(0, toSafeNumber(input.precision, 0));
+    const total = Math.max(0, toSafeNumber(input.total, base + survival + kills + cleanSector + risk - penalty + completion + checkpoints + time + precision));
     return {
         base,
         survival,
@@ -65,12 +70,13 @@ function createEmptyBreakdown(source = null) {
         cleanSector,
         risk,
         penalty,
+        completion, checkpoints, time, precision,
         total,
     };
 }
 
 function resolveSectorPhase(config, sectorIndex) {
-    if (sectorIndex >= config.sectorCount) {
+    if (sectorIndex > config.sectorCount) {
         return ARCADE_RUN_PHASES.SUDDEN_DEATH;
     }
     return ARCADE_RUN_PHASES.SECTOR_ACTIVE;
@@ -140,6 +146,9 @@ export function createArcadeRunRecords(source = null) {
         },
         breakdownTotals: createEmptyBreakdown(comparableInput.breakdownTotals),
         daily: {
+            lastRecordedRunId: normalizeText(comparableInput?.daily?.lastRecordedRunId, ''),
+            lastSucceeded: comparableInput?.daily?.lastSucceeded === true,
+            lastCompletedSectors: Math.max(0, toSafeNumber(comparableInput?.daily?.lastCompletedSectors, 0)),
             seed: Math.max(0, clampInteger(comparableInput?.daily?.seed, 0, 2_147_483_647, 0)),
             runsPlayed: Math.max(0, clampInteger(comparableInput?.daily?.runsPlayed, 0, 999_999, 0)),
             bestScore: Math.max(0, toSafeNumber(comparableInput?.daily?.bestScore, 0)),
@@ -166,6 +175,11 @@ export function createArcadeRunState({
         runId: normalizedRunId,
         config: nextConfig,
         phase: ARCADE_RUN_PHASES.WARMUP,
+        gameplayTimeMs: 0,
+        xpEarned: 0,
+        dailyResult: null,
+        victory: null,
+        intermissionPaused: false,
         sectorIndex: 0,
         completedSectors: 0,
         startedAtIso,
@@ -257,7 +271,8 @@ export function completeArcadeSector(state, nowMs = Date.now()) {
         ...state,
         completedSectors,
         lastCompletedSectorResult,
-        phase: ARCADE_RUN_PHASES.INTERMISSION,
+        phase: completedSectors === maxSectors && !isSuddenDeath
+            ? ARCADE_RUN_PHASES.VICTORY : ARCADE_RUN_PHASES.INTERMISSION,
         updatedAtIso: toIsoString(nowMs),
     };
 }

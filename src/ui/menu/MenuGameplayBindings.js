@@ -3,7 +3,7 @@ import { GAME_MODE_TYPES, resolveActiveGameMode } from '../../hunt/HuntMode.js';
 import { normalizeShadowQuality } from '../../shared/contracts/ShadowQualityContract.js';
 import { normalizeBloomQuality } from '../../shared/contracts/BloomQualityContract.js';
 import { GAMEPLAY_COCKPIT_CAMERA_ENABLED } from '../../shared/contracts/CameraModeContract.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { bindMenuMultiplayerTransportButtons } from './MenuMultiplayerTransportBindings.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../../shared/contracts/SettingsRuntimeLimitsContract.js';
@@ -105,8 +105,8 @@ export function setupMenuGameplayBindings(ctx) {
         });
     }
 
-    if (ui.classicTutorialButton) {
-        bind(ui.classicTutorialButton, 'click', () => {
+    [ui.classicTutorialButton, ui.mainTutorialButton].filter(Boolean).forEach((button) => {
+        bind(button, 'click', () => {
             settings.mode = '1p';
             settings.gameMode = GAME_MODE_TYPES.CLASSIC;
             settings.numBots = 0;
@@ -125,7 +125,7 @@ export function setupMenuGameplayBindings(ctx) {
             ]);
             emit(eventTypes.START_MATCH);
         });
-    }
+    });
 
     if (ui.openFightHangarButton) {
         const hangarWindowAvailable = hangarWindow.isAvailable();

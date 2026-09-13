@@ -1,7 +1,4 @@
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 export function formatStartSetupMapLabel(entry = {}) {
     const name = String(entry?.name || entry?.key || 'Map');
@@ -68,16 +65,21 @@ export function resolveLockedStartFieldHints(settings, settingsManager) {
     lockedFields.forEach((fieldPath) => {
         const normalizedPath = normalizeString(fieldPath, '');
         if (!normalizedPath) return;
-        if (normalizedPath === 'mapKey') { lockMessagesByField.map.push('Map'); return; }
+        if (normalizedPath === 'mapKey') { lockMessagesByField.map.push('Karte'); return; }
         if (normalizedPath === 'vehicles.PLAYER_1') { lockMessagesByField.vehicleP1.push('Flugzeug P1'); return; }
         if (normalizedPath === 'vehicles.PLAYER_2') { lockMessagesByField.vehicleP2.push('Flugzeug P2'); return; }
-        lockMessagesByField.match.push(normalizedPath);
+        const labels = {
+            gameMode: 'Spielmodus', winsNeeded: 'Siegbedingung', numBots: 'Bot-Anzahl',
+            'hunt.respawnEnabled': 'Wiedereinstieg', 'hunt.deathmatchKillLimit': 'Abschussziel',
+            'gameplay.itemAmount': 'Item-Menge', botDifficulty: 'Bot-Schwierigkeit',
+        };
+        lockMessagesByField.match.push(labels[normalizedPath] || 'Weitere Spielregeln');
     });
 
     Object.entries(lockMessagesByField).forEach(([fieldKey, labels]) => {
         if (!Array.isArray(labels) || labels.length === 0) return;
         const uniqueLabels = Array.from(new Set(labels));
-        lockHints.set(fieldKey, `Verbindliches Preset aktiv: ${uniqueLabels.join(', ')}`);
+        lockHints.set(fieldKey, `Die Vorlage „${activePreset.name || 'Aktuelle Auswahl'}“ legt fest: ${uniqueLabels.join(', ')}. Eine andere Vorlage kannst du unter „Vorlagen“ wählen.`);
     });
     return lockHints;
 }

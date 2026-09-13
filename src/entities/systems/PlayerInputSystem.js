@@ -375,7 +375,7 @@ export class PlayerInputSystem {
                 dt,
                 player,
                 runtimeContext?.arena,
-                runtimeContext?.players,
+                runtimeContext?.navigationPlayers || runtimeContext?.players,
                 runtimeContext?.projectiles
             );
         } catch (error) {

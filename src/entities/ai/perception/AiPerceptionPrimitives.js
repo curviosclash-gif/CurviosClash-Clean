@@ -1,4 +1,4 @@
-import { clamp01 } from '../../../utils/MathOps.js';
+import { clamp01 } from '../../../shared/utils/MathOps.js';
 import {
     AI_SENSOR_NORMALIZATION,
     AI_SENSOR_PRESSURE_WEIGHTS,

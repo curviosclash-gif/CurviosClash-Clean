@@ -87,14 +87,21 @@ export class SpaceshipMesh extends THREE.Group {
     createCockpitDome() {
         // Glas-Kuppel oben (Scaled)
         const geo = new THREE.SphereGeometry(0.625, 12, 8, 0, Math.PI * 2, 0, Math.PI / 2);
+        // Alpha glass instead of transmission: a transmissive material makes three render the whole
+        // opaque scene a second time into an offscreen target, for a dome of about one metre.
+        // With thickness 0 there was no refraction to lose, so the authored opacity carries the look.
         const mat = new THREE.MeshPhysicalMaterial({
             color: 0x88ccff,
-            transmission: 0.6,
-            opacity: 0.75,
+            transparent: true,
+            // Lower opacity and a stronger environment reflection carry the glass look that the
+            // transmission pass used to produce: more of the hull shows through, and the dome keeps
+            // its bright highlight edge.
+            opacity: 0.62,
+            envMapIntensity: 1.8,
             roughness: 0.05,
             metalness: 0.0,
             clearcoat: 1.0,
-            clearcoatRoughness: 0.05
+            clearcoatRoughness: 0.03
         });
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.set(0, 0.25, -0.5); // Scaled

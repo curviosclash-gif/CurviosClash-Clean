@@ -3,11 +3,17 @@
 // ============================================
 
 import { TEST_HANGAR_GLB_DATA_URI } from './EmbeddedGlbMapAssets.js';
+import { CLASSIC_WORLD_APPEARANCE, STANDARD_WORLD_LIGHTING } from './presets/world_appearance.js';
 
 export const MAP_PRESET_CATALOG_BASE_DATA = {
     standard: {
         name: 'Standard Arena',
         size: [80, 30, 80],
+        glbModels: [{ id: 'standard-world', url: 'assets/maps/standard/glb/01_world.glb',
+            position: [0, -0.12, 0], scale: 1 }],
+        glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
+        lighting: STANDARD_WORLD_LIGHTING,
         obstacles: [
             { pos: [0, 5, 0], size: [4, 10, 4] },
             { pos: [20, 5, 20], size: [3, 10, 3] },
@@ -48,6 +54,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         portals: []
     },
     maze: {
+        ...CLASSIC_WORLD_APPEARANCE.maze,
         name: 'Labyrinth',
         size: [80, 25, 80],
         obstacles: [
@@ -67,6 +74,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     complex: {
+        ...CLASSIC_WORLD_APPEARANCE.complex,
         name: 'Komplex',
         size: [90, 30, 90],
         obstacles: [
@@ -88,6 +96,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     pyramid: {
+        ...CLASSIC_WORLD_APPEARANCE.pyramid,
         name: 'Pyramide',
         size: [80, 35, 80],
         obstacles: [
@@ -105,6 +114,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     vertical_maze: {
+        ...CLASSIC_WORLD_APPEARANCE.vertical_maze,
         name: 'Vertikales Labyrinth',
         size: [100, 45, 100],
         obstacles: [
@@ -124,6 +134,7 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
         ]
     },
     trench: {
+        ...CLASSIC_WORLD_APPEARANCE.trench,
         name: 'Der Graben',
         size: [60, 40, 160],
         obstacles: [
@@ -308,6 +319,11 @@ export const MAP_PRESET_CATALOG_BASE_DATA = {
             { id: 'item_showcase_purge', pickupType: 'PURGE', x: 16, y: 12, z: 0 },
             { id: 'item_showcase_swap', pickupType: 'SWAP', x: 32, y: 12, z: 0 },
             { id: 'item_showcase_mine', pickupType: 'MINE', x: 48, y: 12, z: 0 },
+            { id: 'item_showcase_rocket_turret', pickupType: 'ROCKET_TURRET', x: -32, y: 12, z: 36 },
+            { id: 'item_showcase_fog', pickupType: 'FOG', x: -16, y: 12, z: 36 },
+            { id: 'item_showcase_fan_3', pickupType: 'FAN_3', x: 0, y: 12, z: 36 },
+            { id: 'item_showcase_fan_4', pickupType: 'FAN_4', x: 16, y: 12, z: 36 },
+            { id: 'item_showcase_fan_5', pickupType: 'FAN_5', x: 32, y: 12, z: 36 },
         ],
     },
     showcase_nexus: {

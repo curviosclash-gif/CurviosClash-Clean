@@ -1,9 +1,5 @@
 import { MULTIPLAYER_SESSION_ROLES } from '../shared/contracts/RuntimeSessionContract.js';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
 
 function normalizeBoolean(value) {
     return value === true;

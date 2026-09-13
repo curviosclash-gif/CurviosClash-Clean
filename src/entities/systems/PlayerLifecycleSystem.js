@@ -35,6 +35,12 @@ export class PlayerLifecycleSystem {
         }
 
         this._interactionPhase.runSpecialGates(player, prevPos);
+        this.entityManager?._mapHazardSystem?.updatePlayer?.(
+            player,
+            prevPos,
+            Math.max(0, Number(simulationNowMs) || 0) * 0.001
+        );
+        if (!player.alive) return;
         const collisionStart = runtimeProfiler?.startSample?.();
         const aborted = this._collisionPhase.run(player, prevPos, strategy);
         runtimeProfiler?.endSample?.('collision', collisionStart);

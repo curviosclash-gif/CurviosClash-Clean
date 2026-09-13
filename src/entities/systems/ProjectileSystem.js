@@ -3,7 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
-import { configureProjectileRange, ProjectileStatePool } from './projectile/ProjectileStatePool.js';
+import { configureExternalProjectileTarget, configureProjectileRange, ProjectileStatePool } from './projectile/ProjectileStatePool.js';
 import { ProjectileSimulationOps } from './projectile/ProjectileSimulationOps.js';
 import { ProjectileHitResolver } from './projectile/ProjectileHitResolver.js';
 import { deployMine } from './projectile/MineDeploymentOps.js';
@@ -16,6 +16,7 @@ import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
+import { shootPlayerItemProjectile } from './projectile/PlayerProjectileFireOps.js';
 
 export class ProjectileSystem {
     constructor(options = {}) {
@@ -49,6 +50,9 @@ export class ProjectileSystem {
         this.onProjectileHit = typeof options.onProjectileHit === 'function' ? options.onProjectileHit : (() => { });
         this.onProjectilePowerup = typeof options.onProjectilePowerup === 'function' ? options.onProjectilePowerup : (() => { });
         this.onProjectileDamage = typeof options.onProjectileDamage === 'function' ? options.onProjectileDamage : (() => { });
+        this.applyEnvironmentDamage = typeof options.applyEnvironmentDamage === 'function'
+            ? options.applyEnvironmentDamage
+            : (() => null);
         this.onTrailSegmentHit = typeof options.onTrailSegmentHit === 'function' ? options.onTrailSegmentHit : (() => { });
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
@@ -64,6 +68,9 @@ export class ProjectileSystem {
         this._tmpVec = new THREE.Vector3();
         this._tmpVec2 = new THREE.Vector3();
         this._tmpDir = new THREE.Vector3();
+        this._tmpFanAxis = new THREE.Vector3();
+        this._tmpFanRight = new THREE.Vector3();
+        this._tmpFanDirection = new THREE.Vector3();
         this._simulationOps = new ProjectileSimulationOps(this);
         this._hitResolver = new ProjectileHitResolver(this);
         this._rocketTrailSystem = RocketTrailSystem.forProjectileSystem(this);
@@ -71,138 +78,13 @@ export class ProjectileSystem {
     }
 
     shootItemProjectile(player, preferredIndex = -1) {
-        const config = this.entityRuntimeConfig;
-        const rocketConfig = config?.HUNT?.ROCKET || {};
-        const targetingConfig = config?.HUNT?.TARGETING || {};
-        const homingMinTurnRate = Math.max(0.000001, Number(rocketConfig.HOMING_MIN_TURN_RATE) || 0.1);
-        const homingMinLockOnAngle = Math.max(0.000001, Number(rocketConfig.HOMING_MIN_LOCK_ON_ANGLE) || 5);
-        const homingMinRange = Math.max(0.000001, Number(rocketConfig.HOMING_MIN_RANGE) || 10);
-        const homingMinReacquireInterval = Math.max(0.000001, Number(rocketConfig.HOMING_MIN_REACQUIRE_INTERVAL) || 0.04);
-        const fallbackReacquireInterval = Math.max(
-            homingMinReacquireInterval,
-            Number(rocketConfig.HOMING_FALLBACK_REACQUIRE_INTERVAL) || 0.2
-        );
-        if ((player.shootCooldown || 0) > 0) {
-            return buildGameplayActionResult({
-                ok: false,
-                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_COOLDOWN,
-                message: `Schuss bereit in ${player.shootCooldown.toFixed(1)}s`,
-            });
-        }
-
-        const strategy = this.getStrategy();
-        const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
-        const itemPreview = this.peekInventoryItem(player, preferredIndex, 'shoot');
-        if (!itemPreview?.ok) {
-            return buildGameplayActionResult({
-                ok: false,
-                code: itemPreview?.code || GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-                message: itemPreview?.reason || 'Kein Item verfuegbar',
-                type: itemPreview?.type || null,
-            });
-        }
-        if (!isPickupTypeShootable(itemPreview.type, modeType)) {
-            return buildGameplayActionResult({
-                ok: false,
-                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_FORBIDDEN,
-                message: 'Item kann nicht verschossen werden',
-                type: itemPreview.type,
-            });
-        }
-
-        const itemResult = this.takeInventoryItem(player, preferredIndex, 'shoot');
-        if (!itemResult.ok) {
-            return buildGameplayActionResult({
-                ok: false,
-                code: itemResult.code || GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-                message: itemResult.reason || 'Kein Item verfuegbar',
-                type: itemResult.type || null,
-            });
-        }
-
-        const type = itemResult.type;
-        const power = config.POWERUP.TYPES[type];
-        if (!power) {
-            return buildGameplayActionResult({
-                ok: false,
-                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_INVALID_TYPE,
-                message: 'Item ungueltig',
-                type,
-            });
-        }
-        const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
-        const huntRocket = !!rocketParams;
-        const homingEnabled = modeType === 'HUNT';
-        const visualScale = huntRocket ? rocketParams.visualScale : 1;
-        const collisionRadiusMultiplier = huntRocket ? rocketParams.collisionRadiusMultiplier : 1;
-        const baseTurnRate = Math.max(homingMinTurnRate, Number(config?.HOMING?.TURN_RATE || 3));
-        const homingTurnRate = huntRocket ? Math.max(baseTurnRate, rocketParams.homingTurnRate) : baseTurnRate;
-        const baseLockOnAngle = Math.max(homingMinLockOnAngle, Number(config?.HOMING?.LOCK_ON_ANGLE || 15));
-        const homingLockOnAngle = huntRocket ? Math.max(baseLockOnAngle, rocketParams.homingLockOnAngle) : baseLockOnAngle;
-        const baseHomingRange = Math.max(homingMinRange, Number(config?.HOMING?.MAX_LOCK_RANGE || 100));
-        const homingRange = huntRocket ? Math.max(baseHomingRange, rocketParams.homingRange) : baseHomingRange;
-        const homingReacquireInterval = huntRocket
-            ? rocketParams.homingReacquireInterval
-            : fallbackReacquireInterval;
-        const projectileSpawnOffset = Math.max(
-            0.1,
-            Number(targetingConfig.PROJECTILE_SPAWN_OFFSET)
-            || Number(targetingConfig.MUZZLE_OFFSET)
-            || 2.2
-        );
-
-        player.getAimDirection(this._tmpDir).normalize();
-        this._tmpVec.copy(player.position).addScaledVector(this._tmpDir, projectileSpawnOffset);
-
-        const speed = config.PROJECTILE.SPEED;
-        const radius = config.PROJECTILE.RADIUS;
-        const rocketGroup = this._acquireProjectileMesh(type, power.color);
-        rocketGroup.scale.setScalar(visualScale);
-        rocketGroup.position.copy(this._tmpVec);
-        this._tmpVec2.copy(this._tmpVec).add(this._tmpDir);
-        rocketGroup.lookAt(this._tmpVec2);
-
-        const projectile = this._acquireProjectileState();
-        projectile.mesh = rocketGroup;
-        projectile.flame = rocketGroup.userData.flame || null;
-        projectile.poolKey = type;
-        projectile.owner = player;
-        projectile.type = type;
-        projectile.huntRocket = huntRocket;
-        projectile.homingEnabled = homingEnabled;
-        projectile.visualScale = visualScale;
-        projectile.position.copy(this._tmpVec);
-        projectile.velocity.copy(this._tmpDir).multiplyScalar(speed);
-        projectile.radius = radius * collisionRadiusMultiplier;
-        configureProjectileRange(projectile, config.PROJECTILE, huntRocket ? ROCKET_RANGE_MULTIPLIER : 1);
-        projectile.traveled = 0;
-        projectile.homingTurnRate = homingTurnRate;
-        projectile.homingLockOnAngle = homingLockOnAngle;
-        projectile.homingRange = homingRange;
-        projectile.homingReacquireInterval = homingReacquireInterval;
-        projectile.homingReacquireTimer = 0;
-        projectile.target = this.resolveLockOn(player);
-        if (homingEnabled && (!projectile.target || !projectile.target.alive)) {
-            projectile.target = this._acquireHomingTarget(projectile, this.getPlayers(), this.getTrailSpatialIndex());
-        }
-        projectile.foamBounces = 0;
-        projectile.foamBounceCooldown = 0;
-        this._rocketTrailSystem.initializeProjectile(projectile);
-        this.projectiles.push(projectile);
-
-        player.shootCooldown = config.PROJECTILE.COOLDOWN;
-        this.onShoot(player, type, projectile);
-        return buildGameplayActionResult({
-            ok: true,
-            code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_SUCCESS,
-            mode: 'shoot',
-            type,
-        });
+        return shootPlayerItemProjectile(this, player, preferredIndex);
     }
 
     deployMine(player) { return deployMine(this, player); }
 
     spawnExternalProjectile(options = {}) {
+        if (this.networkReplica) return null;
         const owner = options.owner || null;
         const type = String(options.type || '').trim().toUpperCase();
         const position = options.position || null;
@@ -212,7 +94,16 @@ export class ProjectileSystem {
         const config = this.entityRuntimeConfig;
         const power = config?.POWERUP?.TYPES?.[type];
         const strategy = this.getStrategy();
-        const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
+        const environmentProjectile = options.environmentProjectile === true;
+        const rocketConfig = config?.HUNT?.ROCKET || {};
+        const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || (environmentProjectile ? {
+            visualScale: type === 'ROCKET_HEAVY' ? 2.2 : (type === 'ROCKET_MEDIUM' ? 1.95 : 1.7),
+            collisionRadiusMultiplier: Math.max(1, Number(rocketConfig.COLLISION_RADIUS_MULTIPLIER) || 1.65),
+            homingTurnRate: Math.max(0.1, Number(rocketConfig.HOMING_TURN_RATE) || 10),
+            homingLockOnAngle: Math.max(5, Number(rocketConfig.HOMING_LOCK_ON_ANGLE) || 48),
+            homingRange: Math.max(10, Number(rocketConfig.HOMING_RANGE) || 140),
+            homingReacquireInterval: Math.max(0.04, Number(rocketConfig.HOMING_REACQUIRE_INTERVAL) || 0.08),
+        } : null);
         if (!power || !rocketParams) return null;
 
         this._tmpDir.set(
@@ -228,8 +119,11 @@ export class ProjectileSystem {
             Number(position.z) || 0
         );
 
-        const rocketConfig = config?.HUNT?.ROCKET || {};
         const speedMultiplier = Math.max(0.2, Math.min(3, Number(options.speedMultiplier) || 1));
+        const homingTurnRateMultiplier = Math.max(
+            0.1,
+            Math.min(3, Number(options.homingTurnRateMultiplier) || 1)
+        );
         const visualScale = Math.max(1, Number(rocketParams.visualScale) || 1);
         const collisionRadiusMultiplier = Math.max(1, Number(rocketParams.collisionRadiusMultiplier) || 1);
         const rocketGroup = this._acquireProjectileMesh(type, power.color);
@@ -253,8 +147,15 @@ export class ProjectileSystem {
         );
         projectile.radius = Math.max(0.05, Number(config?.PROJECTILE?.RADIUS) || 0.5) * collisionRadiusMultiplier;
         configureProjectileRange(projectile, config.PROJECTILE, ROCKET_RANGE_MULTIPLIER);
+        if (options.zoneProjectile === true) {
+            projectile.ttl = Math.max(projectile.ttl, Number(options.minimumLifetimeSeconds) || 0);
+            projectile.maxDistance = Math.max(projectile.maxDistance, Number(options.minimumTravelDistance) || 0);
+        }
         projectile.traveled = 0;
-        projectile.homingTurnRate = Math.max(0.1, Number(rocketParams.homingTurnRate) || 10);
+        projectile.homingTurnRate = Math.max(
+            0.1,
+            (Number(rocketParams.homingTurnRate) || 10) * homingTurnRateMultiplier
+        );
         projectile.homingLockOnAngle = Math.max(5, Number(rocketParams.homingLockOnAngle) || 48);
         projectile.homingRange = Math.max(10, Number(rocketParams.homingRange) || 140);
         projectile.homingReacquireInterval = Math.max(
@@ -264,13 +165,44 @@ export class ProjectileSystem {
             || 0.2
         );
         projectile.homingReacquireTimer = 0;
-        projectile.target = options.target?.alive ? options.target : null;
+        configureExternalProjectileTarget(projectile, options);
+        projectile.environmentProjectile = environmentProjectile;
+        projectile.targetPlayerIndex = Number.isInteger(options.targetPlayerIndex)
+            ? options.targetPlayerIndex
+            : -1;
+        projectile.targetReacquireDisabled = environmentProjectile || options.targetReacquireDisabled === true;
+        projectile.ignoresTrails = environmentProjectile || options.ignoresTrails === true;
+        projectile.ignoresTurrets = environmentProjectile || options.ignoresTurrets === true;
+        projectile.zoneProjectile = options.zoneProjectile === true;
+        projectile.zoneSequence = Math.max(0, Number(options.zoneSequence) || 0);
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
         this._rocketTrailSystem.initializeProjectile(projectile);
         this.projectiles.push(projectile);
         this.onShoot(owner, type, projectile);
         return projectile;
+    }
+
+    trimZoneProjectiles(targetPlayerIndex, maxForTarget = 12, maxGlobal = 64) {
+        const targetLimit = Math.max(0, Math.trunc(Number(maxForTarget) || 0));
+        const globalLimit = Math.max(0, Math.trunc(Number(maxGlobal) || 0));
+        const collect = (targetOnly) => this.projectiles
+            .map((projectile, index) => ({ projectile, index }))
+            .filter(({ projectile }) => projectile?.zoneProjectile === true
+                && (!targetOnly || projectile.targetPlayerIndex === targetPlayerIndex))
+            .sort((a, b) => (Number(a.projectile.zoneSequence) || 0) - (Number(b.projectile.zoneSequence) || 0));
+        let targetEntries = collect(true);
+        while (targetEntries.length > targetLimit) {
+            const oldest = targetEntries.shift();
+            const index = this.projectiles.indexOf(oldest.projectile);
+            if (index >= 0) this._removeProjectileAt(index);
+        }
+        let globalEntries = collect(false);
+        while (globalEntries.length > globalLimit) {
+            const oldest = globalEntries.shift();
+            const index = this.projectiles.indexOf(oldest.projectile);
+            if (index >= 0) this._removeProjectileAt(index);
+        }
     }
 
     _acquireProjectileState() {
@@ -446,6 +378,9 @@ export class ProjectileSystem {
             projectile.owner = players.find((player) => player?.index === entry.owner) || null;
             projectile.ttl = Math.max(0, Number(entry.ttl) || 0);
             projectile.radius = Math.max(0, Number(entry.radius) || 0);
+            projectile.environmentProjectile = entry.environmentProjectile === true;
+            projectile.targetPlayerIndex = Number.isInteger(entry.targetPlayerIndex) ? entry.targetPlayerIndex : -1;
+            projectile.zoneProjectile = entry.zoneProjectile === true;
             projectile.mesh.position.copy(projectile.position);
             projectile.visualScale = Math.max(0.01, Number(entry.visualScale) || 1);
             projectile.mesh.scale.setScalar(projectile.visualScale);

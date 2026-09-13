@@ -29,7 +29,7 @@ export function buildArcadeSurface(level3Body, ui) {
 
     const summary = createElement('summary', 'menu-accordion-summary');
     const summaryTitle = createElement('span', 'section-title', t('menu.arcade.title', 'Arcade Run'));
-    const summaryCopy = createElement('span', 'menu-accordion-copy', t('menu.arcade.summary', 'Run-Layer, Score-Jagd und Seed-Anker'));
+    const summaryCopy = createElement('span', 'menu-accordion-copy', t('menu.arcade.summary', 'Sektoren meistern, Punkte sammeln und nach dem Sieg freiwillig weiterspielen'));
     summary.appendChild(summaryTitle);
     summary.appendChild(summaryCopy);
     details.appendChild(summary);
@@ -39,6 +39,13 @@ export function buildArcadeSurface(level3Body, ui) {
     const runLine = createElement('p', 'menu-hint arcade-run-line');
     runLine.id = 'arcade-run-line';
     body.appendChild(runLine);
+    const recordsLine = createElement('p', 'menu-hint');
+    recordsLine.id = 'arcade-records-line';
+    body.appendChild(recordsLine);
+    // Eigene Zeile fuer die Endlosjagd: Bestwert, Top-Liste und Meilensteine.
+    const endlessRecordsLine = createElement('p', 'menu-hint');
+    endlessRecordsLine.id = 'arcade-endless-records-line';
+    body.appendChild(endlessRecordsLine);
 
     const cardGrid = createElement('div', 'arcade-surface-grid');
 
@@ -57,10 +64,25 @@ export function buildArcadeSurface(level3Body, ui) {
     seedActions.appendChild(rerollSeedButton);
     seedActions.appendChild(copySeedButton);
     seedCard.appendChild(seedActions);
+    // Ein gesetzter Seed erzeugt dieselbe Strecke erneut - damit lassen sich Laeufe teilen.
+    const seedEntry = createElement('div', 'arcade-surface-actions');
+    const seedInput = createElement('input', 'menu-input');
+    seedInput.type = 'number';
+    seedInput.min = '1';
+    seedInput.max = '2147483647';
+    seedInput.step = '1';
+    seedInput.id = 'input-arcade-seed';
+    seedInput.placeholder = t('menu.arcade.seed.input.placeholder', 'Seed eingeben');
+    const applySeedButton = createElement('button', 'secondary-btn', t('menu.arcade.seed.apply.label', 'Seed setzen'));
+    applySeedButton.type = 'button';
+    applySeedButton.id = 'btn-arcade-seed-apply';
+    seedEntry.appendChild(seedInput);
+    seedEntry.appendChild(applySeedButton);
+    seedCard.appendChild(seedEntry);
     cardGrid.appendChild(seedCard);
 
     const hudCard = createElement('section', 'arcade-surface-card');
-    hudCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.hud.title', 'HUD Shell')));
+    hudCard.appendChild(createElement('h3', 'arcade-surface-card-title', t('menu.arcade.hud.title', 'Run-Übersicht')));
     const hudGrid = createElement('div', 'arcade-hud-shell-grid');
     const metricScore = createMetric(t('menu.arcade.hud.score.label', 'Score'), '0');
     const metricMultiplier = createMetric(t('menu.arcade.hud.multiplier.label', 'x-Multi'), 'x1.0');
@@ -79,7 +101,7 @@ export function buildArcadeSurface(level3Body, ui) {
     postRunLine.id = 'arcade-post-run-line';
     postRunCard.appendChild(postRunLine);
     const postRunActions = createElement('div', 'arcade-surface-actions');
-    const replayButton = createElement('button', 'secondary-btn', t('menu.arcade.postrun.replay.label', 'Replay/Fallback'));
+    const replayButton = createElement('button', 'secondary-btn', t('menu.arcade.postrun.replay.label', 'Replay exportieren'));
     replayButton.type = 'button';
     replayButton.id = 'btn-arcade-replay';
     postRunActions.appendChild(replayButton);
@@ -129,12 +151,16 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeEndlessStartInlineButton = startEndlessButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
     ui.arcadeSeedCopyButton = copySeedButton;
+    ui.arcadeSeedInput = seedInput;
+    ui.arcadeSeedApplyButton = applySeedButton;
     ui.arcadeReplayButton = replayButton;
     ui.arcadeDailyButton = dailyButton;
 
     return {
         details,
         runLine,
+        recordsLine,
+        endlessRecordsLine,
         seedLine,
         postRunLine,
         dailyLine,
@@ -147,6 +173,8 @@ export function buildArcadeSurface(level3Body, ui) {
         startEndlessButton,
         rerollSeedButton,
         copySeedButton,
+        seedInput,
+        applySeedButton,
         replayButton,
         dailyButton,
         hangarLaunchCard,

@@ -1,13 +1,10 @@
+import { normalizeString } from './ContractNormalizeUtils.js';
+
 const VALID_MODE_PATHS = new Set(['normal', 'arcade', 'fight']);
 const VALID_GAME_MODES = new Set(['CLASSIC', 'HUNT', 'ARCADE']);
 const VALID_BOT_ROLES = new Set(['guard', 'flanker', 'pursuer', 'interceptor']);
 const VALID_TURRET_WEAPONS = new Set(['mg', 'rocket']);
 const VALID_TURRET_ROCKETS = new Set(['ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY']);
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 export function resolveMapSinglePlayerScenario(mapDefinition = null) {
     const source = mapDefinition?.singlePlayerScenario;
@@ -39,33 +36,45 @@ export function resolveMapSinglePlayerScenario(mapDefinition = null) {
     return Object.freeze(scenario);
 }
 
-function normalizePosition(source) {
-    const raw = Array.isArray(source?.pos)
-        ? source.pos
-        : [source?.x, source?.y, source?.z];
-    return Object.freeze([
-        Number(raw?.[0]) || 0,
-        Number(raw?.[1]) || 0,
-        Number(raw?.[2]) || 0,
-    ]);
+function finiteNumber(value, fallback, min = -Number.MAX_VALUE, max = Number.MAX_VALUE) {
+    const number = Number(value);
+    return Number.isFinite(number) ? Math.max(min, Math.min(max, number)) : fallback;
 }
 
-export function resolveMapStaticTurretDefinitions(mapDefinition = null) {
+export function normalizeStaticTurretDefinition(entry, index = 0, { spatialScale = 1, preserveSpatialRange = false } = {}) {
+    const weaponCandidate = normalizeString(entry?.weapon, 'mg').toLowerCase();
+    const weapon = VALID_TURRET_WEAPONS.has(weaponCandidate) ? weaponCandidate : 'mg';
+    const rocketCandidate = normalizeString(entry?.rocketType, 'ROCKET_WEAK').toUpperCase();
+    const pos = Array.isArray(entry?.pos) ? entry.pos : [entry?.x, entry?.y, entry?.z];
+    const modes = Array.isArray(entry?.allowedModes)
+        ? [...new Set(entry.allowedModes.filter((mode) => mode === 'HUNT' || mode === 'ARCADE'))]
+        : ['HUNT'];
+    return Object.freeze({
+        id: normalizeString(entry?.id, `turret_${index + 1}`),
+        weapon,
+        pos: Object.freeze([0, 1, 2].map((axis) => finiteNumber(pos[axis], 0))),
+        range: finiteNumber(entry?.range, (weapon === 'rocket' ? 90 : 64) * spatialScale, preserveSpatialRange ? 0.001 : 8 * spatialScale, preserveSpatialRange ? 1000000 : 180 * spatialScale),
+        cooldown: finiteNumber(entry?.cooldown, weapon === 'rocket' ? 3.4 : 0.8, 0.2, 12),
+        damage: finiteNumber(entry?.damage, 4, 1, 40),
+        phase: finiteNumber(entry?.phase, 0, 0),
+        rocketType: VALID_TURRET_ROCKETS.has(rocketCandidate) ? rocketCandidate : 'ROCKET_WEAK',
+        destructible: entry?.destructible === true,
+        maxHp: finiteNumber(entry?.maxHp, 90, 1, 500),
+        targetPlayers: entry?.targetPlayers === 'all' ? 'all' : 'humans',
+        targetTrails: entry?.targetTrails === true,
+        allowedModes: Object.freeze(modes),
+    });
+}
+
+export function resolveMapStaticTurretDefinitions(mapDefinition = null, options = {}) {
     const source = Array.isArray(mapDefinition?.staticTurrets) ? mapDefinition.staticTurrets : [];
+    if (source.length > 512) throw new Error('Map collection "staticTurrets" exceeds the limit of 512.');
+    const ids = new Set();
     return Object.freeze(source.map((entry, index) => {
-        const weaponCandidate = normalizeString(entry?.weapon, 'mg').toLowerCase();
-        const weapon = VALID_TURRET_WEAPONS.has(weaponCandidate) ? weaponCandidate : 'mg';
-        const rocketCandidate = normalizeString(entry?.rocketType, 'ROCKET_WEAK').toUpperCase();
-        return Object.freeze({
-            id: normalizeString(entry?.id, `turret_${index + 1}`),
-            weapon,
-            pos: normalizePosition(entry),
-            range: Math.max(8, Math.min(180, Number(entry?.range) || (weapon === 'rocket' ? 90 : 64))),
-            cooldown: Math.max(0.2, Math.min(12, Number(entry?.cooldown) || (weapon === 'rocket' ? 3.4 : 0.8))),
-            damage: Math.max(1, Math.min(40, Number(entry?.damage) || 4)),
-            phase: Math.max(0, Number(entry?.phase) || 0),
-            rocketType: VALID_TURRET_ROCKETS.has(rocketCandidate) ? rocketCandidate : 'ROCKET_WEAK',
-        });
+        const definition = normalizeStaticTurretDefinition(entry, index, options);
+        if (ids.has(definition.id)) throw new Error(`Duplicate static turret id: ${definition.id}`);
+        ids.add(definition.id);
+        return definition;
     }));
 }
 

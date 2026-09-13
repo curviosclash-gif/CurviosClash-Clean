@@ -53,6 +53,7 @@ const NOTRE_DAME_AUDIO_PROFILE = Object.freeze({
 // what the shared arrays exist to save.
 export const NOTRE_DAME_COMMON = {
     size: MAP_SIZE,
+    exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
     scaleAuthoredAnchors: true,
     preferAuthoredPortals: true,
     portalLevels: [GROUND + 12, GROUND + 30, GROUND + 54, GROUND + 76, GROUND + 100],

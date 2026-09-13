@@ -29,6 +29,11 @@ import {
     DEFAULT_VIEW_DISTANCE,
     normalizeViewDistance,
 } from '../shared/contracts/ViewDistanceContract.js';
+import { resolveMapLighting } from '../shared/contracts/MapLightingContract.js';
+import {
+    createGlobalFogEffectState,
+    resolveGlobalFogMapRange,
+} from '../shared/contracts/GlobalFogEffectContract.js';
 
 export class Renderer {
     constructor(canvas) {
@@ -54,6 +59,10 @@ export class Renderer {
         this.renderer.outputColorSpace = THREE.SRGBColorSpace;
         this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
         this.renderer.setClearColor(CONFIG.COLORS.BACKGROUND);
+        // three verifies every freshly linked program with a synchronous getProgramInfoLog and waits
+        // for the driver to finish. That is a development aid; in the shipped build it only turns the
+        // first frame that uses a material into a stall.
+        this.renderer.debug.checkShaderErrors = Boolean(import.meta?.env?.DEV);
 
         this.scene = new THREE.Scene();
         this.scene.fog = new THREE.Fog(CONFIG.COLORS.BACKGROUND, 50, 200);
@@ -65,6 +74,8 @@ export class Renderer {
         // The map may carry its own lighting profile; undefined means the style base stands.
         this._mapLighting = undefined;
         this._mapScale = 1;
+        this._globalFogEffect = createGlobalFogEffectState();
+        this._globalFogVisibilityRange = 0;
         this._lightingRig = new SceneLightingRig({
             scene: this.scene,
             renderer: this.renderer,
@@ -175,6 +186,22 @@ export class Renderer {
         return this._mapLighting;
     }
 
+    setGlobalFogEffect(value = null) {
+        const next = createGlobalFogEffectState(value);
+        const activeChanged = this._globalFogEffect.active !== next.active;
+        this._globalFogEffect = next;
+        if (activeChanged) this._applySceneAppearance();
+        return this.getGlobalFogEffect();
+    }
+
+    getGlobalFogEffect() {
+        return { ...this._globalFogEffect };
+    }
+
+    getGlobalFogVisibilityRange() {
+        return this._globalFogVisibilityRange;
+    }
+
     // Der Grafikstil liefert die Basiswerte, die Helligkeitsstufe einen Faktor darauf, und
     // eine explizit gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Nur diese eine
     // Stelle schreibt - sonst ueberschreiben sich die Quellen gegenseitig.
@@ -183,13 +210,27 @@ export class Renderer {
     // und eine gesetzte Sichtweite ersetzt die Fog-Reichweite ganz. Schriebe eine der Quellen
     // woanders, wuerde sie von der naechsten ueberschrieben.
     _applySceneAppearance() {
+        const normalMapLighting = resolveMapLighting(this._mapLighting);
+        const globalFogRange = resolveGlobalFogMapRange(normalMapLighting, CONFIG.CAMERA.FAR);
+        this._globalFogVisibilityRange = globalFogRange.far;
         const lighting = this._lightingRig.apply({
             graphicsStyle: this._graphicsStyle,
             mapLighting: this._mapLighting,
             mapScale: this._mapScale,
             brightnessFactors: resolveMapBrightnessFactors(this._mapBrightness),
             viewDistance: this._viewDistance,
+            globalFogRange: this._globalFogEffect?.active === true ? globalFogRange : null,
         });
+        // Authored long-range fog needs matching clipping, including after a map switch.
+        this._cameraFar = Math.max(CONFIG.CAMERA.FAR, this.scene.fog.far);
+        setAtmosphericFogClipDistance(this._cameraFar);
+        if (this.cameras) {
+            for (const camera of this.cameras) {
+                if (camera.far === this._cameraFar) continue;
+                camera.far = this._cameraFar;
+                camera.updateProjectionMatrix();
+            }
+        }
         // The reflection has to follow the same lighting the rig just applied, otherwise the metal
         // in the scene keeps mirroring whatever sky the previous map had.
         this._environmentController.apply(this._graphicsStyle, lighting);
@@ -220,7 +261,10 @@ export class Renderer {
         };
     }
     createCamera(_index) {
-        return this.cameraRigSystem.createCamera(this._getAspect());
+        const camera = this.cameraRigSystem.createCamera(this._getAspect());
+        camera.far = this._cameraFar;
+        camera.updateProjectionMatrix();
+        return camera;
     }
 
     setSplitScreen(enabled) {
@@ -335,6 +379,24 @@ export class Renderer {
 
     render() {
         this.viewportSystem.render(this.scene, this.cameras);
+    }
+
+    /**
+     * Builds the shader programs of the current match scene ahead of the first drawn frame.
+     * Deliberately the synchronous compile: compileAsync polls currentProgram.isReady() on its own
+     * timer, and a match that tears down its scene before that poll finishes leaves the program
+     * undefined, which throws outside any promise chain.
+     * @returns {boolean} whether a compile ran for this scene
+     */
+    precompileMatchScene() {
+        const camera = this.cameras?.[0] || null;
+        if (!camera) return false;
+        try {
+            this.renderer.compile(this.scene, camera);
+            return true;
+        } catch {
+            return false;
+        }
     }
 
     _getAspect() {

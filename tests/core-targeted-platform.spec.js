@@ -250,6 +250,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         await loadGame(page);
         const multiplayerActive = await openMultiplayerSubmenu(page);
         expect(multiplayerActive, 'Multiplayer-Surface muss im Desktop-Profil aktiv sein.').toBe(true);
+        await page.click('[data-connection-intent-target="host"]');
         const hostButton = page.locator('#btn-multiplayer-host').first();
         const hostButtonVisible = (await hostButton.count()) > 0
             && await hostButton.isVisible().catch(() => false);
@@ -302,6 +303,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
             const hostMultiplayerActive = await openMultiplayerSubmenu(page);
             await page.fill('#multiplayer-lobby-code', 'SYNC-LOBBY');
+            await page.click('[data-connection-intent-target="host"]');
             await page.click('#btn-multiplayer-host');
             await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 
@@ -363,6 +365,7 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
 
             const hostMultiplayerActive = await openMultiplayerSubmenu(page);
             await page.fill('#multiplayer-lobby-code', 'START-LOBBY');
+            await page.click('[data-connection-intent-target="host"]');
             await page.click('#btn-multiplayer-host');
             await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 

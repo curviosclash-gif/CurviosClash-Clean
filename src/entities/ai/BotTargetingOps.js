@@ -3,7 +3,7 @@
 // ============================================
 
 import { PERCEPTION_THRESHOLDS } from './perception/EnvironmentSamplingOps.js';
-import { clamp01 } from '../../utils/MathOps.js';
+import { clamp01 } from '../../shared/utils/MathOps.js';
 
 const TARGET_RETAIN_BONUS = 0.08;
 const TARGET_SWITCH_MARGIN = 0.015;
@@ -15,6 +15,13 @@ function resolveTargetVulnerability(target) {
     const hp = Number(target?.hp);
     if (!Number.isFinite(maxHp) || maxHp <= 0 || !Number.isFinite(hp)) return 0;
     return 1 - clamp01(hp / maxHp);
+}
+
+export function isTargetVisibleToPlayer(player, target) {
+    return player?.entityManager?.isPositionVisibleDuringGlobalFog?.(
+        player?.position,
+        target?.position
+    ) !== false;
 }
 
 export function selectTarget(bot, player, allPlayers) {
@@ -40,7 +47,7 @@ export function selectTarget(bot, player, allPlayers) {
 
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
-        if (!other || other === player || !other.alive) continue;
+        if (!other || other === player || !other.alive || !isTargetVisibleToPlayer(player, other)) continue;
 
         bot._tmpVec.subVectors(other.position, player.position);
         const distSq = bot._tmpVec.lengthSq();
@@ -98,7 +105,7 @@ export function estimateEnemyPressure(bot, position, owner, allPlayers) {
     let nearestDistSq = Infinity;
     for (let i = 0; i < allPlayers.length; i++) {
         const other = allPlayers[i];
-        if (!other || other === owner || !other.alive) continue;
+        if (!other || other === owner || !other.alive || !isTargetVisibleToPlayer(owner, other)) continue;
         const d = other.position.distanceToSquared(position);
         if (d < nearestDistSq) nearestDistSq = d;
     }
@@ -108,7 +115,7 @@ export function estimateEnemyPressure(bot, position, owner, allPlayers) {
 }
 
 export function estimatePointRisk(bot, point, player, arena, allPlayers) {
-    const wallHit = arena.checkCollisionFast(point, player.hitboxRadius * 2.0) ? 1 : 0;
+    const wallHit = (arena.checkBotCollisionFast || arena.checkCollisionFast).call(arena, point, player.hitboxRadius * 2.0) ? 1 : 0;
     const trailHit = bot.checkTrailHit(point, player, allPlayers) ? 1 : 0;
     const enemyPressure = estimateEnemyPressure(bot, point, player, allPlayers);
     return wallHit * 1.2 + trailHit * 1.5 + enemyPressure * 0.6;

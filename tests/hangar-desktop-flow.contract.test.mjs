@@ -11,9 +11,11 @@ import {
     HANGAR_DESKTOP_ENTRY_IDS,
     resolveDesktopHangarEntryByMode,
 } from '../src/ui/hangar/HangarDesktopEntryContract.js';
-import { resolveArcadeVehicleManagerLegacyStatus } from '../src/ui/hangar/ArcadeVehicleManagerLegacyContract.js';
 import { resolveHangarLifecycleContract } from '../src/ui/hangar/HangarLifecycleContract.js';
-import { resolveHangarShellLayout } from '../src/ui/hangar/HangarShellLayoutContract.js';
+import {
+    assertHangarShellRegionId,
+    resolveHangarShellLayout,
+} from '../src/ui/hangar/HangarShellLayoutContract.js';
 import {
     HANGAR_SELECTION_WRITEBACK_PATHS,
     readHangarMapSelection,
@@ -22,7 +24,6 @@ import {
     writeHangarMapSelection,
     writeHangarVehicleSelection,
 } from '../src/ui/hangar/HangarSelectionWritebackContract.js';
-import { listHangarVerificationTargets } from '../src/ui/hangar/HangarVerificationTargetContract.js';
 import { createHangarWorkshopPersistenceFacade } from '../src/ui/hangar/HangarWorkshopPersistenceFacade.js';
 
 test('V76.99.2 desktop hangar entry resolves stable fight/arcade open paths', () => {
@@ -232,26 +233,20 @@ test('V76.99.2 workshop persistence facade propagates backend-level rejection', 
     assert.equal(result.message, 'refused by backend');
 });
 
-test('desktop arcade hangar exposes the dedicated workshop through the compatibility entry', () => {
-    const legacyStatus = resolveArcadeVehicleManagerLegacyStatus();
-    const arcadeShellLayout = resolveHangarShellLayout(HANGAR_MODES.ARCADE);
-    const verificationTargets = listHangarVerificationTargets();
+test('the shell layout keeps every region anchor resolvable', () => {
+    for (const mode of [HANGAR_MODES.ARCADE, HANGAR_MODES.FIGHT]) {
+        const layout = resolveHangarShellLayout(mode);
+        const regionIds = new Set(layout.commonRegions.map((region) => region.id));
 
-    assert.equal(legacyStatus.runtimeStatus, 'productively-wired');
-    assert.equal(legacyStatus.status, 'window-only-entry');
-    assert.equal(legacyStatus.productivity, 'dedicated-workshop-active');
-    assert.equal(legacyStatus.activeProductSurface?.entryPath, 'src/ui/hangar/HangarWindowApp.js');
-    assert.equal(legacyStatus.activeProductSurface?.entryAdapter, 'setupArcadeHangarWorkshop');
-    assert.equal(legacyStatus.activeProductSurface?.mountId, 'hangar-window-mount');
-
-    assert.equal(arcadeShellLayout.surfaceStatus?.runtimeStatus, 'productively-wired');
-    assert.equal(arcadeShellLayout.surfaceStatus?.productivity, 'desktop-workshop');
-    assert.equal(arcadeShellLayout.surfaceStatus?.activeProductSurface, 'src/ui/hangar/ArcadeHangarWorkshop.js');
-
-    assert.ok(verificationTargets.length > 0);
-    verificationTargets.forEach((target) => {
-        assert.equal(target.surfaceStatus?.runtimeStatus, 'productively-wired');
-        assert.equal(target.surfaceStatus?.productivity, 'desktop-workshop');
-        assert.equal(target.surfaceStatus?.activeProductSurface, 'src/ui/hangar/ArcadeHangarWorkshop.js');
-    });
+        assert.ok(regionIds.size > 0);
+        for (const region of layout.commonRegions) {
+            assert.notEqual(assertHangarShellRegionId(region.id), null);
+        }
+        for (const extension of layout.modeExtensions) {
+            assert.ok(
+                regionIds.has(extension.anchorRegionId),
+                `${extension.id} anchors at ${extension.anchorRegionId}, which the layout does not contain`
+            );
+        }
+    }
 });

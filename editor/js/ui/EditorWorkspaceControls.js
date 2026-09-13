@@ -1,3 +1,5 @@
+import { bindEditorGroupTransform } from './EditorGroupTransform.js';
+import { createEditorCollisionProbe } from './EditorCollisionValidation.js';
 import * as THREE from 'three';
 import { resolveMapAuthoringStatus } from '../EditorMapSerializer.js';
 import {
@@ -80,11 +82,6 @@ function removeAutosave() {
     try { localStorage.removeItem(AUTOSAVE_STORAGE_KEY); } catch { /* optional */ }
 }
 
-function getBlockingBoxes(objects) {
-    return objects.filter((object) => object.userData?.type === 'hard' || object.userData?.type === 'foam')
-        .map((object) => ({ object, box: new THREE.Box3().setFromObject(object) }));
-}
-
 const BLOCKING_EXPORT_VALIDATION_CODES = new Set([
     'player-spawn',
     'portal-pairs',
@@ -112,7 +109,7 @@ function buildValidationItems(editor) {
             || (Number(object.position?.y) || 0) < 0
             || (Number(object.position?.y) || 0) > arena.height;
     });
-    const boxes = getBlockingBoxes(objects);
+    const isBlocked = createEditorCollisionProbe(editor, objects);
     const spawns = objects.filter((object) => object.userData?.type === 'spawn');
     const portals = objects.filter((object) => object.userData?.type === 'portal');
     const checkpoints = objects.filter((object) => object.userData?.type === 'checkpoint')
@@ -126,9 +123,9 @@ function buildValidationItems(editor) {
             }
         }
     }
-    const trappedSpawns = spawns.filter((spawn) => boxes.some(({ box }) => box.containsPoint(spawn.position)));
-    const blockedPortals = portals.filter((portal) => boxes.some(({ box }) => box.containsPoint(portal.position)));
-    const blockedCheckpoints = checkpoints.filter((checkpoint) => boxes.some(({ box }) => box.containsPoint(checkpoint.position)));
+    const trappedSpawns = spawns.filter((spawn) => isBlocked(spawn.position));
+    const blockedPortals = portals.filter((portal) => isBlocked(portal.position));
+    const blockedCheckpoints = checkpoints.filter((checkpoint) => isBlocked(checkpoint.position));
     const unreachableCheckpoints = new Set(blockedCheckpoints.map((entry) => entry.userData.id));
     const maxSegmentDistance = Math.max(arena.width, arena.depth, arena.height * 2) * 0.72;
     for (let index = 1; index < checkpoints.length; index += 1) {
@@ -153,8 +150,8 @@ function buildValidationItems(editor) {
         { code: 'parcours-finish', ok: !status.parcoursEnabled || status.parcourHasFinish, label: !status.parcoursEnabled || status.parcourHasFinish ? 'Parcours ist vollstaendig' : 'Parcours-Finish fehlt', objectIds: [] },
         { code: 'outside-arena', ok: outside.length === 0, label: outside.length === 0 ? 'Objekte liegen im Arena-Rahmen' : `${outside.length} Objekt(e) ausserhalb der Arena`, objectIds: outside.map((entry) => entry.userData.id) },
         { code: 'spawn-overlap', ok: overlappingSpawns.size === 0, label: overlappingSpawns.size === 0 ? 'Spawn-Abstaende sind frei' : `${overlappingSpawns.size} Spawn(s) ueberlappen`, objectIds: [...overlappingSpawns] },
-        { code: 'spawn-trapped', ok: trappedSpawns.length === 0, label: trappedSpawns.length === 0 ? 'Spawns sind nicht eingeschlossen' : `${trappedSpawns.length} Spawn(s) in Geometrie`, objectIds: trappedSpawns.map((entry) => entry.userData.id) },
-        { code: 'portal-blocked', ok: blockedPortals.length === 0, label: blockedPortals.length === 0 ? 'Portalzentren sind frei' : `${blockedPortals.length} Portal(e) blockiert`, objectIds: blockedPortals.map((entry) => entry.userData.id) },
+        { code: 'spawn-trapped', ok: trappedSpawns.length === 0, label: trappedSpawns.length === 0 ? 'Spawn-Freiraum fuer Standardfahrzeug vorhanden' : `${trappedSpawns.length} Spawn(s) ohne ausreichenden Freiraum`, objectIds: trappedSpawns.map((entry) => entry.userData.id) },
+        { code: 'portal-blocked', ok: blockedPortals.length === 0, label: blockedPortals.length === 0 ? 'Portalzentren bieten Fahrzeug-Freiraum' : `${blockedPortals.length} Portal(e) blockiert`, objectIds: blockedPortals.map((entry) => entry.userData.id) },
         { code: 'checkpoint-reachability', ok: unreachableCheckpoints.size === 0, label: unreachableCheckpoints.size === 0 ? 'Parcours-Segmente wirken erreichbar' : `${unreachableCheckpoints.size} Checkpoint(s) blockiert oder zu weit entfernt`, objectIds: [...unreachableCheckpoints] },
         { code: 'assets', ok: !assetsDegraded, label: assetsDegraded ? 'Assets verwenden Fallbacks' : 'Assets sind bereit', objectIds: [] },
     ].map((item) => ({
@@ -173,6 +170,7 @@ function offsetClipboardPayload(editor, object, offset = null) {
     return { payload, position };
 }
 
+/** @param {Record<string, any>} extraProps */
 function normalizePrefabExtraProps(extraProps = {}) {
     const result = { ...extraProps };
     if (Array.isArray(result.pointA)) result.pointA = new THREE.Vector3().fromArray(result.pointA);
@@ -294,6 +292,7 @@ export function bindEditorWorkspaceControls(editor) {
 
     const createDocument = (jsonText) => createEditorAuthoringDocument({
         map: JSON.parse(jsonText),
+        playerSpawnPlaced: resolveMapAuthoringStatus(editor.mapManager).playerSpawnPlaced,
         workspaceMetadata: cloneWorkspaceMetadata(editor),
         layerState: editor.captureLayerState?.(),
         viewState: editor.captureEditorViewState?.(),
@@ -317,6 +316,7 @@ export function bindEditorWorkspaceControls(editor) {
                 savedAt: new Date().toISOString(), json,
                 workspaceMetadata: documentValue.authoring.workspaceMetadata,
                 layerState: documentValue.authoring.layerState,
+                playerSpawnPlaced: documentValue.authoring.playerSpawnPlaced,
                 viewState: documentValue.authoring.viewState,
             }));
             notify('Arbeitsstand automatisch gesichert.', 'success');
@@ -338,11 +338,11 @@ export function bindEditorWorkspaceControls(editor) {
         scheduleAutosave();
     };
 
-    const markSaved = (message = 'Map gespeichert.') => {
-        savedStateSignature = captureStateSignature();
-        dirty = false;
+    const markSaved = (message = 'Map gespeichert.', signature = captureStateSignature()) => {
+        savedStateSignature = signature;
+        dirty = captureStateSignature() !== signature;
         renderDirty();
-        if (!pendingRecovery) {
+        if (!dirty && !pendingRecovery) {
             removeAutosave();
             dom.recoveryBanner?.classList.remove('is-visible');
         }
@@ -381,6 +381,7 @@ export function bindEditorWorkspaceControls(editor) {
     };
 
     const updateMarkedActions = () => {
+        editor.syncGroupTransform?.();
         const hasLockedObject = [...markedIds].some((id) => editor.isObjectLocked?.(editor.mapManager?.getObjectById?.(id)));
         const hasMarkedObjects = markedIds.size > 0;
         if (dom.btnGroupMarked) {
@@ -399,6 +400,19 @@ export function bindEditorWorkspaceControls(editor) {
             dom.btnTransformMarked.hidden = !hasMarkedObjects;
             dom.btnTransformMarked.disabled = !hasMarkedObjects || hasLockedObject;
         }
+    };
+
+    bindEditorGroupTransform(editor, () => [...markedIds].map((id) => editor.mapManager?.getObjectById?.(id)).filter(Boolean));
+    window.addEventListener('pagehide', () => editor.disposeGroupTransform?.(), { once: true });
+    editor.clearMarkedObjects = () => { markedIds.clear(); };
+
+    editor.toggleMarkedObject = (object) => {
+        const groupId = object.userData?.groupId;
+        const affected = groupId ? listObjects(editor).filter((entry) => entry.userData?.groupId === groupId) : [object];
+        const mark = !markedIds.has(object.userData.id);
+        affected.forEach((entry) => mark ? markedIds.add(entry.userData.id) : markedIds.delete(entry.userData.id));
+        updateMarkedActions();
+        scheduleOutliner();
     };
 
     const renderOutliner = () => {
@@ -524,7 +538,7 @@ export function bindEditorWorkspaceControls(editor) {
     const closeModal = (result) => {
         dom.editorModalBackdrop?.classList.remove('is-open');
         dom.editorModalBackdrop?.setAttribute('aria-hidden', 'true');
-        if (pageShell) pageShell.inert = false;
+        if (pageShell instanceof HTMLElement) pageShell.inert = false;
         const resolve = modalResolve;
         modalResolve = null;
         resolve?.(result);
@@ -532,22 +546,43 @@ export function bindEditorWorkspaceControls(editor) {
         modalReturnFocus = null;
     };
 
-    const openModal = ({ title, message, confirmLabel = 'Bestaetigen', value = null, danger = false } = {}) => {
+    const openModal = ({ title = '', message = '', confirmLabel = 'Bestaetigen', value = null, fields = null, danger = false } = {}) => {
         if (!dom.editorModalBackdrop || modalResolve) return Promise.resolve(null);
         dom.editorModalTitle.textContent = title || 'Bestaetigen';
         dom.editorModalMessage.textContent = message || '';
         dom.btnEditorModalConfirm.textContent = confirmLabel;
         dom.btnEditorModalConfirm.classList.toggle('dangerAction', danger);
+        dom.editorModalBackdrop.querySelector('[data-transform-fields]')?.remove();
+        const fieldInputs = [];
+        if (fields) {
+            const container = document.createElement('div');
+            container.dataset.transformFields = '';
+            for (const [name, labelText, initialValue] of fields) {
+                const label = document.createElement('label');
+                label.textContent = labelText;
+                const input = document.createElement('input');
+                input.type = 'number';
+                input.step = 'any';
+                input.name = name;
+                input.value = String(initialValue);
+                input.required = true;
+                if (name === 'scale') input.min = '0.0001';
+                label.append(input);
+                container.append(label);
+                fieldInputs.push(input);
+            }
+            dom.editorModalInput.before(container);
+        }
         const hasInput = value !== null;
         dom.editorModalInput.hidden = !hasInput;
         dom.editorModalInput.value = hasInput ? String(value || '') : '';
         modalReturnFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-        if (pageShell) pageShell.inert = true;
+        if (pageShell instanceof HTMLElement) pageShell.inert = true;
         dom.editorModalBackdrop.setAttribute('aria-hidden', 'false');
         dom.editorModalBackdrop.classList.add('is-open');
-        window.setTimeout(() => (hasInput ? dom.editorModalInput : dom.btnEditorModalConfirm)?.focus(), 0);
+        window.setTimeout(() => (fieldInputs[0] || (hasInput ? dom.editorModalInput : dom.btnEditorModalConfirm))?.focus(), 0);
         return new Promise((resolve) => {
-            modalResolve = (confirmed) => resolve(confirmed ? (hasInput ? String(dom.editorModalInput.value || '').trim() : true) : null);
+            modalResolve = (confirmed) => resolve(confirmed ? (fields ? Object.fromEntries(fieldInputs.map((input) => [input.name, input.valueAsNumber])) : (hasInput ? String(dom.editorModalInput.value || '').trim() : true)) : null);
         });
     };
 
@@ -587,9 +622,9 @@ export function bindEditorWorkspaceControls(editor) {
             const relY = (object.position.y - center.y) * scale;
             const relZ = (object.position.z - center.z) * scale;
             object.position.set(
-                center.x + relX * cos - relZ * sin + dx,
+                center.x + relX * cos + relZ * sin + dx,
                 center.y + relY + dy,
-                center.z + relX * sin + relZ * cos + dz,
+                center.z - relX * sin + relZ * cos + dz,
             );
             object.rotation.y += radians;
             if (editor.mapManager.canScaleObject(object)) object.scale.multiplyScalar(scale);
@@ -646,7 +681,12 @@ export function bindEditorWorkspaceControls(editor) {
     };
 
     dom.btnEditorModalCancel?.addEventListener('click', () => closeModal(false));
-    dom.btnEditorModalConfirm?.addEventListener('click', () => closeModal(true));
+    const confirmModal = () => {
+        const invalid = [...dom.editorModalBackdrop.querySelectorAll('[data-transform-fields] input')].find((input) => !input.checkValidity());
+        if (invalid) { invalid.reportValidity(); return; }
+        closeModal(true);
+    };
+    dom.btnEditorModalConfirm?.addEventListener('click', confirmModal);
     dom.editorModalBackdrop?.addEventListener('click', (event) => { if (event.target === dom.editorModalBackdrop) closeModal(false); });
     dom.editorModalBackdrop?.addEventListener('keydown', (event) => {
         if (!modalResolve) return;
@@ -655,9 +695,9 @@ export function bindEditorWorkspaceControls(editor) {
             closeModal(false);
             return;
         }
-        if (event.key === 'Enter' && event.target === dom.editorModalInput) {
+        if (event.key === 'Enter' && event.target instanceof HTMLInputElement) {
             event.preventDefault();
-            closeModal(true);
+            confirmModal();
             return;
         }
         if (event.key !== 'Tab') return;
@@ -739,16 +779,12 @@ export function bindEditorWorkspaceControls(editor) {
         }
         const value = await openModal({
             title: 'Gruppe transformieren',
-            message: 'Werte als X, Y, Z, Rotation in Grad, Skalierung eingeben.',
-            confirmLabel: 'Anwenden', value: '0, 0, 0, 0, 1',
+            message: 'Verschiebung und Transformation um den gemeinsamen Mittelpunkt.',
+            confirmLabel: 'Anwenden',
+            fields: [['dx', 'X-Verschiebung', 0], ['dy', 'Y-Verschiebung', 0], ['dz', 'Z-Verschiebung', 0], ['rotationDegrees', 'Rotation (Grad)', 0], ['scale', 'Skalierung', 1]],
         });
         if (value === null) return;
-        const values = value.split(/[;,\s]+/).filter(Boolean).map(Number);
-        if (values.length !== 5 || values.some((entry) => !Number.isFinite(entry)) || values[4] <= 0) {
-            notify('Bitte genau fuenf gueltige Werte und eine Skalierung groesser 0 eingeben.', 'error');
-            return;
-        }
-        editor.executeHistoryMutation('Transform group', () => transformMarked({ dx: values[0], dy: values[1], dz: values[2], rotationDegrees: values[3], scale: values[4] }));
+        editor.executeHistoryMutation('Transform group', () => transformMarked(value));
     });
 
     dom.btnDeleteMarked?.addEventListener('click', async () => {
@@ -783,9 +819,7 @@ export function bindEditorWorkspaceControls(editor) {
         try {
             editor.executeHistoryMutation('Restore autosave', () => {
                 editor.mapManager.importFromJSON(autosave.json, { onArenaSize: (arenaSize) => { editor.setArenaSizeInputs(arenaSize); editor.syncArenaValues?.(); } });
-                applyWorkspaceMetadata(editor, autosave.workspaceMetadata);
-                editor.applyLayerState?.(autosave.layerState);
-                editor.restoreEditorViewState?.(autosave.viewState);
+                editor.applyEditorImportState(autosave);
             });
             pendingRecovery = null;
             removeAutosave();
@@ -837,6 +871,11 @@ export function bindEditorWorkspaceControls(editor) {
         return { ...parsed, jsonText: JSON.stringify(parsed.map, null, 2) };
     };
     editor.applyEditorImportState = (parsed) => {
+        if (parsed?.playerSpawnPlaced === false) {
+            for (const object of listObjects(editor)) {
+                if (object.userData.type === 'spawn' && object.userData.subType === 'player') editor.mapManager.removeObject(object);
+            }
+        }
         applyWorkspaceMetadata(editor, parsed?.workspaceMetadata);
         editor.applyLayerState?.(parsed?.layerState);
         editor.restoreEditorViewState?.(parsed?.viewState);
@@ -851,8 +890,7 @@ export function bindEditorWorkspaceControls(editor) {
                 editor.mapManager.importFromJSON(JSON.stringify(parsed.map), {
                     onArenaSize: (arenaSize) => { editor.setArenaSizeInputs(arenaSize); editor.syncArenaValues?.(); },
                 });
-                applyWorkspaceMetadata(editor, parsed.workspaceMetadata);
-                editor.applyLayerState?.(parsed.layerState);
+                editor.applyEditorImportState(parsed);
                 editor.restoreEditorViewState?.(stored.viewState || parsed.viewState);
             });
             const restoreMessage = 'Playtest-Arbeitsstand und Kamera wiederhergestellt; Probleme sind markiert.';
@@ -873,6 +911,7 @@ export function bindEditorWorkspaceControls(editor) {
         }
     };
     editor.markDirty = markDirty;
+    editor.captureStateSignature = captureStateSignature;
     editor.markSaved = markSaved;
     editor.initializeSavedState = initializeSavedState;
     editor.reconcileDirtyState = reconcileDirtyState;

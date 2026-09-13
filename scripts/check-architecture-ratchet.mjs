@@ -88,6 +88,16 @@ const checks = [
         actual: report.scorecard.coreToUiCompositionImports.totalEdges,
     },
     {
+        key: 'featureToUiImportEdges',
+        label: 'feature module -> ui legacy edge budget',
+        actual: report.scorecard.featureToUiImports.totalEdges,
+    },
+    {
+        key: 'featureToRuntimeImportEdges',
+        label: 'feature module -> core legacy edge budget',
+        actual: report.scorecard.featureToRuntimeImports.totalEdges,
+    },
+    {
         key: 'electronPreloadExposures',
         label: 'electron preload exposure count',
         actual: report.scorecard.electronPreloadExposures.totalOccurrences,

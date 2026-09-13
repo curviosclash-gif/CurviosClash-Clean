@@ -27,6 +27,11 @@ export function createStaticTurretNetworkSnapshot(turrets = []) {
             aim: turret.aimDirection.toArray(),
             owner: resolveOwnerIndex(turret),
             deployed: turret.deployed === true,
+            destructible: turret.destructible === true,
+            targetPlayers: turret.targetPlayers,
+            targetTrails: turret.targetTrails === true,
+            allowedModes: turret.allowedModes,
+            authoredScale: turret.authoredScale,
             range: Number(turret.range) || 0,
             cooldown: Number(turret.cooldown) || 0,
             cooldownRemaining: Math.max(0, Number(turret.cooldownRemaining) || 0),
@@ -49,12 +54,16 @@ function createNetworkTurret(system, entry, players) {
         id: String(entry?.id || `replica_${system._nextTurretId++}`),
         weapon: String(entry?.weapon || 'mg') === 'rocket' ? 'rocket' : 'mg',
         pos: Array.isArray(entry?.pos) ? entry.pos : [0, 0, 0],
-        range: clampFinite(entry?.range, 58, 1, 180),
+        range: clampFinite(entry?.range, 58, 0.001, 180000),
         cooldown: clampFinite(entry?.cooldown, 0.24, 0.05, 12),
         damage: clampFinite(entry?.damage, 3, 0, 500),
         phase: Math.max(0, Number(entry?.cooldownRemaining) || 0),
         rocketType: String(entry?.rocketType || 'ROCKET_WEAK'),
         deployed: entry?.deployed === true,
+        destructible: entry?.destructible ?? entry?.deployed === true,
+        targetPlayers: entry?.targetPlayers === 'all' ? 'all' : 'humans',
+        targetTrails: entry?.targetTrails === true,
+        allowedModes: entry?.allowedModes,
         ownerIndex,
         ownerColor: ownerPlayer?.color,
         maxHp: Number(entry?.maxHp),
@@ -83,8 +92,11 @@ function applyTurretEntry(system, turret, entry, players) {
     turret.ownerPlayer = findOwnerPlayer(players, turret.ownerIndex);
     turret.source = turret.ownerPlayer || turret.source;
     turret.deployed = entry.deployed === true;
+    turret.destructible = entry.destructible ?? turret.deployed;
+    turret.authoredScale = clampFinite(entry.authoredScale, 1, 0.001, 1000);
+    turret.root?.scale.setScalar(turret.authoredScale);
     turret.rocketType = String(entry.rocketType || turret.rocketType || 'ROCKET_WEAK');
-    turret.range = clampFinite(entry.range, turret.range, 1, 180);
+    turret.range = clampFinite(entry.range, turret.range, 0.001, 180000);
     turret.cooldown = clampFinite(entry.cooldown, turret.cooldown, 0.05, 12);
     turret.cooldownRemaining = Math.max(0, Number(entry.cooldownRemaining) || 0);
     turret.damage = clampFinite(entry.damage, turret.damage, 0, 500);

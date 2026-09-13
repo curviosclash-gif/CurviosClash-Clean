@@ -132,7 +132,7 @@ export class ArcadeMissionHUD {
             const typeDef = MISSION_TYPES[mission.type];
             const objectiveTarget = isObjective && mission.targetLabel ? `: ${mission.targetLabel}` : '';
             el.icon.textContent = isObjective ? '\u2316' : (MISSION_ICON_MAP[typeDef?.icon] || '\u2022');
-            el.label.textContent = isObjective ? `${mission.label}${objectiveTarget}` : (typeDef?.label || mission.type);
+            el.label.textContent = isObjective ? `Hauptziel: ${mission.label}${objectiveTarget}` : `Optional: ${typeDef?.label || mission.type}`;
             el.progressText.textContent = isObjective ? mission.progressText : formatMissionProgress(mission);
             const fraction = resolveProgressFraction(mission, isObjective);
             el.progressBar.style.width = `${(fraction * 100).toFixed(1)}%`;

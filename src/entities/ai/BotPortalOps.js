@@ -27,7 +27,7 @@ export function estimateExitSafety(bot, exit, arena, player, allPlayers) {
             exit.y + dir.y * probeDistance,
             exit.z + dir.z * probeDistance
         );
-        if (arena.checkCollisionFast(bot._tmpVec3, player.hitboxRadius * 2.0)
+        if ((arena.checkBotCollisionFast || arena.checkCollisionFast).call(arena, bot._tmpVec3, player.hitboxRadius * 2.0)
             || bot.checkTrailHit(bot._tmpVec3, player, allPlayers)) {
             blockedCount++;
         }

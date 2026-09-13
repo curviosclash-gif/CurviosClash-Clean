@@ -8,14 +8,10 @@ import {
     resolveMenuAccessContext,
 } from './MenuAccessPolicy.js';
 import { resolveMenuDeveloperTheme } from './MenuDeveloperThemeCatalog.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 /** @type {Set<string>} */
 const VALID_DEVELOPER_ACCESS_MODE_SET = new Set(Object.values(MENU_DEVELOPER_ACCESS_MODES));
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function resolveDeveloperPolicy(settings) {
     const visibilityMode = normalizeString(settings?.localSettings?.developerModeVisibility, MENU_DEVELOPER_ACCESS_MODES.OWNER_ONLY);

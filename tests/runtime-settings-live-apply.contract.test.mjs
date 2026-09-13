@@ -531,7 +531,8 @@ test('Arcade mission assignment uses active sector template id from encounter se
                 templateId: 'sector_hazard',
                 mapKey: 'standard',
             }),
-            1
+            1, { botCount: runtime.getSectorRuntimeProfile(1).botCount, hasItems: false,
+                hasExitPortal: !!getRuntimeMapDefinition('standard')?.exitPortal, hasHealing: false }
         ).map((mission) => mission.type);
 
         assert.deepEqual(actualMissionTypes, expectedMissionTypes);
@@ -548,6 +549,7 @@ test('Arcade mission assignment prefers map-specific mission pools when present'
                 size: [80, 30, 80],
                 obstacles: [],
                 portals: [],
+                exitPortal: { x: 20, y: 0, z: 0 },
                 missions: [
                     { type: 'REACH_PORTAL', params: {}, weight: 1 },
                 ],
@@ -579,7 +581,8 @@ test('Arcade mission assignment prefers map-specific mission pools when present'
                 templateId: 'sector_intro',
                 mapKey: 'standard',
             }),
-            1
+            1, { botCount: runtime.getSectorRuntimeProfile(1).botCount, hasItems: false,
+                hasExitPortal: !!getRuntimeMapDefinition('standard')?.exitPortal, hasHealing: false }
         ).map((mission) => mission.type);
 
         assert.deepEqual(actualMissionTypes, expectedMissionTypes);
@@ -655,19 +658,22 @@ test('Arcade startRun seeds mission assignment from active run seed override', (
     const actualMissionTypes = Array.isArray(state?.missions?.missions)
         ? state.missions.missions.map((mission) => mission.type)
         : [];
+    const missionContext = { botCount: runtime.getSectorRuntimeProfile(1).botCount,
+        respawnEnabled: false, hasItems: !!mapDefinition?.items?.length,
+        hasExitPortal: !!mapDefinition?.exitPortal, hasHealing: false };
     const expectedByRunSeed = assignSectorMissions({ id: 'sector_pressure' }, mapMissions, buildArcadeMissionSeed({
         activeSeed: runSeed,
         sectorIndex: 1,
         templateId: 'sector_pressure',
         mapKey,
-    }), 1)
+    }), 1, missionContext)
         .map((mission) => mission.type);
     const expectedByConfigSeed = assignSectorMissions({ id: 'sector_pressure' }, mapMissions, buildArcadeMissionSeed({
         activeSeed: configSeed,
         sectorIndex: 1,
         templateId: 'sector_pressure',
         mapKey,
-    }), 1)
+    }), 1, missionContext)
         .map((mission) => mission.type);
 
     assert.deepEqual(actualMissionTypes, expectedByRunSeed);
@@ -706,7 +712,7 @@ test('Arcade resetRunState resets strategy transient state hooks', () => {
 test('Arcade deriveRoundEndPlan routes PARCOURS_COMPLETE through completeParcoursSector', () => {
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });
     runtime._enabled = true;
-    runtime._state = { placeholder: true };
+    runtime._state = { phase: 'sector_active' };
 
     const calls = [];
     runtime.completeParcoursSector = (parcoursResult = {}, options = {}) => {
@@ -791,7 +797,7 @@ test('Arcade terminal priority lets last-human death beat parcours completion in
     const runtime = new ArcadeRunRuntime({ now: () => 1000 });
     runtime._enabled = true;
     runtime._state = {
-        phase: 'sector',
+        phase: 'sector_active',
         sectorIndex: 1,
         completedSectors: 0,
         config: { sectorCount: 3 },
@@ -818,7 +824,7 @@ test('Arcade terminal priority lets last-human death beat parcours completion in
 test('Arcade terminal priority still permits sector completion while a human remains alive', () => {
     const runtime = new ArcadeRunRuntime({ ghostLibrarySaveThrottleMs: 0 });
     runtime._enabled = true;
-    runtime._state = { placeholder: true };
+    runtime._state = { phase: 'sector_active' };
     let completions = 0;
     runtime.completeParcoursSector = () => {
         completions += 1;

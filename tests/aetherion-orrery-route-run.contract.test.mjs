@@ -43,8 +43,8 @@ function cross(system, player, entry, now) {
     return system.updatePlayerProgress(player, previous, now);
 }
 
-test('both authored Aetherion lane choices complete all twelve stages', () => {
-    for (const branchChoice of [0, 1]) {
+test('all eight Aetherion branch combinations complete all twelve stages with readable choices', () => {
+    for (let branchChoice = 0; branchChoice < 8; branchChoice++) {
         const { system, player } = harness();
         const route = system.getRouteSnapshot();
         const stages = new Map();
@@ -56,8 +56,15 @@ test('both authored Aetherion lane choices complete all twelve stages', () => {
         assert.equal(route.totalCheckpoints, 12);
         let now = 1000;
         const ids = [];
+        let branchIndex = 0;
         for (const entries of [...stages.values()].sort((a, b) => a[0].routeIndex - b[0].routeIndex)) {
-            const result = cross(system, player, entries[Math.min(branchChoice, entries.length - 1)], now);
+            if (entries.length > 1) {
+                const hud = system.getPlayerHudState(0, now);
+                assert.equal(hud.expectedCheckpointLabels.length, 2);
+                assert.ok(hud.expectedCheckpointLabels.every((label) => label && !label.startsWith('CP')));
+            }
+            const choice = entries.length > 1 ? (branchChoice >> branchIndex++) & 1 : 0;
+            const result = cross(system, player, entries[choice], now);
             ids.push(result?.checkpointId || '');
             now += 500;
         }

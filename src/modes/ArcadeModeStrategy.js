@@ -13,11 +13,8 @@ import {
 } from '../shared/contracts/ArcadeRunRewardEffectsContract.js';
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import { HuntModeStrategy } from './HuntModeStrategy.js';
-import {
-    ENDLESS_PARCOURS_COMBAT_PROFILE,
-    ENDLESS_PARCOURS_RUN_TYPE,
-    normalizeArcadeCombatProfile,
-} from '../shared/contracts/EndlessParcoursContract.js';
+import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE, normalizeArcadeCombatProfile } from '../shared/contracts/EndlessParcoursContract.js';
+import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 
 const DEFAULT_MAX_HP = 100;
 const DEFAULT_SHIELD_HP = 40;
@@ -57,6 +54,9 @@ export const ARCADE_SECTOR_TYPES = Object.freeze({
     ARENA: 'sector_arena',
     PARCOURS: 'sector_parcours',
 });
+// A parcours sector on a map without authored respawns forgives three deaths at the last
+// checkpoint; the fourth ends the run. Maps that author their own respawn keep it.
+const ARCADE_PARCOURS_SECTOR_RULES = Object.freeze({ respawnOnDeath: true, lastCheckpointRespawns: 3, endRunWhenRespawnsExhausted: true });
 
 export class ArcadeModeStrategy extends GameModeContract {
     constructor(options = {}) {
@@ -258,6 +258,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     isSectorParcours() {
         return this._sectorType === ARCADE_SECTOR_TYPES.PARCOURS;
     }
+    getParcoursRespawnFallback() { return this.isSectorParcours() ? ARCADE_PARCOURS_SECTOR_RULES : null; }
 
     // 61.4.1: Active sector modifier
     setActiveModifier(modifierId) {
@@ -300,7 +301,7 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // --- Health & Damage ---
     resetPlayerHealth(player) {
-        if (this._huntCombat) return this._huntCombat.resetPlayerHealth(player);
+        if (this._huntCombat) return resetArcadeEndlessPlayerHealth(this._huntCombat, player, this._upgradeBonusesFor(player));
         if (!player) return null;
         // 61.8.1 / 82.8.4: T2 Core adds HP bonus, capped at +50% of base
         const hpBonus = Math.min(DEFAULT_MAX_HP * (UPGRADE_STAT_CAP_PCT / 100), Math.max(0, this._upgradeBonusesFor(player).maxHpBonus));
@@ -481,8 +482,8 @@ export class ArcadeModeStrategy extends GameModeContract {
 
     // 82.8.1: Apply upgrade speed bonus to player base speed at spawn
     applySpawnStatBonuses(player) {
-        if (this._huntCombat) return this._huntCombat.applySpawnStatBonuses(player);
         if (!player) return;
+        if (applyArcadeEndlessSpawnBonuses(this._huntCombat, player, this.getSpeedMultiplier(player))) return;
         const speedMult = this.getSpeedMultiplier(player);
         if (!Number.isFinite(player._arcadeBaseSpeed)) player._arcadeBaseSpeed = player.baseSpeed;
         player.baseSpeed = player._arcadeBaseSpeed * speedMult;
@@ -611,7 +612,8 @@ export class ArcadeModeStrategy extends GameModeContract {
     isRespawnEnabled() { return false; }
 
     filterSpawnableTypes(typeKeys, powerupTypes) {
-        if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(typeKeys, powerupTypes);
+        if (this._huntCombat) return this._huntCombat.filterSpawnableTypes(
+            this.isSectorParcours() ? typeKeys.filter((type) => type !== 'ROCKET_TURRET') : typeKeys, powerupTypes);
         return typeKeys.filter((typeKey) => {
             const entry = powerupTypes[typeKey];
             if (!entry) return false;

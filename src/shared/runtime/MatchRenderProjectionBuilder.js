@@ -146,6 +146,7 @@ export function buildMatchRenderProjection({
         isNetworkSession: facade?.isNetworkSession?.() === true,
         localPlayerIndex: resolveLocalPlayerIndex(facade, sessionPlayers, game),
         localHumanCount: resolveLocalHumanCount(game, runtimeState),
+        globalFog: entityManager?.getGlobalFogState?.(),
         players,
     });
 }

@@ -16,6 +16,84 @@ function toCaptureList(value) {
     return Array.isArray(value) ? value : EMPTY_LIST;
 }
 
+function createPlayerEntry() {
+    return {
+        idx: 0, alive: false, x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1,
+        bot: false, trailWidth: 0.6, trailInGap: false,
+    };
+}
+
+function createProjectileEntry() {
+    return {
+        id: '', type: '', owner: -1, color: 0xffffff,
+        x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, radius: 0,
+    };
+}
+
+function createPowerupEntry() {
+    return { id: '', type: '', color: 0xffffff, x: 0, y: 0, z: 0, visible: true };
+}
+
+function createTurretEntry() {
+    return {
+        id: '', weapon: 'mg', rocketType: 'ROCKET_WEAK', owner: -1, deployed: false,
+        x: 0, y: 0, z: 0, ax: 1, ay: 0, az: 0, hp: -1, maxHp: -1, ttl: -1, color: 0xffb347,
+    };
+}
+
+// Shrinking a reusable output list with .length threw its entries away, so the next call with
+// more entities had to allocate them again - and entity counts swing constantly during a fight.
+// The surplus entries go into a pool instead and come back on the next grow. The emitted list
+// keeps exactly the length and the entries it had before.
+function resizePooledList(list, pool, count, createEntry) {
+    while (list.length > count) pool.push(list.pop());
+    while (list.length < count) list.push(pool.length > 0 ? pool.pop() : createEntry());
+}
+
+// Object.assign walks the source key list on every single entry. These three shapes are fixed
+// (capture() writes the same keys every time), so the copy is written out.
+function copyProjectileEntry(out, src) {
+    out.id = src.id;
+    out.type = src.type;
+    out.owner = src.owner;
+    out.color = src.color;
+    out.x = src.x;
+    out.y = src.y;
+    out.z = src.z;
+    out.vx = src.vx;
+    out.vy = src.vy;
+    out.vz = src.vz;
+    out.radius = src.radius;
+}
+
+function copyPowerupEntry(out, src) {
+    out.id = src.id;
+    out.type = src.type;
+    out.color = src.color;
+    out.x = src.x;
+    out.y = src.y;
+    out.z = src.z;
+    out.visible = src.visible;
+}
+
+function copyTurretEntry(out, src) {
+    out.id = src.id;
+    out.weapon = src.weapon;
+    out.rocketType = src.rocketType;
+    out.owner = src.owner;
+    out.deployed = src.deployed;
+    out.x = src.x;
+    out.y = src.y;
+    out.z = src.z;
+    out.ax = src.ax;
+    out.ay = src.ay;
+    out.az = src.az;
+    out.hp = src.hp;
+    out.maxHp = src.maxHp;
+    out.ttl = src.ttl;
+    out.color = src.color;
+}
+
 export class RoundSnapshotStore {
     constructor({ maxSnapshots = 900, timeProvider = null } = {}) {
         this.maxSnapshots = Math.max(1, Number(maxSnapshots) || 900);
@@ -42,6 +120,8 @@ export class RoundSnapshotStore {
 
         /** @internal Pre-allocated output buffer for getOrderedSnapshots() */
         this._orderedBuf = [];
+        /** @internal Entries parked by a shrinking output list, per _orderedBuf slot */
+        this._orderedPools = [];
         /** @internal Reusable view array returned by getOrderedSnapshots() (avoids .slice() alloc) */
         this._viewBuf = [];
     }
@@ -60,22 +140,7 @@ export class RoundSnapshotStore {
         snap.time = this.timeProvider();
         snap.playerCount = players.length;
 
-        while (snap.players.length < players.length) {
-            snap.players.push({
-                idx: 0,
-                alive: false,
-                x: 0,
-                y: 0,
-                z: 0,
-                qx: 0,
-                qy: 0,
-                qz: 0,
-                qw: 1,
-                bot: false,
-                trailWidth: 0.6,
-                trailInGap: false,
-            });
-        }
+        while (snap.players.length < players.length) snap.players.push(createPlayerEntry());
 
         for (let i = 0; i < players.length; i++) {
             const p = players[i];
@@ -100,10 +165,7 @@ export class RoundSnapshotStore {
             const projectile = projectiles[i];
             if (!projectile || projectile.active === false) continue;
             while (snap.projectiles.length <= snap.projectileCount) {
-                snap.projectiles.push({
-                    id: '', type: '', owner: -1, color: 0xffffff,
-                    x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, radius: 0,
-                });
+                snap.projectiles.push(createProjectileEntry());
             }
             const out = snap.projectiles[snap.projectileCount++];
             out.id = String(projectile.id || projectile.networkId || projectile.traversalId || `projectile:${i}`);
@@ -132,10 +194,7 @@ export class RoundSnapshotStore {
             const powerup = powerups[i];
             if (!powerup || powerup.active === false) continue;
             while (snap.powerups.length <= snap.powerupCount) {
-                snap.powerups.push({
-                    id: '', type: '', color: 0xffffff,
-                    x: 0, y: 0, z: 0, visible: true,
-                });
+                snap.powerups.push(createPowerupEntry());
             }
             const out = snap.powerups[snap.powerupCount++];
             out.id = String(powerup.id || powerup.networkId || `powerup:${i}`);
@@ -155,7 +214,7 @@ export class RoundSnapshotStore {
         for (let i = 0; i < turrets.length; i++) {
             const turret = turrets[i];
             if (!turret || turret.hp <= 0) continue;
-            while (snap.turrets.length <= snap.turretCount) snap.turrets.push({});
+            while (snap.turrets.length <= snap.turretCount) snap.turrets.push(createTurretEntry());
             const out = snap.turrets[snap.turretCount++];
             out.id = String(turret.id || `turret:${i}`);
             out.weapon = String(turret.weapon || 'mg');
@@ -231,6 +290,7 @@ export class RoundSnapshotStore {
                 turrets: [],
                 particles: { count: 0, values: [] },
             });
+            this._orderedPools.push({ players: [], projectiles: [], powerups: [], turrets: [] });
         }
 
         for (let i = 0; i < totalCount; i++) {
@@ -238,13 +298,10 @@ export class RoundSnapshotStore {
             const snapshot = this.snapshots[idx];
             const playerCount = Math.max(0, Number(snapshot?.playerCount) || 0);
             const out = this._orderedBuf[i];
+            const pool = this._orderedPools[i];
             out.time = Number(snapshot?.time) || 0;
 
-            // Grow player slots on demand
-            while (out.players.length < playerCount) {
-                out.players.push({ idx: 0, alive: false, x: 0, y: 0, z: 0, qx: 0, qy: 0, qz: 0, qw: 1, bot: false });
-            }
-            out.players.length = playerCount;
+            resizePooledList(out.players, pool.players, playerCount, createPlayerEntry);
 
             for (let j = 0; j < playerCount; j++) {
                 const player = snapshot.players[j];
@@ -264,24 +321,21 @@ export class RoundSnapshotStore {
             }
 
             const projectileCount = Math.max(0, Number(snapshot?.projectileCount) || 0);
-            while (out.projectiles.length < projectileCount) out.projectiles.push({});
-            out.projectiles.length = projectileCount;
+            resizePooledList(out.projectiles, pool.projectiles, projectileCount, createProjectileEntry);
             for (let j = 0; j < projectileCount; j++) {
-                Object.assign(out.projectiles[j], snapshot.projectiles[j]);
+                copyProjectileEntry(out.projectiles[j], snapshot.projectiles[j]);
             }
 
             const powerupCount = Math.max(0, Number(snapshot?.powerupCount) || 0);
-            while (out.powerups.length < powerupCount) out.powerups.push({});
-            out.powerups.length = powerupCount;
+            resizePooledList(out.powerups, pool.powerups, powerupCount, createPowerupEntry);
             for (let j = 0; j < powerupCount; j++) {
-                Object.assign(out.powerups[j], snapshot.powerups[j]);
+                copyPowerupEntry(out.powerups[j], snapshot.powerups[j]);
             }
 
             const turretCount = Math.max(0, Number(snapshot?.turretCount) || 0);
-            while (out.turrets.length < turretCount) out.turrets.push({});
-            out.turrets.length = turretCount;
+            resizePooledList(out.turrets, pool.turrets, turretCount, createTurretEntry);
             for (let j = 0; j < turretCount; j++) {
-                Object.assign(out.turrets[j], snapshot.turrets[j]);
+                copyTurretEntry(out.turrets[j], snapshot.turrets[j]);
             }
 
             const particleCount = Math.max(0, Number(snapshot?.particleCount) || 0);

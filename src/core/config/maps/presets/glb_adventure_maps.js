@@ -38,10 +38,10 @@ const RIFT_BAZAAR_MODELS = Object.freeze([
 const RIFT_BAZAAR_OBSTACLES = Object.freeze([
     // Risky reactor in the center; four tunnel walls keep every cardinal lane readable.
     { pos: [0, 9, 0], size: [18, 18, 18] },
-    { pos: [0, 14, -27], size: [46, 24, 6], tunnel: { radius: 5.5, axis: 'z' } },
-    { pos: [0, 14, 27], size: [46, 24, 6], kind: 'foam', tunnel: { radius: 5.5, axis: 'z' } },
-    { pos: [-27, 14, 0], size: [6, 24, 46], kind: 'foam', tunnel: { radius: 5.5, axis: 'x' } },
-    { pos: [27, 14, 0], size: [6, 24, 46], tunnel: { radius: 5.5, axis: 'x' } },
+    { pos: [0, 14, -27], size: [46, 24, 6], compileWithGlb: true, tunnel: { radius: 5.5, axis: 'z' } },
+    { pos: [0, 14, 27], size: [46, 24, 6], compileWithGlb: true, kind: 'foam', tunnel: { radius: 5.5, axis: 'z' } },
+    { pos: [-27, 14, 0], size: [6, 24, 46], compileWithGlb: true, kind: 'foam', tunnel: { radius: 5.5, axis: 'x' } },
+    { pos: [27, 14, 0], size: [6, 24, 46], compileWithGlb: true, tunnel: { radius: 5.5, axis: 'x' } },
 
     // Four districts use symmetric collision footprints although their art differs.
     { pos: [-47, 11, -48], size: [24, 22, 20] },
@@ -73,7 +73,7 @@ const AETHER_RELAY_MODELS = Object.freeze([
     glbModel('pm-aero-system', 'Aero_Lampost_01', [-42, 0, -43], 10, 0, 'launch-left'),
     glbModel('pm-aero-system', 'Aero_Lampost_01', [-52, 0, -31], 10, Math.PI, 'launch-right'),
 
-    glbModel('pm-crystal-crossroads', 'Arc', [-31, 0, -20], 22, -0.7),
+    glbModel('pm-crystal-crossroads', 'Arc', [-31, 0, -20], 22, 0.7),
     glbModel('pm-crystal-crossroads', 'Crystal_ClusterSurrounded', [-36, 0, -12], 14),
     glbModel('pm-crystal-crossroads', 'Crystal_Small_04', [-25, 0, -27], 10, 0.8),
 
@@ -103,14 +103,14 @@ const AETHER_RELAY_OBSTACLES = Object.freeze([
     { pos: [-25, 7, -27], size: [8, 14, 8], kind: 'foam' },
 
     // The first precision wall has one authored tunnel and a clear approach line.
-    { pos: [-16, 20, -8], size: [8, 30, 30], tunnel: { radius: 5.0, axis: 'x' } },
+    { pos: [-16, 20, -8], size: [8, 30, 30], compileWithGlb: true, tunnel: { radius: 5.0, axis: 'x' } },
     { pos: [0, 22, 0], size: [18, 3, 18], kind: 'foam' },
 
     // Branch A climbs over floating slabs; branch B threads a lower tube.
     { pos: [8, 29, -9], size: [14, 3, 12] },
     { pos: [13, 32, -17], size: [16, 3, 14], kind: 'foam' },
     { pos: [21, 30, -8], size: [10, 16, 5] },
-    { shape: 'tube', kind: 'hard', start: [3, 21, 5], end: [15, 19, 18], radius: 4.5 },
+    { shape: 'tube', kind: 'hard', compileWithGlb: true, start: [3, 21, 5], end: [15, 19, 18], radius: 4.5 },
     { pos: [15, 17, 18], size: [14, 3, 12], kind: 'foam' },
 
     // Both branches merge on the lunar gate before a descending chicane.
@@ -182,10 +182,10 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
         obstacles: AETHER_RELAY_OBSTACLES,
         portals: Object.freeze([]),
         gates: Object.freeze([
-            { id: 'relay_launch_boost', type: 'boost', pos: [-44, 12, -34], forward: [0.7, 0, 0.7], params: { duration: 1.1, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.8 } },
+            { id: 'relay_launch_boost', type: 'boost', pos: [-38, 16, -28], forward: [0.65, 0.35, 0.7], params: { duration: 1.1, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.8 } },
             { id: 'relay_branch_sling', type: 'slingshot', pos: [0, 24, 0], forward: [0.55, 0.45, -0.7], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 32, liftImpulse: 11, cooldown: 1.1 } },
             { id: 'relay_high_boost', type: 'boost', pos: [13, 34, -17], forward: [0.55, -0.3, 0.75], params: { duration: 0.9, forwardImpulse: 34, bonusSpeed: 44, cooldown: 0.8 } },
-            { id: 'relay_merge_boost', type: 'boost', pos: [28, 26, 3], forward: [0.5, -0.2, 0.85], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 46, cooldown: 0.8 } },
+            { id: 'relay_merge_boost', type: 'boost', pos: [28, 28, 3], forward: [0.5, -0.2, 0.85], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 46, cooldown: 0.8 } },
             { id: 'relay_finish_boost', type: 'boost', pos: [-14, 13, 35], forward: [-0.9, -0.1, -0.4], params: { duration: 0.9, forwardImpulse: 32, bonusSpeed: 40, cooldown: 0.7 } },
         ]),
         playerSpawn: Object.freeze({ x: -52, y: 15, z: -18 }),
@@ -195,7 +195,7 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
             { x: -58, y: 12, z: -42 },
         ]),
         items: Object.freeze([
-            { id: 'relay_speed_canyon', type: 'item_battery', pickupType: 'SPEED_UP', x: -31, y: 17, z: -20, weight: 1.3 },
+            { id: 'relay_speed_canyon', type: 'item_battery', pickupType: 'SPEED_UP', x: -31, y: 20, z: -20, weight: 1.3 },
             { id: 'relay_shield_low', type: 'item_shield', pickupType: 'SHIELD', x: 15, y: 20, z: 18, weight: 1.0 },
             { id: 'relay_ghost_merge', type: 'item_coin', pickupType: 'GHOST', x: 28, y: 28, z: 3, weight: 1.0 },
             { id: 'relay_speed_chicane', type: 'item_battery', pickupType: 'SPEED_UP', x: 28, y: 20, z: 40, weight: 1.2 },
@@ -226,7 +226,7 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
             }),
             checkpoints: Object.freeze([
                 { id: 'CP01', type: 'entry', pos: [-44, 12, -34], radius: 6.3, forward: [0.7, 0, -0.7] },
-                { id: 'CP02', type: 'canyon', pos: [-31, 16, -20], radius: 5.3, forward: [0.7, 0.2, 0.7] },
+                { id: 'CP02', type: 'canyon', pos: [-31, 20, -20], radius: 5.3, forward: [0.7, 0.2, 0.7] },
                 { id: 'CP03', type: 'tunnel', pos: [-16, 20, -8], radius: 4.8, forward: [0.8, 0.2, 0.6] },
                 {
                     id: 'CP04',
@@ -239,6 +239,7 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
                 {
                     id: 'CP05A_HIGH',
                     type: 'branch_high',
+                    params: { label: 'Hoch: Luftinseln', height: 'high', color: 0xffbf45 },
                     pos: [13, 34, -17],
                     radius: 4.7,
                     forward: [0.55, 0.45, -0.7],
@@ -247,12 +248,13 @@ export const GLB_ADVENTURE_MAPS = Object.freeze({
                 {
                     id: 'CP05B_LOW',
                     type: 'branch_tube',
-                    pos: [15, 19, 18],
+                    params: { label: 'Tief: Tunnel', height: 'low', color: 0x4da6ff },
+                    pos: [19, 19, 23],
                     radius: 4.5,
                     forward: [0.6, -0.2, 0.75],
                     nextIds: ['CP06'],
                 },
-                { id: 'CP06', type: 'merge', pos: [28, 26, 3], radius: 5.2, forward: [1, 0, 0] },
+                { id: 'CP06', type: 'merge', pos: [28, 28, 3], radius: 5.2, forward: [1, 0, 0] },
                 { id: 'CP07', type: 'chicane', pos: [39, 22, 22], radius: 4.7, forward: [0.5, -0.2, 0.85] },
                 { id: 'CP08', type: 'descent', pos: [28, 18, 40], radius: 4.8, forward: [-0.5, -0.2, 0.85] },
                 { id: 'CP09', type: 'market', pos: [8, 15, 44], radius: 4.9, forward: [-0.98, -0.1, 0.2] },

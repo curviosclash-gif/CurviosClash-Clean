@@ -277,14 +277,18 @@ export class ArenaCollision {
     }
 
     getCollisionInfo(position, radius) {
-        const b = this.arena.bounds;
         if (!position) return null;
+        return this._getBoundsCollisionInfo(position, radius, this.arena.openFaces)
+            || this._getWorldGeometryCollisionInfo(position, radius);
+    }
 
-        if (position.x - radius < b.minX) {
+    _getBoundsCollisionInfo(position, radius, openFaces) {
+        const b = this.arena.bounds;
+        if (!openFaces?.includes('minX') && position.x - radius < b.minX) {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_PX);
             return this._collisionResult;
         }
-        if (position.x + radius > b.maxX) {
+        if (!openFaces?.includes('maxX') && position.x + radius > b.maxX) {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_NX);
             return this._collisionResult;
         }
@@ -292,29 +296,33 @@ export class ArenaCollision {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_PY);
             return this._collisionResult;
         }
-        if (position.y + radius > b.maxY) {
+        if (!openFaces?.includes('maxY') && position.y + radius > b.maxY) {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_NY);
             return this._collisionResult;
         }
-        if (position.z - radius < b.minZ) {
+        if (!openFaces?.includes('minZ') && position.z - radius < b.minZ) {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_PZ);
             return this._collisionResult;
         }
-        if (position.z + radius > b.maxZ) {
+        if (!openFaces?.includes('maxZ') && position.z + radius > b.maxZ) {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_NZ);
             return this._collisionResult;
         }
+        return null;
+    }
 
+    getBotCollisionInfo(position, radius) {
+        if (!position) return null;
+        return this._getBoundsCollisionInfo(position, radius, null)
+            || this._getWorldGeometryCollisionInfo(position, radius);
+    }
+
+    _getWorldGeometryCollisionInfo(position, radius) {
         this._tmpSphere.center.copy(position);
         this._tmpSphere.radius = radius;
         for (const obs of this._getFastCollisionObstacles(position, radius)) {
             if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
-            if (obs.meshCollider && !sphereIntersectsStaticMeshCollider(
-                obs.meshCollider,
-                position,
-                radius,
-                this._tmpNormal,
-            )) continue;
+            if (obs.meshCollider && !sphereIntersectsStaticMeshCollider(obs.meshCollider, position, radius, this._tmpNormal)) continue;
             if (obs.meshCollider) {
                 this._collisionResult.hit = true;
                 this._collisionResult.kind = obs.kind || 'hard';
@@ -337,19 +345,16 @@ export class ArenaCollision {
             this._collisionResult.normal.copy(this._computeBoxCollisionNormal(obs.box, position));
             return this._collisionResult;
         }
-
         return null;
     }
 
-    checkCollisionFast(position, radius = 0) {
-        const b = this.arena.bounds;
-        if (!position) return false;
+    checkWorldGeometryCollision(position, radius = 0) {
+        return !!this._getWorldGeometryCollisionInfo(position, radius);
+    }
 
-        if (position.x - radius < b.minX || position.x + radius > b.maxX ||
-            position.y - radius < b.minY || position.y + radius > b.maxY ||
-            position.z - radius < b.minZ || position.z + radius > b.maxZ) {
-            return true;
-        }
+    checkCollisionFast(position, radius = 0) {
+        if (!position) return false;
+        if (this._checkBoundsCollision(position, radius, this.arena.openFaces)) return true;
 
         this._tmpSphere.center.copy(position);
         this._tmpSphere.radius = radius;
@@ -363,5 +368,21 @@ export class ArenaCollision {
             return true;
         }
         return false;
+    }
+
+    _checkBoundsCollision(position, radius, openFaces) {
+        const b = this.arena.bounds;
+        return (!openFaces?.includes('minX') && position.x - radius < b.minX)
+            || (!openFaces?.includes('maxX') && position.x + radius > b.maxX)
+            || position.y - radius < b.minY
+            || (!openFaces?.includes('maxY') && position.y + radius > b.maxY)
+            || (!openFaces?.includes('minZ') && position.z - radius < b.minZ)
+            || (!openFaces?.includes('maxZ') && position.z + radius > b.maxZ);
+    }
+
+    checkBotCollisionFast(position, radius = 0) {
+        if (!position) return false;
+        if (this._checkBoundsCollision(position, radius, null)) return true;
+        return this.checkWorldGeometryCollision(position, radius);
     }
 }

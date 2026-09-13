@@ -7,14 +7,10 @@
 
 // Test-only renderer for dormant multiplayer lobby UI coverage.
 import { resolveMenuCatalogText } from '../MenuTextCatalog.js';
+import { normalizeString } from '../../../shared/contracts/ContractNormalizeUtils.js';
 
 function t(textId, fallback) {
     return resolveMenuCatalogText(textId, fallback);
-}
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
 }
 
 function createElement(tag, className, textContent) {

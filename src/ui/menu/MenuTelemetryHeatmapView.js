@@ -170,7 +170,7 @@ function createMapCard(mapKey, cells) {
  * @param {HTMLElement | null} container
  * @param {unknown} topMaps Aus dem Telemetrie-Snapshot abgeleitete Map-Buckets.
  */
-export function renderTelemetryHeatmapSection(container, topMaps) {
+export function renderTelemetryHeatmapSection(container, topMaps, options = {}) {
     if (!container) return;
     const buckets = Array.isArray(topMaps) ? topMaps : [];
     const renderable = buckets
@@ -183,11 +183,11 @@ export function renderTelemetryHeatmapSection(container, topMaps) {
 
     const section = document.createElement('div');
     section.className = 'developer-telemetry-heatmap';
-    section.setAttribute('data-telemetry-section', 'heatmap');
+    section.setAttribute('data-telemetry-section', String(options.sectionId || 'heatmap'));
 
     const title = document.createElement('h3');
     title.className = 'developer-telemetry-title';
-    title.textContent = 'Haeufungspunkte (Draufsicht)';
+    title.textContent = String(options.title || 'Haeufungspunkte (Draufsicht)');
     section.appendChild(title);
 
     if (renderable.length === 0) {

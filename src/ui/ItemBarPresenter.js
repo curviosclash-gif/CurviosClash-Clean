@@ -5,6 +5,7 @@
 import { getPickupDefinition, isPickupTypeOffensive } from '../shared/contracts/PickupRegistryContract.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { formatKeyCodeShort } from './KeybindLabels.js';
+import { resolveWeaponFanProjectileCount } from '../hunt/WeaponFanOps.js';
 
 /**
  * Resolves the key cap shown on a slot. Items are cycled, not selected by
@@ -85,6 +86,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         const titleParts = [];
         if (type) {
             titleParts.push(type.replace(/_/g, ' '));
+            if (config?.description) titleParts.push(String(config.description));
             if (slotAction.canUse && slotAction.canShoot) titleParts.push('Use oder Shoot');
             else if (slotAction.canShoot) titleParts.push('Verschiessbar');
             else if (slotAction.canUse) titleParts.push('Direkt nutzbar');
@@ -139,7 +141,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         const titleText = titleParts.join(' | ');
         if (slot.title !== titleText) slot.title = titleText;
         const accessibleLabel = type
-            ? `${config?.name || type}${config?.rocketTierLabel ? ` ${config.rocketTierLabel}` : ''}, ${slotAction.actionHintLabel}${slotKeyLabel ? `, Taste ${slotKeyLabel}` : ''}`
+            ? `${config?.name || type}${config?.rocketTierLabel ? ` ${config.rocketTierLabel}` : ''}, ${slotAction.actionHintLabel}${config?.description ? `, ${config.description}` : ''}${slotKeyLabel ? `, Taste ${slotKeyLabel}` : ''}`
             : `Leerer Item-Slot ${i + 1}`;
         slot.ariaLabel = accessibleLabel;
         slot.setAttribute?.('aria-label', accessibleLabel);
@@ -178,19 +180,39 @@ function ensureEffectBadges(container, desired) {
     }
 }
 
-export function updateActiveEffectBar(container, player) {
+export function updateActiveEffectBar(container, player, globalFog = null) {
     if (!container) return;
     const effects = Array.isArray(player?.activeEffects)
         ? player.activeEffects.filter((effect) => getPickupDefinition(effect?.type))
         : [];
-    ensureEffectBadges(container, effects.length);
-    container.classList.toggle('hidden', effects.length === 0);
+    const globalFogRemaining = Math.max(0, Number(globalFog?.remainingSeconds) || 0);
+    if (globalFog?.active === true && globalFogRemaining > 0) {
+        effects.push({ type: 'FOG', remaining: globalFogRemaining, sourcePlayerIndex: null });
+    }
+    const fanProjectileCount = resolveWeaponFanProjectileCount(player?.activeEffects, 'HUNT');
+    const hasWeaponFan = fanProjectileCount > 1;
+    const effectOffset = hasWeaponFan ? 1 : 0;
+    ensureEffectBadges(container, effects.length + effectOffset);
+    container.classList.toggle('hidden', effects.length === 0 && !hasWeaponFan);
+    container.dataset.weaponFanProjectiles = String(fanProjectileCount);
     const ownIndex = Number.isInteger(player?.playerIndex) ? player.playerIndex : player?.index;
+
+    if (hasWeaponFan) {
+        const badge = container.children[0];
+        badge.children[0].textContent = '✦';
+        badge.children[1].textContent = 'Fächer gesamt';
+        badge.children[2].textContent = `×${fanProjectileCount}`;
+        badge.children[3].textContent = '';
+        badge.dataset.type = 'WEAPON_FAN_TOTAL';
+        badge.dataset.tone = 'buff';
+        badge.ariaLabel = `Fächer gesamt, ${fanProjectileCount} Geschosse`;
+        badge.setAttribute?.('aria-label', badge.ariaLabel);
+    }
 
     for (let i = 0; i < effects.length; i += 1) {
         const effect = effects[i];
         const definition = getPickupDefinition(effect.type);
-        const badge = container.children[i];
+        const badge = container.children[i + effectOffset];
         const sourcePlayerIndex = Number.isInteger(effect?.sourcePlayerIndex)
             ? effect.sourcePlayerIndex
             : null;

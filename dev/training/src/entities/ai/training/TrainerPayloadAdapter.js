@@ -9,7 +9,7 @@ import {
 import { OBSERVATION_SCHEMA_VERSION_V2 } from '../../../../../../src/entities/ai/observation/ObservationSchemaV2.js';
 import { deriveTrainingDomain } from '../../../state/training/TrainingDomain.js';
 import { TRAINING_CONTRACT_VERSION } from '../../../shared/contracts/TrainingRuntimeContract.js';
-import { toFiniteNumber } from '../../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../../src/shared/utils/MathOps.js';
 
 function cloneObservation(observation) {
     if (!observation || typeof observation.length !== 'number') return null;

@@ -6,6 +6,7 @@ const OBJECT_ID_PREFIX = Object.freeze({
     spawn: 'spawn',
     item: 'item',
     aircraft: 'aircraft',
+    turret: 'turret',
 });
 
 export class EditorObjectRegistry {

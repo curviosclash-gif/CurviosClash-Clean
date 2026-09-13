@@ -5,6 +5,28 @@ export function bindMenuMultiplayerActionButtons({
     eventTypes,
     featureFlags,
 }) {
+    const connectionControls = ui.multiplayerConnectionControls;
+    const intentButtons = Array.from(connectionControls?.querySelectorAll?.('[data-connection-intent-target]') || []);
+    const setConnectionIntent = (intent) => {
+        const resolved = intent === 'host' && featureFlags?.canHost === true ? 'host' : 'join';
+        if (!connectionControls) return;
+        connectionControls.dataset.connectionIntent = resolved;
+        intentButtons.forEach((button) => {
+            const active = button.dataset.connectionIntentTarget === resolved;
+            button.setAttribute('aria-pressed', String(active));
+            button.classList.toggle('active', active);
+            if (button.dataset.connectionIntentTarget === 'host') {
+                button.classList.toggle('hidden', featureFlags?.canHost !== true);
+            }
+        });
+        if (ui.multiplayerLobbyCodeInput) {
+            ui.multiplayerLobbyCodeInput.placeholder = resolved === 'host'
+                ? 'Optional: eigenen Code vergeben' : 'Code eingeben, z. B. TEST-1234';
+        }
+    };
+    intentButtons.forEach((button) => bind(button, 'click', () => setConnectionIntent(button.dataset.connectionIntentTarget)));
+    setConnectionIntent('join');
+
     const copyValue = async (value, label) => {
         const text = String(value || '').trim();
         if (!text) return;

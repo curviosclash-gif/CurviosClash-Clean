@@ -26,6 +26,7 @@ const MAP_FILTER_OPTIONS = Object.freeze([
 ]);
 
 export function resolveArcadeGhostDuelModeLabel(mode) {
+    if (mode === ARCADE_GHOST_DUEL_MODES.SELF_BEST_TIME_GHOST) return 'Persönliche Bestzeit';
     return mode === ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST
         ? 'Selbstduell (laengste Spur)'
         : 'Aus';
@@ -62,13 +63,13 @@ function syncGhostDuelControls(ui, ghostDuelState) {
         ui.arcadeGhostDuelModeSelect.value = ghostDuelState.configuredMode;
         ui.arcadeGhostDuelModeSelect.disabled = !ghostDuelState.duelSelectable;
         ui.arcadeGhostDuelModeSelect.title = ghostDuelState.duelSelectable
-            ? 'Spielt im Einzelspieler deine laengste gespeicherte Spur ab.'
+            ? 'Spielt im Einzelspieler die längste Spur oder deine persönliche Bestzeit ab.'
             : 'Nur im Einzelspieler aktiv.';
     }
     if (ui.arcadeGhostDuelModeHint) {
         if (ghostDuelState.duelSelectable) {
             ui.arcadeGhostDuelModeHint.textContent = `Aktiv: ${resolveArcadeGhostDuelModeLabel(ghostDuelState.configuredMode)}`;
-        } else if (ghostDuelState.configuredMode === ARCADE_GHOST_DUEL_MODES.SELF_LONGEST_GHOST) {
+        } else if (ghostDuelState.configuredMode !== ARCADE_GHOST_DUEL_MODES.OFF) {
             ui.arcadeGhostDuelModeHint.textContent = 'Gespeichert: Selbstduell ist aktiv, sobald Single gewaehlt ist.';
         } else {
             ui.arcadeGhostDuelModeHint.textContent = 'Nur im Einzelspieler aktiv.';
@@ -172,10 +173,17 @@ function syncMapSelect({
     }
     let hasPreviousOption = Array.from(ui.mapSelect.options).some((option) => option.value === previousValue);
     const previousMapDefinition = runtimeMaps?.[previousValue];
+    // Explicit tutorial/scenario starts must survive UI synchronization even when
+    // their map is intentionally absent from the general picker.
+    const scenario = previousMapDefinition?.singlePlayerScenario;
+    const isActiveScenario = scenario?.enabled === true
+        && settings?.localSettings?.sessionType === 'single'
+        && settings?.gameMode === scenario.gameMode
+        && modePath === scenario.modePath;
     const canRetainPreviousMap = previousValue === 'custom'
         ? hasStoredCustomMap()
         : !!previousMapDefinition
-            && previousMapDefinition.hiddenFromMapPicker !== true
+            && (previousMapDefinition.hiddenFromMapPicker !== true || isActiveScenario)
             && isMapEligibleForModePath(previousMapDefinition, modePath)
             && surfacePolicyPort.isMapAllowed(previousValue, modePath);
     if (!hasPreviousOption && canRetainPreviousMap) {
@@ -184,6 +192,7 @@ function syncMapSelect({
         const option = document.createElement('option');
         option.value = previousValue;
         option.textContent = formatMapLabel(previousEntry);
+        option.hidden = previousMapDefinition?.hiddenFromMapPicker === true;
         if (option.dataset) option.dataset.filterRetained = 'true';
         assignMapOptionCollection(option, previousEntry);
         ui.mapSelect.appendChild(option);

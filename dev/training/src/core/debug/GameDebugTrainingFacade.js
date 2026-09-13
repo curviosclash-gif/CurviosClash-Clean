@@ -1,4 +1,4 @@
-import { toFiniteNumber } from '../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../src/shared/utils/MathOps.js';
 
 const TRAINING_ARTIFACT_ROOT = 'data/training/runs';
 

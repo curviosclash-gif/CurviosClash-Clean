@@ -145,25 +145,34 @@ test('Fight rocket tiers use triple damage and trail destruction', () => {
     assert.deepEqual(rocketTypes.map((type) => resolveRocketTrailBlastMeters(type, fightConfig)), [6, 12, 30, 90]);
 });
 
-test('Fight random pickups use 70 percent rockets, 10 percent turrets and equal other shares', () => {
+test('Fight random pickups keep the 70 percent rocket pool and configured non-rocket weights', () => {
     const nonRocketTypes = getPickupTypes().filter((type) => (
         isPickupTypeAllowedForMode(type, 'HUNT')
         && !isRocketPickupType(type)
     ));
-    const otherTypes = nonRocketTypes.filter((type) => type !== 'MG_TURRET');
+    const otherTypes = nonRocketTypes.filter((type) => type !== 'MG_TURRET' && type !== 'ROCKET_TURRET');
     const weights = HUNT_CONFIG.PICKUP_WEIGHTS;
     const turretWeight = weights.MG_TURRET;
     const otherWeights = otherTypes.map((type) => weights[type] ?? 1);
-    const totalNonRocketWeight = turretWeight
+    const weightedTypes = new Set(['FOG', 'FAN_3', 'FAN_4', 'FAN_5']);
+    const standardOtherWeights = otherTypes
+        .filter((type) => !weightedTypes.has(type))
+        .map((type) => weights[type] ?? 1);
+    const launcherWeight = weights.ROCKET_TURRET;
+    const totalNonRocketWeight = turretWeight + launcherWeight
         + otherWeights.reduce((total, weight) => total + weight, 0);
     const nonRocketChance = 1 - HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE;
     const turretChance = nonRocketChance * turretWeight / totalNonRocketWeight;
-    const otherChance = nonRocketChance - turretChance;
+    const launcherChance = nonRocketChance * launcherWeight / totalNonRocketWeight;
+    const otherChance = nonRocketChance - turretChance - launcherChance;
 
     assert.equal(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE, 0.70);
-    assert.ok(otherWeights.every((weight) => weight === otherWeights[0]));
-    assert.ok(Math.abs(turretChance - 0.10) < Number.EPSILON);
-    assert.ok(Math.abs(otherChance - 0.20) < Number.EPSILON);
+    assert.ok(standardOtherWeights.every((weight) => weight === 1));
+    assert.equal(weights.FOG, 0.7);
+    assert.deepEqual([weights.FAN_3, weights.FAN_4, weights.FAN_5], [0.6, 0.3, 0.1]);
+    assert.equal(turretWeight, 10);
+    assert.equal(launcherWeight, 5);
+    assert.ok(Math.abs(turretChance + launcherChance + otherChance - nonRocketChance) < Number.EPSILON);
 });
 
 test('Rocket pickup normalization, weighted selection and allowlists stay deterministic', () => {

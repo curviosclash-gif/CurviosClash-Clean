@@ -89,6 +89,7 @@ function createDefaultBucket() {
         totalItemUses: 0,
         totalStuckEvents: 0,
         totalSpawnDeaths: 0,
+        totalKills: 0,
         totalMgHits: 0,
         totalRocketHits: 0,
         totalShieldAbsorb: 0,
@@ -121,6 +122,7 @@ function normalizeBucketCollection(source) {
             totalItemUses: toNonNegativeInt(bucket.totalItemUses, 0),
             totalStuckEvents: toNonNegativeInt(bucket.totalStuckEvents, 0),
             totalSpawnDeaths: toNonNegativeInt(bucket.totalSpawnDeaths, 0),
+            totalKills: toNonNegativeInt(bucket.totalKills, 0),
             totalMgHits: toNonNegativeInt(bucket.totalMgHits, 0),
             totalRocketHits: toNonNegativeInt(bucket.totalRocketHits, 0),
             totalShieldAbsorb: toNonNegativeNumber(bucket.totalShieldAbsorb, 0),
@@ -147,6 +149,7 @@ function createDefaultBalanceSummary() {
         totalItemUses: 0,
         totalStuckEvents: 0,
         totalSpawnDeaths: 0,
+        totalKills: 0,
         totalMgHits: 0,
         totalRocketHits: 0,
         totalShieldAbsorb: 0,
@@ -172,6 +175,7 @@ function normalizeBalanceSummary(source) {
         totalItemUses: toNonNegativeInt(summary.totalItemUses, 0),
         totalStuckEvents: toNonNegativeInt(summary.totalStuckEvents, 0),
         totalSpawnDeaths: toNonNegativeInt(summary.totalSpawnDeaths, 0),
+        totalKills: toNonNegativeInt(summary.totalKills, 0),
         totalMgHits: toNonNegativeInt(summary.totalMgHits, 0),
         totalRocketHits: toNonNegativeInt(summary.totalRocketHits, 0),
         totalShieldAbsorb: toNonNegativeNumber(summary.totalShieldAbsorb, 0),
@@ -207,13 +211,18 @@ function normalizeRecentRoundEntry(entry) {
         hpDamage: toNonNegativeNumber(source.hpDamage, 0),
         stuckEvents: toNonNegativeInt(source.stuckEvents, 0),
         spawnDeaths: toNonNegativeInt(source.spawnDeaths, 0),
+        kills: toNonNegativeInt(source.kills, 0),
         parcoursCompleted: source.parcoursCompleted === true,
         parcoursRouteId: sanitizeBucketKey(source.parcoursRouteId, ''),
         parcoursCompletionTimeMs: toNonNegativeNumber(source.parcoursCompletionTimeMs, 0),
+        parcoursCheckpointCount: toNonNegativeInt(source.parcoursCheckpointCount, 0),
         telemetrySchemaVersion: sanitizeBucketKey(source.telemetrySchemaVersion, 'round-telemetry.v1'),
-        appVersion: sanitizeBucketKey(source.context?.appVersion, 'dev'),
-        buildId: sanitizeBucketKey(source.context?.buildId, 'dev'),
-        mapRevision: sanitizeBucketKey(source.context?.mapRevision, 'unknown'),
+        // Beide Formen lesen: frisch aus der Runtime kommt der Kontext verschachtelt,
+        // beim erneuten Normalisieren eines gespeicherten Eintrags liegt er flach.
+        // Nur die verschachtelte Form zu kennen hiess, den Build beim Speichern zu verlieren.
+        appVersion: sanitizeBucketKey(source.context?.appVersion ?? source.appVersion, 'dev'),
+        buildId: sanitizeBucketKey(source.context?.buildId ?? source.buildId, 'dev'),
+        mapRevision: sanitizeBucketKey(source.context?.mapRevision ?? source.mapRevision, 'unknown'),
         performance: source.performance && typeof source.performance === 'object'
             ? { ...source.performance }
             : null,
@@ -346,6 +355,7 @@ export class MenuTelemetryStore extends PersistentStore {
         const stuckEvents = toNonNegativeInt(source.stuckEvents, 0);
         const spawnDeaths = toNonNegativeInt(source.spawnDeaths, 0);
         const reason = sanitizeBucketKey(source.reason, 'ELIMINATION');
+        const kills = toNonNegativeInt(source.kills, 0);
         const parcoursCompleted = source.parcoursCompleted === true;
         const parcoursRouteId = sanitizeBucketKey(source.parcoursRouteId, '');
         const parcoursCompletionTimeMs = toNonNegativeNumber(source.parcoursCompletionTimeMs, 0);
@@ -365,6 +375,7 @@ export class MenuTelemetryStore extends PersistentStore {
         summary.totalHpDamage += hpDamage;
         summary.totalStuckEvents += stuckEvents;
         summary.totalSpawnDeaths += spawnDeaths;
+        summary.totalKills += kills;
         if (parcoursCompleted) {
             summary.parcoursCompletions += 1;
             summary.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
@@ -388,6 +399,7 @@ export class MenuTelemetryStore extends PersistentStore {
         mapBucket.totalHpDamage += hpDamage;
         mapBucket.totalStuckEvents += stuckEvents;
         mapBucket.totalSpawnDeaths += spawnDeaths;
+        mapBucket.totalKills += kills;
         if (parcoursCompleted) {
             mapBucket.parcoursCompletions += 1;
             mapBucket.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
@@ -417,6 +429,7 @@ export class MenuTelemetryStore extends PersistentStore {
         modeBucket.totalHpDamage += hpDamage;
         modeBucket.totalStuckEvents += stuckEvents;
         modeBucket.totalSpawnDeaths += spawnDeaths;
+        modeBucket.totalKills += kills;
         if (parcoursCompleted) {
             modeBucket.parcoursCompletions += 1;
             modeBucket.totalParcoursCompletionTimeMs += parcoursCompletionTimeMs;
@@ -445,9 +458,19 @@ export class MenuTelemetryStore extends PersistentStore {
             hpDamage,
             stuckEvents,
             spawnDeaths,
+            kills,
             parcoursCompleted,
             parcoursRouteId,
             parcoursCompletionTimeMs,
+            parcoursCheckpointCount: toNonNegativeInt(source.parcoursCheckpointCount, 0),
+            // Ohne diese drei Durchreichungen steht in der Liste der letzten Runden
+            // immer "dev" und "unknown": der Normalisierer liest sie aus, bekam sie
+            // hier aber nie gestellt. Damit war nicht erkennbar, welcher Build eine
+            // Runde erzeugt hat.
+            context: source.context,
+            performance: source.performance,
+            arcade: source.arcade,
+            telemetrySchemaVersion: source.telemetrySchemaVersion,
         }));
         if (state.recentRounds.length > MAX_RECENT_ROUNDS) {
             state.recentRounds = state.recentRounds.slice(state.recentRounds.length - MAX_RECENT_ROUNDS);

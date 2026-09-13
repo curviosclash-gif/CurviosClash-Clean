@@ -12,12 +12,12 @@ import {
     normalizeArcadeRunSettings,
 } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 
-const SCORE_MODEL_V2 = 'arcade-score.v2';
+const SCORE_MODEL_V2 = 'arcade-score.v3';
 const RECORD_SCHEMA_V2 = ARCADE_RUN_PROFILE_SCHEMA_VERSION;
 
-test('run profile keeps its legacy key and current payload schema explicit', () => {
-    assert.equal(ARCADE_RUN_PROFILE_STORAGE_KEY, 'cuviosclash.arcade-run-profile.v1');
-    assert.equal(ARCADE_RUN_PROFILE_SCHEMA_VERSION, 'arcade-run-profile.v2');
+test('run profile uses a separate v3 key and current payload schema explicit', () => {
+    assert.equal(ARCADE_RUN_PROFILE_STORAGE_KEY, 'cuviosclash.arcade-run-profile.v3');
+    assert.equal(ARCADE_RUN_PROFILE_SCHEMA_VERSION, 'arcade-run-profile.v3');
 });
 
 test('score v2 rewards late survival non-linearly and caps invalid long durations', () => {
@@ -37,7 +37,7 @@ test('persisted v1 settings migrate to the current score model', () => {
     assert.equal(normalizeArcadeRunSettings({ scoreModel: 'unknown-model' }).scoreModel, SCORE_MODEL_V2);
 });
 
-test('legacy score records reset every score-dependent field during v2 migration', () => {
+test('legacy score records reset every score-dependent field in the new v3 record', () => {
     const migrated = createArcadeRunRecords({
         schemaVersion: 'arcade-run-profile.v1',
         bestScore: 9999,
@@ -57,7 +57,7 @@ test('legacy score records reset every score-dependent field during v2 migration
     assert.equal(migrated.daily.bestScore, 0);
 });
 
-test('current v2 records preserve comparable scores', () => {
+test('current v3 records preserve comparable scores', () => {
     const current = createArcadeRunRecords({
         schemaVersion: RECORD_SCHEMA_V2,
         scoreModel: SCORE_MODEL_V2,

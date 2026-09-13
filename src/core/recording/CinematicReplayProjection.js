@@ -76,6 +76,7 @@ function ensureProjectionPlayer(outPlayers, index) {
             planarMode: false,
             cameraModeId: 'THIRD_PERSON',
             renderDiscontinuityVersion: 0,
+            exclusionZoneState: { phase: 'SAFE', elapsedSeconds: 0, countdownSeconds: 0, stage: '' },
             position: { x: 0, y: 0, z: 0 },
             quaternion: { x: 0, y: 0, z: 0, w: 1 },
             direction: { x: 0, y: 0, z: -1 },
@@ -166,6 +167,11 @@ function updateProjectionPlayer(out, left, right, alpha, fallbackIndex) {
     out.cockpitCamera = discrete?.cockpitCamera === true;
     out.planarMode = discrete?.planarMode === true;
     out.cameraModeId = String(discrete?.cameraModeId || 'THIRD_PERSON');
+    const zone = discrete?.exclusionZone;
+    out.exclusionZoneState.phase = ['SAFE', 'GRACE', 'SALVO'].includes(zone?.phase) ? zone.phase : 'SAFE';
+    out.exclusionZoneState.elapsedSeconds = Math.max(0, toFiniteNumber(zone?.elapsedSeconds, 0));
+    out.exclusionZoneState.countdownSeconds = Math.max(0, Math.ceil(toFiniteNumber(zone?.countdownSeconds, 0)));
+    out.exclusionZoneState.stage = typeof zone?.stage === 'string' ? zone.stage : '';
     const q = out.quaternion;
     out.direction.x = -2 * ((q.x * q.z) + (q.w * q.y));
     out.direction.y = -2 * ((q.y * q.z) - (q.w * q.x));
@@ -239,6 +245,13 @@ export function updateReplayProjection(projection, leftSnapshot, rightSnapshot, 
         projection.localPlayerIndex
     )));
     projection.localHumanCount = Math.max(1, Math.trunc(toFiniteNumber(metadata?.numHumans, 1)));
+    const fogSnapshot = alpha < 0.5 ? leftSnapshot?.globalFog : rightSnapshot?.globalFog;
+    const fogRemaining = Math.max(0, toFiniteNumber(fogSnapshot?.remainingSeconds, 0));
+    projection.globalFog = {
+        active: fogSnapshot?.active === true && fogRemaining > 0,
+        remainingSeconds: fogRemaining,
+        visibilityRange: Math.max(0, toFiniteNumber(fogSnapshot?.visibilityRange, 0)),
+    };
     for (let index = 0; index < leftPlayers.length; index++) {
         const left = leftPlayers[index];
         const playerIndex = Number.isInteger(left?.index) ? left.index : index;

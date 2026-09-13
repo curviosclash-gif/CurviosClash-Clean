@@ -58,6 +58,8 @@ const BASE_MAP_KEYS = [
     'notre_dame_fire_arena',
     'eiffel_tower',
     'eiffel_tower_arena',
+    'burg_falkenwacht',
+    'burg_falkenwacht_arena',
 ];
 
 export const MAP_PRESETS_BASE = Object.freeze(

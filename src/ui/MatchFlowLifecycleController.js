@@ -160,6 +160,7 @@ export class MatchFlowLifecycleController {
         }
         this.applyRoundEndCoordinatorPlan(roundEndPlan);
         this.telemetryController?.recordRoundEndTelemetry?.(roundEndPlan);
+        controller._syncArcadeOverlayPanel?.();
         if (ghostClip) {
             game.entityManager?.playLastRoundGhost?.(ghostClip);
         } else {

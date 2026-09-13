@@ -184,18 +184,49 @@ export class HuntCombatSystem {
             });
         }
 
-        if (itemPreview.type === 'MG_TURRET' && !this.runtime?.combat?.deployMgTurret?.(player)) {
+        const deploy = itemPreview.type === 'MG_TURRET' ? this.runtime?.combat?.deployMgTurret
+            : itemPreview.type === 'ROCKET_TURRET' ? this.runtime?.combat?.deployRocketTurret : null;
+        const isTurret = itemPreview.type === 'MG_TURRET' || itemPreview.type === 'ROCKET_TURRET';
+        const isGlobalFog = itemPreview.type === 'FOG';
+        const canActivateGlobalFog = this.runtime?.callbacks?.globalEffects?.canActivateFog;
+        const activateGlobalFog = this.runtime?.callbacks?.globalEffects?.activateFog;
+        if (isTurret && !deploy?.(player)) {
             return buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
-                message: 'MG-Geschuetz konnte nicht aufgestellt werden',
+                message: 'Geschuetz konnte nicht aufgestellt werden',
+                type: itemPreview.type,
+            });
+        }
+        if (
+            isGlobalFog
+            && (typeof activateGlobalFog !== 'function' || canActivateGlobalFog?.() === false)
+        ) {
+            return buildGameplayActionResult({
+                ok: false,
+                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
+                message: 'Nebel konnte nicht aktiviert werden',
                 type: itemPreview.type,
             });
         }
 
+        const inventoryBefore = isGlobalFog ? player.inventory.slice() : null;
+        const selectedItemIndexBefore = player.selectedItemIndex;
         const itemResult = this.takeInventoryItem(player, preferredIndex, 'use');
         if (!itemResult.ok) return itemResult;
-        if (itemResult.type !== 'MG_TURRET') {
+        if (isGlobalFog) {
+            if (activateGlobalFog() !== true) {
+                player.inventory.length = 0;
+                player.inventory.push(...inventoryBefore);
+                player.selectedItemIndex = selectedItemIndexBefore;
+                return buildGameplayActionResult({
+                    ok: false,
+                    code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
+                    message: 'Nebel konnte nicht aktiviert werden',
+                    type: itemResult.type,
+                });
+            }
+        } else if (!isTurret) {
             player.applyPowerup(itemResult.type);
         }
         const nextCooldown = huntCombatActive ? this._resolveItemUseCooldownSeconds(itemResult.type) : 0;
@@ -229,7 +260,12 @@ export class HuntCombatSystem {
         const runtime = this.runtime;
         const config = resolveEntityRuntimeConfig(runtime);
         const maxAngle = (config.HOMING.LOCK_ON_ANGLE * Math.PI) / 180;
-        const maxRangeSq = config.HOMING.MAX_LOCK_RANGE * config.HOMING.MAX_LOCK_RANGE;
+        const configuredRange = Math.max(0, Number(config.HOMING.MAX_LOCK_RANGE) || 0);
+        const fogRange = player?.isBot
+            ? player?.entityManager?.getGlobalFogVisibilityRange?.()
+            : Infinity;
+        const maxRange = Math.min(configuredRange, Number.isFinite(fogRange) ? fogRange : configuredRange);
+        const maxRangeSq = maxRange * maxRange;
         let bestTarget = null;
         let bestDistSq = Infinity;
 
@@ -275,15 +311,25 @@ export class HuntCombatSystem {
             config?.HUNT?.MG || {},
             player?.fightLoadout?.machineGunId
         );
-        applyFightHumanAimAssist(player, runtime.players, tmpDir, mg, tmpVec);
+        const visiblePlayers = player?.isBot
+            ? player?.entityManager?._globalFogEffectSystem?.filterVisiblePlayers?.(player, runtime.players) || runtime.players
+            : runtime.players;
+        applyFightHumanAimAssist(player, visiblePlayers, tmpDir, mg, tmpVec);
         const muzzle = this._fallbackMuzzle;
         const muzzleOffset = Math.max(0, Number(config?.HUNT?.TARGETING?.MUZZLE_OFFSET || 2.1));
         muzzle.copy(player.position).addScaledVector(tmpDir, muzzleOffset);
 
-        const mgRange = Math.max(10, Number(mg.RANGE || 95));
+        const configuredMgRange = Math.max(10, Number(mg.RANGE || 95));
+        const fogRange = player?.isBot
+            ? player?.entityManager?.getGlobalFogVisibilityRange?.()
+            : Infinity;
+        const mgRange = Math.min(
+            configuredMgRange,
+            Number.isFinite(fogRange) ? fogRange : configuredMgRange
+        );
         const descriptor = resolveHuntLineTarget({
             sourcePlayer: player,
-            players: runtime.players,
+            players: visiblePlayers,
             trailSpatialIndex: runtime.getTrailSpatialIndex?.() || runtime.trails?.spatialIndex || null,
             origin: muzzle,
             direction: tmpDir,

@@ -1,12 +1,39 @@
-import { test, expect } from './helpers.desktop.js';
+import { readFile, mkdtemp } from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+import { test as baseTest, expect } from './helpers.desktop.js';
 import { collectErrors, resolveAppUrl } from './helpers.js';
 import { EDITOR_API_ROUTES, EDITOR_DATA_PATHS, EDITOR_VIEW_PATHS } from '../src/shared/contracts/EditorPathContract.js';
 import { EDITOR_BUILD_CATEGORIES } from '../editor/js/ui/EditorBuildCatalog.js';
+
+// Exercise the real editor window and leave the game window available for its
+// desktop shutdown handshake. Navigating the game window breaks that handshake.
+const test = process.env.PW_RUN_PROFILE === 'browser-compat' ? baseTest : baseTest.extend({
+    page: async ({ page, electronApp }, use) => {
+        const downloads = await mkdtemp(path.join(os.tmpdir(), 'curvios-editor-ui-downloads-'));
+        await electronApp.evaluate(({ app }, directory) => app.setPath('downloads', directory), downloads);
+        const popupPromise = page.waitForEvent('popup');
+        await page.evaluate((editorPath) => window.open(editorPath, '_blank'), EDITOR_VIEW_PATHS.MAP_EDITOR);
+        const editorPage = await popupPromise;
+        try { await use(editorPage); }
+        finally {
+            if (!editorPage.isClosed()) {
+                await editorPage.evaluate(() => window.CURVIOS_EDITOR?.ui?.markSaved?.());
+                await editorPage.close();
+            }
+        }
+    },
+});
 
 const TOOL_DOCK_STORAGE_KEY = 'cuviosclash.editor.tool-dock.v1';
 const EDITOR_LAYOUT_STORAGE_KEY = 'curviosclash.editor.layout.v1';
 const EDITOR_AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
 const PLAYTEST_RETURN_STORAGE_KEY = 'curviosclash.editor.playtest-return.v1';
+
+// These tests own a fresh editor session; release its unsaved-close guard after assertions.
+test.afterEach(async ({ page }) => {
+    if (!page.isClosed()) await page.evaluate(() => window.CURVIOS_EDITOR?.ui?.markSaved?.());
+});
 
 async function loadEditorPage(page, { autosave = null, waitForDockVisible = true } = {}) {
     await page.addInitScript(({ storageKeys, autosaveStorageKey, autosaveValue }) => {
@@ -329,17 +356,25 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#exportTarget')).toHaveValue('project');
         await expect(page.locator('#exportConflictModeRow')).toBeHidden();
         await expect(page.locator('#exportValidationSummary')).toContainText('1 Warnung');
-        await expect(page.locator('#btnExportConfirm')).toBeDisabled();
-        await page.locator('#exportWarningAcknowledge').check();
+        await expect(page.locator('#exportWarningAcknowledgeRow')).toBeHidden();
         await expect(page.locator('#btnExportConfirm')).toBeEnabled();
-        const downloadPromise = page.waitForEvent('download');
-        await page.locator('#btnExportConfirm').click();
-        const download = await downloadPromise;
-        expect(download.suggestedFilename()).toBe('meine-test-map.curvios-map.json');
-        const stream = await download.createReadStream();
-        const chunks = [];
-        for await (const chunk of stream) chunks.push(chunk);
-        const documentValue = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        let documentValue;
+        if (process.env.PW_RUN_PROFILE === 'browser-compat') {
+            const downloadPromise = page.waitForEvent('download');
+            await page.locator('#btnExportConfirm').click();
+            const download = await downloadPromise;
+            expect(download.suggestedFilename()).toBe('meine-test-map.curvios-map.json');
+            const stream = await download.createReadStream();
+            const chunks = [];
+            for await (const chunk of stream) chunks.push(chunk);
+            documentValue = JSON.parse(Buffer.concat(chunks).toString('utf8'));
+        } else {
+            await page.locator('#btnExportConfirm').click();
+            await expect(page.locator('#exportResultView')).toBeVisible();
+            const savedPath = await page.locator('#exportResultPaths').textContent();
+            expect(path.basename(savedPath)).toBe('meine-test-map.curvios-map.json');
+            documentValue = JSON.parse(await readFile(savedPath, 'utf8'));
+        }
         expect(documentValue.contractVersion).toBe('curvios-editor-document.v1');
         expect(documentValue.authoring?.layerState?.layers?.geometry).toBeTruthy();
         expect(documentValue.map?.playerSpawn?.id).toBeTruthy();
@@ -527,7 +562,9 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(marked.nth(1)).toBeChecked();
 
         await page.locator('#btnTransformMarked').click();
-        await page.locator('#editorModalInput').fill('100, 0, 50, 90, 1');
+        await page.locator('[data-transform-fields] [name=dx]').fill('100');
+        await page.locator('[data-transform-fields] [name=dz]').fill('50');
+        await page.locator('[data-transform-fields] [name=rotationDegrees]').fill('90');
         await page.locator('#btnEditorModalConfirm').click();
         const transformed = await page.evaluate(() => Array.from(window.CURVIOS_EDITOR.core.objectsContainer.children)
             .map((object) => ({ x: Math.round(object.position.x), z: Math.round(object.position.z) })));
@@ -545,7 +582,7 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await activateInspectorTab(page, 'objects');
         await page.getByLabel(`${ids.block} fuer Mehrfachaktion markieren`).check();
         await page.locator('#btnTransformMarked').click();
-        await page.locator('#editorModalInput').fill('0, 0, 0, 0, 2');
+        await page.locator('[data-transform-fields] [name=scale]').fill('2');
         await page.locator('#btnEditorModalConfirm').click();
 
         const transformed = await page.evaluate(({ block, item }) => {
@@ -788,7 +825,9 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
 
         await page.locator('#dockSearch').fill('Rakete');
         await expect(page.locator('#dockCards [data-entry-id="pickups-rocket"]')).toBeVisible();
-        await expect(page.locator('#dockCards [data-entry-id]')).toHaveCount(1);
+        await expect(page.locator('#dockCards [data-entry-id="pickups-rocket-turret"]')).toBeVisible();
+        await expect(page.locator('#dockCards [data-entry-id="gameplay-rocket-turret"]')).toBeVisible();
+        await expect(page.locator('#dockCards [data-entry-id]')).toHaveCount(3);
 
         await page.locator('#dockSearch').fill('');
         await activateDockEntry(page, 'build', 'build-hard');
@@ -1095,4 +1134,52 @@ test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
         const afterRightClick = JSON.parse(await page.locator('#jsonOutput').inputValue());
         expect(afterRightClick.hardBlocks).toHaveLength(0);
     });
+});
+
+
+test('Raketenwerfer: Editor properties, duplicate, undo and saved roundtrip', async ({ page }, testInfo) => {
+    await loadEditorPage(page);
+    await activateDockEntry(page, 'gameplay', 'gameplay-rocket-turret');
+    await clickCanvas(page, 0.42);
+    await activateInspectorTab(page, 'selection');
+    await expect(page.locator('#propTurretFields')).toBeVisible();
+    await expect(page.locator('#propTurretRange')).toHaveValue('90');
+    await page.locator('#propTurretRange').fill('120');
+    await page.locator('#propTurretRange').press('Tab');
+    await page.locator('#propTurretCooldown').fill('4.5');
+    await page.locator('#propTurretCooldown').press('Tab');
+    await page.locator('#propTurretRocketType').selectOption('ROCKET_MEDIUM');
+    await page.locator('#propTurretHp').fill('130');
+    await page.locator('#propTurretHp').press('Tab');
+    const result = await page.evaluate(() => {
+        const { ui } = window.CURVIOS_EDITOR;
+        const manager = ui.mapManager;
+        const selected = ui.selectedObject;
+        const id = selected.userData.id;
+        const saved = manager.generateJSONExport(ui.getArenaSizeForExport());
+        ui.executeHistoryMutation('Duplicate launcher', () => {
+            const props = { ...selected.userData };
+            delete props.id;
+            delete props.editorObjectId;
+            manager.createMesh('turret', 'rocket', selected.position.x + 50, selected.position.y, selected.position.z, 0, props);
+        });
+        const count = () => manager.core.objectsContainer.children.filter((entry) => entry.userData.type === 'turret').length;
+        const duplicateCount = count();
+        ui.commandHistory.undo();
+        const undoCount = count();
+        ui.commandHistory.redo();
+        const redoCount = count();
+        manager.importFromJSON(saved);
+        const loaded = manager.getObjectById(id);
+        ui.selectObject(loaded);
+        return { duplicateCount, undoCount, redoCount, settings: JSON.parse(saved).staticTurrets[0],
+            loadedHp: loaded.userData.maxHp, preview: !!ui.turretRangePreview };
+    });
+    expect(result.duplicateCount).toBe(2);
+    expect(result.undoCount).toBe(1);
+    expect(result.redoCount).toBe(2);
+    expect(result.settings).toMatchObject({ rocketType: 'ROCKET_MEDIUM', maxHp: 130, cooldown: 4.5, destructible: true });
+    expect(result.loadedHp).toBe(130);
+    expect(result.preview).toBe(true);
+    await page.screenshot({ path: testInfo.outputPath('rocket-turret-editor.png') });
 });

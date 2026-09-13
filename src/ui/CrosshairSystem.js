@@ -3,7 +3,7 @@
 // ============================================
 
 import * as THREE from 'three';
-import { clamp } from '../utils/MathOps.js';
+import { clamp } from '../shared/utils/MathOps.js';
 import { GAMEPLAY_CAMERA_MODE_ID, resolveGameplayCameraModeId } from '../shared/contracts/CameraModeContract.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 

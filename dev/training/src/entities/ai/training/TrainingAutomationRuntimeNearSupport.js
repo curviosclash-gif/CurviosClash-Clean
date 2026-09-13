@@ -8,7 +8,7 @@ import {
     TARGET_IN_FRONT,
     WALL_DISTANCE_FRONT,
 } from '../../../../../../src/entities/ai/observation/ObservationSchemaV1.js';
-import { clamp01 } from '../../../../../../src/utils/MathOps.js';
+import { clamp01 } from '../../../../../../src/shared/utils/MathOps.js';
 
 function clampSigned(value) {
     const numeric = Number(value);

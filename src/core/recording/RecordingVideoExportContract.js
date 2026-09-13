@@ -1,3 +1,5 @@
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+
 // @ts-nocheck
 import {
     isCinematicCaptureProfile,
@@ -136,11 +138,6 @@ export const RECORDING_VIDEO_EXPORT_MATRIX = Object.freeze({
     }),
 });
 
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
-
 function normalizeFileToken(value, fallback = 'recording') {
     const normalized = normalizeString(value, fallback)
         .replace(/[^A-Za-z0-9._-]+/g, '-')
@@ -155,6 +152,14 @@ function normalizeRuntimeKind(value) {
         : RECORDING_EXPORT_RUNTIME_KINDS.WEB;
 }
 
+/**
+ * Ohne diese Angabe leitet der Typecheck den Ersatzwert aus dem Vorgabewert ab
+ * und verengt ihn auf das Literal 'webm'. Aufrufer reichen aber auch 'mp4'
+ * durch, sobald der Behaelter aus dem MIME-Typ aufgeloest wurde.
+ * @param {unknown} value
+ * @param {string} [fallback]
+ * @returns {string}
+ */
 function normalizeContainer(value, fallback = RECORDING_EXPORT_CONTAINERS.WEBM) {
     const normalized = normalizeString(value, fallback).toLowerCase();
     if (normalized === RECORDING_EXPORT_CONTAINERS.MP4) return RECORDING_EXPORT_CONTAINERS.MP4;

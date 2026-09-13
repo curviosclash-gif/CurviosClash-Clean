@@ -1,4 +1,5 @@
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { resolveParcoursSpawnDirection } from '../systems/ParcoursRespawnOps.js';
 
 export class EntitySpawnOps {
     constructor(entityManager) {
@@ -10,13 +11,17 @@ export class EntitySpawnOps {
         if (!owner) return;
         owner._roundEnded = false;
         owner._simulationClockMs = 0;
+        owner.arena?.setGlbAnimationElapsedSeconds?.(0);
         owner._respawnSystem.reset();
         owner._huntScoring.reset();
         owner._roundOutcomeSystem.reset();
+        owner._globalFogEffectSystem?.reset?.();
         owner._lastRoundOutcome = null;
         owner._authoritativeHuntState = null;
         owner._lastAppliedAuthoritativeOutcomeKey = '';
         owner._parcoursProgressSystem?.startRound?.(owner.players);
+        owner._mapHazardSystem?.startRound?.();
+        owner._exclusionZoneSystem?.startRound?.();
         owner._spawnPlacementSystem?.resetAssignments?.();
         const spawnContext = this.createSpawnContext();
         for (const player of owner.players) {
@@ -49,8 +54,18 @@ export class EntitySpawnOps {
             planarLevel: context.planarSpawnLevel,
             player,
         });
-        const dir = owner._findSafeSpawnDirection(pos, player.hitboxRadius);
+        const dir = this._resolveRouteSpawnDirection(player, pos)
+            || owner._findSafeSpawnDirection(pos, player.hitboxRadius);
         this.spawnPlayerAt(player, pos, dir);
+    }
+
+    // Humans on a parcours route start facing the route. Bots keep the safe free lane, so
+    // their spread across the spawn points stays as it was.
+    _resolveRouteSpawnDirection(player, position) {
+        if (!position || player?.isBot === true) return null;
+        const route = this.entityManager?._parcoursProgressSystem?.getRouteSnapshot?.() || null;
+        const facing = resolveParcoursSpawnDirection(route, position);
+        return facing ? position.clone().set(facing[0], facing[1], facing[2]) : null;
     }
 
     spawnPlayerAt(player, pos, dir = null) {
@@ -76,6 +91,7 @@ export class EntitySpawnOps {
         }
         player.shootCooldown = 0;
         owner._parcoursProgressSystem?.onPlayerSpawn?.(player, { reason: 'spawn_all' });
+        owner._exclusionZoneSystem?.resetPlayer?.(player);
         if (owner.recorder) {
             owner.recorder.markPlayerSpawn(player);
             owner.recorder.logEvent('SPAWN', player.index, player.isBot ? 'bot=1' : 'bot=0');

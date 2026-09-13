@@ -4,6 +4,7 @@ import test from 'node:test';
 import { AudioManager } from '../src/core/Audio.js';
 import { ProceduralMusicDirector } from '../src/core/audio/ProceduralMusicDirector.js';
 import { NOTRE_DAME_MAPS } from '../src/core/config/maps/presets/notre_dame/index.js';
+import { NOTRE_DAME_FIRE_MAPS } from '../src/core/config/maps/presets/notre_dame_fire/index.js';
 
 function createMockWindow() {
     const listeners = new Map();
@@ -381,6 +382,61 @@ test('Notre-Dame ambience crossfades by zone, rings on the shared beat and clean
 
             audio.dispose();
             assert.equal(outdoorSource.stopped, true);
+            assert.equal(audio._mapAmbience, null);
+        } finally {
+            if (audio.ctx) audio.dispose();
+        }
+    });
+});
+
+test('Notre-Dame fire ambience uses deterministic fire and wind layers without the construction mix', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        const map = NOTRE_DAME_FIRE_MAPS.notre_dame_fire;
+        const mapScale = 3;
+        const player = {
+            index: 0,
+            alive: true,
+            isBot: false,
+            position: { x: -40 * mapScale, y: 28 * mapScale, z: 0 },
+        };
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: map,
+                mapScale,
+                elapsedSeconds: 10,
+            }), 'interior');
+            const state = audio._mapAmbience;
+            const fireSource = state.fire.source;
+            assert.ok(state.fire.gain.gain.value > state.construction.gain.gain.value);
+            assert.ok(state.wind.gain.gain.value > state.machinery.gain.gain.value);
+
+            const voicesBeforeCollapse = audio._activeVoices;
+            audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: map,
+                mapScale,
+                elapsedSeconds: 11.1,
+            });
+            assert.equal(audio._activeVoices, voicesBeforeCollapse + 1);
+
+            assert.equal(audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: NOTRE_DAME_MAPS.notre_dame,
+                mapScale,
+                elapsedSeconds: 12,
+            }), 'interior');
+            assert.equal(state.fire.gain.gain.value, 0.0001);
+            assert.equal(state.wind.gain.gain.value, 0.0001);
+
+            audio.syncMapAmbienceFromPlayers([player], {
+                mapDefinition: map,
+                mapScale,
+                elapsedSeconds: 2,
+            });
+            assert.equal(audio._activeVoices, voicesBeforeCollapse + 1);
+            audio.dispose();
+            assert.equal(fireSource.stopped, true);
             assert.equal(audio._mapAmbience, null);
         } finally {
             if (audio.ctx) audio.dispose();

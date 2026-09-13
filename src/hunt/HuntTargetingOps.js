@@ -1,7 +1,7 @@
 ﻿import * as THREE from 'three';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { HUNT_TARGET_KIND } from '../shared/contracts/HuntTargetingContract.js';
-import { toFiniteNumber } from '../utils/MathOps.js';
+import { toFiniteNumber } from '../shared/utils/MathOps.js';
 import {
     createHuntTargetingTelemetryState,
     finalizeHuntTargetingResult,

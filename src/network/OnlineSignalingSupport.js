@@ -1,3 +1,5 @@
+import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
+
 import {
     SIGNALING_COMMAND_TYPES,
     createSignalingEnvelope,
@@ -35,11 +37,6 @@ const SERVER_ERROR_MESSAGES = Object.freeze({
     reconnect_window_expired: 'Die Wiederverbindungszeit ist abgelaufen.',
     connection_resume_failed: 'Wiederverbindung fehlgeschlagen.',
 });
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 export class OnlineSignalingError extends Error {
     constructor(code, message, details = null, cause = null) {

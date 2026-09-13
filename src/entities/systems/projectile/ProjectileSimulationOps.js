@@ -1,3 +1,4 @@
+import { isTurretTargetPlayerEligible } from '../../../shared/contracts/TurretCombatContract.js';
 import * as THREE from 'three';
 import {
     createHuntTargetingScratch,
@@ -102,6 +103,14 @@ export class ProjectileSimulationOps {
         return null;
     }
 
+    _isAllowedTurretTarget(projectile, target, players) {
+        const rules = projectile.turretTargeting;
+        if (!rules) return true;
+        if (isTrailTargetDescriptor(target) && !rules.targetTrails) return false;
+        const player = resolveHuntTargetOwnerPlayer(target, players);
+        return isTurretTargetPlayerEligible(player, projectile.owner, rules.targetPlayers);
+    }
+
     acquireHomingTarget(projectile, players, trailSpatialIndex = null) {
         const config = resolveEntityRuntimeConfig(this.system);
         const rocketRuntime = resolveRocketRuntime(config);
@@ -153,7 +162,8 @@ export class ProjectileSimulationOps {
                 targetingTelemetry: this._targetingTelemetry,
                 scratch: this._targetingScratch,
             });
-            if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive) {
+            if (resolveHuntTargetOwnerPlayer(lineTarget, players)?.decoyActive
+                || !this._isAllowedTurretTarget(projectile, lineTarget, players)) {
                 lineTarget = null;
             }
         }
@@ -163,7 +173,8 @@ export class ProjectileSimulationOps {
         let bestFallbackTarget = null;
         let bestFallbackDistSq = Infinity;
         for (const target of players) {
-            if (!target || !target.alive || target === owner || target.decoyActive) continue;
+            if (!target || !target.alive || target === owner || target.decoyActive
+                || !this._isAllowedTurretTarget(projectile, target, players)) continue;
 
             this._tmpVec.subVectors(target.position, projectile.position);
             const distSq = this._tmpVec.lengthSq();
@@ -291,7 +302,7 @@ export class ProjectileSimulationOps {
             projectile.previousPosition?.copy?.(projectile.position);
             projectile.mesh.position.copy(projectile.position);
             this.system?._rocketTrailSystem?.resetProjectileSample?.(projectile);
-            projectile.target = null;
+            if (!projectile.targetReacquireDisabled) projectile.target = null;
             projectile.homingReacquireTimer = Math.max(
                 rocketRuntime.homingMinReacquireInterval,
                 Number(projectile.homingReacquireInterval || rocketRuntime.homingReacquireInterval)
@@ -307,11 +318,14 @@ export class ProjectileSimulationOps {
                 this._tmpTargetPosition,
                 { scratch: this._targetingScratch }
             );
-            if (resolveHuntTargetOwnerPlayer(projectile.target, players)?.decoyActive) {
+            if (resolveHuntTargetOwnerPlayer(projectile.target, players)?.decoyActive
+                || !this._isAllowedTurretTarget(projectile, projectile.target, players)) {
                 projectile.target = null;
                 currentTarget = null;
+                projectile.homingReacquireTimer = 0;
             }
-            if (!currentTarget || projectile.homingReacquireTimer <= 0) {
+            if (!projectile.targetReacquireDisabled && ((!currentTarget && (!projectile.turretTargeting || projectile.target || projectile.homingReacquireTimer <= 0))
+                || (!projectile.turretTargeting && projectile.homingReacquireTimer <= 0))) {
                 projectile.target = this.acquireHomingTarget(projectile, players, trailSpatialIndex);
                 projectile.homingReacquireTimer = Math.max(
                     rocketRuntime.homingMinReacquireInterval,

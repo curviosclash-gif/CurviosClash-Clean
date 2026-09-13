@@ -1,7 +1,9 @@
 import { expect, test } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
+import { writeFile } from 'node:fs/promises';
 
-test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop', async ({ page }) => {
+test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop', async ({ page }, testInfo) => {
+    test.setTimeout(180000);
     await waitForLoadedGame(page);
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="arcade"]');
@@ -99,4 +101,58 @@ test('Chrono-Forge Nexus loads and advances all eight Blender loops on desktop',
             timeout: 20000,
         }
     ).toBeTruthy();
+
+    const temple = await page.evaluate(() => {
+        const game = window.GAME_INSTANCE;
+        const arena = game.arena;
+        const slot = arena._glbScene.getObjectByName('glb-slot-chrono-forge-temple-gates');
+        const left = slot.getObjectByName('temple_gate_left');
+        const right = slot.getObjectByName('temple_gate_right');
+        const camera = game.renderer.cameras[0];
+        const savedPosition = camera.position.clone();
+        const savedRotation = camera.quaternion.clone();
+        const savedTime = arena.glbAnimationElapsedSeconds;
+        const phases = [];
+        try {
+            for (const [name, seconds] of [['closed', 0], ['opening', 1], ['open', 5], ['closing', 9]]) {
+                arena.setGlbAnimationElapsedSeconds(seconds);
+                arena.update(0);
+                const center = left.getWorldPosition(left.position.clone())
+                    .add(right.getWorldPosition(right.position.clone())).multiplyScalar(0.5);
+                const width = slot.children[0].scale.x * 11;
+                camera.position.copy(center).add(camera.position.clone().set(-width * 0.78, width * 0.08, width * 0.05));
+                camera.lookAt(center);
+                camera.updateMatrixWorld(true);
+                game.renderer.render();
+                phases.push({
+                    name,
+                    blocked: arena.checkCollisionFast(center, 1.1),
+                    screenshot: game.renderer.renderer.domElement.toDataURL('image/png'),
+                });
+            }
+            const collisionNames = arena._glbDynamicObstacles
+                .map((entry) => entry.meshCollider.mesh.name)
+                .filter((name) => name.startsWith('temple_')).sort();
+            let lightCount = 0;
+            game.renderer.scene.traverse((node) => {
+                if (node.isPointLight && node.name.startsWith('map-light-chrono_temple_')) lightCount++;
+            });
+            return { phases, collisionNames, lightCount };
+        } finally {
+            camera.position.copy(savedPosition);
+            camera.quaternion.copy(savedRotation);
+            camera.updateMatrixWorld(true);
+            arena.setGlbAnimationElapsedSeconds(savedTime);
+            arena.update(0);
+        }
+    });
+    for (const phase of temple.phases) {
+        const screenshotPath = testInfo.outputPath(`temple-${phase.name}.png`);
+        await writeFile(screenshotPath, Buffer.from(phase.screenshot.split(',')[1], 'base64'));
+        await testInfo.attach(`temple-${phase.name}`, { path: screenshotPath, contentType: 'image/png' });
+    }
+    expect(temple.collisionNames).toEqual(['temple_gate_left', 'temple_gate_right']);
+    expect(temple.lightCount).toBe(2);
+    expect(temple.phases.find((phase) => phase.name === 'closed').blocked).toBe(true);
+    expect(temple.phases.find((phase) => phase.name === 'open').blocked).toBe(false);
 });

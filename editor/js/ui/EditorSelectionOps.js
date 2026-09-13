@@ -23,6 +23,7 @@ export function onBeforeManagedObjectRemovedSelectionState(editor, object) {
 }
 
 export function syncTransformControlAttachmentSelection(editor) {
+    if (editor.syncGroupTransform?.()) return;
     const selected = editor.isManagedObjectAlive(editor.selectedObject) ? editor.selectedObject : null;
 
     if (!selected || selected.visible === false || selected.userData?.editorLocked === true || selected.userData?.editorLayerLocked === true) {

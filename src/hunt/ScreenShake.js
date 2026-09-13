@@ -1,4 +1,4 @@
-import { clamp } from '../utils/MathOps.js';
+import { clamp } from '../shared/utils/MathOps.js';
 
 function resolveDamageValue(event) {
     const damageResult = event?.damageResult || {};

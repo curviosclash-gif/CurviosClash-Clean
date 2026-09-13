@@ -70,6 +70,7 @@ test('Arcade Daily result distinguishes a new best from a tied best', () => {
     }), {
         seed: 20260817,
         attempt: 3,
+        succeeded: false, completedSectors: 0,
         score: 4800,
         previousBestScore: 4200,
         bestScore: 4800,
@@ -121,6 +122,7 @@ test('Arcade runtime projects current Daily records and attaches the completed a
     assert.deepEqual(runtime.getPostRunSummary()?.dailyResult, {
         seed: dailySeed,
         attempt: 2,
+        succeeded: false, completedSectors: 5,
         score: 4500,
         previousBestScore: 3200,
         bestScore: 4500,

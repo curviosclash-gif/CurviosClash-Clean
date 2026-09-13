@@ -27,7 +27,7 @@ members *are* the level, and no set of authored boxes can describe them. Pure de
 glass, the frieze, railing infill) keeps the _nocol suffix so the collider stays affordable.
 """
 
-from math import cos, pi, sin
+from math import cos, floor, pi, sin
 from pathlib import Path
 
 import bpy
@@ -112,6 +112,309 @@ MATERIAL_COLORS = {
 }
 
 
+# --- Surface grain -----------------------------------------------------------------------------
+# One flat colour per material makes a wall read as poured concrete: every stone in it carries the
+# exact same value. Vertex colours fix that without a texture and without a second draw call --
+# glTF multiplies COLOR_0 onto the material's base colour, so the authored colour stays the single
+# source of truth and the tint only shades individual elements away from it.
+#
+# The tint darkens and never brightens. COLOR_0 leaves the exporter as a normalised ushort, so a
+# value above 1.0 does not clamp -- it wraps, and 1.02 arrives as 0.02, turning one stone black.
+# Keeping the range inside [0, 1] is a hard requirement, not a stylistic choice. Darkening is also
+# the truthful direction: weathering makes stone dirtier, not brighter.
+#
+# One tint per element rather than per vertex: a single masonry block should be one shade, not a
+# gradient across itself. It is derived from the element's own centre, so re-running a generator
+# reproduces the identical file instead of reshuffling every stone.
+GRAIN = True
+DEFAULT_GRAIN_STRENGTH = 0.07
+# Elements wider than this get proportionally less jitter. Variation between many repeated parts is
+# what reads as a material; the same jitter applied to a single 400-unit terrain slab is not
+# variation at all, just an arbitrary amount of darkness on the whole map floor.
+GRAIN_FULL_SPAN = 12.0
+# Below this the tint is not worth an attribute: invisible on screen and finer than the exported
+# ushort resolves anyway.
+GRAIN_EPSILON = 0.02
+# Per-material overrides. Emissive materials are excluded automatically below -- a colour cast
+# drifting across a torch flame reads as a bug rather than as variation.
+MATERIAL_GRAIN = {
+    STONE: 0.10,
+    GRAVEL: 0.10,
+    GRASS: 0.12,
+    GLASS: 0.03,
+    STEEL: 0.04,
+}
+
+
+def hash01(*values):
+    """Deterministic 0..1 noise from a position.
+
+    Python's own hash() is salted per process, so using it would make every regeneration produce a
+    different file and turn each run into a diff.
+    """
+    total = 0.0
+    for index, value in enumerate(values):
+        total += (value + 3.7) * (12.9898 + 7.233 * index)
+    fractional = sin(total) * 43758.5453
+    return fractional - floor(fractional)
+
+
+def grain_strength(material):
+    override = MATERIAL_GRAIN.get(material)
+    if override is not None:
+        return override
+    entry = MATERIAL_COLORS.get(material)
+    if entry and entry[1] > 0:
+        return 0.0
+    return DEFAULT_GRAIN_STRENGTH
+
+
+def element_tint(material, center, span=0.0):
+    """The COLOR_0 multiplier for one drawn element, in [1 - 2 * strength, 1]."""
+    strength = grain_strength(material) if GRAIN else 0.0
+    if strength > 0 and span > GRAIN_FULL_SPAN:
+        strength *= GRAIN_FULL_SPAN / span
+    if strength <= 0:
+        return (1.0, 1.0, 1.0, 1.0)
+    shade = 1.0 - hash01(center.x, center.y, center.z) * 2.0 * strength
+    # A second, weaker axis. Purely grey jitter still reads as one material sample repeated;
+    # real stone varies in warmth as well as in brightness.
+    warm = 1.0 - hash01(center.z, center.y, center.x) * strength
+    channels = (shade, shade * (0.5 + 0.5 * warm), shade * warm)
+    return tuple(min(1.0, max(0.0, channel)) for channel in channels) + (1.0,)
+
+
+def apply_vertex_colors(mesh, colors):
+    """Write the per-element tints as the mesh's active colour attribute.
+
+    FLOAT_COLOR on the POINT domain: the buffers never share a vertex between two elements, so
+    per-point is enough and stays a quarter the size of a per-corner layer. Float keeps the values
+    linear, which is the space glTF reads COLOR_0 in -- a byte layer would be treated as sRGB and
+    shift every shade.
+    """
+    if not colors:
+        return None
+    if len(colors) != len(mesh.vertices):
+        # validate() dropped or merged vertices, so the tints no longer line up one to one.
+        # Shipping a misaligned layer would stain random faces; skip it and say so.
+        print(f"WARNING {mesh.name}: {len(colors)} tints for {len(mesh.vertices)} vertices, no grain")
+        return None
+    layer = mesh.color_attributes.new(name="Col", type="FLOAT_COLOR", domain="POINT")
+    flat = []
+    for color in colors:
+        flat.extend(color)
+    layer.data.foreach_set("color", flat)
+    mesh.color_attributes.active_color_index = len(mesh.color_attributes) - 1
+    return layer
+
+
+# --- Ambient occlusion -------------------------------------------------------------------------
+# The grain says one stone differs from the next. It cannot say that the inside of an arch is
+# darker than its face, because that depends on what stands around a surface rather than on which
+# surface it is. Cycles bakes exactly that, and the result multiplies onto the same COLOR_0 the
+# grain already uses -- so it still costs no texture, no second draw call and no material change.
+#
+# Two things decide whether it is worth anything:
+#  - Distance. This is how far a surface looks for something blocking its view of the sky. At 0
+#    Blender searches nowhere and every surface comes back fully lit. Measured on a wall standing
+#    on a floor: distance 0 gave the contact 0.98, distance 6 gave it 0.37.
+#  - Resolution. A vertex layer can only darken where there are vertices, and a wall drawn as a box
+#    has eight of them, all on its corners. Large faces are therefore cut down to a grid before
+#    baking, which is where the triangles go.
+AO = True
+# In authored units. Roughly the reach of a real contact shadow on this architecture: deep enough
+# to darken an arch and a corner, short enough to leave an open wall alone.
+AO_DISTANCE = 10.0
+# Target edge length for the pre-bake grid. Occlusion falls off over AO_DISTANCE, so a grid coarser
+# than about half of that cannot show the gradient at all.
+AO_EDGE = 6.0
+# Occlusion is sampled stochastically, so too few samples leave visible speckle rather than a
+# gradient. It showed up first on thin bars, which is also why AO_MIN_EDGE exists.
+AO_SAMPLES = 64
+# How much of the baked occlusion reaches the final colour. Full strength reads as dirt.
+AO_STRENGTH = 0.7
+# Faces below this area keep their corners. A masonry block already has vertices on all four of its
+# edges, which is where its contact shadow belongs -- cutting up its middle adds triangles that all
+# come back with the same value.
+AO_MIN_FACE_AREA = 80.0
+# ...and a face is only worth refining if it is broad, not merely long. A 1x28 iron bar clears any
+# area threshold while being far too narrow to hold a gradient across its width; subdividing it
+# just gives the sampler somewhere to put noise.
+AO_MIN_EDGE = 3.0
+
+
+def _part_bvh(objects):
+    """One BVH over everything in the part, to ask whether a surface has anything above it."""
+    from mathutils.bvhtree import BVHTree
+
+    verts = []
+    polygons = []
+    for obj in objects:
+        offset = len(verts)
+        matrix = obj.matrix_world
+        verts.extend(matrix @ vertex.co for vertex in obj.data.vertices)
+        polygons.extend(
+            [offset + index for index in polygon.vertices] for polygon in obj.data.polygons
+        )
+    if not polygons:
+        return None
+    return BVHTree.FromPolygons(verts, polygons, all_triangles=False)
+
+
+def _cone_directions(normal):
+    """The face normal plus four directions tilted away from it, as a cheap sky sample."""
+    up = Vector((0.0, 0.0, 1.0))
+    if abs(normal.dot(up)) > 0.9:
+        up = Vector((1.0, 0.0, 0.0))
+    right = normal.cross(up).normalized()
+    forward = normal.cross(right).normalized()
+    yield normal
+    for axis in (right, -right, forward, -forward):
+        yield (normal + axis * 0.9).normalized()
+
+
+def _face_is_occluded(bvh, face, distance):
+    """Does anything block this face's view of the sky, within the occlusion distance?
+
+    Sampled at the face centre and its corners: one probe in the middle of a 400 unit slab would
+    miss the wall standing on its edge, and then the slab would never be refined there.
+    """
+    normal = face.normal
+    if normal.length_squared < 1e-12:
+        return False
+    points = [face.calc_center_median()]
+    points.extend(vertex.co for vertex in face.verts)
+    for point in points:
+        origin = point + normal * 0.02
+        for direction in _cone_directions(normal):
+            if bvh.ray_cast(origin, direction, distance)[0] is not None:
+                return True
+    return False
+
+
+def _subdivide_shadowed_faces(obj, bvh, target_edge, min_area, distance):
+    """Refine only the faces something actually shadows.
+
+    A flat grid over every large surface is what makes this expensive, and most of it is wasted: an
+    open terrain slab has nothing above it, so a thousand extra triangles there carry a thousand
+    identical values. Testing before each round and refining only what is occluded keeps the
+    triangles where the gradient will be. Each round halves the faces, so the test gets sharper as
+    the faces get smaller.
+    """
+    import bmesh
+
+    mesh = obj.data
+    for _ in range(5):
+        bm = bmesh.new()
+        bm.from_mesh(mesh)
+        bm.faces.ensure_lookup_table()
+        edges = set()
+        for face in bm.faces:
+            if face.calc_area() < min_area:
+                continue
+            lengths = [edge.calc_length() for edge in face.edges]
+            if min(lengths) < AO_MIN_EDGE:
+                continue
+            long_edges = [edge for edge in face.edges if edge.calc_length() > target_edge]
+            if not long_edges or not _face_is_occluded(bvh, face, distance):
+                continue
+            edges.update(long_edges)
+        if not edges:
+            bm.free()
+            break
+        bmesh.ops.subdivide_edges(bm, edges=list(edges), cuts=1, use_grid_fill=True)
+        bm.to_mesh(mesh)
+        bm.free()
+    mesh.update()
+
+
+def bake_ambient_occlusion(objects, distance=None, samples=None):
+    """Bake occlusion for one part and multiply it into the existing grain layer.
+
+    Every part is exported from its own scene, so a surface is only shadowed by the geometry of the
+    part it belongs to. That is a real limit -- a curtain wall does not darken the ground of another
+    file -- but within a part it covers arches, corners, galleries and undersides.
+    """
+    meshes = [obj for obj in objects if obj.type == "MESH" and len(obj.data.vertices)]
+    if not AO or not meshes:
+        return 0
+
+    scene = bpy.context.scene
+    scene.render.engine = "CYCLES"
+    scene.cycles.device = "CPU"
+    scene.cycles.samples = int(samples or AO_SAMPLES)
+    if scene.world is None:
+        scene.world = bpy.data.worlds.new("BakeWorld")
+    scene.world.light_settings.distance = float(distance or AO_DISTANCE)
+    scene.render.bake.target = "VERTEX_COLORS"
+
+    bvh = _part_bvh(meshes)
+    for obj in meshes:
+        if bvh is not None:
+            _subdivide_shadowed_faces(obj, bvh, AO_EDGE, AO_MIN_FACE_AREA, AO_DISTANCE)
+        layer = obj.data.color_attributes.get("AO")
+        if layer is None:
+            layer = obj.data.color_attributes.new(name="AO", type="FLOAT_COLOR", domain="POINT")
+        layer.data.foreach_set("color", [1.0] * (4 * len(obj.data.vertices)))
+        obj.data.color_attributes.active_color_index = obj.data.color_attributes.find("AO")
+
+    bpy.ops.object.select_all(action="DESELECT")
+    for obj in meshes:
+        obj.select_set(True)
+    bpy.context.view_layer.objects.active = meshes[0]
+    bpy.ops.object.bake(type="AO")
+
+    darkened = 0
+    for obj in meshes:
+        mesh = obj.data
+        count = len(mesh.vertices)
+        occlusion = [0.0] * (4 * count)
+        mesh.color_attributes["AO"].data.foreach_get("color", occlusion)
+
+        grain = mesh.color_attributes.get("Col")
+        tints = [1.0] * (4 * count)
+        if grain:
+            grain.data.foreach_get("color", tints)
+        else:
+            grain = mesh.color_attributes.new(name="Col", type="FLOAT_COLOR", domain="POINT")
+
+        for index in range(count):
+            # 1 is open sky, 0 is fully enclosed. Never brighten: the grain is already the ceiling,
+            # and COLOR_0 wraps rather than clamps above 1.
+            shade = 1.0 - AO_STRENGTH * (1.0 - min(1.0, max(0.0, occlusion[index * 4])))
+            if shade < 0.999:
+                darkened += 1
+            for channel in range(3):
+                tints[index * 4 + channel] = min(1.0, max(0.0, tints[index * 4 + channel] * shade))
+            tints[index * 4 + 3] = 1.0
+        grain.data.foreach_set("color", tints)
+
+        mesh.color_attributes.remove(mesh.color_attributes["AO"])
+        mesh.color_attributes.active_color_index = mesh.color_attributes.find("Col")
+    return darkened
+
+
+def prune_neutral_vertex_colors():
+    """Drop colour layers that would multiply everything by one.
+
+    Runs after the bake, because a layer that looked neutral when the grain was written may well
+    carry occlusion by now. Left in, it costs eight bytes per vertex to change nothing.
+    """
+    removed = 0
+    for obj in bpy.context.scene.objects:
+        if obj.type != "MESH":
+            continue
+        layer = obj.data.color_attributes.get("Col")
+        if layer is None:
+            continue
+        values = [0.0] * (4 * len(obj.data.vertices))
+        layer.data.foreach_get("color", values)
+        if all(value >= 1.0 - GRAIN_EPSILON for index, value in enumerate(values) if index % 4 != 3):
+            obj.data.color_attributes.remove(layer)
+            removed += 1
+    return removed
+
+
 def interpolate(table, height):
     """Read a tapering table at one height, clamped at both ends."""
     if height <= table[0][0]:
@@ -179,13 +482,23 @@ class Canvas:
         self.buckets = {}
 
     def _bucket(self, material, decorative):
-        return self.buckets.setdefault((material, decorative), ([], []))
+        return self.buckets.setdefault((material, decorative), ([], [], []))
 
     def _add(self, material, decorative, verts, faces, matrix):
-        bucket_verts, bucket_faces = self._bucket(material, decorative)
+        bucket_verts, bucket_faces, bucket_colors = self._bucket(material, decorative)
+        placed = [matrix @ Vector(vertex) for vertex in verts]
+        if not placed:
+            return
         offset = len(bucket_verts)
-        for vertex in verts:
-            bucket_verts.append(tuple(matrix @ Vector(vertex)))
+        center = sum(placed, Vector((0.0, 0.0, 0.0))) / len(placed)
+        span = max(
+            max(vertex[axis] for vertex in placed) - min(vertex[axis] for vertex in placed)
+            for axis in range(3)
+        )
+        tint = element_tint(material, center, span)
+        for vertex in placed:
+            bucket_verts.append(tuple(vertex))
+            bucket_colors.append(tint)
         for face in faces:
             bucket_faces.append(tuple(index + offset for index in face))
 
@@ -224,7 +537,7 @@ class Canvas:
     def emit(self, part_name, parent=None):
         """Hand the buffers to Blender as one object per material."""
         created = []
-        for (material, decorative), (verts, faces) in sorted(self.buckets.items()):
+        for (material, decorative), (verts, faces, colors) in sorted(self.buckets.items()):
             if not faces:
                 continue
             name = f"{part_name}_{material.lower()}{'_nocol' if decorative else ''}"
@@ -233,6 +546,7 @@ class Canvas:
             mesh.validate()
             mesh.update()
             mesh.materials.append(build_material(material))
+            apply_vertex_colors(mesh, colors)
             obj = bpy.data.objects.new(name, mesh)
             bpy.context.collection.objects.link(obj)
             if parent is not None:
@@ -747,6 +1061,8 @@ def export_part(file_stem, builder):
     builder(canvas)
     canvas.emit(file_stem.split("_", 1)[1])
     scene.frame_set(scene.frame_start)
+    bake_ambient_occlusion(list(scene.objects))
+    prune_neutral_vertex_colors()
 
     blend_path = SOURCE_DIR / f"{file_stem}.blend"
     glb_path = GLB_DIR / f"{file_stem}.glb"
@@ -760,6 +1076,11 @@ def export_part(file_stem, builder):
         export_lights=False,
         export_extras=True,
         export_apply=True,
+        # ACTIVE rather than MATERIAL: the tints are written straight onto the mesh, so the
+        # materials keep their plain Principled setup instead of carrying a colour-attribute node
+        # just to satisfy the exporter.
+        export_vertex_color="ACTIVE",
+        export_all_vertex_colors=False,
     )
     report(glb_path)
 
@@ -768,6 +1089,9 @@ def export_setpiece(file_stem, clip_name, duration, builder):
     scene = reset_scene(clip_name, duration)
     builder(scene, None)
     scene.frame_set(scene.frame_start)
+    # No occlusion on setpieces. A drawbridge that swings through ninety degrees has no fixed
+    # relationship to what shadows it, so any baked value would be wrong for most of the loop.
+    prune_neutral_vertex_colors()
 
     blend_path = SOURCE_DIR / f"{file_stem}.blend"
     glb_path = GLB_DIR / f"{file_stem}.glb"
@@ -786,6 +1110,8 @@ def export_setpiece(file_stem, clip_name, duration, builder):
         export_lights=False,
         export_extras=True,
         export_apply=True,
+        export_vertex_color="ACTIVE",
+        export_all_vertex_colors=False,
     )
     report(glb_path, extra=f"clip={clip_name} loop={duration}s ")
 

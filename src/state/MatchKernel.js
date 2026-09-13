@@ -141,11 +141,12 @@ export class MatchKernel {
     _tickRunning(dt, inputAdapter, frameId, emitResult = true) {
         const { entityManager, endlessParcoursRuntime, powerupManager, particles, arena } = this._simPorts;
 
+        // Moving map poses and their colliders must agree before player collision runs.
+        if (arena) arena.update(dt);
         if (entityManager) entityManager.update(dt, inputAdapter, frameId);
         if (endlessParcoursRuntime) endlessParcoursRuntime.update(dt);
         if (powerupManager) powerupManager.update(dt);
         if (particles) particles.update(dt);
-        if (arena) arena.update(dt);
 
         return this._createTickResult(dt, null, emitResult);
     }

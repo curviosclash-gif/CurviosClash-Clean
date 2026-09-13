@@ -1,6 +1,7 @@
 import { normalizeString } from './ContractNormalizeUtils.js';
 import { GAMEPLAY_CAMERA_MODE_ID } from './CameraModeContract.js';
 import { resolveArtifactVersionState } from './ArtifactVersionMigrationContract.js';
+import { createGlobalFogEffectState } from './GlobalFogEffectContract.js';
 
 export const MATCH_RUNTIME_PROJECTION_CONTRACT_VERSION = 'match-runtime-projection.v1';
 export const MATCH_RUNTIME_PROJECTION_VERSION_FIELDS = Object.freeze(['contractVersion']);
@@ -155,6 +156,17 @@ function createTraversalProjection(value = null) {
     };
 }
 
+function createExclusionZoneProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const phase = ['SAFE', 'GRACE', 'SALVO'].includes(source.phase) ? source.phase : 'SAFE';
+    return {
+        phase,
+        elapsedSeconds: Math.max(0, normalizeNumber(source.elapsedSeconds, 0)),
+        countdownSeconds: Math.max(0, Math.ceil(normalizeNumber(source.countdownSeconds, 0))),
+        stage: normalizeString(source.stage, ''),
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -192,7 +204,16 @@ function createPlayerProjection(value = null) {
         shootCooldown: Math.max(0, normalizeNumber(value.shootCooldown, 0)),
         planarMode: value.planarMode === true,
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
+        exclusionZoneState: createExclusionZoneProjection(value.exclusionZoneState),
         traversal: createTraversalProjection(value.traversal),
+        turrets: Array.isArray(value.turrets) ? value.turrets.filter((entry) => entry && (entry.weapon === 'mg' || entry.weapon === 'rocket')).map((entry) => ({
+            weapon: entry.weapon,
+            count: normalizeNonNegativeInt(entry.count, 0),
+            remainingSeconds: Math.max(0, normalizeNumber(entry.remainingSeconds, 0)),
+            hp: Math.max(0, normalizeNumber(entry.hp, 0)),
+            maxHp: Math.max(1, normalizeNumber(entry.maxHp, 1)),
+            range: Math.max(0, normalizeNumber(entry.range, 0)),
+        })) : [],
         turret: value.turret && typeof value.turret === 'object' ? {
             count: normalizeNonNegativeInt(value.turret.count, 0),
             remainingSeconds: Math.max(0, normalizeNumber(value.turret.remainingSeconds, 0)),
@@ -343,6 +364,7 @@ function createProjectionFromSource(source, players, sessionPlayers, lockTargets
         players,
         sessionPlayers,
         lockTargets,
+        globalFog: createGlobalFogEffectState(source.globalFog),
         parcours: createParcoursProjection(source.parcours),
         hunt: createHuntProjection(source.hunt, updatedAt),
         arcade: createArcadeProjection(source.arcade),

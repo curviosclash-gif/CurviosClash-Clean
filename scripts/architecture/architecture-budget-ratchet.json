@@ -15,6 +15,8 @@
     "applicationToPlatformImportEdges": 0,
     "sharedContractsToImplementationImportEdges": 0,
     "coreToUiCompositionImportEdges": 27,
+    "featureToUiImportEdges": 2,
+    "featureToRuntimeImportEdges": 2,
     "legacySurface_game_runtimeBundle_totalFiles": 0,
     "legacySurface_game_runtimeFacade_totalFiles": 1,
     "legacySurface_window_GAME_INSTANCE_totalFiles": 1,
@@ -22,7 +24,7 @@
     "legacySurface_curviosApp_totalFiles": 3,
     "legacySurface_ActiveRuntimeConfigStore_totalFiles": 3,
     "electronPreloadExposures": 8,
-    "electronIpcRendererChannels": 11,
+    "electronIpcRendererChannels": 13,
     "electronIpcMainChannels": 25
   }
 }

@@ -43,6 +43,17 @@ export class TrailCollisionQuery {
         this._tmpClosestPointData = { closestX: 0, closestY: 0, closestZ: 0 };
         this._projectileQueryStamp = 1;
         this._globalQueryStamp = 1;
+        this._candidateCache = {
+            grid: null,
+            version: -1,
+            gridSize: 0,
+            cellX: 0,
+            cellZ: 0,
+            excludePlayerIndex: -2,
+            excludeRocketTrailId: '',
+            skipRecent: -1,
+            pairs: [],
+        };
     }
 
     _debugTrailCollision(tag, payload) {
@@ -110,6 +121,56 @@ export class TrailCollisionQuery {
         return this._globalQueryStamp;
     }
 
+    // The hunt scanner walks a ray in steps well below the grid size, so consecutive probes keep
+    // asking about the same 3x3 neighbourhood: nine map lookups, the set walk, the dedupe stamps and
+    // the owner filter used to run again for every single probe. The candidates of a neighbourhood
+    // are gathered once instead and reused while the probe stays in that cell. Order, dedupe and
+    // filtering are unchanged, so every probe still gets the same answer. The list holds
+    // segment/cell-key pairs because a hit reports the cell it was found in.
+    _candidatePairsFor(registry, cellX, cellZ, players, excludePlayerIndex, excludeRocketTrailId, skipRecent) {
+        const cache = this._candidateCache;
+        if (cache.grid === registry.spatialGrid
+            && cache.version === registry.version
+            && cache.gridSize === registry.gridSize
+            && cache.cellX === cellX
+            && cache.cellZ === cellZ
+            && cache.excludePlayerIndex === excludePlayerIndex
+            && cache.excludeRocketTrailId === excludeRocketTrailId
+            && cache.skipRecent === skipRecent) {
+            return cache.pairs;
+        }
+
+        const pairs = cache.pairs;
+        pairs.length = 0;
+        const queryStamp = this._nextProjectileQueryStamp();
+        for (let i = 0; i < CELL_OFFSETS_3X3.length; i++) {
+            const [dx, dz] = CELL_OFFSETS_3X3[i];
+            const key = (cellX + dx + GRID_KEY_OFFSET) * GRID_KEY_STRIDE + (cellZ + dz + GRID_KEY_OFFSET);
+            const cell = registry.spatialGrid.get(key);
+            if (!cell) continue;
+
+            for (const seg of cell) {
+                if (!seg || seg.destroyed) continue;
+                if (excludeRocketTrailId && seg.rocketTrailId === excludeRocketTrailId) continue;
+                if (seg._projectileTrailQueryStamp === queryStamp) continue;
+                seg._projectileTrailQueryStamp = queryStamp;
+
+                if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
+                pairs.push(seg, key);
+            }
+        }
+
+        cache.grid = registry.spatialGrid;
+        cache.version = registry.version;
+        cache.gridSize = registry.gridSize;
+        cache.cellX = cellX;
+        cache.cellZ = cellZ;
+        cache.excludePlayerIndex = excludePlayerIndex;
+        cache.excludeRocketTrailId = excludeRocketTrailId;
+        cache.skipRecent = skipRecent;
+        return pairs;
+    }
+
     checkProjectileTrailCollision(position, radius, options = {}) {
         const registry = this.getRegistry();
         if (!position || !registry) return null;
@@ -120,41 +181,38 @@ export class TrailCollisionQuery {
         const cellX = Math.floor(position.x / registry.gridSize);
         const cellZ = Math.floor(position.z / registry.gridSize);
         const players = this.getPlayers();
-        const queryStamp = this._nextProjectileQueryStamp();
+        const pairs = this._candidatePairsFor(
+            registry,
+            cellX,
+            cellZ,
+            players,
+            excludePlayerIndex,
+            excludeRocketTrailId,
+            skipRecent
+        );
         const result = this._projectileTrailCollisionResult;
         result.entry = null;
         result._bestDistSq = Infinity;
 
-        for (let i = 0; i < CELL_OFFSETS_3X3.length; i++) {
-            const [dx, dz] = CELL_OFFSETS_3X3[i];
-            const key = (cellX + dx + GRID_KEY_OFFSET) * GRID_KEY_STRIDE + (cellZ + dz + GRID_KEY_OFFSET);
-                const cell = registry.spatialGrid.get(key);
-                if (!cell) continue;
+        for (let i = 0; i < pairs.length; i += 2) {
+            const seg = pairs[i];
+            // A segment can be destroyed without the grid changing, so the flag is still checked here.
+            if (seg.destroyed) continue;
+            if (!this._segmentIntersectsSphere(seg, position, radius, this._tmpClosestPointData)) continue;
 
-                for (const seg of cell) {
-                    if (!seg || seg.destroyed) continue;
-                    if (excludeRocketTrailId && seg.rocketTrailId === excludeRocketTrailId) continue;
-                    if (seg._projectileTrailQueryStamp === queryStamp) continue;
-                    seg._projectileTrailQueryStamp = queryStamp;
-
-                    if (shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent)) continue;
-
-                    if (!this._segmentIntersectsSphere(seg, position, radius, this._tmpClosestPointData)) continue;
-
-                    const hdx = position.x - this._tmpClosestPointData.closestX;
-                    const hdy = position.y - this._tmpClosestPointData.closestY;
-                    const hdz = position.z - this._tmpClosestPointData.closestZ;
-                    const hitDistSq = hdx * hdx + hdy * hdy + hdz * hdz;
-                    if (hitDistSq < result._bestDistSq) {
-                        result._bestDistSq = hitDistSq;
-                        result.entry = seg;
-                        result.closestPoint.closestX = this._tmpClosestPointData.closestX;
-                        result.closestPoint.closestY = this._tmpClosestPointData.closestY;
-                        result.closestPoint.closestZ = this._tmpClosestPointData.closestZ;
-                        result.cellKey = key;
-                    }
-                }
+            const hdx = position.x - this._tmpClosestPointData.closestX;
+            const hdy = position.y - this._tmpClosestPointData.closestY;
+            const hdz = position.z - this._tmpClosestPointData.closestZ;
+            const hitDistSq = hdx * hdx + hdy * hdy + hdz * hdz;
+            if (hitDistSq < result._bestDistSq) {
+                result._bestDistSq = hitDistSq;
+                result.entry = seg;
+                result.closestPoint.closestX = this._tmpClosestPointData.closestX;
+                result.closestPoint.closestY = this._tmpClosestPointData.closestY;
+                result.closestPoint.closestZ = this._tmpClosestPointData.closestZ;
+                result.cellKey = pairs[i + 1];
             }
+        }
 
         return result.entry ? result : null;
     }

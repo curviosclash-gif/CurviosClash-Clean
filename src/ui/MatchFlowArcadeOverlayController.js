@@ -1,3 +1,4 @@
+import { formatArcadeBreakdown } from '../shared/contracts/ArcadeScorePresentationContract.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -68,6 +69,8 @@ export class MatchFlowArcadeOverlayController {
     }
 
     clearArcadeOverlayPanel() {
+        this.game?.ui?.messageOverlay?.classList?.remove?.('has-arcade-results');
+        this._renderKey = null;
         this._cancelArcadeXpAnimation();
         const panel = this._arcadeOverlayPanel;
         if (!panel) return;
@@ -96,6 +99,45 @@ export class MatchFlowArcadeOverlayController {
             }
         };
         this._arcadeXpAnimFrame = requestAnimationFrame(step);
+    }
+
+    _renderArcadeVictoryPanel(runtimeState) {
+        if (runtimeState?.phase !== 'victory' || !runtimeState.victory) return false;
+        const panel = this._ensureArcadeOverlayPanel();
+        if (!panel) return false;
+        panel.replaceChildren();
+        const heading = document.createElement('h3');
+        heading.textContent = 'Run geschafft!';
+        const result = document.createElement('p');
+        result.textContent = `${Math.round(runtimeState.victory.score)} Punkte | ${runtimeState.victory.xpEarned} XP`;
+        panel.append(heading, result);
+        if (runtimeState.victory.lastSector) {
+            const sector = runtimeState.victory.lastSector;
+            const details = document.createElement('p');
+            details.textContent = `Letzter Sektor: ${sector.awardedPoints} Punkte | ${formatArcadeBreakdown(sector.breakdown)} | Faktor ×${Number(sector.scoreFactor || 1).toFixed(2)} | Missionsbonus: +${sector.missionBonus || 0}`;
+            panel.appendChild(details);
+        }
+        for (const [choice, label] of [['finish', 'Run abschließen'], ['continue', 'In Sudden Death weiterspielen']]) {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.id = `btn-arcade-victory-${choice}`;
+            button.className = 'arcade-overlay-action-btn';
+            button.textContent = label;
+            button.addEventListener('click', () => {
+                const transition = this.runtimePort?.resolveArcadeVictoryChoice?.(choice);
+                if (!transition) return;
+                this.runtimePort.applyRoundEndTransition?.(transition);
+                this.matchFlowUiController?.applyMatchUiState({
+                    messageText: choice === 'finish' ? 'Run abgeschlossen' : 'Sudden Death',
+                    messageSub: choice === 'finish' ? 'ENTER für neuen Run oder ESC fürs Menü' : 'Wähle deinen nächsten Sektor',
+                });
+                this.syncArcadeOverlayPanel();
+            });
+            panel.appendChild(button);
+        }
+        panel.classList.remove('hidden');
+        panel.querySelector('button')?.focus();
+        return true;
     }
 
     _renderArcadeIntermissionPanel(runtimeState) {
@@ -129,6 +171,12 @@ export class MatchFlowArcadeOverlayController {
         const headerP = document.createElement('p');
         headerP.textContent = `Letzter Sektor: ${lastSectorPoints} Punkte | ${lastSectorXp} XP | Missionen ${missionsCompleted}/${missionsTotal}`;
         header.appendChild(headerP);
+        if (intermission.breakdown) {
+            const details = document.createElement('p');
+            details.textContent = `${formatArcadeBreakdown(intermission.breakdown)} | Faktor ×${Number(intermission.scoreFactor || 1).toFixed(2)} | Missionsbonus: +${intermission.missionBonus || 0}`;
+            if (missionsCompleted < missionsTotal) details.textContent += ' | Bonus für alle Missionen verpasst';
+            header.appendChild(details);
+        }
         panel.appendChild(header);
 
         const bodyDiv = document.createElement('div');
@@ -172,6 +220,8 @@ export class MatchFlowArcadeOverlayController {
                 btn.className = `arcade-overlay-choice-btn${active ? ' is-active' : ''}`;
                 const choiceId = String(entry?.id || '');
                 btn.setAttribute('data-arcade-choice-id', choiceId);
+                btn.id = `arcade-choice-${choiceId}`;
+                btn.setAttribute('aria-pressed', String(active));
 
                 const strong = document.createElement('strong');
                 strong.textContent = String(entry?.mapLabel || entry?.mapKey || 'Unbekannte Map');
@@ -188,8 +238,7 @@ export class MatchFlowArcadeOverlayController {
                 btn.addEventListener('click', () => {
                     if (!choiceId) return;
                     selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId);
-                    const nextState = getArcadeMenuSurfaceState(this.runtimePort, this.game);
-                    this._renderArcadeIntermissionPanel(nextState);
+                    this.syncArcadeOverlayPanel();
                 });
 
                 choiceGrid.appendChild(btn);
@@ -202,7 +251,7 @@ export class MatchFlowArcadeOverlayController {
         const sect3 = document.createElement('section');
         sect3.className = 'arcade-overlay-section';
         const s3h4 = document.createElement('h4');
-        s3h4.textContent = 'Reward-Auswahl';
+        s3h4.textContent = 'Belohnung auswählen';
         sect3.appendChild(s3h4);
 
         const rewardGrid = document.createElement('div');
@@ -220,6 +269,8 @@ export class MatchFlowArcadeOverlayController {
                 btn.className = `arcade-overlay-reward-btn${active ? ' is-active' : ''}`;
                 const rewardId = String(entry?.id || '');
                 btn.setAttribute('data-arcade-reward-id', rewardId);
+                btn.id = `arcade-reward-${rewardId}`;
+                btn.setAttribute('aria-pressed', String(active));
 
                 const strong = document.createElement('strong');
                 strong.textContent = String(entry?.label || entry?.id || '');
@@ -232,8 +283,7 @@ export class MatchFlowArcadeOverlayController {
                 btn.addEventListener('click', () => {
                     if (!rewardId) return;
                     selectArcadeReward(this.runtimePort, this.game, rewardId);
-                    const nextState = getArcadeMenuSurfaceState(this.runtimePort, this.game);
-                    this._renderArcadeIntermissionPanel(nextState);
+                    this.syncArcadeOverlayPanel();
                 });
 
                 rewardGrid.appendChild(btn);
@@ -245,8 +295,20 @@ export class MatchFlowArcadeOverlayController {
         const continueSection = document.createElement('section');
         continueSection.className = 'arcade-overlay-section arcade-overlay-continue';
         const continueHint = document.createElement('p');
-        continueHint.textContent = `Automatischer Start in ${Math.max(0, Math.ceil(toSafeNumber(this.game?.roundPause, 10)))}s.`;
+        continueHint.textContent = runtimeState.intermissionPaused ? 'Countdown angehalten.' : `Automatischer Start in ${Math.max(0, Math.ceil(toSafeNumber(this.game?.roundPause, 10)))}s.`;
         continueSection.appendChild(continueHint);
+        continueHint.id = 'arcade-intermission-countdown';
+        const pauseButton = document.createElement('button');
+        pauseButton.type = 'button';
+        pauseButton.id = 'btn-arcade-intermission-pause';
+        pauseButton.className = 'arcade-overlay-action-btn';
+        pauseButton.textContent = runtimeState.intermissionPaused ? 'Countdown fortsetzen' : 'Countdown anhalten';
+        pauseButton.setAttribute('aria-pressed', String(runtimeState.intermissionPaused === true));
+        pauseButton.addEventListener('click', () => {
+            this.runtimePort?.setArcadeIntermissionPaused?.(!runtimeState.intermissionPaused);
+            this.syncArcadeOverlayPanel();
+        });
+        continueSection.appendChild(pauseButton);
         const continueButton = document.createElement('button');
         continueButton.type = 'button';
         continueButton.id = 'btn-arcade-intermission-continue';
@@ -254,6 +316,7 @@ export class MatchFlowArcadeOverlayController {
         continueButton.textContent = 'Auswahl bestaetigen';
         continueButton.addEventListener('click', () => {
             continueButton.disabled = true;
+            this.runtimePort?.setArcadeIntermissionPaused?.(false);
             this.runtimePort?.setRoundPause?.(0);
         });
         continueSection.appendChild(continueButton);
@@ -283,20 +346,28 @@ export class MatchFlowArcadeOverlayController {
             : null;
 
         const replay = runtimeState?.replay && typeof runtimeState.replay === 'object' ? runtimeState.replay : {};
-        const replayHintText = replay.playbackAvailable
-            ? 'Replay verfuegbar'
-            : (replay.payloadAvailable ? 'Replay als Export-Fallback verfuegbar' : 'Replay nicht verfuegbar');
+        const replayHintText = replay.payloadAvailable ? 'Replay-Export verfügbar' : 'Replay nicht verfügbar';
 
         const header = document.createElement('header');
         header.className = 'arcade-overlay-header';
         
         const h3 = document.createElement('h3');
-        h3.textContent = dailyResult ? 'Daily Challenge abgeschlossen' : 'Arcade Run abgeschlossen';
+        h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet') : 'Arcade Run abgeschlossen';
         header.appendChild(h3);
+        if (dailyResult) {
+            const dailyLine = document.createElement('p');
+            dailyLine.textContent = `Daily-Ergebnis: ${Math.round(dailyResult.score)} | Bonusfortsetzung: ${Math.round(summary.bonusScore || 0)} Punkte`;
+            header.appendChild(dailyLine);
+        }
         
         const headerP = document.createElement('p');
         headerP.textContent = `Gesamtscore ${score} | Best Combo ${bestCombo} | Mission-Rate ${missionRate}`;
         header.appendChild(headerP);
+        if (summary.breakdown) {
+            const details = document.createElement('p');
+            details.textContent = formatArcadeBreakdown(summary.breakdown);
+            header.appendChild(details);
+        }
         panel.appendChild(header);
 
         const bodyDiv = document.createElement('div');
@@ -355,7 +426,7 @@ export class MatchFlowArcadeOverlayController {
             const dailyText = document.createElement('p');
             const attempt = Math.max(1, Math.floor(toSafeNumber(dailyResult.attempt, 1)));
             const bestScore = Math.max(0, Math.round(toSafeNumber(dailyResult.bestScore, score)));
-            dailyText.textContent = `Versuch ${attempt} | Score ${score} | Tagesbestwert ${bestScore}`;
+            dailyText.textContent = `Versuch ${attempt} | Score ${Math.round(dailyResult.score)} | Tagesbestwert ${bestScore}`;
             dailySection.appendChild(dailyText);
             bodyDiv.appendChild(dailySection);
         }
@@ -375,7 +446,8 @@ export class MatchFlowArcadeOverlayController {
         replayBtn.type = 'button';
         replayBtn.className = 'arcade-overlay-action-btn';
         replayBtn.id = 'btn-arcade-overlay-replay';
-        replayBtn.textContent = 'Letzte Runde abspielen';
+        replayBtn.textContent = 'Replay exportieren';
+        replayBtn.disabled = !replay.payloadAvailable;
         
         replayBtn.addEventListener('click', () => {
             const result = requestArcadeReplayPlayback(this.runtimePort, this.game);
@@ -402,9 +474,9 @@ export class MatchFlowArcadeOverlayController {
             }
             const tone = code === 'replay_player_unavailable' ? 'warning' : 'info';
             const message = code === 'ghost_fallback_started'
-                ? 'Ghost-Fallback wird abgespielt.'
+                ? 'Ghost-Wiedergabe gestartet.'
                 : (code === 'replay_player_unavailable'
-                ? 'Replay-Player fehlt, Export-Fallback bereit.'
+                ? 'Replay-Export bereit.'
                 : (code === 'replay_disabled'
                     ? 'Replay ist in den Runtime-Einstellungen deaktiviert.'
                     : (code === 'replay_unavailable'
@@ -439,8 +511,21 @@ export class MatchFlowArcadeOverlayController {
             return;
         }
         const runtimeState = getArcadeMenuSurfaceState(this.runtimePort, this.game);
+        game.ui.messageOverlay.classList.toggle?.('has-arcade-results', !!(runtimeState?.victory || runtimeState?.intermission || runtimeState?.postRunSummary));
+        const key = JSON.stringify([game.state, runtimeState]);
+        const countdown = this._arcadeOverlayPanel?.querySelector('#arcade-intermission-countdown');
+        if (countdown) countdown.textContent = runtimeState?.intermissionPaused
+            ? 'Countdown angehalten.' : `Automatischer Start in ${Math.max(0, Math.ceil(game.roundPause))}s.`;
+        if (runtimeState?.intermission && game.ui.messageSub) game.ui.messageSub.textContent = runtimeState.intermissionPaused
+            ? 'Countdown angehalten – wähle Route und Belohnung.' : 'Wähle Route und Belohnung oder halte den Countdown an.';
+        if (key === this._renderKey) return;
+        const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
+        this._renderKey = key;
+        if (this._renderArcadeVictoryPanel(runtimeState)) return;
         const state = normalizeGameStateId(game?.state, GAME_STATE_IDS.MENU);
         if (state === GAME_STATE_IDS.ROUND_END && this._renderArcadeIntermissionPanel(runtimeState)) {
+            const focus = focusedId && document.getElementById(focusedId);
+            (focus || this._arcadeOverlayPanel?.querySelector('button'))?.focus({ preventScroll: true });
             return;
         }
         if (state === GAME_STATE_IDS.MATCH_END && this._renderArcadePostRunPanel(runtimeState)) {

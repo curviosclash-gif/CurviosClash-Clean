@@ -477,6 +477,9 @@ export function wireInitializedMatchRuntime({
             Number.isInteger(session.localPlayerIndex) ? session.localPlayerIndex : 0,
             renderer.cameras
         );
+        // Compile the match materials while the match is still being wired. Without this the first
+        // use of every program is the first rendered frame, which stalls the start of a match.
+        renderer?.precompileMatchScene?.();
         return {
             ...initializedMatch,
             runtime,

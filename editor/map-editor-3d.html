@@ -1074,6 +1074,8 @@
         .editorModal h2 { margin: 0; font-size: 18px; }
         .editorModal p { margin: 0; color: var(--muted); line-height: 1.5; }
         .editorModal input { width: 100%; }
+        [data-transform-fields] { display: grid; gap: 10px; }
+        [data-transform-fields] label { display: grid; gap: 4px; }
         .editorModalActions { display: flex; justify-content: flex-end; gap: 8px; }
         .dangerAction { color: #fecaca; border-color: rgba(249,115,115,.5); }
 
@@ -1486,7 +1488,7 @@
                             <option value="aircraft">Flugobjekte</option>
                             <option value="glb">GLB-Modelle</option>
                             <option value="checkpoint">Parcours</option>
-                        </select>
+                        <option value="turret">Geschuetze</option></select>
                     </div>
                     <div class="objectList" id="objectList" aria-label="Map-Objekte"></div>
                     <div class="outlinerActions">
@@ -1573,6 +1575,14 @@
                         <label for="propGroup">Gruppe</label>
                         <input id="propGroup" type="text" placeholder="Keine Gruppe" />
                     </div>
+                    <fieldset id="propTurretFields" hidden style="border: 0; padding: 12px 0 0; margin: 0; min-width: 0;">
+                        <legend>Automatisches Geschuetz</legend>
+                        <p class="sub">Aktiv in Fight/Hunt und Arcade-Endlos mit Hunt-Kampf. Friedliche Parcours ausgeschlossen.</p>
+                        <div class="row"><label for="propTurretRange">Reichweite (Spieleinheiten)</label><input id="propTurretRange" type="number" min="8" max="180" step="1" value="90" /></div>
+                        <div class="row"><label for="propTurretCooldown">Schussintervall (Sekunden)</label><input id="propTurretCooldown" type="number" min="0.2" max="12" step="0.1" value="3.4" /></div>
+                        <div class="row"><label for="propTurretRocketType">Raketenstufe</label><select id="propTurretRocketType"><option value="ROCKET_WEAK">S</option><option value="ROCKET_MEDIUM">M</option><option value="ROCKET_HEAVY">L</option></select></div>
+                        <div class="row"><label for="propTurretHp">Maximale HP</label><input id="propTurretHp" type="number" min="1" max="500" step="1" value="90" /></div>
+                    </fieldset>
                 </div>
             </div>
 
@@ -1729,6 +1739,7 @@
                         <option value="item_orb">Kugel</option>
                         <option value="item_ring">Ring</option>
                         <option value="item_rocket">Rakete</option>
+                        <option value="item_rocket_turret">Raketenwerfer-Power-up</option>
                         <option value="item_sphere">Sphaere</option>
                         <option value="item_torus">Torus</option>
                     </select>

@@ -95,6 +95,20 @@ const violations = [
         location: `${entry.from}:${entry.line}`,
         detail: `${entry.from} -> ${entry.to}`,
     })),
+    ...report.findings.featureToUiImports
+        .filter((entry) => !entry.allowed)
+        .map((entry) => ({
+            category: 'feature module -> ui import',
+            location: `${entry.from}:${entry.line}`,
+            detail: `${entry.from} -> ${entry.to}`,
+        })),
+    ...report.findings.featureToRuntimeImports
+        .filter((entry) => !entry.allowed)
+        .map((entry) => ({
+            category: 'feature module -> core import',
+            location: `${entry.from}:${entry.line}`,
+            detail: `${entry.from} -> ${entry.to}`,
+        })),
     ...(report.findings.legacySurfaceReads || [])
         .filter((entry) => !entry.allowed)
         .map((entry) => ({
@@ -120,6 +134,8 @@ if (violations.length === 0) {
     console.log(`application -> core disallowed imports: ${report.scorecard.applicationToCoreImports.disallowedEdges}`);
     console.log(`application -> platform disallowed imports: ${report.scorecard.applicationToPlatformImports.disallowedEdges}`);
     console.log(`shared/contracts -> implementation disallowed imports: ${report.scorecard.sharedContractsToImplementationImports.disallowedEdges}`);
+    console.log(`feature module -> ui disallowed imports: ${report.scorecard.featureToUiImports.disallowedEdges}`);
+    console.log(`feature module -> core disallowed imports: ${report.scorecard.featureToRuntimeImports.disallowedEdges}`);
     console.log(`core -> composition/core-ui tracked imports: ${report.scorecard.coreToUiCompositionImports.totalEdges}`);
     console.log(`electron preload exposures: ${report.scorecard.electronPreloadExposures.totalOccurrences} across ${report.scorecard.electronPreloadExposures.totalFiles} files`);
     console.log(`electron ipcRenderer channels: ${report.scorecard.electronIpcRendererChannels.totalOccurrences} across ${report.scorecard.electronIpcRendererChannels.totalFiles} files`);

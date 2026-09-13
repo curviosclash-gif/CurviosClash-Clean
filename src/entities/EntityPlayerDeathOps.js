@@ -7,6 +7,14 @@ import { emitArcadeEliminationEvents } from './runtime/EntityArcadeGameplayEvent
 
 export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {}) {
     if (!player || !player.alive) return;
+    const deathOptions = player.isBot === true && player.endlessRunId
+        ? {
+            ...options,
+            runId: String(player.endlessRunId),
+            botSlot: Number(player.endlessBotSlot),
+            activationGeneration: Number(player.endlessActivationGeneration),
+        }
+        : options;
     rememberFightDeath(player);
     entityManager._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
     entityManager.recorder?.captureSnapshotNow?.(entityManager);
@@ -15,7 +23,7 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     entityManager._projectileSystem?.clearRocketTrailsForOwner?.(player);
     if (entityManager.gameModeStrategy?.hasScoring() && entityManager.isFightOutcomeAuthority !== false) {
         const scoringResult = entityManager._huntScoring.registerElimination(player, {
-            killer: options?.killer || null,
+            killer: deathOptions?.killer || null,
             spawnAgeSeconds: (Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001)
                 - (Number(player.fightSpawnedAtSeconds) || 0),
         });
@@ -32,10 +40,10 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     const killcamStarted = entityManager._killcamSystem?.onPlayerDied?.(
         player,
         {
-            killer: options?.killer || null,
+            killer: deathOptions?.killer || null,
             cause,
-            impactPoint: options?.impactPoint || player.position,
-            projectileType: options?.projectileType || null,
+            impactPoint: deathOptions?.impactPoint || player.position,
+            projectileType: deathOptions?.projectileType || null,
         }
     ) === true;
     const suppressLiveDeathEffects = killcamStarted
@@ -43,10 +51,10 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     if (!suppressLiveDeathEffects) {
         entityManager.particles?.spawnExplosion?.(player.position, player.color, {
             cause,
-            projectileType: options?.projectileType || null,
+            projectileType: deathOptions?.projectileType || null,
         });
     }
-    const killer = options?.killer || null;
+    const killer = deathOptions?.killer || null;
     if (!suppressLiveDeathEffects) {
         entityManager.audio?.play?.(
             'EXPLOSION',
@@ -63,7 +71,7 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
             player.position
         );
     }
-    emitArcadeEliminationEvents(entityManager, player, cause, options);
+    emitArcadeEliminationEvents(entityManager, player, cause, deathOptions);
     entityManager._eventBus.emitPlayerDied(player, cause);
-    entityManager.endlessParcoursRuntime?.handlePlayerDeath?.(player, cause, options);
+    entityManager.endlessParcoursRuntime?.handlePlayerDeath?.(player, cause, deathOptions);
 }

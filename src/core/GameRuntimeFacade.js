@@ -240,6 +240,8 @@ export class GameRuntimeFacade {
     getArcadeMenuSurfaceState() { return this._arcadeSupport.getMenuSurfaceState(); }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }
     selectArcadeIntermissionChoice(choiceId) { return this._arcadeSupport.selectIntermissionChoice(choiceId); }
+    resolveArcadeVictoryChoice(choice) { return this.arcadeRunRuntime?.resolveVictoryChoice(choice); }
+    setArcadeIntermissionPaused(paused) { return this.arcadeRunRuntime?.setIntermissionPaused(paused); }
     selectArcadeReward(rewardId) { return this._arcadeSupport.selectReward(rewardId); }
     requestArcadeReplayPlayback() { return this._arcadeSupport.requestReplayPlayback(); }
     _createMenuRuntimeAccess() {

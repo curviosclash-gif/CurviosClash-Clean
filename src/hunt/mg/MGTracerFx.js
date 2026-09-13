@@ -7,7 +7,7 @@ const MG_TRACER_DEFAULT_BEAM_RADIUS = 0.16;
 const MG_TRACER_DEFAULT_BULLET_RADIUS = 0.42;
 const MG_TRACER_MAX_POOL_SIZE = 96;
 
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 
 export class MGTracerFx {
     constructor(entityManager) {

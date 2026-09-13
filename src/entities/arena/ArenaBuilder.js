@@ -4,7 +4,11 @@ import { createArenaBuildSignature, createArenaMapFingerprint, getArenaMaterialB
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { normalizeGraphicsStyle } from '../../shared/contracts/GraphicsStyleContract.js';
 import { AuthoredMapLightRig } from './AuthoredMapLightRig.js';
+import { MapFireFxController } from './MapFireFxController.js';
+import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
+import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
+import { ArenaExpansionController } from './ArenaExpansionController.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -16,6 +20,9 @@ export class ArenaBuilder {
         this.arena = arena;
         this.geometryPipeline = new ArenaGeometryCompilePipeline(arena);
         this.mapLightRig = new AuthoredMapLightRig(arena.renderer);
+        this.fireFxController = new MapFireFxController(arena.renderer);
+        this.mapHazardVisualController = new MapHazardVisualController(arena.renderer);
+        this.expansionController = new ArenaExpansionController(arena);
     }
 
     build(mapKey, { previousBuildSignature = null } = {}) {
@@ -25,6 +32,7 @@ export class ArenaBuilder {
 
         const scale = asPositiveScale(config.ARENA.MAP_SCALE, 1);
         const size = this._resolveScaledMapSize(mapResolution.map, mapResolution.fallbackMap, scale);
+        this.arena.openFaces = resolveMapExclusionZone(mapResolution.map).openFaces;
         const graphicsStyle = normalizeGraphicsStyle(this.arena.renderer?.getGraphicsStyle?.());
         // Passed on every build, including the maps that state no profile: the renderer holds the
         // last one it was given, so leaving it out would carry the previous map's lighting over.
@@ -38,6 +46,8 @@ export class ArenaBuilder {
         // Rebuilt on every build for the same reason: the rig clears what the previous map placed,
         // so a map without its own lamps does not inherit them.
         this.mapLightRig.build(mapResolution.map, scale);
+        this.fireFxController.build(mapResolution.map, scale, this.mapLightRig.lights);
+        this.mapHazardVisualController.build(mapResolution.map, scale);
         this._applyArenaBounds(size);
 
         const buildSignature = createArenaBuildSignature({
@@ -63,8 +73,18 @@ export class ArenaBuilder {
             materialBundle = this._resolveMaterialBundle(size);
             this._assignArenaMaterials(materialBundle);
             this._compileFloorStage(size.sx, size.sz, materialBundle.floorMat);
-            this.geometryPipeline.compileWallStage({ sx: size.sx, sy: size.sy, sz: size.sz, scale });
+            this.geometryPipeline.compileWallStage({
+                sx: size.sx,
+                sy: size.sy,
+                sz: size.sz,
+                scale,
+                openFaces: this.arena.openFaces,
+            });
+            this.arena._exclusionBoundaryVisual?.build?.(this.arena.openFaces, this.arena.bounds);
         }
+        // Last, so everything above is built for the whole map: only the collision bounds
+        // start at the first stage of a growing map.
+        this.expansionController.build(mapResolution.map, scale);
 
         return {
             map: mapResolution.map,
@@ -86,6 +106,15 @@ export class ArenaBuilder {
             buildSignature,
             rebuildPolicy: canReuse ? 'reuse' : 'rebuild',
         };
+    }
+
+    // One match time drives everything on the map that changes during a round. The frame
+    // update and a host, replay or restart override both come through here, so the fire, the
+    // hazards and the arena size can never disagree about where in the round it is.
+    updateMapClock(elapsedSeconds) {
+        this.fireFxController.update(elapsedSeconds);
+        this.mapHazardVisualController.update(elapsedSeconds);
+        this.expansionController.update(elapsedSeconds);
     }
 
     compileParticleStage(sx, sy, sz) {
@@ -170,7 +199,12 @@ export class ArenaBuilder {
     // the geometry is there: a map whose content is far smaller than the box it is allowed to use
     // gets its shadow texels spent on the content instead of on empty air.
     refitShadowCoverage(glbScene, arenaBounds) {
-        const bounds = resolveVisibleShadowBounds({ scene: glbScene, arenaBounds });
+        // A growing map starts on smaller collision bounds, but its shadows have to cover the
+        // stages that open later as well.
+        const bounds = resolveVisibleShadowBounds({
+            scene: glbScene,
+            arenaBounds: this.expansionController.outerBounds || arenaBounds,
+        });
         if (!bounds) return null;
         this.arena.renderer?.setShadowCoverage?.(bounds);
         return bounds;
@@ -213,6 +247,7 @@ export class ArenaBuilder {
     }
 
     _hasCompiledGeometry() {
-        return !!this.arena._floorMesh?.parent && !!this.arena._mergedWallMesh?.parent;
+        const hasExpectedWalls = this.arena.openFaces?.length === 5 || !!this.arena._mergedWallMesh?.parent;
+        return !!this.arena._floorMesh?.parent && hasExpectedWalls;
     }
 }

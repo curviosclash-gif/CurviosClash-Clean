@@ -1,5 +1,6 @@
 import { MENU_DEVELOPER_ACCESS_MODES } from './MenuStateContracts.js';
 import { resolveMenuExpertState } from './MenuExpertLoginRuntime.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 export const MENU_ACCESS_POLICIES = Object.freeze({
     OPEN: 'open',
@@ -39,11 +40,6 @@ export const MENU_EVENT_ACCESS_POLICIES = Object.freeze({
     preset_delete_open: MENU_ACCESS_POLICIES.OPEN,
     preset_apply: MENU_ACCESS_POLICIES.OPEN,
 });
-
-function normalizeString(value, fallback) {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 export function resolveMenuAccessContext(settings) {
     const localSettings = settings?.localSettings && typeof settings.localSettings === 'object'

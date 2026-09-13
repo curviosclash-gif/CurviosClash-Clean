@@ -100,11 +100,27 @@ export default [
             boundaries,
         },
         settings: {
+            // Alle Ordner unter src/ sind hier benannt. Ein Ordner, der fehlt, gilt
+            // dem Plugin als typlos und kann in keiner Regel Absender sein.
+            // mode: 'file' ist Pflicht: der Standard 'folder' vergleicht die Muster
+            // gegen Ordnerpfade, und Dateiglobs wie src/ui/**/*.js treffen dann nie.
             'boundaries/elements': [
-                { type: 'core', pattern: 'src/core/**/*.js' },
-                { type: 'ui', pattern: 'src/ui/**/*.js' },
-                { type: 'network', pattern: 'src/network/**/*.js' },
-                { type: 'contracts', pattern: 'src/shared/contracts/**/*.js' }
+                { type: 'core', pattern: 'src/core/**/*.js', mode: 'file' },
+                { type: 'ui', pattern: 'src/ui/**/*.js', mode: 'file' },
+                { type: 'state', pattern: 'src/state/**/*.js', mode: 'file' },
+                { type: 'entities', pattern: 'src/entities/**/*.js', mode: 'file' },
+                { type: 'application', pattern: 'src/application/**/*.js', mode: 'file' },
+                { type: 'composition', pattern: 'src/composition/**/*.js', mode: 'file' },
+                { type: 'network', pattern: 'src/network/**/*.js', mode: 'file' },
+                { type: 'platform', pattern: 'src/platform/**/*.js', mode: 'file' },
+                { type: 'modes', pattern: 'src/modes/**/*.js', mode: 'file' },
+                { type: 'hunt', pattern: 'src/hunt/**/*.js', mode: 'file' },
+                { type: 'four-player-planar', pattern: 'src/four-player-planar/**/*.js', mode: 'file' },
+                { type: 'mobile', pattern: 'src/mobile-*/**/*.js', mode: 'file' },
+                { type: 'product', pattern: 'src/product/**/*.js', mode: 'file' },
+                { type: 'dev-tuning', pattern: 'src/dev/**/*.js', mode: 'file' },
+                { type: 'contracts', pattern: 'src/shared/contracts/**/*.js', mode: 'file' },
+                { type: 'shared', pattern: 'src/shared/**/*.js', mode: 'file' }
             ],
             'boundaries/ignore': ['**/*.test.js', '**/*.spec.js']
         }
@@ -206,6 +222,14 @@ export default [
                             from: 'ui',
                             disallow: ['core'],
                             message: 'UI components MUST NOT directly import from Core. Use shared contracts or ports instead.'
+                        },
+                        {
+                            // four-player-planar fehlt hier bewusst: es hat zwei dokumentierte
+                            // Altlasten, die der Architektur-Guard mit Begruendung fuehrt.
+                            // eslint kennt keine Ausnahmeliste, deshalb bleibt es dort.
+                            from: ['hunt', 'modes', 'network', 'platform'],
+                            disallow: ['ui'],
+                            message: 'Feature and infrastructure modules MUST NOT import from UI. Use shared contracts or injected view factories instead.'
                         }
                     ]
                 }

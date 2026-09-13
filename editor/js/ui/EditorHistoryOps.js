@@ -1,3 +1,4 @@
+import { captureEditorTransforms, createEditorTransformCommand } from './EditorTransformHistory.js';
 import { SnapshotCommand } from '../EditorCommandHistory.js';
 
 export function isHistoryRecordingSuspended(editor) {
@@ -121,7 +122,8 @@ export function beginHistoryGesture(editor, key, label) {
 
     editor.pendingHistoryGestures.set(key, {
         label: String(label || 'Change'),
-        before: snapshot
+        before: snapshot,
+        transforms: key === 'transform' ? captureEditorTransforms(editor) : null
     });
 }
 
@@ -136,7 +138,12 @@ export function commitHistoryGesture(editor, key, labelOverride = null) {
 
     const afterSnapshot = captureHistorySnapshot(editor);
     const label = labelOverride || pending.label;
-    const changed = pushSnapshotHistoryCommand(editor, label, pending.before, afterSnapshot);
+    const transformCommand = pending.transforms
+        ? createEditorTransformCommand(editor, label, pending.transforms, captureEditorTransforms(editor))
+        : null;
+    const changed = transformCommand
+        ? editor.commandHistory.push(transformCommand)
+        : pushSnapshotHistoryCommand(editor, label, pending.before, afterSnapshot);
     if (changed) {
         editor.authoringTelemetry?.recordCounter?.('edit');
         editor.markDirty?.(`${label}.`);

@@ -9,7 +9,7 @@ import {
 import {
     defaultDownload,
 } from './recording/DownloadService.js';
-import { toFiniteNumber } from '../utils/MathOps.js';
+import { toFiniteNumber } from '../shared/utils/MathOps.js';
 import {
     createPlatformRecordingCapabilityAdapter,
     DEFAULT_FALLBACK_MIME_TYPE,

@@ -1,4 +1,4 @@
-import { clamp } from '../../../../../../src/utils/MathOps.js';
+import { clamp } from '../../../../../../src/shared/utils/MathOps.js';
 
 function computePercentile(samples, percentile) {
     if (!Array.isArray(samples) || samples.length === 0) return null;

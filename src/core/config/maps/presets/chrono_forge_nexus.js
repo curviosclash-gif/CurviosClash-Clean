@@ -168,11 +168,21 @@ export const CHRONO_FORGE_NEXUS_MAP = {
         obstacles: CHRONO_FORGE_OBSTACLES,
         portals: CHRONO_FORGE_PORTALS,
         gates: CHRONO_FORGE_GATES,
-        glbModels: CHRONO_FORGE_LANDMARKS,
+        glbModels: [
+            ...CHRONO_FORGE_LANDMARKS,
+            { id: 'chrono-forge-world', url: 'assets/maps/chrono_forge_nexus/glb/01_world.glb',
+                position: [0, -0.12, 0], scale: 1 },
+        ],
         // Moving setpieces (gears, pistons, gates, drones) collide via their animated mesh
         // colliders; the static dressing stays on CHRONO_FORGE_OBSTACLES.
         glbColliderMode: 'dynamic',
+        glbAuthoredObstaclesCollisionOnly: true,
         glbLoadConcurrency: 3,
+        // Local fill keeps both temple approaches readable inside the tunnel walls.
+        lights: [
+            { id: 'chrono_temple_entry', x: 75, y: 64, z: 46, color: 0xffefd5, intensity: 2400, distance: 32 },
+            { id: 'chrono_temple_exit', x: 91, y: 64, z: 62, color: 0xc9e6ff, intensity: 1700, distance: 28 },
+        ],
         playerSpawn: { x: -178, y: 12, z: 0 },
         botSpawns: [
             { x: -178, y: 12, z: -12 },

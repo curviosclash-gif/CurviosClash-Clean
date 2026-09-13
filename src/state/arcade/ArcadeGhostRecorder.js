@@ -1,3 +1,5 @@
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
+
 import {
     normalizeGhostClip,
     normalizeGhostPlayerMeta,
@@ -5,11 +7,6 @@ import {
 
 const SAMPLE_INTERVAL_MS = 50;
 const MAX_SAMPLES = 1200;
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function roundTo(value, precision) {
     return Math.round(value * precision) / precision;

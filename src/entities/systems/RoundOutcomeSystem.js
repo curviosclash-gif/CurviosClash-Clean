@@ -6,6 +6,7 @@ export class RoundOutcomeSystem {
         getScoreboard = () => [],
         isRespawnEnabled = () => false,
         isEliminationSuppressed = () => Boolean(false),
+        isRespawnPending = (player) => Boolean(player && false),
         isOutcomeAuthority = () => true,
         getDeathmatchKillLimit = () => 10,
         getDeathmatchTimeLimitSeconds = () => 300,
@@ -18,6 +19,7 @@ export class RoundOutcomeSystem {
         this.getScoreboard = getScoreboard;
         this.isRespawnEnabled = isRespawnEnabled;
         this.isEliminationSuppressed = isEliminationSuppressed;
+        this.isRespawnPending = isRespawnPending;
         this.isOutcomeAuthority = isOutcomeAuthority;
         this.getDeathmatchKillLimit = getDeathmatchKillLimit;
         this.getDeathmatchTimeLimitSeconds = getDeathmatchTimeLimitSeconds;
@@ -112,14 +114,23 @@ export class RoundOutcomeSystem {
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
 
+        // A human without a life and without a respawn on its way can no longer change the
+        // round. The last-survivor rule below never fires for a lone player, and parcours
+        // suppression used to hold even after the last respawn was spent - both froze the run.
+        const humans = combatants.filter((player) => player && player.isBot !== true);
+        const humansOut = humans.length > 0
+            && humans.every((player) => !player.alive && this.isRespawnPending(player) !== true);
+        const eliminationSuppressed = this.isEliminationSuppressed();
+
         // Parcours respawns suppress elimination without turning the route into a Hunt
         // deathmatch. Completion remains objective-driven, with no kill/time-limit rules.
-        if (this.isEliminationSuppressed()) {
+        if (eliminationSuppressed && !humansOut) {
             return { shouldEnd: false, winner: null, reason: '', parcours: null };
         }
 
         const alive = combatants.filter((player) => player?.alive);
-        const shouldEnd = combatants.length > 1 && alive.length <= 1;
+        const shouldEnd = (combatants.length > 1 && alive.length <= 1)
+            || (humansOut && (alive.length === 0 || eliminationSuppressed));
         return {
             shouldEnd,
             winner: shouldEnd ? (alive[0] || null) : null,

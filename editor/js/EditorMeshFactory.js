@@ -1,3 +1,5 @@
+import { createEditorTurretMesh } from './EditorTurretMesh.js';
+import { normalizeStaticTurretDefinition } from '../../src/shared/contracts/MapSinglePlayerScenarioContract.js';
 import * as THREE from 'three';
 import { getDefaultEditorItemPickupType } from '../../src/shared/contracts/EditorAuthoringContract.js';
 
@@ -85,6 +87,22 @@ export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extr
         mesh = new THREE.Mesh(manager.torusKnotGeo, subType === 'player' ? manager.mats.playerSpawn : manager.mats.botSpawn);
         mesh.scale.set(40, 40, 40);
         userData.subType = subType;
+    }
+    else if (type === 'turret') {
+        const definition = normalizeStaticTurretDefinition({
+            weapon: subType || 'rocket', range: 90 * (Number(props.turretAuthoringScale) || 1), cooldown: 3.4, rocketType: 'ROCKET_WEAK',
+            destructible: true, maxHp: 90, targetPlayers: 'all', targetTrails: true,
+            allowedModes: ['HUNT', 'ARCADE'], ...props, pos: [x, y, z],
+        }, 0, { preserveSpatialRange: true });
+        const { id, pos, ...settings } = definition;
+        void id; void pos;
+        Object.assign(userData, settings, { subType: settings.weapon, sizeInfo: 7.2 });
+        mesh = createEditorTurretMesh(manager, settings.weapon === 'rocket');
+    }
+    else if (type === 'item' && subType === 'item_rocket_turret') {
+        mesh = createEditorTurretMesh(manager);
+        userData.subType = subType;
+        userData.pickupType = 'ROCKET_TURRET';
     }
     else if (type === 'item') {
         mesh = manager.assetLoader.getClone(subType) || new THREE.Mesh(manager.sphereGeo, manager.mats.item_fallback);

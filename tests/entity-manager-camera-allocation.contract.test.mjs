@@ -50,3 +50,14 @@ test('camera projection skips bots and reuses its synchronous context', () => {
         { hp: 60, otherX: 0 },
     ]);
 });
+
+test('EntityManager keeps pixel killcam capture disabled unless explicitly opted in', () => {
+    const defaultManager = new EntityManager(null, null, null, null, null, null);
+    const optedInManager = new EntityManager(null, null, null, null, null, null, null, {
+        enablePixelKillcamReplay: true,
+    });
+
+    assert.equal(defaultManager._killcamSystem.pixelReplayEnabled, false);
+    assert.equal(defaultManager.captureKillcamRenderedFrame(), null);
+    assert.equal(optedInManager._killcamSystem.pixelReplayEnabled, true);
+});

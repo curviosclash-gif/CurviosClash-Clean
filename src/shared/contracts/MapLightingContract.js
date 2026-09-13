@@ -2,7 +2,8 @@ const COLOR_MIN = 0x000000;
 const COLOR_MAX = 0xffffff;
 const DIRECTION_COMPONENT_LIMIT = 100;
 const LIGHT_INTENSITY_MAX = 4;
-const FOG_DISTANCE_MAX = 200;
+const FOG_DISTANCE_MAX = 600;
+const FOG_HEIGHT_MAX = 200;
 const EXPOSURE_OFFSET_LIMIT = 0.5;
 // Above 0.5 the fog would be gone within two metres of the base height, which no map can want.
 const FOG_HEIGHT_FALLOFF_MAX = 0.5;
@@ -121,7 +122,7 @@ export function normalizeMapLighting(value, fallback = DEFAULT_MAP_LIGHTING) {
             color: normalizeColor(fog.color, safeFallback.fog.color),
             near: Math.min(fogNear, fogFar),
             far: fogFar,
-            height: normalizeNumber(fog.height, safeFallback.fog.height, 0, FOG_DISTANCE_MAX),
+            height: normalizeNumber(fog.height, safeFallback.fog.height, 0, FOG_HEIGHT_MAX),
             heightFalloff: normalizeNumber(
                 fog.heightFalloff,
                 safeFallback.fog.heightFalloff,

@@ -197,7 +197,7 @@ test('MatchFlowUiController prepares presentation and input without creating a m
 test('MatchFlowUiController shows a generic loading state when a map has no GLB source', () => {
     const controller = new MatchFlowUiController({
         game: {
-            runtimeConfig: { session: { mapKey: 'standard' } },
+            runtimeConfig: { session: { mapKey: 'empty' } },
             ui: {},
         },
         sessionOrchestrator: {},
@@ -1475,6 +1475,20 @@ test('MatchKernel signalRoundEnd stays idempotent during round-end lifecycle', (
     assert.equal(kernel.roundPause, 1);
 });
 
+test('MatchKernel poses moving map collision before entity simulation', () => {
+    const order = [];
+    const kernel = new MatchKernel({
+        simPorts: {
+            arena: { update: () => order.push('arena') },
+            entityManager: { update: () => order.push('entities') },
+            powerupManager: { update: () => order.push('powerups') },
+        },
+    });
+    kernel.boot();
+    kernel.tick({ fixedStepSeconds: 1 / 60, frameId: 1 }, {});
+    assert.deepEqual(order, ['arena', 'entities', 'powerups']);
+});
+
 test('GameRuntimeCoordinator completes resource cleanup when an earlier disposer fails', async () => {
     const calls = [];
     const disposeError = new Error('facade dispose failed');
@@ -2378,7 +2392,7 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
             block.children[1]?.textContent,
         ]));
         assert.equal(summaryByLabel.get('Session'), 'Multiplayer');
-        assert.equal(summaryByLabel.get('Lobby'), 'ABCD | Client | Startsignal gesendet | 2/2 ready');
+        assert.equal(summaryByLabel.get('Lobby'), 'ABCD | Client | Startsignal gesendet | 2/2 bereit');
         assert.equal(summaryByLabel.get('Transport'), 'LAN');
         assert.equal(multiplayerLobbyState.textContent, 'ABCD | Client | Startsignal gesendet | 2 Teilnehmer | 2/2 bereit');
         assert.equal(multiplayerLobbyCodeInput.value, 'ABCD');
@@ -2388,7 +2402,7 @@ test('Start setup rendering seam preserves multiplayer lobby summary and control
         assert.equal(multiplayerJoinButton.disabled, true);
         assert.equal(multiplayerLeaveLobbyButton.disabled, false);
         assert.equal(multiplayerReadyToggle.checked, true);
-        assert.equal(multiplayerTransportHint.textContent, 'Produktiver Transport: LAN');
+        assert.equal(multiplayerTransportHint.textContent, 'Verbindung: LAN');
         assert.equal(multiplayerMemberList.children.length, 2);
         assert.equal(multiplayerMemberCount.textContent, '2 / 6');
         assert.equal(multiplayerShareCode.textContent, 'ABCD');

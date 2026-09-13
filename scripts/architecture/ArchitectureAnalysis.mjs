@@ -10,11 +10,15 @@ import {
     LEGACY_CONSTRUCTOR_GAME_ALLOWLIST,
     LEGACY_DOM_ACCESS_ALLOWLIST,
     LEGACY_ENTITIES_TO_CORE_IMPORTS,
+    LEGACY_FEATURE_TO_RUNTIME_IMPORTS,
+    LEGACY_FEATURE_TO_UI_IMPORTS,
     LEGACY_SHARED_CONTRACTS_TO_CORE_IMPORTS,
     LEGACY_STATE_TO_CORE_IMPORTS,
     LEGACY_STATE_TO_UI_IMPORTS,
     LEGACY_UI_TO_CORE_IMPORTS,
     LEGACY_UI_TO_STATE_IMPORTS,
+    FEATURE_MODULE_PREFIXES,
+    FEATURE_MODULE_RUNTIME_PREFIXES,
     createEdgeKey,
 } from './ArchitectureConfig.mjs';
 
@@ -373,6 +377,10 @@ function classifyEdgeViolations(edges) {
     const applicationToPlatformImports = [];
     const sharedContractsToImplementationImports = [];
     const coreToUiCompositionImports = [];
+    const featureToUiImports = [];
+    const featureToRuntimeImports = [];
+
+    const startsWithAny = (value, prefixes) => prefixes.some((prefix) => value.startsWith(prefix));
 
     for (const edge of edges) {
         if (edge.from.startsWith('src/core/') && edge.to.startsWith('src/ui/')) {
@@ -458,7 +466,6 @@ function classifyEdgeViolations(edges) {
             edge.from.startsWith('src/shared/contracts/')
             && edge.to.startsWith('src/')
             && !edge.to.startsWith('src/shared/')
-            && !edge.to.startsWith('src/utils/')
         ) {
             sharedContractsToImplementationImports.push({
                 ...edge,
@@ -471,6 +478,22 @@ function classifyEdgeViolations(edges) {
                 ...edge,
                 allowed: true,
                 reason: 'tracked core-ui composition seam',
+            });
+        }
+        if (startsWithAny(edge.from, FEATURE_MODULE_PREFIXES) && edge.to.startsWith('src/ui/')) {
+            const reason = LEGACY_FEATURE_TO_UI_IMPORTS.get(createEdgeKey(edge.from, edge.to)) || null;
+            featureToUiImports.push({
+                ...edge,
+                allowed: !!reason,
+                reason,
+            });
+        }
+        if (startsWithAny(edge.from, FEATURE_MODULE_RUNTIME_PREFIXES) && edge.to.startsWith('src/core/')) {
+            const reason = LEGACY_FEATURE_TO_RUNTIME_IMPORTS.get(createEdgeKey(edge.from, edge.to)) || null;
+            featureToRuntimeImports.push({
+                ...edge,
+                allowed: !!reason,
+                reason,
             });
         }
     }
@@ -488,6 +511,8 @@ function classifyEdgeViolations(edges) {
         applicationToPlatformImports,
         sharedContractsToImplementationImports,
         coreToUiCompositionImports,
+        featureToUiImports,
+        featureToRuntimeImports,
     };
 }
 
@@ -548,6 +573,8 @@ export function collectArchitectureReport(rootDir = process.cwd()) {
         applicationToPlatformImports,
         sharedContractsToImplementationImports,
         coreToUiCompositionImports,
+        featureToUiImports,
+        featureToRuntimeImports,
     } = classifyEdgeViolations(importEdges);
     const constructorGameMatches = collectConstructorGameMatches(filesByRelativePath);
     const configWrites = collectConfigWrites(filesByRelativePath);
@@ -579,6 +606,8 @@ export function collectArchitectureReport(rootDir = process.cwd()) {
             applicationToPlatformImports,
             sharedContractsToImplementationImports,
             coreToUiCompositionImports,
+            featureToUiImports,
+            featureToRuntimeImports,
             legacySurfaceReads,
             electronPreloadExposures: electronSurfaces.preloadExposures,
             electronIpcRendererChannels: electronSurfaces.ipcRendererChannels,
@@ -671,6 +700,16 @@ export function collectArchitectureReport(rootDir = process.cwd()) {
             totalEdges: coreToUiCompositionImports.length,
             disallowedEdges: 0,
             legacyEdges: summarizeEdges(coreToUiCompositionImports),
+        },
+        featureToUiImports: {
+            totalEdges: featureToUiImports.length,
+            disallowedEdges: featureToUiImports.filter((entry) => !entry.allowed).length,
+            legacyEdges: summarizeEdges(featureToUiImports.filter((entry) => entry.allowed)),
+        },
+        featureToRuntimeImports: {
+            totalEdges: featureToRuntimeImports.length,
+            disallowedEdges: featureToRuntimeImports.filter((entry) => !entry.allowed).length,
+            legacyEdges: summarizeEdges(featureToRuntimeImports.filter((entry) => entry.allowed)),
         },
         electronPreloadExposures: {
             totalOccurrences: electronSurfaces.preloadExposures.length,

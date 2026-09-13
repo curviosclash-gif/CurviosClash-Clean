@@ -1,3 +1,4 @@
+import { showEditorTurretProperties, clearEditorTurretRange } from './EditorTurretProperties.js';
 import { writePropertyFieldValue } from './EditorFormState.js';
 
 const OBJECT_TYPE_LABELS = Object.freeze({
@@ -10,6 +11,7 @@ const OBJECT_TYPE_LABELS = Object.freeze({
     aircraft: 'Flugobjekt',
     glb: 'GLB-Modell',
     checkpoint: 'Parcours',
+    turret: 'Geschuetz',
 });
 
 export function updateUndoRedoButtonsView(editor, state = null) {
@@ -88,6 +90,7 @@ export function showPropertyPanelView(editor, obj) {
     writePropertyFieldValue(editor, 'rotationY', Math.round((obj.rotation.y || 0) * 180 / Math.PI));
 
     const u = obj.userData;
+    showEditorTurretProperties(editor, obj);
     editor.populateRelationshipFields?.(obj);
     if (propContextRow) propContextRow.style.display = 'none';
     if (propContext) propContext.value = '';
@@ -140,6 +143,7 @@ export function showPropertyPanelView(editor, obj) {
 }
 
 export function hidePropertyPanelView(editor) {
+    clearEditorTurretRange(editor);
     if (editor.dom.propPanel) editor.dom.propPanel.style.display = "none";
     if (editor.dom.selectionEmpty) editor.dom.selectionEmpty.hidden = false;
     if (editor.dom.selectionTabBadge) editor.dom.selectionTabBadge.hidden = true;

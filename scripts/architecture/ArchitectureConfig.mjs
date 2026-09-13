@@ -2,28 +2,11 @@ export function createEdgeKey(fromFile, toFile) {
     return `${fromFile} -> ${toFile}`;
 }
 
-function pair(left, right) {
-    return /** @type {[string, string]} */ ([left, right]);
-}
-
 /** @type {[string, string][]} */
 const legacyStateToUiImportEntries = [];
 
 /** @type {[string, string][]} */
-const legacyUiToStateImportEntries = [
-    pair(
-        createEdgeKey('src/ui/arcade/ArcadeVehicleManager.js', 'src/state/arcade/ArcadeVehicleProfile.js'),
-        'Arcade vehicle manager still loads/saves profiles directly; awaiting contract-based refactor via ArcadeVehicleProfileContract (V58.3 follow-up).'
-    ),
-    pair(
-        createEdgeKey('src/ui/SettingsStore.js', 'src/state/storage/StoragePlatform.js'),
-        'UI settings store still reuses shared storage platform contract pending complete command/reducer storage abstraction.'
-    ),
-    pair(
-        createEdgeKey('src/ui/base/PersistentStoreLoadUtils.js', 'src/state/storage/StoragePlatform.js'),
-        'PersistentStoreLoadUtils centralises StoragePlatform construction for PersistentStore subclasses (V91 91.3.5: 4 per-store imports consolidated here).'
-    ),
-];
+const legacyUiToStateImportEntries = [];
 
 /** @type {[string, string][]} */
 const legacyCoreToUiImportEntries = [];
@@ -60,6 +43,57 @@ export const LEGACY_STATE_TO_CORE_IMPORTS = new Map(legacyStateToCoreImportEntri
 export const LEGACY_SHARED_CONTRACTS_TO_CORE_IMPORTS = new Map(legacySharedContractsToCoreImportEntries);
 export const LEGACY_APPLICATION_TO_UI_IMPORTS = new Map();
 export const LEGACY_APPLICATION_TO_CORE_IMPORTS = new Map();
+
+// Feature- und Infrastrukturmodule stehen neben den benannten Schichten und waren
+// bisher in keiner Kantenregel Absender: sie konnten importieren, was sie wollten.
+// Der Weg nach draussen fuehrt ueber shared/contracts und injizierte Ports.
+export const FEATURE_MODULE_PREFIXES = Object.freeze([
+    'src/hunt/',
+    'src/modes/',
+    'src/four-player-planar/',
+    'src/network/',
+    'src/platform/',
+]);
+
+// Enger gefasst: hunt, modes und four-player-planar kapseln Spielregeln und haben
+// in der Runtime nichts zu suchen. network und platform sind Infrastruktur und
+// duerfen core weiterhin benutzen.
+export const FEATURE_MODULE_RUNTIME_PREFIXES = Object.freeze([
+    'src/hunt/',
+    'src/modes/',
+    'src/four-player-planar/',
+]);
+
+export const LEGACY_FEATURE_TO_UI_IMPORTS = new Map([
+    [
+        createEdgeKey(
+            'src/four-player-planar/FourPlayerPlanarModule.js',
+            'src/ui/four-player-planar/FourPlayerPlanarHudView.js'
+        ),
+        'Four-player planar module still mounts its own HUD view; awaiting a composition-side view factory.',
+    ],
+    [
+        createEdgeKey(
+            'src/four-player-planar/FourPlayerPlanarModule.js',
+            'src/ui/four-player-planar/FourPlayerPlanarSetupView.js'
+        ),
+        'Four-player planar module still mounts its own setup view; awaiting a composition-side view factory.',
+    ],
+]);
+
+export const LEGACY_FEATURE_TO_RUNTIME_IMPORTS = new Map([
+    [
+        createEdgeKey('src/four-player-planar/FourPlayerPlanarModule.js', 'src/core/Config.js'),
+        'Four-player planar module reads CONFIG directly; awaiting injected tuning values.',
+    ],
+    [
+        createEdgeKey(
+            'src/hunt/KillcamPixelReplayLifecycle.js',
+            'src/core/recording/KillcamPixelReplayBuffer.js'
+        ),
+        'Killcam replay lifecycle still reaches into the core recording buffer; awaiting a recording port.',
+    ],
+]);
 
 export const BOUNDARY_MATRIX = Object.freeze({
     id: 'V96.1-boundary-matrix',
@@ -102,9 +136,9 @@ export const BOUNDARY_MATRIX = Object.freeze({
             currentAllowlist: 'LEGACY_UI_TO_STATE_IMPORTS',
             currentBudgetKey: 'uiToStateImportEdges',
             owner: 'UI compatibility adapters',
-            status: 'frozen-baseline',
-            targetPhase: '96.8',
-            targetState: 'no new UI-to-state imports; existing 3-edge baseline can only shrink behind command/reducer or storage contracts',
+            status: 'enforced-zero',
+            targetPhase: 'complete',
+            targetState: '0 productive imports; the former 3-edge baseline is gone because UI now reaches storage through src/shared/storage',
             preferredPaths: Object.freeze([
                 'Read-only UI snapshots',
                 'Intent commands',
@@ -130,6 +164,34 @@ export const BOUNDARY_MATRIX = Object.freeze({
             targetPhase: 'complete',
             targetState: '0 productive imports into core, entities, state, UI, application, platform, hunt or modes',
             preferredPaths: Object.freeze(['Canonical shared registries', 'Canonical shared schemas']),
+            noNewConsumers: true,
+        }),
+        featureToUi: Object.freeze({
+            edge: 'hunt|modes|four-player-planar|network|platform -> ui',
+            currentAllowlist: 'LEGACY_FEATURE_TO_UI_IMPORTS',
+            currentBudgetKey: 'featureToUiImportEdges',
+            owner: 'Feature and infrastructure modules',
+            status: 'frozen-baseline',
+            targetPhase: 'incremental',
+            targetState: 'no new feature-to-UI imports; the 2-edge four-player-planar baseline can only shrink',
+            preferredPaths: Object.freeze([
+                'Injected view factories from the composition seam',
+                'Shared contracts for HUD and setup payloads',
+            ]),
+            noNewConsumers: true,
+        }),
+        featureToRuntime: Object.freeze({
+            edge: 'hunt|modes|four-player-planar -> core',
+            currentAllowlist: 'LEGACY_FEATURE_TO_RUNTIME_IMPORTS',
+            currentBudgetKey: 'featureToRuntimeImportEdges',
+            owner: 'Gameplay feature modules',
+            status: 'frozen-baseline',
+            targetPhase: 'incremental',
+            targetState: 'no new feature-to-core imports; the 2-edge baseline can only shrink behind ports',
+            preferredPaths: Object.freeze([
+                'Injected tuning values instead of CONFIG reads',
+                'Narrow recording and runtime ports',
+            ]),
             noNewConsumers: true,
         }),
         coreToUiComposition: Object.freeze({
@@ -186,6 +248,8 @@ export const ARCHITECTURE_SCORECARD_TARGETS = Object.freeze({
     disallowedApplicationToCoreImports: 0,
     disallowedApplicationToPlatformImports: 0,
     disallowedSharedContractsToImplementationImports: 0,
+    disallowedFeatureToUiImports: 0,
+    disallowedFeatureToRuntimeImports: 0,
 });
 
 export const ARCHITECTURE_SCORECARD_BUDGETS = Object.freeze({
@@ -203,4 +267,6 @@ export const ARCHITECTURE_SCORECARD_BUDGETS = Object.freeze({
     applicationToPlatformImportEdges: 0,
     sharedContractsToImplementationImportEdges: 0,
     coreToUiCompositionImportEdges: 27,
+    featureToUiImportEdges: LEGACY_FEATURE_TO_UI_IMPORTS.size,
+    featureToRuntimeImportEdges: LEGACY_FEATURE_TO_RUNTIME_IMPORTS.size,
 });

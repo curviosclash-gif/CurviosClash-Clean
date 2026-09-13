@@ -74,6 +74,9 @@ export class RoundStateTickSystem {
     }
 
     _deriveRoundEndTickStep(dt) {
+        if (this.game.roundStateController?.isArcadeRoundStateController) {
+            return this.game.roundStateController.deriveRoundEndTick(this._readRoundEndTickInputs(dt));
+        }
         return this._tickKernelRoundState(dt, 'round_end')
             || this.game.roundStateController.deriveRoundEndTick(this._readRoundEndTickInputs(dt));
     }

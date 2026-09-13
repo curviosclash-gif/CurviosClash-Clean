@@ -2,7 +2,7 @@
 // TrainingOpsKpiContractV36.js - production operations KPIs for bridge/trainer runtime
 // ============================================
 
-import { toFiniteNumber } from '../../../../../src/utils/MathOps.js';
+import { toFiniteNumber } from '../../../../../src/shared/utils/MathOps.js';
 
 export const TRAINING_OPS_KPI_CONTRACT_VERSION = 'v36-ops-kpi-v1';
 

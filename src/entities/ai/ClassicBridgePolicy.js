@@ -21,7 +21,7 @@ import {
     WALL_DISTANCE_RIGHT,
     WALL_DISTANCE_UP,
 } from './observation/ObservationSchemaV1.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 import {
     normalizeArcadeBotAggressiveness,
     resolveArcadeBridgeAggressionThresholds,

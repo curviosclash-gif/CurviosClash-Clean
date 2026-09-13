@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { toFiniteNumber } from '../../utils/MathOps.js';
+import { toFiniteNumber } from '../../shared/utils/MathOps.js';
 import { attemptAutoDownload, buildDownloadFileName } from './DownloadService.js';
 import {
     DEFAULT_FALLBACK_MIME_TYPE,

@@ -6,6 +6,8 @@ import * as THREE from 'three';
 import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
+import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
+import { isSharedPowerupMaterial } from './powerup/PowerupSharedMaterials.js';
 import {
     isPickupTypeAllowedForMode,
     normalizePickupType,
@@ -44,10 +46,13 @@ function nextRuntimeRandom(strategy = null) {
 function disposeMeshMaterials(mesh) {
     mesh?.traverse?.((node) => {
         if (!node?.material) return;
-        if (Array.isArray(node.material)) {
-            node.material.forEach((material) => material?.dispose?.());
-        } else {
-            node.material.dispose?.();
+        const materials = Array.isArray(node.material) ? node.material : [node.material];
+        for (const material of materials) {
+            // Pickup models share their materials across every item that looks the same, the way the
+            // geometries have always been shared. Collecting one item must not dispose a material
+            // that the rest of the field is still drawing with.
+            if (isSharedPowerupMaterial(material)) continue;
+            material?.dispose?.();
         }
     });
 }
@@ -136,9 +141,8 @@ export class PowerupManager {
         const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
         const spawnRateMul = (strategy && typeof strategy.getSpawnRateMultiplier === 'function')
             ? strategy.getSpawnRateMultiplier() : 1.0;
-        const effectiveInterval = spawnRateMul > 0
-            ? config.POWERUP.SPAWN_INTERVAL / spawnRateMul
-            : config.POWERUP.SPAWN_INTERVAL;
+        const fieldLimit = resolvePowerupFieldLimit(config.POWERUP.MAX_ON_FIELD, this.arena?.bounds, config.GAMEPLAY.PLANAR_MODE);
+        const effectiveInterval = resolvePowerupSpawnInterval(config.POWERUP, fieldLimit, spawnRateMul);
         const authoredItemTarget = this.arena?.currentMapDefinition?.keepAuthoredItemsAvailable === true
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
             : 0;
@@ -150,7 +154,7 @@ export class PowerupManager {
                 if (this.items.length === previousCount) break;
             }
             this.spawnTimer = 0;
-        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < config.POWERUP.MAX_ON_FIELD) {
+        } else if (!runtimeOwnsSpawns && !this.networkReplica && this.spawnTimer >= effectiveInterval && this.items.length < fieldLimit) {
             this.spawnTimer = 0;
             this._spawnRandom();
         }

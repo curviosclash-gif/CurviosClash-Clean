@@ -9,6 +9,10 @@ import { RuntimeModularVehicleMesh } from './runtime-modular-vehicle-mesh.js';
 import { GENERATED_VEHICLE_CONFIGS } from './GeneratedVehicleConfigs.js';
 import { loadVehicleLabCatalog } from '../shared/contracts/VehicleLabConfigContract.js';
 import {
+    BUILT_IN_COMPLEX_VEHICLE_CONFIGS,
+    BUILT_IN_COMPLEX_VEHICLE_IDS,
+} from '../shared/vehicle-lab/VehiclePresetCatalogBridge.js';
+import {
     CONTENT_DESCRIPTOR_TYPES,
     createContentRegistryDescriptor,
 } from '../shared/contracts/ContentDescriptorContract.js';
@@ -32,9 +36,11 @@ const BASE_VEHICLE_DEFINITIONS = [
     { id: 'ship9', label: 'Recon (Ship 9)', MeshClass: OBJVehicleMesh, isObj: true, hitbox: { radius: 1.0 } },
 ];
 const BASE_VEHICLE_BY_ID = new Map(BASE_VEHICLE_DEFINITIONS.map((entry) => [entry.id, entry]));
+const BUILT_IN_COMPLEX_VEHICLE_ID_SET = new Set(BUILT_IN_COMPLEX_VEHICLE_IDS);
 
 const LOCAL_VEHICLE_CONFIGS = loadVehicleLabCatalog().vehicles;
 const CUSTOM_VEHICLE_CONFIGS = Array.from(new Map([
+    ...BUILT_IN_COMPLEX_VEHICLE_CONFIGS,
     ...(Array.isArray(GENERATED_VEHICLE_CONFIGS) ? GENERATED_VEHICLE_CONFIGS : []),
     ...LOCAL_VEHICLE_CONFIGS,
 ].map((entry) => [String(entry?.id || '').trim(), entry])).values());
@@ -46,7 +52,8 @@ const GENERATED_CUSTOM_VEHICLE_DEFINITIONS = CUSTOM_VEHICLE_CONFIGS
         label: String(entry.label || entry.id || 'Custom Vehicle'),
         MeshClass: RuntimeModularVehicleMesh,
         isGeneratedModular: true,
-        isBuiltIn: BASE_VEHICLE_BY_ID.has(String(entry.id || '').trim()),
+        isBuiltIn: BASE_VEHICLE_BY_ID.has(String(entry.id || '').trim())
+            || BUILT_IN_COMPLEX_VEHICLE_ID_SET.has(String(entry.id || '').trim()),
         modularConfig: entry.config,
         hitbox: {
             radius: Number(entry.hitbox?.radius) || 1.2

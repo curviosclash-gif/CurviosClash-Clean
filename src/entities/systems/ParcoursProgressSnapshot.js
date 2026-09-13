@@ -1,13 +1,13 @@
+import { resolveExpectedCheckpointEntries } from './ParcoursProgressUtils.js';
+
 export function createPlayerProgressSnapshot(route, state, now) {
     const hasError = state.errorUntilMs > now && !!state.lastError;
     const segmentAnchor = state.lastCheckpointAtMs || state.startedAtMs || 0;
     const segmentElapsedMs = state.completed || segmentAnchor <= 0
         ? 0
         : Math.max(0, now - segmentAnchor);
-    const expectedEntries = !state.completed && route.totalCheckpoints > 0
-        ? (route.entriesByCheckpointIndex[
-            Math.max(0, Math.min(route.totalCheckpoints - 1, state.nextCheckpointIndex))
-        ] || [])
+    const expectedEntries = !state.completed
+        ? resolveExpectedCheckpointEntries(route, state)
         : [];
     const passedCheckpointIds = state.stageCheckpointIds.filter((checkpointId) => (
         typeof checkpointId === 'string' && checkpointId.trim().length > 0
@@ -58,4 +58,9 @@ export function createPlayerHudState(snapshot) {
         resetCount: snapshot.resetCount,
         checkpointRespawnsUsed: snapshot.checkpointRespawnsUsed,
     };
+}
+
+export function createParcoursOutcomeCounters(state) {
+    return { wrongOrderCount: state?.wrongOrderCount || 0, resetCount: state?.resetCount || 0,
+        checkpointRespawnsUsed: state?.checkpointRespawnsUsed || 0 };
 }

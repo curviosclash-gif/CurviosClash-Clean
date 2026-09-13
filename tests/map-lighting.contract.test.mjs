@@ -12,6 +12,17 @@ import { SceneLightingRig } from '../src/core/renderer/SceneLightingRig.js';
 import { ArenaBuilder } from '../src/entities/arena/ArenaBuilder.js';
 import { DEFAULT_ENTITY_RUNTIME_CONFIG } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
+test('Falkenwacht spreads its high-altitude closure across at least 80 world units', () => {
+    for (const key of ['burg_falkenwacht', 'burg_falkenwacht_arena']) {
+        const fog = MAP_PRESET_CATALOG[key].lighting.fog;
+        const closureWidth = fog.far * (1 - fog.clipClosureStart);
+        assert.ok(closureWidth >= 80, key);
+        // Even without natural mist, a one-unit step must not add over 2% opacity.
+        assert.ok(1.5 / closureWidth < 0.02, key);
+        assert.ok(fog.heightFalloff <= 0.06, key);
+    }
+});
+
 test('default map lighting matches the existing modern renderer look', () => {
     assert.deepEqual(DEFAULT_MAP_LIGHTING.key.direction, [30, 50, 30]);
     assert.equal(DEFAULT_MAP_LIGHTING.key.color, 0xfff4e8);
@@ -64,7 +75,7 @@ test('map lighting normalization rejects invalid values and hard-clamps hostile 
     assert.deepEqual(normalized.fog, {
         color: 0xabcdef,
         near: 0,
-        far: 200,
+        far: 600,
         height: 0,
         heightFalloff: 0.5,
         turbulence: 1,
@@ -122,17 +133,26 @@ test('only the selected presets define lighting and all others resolve to defaul
         .map(([mapKey]) => mapKey)
         .sort();
     assert.deepEqual(litMapKeys, [
+        'burg_falkenwacht',
+        'burg_falkenwacht_arena',
+        'complex',
         'eiffel_tower',
         'eiffel_tower_arena',
         'frozen_helix',
         'magma_maze',
+        'maze',
         'neon_abyss',
         'notre_dame',
         'notre_dame_arena',
         'notre_dame_fire',
         'notre_dame_fire_arena',
+        'pyramid',
+        'standard',
+        'trench',
+        'vertical_maze',
+        'wind_cathedral',
     ]);
-    assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.standard?.lighting), DEFAULT_MAP_LIGHTING);
+    assert.deepEqual(resolveMapLighting(MAP_PRESET_CATALOG.empty?.lighting), DEFAULT_MAP_LIGHTING);
     for (const mapKey of litMapKeys) {
         assert.deepEqual(normalizeMapLighting(MAP_PRESET_CATALOG[mapKey].lighting), MAP_PRESET_CATALOG[mapKey].lighting);
     }

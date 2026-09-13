@@ -1,13 +1,9 @@
+import { ARCADE_SCORE_LABELS } from '../../shared/contracts/ArcadeScorePresentationContract.js';
 import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifierContract.js';
+import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
 
-const BREAKDOWN_ENTRIES = Object.freeze([
-    Object.freeze({ key: 'base', label: 'Base', sign: '+' }),
-    Object.freeze({ key: 'survival', label: 'Survival', sign: '+' }),
-    Object.freeze({ key: 'kills', label: 'Kills', sign: '+' }),
-    Object.freeze({ key: 'cleanSector', label: 'Clean', sign: '+' }),
-    Object.freeze({ key: 'risk', label: 'Risk', sign: '+' }),
-    Object.freeze({ key: 'penalty', label: 'Penalty', sign: '-' }),
-]);
+const BREAKDOWN_ENTRIES = Object.freeze(Object.entries(ARCADE_SCORE_LABELS)
+    .map(([key, label]) => Object.freeze({ key, label, sign: key === 'penalty' ? '-' : '+' })));
 
 function createElement(tag, className, textContent = '') {
     const el = document.createElement(tag);
@@ -61,8 +57,7 @@ export class ArcadeScoreHUD {
         this._scoreValue = null;
         this._comboValue = null;
         this._metricLine = null;
-        this._endlessWrap = null;
-        this._endlessValues = {};
+        this._endlessSection = null;
         this._comboMetricWrap = null;
         this._comboDecayValue = null;
         this._multiplierValue = null;
@@ -78,6 +73,8 @@ export class ArcadeScoreHUD {
         this._lastSectorIndex = 0;
         this._lastCombo = 0;
         this._build();
+        this._ghostStatus = createElement('div', 'arcade-ghost-status');
+        this._container.appendChild(this._ghostStatus);
     }
 
     _build() {
@@ -123,19 +120,7 @@ export class ArcadeScoreHUD {
         this._multiplierValue = this._createMetric(metricLine, 'Multi', 'x1.0').value;
         this._sectorValue = this._createMetric(metricLine, 'Sektor', '0').value;
 
-        this._endlessWrap = createElement('div', 'arcade-score-hud-endless');
-        this._endlessWrap.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:5px;font-size:11px;';
-        const endlessMetrics = [
-            ['distance', 'Distanz'],
-            ['time', 'Zeit'],
-            ['kills', 'Kills'],
-            ['bots', 'Bots'],
-            ['threat', 'Gefahr'],
-            ['best', 'Bestwert'],
-        ];
-        for (const [key, label] of endlessMetrics) {
-            this._endlessValues[key] = this._createMetric(this._endlessWrap, label, '-').value;
-        }
+        this._endlessSection = new ArcadeEndlessHudSection();
 
         const breakdown = createElement('div', 'arcade-score-hud-breakdown');
         breakdown.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
@@ -194,7 +179,7 @@ export class ArcadeScoreHUD {
 
         this._container.appendChild(scoreLine);
         this._container.appendChild(metricLine);
-        this._container.appendChild(this._endlessWrap);
+        this._container.appendChild(this._endlessSection.element);
         this._container.appendChild(breakdown);
         this._container.appendChild(this._modifierWrap);
         this._container.appendChild(this._suddenDeathBanner);
@@ -225,10 +210,12 @@ export class ArcadeScoreHUD {
         if (!this._container) return;
         this._container.style.display = 'none';
         this._container.classList.remove('is-edge-glow', 'is-sudden-death');
+        this._endlessSection?.hide();
         this._visible = false;
     }
 
     update(hudState = null) {
+        setNodeText(this._ghostStatus, hudState?.ghostStatus || '');
         if (!hudState || typeof hudState !== 'object') {
             this.hide();
             return;
@@ -240,27 +227,22 @@ export class ArcadeScoreHUD {
         const score = hudState.score && typeof hudState.score === 'object' ? hudState.score : {};
         const isEndless = String(hudState.runType || '') === 'endless_parcours';
         if (this._metricLine) this._metricLine.style.display = isEndless ? 'none' : 'grid';
-        if (this._endlessWrap) this._endlessWrap.style.display = isEndless ? 'grid' : 'none';
         if (isEndless) {
             setNodeText(this._scoreValue, formatRounded(score.total));
-            setNodeText(this._endlessValues.distance, `${formatRounded(hudState.maxProgressMeters)} m`);
-            setNodeText(this._endlessValues.time, formatTimerMs(toSafeNumber(hudState.survivalSeconds) * 1000));
-            setNodeText(this._endlessValues.kills, formatRounded(hudState.botKills));
-            setNodeText(this._endlessValues.bots, `${formatRounded(hudState.activeBots)}/${formatRounded(hudState.botCapacity)}`);
-            setNodeText(this._endlessValues.threat, String(hudState.threatLevel || 'INTRO'));
-            setNodeText(this._endlessValues.best, formatRounded(hudState.recordScore));
+            this._endlessSection?.update(hudState);
             if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
             if (this._modifierWrap) this._modifierWrap.style.display = 'none';
             this._suddenDeathBanner?.classList?.add('hidden');
             this._transitionBanner?.classList?.add('hidden');
             return;
         }
+        this._endlessSection?.hide();
         const breakdown = score.breakdown && typeof score.breakdown === 'object' ? score.breakdown : {};
         const nowMs = Math.max(0, toSafeNumber(hudState.nowMs, Date.now()));
         const comboWindowMs = Math.max(800, toSafeNumber(hudState.comboWindowMs, 5000));
         const combo = Math.max(0, Math.round(toSafeNumber(score.combo, 0)));
         const lastComboAtMs = Math.max(0, toSafeNumber(score.lastComboAtMs, 0));
-        const elapsedComboMs = lastComboAtMs > 0 ? Math.max(0, nowMs - lastComboAtMs) : comboWindowMs;
+        const elapsedComboMs = Math.max(0, nowMs - lastComboAtMs);
         const decayRatio = combo <= 0 ? 0 : Math.max(0, Math.min(1, (comboWindowMs - elapsedComboMs) / comboWindowMs));
         const phase = String(hudState.phase || '');
         const sectorIndex = Math.max(0, Math.floor(toSafeNumber(hudState.sectorIndex, 0)));

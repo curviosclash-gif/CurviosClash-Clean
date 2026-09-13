@@ -54,6 +54,11 @@ export function createEditorDomRefs(doc = document) {
 
         hudObjCount: doc.getElementById("hudObjCount"),
 
+        propTurretFields: doc.getElementById('propTurretFields'),
+        propTurretRange: doc.getElementById('propTurretRange'),
+        propTurretCooldown: doc.getElementById('propTurretCooldown'),
+        propTurretRocketType: doc.getElementById('propTurretRocketType'),
+        propTurretHp: doc.getElementById('propTurretHp'),
         propPanel: doc.getElementById("propPanel"),
         selectionEmpty: doc.getElementById('selectionEmpty'),
         selectionTabBadge: doc.getElementById('selectionTabBadge'),

@@ -1,3 +1,4 @@
+import { reanchorArcadeCombo } from '../../state/arcade/ArcadeScoreOps.js';
 import { toSafeNumber } from '../../shared/utils/ArcadeUtils.js';
 import { deriveArcadeRunRewardEffects } from '../../shared/contracts/ArcadeRunRewardEffectsContract.js';
 
@@ -75,6 +76,7 @@ export function syncArcadeRunRewardEffects(state = null, strategy = null) {
     }
     const effects = deriveArcadeRunRewardEffects(state.rewardHistory);
     const baseComboWindowMs = Math.max(800, Number(state.rewardBaseComboWindowMs ?? state?.config?.comboWindowMs) || 5000);
+    if (state.config.comboWindowMs !== Math.min(20_000, baseComboWindowMs + effects.comboWindowBonusMs)) reanchorArcadeCombo(state);
     state.rewardBaseComboWindowMs = baseComboWindowMs;
     state.rewardEffects = effects;
     state.config = {

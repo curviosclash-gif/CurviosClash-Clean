@@ -173,10 +173,13 @@ export class StateReconciler {
     }
 
     reconcile(localPlayers, entityManager) {
-        if (!this._lastStateUpdate || !localPlayers) return;
+        if (!this._lastStateUpdate) return;
+
+        entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
+        applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
 
         const serverPlayers = this._lastStateUpdate?.state?.players;
-        if (!serverPlayers) return;
+        if (!Array.isArray(localPlayers) || !serverPlayers) return;
 
         for (const serverPlayer of serverPlayers) {
             const localPlayer = localPlayers.find((player) => player.index === serverPlayer.index);
@@ -186,13 +189,11 @@ export class StateReconciler {
             this._reconcileRotation(localPlayer, serverPlayer);
             this._reconcileVelocity(localPlayer, serverPlayer);
             this._reconcileEffects(localPlayer, serverPlayer);
-            this._reconcileAuthoritativeFields(localPlayer, serverPlayer);
+            this._reconcileAuthoritativeFields(localPlayer, serverPlayer, entityManager);
         }
-        entityManager?.applyNetworkSnapshot?.(this._lastStateUpdate?.state);
-        applyHuntNetworkState(entityManager, this._lastStateUpdate?.state?.fight);
     }
 
-    _reconcileAuthoritativeFields(localPlayer, serverPlayer) {
+    _reconcileAuthoritativeFields(localPlayer, serverPlayer, entityManager = null) {
         if (typeof serverPlayer.alive === 'boolean') {
             const aliveChanged = localPlayer.alive !== serverPlayer.alive;
             localPlayer.alive = serverPlayer.alive;
@@ -233,6 +234,11 @@ export class StateReconciler {
         }
         if (typeof serverPlayer.speed === 'number') {
             localPlayer.speed = serverPlayer.speed;
+        }
+        if (serverPlayer.exclusionZone && typeof serverPlayer.exclusionZone === 'object') {
+            const zoneSystem = entityManager?._exclusionZoneSystem;
+            if (zoneSystem?.applyNetworkState) zoneSystem.applyNetworkState(localPlayer, serverPlayer.exclusionZone);
+            else localPlayer.exclusionZoneState = { ...serverPlayer.exclusionZone };
         }
     }
 

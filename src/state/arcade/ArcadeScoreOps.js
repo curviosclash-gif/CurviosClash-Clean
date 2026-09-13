@@ -16,6 +16,7 @@ const SECTOR_BASE_SCORES = Object.freeze({
 
 /** Points per kill, multiplied by the current multiplier. */
 const KILL_SCORE_BASE = 35;
+const PARCOURS_SCORE = Object.freeze({ completion: 500, checkpoint: 25, time: 1000, precision: 200, referenceMs: 60000 });
 
 /** Fractional combo increments per in-game action (61.2.1). */
 const COMBO_ACTION_INCREMENTS = Object.freeze({
@@ -42,7 +43,11 @@ function createScoreBreakdown(source = null) {
     const cleanSector = Math.max(0, toSafeNumber(input.cleanSector, 0));
     const risk = Math.max(0, toSafeNumber(input.risk, 0));
     const penalty = Math.max(0, toSafeNumber(input.penalty, 0));
-    const total = Math.max(0, toSafeNumber(input.total, base + survival + kills + cleanSector + risk - penalty));
+    const completion = Math.max(0, toSafeNumber(input.completion, 0));
+    const checkpoints = Math.max(0, toSafeNumber(input.checkpoints, 0));
+    const time = Math.max(0, toSafeNumber(input.time, 0));
+    const precision = Math.max(0, toSafeNumber(input.precision, 0));
+    const total = Math.max(0, toSafeNumber(input.total, base + survival + kills + cleanSector + risk - penalty + completion + checkpoints + time + precision));
     return {
         base,
         survival,
@@ -50,6 +55,7 @@ function createScoreBreakdown(source = null) {
         cleanSector,
         risk,
         penalty,
+        completion, checkpoints, time, precision,
         total,
     };
 }
@@ -75,19 +81,25 @@ export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = 
     const lastComboAtMs = Math.max(0, toSafeNumber(sourceScore.lastComboAtMs, 0));
     const now = Math.max(0, toSafeNumber(nowMs, Date.now()));
 
-    if (currentCombo <= 0 || lastComboAtMs <= 0 || comboDecayPerSecond <= 0) {
+    const rule = `${comboWindowMs}:${comboDecayPerSecond}:${resolveMasteryPct(masteryPerks, 'comboDecaySlowPct')}`;
+    if (currentCombo <= 0 || comboDecayPerSecond <= 0) {
         return {
             ...sourceScore,
             combo: currentCombo,
+            comboDecayRule: rule,
             multiplier: resolveMultiplierFromCombo(currentCombo, maxMultiplier),
         };
     }
 
+    if (sourceScore.comboDecayRule && sourceScore.comboDecayRule !== rule) {
+        return { ...sourceScore, lastComboAtMs: now, comboDecayApplied: 0, comboDecayRule: rule };
+    }
     const elapsedMs = Math.max(0, now - lastComboAtMs);
     if (elapsedMs <= comboWindowMs) {
         return {
             ...sourceScore,
             combo: currentCombo,
+            comboDecayRule: rule,
             multiplier: resolveMultiplierFromCombo(currentCombo, maxMultiplier),
         };
     }
@@ -109,10 +121,12 @@ export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = 
     }
     const comboDecaySlowPct = resolveMasteryPct(masteryPerks, 'comboDecaySlowPct');
     const masteryAdjustedDecay = Math.floor(decayAmount * (1 - comboDecaySlowPct / 100));
-    const decayedCombo = Math.max(0, currentCombo - Math.max(0, masteryAdjustedDecay));
+    const decayedCombo = Math.max(0, currentCombo - Math.max(0, masteryAdjustedDecay - toSafeNumber(sourceScore.comboDecayApplied, 0)));
     return {
         ...sourceScore,
         combo: decayedCombo,
+        comboDecayApplied: masteryAdjustedDecay,
+        comboDecayRule: rule,
         multiplier: resolveMultiplierFromCombo(decayedCombo, maxMultiplier),
     };
 }
@@ -122,6 +136,14 @@ export function applyArcadeComboDecay(scoreState = null, config = null, nowMs = 
  * Uses fractional accumulation — partial increments add up over time.
  * 61.2.1
  */
+export function reanchorArcadeCombo(state) {
+    if (!state?.score) return;
+    const now = Math.max(0, Number(state.gameplayTimeMs) || 0);
+    const score = now < (state.comboFreezeUntilMs || 0) ? state.score
+        : applyArcadeComboDecay(state.score, state.config, now, state.masteryPerks);
+    state.score = { ...score, lastComboAtMs: now, comboDecayApplied: 0, comboDecayRule: null };
+}
+
 export function applyComboAction(scoreState = null, event = null, config = null) {
     const sourceScore = scoreState && typeof scoreState === 'object' ? scoreState : {};
     const sourceConfig = config && typeof config === 'object' ? config : {};
@@ -143,10 +165,24 @@ export function applyComboAction(scoreState = null, event = null, config = null)
         comboAccum: newAccum - comboGain,
         multiplier: resolveMultiplierFromCombo(nextCombo, maxMultiplier),
         lastComboAtMs: nowMs,
+        comboDecayApplied: 0,
+        comboDecayRule: null,
     };
 }
 
-export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTemplateId = '' } = {}) {
+export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTemplateId = '', parcours = null } = {}) {
+    if (sectorTemplateId === 'sector_parcours') {
+        const timeMs = Number(parcours?.completionTimeMs);
+        const referenceMs = Math.max(1, toSafeNumber(parcours?.referenceTimeMs, PARCOURS_SCORE.referenceMs));
+        const completion = PARCOURS_SCORE.completion;
+        const checkpoints = Math.max(0, Math.trunc(Number(parcours?.checkpointCount) || 0)) * PARCOURS_SCORE.checkpoint;
+        const time = Number.isFinite(timeMs) && timeMs > 0
+            ? Math.round(PARCOURS_SCORE.time * Math.max(0, 1 - timeMs / (2 * referenceMs))) : 0;
+        const precision = parcours && ['wrongOrderCount', 'resetCount', 'checkpointRespawnsUsed']
+            .every(key => Number(parcours[key] || 0) === 0) ? PARCOURS_SCORE.precision : 0;
+        return createScoreBreakdown({ completion, checkpoints, time, precision,
+            total: completion + checkpoints + time + precision });
+    }
     const telemetry = normalizeTelemetryPayload(payload);
 
     // 61.1.1 — Dynamic base score per sector template
@@ -175,6 +211,7 @@ export function computeArcadeSectorScoreBreakdown(payload = null, { sectorTempla
         cleanSector,
         risk,
         penalty,
+        completion: 0, checkpoints: 0, time: 0, precision: 0,
         total,
     };
 }
@@ -205,7 +242,8 @@ export function applyArcadeSectorScore(runState, payload = null, {
     }
 
     const now = Math.max(0, toSafeNumber(nowMs, Date.now()));
-    const decayedScore = applyArcadeComboDecay(sourceScore, runState.config, now, masteryPerks);
+    const decayedScore = now <= (runState.comboFreezeUntilMs || 0) ? sourceScore
+        : applyArcadeComboDecay(sourceScore, runState.config, now, masteryPerks);
     // 61.6.3: In SUDDEN_DEATH, combo increments by 2 per sector for faster multiplier growth
     const isSuddenDeath = sectorResult
         ? sectorResult.wasSuddenDeath === true
@@ -219,7 +257,7 @@ export function applyArcadeSectorScore(runState, payload = null, {
     const sectorEntry = sectorSeq[Math.max(0, completedSectors - 1)] || null;
     const sectorTemplateId = String(sectorEntry?.templateId || '');
     const scoreBonus = Math.max(0, toSafeNumber(sectorEntry?.scoreBonus, 0));
-    const breakdown = computeArcadeSectorScoreBreakdown(payload, { sectorTemplateId });
+    const breakdown = computeArcadeSectorScoreBreakdown(payload, { sectorTemplateId, parcours: sectorResult?.parcours });
     // 61.4.2: apply modifier scoreBonus as a multiplier on top of the sector total
     // 61.5.2: apply bossMultiplier for the final boss sector (doubles sector score)
     const bonusMultiplier = 1 + scoreBonus;
@@ -242,6 +280,10 @@ export function applyArcadeSectorScore(runState, payload = null, {
     );
 
     const nextBreakdown = createScoreBreakdown({
+        precision: toSafeNumber(sourceScore?.breakdown?.precision, 0) + breakdown.precision,
+        time: toSafeNumber(sourceScore?.breakdown?.time, 0) + breakdown.time,
+        checkpoints: toSafeNumber(sourceScore?.breakdown?.checkpoints, 0) + breakdown.checkpoints,
+        completion: toSafeNumber(sourceScore?.breakdown?.completion, 0) + breakdown.completion,
         base: toSafeNumber(sourceScore?.breakdown?.base, 0) + breakdown.base,
         survival: toSafeNumber(sourceScore?.breakdown?.survival, 0) + breakdown.survival,
         kills: toSafeNumber(sourceScore?.breakdown?.kills, 0) + breakdown.kills,
@@ -271,8 +313,10 @@ export function applyArcadeSectorScore(runState, payload = null, {
                 nextCombo
             ),
             lastComboAtMs: now,
+            comboDecayApplied: 0,
+            comboDecayRule: null,
             lastScoredSector: completedSectors,
-            lastSectorPoints: sectorPoints,
+            lastSectorPoints: sectorPoints + (sourceScore.lastMissionBonus || 0),
             suddenDeathScore,
             breakdown: nextBreakdown,
         },
@@ -282,7 +326,9 @@ export function applyArcadeSectorScore(runState, payload = null, {
             wasSuddenDeath: isSuddenDeath,
             encounterId: String(sectorResult?.encounterId || sectorEntry?.encounterId || sectorEntry?.id || sectorTemplateId),
             modifierId: String(sectorResult?.modifierId || sectorEntry?.modifierId || ''),
-            awardedPoints: sectorPoints,
+            awardedPoints: sectorPoints + (sourceScore.lastMissionBonus || 0),
+            missionBonus: sourceScore.lastMissionBonus || 0,
+            scoreFactor: nextMultiplier * bonusMultiplier * bossMultiplier * objectiveMultiplier * masteryScoreMultiplier,
             multiplierApplied: nextMultiplier,
             objectiveMultiplierApplied: objectiveMultiplier,
             comboAtSectorEnd: nextCombo,
@@ -301,6 +347,7 @@ export function buildArcadeRunSummary(runState, { endedAtMs = Date.now(), replay
     const endedAtIso = new Date(Math.max(0, toSafeNumber(endedAtMs, Date.now()))).toISOString();
     const summary = {
         scoreModel: CURRENT_ARCADE_SCORE_MODEL,
+        succeeded: runState.completedSectors >= runState.config?.sectorCount,
         runId: String(runState.runId || ''),
         score: Math.max(0, toSafeNumber(safeScore.total, 0)),
         peakMultiplier: Math.max(1, toSafeNumber(safeScore.peakMultiplier, safeScore.multiplier || 1)),
@@ -364,6 +411,10 @@ export function mergeArcadeRunRecords(records, summary) {
 
     const summaryBreakdown = createScoreBreakdown(summary.breakdown);
     next.breakdownTotals = createScoreBreakdown({
+        precision: next.breakdownTotals.precision + summaryBreakdown.precision,
+        time: next.breakdownTotals.time + summaryBreakdown.time,
+        checkpoints: next.breakdownTotals.checkpoints + summaryBreakdown.checkpoints,
+        completion: next.breakdownTotals.completion + summaryBreakdown.completion,
         base: next.breakdownTotals.base + summaryBreakdown.base,
         survival: next.breakdownTotals.survival + summaryBreakdown.survival,
         kills: next.breakdownTotals.kills + summaryBreakdown.kills,
@@ -373,11 +424,14 @@ export function mergeArcadeRunRecords(records, summary) {
         total: next.breakdownTotals.total + summaryBreakdown.total,
     });
 
-    if (summary.isDailyChallenge === true) {
+    if (summary.isDailyChallenge === true && (!summary.runId || next.daily.lastRecordedRunId !== summary.runId)) {
         const dailySeed = Math.max(0, clampInteger(summary.seed, 0, 2_147_483_647, 0));
         const sameDailySeed = next.daily.seed === dailySeed;
         const previousBestScore = sameDailySeed ? next.daily.bestScore : 0;
         next.daily = {
+            lastRecordedRunId: String(summary.runId || ''),
+            lastSucceeded: summary.succeeded === true,
+            lastCompletedSectors: completedSectors,
             seed: dailySeed,
             runsPlayed: sameDailySeed ? next.daily.runsPlayed + 1 : 1,
             bestScore: Math.max(previousBestScore, score),

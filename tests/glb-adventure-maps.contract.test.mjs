@@ -128,7 +128,7 @@ test('Aether Relay scales spawn and route anchors into the same world space', ()
     assert.deepEqual(arena.getAuthoredBotSpawns()[0], { x: -162, y: 36, z: -105 });
     assert.deepEqual(
         [arena.getAuthoredItemAnchors()[0].x, arena.getAuthoredItemAnchors()[0].y, arena.getAuthoredItemAnchors()[0].z],
-        [-93, 51, -60]
+        [-93, 60, -60]
     );
 
     const scaledRoute = buildRouteFromParcours(map.parcours, { positionScale: 3 });

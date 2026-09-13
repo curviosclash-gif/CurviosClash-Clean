@@ -1,7 +1,9 @@
+import { createParcoursOutcomeCounters } from './ParcoursProgressSnapshot.js';
 import {
     createPlayerProgressState,
     formatDurationMs,
     normalizeString,
+    resolveExpectedCheckpointEntries,
 } from './ParcoursProgressUtils.js';
 import { resetParcoursProgressState, rewindParcoursProgressState } from './ParcoursProgressStateOps.js';
 import {
@@ -16,7 +18,9 @@ import {
     createPlayerHudState,
     createPlayerProgressSnapshot,
 } from './ParcoursProgressSnapshot.js';
-import { applyParcoursDeathRespawn } from './ParcoursRespawnOps.js';
+import { applyParcoursDeathRespawn, resolveModeParcoursRoute } from './ParcoursRespawnOps.js';
+
+const NO_EXPECTED_ENTRIES = Object.freeze([]);
 
 export class ParcoursProgressSystem {
     constructor(entityManager, options = {}) {
@@ -70,7 +74,7 @@ export class ParcoursProgressSystem {
         return !!this._route;
     }
     isRespawnEnabled() {
-        return this._route?.rules?.respawnOnDeath === true;
+        return resolveModeParcoursRoute(this.entityManager, this._route)?.rules?.respawnOnDeath === true;
     }
     takeRespawnPlan(playerOrIndex) {
         const playerIndex = Number.isInteger(playerOrIndex) ? playerOrIndex : playerOrIndex?.index;
@@ -216,8 +220,8 @@ export class ParcoursProgressSystem {
 
         const reason = normalizeString(options.cause, 'death');
         this._cancelGhostRecordingForPlayer(player, `death:${reason}`);
-        if (this._route.rules.respawnOnDeath) {
-            const result = applyParcoursDeathRespawn(this._route, state, player, {
+        if (this.isRespawnEnabled()) {
+            const result = applyParcoursDeathRespawn(resolveModeParcoursRoute(this.entityManager, this._route), state, player, {
                 now: this.nowProvider(),
                 reason,
                 setErrorState: this._setErrorState.bind(this),
@@ -467,8 +471,9 @@ export class ParcoursProgressSystem {
             return { type: 'segment-timeout' };
         }
 
+        let expectedEntries = NO_EXPECTED_ENTRIES;
         if (expectedIndex < this._route.totalCheckpoints) {
-            const expectedEntries = this._route.entriesByCheckpointIndex[expectedIndex] || [];
+            expectedEntries = resolveExpectedCheckpointEntries(this._route, state);
             const expectedHit = this._findTriggeredEntry(expectedEntries, player, previousPosition, now, state);
             if (expectedHit) {
                 this._acceptCheckpoint(player, state, expectedHit, now);
@@ -485,7 +490,7 @@ export class ParcoursProgressSystem {
         }
 
         for (const entry of this._route.checkpoints) {
-            if (entry.routeIndex === expectedIndex) continue;
+            if (expectedEntries.includes(entry)) continue;
             if (!this._isCheckpointTriggered(entry, player, previousPosition, now, state)) continue;
             this._registerWrongOrder(player, state, entry, now);
             return { type: 'wrong-order', checkpointId: entry.id };
@@ -507,6 +512,7 @@ export class ParcoursProgressSystem {
             parcours: {
                 routeId: this._route.routeId,
                 checkpointCount: this._route.totalCheckpoints,
+                ...createParcoursOutcomeCounters(this._playerStates.get(completion.playerIndex)),
                 completionTimeMs: completion.completionTimeMs,
                 penaltyTimeMs: Math.max(0, Math.trunc(Number(completion.penaltyTimeMs) || 0)),
                 completedAtMs: completion.completedAtMs,

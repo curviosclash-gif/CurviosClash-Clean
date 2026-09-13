@@ -11,7 +11,7 @@ import {
     clearSteeringInput,
 } from '../../hunt/HuntBotPolicy.js';
 import { FIGHT_TARGET_LOCK_SECONDS } from '../../hunt/FightTargetSelector.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
 import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
 import { HEURISTIC_DIFFICULTIES, HEURISTIC_PROFILES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';

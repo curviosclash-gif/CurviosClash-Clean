@@ -9,7 +9,7 @@
 // - Hotpath guardrail: no per-frame object creation in update methods
 
 import { CONFIG } from './Config.js';
-import { clamp } from '../utils/MathOps.js';
+import { clamp } from '../shared/utils/MathOps.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
 export function createPlanarAimAssistRuntimeAccess(runtime) {

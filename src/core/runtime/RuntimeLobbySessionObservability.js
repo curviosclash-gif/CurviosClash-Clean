@@ -1,10 +1,6 @@
 import { SESSION_RUNTIME_EVENT_TYPES } from '../../shared/contracts/SessionRuntimeEventContract.js';
 import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeObservability.js';
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 
 function summarizeLobbySessionState(sessionState = null) {
     const source = sessionState && typeof sessionState === 'object' ? sessionState : {};

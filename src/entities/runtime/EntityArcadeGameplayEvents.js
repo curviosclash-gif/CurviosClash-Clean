@@ -37,6 +37,11 @@ export function emitArcadeEliminationEvents(owner, player, cause, options = {}) 
             playerIndex: killer.index,
             victimIndex: player?.index,
             count: 1,
+            runId: options?.runId || '',
+            botSlot: Number.isInteger(options?.botSlot) ? options.botSlot : null,
+            activationGeneration: Number.isInteger(options?.activationGeneration)
+                ? options.activationGeneration
+                : null,
         });
     }
 }

@@ -8,6 +8,10 @@ import {
     buildGameplayActionResult,
 } from '../shared/contracts/GameplayActionResultContract.js';
 import { resolveFightMachineGunConfig } from '../shared/contracts/FightMachineGunContract.js';
+import {
+    applyWeaponFanDirection,
+    resolveWeaponFanProjectileCount,
+} from './WeaponFanOps.js';
 
 function getMgConfig(source = null) {
     return resolveEntityRuntimeConfig(source)?.HUNT?.MG || {};
@@ -61,6 +65,9 @@ export class OverheatGunSystem {
         this._tmpAim = new THREE.Vector3();
         this._tmpMuzzle = new THREE.Vector3();
         this._tmpTracerEnd = new THREE.Vector3();
+        this._tmpFanAxis = new THREE.Vector3();
+        this._tmpFanRight = new THREE.Vector3();
+        this._tmpFanAim = new THREE.Vector3();
     }
 
     reset() {
@@ -150,23 +157,52 @@ export class OverheatGunSystem {
         player.shootCooldown = shotCooldown;
         this._state.increaseOverheat(idx, mg);
 
-        const hitResult = this._hitResolver.resolveHit(player, mg, this._tmpMuzzle, this._tmpAim);
-        this._tmpTracerEnd.copy(this._tmpMuzzle).addScaledVector(this._tmpAim, Math.max(10, Number(mg.RANGE || 95)));
-        if (hitResult.point) {
-            this._tmpTracerEnd.set(hitResult.point.x, hitResult.point.y, hitResult.point.z);
-        }
-        this._tracerFx.spawnTracer(
-            this._tmpMuzzle,
-            this._tmpTracerEnd,
-            !!(hitResult.target || hitResult.trail || hitResult.turret),
-            mg
-        );
-        if (hitResult.turret) {
-            this._hitResolver.applyTurretHit(player, hitResult.turret, hitResult.distance, mg);
-        } else if (hitResult.target) {
-            this._hitResolver.applyHit(player, hitResult.target, hitResult.distance, mg, hitResult.point);
-        } else if (hitResult.trail) {
-            this._hitResolver.applyTrailHit(player, hitResult.trail, mg);
+        const resolvesAimDirection = typeof this._hitResolver.resolveAimDirection === 'function';
+        if (resolvesAimDirection) this._hitResolver.resolveAimDirection(player, this._tmpAim, mg);
+        else this._tmpAim.set(0, 0, -1);
+        const projectileCount = resolveWeaponFanProjectileCount(player.activeEffects, 'HUNT');
+        this._tmpFanRight.set(1, 0, 0);
+        if (player?.quaternion) this._tmpFanRight.applyQuaternion(player.quaternion);
+        this._tmpFanAxis.crossVectors(this._tmpAim, this._tmpFanRight);
+        if (this._tmpFanAxis.lengthSq() <= 0.000001) this._tmpFanAxis.set(0, 1, 0);
+        else this._tmpFanAxis.normalize();
+        let hit = false;
+        let trailHit = false;
+        let hitCount = 0;
+        for (let i = 0; i < projectileCount; i += 1) {
+            applyWeaponFanDirection(this._tmpAim, this._tmpFanAxis, i, projectileCount, this._tmpFanAim);
+            const hitResult = this._hitResolver.resolveHit(
+                player,
+                mg,
+                this._tmpMuzzle,
+                this._tmpFanAim,
+                resolvesAimDirection ? this._tmpFanAim : undefined
+            );
+            this._tmpTracerEnd.copy(this._tmpMuzzle).addScaledVector(
+                this._tmpFanAim,
+                Math.max(10, Number(mg.RANGE || 95))
+            );
+            if (hitResult.point) {
+                this._tmpTracerEnd.set(hitResult.point.x, hitResult.point.y, hitResult.point.z);
+            }
+            this._tracerFx.spawnTracer(
+                this._tmpMuzzle,
+                this._tmpTracerEnd,
+                !!(hitResult.target || hitResult.trail || hitResult.turret),
+                mg
+            );
+            if (hitResult.turret) {
+                this._hitResolver.applyTurretHit(player, hitResult.turret, hitResult.distance, mg);
+                hitCount += 1;
+            } else if (hitResult.target) {
+                this._hitResolver.applyHit(player, hitResult.target, hitResult.distance, mg, hitResult.point);
+                hit = true;
+                hitCount += 1;
+            } else if (hitResult.trail) {
+                this._hitResolver.applyTrailHit(player, hitResult.trail, mg);
+                trailHit = true;
+                hitCount += 1;
+            }
         }
 
         if (this.entityManager?.audio && !player?.isBot) {
@@ -180,14 +216,18 @@ export class OverheatGunSystem {
                 mode: 'mg',
                 type: 'MG_BULLET',
                 meta: {
-                    hit: !!hitResult.target,
-                    trailHit: !!hitResult.trail,
+                    hit,
+                    trailHit,
+                    hitCount,
+                    projectileCount,
                     overheat: this.getOverheatValue(idx),
                     machineGunId: mg.MACHINE_GUN_ID,
                 },
             }),
-            hit: !!hitResult.target,
-            trailHit: !!hitResult.trail,
+            hit,
+            trailHit,
+            hitCount,
+            projectileCount,
             overheat: this.getOverheatValue(idx),
             machineGunId: mg.MACHINE_GUN_ID,
         };

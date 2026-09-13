@@ -1,57 +1,20 @@
-export const ENDLESS_PARCOURS_RECORDS_STORAGE_KEY = 'curviosclash.endless-parcours-records.v1';
-export const ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION = 'endless-parcours-records.v1';
+import {
+    ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
+    normalizeEndlessParcoursRecords,
+} from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 
-function number(value, fallback = 0) {
-    const parsed = Number(value);
-    return Number.isFinite(parsed) ? Math.max(0, parsed) : fallback;
-}
-
-function integer(value, fallback = 0) {
-    return Math.floor(number(value, fallback));
-}
-
-function text(value) {
-    return typeof value === 'string' ? value.trim() : '';
-}
-
-function normalizeMetrics(value = null) {
-    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
-    return {
-        score: integer(source.score),
-        distanceMeters: number(source.distanceMeters),
-        survivalSeconds: number(source.survivalSeconds),
-        completedModules: integer(source.completedModules),
-        botKills: integer(source.botKills),
-        seed: integer(source.seed),
-        date: text(source.date),
-    };
-}
-
-export function normalizeEndlessParcoursRecords(value = null) {
-    const source = value && typeof value === 'object' && !Array.isArray(value)
-        && value.schemaVersion === ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION
-        ? value
-        : {};
-    return {
-        schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
-        best: normalizeMetrics(source.best),
-        last: normalizeMetrics(source.last),
-    };
-}
-
-export function updateEndlessParcoursRecords(records, summary, date = '') {
-    const current = normalizeEndlessParcoursRecords(records);
-    const last = normalizeMetrics({ ...summary, date });
-    const isNewRecord = last.score > current.best.score;
-    return {
-        records: {
-            schemaVersion: ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
-            best: isNewRecord ? { ...last } : { ...current.best },
-            last,
-        },
-        isNewRecord,
-    };
-}
+/**
+ * Ablage der Endlos-Rekorde. Die Datenform selbst liegt im Vertrag, damit auch
+ * das Menue sie lesen darf; hier bleibt nur der Zugriff auf den Speicher.
+ */
+export {
+    ENDLESS_PARCOURS_RECORDS_LEGACY_SCHEMA_VERSION,
+    ENDLESS_PARCOURS_RECORDS_SCHEMA_VERSION,
+    ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
+    ENDLESS_PARCOURS_TOP_RUNS,
+    normalizeEndlessParcoursRecords,
+    updateEndlessParcoursRecords,
+} from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 
 export function loadEndlessParcoursRecords(store) {
     if (!store || typeof store.loadJsonRecord !== 'function') return normalizeEndlessParcoursRecords();

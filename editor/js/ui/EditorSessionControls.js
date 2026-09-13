@@ -97,14 +97,32 @@ function resolveMapKeyPreview(mapName, savedMaps, saveAsCopy) {
     return candidate;
 }
 
-function downloadJsonFile(jsonText, fileName) {
+export async function downloadJsonFile(jsonText, fileName) {
     const blob = new Blob([jsonText], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.href = url;
-    link.download = fileName;
-    link.click();
-    URL.revokeObjectURL(url);
+    const bridge = /** @type {Window & {__CURVIOS_EDITOR_DISK__?: {onDownloadCompleted?: (callback: (result: {url: string, state: string, savePath: string}) => void) => (() => void)}}} */ (window).__CURVIOS_EDITOR_DISK__;
+    /** @type {(() => void) | undefined} */
+    let unsubscribe;
+    let timer;
+    try {
+        const completion = typeof bridge?.onDownloadCompleted === 'function' ? new Promise((resolve, reject) => {
+            unsubscribe = bridge.onDownloadCompleted((result) => {
+                if (result.url !== url) return;
+                if (result.state === 'completed') resolve(result);
+                else reject(new Error('Download abgebrochen oder fehlgeschlagen. Der Arbeitsstand bleibt ungespeichert.'));
+            });
+            timer = window.setTimeout(() => reject(new Error('Downloadabschluss konnte nicht bestaetigt werden.')), 30000);
+        }) : null;
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.click();
+        return completion ? await completion : null;
+    } finally {
+        unsubscribe?.();
+        window.clearTimeout(timer);
+        URL.revokeObjectURL(url);
+    }
 }
 
 function hasExplicitContractVersion(payload) {
@@ -262,6 +280,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
     let exportState = null;
 
     const closeExportDialog = () => {
+        if (exportState?.busy) return;
         if (dom.exportDialog?.open) dom.exportDialog.close();
     };
 
@@ -296,11 +315,12 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                             : `„${existing.mapName}“ (${existing.mapKey}) wird aktualisiert.`)
                         : 'Der Name ist frei; eine neue Map wird angelegt.';
         }
-        if (dom.exportWarningAcknowledgeRow) dom.exportWarningAcknowledgeRow.hidden = warnings.length === 0;
+        if (dom.exportWarningAcknowledgeRow) dom.exportWarningAcknowledgeRow.hidden = target === 'project' || warnings.length === 0;
         if (dom.btnExportConfirm) {
             dom.btnExportConfirm.disabled = !mapName
-                || errors.length > 0
-                || (warnings.length > 0 && dom.exportWarningAcknowledge?.checked !== true);
+                || exportState.busy === true
+                || (target !== 'project' && (errors.length > 0
+                    || (warnings.length > 0 && dom.exportWarningAcknowledge?.checked !== true)));
         }
     };
 
@@ -346,7 +366,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         dom.exportValidationList.replaceChildren(fragment);
     };
 
-    const showExportResult = ({ summary, paths = [], mapKey = '', canOpenFolder = false } = {}) => {
+    const showExportResult = ({ summary = '', paths = [], mapKey = '', canOpenFolder = false } = {}) => {
         if (dom.exportFormView) dom.exportFormView.hidden = true;
         if (dom.exportResultView) dom.exportResultView.hidden = false;
         if (dom.exportResultSummary) dom.exportResultSummary.textContent = summary;
@@ -407,28 +427,35 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         const saveAsCopy = dom.exportConflictMode?.value === 'copy';
         const slug = slugifyMapName(mapName);
         storeLastMapName(mapName);
+        exportState.busy = true;
         if (dom.btnExportConfirm) {
             dom.btnExportConfirm.disabled = true;
             dom.btnExportConfirm.textContent = 'Exportiere...';
         }
 
         try {
+            exportState.jsonText = generateCurrentMapJson().jsonText;
+            exportState.validationItems = editor.renderWorkspaceValidation?.() || [];
+            if (target !== 'project' && exportState.validationItems.some((item) => item.severity === 'error')) {
+                throw new Error('Die Map enthaelt Spielbarkeitsfehler. Als Projekt kann der Entwurf gespeichert werden.');
+            }
+            const savedSignature = editor.captureStateSignature?.();
             if (target === 'project') {
                 const editorDocument = editor.createEditorDocument?.(exportState.jsonText);
                 if (!editorDocument) throw new Error('Editor-Arbeitsstand konnte nicht erstellt werden.');
                 const projectJson = JSON.stringify(editorDocument, null, 2);
                 editor.resolveEditorImportText?.(projectJson);
                 const fileName = `${slug}.curvios-map.json`;
-                downloadJsonFile(projectJson, fileName);
-                editor.markSaved?.(`Bearbeitbare Map-Datei erstellt: ${fileName}.`);
-                showExportResult({ summary: 'Die bearbeitbare Map-Datei wurde erstellt.', paths: [fileName] });
+                const result = await downloadJsonFile(projectJson, fileName);
+                if (result) editor.markSaved?.(`Bearbeitbare Map-Datei erstellt: ${fileName}.`, savedSignature);
+                showExportResult({ summary: result ? 'Die bearbeitbare Map-Datei wurde gespeichert.' : 'Download gestartet. Der Abschluss kann im Browser nicht bestaetigt werden; Autosave bleibt erhalten.', paths: [result?.savePath || fileName] });
                 editor.authoringTelemetry?.recordCounter?.('export');
                 editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
                 return;
             }
             if (target === 'runtime') {
                 const fileName = `${slug}.runtime.json`;
-                downloadJsonFile(exportState.jsonText, fileName);
+                await downloadJsonFile(exportState.jsonText, fileName);
                 editor.notify?.(`Runtime-JSON erstellt: ${fileName}.`, 'success');
                 showExportResult({ summary: 'Das Runtime-JSON wurde erstellt. Editor-Ebenen sind darin absichtlich nicht enthalten.', paths: [fileName] });
                 editor.authoringTelemetry?.recordCounter?.('export');
@@ -442,7 +469,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 ? ` ${hasMigrationWarnings(warnings) ? 'Migrationshinweise' : 'Hinweise'}: ${warnings.join(' | ')}`
                 : '';
             const saveMode = payload.overwritten ? 'aktualisiert' : 'neu gespeichert';
-            editor.markSaved?.(`Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${warningSuffix}`);
+            editor.markSaved?.(`Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).${warningSuffix}`, savedSignature);
             showExportResult({
                 summary: `Map ${saveMode}: ${payload.mapName} (${payload.mapKey}).`,
                 paths: [payload.editorSchemaPath, payload.runtimeMapPath].filter(Boolean),
@@ -454,6 +481,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
             editor.authoringTelemetry?.recordOutcome?.('save_succeeded', true);
             editor.authoringTelemetry?.recordOutcome?.('export_succeeded', true, { flush: true });
         } catch (error) {
+            exportState.busy = false;
             editor.authoringTelemetry?.recordError?.('export_failed');
             if (dom.exportConflictNotice) dom.exportConflictNotice.textContent = `Export fehlgeschlagen: ${error.message}`;
             editor.notify?.(`Map konnte nicht exportiert werden: ${error.message}`, 'error');
@@ -461,6 +489,8 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
                 dom.btnExportConfirm.textContent = 'Erneut versuchen';
                 dom.btnExportConfirm.disabled = false;
             }
+        } finally {
+            exportState.busy = false;
         }
     };
 
@@ -483,6 +513,7 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
     dom.exportTarget?.addEventListener('change', updateExportDialog);
     dom.exportConflictMode?.addEventListener('change', updateExportDialog);
     dom.exportWarningAcknowledge?.addEventListener('change', updateExportDialog);
+    dom.exportDialog?.addEventListener('cancel', (event) => { if (exportState?.busy) event.preventDefault(); });
     dom.btnExportCancel?.addEventListener('click', closeExportDialog);
     dom.btnExportClose?.addEventListener('click', closeExportDialog);
     dom.exportForm?.addEventListener('submit', (event) => {

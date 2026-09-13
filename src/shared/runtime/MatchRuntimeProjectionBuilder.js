@@ -111,7 +111,9 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         shootCooldown: Math.max(0, Number(player?.shootCooldown) || 0),
         planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
+        exclusionZoneState: player?.exclusionZoneState,
         traversal: buildTraversalProjection(entityManager, player?.index),
+        turrets: entityManager?._staticTurretSystem?.getHudStatesForPlayer?.(player?.index) || [],
         turret: entityManager?._staticTurretSystem?.getHudStateForPlayer?.(player?.index) || null,
     });
 }
@@ -171,6 +173,7 @@ export function buildMatchRuntimeProjection({ game, runtimeState, facade, sessio
         players,
         sessionPlayers: buildSessionPlayersProjection(facade, sessionPlayers),
         lockTargets,
+        globalFog: entityManager?.getGlobalFogState?.(),
         parcours: parcoursHudState,
         hunt: {
             active: entityManager?.gameModeStrategy?.hasCombatHud?.() === true

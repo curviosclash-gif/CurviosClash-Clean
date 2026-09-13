@@ -27,6 +27,7 @@ import { MULTIPLAYER_PROTOCOL_VERSION } from '../../shared/contracts/SignalingSe
 import { recordSessionRuntimeEvent } from '../../shared/runtime/SessionRuntimeObservability.js';
 import { tryCloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { createLobbyPlatformBindings } from '../../platform/LobbyPlatformBindings.js';
+import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.js';
 import {
     beginMultiplayerAction,
     clearMultiplayerFieldError,
@@ -53,11 +54,6 @@ function resolveSurfaceResolverOptions() {
 
 function deepClone(value) {
     return tryCloneJsonValue(value, null);
-}
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
 }
 
 // NOTE: 'multiplayer' is a menu-layer coordination type, not a real network transport.

@@ -110,7 +110,7 @@ function hasConfiguredProfileMatch(botConfig, rampControlProfileId) {
     return false;
 }
 
-function resolveControlDynamics(entityManager, player) {
+function resolveControlDynamics(entityManager, player, target = null) {
     const entityRuntimeConfig = resolveEntityRuntimeConfig(entityManager);
     const runtimePlayerConfig = entityManager?.runtimeConfig?.player || null;
     const speed = toPositiveNumber(
@@ -134,13 +134,38 @@ function resolveControlDynamics(entityManager, player) {
         8.5
     );
 
-    return {
-        speed,
-        turnSpeed,
-        rollSpeed,
-        rampAttackRate,
-        rampReleaseRate,
-    };
+    const out = target || {};
+    out.speed = speed;
+    out.turnSpeed = turnSpeed;
+    out.rollSpeed = rollSpeed;
+    out.rampAttackRate = rampAttackRate;
+    out.rampReleaseRate = rampReleaseRate;
+    return out;
+}
+
+// Both profile ids are template strings over the control values, and this runs for every bot in
+// every simulation step while those values practically never change. They are rebuilt only when one
+// of the inputs actually differs.
+function resolveControlProfileIds(cache, mode, planarMode, control) {
+    if (cache.mode === mode
+        && cache.planarMode === planarMode
+        && cache.speed === control.speed
+        && cache.turnSpeed === control.turnSpeed
+        && cache.rollSpeed === control.rollSpeed
+        && cache.rampAttackRate === control.rampAttackRate
+        && cache.rampReleaseRate === control.rampReleaseRate) {
+        return cache;
+    }
+    cache.mode = mode;
+    cache.planarMode = planarMode;
+    cache.speed = control.speed;
+    cache.turnSpeed = control.turnSpeed;
+    cache.rollSpeed = control.rollSpeed;
+    cache.rampAttackRate = control.rampAttackRate;
+    cache.rampReleaseRate = control.rampReleaseRate;
+    cache.rampControlProfileId = buildRampControlProfileId(mode, planarMode, control);
+    cache.legacyControlProfileId = buildLegacyControlProfileId(mode, planarMode, control);
+    return cache;
 }
 
 function createCachedRuntimeContext() {
@@ -152,8 +177,11 @@ function createCachedRuntimeContext() {
         player: null,
         arena: null,
         players: [],
+        visiblePlayers: [],
+        navigationPlayers: [],
         projectiles: [],
         powerups: [],
+        visiblePowerups: [],
         trailSpatialIndex: null,
         mode: GAME_MODE_TYPES.CLASSIC,
         rules: {
@@ -203,8 +231,14 @@ function resolveCachedRuntimeContext(player) {
 export function createBotRuntimeContext(entityManager, player, dt = 0, options = {}) {
     const entityRuntimeConfig = resolveEntityRuntimeConfig(entityManager);
     const mode = resolveRuntimeMode(entityManager);
-    const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
+    const allPlayers = Array.isArray(entityManager?.players) ? entityManager.players : [];
     const projectiles = Array.isArray(entityManager?.projectiles) ? entityManager.projectiles : [];
+    const allPowerups = Array.isArray(entityManager?.powerupManager?.items)
+        ? entityManager.powerupManager.items
+        : [];
+    const globalFog = entityManager?._globalFogEffectSystem || null;
+    const visiblePlayers = globalFog?.filterVisiblePlayers?.(player, allPlayers) || allPlayers;
+    const visiblePowerups = globalFog?.filterVisiblePowerups?.(player, allPowerups) || allPowerups;
     const planarMode = !!(entityManager?.runtimeConfig?.gameplay?.planarMode ?? entityRuntimeConfig?.GAMEPLAY?.PLANAR_MODE);
     const includeObservationContext = options?.includeObservationContext !== false;
     const runtimeContext = resolveCachedRuntimeContext(player);
@@ -228,9 +262,12 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
         discreteRateThreshold: 0.18,
     });
 
-    const resolvedControl = resolveControlDynamics(entityManager, player);
-    const rampControlProfileId = buildRampControlProfileId(mode, planarMode, resolvedControl);
-    const legacyControlProfileId = buildLegacyControlProfileId(mode, planarMode, resolvedControl);
+    const profileCache = runtimeContext._controlProfileCache
+        || (runtimeContext._controlProfileCache = { mode: '', planarMode: null, control: {} });
+    const resolvedControl = resolveControlDynamics(entityManager, player, profileCache.control);
+    const profileIds = resolveControlProfileIds(profileCache, mode, planarMode, resolvedControl);
+    const rampControlProfileId = profileIds.rampControlProfileId;
+    const legacyControlProfileId = profileIds.legacyControlProfileId;
 
     const runtimeBotConfig = entityManager?.runtimeConfig?.bot || null;
     const botRampFeatureEnabled = !!(
@@ -256,17 +293,19 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.entityManager = entityManager || null;
     runtimeContext.runtimeConfig = entityManager?.runtimeConfig || null;
     runtimeContext.difficulty = String(
-        entityManager?.runtimeConfig?.bot?.activeDifficulty
+        player?.endlessDifficulty
+        || entityManager?.runtimeConfig?.bot?.activeDifficulty
         || entityManager?.botDifficulty
         || ''
     );
     runtimeContext.player = player || null;
     runtimeContext.arena = entityManager?.arena || null;
-    runtimeContext.players = players;
+    runtimeContext.players = visiblePlayers;
+    runtimeContext.visiblePlayers = visiblePlayers;
+    runtimeContext.navigationPlayers = allPlayers;
     runtimeContext.projectiles = projectiles;
-    runtimeContext.powerups = Array.isArray(entityManager?.powerupManager?.items)
-        ? entityManager.powerupManager.items
-        : [];
+    runtimeContext.powerups = visiblePowerups;
+    runtimeContext.visiblePowerups = visiblePowerups;
     runtimeContext.trailSpatialIndex = entityManager?.getTrailSpatialIndex?.() || entityManager?._trailSpatialIndex || null;
     runtimeContext.mode = mode;
 
@@ -304,7 +343,7 @@ export function createBotRuntimeContext(entityManager, player, dt = 0, options =
     runtimeContext.observationContext = includeObservationContext
         ? createObservationContext({
             arena: runtimeContext.arena,
-            players,
+            players: visiblePlayers,
             projectiles,
             mode,
             planarMode: rules.planarMode,

@@ -1,10 +1,9 @@
 // The burnt cathedral, assembled from the parts the fire changed plus the ones it did not.
 //
-// Three parts are swapped for burnt versions and one is new; everything else -- the west front,
-// the choir and apse, the buttresses, the island and all eight moving site pieces -- is carried
-// over as the very same object from the intact map. That is the point of filtering the list
-// instead of writing a second one: a part that did not burn cannot drift, because there is only
-// one of it.
+// Three parts are swapped for burnt versions and one is new. The surviving fabric -- west front,
+// choir, buttresses and island -- is carried over by reference. The later restoration machinery is
+// deliberately absent: a lifting gantry and reconstructed spire beside the 2019 blaze told two
+// incompatible moments at once.
 //
 // The placement numbers below are the bounding-box report the generator prints for each export,
 // not estimates. The loader recentres every GLB on its own box and drops its lower edge onto the
@@ -29,7 +28,21 @@ const REPLACED_MODEL_IDS = new Set([
     'notre-dame-roof-fleche',
 ]);
 
-const SURVIVING = NOTRE_DAME_MODELS.filter((model) => !REPLACED_MODEL_IDS.has(model.id));
+export const NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS = new Set([
+    'notre-dame-hoarding',
+    'notre-dame-rose-scaffold',
+    'notre-dame-scaffold-lift',
+    'notre-dame-vault-gantry',
+    'notre-dame-bells',
+    'notre-dame-stone-hoist',
+    'notre-dame-tower-crane',
+    'notre-dame-fleche-hoist',
+]);
+
+const SURVIVING = NOTRE_DAME_MODELS.filter((model) => (
+    !REPLACED_MODEL_IDS.has(model.id)
+    && !NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS.has(model.id)
+));
 
 /**
  * A burnt part, placed the same way the intact parts are.
@@ -48,29 +61,6 @@ function burnt(id, file, centreMetres, baseMetres) {
     };
 }
 
-/**
- * A burning piece. Same placement rule as the static parts, plus its clip and where it runs
- * against the shared six second beat the whole site keeps.
- *
- * @param {string} id
- * @param {string} file basename under assets/maps/notre_dame_fire/glb
- * @param {string} clipName
- * @param {number} phaseOffsetBeats
- * @param {number} centreMetres where the part's bounding box centres along the building
- * @param {number} baseMetres height of the part's underside above the church floor
- * @param {number} centreAcrossMetres where it centres across the building
- */
-function fire(id, file, clipName, phaseOffsetBeats, centreMetres, baseMetres, centreAcrossMetres) {
-    return {
-        id: `notre-dame-fire-${id}`,
-        url: `assets/maps/notre_dame_fire/glb/${file}.glb`,
-        position: [centreMetres * METRE, GROUND + baseMetres * METRE, centreAcrossMetres * METRE],
-        rotation: [0, 0, 0],
-        scale: METRE,
-        animationClock: { clipName, phaseOffsetBeats },
-    };
-}
-
 const NOTRE_DAME_FIRE_DAMAGE = [
     // The nave, with the north aisle vault down in the bay beside the crossing.
     burnt('nave', '02_nave_burnt', -24.68, -0.8),
@@ -83,19 +73,8 @@ const NOTRE_DAME_FIRE_DAMAGE = [
     burnt('fleche-debris', '20_fleche_debris', 12.25, -0.23),
 ];
 
-// The fire. None of it collides and none of it casts a shadow; it is what the map looks like.
-// The three run against each other rather than together: the breaches on the beat, the roof a
-// third behind it so the line of fire along the building never pulses as one block, and the ember
-// column on its own two-beat loop so nothing about the rise reads as periodic.
-const NOTRE_DAME_FIRE_FLAMES = [
-    fire('breaches', '30_fire_breaches', 'FireBreachesLoop', 0, 9.52, 8.2, -7.23),
-    fire('attic', '31_fire_attic', 'FireAtticLoop', 1 / 3, 2.49, 31.91, 0.03),
-    fire('embers', '32_ember_column', 'EmberColumnLoop', 0, 11.12, 32.95, 1.32),
-];
-
 export const NOTRE_DAME_FIRE_MODELS = [
     ...SURVIVING,
     ...NOTRE_DAME_FIRE_DAMAGE,
-    ...NOTRE_DAME_FIRE_FLAMES,
 ];
 export const NOTRE_DAME_FIRE_REPLACED_MODEL_IDS = REPLACED_MODEL_IDS;

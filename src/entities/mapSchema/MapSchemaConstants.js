@@ -5,6 +5,7 @@ export const MAX_MAP_JSON_BYTES = 2 * 1024 * 1024;
 
 export const MAP_SCHEMA_COLLECTION_LIMITS = Object.freeze({
     tunnels: 512,
+    staticTurrets: 512,
     hardBlocks: 4096,
     foamBlocks: 4096,
     portals: 512,

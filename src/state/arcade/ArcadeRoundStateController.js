@@ -24,7 +24,15 @@ export class ArcadeRoundStateController {
         if (!this.baseController || typeof this.baseController.deriveRoundEndTick !== 'function') {
             throw new Error('ArcadeRoundStateController requires deriveRoundEndTick on base controller');
         }
-        const tick = this.baseController.deriveRoundEndTick(inputs);
+        const phase = this.arcadeRuntime?.getPhase();
+        if (phase === 'victory' || phase === 'sector_active' || phase === 'sudden_death'
+            || this.arcadeRuntime?.isIntermissionPaused?.()) {
+            return { action: 'WAIT', nextRoundPause: inputs.roundPause,
+                shouldUpdateCameras: true, countdownMessageSub: null };
+        }
+        // Native buttons own Enter during selection; only confirmation sets the pause to zero.
+        const tick = this.baseController.deriveRoundEndTick(phase === 'intermission'
+            ? { ...inputs, enterPressed: false } : inputs);
         if (this.arcadeRuntime?.isEnabled?.() && tick?.action === 'START_ROUND') {
             this.arcadeRuntime.beginNextSector();
         }

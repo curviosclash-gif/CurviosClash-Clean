@@ -1,3 +1,5 @@
+import { normalizeString } from '../../../shared/contracts/ContractNormalizeUtils.js';
+
 import {
     ensureStartSetupLocalState,
     pushRecentEntry,
@@ -7,11 +9,6 @@ import {
 const CATEGORY_IDS = new Set(['all', 'jaeger', 'kreuzer', 'spezial', 'custom']);
 const HITBOX_FILTER_IDS = new Set(['all', 'kompakt', 'standard', 'schwer']);
 const LEVEL_FILTER_IDS = new Set(['all', 'rookie', 'mid', 'elite']);
-
-function normalizeString(value, fallback = '') {
-    const normalized = typeof value === 'string' ? value.trim() : '';
-    return normalized || fallback;
-}
 
 function normalizeCategory(value) {
     const normalized = normalizeString(value, 'all').toLowerCase();

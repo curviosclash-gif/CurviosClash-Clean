@@ -7,12 +7,28 @@ import { EntityRuntimeContext } from './EntityRuntimeContext.js';
 import { EntityEventBus } from './EntityEventBus.js';
 import { resolveWorldAudioOptions } from '../audio/WorldAudioOptions.js';
 import { HuntScoring } from '../../hunt/HuntScoring.js';
-import { isRocketTierType } from '../../hunt/RocketPickupSystem.js';
+import { isRocketTierType, resolveRocketTierDamage } from '../../hunt/RocketPickupSystem.js';
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
     buildGameplayActionResult,
     encodeGameplayActionResultForLog,
 } from '../../shared/contracts/GameplayActionResultContract.js';
+
+export function applyEnvironmentProjectileDamage(owner, target, projectile) {
+    if (!target?.alive) return null;
+    if (target.hasShield === true || Number(target.shieldHP) > 0) {
+        target.hasShield = false;
+        target.shieldHP = 0;
+        owner.audio?.play?.('SHIELD_HIT', { intensity: 0.75, depleted: true });
+        owner.particles?.spawnHit?.(target.position, target.color);
+        return { applied: 0, absorbedByShield: 1, remainingHp: target.hp, isDead: false };
+    }
+    const damage = resolveRocketTierDamage(projectile?.type, owner);
+    return owner._applyModeDamage(target, damage, 'EXCLUSION_ZONE', {
+        impactPoint: projectile?.position || target.position,
+        nowSeconds: Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001,
+    });
+}
 
 export function createEntityRuntimeSupport(owner) {
     let eventBus = null;
@@ -92,12 +108,13 @@ export function createEntityRuntimeSupport(owner) {
             });
             if (damageResult?.isDead) {
                 owner._killPlayer(target, 'PROJECTILE', {
-                    killer: projectileOwner || null,
+                    killer: projectileOwner?.staticTurret ? null : projectileOwner || null,
                     impactPoint: projectile?.position || target?.position || null,
                     projectileType: type || projectile?.type || null,
                 });
             }
         },
+        applyEnvironmentDamage: (target, projectile) => applyEnvironmentProjectileDamage(owner, target, projectile),
         runtimeProfiler: owner.runtimeProfiler || null,
     });
 
@@ -173,12 +190,17 @@ export function createEntityRuntimeSupport(owner) {
             combat: {
                 shootItemProjectile: (player, preferredIndex = -1) => projectileSystem.shootItemProjectile(player, preferredIndex),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
+                deployRocketTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player, 'rocket') || null,
                 deployMgTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player) || null,
                 getMgTurretTargets: () => owner._staticTurretSystem?.getDestructibleTargets?.() || [],
                 damageMgTurret: (turret, amount, options = {}) => (
                     owner._staticTurretSystem?.damageTurret?.(turret, amount, options) || null
                 ),
                 resetRespawnCombatState: (player) => owner._overheatGunSystem.resetPlayer(player?.index),
+            },
+            globalEffects: {
+                canActivateFog: () => owner._globalFogEffectSystem?.networkReplica !== true,
+                activateFog: () => owner._globalFogEffectSystem?.activate?.() === true,
             },
             spawn: {
                 getPlanarSpawnLevel: () => owner._getPlanarSpawnLevel(),

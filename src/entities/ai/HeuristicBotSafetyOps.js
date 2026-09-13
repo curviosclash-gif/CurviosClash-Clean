@@ -3,7 +3,7 @@ import {
     WALL_DISTANCE_LEFT, WALL_DISTANCE_RIGHT, WALL_DISTANCE_UP,
 } from './observation/ObservationSchemaV1.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
-import { clamp } from '../../utils/MathOps.js';
+import { clamp } from '../../shared/utils/MathOps.js';
 import { WORLD_UP, readObservationValue } from './HeuristicBotPolicyOps.js';
 import { resolveDirectionalProjectileThreat } from './HeuristicProjectileSafetyOps.js';
 import { checkTrailCollision, refreshHeuristicPlannedPathClearance } from './HeuristicTrailSafetyOps.js';
@@ -188,6 +188,9 @@ export function recordHeuristicBounce(state, type, normal = null) {
 }
 
 export function checkArenaCollision(arena, position, radius) {
+    if (typeof arena?.checkBotCollisionFast === 'function') {
+        return !!arena.checkBotCollisionFast(position, radius);
+    }
     if (typeof arena?.checkCollisionFast === 'function') {
         return !!arena.checkCollisionFast(position, radius);
     }

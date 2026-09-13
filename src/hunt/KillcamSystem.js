@@ -9,7 +9,7 @@ import {
     restoreKillcamLivePresentation,
 } from './KillcamPresentationOps.js';
 import { isPixelCaptureEligible, isSingleNodeSession, resolveRespawnDelaySeconds } from './KillcamEligibility.js';
-import { KillcamPixelReplayBuffer } from '../core/recording/KillcamPixelReplayBuffer.js';
+import { initializePixelReplay, setPixelReplayEnabled } from './KillcamPixelReplayLifecycle.js';
 
 const KILLCAM_SOURCE_WINDOW_SECONDS = 2;
 const KILLCAM_MAX_DISPLAY_SECONDS = 2.5;
@@ -105,16 +105,18 @@ export class KillcamSystem {
         respawnSystem,
         replaySystem,
         pixelReplayBuffer,
+        pixelReplayEnabled,
     } = {}) {
         this.renderer = renderer || null;
         this.entityManager = entityManager || null;
         this.recorder = recorder || null;
         this.respawnSystem = respawnSystem || null;
         this.replaySystem = replaySystem || null;
-        this.pixelReplayBuffer = pixelReplayBuffer || new KillcamPixelReplayBuffer({
-            sourceCanvas: renderer?.canvas || null,
-            glContext: renderer?.renderer?.getContext?.() || null,
-        });
+        // Reading pixels back from the GPU stalls the main thread. Scene replay is the
+        // production default; pixel replay remains available for explicit experiments.
+        const pixelReplay = initializePixelReplay(this, pixelReplayEnabled, pixelReplayBuffer);
+        this.pixelReplayEnabled = pixelReplay.enabled;
+        this.pixelReplayBuffer = pixelReplay.buffer;
 
         this._active = false;
         this._sceneReplayActive = false;
@@ -169,6 +171,8 @@ export class KillcamSystem {
     isPixelCaptureEligible(allowPendingTerminalCapture = false) {
         return isPixelCaptureEligible(this, allowPendingTerminalCapture);
     }
+
+    setPixelReplayEnabled(enabled) { return setPixelReplayEnabled(this, enabled); }
 
     ownsCamera(playerIndex = KILLCAM_CAMERA_INDEX) { return this._active && this._sceneReplayActive && !this._pixelReplayActive && playerIndex === KILLCAM_CAMERA_INDEX; }
 
@@ -225,6 +229,8 @@ export class KillcamSystem {
     }
 
     captureRenderedFrame() {
+        // Keep the normal render loop allocation-free while pixel replay is disabled.
+        if (!this.pixelReplayEnabled) return null;
         const pixelBuffer = this.pixelReplayBuffer;
         if (!pixelBuffer || this._active) return Promise.resolve(null);
         const pending = this._pixelReplayPending;

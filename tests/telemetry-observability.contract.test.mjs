@@ -5,7 +5,7 @@ import test from 'node:test';
 import { RuntimePerfProfiler } from '../src/core/perf/RuntimePerfProfiler.js';
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
-import { TelemetryHistoryStore } from '../src/state/TelemetryHistoryStore.js';
+import { TelemetryHistoryStore, normalizeTelemetryHistoryEntry } from '../src/state/TelemetryHistoryStore.js';
 import { TelemetryPreferencesStore } from '../src/shared/telemetry/TelemetryPreferencesStore.js';
 import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryController.js';
 import { MenuTelemetryStore } from '../src/ui/menu/MenuTelemetryStore.js';
@@ -164,6 +164,95 @@ test('history summary compares builds and performance across rounds', () => {
     assert.equal(summary.averageFrameP95Ms, 25);
     assert.equal(summary.frameSpikesPerRound, 2);
     assert.deepEqual(summary.topBuilds, [{ key: 'a', count: 1 }, { key: 'b', count: 1 }]);
+});
+
+test('menu telemetry keeps kills, spawn deaths and round context in the recent list', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const telemetry = new MenuTelemetryStore({
+        storagePlatform,
+        preferencesStore: { isCollectionEnabled: () => true },
+    });
+
+    telemetry.recordEvent('round_end', {
+        mapKey: 'standard',
+        mode: 'classic',
+        winnerType: 'human',
+        kills: 4,
+        spawnDeaths: 2,
+        parcoursCheckpointCount: 6,
+        context: { appVersion: '2.1.0', buildId: 'desktop-88', mapRevision: 'map-r4' },
+        performance: { sampleCount: 3, frameP95Ms: 20 },
+        arcade: { enabled: true, runId: 'run-1' },
+    });
+
+    const [entry] = telemetry.getSnapshot().recentRounds;
+    assert.equal(entry.kills, 4);
+    assert.equal(entry.spawnDeaths, 2);
+    assert.equal(entry.parcoursCheckpointCount, 6);
+    assert.equal(entry.buildId, 'desktop-88');
+    assert.equal(entry.appVersion, '2.1.0');
+    assert.equal(entry.mapRevision, 'map-r4');
+    assert.equal(entry.performance?.frameP95Ms, 20);
+    assert.equal(entry.arcade?.runId, 'run-1');
+});
+
+test('menu telemetry totals kills per map and mode bucket', () => {
+    const storagePlatform = createMemoryStoragePlatform();
+    const telemetry = new MenuTelemetryStore({
+        storagePlatform,
+        preferencesStore: { isCollectionEnabled: () => true },
+    });
+
+    telemetry.recordEvent('round_end', { mapKey: 'standard', mode: 'classic', kills: 3, spawnDeaths: 1 });
+    telemetry.recordEvent('round_end', { mapKey: 'standard', mode: 'classic', kills: 5, spawnDeaths: 2 });
+
+    const balance = telemetry.getSnapshot().balanceSummary;
+    assert.equal(balance.totalKills, 8);
+    assert.equal(balance.maps.standard.totalKills, 8);
+    assert.equal(balance.modes.classic.totalKills, 8);
+    assert.equal(balance.maps.standard.totalSpawnDeaths, 3);
+});
+
+test('history entries keep kills, spawn deaths and checkpoint counts', () => {
+    const entry = normalizeTelemetryHistoryEntry({
+        mapKey: 'standard',
+        kills: 4,
+        spawnDeaths: 2,
+        parcoursCheckpointCount: 6,
+    });
+    assert.equal(entry.kills, 4);
+    assert.equal(entry.spawnDeaths, 2);
+    assert.equal(entry.parcoursCheckpointCount, 6);
+});
+
+test('history keeps heatmap cells so hotspots stay filterable by build', () => {
+    const entry = normalizeTelemetryHistoryEntry({
+        mapKey: 'standard',
+        heatmap: [{ kind: 'stuck', cx: 3, cz: 4, count: 2 }],
+    });
+    assert.equal(entry.heatmap.length, 1);
+    assert.equal(entry.heatmap[0].count, 2);
+
+    const store = new TelemetryHistoryStore();
+    const summary = store.summarizeEntries([
+        { mapKey: 'standard', heatmap: [{ kind: 'stuck', cx: 3, cz: 4, count: 2 }] },
+        { mapKey: 'standard', heatmap: [{ kind: 'stuck', cx: 3, cz: 4, count: 1 }] },
+        { mapKey: 'aetherion', heatmap: [{ kind: 'kill', cx: 1, cz: 1, count: 5 }] },
+    ]);
+    const standard = summary.mapHeatmaps.find((bucket) => bucket.key === 'standard');
+    assert.equal(standard.heatmap[0].count, 3, 'gleiche Zelle zweier Runden muss addieren');
+    const aetherion = summary.mapHeatmaps.find((bucket) => bucket.key === 'aetherion');
+    assert.equal(aetherion.heatmap[0].kind, 'kill');
+});
+
+test('history summary reports kills and spawn deaths per round', () => {
+    const store = new TelemetryHistoryStore();
+    const summary = store.summarizeEntries([
+        { mapKey: 'standard', kills: 3, spawnDeaths: 1 },
+        { mapKey: 'standard', kills: 5, spawnDeaths: 3 },
+    ]);
+    assert.equal(summary.killsPerRound, 4);
+    assert.equal(summary.spawnDeathsPerRound, 2);
 });
 
 test('arcade runtime support enriches locally recorded events after state handling', () => {

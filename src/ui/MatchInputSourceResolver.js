@@ -147,14 +147,48 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
         : null;
     const output = {};
     let target = null;
+    let previousCursor = '';
     let pointerActive = false;
     let pitchAxis = 0;
     let yawAxis = 0;
+    let mgDown = false;
+    let mgPressed = false;
+    let rocketPressed = false;
+    let useItemPressed = false;
+    let itemScrollPending = false;
 
     const resetPointer = () => {
         pointerActive = false;
         pitchAxis = 0;
         yawAxis = 0;
+        mgDown = false;
+        mgPressed = false;
+        rocketPressed = false;
+        useItemPressed = false;
+        itemScrollPending = false;
+    };
+    const handleMouseDown = (event) => {
+        if (event.button === 2) {
+            mgDown = true;
+            mgPressed = true;
+        } else if (event.button === 1) {
+            rocketPressed = true;
+        } else if (event.button === 0) {
+            useItemPressed = true;
+        } else return;
+        event.preventDefault();
+    };
+    const handleMouseUp = (event) => {
+        if (event.button === 2) mgDown = false;
+    };
+    const handleWheel = (event) => {
+        if (!event.deltaY) return;
+        itemScrollPending = true;
+        event.preventDefault();
+    };
+    const handleContextMenu = (event) => event.preventDefault();
+    const handleAuxClick = (event) => {
+        if (event.button === 1) event.preventDefault();
     };
     const handlePointerMove = (event) => {
         if (event?.pointerType === 'touch') return;
@@ -177,14 +211,30 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             this.playerIndex = playerIndex;
             this.active = true;
             target = options.target || globalThis.document?.getElementById?.('game-canvas');
+            if (target?.style) {
+                previousCursor = target.style.cursor;
+                // Keep the cursor visible on the separate menu and pause overlays.
+                target.style.cursor = 'none';
+            }
             target?.addEventListener?.('pointermove', handlePointerMove);
             target?.addEventListener?.('pointerleave', resetPointer);
+            target?.addEventListener?.('mousedown', handleMouseDown);
+            target?.addEventListener?.('mouseup', handleMouseUp);
+            target?.addEventListener?.('auxclick', handleAuxClick);
+            target?.addEventListener?.('contextmenu', handleContextMenu);
+            target?.addEventListener?.('wheel', handleWheel, { passive: false });
             globalThis.window?.addEventListener?.('blur', resetPointer);
         },
         unbind() {
             target?.removeEventListener?.('pointermove', handlePointerMove);
             target?.removeEventListener?.('pointerleave', resetPointer);
+            target?.removeEventListener?.('mousedown', handleMouseDown);
+            target?.removeEventListener?.('mouseup', handleMouseUp);
+            target?.removeEventListener?.('auxclick', handleAuxClick);
+            target?.removeEventListener?.('contextmenu', handleContextMenu);
+            target?.removeEventListener?.('wheel', handleWheel);
             globalThis.window?.removeEventListener?.('blur', resetPointer);
+            if (target?.style) target.style.cursor = previousCursor;
             target = null;
             resetPointer();
             this.playerIndex = -1;
@@ -194,12 +244,23 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
             if (!inputManager || this.playerIndex < 0) return null;
             const inputPlayerIndex = keyboardPlayerIndex ?? this.playerIndex;
             const keyboardInput = inputManager.getKeyboardInput(inputPlayerIndex, { includeSecondaryBindings });
-            if (!pointerActive) return keyboardInput;
+            if (!pointerActive && !mgDown && !mgPressed && !rocketPressed && !useItemPressed && !itemScrollPending) return keyboardInput;
             Object.assign(output, keyboardInput);
-            output.pitchAxis = pitchAxis;
-            output.yawAxis = yawAxis;
+            if (pointerActive) {
+                output.pitchAxis = pitchAxis;
+                output.yawAxis = yawAxis;
+            }
+            output.shootMG = !!keyboardInput.shootMG || mgDown || mgPressed;
+            output.shootItem = !!keyboardInput.shootItem || rocketPressed;
+            output.useItem = !!keyboardInput.useItem || useItemPressed;
+            output.nextItem = !!keyboardInput.nextItem || itemScrollPending;
+            mgPressed = false;
+            rocketPressed = false;
+            useItemPressed = false;
+            itemScrollPending = false;
             return output;
         },
+        clearInputState: resetPointer,
         dispose() {
             this.unbind();
         },

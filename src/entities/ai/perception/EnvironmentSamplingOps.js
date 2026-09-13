@@ -32,7 +32,8 @@ export function buildPerceptionBasis(forward, rightOut, upOut, worldUp = DEFAULT
 }
 
 export function sampleWallDistance(arena, origin, direction, radius, maxDistance, steps = 20, probe = DEFAULT_PROBE) {
-    if (!arena || typeof arena.checkCollision !== 'function') {
+    const collisionCheck = arena?.checkBotCollisionFast || arena?.checkCollision;
+    if (!arena || typeof collisionCheck !== 'function') {
         return maxDistance;
     }
 
@@ -42,7 +43,7 @@ export function sampleWallDistance(arena, origin, direction, radius, maxDistance
 
     for (let i = 1; i <= safeSteps; i++) {
         probe.copy(origin).addScaledVector(direction, stepDistance * i);
-        if (arena.checkCollision(probe, radius)) {
+        if (collisionCheck.call(arena, probe, radius)) {
             return stepDistance * (i - 1);
         }
     }

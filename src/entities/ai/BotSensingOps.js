@@ -9,7 +9,7 @@ import {
     composePressureLevel,
     computeTightSpacePressure,
 } from './perception/AiPerceptionPrimitives.js';
-import { estimateEnemyPressure, selectTarget } from './BotTargetingOps.js';
+import { estimateEnemyPressure, isTargetVisibleToPlayer, selectTarget } from './BotTargetingOps.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 
 export function senseEnvironment(bot, player, arena, allPlayers, _projectiles) {
@@ -82,7 +82,12 @@ export function senseEnvironment(bot, player, arena, allPlayers, _projectiles) {
     const tightSpacePressure = computeTightSpacePressure(bot.sense.localOpenness, bot.sense.lookAhead);
     bot.sense.pressure = composePressureLevel(nearestEnemyPressure, tightSpacePressure, bot._recentBouncePressure);
 
-    if (bot.state.targetRefreshTimer <= 0 || !bot.state.targetPlayer || !bot.state.targetPlayer.alive) {
+    if (
+        bot.state.targetRefreshTimer <= 0
+        || !bot.state.targetPlayer
+        || !bot.state.targetPlayer.alive
+        || !isTargetVisibleToPlayer(player, bot.state.targetPlayer)
+    ) {
         selectTarget(bot, player, allPlayers);
         bot.state.targetRefreshTimer = bot.profile.targetRefreshInterval;
     }

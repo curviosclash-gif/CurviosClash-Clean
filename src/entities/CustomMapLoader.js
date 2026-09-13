@@ -82,7 +82,7 @@ function getRuntimeScale() {
     return getRuntimeMapScale(1);
 }
 
-function getCustomMapConversionScale(mapDocument) {
+export function getCustomMapConversionScale(mapDocument) {
     const runtimeScale = getRuntimeScale();
     const width = Number(mapDocument?.arenaSize?.width);
     const height = Number(mapDocument?.arenaSize?.height);
