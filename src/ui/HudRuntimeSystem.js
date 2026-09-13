@@ -222,6 +222,8 @@ export class HudRuntimeSystem {
         }
         this._setParcoursHudVisible(false);
         this._hideArcadeHud();
+        // The minimap canvas hangs on document.body, outside the HUD, so hiding the HUD misses it.
+        this._parcoursOverlay?.hideMinimap?.();
     }
 
     _ensureArcadeHud() {
@@ -271,6 +273,12 @@ export class HudRuntimeSystem {
         }
         this._arcadeTransitionVisibleUntilMs = 0;
         this._lastArcadeSectorIndex = 0;
+    }
+
+    // Round end settles the sector score after the last playing tick, and no playing tick runs
+    // during the intermission, so the arcade panel is redrawn once from a fresh projection.
+    refreshArcadeHud() {
+        this._updateArcadeHud(this._getMatchRuntimeProjection());
     }
 
     _updateArcadeHud(projection = null) {
