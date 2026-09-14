@@ -23,7 +23,7 @@ import {
     ARTIFACT_VERSION_DECISIONS,
     resolveArtifactVersionState,
 } from '../src/shared/contracts/ArtifactVersionMigrationContract.js';
-import { SettingsStore } from '../src/ui/SettingsStore.js';
+import { SettingsStore } from '../src/shared/settings/SettingsStore.js';
 import { createVehicleManagerLoadoutPresetStore } from '../src/ui/arcade/vehicle-manager/VehicleManagerLoadoutPresets.js';
 import { MenuDraftStore } from '../src/ui/menu/MenuDraftStore.js';
 import {

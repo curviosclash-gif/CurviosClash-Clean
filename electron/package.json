@@ -70,6 +70,7 @@
           "shared/contracts/*.js",
           "shared/logging/Logger.js",
           "shared/runtime/BrowserStoragePorts.js",
+          "shared/settings/*.js",
           "shared/storage/*.js",
           "shared/utils/CanonicalJson.js",
           "shared/utils/JsonClone.js",
@@ -77,7 +78,6 @@
           "ui/menu/*.js",
           "ui/SettingsChangeKeys.js",
           "ui/SettingsFieldRegistry.js",
-          "ui/SettingsStore.js",
           "utils/MathOps.js"
         ]
       },

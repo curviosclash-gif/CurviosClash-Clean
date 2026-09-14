@@ -11,8 +11,8 @@ import {
     MenuPresetStore,
     MenuTelemetryStore,
     MenuTextOverrideStore,
-    SettingsStore,
 } from '../composition/core-ui/CoreSettingsPorts.js';
+import { SettingsStore } from '../shared/settings/SettingsStore.js';
 import { createRuntimeConfigSnapshot } from './RuntimeConfig.js';
 import { TelemetryHistoryStore } from '../state/TelemetryHistoryStore.js';
 import { AuthoringTelemetryStore } from '../state/AuthoringTelemetryStore.js';

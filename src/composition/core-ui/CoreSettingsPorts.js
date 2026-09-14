@@ -1,4 +1,3 @@
-export { SettingsStore } from '../../ui/SettingsStore.js';
 export {
     SETTINGS_CHANGE_KEYS,
     SETTINGS_CHANGE_PATH_ENTRIES,

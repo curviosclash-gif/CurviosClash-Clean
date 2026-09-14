@@ -5,18 +5,18 @@
 import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
-} from '../shared/storage/StorageKeys.js';
-import { createDefaultStoragePlatform } from '../shared/storage/StoragePlatform.js';
-import { getDefaultBrowserStorage } from '../shared/storage/PersistentStore.js';
+} from '../storage/StorageKeys.js';
+import { createDefaultStoragePlatform } from '../storage/StoragePlatform.js';
+import { getDefaultBrowserStorage } from '../storage/PersistentStore.js';
 import {
     normalizeProfileEntries,
     normalizeProfileName,
     getProfileNameKey,
     findProfileIndexByName,
     findProfileByName,
-} from '../shared/contracts/SettingsProfileContract.js';
-import { resolveArtifactVersionState } from '../shared/contracts/ArtifactVersionMigrationContract.js';
-import { areCanonicalJsonValuesEqual } from '../shared/utils/CanonicalJson.js';
+} from '../contracts/SettingsProfileContract.js';
+import { resolveArtifactVersionState } from '../contracts/ArtifactVersionMigrationContract.js';
+import { areCanonicalJsonValuesEqual } from '../utils/CanonicalJson.js';
 
 const SETTINGS_STORAGE_KEY = STORAGE_KEYS.settings;
 const SETTINGS_STORAGE_LEGACY_KEYS = LEGACY_STORAGE_KEYS.settings;

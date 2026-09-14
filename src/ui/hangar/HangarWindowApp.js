@@ -1,4 +1,4 @@
-import { SettingsStore } from '../SettingsStore.js';
+import { SettingsStore } from '../../shared/settings/SettingsStore.js';
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
 import { setupArcadeHangarWorkshop } from './ArcadeHangarWorkshop.js';
 import { PlayerProfileManager } from '../../application/player-profile/PlayerProfileManager.js';
