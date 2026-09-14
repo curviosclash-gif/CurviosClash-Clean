@@ -52,7 +52,6 @@ extraResources:
       - shared/utils/CanonicalJson.js
       - shared/utils/JsonClone.js
       - state/storage/*.js
-      - ui/base/*.js
       - ui/menu/*.js
       - '!ui/menu/MenuDeveloperStateSync.js'
       - '!ui/menu/MenuTelemetryDashboard.js'
@@ -60,7 +59,6 @@ extraResources:
       - ui/SettingsChangeKeys.js
       - ui/SettingsFieldRegistry.js
       - ui/SettingsStore.js
-      - ui/StorageKeys.js
       - utils/MathOps.js
   - from: runtime-resources/package.json
     to: package.json

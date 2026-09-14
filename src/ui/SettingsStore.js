@@ -5,9 +5,9 @@
 import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
-} from './StorageKeys.js';
+} from '../shared/storage/StorageKeys.js';
 import { createDefaultStoragePlatform } from '../shared/storage/StoragePlatform.js';
-import { getDefaultBrowserStorage } from './base/PersistentStore.js';
+import { getDefaultBrowserStorage } from '../shared/storage/PersistentStore.js';
 import {
     normalizeProfileEntries,
     normalizeProfileName,

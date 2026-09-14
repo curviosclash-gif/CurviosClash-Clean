@@ -1,7 +1,7 @@
-import { createDefaultStoragePlatform } from '../../shared/storage/StoragePlatform.js';
+import { createDefaultStoragePlatform } from './StoragePlatform.js';
 import { getDefaultBrowserStorage } from './PersistentStore.js';
-import { resolveArtifactVersionState } from '../../shared/contracts/ArtifactVersionMigrationContract.js';
-import { areCanonicalJsonValuesEqual } from '../../shared/utils/CanonicalJson.js';
+import { resolveArtifactVersionState } from '../contracts/ArtifactVersionMigrationContract.js';
+import { areCanonicalJsonValuesEqual } from '../utils/CanonicalJson.js';
 
 /**
  * Resolves the storagePlatform/storageKey/storageLegacyKeys triple

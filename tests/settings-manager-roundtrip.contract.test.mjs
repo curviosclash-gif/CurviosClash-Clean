@@ -9,7 +9,7 @@ import {
 } from '../src/core/settings/SettingsOverrideMergeOps.js';
 import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { GAMEPLAY_COCKPIT_CAMERA_ENABLED } from '../src/shared/contracts/CameraModeContract.js';
-import { STORAGE_KEYS } from '../src/ui/StorageKeys.js';
+import { STORAGE_KEYS } from '../src/shared/storage/StorageKeys.js';
 
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
 

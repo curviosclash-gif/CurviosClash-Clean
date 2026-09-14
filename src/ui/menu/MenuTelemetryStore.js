@@ -6,9 +6,9 @@ import {
 import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
-} from '../StorageKeys.js';
-import { PersistentStore } from '../base/PersistentStore.js';
-import { resolveStorePlatformOptions, loadVersionedRecord } from '../base/PersistentStoreLoadUtils.js';
+} from '../../shared/storage/StorageKeys.js';
+import { PersistentStore } from '../../shared/storage/PersistentStore.js';
+import { resolveStorePlatformOptions, loadVersionedRecord } from '../../shared/storage/PersistentStoreLoadUtils.js';
 import { TelemetryPreferencesStore } from '../../shared/telemetry/TelemetryPreferencesStore.js';
 import {
     createDefaultArcadeSummary,

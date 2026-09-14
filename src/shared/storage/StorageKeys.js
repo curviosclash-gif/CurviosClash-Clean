@@ -1,5 +1,5 @@
-import { AUTHORING_TELEMETRY_STORAGE_KEY } from '../shared/contracts/AuthoringTelemetryContract.js';
-import { TELEMETRY_PREFERENCES_STORAGE_KEY } from '../shared/contracts/TelemetryPreferencesContract.js';
+import { AUTHORING_TELEMETRY_STORAGE_KEY } from '../contracts/AuthoringTelemetryContract.js';
+import { TELEMETRY_PREFERENCES_STORAGE_KEY } from '../contracts/TelemetryPreferencesContract.js';
 
 const APP_STORAGE_NAMESPACE = 'cuviosclash';
 const LEGACY_APP_STORAGE_NAMESPACE = 'aero-arena-3d';
