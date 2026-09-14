@@ -207,6 +207,40 @@ test('SettingsManager keeps the arcade block and hunt limits when settings are s
     assert.equal(loaded.hunt.timeLimitEnabled, false);
 });
 
+test('SettingsManager clamps every gameplay field to its declared limit rule', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+    const belowMinimum = {};
+    const aboveMaximum = {};
+    for (const [field, rule] of Object.entries(SETTINGS_LIMITS.gameplay)) {
+        belowMinimum[field] = rule.min - 1000;
+        aboveMaximum[field] = rule.max + 1000;
+    }
+
+    const clampedLow = manager.sanitizeSettings({ gameplay: belowMinimum }).gameplay;
+    const clampedHigh = manager.sanitizeSettings({ gameplay: aboveMaximum }).gameplay;
+
+    for (const [field, rule] of Object.entries(SETTINGS_LIMITS.gameplay)) {
+        assert.equal(clampedLow[field], rule.min, `${field} is not clamped to its minimum`);
+        assert.equal(clampedHigh[field], rule.max, `${field} is not clamped to its maximum`);
+    }
+});
+
+test('SettingsManager clamps the deathmatch kill limit to its contract range', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+    const defaults = manager.createDefaultSettings();
+    const rule = SETTINGS_LIMITS.hunt.deathmatchKillLimit;
+    const sanitizeKillLimit = (value) => (
+        manager.sanitizeSettings({ hunt: { deathmatchKillLimit: value } }).hunt.deathmatchKillLimit
+    );
+
+    assert.equal(sanitizeKillLimit(rule.max + 150), rule.max);
+    assert.equal(sanitizeKillLimit(rule.min - 6), rule.min);
+    assert.equal(sanitizeKillLimit(0), rule.min);
+    assert.equal(sanitizeKillLimit(12.7), 12);
+    assert.equal(sanitizeKillLimit('broken'), defaults.hunt.deathmatchKillLimit);
+    assert.equal(sanitizeKillLimit(undefined), defaults.hunt.deathmatchKillLimit);
+});
+
 test('SettingsManager sanitize is stable when it runs twice on its own output', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const defaults = manager.createDefaultSettings();

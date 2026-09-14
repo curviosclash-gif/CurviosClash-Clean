@@ -5,7 +5,7 @@ import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotP
 import {
     clampSettingValue,
     createControlBindingsSnapshot,
-} from './config/SettingsRuntimeContract.js';
+} from '../shared/contracts/SettingsRuntimeContract.js';
 import { normalizeSessionType } from '../composition/core-ui/CoreSettingsPorts.js';
 import {
     ARCADE_GHOST_DUEL_MODES,

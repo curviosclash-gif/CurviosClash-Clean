@@ -7,6 +7,15 @@
 
 // ---- Section key constants ----
 
+// ---- Shared gameplay identifiers ----
+// Single source for values that used to be inlined at every call site.
+
+/** Vehicle used whenever a stored or requested vehicle id is missing. */
+export const DEFAULT_VEHICLE_ID = 'ship5';
+
+/** Bot difficulty ids backed by CONFIG.BOT.DIFFICULTY_PROFILES. */
+export const BOT_DIFFICULTY_LEVELS = Object.freeze(['EASY', 'NORMAL', 'HARD']);
+
 export const CONFIG_SECTIONS = Object.freeze({
     PLAYER: 'PLAYER',
     GAMEPLAY: 'GAMEPLAY',
@@ -43,7 +52,7 @@ export const GAMEPLAY_CONFIG_DEFAULTS = Object.freeze({
         START_Y: 10,
         AUTO_ROLL: false,
         AUTO_ROLL_SPEED: 1.5,
-        DEFAULT_VEHICLE_ID: 'ship5',
+        DEFAULT_VEHICLE_ID,
     }),
     GAMEPLAY: Object.freeze({
         PLANAR_MODE: false,
