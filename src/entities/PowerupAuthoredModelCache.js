@@ -1,111 +1,158 @@
-import * as THREE from 'three';
-import { OBJLoader } from 'three/addons/loaders/OBJLoader.js';
+import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+import { createStandardMaterial } from './powerup/PowerupSharedMaterials.js';
+import {
+    LEGACY_PICKUP_MODEL_TYPES,
+    resolveLegacyPickupModelUrl,
+} from './powerup/PowerupVisualCatalog.js';
 
-const AUTHORED_ITEM_MODEL_URLS = Object.freeze({
-    item_arrow: new URL('../../assets/items/item_arrow.obj', import.meta.url).href,
-    item_battery: new URL('../../assets/items/item_battery.obj', import.meta.url).href,
-    item_box: new URL('../../assets/items/item_box.obj', import.meta.url).href,
-    item_capsule: new URL('../../assets/items/item_capsule.obj', import.meta.url).href,
-    item_coin: new URL('../../assets/items/item_coin.obj', import.meta.url).href,
-    item_crate: new URL('../../assets/items/item_crate.obj', import.meta.url).href,
-    item_crystal: new URL('../../assets/items/item_crystal.obj', import.meta.url).href,
-    item_gem: new URL('../../assets/items/item_gem.obj', import.meta.url).href,
-    item_health: new URL('../../assets/items/item_health.obj', import.meta.url).href,
-    item_orb: new URL('../../assets/items/item_orb.obj', import.meta.url).href,
-    item_pyramid: new URL('../../assets/items/item_pyramid.obj', import.meta.url).href,
-    item_ring: new URL('../../assets/items/item_ring.obj', import.meta.url).href,
-    item_rocket: new URL('../../assets/items/item_rocket.obj', import.meta.url).href,
-    item_shield: new URL('../../assets/items/item_shield.obj', import.meta.url).href,
-    item_sphere: new URL('../../assets/items/item_sphere.obj', import.meta.url).href,
-    item_star: new URL('../../assets/items/item_star.obj', import.meta.url).href,
-    item_torus: new URL('../../assets/items/item_torus.obj', import.meta.url).href,
-});
-
-function disposeMaterial(material) {
-    if (Array.isArray(material)) {
-        material.forEach((entry) => entry?.dispose?.());
-        return;
-    }
-    material?.dispose?.();
-}
+const PICKUP_LIBRARY_URL = new URL('../../assets/items/glb/pickup_library.glb', import.meta.url).href;
+const PICKUP_MODEL_PREFIX = 'pickup_';
 
 export function resolveAuthoredItemModelUrl(modelType) {
-    const normalized = String(modelType || '').trim().toLowerCase();
-    return AUTHORED_ITEM_MODEL_URLS[normalized] || null;
+    return resolveLegacyPickupModelUrl(modelType);
+}
+
+export function resolvePickupLibraryUrl() {
+    return PICKUP_LIBRARY_URL;
+}
+
+function materialRoleForNode(node) {
+    const fromExtras = String(node?.userData?.pickupMaterialRole || '').trim().toLowerCase();
+    if (fromExtras) return fromExtras;
+    const materialName = String(node?.material?.name || '').trim().toLowerCase();
+    if (materialName.includes('glow')) return 'glow';
+    if (materialName.includes('accent')) return 'accent';
+    if (materialName.includes('frame')) return 'frame';
+    return 'metal';
+}
+
+function pickupMaterial(role, color) {
+    if (role === 'frame') {
+        return createStandardMaterial(0xdce7f1, {
+            emissiveIntensity: 0.12, roughness: 0.3, metalness: 0.72,
+        });
+    }
+    if (role === 'metal') {
+        return createStandardMaterial(0x111923, {
+            emissiveIntensity: 0.04, roughness: 0.34, metalness: 0.86,
+        });
+    }
+    if (role === 'glow') {
+        return createStandardMaterial(color, {
+            emissiveIntensity: 1.25, roughness: 0.18, metalness: 0.35,
+        });
+    }
+    return createStandardMaterial(color, {
+        emissiveIntensity: 0.48, roughness: 0.25, metalness: 0.66,
+    });
 }
 
 export class PowerupAuthoredModelCache {
-    constructor(size = 1.5) {
+    constructor(size = 1.5, options = {}) {
         this.size = Math.max(0.5, Number(size) || 1.5);
-        this.loader = new OBJLoader();
+        this.loader = options.loader || new GLTFLoader();
+        this.libraryUrl = options.libraryUrl || PICKUP_LIBRARY_URL;
         this.templates = new Map();
-        this.pendingLoads = new Map();
+        this.pendingLoad = null;
         this.disposed = false;
+        this._libraryRoot = null;
+        this._sourceMaterials = new Set();
+        this._geometries = new Set();
     }
 
-    async createModel(modelType, color = 0xffffff) {
-        const template = await this._loadTemplate(modelType);
+    async createModel(modelIdentifier, color = 0xffffff, metadata = {}) {
+        const normalized = String(modelIdentifier || '').trim();
+        if (!normalized || this.disposed) return null;
+        const template = await this._loadLibrary().then(() => this.templates.get(normalized) || null);
         if (!template || this.disposed) return null;
 
         const clone = template.clone(true);
         const materialColor = Number(color) || 0xffffff;
-        clone.scale.setScalar(this.size);
-        clone.userData.authoredItemModel = String(modelType || '').trim().toLowerCase();
+        clone.scale.multiplyScalar(this.size / 1.5);
+        clone.userData.blenderPickupModel = normalized.startsWith(PICKUP_MODEL_PREFIX)
+            ? normalized.slice(PICKUP_MODEL_PREFIX.length)
+            : normalized;
+        clone.userData.authoredItemModel = String(metadata.authoredItemModel || '').trim().toLowerCase();
+        if (metadata.rocketTier) clone.userData.rocketTier = String(metadata.rocketTier);
+        if (Number.isFinite(Number(metadata.fanProjectiles))) {
+            const count = Number(metadata.fanProjectiles);
+            clone.userData.fanProjectiles = count;
+            clone.userData.markerText = `×${count}`;
+        }
         clone.traverse((node) => {
             if (!node?.isMesh) return;
             node.castShadow = false;
             node.receiveShadow = false;
-            node.material = new THREE.MeshStandardMaterial({
-                color: materialColor,
-                emissive: materialColor,
-                emissiveIntensity: 0.35,
-                roughness: 0.32,
-                metalness: 0.55,
-            });
+            node.material = pickupMaterial(node.userData.pickupMaterialRole, materialColor);
         });
         return clone;
     }
 
-    async _loadTemplate(modelType) {
-        const normalized = String(modelType || '').trim().toLowerCase();
-        const url = resolveAuthoredItemModelUrl(normalized);
-        if (!url || this.disposed) return null;
-        if (this.templates.has(normalized)) return this.templates.get(normalized);
-        if (this.pendingLoads.has(normalized)) return this.pendingLoads.get(normalized);
+    async _loadLibrary() {
+        if (this.disposed) return null;
+        if (this._libraryRoot) return this._libraryRoot;
+        if (this.pendingLoad) return this.pendingLoad;
 
-        const pending = this.loader.loadAsync(url)
-            .then((template) => {
-                this.pendingLoads.delete(normalized);
+        this.pendingLoad = this.loader.loadAsync(this.libraryUrl)
+            .then((gltf) => {
+                this.pendingLoad = null;
+                const root = gltf?.scene || null;
+                if (!root) return null;
                 if (this.disposed) {
-                    this._disposeTemplate(template);
+                    this._disposeLoadedRoot(root);
                     return null;
                 }
-                this.templates.set(normalized, template);
-                return template;
+                this._prepareLibrary(root);
+                this._libraryRoot = root;
+                return root;
             })
             .catch(() => {
-                this.pendingLoads.delete(normalized);
+                this.pendingLoad = null;
                 return null;
             });
-        this.pendingLoads.set(normalized, pending);
-        return pending;
+        return this.pendingLoad;
     }
 
-    _disposeTemplate(template) {
-        template?.traverse?.((node) => {
+    _prepareLibrary(root) {
+        root.traverse((node) => {
             if (!node?.isMesh) return;
-            node.geometry?.dispose?.();
-            disposeMaterial(node.material);
+            if (node.geometry) this._geometries.add(node.geometry);
+            const materials = Array.isArray(node.material) ? node.material : [node.material];
+            for (const material of materials) if (material) this._sourceMaterials.add(material);
+            node.userData.pickupMaterialRole = materialRoleForNode(node);
+            node.material = null;
+        });
+        for (const material of this._sourceMaterials) material.dispose?.();
+        this._sourceMaterials.clear();
+
+        root.traverse((node) => {
+            if (node?.name?.startsWith(PICKUP_MODEL_PREFIX)) this.templates.set(node.name, node);
         });
     }
 
+    _disposeLoadedRoot(root) {
+        const geometries = new Set();
+        const materials = new Set();
+        root?.traverse?.((node) => {
+            if (node?.geometry) geometries.add(node.geometry);
+            const entries = Array.isArray(node?.material) ? node.material : [node?.material];
+            for (const material of entries) if (material) materials.add(material);
+        });
+        for (const geometry of geometries) geometry.dispose?.();
+        for (const material of materials) material.dispose?.();
+    }
+
     dispose() {
+        if (this.disposed) return;
         this.disposed = true;
-        for (const template of this.templates.values()) {
-            this._disposeTemplate(template);
-        }
+        for (const geometry of this._geometries) geometry.dispose?.();
+        for (const material of this._sourceMaterials) material.dispose?.();
+        this._geometries.clear();
+        this._sourceMaterials.clear();
         this.templates.clear();
-        this.pendingLoads.clear();
+        this._libraryRoot = null;
         this.loader = null;
     }
 }
+
+export { LEGACY_PICKUP_MODEL_TYPES };

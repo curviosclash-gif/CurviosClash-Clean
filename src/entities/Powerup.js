@@ -5,6 +5,7 @@
 import * as THREE from 'three';
 import { PowerupModelFactory } from './PowerupModelFactory.js';
 import { PowerupAuthoredModelCache, resolveAuthoredItemModelUrl } from './PowerupAuthoredModelCache.js';
+import { applyBlenderPickupModel } from './powerup/PowerupVisualCatalog.js';
 import { findSafePowerupPosition } from './powerup/PowerupSpawnSafetyOps.js';
 import { resolvePowerupFieldLimit, resolvePowerupSpawnInterval } from './powerup/PowerupDensityOps.js';
 import { isSharedPowerupMaterial } from './powerup/PowerupSharedMaterials.js';
@@ -509,6 +510,7 @@ export class PowerupManager {
                     baseScaleZ: mesh.scale.z,
                 };
                 this.items.push(item);
+                this._applyAuthoredItemModel(item, null, powerupConfig);
             }
             const pos = Array.isArray(entry.pos) ? entry.pos : [];
             item.mesh.position.set(Number(pos[0]) || 0, Number(pos[1]) || 0, Number(pos[2]) || 0);
@@ -525,31 +527,10 @@ export class PowerupManager {
         }
     }
 
-    _applyAuthoredItemModel(item, anchor, config) {
-        if (!item || !anchor || !this._authoredModelCache) return;
-        const modelType = [anchor.model, anchor.type]
-            .map((candidate) => String(candidate || '').trim().toLowerCase())
-            .find((candidate) => resolveAuthoredItemModelUrl(candidate));
-        if (!modelType) return;
-
-        const cache = this._authoredModelCache;
-        cache.createModel(modelType, config?.color).then((authoredMesh) => {
-            if (!authoredMesh) return;
-            if (this._authoredModelCache !== cache || !this.items.includes(item)) {
-                disposeMeshMaterials(authoredMesh);
-                return;
-            }
-            const previousMesh = item.mesh;
-            authoredMesh.position.copy(previousMesh.position);
-            authoredMesh.rotation.copy(previousMesh.rotation);
-            this.renderer.removeFromScene(previousMesh);
-            disposeMeshMaterials(previousMesh);
-            item.mesh = authoredMesh;
-            item.baseScaleX = authoredMesh.scale.x;
-            item.baseScaleY = authoredMesh.scale.y;
-            item.baseScaleZ = authoredMesh.scale.z;
-            this.renderer.addToScene(authoredMesh);
+    _applyAuthoredItemModel(item, anchor = null, config = null) {
+        applyBlenderPickupModel(this, item, anchor, config, {
+            disposeMeshMaterials,
+            resolveAuthoredItemModelUrl,
         });
     }
 }
-

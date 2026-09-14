@@ -37,6 +37,7 @@ export function spawnPowerupAtAnchor(manager, anchor) {
         baseScaleZ: mesh.scale.z,
     };
     manager.items.push(item);
+    manager._applyAuthoredItemModel?.(item, anchor, powerupConfig);
     return item;
 }
 
