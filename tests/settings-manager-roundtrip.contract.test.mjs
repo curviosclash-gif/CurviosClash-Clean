@@ -32,6 +32,10 @@ function createDerivedLeafExpectations(defaults) {
         ['cockpitCamera.PLAYER_2', GAMEPLAY_COCKPIT_CAMERA_ENABLED],
         // Portal beams are hard disabled in the sanitizer.
         ['gameplay.portalBeams', false],
+        // Respawn follows localSettings.modePath via the menu rules. The sweep stores the
+        // mode path 'normal', where the rule forces respawn off - the swept value only
+        // happens to match, so the expectation belongs here and not in the sweep.
+        ['hunt.respawnEnabled', false],
         // Developer mode is switched off while the feature flag or release preview says so.
         ['localSettings.developerModeEnabled', false],
     ]);
@@ -50,13 +54,17 @@ const UNCHANGED_LEAF_PATHS = Object.freeze([
     'localSettings.draftStateBySessionType',
     // Only kept while the session type is multiplayer, which the sweep does not select.
     'localSettings.multiplayerTransport',
-    // Contract version stamps belong to the code, not to the stored state.
+    // Contract version stamps the code writes on every sanitize.
     'localSettings.schemaVersion',
     'matchSettings.schemaVersion',
+    // These four are different: createMenuContractState carries them over from the stored
+    // state with normalizeString, so a stored value would survive. They stay unmutated
+    // because there is no second valid version to store.
     'menuContracts.lifecycleContractVersion',
     'menuContracts.localSettingsSchemaVersion',
     'menuContracts.matchSettingsSchemaVersion',
     'menuContracts.playerLoadoutSchemaVersion',
+    // Written by the code again.
     'menuContracts.schemaVersion',
     'playerLoadout.schemaVersion',
 ]);
