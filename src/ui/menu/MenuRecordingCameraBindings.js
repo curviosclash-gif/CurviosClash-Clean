@@ -4,6 +4,7 @@ import {
 } from '../../shared/contracts/CameraPerspectiveContract.js';
 import {
     createDefaultRecordingCaptureSettings,
+    normalizeRecordingCaptureOrientation,
     RECORDING_CAPTURE_PROFILE,
     RECORDING_HUD_MODE,
 } from '../../shared/contracts/RecordingCaptureContract.js';
@@ -11,6 +12,7 @@ import {
     readCameraPerspectiveIntensityFromSlider,
     resolveNormalCameraPerspectiveLabel,
     resolveRecordingHudLabel,
+    resolveRecordingOrientationLabel,
     resolveRecordingProfileLabel,
 } from './MenuRecordingCameraBindingOps.js';
 
@@ -141,6 +143,21 @@ export function bindMenuRecordingCameraControls({
             emitSettingsChangedImmediate([keys.RECORDING_HUD_MODE]);
             emit(eventTypes.SHOW_STATUS_TOAST, {
                 message: `Recording-HUD: ${resolveRecordingHudLabel(recordingSettings.hudMode)}`,
+                duration: 1300,
+                tone: 'info',
+            });
+        });
+    }
+    if (ui.recordingOrientationSelect) {
+        bind(ui.recordingOrientationSelect, 'change', () => {
+            const recordingSettings = ensureRecordingSettings(settings);
+            recordingSettings.orientation = normalizeRecordingCaptureOrientation(
+                ui.recordingOrientationSelect.value,
+                recordingSettings.orientation
+            );
+            emitSettingsChangedImmediate([keys.RECORDING_ORIENTATION]);
+            emit(eventTypes.SHOW_STATUS_TOAST, {
+                message: `Cinematic-Format: ${resolveRecordingOrientationLabel(recordingSettings.orientation)}`,
                 duration: 1300,
                 tone: 'info',
             });

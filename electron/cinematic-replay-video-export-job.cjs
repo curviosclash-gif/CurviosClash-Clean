@@ -12,6 +12,12 @@ const TEMP_DIRECTORY_NAME = 'curviosclash-recording-exports';
 const MANIFEST_SUFFIX = '.export.json';
 const MIN_VALID_MP4_BYTES = 16 * 1024;
 const MAX_DIAGNOSTIC_LENGTH = 64 * 1024;
+// Mirrors CINEMATIC_REPLAY_EXPORT_FORMATS in src/shared/contracts/RecordingCaptureContract.js.
+const CINEMATIC_EXPORT_FPS = 60;
+const SUPPORTED_CINEMATIC_FORMATS = Object.freeze([
+    Object.freeze({ width: 1920, height: 1080 }),
+    Object.freeze({ width: 1080, height: 1920 }),
+]);
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -363,8 +369,11 @@ function createCinematicReplayVideoExportJob({
         const request = payload && typeof payload === 'object' ? payload : {};
         const width = normalizePositiveInt(request.width, 1920, 16, 8192);
         const height = normalizePositiveInt(request.height, 1080, 16, 8192);
-        const fps = normalizePositiveInt(request.fps, 60, 1, 240);
-        if (width !== 1920 || height !== 1080 || fps !== 60) {
+        const fps = normalizePositiveInt(request.fps, CINEMATIC_EXPORT_FPS, 1, 240);
+        const formatSupported = SUPPORTED_CINEMATIC_FORMATS.some(
+            (format) => format.width === width && format.height === height
+        );
+        if (!formatSupported || fps !== CINEMATIC_EXPORT_FPS) {
             return { started: false, reason: 'invalid_cinematic_format' };
         }
         const matchId = sanitizeToken(request.matchId, `match-${now()}`);

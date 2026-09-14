@@ -122,6 +122,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.camera.perspective.label': 'Video-Perspektive',
     'menu.level4.recording.profile.label': 'Aufnahmeprofil',
     'menu.level4.recording.hud_mode.label': 'HUD in der Aufnahme',
+    'menu.level4.recording.orientation.label': 'Format des Cinematic-Videos',
     'menu.level4.hud.scale.label': 'HUD-Größe:',
     'menu.level4.hud.opacity.label': 'HUD-Deckkraft:',
     'menu.level4.hud.color.label': 'HUD-Farbschema',

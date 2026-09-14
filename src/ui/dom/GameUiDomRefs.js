@@ -194,6 +194,7 @@ export function createGameUiRefs(doc = document) {
         audioSettingsHint: doc.getElementById('audio-settings-hint'),
         recordingProfileSelect: doc.getElementById('recording-profile-select'),
         recordingHudModeSelect: doc.getElementById('recording-hud-mode-select'),
+        recordingOrientationSelect: doc.getElementById('recording-orientation-select'),
         recordingProfileHint: doc.getElementById('recording-profile-hint'),
         cinematicReplayRecordingSelect: doc.getElementById('cinematic-replay-recording-select'),
         cinematicReplayRenderButton: doc.getElementById('cinematic-replay-render-button'),

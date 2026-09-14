@@ -1055,9 +1055,13 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20m1: Recording-Profil und HUD-Modus sind im Menu persistierbar', async ({ page }) => {
         await loadGame(page);
-        await openLevel4Drawer(page, { section: 'gameplay' });
+        await openLevel4Drawer(page, { section: 'recording' });
         await page.selectOption('#recording-profile-select', 'youtube_short');
         await page.selectOption('#recording-hud-mode-select', 'with_hud');
+        await page.selectOption('#recording-orientation-select', 'portrait');
+        // The drawer is already open; switch its tab instead of reopening it.
+        await page.click('#submenu-level4 [data-level4-section-target="graphics"]');
+        await page.waitForSelector('#submenu-level4 [data-level4-section="graphics"].is-active', { timeout: 4000 });
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_soft');
         await page.uncheck('#normal-camera-reduce-motion-toggle');
         await page.evaluate(() => window.GAME_INSTANCE?._saveSettings?.());
@@ -1072,6 +1076,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
                 settingsHudMode: game?.settings?.recording?.hudMode || null,
                 runtimeProfile: game?.mediaRecorderSystem?.getRecordingCaptureSettings?.()?.profile || null,
                 runtimeHudMode: game?.mediaRecorderSystem?.getRecordingCaptureSettings?.()?.hudMode || null,
+                settingsOrientation: game?.settings?.recording?.orientation || null,
+                runtimeOrientation: game?.mediaRecorderSystem?.getRecordingCaptureSettings?.()?.orientation || null,
+                rendererOrientation: game?.renderer?.getRecordingCaptureSettings?.()?.orientation || null,
                 settingsPerspectiveNormal: game?.settings?.cameraPerspective?.normal || null,
                 settingsPerspectiveReduceMotion: game?.settings?.cameraPerspective?.reduceMotion,
                 runtimePerspectiveNormal: game?.renderer?.getCameraPerspectiveSettings?.()?.normal || null,
@@ -1083,6 +1090,9 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(persisted.settingsHudMode).toBe('with_hud');
         expect(persisted.runtimeProfile).toBe('youtube_short');
         expect(persisted.runtimeHudMode).toBe('with_hud');
+        expect(persisted.settingsOrientation).toBe('portrait');
+        expect(persisted.runtimeOrientation).toBe('portrait');
+        expect(persisted.rendererOrientation).toBe('portrait');
         expect(persisted.settingsPerspectiveNormal).toBe('cinematic_soft');
         expect(persisted.settingsPerspectiveReduceMotion).toBeFalsy();
         expect(persisted.runtimePerspectiveNormal).toBe('cinematic_soft');

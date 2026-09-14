@@ -551,6 +551,9 @@ export class UIManager {
         if (ui.recordingHudModeSelect) {
             ui.recordingHudModeSelect.value = recordingSettings.hudMode;
         }
+        if (ui.recordingOrientationSelect) {
+            ui.recordingOrientationSelect.value = recordingSettings.orientation;
+        }
         if (ui.recordingProfileHint) {
             const profileLabel = recordingSettings.profile === RECORDING_CAPTURE_PROFILE.CINEMATIC
                 ? 'Cinematic-Aufnahme (manuell rendern)'

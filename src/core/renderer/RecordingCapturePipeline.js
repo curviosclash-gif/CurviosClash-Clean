@@ -5,7 +5,7 @@ import { CameraRigSystem } from './CameraRigSystem.js';
 import { renderShortsFallbackFromSource } from './RecordingCaptureFallbackOps.js';
 import { drawHudOverlay, drawLetterboxOverlay, storeCaptureMeta } from './RecordingCaptureOverlayOps.js';
 import { RecordingOrbitCameraDirector, SLOT_STYLE } from './camera/RecordingOrbitCameraDirector.js';
-import { createDefaultRecordingCaptureSettings, RECORDING_CINEMATIC_QUALITY_PROFILE, normalizeRecordingCaptureSettings, RECORDING_CAPTURE_PROFILE, RECORDING_HUD_MODE } from '../../shared/contracts/RecordingCaptureContract.js';
+import { createDefaultRecordingCaptureSettings, normalizeRecordingCaptureSettings, RECORDING_CAPTURE_PROFILE, RECORDING_HUD_MODE, resolveCinematicReplayExportFormat } from '../../shared/contracts/RecordingCaptureContract.js';
 import { cloneJsonValue } from '../../shared/utils/JsonClone.js';
 import { CAMERA_PERSPECTIVE_MODE, createDefaultCameraPerspectiveSettings, normalizeCameraPerspectiveSettings } from '../../shared/contracts/CameraPerspectiveContract.js';
 import { resolveBloomQualityPreset } from '../../shared/contracts/BloomQualityContract.js';
@@ -563,16 +563,12 @@ export class RecordingCapturePipeline {
     }
 
     _resolveCinematicCaptureSize() {
-        const maxW = toPositiveEven(RECORDING_CINEMATIC_QUALITY_PROFILE?.maxWidth, 1920);
-        const maxH = toPositiveEven(RECORDING_CINEMATIC_QUALITY_PROFILE?.maxHeight, 1080);
-        return {
-            width: maxW,
-            height: maxH,
-        };
+        // The fixed export format (1080p landscape or 9:16 portrait) keeps AVC Level 4.2 limits and even sizes.
+        const format = resolveCinematicReplayExportFormat(this._settings.orientation);
+        return { width: toPositiveEven(format.width, 1920), height: toPositiveEven(format.height, 1080) };
     }
 
     _prepareCinematicSurface({ renderProjection, renderDelta, arena = null }) {
-        // Cap to 1920×1080 to stay within AVC Level 4.2 limits and ensure even dimensions.
         const { width, height } = this._resolveCinematicCaptureSize();
         const cinRenderer = this._ensureCinematicRenderer(width, height);
         const captureCanvas = this._ensureCaptureCanvas(width, height);

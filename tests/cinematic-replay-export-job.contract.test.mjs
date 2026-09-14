@@ -17,6 +17,8 @@ class MockEncoderProcess extends EventEmitter {
     constructor() {
         super();
         this.stdin = new PassThrough();
+        // Drain like ffmpeg would; otherwise a full-size frame never finishes writing.
+        this.stdin.resume();
         this.stderr = new PassThrough();
         this.pid = 0;
     }
@@ -42,11 +44,10 @@ class FailingEncoderProcess extends MockEncoderProcess {
     }
 }
 
-test('cinematic exporter enforces 1080p60 and uses correct temporary container extensions', async () => {
+test('cinematic exporter accepts 1080p60 landscape and portrait and uses correct temporary container extensions', async () => {
     const root = await mkdtemp(path.join(os.tmpdir(), 'curvios-export-contract-'));
     const videoDirectory = path.join(root, 'videos');
     let spawnedArgs = null;
-    const child = new MockEncoderProcess();
     const job = createCinematicReplayVideoExportJob({
         app: {
             getPath(name) {
@@ -60,7 +61,8 @@ test('cinematic exporter enforces 1080p60 and uses correct temporary container e
         },
         spawnProcess(_command, args) {
             spawnedArgs = args;
-            return child;
+            // Every export gets its own encoder process, like ffmpeg in production.
+            return new MockEncoderProcess();
         },
         probeCapability: async () => ({ available: true, command: 'ffmpeg', source: 'test' }),
         executeCommand: async () => ({ ok: true, stdout: ' V..... libx264 H.264 encoder', stderr: '' }),
@@ -101,6 +103,28 @@ test('cinematic exporter enforces 1080p60 and uses correct temporary container e
         const cancelled = await job.cancel({ exportId: started.exportId });
         assert.equal(cancelled.cancelled, true);
         assert.equal(job.getStatus().active, false);
+
+        const square = await job.begin({ width: 1080, height: 1080, fps: 60 });
+        assert.equal(square.reason, 'invalid_cinematic_format');
+        const portrait = await job.begin({
+            matchId: 'match-portrait',
+            fileName: 'portrait.mp4',
+            width: 1080,
+            height: 1920,
+            fps: 60,
+            expectedDurationMs: 1000,
+        });
+        assert.equal(portrait.started, true);
+        assert.equal(portrait.width, 1080);
+        assert.equal(portrait.height, 1920);
+        assert.equal(spawnedArgs[spawnedArgs.indexOf('-video_size') + 1], '1080x1920');
+        const portraitFrame = await job.appendFrame({
+            exportId: portrait.exportId,
+            frameIndex: 0,
+            frameBytes: new Uint8Array(1920 * 1080 * 4),
+        });
+        assert.equal(portraitFrame.accepted, true);
+        await job.cancel({ exportId: portrait.exportId });
     } finally {
         await rm(root, { recursive: true });
     }

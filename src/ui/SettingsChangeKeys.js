@@ -67,6 +67,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     GAMEPLAY_PLANAR_LEVEL_COUNT: 'gameplay.planarLevelCount',
     RECORDING_PROFILE: 'recording.profile',
     RECORDING_HUD_MODE: 'recording.hudMode',
+    RECORDING_ORIENTATION: 'recording.orientation',
     CAMERA_PERSPECTIVE_NORMAL: 'cameraPerspective.normal',
     CAMERA_PERSPECTIVE_REDUCE_MOTION: 'cameraPerspective.reduceMotion',
     CAMERA_PERSPECTIVE_SPEED_FOV_ENABLED: 'cameraPerspective.speedFovEnabled',

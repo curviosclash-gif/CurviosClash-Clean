@@ -6,9 +6,7 @@ import {
     MATCH_LIFECYCLE_EVENT_TYPES,
     SESSION_FINALIZE_TRIGGERS,
 } from '../shared/contracts/MatchLifecycleContract.js';
-import {
-    defaultDownload,
-} from './recording/DownloadService.js';
+import { defaultDownload } from './recording/DownloadService.js';
 import { toFiniteNumber } from '../shared/utils/MathOps.js';
 import {
     createPlatformRecordingCapabilityAdapter,
@@ -29,6 +27,7 @@ import {
     isCinematicCaptureProfile,
     normalizeRecordingCaptureSettings,
     RECORDING_DOWNLOAD_DIRECTORY,
+    resolveCinematicReplayExportFormat,
 } from '../shared/contracts/RecordingCaptureContract.js';
 import {
     CAPTURE_LOAD_LEVELS,
@@ -113,6 +112,7 @@ export class MediaRecorderSystem {
         this._cinematicReplayExporter = new CinematicReplayExportController({
             runtimeGlobal: this._globalScope,
             renderFrame: offlineReplayFrameRenderer,
+            resolveExportFormat: () => resolveCinematicReplayExportFormat(this.recordingCaptureSettings?.orientation),
             onStatus: onReplayExportStatus,
             logger: this.logger,
         });

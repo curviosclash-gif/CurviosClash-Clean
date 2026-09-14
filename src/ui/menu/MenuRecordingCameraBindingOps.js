@@ -3,7 +3,11 @@ import {
     CAMERA_PERSPECTIVE_EFFECT_INTENSITY_MIN,
     CAMERA_PERSPECTIVE_MODE,
 } from '../../shared/contracts/CameraPerspectiveContract.js';
-import { RECORDING_CAPTURE_PROFILE, RECORDING_HUD_MODE } from '../../shared/contracts/RecordingCaptureContract.js';
+import {
+    RECORDING_CAPTURE_ORIENTATION,
+    RECORDING_CAPTURE_PROFILE,
+    RECORDING_HUD_MODE,
+} from '../../shared/contracts/RecordingCaptureContract.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 
 export function resolveRecordingProfileLabel(profile) {
@@ -17,6 +21,12 @@ export function resolveRecordingHudLabel(hudMode) {
     return hudMode === RECORDING_HUD_MODE.WITH_HUD
         ? 'mit HUD'
         : 'clean';
+}
+
+export function resolveRecordingOrientationLabel(orientation) {
+    return orientation === RECORDING_CAPTURE_ORIENTATION.PORTRAIT
+        ? 'Hochformat 1080x1920'
+        : 'Querformat 1920x1080';
 }
 
 export function resolveNormalCameraPerspectiveLabel(mode) {

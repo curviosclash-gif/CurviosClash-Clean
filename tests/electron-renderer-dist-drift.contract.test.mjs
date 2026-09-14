@@ -20,6 +20,8 @@ const CRITICAL_RENDERER_MARKERS = Object.freeze([
     'cameraPerspective.normal',
     'recording-profile-select',
     'recording.profile',
+    'recording-orientation-select',
+    'recording.orientation',
     'shadow-quality-slider',
     'local.shadowQuality',
     'bloom-quality-slider',

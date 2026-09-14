@@ -1,7 +1,9 @@
 // @ts-nocheck
 import { createElectronPreloadSaveAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
+import { resolveCinematicReplayExportFormat } from '../../shared/contracts/RecordingCaptureContract.js';
 import { updateReplayProjection } from './CinematicReplayProjection.js';
 
+// Landscape defaults; the live format comes from resolveExportFormat (portrait swaps width and height).
 export const CINEMATIC_REPLAY_EXPORT_FPS = 60;
 export const CINEMATIC_REPLAY_EXPORT_WIDTH = 1920;
 export const CINEMATIC_REPLAY_EXPORT_HEIGHT = 1080;
@@ -9,6 +11,12 @@ export const CINEMATIC_REPLAY_EXPORT_HEIGHT = 1080;
 function toFiniteNumber(value, fallback = 0) {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
+}
+
+function toEvenSize(value, fallback) {
+    const numeric = Math.trunc(toFiniteNumber(value, fallback));
+    const safe = numeric >= 2 ? numeric : fallback;
+    return safe - (safe % 2);
 }
 
 function clamp01(value) {
@@ -48,11 +56,15 @@ export class CinematicReplayExportController {
     constructor({
         runtimeGlobal = globalThis,
         renderFrame = null,
+        resolveExportFormat = null,
         onStatus = null,
         logger = console,
     } = {}) {
         this.runtimeGlobal = runtimeGlobal || globalThis;
         this.renderFrame = typeof renderFrame === 'function' ? renderFrame : null;
+        this.resolveExportFormat = typeof resolveExportFormat === 'function'
+            ? resolveExportFormat
+            : () => resolveCinematicReplayExportFormat();
         this.onStatus = typeof onStatus === 'function' ? onStatus : null;
         this.logger = logger || console;
         this._activeExport = null;
@@ -76,6 +88,20 @@ export class CinematicReplayExportController {
 
     getLastFailedReplay() {
         return this._lastFailedReplay;
+    }
+
+    _resolveExportFormat() {
+        let format = null;
+        try {
+            format = this.resolveExportFormat?.() || null;
+        } catch (error) {
+            this.logger?.warn?.('[CinematicReplayExport] export format resolver failed', error);
+        }
+        return {
+            width: toEvenSize(format?.width, CINEMATIC_REPLAY_EXPORT_WIDTH),
+            height: toEvenSize(format?.height, CINEMATIC_REPLAY_EXPORT_HEIGHT),
+            fps: Math.max(1, toFiniteNumber(format?.fps, CINEMATIC_REPLAY_EXPORT_FPS)),
+        };
     }
 
     _emitStatus(phase, extra = null) {
@@ -134,6 +160,7 @@ export class CinematicReplayExportController {
 
     async _runExport(replay, saveAdapter, abortState) {
         this._emitStatus('preparing', { message: 'Replay wird vorbereitet' });
+        const { width, height, fps } = this._resolveExportFormat();
         const audioBytes = replay.audioBlob?.size > 0
             ? new Uint8Array(await replay.audioBlob.arrayBuffer())
             : null;
@@ -141,9 +168,9 @@ export class CinematicReplayExportController {
             contractVersion: 'cinematic-replay-video-export.v1',
             matchId: replay.matchId,
             fileName: `curvios-cinematic-${replay.matchId || Date.now()}.mp4`,
-            width: CINEMATIC_REPLAY_EXPORT_WIDTH,
-            height: CINEMATIC_REPLAY_EXPORT_HEIGHT,
-            fps: CINEMATIC_REPLAY_EXPORT_FPS,
+            width,
+            height,
+            fps,
             expectedDurationMs: replay.durationMs,
             audioBytes,
             audioMimeType: replay.audioMimeType || '',
@@ -170,13 +197,13 @@ export class CinematicReplayExportController {
             1,
             toFiniteNumber(replay.durationMs, replay.snapshots.at(-1)?.timeMs || 0)
         );
-        const totalFrames = Math.max(1, Math.ceil(durationMs * CINEMATIC_REPLAY_EXPORT_FPS / 1000));
+        const totalFrames = Math.max(1, Math.ceil(durationMs * fps / 1000));
         let leftIndex = 0;
         let lastReportedPercent = -1;
         try {
             for (let frameIndex = 0; frameIndex < totalFrames; frameIndex++) {
                 if (abortState.requested) throw new Error('export_cancelled');
-                const timeMs = frameIndex * 1000 / CINEMATIC_REPLAY_EXPORT_FPS;
+                const timeMs = frameIndex * 1000 / fps;
                 while (
                     leftIndex < replay.snapshots.length - 2
                     && toFiniteNumber(replay.snapshots[leftIndex + 1]?.timeMs, 0) <= timeMs
@@ -203,20 +230,14 @@ export class CinematicReplayExportController {
                     projection,
                     frameIndex,
                     timeMs,
-                    dt: 1 / CINEMATIC_REPLAY_EXPORT_FPS,
+                    dt: 1 / fps,
                 });
-                if (!canvas || Number(canvas.width) !== CINEMATIC_REPLAY_EXPORT_WIDTH
-                    || Number(canvas.height) !== CINEMATIC_REPLAY_EXPORT_HEIGHT) {
+                if (!canvas || Number(canvas.width) !== width || Number(canvas.height) !== height) {
                     throw new Error('offline_frame_size_invalid');
                 }
                 const context = canvas.getContext?.('2d', { willReadFrequently: true });
-                const frameBytes = context?.getImageData?.(
-                    0,
-                    0,
-                    CINEMATIC_REPLAY_EXPORT_WIDTH,
-                    CINEMATIC_REPLAY_EXPORT_HEIGHT
-                )?.data;
-                if (!frameBytes || frameBytes.byteLength !== CINEMATIC_REPLAY_EXPORT_WIDTH * CINEMATIC_REPLAY_EXPORT_HEIGHT * 4) {
+                const frameBytes = context?.getImageData?.(0, 0, width, height)?.data;
+                if (!frameBytes || frameBytes.byteLength !== width * height * 4) {
                     throw new Error('offline_frame_read_failed');
                 }
                 const appendResult = await saveAdapter.appendCinematicReplayFrame({
