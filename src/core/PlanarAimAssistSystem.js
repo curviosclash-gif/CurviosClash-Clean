@@ -91,18 +91,6 @@ export class PlanarAimAssistSystem {
         if (!entityManager || !gameLoop) return;
 
         gameLoop.setTimeScale(1.0);
-        const strategy = entityManager.gameModeStrategy || null;
-        const entityRuntimeConfig = this.runtimeAccess.getEntityRuntimeConfig?.() || null;
-        const modeType = String(
-            strategy?.getPickupModeType?.()
-            || strategy?.modeType
-            || entityRuntimeConfig?.HUNT?.ACTIVE_MODE
-            || 'CLASSIC'
-        ).trim().toUpperCase();
-        if (modeType === 'HUNT') {
-            return;
-        }
-
         const players = entityManager.players;
         let slowestScale = 1.0;
         for (let p = 0; p < players.length; p++) {

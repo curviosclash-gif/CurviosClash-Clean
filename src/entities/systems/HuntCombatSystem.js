@@ -16,8 +16,11 @@ import {
 } from '../../hunt/HuntTargetingOps.js';
 import {
     isPickupTypeSelfUsable,
+    isPickupTypeShootable,
     normalizePickupType,
 } from '../PickupRegistry.js';
+import { applyEmpPulse } from './EmpPulseOps.js';
+import { isItemProjectileType, resolveItemProjectileTarget } from './projectile/ItemProjectileTargetingOps.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import {
     GAMEPLAY_ACTION_RESULT_CODES,
@@ -49,6 +52,8 @@ export class HuntCombatSystem {
         this._fallbackDirection = new THREE.Vector3();
         this._fallbackDelta = new THREE.Vector3();
         this._fallbackMuzzle = new THREE.Vector3();
+        this._itemLockDirection = new THREE.Vector3();
+        this._itemLockScratch = new THREE.Vector3();
         this._fallbackLockOnCache = new Map();
         this._targetingScratch = createHuntTargetingScratch();
         this._targetingTelemetry = createHuntTargetingTelemetry();
@@ -151,16 +156,6 @@ export class HuntCombatSystem {
         const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
         const config = resolveEntityRuntimeConfig(this.runtime);
         const huntCombatActive = this._isHuntCombatStrategyActive();
-        const cooldownRemaining = Math.max(0, Number(player?.itemUseCooldownRemaining || 0));
-        if (huntCombatActive && cooldownRemaining > 0.001) {
-            return buildGameplayActionResult({
-                ok: false,
-                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_COOLDOWN,
-                message: `Item-Cooldown: ${cooldownRemaining.toFixed(2)}s`,
-                cooldownRemaining,
-            });
-        }
-
         const itemPreview = this.peekInventoryItem(player, preferredIndex, 'use');
         if (!itemPreview.ok) {
             return itemPreview;
@@ -173,7 +168,21 @@ export class HuntCombatSystem {
                 type: itemPreview.type,
             });
         }
-        if (!isPickupTypeSelfUsable(itemPreview.type, modeType)) {
+        const selfUsable = isPickupTypeSelfUsable(itemPreview.type, modeType);
+        if (!selfUsable && isPickupTypeShootable(itemPreview.type, modeType)) {
+            // Attack items fire through "use item" and share the projectile cooldown.
+            return this.shootItemProjectile(player, Number(itemPreview.meta?.index));
+        }
+        const cooldownRemaining = Math.max(0, Number(player?.itemUseCooldownRemaining || 0));
+        if (huntCombatActive && cooldownRemaining > 0.001) {
+            return buildGameplayActionResult({
+                ok: false,
+                code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_COOLDOWN,
+                message: `Item-Cooldown: ${cooldownRemaining.toFixed(2)}s`,
+                cooldownRemaining,
+            });
+        }
+        if (!selfUsable) {
             return buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_USE_FORBIDDEN,
@@ -224,6 +233,12 @@ export class HuntCombatSystem {
                     type: itemResult.type,
                 });
             }
+        } else if (itemResult.type === 'EMP') {
+            applyEmpPulse({
+                owner: player,
+                players: this.runtime?.players,
+                planar: config?.GAMEPLAY?.PLANAR_MODE === true,
+            });
         } else if (!isTurret) {
             player.applyPowerup(itemResult.type);
         }
@@ -254,33 +269,35 @@ export class HuntCombatSystem {
             || { ok: false, reason: 'OverheatGunSystem fehlt' };
     }
 
-    _resolveClassicLockOn(player, tmpDir, tmpVec) {
+    // Item projectiles only ever lock enemy vehicles; the marker and the fired
+    // projectile share this rule, while rockets and the MG keep checkLockOn.
+    checkItemLockOn(player) {
         const runtime = this.runtime;
-        const config = resolveEntityRuntimeConfig(runtime);
-        const maxAngle = (config.HOMING.LOCK_ON_ANGLE * Math.PI) / 180;
-        const configuredRange = Math.max(0, Number(config.HOMING.MAX_LOCK_RANGE) || 0);
-        const fogRange = player?.isBot
-            ? player?.entityManager?.getGlobalFogVisibilityRange?.()
-            : Infinity;
-        const maxRange = Math.min(configuredRange, Number.isFinite(fogRange) ? fogRange : configuredRange);
-        const maxRangeSq = maxRange * maxRange;
-        let bestTarget = null;
-        let bestDistSq = Infinity;
-
-        for (let i = 0; i < runtime.players.length; i++) {
-            const other = runtime.players[i];
-            if (other === player || !other?.alive) continue;
-            tmpVec.subVectors(other.position, player.position);
-            const distSq = tmpVec.lengthSq();
-            if (distSq > maxRangeSq || distSq < 1) continue;
-            const angle = tmpDir.angleTo(tmpVec.normalize());
-            if (angle <= maxAngle && distSq < bestDistSq) {
-                bestTarget = other;
-                bestDistSq = distSq;
-            }
+        if (!runtime || !player?.position || !Array.isArray(runtime.players)) return null;
+        const direction = this._itemLockDirection;
+        if (typeof player.getAimDirection === 'function') {
+            player.getAimDirection(direction).normalize();
+        } else {
+            player.getDirection(direction).normalize();
         }
+        const players = player?.isBot
+            ? player?.entityManager?._globalFogEffectSystem?.filterVisiblePlayers?.(player, runtime.players) || runtime.players
+            : runtime.players;
+        return resolveItemProjectileTarget({
+            owner: player,
+            players,
+            origin: player.position,
+            direction,
+            scratch: this._itemLockScratch,
+        });
+    }
 
-        return bestTarget;
+    // The HUD marker follows the shot "use item" would fire: a selected attack
+    // item shows its own vehicle lock, everything else the rocket/MG lock.
+    resolveMarkerLockOn(player) {
+        if (!player?.alive) return null;
+        const selectedType = player.inventory?.[player.selectedItemIndex];
+        return isItemProjectileType(selectedType) ? this.checkItemLockOn(player) : this.checkLockOn(player);
     }
 
     checkLockOn(player) {
@@ -300,9 +317,10 @@ export class HuntCombatSystem {
         }
         const strategy = runtime.callbacks?.getStrategy?.() || null;
         if (!strategy?.hasMachineGun()) {
-            const legacyTarget = this._resolveClassicLockOn(player, tmpDir, tmpVec);
-            lockOnCache.set(player.index, legacyTarget);
-            return legacyTarget;
+            // Without MG and rockets the only homing shots left are item projectiles.
+            const itemTarget = this.checkItemLockOn(player);
+            lockOnCache.set(player.index, itemTarget);
+            return itemTarget;
         }
 
         const mg = resolveFightMachineGunConfig(

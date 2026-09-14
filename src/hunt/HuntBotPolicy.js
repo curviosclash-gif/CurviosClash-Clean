@@ -3,6 +3,7 @@ import { isRocketTierType } from './RocketPickupSystem.js';
 import { RuleBasedBotPolicy } from '../entities/ai/RuleBasedBotPolicy.js';
 import { BOT_POLICY_TYPES } from '../entities/ai/BotPolicyTypes.js';
 import { BOT_ITEM_RULES } from '../entities/ai/BotTuningConfig.js';
+import { resolveEmpPulseRadius } from '../entities/systems/EmpPulseOps.js';
 import { resolveHuntTargetOwnerPlayer } from './HuntTargetingOps.js';
 import { getPreferredFightEnemy } from './FightTargetSelector.js';
 import {
@@ -71,6 +72,12 @@ export function findQueuedRocketIndex(player) {
     return findStrongestRocketIndex(Array.isArray(player?.inventory) ? player.inventory : []);
 }
 
+function isEmpTargetInRange(enemyDistanceSq) {
+    const radius = resolveEmpPulseRadius();
+    const distanceSq = Number(enemyDistanceSq);
+    return Number.isFinite(distanceSq) && distanceSq <= radius * radius;
+}
+
 export function resolveHuntFallbackItemAction(player, options = {}) {
     const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
     if (inventory.length === 0) {
@@ -105,6 +112,8 @@ export function resolveHuntFallbackItemAction(player, options = {}) {
     for (let i = 0; i < inventory.length; i += 1) {
         const normalizedType = normalizePickupType(inventory[i], { fallback: inventory[i] });
         if (!normalizedType || isRocketTierType(normalizedType)) continue;
+        // The EMP pulse only reaches enemies inside its radius; outside it the item is wasted.
+        if (normalizedType === 'EMP' && !isEmpTargetInRange(options.enemyDistanceSq)) continue;
 
         const rule = BOT_ITEM_RULES[normalizedType] || {
             self: 0,
@@ -391,6 +400,7 @@ export class HuntBotPolicy {
             preferDefense: projectileThreat || survivalPressure > 0.62,
             preferTraversal: survivalPressure > 0.72 || vitalityRatio < 0.38,
             enemyClose: distSq <= 22 * 22,
+            enemyDistanceSq: distSq,
             crashRisk: projectileThreat ? 1 : (pressure > 0.64 ? 0.5 : 0),
         });
         const mgRange = Math.max(12, Number(huntConfig?.MG?.RANGE || 95));

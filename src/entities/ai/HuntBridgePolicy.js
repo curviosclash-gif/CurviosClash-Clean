@@ -141,6 +141,7 @@ function resolveHuntBridgeAction(runtimeContext, player) {
         preferDefense: priorities.projectileThreat || survivalPressure > 0.62,
         preferTraversal: survivalPressure > 0.72 || priorities.vitalityRatio < 0.38,
         enemyClose: priorities.targetDistanceSq <= 22 * 22,
+        enemyDistanceSq: priorities.targetDistanceSq,
         crashRisk: priorities.projectileThreat ? 1 : (priorities.pressureLevel > 0.64 ? 0.5 : 0),
     });
     const mgRange = Math.max(12, Number(huntConfig?.MG?.RANGE || 95));

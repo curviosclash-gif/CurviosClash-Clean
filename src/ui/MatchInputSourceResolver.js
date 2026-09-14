@@ -8,7 +8,6 @@ const GAMEPAD_MAPPING = Object.freeze({
     yawAxis: 0,
     rollAxis: 2,
     fireButton: 7,
-    rocketButton: 5,
     boostButton: 0,
     shootMGButton: 6,
     nextItemButton: 3,
@@ -123,8 +122,8 @@ function createGamepadInputSource(gamepadIndex = 0) {
                 cameraSwitch: this._buttonPressed(gamepad, GAMEPAD_MAPPING.cameraButton),
                 dropItem: false,
                 useItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.useItemButton),
-                shootItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.fireButton),
-                shootRocket: this._buttonPressed(gamepad, GAMEPAD_MAPPING.rocketButton),
+                shootItem: false,
+                shootRocket: this._buttonPressed(gamepad, GAMEPAD_MAPPING.fireButton),
                 shootMG: this._buttonDown(gamepad, GAMEPAD_MAPPING.shootMGButton),
                 nextItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.nextItemButton),
             };

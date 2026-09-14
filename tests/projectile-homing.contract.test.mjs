@@ -273,7 +273,7 @@ test('all fired hunt items acquire and pursue targets without becoming rockets',
         },
         peekInventoryItem: () => ({ ok: true, type: 'SLOW_DOWN' }),
         takeInventoryItem: () => ({ ok: true, type: 'SLOW_DOWN' }),
-        resolveLockOn: () => null,
+        resolveLockOn: (_player, profile) => (profile === 'item' ? target : null),
         getStrategy: () => new HuntModeStrategy({ entityRuntimeConfig }),
     });
 
@@ -284,8 +284,8 @@ test('all fired hunt items acquire and pursue targets without becoming rockets',
     const projectile = projectiles.projectiles[0];
     assert.equal(projectile.homingEnabled, true);
     assert.equal(projectile.huntRocket, false);
-    assert.equal(isPlayerTargetDescriptor(projectile.target), true);
-    assert.equal(projectile.target.playerIndex, target.index);
+    assert.equal(projectile.itemHomingProfile, true);
+    assert.equal(projectile.target, target);
 
     const beforeVz = projectile.velocity.z;
     projectiles.update(1 / 60);

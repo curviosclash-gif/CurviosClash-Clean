@@ -20,7 +20,7 @@ import { createMatchRuntimePlayerProjection } from '../src/shared/contracts/Matc
 function createProjectilePlayer() {
     return {
         index: 0,
-        inventory: ['EMP'],
+        inventory: ['SLOW_DOWN'],
         rocketInventory: ['ROCKET_WEAK', 'ROCKET_HEAVY'],
         selectedItemIndex: 0,
         shootCooldown: 0,
@@ -32,21 +32,23 @@ function createProjectilePlayer() {
 }
 
 function createProjectileSystem() {
+    const itemTarget = { index: 1, alive: true, position: new THREE.Vector3(0, 0, -40) };
     const system = new ProjectileSystem({
         entityRuntimeConfig: CONFIG,
         getStrategy: () => ({
             getPickupModeType: () => 'HUNT',
-            resolveRocketProjectileParams: () => ({
+            resolveRocketProjectileParams: (type) => (String(type).startsWith('ROCKET_') ? {
                 visualScale: 1,
                 collisionRadiusMultiplier: 1,
                 homingTurnRate: 3,
                 homingLockOnAngle: 15,
                 homingRange: 100,
                 homingReacquireInterval: 0.2,
-            }),
+            } : null),
         }),
         peekInventoryItem: (player, index) => ({ ok: true, type: player.inventory[index], meta: { index } }),
         takeInventoryItem: (player, index) => ({ ok: true, type: player.inventory.splice(index, 1)[0] }),
+        resolveLockOn: (_player, profile) => (profile === 'item' ? itemTarget : null),
     });
     system._acquireProjectileMesh = () => new THREE.Group();
     system._rocketTrailSystem.initializeProjectile = () => {};
@@ -80,10 +82,10 @@ test('rocket shots are FIFO, blocked shots consume nothing, then nonrocket proje
     player.shootCooldown = 0.5;
     assert.equal(system.shootItemProjectile(player, -1, true).ok, false);
     assert.deepEqual(player.rocketInventory, ['ROCKET_WEAK', 'ROCKET_HEAVY']);
-    assert.deepEqual(player.inventory, ['EMP']);
+    assert.deepEqual(player.inventory, ['SLOW_DOWN']);
 
     player.shootCooldown = 0;
-    assert.equal(system.shootItemProjectile(player, 0).type, 'EMP');
+    assert.equal(system.shootItemProjectile(player, 0).type, 'SLOW_DOWN');
     assert.deepEqual(player.inventory, []);
     assert.deepEqual(player.rocketInventory, ['ROCKET_WEAK', 'ROCKET_HEAVY']);
     player.shootCooldown = 0;
@@ -93,10 +95,10 @@ test('rocket shots are FIFO, blocked shots consume nothing, then nonrocket proje
     assert.equal(system.shootItemProjectile(player, -1, true).type, 'ROCKET_HEAVY');
     assert.deepEqual(player.rocketInventory, []);
     player.shootCooldown = 0;
-    player.inventory.push('EMP');
+    player.inventory.push('SLOW_DOWN');
     const projectileCount = system.projectiles.length;
     assert.equal(system.shootItemProjectile(player, -1, true).ok, false);
-    assert.deepEqual(player.inventory, ['EMP']);
+    assert.deepEqual(player.inventory, ['SLOW_DOWN']);
     assert.equal(system.projectiles.length, projectileCount);
 });
 

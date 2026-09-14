@@ -28,16 +28,16 @@ function resetInput(input) {
 }
 
 export function resolvePreferredFourPlayerPlanarAction(availability, mode = FOUR_PLAYER_PLANAR_MODES.CLASSIC) {
-    if (!availability.hasItem && !availability.hasRocket) return { useItem: false, shootItem: false, shootRocket: false };
+    const none = { useItem: false, shootItem: false, shootRocket: false };
+    if (!availability.hasItem && !availability.hasRocket) return none;
 
-    const preferShoot = mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
-    if (preferShoot && availability.selectedCanShootNow) return { useItem: false, shootItem: true, shootRocket: false };
-    if (preferShoot && availability.canShootRocketNow) return { useItem: false, shootItem: false, shootRocket: true };
-    if (!preferShoot && availability.canUseNow) return { useItem: true, shootItem: false, shootRocket: false };
-    if (availability.canUseNow) return { useItem: true, shootItem: false, shootRocket: false };
-    if (availability.selectedCanShootNow) return { useItem: false, shootItem: true, shootRocket: false };
-    if (availability.canShootRocketNow) return { useItem: false, shootItem: false, shootRocket: true };
-    return { useItem: false, shootItem: false, shootRocket: false };
+    // One context key: Hunt reaches for the next rocket first, other modes for the selected item.
+    const rocket = { useItem: false, shootItem: false, shootRocket: true };
+    const item = { useItem: true, shootItem: false, shootRocket: false };
+    if (mode === FOUR_PLAYER_PLANAR_MODES.HUNT && availability.canShootRocketNow) return rocket;
+    if (availability.canUseNow) return item;
+    if (availability.canShootRocketNow) return rocket;
+    return none;
 }
 
 export function resolveFourPlayerPlanarContextAction(player, mode = FOUR_PLAYER_PLANAR_MODES.CLASSIC) {

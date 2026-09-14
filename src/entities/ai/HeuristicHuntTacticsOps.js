@@ -257,6 +257,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         preferDefense: projectileThreat || survivalPressure > 0.62,
         preferTraversal: survivalPressure > 0.72 || vitalityRatio < 0.38,
         enemyClose: targetDistanceSq <= 22 * 22,
+        enemyDistanceSq: targetDistanceSq,
         crashRisk: projectileThreat ? 1 : (pressureLevel > 0.64 ? 0.5 : 0),
     });
 

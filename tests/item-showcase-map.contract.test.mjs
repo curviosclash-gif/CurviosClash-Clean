@@ -14,15 +14,19 @@ import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
-test('item showcase publishes one authored anchor for every registered item', () => {
+test('item showcase publishes one authored anchor for every playable item', () => {
     const map = SHOWCASE_MAPS.item_showcase;
+    // Retired types such as PURGE stay registered for old data but are playable in no mode.
+    const playableTypes = getPickupTypes().filter((type) => (
+        ['CLASSIC', 'ARCADE', 'HUNT'].some((mode) => isPickupTypeAllowedForMode(type, mode))
+    ));
 
     assert.equal(MAP_PRESETS_BASE.item_showcase, map);
     assert.equal(map.itemSpawnMode, 'anchor-only');
     assert.equal(map.keepAuthoredItemsAvailable, true);
     assert.deepEqual(
         new Set(map.items.map((item) => item.pickupType)),
-        new Set(getPickupTypes()),
+        new Set(playableTypes),
     );
 });
 

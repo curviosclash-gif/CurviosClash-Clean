@@ -11,6 +11,10 @@ import {
     resolveHuntTargetPosition,
 } from '../../../hunt/HuntTargetingOps.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
+import {
+    ITEM_PROJECTILE_TARGETING_PROFILE,
+    resolveItemProjectileTarget,
+} from './ItemProjectileTargetingOps.js';
 
 function clamp01(value) {
     const numeric = Number(value);
@@ -115,6 +119,20 @@ export class ProjectileSimulationOps {
         const config = resolveEntityRuntimeConfig(this.system);
         const rocketRuntime = resolveRocketRuntime(config);
         if (!projectile || !Array.isArray(players) || players.length === 0) return null;
+
+        if (projectile.itemHomingProfile) {
+            this._tmpVec2.copy(projectile.velocity);
+            if (this._tmpVec2.lengthSq() <= rocketRuntime.homingSpeedEpsilon ** 2) return null;
+            this._tmpVec2.normalize();
+            return resolveItemProjectileTarget({
+                owner: projectile.owner,
+                players,
+                origin: projectile.position,
+                direction: this._tmpVec2,
+                scratch: this._tmpVec,
+                currentTarget: projectile.target,
+            });
+        }
 
         const owner = projectile.owner;
         const homingEnabled = projectile.homingEnabled || projectile.huntRocket;
@@ -347,13 +365,16 @@ export class ProjectileSimulationOps {
                 isPlayerTargetDescriptor(projectile.target)
                 || projectile.target === targetPlayer
             );
-            if (leadOnPlayer && rocketRuntime.homingLeadTimeMax > 0) {
+            const homingLeadTimeMax = projectile.itemHomingProfile
+                ? ITEM_PROJECTILE_TARGETING_PROFILE.leadTimeMax
+                : rocketRuntime.homingLeadTimeMax;
+            if (leadOnPlayer && homingLeadTimeMax > 0) {
                 this._tmpVec2.copy(projectile.velocity);
                 const rocketSpeed = this._tmpVec2.length();
                 if (rocketSpeed > rocketRuntime.homingSpeedEpsilon) {
                     const distance = this._tmpVec.subVectors(targetPosition, projectile.position).length();
                     const leadTime = Math.min(
-                        rocketRuntime.homingLeadTimeMax,
+                        homingLeadTimeMax,
                         distance / rocketSpeed
                     );
                     targetPosition.addScaledVector(targetPlayer.velocity, leadTime);

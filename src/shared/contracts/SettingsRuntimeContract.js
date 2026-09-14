@@ -48,7 +48,6 @@ export function normalizeControlBindings(source, fallback, { guardCombatConflict
     const base = fallback || {};
 
     const shoot = src.SHOOT || base.SHOOT;
-    let shootRocket = src.SHOOT_ROCKET || base.SHOOT_ROCKET;
     let shootMg = src.SHOOT_MG || base.SHOOT_MG;
     // Backward compatibility: legacy snapshots used DROP for this action.
     let useItem = src.USE_ITEM || src.DROP || base.USE_ITEM || base.DROP;
@@ -60,15 +59,9 @@ export function normalizeControlBindings(source, fallback, { guardCombatConflict
                 shootMg = fallbackShootMg;
             }
         }
-        if (shootRocket === shoot || shootRocket === shootMg) {
-            const fallbackShootRocket = base.SHOOT_ROCKET;
-            if (fallbackShootRocket && fallbackShootRocket !== shoot && fallbackShootRocket !== shootMg) {
-                shootRocket = fallbackShootRocket;
-            }
-        }
-        if (useItem === shoot || useItem === shootRocket || useItem === shootMg) {
+        if (useItem === shoot || useItem === shootMg) {
             const fallbackUseItem = base.USE_ITEM || base.DROP;
-            if (fallbackUseItem && fallbackUseItem !== shoot && fallbackUseItem !== shootRocket && fallbackUseItem !== shootMg) {
+            if (fallbackUseItem && fallbackUseItem !== shoot && fallbackUseItem !== shootMg) {
                 useItem = fallbackUseItem;
             }
         }
@@ -83,7 +76,6 @@ export function normalizeControlBindings(source, fallback, { guardCombatConflict
         ROLL_RIGHT: src.ROLL_RIGHT || base.ROLL_RIGHT,
         BOOST: src.BOOST || base.BOOST,
         SHOOT: shoot,
-        SHOOT_ROCKET: shootRocket,
         SHOOT_MG: shootMg,
         NEXT_ITEM: src.NEXT_ITEM || base.NEXT_ITEM,
         USE_ITEM: useItem,

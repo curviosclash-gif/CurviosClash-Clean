@@ -5,7 +5,6 @@ export const TOUCH_CONTROL_MODES = Object.freeze({
 
 const JOYSTICK_BUTTON_DEFINITIONS = Object.freeze([
     Object.freeze({ id: 'fire', label: 'FIRE', bottom: '36%', right: '5%', size: 62 }),
-    Object.freeze({ id: 'rocket', label: 'RKT', bottom: '68%', right: '5%', size: 54 }),
     Object.freeze({ id: 'useItem', label: 'USE', bottom: '20%', right: '5%', size: 62 }),
     Object.freeze({ id: 'shootMG', label: 'MG', bottom: '36%', right: '20%', size: 54 }),
     Object.freeze({ id: 'nextItem', label: 'NEXT', bottom: '20%', right: '20%', size: 54 }),
@@ -14,7 +13,6 @@ const JOYSTICK_BUTTON_DEFINITIONS = Object.freeze([
 
 const TILT_BUTTON_DEFINITIONS = Object.freeze([
     Object.freeze({ id: 'fire', label: 'SCHUSS', bottom: '9%', right: '6%', size: 86 }),
-    Object.freeze({ id: 'rocket', label: 'RKT', bottom: '24%', right: '6%', size: 54 }),
     Object.freeze({ id: 'useItem', label: 'ITEM', bottom: '9%', right: '35%', size: 58 }),
     Object.freeze({ id: 'nextItem', label: 'NXT', bottom: '9%', right: '52%', size: 52 }),
     Object.freeze({ id: 'boost', label: 'BOOST', bottom: '24%', right: '24%', size: 56 }),

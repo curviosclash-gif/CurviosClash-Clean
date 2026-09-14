@@ -32,7 +32,10 @@ function createProjectileSystem({ type = 'ROCKET_MEDIUM', onProjectileHit = () =
         arena: null,
         peekInventoryItem: () => ({ ok: true, type }),
         takeInventoryItem: () => ({ ok: true, type }),
-        resolveLockOn: () => null,
+        // Item projectiles only launch with a locked vehicle; rockets fly without one.
+        resolveLockOn: (_player, profile) => (profile === 'item'
+            ? players.find((player) => player !== owner && player.alive) || null
+            : null),
         getStrategy: () => new HuntModeStrategy({ entityRuntimeConfig }),
         onProjectileHit,
     });
@@ -54,7 +57,8 @@ test('hunt rockets receive three times the projectile lifetime and distance', ()
 });
 
 test('non-rocket hunt projectiles keep the configured lifetime and distance', () => {
-    const { entityRuntimeConfig, owner, system } = createProjectileSystem({ type: 'SLOW_DOWN' });
+    const { entityRuntimeConfig, owner, players, system } = createProjectileSystem({ type: 'SLOW_DOWN' });
+    players.push({ index: 1, alive: true, position: new THREE.Vector3(80, 0, 0) });
 
     const shot = system.shootItemProjectile(owner, 0);
 

@@ -10,6 +10,10 @@ import {
     buildGameplayActionResult,
 } from '../../../shared/contracts/GameplayActionResultContract.js';
 import { configureProjectileRange } from './ProjectileStatePool.js';
+import {
+    ITEM_PROJECTILE_TARGETING_PROFILE,
+    isItemProjectileType,
+} from './ItemProjectileTargetingOps.js';
 
 function failed(code, message, type = null) {
     return buildGameplayActionResult({ ok: false, code, message, type });
@@ -55,7 +59,8 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     }
     const rocketParams = strategy?.resolveRocketProjectileParams(type, config) || null;
     const huntRocket = !!rocketParams;
-    const homingEnabled = modeType === 'HUNT';
+    const itemHomingProfile = !huntRocket && isItemProjectileType(type);
+    const homingEnabled = itemHomingProfile || modeType === 'HUNT';
     const rocketConfig = config?.HUNT?.ROCKET || {};
     const targetingConfig = config?.HUNT?.TARGETING || {};
     const homingMinTurnRate = Math.max(0.000001, Number(rocketConfig.HOMING_MIN_TURN_RATE) || 0.1);
@@ -69,14 +74,20 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     const visualScale = huntRocket ? rocketParams.visualScale : 1;
     const collisionRadiusMultiplier = huntRocket ? rocketParams.collisionRadiusMultiplier : 1;
     const baseTurnRate = Math.max(homingMinTurnRate, Number(config?.HOMING?.TURN_RATE || 3));
-    const homingTurnRate = huntRocket ? Math.max(baseTurnRate, rocketParams.homingTurnRate) : baseTurnRate;
+    const homingTurnRate = itemHomingProfile
+        ? ITEM_PROJECTILE_TARGETING_PROFILE.turnRate
+        : (huntRocket ? Math.max(baseTurnRate, rocketParams.homingTurnRate) : baseTurnRate);
     const baseLockOnAngle = Math.max(homingMinLockOnAngle, Number(config?.HOMING?.LOCK_ON_ANGLE || 15));
-    const homingLockOnAngle = huntRocket ? Math.max(baseLockOnAngle, rocketParams.homingLockOnAngle) : baseLockOnAngle;
+    const homingLockOnAngle = itemHomingProfile
+        ? ITEM_PROJECTILE_TARGETING_PROFILE.lockOnAngleDegrees
+        : (huntRocket ? Math.max(baseLockOnAngle, rocketParams.homingLockOnAngle) : baseLockOnAngle);
     const baseHomingRange = Math.max(homingMinRange, Number(config?.HOMING?.MAX_LOCK_RANGE || 100));
-    const homingRange = huntRocket ? Math.max(baseHomingRange, rocketParams.homingRange) : baseHomingRange;
-    const homingReacquireInterval = huntRocket
-        ? rocketParams.homingReacquireInterval
-        : fallbackReacquireInterval;
+    const homingRange = itemHomingProfile
+        ? ITEM_PROJECTILE_TARGETING_PROFILE.range
+        : (huntRocket ? Math.max(baseHomingRange, rocketParams.homingRange) : baseHomingRange);
+    const homingReacquireInterval = itemHomingProfile
+        ? ITEM_PROJECTILE_TARGETING_PROFILE.reacquireInterval
+        : (huntRocket ? rocketParams.homingReacquireInterval : fallbackReacquireInterval);
     const projectileSpawnOffset = Math.max(
         0.1,
         Number(targetingConfig.PROJECTILE_SPAWN_OFFSET) || Number(targetingConfig.MUZZLE_OFFSET) || 2.2
@@ -89,7 +100,10 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     system._tmpFanAxis.crossVectors(system._tmpDir, system._tmpFanRight);
     if (system._tmpFanAxis.lengthSq() <= 0.000001) system._tmpFanAxis.set(0, 1, 0);
     else system._tmpFanAxis.normalize();
-    const lockOnTarget = system.resolveLockOn(player);
+    const lockOnTarget = system.resolveLockOn(player, itemHomingProfile ? 'item' : 'rocket');
+    if (itemHomingProfile && (!lockOnTarget || !lockOnTarget.alive || lockOnTarget.decoyActive)) {
+        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_FORBIDDEN, 'Kein Ziel', type);
+    }
     let firstProjectile = null;
     for (let i = 0; i < projectileCount; i += 1) {
         applyWeaponFanDirection(system._tmpDir, system._tmpFanAxis, i, projectileCount, system._tmpFanDirection);
@@ -108,6 +122,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.type = type;
         projectile.huntRocket = huntRocket;
         projectile.homingEnabled = homingEnabled;
+        projectile.itemHomingProfile = itemHomingProfile;
         projectile.visualScale = visualScale;
         projectile.position.copy(system._tmpVec);
         projectile.velocity.copy(system._tmpFanDirection).multiplyScalar(config.PROJECTILE.SPEED);
@@ -129,6 +144,8 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         }
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
+        projectile.ignoresTrails = itemHomingProfile;
+        projectile.ignoresTurrets = itemHomingProfile;
         system._rocketTrailSystem.initializeProjectile(projectile);
         system.projectiles.push(projectile);
         if (!firstProjectile) firstProjectile = projectile;

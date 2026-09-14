@@ -584,8 +584,8 @@ test('item slots expose the bound key, not the slot number, for the usable actio
         const game = {
             inputManager: {
                 bindings: {
-                    PLAYER_1: { SHOOT: 'KeyF', SHOOT_ROCKET: 'KeyV', USE_ITEM: 'KeyG' },
-                    PLAYER_2: { SHOOT: 'ArrowUp', SHOOT_ROCKET: 'Numpad0', USE_ITEM: 'Quote' },
+                    PLAYER_1: { SHOOT: 'KeyF', USE_ITEM: 'KeyG' },
+                    PLAYER_2: { SHOOT: 'ArrowUp', USE_ITEM: 'Quote' },
                 },
             },
         };
@@ -596,7 +596,7 @@ test('item slots expose the bound key, not the slot number, for the usable actio
         runtime._updateItemBar(p1Container, player, { modeId: 'HUNT' }, 0);
         const p1Key = runtime._rocketBars.get(p1Container).children[0].dataset.actionKey;
         assert.ok(p1Key.length > 0, 'a key cap is rendered for a usable slot');
-        assert.match(p1Key, /V/, `P1 rocket key comes from its own bindings, got ${p1Key}`);
+        assert.match(p1Key, /F/, `P1 rocket key comes from its own shoot binding, got ${p1Key}`);
         assert.ok(
             String(runtime._rocketBars.get(p1Container).children[0].ariaLabel).includes(p1Key),
             'the key also reaches the accessible label'

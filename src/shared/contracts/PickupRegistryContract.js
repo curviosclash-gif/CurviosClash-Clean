@@ -31,6 +31,7 @@ function createPickupDefinition(definition) {
         stackPolicy: String(definition.stackPolicy || 'refresh'),
         effectCategory: String(definition.effectCategory || definition.visualKind || ''),
         animationKind: String(definition.animationKind || 'float'),
+        playable: definition.playable !== false,
     });
 }
 
@@ -42,11 +43,12 @@ export const PICKUP_REGISTRY = Object.freeze({
         name: 'Schneller',
         color: 0x00ff66,
         icon: '⚡',
-        duration: 4,
+        description: 'Beschleunigt den getroffenen Gegner 8 Sekunden lang auf 160 % Grundgeschwindigkeit.',
+        duration: 8,
         multiplier: 1.6,
-        selfUsable: true,
-        shootable: false,
-        offensive: false,
+        selfUsable: false,
+        shootable: true,
+        offensive: true,
         projectileOnly: false,
         allowedModes: ALL_GAME_MODES,
         observationSlot: 0,
@@ -57,18 +59,19 @@ export const PICKUP_REGISTRY = Object.freeze({
         aliases: ['ITEM_BATTERY'],
         spawnWeights: { CLASSIC: 1.15, ARCADE: 1.1 },
         botRule: {
-            self: 0.8,
-            offense: 0.2,
-            defensiveScale: 0.5,
-            emergencyScale: 0.1,
-            combatSelf: 0.2,
+            self: -0.8,
+            offense: 0.85,
+            defensiveScale: 0,
+            emergencyScale: 0,
+            combatSelf: -0.3,
         },
     }),
     SLOW_DOWN: createPickupDefinition({
         name: 'Langsamer',
+        description: 'Verlangsamt den getroffenen Gegner 8 Sekunden lang auf halbe Geschwindigkeit.',
         color: 0xff3333,
         icon: '🐢',
-        duration: 4,
+        duration: 8,
         multiplier: 0.5,
         selfUsable: false,
         shootable: true,
@@ -91,10 +94,11 @@ export const PICKUP_REGISTRY = Object.freeze({
     }),
     THICK: createPickupDefinition({
         name: 'Dick',
+        description: 'Erzeugt 10 Sekunden lang neue Spur mit 3 Einheiten Breite.',
         color: 0xffcc00,
         icon: '🧱',
-        duration: 5,
-        trailWidth: 1.8,
+        duration: 10,
+        trailWidth: 3,
         selfUsable: true,
         shootable: false,
         offensive: false,
@@ -115,9 +119,10 @@ export const PICKUP_REGISTRY = Object.freeze({
     }),
     THIN: createPickupDefinition({
         name: 'Dünn',
+        description: 'Der getroffene Gegner erzeugt 10 Sekunden lang neue Spur mit 0,2 Einheiten Breite.',
         color: 0xaa44ff,
         icon: '✂',
-        duration: 5,
+        duration: 10,
         trailWidth: 0.2,
         selfUsable: false,
         shootable: true,
@@ -236,19 +241,20 @@ export const PICKUP_REGISTRY = Object.freeze({
     }),
     SLOW_TIME: createPickupDefinition({
         name: 'Zeitlupe',
+        description: 'Verlangsamt das gesamte Spiel 10 Sekunden lang auf 40 % Spielgeschwindigkeit.',
         color: 0x44ff88,
         icon: '🕙',
-        duration: 4,
+        duration: 10,
         timeScale: 0.4,
         selfUsable: true,
         shootable: false,
         offensive: false,
         projectileOnly: false,
-        allowedModes: ['CLASSIC', 'ARCADE'],
+        allowedModes: ALL_GAME_MODES,
         observationSlot: 5,
         visualKind: 'slow-time',
         animationKind: 'orbit',
-        spawnWeights: { CLASSIC: 0.35, ARCADE: 0.45, HUNT: 0 },
+        spawnWeights: { CLASSIC: 0.35, ARCADE: 0.45, HUNT: 1 },
         botRule: {
             self: 0.7,
             offense: 0.35,
@@ -259,9 +265,10 @@ export const PICKUP_REGISTRY = Object.freeze({
     }),
     GHOST: createPickupDefinition({
         name: 'Geist',
+        description: 'Ignoriert 10 Sekunden lang die bestehende Kollisionswirkung.',
         color: 0xff66cc,
         icon: '👻',
-        duration: 3,
+        duration: 10,
         selfUsable: true,
         shootable: false,
         offensive: false,
@@ -281,9 +288,10 @@ export const PICKUP_REGISTRY = Object.freeze({
     }),
     INVERT: createPickupDefinition({
         name: 'Invertieren',
+        description: 'Kehrt die Steuerung des getroffenen Gegners 8 Sekunden lang um.',
         color: 0xff00ff,
         icon: '🔀',
-        duration: 4,
+        duration: 8,
         selfUsable: false,
         shootable: true,
         offensive: true,
@@ -394,7 +402,7 @@ export function getRocketPickupTypes() {
 export function isPickupTypeAllowedForMode(type, modeType) {
     const definition = getPickupDefinition(type);
     const normalizedMode = normalizeModeType(modeType);
-    if (!definition || !normalizedMode) return false;
+    if (!definition || definition.playable === false || !normalizedMode) return false;
     return definition.allowedModes.includes(normalizedMode);
 }
 
@@ -475,49 +483,4 @@ export function createPickupBotRuleMap() {
         return acc;
     }, {});
     return Object.freeze(rules);
-}
-
-function createPickupTypeConfigEntry(definition) {
-    const entry = {
-        name: definition.name,
-        description: String(definition.description || ''),
-        color: definition.color,
-        icon: definition.icon,
-        duration: Number.isFinite(Number(definition.duration)) ? Number(definition.duration) : 0,
-        animationKind: definition.animationKind,
-    };
-    if (Number.isFinite(Number(definition.multiplier))) {
-        entry.multiplier = Number(definition.multiplier);
-    }
-    if (Number.isFinite(Number(definition.trailWidth))) {
-        entry.trailWidth = Number(definition.trailWidth);
-    }
-    if (Number.isFinite(Number(definition.timeScale))) {
-        entry.timeScale = Number(definition.timeScale);
-    }
-    if (Number.isFinite(Number(definition.damage))) {
-        entry.damage = Number(definition.damage);
-    }
-    if (Number.isFinite(Number(definition.healing))) {
-        entry.healing = Number(definition.healing);
-    }
-    if (Number.isFinite(Number(definition.pickupRadiusMultiplier))) {
-        entry.pickupRadiusMultiplier = Number(definition.pickupRadiusMultiplier);
-    }
-    if (Number.isFinite(Number(definition.fanProjectiles))) {
-        entry.fanProjectiles = Number(definition.fanProjectiles);
-    }
-    if (definition.allowedModes.length === 1 && definition.allowedModes[0] === 'HUNT') {
-        entry.huntOnly = true;
-    }
-    entry.spawnWeights = definition.spawnWeights;
-    return Object.freeze(entry);
-}
-
-export function createPickupTypeConfigMap() {
-    const configMap = PICKUP_TYPES.reduce((acc, type) => {
-        acc[type] = createPickupTypeConfigEntry(PICKUP_REGISTRY[type]);
-        return acc;
-    }, {});
-    return Object.freeze(configMap);
 }

@@ -13,7 +13,6 @@ const ACTION_KEYS = [
     'ROLL_RIGHT',
     'BOOST',
     'SHOOT',
-    'SHOOT_ROCKET',
     'SHOOT_MG',
     'NEXT_ITEM',
     'USE_ITEM',
@@ -310,8 +309,8 @@ export class InputManager {
         this._reuseInput.boostPressed = this._wasActionPressed(keyMap.BOOST, altKeyMap?.BOOST || '');
         this._reuseInput.cameraSwitch = this._wasActionPressed(keyMap.CAMERA, altKeyMap?.CAMERA || '');
         this._reuseInput.useItem = this._wasActionPressed(keyMap.USE_ITEM, altKeyMap?.USE_ITEM || '');
-        this._reuseInput.shootItem = this._wasActionPressed(keyMap.SHOOT, altKeyMap?.SHOOT || '');
-        this._reuseInput.shootRocket = this._wasActionPressed(keyMap.SHOOT_ROCKET, altKeyMap?.SHOOT_ROCKET || '');
+        // The shoot key fires the next queued rocket; every item action runs through USE_ITEM.
+        this._reuseInput.shootRocket = this._wasActionPressed(keyMap.SHOOT, altKeyMap?.SHOOT || '');
         this._reuseInput.shootMG = this._isActionDown(keyMap.SHOOT_MG, altKeyMap?.SHOOT_MG || '');
         this._reuseInput.nextItem = this._wasActionPressed(keyMap.NEXT_ITEM, altKeyMap?.NEXT_ITEM || '');
 

@@ -149,9 +149,11 @@ test('all four keyboard groups support steering, context action and configurable
     });
     assert.equal(sources.length, 4);
 
-    const dual = { hasItem: true, canUseNow: true, selectedCanShootNow: true };
+    const dual = { hasItem: true, hasRocket: true, canUseNow: true, canShootRocketNow: true };
     assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'classic'), { useItem: true, shootItem: false, shootRocket: false });
-    assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'hunt'), { useItem: false, shootItem: true, shootRocket: false });
+    assert.deepEqual(resolvePreferredFourPlayerPlanarAction(dual, 'hunt'), { useItem: false, shootItem: false, shootRocket: true });
+    const itemOnly = { hasItem: true, hasRocket: false, canUseNow: true, canShootRocketNow: false };
+    assert.deepEqual(resolvePreferredFourPlayerPlanarAction(itemOnly, 'hunt'), { useItem: true, shootItem: false, shootRocket: false });
 });
 
 test('four-player planar physics restores height and pitch while preserving manual roll after curve, collision and respawn changes', () => {

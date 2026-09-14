@@ -114,7 +114,7 @@ export class TouchInputSource extends PlayerInputSource {
         this._tiltCalibration = this._tiltSensorLifecycle.calibration;
 
         this._buttons = {
-            fire: false, rocket: false,
+            fire: false,
             useItem: false,
             boost: false,
             boostPressed: false,
@@ -436,15 +436,13 @@ export class TouchInputSource extends PlayerInputSource {
 
     _syncActionButtons(actionState) {
         const typeLabel = actionState?.rawType ? actionState.rawType.replace(/_/g, ' ') : 'Kein Item';
+        // The fire button launches the next queued rocket; items fire through the use button.
         this._setButtonVisualState('fire', {
-            enabled: !!actionState?.selectedCanShootNow,
+            enabled: !!actionState?.canShootRocketNow,
             visible: true,
-            title: actionState?.selectedCanShoot
-                ? `${typeLabel}${actionState.canShootNow ? '' : ` | Shoot-CD ${actionState.shootCooldownRemaining.toFixed(1)}s`}`
-                : `${typeLabel} | Nicht verschiessbar`,
-        });
-        this._setButtonVisualState('rocket', {
-            enabled: !!actionState?.canShootRocketNow, visible: true, title: actionState?.nextRocketType || 'Keine Rakete',
+            title: actionState?.canShootRocket
+                ? `${actionState.nextRocketType}${actionState.canShootRocketNow ? '' : ` | Shoot-CD ${actionState.shootCooldownRemaining.toFixed(1)}s`}`
+                : 'Keine Rakete',
         });
         this._setButtonVisualState('useItem', {
             enabled: !!actionState?.canUseNow,
@@ -464,8 +462,7 @@ export class TouchInputSource extends PlayerInputSource {
             title: actionState?.showMg ? 'Maschinengewehr' : '',
         });
 
-        if (!actionState?.selectedCanShootNow) this._buttons.fire = false;
-        if (!actionState?.canShootRocketNow) this._buttons.rocket = false;
+        if (!actionState?.canShootRocketNow) this._buttons.fire = false;
         if (!actionState?.canUseNow) this._buttons.useItem = false;
         if (!actionState?.canCycle) this._buttons.nextItem = false;
         if (!actionState?.showMg) this._buttons.shootMG = false;
@@ -499,7 +496,7 @@ export class TouchInputSource extends PlayerInputSource {
 
         const boostDown = this._buttons.boost;
         const boostPressed = this._pendingButtonPresses.delete('boost');
-        const firePressed = this._pendingButtonPresses.delete('fire'); const rocketPressed = this._pendingButtonPresses.delete('rocket');
+        const firePressed = this._pendingButtonPresses.delete('fire');
         const useItemPressed = this._pendingButtonPresses.delete('useItem');
         const nextItemPressed = this._pendingButtonPresses.delete('nextItem');
 
@@ -518,7 +515,8 @@ export class TouchInputSource extends PlayerInputSource {
             cameraSwitch: false,
             dropItem: false,
             useItem: useItemPressed && !!actionState?.canUseNow,
-            shootItem: firePressed && !!actionState?.selectedCanShootNow, shootRocket: rocketPressed && !!actionState?.canShootRocketNow,
+            shootItem: false,
+            shootRocket: firePressed && !!actionState?.canShootRocketNow,
             shootMG: this._buttons.shootMG && !!actionState?.showMg,
             nextItem: nextItemPressed && !!actionState?.canCycle,
         };

@@ -178,7 +178,7 @@ test('Mobile Arcade touch contract uses tilt controls, pause, and edge-triggered
     includePauseButton: true,
   }).map((button) => button.id);
 
-  assert.deepEqual(tiltButtons, ['fire', 'rocket', 'useItem', 'nextItem', 'boost', 'pause']);
+  assert.deepEqual(tiltButtons, ['fire', 'useItem', 'nextItem', 'boost', 'pause']);
 
   let pauseCount = 0;
   const source = new TouchInputSource({
@@ -197,7 +197,7 @@ test('Mobile Arcade touch contract uses tilt controls, pause, and edge-triggered
   });
   source._resolveActionState = () => ({
     canShootNow: true,
-    selectedCanShootNow: true,
+    canShootRocketNow: true,
     canUseNow: true,
     canCycle: true,
     showMg: false,
@@ -216,10 +216,11 @@ test('Mobile Arcade touch contract uses tilt controls, pause, and edge-triggered
   const firstPoll = source.poll();
   const secondPoll = source.poll();
 
-  assert.equal(firstPoll.shootItem, true);
+  assert.equal(firstPoll.shootRocket, true);
+  assert.equal(firstPoll.shootItem, false);
   assert.equal(firstPoll.useItem, true);
   assert.equal(firstPoll.nextItem, true);
-  assert.equal(secondPoll.shootItem, false);
+  assert.equal(secondPoll.shootRocket, false);
   assert.equal(secondPoll.useItem, false);
   assert.equal(secondPoll.nextItem, false);
 

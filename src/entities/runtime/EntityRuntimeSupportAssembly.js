@@ -41,7 +41,9 @@ export function createEntityRuntimeSupport(owner) {
         getStrategy: () => owner.gameModeStrategy || null,
         peekInventoryItem: (player, preferredIndex, action) => owner._peekInventoryItem(player, preferredIndex, action),
         takeInventoryItem: (player, preferredIndex, action) => owner._takeInventoryItem(player, preferredIndex, action),
-        resolveLockOn: (player) => owner._checkLockOn(player),
+        resolveLockOn: (player, profile) => (profile === 'item'
+            ? owner._huntCombatSystem.checkItemLockOn(player)
+            : owner._checkLockOn(player)),
         getTrailSpatialIndex: () => owner._trailSpatialIndex,
         onShoot: (player, type) => {
             if (!owner.audio || player?.isBot) return;

@@ -13,15 +13,9 @@ import { resolveWeaponFanProjectileCount } from '../hunt/WeaponFanOps.js';
  */
 function resolveSlotKeyLabel(slotAction, keyBindings, inventoryKind = 'items') {
     if (!keyBindings) return '';
-    if (inventoryKind === 'rockets') return formatKeyCodeShort(keyBindings.SHOOT_ROCKET);
-    if (slotAction.canShoot && !slotAction.canUse) return formatKeyCodeShort(keyBindings.SHOOT);
-    if (slotAction.canUse && !slotAction.canShoot) return formatKeyCodeShort(keyBindings.USE_ITEM);
-    if (slotAction.canUse && slotAction.canShoot) {
-        const useKey = formatKeyCodeShort(keyBindings.USE_ITEM);
-        const shootKey = formatKeyCodeShort(keyBindings.SHOOT);
-        return useKey === shootKey ? useKey : `${useKey}/${shootKey}`;
-    }
-    return '';
+    if (inventoryKind === 'rockets') return formatKeyCodeShort(keyBindings.SHOOT);
+    // "Use item" triggers every item action, attack projectiles included.
+    return slotAction.canUse || slotAction.canShoot ? formatKeyCodeShort(keyBindings.USE_ITEM) : '';
 }
 
 export function ensureItemSlots(container, maxInventory) {

@@ -352,10 +352,7 @@ export class EntityManager {
     }
 
     getLockOnTarget(playerIndex) {
-        if (this._lockOnCache.has(playerIndex)) return this._lockOnCache.get(playerIndex);
-        const player = this.players[playerIndex];
-        if (!player || !player.alive) return null;
-        return this._checkLockOn(player);
+        return this._huntCombatSystem.resolveMarkerLockOn(this.players[playerIndex]);
     }
 
     _notifyPlayerFeedback(player, message) { this._eventBus.emitPlayerFeedback(player, message); }

@@ -66,11 +66,11 @@ test('Pickup capability matrix keeps rocket and utility contracts mode-safe', ()
     assert.equal(normalizePickupType('item_rocket'), 'ROCKET_WEAK');
     assert.equal(normalizePickupType('item_health'), 'HEALTH');
     assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'CLASSIC'), true);
-    assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'HUNT'), false);
+    assert.equal(isPickupTypeAllowedForMode('SLOW_TIME', 'HUNT'), true);
     assert.equal(isPickupTypeSelfUsable('SHIELD', 'HUNT'), true);
     assert.equal(isPickupTypeShootable('SHIELD', 'HUNT'), false);
-    assert.equal(isPickupTypeSelfUsable('EMP', 'HUNT'), false);
-    assert.equal(isPickupTypeShootable('EMP', 'HUNT'), true);
+    assert.equal(isPickupTypeSelfUsable('EMP', 'HUNT'), true);
+    assert.equal(isPickupTypeShootable('EMP', 'HUNT'), false);
     assert.equal(isPickupTypeSelfUsable('MINE', 'CLASSIC'), true);
     assert.equal(isPickupTypeAllowedForMode('HEALTH', 'CLASSIC'), false);
     assert.equal(isPickupTypeAllowedForMode('HEALTH', 'ARCADE'), true);
@@ -188,8 +188,8 @@ test('slow time counts active effect durations in real time', () => {
 
     updatePlayerEffects(player, 0.4);
 
-    assert.equal(player.activeEffects.find((effect) => effect.type === 'SLOW_TIME').remaining, 3);
-    assert.equal(player.activeEffects.find((effect) => effect.type === 'SPEED_UP').remaining, 3);
+    assert.equal(player.activeEffects.find((effect) => effect.type === 'SLOW_TIME').remaining, 9);
+    assert.equal(player.activeEffects.find((effect) => effect.type === 'SPEED_UP').remaining, 7);
 });
 
 test('Medipack restores hunt health instead of granting a shield', () => {
@@ -217,7 +217,7 @@ test('Medipack restores hunt health instead of granting a shield', () => {
     assert.equal(player.activeEffects.length, 0);
 });
 
-test('expanded effects replace conflicting stacks and support EMP, purge and deployments', () => {
+test('expanded effects replace conflicting stacks and support EMP, retired purge and deployments', () => {
     let mines = 0;
     const player = {
         entityRuntimeConfig: { ...CONFIG_BASE, HUNT: { ...CONFIG_BASE.HUNT, ACTIVE_MODE: 'CLASSIC' } },
@@ -237,15 +237,16 @@ test('expanded effects replace conflicting stacks and support EMP, purge and dep
     applyPlayerPowerup(player, 'MAGNET');
     applyPlayerPowerup(player, 'DECOY');
     assert.equal(player.trailGapActive, true);
-    assert.equal(player.pickupRadiusMultiplier, 2.4);
+    assert.equal(player.pickupRadiusMultiplier, 5);
     assert.equal(player.decoyActive, true);
 
+    // EMP strips positive effects only; the enemy-imposed trail gap stays.
     applyPlayerPowerup(player, 'EMP');
-    assert.deepEqual(player.activeEffects.map((effect) => effect.type), ['SLOW_DOWN', 'EMP']);
+    assert.deepEqual(player.activeEffects.map((effect) => effect.type), ['SLOW_DOWN', 'TRAIL_GAP', 'EMP']);
     assert.equal(player.itemActionsDisabled, true);
     applyPlayerPowerup(player, 'PURGE');
-    assert.equal(player.activeEffects.length, 0);
-    assert.equal(player.itemActionsDisabled, false);
+    assert.deepEqual(player.activeEffects.map((effect) => effect.type), ['SLOW_DOWN', 'TRAIL_GAP', 'EMP']);
+    assert.equal(player.itemActionsDisabled, true);
     applyPlayerPowerup(player, 'MINE');
     assert.equal(mines, 1);
 });
@@ -435,14 +436,17 @@ test('Shared UI action availability keeps cooldown and capability hints aligned'
         modeType: 'HUNT',
         showMg: true,
     });
-    assert.equal(projectedInventoryState.type, 'ROCKET_WEAK');
+    // Legacy frames carry the rocket inside inventory: it moves to the rocket action.
+    assert.equal(projectedInventoryState.type, 'SHIELD');
+    assert.equal(projectedInventoryState.nextRocketType, 'ROCKET_WEAK');
     assert.equal(projectedInventoryState.hasItem, true);
     assert.equal(projectedInventoryState.canUse, true);
+    assert.equal(projectedInventoryState.canUseNow, false);
     assert.equal(projectedInventoryState.canShoot, true);
     assert.equal(projectedInventoryState.canShootNow, false);
     assert.equal(projectedInventoryState.canCycle, false);
     assert.equal(projectedInventoryState.showMg, true);
-    assert.equal(projectedInventoryState.actionHintLabel, 'DUAL');
+    assert.equal(projectedInventoryState.actionHintLabel, 'USE');
 });
 
 test('Portal- und Gate-Runtimes liefern standardisierte Traversal-Result-Codes', () => {

@@ -3,7 +3,7 @@
 // ============================================
 
 import { HUNT_CONFIG } from '../../hunt/HuntConfig.js';
-import { createPickupTypeConfigMap } from '../../shared/contracts/PickupRegistryContract.js';
+import { createPickupTypeConfigMap } from '../../shared/contracts/PickupTypeConfigContract.js';
 
 export const CONFIG_SECTIONS = {
     // ---- Allgemein ----
@@ -347,7 +347,6 @@ export const CONFIG_SECTIONS = {
             ROLL_RIGHT: 'KeyE',
             BOOST: 'ShiftLeft',
             SHOOT: 'KeyF',
-            SHOOT_ROCKET: 'KeyV',
             SHOOT_MG: 'KeyX',
             NEXT_ITEM: 'KeyR',
             USE_ITEM: 'KeyG',
@@ -362,7 +361,6 @@ export const CONFIG_SECTIONS = {
             ROLL_RIGHT: 'Numpad9',
             BOOST: 'ArrowRight',
             SHOOT: 'ArrowUp',
-            SHOOT_ROCKET: 'Numpad0',
             SHOOT_MG: 'ArrowDown',
             NEXT_ITEM: 'ArrowLeft',
             USE_ITEM: 'Quote',

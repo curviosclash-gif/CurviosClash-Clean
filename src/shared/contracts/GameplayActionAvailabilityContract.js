@@ -87,25 +87,28 @@ export function resolveInventoryActionAvailability({
         useCooldownRemaining: player?.itemUseCooldownRemaining,
         shootCooldownRemaining: player?.shootCooldown,
     }) : null;
-    const canShoot = rocketState?.canShoot === true || selectedState.canShoot;
-    const canShootNow = rocketState?.canShootNow === true || selectedState.canShootNow;
-    const canUse = selectedState.canUse;
-    const canUseNow = selectedState.canUseNow;
+    // "Use item" fires attack items, so the selected slot exposes exactly one action;
+    // the shoot action belongs to the next queued rocket only.
+    const useFiresProjectile = !selectedState.canUse && selectedState.canShoot;
+    const canUse = selectedState.canUse || useFiresProjectile;
+    const canUseNow = useFiresProjectile ? selectedState.canShootNow : selectedState.canUseNow;
+    const canShootRocket = rocketState?.canShoot === true;
+    const canShootRocketNow = rocketState?.canShootNow === true;
 
     return {
         ...selectedState,
-        type: rocketState?.type || selectedState.type,
+        type: selectedState.type || rocketState?.type || '',
         canUse,
         canUseNow,
-        canShoot,
-        canShootNow,
-        selectedCanShoot: selectedState.canShoot,
-        selectedCanShootNow: selectedState.canShootNow,
-        canShootRocket: rocketState?.canShoot === true,
-        canShootRocketNow: rocketState?.canShootNow === true,
-        shootOnCooldown: canShoot && Math.max(0, Number(player?.shootCooldown) || 0) > GAMEPLAY_ACTION_COOLDOWN_EPSILON,
-        hasCooldown: selectedState.useOnCooldown || (canShoot && Math.max(0, Number(player?.shootCooldown) || 0) > GAMEPLAY_ACTION_COOLDOWN_EPSILON),
-        actionHintLabel: resolveActionHintLabel(canUse, canShoot),
+        useFiresProjectile,
+        canShoot: canShootRocket,
+        canShootNow: canShootRocketNow,
+        canShootRocket,
+        canShootRocketNow,
+        useOnCooldown: canUse && !canUseNow,
+        shootOnCooldown: canShootRocket && !canShootRocketNow,
+        hasCooldown: (canUse && !canUseNow) || (canShootRocket && !canShootRocketNow),
+        actionHintLabel: resolveActionHintLabel(selectedState.canUse, useFiresProjectile),
         rawType,
         nextRocketType: rocketState?.type || '',
         rocketInventoryLength: rocketInventory.length,

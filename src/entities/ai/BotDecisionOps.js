@@ -18,6 +18,7 @@ import {
     isPickupTypeShootable,
     normalizePickupType,
 } from '../PickupRegistry.js';
+import { resolveEmpPulseRadius } from '../systems/EmpPulseOps.js';
 
 function resolveHealthRatio(player) {
     const maxHp = Number(player?.maxHp);
@@ -201,6 +202,8 @@ export function decideItemUsage(bot, player, itemRules) {
     for (let i = 0; i < inventory.length; i++) {
         const type = inventory[i];
         const normalizedType = normalizePickupType(type, { fallback: type });
+        // The EMP pulse only reaches enemies inside its radius; outside it the item is wasted.
+        if (normalizedType === 'EMP' && !(bot.sense.targetDistanceSq <= resolveEmpPulseRadius() ** 2)) continue;
         const rule = itemRules[normalizedType] || { self: 0, offense: 0, defensiveScale: 0, emergencyScale: 0, combatSelf: 0 };
         const shieldSaturationPenalty = normalizedType === 'SHIELD'
             ? shieldRatio * 0.65
