@@ -3,12 +3,34 @@ export const TOUCH_CONTROL_MODES = Object.freeze({
     TILT: 'tilt',
 });
 
+// Camera sits top right, clear of the optional pause button (58px at 14px inset).
+// The roll pair sits below the joystick home position (left 5%, bottom 20%, 120px
+// wide) so it never covers the area that starts the floating joystick.
+const CAMERA_BUTTON_DEFINITION = Object.freeze({
+    id: 'camera',
+    label: 'CAM',
+    top: 'max(14px, env(safe-area-inset-top))',
+    right: 'max(80px, calc(env(safe-area-inset-right) + 80px))',
+    size: 48,
+});
+
+const ROLL_BUTTON_DEFINITIONS = Object.freeze([
+    Object.freeze({ id: 'rollLeft', label: 'ROLL L', bottom: '6%', left: '5%', size: 52 }),
+    Object.freeze({ id: 'rollRight', label: 'ROLL R', bottom: '6%', left: 'calc(5% + 64px)', size: 52 }),
+]);
+
+const SHARED_BUTTON_DEFINITIONS = Object.freeze([
+    CAMERA_BUTTON_DEFINITION,
+    ...ROLL_BUTTON_DEFINITIONS,
+]);
+
 const JOYSTICK_BUTTON_DEFINITIONS = Object.freeze([
     Object.freeze({ id: 'fire', label: 'FIRE', bottom: '36%', right: '5%', size: 62 }),
     Object.freeze({ id: 'useItem', label: 'USE', bottom: '20%', right: '5%', size: 62 }),
     Object.freeze({ id: 'shootMG', label: 'MG', bottom: '36%', right: '20%', size: 54 }),
     Object.freeze({ id: 'nextItem', label: 'NEXT', bottom: '20%', right: '20%', size: 54 }),
     Object.freeze({ id: 'boost', label: 'BOOST', bottom: '52%', right: '12%', size: 54 }),
+    ...SHARED_BUTTON_DEFINITIONS,
 ]);
 
 const TILT_BUTTON_DEFINITIONS = Object.freeze([
@@ -16,6 +38,7 @@ const TILT_BUTTON_DEFINITIONS = Object.freeze([
     Object.freeze({ id: 'useItem', label: 'ITEM', bottom: '9%', right: '35%', size: 58 }),
     Object.freeze({ id: 'nextItem', label: 'NXT', bottom: '9%', right: '52%', size: 52 }),
     Object.freeze({ id: 'boost', label: 'BOOST', bottom: '24%', right: '24%', size: 56 }),
+    ...SHARED_BUTTON_DEFINITIONS,
 ]);
 
 const MOBILE_ARCADE_PAUSE_BUTTON_DEFINITION = Object.freeze({

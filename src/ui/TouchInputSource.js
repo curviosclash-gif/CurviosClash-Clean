@@ -10,7 +10,6 @@ import {
     normalizeMobileClassicTiltSensitivity,
 } from '../shared/contracts/MobileClassicControlsContract.js';
 import {
-    applyTouchButtonVisualState,
     applyTouchControlsVisibility,
     createTouchButtonElements,
     createTouchJoystickElements,
@@ -21,6 +20,7 @@ import {
     shouldStartFloatingJoystick,
     TOUCH_CONTROL_MODES,
 } from './touch/TouchControlLayoutOps.js';
+import { TouchButtonStateSync } from './touch/TouchButtonStateSync.js';
 import {
     clamp,
     deriveTiltSteeringState,
@@ -78,6 +78,11 @@ export class TouchInputSource extends PlayerInputSource {
             ? TOUCH_CONTROL_MODES.TILT
             : TOUCH_CONTROL_MODES.JOYSTICK;
         this._includePauseButton = options.includePauseButton === true;
+        this._buttonStateSync = new TouchButtonStateSync({
+            applyVisualState: options.applyButtonVisualState,
+        });
+        this._localSettingsSource = undefined;
+        this._mobileControlsSource = undefined;
         this._mobileControlSettings = normalizeMobileClassicControlSettings(options.mobileControls);
         this._tiltSensitivity = normalizeMobileClassicTiltSensitivity(
             options.tiltSensitivity ?? this._mobileControlSettings.tiltSensitivity
@@ -123,6 +128,9 @@ export class TouchInputSource extends PlayerInputSource {
             nextItem: false,
             dropItem: false,
             shootMG: false,
+            camera: false,
+            rollLeft: false,
+            rollRight: false,
         };
         this._pendingButtonPresses = new Set();
         this._lastPauseRequestAt = 0;
@@ -237,6 +245,8 @@ export class TouchInputSource extends PlayerInputSource {
     _setUIVisibility(visible) {
         this._uiVisible = visible;
         this._overlayActive = this._isBlockingOverlayActive();
+        // Elements and their visibility change here, so the cached button state is stale.
+        this._buttonStateSync.reset();
         applyTouchControlsVisibility({
             containerEl: this._containerEl,
             joystickEl: this._joystickEl,
@@ -413,17 +423,6 @@ export class TouchInputSource extends PlayerInputSource {
         });
     }
 
-    _setButtonVisualState(id, { enabled = true, visible = true, title = '' } = {}) {
-        const button = this._buttonEls[id];
-        if (!button) return;
-        applyTouchButtonVisualState(button, {
-            enabled,
-            visible,
-            title,
-            controlsVisible: this._uiVisible && !this._overlayActive,
-        });
-    }
-
     _requestPause() {
         const nowMs = Date.now();
         if (nowMs - this._lastPauseRequestAt < 350) {
@@ -437,32 +436,11 @@ export class TouchInputSource extends PlayerInputSource {
     }
 
     _syncActionButtons(actionState) {
-        const typeLabel = actionState?.rawType ? actionState.rawType.replace(/_/g, ' ') : 'Kein Item';
-        // The fire button launches the next queued rocket; items fire through the use button.
-        this._setButtonVisualState('fire', {
-            enabled: !!actionState?.canShootRocketNow,
-            visible: true,
-            title: actionState?.canShootRocket
-                ? `${actionState.nextRocketType}${actionState.canShootRocketNow ? '' : ` | Shoot-CD ${actionState.shootCooldownRemaining.toFixed(1)}s`}`
-                : 'Keine Rakete',
-        });
-        this._setButtonVisualState('useItem', {
-            enabled: !!actionState?.canUseNow,
-            visible: true,
-            title: actionState?.canUse
-                ? `${typeLabel}${actionState.canUseNow ? '' : ` | Use-CD ${actionState.useCooldownRemaining.toFixed(1)}s`}`
-                : `${typeLabel} | Nicht direkt nutzbar`,
-        });
-        this._setButtonVisualState('nextItem', {
-            enabled: !!actionState?.canCycle,
-            visible: true,
-            title: actionState?.canCycle ? 'Naechstes Inventar-Item' : 'Kein weiteres Inventar-Item',
-        });
-        this._setButtonVisualState('shootMG', {
-            enabled: !!actionState?.showMg,
-            visible: !!actionState?.showMg,
-            title: actionState?.showMg ? 'Maschinengewehr' : '',
-        });
+        this._buttonStateSync.sync(
+            actionState,
+            this._buttonEls,
+            this._uiVisible && !this._overlayActive
+        );
 
         if (!actionState?.canShootRocketNow) this._buttons.fire = false;
         if (!actionState?.canUseNow) this._buttons.useItem = false;
@@ -471,8 +449,18 @@ export class TouchInputSource extends PlayerInputSource {
     }
 
     _syncMobileControlSettings() {
+        // Every writer of localSettings.mobileControls replaces the object instead of
+        // mutating it (see MenuMobileTiltBindings), so an identity check is enough to
+        // keep poll() free of a normalizer allocation per frame.
+        const localSettings = this._game?.settings?.localSettings || null;
+        const storedControls = localSettings?.mobileControls || null;
+        if (localSettings === this._localSettingsSource && storedControls === this._mobileControlsSource) {
+            return;
+        }
+        this._localSettingsSource = localSettings;
+        this._mobileControlsSource = storedControls;
         this._mobileControlSettings = normalizeMobileClassicControlSettings(
-            this._game?.settings?.localSettings?.mobileControls || this._mobileControlSettings
+            storedControls || this._mobileControlSettings
         );
         this._tiltSensitivity = this._mobileControlSettings.tiltSensitivity;
         this._tiltPitchMode = this._mobileControlSettings.tiltPitchMode;
@@ -497,26 +485,29 @@ export class TouchInputSource extends PlayerInputSource {
         this._syncActionButtons(actionState);
 
         const boostDown = this._buttons.boost;
+        const rollLeftDown = this._buttons.rollLeft;
+        const rollRightDown = this._buttons.rollRight;
         const boostPressed = this._pendingButtonPresses.delete('boost');
         const firePressed = this._pendingButtonPresses.delete('fire');
         const useItemPressed = this._pendingButtonPresses.delete('useItem');
         const nextItemPressed = this._pendingButtonPresses.delete('nextItem');
+        const cameraPressed = this._pendingButtonPresses.delete('camera');
 
         return {
             pitchUp: touchPitchActive ? jy < 0 : (tiltInput ? tiltInput.pitchUp : jy < 0),
             pitchDown: touchPitchActive ? jy > 0 : (tiltInput ? tiltInput.pitchDown : jy > 0),
             yawLeft: tiltInput ? tiltInput.yawLeft : jx < 0,
             yawRight: tiltInput ? tiltInput.yawRight : jx > 0,
-            rollLeft: false,
-            rollRight: false,
+            rollLeft: rollLeftDown,
+            rollRight: rollRightDown,
             pitchAxis: touchPitchActive ? -jy : (tiltInput ? -tiltInput.pitchAxis : -jy),
             yawAxis: tiltInput ? -tiltInput.yawAxis : -jx,
-            rollAxis: 0,
+            rollAxis: (rollLeftDown ? 1 : 0) - (rollRightDown ? 1 : 0),
             boost: boostDown,
             boostPressed,
             // Slow motion has no touch button yet; the fields keep the input shape stable.
             slowMo: false, slowMoPressed: false,
-            cameraSwitch: false,
+            cameraSwitch: cameraPressed,
             dropItem: false,
             useItem: useItemPressed && !!actionState?.canUseNow,
             shootItem: false,

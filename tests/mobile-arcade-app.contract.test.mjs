@@ -178,7 +178,9 @@ test('Mobile Arcade touch contract uses tilt controls, pause, and edge-triggered
     includePauseButton: true,
   }).map((button) => button.id);
 
-  assert.deepEqual(tiltButtons, ['fire', 'useItem', 'nextItem', 'boost', 'pause']);
+  assert.deepEqual(tiltButtons, [
+    'fire', 'useItem', 'nextItem', 'boost', 'camera', 'rollLeft', 'rollRight', 'pause',
+  ]);
 
   let pauseCount = 0;
   const source = new TouchInputSource({

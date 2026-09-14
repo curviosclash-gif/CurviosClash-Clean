@@ -4,6 +4,31 @@ import test from 'node:test';
 import { buildMatchRenderProjection } from '../src/shared/runtime/MatchRenderProjectionBuilder.js';
 import { buildMatchRuntimeProjection } from '../src/shared/runtime/MatchRuntimeProjectionBuilder.js';
 import { TouchInputSource } from '../src/ui/TouchInputSource.js';
+import { TOUCH_CONTROL_MODES } from '../src/ui/touch/TouchControlLayoutOps.js';
+
+function createReadyActionState(overrides = {}) {
+    return {
+        canShootRocket: true,
+        canShootRocketNow: true,
+        nextRocketType: 'ROCKET',
+        shootCooldownRemaining: 0,
+        canUse: true,
+        canUseNow: true,
+        rawType: 'SHIELD_BUBBLE',
+        useCooldownRemaining: 0,
+        canCycle: true,
+        showMg: false,
+        ...overrides,
+    };
+}
+
+function createFakeButtonEls(ids) {
+    const buttonEls = {};
+    for (const id of ids) {
+        buttonEls[id] = { dataset: { action: id }, style: {}, title: '' };
+    }
+    return buttonEls;
+}
 
 test('TouchInputSource reuses the playing-state projection before requesting a new snapshot', () => {
     const cachedProjection = { contractVersion: 'match-runtime-projection.v1', players: [] };
@@ -22,6 +47,122 @@ test('TouchInputSource reuses the playing-state projection before requesting a n
 
     assert.equal(source._getMatchRuntimeProjection(), cachedProjection);
     assert.equal(snapshotBuilds, 0);
+});
+
+test('TouchInputSource normalizes mobile control settings only when the stored object changes', () => {
+    const localSettings = { mobileControls: { tiltSensitivity: 1.2 } };
+    const source = new TouchInputSource({ game: { settings: { localSettings } } });
+    source._resolveActionState = () => createReadyActionState();
+
+    source.poll();
+    const firstNormalized = source._mobileControlSettings;
+    for (let frame = 0; frame < 60; frame += 1) {
+        source.poll();
+    }
+    assert.equal(source._mobileControlSettings, firstNormalized);
+    assert.equal(firstNormalized.tiltSensitivity, 1.2);
+
+    localSettings.mobileControls = { tiltSensitivity: 0.8 };
+    source.poll();
+    assert.notEqual(source._mobileControlSettings, firstNormalized);
+    assert.equal(source._mobileControlSettings.tiltSensitivity, 0.8);
+});
+
+test('TouchInputSource writes touch button visuals only when the button state changes', () => {
+    const writes = [];
+    const source = new TouchInputSource({
+        game: { settings: { localSettings: {} } },
+        applyButtonVisualState: (button, state) => {
+            writes.push(`${button.dataset.action}:${state.title}`);
+        },
+    });
+    source._buttonEls = createFakeButtonEls(['fire', 'useItem', 'nextItem', 'shootMG']);
+    let actionState = createReadyActionState();
+    source._resolveActionState = () => actionState;
+
+    for (let frame = 0; frame < 60; frame += 1) {
+        source.poll();
+    }
+    assert.equal(writes.length, 4);
+
+    // A cooldown that stays inside the same tenth of a second must not rewrite the title.
+    actionState = createReadyActionState({
+        canShootRocketNow: false,
+        shootCooldownRemaining: 1.24,
+    });
+    source.poll();
+    const afterCooldownStart = writes.length;
+    assert.equal(afterCooldownStart, 5);
+    assert.equal(writes[4], 'fire:ROCKET | Shoot-CD 1.2s');
+
+    actionState = createReadyActionState({
+        canShootRocketNow: false,
+        shootCooldownRemaining: 1.2399,
+    });
+    source.poll();
+    assert.equal(writes.length, afterCooldownStart);
+});
+
+test('TouchInputSource clears the button cache when the controls are shown again', () => {
+    let writes = 0;
+    const source = new TouchInputSource({
+        game: { settings: { localSettings: {} } },
+        applyButtonVisualState: () => {
+            writes += 1;
+        },
+    });
+    source._buttonEls = createFakeButtonEls(['fire', 'useItem', 'nextItem', 'shootMG']);
+    source._resolveActionState = () => createReadyActionState();
+
+    source.poll();
+    assert.equal(writes, 4);
+    source._setUIVisibility(true);
+    source.poll();
+    assert.equal(writes, 8);
+});
+
+test('TouchInputSource maps the camera button as an edge and the roll buttons as held', () => {
+    const source = new TouchInputSource({ game: { settings: { localSettings: {} } } });
+    source._resolveActionState = () => createReadyActionState();
+
+    source._buttons.camera = true;
+    source._pendingButtonPresses.add('camera');
+    source._buttons.rollLeft = true;
+
+    const first = source.poll();
+    assert.equal(first.cameraSwitch, true);
+    assert.equal(first.rollLeft, true);
+    assert.equal(first.rollRight, false);
+    assert.equal(first.rollAxis, 1);
+
+    const second = source.poll();
+    assert.equal(second.cameraSwitch, false);
+    assert.equal(second.rollLeft, true);
+    assert.equal(second.rollAxis, 1);
+
+    source._buttons.rollLeft = false;
+    source._buttons.rollRight = true;
+    const third = source.poll();
+    assert.equal(third.rollLeft, false);
+    assert.equal(third.rollRight, true);
+    assert.equal(third.rollAxis, -1);
+
+    source._releaseAllControls();
+    const fourth = source.poll();
+    assert.equal(fourth.rollAxis, 0);
+    assert.equal(fourth.cameraSwitch, false);
+});
+
+test('TouchInputSource exposes camera and roll buttons in both touch layouts', () => {
+    const source = new TouchInputSource({ controlMode: TOUCH_CONTROL_MODES.JOYSTICK });
+    const tiltSource = new TouchInputSource({ controlMode: TOUCH_CONTROL_MODES.TILT });
+
+    for (const definitions of [source._resolveButtonDefinitions(), tiltSource._resolveButtonDefinitions()]) {
+        const ids = definitions.map((definition) => definition.id);
+        assert.equal(ids.includes('camera'), true);
+        assert.equal(ids.includes('rollLeft'), true);
+        assert.equal(ids.includes('rollRight'), true);
+    }
 });
 
 test('TouchInputSource dispose is idempotent', () => {

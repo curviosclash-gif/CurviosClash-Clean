@@ -883,7 +883,9 @@ test('Mobile Classic tilt UI guides neutral hold, fallback and re-calibration', 
 
 test('Mobile Classic tilt touch controls expose all classic match actions', () => {
   const tiltButtons = resolveTouchButtonDefinitions(TOUCH_CONTROL_MODES.TILT).map((button) => button.id);
-  assert.deepEqual(tiltButtons, ['fire', 'useItem', 'nextItem', 'boost']);
+  assert.deepEqual(tiltButtons, [
+    'fire', 'useItem', 'nextItem', 'boost', 'camera', 'rollLeft', 'rollRight',
+  ]);
   assert.equal(tiltButtons.includes('shootMG'), false);
 });
 
@@ -892,7 +894,9 @@ test('Mobile Classic touch path has pause and edge-triggered item actions', () =
     includePauseButton: true,
   }).map((button) => button.id);
 
-  assert.deepEqual(tiltButtons, ['fire', 'useItem', 'nextItem', 'boost', 'pause']);
+  assert.deepEqual(tiltButtons, [
+    'fire', 'useItem', 'nextItem', 'boost', 'camera', 'rollLeft', 'rollRight', 'pause',
+  ]);
 
   let pauseCount = 0;
   const source = new TouchInputSource({
