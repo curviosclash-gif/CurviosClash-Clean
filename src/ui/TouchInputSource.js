@@ -28,6 +28,7 @@ import {
     TILT_DEFAULT_DEADZONE_DEG,
     TILT_DEFAULT_RANGE_DEG,
 } from './touch/TouchTiltSteeringOps.js';
+import { applyRadialDeadzone } from '../shared/utils/InputAxisOps.js';
 import {
     resolveScreenOrientationAngle,
     TILT_CONTROL_STATES,
@@ -51,6 +52,7 @@ export {
 const TILT_DEFAULT_SMOOTHING = 0.24;
 const TILT_DEFAULT_RELEASE_THRESHOLD = 0.015;
 const TILT_EVENT_STALE_MS = 1600;
+const JOYSTICK_DEADZONE = 0.15;
 
 /**
  * Virtual joystick + touch buttons for tablet/mobile play.
@@ -94,7 +96,7 @@ export class TouchInputSource extends PlayerInputSource {
             0.25
         );
         this._joystickCenter = null;
-        this._joystickDelta = { x: 0, y: 0 };
+        this._joystickDelta = { x: 0, y: 0 }; this._joystickScaled = { x: 0, y: 0 };
         this._joystickActive = false;
         this._joystickTouchId = null;
         this._buttonTouches = new Map();
@@ -485,9 +487,9 @@ export class TouchInputSource extends PlayerInputSource {
             this._releaseAllControls();
             return this._createNeutralInput();
         }
-        const deadzone = 0.15;
-        const jx = Math.abs(this._joystickDelta.x) > deadzone ? this._joystickDelta.x : 0;
-        const jy = Math.abs(this._joystickDelta.y) > deadzone ? this._joystickDelta.y : 0;
+        // Radial deadzone into the reused stick object: the deflection grows from 0
+        // instead of jumping to the raw value, and diagonals keep their direction.
+        const { x: jx, y: jy } = applyRadialDeadzone(this._joystickDelta.x, this._joystickDelta.y, JOYSTICK_DEADZONE, this._joystickScaled);
         const tiltInput = this._resolveTiltSteeringInput();
         if (this._containerEl?.dataset?.tiltControlState !== this._resolveTiltControlState()) this._updateTiltUi();
         const touchPitchActive = !!tiltInput && this._tiltPitchMode === MOBILE_CLASSIC_TILT_PITCH_MODES.TOUCH;
@@ -501,10 +503,10 @@ export class TouchInputSource extends PlayerInputSource {
         const nextItemPressed = this._pendingButtonPresses.delete('nextItem');
 
         return {
-            pitchUp: touchPitchActive ? jy < -deadzone : (tiltInput ? tiltInput.pitchUp : jy < -deadzone),
-            pitchDown: touchPitchActive ? jy > deadzone : (tiltInput ? tiltInput.pitchDown : jy > deadzone),
-            yawLeft: tiltInput ? tiltInput.yawLeft : jx < -deadzone,
-            yawRight: tiltInput ? tiltInput.yawRight : jx > deadzone,
+            pitchUp: touchPitchActive ? jy < 0 : (tiltInput ? tiltInput.pitchUp : jy < 0),
+            pitchDown: touchPitchActive ? jy > 0 : (tiltInput ? tiltInput.pitchDown : jy > 0),
+            yawLeft: tiltInput ? tiltInput.yawLeft : jx < 0,
+            yawRight: tiltInput ? tiltInput.yawRight : jx > 0,
             rollLeft: false,
             rollRight: false,
             pitchAxis: touchPitchActive ? -jy : (tiltInput ? -tiltInput.pitchAxis : -jy),

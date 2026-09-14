@@ -2,6 +2,7 @@ import { createGamepadInputSource } from '../shared/input/GamepadInputSource.js'
 import { isGamepadInputEnabled, resolveSplitscreenInputDevice } from '../shared/contracts/GamepadControlsContract.js';
 import { TOUCH_CONTROL_MODES, TouchInputSource } from './TouchInputSource.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
+import { applyAxisDeadzone } from '../shared/utils/InputAxisOps.js';
 
 const MOUSE_STEERING_DEADZONE = 0.08;
 const DISCONNECTED_CONTROLLER_INPUT = Object.freeze({
@@ -58,10 +59,7 @@ function createKeyboardInputSource(inputManager, includeSecondaryBindings = fals
 }
 
 function normalizeMouseSteeringAxis(value) {
-    const clamped = Math.max(-1, Math.min(1, Number(value) || 0));
-    const magnitude = Math.abs(clamped);
-    if (magnitude <= MOUSE_STEERING_DEADZONE) return 0;
-    return Math.sign(clamped) * ((magnitude - MOUSE_STEERING_DEADZONE) / (1 - MOUSE_STEERING_DEADZONE));
+    return applyAxisDeadzone(value, MOUSE_STEERING_DEADZONE);
 }
 
 export function createMouseSteeringInputSource(inputManager, includeSecondaryBindings = false, options = {}) {

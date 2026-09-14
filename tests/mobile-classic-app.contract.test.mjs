@@ -703,7 +703,9 @@ test('Mobile Classic tilt menu options shape steering and diagnostics', () => {
   tiltSource._joystickDelta = { x: 0, y: -0.5 };
   const polled = tiltSource.poll();
   assert.equal(polled.pitchUp, true);
-  assert.equal(polled.pitchAxis, 0.5);
+  // The joystick deflection of 0.5 is rescaled above the 0.15 radial deadzone, so
+  // the axis grows continuously from the rest position: (0.5 - 0.15) / (1 - 0.15).
+  assert.ok(Math.abs(polled.pitchAxis - (0.35 / 0.85)) < 1e-9);
   assert.equal(polled.yawRight, true);
   assert.match(tiltSource._resolveTiltStatusText(), /Y \+/);
   assert.match(tiltSource._resolveTiltStatusText(), /58Hz/);

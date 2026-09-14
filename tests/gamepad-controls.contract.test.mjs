@@ -8,6 +8,10 @@ import { PlayerController } from '../src/entities/player/PlayerController.js';
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createControlBindingsSnapshot } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
+import { applyAxisDeadzone } from '../src/shared/utils/InputAxisOps.js';
+
+// Controller axes grow from 0 at the 0.15 deadzone edge instead of passing the raw value on.
+const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
 
 function hardware(t) {
     const original = Object.getOwnPropertyDescriptor(globalThis, 'navigator');
@@ -26,7 +30,7 @@ test('controller axes reach PlayerController with keyboard-equivalent signs and 
         for (const value of [-1, -0.5, 0.1, 0.5, 1]) {
             pad.axes[index] = value;
             const output = controller.resolveControlState({ controlRampEnabled: false }, source.poll());
-            assert.equal(output[key] || 0, Math.abs(value) > 0.15 ? -value : 0);
+            assert.equal(output[key] || 0, -stickAxis(value) || 0);
         }
         pad.axes[index] = 0;
     }
@@ -55,7 +59,7 @@ test('bindings can change during a match and malformed imports retain complete m
     source.poll(); mapping.BOOST = 5; mapping.yawAxis = 3;
     pad.buttons[5].pressed = true; pad.axes[3] = 0.7;
     assert.equal(source.poll().boost, true);
-    assert.equal(source.poll().yawAxis, -0.7);
+    assert.equal(source.poll().yawAxis, -stickAxis(0.7));
     assert.deepEqual(normalizeGamepadControls({ BOOST: -1, PAUSE: 99 }), normalizeGamepadControls());
     assert.deepEqual(normalizeGamepadControls({ BOOST: 4 }), normalizeGamepadControls());
 });
@@ -87,7 +91,7 @@ test('four-player adapter accepts steering while preserving its restricted actio
     const { pad } = hardware(t);
     const source = createFourPlayerPlanarInputSource({ inputManager: { isDown: () => false, wasPressed: () => false }, playerIndex: 0 });
     source.bind(0); pad.axes[0] = -1; pad.axes[2] = 0.5; pad.buttons[0].pressed = true; pad.buttons[4].pressed = true;
-    assert.equal(source.poll().yawAxis, 1); assert.equal(source.poll().rollAxis, -0.5);
+    assert.equal(source.poll().yawAxis, 1); assert.equal(source.poll().rollAxis, -stickAxis(0.5));
     assert.equal(source.poll().boost, false); assert.equal(source.poll().slowMo, false);
     source.dispose();
 });

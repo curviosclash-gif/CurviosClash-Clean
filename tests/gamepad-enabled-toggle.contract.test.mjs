@@ -9,6 +9,10 @@ import { createGamepadControlsSnapshot, isGamepadInputEnabled } from '../src/sha
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createControlBindingsSnapshot } from '../src/shared/contracts/SettingsRuntimeContract.js';
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
+import { applyAxisDeadzone } from '../src/shared/utils/InputAxisOps.js';
+
+// Controller axes grow from 0 at the 0.15 deadzone edge instead of passing the raw value on.
+const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
 
 function setup(t, { layout = 'auto', localHumanCount = 1 } = {}) {
     const pads = Array.from({ length: 2 }, () => ({ axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) }));
@@ -37,7 +41,7 @@ test('a disabled controller hands a single player back to the keyboard and resum
     const { input, controls, pads, setEnabled } = setup(t);
     pads[0].axes[0] = -0.7; pads[0].buttons[0].pressed = true;
     input.keys[controls.PLAYER_1.LEFT] = true;
-    assert.equal(input.getPlayerInput(0).yawAxis, 0.7, 'enabled controller steers');
+    assert.equal(input.getPlayerInput(0).yawAxis, stickAxis(0.7), 'enabled controller steers');
     assert.equal(input.getPlayerSource(0).type, 'gamepad');
     assert.equal(resolvePlayerGamepadIndex(input.getPlayerSource(0)), 0, 'rumble finds the steering controller');
 
@@ -49,7 +53,7 @@ test('a disabled controller hands a single player back to the keyboard and resum
     assert.equal(resolvePlayerGamepadIndex(input.getPlayerSource(0)), null, 'a disabled controller never rumbles');
 
     setEnabled(true);
-    assert.equal(input.getPlayerInput(0).yawAxis, 0.7, 'controller takes over again without a new round');
+    assert.equal(input.getPlayerInput(0).yawAxis, stickAxis(0.7), 'controller takes over again without a new round');
 });
 
 test('a fixed splitscreen controller seat falls back to that player\'s keys when controllers are disabled', (t) => {

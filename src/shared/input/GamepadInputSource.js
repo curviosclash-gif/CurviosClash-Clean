@@ -1,5 +1,7 @@
 import { isGamepadInputEnabled, normalizeGamepadControls } from '../contracts/GamepadControlsContract.js';
+import { applyAxisDeadzone, applyRadialDeadzone } from '../utils/InputAxisOps.js';
 const MAPPING_KEYS = Object.keys(normalizeGamepadControls());
+const GAMEPAD_DEADZONE = 0.15;
 
 export function readGamepad(slot) {
     const pads = globalThis.navigator?.getGamepads?.();
@@ -10,6 +12,7 @@ export function readGamepad(slot) {
 export function createGamepadInputSource(gamepadIndex = 0, getSettings = () => null, isEnabled = () => true) {
     const previous = new Uint8Array(16);
     const output = {};
+    const stick = { x: 0, y: 0 };
     let settings;
     let mapping = normalizeGamepadControls();
     const updateMapping = () => {
@@ -28,10 +31,7 @@ export function createGamepadInputSource(gamepadIndex = 0, getSettings = () => n
         previous[index] = held ? 1 : 0;
         return edge;
     };
-    const axis = (pad, key) => {
-        const value = pad.axes?.[mapping[key]];
-        return Number.isFinite(value) && Math.abs(value) > 0.15 ? Math.max(-1, Math.min(1, value)) : 0;
-    };
+    const rawAxis = (pad, key) => pad.axes?.[mapping[key]];
     return {
         type: 'gamepad', playerIndex: -1, active: false, gamepadIndex,
         bind(index) { this.playerIndex = index; this.active = true; },
@@ -51,9 +51,12 @@ export function createGamepadInputSource(gamepadIndex = 0, getSettings = () => n
                 this.clearInputState();
                 return null;
             }
-            const pitch = axis(pad, 'pitchAxis');
-            const yaw = axis(pad, 'yawAxis');
-            const roll = axis(pad, 'rollAxis');
+            // Yaw and pitch are judged as one stick vector so a diagonal hold keeps its direction,
+            // and every axis grows from 0 at the deadzone edge instead of jumping to 0.15.
+            applyRadialDeadzone(rawAxis(pad, 'yawAxis'), rawAxis(pad, 'pitchAxis'), GAMEPAD_DEADZONE, stick);
+            const pitch = stick.y;
+            const yaw = stick.x;
+            const roll = applyAxisDeadzone(rawAxis(pad, 'rollAxis'), GAMEPAD_DEADZONE);
             output.pitchAxis = -pitch; output.yawAxis = -yaw; output.rollAxis = -roll;
             output.pitchUp = pitch < 0; output.pitchDown = pitch > 0;
             output.yawLeft = yaw < 0; output.yawRight = yaw > 0;

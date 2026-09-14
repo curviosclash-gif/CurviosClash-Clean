@@ -6,6 +6,10 @@ import { createGamepadControlsSnapshot, normalizeSplitscreenInputLayout } from '
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
 import { createControlBindingsSnapshot } from '../src/shared/contracts/SettingsRuntimeContract.js';
+import { applyAxisDeadzone } from '../src/shared/utils/InputAxisOps.js';
+
+// Controller axes grow from 0 at the 0.15 deadzone edge instead of passing the raw value on.
+const stickAxis = (value) => applyAxisDeadzone(value, 0.15);
 
 function setup(t, layout) {
     const pads = Array.from({ length: 2 }, () => ({ axes: [0, 0, 0, 0], buttons: Array.from({ length: 17 }, () => ({ pressed: false })) }));
@@ -36,7 +40,7 @@ for (const layout of ['controller-keyboard', 'keyboard-controller']) {
         input.keys[keys.RIGHT] = true;
         const controller = { ...input.getPlayerInput(controllerPlayer) };
         const keyboard = { ...input.getPlayerInput(keyboardPlayer) };
-        assert.equal(controller.yawAxis, 0.7); assert.equal(controller.boost, true);
+        assert.equal(controller.yawAxis, stickAxis(0.7)); assert.equal(controller.boost, true);
         assert.equal(keyboard.yawRight, true); assert.equal(keyboard.boost, false);
         assert.equal(input.getPlayerSource(controllerPlayer).gamepadIndex, 0);
         state.pads = [];
@@ -44,7 +48,7 @@ for (const layout of ['controller-keyboard', 'keyboard-controller']) {
         assert.equal(input.getPlayerInput(controllerPlayer).yawLeft, false, 'unplugging must not give the controller player keyboard input');
         assert.equal(input.getPlayerInput(keyboardPlayer).yawRight, true);
         state.pads = pads;
-        assert.equal(input.getPlayerInput(controllerPlayer).yawAxis, 0.7);
+        assert.equal(input.getPlayerInput(controllerPlayer).yawAxis, stickAxis(0.7));
         input.dispose();
     });
 }
@@ -63,10 +67,10 @@ test('two controllers use separate hardware indices and do not fall back to keyb
     const { input, controls, state, pads } = setup(t, 'controller-controller');
     pads[0].axes[0] = -1; pads[1].axes[0] = 0.5;
     input.keys[controls.PLAYER_1.BOOST] = true; input.keys[controls.PLAYER_2.BOOST] = true;
-    assert.equal(input.getPlayerInput(0).yawAxis, 1); assert.equal(input.getPlayerInput(1).yawAxis, -0.5);
+    assert.equal(input.getPlayerInput(0).yawAxis, 1); assert.equal(input.getPlayerInput(1).yawAxis, -stickAxis(0.5));
     assert.equal(input.getPlayerInput(0).boost, false); assert.equal(input.getPlayerInput(1).boost, false);
     state.pads = [null, pads[1]];
-    assert.equal(input.getPlayerInput(0).yawAxis, 0); assert.equal(input.getPlayerInput(1).yawAxis, -0.5);
+    assert.equal(input.getPlayerInput(0).yawAxis, 0); assert.equal(input.getPlayerInput(1).yawAxis, -stickAxis(0.5));
     input.dispose();
 });
 
