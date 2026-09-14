@@ -478,6 +478,9 @@ export class UIManager {
         if (ui.gamepadVibrationToggle) {
             ui.gamepadVibrationToggle.checked = settings?.localSettings?.gamepadVibration !== false;
         }
+        if (ui.smoothSteeringToggle) {
+            ui.smoothSteeringToggle.checked = settings?.localSettings?.smoothSteering !== false;
+        }
         if (ui.mobileTiltSensitivitySlider) {
             ui.mobileTiltSensitivitySlider.value = String(Math.round(mobileControls.tiltSensitivity * 100));
         }

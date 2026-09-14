@@ -39,11 +39,14 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
         : null;
     const configuredHumanCount = Math.max(1, Number(runtimeConfig?.session?.numHumans) || 2);
     const fallbackVehicleId = runtimeVehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1;
+    // Smooth steering is the default for humans; only an explicit false switches the ramp off.
+    const smoothSteering = settings?.localSettings?.smoothSteering !== false;
     const configs = [];
     for (let index = 0; index < configuredHumanCount; index += 1) {
         const slot = `PLAYER_${index + 1}`;
         configs.push({
             invertPitch: !!settings?.invertPitch?.[slot],
+            smoothSteering,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,

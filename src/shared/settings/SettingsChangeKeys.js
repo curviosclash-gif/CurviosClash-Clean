@@ -17,6 +17,7 @@ export const SETTINGS_CHANGE_KEYS = Object.freeze({
     LOCAL_BLOOM_QUALITY: 'local.bloomQuality',
     LOCAL_MOUSE_STEERING: 'local.mouseSteering',
     LOCAL_GAMEPAD_VIBRATION: 'local.gamepadVibration',
+    LOCAL_SMOOTH_STEERING: 'local.smoothSteering',
     LOCAL_AUDIO_ENABLED: 'local.audio.enabled',
     LOCAL_AUDIO_MASTER_VOLUME: 'local.audio.masterVolume',
     LOCAL_AUDIO_MUSIC_VOLUME: 'local.audio.musicVolume',

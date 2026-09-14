@@ -123,6 +123,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         bloomQuality: DEFAULT_BLOOM_QUALITY,
         mouseSteering: false,
         gamepadVibration: true,
+        smoothSteering: true,
         audio: createDefaultAudioSettings(),
         hud: createDefaultHudAppearance(),
         startSetup: {
@@ -421,6 +422,7 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
             bloomQuality: String(localSettings.bloomQuality ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.bloomQuality),
             mouseSteering: localSettings.mouseSteering === true,
             gamepadVibration: localSettings.gamepadVibration !== false,
+            smoothSteering: localSettings.smoothSteering !== false,
             audio: normalizeAudioSettings(
                 localSettings.audio,
                 MENU_DEFAULT_EDITOR_CONFIG.localSettings.audio

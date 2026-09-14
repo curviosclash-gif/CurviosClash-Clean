@@ -130,6 +130,7 @@ export function createGameUiRefs(doc = document) {
         portalsToggle: doc.getElementById('portals-toggle'),
         mouseSteeringToggle: doc.getElementById('mouse-steering-toggle'),
         gamepadVibrationToggle: doc.getElementById('gamepad-vibration-toggle'),
+        smoothSteeringToggle: doc.getElementById('smooth-steering-toggle'),
         mobileTiltSensitivitySlider: doc.getElementById('mobile-tilt-sensitivity-slider'),
         mobileTiltSensitivityLabel: doc.getElementById('mobile-tilt-sensitivity-label'),
         mobileTiltAssistSelect: doc.getElementById('mobile-tilt-assist-select'),

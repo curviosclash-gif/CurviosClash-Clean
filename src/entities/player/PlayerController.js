@@ -4,10 +4,14 @@ function axisInput(positive, negative) {
     return (positive ? 1 : 0) - (negative ? 1 : 0);
 }
 
+// Analog sources (gamepad, mouse, tilt, touch stick) already deliver a settled deflection.
+function hasAnalogAxis(input, axisKey) {
+    return Number.isFinite(Number(input?.[axisKey]));
+}
+
 function resolveInputAxis(input, axisKey, positiveKey, negativeKey) {
-    const axisValue = Number(input?.[axisKey]);
-    return Number.isFinite(axisValue)
-        ? axisValue
+    return hasAnalogAxis(input, axisKey)
+        ? Number(input[axisKey])
         : axisInput(input?.[positiveKey], input?.[negativeKey]);
 }
 
@@ -42,8 +46,8 @@ function stepAxisToward(current, target, attackRate, releaseRate, dt) {
     return current + Math.sign(diff) * step;
 }
 
-const DEFAULT_AXIS_ATTACK_RATE = 18.0;
-const DEFAULT_AXIS_RELEASE_RATE = 12.0;
+export const DEFAULT_AXIS_ATTACK_RATE = 18.0;
+export const DEFAULT_AXIS_RELEASE_RATE = 12.0;
 const AXIS_RELEASE_DEADZONE = 0.0005;
 
 export class PlayerController {
@@ -100,8 +104,15 @@ export class PlayerController {
         let slowMoHeld = false;
         let slowMoPressed = false;
 
+        let pitchIsAnalog = false;
+        let yawIsAnalog = false;
+        let rollIsAnalog = false;
+
         const hasDirectInput = !!input && steeringLocked !== true;
         if (hasDirectInput) {
+            pitchIsAnalog = hasAnalogAxis(input, 'pitchAxis');
+            yawIsAnalog = hasAnalogAxis(input, 'yawAxis');
+            rollIsAnalog = hasAnalogAxis(input, 'rollAxis');
             pitchTarget = resolveInputAxis(input, 'pitchAxis', 'pitchUp', 'pitchDown');
             yawTarget = resolveInputAxis(input, 'yawAxis', 'yawLeft', 'yawRight');
             rollTarget = resolveInputAxis(input, 'rollAxis', 'rollLeft', 'rollRight');
@@ -144,13 +155,13 @@ export class PlayerController {
         const attackRate = this._resolveRampRate(player, 'attack', this.rampAttackRate);
         const releaseRate = this._resolveRampRate(player, 'release', this.rampReleaseRate);
 
-        this._axisState.pitch = clampAxis(
+        this._axisState.pitch = pitchIsAnalog ? pitchTarget : clampAxis(
             stepAxisToward(this._axisState.pitch, pitchTarget, attackRate, releaseRate, frameDt)
         );
-        this._axisState.yaw = clampAxis(
+        this._axisState.yaw = yawIsAnalog ? yawTarget : clampAxis(
             stepAxisToward(this._axisState.yaw, yawTarget, attackRate, releaseRate, frameDt)
         );
-        this._axisState.roll = clampAxis(
+        this._axisState.roll = rollIsAnalog ? rollTarget : clampAxis(
             stepAxisToward(this._axisState.roll, rollTarget, attackRate, releaseRate, frameDt)
         );
 

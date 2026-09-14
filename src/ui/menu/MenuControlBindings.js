@@ -27,6 +27,16 @@ export function setupMenuControlBindings(ctx) {
         });
     }
 
+    if (ui.smoothSteeringToggle) {
+        bind(ui.smoothSteeringToggle, 'change', () => {
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') {
+                settings.localSettings = {};
+            }
+            settings.localSettings.smoothSteering = ui.smoothSteeringToggle.checked === true;
+            emitSettingsChangedImmediate([keys.LOCAL_SMOOTH_STEERING]);
+        });
+    }
+
     bind(ui.keybindP1, 'click', (e) => {
         const btn = e.target.closest('button.keybind-btn');
         if (!btn) return;

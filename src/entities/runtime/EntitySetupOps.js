@@ -1,5 +1,9 @@
 import { Player } from '../Player.js';
 import {
+    DEFAULT_AXIS_ATTACK_RATE,
+    DEFAULT_AXIS_RELEASE_RATE,
+} from '../player/PlayerController.js';
+import {
     normalizeBotPolicyType,
     resolveMatchBotPolicyType,
 } from '../ai/BotPolicyTypes.js';
@@ -197,6 +201,10 @@ export class EntitySetupOps {
                 invertPitch: !!setupContext.humanConfigs[i]?.invertPitch,
                 cockpitCamera: !!setupContext.humanConfigs[i]?.cockpitCamera,
                 modelScale: setupContext.modelScale,
+                // Humans steer with the controller rates; the slower player defaults stay with the bots.
+                controlRampEnabled: setupContext.humanConfigs[i]?.smoothSteering !== false,
+                controlRampAttackRate: DEFAULT_AXIS_ATTACK_RATE,
+                controlRampReleaseRate: DEFAULT_AXIS_RELEASE_RATE,
             });
             owner.players.push(player);
             owner.humanPlayers.push(player);
