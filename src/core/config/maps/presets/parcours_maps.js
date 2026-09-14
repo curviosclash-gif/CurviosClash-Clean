@@ -1,5 +1,8 @@
 const RIFT_OBSTACLES = Object.freeze([
-    { pos: [-98, 20, 0], size: [12, 40, 72], kind: 'foam' },
+    // The entry wall leaves a gap on the line from CP01 to CP02: a ship that follows the first
+    // ring of an arcade run must not crash straight into foam. Sprint shifts both rings by 4.
+    { pos: [-98, 20, -24], size: [12, 40, 24], kind: 'foam' },
+    { pos: [-98, 20, 27], size: [12, 40, 18], kind: 'foam' },
     { pos: [-70, 20, -42], size: [34, 40, 8] },
     { pos: [-58, 20, 40], size: [30, 40, 8], kind: 'foam' },
     { pos: [-24, 24, -18], size: [28, 46, 12], tunnel: { radius: 4.8, axis: 'x' } },
