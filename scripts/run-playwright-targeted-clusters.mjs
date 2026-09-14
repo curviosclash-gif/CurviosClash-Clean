@@ -3,6 +3,7 @@ import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { resolvePlaywrightFailureTaxonomy } from '../tests/playwright-readiness.js';
+import { acquirePlaywrightRunLock, releasePlaywrightRunLockOnExit } from './playwright-run-lock.mjs';
 import {
     DESKTOP_E2E_CLUSTERS,
     HEAVY_DIAGNOSTIC_CLUSTERS,
@@ -359,6 +360,13 @@ async function main() {
         printDryRun(clusters, playwrightArgs);
         return;
     }
+
+    // Hold the machine-wide Playwright lock for the whole cluster list so no other session
+    // squeezes a run in between two clusters; the spec runners inherit it through the env.
+    const lock = await acquirePlaywrightRunLock({
+        label: `desktop-e2e clusters ${clusters.map((cluster) => cluster.id).join(',')}`,
+    });
+    releasePlaywrightRunLockOnExit(lock.release);
 
     const failures = [];
     for (let index = 0; index < clusters.length; index += 1) {

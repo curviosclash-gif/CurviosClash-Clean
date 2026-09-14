@@ -59,6 +59,8 @@ node scripts/run-playwright-targeted.mjs tests/physics-core.spec.js
 
 Playwright läuft immer über die Wrapper in `scripts/run-playwright-*.mjs`. Desktop-Profile starten das echte Electron-Fenster gegen den gebauten `dist-app`-Renderer; nur `test:browser:compat` verwendet bewusst den Vite-Browserpfad. `--grep "T1:|T2:"` wird an Playwright durchgereicht.
 
+**Nur ein Playwright-Lauf pro Rechner.** Die Wrapper nehmen ein maschinenweites Schloss (`scripts/playwright-run-lock.mjs`, Datei im Temp-Ordner) und warten, solange eine andere Sitzung läuft — zwei Electron-Läufe auf derselben GPU verfälschen sich gegenseitig. Ein Cluster-Lauf hält das Schloss für alle seine Specs. Wartet ein Wrapper, nennt er Label, PID und Startzeit des Halters; `CURVIOS_PLAYWRIGHT_LOCK=0` schaltet das Schloss ab, `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` begrenzt die Wartezeit (Standard 45 Minuten).
+
 Die Desktop-E2E-Suite ist in benannte Cluster geschnitten (`scripts/playwright-test-clusters.mjs`). Der Cluster-Runner akzeptiert Cluster-IDs *und* Spec-Pfade, sodass gezielt ein Cluster statt der ganzen Suite läuft:
 
 ```bash

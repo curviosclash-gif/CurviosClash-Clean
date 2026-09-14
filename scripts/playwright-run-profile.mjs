@@ -1,6 +1,7 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
+import { acquirePlaywrightRunLock, releasePlaywrightRunLockOnExit } from './playwright-run-lock.mjs';
 
 export const PLAYWRIGHT_DEFAULT_RUN_PROFILE = 'desktop-smoke';
 
@@ -103,7 +104,7 @@ export function applyPlaywrightRunProfileEnv(env, rawValue) {
     return profile;
 }
 
-export function runPlaywrightProfile(profileName, argv, options = {}) {
+export async function runPlaywrightProfile(profileName, argv, options = {}) {
     const profile = resolvePlaywrightRunProfile(profileName);
     if (options.requireExplicitSelection && !hasExplicitBrowserContractSelection(argv)) {
         console.error(
@@ -112,6 +113,17 @@ export function runPlaywrightProfile(profileName, argv, options = {}) {
         );
         process.exit(1);
     }
+
+    // One Playwright run per machine: wait for the lock before touching the GPU. A cluster
+    // runner already holds it for its spec runners, which then inherit instead of waiting.
+    let lock;
+    try {
+        lock = await acquirePlaywrightRunLock({ label: `${profile.name} ${argv.join(' ')}`.trim() });
+    } catch (error) {
+        console.error(error?.message || String(error));
+        process.exit(1);
+    }
+    releasePlaywrightRunLockOnExit(lock.release);
 
     const command = resolvePlaywrightCommand(argv);
     const env = { ...process.env };
@@ -134,6 +146,7 @@ export function runPlaywrightProfile(profileName, argv, options = {}) {
     });
 
     child.on('exit', (code, signal) => {
+        lock.release();
         if (signal) {
             process.kill(process.pid, signal);
             return;
