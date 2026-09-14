@@ -12,6 +12,7 @@ import * as THREE from 'three';
 import { computeProjectileThreatFlag } from './perception/EnvironmentSamplingOps.js';
 import { AI_SENSOR_THREAT_POLICY } from './perception/AiPerceptionConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import { rememberDodgedProjectileThreat } from '../../hunt/EnvironmentKillCreditOps.js';
 
 const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -36,6 +37,7 @@ export function senseProjectiles(bot, player, projectiles) {
     let nearestTime = Infinity;
     let evadeYaw = 0;
     let evadePitch = 0;
+    let nearestOwner = null;
 
     for (let i = 0; i < projectiles.length; i++) {
         const proj = projectiles[i];
@@ -62,6 +64,7 @@ export function senseProjectiles(bot, player, projectiles) {
 
         if (timeToImpact < nearestTime) {
             nearestTime = timeToImpact;
+            nearestOwner = proj.owner || null;
             bot._tmpVec3.crossVectors(bot._tmpVec2, WORLD_UP).normalize();
             const side = bot._tmpRight.dot(bot._tmpVec3);
             evadeYaw = side > 0 ? -1 : 1;
@@ -79,6 +82,11 @@ export function senseProjectiles(bot, player, projectiles) {
         bot.sense.projectileThreat = true;
         bot.sense.projectileEvadeYaw = evadeYaw;
         bot.sense.projectileEvadePitch = evadePitch;
+        rememberDodgedProjectileThreat(
+            player,
+            nearestOwner,
+            Math.max(0, Number(player.entityManager?._simulationClockMs) || 0) * 0.001
+        );
     }
 }
 

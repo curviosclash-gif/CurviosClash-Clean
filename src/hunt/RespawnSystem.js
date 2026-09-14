@@ -147,6 +147,8 @@ export class RespawnSystem {
             const strategy = this.runtime?.callbacks?.getStrategy?.() || null;
             strategy?.resetPlayerHealth?.(player);
             player.fightLastAttackerIndex = -1;
+            player.fightLastThreatSourceIndex = -1;
+            player.fightLastThreatAtSeconds = -Infinity;
             player.fightTargetPlayerIndex = -1;
             player.fightTargetLockRemaining = 0;
             player.fightSpawnedAtSeconds = Math.max(0, Number(this.runtime?.callbacks?.getSimulationNowMs?.()) || 0) * 0.001;

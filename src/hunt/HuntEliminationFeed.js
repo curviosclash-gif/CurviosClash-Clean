@@ -20,9 +20,25 @@ export function rememberFightDeath(player) {
     };
 }
 
-export function emitHuntEliminationFeed(eventBus, players, target, killer, assistIndices = [], audio = null) {
+function formatEliminationVerb(creditKind, cause) {
+    if (creditKind !== 'hit' && creditKind !== 'threat') return 'ausgeschaltet';
+    return String(cause || '').toUpperCase().startsWith('TRAIL')
+        ? 'in die Spur getrieben'
+        : 'in die Wand getrieben';
+}
+
+export function emitHuntEliminationFeed(
+    eventBus,
+    players,
+    target,
+    killer,
+    assistIndices = [],
+    audio = null,
+    creditOptions = null
+) {
     if (killer && killer !== target) {
-        eventBus?.emitHuntFeed(`${formatCombatantLabel(killer)} -> ${formatCombatantLabel(target)}: ausgeschaltet`);
+        const verb = formatEliminationVerb(creditOptions?.credit, creditOptions?.cause);
+        eventBus?.emitHuntFeed(`${formatCombatantLabel(killer)} -> ${formatCombatantLabel(target)}: ${verb}`);
         if (!killer.isBot) audio?.play?.('FIGHT_KILL');
     }
     for (const assistIndex of assistIndices) {

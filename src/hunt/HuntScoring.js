@@ -71,6 +71,20 @@ export class HuntScoring {
         byAttacker.set(sourceIndex, existing);
     }
 
+    // Read-only view on the damage history: how long ago each attacker last hit the target.
+    // Ages are measured on the same clock that stamped the hits, so callers on a different
+    // clock (the simulation clock) can still use them without converting timestamps.
+    getDamageHistoryAges(targetIndex, nowSeconds = getNowSeconds()) {
+        const byAttacker = this._damageHistoryByTarget.get(targetIndex);
+        if (!byAttacker) return [];
+        const now = Number(nowSeconds) || 0;
+        const entries = [];
+        for (const [attackerIndex, entry] of byAttacker.entries()) {
+            entries.push({ attackerIndex, ageSeconds: now - (Number(entry?.lastHitAt) || 0) });
+        }
+        return entries;
+    }
+
     registerElimination(targetPlayer, options = {}) {
         const targetIndex = targetPlayer?.index;
         if (!Number.isInteger(targetIndex)) return { killerIndex: -1, assistIndices: [] };

@@ -1,4 +1,5 @@
 import { WORLD_UP } from './HeuristicBotPolicyOps.js';
+import { rememberDodgedProjectileThreat } from '../../hunt/EnvironmentKillCreditOps.js';
 
 export function resolveDirectionalProjectileThreat(policy, state, player, runtimeContext, config) {
     state.projectileYaw = 0;
@@ -23,6 +24,7 @@ export function resolveDirectionalProjectileThreat(policy, state, player, runtim
 
     const playerSpeed = Number(player.speed) || 0;
     const maxRangeSq = config.projectileThreatRange ** 2;
+    let nearestOwner = null;
     for (let i = 0; i < projectiles.length; i += 1) {
         const projectile = projectiles[i];
         if (!projectile?.position || !projectile?.velocity || projectile.owner === player) continue;
@@ -58,6 +60,13 @@ export function resolveDirectionalProjectileThreat(policy, state, player, runtim
             ? (pitchSignal > 0 ? 1 : -1)
             : 0;
         state.projectileTimeToImpact = timeToImpact;
+        nearestOwner = projectile.owner || null;
     }
-    return state.projectileTimeToImpact < Infinity;
+    if (state.projectileTimeToImpact >= Infinity) return false;
+    rememberDodgedProjectileThreat(
+        player,
+        nearestOwner,
+        Math.max(0, Number(runtimeContext?.entityManager?._simulationClockMs) || 0) * 0.001
+    );
+    return true;
 }
