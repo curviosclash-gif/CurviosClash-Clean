@@ -17,6 +17,10 @@ import {
 } from '../src/core/settings/SettingsOverrideContract.js';
 
 import { createDefaultSettingsSnapshotWithOverride } from '../src/core/settings/SettingsDefaultsFacade.js';
+import { SettingsManager } from '../src/core/SettingsManager.js';
+import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
+import { createRuntimeSettingsLimitsWithOverride } from '../src/shared/contracts/SettingsRuntimeLimitsContract.js';
+import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
 import {
     BROWSER_DEMO_SURFACE_POLICY_OVERRIDE_CONTRACT_VERSION,
     createBrowserDemoSurfacePolicyOverrideDraft,
@@ -342,6 +346,49 @@ test('numeric range contract rejects unknown paths and invalid finite/order/step
         validateSettingsOverrideDraft(outside).errors.some((error) => error.code === 'FIELD_NUMBER_ABOVE_MAX'),
         true
     );
+});
+
+test('a hunt limit override travels from the studio draft into the sanitizer', () => {
+    const registryField = createSettingsOverrideFieldRegistry()
+        .find((field) => field.path === 'baseSettings.hunt.deathmatchKillLimit');
+
+    assert.ok(registryField, 'kill limit missing from the studio field registry');
+    assert.equal(registryField.type, 'number');
+    assert.deepEqual(registryField.limits, { ...SETTINGS_LIMITS.hunt.deathmatchKillLimit, step: 1 });
+
+    // Without a base rule the studio could not store a partial override: min and step
+    // would be missing and the draft would fail validation.
+    const draft = createSettingsOverrideDraft();
+    draft.limitOverrides['baseSettings.hunt.deathmatchKillLimit'] = { max: 40 };
+    const validation = validateSettingsOverrideDraft(draft);
+
+    assert.equal(validation.valid, true, `validation failed: ${JSON.stringify(validation.errors)}`);
+
+    const runtimeLimits = createRuntimeSettingsLimitsWithOverride({
+        schemaVersion: 'menu-defaults-override.v1',
+        limitOverrides: { 'baseSettings.hunt.deathmatchKillLimit': { max: 40 } },
+    });
+
+    assert.equal(runtimeLimits.hunt.deathmatchKillLimit.max, 40);
+    assert.equal(runtimeLimits.hunt.deathmatchKillLimit.min, SETTINGS_LIMITS.hunt.deathmatchKillLimit.min);
+
+    const manager = new SettingsManager({
+        storagePlatform: createMemoryStoragePlatform(),
+        runtimeGlobal: {
+            settingsDefaultsContract: {
+                getOverrideSnapshot() {
+                    return {
+                        draft: {
+                            schemaVersion: 'menu-defaults-override.v1',
+                            limitOverrides: { 'baseSettings.hunt.deathmatchKillLimit': { max: 40 } },
+                        },
+                    };
+                },
+            },
+        },
+    });
+
+    assert.equal(manager.sanitizeSettings({ hunt: { deathmatchKillLimit: 80 } }).hunt.deathmatchKillLimit, 40);
 });
 
 test('v1 limit snapshots migrate to sparse v2 overrides and preserve effective runtime values', () => {

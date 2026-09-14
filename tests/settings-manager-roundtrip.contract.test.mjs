@@ -32,14 +32,34 @@ function createDerivedLeafExpectations(defaults) {
         ['cockpitCamera.PLAYER_2', GAMEPLAY_COCKPIT_CAMERA_ENABLED],
         // Portal beams are hard disabled in the sanitizer.
         ['gameplay.portalBeams', false],
-        // Respawn follows localSettings.modePath ('fight' -> true) via the menu rules.
-        ['hunt.respawnEnabled', true],
         // Developer mode is switched off while the feature flag or release preview says so.
         ['localSettings.developerModeEnabled', false],
-        // The fixed preset lock needs a fixed preset id, which the defaults do not have.
-        ['localSettings.fixedPresetLockEnabled', false],
     ]);
 }
+
+/**
+ * Leaves the mutation sweep deliberately leaves on their default, with the reason why.
+ * The sweep asserts this exact list, so a new persisted field cannot slip in unnoticed:
+ * it either gets a valid alternative below or an entry here.
+ */
+const UNCHANGED_LEAF_PATHS = Object.freeze([
+    // The arcade contract always rewrites the score model to the current one.
+    'arcade.scoreModel',
+    // An empty container for per-session drafts. Filling it adds leaf paths instead of
+    // changing a value; the session draft tests cover its content.
+    'localSettings.draftStateBySessionType',
+    // Only kept while the session type is multiplayer, which the sweep does not select.
+    'localSettings.multiplayerTransport',
+    // Contract version stamps belong to the code, not to the stored state.
+    'localSettings.schemaVersion',
+    'matchSettings.schemaVersion',
+    'menuContracts.lifecycleContractVersion',
+    'menuContracts.localSettingsSchemaVersion',
+    'menuContracts.matchSettingsSchemaVersion',
+    'menuContracts.playerLoadoutSchemaVersion',
+    'menuContracts.schemaVersion',
+    'playerLoadout.schemaVersion',
+]);
 
 /**
  * Numeric leaves whose range lives in their own contract instead of SETTINGS_LIMITS.
@@ -55,16 +75,95 @@ const ALTERNATIVE_NUMBERS = new Map([
     ['localSettings.mobileControls.tiltSensitivity', 1.5],
 ]);
 
-/** String leaves with a known, valid alternative. */
-const ALTERNATIVE_STRINGS = new Map([
+/**
+ * Non-numeric leaves with a valid alternative, taken from the positive list each field is
+ * normalized against. Coupled fields move together: the session type matches the mode, the
+ * mode path matches the game mode, and the active preset identity matches the fixed preset.
+ * The control bindings get conflict-free codes, because normalizeControlBindings resets a
+ * binding that collides with another combat action of the same player.
+ */
+const ALTERNATIVE_VALUES = new Map([
+    ['mode', '1p'],
+    ['gameMode', 'CLASSIC'],
+    ['mapKey', 'maze'],
     ['botDifficulty', 'EASY'],
     ['botPolicyStrategy', 'heuristic'],
-    ['mapKey', 'maze'],
     ['vehicles.PLAYER_1', 'aircraft'],
     ['vehicles.PLAYER_2', 'drone'],
+    ['arcade.profileId', 'arcade-alt'],
+    ['arcade.runType', 'endless_parcours'],
+    ['arcade.combatProfile', 'hunt'],
+    ['botBridge.url', 'ws://127.0.0.1:9100'],
+    ['botBridge.resumeCheckpoint', 'checkpoint-7'],
+    ['recording.profile', 'cinematic'],
+    ['recording.hudMode', 'with_hud'],
+    ['recording.exportPreset', 'master'],
+    ['cameraPerspective.normal', 'cinematic_soft'],
+    ['matchSettings.activePresetId', 'endlosjagd'],
+    ['matchSettings.activePresetKind', 'fixed'],
+    ['matchSettings.activePresetSourceId', 'endlosjagd-source'],
+    ['playerLoadout.presetId', 'loadout-alt'],
+    ['playerLoadout.presetKind', 'open'],
+    ['localSettings.ownerId', 'studio-owner'],
+    ['localSettings.actorId', 'studio-owner'],
+    ['localSettings.developerModeVisibility', 'open'],
+    ['localSettings.developerThemeId', 'arctic-grid'],
+    ['localSettings.fixedPresetId', 'endlosjagd'],
+    ['localSettings.sessionType', 'single'],
+    ['localSettings.splitScreenVariant', 'four_player_planar'],
+    ['localSettings.fourPlayerPlanar.mode', 'hunt'],
+    ['localSettings.fourPlayerPlanar.mapKey', 'maze'],
+    ['localSettings.fourPlayerPlanar.vehicleId', 'aircraft'],
+    ['localSettings.fourPlayerPlanar.rollBindings', [
+        { left: 'KeyZ', right: 'KeyX' },
+        { left: 'KeyC', right: 'KeyV' },
+        { left: 'KeyB', right: 'KeyN' },
+        { left: 'KeyM', right: 'KeyG' },
+    ]],
+    ['localSettings.modePath', 'normal'],
     ['localSettings.themeMode', 'hell'],
+    ['localSettings.graphicsStyle', 'classic'],
+    ['localSettings.mapBrightness', 'hell'],
+    ['localSettings.hud.colorPreset', 'amber'],
+    ['localSettings.startSetup.mapSearch', 'maze'],
+    ['localSettings.startSetup.mapFilter', 'parcours-collection'],
+    ['localSettings.startSetup.vehicleSearch', 'ship'],
+    ['localSettings.startSetup.vehicleFilter', 'heavy'],
+    ['localSettings.startSetup.arcadeGhostDuelMode', 'self_longest_ghost'],
+    ['localSettings.toolsState.activeSection', 'gameplay'],
+    ['localSettings.mobileControls.tiltPitchMode', 'touch'],
+    ['localSettings.mobileControls.tiltAssistMode', 'arcade'],
+    ['localSettings.telemetryState.lastEvents', [{ type: 'quickstart' }]],
+    ['localSettings.eventPlaylistState.activePlaylistId', 'chaos_rotation'],
+    ['localSettings.eventPlaylistState.lastPresetId', 'arcade'],
     ['controls.PLAYER_1.UP', 'KeyT'],
+    ['controls.PLAYER_1.DOWN', 'KeyY'],
+    ['controls.PLAYER_1.LEFT', 'KeyU'],
+    ['controls.PLAYER_1.RIGHT', 'KeyI'],
+    ['controls.PLAYER_1.ROLL_LEFT', 'KeyO'],
+    ['controls.PLAYER_1.ROLL_RIGHT', 'KeyP'],
+    ['controls.PLAYER_1.BOOST', 'KeyH'],
+    ['controls.PLAYER_1.SHOOT', 'KeyJ'],
+    ['controls.PLAYER_1.SHOOT_ROCKET', 'KeyK'],
+    ['controls.PLAYER_1.SHOOT_MG', 'KeyL'],
+    ['controls.PLAYER_1.NEXT_ITEM', 'KeyN'],
+    ['controls.PLAYER_1.USE_ITEM', 'KeyM'],
+    ['controls.PLAYER_1.CAMERA', 'KeyB'],
+    ['controls.PLAYER_2.UP', 'Digit1'],
+    ['controls.PLAYER_2.DOWN', 'Digit2'],
+    ['controls.PLAYER_2.LEFT', 'Digit3'],
+    ['controls.PLAYER_2.RIGHT', 'Digit4'],
+    ['controls.PLAYER_2.ROLL_LEFT', 'Digit5'],
+    ['controls.PLAYER_2.ROLL_RIGHT', 'Digit6'],
+    ['controls.PLAYER_2.BOOST', 'Digit7'],
+    ['controls.PLAYER_2.SHOOT', 'Digit8'],
+    ['controls.PLAYER_2.SHOOT_ROCKET', 'Digit9'],
+    ['controls.PLAYER_2.SHOOT_MG', 'Digit0'],
+    ['controls.PLAYER_2.NEXT_ITEM', 'Minus'],
+    ['controls.PLAYER_2.USE_ITEM', 'Equal'],
+    ['controls.PLAYER_2.CAMERA', 'Backslash'],
     ['controls.GLOBAL.CINEMATIC_TOGGLE', 'F7'],
+    ['controls.GLOBAL.RECORDING_TOGGLE', 'F6'],
 ]);
 
 function resolveSettingsLimitRule(path) {
@@ -72,6 +171,7 @@ function resolveSettingsLimitRule(path) {
     if (path === 'winsNeeded') return SETTINGS_LIMITS.session.winsNeeded;
     if (path.startsWith('gameplay.')) return SETTINGS_LIMITS.gameplay[path.slice('gameplay.'.length)] || null;
     if (path.startsWith('botBridge.')) return SETTINGS_LIMITS.botBridge[path.slice('botBridge.'.length)] || null;
+    if (path.startsWith('hunt.')) return SETTINGS_LIMITS.hunt[path.slice('hunt.'.length)] || null;
     return null;
 }
 
@@ -91,14 +191,22 @@ function createAlternativeNumber(path, value) {
 
 /**
  * Builds a snapshot where every leaf with a known valid alternative carries a value that
- * differs from the default, plus the map of intended values for the assertions.
+ * differs from the default. Returns the map of intended values plus the sorted list of
+ * leaves that stayed on their default, so the test can pin that list.
  */
 function createFullyChangedSnapshot(defaults) {
     const changed = structuredClone(defaults);
     const intended = new Map();
+    const unchanged = [];
 
     for (const path of collectPrimitiveLeafPaths(defaults)) {
         const value = readPathValue(defaults, path);
+        if (ALTERNATIVE_VALUES.has(path)) {
+            const next = structuredClone(ALTERNATIVE_VALUES.get(path));
+            writePathValue(changed, path, next);
+            intended.set(path, next);
+            continue;
+        }
         if (typeof value === 'boolean') {
             writePathValue(changed, path, !value);
             intended.set(path, !value);
@@ -110,14 +218,10 @@ function createFullyChangedSnapshot(defaults) {
             intended.set(path, next);
             continue;
         }
-        if (typeof value === 'string' && ALTERNATIVE_STRINGS.has(path)) {
-            const next = ALTERNATIVE_STRINGS.get(path);
-            writePathValue(changed, path, next);
-            intended.set(path, next);
-        }
+        unchanged.push(path);
     }
 
-    return { changed, intended };
+    return { changed, intended, unchanged: unchanged.sort() };
 }
 
 test('SettingsManager keeps every default leaf path through sanitize, save and load', () => {
@@ -150,9 +254,11 @@ test('SettingsManager keeps a fully changed snapshot through sanitize, save and 
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const defaults = manager.createDefaultSettings();
     const derivedLeaves = createDerivedLeafExpectations(defaults);
-    const { changed, intended } = createFullyChangedSnapshot(defaults);
+    const { changed, intended, unchanged } = createFullyChangedSnapshot(defaults);
 
-    assert.ok(intended.size >= 80, `expected a broad mutation set, got ${intended.size} leaves`);
+    assert.deepEqual(unchanged, [...UNCHANGED_LEAF_PATHS]);
+    assert.equal(intended.size + unchanged.length, collectPrimitiveLeafPaths(defaults).length);
+    assert.ok(intended.size >= 150, `expected a broad mutation set, got ${intended.size} leaves`);
 
     const sanitized = manager.sanitizeSettings(changed);
     for (const [path, expectedValue] of intended) {
@@ -205,6 +311,32 @@ test('SettingsManager keeps the arcade block and hunt limits when settings are s
     assert.equal(loaded.arcade.dailyChallenge, true);
     assert.equal(loaded.hunt.deathmatchKillLimit, 25);
     assert.equal(loaded.hunt.timeLimitEnabled, false);
+});
+
+test('SettingsManager derives hunt respawn from the stored mode path', () => {
+    const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+
+    // Respawn is not a free setting: the menu rules tie it to the mode path, so a stored
+    // value that contradicts the path is corrected instead of being kept.
+    const fightSnapshot = manager.sanitizeSettings({
+        localSettings: { modePath: 'fight' },
+        hunt: { respawnEnabled: false },
+    });
+    const normalSnapshot = manager.sanitizeSettings({
+        localSettings: { modePath: 'normal' },
+        hunt: { respawnEnabled: true },
+    });
+    const arcadeSnapshot = manager.sanitizeSettings({
+        localSettings: { modePath: 'arcade' },
+        hunt: { respawnEnabled: true },
+    });
+
+    assert.equal(fightSnapshot.gameMode, 'HUNT');
+    assert.equal(fightSnapshot.hunt.respawnEnabled, true);
+    assert.equal(normalSnapshot.gameMode, 'CLASSIC');
+    assert.equal(normalSnapshot.hunt.respawnEnabled, false);
+    assert.equal(arcadeSnapshot.gameMode, 'ARCADE');
+    assert.equal(arcadeSnapshot.hunt.respawnEnabled, false);
 });
 
 test('SettingsManager clamps every gameplay field to its declared limit rule', () => {

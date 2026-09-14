@@ -78,6 +78,7 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'configShare.gameplay.trailLength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailLength, step: 100 }),
     'baseSettings.numBots': Object.freeze({ ...SETTINGS_LIMITS.session.numBots, step: 1 }),
     'baseSettings.winsNeeded': Object.freeze({ ...SETTINGS_LIMITS.session.winsNeeded, step: 1 }),
+    'baseSettings.hunt.deathmatchKillLimit': Object.freeze({ ...SETTINGS_LIMITS.hunt.deathmatchKillLimit, step: 1 }),
     'baseSettings.gameplay.speed': Object.freeze({ min: 0, max: 50, step: 0.1 }),
     'baseSettings.gameplay.turnSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.turnSensitivity, step: 0.1 }),
     'baseSettings.gameplay.planeScale': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planeScale, step: 0.05 }),

@@ -390,7 +390,11 @@ export function createRuntimeConfigSnapshot(settings, {
         hunt: {
             enabled: huntModeActive,
             respawnEnabled: huntModeActive ? !!huntSource.respawnEnabled : false,
-            deathmatchKillLimit: Math.max(1, Math.min(100, Math.trunc(Number(huntSource.deathmatchKillLimit) || 10))),
+            deathmatchKillLimit: clampSettingValue(
+                huntSource.deathmatchKillLimit,
+                runtimeLimits.hunt.deathmatchKillLimit,
+                baseConfig?.HUNT?.DEATHMATCH_KILL_LIMIT ?? CONFIG?.HUNT?.DEATHMATCH_KILL_LIMIT ?? 10
+            ),
             timeLimitSeconds: huntSource.timeLimitEnabled === false ? 0 : 300,
         },
         arcade: {

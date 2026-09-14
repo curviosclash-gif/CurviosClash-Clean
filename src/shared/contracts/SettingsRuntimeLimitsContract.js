@@ -60,6 +60,7 @@ function toRuntimeLimitPath(overridePath) {
     if (runtimePath === 'winsNeeded') return 'session.winsNeeded';
     if (runtimePath.startsWith('gameplay.')) return runtimePath;
     if (runtimePath.startsWith('botBridge.')) return runtimePath;
+    if (runtimePath.startsWith('hunt.')) return runtimePath;
     return null;
 }
 
