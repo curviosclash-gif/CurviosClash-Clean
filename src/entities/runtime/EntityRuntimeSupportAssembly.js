@@ -188,7 +188,7 @@ export function createEntityRuntimeSupport(owner) {
             getStrategy: () => owner.gameModeStrategy || null,
             getSimulationNowMs: () => Math.max(0, Number(owner._simulationClockMs) || 0),
             combat: {
-                shootItemProjectile: (player, preferredIndex = -1) => projectileSystem.shootItemProjectile(player, preferredIndex),
+                shootItemProjectile: (player, preferredIndex = -1, rocketOnly = false) => projectileSystem.shootItemProjectile(player, preferredIndex, rocketOnly),
                 shootHuntGun: (player) => owner._overheatGunSystem.tryFire(player),
                 deployRocketTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player, 'rocket') || null,
                 deployMgTurret: (player) => owner._staticTurretSystem?.deployForPlayer?.(player) || null,

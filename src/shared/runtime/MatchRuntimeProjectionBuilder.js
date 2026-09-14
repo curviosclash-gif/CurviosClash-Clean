@@ -105,6 +105,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         quaternion: player?.quaternion,
         aimDirection,
         inventory: player?.inventory,
+        rocketInventory: player?.rocketInventory,
         activeEffects: player?.activeEffects,
         selectedItemIndex: Number(player?.selectedItemIndex) || 0,
         itemUseCooldownRemaining: Math.max(0, Number(player?.itemUseCooldownRemaining) || 0),

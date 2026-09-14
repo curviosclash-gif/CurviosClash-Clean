@@ -1,5 +1,6 @@
 import {
     isPickupTypeSelfUsable,
+    isRocketPickupType,
     normalizePickupType,
     getPickupDefinition,
 } from '../PickupRegistry.js';
@@ -9,14 +10,39 @@ import {
     buildGameplayActionResult,
 } from '../../shared/contracts/GameplayActionResultContract.js';
 
+export function ensurePlayerInventoryCollections(player) {
+    if (!player) return { inventory: [], rocketInventory: [] };
+    if (!Array.isArray(player.inventory)) player.inventory = [];
+    if (!Array.isArray(player.rocketInventory)) player.rocketInventory = [];
+
+    // Accept old saves/network frames without ever exposing their rockets as selectable items.
+    for (let i = 0; i < player.inventory.length;) {
+        const type = normalizePickupType(player.inventory[i], { fallback: player.inventory[i] });
+        if (!isRocketPickupType(type)) {
+            i += 1;
+            continue;
+        }
+        player.rocketInventory.push(type);
+        player.inventory.splice(i, 1);
+    }
+    if (player.inventory.length === 0 || player.selectedItemIndex >= player.inventory.length) {
+        player.selectedItemIndex = 0;
+    }
+    return { inventory: player.inventory, rocketInventory: player.rocketInventory };
+}
+
 export function addPlayerInventoryItem(player, type) {
     if (!player) return false;
     const normalized = normalizePickupType(type, { fallback: type });
     if (!normalized || !getPickupDefinition(normalized)) {
         return false;
     }
-    if (player.inventory.length < resolveGameplayConfig(player).POWERUP.MAX_INVENTORY) {
-        player.inventory.push(normalized);
+    const collections = ensurePlayerInventoryCollections(player);
+    const destination = isRocketPickupType(normalized)
+        ? collections.rocketInventory
+        : collections.inventory;
+    if (destination.length < resolveGameplayConfig(player).POWERUP.MAX_INVENTORY) {
+        destination.push(normalized);
         return true;
     }
     return false;
@@ -24,6 +50,7 @@ export function addPlayerInventoryItem(player, type) {
 
 export function cyclePlayerInventoryItem(player) {
     if (!player) return;
+    ensurePlayerInventoryCollections(player);
     if (player.inventory.length > 0) {
         player.selectedItemIndex = (player.selectedItemIndex + 1) % player.inventory.length;
     } else {
@@ -39,6 +66,7 @@ export function usePlayerInventoryItem(player, modeType = null) {
             message: 'Kein Spieler',
         });
     }
+    ensurePlayerInventoryCollections(player);
     if (player.inventory.length === 0 || player.selectedItemIndex >= player.inventory.length) {
         return buildGameplayActionResult({
             ok: false,
@@ -64,11 +92,7 @@ export function usePlayerInventoryItem(player, modeType = null) {
             type: normalizedType,
         });
     }
-    const lastIdx = player.inventory.length - 1;
-    if (player.selectedItemIndex !== lastIdx) {
-        player.inventory[player.selectedItemIndex] = player.inventory[lastIdx];
-    }
-    player.inventory.length = lastIdx;
+    player.inventory.splice(player.selectedItemIndex, 1);
     if (player.selectedItemIndex >= player.inventory.length && player.inventory.length > 0) {
         player.selectedItemIndex = 0;
     }
@@ -83,6 +107,7 @@ export function usePlayerInventoryItem(player, modeType = null) {
 
 export function dropPlayerInventoryItem(player) {
     if (!player) return null;
+    ensurePlayerInventoryCollections(player);
     if (player.inventory.length > 0) {
         return player.inventory.pop();
     }

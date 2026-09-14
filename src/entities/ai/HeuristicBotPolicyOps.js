@@ -120,6 +120,7 @@ export function resetInput(input) {
     input.cameraSwitch = false;
     input.dropItem = false;
     input.shootItem = false;
+    input.shootRocket = false;
     input.shootMG = false;
     input.shootItemIndex = -1;
     input.nextItem = false;

@@ -69,8 +69,8 @@ test('Touch control layout definitions preserve mobile action order and clone en
     includePauseButton: true,
   });
 
-  assert.deepEqual(joystickButtons, ['fire', 'useItem', 'shootMG', 'nextItem', 'boost']);
-  assert.deepEqual(tiltButtons.map((button) => button.id), ['fire', 'useItem', 'nextItem', 'boost', 'pause']);
+  assert.deepEqual(joystickButtons, ['fire', 'rocket', 'useItem', 'shootMG', 'nextItem', 'boost']);
+  assert.deepEqual(tiltButtons.map((button) => button.id), ['fire', 'rocket', 'useItem', 'nextItem', 'boost', 'pause']);
   tiltButtons[0].label = 'changed';
   assert.equal(resolveTouchButtonDefinitions(TOUCH_CONTROL_MODES.TILT)[0].label, 'SCHUSS');
 });

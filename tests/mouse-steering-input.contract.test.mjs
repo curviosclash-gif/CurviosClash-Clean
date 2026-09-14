@@ -85,7 +85,7 @@ test('mouse steering maps canvas position to analog axes and preserves keyboard 
 
 test('mouse actions fire MG on right click, use items on left click, rockets on middle click and cycle items on wheel', () => {
     const canvas = createEventTarget();
-    const keyboard = { shootMG: false, shootItem: false, useItem: false, nextItem: false };
+    const keyboard = { shootMG: false, shootItem: false, shootRocket: false, useItem: false, nextItem: false };
     const source = createMouseSteeringInputSource({ getKeyboardInput: () => keyboard }, false, { target: canvas });
     const event = (button) => ({ button, preventDefault() {} });
     try {
@@ -102,8 +102,10 @@ test('mouse actions fire MG on right click, use items on left click, rockets on 
         assert.equal(source.poll().shootMG, true, 'short clicks survive until polling');
         assert.equal(source.poll().shootMG, false);
         canvas.dispatch('mousedown', event(1));
-        assert.equal(source.poll().shootItem, true);
-        assert.equal(source.poll().shootItem, false);
+        const rocketPoll = source.poll();
+        assert.equal(rocketPoll.shootRocket, true);
+        assert.equal(rocketPoll.shootItem, false, 'middle click never falls back to the selected item');
+        assert.equal(source.poll().shootRocket, false);
         for (const deltaY of [-100, 100]) {
             let prevented = false;
             canvas.dispatch('wheel', { deltaY, preventDefault() { prevented = true; } });

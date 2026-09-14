@@ -176,12 +176,15 @@ export function decideSteering(bot, player) {
 }
 
 export function decideItemUsage(bot, player, itemRules) {
-    if (!player.inventory || player.inventory.length === 0) return;
+    const inventory = Array.isArray(player.inventory) ? player.inventory : [];
+    const rocketInventory = Array.isArray(player.rocketInventory) ? player.rocketInventory : [];
+    if (inventory.length === 0 && rocketInventory.length === 0) return;
 
     let bestUseScore = -Infinity;
     let bestUseIndex = -1;
     let bestShootScore = -Infinity;
     let bestShootIndex = -1;
+    let bestShootIsRocket = false;
 
     const pressure = bot.sense.pressure;
     const aggression = Math.max(0, bot.profile.aggression + bot.sense.mapAggressionBias);
@@ -195,8 +198,8 @@ export function decideItemUsage(bot, player, itemRules) {
     const enemyClose = bot.sense.targetDistanceSq < 100; // < 10 Einheiten
     const contextWeight = bot.profile.itemContextWeight || 0.5;
 
-    for (let i = 0; i < player.inventory.length; i++) {
-        const type = player.inventory[i];
+    for (let i = 0; i < inventory.length; i++) {
+        const type = inventory[i];
         const normalizedType = normalizePickupType(type, { fallback: type });
         const rule = itemRules[normalizedType] || { self: 0, offense: 0, defensiveScale: 0, emergencyScale: 0, combatSelf: 0 };
         const shieldSaturationPenalty = normalizedType === 'SHIELD'
@@ -221,6 +224,19 @@ export function decideItemUsage(bot, player, itemRules) {
         if (isPickupTypeShootable(normalizedType) && shootScore > bestShootScore) {
             bestShootScore = shootScore;
             bestShootIndex = i;
+            bestShootIsRocket = false;
+        }
+    }
+
+    if (rocketInventory.length > 0) {
+        const normalizedType = normalizePickupType(rocketInventory[0], { fallback: rocketInventory[0] });
+        const rule = itemRules[normalizedType] || { offense: 0 };
+        const rocketOpportunityBonus = bot.sense.targetDistanceSq > 196 ? 0.15 : 0;
+        const shootScore = rule.offense * (0.55 + aggression) * targetBonus + rocketOpportunityBonus;
+        if (isPickupTypeShootable(normalizedType) && shootScore > bestShootScore) {
+            bestShootScore = shootScore;
+            bestShootIndex = 0;
+            bestShootIsRocket = true;
         }
     }
 
@@ -236,8 +252,12 @@ export function decideItemUsage(bot, player, itemRules) {
 
     const offensiveShootThreshold = 0.45 + survivalPressure * 0.35 + (healthRatio < 0.4 ? 0.12 : 0);
     if (bestShootIndex >= 0 && bestShootScore > offensiveShootThreshold && bot.state.itemShootCooldown <= 0) {
-        bot._decision.shootItem = true;
-        bot._decision.shootItemIndex = bestShootIndex;
+        if (bestShootIsRocket) {
+            bot._decision.shootRocket = true;
+        } else {
+            bot._decision.shootItem = true;
+            bot._decision.shootItemIndex = bestShootIndex;
+        }
         bot.state.itemShootCooldown = bot.profile.itemShootCooldown;
     }
 }

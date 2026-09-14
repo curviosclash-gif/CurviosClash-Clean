@@ -20,7 +20,7 @@ export class PlayerInputSource {
      * Returns the current input state.
      * @returns {{ pitchUp: boolean, pitchDown: boolean, yawLeft: boolean, yawRight: boolean,
      *             rollLeft: boolean, rollRight: boolean, boost: boolean, boostPressed: boolean,
-     *             cameraSwitch: boolean, dropItem: boolean, useItem: boolean, shootItem: boolean, shootMG: boolean,
+     *             cameraSwitch: boolean, dropItem: boolean, useItem: boolean, shootItem: boolean, shootRocket: boolean, shootMG: boolean,
      *             nextItem: boolean }}
      */
     poll() {

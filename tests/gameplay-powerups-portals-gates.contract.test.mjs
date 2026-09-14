@@ -269,6 +269,33 @@ test('one simulation tick consumes at most one inventory item action', () => {
     assert.equal(shots, 0);
 });
 
+test('EMP-disabled rocket input consumes nothing and never reaches projectile fire', () => {
+    let shots = 0;
+    const phase = new PlayerActionPhase({
+        _shootItemProjectile: () => { shots += 1; return { ok: true, type: 'ROCKET_WEAK' }; },
+        _notifyPlayerFeedback() {},
+    });
+    const player = {
+        index: 0,
+        isBot: false,
+        itemActionsDisabled: true,
+        inventory: ['EMP'],
+        rocketInventory: ['ROCKET_WEAK'],
+        cycleItem() {},
+        dropItem() {},
+    };
+    phase.run(player, {
+        nextItem: false,
+        dropItem: false,
+        useItem: -1,
+        shootItem: false,
+        shootRocket: true,
+        shootMG: false,
+    }, { requiresShootItemIndex: () => true, hasMachineGun: () => false });
+    assert.equal(shots, 0);
+    assert.deepEqual(player.rocketInventory, ['ROCKET_WEAK']);
+});
+
 test('Map schema validation keeps portal and gate fallback behavior explicit', () => {
     const warnings = [];
     const map = createMapDocument({
@@ -410,12 +437,12 @@ test('Shared UI action availability keeps cooldown and capability hints aligned'
     });
     assert.equal(projectedInventoryState.type, 'ROCKET_WEAK');
     assert.equal(projectedInventoryState.hasItem, true);
-    assert.equal(projectedInventoryState.canUse, false);
+    assert.equal(projectedInventoryState.canUse, true);
     assert.equal(projectedInventoryState.canShoot, true);
     assert.equal(projectedInventoryState.canShootNow, false);
-    assert.equal(projectedInventoryState.canCycle, true);
+    assert.equal(projectedInventoryState.canCycle, false);
     assert.equal(projectedInventoryState.showMg, true);
-    assert.equal(projectedInventoryState.actionHintLabel, 'SHOT');
+    assert.equal(projectedInventoryState.actionHintLabel, 'DUAL');
 });
 
 test('Portal- und Gate-Runtimes liefern standardisierte Traversal-Result-Codes', () => {

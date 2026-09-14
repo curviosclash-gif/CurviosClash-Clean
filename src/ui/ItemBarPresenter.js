@@ -2,7 +2,7 @@
 // ItemBarPresenter.js - item inventory bar rendering (icons, cooldown overlay)
 // ============================================
 
-import { getPickupDefinition, isPickupTypeOffensive } from '../shared/contracts/PickupRegistryContract.js';
+import { getPickupDefinition, isPickupTypeOffensive, isRocketPickupType } from '../shared/contracts/PickupRegistryContract.js';
 import { resolvePickupActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { formatKeyCodeShort } from './KeybindLabels.js';
 import { resolveWeaponFanProjectileCount } from '../hunt/WeaponFanOps.js';
@@ -11,8 +11,9 @@ import { resolveWeaponFanProjectileCount } from '../hunt/WeaponFanOps.js';
  * Resolves the key cap shown on a slot. Items are cycled, not selected by
  * number, so the only meaningful key is the one that fires/uses the slot.
  */
-function resolveSlotKeyLabel(slotAction, keyBindings) {
+function resolveSlotKeyLabel(slotAction, keyBindings, inventoryKind = 'items') {
     if (!keyBindings) return '';
+    if (inventoryKind === 'rockets') return formatKeyCodeShort(keyBindings.SHOOT_ROCKET);
     if (slotAction.canShoot && !slotAction.canUse) return formatKeyCodeShort(keyBindings.SHOOT);
     if (slotAction.canUse && !slotAction.canShoot) return formatKeyCodeShort(keyBindings.USE_ITEM);
     if (slotAction.canUse && slotAction.canShoot) {
@@ -56,12 +57,20 @@ export function ensureItemSlots(container, maxInventory) {
     }
 }
 
-export function updateItemBar(container, player, projection = null, gameplayConfig = null, keyBindings = null) {
+export function updateItemBar(container, player, projection = null, gameplayConfig = null, keyBindings = null, inventoryKind = 'items') {
     const powerupConfig = gameplayConfig?.POWERUP || {};
     const shootCooldownMax = Math.max(0.001, Number(gameplayConfig?.PROJECTILE?.COOLDOWN) || 0.001);
     const itemUseCooldownMax = Math.max(0.001, Number(gameplayConfig?.HUNT?.ITEM_USE_COOLDOWN_SECONDS) || 0.001);
     ensureItemSlots(container, powerupConfig.MAX_INVENTORY);
-    const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
+    const sourceInventory = inventoryKind === 'rockets' && Array.isArray(player?.rocketInventory)
+        ? player.rocketInventory
+        : (Array.isArray(player?.inventory) ? player.inventory : []);
+    const hasMixedLegacyInventory = sourceInventory.some((type) => (
+        inventoryKind === 'rockets' ? !isRocketPickupType(type) : isRocketPickupType(type)
+    ));
+    const inventory = hasMixedLegacyInventory
+        ? sourceInventory.filter((type) => (inventoryKind === 'rockets' ? isRocketPickupType(type) : !isRocketPickupType(type)))
+        : sourceInventory;
     const inventoryLength = inventory.length;
     const selectedIndex = inventoryLength > 0
         ? Math.max(0, Math.min(Number(player?.selectedItemIndex) || 0, inventoryLength - 1))
@@ -95,7 +104,7 @@ export function updateItemBar(container, player, projection = null, gameplayConf
             if (slotAction.shootOnCooldown) titleParts.push(`Shoot-CD ${slotAction.shootCooldownRemaining.toFixed(1)}s`);
         }
 
-        const slotKeyLabel = type ? resolveSlotKeyLabel(slotAction, keyBindings) : '';
+        const slotKeyLabel = type ? resolveSlotKeyLabel(slotAction, keyBindings, inventoryKind) : '';
         if (type && slotKeyLabel) titleParts.push(`Taste ${slotKeyLabel}`);
 
         slot.dataset.type = rawType;
@@ -154,6 +163,24 @@ export function updateItemBar(container, player, projection = null, gameplayConf
         slot.style.borderColor = type && Number.isFinite(config?.color)
             ? '#' + config.color.toString(16).padStart(6, '0')
             : '';
+    }
+}
+
+export function updateRocketBar(container, player, projection = null, gameplayConfig = null, keyBindings = null) {
+    if (!container) return;
+    const rocketInventory = Array.isArray(player?.rocketInventory)
+        ? player.rocketInventory
+        : (Array.isArray(player?.inventory) ? player.inventory.filter((type) => isRocketPickupType(type)) : []);
+    updateItemBar(container, player, projection, gameplayConfig, keyBindings, 'rockets');
+    container.dataset.inventoryKind = 'rockets';
+    container.setAttribute?.('aria-label', 'Raketen FIFO');
+    for (let i = 0; i < container.children.length; i += 1) {
+        const slot = container.children[i];
+        const isNext = i === 0 && i < rocketInventory.length;
+        slot.classList.toggle('next-rocket', isNext);
+        slot.dataset.selected = isNext ? '1' : '0';
+        slot.classList.toggle('selected', isNext);
+        if (isNext) slot.title = `${slot.title}${slot.title ? ' | ' : ''}Naechste Rakete (FIFO)`;
     }
 }
 

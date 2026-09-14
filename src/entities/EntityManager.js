@@ -230,6 +230,7 @@ export class EntityManager {
         player.kill();
         player.trail?.clear?.();
         if (Array.isArray(player.inventory)) player.inventory.length = 0;
+        if (Array.isArray(player.rocketInventory)) player.rocketInventory.length = 0;
         if (Array.isArray(player.activeEffects)) player.activeEffects.length = 0;
         player.selectedItemIndex = 0;
         player.scenarioAnchor = null;
@@ -313,8 +314,8 @@ export class EntityManager {
         return this._huntCombatSystem.useInventoryItem(player, preferredIndex);
     }
 
-    _shootItemProjectile(player, preferredIndex = -1) {
-        return this._huntCombatSystem.shootItemProjectile(player, preferredIndex);
+    _shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
+        return this._huntCombatSystem.shootItemProjectile(player, preferredIndex, rocketOnly);
     }
 
     _shootHuntGun(player) {

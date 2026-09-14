@@ -41,6 +41,7 @@ export class BotAI {
             cameraSwitch: false,
             dropItem: false,
             shootItem: false,
+            shootRocket: false,
             shootMG: false,
             shootItemIndex: -1,
             nextItem: false,
@@ -60,6 +61,7 @@ export class BotAI {
             boost: false,
             useItem: -1,
             shootItem: false,
+            shootRocket: false,
             shootItemIndex: -1,
         };
 
@@ -187,6 +189,7 @@ export class BotAI {
         input.cameraSwitch = false;
         input.dropItem = false;
         input.shootItem = false;
+        input.shootRocket = false;
         input.shootMG = false;
         input.shootItemIndex = -1;
         input.nextItem = false;
@@ -199,6 +202,7 @@ export class BotAI {
         this._decision.boost = false;
         this._decision.useItem = -1;
         this._decision.shootItem = false;
+        this._decision.shootRocket = false;
         this._decision.shootItemIndex = -1;
     }
 

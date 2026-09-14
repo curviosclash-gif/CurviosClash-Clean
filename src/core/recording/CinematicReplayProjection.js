@@ -62,6 +62,7 @@ function ensureProjectionPlayer(outPlayers, index) {
             trailWidth: 0.6,
             trailInGap: false,
             inventory: [],
+            rocketInventory: [],
             effects: [],
             hasShield: false,
             shieldHP: 0,
@@ -152,6 +153,7 @@ function updateProjectionPlayer(out, left, right, alpha, fallbackIndex) {
     out.position.z = lerp(toFiniteNumber(leftPos[2]), toFiniteNumber(rightPos[2]), transformAlpha);
     interpolateQuaternion(out.quaternion, leftRot, rightRot, transformAlpha);
     out.inventory = Array.isArray(discrete?.inventory) ? discrete.inventory.slice() : [];
+    out.rocketInventory = Array.isArray(discrete?.rocketInventory) ? discrete.rocketInventory.slice() : [];
     out.effects = Array.isArray(discrete?.effects)
         ? discrete.effects.map((effect) => ({ ...effect }))
         : [];

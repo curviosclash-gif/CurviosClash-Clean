@@ -8,6 +8,7 @@ const GAMEPAD_MAPPING = Object.freeze({
     yawAxis: 0,
     rollAxis: 2,
     fireButton: 7,
+    rocketButton: 5,
     boostButton: 0,
     shootMGButton: 6,
     nextItemButton: 3,
@@ -123,6 +124,7 @@ function createGamepadInputSource(gamepadIndex = 0) {
                 dropItem: false,
                 useItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.useItemButton),
                 shootItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.fireButton),
+                shootRocket: this._buttonPressed(gamepad, GAMEPAD_MAPPING.rocketButton),
                 shootMG: this._buttonDown(gamepad, GAMEPAD_MAPPING.shootMGButton),
                 nextItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.nextItemButton),
             };
@@ -251,7 +253,8 @@ export function createMouseSteeringInputSource(inputManager, includeSecondaryBin
                 output.yawAxis = yawAxis;
             }
             output.shootMG = !!keyboardInput.shootMG || mgDown || mgPressed;
-            output.shootItem = !!keyboardInput.shootItem || rocketPressed;
+            output.shootItem = !!keyboardInput.shootItem;
+            output.shootRocket = !!keyboardInput.shootRocket || rocketPressed;
             output.useItem = !!keyboardInput.useItem || useItemPressed;
             output.nextItem = !!keyboardInput.nextItem || itemScrollPending;
             mgPressed = false;

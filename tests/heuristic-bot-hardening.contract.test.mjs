@@ -272,7 +272,7 @@ test('Hunt decisions use the selected target distance and keep rockets out of th
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
     enemy.position.set(0, 0, -12);
-    player.inventory = ['ROCKET_HEAVY'];
+    player.rocketInventory = ['ROCKET_HEAVY'];
     const observation = createSafeObservation();
     observation[TARGET_DISTANCE_RATIO] = 0.95;
     const policy = new HeuristicBotPolicy();
@@ -332,6 +332,25 @@ test('Hunt bot does not fire at a selected target behind it', () => {
     assert.equal(action.shootItem, false);
 });
 
+test('queue-only Hunt bot emits the dedicated FIFO rocket action', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -30);
+    player.rocketInventory = ['ROCKET_WEAK'];
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'aggressive' });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT',
+        players: [player, enemy],
+        projectiles: [],
+        arena: {},
+        observation: createSafeObservation(),
+        huntTarget: { playerIndex: enemy.index, distance: 30 },
+        observationContext: { targetDistanceMax: 120 },
+    });
+    assert.equal(action.shootRocket, true);
+    assert.equal(action.shootItem, false);
+});
+
 test('Hunt bot reserves hitscan MG fire for the configured aim cone', () => {
     const player = createPlayer(1);
     const enemy = createPlayer(2, false);
@@ -372,12 +391,13 @@ test('Hunt bot waits for the shared shoot cooldown before firing MG or rockets',
     const coolingDown = policy.update(1 / 60, player, context);
     assert.equal(coolingDown.shootMG, false);
     assert.equal(coolingDown.shootItem, false);
+    assert.equal(coolingDown.shootRocket, false);
     assert.equal(policy._huntState.commitTimer, 0);
 
     player.shootCooldown = 0;
     const ready = policy.update(1 / 60, player, context);
     assert.equal(ready.shootMG, true);
-    assert.equal(ready.shootItem, true);
+    assert.equal(ready.shootRocket, true);
     assert.equal(policy._huntState.commitTimer, 0.24);
 });
 

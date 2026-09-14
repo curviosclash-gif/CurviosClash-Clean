@@ -408,7 +408,8 @@ export class EndlessParcoursRuntime {
             }
             this._lastHumanShield = shield;
         }
-        const inventory = Array.isArray(human?.inventory) ? human.inventory.length : 0;
+        const inventory = (Array.isArray(human?.inventory) ? human.inventory.length : 0)
+            + (Array.isArray(human?.rocketInventory) ? human.rocketInventory.length : 0);
         if (this._lastInventoryCount !== null && inventory > this._lastInventoryCount) {
             registerEndlessStreakEvent(this, 'pickup', ENDLESS_PARCOURS_STREAK.pickupBaseScore);
         }

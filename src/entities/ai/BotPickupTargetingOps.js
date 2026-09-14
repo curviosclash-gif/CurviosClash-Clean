@@ -1,4 +1,4 @@
-import { getPickupDefinition } from '../PickupRegistry.js';
+import { getPickupDefinition, isRocketPickupType } from '../PickupRegistry.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 
 function healthRatio(player) {
@@ -18,7 +18,8 @@ export function findPreferredPickupTarget(player, runtimeContext, {
 } = {}) {
     const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
     const capacity = Math.max(1, Number(resolveGameplayConfig(player).POWERUP?.MAX_INVENTORY) || 1);
-    if (!player?.position || inventory.length >= capacity) return null;
+    const rocketInventory = Array.isArray(player?.rocketInventory) ? player.rocketInventory : [];
+    if (!player?.position || (inventory.length >= capacity && rocketInventory.length >= capacity)) return null;
 
     const pickups = Array.isArray(runtimeContext?.powerups) ? runtimeContext.powerups : [];
     const hpRatio = healthRatio(player);
@@ -30,6 +31,8 @@ export function findPreferredPickupTarget(player, runtimeContext, {
         if (!item?.mesh?.position || item.predictedCollected || item.telegraphRemaining > 0) continue;
         const definition = getPickupDefinition(item.type);
         if (!definition) continue;
+        const targetInventory = isRocketPickupType(item.type) ? rocketInventory : inventory;
+        if (targetInventory.length >= capacity) continue;
         const distanceSq = player.position.distanceToSquared(item.mesh.position);
         if (distanceSq > maxDistanceSq) continue;
 

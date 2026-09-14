@@ -200,6 +200,7 @@ function createPlayerProjection(value = null) {
         quaternion: createQuaternionProjection(value.quaternion),
         aimDirection: createVector3Projection(value.aimDirection),
         inventory: cloneStringArray(value.inventory),
+        rocketInventory: cloneStringArray(value.rocketInventory),
         activeEffects: Array.isArray(value.activeEffects) ? value.activeEffects
             .map((effect) => {
                 const type = normalizeString(effect?.type, '').trim().toUpperCase();

@@ -30,6 +30,8 @@ function createEntityManager() {
             isBoosting: true,
             color: 0xff00ff,
             activeEffects: [{ type: 'shield', remaining: 1.5 }],
+            inventory: ['SHIELD'],
+            rocketInventory: ['ROCKET_WEAK', 'ROCKET_HEAVY'],
             trail: {
                 width: 0.85,
                 inGap: true,
@@ -108,6 +110,8 @@ test('cinematic replay records fixed-time visual snapshots without video frames'
     assert.equal(replay.snapshots[0].players[0].isBoosting, true);
     assert.equal(replay.snapshots[0].players[0].trailWidth, 0.85);
     assert.equal(replay.snapshots[0].players[0].trailInGap, true);
+    assert.deepEqual(replay.snapshots[0].players[0].inventory, ['SHIELD']);
+    assert.deepEqual(replay.snapshots[0].players[0].rocketInventory, ['ROCKET_WEAK', 'ROCKET_HEAVY']);
     assert.equal(replay.snapshots[0].projectiles[0].type, 'rocket');
     assert.equal(replay.snapshots[0].players[0].pos[0], 50);
     assert.equal(replay.snapshots[0].players[0].renderDiscontinuityVersion, 7);

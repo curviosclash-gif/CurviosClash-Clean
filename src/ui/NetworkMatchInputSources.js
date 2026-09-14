@@ -11,6 +11,7 @@ const INPUT_DEFAULTS = Object.freeze({
     dropItem: false,
     useItem: false,
     shootItem: false,
+    shootRocket: false,
     shootMG: false,
     nextItem: false,
 });
@@ -34,6 +35,7 @@ export function normalizeNetworkInputState(input = null) {
         dropItem: source.dropItem === true,
         useItem: source.useItem === true,
         shootItem: source.shootItem === true,
+        shootRocket: source.shootRocket === true,
         shootMG: source.shootMG === true,
         nextItem: source.nextItem === true,
     };

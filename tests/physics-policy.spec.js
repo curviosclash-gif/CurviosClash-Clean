@@ -604,7 +604,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
 
             bot.maxHp = Math.max(1, Number(bot.maxHp) || 1);
             bot.hp = Math.max(1, bot.maxHp * 0.2);
-            bot.inventory = ['ROCKET_WEAK', 'ROCKET_HEAVY'];
+            bot.inventory = [];
+            bot.rocketInventory = ['ROCKET_WEAK', 'ROCKET_HEAVY'];
             bot.selectedItemIndex = 0;
             bot.position.set(0, 50, 0);
             bot.setLookAtWorld?.(0, 50, -100);
@@ -622,7 +623,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
             return {
                 error: null,
                 shootItem: !!action?.shootItem,
-                shootItemIndex: Number(action?.shootItemIndex),
+                shootRocket: !!action?.shootRocket,
                 boost: !!action?.boost,
                 yawCommand: !!action?.yawLeft || !!action?.yawRight,
                 pitchCommand: !!action?.pitchUp || !!action?.pitchDown,
@@ -630,8 +631,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
         });
 
         expect(result.error).toBeNull();
-        expect(result.shootItem).toBeTruthy();
-        expect(result.shootItemIndex).toBe(1);
+        expect(result.shootRocket).toBeTruthy();
+        expect(result.shootItem).toBeFalsy();
         expect(result.boost).toBeTruthy();
         expect(result.yawCommand || result.pitchCommand).toBeTruthy();
     });
@@ -754,7 +755,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
             bot.position.set(0, 50, 0);
             bot.setLookAtWorld?.(0, 50, -120);
             bot.hp = Math.max(1, Number(bot.maxHp) || 100);
-            bot.inventory = ['ROCKET_HEAVY'];
+            bot.inventory = [];
+            bot.rocketInventory = ['ROCKET_HEAVY'];
             bot.selectedItemIndex = 0;
 
             enemy.position.set(9, 50, -26);
@@ -820,15 +822,15 @@ test.describe('Physics Policy (Tests 65-82)', () => {
                 huntTargetKind: String(context?.huntTarget?.kind || ''),
                 shootMG: !!action?.shootMG,
                 shootItem: !!action?.shootItem,
-                shootItemIndex: Number(action?.shootItemIndex),
+                shootRocket: !!action?.shootRocket,
             };
         });
 
         expect(result.error).toBeNull();
         expect(result.huntTargetKind).toBe('trail');
         expect(result.shootMG).toBeTruthy();
-        expect(result.shootItem).toBeTruthy();
-        expect(result.shootItemIndex).toBe(0);
+        expect(result.shootRocket).toBeTruthy();
+        expect(result.shootItem).toBeFalsy();
     });
 
     test('T78d: HuntBotPolicy haelt MG-Druck bei niedrigem HP mit stabilem Shield aufrecht', async ({ page }) => {
@@ -912,7 +914,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
             bot.maxShieldHp = Math.max(10, Number(bot.maxShieldHp) || 40);
             bot.shieldHP = bot.maxShieldHp * 0.04;
             bot.hasShield = true;
-            bot.inventory = ['ROCKET_HEAVY'];
+            bot.inventory = [];
+            bot.rocketInventory = ['ROCKET_HEAVY'];
             bot.selectedItemIndex = 0;
 
             enemy.position.set(10, 50, -20);
@@ -935,7 +938,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
                 error: null,
                 shootMG: !!action?.shootMG,
                 shootItem: !!action?.shootItem,
-                shootItemIndex: Number(action?.shootItemIndex),
+                shootRocket: !!action?.shootRocket,
                 boost: !!action?.boost,
                 yawCommand: !!action?.yawLeft || !!action?.yawRight,
             };
@@ -943,8 +946,8 @@ test.describe('Physics Policy (Tests 65-82)', () => {
 
         expect(result.error).toBeNull();
         expect(result.shootMG).toBeFalsy();
-        expect(result.shootItem).toBeTruthy();
-        expect(result.shootItemIndex).toBe(0);
+        expect(result.shootRocket).toBeTruthy();
+        expect(result.shootItem).toBeFalsy();
         expect(result.boost).toBeTruthy();
         expect(result.yawCommand).toBeTruthy();
     });

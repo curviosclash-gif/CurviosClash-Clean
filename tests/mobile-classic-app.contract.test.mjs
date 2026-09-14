@@ -881,7 +881,7 @@ test('Mobile Classic tilt UI guides neutral hold, fallback and re-calibration', 
 
 test('Mobile Classic tilt touch controls expose all classic match actions', () => {
   const tiltButtons = resolveTouchButtonDefinitions(TOUCH_CONTROL_MODES.TILT).map((button) => button.id);
-  assert.deepEqual(tiltButtons, ['fire', 'useItem', 'nextItem', 'boost']);
+  assert.deepEqual(tiltButtons, ['fire', 'rocket', 'useItem', 'nextItem', 'boost']);
   assert.equal(tiltButtons.includes('shootMG'), false);
 });
 
@@ -890,7 +890,7 @@ test('Mobile Classic touch path has pause and edge-triggered item actions', () =
     includePauseButton: true,
   }).map((button) => button.id);
 
-  assert.deepEqual(tiltButtons, ['fire', 'useItem', 'nextItem', 'boost', 'pause']);
+  assert.deepEqual(tiltButtons, ['fire', 'rocket', 'useItem', 'nextItem', 'boost', 'pause']);
 
   let pauseCount = 0;
   const source = new TouchInputSource({
@@ -909,6 +909,7 @@ test('Mobile Classic touch path has pause and edge-triggered item actions', () =
   });
   source._resolveActionState = () => ({
     canShootNow: true,
+    selectedCanShootNow: true,
     canUseNow: true,
     canCycle: true,
     showMg: false,
@@ -1059,6 +1060,7 @@ test('Mobile Classic keeps a quick touch tap latched until the next poll', () =>
   const source = new TouchInputSource({ game: { settings: { localSettings: {} } } });
   source._resolveActionState = () => ({
     canShootNow: true,
+    selectedCanShootNow: true,
     canUseNow: true,
     canCycle: true,
     showMg: false,

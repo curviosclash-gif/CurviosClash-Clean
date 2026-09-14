@@ -139,7 +139,7 @@ function applyProjectionToPlayers(entityManager, projection, dt, replayAliveStat
             0,
             toFiniteNumber(projected.shieldHitFeedback, player.shieldHitFeedback)
         );
-        player.inventory = Array.isArray(projected.inventory) ? projected.inventory.slice() : [];
+        player.inventory = Array.isArray(projected.inventory) ? projected.inventory.slice() : []; player.rocketInventory = Array.isArray(projected.rocketInventory) ? [...projected.rocketInventory] : [];
         player.activeEffects = Array.isArray(projected.effects)
             ? projected.effects.map((effect) => ({ ...effect }))
             : [];

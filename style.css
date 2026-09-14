@@ -2095,6 +2095,14 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 8px;
 }
 
+.rocket-bar::before {
+    content: 'ROCKETS';
+}
+
+.rocket-bar .item-slot.next-rocket {
+    box-shadow: inset 4px 0 0 #ffb347, 0 0 18px rgba(255, 140, 48, 0.42);
+}
+
 .item-slot {
     width: 36px;
     height: 36px;
@@ -7341,6 +7349,10 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     counter-reset: mode-item-slot;
     transform: translateX(-50%) scale(var(--hud-scale, 1));
     transform-origin: center bottom;
+}
+
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .rocket-bar {
+    bottom: 78px;
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot {

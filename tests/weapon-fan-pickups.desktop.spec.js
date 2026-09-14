@@ -51,11 +51,12 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
         const fireRocket = (fanType) => {
             player.activeEffects.length = 0;
             player.applyPowerup(fanType);
-            player.inventory = ['ROCKET_WEAK'];
+            player.inventory = [];
+            player.rocketInventory = ['ROCKET_WEAK'];
             player.selectedItemIndex = 0;
             player.shootCooldown = 0;
             projectileSystem.clear();
-            const shot = manager._huntCombatSystem.shootItemProjectile(player, 0);
+            const shot = manager._huntCombatSystem.shootItemProjectile(player, -1, true);
             return {
                 shot,
                 directions: projectileSystem.projectiles.map((projectile) => (

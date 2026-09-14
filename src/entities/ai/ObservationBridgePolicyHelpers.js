@@ -63,6 +63,7 @@ function isPassiveForwardIntent(action = null) {
     if (hasSteeringIntent(action)) return false;
     const hasCombatIntent = action.shootMG === true
         || action.shootItem === true
+        || action.shootRocket === true
         || action.dropItem === true
         || action.nextItem === true
         || (Number.isInteger(action.useItem) && action.useItem >= 0);

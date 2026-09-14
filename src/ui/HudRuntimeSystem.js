@@ -5,7 +5,7 @@
 import { ArcadeMissionHUD } from './arcade/ArcadeMissionHUD.js';
 import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
-import { updateActiveEffectBar, updateItemBar } from './ItemBarPresenter.js';
+import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
@@ -418,6 +418,15 @@ export class HudRuntimeSystem {
     }
 
     _updateItemBar(container, player, projection = null, playerIndex = 0) {
+        if (!this._rocketBars) this._rocketBars = new Map();
+        let rocketBar = this._rocketBars.get(container);
+        if (!rocketBar) {
+            rocketBar = document.createElement('div');
+            rocketBar.className = 'item-bar rocket-bar';
+            container.parentNode?.insertBefore(rocketBar, container);
+            this._rocketBars.set(container, rocketBar);
+        }
+        updateRocketBar(rocketBar, player, projection, resolveGameplayConfig(this.game), this._getPlayerKeyBindings(playerIndex));
         updateItemBar(
             container,
             player,
@@ -564,6 +573,10 @@ export class HudRuntimeSystem {
     }
 
     dispose() {
+        if (this._rocketBars) {
+            for (const rocketBar of this._rocketBars.values()) rocketBar?.remove?.();
+            this._rocketBars.clear();
+        }
         this.clearNetworkScoreboard();
         this._arcadeMissionHud?.dispose?.();
         this._arcadeScoreHud?.dispose?.();

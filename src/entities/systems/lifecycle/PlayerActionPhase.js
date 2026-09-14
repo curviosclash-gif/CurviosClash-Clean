@@ -17,6 +17,7 @@ export class PlayerActionPhase {
 
         const wantsUseItem = Number.isInteger(input.useItem) && input.useItem >= 0;
         const wantsShootItem = input.shootItem === true;
+        const wantsShootRocket = input.shootRocket === true;
         let itemActionHandled = false;
 
         if (wantsUseItem) {
@@ -40,7 +41,7 @@ export class PlayerActionPhase {
             }
         }
 
-        if (wantsShootItem && !itemActionHandled) {
+        if ((wantsShootItem || wantsShootRocket) && !itemActionHandled) {
             let result = null;
             if (player.itemActionsDisabled) {
                 result = buildGameplayActionResult({
@@ -49,6 +50,8 @@ export class PlayerActionPhase {
                     message: 'Items durch EMP blockiert',
                     mode: 'shoot',
                 });
+            } else if (wantsShootRocket) {
+                result = entityManager._shootItemProjectile(player, -1, true);
             } else if (strategy?.requiresShootItemIndex() && Number.isInteger(input.shootItemIndex) && input.shootItemIndex >= 0) {
                 result = entityManager._shootItemProjectile(player, input.shootItemIndex);
             } else if (!strategy?.requiresShootItemIndex()) {

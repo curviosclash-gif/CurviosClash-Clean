@@ -559,7 +559,7 @@ test('item slots render cooldown sweep and remaining seconds instead of title-on
         runtime._updateItemBar(container, player, { modeId: 'HUNT' });
 
         assert.equal(container.children.length, 5);
-        const slot = container.children[0];
+        const slot = runtime._rocketBars.get(container).children[0];
         const [iconEl, sweepEl, cooldownTextEl] = slot.children;
         assert.ok(iconEl.textContent.length > 0, 'icon is rendered in the dedicated icon element');
         const sweepMatch = /scaleY\(([\d.]+)\)/.exec(sweepEl.style.transform);
@@ -584,8 +584,8 @@ test('item slots expose the bound key, not the slot number, for the usable actio
         const game = {
             inputManager: {
                 bindings: {
-                    PLAYER_1: { SHOOT: 'KeyF', USE_ITEM: 'KeyG' },
-                    PLAYER_2: { SHOOT: 'ArrowUp', USE_ITEM: 'Quote' },
+                    PLAYER_1: { SHOOT: 'KeyF', SHOOT_ROCKET: 'KeyV', USE_ITEM: 'KeyG' },
+                    PLAYER_2: { SHOOT: 'ArrowUp', SHOOT_ROCKET: 'Numpad0', USE_ITEM: 'Quote' },
                 },
             },
         };
@@ -594,18 +594,18 @@ test('item slots expose the bound key, not the slot number, for the usable actio
 
         const p1Container = createStubElement('item-bar');
         runtime._updateItemBar(p1Container, player, { modeId: 'HUNT' }, 0);
-        const p1Key = p1Container.children[0].dataset.actionKey;
+        const p1Key = runtime._rocketBars.get(p1Container).children[0].dataset.actionKey;
         assert.ok(p1Key.length > 0, 'a key cap is rendered for a usable slot');
-        assert.ok(/[FG]/.test(p1Key), `P1 key comes from its own bindings, got ${p1Key}`);
+        assert.match(p1Key, /V/, `P1 rocket key comes from its own bindings, got ${p1Key}`);
         assert.ok(
-            String(p1Container.children[0].ariaLabel).includes(p1Key),
+            String(runtime._rocketBars.get(p1Container).children[0].ariaLabel).includes(p1Key),
             'the key also reaches the accessible label'
         );
 
         // Player two must read its own bindings, not player one's.
         const p2Container = createStubElement('item-bar');
         runtime._updateItemBar(p2Container, player, { modeId: 'HUNT' }, 1);
-        const p2Key = p2Container.children[0].dataset.actionKey;
+        const p2Key = runtime._rocketBars.get(p2Container).children[0].dataset.actionKey;
         assert.notEqual(p2Key, p1Key, `P2 resolves separate bindings, got ${p2Key}`);
 
         // Empty slots carry no key cap.
@@ -623,16 +623,21 @@ test('rocket tiers and active effect sources remain visible without color or too
         container.parentNode = { insertBefore() {} };
         const player = {
             index: 1,
-            inventory: ['ROCKET_MEGA'],
+            inventory: ['GHOST'],
+            rocketInventory: ['ROCKET_MEGA', 'ROCKET_WEAK'],
             selectedItemIndex: 0,
             activeEffects: [{ type: 'INVERT', remaining: 2.25, sourcePlayerIndex: 0 }],
         };
 
         runtime._updateItemBar(container, player, { modeId: 'HUNT' });
 
-        const tierBadge = container.children[0].children[3];
+        const rocketBar = runtime._rocketBars.get(container);
+        const tierBadge = rocketBar.children[0].children[3];
         assert.equal(tierBadge.textContent, 'XL');
-        assert.match(container.children[0].ariaLabel, /Rakete XL/);
+        assert.match(rocketBar.children[0].ariaLabel, /Rakete XL/);
+        assert.equal(rocketBar.children[0].classList.contains('next-rocket'), true);
+        assert.equal(rocketBar.children[1].classList.contains('next-rocket'), false);
+        assert.equal(container.children[0].dataset.pickupType, 'GHOST');
         const effectBar = runtime._activeEffectBars.get(container);
         assert.equal(effectBar.classList.contains('hidden'), false);
         assert.equal(effectBar.children[0].children[1].textContent, 'Invertieren');

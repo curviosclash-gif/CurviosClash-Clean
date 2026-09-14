@@ -281,9 +281,12 @@ export class HeuristicBotPolicy {
         }
         if (mode !== 'HUNT') input.shootMG = false;
         if (resolveInventoryLength(player) === 0) {
-            input.shootItem = false;
-            input.shootItemIndex = -1;
             input.useItem = -1;
+        }
+        if (resolveInventoryLength(player) === 0 && (!Array.isArray(player?.rocketInventory) || player.rocketInventory.length === 0)) {
+            input.shootItem = false;
+            input.shootRocket = false;
+            input.shootItemIndex = -1;
         }
         applyHeuristicSafetyArbiter(this, input, dt, player, runtimeContext, observation, decision);
         if (mode === 'HUNT' && Number.isInteger(decision.targetPlayerIndex) && decision.targetPlayerIndex >= 0) {
@@ -292,7 +295,7 @@ export class HeuristicBotPolicy {
                 if (player.fightTargetPlayerIndex === decision.targetPlayerIndex) {
                     player.fightTargetLockRemaining = 0;
                 }
-            } else if (input.shootMG === true || input.shootItem === true) {
+            } else if (input.shootMG === true || input.shootItem === true || input.shootRocket === true) {
                 player.fightTargetPlayerIndex = decision.targetPlayerIndex;
                 player.fightTargetLockRemaining = Math.max(
                     Math.max(0, Number(player.fightTargetLockRemaining) || 0),

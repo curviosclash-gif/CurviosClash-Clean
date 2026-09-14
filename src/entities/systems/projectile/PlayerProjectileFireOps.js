@@ -1,4 +1,5 @@
-import { isPickupTypeShootable } from '../../PickupRegistry.js';
+import { isPickupTypeShootable, normalizePickupType } from '../../PickupRegistry.js';
+import { ensurePlayerInventoryCollections } from '../../player/PlayerInventoryOps.js';
 import { ROCKET_RANGE_MULTIPLIER } from '../../../hunt/RocketPickupSystem.js';
 import {
     applyWeaponFanDirection,
@@ -14,7 +15,7 @@ function failed(code, message, type = null) {
     return buildGameplayActionResult({ ok: false, code, message, type });
 }
 
-export function shootPlayerItemProjectile(system, player, preferredIndex = -1) {
+export function shootPlayerItemProjectile(system, player, preferredIndex = -1, rocketOnly = false) {
     const config = system.entityRuntimeConfig;
     if ((player.shootCooldown || 0) > 0) {
         return failed(
@@ -25,7 +26,13 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1) {
 
     const strategy = system.getStrategy();
     const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
-    const itemPreview = system.peekInventoryItem(player, preferredIndex, 'shoot');
+    const { rocketInventory } = ensurePlayerInventoryCollections(player);
+    const rocketType = normalizePickupType(rocketInventory[0], { fallback: rocketInventory[0] });
+    const itemPreview = rocketOnly
+        ? (rocketType
+            ? buildGameplayActionResult({ ok: true, code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_SUCCESS, type: rocketType })
+            : failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Keine Rakete verfuegbar'))
+        : system.peekInventoryItem(player, preferredIndex, 'shoot');
     if (!itemPreview?.ok) {
         return failed(
             itemPreview?.code || GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
@@ -41,16 +48,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1) {
         );
     }
 
-    const itemResult = system.takeInventoryItem(player, preferredIndex, 'shoot');
-    if (!itemResult.ok) {
-        return failed(
-            itemResult.code || GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
-            itemResult.reason || 'Kein Item verfuegbar',
-            itemResult.type || null
-        );
-    }
-
-    const type = itemResult.type;
+    const type = itemPreview.type;
     const power = config.POWERUP.TYPES[type];
     if (!power) {
         return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_INVALID_TYPE, 'Item ungueltig', type);
@@ -134,6 +132,13 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1) {
         system._rocketTrailSystem.initializeProjectile(projectile);
         system.projectiles.push(projectile);
         if (!firstProjectile) firstProjectile = projectile;
+    }
+
+    const itemResult = rocketOnly && rocketType
+        ? { ok: rocketInventory.shift() === rocketType, type: rocketType }
+        : system.takeInventoryItem(player, preferredIndex, 'shoot');
+    if (!itemResult.ok) {
+        return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Kein Item verfuegbar', type);
     }
 
     player.shootCooldown = config.PROJECTILE.COOLDOWN;

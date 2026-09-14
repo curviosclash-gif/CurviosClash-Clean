@@ -18,6 +18,7 @@ export const BOT_ACTION_DEFAULTS = Object.freeze({
     cameraSwitch: false,
     dropItem: false,
     shootItem: false,
+    shootRocket: false,
     shootMG: false,
     shootItemIndex: -1,
     nextItem: false,
@@ -35,6 +36,7 @@ const BOOLEAN_KEYS = Object.freeze([
     'cameraSwitch',
     'dropItem',
     'shootItem',
+    'shootRocket',
     'shootMG',
     'nextItem',
 ]);
@@ -95,6 +97,7 @@ export function createNeutralBotAction(target = {}) {
     target.cameraSwitch = false;
     target.dropItem = false;
     target.shootItem = false;
+    target.shootRocket = false;
     target.shootMG = false;
     target.shootItemIndex = -1;
     target.nextItem = false;
@@ -130,7 +133,6 @@ export function sanitizeBotAction(action, options = {}, target = {}) {
         sanitized.shootItem = false;
         sanitized.shootItemIndex = -1;
     }
-
     sanitized.useItem = rawUseItemIndex >= 0 ? rawUseItemIndex : -1;
 
     if (rawShootItemIndex !== Number(action.shootItemIndex) && Number.isFinite(Number(action.shootItemIndex))) {

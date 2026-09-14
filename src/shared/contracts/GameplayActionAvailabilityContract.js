@@ -1,6 +1,7 @@
 import {
     isPickupTypeSelfUsable,
     isPickupTypeShootable,
+    isRocketPickupType,
     normalizePickupType,
 } from './PickupRegistryContract.js';
 
@@ -59,24 +60,57 @@ export function resolveInventoryActionAvailability({
     modeType = 'CLASSIC',
     showMg = false,
 } = {}) {
-    const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
+    const sourceInventory = Array.isArray(player?.inventory) ? player.inventory : [];
+    const inventory = sourceInventory.some((type) => isRocketPickupType(type))
+        ? sourceInventory.filter((type) => !isRocketPickupType(type))
+        : sourceInventory;
     const inventoryLength = inventory.length;
     const selectedIndex = inventoryLength > 0
         ? Math.max(0, Math.min(Number(player?.selectedItemIndex) || 0, inventoryLength - 1))
         : -1;
     const rawType = selectedIndex >= 0 ? inventory[selectedIndex] : '';
-    const actionState = resolvePickupActionAvailability({
+    const rocketInventory = Array.isArray(player?.rocketInventory)
+        ? player.rocketInventory
+        : (inventory === sourceInventory ? [] : sourceInventory.filter((type) => isRocketPickupType(type)));
+    const nextRocketType = rocketInventory[0] || '';
+    const selectedState = resolvePickupActionAvailability({
         type: rawType,
         fallbackType: rawType,
         modeType,
         useCooldownRemaining: player?.itemUseCooldownRemaining,
         shootCooldownRemaining: player?.shootCooldown,
     });
+    const rocketState = nextRocketType ? resolvePickupActionAvailability({
+        type: nextRocketType,
+        fallbackType: nextRocketType,
+        modeType,
+        useCooldownRemaining: player?.itemUseCooldownRemaining,
+        shootCooldownRemaining: player?.shootCooldown,
+    }) : null;
+    const canShoot = rocketState?.canShoot === true || selectedState.canShoot;
+    const canShootNow = rocketState?.canShootNow === true || selectedState.canShootNow;
+    const canUse = selectedState.canUse;
+    const canUseNow = selectedState.canUseNow;
 
     return {
-        ...actionState,
+        ...selectedState,
+        type: rocketState?.type || selectedState.type,
+        canUse,
+        canUseNow,
+        canShoot,
+        canShootNow,
+        selectedCanShoot: selectedState.canShoot,
+        selectedCanShootNow: selectedState.canShootNow,
+        canShootRocket: rocketState?.canShoot === true,
+        canShootRocketNow: rocketState?.canShootNow === true,
+        shootOnCooldown: canShoot && Math.max(0, Number(player?.shootCooldown) || 0) > GAMEPLAY_ACTION_COOLDOWN_EPSILON,
+        hasCooldown: selectedState.useOnCooldown || (canShoot && Math.max(0, Number(player?.shootCooldown) || 0) > GAMEPLAY_ACTION_COOLDOWN_EPSILON),
+        actionHintLabel: resolveActionHintLabel(canUse, canShoot),
         rawType,
+        nextRocketType: rocketState?.type || '',
+        rocketInventoryLength: rocketInventory.length,
         hasItem: selectedIndex >= 0,
+        hasRocket: rocketInventory.length > 0,
         selectedIndex,
         inventoryLength,
         canCycle: inventoryLength > 1,

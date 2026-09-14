@@ -523,6 +523,7 @@ export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeCo
     input.boost = false;
     input.shootMG = false;
     input.shootItem = false;
+    input.shootRocket = false;
     input.shootItemIndex = -1;
     if (decision) {
         decision.intent = state.state === HEURISTIC_SAFETY_STATES.RECOVER ? 'recover' : 'evade';

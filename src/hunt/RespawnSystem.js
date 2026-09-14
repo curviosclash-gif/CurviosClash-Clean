@@ -13,6 +13,7 @@ function getRespawnConfig(runtimeContext = null) {
 function resetRespawnInventory(player, respawnConfig) {
     if (!player || respawnConfig?.RESET_INVENTORY === false) return;
     player.inventory.length = 0;
+    if (Array.isArray(player.rocketInventory)) player.rocketInventory.length = 0;
     player.selectedItemIndex = 0;
 
     const startLoadout = Array.isArray(respawnConfig?.START_LOADOUT)

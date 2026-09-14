@@ -54,6 +54,7 @@ export const MATCH_KERNEL_INPUT_ACTION_KEYS = Object.freeze([
     'dropItem',
     'useItem',
     'shootItem',
+    'shootRocket',
     'shootMG',
     'nextItem',
 ]);

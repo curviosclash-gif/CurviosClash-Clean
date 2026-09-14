@@ -2740,6 +2740,7 @@ test('LAN client input binds local controls to its network slot only', () => {
         dropItem: false,
         useItem: false,
         shootItem: false,
+        shootRocket: false,
         shootMG: false,
         nextItem: false,
     });

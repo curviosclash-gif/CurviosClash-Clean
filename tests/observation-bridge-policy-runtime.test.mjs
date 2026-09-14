@@ -215,7 +215,8 @@ test('HeuristicBotPolicy keeps classic MG-free even with combat inventory', () =
 test('HeuristicBotPolicy enables MG and rockets in fight mode with a target corridor', () => {
     const policy = new HeuristicBotPolicy({ profile: 'aggressive' });
     const player = createHeuristicPlayer({
-        inventory: ['ROCKET_HEAVY'],
+        inventory: [],
+        rocketInventory: ['ROCKET_HEAVY'],
         shieldHP: 70,
     });
     const enemy = createHeuristicPlayer({
@@ -240,8 +241,8 @@ test('HeuristicBotPolicy enables MG and rockets in fight mode with a target corr
     });
 
     assert.equal(action.shootMG, true);
-    assert.equal(action.shootItem, true);
-    assert.equal(action.shootItemIndex, 0);
+    assert.equal(action.shootRocket, true);
+    assert.equal(action.shootItem, false);
     assert.equal(policy.getDecisionSnapshot().mode, 'HUNT');
 });
 

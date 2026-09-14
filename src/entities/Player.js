@@ -79,7 +79,7 @@ export class Player {
         this.activeEffects = [];
         this._speedEffectBaseSpeed = null;
         this._pickupShieldOwned = false;
-        this.inventory = [];
+        this.inventory = []; this.rocketInventory = [];
         this.selectedItemIndex = 0;
         this.hasShield = false;
         this.shieldHP = 0;

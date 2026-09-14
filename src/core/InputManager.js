@@ -13,6 +13,7 @@ const ACTION_KEYS = [
     'ROLL_RIGHT',
     'BOOST',
     'SHOOT',
+    'SHOOT_ROCKET',
     'SHOOT_MG',
     'NEXT_ITEM',
     'USE_ITEM',
@@ -51,6 +52,7 @@ export class InputManager {
             dropItem: false,
             useItem: false,
             shootItem: false,
+            shootRocket: false,
             nextItem: false,
         };
 
@@ -224,6 +226,7 @@ export class InputManager {
         inputObj.dropItem = false;
         inputObj.useItem = false;
         inputObj.shootItem = false;
+        inputObj.shootRocket = false;
         inputObj.shootMG = false;
         inputObj.nextItem = false;
     }
@@ -308,6 +311,7 @@ export class InputManager {
         this._reuseInput.cameraSwitch = this._wasActionPressed(keyMap.CAMERA, altKeyMap?.CAMERA || '');
         this._reuseInput.useItem = this._wasActionPressed(keyMap.USE_ITEM, altKeyMap?.USE_ITEM || '');
         this._reuseInput.shootItem = this._wasActionPressed(keyMap.SHOOT, altKeyMap?.SHOOT || '');
+        this._reuseInput.shootRocket = this._wasActionPressed(keyMap.SHOOT_ROCKET, altKeyMap?.SHOOT_ROCKET || '');
         this._reuseInput.shootMG = this._isActionDown(keyMap.SHOOT_MG, altKeyMap?.SHOOT_MG || '');
         this._reuseInput.nextItem = this._wasActionPressed(keyMap.NEXT_ITEM, altKeyMap?.NEXT_ITEM || '');
 

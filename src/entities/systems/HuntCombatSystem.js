@@ -25,6 +25,7 @@ import {
 } from '../../shared/contracts/GameplayActionResultContract.js';
 import { applyFightHumanAimAssist } from '../../hunt/FightAimAssist.js';
 import { resolveFightMachineGunConfig } from '../../shared/contracts/FightMachineGunContract.js';
+import { ensurePlayerInventoryCollections } from '../player/PlayerInventoryOps.js';
 
 function resolveActionResultCodes(action = 'use') {
     return action === 'shoot'
@@ -54,6 +55,7 @@ export class HuntCombatSystem {
     }
 
     _resolveInventoryIndex(player, preferredIndex = -1) {
+        ensurePlayerInventoryCollections(player);
         if (!Array.isArray(player?.inventory) || player.inventory.length === 0) {
             return -1;
         }
@@ -118,11 +120,7 @@ export class HuntCombatSystem {
         const index = Number(itemResult.meta?.index);
         const type = itemResult.type;
         const rawType = itemResult.meta?.rawType;
-        const lastIdx = player.inventory.length - 1;
-        if (index !== lastIdx) {
-            player.inventory[index] = player.inventory[lastIdx];
-        }
-        player.inventory.length = lastIdx;
+        player.inventory.splice(index, 1);
         if (player.inventory.length === 0 || player.selectedItemIndex >= player.inventory.length) {
             player.selectedItemIndex = 0;
         }
@@ -242,8 +240,8 @@ export class HuntCombatSystem {
         });
     }
 
-    shootItemProjectile(player, preferredIndex = -1) {
-        return this.runtime?.combat?.shootItemProjectile?.(player, preferredIndex)
+    shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
+        return this.runtime?.combat?.shootItemProjectile?.(player, preferredIndex, rocketOnly)
             || buildGameplayActionResult({
                 ok: false,
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_SYSTEM_MISSING,

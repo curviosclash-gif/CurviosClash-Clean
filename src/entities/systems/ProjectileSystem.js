@@ -77,8 +77,8 @@ export class ProjectileSystem {
 
     }
 
-    shootItemProjectile(player, preferredIndex = -1) {
-        return shootPlayerItemProjectile(this, player, preferredIndex);
+    shootItemProjectile(player, preferredIndex = -1, rocketOnly = false) {
+        return shootPlayerItemProjectile(this, player, preferredIndex, rocketOnly);
     }
 
     deployMine(player) { return deployMine(this, player); }

@@ -38,7 +38,9 @@ import {
     normalizeRatio,
     toBinaryFlag,
 } from './ObservationNormalizeOps.js';
-import { encodeItemSlots, ITEM_SLOT_COUNT } from './ItemSlotEncoder.js';
+import { encodeItemSlots, ITEM_SLOT_COUNT, resolveItemSlotIndex } from './ItemSlotEncoder.js';
+
+const EMPTY_ROCKET_INVENTORY = Object.freeze([]);
 import { encodeModeId } from './ModeFeatureEncoder.js';
 import {
     buildPerceptionBasis,
@@ -286,8 +288,10 @@ export function buildObservation(player, context = {}, target = null) {
         ? context
         : createObservationContext(context);
     const playerInventory = Array.isArray(player.inventory) ? player.inventory : [];
-    const inventoryLength = playerInventory.length;
-    const selectedItemIndex = inventoryLength > 0
+    const rocketInventory = Array.isArray(player.rocketInventory) ? player.rocketInventory : EMPTY_ROCKET_INVENTORY;
+    // Rockets moved into their own queue; the policy input keeps seeing them as carried items.
+    const inventoryLength = playerInventory.length + rocketInventory.length;
+    const selectedItemIndex = playerInventory.length > 0
         ? clamp(Number(player.selectedItemIndex) || 0, 0, ITEM_SLOT_COUNT - 1)
         : -1;
     const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8);
@@ -336,5 +340,9 @@ export function buildObservation(player, context = {}, target = null) {
     observation[CONTEXT_RESERVED] = 0;
 
     encodeItemSlots(playerInventory, observation, ITEM_SLOT_00);
+    for (let i = 0; i < rocketInventory.length; i += 1) {
+        const slotIndex = resolveItemSlotIndex(rocketInventory[i]);
+        if (slotIndex >= 0 && slotIndex < ITEM_SLOT_COUNT) observation[ITEM_SLOT_00 + slotIndex] = 1;
+    }
     return observation;
 }

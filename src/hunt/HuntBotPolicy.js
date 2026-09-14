@@ -65,6 +65,12 @@ export function findStrongestRocketIndex(inventory = []) {
     return strongestIndex;
 }
 
+export function findQueuedRocketIndex(player) {
+    const queue = Array.isArray(player?.rocketInventory) ? player.rocketInventory : [];
+    if (queue.length > 0 && isRocketTierType(queue[0])) return 0;
+    return findStrongestRocketIndex(Array.isArray(player?.inventory) ? player.inventory : []);
+}
+
 export function resolveHuntFallbackItemAction(player, options = {}) {
     const inventory = Array.isArray(player?.inventory) ? player.inventory : [];
     if (inventory.length === 0) {
@@ -402,7 +408,7 @@ export class HuntBotPolicy {
             input.shootMG = true;
         }
 
-        const rocketIndex = findStrongestRocketIndex(player.inventory);
+        const rocketIndex = findQueuedRocketIndex(player);
         if (rocketIndex >= 0 && (hasSharedTarget || enemy)) {
             const shouldUseRocket = scenarioTuning.prefersRocket
                 ||
@@ -414,8 +420,7 @@ export class HuntBotPolicy {
                 || survivalPressure > 0.54
                 || vitalityRatio < 0.52;
             if (shouldUseRocket) {
-                input.shootItem = true;
-                input.shootItemIndex = rocketIndex;
+                input.shootRocket = true;
             }
         }
 
@@ -459,6 +464,7 @@ export class HuntBotPolicy {
             input.boost = true;
             if (rocketIndex < 0) {
                 input.shootItem = false;
+                input.shootRocket = false;
                 input.shootItemIndex = -1;
             }
         }

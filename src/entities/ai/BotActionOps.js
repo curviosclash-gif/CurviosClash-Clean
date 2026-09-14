@@ -15,6 +15,7 @@ export function applyDecisionToInput(bot) {
     input.boost = bot._decision.boost;
     input.useItem = bot._decision.useItem;
     input.shootItem = bot._decision.shootItem;
+    input.shootRocket = bot._decision.shootRocket;
     input.shootItemIndex = bot._decision.shootItemIndex;
 
     return input;

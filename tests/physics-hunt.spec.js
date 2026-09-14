@@ -90,7 +90,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             shooter.trail?.clear?.();
             enemy.trail?.clear?.();
             shooter.shootCooldown = 0;
-            shooter.inventory = ['ROCKET_HEAVY'];
+            shooter.inventory = [];
+            shooter.rocketInventory = ['ROCKET_HEAVY'];
             shooter.selectedItemIndex = 0;
 
             shooter.position.set(0, 50, 0);
@@ -123,7 +124,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
                 ownerTrail: null,
             });
 
-            const shot = entityManager._shootItemProjectile(shooter, 0);
+            const shot = entityManager._shootItemProjectile(shooter, -1, true);
             if (!shot?.ok) {
                 return { error: 'shot-failed', reason: shot?.reason || null };
             }
@@ -191,7 +192,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             player.trail?.clear?.();
             target.trail?.clear?.();
             player.shootCooldown = 0;
-            player.inventory = ['ROCKET_HEAVY'];
+            player.inventory = [];
+            player.rocketInventory = ['ROCKET_HEAVY'];
             player.selectedItemIndex = 0;
 
             player.position.set(0, 50, 0);
@@ -199,7 +201,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             player.setLookAtWorld?.(0, 50, -120);
 
             const targetHpBefore = Number(target.hp || 0);
-            const shot = entityManager._shootItemProjectile(player, 0);
+            const shot = entityManager._shootItemProjectile(player, -1, true);
             if (!shot?.ok) {
                 return { error: 'shot-failed', reason: shot?.reason || null };
             }
@@ -966,7 +968,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             shooter.position.set(0, 50, 0);
             shooter.setLookAtWorld?.(0, 50, -120);
             shooter.shootCooldown = 0;
-            shooter.inventory = ['ROCKET_MEDIUM'];
+            shooter.inventory = [];
+            shooter.rocketInventory = ['ROCKET_MEDIUM'];
             shooter.selectedItemIndex = 0;
 
             enemy.alive = true;
@@ -980,7 +983,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             game.particles.clearDebugEvents();
 
             const hpBefore = Number(enemy.hp || 0);
-            const shot = entityManager._shootItemProjectile(shooter, 0);
+            const shot = entityManager._shootItemProjectile(shooter, -1, true);
             if (!shot?.ok) {
                 return { error: 'shot-failed', reason: shot?.reason || null };
             }
@@ -1033,7 +1036,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             shooter.position.set(0, 50, 0);
             shooter.setLookAtWorld?.(0, 50, -120);
             shooter.shootCooldown = 0;
-            shooter.inventory = ['ROCKET_MEDIUM'];
+            shooter.inventory = [];
+            shooter.rocketInventory = ['ROCKET_MEDIUM'];
             shooter.selectedItemIndex = 0;
 
             enemy.position.set(10, 50, -30);
@@ -1071,7 +1075,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             game.particles.clearDebugEvents();
 
             const hpBefore = Number(enemy.hp || 0);
-            const shot = entityManager._shootItemProjectile(shooter, 0);
+            const shot = entityManager._shootItemProjectile(shooter, -1, true);
             if (!shot?.ok) {
                 if (trailRef?.key && trailRef?.entry) {
                     entityManager.unregisterTrailSegment(trailRef.key, trailRef.entry);
@@ -1432,7 +1436,9 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
                 return { error: 'missing-state' };
             }
 
-            player.inventory = ['ROCKET_HEAVY', 'SHIELD'];
+            // Rockets live in their own FIFO queue; "use item" must never reach it.
+            player.inventory = [];
+            player.rocketInventory = ['ROCKET_HEAVY'];
             player.selectedItemIndex = 0;
             player.itemUseCooldownRemaining = 0;
 
@@ -1441,18 +1447,16 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             return {
                 error: null,
                 ok: !!blocked?.ok,
-                reason: String(blocked?.reason || ''),
-                type: String(blocked?.type || ''),
                 inventory: player.inventory.slice(),
+                rocketInventory: player.rocketInventory.slice(),
                 selectedItemIndex: Number(player.selectedItemIndex || 0),
             };
         });
 
         expect(result.error).toBeNull();
         expect(result.ok).toBeFalsy();
-        expect(result.reason).toContain('nicht direkt genutzt');
-        expect(result.type).toBe('ROCKET_HEAVY');
-        expect(result.inventory).toEqual(['ROCKET_HEAVY', 'SHIELD']);
+        expect(result.inventory).toEqual([]);
+        expect(result.rocketInventory).toEqual(['ROCKET_HEAVY']);
         expect(result.selectedItemIndex).toBe(0);
     });
 
@@ -1603,7 +1607,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             game.settings.hunt.respawnEnabled = true;
             game._applySettingsToRuntime?.();
 
-            player.inventory = ['ROCKET_HEAVY', 'SHIELD'];
+            player.inventory = ['SHIELD'];
+            player.rocketInventory = ['ROCKET_HEAVY', 'ROCKET_MEDIUM'];
             player.selectedItemIndex = 1;
             player.shootCooldown = 0.5;
             entityManager._overheatGunSystem._overheatByPlayer[player.index] = 84;
@@ -1620,6 +1625,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
                 error: null,
                 alive: !!player.alive,
                 inventory: [...player.inventory],
+                rocketInventory: [...player.rocketInventory],
                 selectedItemIndex: Number(player.selectedItemIndex || 0),
                 shieldHP: Number(player.shieldHP || 0),
                 spawnProtectionTimer: Number(player.spawnProtectionTimer || 0),
@@ -1631,7 +1637,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
 
         expect(result.error).toBeNull();
         expect(result.alive).toBeTruthy();
-        expect(result.inventory).toEqual(['ROCKET_WEAK']);
+        expect(result.inventory).toEqual([]);
+        expect(result.rocketInventory).toEqual(['ROCKET_WEAK']);
         expect(result.selectedItemIndex).toBe(0);
         expect(result.shieldHP).toBeGreaterThanOrEqual(18);
         expect(result.spawnProtectionTimer).toBeGreaterThanOrEqual(1.2);

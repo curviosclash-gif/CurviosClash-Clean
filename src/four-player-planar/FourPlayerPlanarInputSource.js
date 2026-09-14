@@ -21,20 +21,23 @@ function resetInput(input) {
     input.dropItem = false;
     input.useItem = false;
     input.shootItem = false;
+    input.shootRocket = false;
     input.shootMG = false;
     input.nextItem = false;
     return input;
 }
 
 export function resolvePreferredFourPlayerPlanarAction(availability, mode = FOUR_PLAYER_PLANAR_MODES.CLASSIC) {
-    if (!availability.hasItem) return { useItem: false, shootItem: false };
+    if (!availability.hasItem && !availability.hasRocket) return { useItem: false, shootItem: false, shootRocket: false };
 
     const preferShoot = mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
-    if (preferShoot && availability.canShootNow) return { useItem: false, shootItem: true };
-    if (!preferShoot && availability.canUseNow) return { useItem: true, shootItem: false };
-    if (availability.canUseNow) return { useItem: true, shootItem: false };
-    if (availability.canShootNow) return { useItem: false, shootItem: true };
-    return { useItem: false, shootItem: false };
+    if (preferShoot && availability.selectedCanShootNow) return { useItem: false, shootItem: true, shootRocket: false };
+    if (preferShoot && availability.canShootRocketNow) return { useItem: false, shootItem: false, shootRocket: true };
+    if (!preferShoot && availability.canUseNow) return { useItem: true, shootItem: false, shootRocket: false };
+    if (availability.canUseNow) return { useItem: true, shootItem: false, shootRocket: false };
+    if (availability.selectedCanShootNow) return { useItem: false, shootItem: true, shootRocket: false };
+    if (availability.canShootRocketNow) return { useItem: false, shootItem: false, shootRocket: true };
+    return { useItem: false, shootItem: false, shootRocket: false };
 }
 
 export function resolveFourPlayerPlanarContextAction(player, mode = FOUR_PLAYER_PLANAR_MODES.CLASSIC) {
@@ -89,6 +92,7 @@ export function createFourPlayerPlanarInputSource({
                 );
                 output.useItem = action.useItem;
                 output.shootItem = action.shootItem;
+                output.shootRocket = action.shootRocket;
             }
             return output;
         },

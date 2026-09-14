@@ -93,6 +93,7 @@ export function serializePlayer(player) {
         health: toFiniteNumber(player.hp ?? player.health, 100),
         score: player.score ?? 0,
         inventory: Array.isArray(player.inventory) ? [...player.inventory] : [],
+        rocketInventory: Array.isArray(player.rocketInventory) ? [...player.rocketInventory] : [],
         effects: serializeEffects(player.activeEffects),
         hasShield: player.hasShield === true,
         shieldHP: toFiniteNumber(player.shieldHP, 0),

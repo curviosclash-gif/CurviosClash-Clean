@@ -55,6 +55,7 @@ const ACTION_TEMPLATE = Object.freeze({
     boost: false,
     shootMG: false,
     shootItem: false,
+    shootRocket: false,
     shootItemIndex: -1,
     useItem: -1,
     dropItem: false,
@@ -119,6 +120,7 @@ function clearCombatIntent(action) {
     action.boost = false;
     action.shootMG = false;
     action.shootItem = false;
+    action.shootRocket = false;
     action.shootItemIndex = -1;
     action.dropItem = false;
     action.nextItem = false;
@@ -127,6 +129,7 @@ function clearCombatIntent(action) {
 function clearItemIntent(action) {
     action.useItem = -1;
     action.shootItem = false;
+    action.shootRocket = false;
     action.shootItemIndex = -1;
     action.dropItem = false;
     action.nextItem = false;
@@ -287,7 +290,7 @@ function inferIntentFromAction(action) {
     if (!action || typeof action !== 'object') {
         return HYBRID_INTENT_TYPES.STABILIZE;
     }
-    if (action.shootMG || action.shootItem) return HYBRID_INTENT_TYPES.COMBAT;
+    if (action.shootMG || action.shootItem || action.shootRocket) return HYBRID_INTENT_TYPES.COMBAT;
     if (Number.isInteger(action.useItem) && action.useItem >= 0) return HYBRID_INTENT_TYPES.ITEM_USE;
     if (action.boost) return HYBRID_INTENT_TYPES.CHASE;
     if (action.yawLeft || action.yawRight || action.pitchUp || action.pitchDown) return HYBRID_INTENT_TYPES.EVADE;

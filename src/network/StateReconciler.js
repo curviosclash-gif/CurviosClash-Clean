@@ -228,6 +228,11 @@ export class StateReconciler {
             localPlayer.inventory.length = 0;
             localPlayer.inventory.push(...serverPlayer.inventory);
         }
+        if (Array.isArray(serverPlayer.rocketInventory)) {
+            if (!Array.isArray(localPlayer.rocketInventory)) localPlayer.rocketInventory = [];
+            localPlayer.rocketInventory.length = 0;
+            localPlayer.rocketInventory.push(...serverPlayer.rocketInventory);
+        }
 
         if (typeof serverPlayer.score === 'number') {
             localPlayer.score = serverPlayer.score;

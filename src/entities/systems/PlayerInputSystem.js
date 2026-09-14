@@ -30,6 +30,7 @@ const SHARED_EMPTY_INPUT = {
     cameraSwitch: false,
     dropItem: false,
     shootItem: false,
+    shootRocket: false,
     shootMG: false,
     shootItemIndex: -1,
     nextItem: false,
@@ -50,7 +51,7 @@ function getEmptyInput() {
     SHARED_EMPTY_INPUT.boostPressed = false;
     SHARED_EMPTY_INPUT.cameraSwitch = false;
     SHARED_EMPTY_INPUT.dropItem = false;
-    SHARED_EMPTY_INPUT.shootItem = false;
+    SHARED_EMPTY_INPUT.shootItem = false; SHARED_EMPTY_INPUT.shootRocket = false;
     SHARED_EMPTY_INPUT.shootMG = false;
     SHARED_EMPTY_INPUT.shootItemIndex = -1;
     SHARED_EMPTY_INPUT.nextItem = false;
@@ -531,7 +532,7 @@ export class PlayerInputSystem {
             input.boost = inputState.boost;
             input.boostPressed = inputState.boostPressed;
             input.cameraSwitch = inputState.cameraSwitch;
-            input.shootItem = inputState.shootItem;
+            input.shootItem = inputState.shootItem; input.shootRocket = inputState.shootRocket;
             input.shootMG = inputState.shootMG;
             input.nextItem = inputState.nextItem;
             input.dropItem = false;

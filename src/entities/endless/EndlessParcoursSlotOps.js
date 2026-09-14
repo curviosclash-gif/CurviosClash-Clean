@@ -93,10 +93,13 @@ export function tryActivateEndlessSlot(runtime, slotState) {
     slotState.player.endlessForcedRetreat = false;
     slotState.player.endlessRetreatReason = '';
     if (!Array.isArray(slotState.player.inventory)) slotState.player.inventory = [];
+    if (!Array.isArray(slotState.player.rocketInventory)) slotState.player.rocketInventory = [];
+    slotState.player.rocketInventory.length = 0;
     if (elite) {
         promoteEndlessElite(slotState.player);
         slotState.player.inventory.length = 0;
-        slotState.player.inventory.push('ROCKET_HEAVY');
+        slotState.player.rocketInventory.length = 0;
+        slotState.player.rocketInventory.push('ROCKET_HEAVY');
         runtime._eliteWaveSpawned = runtime.waveNumber;
     } else {
         const baseMaxHp = Math.max(1, Number(slotState.player.maxHp) || 100);
@@ -104,8 +107,8 @@ export function tryActivateEndlessSlot(runtime, slotState) {
         slotState.player.hp = slotState.player.maxHp;
         const rocketType = resolveEndlessBotRocketType(runtime.waveNumber, slotState.player.scenarioRole);
         if (rocketType) {
-            slotState.player.inventory.length = 0;
-            slotState.player.inventory.push(rocketType);
+            slotState.player.rocketInventory.length = 0;
+            slotState.player.rocketInventory.push(rocketType);
         }
     }
     slotState.state = 'active';

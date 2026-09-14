@@ -16,7 +16,7 @@ import {
     clearSteeringInput,
     findNearestReadyPortal,
     findNearestReadySpecialGate,
-    findStrongestRocketIndex,
+    findQueuedRocketIndex,
     getNearestEnemy,
     resolveHealthRatio,
     resolveHuntFallbackItemAction,
@@ -68,7 +68,7 @@ function resolveHuntBridgePriorities(player, runtimeContext) {
     const vitalityRatio = clamp(healthRatio * 0.72 + shieldRatio * 0.28, 0, 1);
     const enemyVitalityRatio = clamp(enemyHealthRatio * 0.72 + enemyShieldRatio * 0.28, 0, 1);
     const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1.0);
-    const rocketIndex = findStrongestRocketIndex(player?.inventory || []);
+    const rocketIndex = findQueuedRocketIndex(player);
     const hasSharedTarget = !!huntTarget;
     const targetDistanceSq = Number.isFinite(huntTarget?.distance)
         ? huntTarget.distance * huntTarget.distance
@@ -170,8 +170,7 @@ function resolveHuntBridgeAction(runtimeContext, player) {
             || priorities.vitalityRatio < 0.52
         );
         if (shouldUseRocket) {
-            action.shootItem = true;
-            action.shootItemIndex = priorities.rocketIndex;
+            action.shootRocket = true;
         }
     }
 
@@ -218,6 +217,7 @@ function resolveHuntBridgeAction(runtimeContext, player) {
         action.boost = true;
         if (priorities.rocketIndex < 0) {
             action.shootItem = false;
+            action.shootRocket = false;
             action.shootItemIndex = -1;
         }
     }

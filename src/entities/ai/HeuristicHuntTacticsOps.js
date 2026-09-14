@@ -11,7 +11,7 @@ import {
     clearSteeringInput,
     findNearestReadyPortal,
     findNearestReadySpecialGate,
-    findStrongestRocketIndex,
+    findQueuedRocketIndex,
     resolveHealthRatio,
     resolveHuntFallbackItemAction,
     resolveShieldRatio,
@@ -188,6 +188,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         input.boost = true;
         input.shootMG = false;
         input.shootItem = false;
+        input.shootRocket = false;
         input.shootItemIndex = -1;
         input.useItem = -1;
         return {
@@ -242,7 +243,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
     const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
     const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1);
     const survivalPressure = Math.max(pressureLevel, projectileThreat ? 0.84 : 0, (1 - vitalityRatio) * 0.95);
-    const rocketIndex = findStrongestRocketIndex(player?.inventory || []);
+    const rocketIndex = findQueuedRocketIndex(player);
     let intent = 'fight-search';
     let retreatReason = '';
 
@@ -285,8 +286,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         && rocketWindow && pressureLevel < 0.9
         && (aggression >= 0.32 || enemyVitalityRatio > 0.55 || survivalPressure > 0.72)
         && clearProjectileShot) {
-        input.shootItem = true;
-        input.shootItemIndex = rocketIndex;
+        input.shootRocket = true;
     }
     if (itemAction.useItem >= 0) input.useItem = itemAction.useItem;
     else if (clearProjectileShot && rocketIndex < 0 && itemAction.shootItem === true && itemAction.shootItemIndex >= 0) {
@@ -329,6 +329,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         input.shootMG = false;
         if (rocketIndex < 0) {
             input.shootItem = false;
+            input.shootRocket = false;
             input.shootItemIndex = -1;
         }
     } else if (pickupTarget?.mesh?.position) {
