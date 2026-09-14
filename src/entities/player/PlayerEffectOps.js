@@ -119,6 +119,7 @@ export function recomputePlayerEffectState(player) {
     const slowTimeDef = slowTimeEffect ? getPickupDefinition(slowTimeEffect.type) : null;
     player.hasSlowTime = !!slowTimeEffect;
     player.slowTimeScale = Number.isFinite(slowTimeDef?.timeScale) ? slowTimeDef.timeScale : 1;
+    player.slowTimeExemptsOwner = !!slowTimeEffect && slowTimeDef?.timeScaleExemptsOwner === true;
 
     // Shield: mode-specific - in HUNT expires by HP, in CLASSIC/ARCADE by timer
     const shieldEffectActive = hasAllowedEffect(player, 'SHIELD', modeType);

@@ -6,6 +6,7 @@ import { PlayerActionPhase } from './lifecycle/PlayerActionPhase.js';
 import { PlayerCollisionPhase } from './lifecycle/PlayerCollisionPhase.js';
 import { PlayerInteractionPhase } from './lifecycle/PlayerInteractionPhase.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
+import { resolveOwnerTimeCompensation } from '../player/PlayerTimeScaleOps.js';
 
 export class PlayerLifecycleSystem {
     constructor(entityManager) {
@@ -16,7 +17,9 @@ export class PlayerLifecycleSystem {
     }
 
     updateShootCooldown(player, dt) {
-        player.shootCooldown = Math.max(0, (player.shootCooldown || 0) - dt);
+        // A slow-time owner is exempt from the slowed loop, so their cooldown runs in real time.
+        const ownerDt = dt * resolveOwnerTimeCompensation(player);
+        player.shootCooldown = Math.max(0, (player.shootCooldown || 0) - ownerDt);
     }
 
     updatePlayer(player, dt, input, renderFrameId = 0, simulationNowMs = undefined) {
@@ -25,13 +28,17 @@ export class PlayerLifecycleSystem {
         this._actionPhase.run(player, input, strategy);
 
         const prevPos = this._interactionPhase.capturePreviousPosition(player);
-        player.update(dt, input, renderFrameId, strategy);
+        // Motion and trail of a slow-time owner are stepped back to real time; everyone else
+        // keeps the loop dt, which is what makes the pickup a slowdown for the others only.
+        const motionScale = resolveOwnerTimeCompensation(player);
+        const motionDt = dt * motionScale;
+        player.update(dt, input, renderFrameId, strategy, motionScale);
         if (player.alive && typeof player.prepareObbCollisionQuery === 'function') {
             player.prepareObbCollisionQuery();
         }
         if (player.alive && player.trail) {
-            if (player.trailGapActive) player.trail.forceGap(Math.max(0.1, dt * 2));
-            player.trail.update(dt, player.position, player._tmpVec);
+            if (player.trailGapActive) player.trail.forceGap(Math.max(0.1, motionDt * 2));
+            player.trail.update(motionDt, player.position, player._tmpVec);
         }
 
         this._interactionPhase.runSpecialGates(player, prevPos);

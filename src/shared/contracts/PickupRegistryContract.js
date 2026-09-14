@@ -246,6 +246,7 @@ export const PICKUP_REGISTRY = Object.freeze({
         icon: '🕙',
         duration: 10,
         timeScale: 0.4,
+        timeScaleExemptsOwner: true,
         selfUsable: true,
         shootable: false,
         offensive: false,

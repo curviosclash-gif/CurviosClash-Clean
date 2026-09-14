@@ -252,9 +252,10 @@ export class Player {
         return success;
     }
 
-    update(dt, input, renderFrameId = 0, strategy = null) {
+    update(dt, input, renderFrameId = 0, strategy = null, motionScale = 1) {
         if (!this.alive) return;
         this._obbCollisionPrepared = false;
+        // motionScale steps steering and motion in real time for a slow-time owner; timers stay on dt.
 
         this.spawnProtectionTimer = Math.max(0, this.spawnProtectionTimer - dt);
         this.arenaCollisionGraceTimer = Math.max(0, (this.arenaCollisionGraceTimer || 0) - dt);
@@ -293,8 +294,9 @@ export class Player {
         this._renderPrevQuaternion.copy(this.quaternion);
 
         // Bullet time: only this vehicle's steering and travel run on the real clock;
-        // every other timer in update() stays on the world clock `dt`.
-        const motionDt = dt * resolveMotionClockFactor(this);
+        // every other timer in update() stays on the world clock `dt`. The slow-motion key and a
+        // held SLOW_TIME pickup both compensate the same global slowdown, so the larger one wins.
+        const motionDt = dt * Math.max(resolveMotionClockFactor(this), motionScale);
         const controlState = this.controller.resolveControlState(this, input, steeringLocked, motionDt);
         // 61.4.1: Thread turn rate multiplier from strategy
         const turnRateMultiplier = (strategy && typeof strategy.getTurnRateMultiplier === 'function')
