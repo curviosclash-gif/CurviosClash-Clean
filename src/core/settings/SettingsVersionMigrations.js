@@ -1,3 +1,4 @@
+import { DEFAULT_VEHICLE_ID } from '../../shared/contracts/GameplayConfigContract.js';
 import { deepClone } from './SettingsDomainUtils.js';
 
 export const SETTINGS_VERSION_MIGRATION_IDS = Object.freeze({
@@ -43,7 +44,7 @@ function migrateV2ToV3(settings, defaults) {
         localSettings.fourPlayerPlanar = deepClone(defaults?.localSettings?.fourPlayerPlanar || {
             mode: 'classic',
             mapKey: 'standard',
-            vehicleId: 'ship5',
+            vehicleId: DEFAULT_VEHICLE_ID,
             botCount: 0,
         });
     }

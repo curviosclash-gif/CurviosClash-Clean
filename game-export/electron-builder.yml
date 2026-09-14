@@ -47,20 +47,17 @@ extraResources:
       - '!shared/contracts/VehicleLab*.js'
       - shared/logging/Logger.js
       - shared/runtime/BrowserStoragePorts.js
+      - shared/settings/*.js
       - shared/storage/*.js
       - shared/telemetry/TelemetryPreferencesStore.js
       - shared/utils/CanonicalJson.js
       - shared/utils/JsonClone.js
       - state/storage/*.js
-      - ui/base/*.js
       - ui/menu/*.js
       - '!ui/menu/MenuDeveloperStateSync.js'
       - '!ui/menu/MenuTelemetryDashboard.js'
       - '!ui/menu/MenuTelemetryHeatmapView.js'
-      - ui/SettingsChangeKeys.js
       - ui/SettingsFieldRegistry.js
-      - ui/SettingsStore.js
-      - ui/StorageKeys.js
       - utils/MathOps.js
   - from: runtime-resources/package.json
     to: package.json

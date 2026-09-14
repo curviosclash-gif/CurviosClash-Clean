@@ -9,7 +9,7 @@ import {
 } from '../src/shared/contracts/GraphicsStyleContract.js';
 import { createMenuSettingsDefaults } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
 import { ensureMenuContractState } from '../src/ui/menu/MenuStateContracts.js';
-import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
 import { bindGraphicsStyleSelect } from '../src/ui/menu/MenuGraphicsStyleBindings.js';
 import { getArenaMaterialBundle } from '../src/entities/arena/ArenaBuildResourceCache.js';

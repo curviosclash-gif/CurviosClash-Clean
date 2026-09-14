@@ -74,7 +74,7 @@ merged.arcade = normalizeArcadeRunSettings(src?.arcade ?? defaults.arcade);
 
 Und hier lauert die Falle, die genau diesen Kommentar im Code erzeugt hat: **der Sanitizer baut aus den Standardwerten auf**. Ein Feld, das die Defaults nicht kennen, fällt beim Speichern heraus, egal wie sauber der Contract ist — der Wert ist dann schreibbar, lesbar und trotzdem unerreichbar. Prüfe deshalb ausdrücklich als dritte Stelle, dass die Standardwerte den neuen Block oder das neue Feld führen.
 
-Die benachbarten Hunt-Werte (`deathmatchKillLimit`, `timeLimitEnabled`) werden dort noch direkt im Sanitizer begrenzt, mit Zahlen im Code. Das ist der ältere Stil. Ein neuer Wert, den auch die Runtime lesen muss, gehört in einen Contract — sonst entsteht genau die zweite Wahrheit, gegen die der Contract antritt.
+Der benachbarte `hunt.deathmatchKillLimit` zeigt den Zielzustand: Seine Grenze steht als Regel in `SETTINGS_LIMITS.hunt` und wird über `clampSettingValue` angewendet — im Sanitizer und in `RuntimeConfig.js` dieselbe. `timeLimitEnabled` ist daneben nur ein Vorgabewert im Sanitizer, weil ein Schalter keine Spanne hat. Ein neuer Wert, den auch die Runtime lesen muss, gehört in einen Contract — sonst entsteht genau die zweite Wahrheit, gegen die der Contract antritt.
 
 ## Schritt 4 — strikt typprüfen
 

@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { deriveMatchStartUiState } from '../src/shared/contracts/MatchUiStateContract.js';
 import { applyHangarWindowStorageEvent } from '../src/ui/hangar/HangarWindowMenuBridge.js';
-import { STORAGE_KEYS } from '../src/ui/StorageKeys.js';
+import { STORAGE_KEYS } from '../src/shared/storage/StorageKeys.js';
 
 test('fight hangar selection preserves single-player session and opens the requested mode', () => {
     const settings = {

@@ -17,6 +17,10 @@ import {
 } from '../src/core/settings/SettingsOverrideContract.js';
 
 import { createDefaultSettingsSnapshotWithOverride } from '../src/core/settings/SettingsDefaultsFacade.js';
+import { SettingsManager } from '../src/core/SettingsManager.js';
+import { SETTINGS_LIMITS } from '../src/shared/contracts/SettingsRuntimeContract.js';
+import { createRuntimeSettingsLimitsWithOverride } from '../src/shared/contracts/SettingsRuntimeLimitsContract.js';
+import { createMemoryStoragePlatform } from './helpers/settings-manager-contract-test-utils.mjs';
 import {
     BROWSER_DEMO_SURFACE_POLICY_OVERRIDE_CONTRACT_VERSION,
     createBrowserDemoSurfacePolicyOverrideDraft,
@@ -344,7 +348,50 @@ test('numeric range contract rejects unknown paths and invalid finite/order/step
     );
 });
 
-test('v1 limit snapshots migrate to sparse v2 overrides and preserve effective runtime values', () => {
+test('a hunt limit override travels from the studio draft into the sanitizer', () => {
+    const registryField = createSettingsOverrideFieldRegistry()
+        .find((field) => field.path === 'baseSettings.hunt.deathmatchKillLimit');
+
+    assert.ok(registryField, 'kill limit missing from the studio field registry');
+    assert.equal(registryField.type, 'number');
+    assert.deepEqual(registryField.limits, { ...SETTINGS_LIMITS.hunt.deathmatchKillLimit, step: 1 });
+
+    // Without a base rule the studio could not store a partial override: min and step
+    // would be missing and the draft would fail validation.
+    const draft = createSettingsOverrideDraft();
+    draft.limitOverrides['baseSettings.hunt.deathmatchKillLimit'] = { max: 40 };
+    const validation = validateSettingsOverrideDraft(draft);
+
+    assert.equal(validation.valid, true, `validation failed: ${JSON.stringify(validation.errors)}`);
+
+    const runtimeLimits = createRuntimeSettingsLimitsWithOverride({
+        schemaVersion: 'menu-defaults-override.v1',
+        limitOverrides: { 'baseSettings.hunt.deathmatchKillLimit': { max: 40 } },
+    });
+
+    assert.equal(runtimeLimits.hunt.deathmatchKillLimit.max, 40);
+    assert.equal(runtimeLimits.hunt.deathmatchKillLimit.min, SETTINGS_LIMITS.hunt.deathmatchKillLimit.min);
+
+    const manager = new SettingsManager({
+        storagePlatform: createMemoryStoragePlatform(),
+        runtimeGlobal: {
+            settingsDefaultsContract: {
+                getOverrideSnapshot() {
+                    return {
+                        draft: {
+                            schemaVersion: 'menu-defaults-override.v1',
+                            limitOverrides: { 'baseSettings.hunt.deathmatchKillLimit': { max: 40 } },
+                        },
+                    };
+                },
+            },
+        },
+    });
+
+    assert.equal(manager.sanitizeSettings({ hunt: { deathmatchKillLimit: 80 } }).hunt.deathmatchKillLimit, 40);
+});
+
+test('v1 limit snapshots migrate to sparse overrides and preserve effective runtime values', () => {
     const product = createSettingsOverrideFieldRegistry()
         .find((field) => field.path === 'baseSettings.gameplay.speed');
     const v1 = createSettingsOverrideDraft();
@@ -360,6 +407,41 @@ test('v1 limit snapshots migrate to sparse v2 overrides and preserve effective r
     assert.equal(migrated.schemaVersion, SETTINGS_OVERRIDE_SCHEMA_VERSION);
     assert.deepEqual(migrated.limitOverrides[product.path], { max: 40 });
     assert.equal(validateSettingsOverrideDraft(migrated).valid, true);
+});
+
+test('a saved v2 draft keeps working when the kill limit rule tightens', () => {
+    // Before the kill limit had a rule, the studio accepted 150, 12.5 or 0 for it. Such a
+    // draft must not turn invalid, because one invalid field skips the whole override and
+    // silently drops every other studio default.
+    const storedToExpected = [[150, 100], [12.5, 12], [0, 1]];
+
+    for (const [storedValue, expectedValue] of storedToExpected) {
+        const draft = createSettingsOverrideDraft();
+        draft.schemaVersion = 'menu-defaults-override.v2';
+        draft.baseSettings.hunt.deathmatchKillLimit = storedValue;
+        draft.baseSettings.gameplay.speed = 22;
+
+        const migration = classifyOverrideDraftMigration(draft);
+        const migrated = migrateOverrideDraft(draft, migration);
+        const snapshot = createDefaultSettingsSnapshotWithOverride(draft);
+
+        assert.equal(migration.status, 'upgrade', `v2 draft with ${storedValue} must migrate`);
+        assert.equal(migrated.schemaVersion, SETTINGS_OVERRIDE_SCHEMA_VERSION);
+        assert.equal(
+            validateSettingsOverrideDraft(migrated).valid,
+            true,
+            `migrated draft with ${storedValue} must validate`
+        );
+        assert.equal(
+            snapshot.__overrideSkipped,
+            undefined,
+            `override with ${storedValue} was skipped: ${snapshot.__overrideSkippedReason}`
+        );
+        assert.equal(snapshot.gameplay.speed, 22);
+        assert.equal(snapshot.hunt.deathmatchKillLimit, expectedValue);
+        // The stored draft itself stays untouched; only the migrated copy changes.
+        assert.equal(draft.baseSettings.hunt.deathmatchKillLimit, storedValue);
+    }
 });
 
 test('Settings Studio persistence reloads validated effective defaults and sparse limits after restart', async (t) => {

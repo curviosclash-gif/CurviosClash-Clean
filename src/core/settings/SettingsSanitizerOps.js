@@ -8,10 +8,15 @@ import {
 } from '../../composition/core-ui/CoreSettingsPorts.js';
 import { GAME_MODE_TYPES, resolveActiveGameMode } from '../../hunt/HuntMode.js';
 import {
+    SETTINGS_LIMITS,
     clampSettingValue,
     normalizeControlBindings,
     normalizeGlobalControlBindings,
-} from '../config/SettingsRuntimeContract.js';
+} from '../../shared/contracts/SettingsRuntimeContract.js';
+import {
+    BOT_DIFFICULTY_LEVELS,
+    DEFAULT_VEHICLE_ID,
+} from '../../shared/contracts/GameplayConfigContract.js';
 import {
     normalizeBotPolicyStrategy,
 } from '../RuntimeConfig.js';
@@ -53,7 +58,7 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
         runtimeLimits.session.numBots,
         defaults.numBots
     );
-    merged.botDifficulty = ['EASY', 'NORMAL', 'HARD'].includes(src.botDifficulty)
+    merged.botDifficulty = BOT_DIFFICULTY_LEVELS.includes(src.botDifficulty)
         ? src.botDifficulty
         : defaults.botDifficulty;
     merged.botPolicyStrategy = normalizeBotPolicyStrategy(src.botPolicyStrategy, defaults.botPolicyStrategy);
@@ -69,15 +74,19 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     merged.cockpitCamera.PLAYER_1 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
     merged.cockpitCamera.PLAYER_2 = GAMEPLAY_COCKPIT_CAMERA_ENABLED;
 
-    if (!merged.vehicles) merged.vehicles = { PLAYER_1: 'ship5', PLAYER_2: 'ship5' };
-    merged.vehicles.PLAYER_1 = src?.vehicles?.PLAYER_1 || defaults?.vehicles?.PLAYER_1 || 'ship5';
-    merged.vehicles.PLAYER_2 = src?.vehicles?.PLAYER_2 || defaults?.vehicles?.PLAYER_2 || 'ship5';
+    if (!merged.vehicles) {
+        merged.vehicles = { PLAYER_1: DEFAULT_VEHICLE_ID, PLAYER_2: DEFAULT_VEHICLE_ID };
+    }
+    merged.vehicles.PLAYER_1 = src?.vehicles?.PLAYER_1 || defaults?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID;
+    merged.vehicles.PLAYER_2 = src?.vehicles?.PLAYER_2 || defaults?.vehicles?.PLAYER_2 || DEFAULT_VEHICLE_ID;
 
     merged.portalsEnabled = src?.portalsEnabled !== undefined ? !!src.portalsEnabled : defaults.portalsEnabled;
     merged.hunt.respawnEnabled = !!(src?.hunt?.respawnEnabled ?? defaults.hunt.respawnEnabled);
-    merged.hunt.deathmatchKillLimit = Math.max(1, Math.min(100, Math.trunc(
-        Number(src?.hunt?.deathmatchKillLimit ?? defaults.hunt.deathmatchKillLimit) || 10
-    )));
+    merged.hunt.deathmatchKillLimit = clampSettingValue(
+        src?.hunt?.deathmatchKillLimit ?? defaults.hunt.deathmatchKillLimit,
+        runtimeLimits.hunt.deathmatchKillLimit,
+        defaults.hunt.deathmatchKillLimit
+    );
     merged.hunt.timeLimitEnabled = src?.hunt?.timeLimitEnabled !== false;
     if (merged.gameMode !== GAME_MODE_TYPES.HUNT) {
         merged.hunt.respawnEnabled = false;
@@ -87,88 +96,19 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
     merged.arcade = normalizeArcadeRunSettings(src?.arcade ?? defaults.arcade);
 }
 
+// Every numeric gameplay field is clamped against the same limit rule it declares in the
+// contract, so a new rule there is enough to make the field survive a save.
+const GAMEPLAY_CLAMP_FIELDS = Object.freeze(Object.keys(SETTINGS_LIMITS.gameplay));
+
 function applyGameplaySanitization({ merged, src, defaults, runtimeLimits }) {
-    merged.gameplay.speed = clampSettingValue(
-        src?.gameplay?.speed ?? defaults.gameplay.speed,
-        runtimeLimits.gameplay.speed,
-        defaults.gameplay.speed
-    );
-    merged.gameplay.turnSensitivity = clampSettingValue(
-        src?.gameplay?.turnSensitivity ?? defaults.gameplay.turnSensitivity,
-        runtimeLimits.gameplay.turnSensitivity,
-        defaults.gameplay.turnSensitivity
-    );
-    merged.gameplay.planeScale = clampSettingValue(
-        src?.gameplay?.planeScale ?? defaults.gameplay.planeScale,
-        runtimeLimits.gameplay.planeScale,
-        defaults.gameplay.planeScale
-    );
-    merged.gameplay.trailWidth = clampSettingValue(
-        src?.gameplay?.trailWidth ?? defaults.gameplay.trailWidth,
-        runtimeLimits.gameplay.trailWidth,
-        defaults.gameplay.trailWidth
-    );
-    merged.gameplay.trailLength = clampSettingValue(
-        src?.gameplay?.trailLength ?? defaults.gameplay.trailLength,
-        runtimeLimits.gameplay.trailLength,
-        defaults.gameplay.trailLength
-    );
-    merged.gameplay.gapSize = clampSettingValue(
-        src?.gameplay?.gapSize ?? defaults.gameplay.gapSize,
-        runtimeLimits.gameplay.gapSize,
-        defaults.gameplay.gapSize
-    );
-    merged.gameplay.gapFrequency = clampSettingValue(
-        src?.gameplay?.gapFrequency ?? defaults.gameplay.gapFrequency,
-        runtimeLimits.gameplay.gapFrequency,
-        defaults.gameplay.gapFrequency
-    );
-    merged.gameplay.itemAmount = clampSettingValue(
-        src?.gameplay?.itemAmount ?? defaults.gameplay.itemAmount,
-        runtimeLimits.gameplay.itemAmount,
-        defaults.gameplay.itemAmount
-    );
-    merged.gameplay.fireRate = clampSettingValue(
-        src?.gameplay?.fireRate ?? defaults.gameplay.fireRate,
-        runtimeLimits.gameplay.fireRate,
-        defaults.gameplay.fireRate
-    );
-    merged.gameplay.lockOnAngle = clampSettingValue(
-        src?.gameplay?.lockOnAngle ?? defaults.gameplay.lockOnAngle,
-        runtimeLimits.gameplay.lockOnAngle,
-        defaults.gameplay.lockOnAngle
-    );
-    merged.gameplay.nextCheckpointGlowIntensity = clampSettingValue(
-        src?.gameplay?.nextCheckpointGlowIntensity ?? defaults.gameplay.nextCheckpointGlowIntensity,
-        runtimeLimits.gameplay.nextCheckpointGlowIntensity,
-        defaults.gameplay.nextCheckpointGlowIntensity
-    );
-    merged.gameplay.mgTrailAimRadius = clampSettingValue(
-        src?.gameplay?.mgTrailAimRadius ?? defaults.gameplay.mgTrailAimRadius,
-        runtimeLimits.gameplay.mgTrailAimRadius,
-        defaults.gameplay.mgTrailAimRadius
-    );
-    merged.gameplay.fightPlayerHp = clampSettingValue(
-        src?.gameplay?.fightPlayerHp ?? defaults.gameplay.fightPlayerHp,
-        runtimeLimits.gameplay.fightPlayerHp,
-        defaults.gameplay.fightPlayerHp
-    );
-    merged.gameplay.fightMgDamage = clampSettingValue(
-        src?.gameplay?.fightMgDamage ?? defaults.gameplay.fightMgDamage,
-        runtimeLimits.gameplay.fightMgDamage,
-        defaults.gameplay.fightMgDamage
-    );
+    for (const field of GAMEPLAY_CLAMP_FIELDS) {
+        merged.gameplay[field] = clampSettingValue(
+            src?.gameplay?.[field] ?? defaults.gameplay[field],
+            runtimeLimits.gameplay[field],
+            defaults.gameplay[field]
+        );
+    }
     merged.gameplay.planarMode = !!(src?.gameplay?.planarMode ?? defaults.gameplay.planarMode);
-    merged.gameplay.portalCount = clampSettingValue(
-        src?.gameplay?.portalCount ?? defaults.gameplay.portalCount,
-        runtimeLimits.gameplay.portalCount,
-        defaults.gameplay.portalCount
-    );
-    merged.gameplay.planarLevelCount = clampSettingValue(
-        src?.gameplay?.planarLevelCount ?? defaults.gameplay.planarLevelCount,
-        runtimeLimits.gameplay.planarLevelCount,
-        defaults.gameplay.planarLevelCount
-    );
     merged.gameplay.portalBeams = false;
 }
 
@@ -246,7 +186,7 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
             allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
             allowedVehicleIds: new Set(getVehicleIds()),
             fallbackMapKey: merged.mapKey || 'standard',
-            fallbackVehicleId: merged?.vehicles?.PLAYER_1 || 'ship5',
+            fallbackVehicleId: merged?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID,
         }
     );
     merged.localSettings.modePath = normalizeModePath(merged.localSettings.modePath, 'normal');

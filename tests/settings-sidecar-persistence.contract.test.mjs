@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import test from 'node:test';
 
 import { SettingsManager } from '../src/core/SettingsManager.js';
-import { STORAGE_KEYS } from '../src/ui/StorageKeys.js';
+import { STORAGE_KEYS } from '../src/shared/storage/StorageKeys.js';
 import { MENU_TEXT_CATALOG } from '../src/ui/menu/MenuTextCatalog.js';
 
 function createMemoryStoragePlatform(initialRecords = {}, options = {}) {

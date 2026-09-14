@@ -4,6 +4,7 @@ import { cloneJsonValue } from '../utils/JsonClone.js';
 const SETTINGS_OVERRIDE_SCHEMA_VERSIONS = new Set([
     'menu-defaults-override.v1',
     'menu-defaults-override.v2',
+    'menu-defaults-override.v3',
 ]);
 
 function isPlainObject(value) {
@@ -60,6 +61,7 @@ function toRuntimeLimitPath(overridePath) {
     if (runtimePath === 'winsNeeded') return 'session.winsNeeded';
     if (runtimePath.startsWith('gameplay.')) return runtimePath;
     if (runtimePath.startsWith('botBridge.')) return runtimePath;
+    if (runtimePath.startsWith('hunt.')) return runtimePath;
     return null;
 }
 

@@ -7,7 +7,7 @@ import {
     normalizeAudioSettings,
 } from '../src/shared/contracts/AudioSettingsContract.js';
 import { createMenuSettingsDefaults } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
-import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
 
 test('audio settings expose the expected immutable defaults', () => {

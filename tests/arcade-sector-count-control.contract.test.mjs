@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { bindArcadeRunSettings } from '../src/ui/menu/MenuArcadeRunSettingsBindings.js';
 import {
     ARCADE_RUN_SETTINGS_RANGES,

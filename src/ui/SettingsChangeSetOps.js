@@ -1,4 +1,4 @@
-import { normalizeSettingsChangeKeys } from './SettingsChangeKeys.js';
+import { normalizeSettingsChangeKeys } from '../shared/settings/SettingsChangeKeys.js';
 
 export function addChangedKeys(targetSet, changedKeys) {
     if (!(targetSet instanceof Set)) return targetSet;

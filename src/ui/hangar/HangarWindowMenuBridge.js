@@ -1,5 +1,5 @@
 import { createElectronPreloadHangarAdapter } from '../../platform/electron/ElectronPlatformBridge.js';
-import { STORAGE_KEYS } from '../StorageKeys.js';
+import { STORAGE_KEYS } from '../../shared/storage/StorageKeys.js';
 
 export function createHangarWindowLauncher(createElement) {
     const card = createElement('section', 'arcade-surface-card hangar-window-launch-card');

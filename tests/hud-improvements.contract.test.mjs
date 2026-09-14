@@ -20,7 +20,7 @@ import {
 } from '../src/ui/HudAppearance.js';
 import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { ArcadeScoreHUD } from '../src/ui/arcade/ArcadeScoreHUD.js';
-import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/ui/SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS, SETTINGS_CHANGE_PATHS } from '../src/shared/settings/SettingsChangeKeys.js';
 
 // ---------------------------------------------------------------------------
 // DOM stubs (node has no DOM; HUD/HudRuntimeSystem only need a small subset)

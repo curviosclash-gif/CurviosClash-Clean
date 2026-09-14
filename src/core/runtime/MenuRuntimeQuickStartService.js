@@ -3,10 +3,8 @@
 // ============================================
 
 import { CONFIG } from '../Config.js';
-import {
-    getNextEventPlaylistEntry,
-    SETTINGS_CHANGE_KEYS,
-} from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { getNextEventPlaylistEntry } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { listEligibleMapKeysForModePath } from '../../shared/contracts/MapModeContract.js';
 import { PLATFORM_SURFACE_QUICK_START_ACTION_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';

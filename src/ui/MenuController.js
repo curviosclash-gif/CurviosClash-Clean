@@ -1,4 +1,4 @@
-import { SETTINGS_CHANGE_KEYS, normalizeSettingsChangeKeys } from './SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS, normalizeSettingsChangeKeys } from '../shared/settings/SettingsChangeKeys.js';
 import { addChangedKeys, changedKeySetToArray } from './SettingsChangeSetOps.js';
 import { setupMenuGameplayBindings } from './menu/MenuGameplayBindings.js';
 import { bindMenuHudAppearanceControls } from './menu/MenuHudAppearanceBindings.js';

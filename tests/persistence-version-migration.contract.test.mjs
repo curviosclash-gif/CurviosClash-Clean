@@ -23,7 +23,7 @@ import {
     ARTIFACT_VERSION_DECISIONS,
     resolveArtifactVersionState,
 } from '../src/shared/contracts/ArtifactVersionMigrationContract.js';
-import { SettingsStore } from '../src/ui/SettingsStore.js';
+import { SettingsStore } from '../src/shared/settings/SettingsStore.js';
 import { createVehicleManagerLoadoutPresetStore } from '../src/ui/arcade/vehicle-manager/VehicleManagerLoadoutPresets.js';
 import { MenuDraftStore } from '../src/ui/menu/MenuDraftStore.js';
 import {
@@ -32,7 +32,7 @@ import {
     MENU_CONFIG_SHARE_CONTRACT_VERSION,
 } from '../src/ui/menu/MenuConfigShareOps.js';
 import { MenuTelemetryStore } from '../src/ui/menu/MenuTelemetryStore.js';
-import { MenuTextOverrideStore } from '../src/ui/menu/MenuTextOverrideStore.js';
+import { MenuTextOverrideStore } from '../src/shared/settings/MenuTextOverrideStore.js';
 import { parseProfileImport } from '../src/ui/ProfileTransferOps.js';
 
 function createMemoryStoragePlatform(initialRecords = {}) {

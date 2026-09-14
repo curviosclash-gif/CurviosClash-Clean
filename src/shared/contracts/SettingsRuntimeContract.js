@@ -8,6 +8,9 @@ export const SETTINGS_LIMITS = Object.freeze({
         numBots: Object.freeze({ min: 0, max: 8, integer: true }),
         winsNeeded: Object.freeze({ min: 1, max: 15, integer: true }),
     }),
+    hunt: Object.freeze({
+        deathmatchKillLimit: Object.freeze({ min: 1, max: 100, integer: true }),
+    }),
     gameplay: Object.freeze({
         speed: Object.freeze({ min: 8, max: 40 }),
         turnSensitivity: Object.freeze({ min: 0.8, max: 5 }),

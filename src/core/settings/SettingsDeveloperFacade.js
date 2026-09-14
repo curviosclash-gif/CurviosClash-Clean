@@ -1,5 +1,5 @@
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import {
-    SETTINGS_CHANGE_KEYS,
     setDeveloperActorId,
     setDeveloperFixedPresetLock,
     setDeveloperModeEnabled,

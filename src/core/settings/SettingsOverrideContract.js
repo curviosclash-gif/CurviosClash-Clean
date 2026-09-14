@@ -3,7 +3,7 @@ import {
     createMenuDefaultsEditorConfigSnapshot,
     getSettingsFieldDescriptorForOverridePath,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
-import { SETTINGS_LIMITS } from '../../shared/contracts/SettingsRuntimeContract.js';
+import { SETTINGS_LIMITS, clampSettingValue } from '../../shared/contracts/SettingsRuntimeContract.js';
 import {
     collectPrimitiveLeafPaths,
     deepCloneJson,
@@ -18,9 +18,22 @@ import {
     validateLimitRule,
 } from './SettingsOverrideRangeContract.js';
 
-export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v2';
+export const SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v3';
 export const LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION = 'menu-defaults-override.v1';
 export const SETTINGS_STUDIO_SCHEMA_CONTRACT_VERSION = 'settings-studio-schema.v1';
+
+/** Older drafts that migrate forward without losing a stored value. */
+const UPGRADABLE_SCHEMA_VERSIONS = new Set([
+    LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION,
+    'menu-defaults-override.v2',
+]);
+
+/**
+ * v3 gave hunt.deathmatchKillLimit a limit rule. Drafts saved before that could hold any
+ * number, so the migration pulls the stored value into the rule instead of letting the
+ * validation reject it - a single invalid field skips the whole override.
+ */
+const MIGRATED_KILL_LIMIT_PATH = 'baseSettings.hunt.deathmatchKillLimit';
 
 export const SCHEMA_MIGRATION_CODES = Object.freeze({
     CURRENT: 'SCHEMA_VERSION_CURRENT',
@@ -78,6 +91,7 @@ const DEFAULT_FIELD_LIMITS = Object.freeze({
     'configShare.gameplay.trailLength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailLength, step: 100 }),
     'baseSettings.numBots': Object.freeze({ ...SETTINGS_LIMITS.session.numBots, step: 1 }),
     'baseSettings.winsNeeded': Object.freeze({ ...SETTINGS_LIMITS.session.winsNeeded, step: 1 }),
+    'baseSettings.hunt.deathmatchKillLimit': Object.freeze({ ...SETTINGS_LIMITS.hunt.deathmatchKillLimit, step: 1 }),
     'baseSettings.gameplay.speed': Object.freeze({ min: 0, max: 50, step: 0.1 }),
     'baseSettings.gameplay.turnSensitivity': Object.freeze({ ...SETTINGS_LIMITS.gameplay.turnSensitivity, step: 0.1 }),
     'baseSettings.gameplay.planeScale': Object.freeze({ ...SETTINGS_LIMITS.gameplay.planeScale, step: 0.05 }),
@@ -483,10 +497,32 @@ export function classifyOverrideDraftMigration(rawDraft) {
     if (schemaVersion === SETTINGS_OVERRIDE_SCHEMA_VERSION) {
         return { status: 'current', code: SCHEMA_MIGRATION_CODES.CURRENT, reason: null };
     }
-    if (schemaVersion === LEGACY_SETTINGS_OVERRIDE_SCHEMA_VERSION) {
-        return { status: 'upgrade', code: SCHEMA_MIGRATION_CODES.UPGRADE, reason: 'Schema v1 wird verlustfrei auf v2 migriert.' };
+    if (UPGRADABLE_SCHEMA_VERSIONS.has(schemaVersion)) {
+        return {
+            status: 'upgrade',
+            code: SCHEMA_MIGRATION_CODES.UPGRADE,
+            reason: `Schema ${schemaVersion} wird verlustfrei auf ${SETTINGS_OVERRIDE_SCHEMA_VERSION} migriert.`,
+        };
     }
     return { status: 'fallback', code: SCHEMA_MIGRATION_CODES.FALLBACK, reason: `Unbekannte Schema-Version: ${schemaVersion}. Standard-Werte werden verwendet.` };
+}
+
+function migrateHuntKillLimitIntoContractRange(draft) {
+    const storedValue = readPathValue(draft, MIGRATED_KILL_LIMIT_PATH);
+    if (storedValue === undefined || !isPlainObject(draft.baseSettings)) return draft;
+
+    const fallbackValue = FIELD_REGISTRY_BY_PATH.get(MIGRATED_KILL_LIMIT_PATH)?.defaultValue;
+    const clampedValue = clampSettingValue(
+        storedValue,
+        SETTINGS_LIMITS.hunt.deathmatchKillLimit,
+        fallbackValue
+    );
+    if (clampedValue === storedValue) return draft;
+
+    // Clone the branch we write into, so the stored draft the caller holds stays untouched.
+    const migrated = { ...draft, baseSettings: deepCloneJson(draft.baseSettings) };
+    writePathValue(migrated, MIGRATED_KILL_LIMIT_PATH, clampedValue);
+    return migrated;
 }
 
 export function migrateOverrideDraft(rawDraft, migration) {
@@ -511,7 +547,7 @@ export function migrateOverrideDraft(rawDraft, migration) {
                 }
             }
         }
-        return migrated;
+        return migrateHuntKillLimitIntoContractRange(migrated);
     }
     return rawDraft;
 }

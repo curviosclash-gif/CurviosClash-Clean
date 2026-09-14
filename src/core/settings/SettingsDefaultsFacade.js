@@ -7,7 +7,7 @@ import {
     BOT_POLICY_STRATEGIES,
 } from '../RuntimeConfig.js';
 import { resolveActiveGameMode } from '../../hunt/HuntMode.js';
-import { createControlBindingsSnapshot } from '../config/SettingsRuntimeContract.js';
+import { createControlBindingsSnapshot } from '../../shared/contracts/SettingsRuntimeContract.js';
 import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,

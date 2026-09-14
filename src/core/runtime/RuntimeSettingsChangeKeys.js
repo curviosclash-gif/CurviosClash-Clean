@@ -1,7 +1,7 @@
 import {
     isSettingsChangeKey,
     normalizeSettingsChangeKeys,
-} from '../../composition/core-ui/CoreUiMenuPorts.js';
+} from '../../shared/settings/SettingsChangeKeys.js';
 
 export function normalizeRuntimeChangedKeyList(changedKeys) {
     if (!Array.isArray(changedKeys) || changedKeys.length === 0) {

@@ -157,10 +157,10 @@ function transformGameFile(relativePath, source) {
     if (relativePath === 'src/ui/UIManager.js') return transformUiManager(source);
     if (relativePath === 'src/ui/menu/MenuDevPanelBindings.js') return transformMenuDevPanelBindings(source);
     if (relativePath === 'src/core/SettingsManager.js') return transformSettingsManager(source);
-    if (relativePath === 'src/ui/StorageKeys.js') {
+    if (relativePath === 'src/shared/storage/StorageKeys.js') {
         return source.replace(
-            "../shared/contracts/AuthoringTelemetryContract.js",
-            '../product/GameDistributionToolingAdapter.js'
+            "../contracts/AuthoringTelemetryContract.js",
+            '../../product/GameDistributionToolingAdapter.js'
         );
     }
     if (relativePath === 'electron/main.cjs') return transformElectronMain(source);

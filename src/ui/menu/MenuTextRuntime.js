@@ -1,5 +1,5 @@
 import { MENU_TEXT_CATALOG } from './MenuTextCatalog.js';
-import { MenuTextOverrideStore } from './MenuTextOverrideStore.js';
+import { MenuTextOverrideStore } from '../../shared/settings/MenuTextOverrideStore.js';
 
 function sanitizeTextId(value) {
     const normalized = typeof value === 'string' ? value.trim() : '';

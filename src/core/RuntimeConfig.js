@@ -5,7 +5,7 @@ import { BOT_POLICY_TYPES, resolveMatchBotPolicyType } from '../entities/ai/BotP
 import {
     clampSettingValue,
     createControlBindingsSnapshot,
-} from './config/SettingsRuntimeContract.js';
+} from '../shared/contracts/SettingsRuntimeContract.js';
 import { normalizeSessionType } from '../composition/core-ui/CoreSettingsPorts.js';
 import {
     ARCADE_GHOST_DUEL_MODES,
@@ -390,7 +390,11 @@ export function createRuntimeConfigSnapshot(settings, {
         hunt: {
             enabled: huntModeActive,
             respawnEnabled: huntModeActive ? !!huntSource.respawnEnabled : false,
-            deathmatchKillLimit: Math.max(1, Math.min(100, Math.trunc(Number(huntSource.deathmatchKillLimit) || 10))),
+            deathmatchKillLimit: clampSettingValue(
+                huntSource.deathmatchKillLimit,
+                runtimeLimits.hunt.deathmatchKillLimit,
+                baseConfig?.HUNT?.DEATHMATCH_KILL_LIMIT ?? CONFIG?.HUNT?.DEATHMATCH_KILL_LIMIT ?? 10
+            ),
             timeLimitSeconds: huntSource.timeLimitEnabled === false ? 0 : 300,
         },
         arcade: {
