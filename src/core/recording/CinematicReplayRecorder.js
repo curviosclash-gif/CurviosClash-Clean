@@ -258,6 +258,7 @@ export class CinematicReplayRecorder {
         this._metadata = null;
         this._partial = false;
         this._partialReason = null;
+        this._snapshotCaptureTerminated = false;
         this._estimatedBytes = 0;
         this._audioRecorder = null;
         this._audioChunks = [];
@@ -283,6 +284,7 @@ export class CinematicReplayRecorder {
         this._metadata = cloneJsonValue(metadata, {});
         this._partial = false;
         this._partialReason = null;
+        this._snapshotCaptureTerminated = false;
         this._estimatedBytes = 0;
         this._startAudioCapture(audioStream, releaseAudioStream);
         return { started: true, mode: 'cinematic_replay', matchId: this._matchId };
@@ -323,6 +325,7 @@ export class CinematicReplayRecorder {
         metadata = null,
     } = {}) {
         if (!this._recording || !entityManager) return false;
+        if (this._snapshotCaptureTerminated) return false;
         const capturedAt = this.now();
         const wallDeltaMs = Math.max(0, capturedAt - this._lastCaptureAt);
         this._lastCaptureAt = capturedAt;
@@ -334,6 +337,7 @@ export class CinematicReplayRecorder {
         const firstSnapshot = this._snapshots.length === 0;
         if (!firstSnapshot && this._sampleAccumulatorMs + 0.0001 < intervalMs) return false;
         if (this._elapsedMs > this.maxDurationSeconds * 1000) {
+            this._snapshotCaptureTerminated = true;
             this._partial = true;
             this._partialReason ||= 'replay_duration_limit';
             return false;
@@ -356,6 +360,7 @@ export class CinematicReplayRecorder {
         });
         const estimatedBytes = estimateSnapshotBytes(snapshot);
         if (this._estimatedBytes + estimatedBytes > this.maxEstimatedBytes) {
+            this._snapshotCaptureTerminated = true;
             this.markPartial('replay_memory_budget');
             return false;
         }
@@ -427,15 +432,18 @@ export class CinematicReplayRecorder {
         if (audio.warning === 'audio_stop_timeout') {
             this.markPartial('audio_stop_timeout');
         }
+        const lastSnapshotTimeMs = Math.max(
+            0,
+            toFiniteNumber(this._snapshots[this._snapshots.length - 1]?.timeMs, 0)
+        );
         return {
             contractVersion: CINEMATIC_REPLAY_CONTRACT_VERSION,
             matchId: this._matchId,
             startedAt: this._startedAt,
             endedAt: this.now(),
-            durationMs: Math.max(
-                this._elapsedMs,
-                toFiniteNumber(this._snapshots[this._snapshots.length - 1]?.timeMs, 0)
-            ),
+            durationMs: this._snapshotCaptureTerminated
+                ? lastSnapshotTimeMs
+                : Math.max(this._elapsedMs, lastSnapshotTimeMs),
             sampleFps: this.sampleFps,
             metadata: cloneJsonValue(this._metadata, {}),
             snapshots: this._snapshots,
@@ -460,6 +468,7 @@ export class CinematicReplayRecorder {
         this._metadata = null;
         this._partial = false;
         this._partialReason = null;
+        this._snapshotCaptureTerminated = false;
         this._estimatedBytes = 0;
         try {
             if (this._audioRecorder?.state !== 'inactive') this._audioRecorder?.stop?.();

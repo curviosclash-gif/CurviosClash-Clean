@@ -124,6 +124,7 @@ export class MediaRecorderSystem {
         this._mediaRecorderVideoTrack = null;
         this._mediaRecorderSupportsRequestFrame = false;
         this._mediaRecorderUsesCaptureCanvas = false;
+        this._mediaRecorderCaptureDimensionsLocked = false;
         this._mediaRecorderPumpTimer = null;
         this._mediaRecorderPumpResolutionScale = 1;
         this._activeRecorderStrategy = null;
@@ -367,31 +368,9 @@ export class MediaRecorderSystem {
         }
         this._mediaRecorderPumpTimer = null;
     }
-    _startMediaRecorderPump(resolutionScale = 1, captureFps = null) {
+    _startMediaRecorderPump(resolutionScale = 1) {
         this._stopMediaRecorderPump();
         this._mediaRecorderPumpResolutionScale = Math.max(0.2, Math.min(1, toFiniteNumber(resolutionScale, 1)));
-        if (typeof setInterval !== 'function') return;
-        if (!this._mediaRecorderUsesCaptureCanvas && !this._mediaRecorderSupportsRequestFrame) return;
-        const effectiveCaptureFps = Math.max(1, toFiniteNumber(captureFps, this._getActiveCaptureFps()));
-        const intervalMs = Math.max(16, Math.round(1000 / effectiveCaptureFps));
-        this._mediaRecorderPumpTimer = setInterval(() => {
-            if (!this._isRecording || this._activeRecorderEngine !== RECORDER_ENGINE.NATIVE_MEDIARECORDER) return;
-            try {
-                if (this._mediaRecorderUsesCaptureCanvas) {
-                    this._ensureMediaRecorderCaptureSurface(this._mediaRecorderPumpResolutionScale);
-                }
-                if (this._mediaRecorderVideoTrack?.requestFrame) {
-                    const nowMs = this._perfNow();
-                    const sinceLastRender = nowMs - this._lastRenderRequestFrameMs;
-                    if (sinceLastRender < intervalMs * 0.6) {
-                        return;
-                    }
-                    this._mediaRecorderVideoTrack.requestFrame();
-                }
-            } catch {
-                // Ignore timer-driven capture hiccups.
-            }
-        }, intervalMs);
     }
     _getActiveCaptureFps() {
         return Math.max(1, toFiniteNumber(this._activeCaptureFps, this.captureFps));
@@ -498,8 +477,15 @@ export class MediaRecorderSystem {
         if (!this._captureCanvas || !this._captureCanvasCtx) {
             return sourceCanvas;
         }
-        const targetWidth = Math.max(2, Math.floor(sourceWidth * resolutionScale));
-        const targetHeight = Math.max(2, Math.floor(sourceHeight * resolutionScale));
+        const dimensionsLocked = this._mediaRecorderCaptureDimensionsLocked
+            && this._captureCanvasWidth > 0
+            && this._captureCanvasHeight > 0;
+        const targetWidth = dimensionsLocked
+            ? this._captureCanvasWidth
+            : Math.max(2, Math.floor(sourceWidth * resolutionScale));
+        const targetHeight = dimensionsLocked
+            ? this._captureCanvasHeight
+            : Math.max(2, Math.floor(sourceHeight * resolutionScale));
         if (this._captureCanvas.width !== targetWidth || this._captureCanvas.height !== targetHeight) {
             this._captureCanvas.width = targetWidth;
             this._captureCanvas.height = targetHeight;
@@ -737,9 +723,7 @@ export class MediaRecorderSystem {
         this._captureAccumulatorMs += deltaMs;
         let syntheticQueueSize = 0;
         if (this._activeRecorderEngine === RECORDER_ENGINE.NATIVE_MEDIARECORDER) {
-            syntheticQueueSize = this._resolveSyntheticQueueSizeFromRenderDelta(
-                Math.max(deltaMs, this._captureAccumulatorMs)
-            );
+            syntheticQueueSize = this._resolveSyntheticQueueSizeFromRenderDelta(unclampedDeltaMs);
             this._updateCaptureLoadLevel(syntheticQueueSize);
         }
         const effectiveFps = this._resolveEffectiveCaptureFps();
@@ -1093,6 +1077,7 @@ export class MediaRecorderSystem {
         this._captureLevelIndex = Math.min(2, CAPTURE_LOAD_LEVELS.length - 1);
         const level = this._getCaptureLevel();
         const captureResolutionScale = this._resolveCaptureResolutionScale(level);
+        this._mediaRecorderCaptureDimensionsLocked = false;
         const captureStreamSource = this._ensureMediaRecorderCaptureSurface(captureResolutionScale);
         const streamSourceCanvas = captureStreamSource && typeof captureStreamSource.captureStream === 'function'
             ? captureStreamSource
@@ -1125,13 +1110,14 @@ export class MediaRecorderSystem {
             });
         }
         this._setActiveRecorderStrategy(strategy);
-        this._startMediaRecorderPump(captureResolutionScale, targetCaptureFps);
+        this._mediaRecorderCaptureDimensionsLocked = this._mediaRecorderUsesCaptureCanvas;
         this._isRecording = true;
         this._activeRecorderEngine = RECORDER_ENGINE.NATIVE_MEDIARECORDER;
         this._activeMimeType = initializeResult?.mimeType || selectedMimeType || DEFAULT_FALLBACK_MIME_TYPE;
         this._activeCaptureFps = targetCaptureFps;
         this._frameCount = 0;
         this._resetWebCodecsCaptureState(Math.min(2, CAPTURE_LOAD_LEVELS.length - 1));
+        this._startMediaRecorderPump(captureResolutionScale);
         this._activeRecording = {
             startedAt: this.now(),
             trigger: trigger || null,
@@ -1139,6 +1125,7 @@ export class MediaRecorderSystem {
             hudMode: this.recordingCaptureSettings?.hudMode || null,
             captureExportPreset: this.recordingCaptureSettings?.exportPreset || null,
         };
+        strategy.requestFrame();
         this._notifyRecordingStateChange(true);
         return this._buildStartResult(true, 'started', {
             mimeType: this._activeMimeType,
@@ -1439,6 +1426,7 @@ export class MediaRecorderSystem {
         this._mediaRecorderStream = this._mediaRecorderVideoTrack = null;
         this._mediaRecorderSupportsRequestFrame = false;
         this._mediaRecorderUsesCaptureCanvas = false;
+        this._mediaRecorderCaptureDimensionsLocked = false;
         this._mediaRecorderPumpResolutionScale = 1;
         this._activeCaptureFps = this.captureFps;
         this._activeRecorderStrategy = this._activeRecording = null;

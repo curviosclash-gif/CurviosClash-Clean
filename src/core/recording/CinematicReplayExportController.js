@@ -8,6 +8,11 @@ export const CINEMATIC_REPLAY_EXPORT_FPS = 60;
 export const CINEMATIC_REPLAY_EXPORT_WIDTH = 1920;
 export const CINEMATIC_REPLAY_EXPORT_HEIGHT = 1080;
 
+const SNAPSHOT_CAPTURE_LIMIT_REASONS = new Set([
+    'replay_duration_limit',
+    'replay_memory_budget',
+]);
+
 function toFiniteNumber(value, fallback = 0) {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
@@ -21,6 +26,21 @@ function toEvenSize(value, fallback) {
 
 function clamp01(value) {
     return Math.max(0, Math.min(1, toFiniteNumber(value, 0)));
+}
+
+function resolveEffectiveReplayDurationMs(replay) {
+    const lastSnapshotTimeMs = Math.max(
+        0,
+        toFiniteNumber(replay?.snapshots?.at(-1)?.timeMs, 0)
+    );
+    const declaredDurationMs = Math.max(
+        0,
+        toFiniteNumber(replay?.durationMs, lastSnapshotTimeMs)
+    );
+    const durationMs = SNAPSHOT_CAPTURE_LIMIT_REASONS.has(String(replay?.partialReason || ''))
+        ? Math.min(declaredDurationMs, lastSnapshotTimeMs)
+        : declaredDurationMs;
+    return Math.max(1, durationMs);
 }
 
 function yieldToRenderer() {
@@ -161,6 +181,7 @@ export class CinematicReplayExportController {
     async _runExport(replay, saveAdapter, abortState) {
         this._emitStatus('preparing', { message: 'Replay wird vorbereitet' });
         const { width, height, fps } = this._resolveExportFormat();
+        const durationMs = resolveEffectiveReplayDurationMs(replay);
         const audioBytes = replay.audioBlob?.size > 0
             ? new Uint8Array(await replay.audioBlob.arrayBuffer())
             : null;
@@ -171,7 +192,7 @@ export class CinematicReplayExportController {
             width,
             height,
             fps,
-            expectedDurationMs: replay.durationMs,
+            expectedDurationMs: durationMs,
             audioBytes,
             audioMimeType: replay.audioMimeType || '',
             audioExpected: replay.audioBlob?.size > 0,
@@ -193,10 +214,6 @@ export class CinematicReplayExportController {
             };
         }
         abortState.exportId = beginResult.exportId;
-        const durationMs = Math.max(
-            1,
-            toFiniteNumber(replay.durationMs, replay.snapshots.at(-1)?.timeMs || 0)
-        );
         const totalFrames = Math.max(1, Math.ceil(durationMs * fps / 1000));
         let leftIndex = 0;
         let lastReportedPercent = -1;
