@@ -40,6 +40,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import generate_notre_dame_assets as nd  # noqa: E402  (needs the path above)
 
 
+# The intact pack this one is derived from. scripts/generate_map_assets.py exports through the base
+# pack's exporter and redirects its ROOT/SOURCE_DIR/GLB_DIR through this attribute.
+BASE = nd
+
 ROOT = Path(__file__).resolve().parents[1]
 SOURCE_DIR = ROOT / "assets" / "maps" / "notre_dame_fire" / "blender"
 GLB_DIR = ROOT / "assets" / "maps" / "notre_dame_fire" / "glb"

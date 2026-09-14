@@ -1,0 +1,167 @@
+import {
+    applyMapDestructibleDamage,
+    applyMapDestructibleNetworkState,
+    createMapDestructibleState,
+    isMapDestructibleModeAllowed,
+    normalizeMapDestructibles,
+    resolveMapDestructibleHudState,
+    resolveMapDestructibleSegmentByHit,
+    serializeMapDestructibleState,
+} from '../../shared/contracts/MapDestructibleContract.js';
+import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+
+/**
+ * Runtime owner of the map geometry a match can shoot apart.
+ *
+ * Weapons report the name of the mesh they struck; this system turns that name into a segment
+ * and books the damage. Only the host simulates - a replica receives the whole state, so both
+ * sides see the same tower without every shot needing its own message.
+ *
+ * The break events the state collects are the hand-over point for the fall animations of a
+ * later stage: each one names the segment, its kind and the direction it topples towards.
+ */
+export class MapDestructibleSystem {
+    constructor(entityManager) {
+        this.entityManager = entityManager || null;
+        this.definition = null;
+        this.state = createMapDestructibleState(null);
+        this.networkReplica = false;
+        this.anchorScale = 1;
+        this._forwardedEventSignature = '';
+    }
+
+    /**
+     * Reads the map's `destructibles` block and starts a fresh tower. Returns the segment count.
+     *
+     * A map may restrict its destructibility to certain modes. Nothing is installed in the others,
+     * so the very same map is flown as intact fabric there - the map itself stays playable in every
+     * mode, because map eligibility is a separate and deliberately mode-agnostic question.
+     */
+    startRound() {
+        const arena = this.entityManager?.arena;
+        const map = arena?.currentMapDefinition;
+        const authored = normalizeMapDestructibles(map?.destructibles);
+        const mode = String(this.entityManager?.gameModeStrategy?.modeType || '').toUpperCase();
+        this.definition = isMapDestructibleModeAllowed(authored, mode) ? authored : null;
+        // Authored anchors are given in the map's own units; a scaled map builds its tower that
+        // much larger, so the anchors a hit is measured against have to grow with it.
+        this.anchorScale = map?.scaleAuthoredAnchors === true
+            ? Math.max(0.001, Number(resolveGameplayConfig(this.entityManager).ARENA?.MAP_SCALE) || 1)
+            : 1;
+        this.state = createMapDestructibleState(this.definition);
+        this._forwardedEventSignature = '';
+        // An arena that was reused rather than rebuilt still shows last round's collapse.
+        arena?.resetMapDestructibleScenes?.();
+        return this.state.segments.length;
+    }
+
+    setNetworkReplica(enabled) {
+        this.networkReplica = enabled === true;
+    }
+
+    clear() {
+        this.definition = null;
+        this.state = createMapDestructibleState(null);
+        this.anchorScale = 1;
+        this._forwardedEventSignature = '';
+    }
+
+    /** Whether this map has anything to shoot apart at all. */
+    isActive() {
+        return this.state.segments.length > 0;
+    }
+
+    /** Match time the animated setpieces are posed for - the clock every break is stamped with. */
+    getElapsedSeconds() {
+        const elapsed = Number(this.entityManager?.arena?.glbAnimationElapsedSeconds);
+        return Number.isFinite(elapsed) && elapsed > 0 ? elapsed : 0;
+    }
+
+    /**
+     * Books weapon damage on the segment a mesh belongs to. Returns the contract result, or
+     * null when the mesh belongs to no segment or this client only replicates the host.
+     *
+     * The intact tower gives all four legs the same mesh names, so the impact position decides
+     * which of them was hit - a weapon without one still books on the first matching segment.
+     * @param {unknown} meshName
+     * @param {unknown} damage
+     * @param {{ hitPoint?: unknown, hitDirection?: unknown, sourcePlayer?: unknown, cause?: unknown }} [options]
+     */
+    applyMeshHit(meshName, damage, options = {}) {
+        if (this.networkReplica || !this.definition || this.state.sealed) return null;
+        const segment = resolveMapDestructibleSegmentByHit(
+            this.definition,
+            meshName,
+            options?.hitPoint,
+            this.anchorScale,
+        );
+        if (!segment) return null;
+
+        const result = applyMapDestructibleDamage(this.state, this.definition, segment.id, damage, {
+            atSeconds: this.getElapsedSeconds(),
+            hitDirection: options?.hitDirection,
+        });
+        if (!result.applied) return null;
+        if (result.event) this._onSegmentDestroyed(result.event, options);
+        return result;
+    }
+
+    getState() {
+        return this.state;
+    }
+
+    getDefinition() {
+        return this.definition;
+    }
+
+    getHudState() {
+        return resolveMapDestructibleHudState(this.state, this.definition, this.getElapsedSeconds());
+    }
+
+    serializeNetworkState() {
+        return this.isActive() ? serializeMapDestructibleState(this.state) : null;
+    }
+
+    applyNetworkState(serialized) {
+        if (!serialized) return this.state;
+        applyMapDestructibleNetworkState(this.state, serialized);
+        // The host sends state, not animation commands. The replica derives the same collapse
+        // from the same events, so both towers stand or lie exactly alike.
+        this._forwardEventsToArena();
+        return this.state;
+    }
+
+    /**
+     * Hands the break events to the arena, which plays the baked falls for them.
+     *
+     * A host snapshot arrives many times a second and almost always carries the very same
+     * events, so the last handover is remembered and an unchanged list is not passed on again -
+     * the arena would otherwise rebuild the same timeline on every packet.
+     */
+    _forwardEventsToArena() {
+        const events = this.state.events;
+        const last = events[events.length - 1];
+        const signature = last
+            ? `${events.length}|${last.segmentId}|${last.kind}|${last.atSeconds}|${last.yaw}`
+            : '';
+        if (signature === this._forwardedEventSignature) return false;
+        this._forwardedEventSignature = signature;
+        this.entityManager?.arena?.applyMapDestructibleEvents?.(events);
+        return true;
+    }
+
+    /**
+     * Seam for everything a break should trigger: the baked fall on the arena, and whatever
+     * feedback the rest of the game wants to hang off one place.
+     */
+    _onSegmentDestroyed(event, options = {}) {
+        const owner = this.entityManager;
+        this._forwardEventsToArena();
+        if (typeof owner?.onMapDestructibleBreak === 'function') {
+            owner.onMapDestructibleBreak(event, {
+                sourcePlayer: options?.sourcePlayer || null,
+                cause: options?.cause || null,
+            });
+        }
+    }
+}

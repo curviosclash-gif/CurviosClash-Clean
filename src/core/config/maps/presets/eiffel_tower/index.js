@@ -35,7 +35,7 @@ const MAP_SIZE = [200, 220, 200];
 
 // Shared by both maps on this structure: the iron, the machines and the collision that makes the
 // lattice flyable.
-const EIFFEL_TOWER_COMMON = {
+export const EIFFEL_TOWER_COMMON = {
     size: MAP_SIZE,
     exclusionZone: { openFaces: ['minX', 'maxX', 'minZ', 'maxZ', 'maxY'] },
     scaleAuthoredAnchors: true,

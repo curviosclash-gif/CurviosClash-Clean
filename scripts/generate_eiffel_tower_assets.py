@@ -74,6 +74,12 @@ POST_THICKNESS = (
 ARCH_SPRING = 26.0
 ARCH_CROWN = 44.0
 
+# The Champ-de-Mars around the tower: how far the lawn reaches from the axis, how far inside its
+# edge the tree rows are planted, and how far apart the trees stand.
+ESPLANADE_HALF = 150.0
+TREE_INSET = 42.0
+TREE_SPACING = 22.0
+
 FIRST_DECK_OUTER = 36.5
 FIRST_DECK_INNER = 24.0
 SECOND_DECK_OUTER = 18.0
@@ -646,13 +652,21 @@ def railing(canvas, height, half, posts_per_side=14):
 # --- Static parts ------------------------------------------------------------------------------
 
 
-def build_esplanade(canvas):
-    """The Champ-de-Mars under the tower, plus the four masonry piers the legs stand on."""
-    canvas.box(GRASS, (0, 0, -0.75), (300, 300, 1.5))
+def build_esplanade(canvas, half_span=ESPLANADE_HALF):
+    """The Champ-de-Mars under the tower, plus the four masonry piers the legs stand on.
+
+    `half_span` is how far the lawn and the two long walks reach from the tower axis. Only that
+    grows: the gravel square, the piers and their lamps are placed off the building above them and
+    do not move. The siege pack widens the lawn so a collapsing tower still comes down on the
+    Champ-de-Mars instead of over the bare arena floor, and passing the reach in rather than
+    copying the builder keeps both esplanades measured from one set of numbers.
+    """
+    span = half_span * 2
+    canvas.box(GRASS, (0, 0, -0.75), (span, span, 1.5))
     # The gravel square directly under the tower, and the two long walks that cross it.
     canvas.box(GRAVEL, (0, 0, 0.05), (170, 170, 0.4))
-    canvas.box(GRAVEL, (0, 0, 0.12), (300, 26, 0.4))
-    canvas.box(GRAVEL, (0, 0, 0.12), (26, 300, 0.4))
+    canvas.box(GRAVEL, (0, 0, 0.12), (span, 26, 0.4))
+    canvas.box(GRAVEL, (0, 0, 0.12), (26, span, 0.4))
     for sign_x, sign_y in CORNERS:
         base = spread(0.0)
         canvas.box(STONE, (sign_x * base, sign_y * base, 1.4), (34, 34, 2.8))
@@ -664,10 +678,15 @@ def build_esplanade(canvas):
             canvas.frustum(LAMP, (sign_x * base + dx * 19, sign_y * base + dy * 19, 6.4),
                            0.9, 0.4, 1.4, sides=8, decorative=True)
     # Tree blocks along the two garden edges. Cheap, but they give the ground a scale reference.
-    for index in range(-4, 5):
+    # They follow the lawn rather than sitting at fixed coordinates, so a wider Champ-de-Mars is
+    # still planted to its own edge. The half-step back off the exact multiple keeps the two rows
+    # from meeting in the same block at the corners.
+    edge = half_span - TREE_INSET
+    count = int((edge - 0.1) / TREE_SPACING)
+    for index in range(-count, count + 1):
         for sign in (-1, 1):
-            canvas.frustum(GRASS, (index * 22.0, sign * 108.0, 6.0), 5.5, 3.0, 12.0, sides=6)
-            canvas.frustum(GRASS, (sign * 108.0, index * 22.0, 6.0), 5.5, 3.0, 12.0, sides=6)
+            canvas.frustum(GRASS, (index * TREE_SPACING, sign * edge, 6.0), 5.5, 3.0, 12.0, sides=6)
+            canvas.frustum(GRASS, (sign * edge, index * TREE_SPACING, 6.0), 5.5, 3.0, 12.0, sides=6)
 
 
 def build_legs_lower(canvas):

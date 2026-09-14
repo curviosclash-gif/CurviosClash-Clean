@@ -13,6 +13,8 @@ export function createHuntNetworkState(entityManager) {
         scoreboardRows: entityManager._huntScoring?.getScoreboard?.(entityManager.players) || [],
         killLimit: Math.max(1, Number(entityManager.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT) || 10),
         ...matchState,
+        // Null on every map without destructible geometry, so the block costs nothing there.
+        mapDestructibles: entityManager._mapDestructibleSystem?.serializeNetworkState?.() || null,
         outcome: normalizeOutcome(entityManager._lastRoundOutcome),
     };
 }
@@ -22,6 +24,9 @@ export function applyHuntNetworkState(entityManager, state) {
     const rows = Array.isArray(state.scoreboardRows) ? state.scoreboardRows : [];
     entityManager._huntScoring?.applyScoreboard?.(rows);
     entityManager._authoritativeHuntState = state;
+    if (state.mapDestructibles) {
+        entityManager._mapDestructibleSystem?.applyNetworkState?.(state.mapDestructibles);
+    }
 
     const outcome = state.outcome;
     if (!outcome) return;

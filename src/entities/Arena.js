@@ -11,7 +11,7 @@ import {
     shouldDiscardAuthoredObstacleVisuals,
 } from './GLBMapLoader.js';
 import { GlbAnimationDriver } from './arena/GlbAnimationDriver.js';
-import { refreshDynamicMeshCollider } from './arena/StaticMeshCollider.js';
+import { applyArenaMapDestructibleEvents, attachArenaGlbLoadResult, clearArenaBreakScenes, refreshArenaGlbDynamicObstacles, resetArenaMapDestructibleScenes } from './arena/ArenaGlbSceneOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 import { createVehicleMesh, isValidVehicleId } from './vehicle-registry.js';
 import { ExclusionBoundaryVisual } from './arena/ExclusionBoundaryVisual.js';
@@ -68,6 +68,8 @@ export class Arena {
         this._glbScene = null;
         this._glbAnimation = new GlbAnimationDriver();
         this._glbDynamicObstacles = [];
+        this._mapBreakScenes = null;
+        this._pendingMapBreakEvents = [];
         this._glbLoadError = null;
         this._glbLoadWarnings = [];
         this._glbFootprint = null;
@@ -114,6 +116,7 @@ export class Arena {
     _clearLoadedGlbScene() {
         this._glbAnimation.clear();
         this._glbDynamicObstacles.length = 0;
+        clearArenaBreakScenes(this);
         if (!this._glbScene) return;
         this.renderer.removeFromScene(this._glbScene);
         disposeObject3DResources(this._glbScene);
@@ -313,15 +316,7 @@ export class Arena {
             });
 
         return glbLoad.then((glbResult) => {
-            this._glbScene = glbResult.scene;
-            this._glbAnimation.setTracks(glbResult.animationTracks);
-            this._glbFootprint = glbResult.footprint || this._glbFootprint;
-            this._glbLoadWarnings = Array.isArray(glbResult.warnings) ? [...glbResult.warnings] : [];
-            this.renderer.addToScene(this._glbScene);
-            if (Array.isArray(glbResult.colliders) && glbResult.colliders.length > 0) {
-                this.obstacles.push(...glbResult.colliders);
-                this._glbDynamicObstacles = glbResult.colliders.filter((obstacle) => obstacle.dynamic);
-            }
+            attachArenaGlbLoadResult(this, glbResult);
             usedGlbModel = true;
             return finalizeBuild();
         }).catch((error) => {
@@ -433,8 +428,23 @@ export class Arena {
     }
 
     getCollisionInfo(position, radius) { return this._collision.getCollisionInfo(position, radius); }
+    raycast(origin, direction, maxDistance) { return this._collision.raycast(origin, direction, maxDistance); }
     checkCollisionFast(position, radius = 0) { return this._collision.checkCollisionFast(position, radius); }
     getBotCollisionInfo(position, radius) { return this._collision.getBotCollisionInfo(position, radius); } checkBotCollisionFast(position, radius = 0) { return this._collision.checkBotCollisionFast(position, radius); } checkWorldGeometryCollision(position, radius = 0) { return this._collision.checkWorldGeometryCollision(position, radius); }
+
+    /**
+     * Plays the baked falls for the break events of the running match. Safe before the GLB
+     * models finished loading: the events are kept and replayed once the scene is there, which
+     * is what a replica joining a match in progress depends on.
+     */
+    applyMapDestructibleEvents(events) {
+        applyArenaMapDestructibleEvents(this, events);
+    }
+
+    /** Puts a shot-apart map back together, for a round that reuses this arena as it is. */
+    resetMapDestructibleScenes() {
+        resetArenaMapDestructibleScenes(this);
+    }
 
     checkSpecialGates(position, previousPosition, radius, entityId) {
         return this._portalGateSystem.checkSpecialGates(position, previousPosition, radius, entityId);
@@ -496,14 +506,7 @@ export class Arena {
      * transforms the renderer will draw.
      */
     _refreshDynamicObstacles() {
-        if (this._glbDynamicObstacles.length === 0) return;
-        // Mixers only write local transforms. Collision runs before the renderer would
-        // flush the hierarchy, so the world matrices have to be resolved here.
-        this._glbScene?.updateMatrixWorld(true);
-        for (const obstacle of this._glbDynamicObstacles) {
-            refreshDynamicMeshCollider(obstacle.meshCollider, obstacle.box);
-        }
-        this._collision.invalidateDynamicObstacles();
+        refreshArenaGlbDynamicObstacles(this);
     }
 
     update(dt) {

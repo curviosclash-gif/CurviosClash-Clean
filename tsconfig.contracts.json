@@ -8,6 +8,7 @@
     "src/shared/contracts/EditorPathContract.js",
     "src/shared/contracts/GameStateIds.js",
     "src/shared/contracts/MapAnimationClockContract.js",
+    "src/shared/contracts/MapDestructibleContract.js",
     "src/shared/contracts/MapExpansionContract.js",
     "src/shared/utils/CanonicalJson.js"
   ]

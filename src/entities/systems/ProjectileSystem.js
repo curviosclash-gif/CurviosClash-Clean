@@ -39,6 +39,12 @@ export class ProjectileSystem {
                 code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY,
                 message: 'Kein Item verfuegbar',
             }));
+        // Destructible map geometry is attached after construction, because the runtime builds
+        // the projectile system before the systems that own the map state.
+        this._mapDestructibleSystem = options.mapDestructibleSystem || null;
+        this.getMapDestructibleSystem = typeof options.getMapDestructibleSystem === 'function'
+            ? options.getMapDestructibleSystem
+            : (() => this._mapDestructibleSystem);
         this.resolveLockOn = typeof options.resolveLockOn === 'function' ? options.resolveLockOn : (() => null);
         this.getTrailSpatialIndex = typeof options.getTrailSpatialIndex === 'function'
             ? options.getTrailSpatialIndex
@@ -327,6 +333,10 @@ export class ProjectileSystem {
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    setMapDestructibleSystem(system) {
+        this._mapDestructibleSystem = system || null;
     }
 
     applyNetworkSnapshot(entries, players = []) {

@@ -137,6 +137,34 @@ export class ProjectileHitResolver {
         return false;
     }
 
+    /**
+     * Books a rocket impact on destructible map geometry. The arena collision result is one
+     * reused object, so the mesh name is read before anything else queries the arena again.
+     * A foam bounce is not an impact and non-rocket projectiles never damage the map.
+     *
+     * Environment projectiles - the fire of a static turret - are excluded, exactly as they are
+     * from the rocket explosion. The map must only fall to what a player shot at it.
+     */
+    _applyDestructibleMapHit(projectile, simulationResult) {
+        const sourceName = simulationResult?.arenaCollision?.sourceName || '';
+        if (!sourceName || projectile?.environmentProjectile === true) return null;
+        if (!isRocketTierType(projectile?.type)) return null;
+        const destructibles = this.system?.getMapDestructibleSystem?.();
+        if (typeof destructibles?.applyMeshHit !== 'function') return null;
+        // atan2 only reads the direction, so the unnormalized velocity is enough.
+        return destructibles.applyMeshHit(
+            sourceName,
+            resolveRocketTierDamage(projectile.type, this.system),
+            {
+                // Where the rocket stopped tells the four identically named legs apart.
+                hitPoint: projectile.position || null,
+                hitDirection: projectile.velocity || null,
+                sourcePlayer: projectile.owner || null,
+                cause: projectile.type || 'ROCKET',
+            },
+        );
+    }
+
     resolveProjectileOutcome(projectile, players, trailSpatialIndex, simulationResult) {
         if (!projectile || !simulationResult) return false;
 
@@ -145,6 +173,9 @@ export class ProjectileHitResolver {
         const bouncedOnFoam = !!simulationResult.bouncedOnFoam;
 
         if (projectileExpired || (projectileHitArena && !bouncedOnFoam)) {
+            if (projectileHitArena && !bouncedOnFoam) {
+                this._applyDestructibleMapHit(projectile, simulationResult);
+            }
             if (!this.detonateProjectile(projectile)) {
                 this.system?.onProjectileHit?.(projectile.position, 0xffff00, projectile.owner, projectile);
             }

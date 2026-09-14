@@ -8,6 +8,7 @@ import {
     buildGameplayActionResult,
 } from '../shared/contracts/GameplayActionResultContract.js';
 import { resolveFightMachineGunConfig } from '../shared/contracts/FightMachineGunContract.js';
+import { MAP_DESTRUCTIBLE_DAMAGE } from '../shared/contracts/MapDestructibleContract.js';
 import {
     applyWeaponFanDirection,
     resolveWeaponFanProjectileCount,
@@ -21,6 +22,7 @@ function createLegacyRuntimeContext(entityManager) {
     if (!entityManager) return null;
     return {
         players: entityManager.players || [],
+        arena: entityManager.arena || null,
         services: {
             particles: entityManager.particles || null,
             audio: entityManager.audio || null,
@@ -104,6 +106,29 @@ export class OverheatGunSystem {
 
     markOverheatSnapshotClean() {
         this._state.markOverheatSnapshotClean();
+    }
+
+    /**
+     * A pellet that stopped at map geometry. Only meshes the map declared as destructible take
+     * damage; every other wall simply swallows the shot.
+     *
+     * The ray hit point travels with the shot: on an intact tower all four legs carry the same
+     * mesh names, so only the position tells the segment that was struck.
+     */
+    _applyMapDestructibleHit(player, hitResult, aimDirection) {
+        const destructibles = this.entityManager?.getMapDestructibleSystem?.();
+        if (typeof destructibles?.applyMeshHit !== 'function') return false;
+        const result = destructibles.applyMeshHit(
+            hitResult.arena?.sourceName,
+            MAP_DESTRUCTIBLE_DAMAGE.MG,
+            {
+                hitPoint: hitResult.point || null,
+                hitDirection: aimDirection,
+                sourcePlayer: player || null,
+                cause: 'MG_BULLET',
+            },
+        );
+        return result?.applied === true;
     }
 
     tryFire(player) {
@@ -201,6 +226,8 @@ export class OverheatGunSystem {
             } else if (hitResult.trail) {
                 this._hitResolver.applyTrailHit(player, hitResult.trail, mg);
                 trailHit = true;
+                hitCount += 1;
+            } else if (hitResult.arena && this._applyMapDestructibleHit(player, hitResult, this._tmpFanAim)) {
                 hitCount += 1;
             }
         }

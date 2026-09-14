@@ -114,6 +114,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         exclusionZoneState: player?.exclusionZoneState,
         mapExpansion: entityManager?.arena?.getMapExpansionHudState?.() || null,
+        mapDestructible: entityManager?._mapDestructibleSystem?.getHudState?.() || null,
         traversal: buildTraversalProjection(entityManager, player?.index),
         turrets: entityManager?._staticTurretSystem?.getHudStatesForPlayer?.(player?.index) || [],
         turret: entityManager?._staticTurretSystem?.getHudStateForPlayer?.(player?.index) || null,

@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { sphereIntersectsStaticMeshCollider } from './StaticMeshCollider.js';
+import { createArenaRayResult, raycastArenaObstacles } from './ArenaRayQuery.js';
 
 // Static normals for arena wall collisions (single allocation).
 const NORMAL_PX = Object.freeze(new THREE.Vector3(1, 0, 0));
@@ -118,7 +119,17 @@ export class ArenaCollision {
         this.arena = arena;
         this._tmpSphere = new THREE.Sphere();
         this._tmpNormal = new THREE.Vector3();
-        this._collisionResult = { hit: false, kind: '', isWall: false, normal: new THREE.Vector3() };
+        // sourceName and obstacle trace a hit back to the mesh it came from. Both are reset on
+        // every query: the result object is shared, so a stale name would be read as this hit's.
+        this._collisionResult = {
+            hit: false,
+            kind: '',
+            isWall: false,
+            normal: new THREE.Vector3(),
+            sourceName: '',
+            obstacle: null,
+        };
+        this._rayResult = createArenaRayResult();
         this._obstacleGrid = new Map();
         this._obstacleGridSource = null;
         this._obstacleGridSourceCount = -1;
@@ -282,8 +293,17 @@ export class ArenaCollision {
             || this._getWorldGeometryCollisionInfo(position, radius);
     }
 
+    /** Nearest world geometry along a ray. `direction` must be normalized. Bounds are not tested. */
+    raycast(origin, direction, maxDistance) {
+        const obstacles = Array.isArray(this.arena?.obstacles) ? this.arena.obstacles : [];
+        return raycastArenaObstacles(obstacles, origin, direction, maxDistance, this._rayResult);
+    }
+
     _getBoundsCollisionInfo(position, radius, openFaces) {
         const b = this.arena.bounds;
+        // An arena wall belongs to no mesh; clearing here keeps the previous hit out of it.
+        this._collisionResult.sourceName = '';
+        this._collisionResult.obstacle = null;
         if (!openFaces?.includes('minX') && position.x - radius < b.minX) {
             this._collisionResult.hit = true; this._collisionResult.kind = 'wall'; this._collisionResult.isWall = true; this._collisionResult.normal.copy(NORMAL_PX);
             return this._collisionResult;
@@ -317,6 +337,14 @@ export class ArenaCollision {
             || this._getWorldGeometryCollisionInfo(position, radius);
     }
 
+    _setWorldGeometryHit(obstacle, kind) {
+        this._collisionResult.hit = true;
+        this._collisionResult.kind = kind;
+        this._collisionResult.isWall = !!obstacle.isWall;
+        this._collisionResult.sourceName = typeof obstacle.sourceName === 'string' ? obstacle.sourceName : '';
+        this._collisionResult.obstacle = obstacle;
+    }
+
     _getWorldGeometryCollisionInfo(position, radius) {
         this._tmpSphere.center.copy(position);
         this._tmpSphere.radius = radius;
@@ -324,24 +352,18 @@ export class ArenaCollision {
             if (!obs.box.intersectsSphere(this._tmpSphere)) continue;
             if (obs.meshCollider && !sphereIntersectsStaticMeshCollider(obs.meshCollider, position, radius, this._tmpNormal)) continue;
             if (obs.meshCollider) {
-                this._collisionResult.hit = true;
-                this._collisionResult.kind = obs.kind || 'hard';
-                this._collisionResult.isWall = !!obs.isWall;
+                this._setWorldGeometryHit(obs, obs.kind || 'hard');
                 this._collisionResult.normal.copy(this._tmpNormal);
                 return this._collisionResult;
             }
             if (obs.tube && !getTubeCollisionInfo(position, obs.tube, radius, this._tmpNormal)) continue;
             if (obs.tube) {
-                this._collisionResult.hit = true;
-                this._collisionResult.kind = obs.kind || (obs.isWall ? 'wall' : 'hard');
-                this._collisionResult.isWall = !!obs.isWall;
+                this._setWorldGeometryHit(obs, obs.kind || (obs.isWall ? 'wall' : 'hard'));
                 this._collisionResult.normal.copy(this._tmpNormal);
                 return this._collisionResult;
             }
             if (obs.tunnel && isInsideTunnel(position, obs.tunnel, radius)) continue;
-            this._collisionResult.hit = true;
-            this._collisionResult.kind = obs.kind || (obs.isWall ? 'wall' : 'hard');
-            this._collisionResult.isWall = !!obs.isWall;
+            this._setWorldGeometryHit(obs, obs.kind || (obs.isWall ? 'wall' : 'hard'));
             this._collisionResult.normal.copy(this._computeBoxCollisionNormal(obs.box, position));
             return this._collisionResult;
         }

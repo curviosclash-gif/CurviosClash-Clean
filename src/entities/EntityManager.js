@@ -52,6 +52,9 @@ function bindRuntimePorts(owner, runtime) {
     owner._globalFogEffectSystem = runtime?.systems?.globalFogEffectSystem || null;
     owner._staticTurretSystem = runtime?.systems?.staticTurretSystem || null;
     owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null; owner._exclusionZoneSystem = runtime?.systems?.exclusionZoneSystem || null;
+    owner._mapDestructibleSystem = runtime?.systems?.mapDestructibleSystem || null;
+    // Rockets damage the map through the projectile system, which is built before the systems.
+    owner._projectileSystem?.setMapDestructibleSystem?.(owner._mapDestructibleSystem);
     owner._roundOutcomeSystem = runtime?.systems?.roundOutcomeSystem || null;
     owner._setupOps = runtime?.systems?.setupOps || null;
     owner._spawnOps = runtime?.systems?.spawnOps || null;
@@ -293,7 +296,9 @@ export class EntityManager {
 
     requestRoundEnd(request = {}) { return this.isFightOutcomeAuthority !== false && this._roundOutcomeSystem?.requestRoundEnd?.(request) === true; }
 
-    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); this._mapHazardSystem?.setNetworkReplica?.(enabled); this._globalFogEffectSystem?.setNetworkReplica?.(enabled); this._exclusionZoneSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); this._globalFogEffectSystem?.applyNetworkSnapshot?.(snapshot?.globalFog); if (Number.isFinite(Number(snapshot?.mapElapsedSeconds))) this.arena?.setGlbAnimationElapsedSeconds?.(snapshot.mapElapsedSeconds); } getGlobalFogState() { return this._globalFogEffectSystem?.getState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 }; } getGlobalFogVisibilityRange() { return this._globalFogEffectSystem?.getVisibilityRange?.() ?? Infinity; } isPositionVisibleDuringGlobalFog(observerPosition, targetPosition) { return this._globalFogEffectSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false; }
+    setNetworkReplica(enabled) { this._projectileSystem?.setNetworkReplica?.(enabled); this.powerupManager?.setNetworkReplica?.(enabled); this._staticTurretSystem?.setNetworkReplica?.(enabled); this._mapHazardSystem?.setNetworkReplica?.(enabled); this._mapDestructibleSystem?.setNetworkReplica?.(enabled); this._globalFogEffectSystem?.setNetworkReplica?.(enabled); this._exclusionZoneSystem?.setNetworkReplica?.(enabled); } applyNetworkSnapshot(snapshot) { this._projectileSystem?.applyNetworkSnapshot?.(snapshot?.projectiles, this.players); this.powerupManager?.applyNetworkSnapshot?.(snapshot?.powerups); this._staticTurretSystem?.applyNetworkSnapshot?.(snapshot?.turrets, this.players); this._globalFogEffectSystem?.applyNetworkSnapshot?.(snapshot?.globalFog); if (Number.isFinite(Number(snapshot?.mapElapsedSeconds))) this.arena?.setGlbAnimationElapsedSeconds?.(snapshot.mapElapsedSeconds); } getGlobalFogState() { return this._globalFogEffectSystem?.getState?.() || { active: false, remainingSeconds: 0, visibilityRange: 0 }; } getGlobalFogVisibilityRange() { return this._globalFogEffectSystem?.getVisibilityRange?.() ?? Infinity; } isPositionVisibleDuringGlobalFog(observerPosition, targetPosition) { return this._globalFogEffectSystem?.isPositionVisible?.(observerPosition, targetPosition) !== false; }
+
+    getMapDestructibleSystem() { return this._mapDestructibleSystem || null; }
 
     getExclusionZoneState(playerIndex) { return this._exclusionZoneSystem?.getPlayerState?.(playerIndex) || null; }
 
@@ -559,7 +564,7 @@ export class EntityManager {
         } else {
             this._staticTurretSystem?.clear?.();
         }
-        this._mapHazardSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
+        this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
         this._globalFogEffectSystem?.reset?.();
         this._huntScoring.reset();
         this._simulationClockMs = 0;

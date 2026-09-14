@@ -181,6 +181,28 @@ function createMapExpansionProjection(value = null) {
     };
 }
 
+// The destructible map is the same for every player and rides along for the same reason as the
+// expansion: each HUD instance draws its own copy of the tower's condition.
+function createMapDestructibleProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const active = source.active === true;
+    const focus = source.focusSegment && typeof source.focusSegment === 'object'
+        ? source.focusSegment
+        : null;
+    return {
+        active,
+        sealed: source.sealed === true,
+        focusSegment: active && focus ? {
+            id: normalizeString(focus.id, '').slice(0, 80),
+            label: normalizeString(focus.label, '').slice(0, 40),
+            ratio: Math.max(0, Math.min(1, normalizeNumber(focus.ratio, 0))),
+        } : null,
+        breakingSecondsRemaining: active
+            ? Math.max(0, normalizeNumber(source.breakingSecondsRemaining, 0))
+            : 0,
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -221,6 +243,7 @@ function createPlayerProjection(value = null) {
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
         exclusionZoneState: createExclusionZoneProjection(value.exclusionZoneState),
         mapExpansion: createMapExpansionProjection(value.mapExpansion),
+        mapDestructible: createMapDestructibleProjection(value.mapDestructible),
         traversal: createTraversalProjection(value.traversal),
         turrets: Array.isArray(value.turrets) ? value.turrets.filter((entry) => entry && (entry.weapon === 'mg' || entry.weapon === 'rocket')).map((entry) => ({
             weapon: entry.weapon,

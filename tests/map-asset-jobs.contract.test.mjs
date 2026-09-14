@@ -1,8 +1,25 @@
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import path from 'node:path';
 import test from 'node:test';
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
-import { parseMapAssetArgs, resolveMapAssetJobs } from '../scripts/map-asset-jobs.mjs';
+import { BLENDER_ASSET_GENERATORS, parseMapAssetArgs, resolveMapAssetJobs } from '../scripts/map-asset-jobs.mjs';
+
+test('both generator registries name the same packs and real scripts', () => {
+    // The pack list exists twice: once here in JavaScript, where a map is turned into a job, and
+    // once in scripts/generate_map_assets.py, where Blender is told which module to run. A pack
+    // registered on only one side fails halfway through a generation run rather than at selection.
+    const dispatcher = readFileSync(path.resolve('scripts/generate_map_assets.py'), 'utf8');
+    const listed = new Set(
+        [...dispatcher.matchAll(/^\s{4}'([a-z0-9_]+)':\s*'([a-z0-9_]+)',$/gm)].map(([, pack]) => pack),
+    );
+    assert.deepEqual([...listed].sort(), Object.keys(BLENDER_ASSET_GENERATORS).sort());
+    for (const [pack, script] of Object.entries(BLENDER_ASSET_GENERATORS)) {
+        assert.ok(existsSync(path.resolve('scripts', script)), `${pack} names a script that exists`);
+        assert.match(dispatcher, new RegExp(`'${pack}': '${script.replace(/\.py$/, '')}'`));
+    }
+});
 
 test('map asset selection rejects ambiguous and unsafe requests before generation', () => {
     for (const args of [[], ['--all', '--map', 'standard'], ['--all', '--part', 'roof'], ['--bogus']]) {
@@ -18,10 +35,10 @@ test('map asset selection rejects ambiguous and unsafe requests before generatio
 
 test('all includes each built-in map and deduplicates shared Blender packs', () => {
     const plan = resolveMapAssetJobs({ all: true });
-    assert.equal(plan.selectedMaps.length, 59);
+    assert.equal(plan.selectedMaps.length, 60);
     assert.equal(plan.selectedMaps.includes('custom'), false);
-    assert.equal(plan.jobs.length, 16);
-    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 16);
+    assert.equal(plan.jobs.length, 17);
+    assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 17);
     for (const job of plan.jobs) assert.equal(job.parts.length, new Set(job.parts).size);
     assert.equal(plan.nativeMaps.includes('maze'), false);
     assert.equal(plan.nativeMaps.includes('standard'), false);
@@ -54,8 +71,8 @@ test('the actual dry-run command needs no Blender executable and writes no asset
         '--blender', 'this-executable-must-not-run'], { encoding: 'utf8', windowsHide: true });
     assert.equal(result.status, 0, result.stderr);
     const plan = JSON.parse(result.stdout);
-    assert.equal(plan.selectedMaps.length, 59);
-    assert.equal(plan.jobs.length, 16);
+    assert.equal(plan.selectedMaps.length, 60);
+    assert.equal(plan.jobs.length, 17);
 });
 
 test('mixed generation resolves converted reference worlds before invoking Blender', () => {

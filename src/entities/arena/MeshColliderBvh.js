@@ -268,6 +268,140 @@ function countBvhRayIntersections(collider, point) {
     return intersections;
 }
 
+// Nearest ray hit while a traversal runs: distance, point, normal. Ray queries never nest,
+// so one module level buffer keeps the query allocation-free.
+const RAY_HIT_STATE = new Float64Array(7);
+const RAY_SLAB_LIMIT = 1e20;
+
+// A zero or denormal direction component would turn the slab test into 0 * Infinity = NaN.
+// Capping the reciprocal keeps the arithmetic finite and the test conservative.
+function safeReciprocal(value) {
+    if (value > RAY_EPSILON || value < -RAY_EPSILON) return 1 / value;
+    return value < 0 ? -RAY_SLAB_LIMIT : RAY_SLAB_LIMIT;
+}
+
+function rayIntersectsNodeSlab(node, origin, inverseX, inverseY, inverseZ, maxDistance) {
+    const tx1 = (node.minX - origin.x) * inverseX;
+    const tx2 = (node.maxX - origin.x) * inverseX;
+    let nearest = Math.min(tx1, tx2);
+    let farthest = Math.max(tx1, tx2);
+
+    const ty1 = (node.minY - origin.y) * inverseY;
+    const ty2 = (node.maxY - origin.y) * inverseY;
+    nearest = Math.max(nearest, Math.min(ty1, ty2));
+    farthest = Math.min(farthest, Math.max(ty1, ty2));
+
+    const tz1 = (node.minZ - origin.z) * inverseZ;
+    const tz2 = (node.maxZ - origin.z) * inverseZ;
+    nearest = Math.max(nearest, Math.min(tz1, tz2));
+    farthest = Math.min(farthest, Math.max(tz1, tz2));
+
+    return farthest >= Math.max(nearest, 0) && nearest <= maxDistance;
+}
+
+// Moeller-Trumbore. Keeps the nearest hit in RAY_HIT_STATE and orients the face normal back
+// towards the ray, which is what a wall impact needs.
+function raycastTriangle(worldTriangles, triangleIndex, origin, direction) {
+    const offset = triangleIndex * 9;
+    const ax = worldTriangles[offset]; const ay = worldTriangles[offset + 1]; const az = worldTriangles[offset + 2];
+    const abx = worldTriangles[offset + 3] - ax;
+    const aby = worldTriangles[offset + 4] - ay;
+    const abz = worldTriangles[offset + 5] - az;
+    const acx = worldTriangles[offset + 6] - ax;
+    const acy = worldTriangles[offset + 7] - ay;
+    const acz = worldTriangles[offset + 8] - az;
+
+    const hx = direction.y * acz - direction.z * acy;
+    const hy = direction.z * acx - direction.x * acz;
+    const hz = direction.x * acy - direction.y * acx;
+    const determinant = abx * hx + aby * hy + abz * hz;
+    if (Math.abs(determinant) <= RAY_EPSILON) return false;
+
+    const inverseDeterminant = 1 / determinant;
+    const apx = origin.x - ax; const apy = origin.y - ay; const apz = origin.z - az;
+    const u = (apx * hx + apy * hy + apz * hz) * inverseDeterminant;
+    if (u < 0 || u > 1) return false;
+    const qx = apy * abz - apz * aby;
+    const qy = apz * abx - apx * abz;
+    const qz = apx * aby - apy * abx;
+    const v = (direction.x * qx + direction.y * qy + direction.z * qz) * inverseDeterminant;
+    if (v < 0 || u + v > 1) return false;
+    const distance = (acx * qx + acy * qy + acz * qz) * inverseDeterminant;
+    if (distance <= RAY_EPSILON || distance >= RAY_HIT_STATE[0]) return false;
+
+    let nx = aby * acz - abz * acy;
+    let ny = abz * acx - abx * acz;
+    let nz = abx * acy - aby * acx;
+    const lengthSq = nx * nx + ny * ny + nz * nz;
+    if (lengthSq <= DISTANCE_EPSILON) return false;
+    const inverseLength = 1 / Math.sqrt(lengthSq);
+    nx *= inverseLength; ny *= inverseLength; nz *= inverseLength;
+    if (nx * direction.x + ny * direction.y + nz * direction.z > 0) {
+        nx = -nx; ny = -ny; nz = -nz;
+    }
+
+    RAY_HIT_STATE[0] = distance;
+    RAY_HIT_STATE[1] = origin.x + direction.x * distance;
+    RAY_HIT_STATE[2] = origin.y + direction.y * distance;
+    RAY_HIT_STATE[3] = origin.z + direction.z * distance;
+    RAY_HIT_STATE[4] = nx; RAY_HIT_STATE[5] = ny; RAY_HIT_STATE[6] = nz;
+    return true;
+}
+
+/**
+ * Nearest triangle hit along a ray, in the collider's own space. `direction` must be
+ * normalized; `outHit` is a reusable { distance, x, y, z, nx, ny, nz } record. Colliders below
+ * the BVH threshold are scanned linearly - they hold a handful of triangles at most.
+ */
+export function raycastBvhCollider(collider, origin, direction, maxDistance, outHit = null) {
+    const worldTriangles = collider?.worldTriangles;
+    if (!worldTriangles || !origin || !direction) return false;
+    const limit = Number(maxDistance);
+    if (!Number.isFinite(limit) || limit <= RAY_EPSILON) return false;
+
+    RAY_HIT_STATE[0] = limit;
+    let found = false;
+    const bvh = collider.bvh;
+    if (!bvh) {
+        const triangleCount = Math.trunc(worldTriangles.length / 9);
+        for (let triangleIndex = 0; triangleIndex < triangleCount; triangleIndex++) {
+            if (raycastTriangle(worldTriangles, triangleIndex, origin, direction)) found = true;
+        }
+    } else {
+        const { nodes, triangleOrder } = bvh;
+        const inverseX = safeReciprocal(direction.x);
+        const inverseY = safeReciprocal(direction.y);
+        const inverseZ = safeReciprocal(direction.z);
+        const stack = collider.queryStack;
+        stack.length = 0;
+        stack.push(0);
+        while (stack.length > 0) {
+            const node = nodes[stack.pop()];
+            if (!rayIntersectsNodeSlab(node, origin, inverseX, inverseY, inverseZ, RAY_HIT_STATE[0])) continue;
+            if (node.count > 0) {
+                const end = node.start + node.count;
+                for (let orderIndex = node.start; orderIndex < end; orderIndex++) {
+                    if (raycastTriangle(worldTriangles, triangleOrder[orderIndex], origin, direction)) found = true;
+                }
+                continue;
+            }
+            stack.push(node.left, node.right);
+        }
+    }
+
+    if (!found) return false;
+    if (outHit) {
+        outHit.distance = RAY_HIT_STATE[0];
+        outHit.x = RAY_HIT_STATE[1];
+        outHit.y = RAY_HIT_STATE[2];
+        outHit.z = RAY_HIT_STATE[3];
+        outHit.nx = RAY_HIT_STATE[4];
+        outHit.ny = RAY_HIT_STATE[5];
+        outHit.nz = RAY_HIT_STATE[6];
+    }
+    return true;
+}
+
 export function sphereIntersectsBvhCollider(collider, point, radius, outNormal) {
     const radiusSq = radius * radius;
     const surfaceHit = findClosestBvhTriangle(

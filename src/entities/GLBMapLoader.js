@@ -55,6 +55,17 @@ export function normalizeGLBModelCollection(glbModels, options = {}) {
             scale: normalizePositiveNumber(source?.scale, 1),
             targetSize: normalizePositiveNumber(source?.targetSize, 0),
             animationClock: normalizeMapAnimationClock(source?.animationClock, mapClock),
+            // A break scene: loaded and placed with the map, but neither drawn nor solid until
+            // the event that starts it arrives.
+            //
+            // Two consequences for whoever authors such a model. Every mesh in it gets a
+            // collider that follows its transform, animated or not, because the runtime turns
+            // the whole slot into the direction the structure topples towards. And its rest
+            // pose - the first frame of the baked clip - has to be the structure still
+            // standing, exported upright with no rotation on X or Z: the slot origin is the
+            // footprint centre of that rest pose, and the event yaw turns the scene around it.
+            // A model authored already lying down would swing around the wrong point.
+            hiddenUntilTriggered: source?.hiddenUntilTriggered === true,
         });
     }
     return normalized;
@@ -172,6 +183,18 @@ export function collectAnimatedNodes(root, clips) {
     return animated;
 }
 
+/**
+ * The collection slot a mesh sits in, or null on a single-model map - there is no slot there,
+ * so its colliders carry an empty model id and nothing can be switched on or off separately.
+ */
+function resolveColliderSlot(object) {
+    for (let node = object; node; node = node.parent) {
+        const modelId = node.userData?.glbModelId;
+        if (typeof modelId === 'string' && modelId) return node;
+    }
+    return null;
+}
+
 function collectSceneColliders(root, options = {}) {
     const colliders = [];
     const bounds = new THREE.Box3();
@@ -210,7 +233,14 @@ function collectSceneColliders(root, options = {}) {
         if (!collectColliders) return;
         if (isMeshColliderDisabled(child)) return;
 
-        const isAnimated = isMeshColliderForcedDynamic(child) || !!animatedNodes?.has(child);
+        const slot = resolveColliderSlot(child);
+        // A break scene is placed and turned at runtime, so every one of its meshes needs a
+        // collider that follows its transform - a baked one would stay where the model was
+        // loaded and leave a wall standing in empty air.
+        const inTriggeredModel = slot?.userData?.glbHiddenUntilTriggered === true;
+        const isAnimated = inTriggeredModel
+            || isMeshColliderForcedDynamic(child)
+            || !!animatedNodes?.has(child);
         if (dynamicOnly && !isAnimated) return;
 
         const kind = resolveColliderKind(child);
@@ -227,6 +257,10 @@ function collectSceneColliders(root, options = {}) {
             kind,
             meshCollider,
             dynamic: !!meshCollider?.dynamic,
+            // Authored mesh name, so a hit can be traced back to the part of the map it struck.
+            sourceName: String(child.name || ''),
+            // Collection model this surface belongs to, so a whole model can be switched off.
+            modelId: String(slot?.userData?.glbModelId || ''),
         });
     });
 
@@ -249,6 +283,8 @@ function placeCollectionScene(scene, bounds, descriptor, placementScale) {
     slot.name = `glb-slot-${descriptor.id}`;
     slot.userData.glbModelId = descriptor.id;
     slot.userData.glbModelUrl = descriptor.url;
+    slot.userData.glbHiddenUntilTriggered = descriptor.hiddenUntilTriggered === true;
+    if (descriptor.hiddenUntilTriggered === true) slot.visible = false;
 
     const [px, py, pz] = descriptor.position;
     const [rx, ry, rz] = descriptor.rotation;
@@ -298,7 +334,13 @@ export async function loadGLBMap(glbModel, options = {}) {
     if (animationMixer && clip) {
         const action = animationMixer.clipAction(clip);
         action.play();
-        animationTracks.push(createGlbAnimationTrack({ mixer: animationMixer, action, clip, clock }));
+        animationTracks.push(createGlbAnimationTrack({
+            mixer: animationMixer,
+            action,
+            clip,
+            clock,
+            modelId: options.modelId,
+        }));
     }
     // Only the clip that actually plays moves anything, so only its nodes need to carry a
     // collider that follows the animation.
@@ -352,6 +394,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
                     sceneName: `glbModel-${descriptor.id}`,
                     collectColliders: false,
                     animationClock: descriptor.animationClock,
+                    modelId: descriptor.id,
                 });
                 loadedModels[modelIndex] = { descriptor, result };
             } catch (error) {

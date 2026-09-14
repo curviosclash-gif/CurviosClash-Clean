@@ -60,6 +60,19 @@ export class MGHitResolver {
             maxRange,
             Number.isFinite(targetDistance) ? targetDistance : maxRange
         );
+        // Map geometry between muzzle and target stops the bullet. The ray is capped at the
+        // nearest target, so a wall behind it never steals the shot.
+        const turretDistance = Number(turretHit?.distance);
+        const blockingDistance = Number.isFinite(turretDistance)
+            ? turretDistance
+            : (Number.isFinite(targetDistance) ? targetDistance : maxRange);
+        const arenaHit = this._resolveArenaHit(
+            this._tmpMuzzle,
+            this._tmpAim,
+            Math.min(maxRange, blockingDistance),
+        );
+        if (arenaHit) return arenaHit;
+
         if (turretHit) return turretHit;
 
         if (isPlayerTargetDescriptor(target)) {
@@ -81,6 +94,26 @@ export class MGHitResolver {
         }
 
         return { target: null, distance: Infinity, trail: null, turret: null, point: null };
+    }
+
+    /**
+     * Nearest map geometry along the shot, or null when the arena cannot answer rays (older
+     * fakes, replays without a built arena) or nothing stands in the way.
+     */
+    _resolveArenaHit(origin, direction, maxDistance) {
+        const arena = this.runtime?.arena;
+        if (typeof arena?.raycast !== 'function' || !(maxDistance > 0)) return null;
+        const result = arena.raycast(origin, direction, maxDistance);
+        if (!result?.hit) return null;
+        // The arena answers with one reused result, so the point is copied out right away.
+        return {
+            target: null,
+            trail: null,
+            turret: null,
+            arena: { sourceName: String(result.sourceName || ''), distance: result.distance },
+            distance: result.distance,
+            point: { x: result.point.x, y: result.point.y, z: result.point.z },
+        };
     }
 
     _resolveTurretHit(attacker, origin, direction, maxRange, nearestDistance) {

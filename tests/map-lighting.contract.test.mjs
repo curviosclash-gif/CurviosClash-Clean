@@ -138,6 +138,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'complex',
         'eiffel_tower',
         'eiffel_tower_arena',
+        'eiffel_tower_siege',
         'frozen_helix',
         'magma_maze',
         'maze',

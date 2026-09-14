@@ -10,6 +10,7 @@ import { EntitySpawnOps } from './EntitySpawnOps.js';
 import { EntityTickPipeline } from './EntityTickPipeline.js';
 import { StaticTurretSystem } from '../systems/StaticTurretSystem.js';
 import { MapHazardSystem } from '../systems/MapHazardSystem.js';
+import { MapDestructibleSystem } from '../systems/MapDestructibleSystem.js';
 import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 
@@ -25,6 +26,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         globalFogEffectSystem: new GlobalFogEffectSystem(owner),
         staticTurretSystem: new StaticTurretSystem(owner),
         mapHazardSystem: new MapHazardSystem(owner),
+        mapDestructibleSystem: new MapDestructibleSystem(owner),
         exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,

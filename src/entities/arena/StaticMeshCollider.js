@@ -7,6 +7,7 @@ import {
     RAY_Y,
     RAY_Z,
     buildStaticMeshBvh,
+    raycastBvhCollider,
     setCollisionNormal,
     sphereIntersectsBvhCollider,
 } from './MeshColliderBvh.js';
@@ -17,6 +18,10 @@ const SCALE_EPSILON = 1e-6;
 const DYNAMIC_QUERY_POINT = { x: 0, y: 0, z: 0 };
 const DYNAMIC_QUERY_NORMAL = new THREE.Vector3();
 const DYNAMIC_INVERSE_MATRIX = new THREE.Matrix4();
+const DYNAMIC_RAY_ORIGIN = { x: 0, y: 0, z: 0 };
+const DYNAMIC_RAY_DIRECTION = { x: 0, y: 0, z: 0 };
+const DYNAMIC_RAY_HIT = { distance: 0, x: 0, y: 0, z: 0, nx: 0, ny: 0, nz: 0 };
+const DYNAMIC_RAY_NORMAL = new THREE.Vector3();
 
 function resolveDrawRange(geometry, elementCount) {
     const start = Math.max(0, Math.trunc(Number(geometry?.drawRange?.start) || 0));
@@ -187,6 +192,61 @@ export function sphereIntersectsStaticMeshCollider(collider, point, radius = 0, 
     const localRadius = Math.max(0, Number(radius) || 0) * radiusScale;
     if (!sphereIntersectsColliderSpace(collider, localPoint, localRadius, localNormal)) return false;
     if (outNormal) transformNormalToWorld(inverse, localNormal, outNormal);
+    return true;
+}
+
+/**
+ * Nearest ray hit on a mesh collider, in world space. `direction` must be normalized, `outHit`
+ * is a reusable { distance, x, y, z, nx, ny, nz } record.
+ *
+ * A dynamic collider keeps its triangles in local space, so the world segment is moved there
+ * instead of rebuilding the BVH. Because a non-uniform scale stretches the segment, the local
+ * hit is mapped back through the ratio of the two segment lengths rather than by its own
+ * distance - that ratio is scale free and lands on the same world point.
+ */
+export function raycastStaticMeshCollider(collider, origin, direction, maxDistance, outHit = null) {
+    if (!collider?.position || !origin || !direction) return false;
+    if (!collider.dynamic) return raycastBvhCollider(collider, origin, direction, maxDistance, outHit);
+
+    const limit = Number(maxDistance);
+    if (!Number.isFinite(limit) || limit <= 0) return false;
+    const inverse = collider.inverseElements;
+    if (!inverse || !(collider.localRadiusScale > 0)) return false;
+
+    const endX = origin.x + direction.x * limit;
+    const endY = origin.y + direction.y * limit;
+    const endZ = origin.z + direction.z * limit;
+    const localOrigin = DYNAMIC_RAY_ORIGIN;
+    localOrigin.x = inverse[0] * origin.x + inverse[4] * origin.y + inverse[8] * origin.z + inverse[12];
+    localOrigin.y = inverse[1] * origin.x + inverse[5] * origin.y + inverse[9] * origin.z + inverse[13];
+    localOrigin.z = inverse[2] * origin.x + inverse[6] * origin.y + inverse[10] * origin.z + inverse[14];
+    const localEndX = inverse[0] * endX + inverse[4] * endY + inverse[8] * endZ + inverse[12];
+    const localEndY = inverse[1] * endX + inverse[5] * endY + inverse[9] * endZ + inverse[13];
+    const localEndZ = inverse[2] * endX + inverse[6] * endY + inverse[10] * endZ + inverse[14];
+
+    const localDirection = DYNAMIC_RAY_DIRECTION;
+    localDirection.x = localEndX - localOrigin.x;
+    localDirection.y = localEndY - localOrigin.y;
+    localDirection.z = localEndZ - localOrigin.z;
+    const localLength = Math.hypot(localDirection.x, localDirection.y, localDirection.z);
+    if (!(localLength > SCALE_EPSILON)) return false;
+    localDirection.x /= localLength;
+    localDirection.y /= localLength;
+    localDirection.z /= localLength;
+
+    if (!raycastBvhCollider(collider, localOrigin, localDirection, localLength, DYNAMIC_RAY_HIT)) return false;
+    if (!outHit) return true;
+
+    const travelled = (DYNAMIC_RAY_HIT.distance / localLength) * limit;
+    DYNAMIC_QUERY_NORMAL.set(DYNAMIC_RAY_HIT.nx, DYNAMIC_RAY_HIT.ny, DYNAMIC_RAY_HIT.nz);
+    transformNormalToWorld(inverse, DYNAMIC_QUERY_NORMAL, DYNAMIC_RAY_NORMAL);
+    outHit.distance = travelled;
+    outHit.x = origin.x + direction.x * travelled;
+    outHit.y = origin.y + direction.y * travelled;
+    outHit.z = origin.z + direction.z * travelled;
+    outHit.nx = DYNAMIC_RAY_NORMAL.x;
+    outHit.ny = DYNAMIC_RAY_NORMAL.y;
+    outHit.nz = DYNAMIC_RAY_NORMAL.z;
     return true;
 }
 

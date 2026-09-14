@@ -9,6 +9,7 @@ export const BLENDER_ASSET_GENERATORS = Object.freeze({
     notre_dame: 'generate_notre_dame_assets.py',
     notre_dame_fire: 'generate_notre_dame_fire_assets.py',
     eiffel_tower: 'generate_eiffel_tower_assets.py',
+    eiffel_tower_siege: 'generate_eiffel_tower_siege_assets.py',
     burg_falkenwacht: 'generate_falkenwacht_assets.py',
     standard: 'generate_map_world.py',
     wind_cathedral: 'generate_map_world.py',

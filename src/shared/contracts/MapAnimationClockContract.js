@@ -19,11 +19,19 @@ export const MAP_ANIMATION_CLOCK_RANGES = Object.freeze({
     playbackRate: Object.freeze({ min: 0.05, max: 8 }),
 });
 
+/**
+ * 'loop' repeats forever on the map beat - the lifts, the beacon, the iris.
+ * 'once' plays the clip a single time from a start time the runtime hands in, and holds the
+ * last frame afterwards. A collapsing tower is authored that way: it must never restart.
+ */
+export const MAP_ANIMATION_CLOCK_MODES = Object.freeze(['loop', 'once']);
+
 const DEFAULTS = Object.freeze({
     beatSeconds: 4,
     phaseOffsetBeats: 0,
     playbackRate: 1,
     clipName: '',
+    mode: 'loop',
 });
 
 // Half a frame at 30 fps, the export rate of the authored setpieces. A loop that misses
@@ -36,6 +44,7 @@ const DEFAULT_BEAT_TOLERANCE_SECONDS = 1 / 60;
  * @property {number} phaseOffsetBeats How many beats this setpiece runs ahead.
  * @property {number} playbackRate Multiplier on the elapsed time.
  * @property {string} clipName Clip to play; empty selects the first clip in the file.
+ * @property {string} mode 'loop' repeats on the beat, 'once' plays a single time and holds.
  */
 
 /**
@@ -91,24 +100,51 @@ function normalizeClockShape(input, base) {
         clipName: typeof input.clipName === 'string' && input.clipName.trim()
             ? input.clipName.trim()
             : base.clipName,
+        mode: MAP_ANIMATION_CLOCK_MODES.includes(/** @type {string} */(input.mode))
+            ? /** @type {string} */ (input.mode)
+            : base.mode,
     };
 }
 
 /**
- * Position inside the clip for a given elapsed simulation time, always within
- * [0, clipDurationSeconds). Returns 0 for a clip without a usable duration, which keeps a
- * malformed asset on its first frame instead of throwing during a match.
+ * @param {unknown} clock
+ * @returns {boolean}
+ */
+export function isMapAnimationClockOneShot(clock) {
+    return normalizeMapAnimationClock(clock).mode === 'once';
+}
+
+/**
+ * Position inside the clip for a given elapsed simulation time.
+ *
+ * A looping clip wraps into [0, clipDurationSeconds) and ignores startSeconds - it has been
+ * running since the round began. A one-shot clip is measured from startSeconds instead and is
+ * clamped to [0, clipDurationSeconds]: before its start it holds the first frame, after its end
+ * the last one. That is what lets a tower stand until it is shot and stay down afterwards.
+ *
+ * The phase offset applies to loops only. It exists to spread setpieces across the map beat, and
+ * a map level clock hands it down to every model - a break scene that inherited it would start
+ * its collapse part way through, which is never what the offset was authored for.
+ *
+ * Returns 0 for a clip without a usable duration, which keeps a malformed asset on its first
+ * frame instead of throwing during a match.
  * @param {number} elapsedSeconds
  * @param {unknown} clock
  * @param {number} clipDurationSeconds
+ * @param {number} [startSeconds] Match time a one-shot clip begins at; ignored when looping.
  * @returns {number}
  */
-export function resolveMapAnimationClipPhase(elapsedSeconds, clock, clipDurationSeconds) {
+export function resolveMapAnimationClipPhase(elapsedSeconds, clock, clipDurationSeconds, startSeconds = 0) {
     const duration = Number(clipDurationSeconds);
     if (!Number.isFinite(duration) || duration <= 0) return 0;
 
     const normalized = normalizeMapAnimationClock(clock);
     const elapsed = Number.isFinite(Number(elapsedSeconds)) ? Number(elapsedSeconds) : 0;
+    if (normalized.mode === 'once') {
+        const start = Number.isFinite(Number(startSeconds)) ? Number(startSeconds) : 0;
+        const phase = (elapsed - start) * normalized.playbackRate;
+        return Math.min(duration, Math.max(0, phase));
+    }
     const offsetSeconds = normalized.phaseOffsetBeats * normalized.beatSeconds;
     const phase = (elapsed * normalized.playbackRate) + offsetSeconds;
     const wrapped = phase % duration;
@@ -119,6 +155,9 @@ export function resolveMapAnimationClipPhase(elapsedSeconds, clock, clipDuration
  * True when a clip length is a whole multiple of the beat, so the setpiece stays in sync
  * with the rest of the map instead of drifting against it. Asset tests use this to keep
  * authored loop lengths honest.
+ *
+ * One-shot clips are exempt and always pass: they play a single time from an event, never
+ * against the beat, so their length is a question of how the fall reads and not of map timing.
  * @param {number} clipDurationSeconds
  * @param {unknown} clock
  * @param {number} [toleranceSeconds]
@@ -132,7 +171,8 @@ export function isBeatAlignedClipDuration(
     const duration = Number(clipDurationSeconds);
     if (!Number.isFinite(duration) || duration <= 0) return false;
 
-    const { beatSeconds } = normalizeMapAnimationClock(clock);
+    const { beatSeconds, mode } = normalizeMapAnimationClock(clock);
+    if (mode === 'once') return true;
     const tolerance = Math.max(0, Number(toleranceSeconds) || 0);
     const beats = duration / beatSeconds;
     const distanceToWholeBeat = Math.abs(beats - Math.round(beats)) * beatSeconds;

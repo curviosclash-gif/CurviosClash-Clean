@@ -14,6 +14,7 @@ GENERATORS = {
     'notre_dame': 'generate_notre_dame_assets',
     'notre_dame_fire': 'generate_notre_dame_fire_assets',
     'eiffel_tower': 'generate_eiffel_tower_assets',
+    'eiffel_tower_siege': 'generate_eiffel_tower_siege_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
     'standard': 'generate_map_world',
     'wind_cathedral': 'generate_map_world',
@@ -47,8 +48,11 @@ def main():
         else:
             module.SOURCE_DIR = output_root / 'assets/maps' / args.pack / 'blender'
             module.GLB_DIR = output_root / 'assets/maps' / args.pack / 'glb'
-        if args.pack == 'notre_dame_fire':
-            module.nd.ROOT = output_root
+        # A derived pack builds its geometry by calling an intact pack's builders and exports
+        # through that pack's exporter, so the base module has to be redirected as well or the
+        # files would land next to the originals.
+        if hasattr(module, 'BASE'):
+            module.BASE.ROOT = output_root
     if args.pack == 'burg_falkenwacht':
         if args.part:
             parser.error('Falkenwacht placement and fallback collision require a complete pack export.')
@@ -58,7 +62,7 @@ def main():
     if args.pack == 'aetherion_orrery':
         exports.update((entry[0], (module.export_asset, entry)) for entry in module.ASSETS)
     else:
-        exporter = module.nd if args.pack == 'notre_dame_fire' else module
+        exporter = getattr(module, 'BASE', module)
         if exporter is not module:
             exporter.SOURCE_DIR = module.SOURCE_DIR
             exporter.GLB_DIR = module.GLB_DIR

@@ -6,6 +6,7 @@ import {
     MAP_ANIMATION_CLOCK_RANGES,
     createDefaultMapAnimationClock,
     isBeatAlignedClipDuration,
+    isMapAnimationClockOneShot,
     normalizeMapAnimationClock,
     resolveMapAnimationClipPhase,
 } from '../src/shared/contracts/MapAnimationClockContract.js';
@@ -17,6 +18,7 @@ test('default clock plays the first clip on the map beat', () => {
         phaseOffsetBeats: 0,
         playbackRate: 1,
         clipName: '',
+        mode: 'loop',
     });
 });
 
@@ -35,6 +37,7 @@ test('a setpiece only states what differs from the map clock', () => {
         phaseOffsetBeats: 1.5,
         playbackRate: 0.5,
         clipName: '',
+        mode: 'loop',
     });
     // A fallback that is not an object falls back to the defaults, not to nothing.
     assert.deepEqual(normalizeMapAnimationClock({}, []), createDefaultMapAnimationClock());
@@ -110,6 +113,66 @@ test('the same elapsed time always yields the same phase', () => {
     assert.ok(resolveMapAnimationClipPhase(elapsed, clock, 12) < 12);
 });
 
+test('a clock is either a loop or a single play, and only those two', () => {
+    assert.equal(normalizeMapAnimationClock({ mode: 'once' }).mode, 'once');
+    assert.equal(isMapAnimationClockOneShot({ mode: 'once' }), true);
+    assert.equal(isMapAnimationClockOneShot({ mode: 'loop' }), false);
+    assert.equal(isMapAnimationClockOneShot(null), false);
+
+    // Anything that is not one of the two known modes keeps the fallback.
+    for (const mode of ['ONCE', 'single', 7, null, undefined, {}]) {
+        assert.equal(normalizeMapAnimationClock({ mode }).mode, 'loop', `mode ${JSON.stringify(mode)}`);
+        assert.equal(normalizeMapAnimationClock({ mode }, { mode: 'once' }).mode, 'once');
+    }
+    // A setpiece inherits the mode from the map clock like every other field.
+    assert.equal(normalizeMapAnimationClock({}, { mode: 'once' }).mode, 'once');
+    assert.equal(normalizeMapAnimationClock({ mode: 'loop' }, { mode: 'once' }).mode, 'loop');
+});
+
+test('a one-shot clip waits for its start, plays once and holds the last frame', () => {
+    const clock = { mode: 'once', beatSeconds: 4, playbackRate: 1 };
+
+    // Before the break the tower stands: the clip is pinned to its first frame.
+    assert.equal(resolveMapAnimationClipPhase(0, clock, 8, 10), 0);
+    assert.equal(resolveMapAnimationClipPhase(9.5, clock, 8, 10), 0);
+    // During the fall the phase is the time since the break.
+    assert.equal(resolveMapAnimationClipPhase(10, clock, 8, 10), 0);
+    assert.equal(resolveMapAnimationClipPhase(14, clock, 8, 10), 4);
+    assert.equal(resolveMapAnimationClipPhase(17.5, clock, 8, 10), 7.5);
+    // Afterwards it stays down instead of wrapping back to standing.
+    assert.equal(resolveMapAnimationClipPhase(18, clock, 8, 10), 8);
+    assert.equal(resolveMapAnimationClipPhase(600, clock, 8, 10), 8);
+
+    // Playback rate still applies, and a missing start means "from the round start".
+    assert.equal(resolveMapAnimationClipPhase(3, { mode: 'once', playbackRate: 2 }, 16), 6);
+    assert.equal(resolveMapAnimationClipPhase(5, clock, 0, 1), 0);
+    assert.equal(resolveMapAnimationClipPhase(12, clock, 8, /** @type {any} */('spaet')), 8);
+});
+
+test('a one-shot clip starts at its first frame even with a phase offset on the map', () => {
+    // The offset spreads looping setpieces across the map beat. A break scene that inherited it
+    // from the map clock would begin its collapse part way through.
+    const offset = { mode: 'once', beatSeconds: 4, phaseOffsetBeats: 0.5 };
+    assert.equal(resolveMapAnimationClipPhase(1, offset, 16, 1), 0);
+    assert.equal(resolveMapAnimationClipPhase(2, offset, 16, 1), 1);
+
+    const inherited = normalizeMapAnimationClock(
+        { mode: 'once' },
+        { beatSeconds: 4, phaseOffsetBeats: 2 },
+    );
+    assert.equal(inherited.phaseOffsetBeats, 2, 'the offset is still carried, just not used');
+    assert.equal(resolveMapAnimationClipPhase(10, inherited, 16, 10), 0);
+    assert.equal(resolveMapAnimationClipPhase(13, inherited, 16, 10), 3);
+});
+
+test('a looping clip ignores the start time entirely', () => {
+    const clock = { beatSeconds: 4, playbackRate: 1 };
+
+    for (const start of [0, 10, -5, Number.NaN]) {
+        assert.equal(resolveMapAnimationClipPhase(11, clock, 8, start), 3, `start ${start}`);
+    }
+});
+
 test('beat alignment accepts whole multiples and rejects drifting loops', () => {
     const clock = { beatSeconds: 4 };
 
@@ -123,4 +186,16 @@ test('beat alignment accepts whole multiples and rejects drifting loops', () => 
     assert.equal(isBeatAlignedClipDuration(0, clock), false);
     assert.equal(isBeatAlignedClipDuration(Number.NaN, clock), false);
     assert.equal(isBeatAlignedClipDuration(8.5, clock, 1), true);
+});
+
+test('a one-shot clip is exempt from beat alignment', () => {
+    const clock = { beatSeconds: 4, mode: 'once' };
+
+    // A collapse runs from an event, never against the beat, so any length is authored fine.
+    assert.equal(isBeatAlignedClipDuration(8.5, clock), true);
+    assert.equal(isBeatAlignedClipDuration(1, clock), true);
+    assert.equal(isBeatAlignedClipDuration(4, clock), true);
+    // A file without a usable length is still a broken asset, one-shot or not.
+    assert.equal(isBeatAlignedClipDuration(0, clock), false);
+    assert.equal(isBeatAlignedClipDuration(Number.NaN, clock), false);
 });

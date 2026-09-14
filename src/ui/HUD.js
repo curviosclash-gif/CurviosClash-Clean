@@ -8,6 +8,7 @@ import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
 } from './HudSegmentedArc.js';
+import { formatMapDestructibleStatus } from './MapDestructibleStatusText.js';
 import { formatMapExpansionStatus } from './MapExpansionStatusText.js';
 
 function toFiniteNumber(value, fallback = 0) {
@@ -61,6 +62,14 @@ export class HUD {
         this._setAttribute(this.mapExpansionStatus, 'aria-live', 'polite');
         this._setAttribute(this.mapExpansionStatus, 'aria-atomic', 'true');
         playerHud?.appendChild(this.mapExpansionStatus);
+        // Same layout again for the condition of a destructible map: a map either grows or can
+        // be shot apart, so the two lines never announce something at the same time.
+        this.mapDestructibleStatus = document.createElement('div');
+        this.mapDestructibleStatus.className = 'exclusion-zone-status map-expansion-status map-destructible-status hidden';
+        this._setAttribute(this.mapDestructibleStatus, 'role', 'status');
+        this._setAttribute(this.mapDestructibleStatus, 'aria-live', 'polite');
+        this._setAttribute(this.mapDestructibleStatus, 'aria-atomic', 'true');
+        playerHud?.appendChild(this.mapDestructibleStatus);
         initializeHudSegmentedArc(this.classicBoostFill, 'horizontal');
 
         // Tapes (Scales)
@@ -236,12 +245,14 @@ export class HUD {
         if (!player || !player.alive) {
             this._updateExclusionZoneStatus(null);
             this._updateMapExpansionStatus(null);
+            this._updateMapDestructibleStatus(null);
             this.setVisibility(false);
             return;
         }
 
         this._updateExclusionZoneStatus(player.exclusionZoneState);
         this._updateMapExpansionStatus(player.mapExpansion);
+        this._updateMapDestructibleStatus(player.mapDestructible);
 
         const fallbackGameplayConfig = resolveGameplayConfig({
             config: this.configSource,
@@ -466,5 +477,16 @@ export class HUD {
         this._setClassFlag(this.mapExpansionStatus, 'hidden', !text);
         this._setText(this.mapExpansionStatus, text);
         this._setClassFlag(this.mapExpansionStatus, 'opening', state?.phase === 'OPENING');
+    }
+
+    _updateMapDestructibleStatus(state) {
+        const text = formatMapDestructibleStatus(state);
+        this._setClassFlag(this.mapDestructibleStatus, 'hidden', !text);
+        this._setText(this.mapDestructibleStatus, text);
+        this._setClassFlag(
+            this.mapDestructibleStatus,
+            'breaking',
+            !!text && Number(state?.breakingSecondsRemaining) > 0,
+        );
     }
 }
