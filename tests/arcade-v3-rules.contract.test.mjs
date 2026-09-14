@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { CONFIG } from '../src/core/Config.js';
+import { computeDailySeed } from '../src/shared/utils/ArcadeUtils.js';
 import { buildArcadeSectorPlan, resolveArcadeSectorRuntimeProfile } from '../src/entities/directors/ArcadeEncounterCatalog.js';
 import { assignSectorMissions, createSectorMissionState, updateSectorMissionState } from '../src/state/arcade/ArcadeMissionState.js';
 import { reanchorArcadeCombo, applyArcadeComboDecay, applyComboAction, computeArcadeSectorScoreBreakdown } from '../src/state/arcade/ArcadeScoreOps.js';
@@ -113,10 +115,24 @@ test('Daily runtime fixes gameplay settings while preserving the personal source
     assert.deepEqual(runtime.player, other.player);
     assert.deepEqual(runtime.trail, other.trail);
     assert.equal(JSON.stringify(settings), before);
-    const day1 = resolveArcadeDailySettings(settings, new Date('2026-09-08T23:59:59Z'));
-    const day2 = resolveArcadeDailySettings(settings, new Date('2026-09-09T00:00:00Z'));
+    // The daily turns over at midnight German time: 22:00 UTC in summer, 23:00 UTC in winter.
+    const day1 = resolveArcadeDailySettings(settings, new Date('2026-09-08T21:59:59Z'));
+    const day2 = resolveArcadeDailySettings(settings, new Date('2026-09-08T22:00:00Z'));
     assert.equal(day1.arcade.seed, 20260908);
     assert.equal(day2.arcade.seed, 20260909);
+    assert.equal(computeDailySeed(new Date('2026-12-31T22:59:59Z')), 20261231);
+    assert.equal(computeDailySeed(new Date('2026-12-31T23:00:00Z')), 20270101);
+});
+
+test('the arcade menu offers the same daily seed the run starts with', () => {
+    const source = readFileSync(new URL('../src/ui/arcade/ArcadeMenuSurface.js', import.meta.url), 'utf8');
+    // A private copy of the date rule drifted once already (UTC in the menu, local rules in the run).
+    assert.equal(source.includes('function computeDailySeed'), false, 'the menu keeps no private copy of the date rule');
+    assert.equal(
+        /import \{[^}]*\bcomputeDailySeed\b[^}]*\} from '..\/..\/shared\/utils\/ArcadeUtils\.js'/.test(source),
+        true,
+        'the menu takes the daily seed from the shared rule',
+    );
 });
 
 

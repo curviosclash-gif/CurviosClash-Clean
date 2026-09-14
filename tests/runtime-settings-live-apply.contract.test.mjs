@@ -788,7 +788,8 @@ test('Arcade mission selection ignores wall clock and run identity', () => {
     });
     const secondDaily = createRuntime(8_000_000).startDailyChallenge({
         encounterPlan,
-        date: '2026-08-11T23:00:00.000Z',
+        // 23:00 in Germany, still the same daily as 03:00 above.
+        date: '2026-08-11T21:00:00.000Z',
     });
     assert.deepEqual(firstDaily.missions, secondDaily.missions);
 });

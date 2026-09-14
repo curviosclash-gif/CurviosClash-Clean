@@ -82,16 +82,34 @@ export function createSeededRandom(seed, defaultText = 'arcade-default') {
     };
 }
 
+// The daily turns over at midnight German time, not UTC, which would switch at 01:00 or 02:00 local.
+const DAILY_SEED_TIME_ZONE = 'Europe/Berlin';
+let dailySeedDateFormat;
+
+function resolveDailySeedDateFormat() {
+    if (dailySeedDateFormat !== undefined) return dailySeedDateFormat;
+    try {
+        dailySeedDateFormat = new Intl.DateTimeFormat('en-CA', {
+            timeZone: DAILY_SEED_TIME_ZONE, year: 'numeric', month: 'numeric', day: 'numeric',
+        });
+    } catch {
+        // A runtime without time zone data falls back to UTC rather than failing the menu.
+        dailySeedDateFormat = null;
+    }
+    return dailySeedDateFormat;
+}
+
 /**
- * Compute a deterministic integer seed from a UTC calendar date.
+ * Compute a deterministic integer seed from the calendar date in Germany (Europe/Berlin).
  * All players on the same calendar day get the same seed.
- * @param {Date|string|null} [date=null] - Date to use (defaults to current UTC date)
+ * @param {Date|string|null} [date=null] - Date to use (defaults to now)
  * @returns {number} Positive integer seed (e.g., 20260327 for 2026-03-27)
  */
 export function computeDailySeed(date = null) {
     const d = date instanceof Date ? date : (date ? new Date(date) : new Date());
-    const year = d.getUTCFullYear();
-    const month = d.getUTCMonth() + 1;
-    const day = d.getUTCDate();
-    return year * 10000 + month * 100 + day;
+    const format = resolveDailySeedDateFormat();
+    if (!format) return d.getUTCFullYear() * 10000 + (d.getUTCMonth() + 1) * 100 + d.getUTCDate();
+    const parts = {};
+    for (const part of format.formatToParts(d)) parts[part.type] = Number(part.value);
+    return parts.year * 10000 + parts.month * 100 + parts.day;
 }

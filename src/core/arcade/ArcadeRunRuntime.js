@@ -887,7 +887,7 @@ export class ArcadeRunRuntime {
     }
 
     /**
-     * Start a Daily Challenge run using today's UTC date as the seed.
+     * Start a Daily Challenge run using today's date in Germany as the seed.
      * All players on the same calendar day get the same sector sequence. (61.10.1)
      */
     startDailyChallenge(options = {}) {

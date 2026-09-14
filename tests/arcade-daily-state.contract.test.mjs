@@ -10,7 +10,7 @@ import { createArcadeRunState } from '../src/state/arcade/ArcadeRunState.js';
 import { mergeArcadeRunRecords } from '../src/state/arcade/ArcadeScoreOps.js';
 import { computeDailySeed } from '../src/shared/utils/ArcadeUtils.js';
 
-test('Arcade Daily projection hides the previous day and exposes only the current UTC seed', () => {
+test('Arcade Daily projection hides the previous day and exposes only the current German seed', () => {
     const records = {
         daily: {
             seed: 20260817,
@@ -22,7 +22,8 @@ test('Arcade Daily projection hides the previous day and exposes only the curren
         },
     };
 
-    assert.deepEqual(createArcadeDailyProjection(records, '2026-08-17T23:59:59.999Z'), {
+    // Midnight in Germany is 22:00 UTC during summer time.
+    assert.deepEqual(createArcadeDailyProjection(records, '2026-08-17T21:59:59.999Z'), {
         seed: 20260817,
         status: 'played',
         playedToday: true,
@@ -32,7 +33,7 @@ test('Arcade Daily projection hides the previous day and exposes only the curren
         lastScore: 3900,
         lastRunAt: '2026-08-17T13:00:00.000Z',
     });
-    assert.deepEqual(createArcadeDailyProjection(records, '2026-08-18T00:00:00.000Z'), {
+    assert.deepEqual(createArcadeDailyProjection(records, '2026-08-17T22:00:00.000Z'), {
         seed: 20260818,
         status: 'unplayed',
         playedToday: false,

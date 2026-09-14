@@ -1,4 +1,5 @@
 import { resolveArcadeDailySettings } from '../../shared/contracts/ArcadeDailyRulesContract.js';
+import { computeDailySeed } from '../../shared/utils/ArcadeUtils.js';
 import { resolveMenuCatalogText } from '../menu/MenuTextCatalog.js';
 import {
     ARCADE_VEHICLE_PROFILE_MAX_LEVEL,
@@ -52,14 +53,6 @@ function safeWriteLocalStorage(key, value) {
     } catch {
         return false;
     }
-}
-
-function computeDailySeed() {
-    const now = new Date();
-    const year = now.getUTCFullYear();
-    const month = now.getUTCMonth() + 1;
-    const day = now.getUTCDate();
-    return (year * 10000) + (month * 100) + day;
 }
 
 function loadSeed(store = null) {
