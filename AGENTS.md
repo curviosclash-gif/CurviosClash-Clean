@@ -30,3 +30,10 @@
 ## Council
 
 21. Die Regeln für Council und Coding Council stehen in `.opencode/AGENTS.md`. Sie gelten ausschliesslich für die OpenCode-Agenten unter `.opencode/` und nur, wenn der Nutzer den Council für die aktuelle Aufgabe ausdrücklich anfordert. Ohne eine solche Aufforderung bearbeitet das Hauptmodell Analyse, Planung, Review und Umsetzung selbst und startet keine Council-, Coding-Council- oder `plan`-Agenten.
+
+## Parallele Arbeit
+
+22. In diesem Repository arbeiten mehrere Agenten gleichzeitig (mehrere Claude-Code-Sitzungen, Codex, OpenCode) im selben Arbeitsordner und auf demselben Branch. Gehe immer davon aus, dass der Arbeitsbaum fremde, gerade laufende Änderungen enthält, die nicht zu deiner Aufgabe gehören.
+23. Fremde Änderungen sind unantastbar: nicht stagen, nicht committen, nicht zurücksetzen, nicht stashen, nicht formatieren. `git stash`, `git checkout -- <datei>`, `git restore` und `git reset` betreffen immer auch die Arbeit anderer Agenten und sind nur für Dateien erlaubt, die du selbst in dieser Aufgabe angelegt oder geändert hast. Eine Gegenprobe ohne eigene Änderung läuft in einem eigenen Worktree, nie durch Zurücksetzen im Hauptordner.
+24. Unterscheide eigene von fremden Änderungen nachvollziehbar (z. B. über die Dateiliste der eigenen Bearbeitung und Änderungszeitpunkte), bevor du stagest. Berührt eine fremde Änderung dieselbe Datei wie deine Aufgabe, erstelle keinen Commit, sondern melde die Überschneidung (Regel 15).
+25. Geteilte Ressourcen sind knapp: Nur ein Playwright-Lauf pro Rechner (das Schloss aus `scripts/playwright-run-lock.mjs` niemals abschalten), Ports und `dist-app` werden von anderen Sitzungen mitbenutzt, und Leistungsmessungen sind unter Fremdlast einer zweiten Electron-Instanz wertlos. Schlägt ein Test fehl, kläre zuerst, ob ein fremder Lauf oder eine fremde Änderung die Ursache ist, bevor du sie deiner eigenen Änderung zuschreibst.
