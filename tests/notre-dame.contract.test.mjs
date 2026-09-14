@@ -137,6 +137,7 @@ test('only GLB maps whose authored obstacles duplicate complete model surfaces h
         'notre_dame_fire',
         'notre_dame_fire_arena',
         'pyramid',
+        'reactor_site',
         'standard',
         'trench',
         'vertical_maze',

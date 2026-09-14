@@ -5,7 +5,7 @@ const COLLECTION_DEFINITIONS = [
         mapKeys: [
             'standard', 'empty', 'maze', 'complex', 'pyramid', 'vertical_maze',
             'trench', 'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_arena',
-            'eiffel_tower_siege', 'burg_falkenwacht_arena',
+            'eiffel_tower_siege', 'reactor_site', 'burg_falkenwacht_arena',
         ],
     },
     {

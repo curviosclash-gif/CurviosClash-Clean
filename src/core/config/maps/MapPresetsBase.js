@@ -59,6 +59,7 @@ const BASE_MAP_KEYS = [
     'eiffel_tower',
     'eiffel_tower_arena',
     'eiffel_tower_siege',
+    'reactor_site',
     'burg_falkenwacht',
     'burg_falkenwacht_arena',
 ];

@@ -45,7 +45,11 @@ frame:
   * twelve substeps and twenty-four solver iterations per frame, single threaded, no randomness.
 
 Bullet is deterministic here: two runs of the same scene produce bit-identical samples, which is
-checked in `simulate` itself by replaying the last pass.
+checked at the end of `run` by replaying the final pass and comparing it sample for sample.
+
+The rigid body scaffolding - world, proxies, constraints, plane lock, sampling, the replay and
+the cut at rest - is shared with the other destructible packs through scripts/blender_collapse.py.
+What this file owns is the tower: its mass model, its joints and the cuts the hit makes.
 
 Where the collapse starts, and why nothing is pushed
 ----------------------------------------------------
@@ -83,16 +87,32 @@ is the reason the collapse has to be a one-shot clip rather than a beat-aligned 
 """
 
 import sys
-from math import degrees, hypot, pi, radians, sin, sqrt
+from math import degrees, hypot, radians, sin, sqrt
 from pathlib import Path
 
-import bmesh
-import bpy
-from mathutils import Matrix, Quaternion, Vector
+from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 import generate_eiffel_tower_assets as et  # noqa: E402  (needs the path above)
+from blender_collapse import (  # noqa: E402
+    GRAVITY,
+    REST_FRAMES,
+    add_body,
+    add_constraint,
+    add_plane_lock,
+    box_object,
+    dismantle,
+    hull_object,
+    key_constraint_open,
+    piece_steps,
+    replay_matches,
+    rest_pose,
+    rigid_world,
+    sample_poses,
+    tilt_of,
+    trim_to_rest,
+)
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -137,20 +157,10 @@ PIECE_HEAD = {entry[0]: entry[2] for entry in PIECES}
 PIECE_BUILDERS = {entry[0]: entry[3] for entry in PIECES}
 
 # --- Physics constants ----------------------------------------------------------------------------
-GRAVITY = 9.81                 # m/s^2, and the rigid body world's own gravity
-SUBSTEPS = 12                  # Bullet substeps per frame: 360 integration steps a second
-SOLVER_ITERATIONS = 24
-FRICTION = 0.6                 # wrought iron on stone, and iron on iron
-RESTITUTION = 0.05             # wreckage is about as bouncy as a sack of bricks
-LINEAR_DAMPING = 0.05
-ANGULAR_DAMPING = 0.1
+# Solver settings, friction, damping and the rest criteria are the shared ones in
+# blender_collapse.py. What is left here is the tower's own guard rail.
 # A guard, so a mistake in the setup cannot key ten minutes of debris shuffling.
 SIM_MAX_SECONDS = 57.0
-# What counts as standing still, per frame, and how long it has to hold before the clip is cut.
-REST_TRANSLATION = 0.05        # m
-REST_ROTATION = radians(0.5)
-REST_FRAMES = 30
-TAIL_SECONDS = 1.0             # still frames after the clip is cut, so it does not end on a jump
 
 # How much of the struck legs is pulverised and stops carrying load, measured up from the ground.
 # Only the pier and the cast shoes: everything above that still counts as iron under the tower.
@@ -216,12 +226,6 @@ ROOT2 = sqrt(2.0)
 def fall_reach(x, y):
     """How far a point stands along the fall, in metres from the tower axis."""
     return (x + y) / ROOT2
-
-
-def tilt_of(rotation):
-    """A quaternion's turn, folded into 0..180 degrees."""
-    angle = rotation.angle % (2.0 * pi)
-    return angle if angle <= pi else 2.0 * pi - angle
 
 
 # --- Mass model -----------------------------------------------------------------------------------
@@ -396,32 +400,6 @@ def profile_points(rings, cuts=()):
     return points
 
 
-def hull_object(name, points, location=(0.0, 0.0, 0.0)):
-    """One convex hull mesh object, built from a point cloud."""
-    mesh = bpy.data.meshes.new(f"{name}_mesh")
-    mesh.from_pydata(points, [], [])
-    mesh.update()
-    bm = bmesh.new()
-    bm.from_mesh(mesh)
-    bmesh.ops.convex_hull(bm, input=bm.verts, use_existing_faces=False)
-    bmesh.ops.delete(bm, geom=[vert for vert in bm.verts if not vert.link_faces], context="VERTS")
-    bm.to_mesh(mesh)
-    bm.free()
-    mesh.validate()
-    mesh.update()
-    obj = bpy.data.objects.new(name, mesh)
-    obj.location = location
-    obj.rotation_mode = "QUATERNION"
-    bpy.context.collection.objects.link(obj)
-    return obj
-
-
-def box_object(name, half_span, low, high):
-    points = [(sign_x * half_span, sign_y * half_span, height)
-              for height in (low, high) for sign_x in (-1.0, 1.0) for sign_y in (-1.0, 1.0)]
-    return hull_object(name, points)
-
-
 def piece_profile(piece_id):
     """The falling piece's own silhouette, in the piece's frame.
 
@@ -439,102 +417,6 @@ def standing_profile(piece_id, ceiling):
     foot = PIECE_FOOT[piece_id]
     vertices = [(x, y, z + foot) for x, y, z in canvas_vertices(piece_canvas(piece_id))]
     return outline_profile(vertices, foot, min(PIECE_HEAD[piece_id], ceiling))
-
-
-# --- Rigid bodies -----------------------------------------------------------------------------------
-
-
-def rigid_world(scene, frames):
-    bpy.ops.rigidbody.world_add()
-    world = scene.rigidbody_world
-    world.substeps_per_frame = SUBSTEPS
-    world.solver_iterations = SOLVER_ITERATIONS
-    world.time_scale = 1.0
-    world.point_cache.frame_start = scene.frame_start
-    world.point_cache.frame_end = scene.frame_start + frames - 1
-    scene.gravity = (0.0, 0.0, -GRAVITY)
-    scene.use_gravity = True
-    return world
-
-
-def add_body(obj, kind, shape, mass=1.0):
-    bpy.ops.object.select_all(action="DESELECT")
-    obj.select_set(True)
-    bpy.context.view_layer.objects.active = obj
-    bpy.ops.rigidbody.object_add(type=kind)
-    body = obj.rigid_body
-    body.collision_shape = shape
-    body.friction = FRICTION
-    body.restitution = RESTITUTION
-    if kind == "ACTIVE":
-        # Tonnes rather than kilogrammes. A collapse driven by gravity and contact alone is
-        # invariant under a uniform scaling of every mass, and keeping the numbers near 10^3 rather
-        # than 10^6 keeps Bullet's impulses in a range its floats resolve comfortably.
-        body.mass = mass
-        body.linear_damping = LINEAR_DAMPING
-        body.angular_damping = ANGULAR_DAMPING
-        # Bullet puts a body to sleep below 0.4 m/s and 0.5 rad/s. Those are thresholds for props:
-        # a three-hundred-metre tower turning at a fifth of that is travelling ten metres a second
-        # at its tip, and letting it sleep froze a 58 m stack in mid-air halfway through going over.
-        # Nothing here sleeps; the clip is cut on measured stillness instead.
-        body.use_deactivation = False
-    return body
-
-
-def add_plane_lock(name, proxy, anchor):
-    """Hold one proxy's travel in the fall plane. Its turning stays free.
-
-    The map turns the whole slot about the tower's own axis, so the direction a scene falls in is
-    authored rather than simulated. Left free, a piece does not keep to it: a convex hull's
-    triangulation is not mirror symmetric, so a tumbling piece picks up a few degrees of drift off
-    every bounce and the summit of 23_topple_summit came to rest thirty-two degrees off the
-    diagonal it was authored on. The preset states one baked heading per scene and the contract
-    test measures it off the file, so that drift is not cosmetic -- it is the map placing a
-    collapse that lands somewhere else.
-
-    Only the sideways *travel* is held. Locking the two out-of-plane rotations as well was tried
-    first and Bullet threw the summit into orbit: a generic six-degree-of-freedom constraint
-    resolves its angular limits through an Euler decomposition, which stops meaning anything once a
-    body has turned past a right angle, and these bodies turn several times.
-    """
-    empty = bpy.data.objects.new(name, None)
-    empty.empty_display_type = "PLAIN_AXES"
-    empty.location = proxy.location
-    # Local X along the fall, local Y along the hinge, local Z up.
-    empty.rotation_euler = (0.0, 0.0, pi / 4.0)
-    bpy.context.collection.objects.link(empty)
-    bpy.ops.object.select_all(action="DESELECT")
-    empty.select_set(True)
-    bpy.context.view_layer.objects.active = empty
-    bpy.ops.rigidbody.constraint_add(type="GENERIC")
-    lock = empty.rigid_body_constraint
-    lock.object1 = anchor
-    lock.object2 = proxy
-    # The anchor is the ground, and the piece has to keep landing on it.
-    lock.disable_collisions = False
-    for axis, free in (("lin_x", True), ("lin_y", False), ("lin_z", True),
-                       ("ang_x", True), ("ang_y", True), ("ang_z", True)):
-        setattr(lock, f"use_limit_{axis}", not free)
-        if not free:
-            setattr(lock, f"limit_{axis}_lower", 0.0)
-            setattr(lock, f"limit_{axis}_upper", 0.0)
-    return empty
-
-
-def add_constraint(name, height, below, above):
-    empty = bpy.data.objects.new(name, None)
-    empty.empty_display_type = "PLAIN_AXES"
-    empty.location = (0.0, 0.0, height)
-    bpy.context.collection.objects.link(empty)
-    bpy.ops.object.select_all(action="DESELECT")
-    empty.select_set(True)
-    bpy.context.view_layer.objects.active = empty
-    bpy.ops.rigidbody.constraint_add(type="FIXED")
-    constraint = empty.rigid_body_constraint
-    constraint.object1 = below
-    constraint.object2 = above
-    constraint.disable_collisions = True
-    return empty
 
 
 # --- The collapse -------------------------------------------------------------------------------------
@@ -611,7 +493,7 @@ class Collapse:
 
         for index in range(1, len(self.pieces)):
             height = PIECE_FOOT[self.pieces[index]]
-            empty = add_constraint(f"sim_joint_{JOINT_NAMES[height]}", height,
+            empty = add_constraint(f"sim_joint_{JOINT_NAMES[height]}", (0.0, 0.0, height),
                                    self.proxies[self.pieces[index - 1]],
                                    self.proxies[self.pieces[index]])
             self.constraints[height] = empty
@@ -664,14 +546,7 @@ class Collapse:
 
     def disable_at(self, height, frame):
         """Key the joint open at `frame`, so the next pass of the solver lets it go there."""
-        empty = self.constraints[height]
-        empty.rigid_body_constraint.enabled = True
-        empty.keyframe_insert("rigid_body_constraint.enabled", frame=self.scene.frame_start)
-        empty.rigid_body_constraint.enabled = False
-        empty.keyframe_insert("rigid_body_constraint.enabled", frame=frame)
-        for curve in empty.animation_data.action.fcurves:
-            for point in curve.keyframe_points:
-                point.interpolation = "CONSTANT"
+        key_constraint_open(self.constraints[height], self.scene, frame)
         self.breaks[height] = frame
 
     # -- running it ---------------------------------------------------------------------------
@@ -679,18 +554,7 @@ class Collapse:
     def simulate(self, frames):
         """Step the rigid body world and read the evaluated pose of every proxy, per frame."""
         self.passes += 1
-        start = self.scene.frame_start
-        self.scene.frame_set(start)
-        samples = []
-        for offset in range(frames):
-            self.scene.frame_set(start + offset)
-            graph = bpy.context.evaluated_depsgraph_get()
-            pose = {}
-            for piece, proxy in self.proxies.items():
-                matrix = proxy.evaluated_get(graph).matrix_world
-                pose[piece] = (matrix.to_translation(), matrix.to_quaternion())
-            samples.append(pose)
-        return samples
+        return sample_poses(self.scene, self.proxies, frames)
 
     def run(self):
         """Find the joint failures, then bake the pass that has all of them in it."""
@@ -702,6 +566,12 @@ class Collapse:
                 break
             self.disable_at(*found)
             samples = self.simulate(self.max_frames)
+        # The pass that is baked is replayed once more and compared sample for sample; a scene
+        # that does not reproduce itself must not reach the file, because a replica would then
+        # derive a different collapse from the same events.
+        identical, mismatch = replay_matches(self.scene, self.proxies, self.max_frames, samples)
+        if not identical:
+            raise RuntimeError(f"collapse is not deterministic: first mismatch at {mismatch}")
         self.loads = loads
         self.samples = samples
         self.frames = self.trim(samples)
@@ -750,31 +620,12 @@ class Collapse:
 
     def trim(self, samples):
         """Cut the clip once everything has held still for a second, and hold the last pose."""
-        moving, last = 0, None
-        for frame in range(1, len(samples)):
-            for piece in self.pieces:
-                location, rotation = samples[frame][piece]
-                previous_location, previous_rotation = samples[frame - 1][piece]
-                if ((location - previous_location).length > REST_TRANSLATION
-                        or tilt_of(rotation.rotation_difference(previous_rotation))
-                        > REST_ROTATION):
-                    moving, last = frame, piece
-                    break
-        self.rest_frame = moving
-        self.rest_piece = last
-        end = min(len(samples), moving + REST_FRAMES + 1)
-        frames = samples[:end]
-        frames.extend([frames[-1]] * int(round(TAIL_SECONDS * FPS)))
+        frames, self.rest_frame, self.rest_piece = trim_to_rest(samples, self.pieces, FPS)
         return frames
 
     def dismantle(self):
         """Take the whole simulation back out. None of it may reach the exported file."""
-        bpy.ops.object.select_all(action="DESELECT")
-        for obj in self.simulation:
-            obj.select_set(True)
-        bpy.ops.object.delete()
-        if self.scene.rigidbody_world is not None:
-            bpy.ops.rigidbody.world_remove()
+        dismantle(self.scene, self.simulation)
         self.proxies, self.constraints, self.simulation = {}, {}, []
 
     # -- measurements ------------------------------------------------------------------------------
@@ -818,16 +669,7 @@ class Collapse:
             f"overran={self.rest_frame >= self.max_frames - REST_FRAMES - 1}"
         )
         for piece in self.pieces:
-            swept = 0.0
-            step_move, step_turn = 0.0, 0.0
-            for frame in range(1, len(self.frames)):
-                location, rotation = self.frames[frame][piece]
-                previous_location, previous_rotation = self.frames[frame - 1][piece]
-                move = (location - previous_location).length
-                turn = tilt_of(rotation.rotation_difference(previous_rotation))
-                swept += turn
-                step_move = max(step_move, move)
-                step_turn = max(step_turn, turn)
+            swept, step_move, step_turn = piece_steps(self.frames, piece)
             location, rotation = self.frames[-1][piece]
             lowest = min(point.z for point in self.rest_vertices(piece))
             print(
@@ -916,7 +758,7 @@ def build_scene(stem, clip_name):
                 # contract test measures it, so it is written rather than sampled.
                 if index == 0:
                     location = Vector((0.0, 0.0, PIECE_FOOT[piece]))
-                    rotation = Quaternion((1.0, 0.0, 0.0, 0.0))
+                    rotation = rest_pose()
                 rig.location = location
                 rig.keyframe_insert("location", frame=at)
                 rig.rotation_quaternion = rotation

@@ -15,6 +15,7 @@ GENERATORS = {
     'notre_dame_fire': 'generate_notre_dame_fire_assets',
     'eiffel_tower': 'generate_eiffel_tower_assets',
     'eiffel_tower_siege': 'generate_eiffel_tower_siege_assets',
+    'reactor_site': 'generate_reactor_site_assets',
     'burg_falkenwacht': 'generate_falkenwacht_assets',
     'standard': 'generate_map_world',
     'wind_cathedral': 'generate_map_world',

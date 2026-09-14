@@ -148,6 +148,7 @@ test('only the selected presets define lighting and all others resolve to defaul
         'notre_dame_fire',
         'notre_dame_fire_arena',
         'pyramid',
+        'reactor_site',
         'standard',
         'trench',
         'vertical_maze',

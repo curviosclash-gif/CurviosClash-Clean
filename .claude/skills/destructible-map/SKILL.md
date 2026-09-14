@@ -32,9 +32,19 @@ Dazu drei Zahlen: der **Anker** eines Segments (sein Fußpunkt in Kartenkoordina
 | Segmentarten | `MAP_DESTRUCTIBLE_KINDS` im Contract | **Nur vier**: `leg_lower`, `leg_mid`, `shaft`, `summit` |
 | Versiegelung | `state.sealed` im Contract | **Global pro Karte**, nicht pro Bauwerk |
 | Bots | — | Bots zielen nicht bewusst auf das Bauwerk (offene Etappe 6 des Eiffel-Plans) |
-| Blender-Simulation | `scripts/generate_eiffel_tower_siege_assets.py` | Als Vorlage: Massenmodell, Gelenke und Schnitte sind turmspezifisch |
+| Blender-Simulation | `scripts/blender_collapse.py` | Ja: Rigid-Body-Welt, Hüllen, Gelenke, Ebenensperre, Abtastung, Determinismus-Gegenprobe, Schnitt bei Stillstand |
+| Bauwerksmodelle | `scripts/generate_eiffel_tower_siege_assets.py`, `scripts/generate_reactor_site_assets.py` | Als Vorlagen: Massenmodell, Gelenke und Schnitte sind bauwerksspezifisch |
 
 Die drei fetten Einträge sind die Stellen, an denen ein komplexeres Bauwerk die Maschinerie erweitert. Phase 7 sagt wie.
+
+Zwei Karten laufen auf dieser Maschinerie: `eiffel_tower_siege` (ein Bauwerk, vier Sturzszenen) und `reactor_site` (fünf Bauwerke, vier gebackene Stürze, ein gekeyframter Atompilz, ein per Kurve zerbröselndes Stück). Der Reaktor ist die Vorlage für mehrere unabhängige Bauwerke auf einer Karte (Auslösung per `trigger.segmentId`), für eine Szene ohne Drehung (`yawFromEvent: false`) und für die Effektszene.
+
+Vier Lehren aus dem Reaktor, die Blender nicht sagt:
+
+- **Der Objektursprung ist der Schwerpunkt.** Blenders Rigid-Body-Welt zentriert nicht um; ein Proxy mit Ursprung am Fuß wird simuliert, als läge sein ganzes Gewicht am Boden. Rig und Proxy stehen deshalb am berechneten Schwerpunkt, die Meshdaten sind relativ dazu.
+- **Gedrungene Körper kippen nicht.** Ein Kühlturm (so breit wie hoch) sackt 14° auf seine zerquetschte Seite und bleibt liegen; ein abgescherter oberer Ring landet stehend auf seinem Fuß. Was kippt, ist der Rest, nachdem der Treffer eine ganze Flanke herausgerissen hat (das Stück `debris`, per Kurve zerbröselt) — als Verbund zweier Hüllen (`COMPOUND`), damit der Hohlraum echt ist und der Körper nicht auf einer Fläche zur Ruhe kommt, die er nicht hat.
+- **Sektoren einer Schale können nicht nach innen falten.** Vier starre Viertel verkeilen ihre Nahtflächen nach 0,5°; echte Schalen zerbröseln. Dünne Netzformen (`MESH`, GImpact) explodieren im Löser.
+- **Ein Dach ist ein Deckel.** Liegt es auf allen Kronen, bindet es die Wände zu einer Kiste (40 s ohne Bewegung); liegt es auf zwei Giebeln, klemmt es sie als starrer Balken. Die Dach-Hülle endet einen Meter vor jeder Wand: Es stürzt zuerst, die Wände kippen danach frei nach außen.
 
 ## Phase 0 — der Bruchplan, bevor irgendetwas gebaut wird
 
