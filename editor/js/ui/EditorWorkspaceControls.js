@@ -603,6 +603,7 @@ export function bindEditorWorkspaceControls(editor) {
         duplicates.forEach((duplicate) => {
             const oldPartner = String(duplicate.userData?.portalPartnerId || '');
             if (idMap.has(oldPartner)) duplicate.userData.portalPartnerId = idMap.get(oldPartner);
+            else if (duplicate.userData?.type === 'portal') duplicate.userData.portalPartnerId = '';
         });
         editor.updateRelationshipVisuals?.();
         return duplicates;

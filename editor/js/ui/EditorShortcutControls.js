@@ -132,6 +132,7 @@ export function bindEditorShortcutControls(editor) {
 
                 const extraProps = { ...editor.clipboardData };
                 delete extraProps.sourcePos;
+                if (editor.clipboardData.type === 'portal') extraProps.portalPartnerId = '';
                 if (extraProps.pointA?.isVector3) extraProps.pointA = extraProps.pointA.clone();
                 if (extraProps.pointB?.isVector3) extraProps.pointB = extraProps.pointB.clone();
 

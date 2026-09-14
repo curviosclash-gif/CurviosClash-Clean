@@ -1023,6 +1023,164 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         expect(finishOrder).toEqual({ reordered: false, lastId: ids[4] });
     });
 
+    test('Copy/Paste laesst bestehende Portalpaare intakt und fuegt ein ungepaartes Portal ein', async ({ page }) => {
+        await loadEditorPage(page);
+        const ids = await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const left = editor.mapManager.createMesh('portal', 'portal_ring', -300, 300, 0, 120);
+            const right = editor.mapManager.createMesh('portal', 'portal_ring', 300, 300, 0, 120);
+            editor.ui.setPortalPartner(left, right.userData.id);
+            editor.ui.selectObject(left);
+            return { left: left.userData.id, right: right.userData.id };
+        });
+
+        await page.locator('#btnSaveToGame').focus();
+        await page.keyboard.press('Control+c');
+        expect(await page.evaluate(() => window.CURVIOS_EDITOR.ui.clipboardData.portalPartnerId)).toBe(ids.right);
+        await page.keyboard.press('Control+v');
+
+        const readRelations = () => page.evaluate(([leftId, rightId]) => {
+            const editor = window.CURVIOS_EDITOR;
+            const portals = editor.core.objectsContainer.children.filter((object) => object.userData.type === 'portal');
+            const pasted = portals.find((object) => object.userData.id !== leftId && object.userData.id !== rightId);
+            return {
+                count: portals.length,
+                leftPartner: editor.mapManager.getObjectById(leftId)?.userData.portalPartnerId || '',
+                rightPartner: editor.mapManager.getObjectById(rightId)?.userData.portalPartnerId || '',
+                pastedId: pasted?.userData.id || '',
+                pastedPartner: pasted?.userData.portalPartnerId || '',
+                pastedHasPartnerField: pasted
+                    ? Object.prototype.hasOwnProperty.call(pasted.userData, 'portalPartnerId')
+                    : false,
+                clipboardPartner: editor.ui.clipboardData?.portalPartnerId || '',
+                lineCount: editor.core.scene.getObjectByName('editor-relationships')?.children.length || 0,
+            };
+        }, [ids.left, ids.right]);
+
+        await expect.poll(readRelations).toMatchObject({
+            count: 3,
+            leftPartner: ids.right,
+            rightPartner: ids.left,
+            pastedPartner: '',
+            pastedHasPartnerField: true,
+            clipboardPartner: ids.right,
+            lineCount: 1,
+        });
+        await expect(page.locator('#validationList')).toContainText('1 Portal(e) ohne Partner');
+
+        await page.keyboard.press('Control+z');
+        await expect.poll(readRelations).toMatchObject({
+            count: 2,
+            leftPartner: ids.right,
+            rightPartner: ids.left,
+            pastedId: '',
+            pastedHasPartnerField: false,
+            clipboardPartner: ids.right,
+            lineCount: 1,
+        });
+
+        await page.keyboard.press('Control+y');
+        await expect.poll(readRelations).toMatchObject({
+            count: 3,
+            leftPartner: ids.right,
+            rightPartner: ids.left,
+            pastedPartner: '',
+            pastedHasPartnerField: true,
+            clipboardPartner: ids.right,
+            lineCount: 1,
+        });
+
+        await page.keyboard.press('Control+v');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(4);
+        const explicitlyUnpaired = await page.evaluate(([leftId, rightId]) => {
+            const editor = window.CURVIOS_EDITOR;
+            editor.mapManager.withSceneMutation(() => {
+                editor.mapManager.removeObject(editor.mapManager.getObjectById(leftId));
+                editor.mapManager.removeObject(editor.mapManager.getObjectById(rightId));
+            });
+            editor.ui.refreshWorkspace();
+            const portals = editor.core.objectsContainer.children.filter((object) => object.userData.type === 'portal');
+            return {
+                count: portals.length,
+                partners: portals.map((object) => object.userData.portalPartnerId),
+                allHavePartnerField: portals.every((object) => (
+                    Object.prototype.hasOwnProperty.call(object.userData, 'portalPartnerId')
+                )),
+                lineCount: editor.core.scene.getObjectByName('editor-relationships')?.children.length || 0,
+            };
+        }, [ids.left, ids.right]);
+        expect(explicitlyUnpaired).toEqual({
+            count: 2,
+            partners: ['', ''],
+            allHavePartnerField: true,
+            lineCount: 0,
+        });
+    });
+
+    test('Portal-Duplikate verwerfen externe Partner und remappen gemeinsam duplizierte Paare', async ({ page }) => {
+        await loadEditorPage(page);
+        const ids = await page.evaluate(() => {
+            const editor = window.CURVIOS_EDITOR;
+            const left = editor.mapManager.createMesh('portal', 'portal_ring', -300, 300, 0, 120);
+            const right = editor.mapManager.createMesh('portal', 'portal_ring', 300, 300, 0, 120);
+            editor.ui.setPortalPartner(left, right.userData.id);
+            editor.ui.selectObject(left);
+            return { left: left.userData.id, right: right.userData.id };
+        });
+
+        await page.locator('#btnDuplicateSelected').click();
+        const singleDuplicate = await page.evaluate(([leftId, rightId]) => {
+            const editor = window.CURVIOS_EDITOR;
+            const portals = editor.core.objectsContainer.children.filter((object) => object.userData.type === 'portal');
+            const duplicate = portals.find((object) => object.userData.id !== leftId && object.userData.id !== rightId);
+            return {
+                id: duplicate?.userData.id || '',
+                partner: duplicate?.userData.portalPartnerId || '',
+                hasPartnerField: duplicate
+                    ? Object.prototype.hasOwnProperty.call(duplicate.userData, 'portalPartnerId')
+                    : false,
+                leftPartner: editor.mapManager.getObjectById(leftId)?.userData.portalPartnerId || '',
+                rightPartner: editor.mapManager.getObjectById(rightId)?.userData.portalPartnerId || '',
+            };
+        }, [ids.left, ids.right]);
+        expect(singleDuplicate).toMatchObject({
+            partner: '',
+            hasPartnerField: true,
+            leftPartner: ids.right,
+            rightPartner: ids.left,
+        });
+        expect(singleDuplicate.id).toBeTruthy();
+
+        await page.keyboard.press('Control+z');
+        await expect.poll(() => page.evaluate(() => window.CURVIOS_EDITOR.mapManager.getObjectCount())).toBe(2);
+        await activateInspectorTab(page, 'objects');
+        await page.getByLabel(`${ids.left} fuer Mehrfachaktion markieren`).check();
+        await page.getByLabel(`${ids.right} fuer Mehrfachaktion markieren`).check();
+        await page.locator('#btnDuplicateMarked').click();
+
+        const pairedDuplicates = await page.evaluate(([leftId, rightId]) => {
+            const editor = window.CURVIOS_EDITOR;
+            const portals = editor.core.objectsContainer.children.filter((object) => object.userData.type === 'portal');
+            const duplicates = portals.filter((object) => object.userData.id !== leftId && object.userData.id !== rightId);
+            return {
+                count: portals.length,
+                duplicateIds: duplicates.map((object) => object.userData.id).sort(),
+                duplicatePartnerIds: duplicates.map((object) => object.userData.portalPartnerId).sort(),
+                leftPartner: editor.mapManager.getObjectById(leftId)?.userData.portalPartnerId || '',
+                rightPartner: editor.mapManager.getObjectById(rightId)?.userData.portalPartnerId || '',
+                lineCount: editor.core.scene.getObjectByName('editor-relationships')?.children.length || 0,
+            };
+        }, [ids.left, ids.right]);
+        expect(pairedDuplicates).toMatchObject({
+            count: 4,
+            leftPartner: ids.right,
+            rightPartner: ids.left,
+            lineCount: 2,
+        });
+        expect(pairedDuplicates.duplicatePartnerIds).toEqual(pairedDuplicates.duplicateIds);
+        await expect(page.locator('#validationList')).toContainText('Portale sind explizit gepaart');
+    });
+
     test('grosse Maps nutzen virtuellen Outliner und raeumliche Auswahlindizes', async ({ page }) => {
         await loadEditorPage(page);
         await page.evaluate(() => {
