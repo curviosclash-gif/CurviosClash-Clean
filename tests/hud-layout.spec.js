@@ -174,7 +174,8 @@ test('HUD appearance preserves targeting anchors and split-screen containment', 
             expectNear(layout.p1Root.left, 0);
             expectNear(layout.p1Root.right, halfWidth);
             expectNear(layout.vitals.left, layout.p1Root.left + 20);
-            expectNear(layout.vitals.bottom, viewport.height - 74);
+            // The vitals sit above the centered item and rocket rows.
+            expect(layout.vitals.bottom).toBeLessThan(layout.itemSlots[0].top - layout.itemSlots[0].height);
             for (const arc of [layout.boost, layout.overheat]) {
                 expect(arc.left).toBeGreaterThanOrEqual(layout.p1Root.left - 1);
                 expect(arc.right).toBeLessThanOrEqual(layout.p1Root.right + 1);
@@ -404,6 +405,110 @@ test('split-screen keeps every classic/arcade panel inside its own viewport half
                 layout.parcoursOverlapsItems,
                 `parcours panel clears the item bar (${context})`
             ).toBe(false);
+        }
+    }
+});
+
+test('rocket queue stacks between the item bar and the effect badges in every mode', async ({ page }) => {
+    for (const viewport of VIEWPORTS) {
+        await page.setViewportSize(viewport);
+        for (const hudMode of ['normal', 'arcade', 'fight']) {
+            for (const split of [true, false]) {
+                for (const scale of [1, 1.4]) {
+                    await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
+                    const layout = await page.evaluate(({ hudMode, split, scale }) => {
+                        const rect = (element) => {
+                            if (!element) return null;
+                            const value = element.getBoundingClientRect();
+                            return { left: value.left, right: value.right, top: value.top, bottom: value.bottom };
+                        };
+                        const overlaps = (a, b) => !!a && !!b && !(
+                            a.right <= b.left || a.left >= b.right
+                            || a.bottom <= b.top || a.top >= b.bottom
+                        );
+                        const fill = (bar, label) => {
+                            while (bar.children.length < 5) {
+                                const slot = document.createElement('div');
+                                slot.className = 'item-slot active';
+                                slot.dataset.actionKey = 'F';
+                                const icon = document.createElement('span');
+                                icon.className = 'item-icon';
+                                icon.textContent = label;
+                                slot.appendChild(icon);
+                                bar.appendChild(slot);
+                            }
+                        };
+
+                        document.querySelector('#main-menu')?.classList.add('hidden');
+                        const hud = document.querySelector('#hud');
+                        hud.classList.remove('hidden');
+                        hud.classList.toggle('split-screen', split);
+                        hud.dataset.hudMode = hudMode;
+                        hud.style.setProperty('--hud-scale', String(scale));
+                        const hunt = hudMode === 'fight';
+                        document.querySelector('#hunt-hud').classList.toggle('hidden', !hunt);
+                        document.querySelector('#p2-hud')?.classList.toggle('hidden', !split);
+                        document.querySelector('#hunt-p2-panel')?.classList.toggle('hidden', !hunt || !split);
+
+                        const players = [];
+                        for (const id of split ? ['p1', 'p2'] : ['p1']) {
+                            const items = document.querySelector(`#${id}-items`);
+                            fill(items, 'I');
+                            // Same DOM the runtime HUD builds around the item bar.
+                            const rocket = document.createElement('div');
+                            rocket.className = 'item-bar rocket-bar';
+                            items.parentNode.insertBefore(rocket, items);
+                            fill(rocket, 'R');
+                            const effects = document.createElement('div');
+                            effects.className = 'active-effect-bar';
+                            const badge = document.createElement('div');
+                            badge.className = 'active-effect-badge';
+                            badge.textContent = 'Schild 5.0s';
+                            effects.appendChild(badge);
+                            items.parentNode.insertBefore(effects, items.nextSibling);
+
+                            const box = rect(items.closest('.player-hud'));
+                            const rocketRect = rect(rocket);
+                            const vitals = hunt ? rect(document.querySelector(`#hunt-${id}-panel .hunt-vitals`)) : null;
+                            const label = getComputedStyle(rocket, '::before');
+                            players.push({
+                                id,
+                                box,
+                                items: rect(items),
+                                rocket: rocketRect,
+                                rocketSlotTops: [...rocket.children].map((slot) => rect(slot).top),
+                                labelPosition: label.position,
+                                labelText: label.content,
+                                rocketOverItems: overlaps(rocketRect, rect(items)),
+                                rocketOverEffects: overlaps(rocketRect, rect(effects)),
+                                rocketOverVitals: overlaps(rocketRect, vitals),
+                                itemsOverVitals: overlaps(rect(items), vitals),
+                            });
+                        }
+                        return players;
+                    }, { hudMode, split, scale });
+
+                    for (const player of layout) {
+                        const context = `${player.id} ${hudMode} ${split ? 'split' : 'single'} ${viewport.width}x${viewport.height} scale ${scale}`;
+                        expect(player.rocketOverItems, `rocket bar clears the item bar (${context})`).toBe(false);
+                        expect(player.rocketOverEffects, `rocket bar clears the effect badges (${context})`).toBe(false);
+                        // An oversized HUD can push the item bar itself under the vitals;
+                        // the rocket bar must not add an overlap the item bar does not have.
+                        if (scale === 1 || !player.itemsOverVitals) {
+                            expect(player.rocketOverVitals, `rocket bar clears the hunt vitals (${context})`).toBe(false);
+                        }
+                        expect(player.labelPosition, `rocket label stays out of the slot grid (${context})`).toBe('absolute');
+                        expect(player.labelText).toBe('"RAKETEN"');
+                        expectNear(player.rocket.left, player.items.left);
+                        expectNear(player.rocket.right, player.items.right);
+                        if (scale === 1) {
+                            expect(player.rocket.left, `rocket bar stays in its view (${context})`).toBeGreaterThanOrEqual(player.box.left - 1);
+                            expect(player.rocket.right, `rocket bar stays in its view (${context})`).toBeLessThanOrEqual(player.box.right + 1);
+                        }
+                        for (const top of player.rocketSlotTops) expectNear(top, player.rocketSlotTops[0]);
+                    }
+                }
+            }
         }
     }
 });

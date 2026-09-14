@@ -2095,8 +2095,50 @@ input[type="range"]::-webkit-slider-thumb {
     margin-top: 8px;
 }
 
+/* Bottom stack of each player HUD: item bar, rocket queue above it, effect
+   badges above both. The bars scale from their bottom edge, so every offset
+   grows with --hud-scale. Row values mirror the item bar rule of each mode. */
+#hud {
+    --hud-item-row-bottom: 20px;
+    --hud-item-row-height: 46px;
+    --hud-rocket-row-bottom: calc(var(--hud-item-row-bottom) + (var(--hud-item-row-height) + 10px) * var(--hud-scale, 1));
+    --hud-bar-stack-top: calc(var(--hud-rocket-row-bottom) + (var(--hud-item-row-height) + 18px) * var(--hud-scale, 1));
+}
+
+#hud:has(#hunt-hud:not(.hidden)) {
+    --hud-item-row-bottom: 20px;
+    --hud-item-row-height: 46px;
+}
+
+@media (max-width: 900px) {
+    #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) {
+        --hud-item-row-bottom: 12px;
+        --hud-item-row-height: 42px;
+    }
+}
+
+@media (max-height: 720px) {
+    #hud:has(#hunt-hud:not(.hidden)) {
+        --hud-item-row-bottom: 12px;
+        --hud-item-row-height: 42px;
+    }
+}
+
+.rocket-bar {
+    position: relative;
+}
+
+/* Out of flow, so the label never takes a slot column of the grid bars. */
 .rocket-bar::before {
-    content: 'ROCKETS';
+    content: 'RAKETEN';
+    position: absolute;
+    bottom: 100%;
+    left: 0;
+    margin-bottom: 2px;
+    color: var(--hud-color, #ffb347);
+    font: 700 0.6rem var(--menu-theme-display-font);
+    letter-spacing: 0.08em;
+    pointer-events: none;
 }
 
 .rocket-bar .item-slot.next-rocket {
@@ -2224,7 +2266,7 @@ input[type="range"]::-webkit-slider-thumb {
 #hud:has(#hunt-hud:not(.hidden)) .player-hud > .active-effect-bar {
     position: absolute;
     left: 50%;
-    bottom: 74px;
+    bottom: var(--hud-bar-stack-top);
     width: min(760px, 62vw);
     margin: 0;
     transform: translateX(-50%) scale(var(--hud-scale, 1));
@@ -3773,9 +3815,17 @@ input[type="range"]::-webkit-slider-thumb {
     display: none;
 }
 
+/* The centered bar stack reaches under the vitals in a viewport half, and
+   below 1480px also in a single view (760px bar vs. 20px + 340px vitals). */
 #hud.split-screen .hunt-vitals {
-    bottom: 74px;
+    bottom: var(--hud-bar-stack-top);
     width: min(340px, calc(100% - 40px));
+}
+
+@media (max-width: 1480px) {
+    #hud:has(#hunt-hud:not(.hidden)) .hunt-vitals {
+        bottom: var(--hud-bar-stack-top);
+    }
 }
 
 #hud.split-screen .hunt-arc-meter {
@@ -7351,8 +7401,10 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     transform-origin: center bottom;
 }
 
-#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .rocket-bar {
-    bottom: 78px;
+/* .item-bar.rocket-bar outranks the compact media rules for .item-bar. */
+#hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar.rocket-bar,
+#hud:has(#hunt-hud:not(.hidden)) .player-hud > .item-bar.rocket-bar {
+    bottom: var(--hud-rocket-row-bottom);
 }
 
 #hud:is([data-hud-mode="normal"], [data-hud-mode="arcade"]) .player-hud > .item-bar .item-slot {
