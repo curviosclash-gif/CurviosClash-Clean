@@ -1,9 +1,9 @@
 import {
     LEGACY_STORAGE_KEYS,
     STORAGE_KEYS,
-} from '../../shared/storage/StorageKeys.js';
-import { PersistentStore } from '../../shared/storage/PersistentStore.js';
-import { resolveStorePlatformOptions, loadVersionedRecord } from '../../shared/storage/PersistentStoreLoadUtils.js';
+} from '../storage/StorageKeys.js';
+import { PersistentStore } from '../storage/PersistentStore.js';
+import { resolveStorePlatformOptions, loadVersionedRecord } from '../storage/PersistentStoreLoadUtils.js';
 
 const MENU_TEXT_OVERRIDE_STORAGE_KEY = STORAGE_KEYS.menuTextOverrides;
 const MENU_TEXT_OVERRIDE_STORAGE_LEGACY_KEYS = LEGACY_STORAGE_KEYS.menuTextOverrides;

@@ -32,7 +32,7 @@ import {
     MENU_CONFIG_SHARE_CONTRACT_VERSION,
 } from '../src/ui/menu/MenuConfigShareOps.js';
 import { MenuTelemetryStore } from '../src/ui/menu/MenuTelemetryStore.js';
-import { MenuTextOverrideStore } from '../src/ui/menu/MenuTextOverrideStore.js';
+import { MenuTextOverrideStore } from '../src/shared/settings/MenuTextOverrideStore.js';
 import { parseProfileImport } from '../src/ui/ProfileTransferOps.js';
 
 function createMemoryStoragePlatform(initialRecords = {}) {

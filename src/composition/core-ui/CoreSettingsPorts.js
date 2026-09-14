@@ -9,7 +9,6 @@ export {
 export { MenuPresetStore } from '../../ui/menu/MenuPresetStore.js';
 export { getFixedMenuPresetCatalog } from '../../ui/menu/MenuPresetCatalog.js';
 export { MenuDraftStore, normalizeSessionType } from '../../ui/menu/MenuDraftStore.js';
-export { MenuTextOverrideStore } from '../../ui/menu/MenuTextOverrideStore.js';
 export { MENU_TEXT_CATALOG } from '../../ui/menu/MenuTextCatalog.js';
 export { MenuTelemetryStore } from '../../ui/menu/MenuTelemetryStore.js';
 export {
