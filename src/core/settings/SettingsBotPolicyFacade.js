@@ -1,4 +1,4 @@
-import { SETTINGS_CHANGE_KEYS } from '../../composition/core-ui/CoreSettingsPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { normalizeBotPolicyStrategy } from '../RuntimeConfig.js';
 import {
     createSettingsMutationFailure,

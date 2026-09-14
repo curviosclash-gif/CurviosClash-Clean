@@ -1,11 +1,6 @@
 export {
     MenuController,
 } from '../../ui/MenuController.js';
-export {
-    SETTINGS_CHANGE_KEYS,
-    isSettingsChangeKey,
-    normalizeSettingsChangeKeys,
-} from '../../ui/SettingsChangeKeys.js';
 export { guardMenuRuntimeEvent, resolveMenuAccessContext } from '../../ui/menu/MenuAccessPolicy.js';
 export { getNextEventPlaylistEntry } from '../../ui/menu/EventPlaylistCatalog.js';
 export { LEVEL4_SECTION_IDS } from '../../ui/menu/MenuStateContracts.js';

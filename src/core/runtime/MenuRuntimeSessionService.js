@@ -7,10 +7,10 @@ import {
     createMenuLevel3ResetDefaults,
     HANGAR_SELECTION_PLAYER_SLOTS,
     LEVEL4_SECTION_IDS,
-    SETTINGS_CHANGE_KEYS,
     writeHangarMapSelection,
     writeHangarVehicleSelection,
 } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import {
     isMapEligibleForModePath,
     resolveModePathFallbackMapKey,

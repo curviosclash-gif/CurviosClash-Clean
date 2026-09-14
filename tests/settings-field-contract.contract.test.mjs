@@ -12,7 +12,7 @@ import {
     SETTINGS_PRESET_FIELD_DESCRIPTORS,
     readSettingsFieldValue,
 } from '../src/ui/SettingsFieldRegistry.js';
-import { isSettingsChangeKey } from '../src/ui/SettingsChangeKeys.js';
+import { isSettingsChangeKey } from '../src/shared/settings/SettingsChangeKeys.js';
 import { STORAGE_KEYS } from '../src/shared/storage/StorageKeys.js';
 
 function createMemoryStoragePlatform(options = {}) {

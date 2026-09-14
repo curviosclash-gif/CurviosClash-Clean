@@ -27,7 +27,7 @@ import {
 import { EntityManager } from '../src/entities/EntityManager.js';
 import { createSettingsPort } from '../src/shared/runtime/GameRuntimePorts.js';
 import { MENU_CONTROLLER_EVENT_TYPES } from '../src/shared/contracts/MenuControllerContract.js';
-import { SETTINGS_CHANGE_KEYS } from '../src/composition/core-ui/CoreUiMenuPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 
 function createEntityRuntimeConfigFixture(overrides = {}) {
     return {

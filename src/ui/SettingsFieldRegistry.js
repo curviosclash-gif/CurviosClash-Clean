@@ -1,7 +1,7 @@
 import {
     SETTINGS_CHANGE_KEYS,
     SETTINGS_CHANGE_PATH_ENTRIES,
-} from './SettingsChangeKeys.js';
+} from '../shared/settings/SettingsChangeKeys.js';
 
 export const SETTINGS_FIELD_NORMALIZERS = Object.freeze({
     BOOLEAN: 'boolean',

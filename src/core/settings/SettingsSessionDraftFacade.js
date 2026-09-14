@@ -2,8 +2,8 @@ import {
     ensureMenuContractState,
     MENU_SESSION_TYPES,
     normalizeSessionType,
-    SETTINGS_CHANGE_KEYS,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 
 const SESSION_DRAFT_CHANGED_KEYS = Object.freeze([
     SETTINGS_CHANGE_KEYS.SESSION_TYPE,

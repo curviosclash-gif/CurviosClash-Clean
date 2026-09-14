@@ -2,7 +2,7 @@
 
 import { clampSettingValue } from '../shared/contracts/SettingsRuntimeContract.js';
 import { GAME_MODE_TYPES, resolveActiveGameMode } from '../hunt/HuntMode.js';
-import { isSettingsChangeKey, normalizeSettingsChangeKeys } from './SettingsChangeKeys.js';
+import { isSettingsChangeKey, normalizeSettingsChangeKeys } from '../shared/settings/SettingsChangeKeys.js';
 import { resolveSyncMethodNamesForChangeKeys } from './UISettingsSyncMap.js';
 import { createMenuSchema } from './menu/MenuSchema.js';
 import { MenuPanelRegistry } from './menu/MenuPanelRegistry.js';

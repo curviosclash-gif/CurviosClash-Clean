@@ -1,4 +1,4 @@
-import { SETTINGS_CHANGE_KEYS } from './SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS } from '../shared/settings/SettingsChangeKeys.js';
 
 export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.SESSION_TYPE]: ['syncSessionState', 'syncModes', 'syncMultiplayerState'],

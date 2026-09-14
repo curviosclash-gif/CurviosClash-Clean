@@ -1,4 +1,4 @@
-import { SETTINGS_CHANGE_PATH_ENTRIES } from '../../composition/core-ui/CoreSettingsPorts.js';
+import { SETTINGS_CHANGE_PATH_ENTRIES } from '../../shared/settings/SettingsChangeKeys.js';
 
 const PATH_CHANGE_KEY_MAP = new Map(SETTINGS_CHANGE_PATH_ENTRIES);
 

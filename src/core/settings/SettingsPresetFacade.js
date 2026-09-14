@@ -4,8 +4,8 @@ import {
     createPresetMetadata,
     ensureMenuContractState,
     resolveMenuAccessContext,
-    SETTINGS_CHANGE_KEYS,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { normalizePresetId } from './SettingsDomainUtils.js';
 import { createSettingsMutationFailure } from './SettingsMutationResult.js';
 

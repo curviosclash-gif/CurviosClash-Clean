@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SETTINGS_CHANGE_KEYS } from '../src/composition/core-ui/CoreSettingsPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createSettingsSessionDraftFacade } from '../src/core/settings/SettingsSessionDraftFacade.js';
 import { SettingsStore } from '../src/shared/settings/SettingsStore.js';

@@ -1,5 +1,5 @@
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
-import { SETTINGS_CHANGE_KEYS } from '../SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { findFixedMenuPresetById } from './MenuPresetCatalog.js';
 import { MENU_DEVELOPER_ACCESS_MODES } from './MenuStateContracts.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';

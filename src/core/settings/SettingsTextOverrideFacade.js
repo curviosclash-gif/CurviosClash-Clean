@@ -1,7 +1,5 @@
-import {
-    MENU_TEXT_CATALOG,
-    SETTINGS_CHANGE_KEYS,
-} from '../../composition/core-ui/CoreSettingsPorts.js';
+import { MENU_TEXT_CATALOG } from '../../composition/core-ui/CoreSettingsPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { createSettingsMutationFailure, withMutationChangedKeys } from './SettingsMutationResult.js';
 
 export function createSettingsTextOverrideFacade(options = {}) {

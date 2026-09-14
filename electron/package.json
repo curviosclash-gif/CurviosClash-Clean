@@ -76,7 +76,6 @@
           "shared/utils/JsonClone.js",
           "state/storage/*.js",
           "ui/menu/*.js",
-          "ui/SettingsChangeKeys.js",
           "ui/SettingsFieldRegistry.js",
           "utils/MathOps.js"
         ]

@@ -1,10 +1,10 @@
 import { GAME_MODE_TYPES } from '../../hunt/HuntMode.js';
 import {
     HANGAR_SELECTION_PLAYER_SLOTS,
-    SETTINGS_CHANGE_KEYS,
     writeHangarMapSelection,
     writeHangarVehicleSelection,
 } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 import { CONFIG } from '../Config.js';
 import { MATCH_SETTING_CHANGE_KEY_SET, START_VALIDATION_RELEVANT_KEY_SET } from './GameRuntimeSettingsKeySets.js';
 import { resolveMatchStartValidationIssue } from './MatchStartValidationService.js';

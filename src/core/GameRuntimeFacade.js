@@ -12,8 +12,8 @@ import {
     guardMenuRuntimeEvent,
     MenuController,
     resolveMenuAccessContext,
-    SETTINGS_CHANGE_KEYS,
 } from '../composition/core-ui/CoreUiMenuPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../shared/settings/SettingsChangeKeys.js';
 import { CONFIG_BASE } from './Config.js';
 import { applyRuntimeConfigCompatibility } from './RuntimeConfig.js';
 import { createEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';

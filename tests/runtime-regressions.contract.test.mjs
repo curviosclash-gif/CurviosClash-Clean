@@ -64,7 +64,7 @@ import { MatchFlowTelemetryController } from '../src/ui/MatchFlowTelemetryContro
 import { MatchFlowArcadeOverlayController } from '../src/ui/MatchFlowArcadeOverlayController.js';
 import { HudRuntimeSystem } from '../src/ui/HudRuntimeSystem.js';
 import { requestArcadeReplayPlayback } from '../src/ui/MatchFlowTransitionHotspots.js';
-import { SETTINGS_CHANGE_KEYS } from '../src/ui/SettingsChangeKeys.js';
+import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { UIManager } from '../src/ui/UIManager.js';
 import { resolveSyncMethodNamesForChangeKeys } from '../src/ui/UISettingsSyncMap.js';
 import { UIStartSyncController } from '../src/ui/UIStartSyncController.js';

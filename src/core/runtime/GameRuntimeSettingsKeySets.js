@@ -1,4 +1,4 @@
-import { SETTINGS_CHANGE_KEYS } from '../../composition/core-ui/CoreUiMenuPorts.js';
+import { SETTINGS_CHANGE_KEYS } from '../../shared/settings/SettingsChangeKeys.js';
 
 export const MATCH_SETTING_CHANGE_KEY_SET = new Set([
     SETTINGS_CHANGE_KEYS.MODE,
