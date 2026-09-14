@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 
 const UP_AXIS = new THREE.Vector3(0, 1, 0);
-const DEFAULT_MAX_SEGMENTS = 2048;
+const DEFAULT_MAX_SEGMENTS = 10_000;
 const DEFAULT_WIDTH = 0.36;
 const DEFAULT_SEGMENT_HP = 3;
 
