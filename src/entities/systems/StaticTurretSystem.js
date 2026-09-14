@@ -333,7 +333,7 @@ export class StaticTurretSystem {
         return { applied: requested, hpApplied, absorbedByShield: 0, remainingHp: turret.hp, isDead };
     }
 
-    _fire(turret, target) {
+    fire(turret, target) {
         if (turret.aimDirection.lengthSq() <= 0.000001) return;
         this._tmpMuzzle.copy(turret.position).addScaledVector(turret.aimDirection, 4.2 * turret.authoredScale);
         if (turret.weapon === 'rocket') {
@@ -420,7 +420,7 @@ export class StaticTurretSystem {
                 && turret.cooldownRemaining <= 0
                 && hasStaticTurretLineOfSight(this, turret, target)
             ) {
-                this._fire(turret, target);
+                this.fire(turret, target);
             }
             i += 1;
         }

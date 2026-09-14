@@ -2,11 +2,12 @@ import { writeFile } from 'node:fs/promises';
 import { test, expect } from './helpers.desktop.js';
 import { openCustomSubmenu, waitForLoadedGame } from './helpers.js';
 
-// Opt-in hardware acceptance: never turn a slow machine into a flaky default smoke.
-// Measure real animation frames and retain state/actor coverage alongside timings.
+// Hardware acceptance is opt-in: never turn a slow machine into a flaky default run.
+// Without PW_MAP_PERF=1 one short diagnostic trial keeps the state/actor coverage and
+// skips only the frame-time thresholds. Measure real animation frames either way.
 const enabled = process.env.PW_MAP_PERF === '1';
 const mapKey = process.env.PW_MAP_PERF_KEY || 'standard';
-const diagnostic = process.env.PW_MAP_PERF_DIAGNOSTIC === '1';
+const diagnostic = !enabled || process.env.PW_MAP_PERF_DIAGNOSTIC === '1';
 const fallback = process.env.PW_MAP_PERF_FALLBACK === '1';
 const shadowQuality = Number(process.env.PW_MAP_PERF_SHADOWS ?? 3);
 const bloomQuality = Number(process.env.PW_MAP_PERF_BLOOM ?? 0);
@@ -22,7 +23,6 @@ const fullFieldAtMs = Number(process.env.PW_MAP_PERF_FULL_FIELD_AT_SECONDS ?? (d
 test.describe.configure({ timeout: diagnostic ? 360000 : 1200000 });
 
 test(`${mapKey}: 1080p desktop frame pacing with one player and four bots`, async ({ page, electronApp }, testInfo) => {
-    test.skip(!enabled, 'Set PW_MAP_PERF=1 to run the three hardware acceptance trials.');
     await waitForLoadedGame(page);
     if (fallback) await page.route(`**/assets/maps/${mapKey}/glb/01_world.glb`, (route) => route.abort());
     await electronApp.evaluate(({ BrowserWindow }) => {

@@ -14,7 +14,8 @@ for (const session of ['single', 'splitscreen']) {
         const state = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
             const manager = game.entityManager;
-            const system = manager._staticTurretSystem;
+            const combat = manager.runtimePorts.combat;
+            const system = combat.staticTurretSystem;
             const humans = manager.humanPlayers;
             const center = humans[0].position.clone();
             // Exercise inventory use at the authored safe spawn locations.
@@ -24,9 +25,9 @@ for (const session of ['single', 'splitscreen']) {
 
                 pilot.inventory = ['MG_TURRET', 'ROCKET_TURRET'];
                 pilot.itemUseCooldownRemaining = 0;
-                const mg = manager._huntCombatSystem.useInventoryItem(pilot, 0);
+                const mg = combat.huntCombatSystem.useInventoryItem(pilot, 0);
                 pilot.itemUseCooldownRemaining = 0;
-                const rocket = manager._huntCombatSystem.useInventoryItem(pilot, 0);
+                const rocket = combat.huntCombatSystem.useInventoryItem(pilot, 0);
                 return { mg: mg.ok, rocket: rocket.ok, states: system.getHudStatesForPlayer(pilot.index) };
             });
             const target = humans[0];
@@ -41,9 +42,9 @@ for (const session of ['single', 'splitscreen']) {
             system.startRound();
             const fixed = system.turrets[0];
             fixed.aimDirection.subVectors(target.position, fixed.position).normalize();
-            const before = manager._projectileSystem.projectiles.length;
-            system._fire(fixed, target);
-            const fired = manager._projectileSystem.projectiles.length > before;
+            const before = combat.projectileSystem.projectiles.length;
+            system.fire(fixed, target);
+            const fired = combat.projectileSystem.projectiles.length > before;
             fixed.takeDamage(90, { sourcePlayer: target, cause: 'ROCKET_WEAK' });
             system.update(0);
             const removed = !system.turrets.some((turret) => turret.id === 'desktop-fixed');

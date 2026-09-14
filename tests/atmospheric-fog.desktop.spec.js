@@ -20,7 +20,7 @@ const MEASURE_SEAM = `
 
     const restore = {
         mapLighting: runtime.getMapLighting(),
-        mapScale: runtime._mapScale,
+        mapScale: runtime.getMapScale(),
         fogColor: scene.fog.color.getHex(),
         matchVisible: runtime.matchRoot.visible,
         position: camera.position.clone(),

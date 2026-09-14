@@ -58,7 +58,7 @@ for (const mapKey of ['eiffel_tower_arena', 'eiffel_tower']) {
             const camera = runtime.cameras[0];
             const gl = three.getContext();
             const authored = runtime.getMapLighting();
-            const mapScale = runtime._mapScale;
+            const mapScale = runtime.getMapScale();
             const original = {
                 position: camera.position.clone(),
                 quaternion: camera.quaternion.clone(),

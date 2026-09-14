@@ -56,7 +56,7 @@ for (const profile of PROFILES) {
             player.inventory = ['FOG'];
             player.selectedItemIndex = 0;
             player.itemUseCooldownRemaining = 0;
-            const result = manager._huntCombatSystem.useInventoryItem(player, 0);
+            const result = manager.runtimePorts.combat.huntCombatSystem.useInventoryItem(player, 0);
             const highAltitudeRenderErrors = [];
             for (const camera of renderer.cameras) {
                 camera.position.y = 600;
@@ -140,7 +140,7 @@ test('four-player planar HUD shows the shared fog timer to all four players', as
         const player = manager.humanPlayers[0];
         player.inventory = ['FOG'];
         player.selectedItemIndex = 0;
-        return manager._huntCombatSystem.useInventoryItem(player, 0).ok;
+        return manager.runtimePorts.combat.huntCombatSystem.useInventoryItem(player, 0).ok;
     });
     expect(used).toBe(true);
     await page.waitForFunction(() => (

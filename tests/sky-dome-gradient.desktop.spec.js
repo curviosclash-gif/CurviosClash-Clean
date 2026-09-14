@@ -46,8 +46,8 @@ for (const mapKey of MAP_KEYS) {
             const three = runtime.renderer;
             const scene = runtime.scene;
             const camera = runtime.cameras[0];
-            const skyDome = runtime._lightingRig?.skyDome;
-            const starField = runtime._lightingRig?.starField;
+            const skyDome = runtime.getLightingRig()?.skyDome;
+            const starField = runtime.getLightingRig()?.starField;
             const width = three.domElement.width;
             const height = three.domElement.height;
             const gl = three.getContext();

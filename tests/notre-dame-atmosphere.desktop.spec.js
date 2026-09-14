@@ -64,7 +64,7 @@ for (const mapKey of MAP_KEYS) {
             const width = three.domElement.width;
             const height = three.domElement.height;
             const authored = structuredClone(runtime.getMapLighting());
-            const mapScale = Number(runtime._mapScale) || 1;
+            const mapScale = Number(runtime.getMapScale()) || 1;
 
             // This is the exact visual failure mode the production profile must beat: no height
             // separation, black at both elevation ends, and no pull towards the authored sky.

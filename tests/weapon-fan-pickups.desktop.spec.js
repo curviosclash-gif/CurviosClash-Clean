@@ -28,8 +28,9 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
         const manager = game.entityManager;
         const player = manager.humanPlayers[0];
         const powerups = manager.powerupManager;
-        const projectileSystem = manager._projectileSystem;
-        const forward = player.getAimDirection(player._tmpDir).clone().normalize();
+        const combat = manager.runtimePorts.combat;
+        const projectileSystem = combat.projectileSystem;
+        const forward = player.getAimDirection(player.position.clone()).clone().normalize();
         const right = forward.clone().set(1, 0, 0).applyQuaternion(player.quaternion).normalize();
 
         const pickup = powerups.spawnAtAnchor({
@@ -46,7 +47,7 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
         );
         player.selectedItemIndex = 0;
         player.itemUseCooldownRemaining = 0;
-        const useResult = manager._huntCombatSystem.useInventoryItem(player, 0);
+        const useResult = combat.huntCombatSystem.useInventoryItem(player, 0);
 
         const fireRocket = (fanType) => {
             player.activeEffects.length = 0;
@@ -56,7 +57,7 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
             player.selectedItemIndex = 0;
             player.shootCooldown = 0;
             projectileSystem.clear();
-            const shot = manager._huntCombatSystem.shootItemProjectile(player, -1, true);
+            const shot = combat.huntCombatSystem.shootItemProjectile(player, -1, true);
             return {
                 shot,
                 directions: projectileSystem.projectiles.map((projectile) => (
@@ -72,11 +73,11 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
         player.applyPowerup('FAN_4');
         player.applyPowerup('FAN_5');
         player.applyPowerup('FAN_5');
-        const tracerBefore = manager._overheatGunSystem._tracers.length;
+        const tracerBefore = combat.overheatGunSystem._tracers.length;
         const mgResults = [];
         for (let i = 0; i < 3; i += 1) {
             player.shootCooldown = 0;
-            mgResults.push(manager._overheatGunSystem.tryFire(player));
+            mgResults.push(combat.overheatGunSystem.tryFire(player));
         }
 
         const showcase = ['FAN_3', 'FAN_4', 'FAN_5'].map((type, index) => {
@@ -112,7 +113,7 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
             odd: { count: odd.directions.length, offsets: offsets(odd.directions) },
             even: { count: even.directions.length, offsets: offsets(even.directions) },
             mgCounts: mgResults.map((entry) => entry.projectileCount),
-            tracerDelta: manager._overheatGunSystem._tracers.length - tracerBefore,
+            tracerDelta: combat.overheatGunSystem._tracers.length - tracerBefore,
             activeEffects: player.activeEffects.map((effect) => ({ type: effect.type, remaining: effect.remaining })),
             showcase,
         };
@@ -149,7 +150,7 @@ test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve
         const manager = window.GAME_INSTANCE.entityManager;
         const player = manager.humanPlayers[0];
         player.shootCooldown = 0;
-        manager._overheatGunSystem.tryFire(player);
+        manager.runtimePorts.combat.overheatGunSystem.tryFire(player);
     });
     await waitForRenderFrames(page, 2);
     await page.screenshot({ path: testInfo.outputPath('weapon-fan-pickups.png') });

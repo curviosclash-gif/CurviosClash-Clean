@@ -179,7 +179,7 @@ test('near-wall flight keeps the Electron arena walls visually continuous', asyn
         const atmosphereColor = runtime.scene.fog.color.getHex();
         return {
             authored,
-            mapScale: Number(runtime._mapScale) || 1,
+            mapScale: Number(runtime.getMapScale()) || 1,
             flat: {
                 ...authored,
                 fog: {
@@ -209,8 +209,8 @@ test('near-wall flight keeps the Electron arena walls visually continuous', asyn
             wallMaterial.needsUpdate = true;
             player.position.set(bounds.maxX - 4, bounds.maxY * 0.28, 0);
             player.quaternion.setFromUnitVectors(
-                player._tmpDir.set(0, 0, -1),
-                player._tmpVec.set(0, 0, 1)
+                player.position.clone().set(0, 0, -1),
+                player.position.clone().set(0, 0, 1)
             );
             player.speed = 0;
             player.isBoosting = false;

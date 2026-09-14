@@ -186,6 +186,14 @@ export class Renderer {
         return this._mapLighting;
     }
 
+    getMapScale() {
+        return this._mapScale;
+    }
+
+    getLightingRig() {
+        return this._lightingRig;
+    }
+
     setGlobalFogEffect(value = null) {
         const next = createGlobalFogEffectState(value);
         const activeChanged = this._globalFogEffect.active !== next.active;

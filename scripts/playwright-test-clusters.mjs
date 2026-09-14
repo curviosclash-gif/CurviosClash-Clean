@@ -31,6 +31,10 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/eiffel-tower-siege.desktop.spec.js',
             'tests/falkenwacht.desktop.spec.js',
             'tests/falkenwacht-grain-proof.desktop.spec.js',
+            'tests/glb-map-quality.desktop.spec.js',
+            'tests/map-reference-worlds.desktop.spec.js',
+            'tests/notre-dame-wall-approach.desktop.spec.js',
+            'tests/sky-dome-gradient.desktop.spec.js',
             'tests/hud-layout.spec.js',
             'tests/killcam-pixel.desktop.spec.js',
             'tests/killcam.desktop.spec.js',
@@ -53,6 +57,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
     {
         id: 'editor',
         specs: [
+            'tests/editor-fixes.desktop.spec.js',
             'tests/editor-fly-mode.spec.js',
             'tests/editor-glb-preview.spec.js',
             'tests/editor-map-ui.spec.js',
@@ -65,7 +70,15 @@ export const HEAVY_DIAGNOSTIC_CLUSTERS = Object.freeze([
     { id: 'physics-core', specs: ['tests/physics-core.spec.js'] },
     { id: 'physics-hunt', specs: ['tests/physics-hunt.spec.js'] },
     { id: 'physics-policy', specs: ['tests/physics-policy.spec.js'] },
-    { id: 'gpu-stress', specs: ['tests/gpu.spec.js', 'tests/stress.spec.js', 'tests/v28-regression.spec.js'] },
+    {
+        id: 'gpu-stress',
+        specs: [
+            'tests/gpu.spec.js',
+            'tests/map-performance.desktop.spec.js',
+            'tests/stress.spec.js',
+            'tests/v28-regression.spec.js',
+        ],
+    },
     {
         id: 'ghost-selfduel',
         specs: [
