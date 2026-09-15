@@ -170,6 +170,10 @@ test('Human Fight MG aim assist acquires, holds, and releases targets without st
 });
 
 test('Default MG targeting acquires wider targets and keeps HUD and firing aligned for every model', () => {
+    assert.equal(HUNT_CONFIG.MG.RANGE, 152);
+    assert.equal(HUNT_CONFIG.MG.HUMAN_AIM_ASSIST_ACQUIRE_ANGLE_DEG, 19.2);
+    assert.equal(HUNT_CONFIG.MG.HUMAN_AIM_ASSIST_RELEASE_ANGLE_DEG, 28.8);
+
     for (const model of FIGHT_MACHINE_GUN_MODELS) {
         const player = {
             alive: true, isBot: false, index: 0,
@@ -195,14 +199,14 @@ test('Default MG targeting acquires wider targets and keeps HUD and firing align
             assert.equal(resolver.resolveHit(player, mg).target?.playerIndex ?? null, expected, `${model.id} shot at ${angle} degrees`);
             assert.deepEqual(player.getAimDirection(new THREE.Vector3()).toArray(), [0, 0, -1]);
         };
-        check(13, 30, null);
-        check(11, 30, target.index);
+        check(20, 30, null);
+        check(19, 30, target.index);
         assert.equal(player.fightAimAssistLockRemaining, 0.4);
-        check(17, 30, target.index);
-        check(19, 30, null);
-        check(11, 30, target.index);
-        check(11, mg.RANGE + 5, null);
-        check(11, 30, target.index);
+        check(28, 30, target.index);
+        check(30, 30, null);
+        check(19, 30, target.index);
+        check(19, mg.RANGE + 5, null);
+        check(19, 30, target.index);
         target.alive = false;
         check(11, 30, null);
     }
