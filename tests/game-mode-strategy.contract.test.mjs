@@ -405,3 +405,50 @@ test('the base strategy survives an empty or broken type list', () => {
     base._random = () => Number.NaN;
     assert.equal(base.resolveSpawnType(['ONLY'], null), 'ONLY');
 });
+
+test('D6 hazard damage keeps the regen delay because both sides read one clock', () => {
+    // Karten-Hazards und Sperrzonen reichen die Spieluhr (Sekunden seit Rundenbeginn) als
+    // nowSeconds herein; Player.update reicht den EntityManager als config durch, dessen
+    // _simulationClockMs dieselbe Uhr ist. Vor der Korrektur las die Heilung die Laufzeituhr,
+    // der Abstand war immer groesser als die Sperre und die Heilung setzte sofort ein.
+    const strategy = new HuntModeStrategy({ nowHighRes: () => 900_000 });
+    const entityManager = {
+        _simulationClockMs: 20_000,
+        entityRuntimeConfig: {
+            HUNT: {
+                PLAYER_MAX_HP: 100,
+                PLAYER_REGEN_DELAY: 3,
+                PLAYER_REGEN_PER_SECOND: 2,
+                SHIELD_MAX_HP: 40,
+            },
+        },
+    };
+    const player = {
+        index: 0,
+        maxHp: 100,
+        hp: 100,
+        maxShieldHp: 40,
+        shieldHP: 0,
+        hasShield: false,
+        shieldHitFeedback: 0,
+        lastDamageTimestamp: -Infinity,
+        entityManager,
+    };
+
+    // MapHazardSystem._applyHit reicht die verstrichene Kartenzeit als nowSeconds herein.
+    strategy.applyDamage(player, 10, { nowSeconds: 20 }, entityManager.entityRuntimeConfig);
+    assert.equal(player.hp, 90);
+    assert.equal(player.lastDamageTimestamp, 20, 'Trefferzeitpunkt liegt auf der Spieluhr');
+
+    entityManager._simulationClockMs = 20_016;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.equal(player.hp, 90, 'keine Heilung solange die Regenerationssperre laeuft');
+
+    entityManager._simulationClockMs = 22_000;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.equal(player.hp, 90);
+
+    entityManager._simulationClockMs = 24_000;
+    strategy.updateHealthRegen(player, 1, entityManager);
+    assert.ok(player.hp > 90, 'nach Ablauf der Sperre heilt der Spieler wieder');
+});
