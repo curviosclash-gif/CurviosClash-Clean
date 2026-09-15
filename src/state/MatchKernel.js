@@ -100,6 +100,20 @@ export class MatchKernel {
         this._tickIndex = 0;
         this._roundIndex = 0;
         this._roundPause = 0;
+        // Reused across frames: the interactive hotpath must not allocate a tick result,
+        // but it still has to report the round/match-end step it derived. Without that the
+        // caller would re-read the same key presses and lose them (they are consumed reads).
+        this._roundStateTickResult = {
+            contractVersion: MATCH_KERNEL_LIFECYCLE_CONTRACT_VERSION,
+            tickIndex: 0,
+            lifecycle: this._lifecycle,
+            surface: this.surface,
+            fixedStepSeconds: 0,
+            action: 'WAIT',
+            nextRoundPause: 0,
+            shouldUpdateCameras: false,
+            countdownMessageSub: null,
+        };
     }
 
     get lifecycle() { return this._lifecycle; }
@@ -138,6 +152,23 @@ export class MatchKernel {
         };
     }
 
+    /**
+     * _fillRoundStateTickResult – write the derived round/match-end step into the reused
+     * result object. Interactive callers own the returned reference only until the next tick.
+     */
+    _fillRoundStateTickResult(dt, tickStep) {
+        const result = this._roundStateTickResult;
+        result.tickIndex = this._tickIndex;
+        result.lifecycle = this._lifecycle;
+        result.surface = this.surface;
+        result.fixedStepSeconds = dt;
+        result.action = tickStep?.action || 'WAIT';
+        result.nextRoundPause = this._roundPause;
+        result.shouldUpdateCameras = tickStep?.shouldUpdateCameras === true;
+        result.countdownMessageSub = tickStep?.countdownMessageSub || null;
+        return result;
+    }
+
     _tickRunning(dt, inputAdapter, frameId, emitResult = true) {
         const { entityManager, endlessParcoursRuntime, powerupManager, particles, arena } = this._simPorts;
 
@@ -159,7 +190,10 @@ export class MatchKernel {
             escapePressed: readPressedInput(inputAdapter, 'Escape'),
         });
         this._roundPause = normalizeRoundPause(tickStep?.nextRoundPause, this._roundPause);
-        if (!emitResult) return this._createTickResult(dt, null, false);
+        if (!emitResult) {
+            this._createTickResult(dt, null, false);
+            return this._fillRoundStateTickResult(dt, tickStep);
+        }
         return this._createTickResult(dt, {
             action: tickStep?.action || 'WAIT',
             nextRoundPause: this._roundPause,
@@ -173,7 +207,10 @@ export class MatchKernel {
             enterPressed: readPressedInput(inputAdapter, 'Enter'),
             escapePressed: readPressedInput(inputAdapter, 'Escape'),
         });
-        if (!emitResult) return this._createTickResult(dt, null, false);
+        if (!emitResult) {
+            this._createTickResult(dt, null, false);
+            return this._fillRoundStateTickResult(dt, tickStep);
+        }
         return this._createTickResult(dt, {
             action: tickStep?.action || 'WAIT',
             shouldUpdateCameras: tickStep?.shouldUpdateCameras === true,
@@ -185,8 +222,11 @@ export class MatchKernel {
      *
      * @param {object} tickEnvelope  createMatchKernelTickEnvelope result
      * @param {object} inputAdapter  game.input (interactive) or createHeadlessInputAdapter result
-     * @param {boolean} emitResult   false for the interactive hotpath, which ignores tick results
+     * @param {boolean} emitResult   false for the interactive hotpath, which allocates no envelope
      * @returns {{ contractVersion, tickIndex, lifecycle, surface, fixedStepSeconds } | null}
+     *          With emitResult=false a running tick returns null, while round-end and match-end
+     *          ticks return the kernel's reused round-state result: the kernel consumed the
+     *          Enter/Escape presses, so the caller must not read them a second time.
      */
     tick(tickEnvelope, inputAdapter, emitResult = true) {
         if (!VALID_TICK_LIFECYCLES.has(this._lifecycle)) return null;

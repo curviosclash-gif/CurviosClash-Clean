@@ -64,7 +64,10 @@ export class MatchKernelInteractiveAdapter {
      *
      * @param {number} dt            Fixed simulation step in seconds.
      * @param {number} renderFrameId Current render frame counter from GameLoop.
-     * @returns {null} Interactive callers do not consume tick result envelopes.
+     * @returns {object|null} null while the kernel is running (no envelope is allocated).
+     *          During round end and match end the kernel's reused round-state result is
+     *          returned: it consumed the Enter/Escape presses, so the caller must use this
+     *          step instead of reading the same keys again.
      */
     tick(dt, renderFrameId = 0) {
         if (!this._kernel) return null;
