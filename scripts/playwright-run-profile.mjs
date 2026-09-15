@@ -1,7 +1,11 @@
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import process from 'node:process';
-import { acquirePlaywrightRunLock, releasePlaywrightRunLockOnExit } from './playwright-run-lock.mjs';
+import {
+    PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE,
+    acquirePlaywrightRunLock,
+    releasePlaywrightRunLockOnExit,
+} from './playwright-run-lock.mjs';
 
 export const PLAYWRIGHT_DEFAULT_RUN_PROFILE = 'desktop-smoke';
 
@@ -121,7 +125,10 @@ export async function runPlaywrightProfile(profileName, argv, options = {}) {
         lock = await acquirePlaywrightRunLock({ label: `${profile.name} ${argv.join(' ')}`.trim() });
     } catch (error) {
         console.error(error?.message || String(error));
-        process.exit(1);
+        // Exit code 75 (EX_TEMPFAIL) says "the machine was busy", never "a test failed".
+        process.exit(error?.exitCode === PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE
+            ? PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE
+            : 1);
     }
     releasePlaywrightRunLockOnExit(lock.release);
 

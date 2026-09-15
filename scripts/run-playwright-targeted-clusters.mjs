@@ -2,8 +2,13 @@ import { spawn } from 'node:child_process';
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
+import { fileURLToPath } from 'node:url';
 import { resolvePlaywrightFailureTaxonomy } from '../tests/playwright-readiness.js';
-import { acquirePlaywrightRunLock, releasePlaywrightRunLockOnExit } from './playwright-run-lock.mjs';
+import {
+    PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE,
+    acquirePlaywrightRunLock,
+    releasePlaywrightRunLockOnExit,
+} from './playwright-run-lock.mjs';
 import {
     DESKTOP_E2E_CLUSTERS,
     HEAVY_DIAGNOSTIC_CLUSTERS,
@@ -59,6 +64,28 @@ function splitSelectorsAndPlaywrightArgs(argv) {
     }
 
     return { selectors, playwrightArgs };
+}
+
+export const CLUSTER_RUNNER_DEFAULT_TIMEOUT_ARG = '--timeout=240000';
+
+/**
+ * Splits the command line into cluster selectors, Playwright arguments and the two modes that
+ * must never start a run. Kept pure so the contract test can prove that `--print-clusters`
+ * only lists: it used to fall through into a real run because the default `--timeout` was
+ * appended before the "is anything selected" check could ever be true.
+ */
+export function resolveClusterRunnerArgs(argv) {
+    const rawArgs = argv.map((value) => String(value ?? ''));
+    const shouldPrintClusters = rawArgs.includes('--print-clusters');
+    const shouldDryRun = rawArgs.includes('--dry-run');
+    const listOnly = shouldPrintClusters && !shouldDryRun;
+    const { selectors, playwrightArgs } = splitSelectorsAndPlaywrightArgs(rawArgs);
+    const hasExplicitTimeout = playwrightArgs.some((value) => value.startsWith('--timeout'));
+    const resolvedPlaywrightArgs = listOnly || hasExplicitTimeout
+        ? playwrightArgs
+        : [...playwrightArgs, CLUSTER_RUNNER_DEFAULT_TIMEOUT_ARG];
+
+    return { selectors, playwrightArgs: resolvedPlaywrightArgs, shouldPrintClusters, shouldDryRun, listOnly };
 }
 
 function resolveSelectedClusters(selectors) {
@@ -341,17 +368,14 @@ async function classifyClusterFailure(result) {
 }
 
 async function main() {
-    const shouldPrintClusters = process.argv.includes('--print-clusters');
-    const shouldDryRun = process.argv.includes('--dry-run');
-    const { selectors, playwrightArgs: explicitPlaywrightArgs } = splitSelectorsAndPlaywrightArgs(process.argv.slice(2));
-    const playwrightArgs = explicitPlaywrightArgs.some((value) => String(value).startsWith('--timeout'))
-        ? explicitPlaywrightArgs
-        : [...explicitPlaywrightArgs, '--timeout=240000'];
+    const { selectors, playwrightArgs, shouldPrintClusters, shouldDryRun, listOnly } = resolveClusterRunnerArgs(
+        process.argv.slice(2)
+    );
     const clusters = resolveSelectedClusters(selectors);
 
     if (shouldPrintClusters) {
         printClusters();
-        if (!shouldDryRun && playwrightArgs.length === 0 && selectors.length === 0) {
+        if (listOnly) {
             return;
         }
     }
@@ -426,8 +450,25 @@ async function main() {
     }
 }
 
-main().catch((error) => {
-    console.error('[playwright:desktop-e2e] cluster runner failed');
-    console.error(error);
-    process.exit(1);
-});
+function isDirectRun() {
+    const entry = String(process.argv[1] || '');
+    if (!entry) return false;
+    try {
+        return path.resolve(entry) === path.resolve(fileURLToPath(import.meta.url));
+    } catch {
+        return false;
+    }
+}
+
+if (isDirectRun()) {
+    main().catch((error) => {
+        // A lock timeout means the machine was busy, not that a test broke; hand code 75 through.
+        if (error?.exitCode === PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE) {
+            console.error(error.message);
+            process.exit(PLAYWRIGHT_RUN_LOCK_TIMEOUT_EXIT_CODE);
+        }
+        console.error('[playwright:desktop-e2e] cluster runner failed');
+        console.error(error);
+        process.exit(1);
+    });
+}
