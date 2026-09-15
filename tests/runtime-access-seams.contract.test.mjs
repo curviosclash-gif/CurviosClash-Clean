@@ -412,6 +412,43 @@ test('V104.2 runtime diagnostics handles KeyP/KeyO and blocks both while key-cap
     });
 });
 
+test('runtime diagnostics ignores KeyP/KeyO typed into text entry fields', async () => {
+    await withMockBrowserGlobals(async ({ window, document }) => {
+        const qualityCalls = [];
+        const runtimeAccess = {
+            getKeyCaptureActive: () => false,
+            getRenderer: () => ({ setQuality: (quality) => qualityCalls.push(String(quality)) }),
+            getMediaRecorderSystem: () => null,
+            getEntityManager: () => null,
+            getRenderDelta: () => 1 / 60,
+            getState: () => 'MENU',
+            actionShowStatusToast() {},
+        };
+        const diagnostics = new RuntimeDiagnosticsSystem(runtimeAccess);
+        try {
+            for (const target of [
+                { tagName: 'INPUT' },
+                { tagName: 'TEXTAREA' },
+                { tagName: 'SELECT' },
+                { tagName: 'DIV', isContentEditable: true },
+            ]) {
+                window.dispatchEvent({ type: 'keydown', code: 'KeyP', target });
+                window.dispatchEvent({ type: 'keydown', code: 'KeyO', target });
+            }
+
+            assert.deepEqual(qualityCalls, [], 'typing must not toggle the graphics quality');
+            assert.equal(document.body.children.length, 0, 'typing must not open the stats overlay');
+            assert.equal(diagnostics._statsElement, null);
+
+            // A key press outside a text entry field still works.
+            window.dispatchEvent({ type: 'keydown', code: 'KeyP', target: { tagName: 'CANVAS' } });
+            assert.deepEqual(qualityCalls, ['LOW']);
+        } finally {
+            diagnostics.dispose();
+        }
+    });
+});
+
 test('runtime diagnostics adapts quality in stable steps and restores automatic downgrades', async () => {
     await withMockBrowserGlobals(async () => {
         const qualityCalls = [];

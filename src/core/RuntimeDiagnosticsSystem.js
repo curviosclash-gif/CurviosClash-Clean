@@ -17,6 +17,15 @@ const ADAPTIVE_FPS_THRESHOLDS = Object.freeze({
     MEDIUM_TO_HIGH: 58,
 });
 
+// Diagnose-Hotkeys hoeren global mit. Wer gerade in ein Eingabefeld tippt, meint den
+// Buchstaben und nicht den Schalter - solche Tastendruecke gehoeren dem Feld.
+function isTextEntryEventTarget(target) {
+    if (!target || typeof target !== 'object') return false;
+    if (target.isContentEditable === true) return true;
+    const tagName = String(target.tagName || '').toUpperCase();
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+}
+
 function formatMs(value) {
     const numeric = Number(value);
     if (!Number.isFinite(numeric) || numeric < 0) return '0.0';
@@ -112,6 +121,7 @@ export class RuntimeDiagnosticsSystem {
 
     _handleKeyDown(event) {
         if (this.runtimeAccess.getKeyCaptureActive?.()) return;
+        if (isTextEntryEventTarget(event?.target)) return;
 
         const renderer = this.runtimeAccess.getRenderer?.() || null;
         const recorder = this.runtimeAccess.getMediaRecorderSystem?.() || null;
