@@ -11,10 +11,16 @@ import {
     createMenuSettingsDefaults,
 } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
 
-test('auto-roll is disabled across default settings and runtime fallbacks', () => {
+test('gameplay defaults use the requested maximum-population setup with auto-roll disabled', () => {
+    const defaults = createMenuSettingsDefaults();
+
     assert.equal(CONFIG_SECTIONS.PLAYER.AUTO_ROLL, false);
     assert.equal(GAMEPLAY_CONFIG_DEFAULTS.PLAYER.AUTO_ROLL, false);
-    assert.equal(createMenuSettingsDefaults().autoRoll, false);
+    assert.equal(defaults.gameplay.speed, 30);
+    assert.equal(defaults.gameplay.turnSensitivity, 3);
+    assert.equal(defaults.gameplay.itemAmount, 60);
+    assert.equal(defaults.numBots, 8);
+    assert.equal(defaults.autoRoll, false);
     assert.equal(createMenuConfigSharePayloadDefaults().autoRoll, false);
     assert.equal(createMenuDefaultsEditorSnapshotFromSettings().baseSettings.autoRoll, false);
     assert.equal(createMultiplayerMatchSettingsSnapshot().autoRoll, false);
