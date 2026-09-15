@@ -212,10 +212,29 @@ export class PeerConnectionManager {
         this._heartbeats.delete(peerId);
     }
 
+    /**
+     * Inbound traffic from a peer whose heartbeat monitor was stopped by a
+     * timeout. A timeout only means the remote main thread was blocked (arena
+     * loading), not that the transport died: restart the monitor and announce
+     * the peer as alive again so a pending removal can be cancelled.
+     */
+    _resumeHeartbeatOnActivity(peerId) {
+        const pc = this._peers.get(peerId);
+        if (!pc) return;
+        const state = pc.connectionState;
+        if (state === 'failed' || state === 'closed') return;
+        this._startHeartbeat(peerId);
+        this._emit('peerActivityResumed', { peerId });
+    }
+
     /** Record that we received a heartbeat ack from a peer */
     recordHeartbeatAck(peerId) {
         const hb = this._heartbeats.get(peerId);
-        if (hb) hb.lastPong = Date.now();
+        if (!hb) {
+            this._resumeHeartbeatOnActivity(peerId);
+            return;
+        }
+        hb.lastPong = Date.now();
     }
 
     /** Record any inbound data-channel traffic as peer liveness. */

@@ -32,6 +32,7 @@ export class SessionAdapterBase extends SessionAdapter {
         // state), which previously emitted hostDisconnected twice.
         this._clientDisconnectedPeers = new Set();
         this._clientReconnectGeneration = 0;
+        this._peerActivityRecoveryBound = false;
         this._isDisconnecting = false;
         this._nextInputSequence = 1;
         this._nextSnapshotSequence = 1;
@@ -90,8 +91,24 @@ export class SessionAdapterBase extends SessionAdapter {
         return false;
     }
 
+    /**
+     * Subscribes to the peer manager's activity signal the first time a
+     * disconnect is registered. Concrete adapters create `_peerManager` after
+     * super(), so the binding cannot happen in the constructor.
+     */
+    _bindPeerActivityRecovery() {
+        if (this._peerActivityRecoveryBound) return;
+        const peerManager = this._peerManager;
+        if (!peerManager || typeof peerManager.on !== 'function') return;
+        this._peerActivityRecoveryBound = true;
+        peerManager.on('peerActivityResumed', ({ peerId }) => {
+            this._resolvePeerReconnectOnActivity(peerId);
+        });
+    }
+
     _registerPeerDisconnect(peerId, reason) {
         if (this._isDisconnecting) return;
+        this._bindPeerActivityRecovery();
         const normalizedPeerId = normalizePeerId(peerId);
         if (!normalizedPeerId) return;
         if (this._disconnectedPeers.has(normalizedPeerId)) return;
@@ -205,9 +222,21 @@ export class SessionAdapterBase extends SessionAdapter {
     }
 
     _resolvePeerReconnectOnChannelOpen(peerId, channel) {
-        if (this.isHost && channel === 'state' && this._disconnectedPeers.has(peerId)) {
-            this._resolvePeerReconnect(peerId);
-        }
+        if (channel !== 'state') return;
+        this._resolvePeerReconnectOnActivity(peerId);
+    }
+
+    /**
+     * Any sign of life from a peer that is waiting out its reconnect window:
+     * a reopened state channel, a heartbeat ack, inputs or snapshots. The peer
+     * is back, so the pending removal must not fire.
+     */
+    _resolvePeerReconnectOnActivity(peerId) {
+        if (!this.isHost) return;
+        const normalizedPeerId = normalizePeerId(peerId);
+        if (!normalizedPeerId) return;
+        if (!this._disconnectedPeers.has(normalizedPeerId)) return;
+        this._resolvePeerReconnect(normalizedPeerId);
     }
 
     /**
