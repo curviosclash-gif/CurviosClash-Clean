@@ -161,12 +161,10 @@ export class PortalLayoutBuilder {
         const mesh = createPortalMesh(pos, color, 'NEUTRAL', this._visualRegistry, {
             compact: false,
             configSource: this.arena,
+            kind: 'exit',
+            active: !activateOnClear,
         });
-        if (mesh) {
-            const scaleValue = activateOnClear ? 0.75 : 1.4;
-            mesh.scale.set(scaleValue, scaleValue, scaleValue);
-            mesh.visible = true;
-        }
+        if (mesh) mesh.visible = true;
 
         this.arena.exitPortals.push({
             kind: 'exit',
@@ -455,9 +453,8 @@ export class PortalLayoutBuilder {
 
     _addPortalInstance(posA, posB, color, dirA = 'NEUTRAL', dirB = 'NEUTRAL', options = {}) {
         if (!this._canAddPortalPair(posA, posB, options)) return false;
-        const portalMeshOptions = this._portalMeshCompactMode
-            ? { compact: true, configSource: this.arena }
-            : { configSource: this.arena };
+        const pairIndex = this.arena.portals.length;
+        const portalMeshOptions = { compact: this._portalMeshCompactMode, configSource: this.arena, pairIndex };
         const meshA = createPortalMesh(posA, color, dirA, this._visualRegistry, {
             ...portalMeshOptions,
             visualType: options.visualA,
@@ -478,6 +475,8 @@ export class PortalLayoutBuilder {
             forwardB: options.orientationB?.forward || null,
             cooldowns: new Map(),
             visualPulseRemaining: 0,
+            visualPulseDestination: null,
+            pairIndex,
         });
         return true;
     }

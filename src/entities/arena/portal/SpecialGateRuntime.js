@@ -49,13 +49,8 @@ export class SpecialGateRuntime {
 
     _syncGateVisualState(gate, timeSeconds = 0) {
         if (!gate?.mesh) return;
-        const engaged = Number(gate.visualPulseRemaining) > 0;
-        const scale = engaged ? 0.9 + Math.sin(timeSeconds * 7) * 0.025 : 1;
-        if (gate.mesh.scale?.setScalar) {
-            gate.mesh.scale.setScalar(scale);
-            return;
-        }
-        gate.mesh.scale?.set?.(scale, scale, scale);
+        const pulseStrength = Math.min(1, Math.max(0, Number(gate.visualPulseRemaining) || 0) / 0.35);
+        gate.mesh.updateGateVisualState?.(timeSeconds, pulseStrength);
     }
 
     _normalizeEntityKey(entityId) {
@@ -133,24 +128,6 @@ export class SpecialGateRuntime {
         const time = performance.now() * 0.001;
         for (const gate of this.arena.specialGates) {
             if (!gate.mesh) continue;
-            const { spines, outerRing, innerDisk, frontRing, backRing } = gate.mesh.userData;
-            if (spines) {
-                for (let i = 0; i < spines.length; i++) {
-                    if (spines[i]?.setRotation) {
-                        spines[i].setRotation('x', time * 2 + i * 0.5);
-                    } else if (spines[i]) {
-                        spines[i].rotation.x = time * 2 + i * 0.5;
-                    }
-                }
-            }
-            if (outerRing?.setRotation) outerRing.setRotation('z', time * 0.8);
-            else if (outerRing) outerRing.rotation.z = time * 0.8;
-            if (innerDisk?.setRotation) innerDisk.setRotation('z', -time * 1.2);
-            else if (innerDisk) innerDisk.rotation.z = -time * 1.2;
-            if (frontRing?.setRotation) frontRing.setRotation('z', time * 0.6);
-            else if (frontRing) frontRing.rotation.z = time * 0.6;
-            if (backRing?.setRotation) backRing.setRotation('z', -time * 0.9);
-            else if (backRing) backRing.rotation.z = -time * 0.9;
             this._syncGateVisualState(gate, time);
         }
     }

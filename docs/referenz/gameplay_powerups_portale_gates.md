@@ -1,6 +1,6 @@
 # Gameplay-Referenz: Powerups, Portale und Gates
 
-Stand: 2026-08-04
+Stand: 2026-09-15
 
 ## Zweck
 
@@ -77,11 +77,12 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 - Trigger-Radius: `4.0`.
 - Pro Entity wird ein Cooldown gesetzt, damit kein direktes Rueck-Teleportieren passiert.
 - Der Cooldown ist dynamisch: mindestens `1.2s`, je nach Distanz bis maximal `2.5s`.
-- Portal- und Gate-Meshes pulsen/skalieren leicht herunter, solange pro-Entity-Cooldowns aktiv sind.
+- Eine kurze Energiewelle laeuft beim Durchqueren ueber beide Portal-Endpunkte und hebt den Zielimpuls hervor. Der persoenliche Entity-Cooldown veraendert weder Oeffnung noch Sichtbarkeit fuer andere Entities.
 - Spieler landen am Zielportal plus kleinem Vorwaerts-Offset.
 - Die Gameplay-Einstellung `portalCount` zaehlt sichtbare Portal-Eingaenge; zwei Eingaenge ergeben ein Paar.
 - Portale mit authored Rotation loesen beim Kreuzen ihrer Ebene aus und drehen Spieler- sowie Projektilrichtung in die Ausgangsorientierung.
 - Nicht orientierte Legacy-Portale behalten den bisherigen radialen Trigger.
+- Alle Portalformen behalten eine statische, offene Metallrahmen-Silhouette. Ein Paar teilt Farbe und ein stabiles geometrisches Randzeichen; neutrale weisse Pfeile markieren `UP` beziehungsweise `DOWN` unabhaengig von der Paarfarbe.
 - Im Planar-Mode wird beim Teleport auch die aktive Ebene (`currentPlanarY`) auf die Zielhoehe gesetzt.
 - Projektile behalten bei Legacy-Portalen ihre Flugrichtung; orientierte Portale drehen sie relativ zum Ausgang. Sie werden leicht nach vorne versetzt und verlieren ihr bisheriges Homing-Ziel bis zur erneuten Erfassung.
 - Projektile besitzen stabile Traversal-IDs; Pooling oder Array-Umsortierung kann ihren Portal-Cooldown nicht mehr auf andere Projektile uebertragen.
@@ -92,11 +93,11 @@ Diese Uebersicht beschreibt die aktuell im Code vorhandenen Powerups, Portale, E
 ## Exit-Portale
 
 - Exit-Portale sind ein eigener Portal-Typ mit nur einem Eintrittspunkt.
-- Sie koennen zu Matchbeginn unsichtbar/inaktiv sein.
+- Sie koennen zu Matchbeginn sichtbar, aber inaktiv gedimmt sein.
 - Maps koennen definieren, dass sie erst nach einem Clear-Zustand aktiviert werden.
 - Der Trigger-Radius ist groesser als bei normalen Portalen.
-- Bei Aktivierung werden sie sichtbar geschaltet und koennen als Ziel/Exit genutzt werden.
-- Vor der Aktivierung bleiben sie als verkleinerte, gesperrte Silhouette sichtbar; das HUD zeigt `EXIT GESPERRT` beziehungsweise `EXIT BEREIT`.
+- Bei Aktivierung leuchten Rahmen und eindeutige Kronenmarke staerker und das Portal kann als Ziel/Exit genutzt werden.
+- Die offene Silhouette behaelt im inaktiven, aktiven und Puls-Zustand dieselbe Groesse; das HUD zeigt `EXIT GESPERRT` beziehungsweise `EXIT BEREIT`.
 - Exit-Portale liefern denselben Result-Vertrag wie andere Traversal-Pfade: `portal.exit.trigger`, `portal.exit.cooldown` und `portal.exit.inactive`.
 
 ## Spezial-Gates

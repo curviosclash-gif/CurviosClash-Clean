@@ -1,18 +1,34 @@
 import * as THREE from 'three';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
-import { createPortalShapeGeometry, normalizePortalVisualType } from './portal/PortalVisualGeometry.js';
+import {
+    PORTAL_PAIR_MARK_COUNT,
+    createPortalArrowGeometry,
+    createPortalChevronGeometry,
+    createPortalCrownGeometry,
+    createPortalFrameGeometry,
+    createPortalPairMarkGeometry,
+    normalizePortalVisualType,
+    samplePortalInnerEdge,
+} from './portal/PortalVisualGeometry.js';
+import {
+    createInstancedVisualHandle,
+    createPortalGateVisualRegistry,
+} from './portal/PortalVisualRegistry.js';
+
+export { createPortalGateVisualRegistry };
 
 const PORTAL_GEOMETRY_CACHE = new Map();
 const PORTAL_MATERIAL_CACHE = new Map();
 
 const AXIS_X = new THREE.Vector3(1, 0, 0);
-const AXIS_Y = new THREE.Vector3(0, 1, 0);
 const AXIS_Z = new THREE.Vector3(0, 0, 1);
+const PORTAL_BODY_COLOR = 0x111820;
+const PORTAL_INACTIVE_COLOR = 0x18352f;
+const PORTAL_DIRECTION_COLOR = 0xf4fbff;
+const PORTAL_FLOW_SEGMENTS = 12;
 
 function markSharedResource(resource) {
-    if (!resource?.userData) {
-        resource.userData = {};
-    }
+    if (!resource?.userData) resource.userData = {};
     resource.userData.__sharedNoDispose = true;
     return resource;
 }
@@ -22,541 +38,354 @@ function toColorHex(value, fallback = 0xffffff) {
     return Number.isFinite(num) ? num >>> 0 : fallback;
 }
 
+function toColorKey(value, fallback = 0xffffff) {
+    return toColorHex(value, fallback).toString(16).padStart(6, '0');
+}
+
+function clamp01(value) {
+    return Math.min(1, Math.max(0, Number(value) || 0));
+}
+
+function mixColorHex(fromHex, toHex, amount) {
+    const alpha = clamp01(amount);
+    const from = toColorHex(fromHex, 0xffffff);
+    const to = toColorHex(toHex, 0xffffff);
+    const fromR = (from >> 16) & 0xff;
+    const fromG = (from >> 8) & 0xff;
+    const fromB = from & 0xff;
+    const toR = (to >> 16) & 0xff;
+    const toG = (to >> 8) & 0xff;
+    const toB = to & 0xff;
+    const r = Math.round(fromR + (toR - fromR) * alpha);
+    const g = Math.round(fromG + (toG - fromG) * alpha);
+    const b = Math.round(fromB + (toB - fromB) * alpha);
+    return (r << 16) | (g << 8) | b;
+}
+
+function scaleColorHex(colorHex, scale) {
+    const color = toColorHex(colorHex, 0xffffff);
+    const safeScale = Math.max(0, Number(scale) || 0);
+    const r = Math.min(255, Math.round(((color >> 16) & 0xff) * safeScale));
+    const g = Math.min(255, Math.round(((color >> 8) & 0xff) * safeScale));
+    const b = Math.min(255, Math.round((color & 0xff) * safeScale));
+    return (r << 16) | (g << 8) | b;
+}
+
 function getSharedGeometry(key, createGeometry) {
-    if (PORTAL_GEOMETRY_CACHE.has(key)) {
-        return PORTAL_GEOMETRY_CACHE.get(key);
-    }
+    if (PORTAL_GEOMETRY_CACHE.has(key)) return PORTAL_GEOMETRY_CACHE.get(key);
     const geometry = markSharedResource(createGeometry());
     PORTAL_GEOMETRY_CACHE.set(key, geometry);
     return geometry;
 }
 
 function getSharedMaterial(key, createMaterial) {
-    if (PORTAL_MATERIAL_CACHE.has(key)) {
-        return PORTAL_MATERIAL_CACHE.get(key);
-    }
+    if (PORTAL_MATERIAL_CACHE.has(key)) return PORTAL_MATERIAL_CACHE.get(key);
     const material = markSharedResource(createMaterial());
     PORTAL_MATERIAL_CACHE.set(key, material);
     return material;
 }
 
-function createColoredStandardMaterial(key, options = {}) {
-    return getSharedMaterial(key, () => new THREE.MeshStandardMaterial({
-        color: 0xffffff,
-        emissive: 0x1f1f1f,
-        emissiveIntensity: 0.5,
-        roughness: 0.25,
-        metalness: 0.65,
-        vertexColors: true,
-        ...options,
-    }));
-}
-
 function createColoredBasicMaterial(key, options = {}) {
     return getSharedMaterial(key, () => new THREE.MeshBasicMaterial({
         color: 0xffffff,
-        vertexColors: true,
+        vertexColors: false,
+        toneMapped: false,
         ...options,
     }));
 }
 
-function resolvePortalDisplayColor(color, direction) {
-    return direction === 'UP' ? 0x00ff00 : direction === 'DOWN' ? 0xff0000 : toColorHex(color, 0x00ffcc);
+function portalDarkBodyMaterial() {
+    return getSharedMaterial('portal:frame-body-material', () => new THREE.MeshStandardMaterial({
+        color: PORTAL_BODY_COLOR,
+        emissive: 0x040a10,
+        emissiveIntensity: 0.5,
+        roughness: 0.3,
+        metalness: 0.88,
+        side: THREE.DoubleSide,
+    }));
 }
 
-function toColorKey(value, fallback = 0xffffff) { return toColorHex(value, fallback).toString(16).padStart(6, '0'); }
-
-class InstancedComponentBatch {
-    constructor(renderer, key, geometry, material) {
-        this.renderer = renderer;
-        this.key = key;
-        this.geometry = geometry;
-        this.material = material;
-        this.instances = [];
-        this.mesh = null;
-        this.capacity = 0;
-        this._tmpColor = new THREE.Color();
-    }
-
-    allocate(colorHex) {
-        const instance = {
-            matrix: new THREE.Matrix4(),
-            colorHex: toColorHex(colorHex, 0xffffff),
-        };
-        const index = this.instances.push(instance) - 1;
-        this._ensureMesh(index + 1);
-        this.mesh.count = this.instances.length;
-        this._applyInstance(index);
-        return index;
-    }
-
-    setMatrix(index, matrix) {
-        const instance = this.instances[index];
-        if (!instance) return;
-        instance.matrix.copy(matrix);
-        this._ensureMesh(this.instances.length);
-        this.mesh.setMatrixAt(index, instance.matrix);
-        this.mesh.instanceMatrix.needsUpdate = true;
-    }
-
-    _ensureMesh(requiredCount) {
-        const needsRebuild = !this.mesh || !this.mesh.parent || requiredCount > this.capacity;
-        if (!needsRebuild) return;
-
-        const nextCapacity = Math.max(4, 1 << Math.ceil(Math.log2(Math.max(1, requiredCount))));
-        const oldMesh = this.mesh;
-
-        this.mesh = new THREE.InstancedMesh(this.geometry, this.material, nextCapacity);
-        this.mesh.name = this.key;
-        this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
-        this.mesh.castShadow = false;
-        this.mesh.receiveShadow = false;
-        this.mesh.frustumCulled = false;
-        this.mesh.count = this.instances.length;
-        this.capacity = nextCapacity;
-
-        for (let i = 0; i < this.instances.length; i++) {
-            this._applyInstance(i);
-        }
-
-        this.renderer.addToScene(this.mesh);
-
-        if (oldMesh) {
-            this.renderer.removeFromScene(oldMesh);
-            oldMesh.dispose();
-        }
-    }
-
-    _applyInstance(index) {
-        const instance = this.instances[index];
-        if (!instance || !this.mesh) return;
-        this.mesh.setMatrixAt(index, instance.matrix);
-        this.mesh.setColorAt(index, this._tmpColor.setHex(instance.colorHex));
-        this.mesh.instanceMatrix.needsUpdate = true;
-        if (this.mesh.instanceColor) {
-            this.mesh.instanceColor.needsUpdate = true;
-        }
-    }
-
-    dispose() {
-        if (this.mesh) {
-            this.renderer.removeFromScene(this.mesh);
-            this.mesh.dispose();
-        }
-        this.mesh = null;
-        this.instances = [];
-        this.capacity = 0;
-    }
+function portalGlowMaterial(key, opacity = 0.9) {
+    return createColoredBasicMaterial(key, {
+        transparent: opacity < 1,
+        opacity,
+        depthWrite: opacity >= 1,
+        side: THREE.DoubleSide,
+    });
 }
 
-class PortalGateVisualRegistry {
-    constructor(renderer) {
-        this.renderer = renderer;
-        this._batches = new Map();
-        this._tmpMatrix = new THREE.Matrix4();
-        this._tmpWorldPosition = new THREE.Vector3();
-        this._tmpHandleQuaternion = new THREE.Quaternion();
-        this._tmpWorldQuaternion = new THREE.Quaternion();
-        this._tmpScale = new THREE.Vector3(1, 1, 1);
-        this._tmpLookAt = new THREE.Matrix4();
+function installPortalFlow(handle, visualType, innerRadius, ringSizeKey, compactMode, displayColor) {
+    const flowPoints = samplePortalInnerEdge(visualType, innerRadius, compactMode ? 8 : PORTAL_FLOW_SEGMENTS);
+    const flowGeometry = getSharedGeometry(
+        `portal:energy-streak-geometry:${compactMode ? 'compact' : 'full'}`,
+        () => new THREE.BoxGeometry(compactMode ? 0.07 : 0.09, compactMode ? 0.34 : 0.46, 0.055)
+    );
+    const flowMaterial = portalGlowMaterial(`portal:energy-flow-material:${compactMode ? 'compact' : 'full'}`, 0.78);
+    const flowComponents = [];
+    const flowBase = [];
+    for (let i = 0; i < flowPoints.length; i++) {
+        const point = flowPoints[i];
+        const angle = Math.atan2(point.y, point.x);
+        const component = handle.addComponent('energyFlow', {
+            batchKey: `portal:energy-flow:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
+            geometry: flowGeometry,
+            material: flowMaterial,
+            colorHex: scaleColorHex(displayColor, 0.55),
+            localPosition: new THREE.Vector3(point.x, point.y, i % 2 === 0 ? 0.2 : -0.2),
+            localQuaternion: new THREE.Quaternion().setFromAxisAngle(AXIS_Z, angle - Math.PI / 2),
+        });
+        flowComponents.push(component);
+        flowBase.push({ x: point.x, y: point.y, z: component.localPosition.z });
     }
-
-    getBatch(key, geometry, material) {
-        let batch = this._batches.get(key);
-        if (!batch) {
-            batch = new InstancedComponentBatch(this.renderer, key, geometry, material);
-            this._batches.set(key, batch);
-        }
-        return batch;
-    }
-
-    syncComponent(handle, component) {
-        this._tmpHandleQuaternion.copy(handle.quaternion);
-        if (handle._spinActive) {
-            this._tmpHandleQuaternion.multiply(handle._spinQuaternion);
-        }
-
-        this._tmpWorldPosition.copy(component.localPosition);
-        this._tmpWorldPosition.applyQuaternion(this._tmpHandleQuaternion);
-        this._tmpWorldPosition.add(handle.position);
-
-        this._tmpWorldQuaternion.copy(this._tmpHandleQuaternion);
-        this._tmpWorldQuaternion.multiply(component.localQuaternion);
-        if (component.rotationAxis) {
-            this._tmpWorldQuaternion.multiply(component.dynamicQuaternion);
-        }
-
-        this._tmpScale.copy(component.localScale);
-        this._tmpScale.multiply(handle._scaleVector);
-        if (!handle.visible) {
-            this._tmpScale.set(0, 0, 0);
-        }
-        this._tmpMatrix.compose(this._tmpWorldPosition, this._tmpWorldQuaternion, this._tmpScale);
-        component.batch.setMatrix(component.instanceId, this._tmpMatrix);
-    }
-
-    composeLookAtQuaternion(handle, target, outQuaternion) {
-        // Match Object3D.lookAt() for non-camera objects.
-        this._tmpLookAt.lookAt(target, handle.position, handle.up);
-        outQuaternion.setFromRotationMatrix(this._tmpLookAt);
-    }
-
-    dispose() {
-        for (const batch of this._batches.values()) {
-            batch?.dispose?.();
-        }
-        this._batches.clear();
-    }
+    handle.userData.energyFlow = flowComponents;
+    return { flowComponents, flowBase };
 }
 
-class InstancedVisualComponent {
-    constructor(handle, batch, instanceId, localPosition, localQuaternion, localScale) {
-        this.handle = handle;
-        this.batch = batch;
-        this.instanceId = instanceId;
-        this.localPosition = localPosition ? localPosition.clone() : new THREE.Vector3();
-        this.localQuaternion = localQuaternion ? localQuaternion.clone() : new THREE.Quaternion();
-        this.localScale = localScale ? localScale.clone() : new THREE.Vector3(1, 1, 1);
-        this.rotationAxis = null;
-        this.rotationAngle = 0;
-        this.dynamicQuaternion = new THREE.Quaternion();
-    }
+function installPortalVisualUpdater(handle, displayColor, rim, pairMark, crown, flow) {
+    handle._portalVisualUpdater = (timeSeconds, pulseStrength, destinationImpulse, active) => {
+        const pulse = active ? clamp01(pulseStrength) : 0;
+        const destinationBoost = destinationImpulse ? pulse * 0.42 : pulse * 0.14;
+        const activeColor = active ? displayColor : PORTAL_INACTIVE_COLOR;
+        rim.setColor(mixColorHex(activeColor, 0xffffff, pulse * 0.55 + destinationBoost));
+        if (crown) crown.setColor(mixColorHex(activeColor, 0xffffff, pulse * 0.72));
+        if (pairMark) pairMark.setColor(displayColor);
 
-    setRotation(axis, angle) {
-        const nextAngle = Number.isFinite(angle) ? angle : 0;
-        if (this.rotationAxis === axis && this.rotationAngle === nextAngle) {
-            return;
+        const count = flow.flowComponents.length;
+        for (let i = 0; i < count; i++) {
+            const phase = ((timeSeconds * 0.72 + i / count) % 1 + 1) % 1;
+            const pulseHead = (1 - pulse) * count;
+            const pulseDistance = Math.abs(i - pulseHead);
+            const wrappedPulseDistance = Math.min(pulseDistance, count - pulseDistance);
+            const traversalWave = pulse * Math.max(0, 1 - wrappedPulseDistance * 0.52);
+            const contraction = 1
+                - phase * 0.105
+                - traversalWave * (destinationImpulse ? 0.11 : 0.065);
+            const base = flow.flowBase[i];
+            const component = flow.flowComponents[i];
+            component.setLocalPosition(base.x * contraction, base.y * contraction, base.z);
+            component.setLocalScale(1, 1 - phase * 0.48 + destinationBoost * 0.4 + traversalWave * 0.3, 1);
+            const brightness = active ? 0.28 + (1 - phase) * 0.72 : 0.12 + (1 - phase) * 0.15;
+            component.setColor(mixColorHex(
+                scaleColorHex(activeColor, brightness),
+                0xffffff,
+                pulse * (destinationImpulse ? 0.55 : 0.25) + traversalWave * 0.55
+            ));
         }
-        this.rotationAxis = axis;
-        this.rotationAngle = nextAngle;
-
-        if (axis === 'x') {
-            this.dynamicQuaternion.setFromAxisAngle(AXIS_X, nextAngle);
-        } else if (axis === 'y') {
-            this.dynamicQuaternion.setFromAxisAngle(AXIS_Y, nextAngle);
-        } else if (axis === 'z') {
-            this.dynamicQuaternion.setFromAxisAngle(AXIS_Z, nextAngle);
-        } else {
-            this.rotationAxis = null;
-            this.rotationAngle = 0;
-            this.dynamicQuaternion.identity();
-        }
-
-        this.handle.syncComponent(this);
-    }
-}
-
-class InstancedVisualHandle {
-    constructor(registry, position = null, quaternion = null) {
-        this.registry = registry;
-        this.position = position ? position.clone() : new THREE.Vector3();
-        this.quaternion = quaternion ? quaternion.clone() : new THREE.Quaternion();
-        this._scaleVector = new THREE.Vector3(1, 1, 1);
-        this.scale = {
-            set: (x = 1, y = x, z = x) => {
-                this._scaleVector.set(x, y, z);
-                this.syncAll();
-                return this.scale;
-            },
-            setScalar: (value = 1) => {
-                this._scaleVector.setScalar(value);
-                this.syncAll();
-                return this.scale;
-            },
-            toArray: () => this._scaleVector.toArray(),
-        };
-        this._visible = true;
-        this.up = new THREE.Vector3(0, 1, 0);
-        this.userData = {};
-        this._components = [];
-        this._spinQuaternion = new THREE.Quaternion();
-        this._spinAngle = 0;
-        this._spinActive = false;
-    }
-
-    get visible() {
-        return this._visible;
-    }
-
-    set visible(value) {
-        const nextVisible = value !== false;
-        if (this._visible === nextVisible) return;
-        this._visible = nextVisible;
-        this.syncAll();
-    }
-
-    addComponent(name, { batchKey, geometry, material, colorHex, localPosition, localQuaternion, localScale }) {
-        const batch = this.registry.getBatch(batchKey, geometry, material);
-        const instanceId = batch.allocate(colorHex);
-        const component = new InstancedVisualComponent(
-            this,
-            batch,
-            instanceId,
-            localPosition,
-            localQuaternion,
-            localScale
-        );
-        this._components.push(component);
-        this.registry.syncComponent(this, component);
-
-        if (name) {
-            if (Array.isArray(this.userData[name])) {
-                this.userData[name].push(component);
-            } else if (this.userData[name]) {
-                this.userData[name] = [this.userData[name], component];
-            } else {
-                this.userData[name] = component;
-            }
-        }
-
-        return component;
-    }
-
-    setRotationFromEuler(euler) {
-        if (!euler) return this;
-        this.quaternion.setFromEuler(euler);
-        this.syncAll();
-        return this;
-    }
-
-    lookAt(target) {
-        if (!target) return this;
-        this.registry.composeLookAtQuaternion(this, target, this.quaternion);
-        this.syncAll();
-        return this;
-    }
-
-    setSpinZ(angle) {
-        const nextAngle = Number.isFinite(angle) ? angle : 0;
-        if (this._spinAngle === nextAngle) return;
-        this._spinAngle = nextAngle;
-        this._spinActive = Math.abs(nextAngle) > 1e-8;
-        if (this._spinActive) {
-            this._spinQuaternion.setFromAxisAngle(AXIS_Z, nextAngle);
-        } else {
-            this._spinQuaternion.identity();
-        }
-        this.syncAll();
-    }
-
-    syncComponent(component) {
-        this.registry.syncComponent(this, component);
-    }
-
-    syncAll() {
-        for (let i = 0; i < this._components.length; i++) {
-            this.registry.syncComponent(this, this._components[i]);
-        }
-    }
-}
-
-export function createPortalGateVisualRegistry(renderer) {
-    return new PortalGateVisualRegistry(renderer);
+    };
 }
 
 export function createBoostPortalMesh(position, rotation, color, visualRegistry) {
-    const handle = new InstancedVisualHandle(visualRegistry, position);
+    const handle = createInstancedVisualHandle(visualRegistry, position);
     handle.setRotationFromEuler(rotation);
-
     const displayColor = toColorHex(color, 0xffb34d);
     const displayColorKey = toColorKey(displayColor);
+
+    const body = handle.addComponent('frameBody', {
+        batchKey: 'portal-gate:boost:frame-body',
+        geometry: getSharedGeometry('boost:frameBody', () => createPortalFrameGeometry('portal_ring', 3.48, 0.48, 0.58)),
+        material: portalDarkBodyMaterial(),
+        colorHex: 0xffffff,
+    });
     const outerRing = handle.addComponent('outerRing', {
-        batchKey: `portal-gate:boost:outer-ring:${displayColorKey}`,
-        geometry: getSharedGeometry('boost:outerRing', () => new THREE.TorusGeometry(3.25, 0.22, 12, 48)),
-        material: createColoredStandardMaterial(`boost:ringMaterial:${displayColorKey}`, {
-            color: displayColor,
-            emissive: displayColor,
-            emissiveIntensity: 1.0,
-            roughness: 0.25,
-            metalness: 0.65,
-            vertexColors: false,
-        }),
+        batchKey: 'portal-gate:boost:inset-rim',
+        geometry: getSharedGeometry('boost:insetRim', () => createPortalFrameGeometry('portal_ring', 3.22, 0.14, 0.64)),
+        material: portalGlowMaterial('portal-gate:boost:rim-material'),
         colorHex: displayColor,
     });
 
-    const innerDisk = handle.addComponent('innerDisk', {
-        batchKey: 'portal-gate:boost:inner-disk',
-        geometry: getSharedGeometry('boost:innerDisk', () => new THREE.RingGeometry(1.2, 2.95, 40, 1)),
-        material: getSharedMaterial('boost:innerDiskMaterial', () => new THREE.MeshBasicMaterial({
-            color: 0xfff0a8,
-            transparent: true,
-            opacity: 0.28,
-            side: THREE.DoubleSide,
-        })),
-        colorHex: 0xfff0a8,
-    });
-
-    handle.userData.spines = [];
-    const spineGeometry = getSharedGeometry('boost:spineGeometry', () => new THREE.CylinderGeometry(0.03, 0.03, 0.95, 6));
-    const spineMaterial = getSharedMaterial('boost:spineMaterial', () => new THREE.MeshBasicMaterial({
-        color: 0xffd17c,
-        transparent: true,
-        opacity: 0.65,
-    }));
-    for (let i = 0; i < 6; i++) {
-        const angle = (Math.PI * 2 * i) / 6;
-        handle.addComponent('spines', {
-            batchKey: 'portal-gate:boost:spines',
-            geometry: spineGeometry,
-            material: spineMaterial,
-            colorHex: 0xffd17c,
-            localPosition: new THREE.Vector3(Math.cos(angle) * 1.75, Math.sin(angle) * 1.75, 0),
-            localQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, angle)),
-        });
+    const chevrons = [];
+    const chevronGeometry = getSharedGeometry('boost:chevron-geometry', () => createPortalChevronGeometry(0.78, 0.12));
+    const chevronMaterial = portalGlowMaterial('boost:chevron-material', 0.82);
+    const forwardChevronQuaternion = new THREE.Quaternion().setFromAxisAngle(AXIS_X, -Math.PI / 2);
+    for (let i = 0; i < 3; i++) {
+        chevrons.push(handle.addComponent('spines', {
+            batchKey: 'portal-gate:boost:forward-chevrons',
+            geometry: chevronGeometry,
+            material: chevronMaterial,
+            colorHex: displayColor,
+            localPosition: new THREE.Vector3(0, -2.25, -0.5 + i * 0.5),
+            localQuaternion: forwardChevronQuaternion,
+            localScale: new THREE.Vector3(0.72 + i * 0.12, 0.72 + i * 0.12, 1),
+        }));
     }
 
+    handle.userData.body = body;
     handle.userData.outerRing = outerRing;
-    handle.userData.innerDisk = innerDisk;
+    handle.userData.innerDisk = null;
+    handle.userData.spines = chevrons;
+    handle.userData.functionalType = 'boost';
+    handle._gateVisualUpdater = (timeSeconds, pulseStrength) => {
+        const pulse = clamp01(pulseStrength);
+        outerRing.setColor(mixColorHex(displayColor, 0xffffff, pulse * 0.7));
+        for (let i = 0; i < chevrons.length; i++) {
+            const phase = ((timeSeconds * 0.85 + i / chevrons.length) % 1 + 1) % 1;
+            chevrons[i].setLocalPosition(0, -2.25, -0.62 + phase * 1.24);
+            chevrons[i].setColor(mixColorHex(
+                scaleColorHex(displayColor, 0.42 + (1 - phase) * 0.58),
+                0xffffff,
+                pulse * 0.65
+            ));
+        }
+    };
+    handle.userData.displayColor = displayColor;
+    handle.userData.displayColorKey = displayColorKey;
     return handle;
 }
 
 export function createSlingshotGateMesh(position, rotation, color, visualRegistry) {
-    const handle = new InstancedVisualHandle(visualRegistry, position);
+    const handle = createInstancedVisualHandle(visualRegistry, position);
     handle.setRotationFromEuler(rotation);
-
     const displayColor = toColorHex(color, 0x7dfbff);
-    const displayColorKey = toColorKey(displayColor);
+
+    const frontBody = handle.addComponent('frameBody', {
+        batchKey: 'portal-gate:slingshot:front-body',
+        geometry: getSharedGeometry('slingshot:frontBody', () => createPortalFrameGeometry('portal_ring', 3.08, 0.34, 0.36)),
+        material: portalDarkBodyMaterial(),
+        colorHex: 0xffffff,
+        localPosition: new THREE.Vector3(0, 0, 0.62),
+    });
+    const backBody = handle.addComponent('frameBody', {
+        batchKey: 'portal-gate:slingshot:back-body',
+        geometry: getSharedGeometry('slingshot:backBody', () => createPortalFrameGeometry('portal_ring', 2.45, 0.3, 0.32)),
+        material: portalDarkBodyMaterial(),
+        colorHex: 0xffffff,
+        localPosition: new THREE.Vector3(0, 0, -0.62),
+    });
     const frontRing = handle.addComponent('frontRing', {
-        batchKey: `portal-gate:slingshot:front-ring:${displayColorKey}`,
-        geometry: getSharedGeometry('slingshot:frontRing', () => new THREE.TorusGeometry(2.9, 0.12, 10, 44)),
-        material: createColoredStandardMaterial(`slingshot:frontRingMaterial:${displayColorKey}`, {
-            color: displayColor,
-            emissive: displayColor,
-            emissiveIntensity: 0.95,
-            roughness: 0.3,
-            metalness: 0.6,
-            vertexColors: false,
-        }),
+        batchKey: 'portal-gate:slingshot:front-rim',
+        geometry: getSharedGeometry('slingshot:frontRim', () => createPortalFrameGeometry('portal_ring', 2.84, 0.12, 0.16)),
+        material: portalGlowMaterial('portal-gate:slingshot:rim-material'),
         colorHex: displayColor,
-        localPosition: new THREE.Vector3(0, 0, 0.55),
+        localPosition: new THREE.Vector3(0, 0, 0.83),
     });
-
     const backRing = handle.addComponent('backRing', {
-        batchKey: `portal-gate:slingshot:back-ring:${displayColorKey}`,
-        geometry: getSharedGeometry('slingshot:backRing', () => new THREE.TorusGeometry(2.2, 0.1, 10, 36)),
-        material: createColoredStandardMaterial(`slingshot:backRingMaterial:${displayColorKey}`, {
-            color: 0xffffff,
-            emissive: displayColor,
-            emissiveIntensity: 0.6,
-            roughness: 0.4,
-            metalness: 0.45,
-            vertexColors: false,
-        }),
+        batchKey: 'portal-gate:slingshot:back-rim',
+        geometry: getSharedGeometry('slingshot:backRim', () => createPortalFrameGeometry('portal_ring', 2.23, 0.1, 0.14)),
+        material: portalGlowMaterial('portal-gate:slingshot:rim-material'),
         colorHex: displayColor,
-        localPosition: new THREE.Vector3(0, 0, -0.55),
+        localPosition: new THREE.Vector3(0, 0, -0.81),
+    });
+    const upCue = handle.addComponent('upCue', {
+        batchKey: 'portal-gate:slingshot:up-cue',
+        geometry: getSharedGeometry('portal:arrow-geometry:gate', () => createPortalArrowGeometry(0.68, 0.15)),
+        material: portalGlowMaterial('portal:direction-cue-material'),
+        colorHex: PORTAL_DIRECTION_COLOR,
+        localPosition: new THREE.Vector3(0, 3.62, 0),
     });
 
-    const axisBeam = handle.addComponent('axisBeam', {
-        batchKey: 'portal-gate:slingshot:axis-beam',
-        geometry: getSharedGeometry('slingshot:axisBeamGeometry', () => new THREE.CylinderGeometry(0.05, 0.05, 2.1, 8)),
-        material: getSharedMaterial('slingshot:axisBeamMaterial', () => new THREE.MeshBasicMaterial({
-            color: 0xa7fcff,
-            transparent: true,
-            opacity: 0.25,
-        })),
-        colorHex: 0xa7fcff,
-        localQuaternion: new THREE.Quaternion().setFromEuler(new THREE.Euler(Math.PI / 2, 0, 0)),
-    });
-
+    handle.userData.frameBody = [frontBody, backBody];
     handle.userData.frontRing = frontRing;
     handle.userData.backRing = backRing;
-    handle.userData.axisBeam = axisBeam;
+    handle.userData.axisBeam = null;
+    handle.userData.upCue = upCue;
+    handle.userData.functionalType = 'slingshot';
+    handle._gateVisualUpdater = (timeSeconds, pulseStrength) => {
+        const pulse = clamp01(pulseStrength);
+        const wave = 0.18 + (Math.sin(timeSeconds * 4.5) + 1) * 0.12;
+        frontRing.setColor(mixColorHex(displayColor, 0xffffff, pulse * 0.7 + wave));
+        backRing.setColor(mixColorHex(scaleColorHex(displayColor, 0.7), 0xffffff, pulse * 0.55 + wave * 0.5));
+        upCue.setColor(mixColorHex(PORTAL_DIRECTION_COLOR, displayColor, pulse * 0.45));
+    };
+    handle.userData.displayColor = displayColor;
     return handle;
 }
 
 export function createPortalMesh(position, color, direction, visualRegistry, options = {}) {
-    const ringSize = Math.max(0.01, Number(resolveGameplayConfig(options.configSource).PORTAL.RING_SIZE) || 4);
+    const visualKind = options?.kind === 'exit' ? 'exit' : 'teleporter';
+    const configuredRingSize = Math.max(0.01, Number(resolveGameplayConfig(options.configSource).PORTAL.RING_SIZE) || 4);
+    // Preserve the former active exit aperture: (configured radius - old tube radius 0.3) * 1.4.
+    const ringSize = visualKind === 'exit'
+        ? Math.max(0.01, configuredRingSize * 1.4 - 0.12)
+        : configuredRingSize;
     const compactMode = options?.compact === true;
     const visualType = normalizePortalVisualType(options?.visualType);
+    const pairIndex = Math.max(0, Math.trunc(Number(options?.pairIndex) || 0));
+    const pairMarkIndex = pairIndex % PORTAL_PAIR_MARK_COUNT;
     const ringSizeKey = ringSize.toFixed(3);
-    const displayColor = resolvePortalDisplayColor(color, direction);
-    const displayColorKey = toColorKey(displayColor);
-    const handle = new InstancedVisualHandle(visualRegistry, position, options?.quaternion);
+    const displayColor = toColorHex(color, 0x00ffcc);
+    const handle = createInstancedVisualHandle(visualRegistry, position, options?.quaternion);
 
-    handle.addComponent('torus', {
-        batchKey: `portal:torus:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`,
+    const outerRadius = ringSize + (compactMode ? 0.26 : 0.34);
+    const bodyBandWidth = compactMode ? 0.52 : 0.62;
+    const body = handle.addComponent('frameBody', {
+        batchKey: `portal:frame-body:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
         geometry: getSharedGeometry(
-            `portal:torusGeometry:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
-            () => visualType === 'portal_ring'
-                ? new THREE.TorusGeometry(
-                    ringSize,
-                    compactMode ? 0.24 : 0.3,
-                    compactMode ? 10 : 16,
-                    compactMode ? 20 : 32
-                )
-                : createPortalShapeGeometry(visualType, ringSize, true)
+            `portal:frame-body-geometry:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
+            () => createPortalFrameGeometry(visualType, outerRadius, bodyBandWidth, compactMode ? 0.32 : 0.46)
         ),
-        material: createColoredStandardMaterial(`portal:torusMaterial:${visualType}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`, {
-            color: displayColor,
-            emissive: displayColor,
-            emissiveIntensity: compactMode ? 0.95 : 1.2,
-            roughness: 0.2,
-            metalness: 0.8,
-            vertexColors: false,
-            side: THREE.DoubleSide,
-        }),
+        material: portalDarkBodyMaterial(),
+        colorHex: 0xffffff,
+    });
+
+    const rimOuterRadius = outerRadius - bodyBandWidth + (compactMode ? 0.16 : 0.2);
+    const rimBandWidth = compactMode ? 0.12 : 0.16;
+    const bodyDepth = compactMode ? 0.32 : 0.46;
+    const rim = handle.addComponent('insetRim', {
+        batchKey: `portal:inset-rim:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
+        geometry: getSharedGeometry(
+            `portal:inset-rim-geometry:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
+            () => createPortalFrameGeometry(visualType, rimOuterRadius, rimBandWidth, bodyDepth + 0.08)
+        ),
+        material: portalGlowMaterial(`portal:inset-rim-material:${compactMode ? 'compact' : 'full'}`),
         colorHex: displayColor,
     });
 
-    handle.addComponent('disc', {
-        batchKey: `portal:disc:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}:${displayColorKey}`,
-        geometry: getSharedGeometry(
-            `portal:discGeometry:${visualType}:${ringSizeKey}:${compactMode ? 'compact' : 'full'}`,
-            () => visualType === 'portal_ring'
-                ? new THREE.CircleGeometry(ringSize * (compactMode ? 0.82 : 0.85), compactMode ? 20 : 32)
-                : createPortalShapeGeometry(visualType, ringSize * (compactMode ? 0.72 : 0.75))
-        ),
-        material: createColoredBasicMaterial(`portal:discMaterial:${compactMode ? 'compact' : 'full'}:${displayColorKey}`, {
-            color: displayColor,
-            transparent: true,
-            opacity: compactMode ? 0.12 : 0.15,
-            side: THREE.DoubleSide,
-            vertexColors: false,
-        }),
-        colorHex: displayColor,
-    });
-
-    if (!compactMode) {
-        if (visualType === 'portal_ring') handle.addComponent('innerTorus', {
-            batchKey: `portal:inner-torus:${ringSizeKey}:${displayColorKey}`,
-            geometry: getSharedGeometry(
-                `portal:innerTorusGeometry:${ringSizeKey}`,
-                () => new THREE.TorusGeometry(ringSize * 0.6, 0.15, 12, 24)
-            ),
-            material: createColoredStandardMaterial(`portal:innerTorusMaterial:${displayColorKey}`, {
-                color: 0xffffff,
-                emissive: displayColor,
-                emissiveIntensity: 0.5,
-                transparent: true,
-                opacity: 0.6,
-                metalness: 0.35,
-                roughness: 0.35,
-                vertexColors: false,
-            }),
+    let pairMark = null;
+    let crown = null;
+    if (visualKind === 'exit') {
+        crown = handle.addComponent('crown', {
+            batchKey: 'portal:exit-crown',
+            geometry: getSharedGeometry('portal:exit-crown-geometry', () => createPortalCrownGeometry(0.82, 0.22)),
+            material: portalGlowMaterial('portal:exit-crown-material'),
             colorHex: displayColor,
+            localPosition: new THREE.Vector3(0, outerRadius + 0.92, 0),
+        });
+    } else {
+        pairMark = handle.addComponent('pairMark', {
+            batchKey: `portal:pair-mark:${pairMarkIndex}:${compactMode ? 'compact' : 'full'}`,
+            geometry: getSharedGeometry(
+                `portal:pair-mark-geometry:${pairMarkIndex}:${compactMode ? 'compact' : 'full'}`,
+                () => createPortalPairMarkGeometry(pairMarkIndex, compactMode ? 0.44 : 0.54, compactMode ? 0.14 : 0.2)
+            ),
+            material: portalGlowMaterial('portal:pair-mark-material'),
+            colorHex: displayColor,
+            localPosition: new THREE.Vector3(0, outerRadius + (compactMode ? 0.62 : 0.76), 0),
         });
     }
 
+    let directionCue = null;
     if (direction !== 'NEUTRAL') {
         const arrowQuaternion = direction === 'DOWN'
-            ? new THREE.Quaternion().setFromAxisAngle(AXIS_X, Math.PI)
+            ? new THREE.Quaternion().setFromAxisAngle(AXIS_Z, Math.PI)
             : new THREE.Quaternion();
-        handle.userData.arrow = handle.addComponent('arrow', {
-            batchKey: `portal:arrow:${displayColorKey}`,
-            geometry: getSharedGeometry('portal:arrowGeometry', () => new THREE.ConeGeometry(0.8, 2.5, 8)),
-            material: createColoredBasicMaterial(`portal:arrowMaterial:${displayColorKey}`, {
-                color: displayColor,
-                transparent: true,
-                opacity: 0.8,
-                vertexColors: false,
-            }),
-            colorHex: displayColor,
+        directionCue = handle.addComponent('directionCue', {
+            batchKey: `portal:direction-cue:${direction}`,
+            geometry: getSharedGeometry('portal:direction-cue-geometry', () => createPortalArrowGeometry(0.62, 0.16)),
+            material: portalGlowMaterial('portal:direction-cue-material'),
+            colorHex: PORTAL_DIRECTION_COLOR,
+            localPosition: new THREE.Vector3(outerRadius + (compactMode ? 0.58 : 0.72), 0, 0),
             localQuaternion: arrowQuaternion,
         });
     }
 
+    const innerRadius = rimOuterRadius - rimBandWidth - (compactMode ? 0.04 : 0.06);
+    const flow = installPortalFlow(handle, visualType, innerRadius, ringSizeKey, compactMode, displayColor);
+    installPortalVisualUpdater(handle, displayColor, rim, pairMark, crown, flow);
+
+    handle.userData.body = body;
+    handle.userData.torus = body;
+    handle.userData.disc = null;
+    handle.userData.rim = rim;
+    handle.userData.pairMark = pairMark;
+    handle.userData.pairMarkIndex = pairMarkIndex;
+    handle.userData.directionCue = directionCue;
+    handle.userData.arrow = directionCue;
     handle.userData.direction = direction;
     handle.userData.compact = compactMode;
     handle.userData.visualType = visualType;
+    handle.userData.visualKind = visualKind;
+    handle.userData.displayColor = displayColor;
+    handle.userData.innerOpeningRadius = innerRadius;
+    handle.updatePortalVisualState(0, 0, false, options?.active !== false);
     return handle;
 }

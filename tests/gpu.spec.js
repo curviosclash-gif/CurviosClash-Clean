@@ -649,33 +649,60 @@ test.describe('T21-40: Rendering & GPU', () => {
 
         const probe = await page.evaluate(() => {
             const g = window.GAME_INSTANCE;
+            for (const portal of g?.arena?.portals || []) {
+                portal.meshA?.updatePortalVisualState?.(0, 0, false, true);
+                portal.meshB?.updatePortalVisualState?.(0, 0, false, true);
+            }
             const instancedPortals = [];
             g?.renderer?.scene?.traverse((child) => {
                 if (child?.isInstancedMesh && typeof child.name === 'string' && child.name.startsWith('portal:')) {
+                    const instanceColors = [];
+                    const instanceColor = child.material?.color?.clone?.();
+                    for (let index = 0; instanceColor && child.instanceColor && index < child.count; index++) {
+                        child.getColorAt(index, instanceColor);
+                        instanceColors.push(instanceColor.getHexString());
+                    }
                     instancedPortals.push({
                         name: child.name,
                         count: child.count,
-                        color: child.material?.color?.getHexString?.() || null,
-                        emissive: child.material?.emissive?.getHexString?.() || null,
+                        materialColor: child.material?.color?.getHexString?.() || null,
+                        instanceColors,
                     });
                 }
             });
-            const torusBatches = instancedPortals.filter((entry) => entry.name.startsWith('portal:torus:'));
-            const discBatches = instancedPortals.filter((entry) => entry.name.startsWith('portal:disc:'));
+            const frameBatches = instancedPortals.filter((entry) => entry.name.startsWith('portal:frame-body:'));
+            const rimBatches = instancedPortals.filter((entry) => entry.name.startsWith('portal:inset-rim:'));
+            const pairMarkBatches = instancedPortals.filter((entry) => entry.name.startsWith('portal:pair-mark:'));
+            const directionBatches = instancedPortals.filter((entry) => entry.name.startsWith('portal:direction-cue:'));
             return {
                 portalPairs: g?.arena?.portals?.length || 0,
                 instancedPortals,
-                torusCount: torusBatches.reduce((sum, entry) => sum + (entry.count || 0), 0),
-                discCount: discBatches.reduce((sum, entry) => sum + (entry.count || 0), 0),
-                torusColors: torusBatches.map((entry) => entry.color).filter(Boolean),
-                torusEmissives: torusBatches.map((entry) => entry.emissive).filter(Boolean),
+                frameCount: frameBatches.reduce((sum, entry) => sum + (entry.count || 0), 0),
+                rimCount: rimBatches.reduce((sum, entry) => sum + (entry.count || 0), 0),
+                centerDiscCount: instancedPortals
+                    .filter((entry) => entry.name.startsWith('portal:disc:'))
+                    .reduce((sum, entry) => sum + (entry.count || 0), 0),
+                rimMaterialColors: rimBatches.map((entry) => entry.materialColor),
+                rimInstanceColors: rimBatches.flatMap((entry) => entry.instanceColors),
+                pairMarks: pairMarkBatches.map((entry) => ({
+                    count: entry.count,
+                    colors: [...new Set(entry.instanceColors)],
+                })),
+                directionColors: directionBatches.flatMap((entry) => entry.instanceColors),
             };
         });
 
         expect(probe.portalPairs).toBe(2);
-        expect(probe.torusCount).toBe(4);
-        expect(probe.discCount).toBe(4);
-        expect(probe.torusColors).toEqual(expect.arrayContaining(['00ff00', 'ff0000']));
-        expect(probe.torusEmissives).toEqual(expect.arrayContaining(['00ff00', 'ff0000']));
+        expect(probe.frameCount).toBe(4);
+        expect(probe.rimCount).toBe(4);
+        expect(probe.centerDiscCount).toBe(0);
+        expect(probe.rimMaterialColors).toEqual(expect.arrayContaining(['ffffff']));
+        expect(probe.rimInstanceColors).toEqual(expect.arrayContaining(['00ffcc', 'ff00cc']));
+        expect(probe.pairMarks).toHaveLength(2);
+        expect(probe.pairMarks).toEqual(expect.arrayContaining([
+            expect.objectContaining({ count: 2, colors: ['00ffcc'] }),
+            expect.objectContaining({ count: 2, colors: ['ff00cc'] }),
+        ]));
+        expect(probe.directionColors).toEqual(['f4fbff', 'f4fbff', 'f4fbff', 'f4fbff']);
     });
 });

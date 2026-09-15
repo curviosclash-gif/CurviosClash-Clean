@@ -48,18 +48,25 @@ export class PortalRuntimeSystem {
 
     _syncPortalVisualState(portal, timeSeconds = 0) {
         if (!portal) return;
-        const engaged = Number(portal.visualPulseRemaining) > 0;
-        const scale = engaged ? 0.88 + Math.sin(timeSeconds * 6) * 0.03 : 1;
-        portal.meshA?.scale?.setScalar?.(scale);
-        portal.meshB?.scale?.setScalar?.(scale);
+        const pulseStrength = Math.min(1, Math.max(0, Number(portal.visualPulseRemaining) || 0) / 0.35);
+        portal.meshA?.updatePortalVisualState?.(
+            timeSeconds,
+            pulseStrength,
+            portal.visualPulseDestination === 'A',
+            true
+        );
+        portal.meshB?.updatePortalVisualState?.(
+            timeSeconds,
+            pulseStrength,
+            portal.visualPulseDestination === 'B',
+            true
+        );
     }
 
     _syncExitPortalVisualState(exitPortal, timeSeconds = 0) {
         if (!exitPortal?.mesh) return;
-        const engaged = Number(exitPortal.visualPulseRemaining) > 0;
-        const baseScale = exitPortal.active ? 1.4 : 0.75;
-        const scale = engaged ? baseScale * (0.9 + Math.sin(timeSeconds * 10) * 0.06) : baseScale;
-        exitPortal.mesh.scale?.set?.(scale, scale, scale);
+        const pulseStrength = Math.min(1, Math.max(0, Number(exitPortal.visualPulseRemaining) || 0) / 0.4);
+        exitPortal.mesh.updatePortalVisualState?.(timeSeconds, pulseStrength, true, exitPortal.active === true);
     }
 
     _normalizeEntityKey(entityId) {
@@ -159,6 +166,7 @@ export class PortalRuntimeSystem {
                 const dynamicCooldown = Math.min(2.5, Math.max(portalConfig.COOLDOWN, dist / 80));
                 portal.cooldowns.set(entityId, dynamicCooldown);
                 portal.visualPulseRemaining = 0.35;
+                portal.visualPulseDestination = 'B';
                 this._markPostPortalSignal(entityId, dynamicCooldown);
                 return buildPortalInteractionResult({
                     ok: true,
@@ -184,6 +192,7 @@ export class PortalRuntimeSystem {
                 const dynamicCooldown = Math.min(2.5, Math.max(portalConfig.COOLDOWN, dist / 80));
                 portal.cooldowns.set(entityId, dynamicCooldown);
                 portal.visualPulseRemaining = 0.35;
+                portal.visualPulseDestination = 'A';
                 this._markPostPortalSignal(entityId, dynamicCooldown);
                 return buildPortalInteractionResult({
                     ok: true,
@@ -289,7 +298,8 @@ export class PortalRuntimeSystem {
             exitPortal.active = true;
             if (exitPortal.mesh) {
                 exitPortal.mesh.visible = true;
-                exitPortal.mesh.scale?.set?.(1.4, 1.4, 1.4);
+                exitPortal.mesh.scale?.set?.(1, 1, 1);
+                this._syncExitPortalVisualState(exitPortal, 0);
             }
         }
     }
@@ -300,7 +310,8 @@ export class PortalRuntimeSystem {
             exitPortal.active = false;
             if (exitPortal.mesh) {
                 exitPortal.mesh.visible = true;
-                exitPortal.mesh.scale?.set?.(0.75, 0.75, 0.75);
+                exitPortal.mesh.scale?.set?.(1, 1, 1);
+                this._syncExitPortalVisualState(exitPortal, 0);
             }
         }
     }
@@ -311,6 +322,7 @@ export class PortalRuntimeSystem {
         this._elapsedMs += Math.max(0, Number(dt) || 0) * 1000;
         for (const portal of this.arena.portals) {
             portal.visualPulseRemaining = Math.max(0, Number(portal.visualPulseRemaining || 0) - dt);
+            if (portal.visualPulseRemaining <= 0) portal.visualPulseDestination = null;
             for (const [id, t] of portal.cooldowns) {
                 const newT = t - dt;
                 if (newT <= 0) {
@@ -346,27 +358,12 @@ export class PortalRuntimeSystem {
 
         const time = performance.now() * 0.001;
         for (const portal of this.arena.portals) {
-            if (portal.meshA?.setSpinZ) {
-                portal.meshA.setSpinZ(time * 0.5);
-            } else if (portal.meshA) {
-                portal.meshA.rotation.z = time * 0.5;
-            }
-            if (portal.meshB?.setSpinZ) {
-                portal.meshB.setSpinZ(-time * 0.5);
-            } else if (portal.meshB) {
-                portal.meshB.rotation.z = -time * 0.5;
-            }
             this._syncPortalVisualState(portal, time);
         }
 
         if (Array.isArray(this.arena.exitPortals)) {
             for (const exitPortal of this.arena.exitPortals) {
-                if (!exitPortal.mesh || !exitPortal.active) continue;
-                if (exitPortal.mesh.setSpinZ) {
-                    exitPortal.mesh.setSpinZ(time * 0.8);
-                } else {
-                    exitPortal.mesh.rotation.z = time * 0.8;
-                }
+                if (!exitPortal.mesh) continue;
                 this._syncExitPortalVisualState(exitPortal, time);
             }
         }
