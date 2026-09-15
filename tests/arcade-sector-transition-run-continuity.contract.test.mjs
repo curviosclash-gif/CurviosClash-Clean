@@ -9,7 +9,7 @@ import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeS
  * (wird durch die Arcade-Variante ersetzt) und die Sitzungsdaten, aus denen der
  * Sektorwechsel ableitet, ob Karte oder Bot-Anzahl wechseln.
  */
-function createRuntimeState() {
+function createRuntimeState(botDifficulty = 'NORMAL') {
     return {
         roundStateController: {
             deriveOnRoundEndPlan: () => null,
@@ -25,15 +25,15 @@ function createRuntimeState() {
                 intermissionSeconds: 10,
                 dailyChallenge: false,
             },
-            bot: { activeDifficulty: 'NORMAL' },
+            bot: { activeDifficulty: String(botDifficulty) },
             player: { vehicles: { PLAYER_1: 'aircraft' } },
             session: { mapKey: 'standard', numBots: 2 },
         },
     };
 }
 
-function createSupport() {
-    const runtimeState = createRuntimeState();
+function createSupport(botDifficulty = 'NORMAL') {
+    const runtimeState = createRuntimeState(botDifficulty);
     const support = new GameRuntimeArcadeSupport({
         getGame: () => null,
         getRuntimeState: () => runtimeState,
@@ -45,6 +45,11 @@ function createSupport() {
             if (profile.mapKey) runtimeState.runtimeConfig.session.mapKey = String(profile.mapKey);
             if (Number.isFinite(profile.botCount)) {
                 runtimeState.runtimeConfig.session.numBots = Number(profile.botCount);
+            }
+            // Wie GameRuntimeFacade._applySectorRuntimeProfile: die Sektorstufe wird
+            // zur neuen Laufzeit-Schwierigkeit der Bots.
+            if (profile.botDifficulty) {
+                runtimeState.runtimeConfig.bot.activeDifficulty = String(profile.botDifficulty);
             }
         },
     });
@@ -127,4 +132,62 @@ test('leaving the match clears the arcade run even mid-transition', () => {
     const restarted = support.getRunState();
     assert.equal(restarted.sectorIndex, 1, 'a forced reset starts the next run in sector 1');
     assert.equal(restarted.completedSectors, 0, 'a forced reset drops the completed sectors');
+});
+
+test('the bot difficulty chosen in the menu survives the sector 1 to 2 transition', () => {
+    const { support, runtimeState } = createSupport('HARD');
+    support.syncRuntimeConfig();
+    // Der Matchstart schreibt das Profil von Sektor 1 in die Laufzeit-Konfiguration.
+    support.prepareMatchStartRuntime();
+    support.startRunIfEnabled();
+    assert.equal(
+        runtimeState.runtimeConfig.bot.activeDifficulty,
+        'HARD',
+        'sector 1 keeps the difficulty chosen in the menu'
+    );
+
+    support.arcadeRunRuntime.deriveRoundEndPlan({
+        players: [createLivingHuman()],
+        inputs: { winsNeeded: 1 },
+        baseController: runtimeState.roundStateController,
+    });
+    support.arcadeRunRuntime.beginNextSector();
+    const transition = support.consumePendingSectorTransition();
+
+    assert.equal(
+        transition.botDifficulty,
+        'HARD',
+        'the sector transition must not fall back to NORMAL for a HARD run'
+    );
+    assert.equal(
+        runtimeState.runtimeConfig.bot.activeDifficulty,
+        'HARD',
+        'sector 2 keeps the difficulty chosen in the menu'
+    );
+});
+
+test('an easy run only rises with the sector pressure, never with a fixed fallback', () => {
+    const { support, runtimeState } = createSupport('EASY');
+    // Seed 2 fuehrt auf einen Sektor 2 mit niedrigem Druck (0.405): dort darf EASY bleiben.
+    runtimeState.runtimeConfig.arcade.seed = 2;
+    support.syncRuntimeConfig();
+    support.prepareMatchStartRuntime();
+    support.startRunIfEnabled();
+
+    support.arcadeRunRuntime.deriveRoundEndPlan({
+        players: [createLivingHuman()],
+        inputs: { winsNeeded: 1 },
+        baseController: runtimeState.roundStateController,
+    });
+    support.arcadeRunRuntime.beginNextSector();
+    const transition = support.consumePendingSectorTransition();
+
+    // Der Sektordruck darf die Stufe anheben, ein fester Ersatzwert darf sie nicht ersetzen.
+    const pressure = Number(transition.pressure) || 0;
+    assert.ok(pressure <= 0.42, 'the chosen seed keeps the sector 2 pressure low');
+    assert.equal(
+        transition.botDifficulty,
+        'EASY',
+        'only the sector pressure may raise the difficulty of an EASY run'
+    );
 });

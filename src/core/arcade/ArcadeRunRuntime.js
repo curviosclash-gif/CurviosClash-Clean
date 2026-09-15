@@ -497,7 +497,9 @@ export class ArcadeRunRuntime {
             sectorIndex: normalizedSectorIndex,
             mapKey,
             fallbackBotCount: options.fallbackBotCount,
-            fallbackDifficulty: options.fallbackDifficulty,
+            // Ohne Vorgabe gilt die im Menue gewaehlte Stufe des laufenden Runs. Der
+            // Sektordruck darf sie anheben, ein fester Ersatzwert darf sie nicht ersetzen.
+            fallbackDifficulty: options.fallbackDifficulty || this._state?.encounterDifficulty,
         });
     }
 
@@ -972,7 +974,6 @@ export class ArcadeRunRuntime {
             try {
                 const runtimeProfile = this.getSectorRuntimeProfile(this._state.sectorIndex, {
                     fallbackBotCount: 0,
-                    fallbackDifficulty: 'NORMAL',
                 });
                 this._onMapTransition({
                     ...runtimeProfile,
