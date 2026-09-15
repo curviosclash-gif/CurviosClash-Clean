@@ -6,6 +6,7 @@ import {
     ENDLESS_PARCOURS_ELITE,
     ENDLESS_PARCOURS_TELEGRAPH_SECONDS,
 } from '../../shared/contracts/EndlessParcoursStageContract.js';
+import { resolveModuleCenterAtZ } from './EndlessParcoursModuleBuilder.js';
 
 const ROLE_TABLES = Object.freeze({
     1: Object.freeze(['pursuer', 'pursuer', 'pursuer', 'guard']),
@@ -40,7 +41,12 @@ export function findSafeEndlessSpawnAnchor(runtime, slotState, options = {}) {
             if (wantsElite && local.elite !== true) continue;
             if (!wantsElite && local.elite === true) continue;
             if (!wantsAhead && local.ahead === true) continue;
-            runtime._tmpSpawnPosition.set(local.x, local.y, module.originZ + local.z);
+            // Wie Waende, Hindernisse und Pickups liegen die Anker relativ zur
+            // Korridormitte. Ohne diese Verschiebung stehen sie in einer Kurve
+            // oder Steigung ausserhalb der Roehre.
+            const worldZ = module.originZ + local.z;
+            const center = resolveModuleCenterAtZ(module, worldZ);
+            runtime._tmpSpawnPosition.set(center.x + local.x, center.y + local.y, worldZ);
             const candidate = runtime._candidateSpawnAnchor;
             candidate.id = local.id;
             candidate.x = runtime._tmpSpawnPosition.x;

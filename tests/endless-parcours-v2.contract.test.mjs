@@ -21,7 +21,11 @@ import {
 import { ARCADE_VEHICLE_PROFILE_STORAGE_KEY } from '../src/shared/contracts/ArcadeVehicleProfileContract.js';
 import { createArcadeVehicleProfile } from '../src/state/arcade/ArcadeVehicleProfile.js';
 import { generateEndlessParcoursSequence } from '../src/entities/endless/EndlessParcoursGenerator.js';
-import { resolveEndlessBotRocketType } from '../src/entities/endless/EndlessParcoursBotDirectorOps.js';
+import {
+    findSafeEndlessSpawnAnchor,
+    resolveEndlessBotRocketType,
+} from '../src/entities/endless/EndlessParcoursBotDirectorOps.js';
+import { resolveModuleCenterAtZ } from '../src/entities/endless/EndlessParcoursModuleBuilder.js';
 import { EndlessParcoursRuntime } from '../src/entities/endless/EndlessParcoursRuntime.js';
 import { beginEndlessAttackWave } from '../src/entities/endless/EndlessParcoursWaveOps.js';
 import { reconcileEndlessBots } from '../src/entities/endless/EndlessParcoursSlotOps.js';
@@ -493,4 +497,43 @@ test('a vehicle speed upgrade counts once per module, not squared', () => {
         'every further module keeps the upgrade linear'
     );
     runtime.dispose();
+});
+
+test('hunter entry points follow the corridor centre of a bent module', () => {
+    const botAnchors = [
+        { id: 'anchor-left', x: -18, y: 8, z: 24, ahead: false, elite: false },
+        { id: 'anchor-right', x: 18, y: 10, z: 48, ahead: false, elite: false },
+    ];
+    const module = {
+        originZ: 240,
+        length: ENDLESS_PARCOURS_MODULE_LENGTH,
+        entryDrift: { x: 0, y: 0 },
+        exitDrift: { x: 14, y: 9 },
+        botAnchors,
+    };
+    const human = {
+        alive: true,
+        position: new THREE.Vector3(0, 8, 400),
+        getDirection(out) { return out.set(0, 0, 1); },
+    };
+    const runtime = {
+        baseSeed: 1,
+        entityManager: { humanPlayers: [human], players: [] },
+        activeModules: new Map([[2, { module }]]),
+        _tmpSpawnPosition: new THREE.Vector3(),
+        _candidateSpawnAnchor: { id: '', x: 0, y: 0, z: 0, ahead: false },
+        _selectedSpawnAnchor: { id: '', x: 0, y: 0, z: 0, ahead: false },
+        // Nur die Lage im Korridor steht hier zur Pruefung, nicht die Sicherheitsregeln.
+        _isSpawnAnchorSafe: () => true,
+    };
+
+    const selected = findSafeEndlessSpawnAnchor(runtime, { slot: 0, activationGeneration: 0 });
+    assert.ok(selected, 'a free module always offers an entry point');
+    const local = botAnchors.find((entry) => selected.id.endsWith(entry.id) || entry.id === selected.id)
+        || botAnchors.find((entry) => module.originZ + entry.z === selected.z);
+    assert.ok(local, 'the selected entry point maps back to an authored anchor');
+    const centre = resolveModuleCenterAtZ(module, module.originZ + local.z);
+    assert.notEqual(centre.x, 0, 'the bent module really moves the corridor sideways');
+    assert.equal(selected.x, centre.x + local.x, 'the entry point follows the corridor sideways');
+    assert.equal(selected.y, centre.y + local.y, 'the entry point follows the corridor upwards');
 });
