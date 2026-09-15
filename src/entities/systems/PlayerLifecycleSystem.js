@@ -46,12 +46,19 @@ export class PlayerLifecycleSystem {
         runtimeProfiler?.endSample?.('collision', collisionStart);
         if (aborted || !player.alive) return;
 
-        this._interactionPhase.runPortalAndPickup(player, prevPos);
-        applyFourPlayerPlanarPhysicsConstraint(player);
+        // Parcours progress is scored on the move this tick actually made, before a portal can
+        // replace the end of that move with a point somewhere else on the map. Portal ends sit in
+        // the middle of checkpoint rings on several authored routes; scoring afterwards meant the
+        // ring was never crossed (the teleported position is outside it) while the arrival often
+        // read as a ring further along the route, i.e. a wrong-order penalty or an outright loop.
+        // prevPos is recaptured from the player's position at the top of the next tick, so the
+        // jump itself is never seen as a crossing either.
         this.entityManager?._parcoursProgressSystem?.updatePlayerProgress?.(
             player,
             prevPos,
             simulationNowMs
         );
+        this._interactionPhase.runPortalAndPickup(player, prevPos);
+        applyFourPlayerPlanarPhysicsConstraint(player);
     }
 }

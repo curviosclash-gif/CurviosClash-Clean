@@ -24,6 +24,8 @@ import { SpecialGateRuntime } from '../src/entities/arena/portal/SpecialGateRunt
 import { ProjectileSystem } from '../src/entities/systems/ProjectileSystem.js';
 import { PlayerInteractionPhase } from '../src/entities/systems/lifecycle/PlayerInteractionPhase.js';
 import { PlayerActionPhase } from '../src/entities/systems/lifecycle/PlayerActionPhase.js';
+import { PlayerLifecycleSystem } from '../src/entities/systems/PlayerLifecycleSystem.js';
+import { ParcoursProgressSystem } from '../src/entities/systems/ParcoursProgressSystem.js';
 import { HuntBridgePolicy } from '../src/entities/ai/HuntBridgePolicy.js';
 import {
     encodeItemSlots,
@@ -1050,4 +1052,69 @@ test('Portal placement warnings remain visible after arena build', () => {
     assert.equal(feedback.toasts[0].tone, 'warning');
     assert.match(feedback.toasts[0].message, /Portal-Layout angepasst/);
     assert.equal(feedback.consoleEntries[0].level, 'warn');
+});
+
+function createPortalOnCheckpointHarness() {
+    const parcours = {
+        enabled: true,
+        routeId: 'portal_on_checkpoint_route',
+        checkpoints: [
+            { id: 'CP01', type: 'entry', pos: [0, 0, 0], radius: 1.2, forward: [1, 0, 0] },
+            { id: 'CP02', type: 'gate', pos: [200, 0, 0], radius: 1.2, forward: [1, 0, 0] },
+        ],
+        finish: { id: 'FINISH', type: 'finish', pos: [220, 0, 0], radius: 1.3, forward: [1, 0, 0] },
+        rules: { bidirectionalCheckpoints: false, cooldownMs: 0, maxSegmentTimeMs: 0 },
+    };
+    const portalTarget = new THREE.Vector3(100, 0, 0);
+    const feedback = [];
+    const player = {
+        index: 0,
+        isBot: true,
+        alive: true,
+        // The collision phase is not what this test is about; a ghost skips it outright.
+        isGhost: true,
+        hitboxRadius: 0.8,
+        position: new THREE.Vector3(-0.5, 0, 0),
+        quaternion: new THREE.Quaternion(),
+        trail: { forceGap() {}, update() {} },
+        _tmpVec: new THREE.Vector3(),
+        // One tick of flight straight through the middle of CP01.
+        update() { this.position.set(0.5, 0, 0); },
+    };
+    const entityManager = {
+        players: [player],
+        _tmpDir: new THREE.Vector3(),
+        _tmpPrevPlayerPosition: new THREE.Vector3(),
+        _notifyPlayerFeedback(targetPlayer, message) { feedback.push(message); },
+        arena: {
+            currentMapDefinition: { parcours },
+            checkSpecialGates: () => null,
+            checkExitPortal: () => null,
+            // A portal end sitting in the middle of the ring: it fires on proximity alone,
+            // exactly as an authored NEUTRAL portal without forwardA/forwardB does.
+            checkPortal: (position, radius) => (
+                position.distanceTo(new THREE.Vector3(0, 0, 0)) < (4 + radius)
+                    ? { target: portalTarget, exitForward: new THREE.Vector3(1, 0, 0) }
+                    : null
+            ),
+        },
+        powerupManager: { checkPickup: () => null },
+    };
+    const progress = new ParcoursProgressSystem(entityManager, { nowProvider: () => 1000 });
+    entityManager._parcoursProgressSystem = progress;
+    progress.startRound([player]);
+    return { entityManager, player, progress, feedback };
+}
+
+test('a checkpoint under a portal end counts before the portal moves the player', () => {
+    const { entityManager, player, progress } = createPortalOnCheckpointHarness();
+    const lifecycle = new PlayerLifecycleSystem(entityManager);
+
+    lifecycle.updatePlayer(player, 0.016, {}, 0, 1000);
+
+    const snapshot = progress.getPlayerProgressSnapshot(0, 1000);
+    assert.equal(snapshot.lastCheckpointId, 'CP01', 'the ring the player flew through is the one that counts');
+    assert.equal(snapshot.wrongOrderCount, 0);
+    // The portal still works: it just no longer swallows the checkpoint it sits on.
+    assert.ok(player.position.x > 100, 'the player is teleported in the same tick');
 });
