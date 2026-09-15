@@ -22,6 +22,7 @@ export class EntitySpawnOps {
         owner._parcoursProgressSystem?.startRound?.(owner.players);
         owner._mapHazardSystem?.startRound?.();
         owner._mapDestructibleSystem?.startRound?.();
+        owner._mapDestructibleBlastSystem?.startRound?.();
         owner._exclusionZoneSystem?.startRound?.();
         owner._spawnPlacementSystem?.resetAssignments?.();
         const spawnContext = this.createSpawnContext();

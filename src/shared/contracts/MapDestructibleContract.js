@@ -83,6 +83,11 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
     maxBreakScenes: 16,
     maxHideModelIds: 16,
     maxGameModes: 8,
+    blast: Object.freeze({
+        radius: Object.freeze({ min: 1, max: 300 }),
+        damage: Object.freeze({ min: 1, max: 100000 }),
+        delaySeconds: Object.freeze({ min: 0, max: 30 }),
+    }),
 });
 
 /**
@@ -103,6 +108,13 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  */
 
 /**
+ * @typedef {object} MapDestructibleBlast
+ * @property {number} radius World units a nearby player still takes damage within.
+ * @property {number} damage Damage at the blast center; falls off linearly to the radius edge.
+ * @property {number} delaySeconds Map-clock delay after the break before the blast applies.
+ */
+
+/**
  * @typedef {object} MapDestructibleBreakScene
  * @property {string} id
  * @property {Readonly<MapDestructibleBreakSceneTrigger>} trigger
@@ -111,6 +123,7 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @property {readonly string[]} hideModelIds Intact models that disappear when it starts.
  * @property {boolean} yawFromEvent Whether the event's heading turns the scene around Y.
  * @property {number} bakedHeading World heading the clip was authored falling towards, in [0, 2pi).
+ * @property {Readonly<MapDestructibleBlast> | null} blast Radial damage the break deals; null for none.
  */
 
 /**
@@ -392,6 +405,23 @@ function readBreakSceneTrigger(source) {
 }
 
 /**
+ * A scene's radial damage against nearby players, or null when it deals none. Every number is
+ * clamped into its own range, so an authored map cannot round-trip into a blast larger, harder
+ * or more delayed than the game is tuned for.
+ * @param {unknown} source
+ * @returns {Readonly<MapDestructibleBlast> | null}
+ */
+function readBlast(source) {
+    if (!isRecord(source)) return null;
+    const limits = MAP_DESTRUCTIBLE_LIMITS.blast;
+    return Object.freeze({
+        radius: clampNumber(source.radius, limits.radius.min, limits.radius.max, limits.radius.min),
+        damage: clampNumber(source.damage, limits.damage.min, limits.damage.max, limits.damage.min),
+        delaySeconds: clampNumber(source.delaySeconds, limits.delaySeconds.min, limits.delaySeconds.max, 0),
+    });
+}
+
+/**
  * A scene without a trigger or without the model that holds its baked clip can never play, so
  * it is dropped instead of being kept as an entry the runtime would have to guard against.
  * @param {unknown} source
@@ -420,6 +450,7 @@ function readBreakScene(source, index, pieceIds) {
         // Where this clip was baked falling. A scene that states nothing is read as falling towards
         // +Z, which is heading zero and therefore turns by the event heading itself.
         bakedHeading: normalizeHeading(source.bakedHeading),
+        blast: readBlast(source.blast),
     });
 }
 

@@ -12,7 +12,10 @@
 
 export const ENVIRONMENT_KILL_HIT_WINDOW_SECONDS = 4;
 export const ENVIRONMENT_KILL_THREAT_WINDOW_SECONDS = 2;
-const ENVIRONMENT_KILL_CAUSES = new Set(['WALL', 'TRAIL_SELF', 'TRAIL_OTHER']);
+// BLAST: a map structure's collapse can kill without a direct shot on the victim (e.g. a
+// chain-reaction segment with no recorded shooter) - the credit fallback below still finds
+// whoever last damaged the victim, exactly as it already does for a wall or trail death.
+const ENVIRONMENT_KILL_CAUSES = new Set(['WALL', 'TRAIL_SELF', 'TRAIL_OTHER', 'BLAST']);
 const NO_CREDIT = Object.freeze({ killer: null, credit: null });
 
 export function isEnvironmentKillCause(cause) {

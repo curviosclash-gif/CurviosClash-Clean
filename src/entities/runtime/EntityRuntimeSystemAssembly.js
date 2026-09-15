@@ -11,6 +11,7 @@ import { EntityTickPipeline } from './EntityTickPipeline.js';
 import { StaticTurretSystem } from '../systems/StaticTurretSystem.js';
 import { MapHazardSystem } from '../systems/MapHazardSystem.js';
 import { MapDestructibleSystem } from '../systems/MapDestructibleSystem.js';
+import { MapDestructibleBlastSystem } from '../systems/MapDestructibleBlastSystem.js';
 import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
@@ -28,6 +29,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         staticTurretSystem: new StaticTurretSystem(owner),
         mapHazardSystem: new MapHazardSystem(owner),
         mapDestructibleSystem: new MapDestructibleSystem(owner),
+        mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
         exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,

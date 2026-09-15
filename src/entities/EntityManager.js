@@ -53,9 +53,9 @@ function bindRuntimePorts(owner, runtime) {
     owner._globalFogEffectSystem = runtime?.systems?.globalFogEffectSystem || null;
     owner._staticTurretSystem = runtime?.systems?.staticTurretSystem || null;
     owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null; owner._exclusionZoneSystem = runtime?.systems?.exclusionZoneSystem || null;
-    owner._mapDestructibleSystem = runtime?.systems?.mapDestructibleSystem || null;
+    owner._mapDestructibleSystem = runtime?.systems?.mapDestructibleSystem || null; owner._mapDestructibleBlastSystem = runtime?.systems?.mapDestructibleBlastSystem || null;
     // Rockets damage the map through the projectile system, which is built before the systems.
-    owner._projectileSystem?.setMapDestructibleSystem?.(owner._mapDestructibleSystem);
+    owner._projectileSystem?.setMapDestructibleSystem?.(owner._mapDestructibleSystem); owner.onMapDestructibleBreak = (event, options) => owner._mapDestructibleBlastSystem?.schedulePendingBlast?.(event, options);
     owner._roundOutcomeSystem = runtime?.systems?.roundOutcomeSystem || null;
     owner._setupOps = runtime?.systems?.setupOps || null;
     owner._spawnOps = runtime?.systems?.spawnOps || null;
@@ -556,7 +556,7 @@ export class EntityManager {
         } else {
             this._staticTurretSystem?.clear?.();
         }
-        this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
+        this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); this._mapDestructibleBlastSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
         this._globalFogEffectSystem?.reset?.();
         this._huntScoring.reset();
         this._simulationClockMs = 0;
