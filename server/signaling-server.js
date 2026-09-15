@@ -433,6 +433,10 @@ export function createSignalingServer(port = 9090, options = {}) {
 
     wss.on('connection', (ws, request) => {
         ws._serverMetrics = metrics;
+        // ws 8.x reports receiver failures (oversized/malformed frames) via emit('error');
+        // without a listener that throws and kills the process, so attach one before any
+        // early close+return path below.
+        ws.on('error', () => {});
         ws._peerId = `peer-${nextPeerId++}`;
         ws._lastPong = Date.now();
         ws._messageWindowStartedAt = Date.now();
