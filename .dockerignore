@@ -1,0 +1,24 @@
+# The signaling image builds from the repository root
+# (docker build -f server/Dockerfile .), so keep everything it never copies out
+# of the build context. server/ and src/ must stay in.
+.git
+.github
+.githooks
+.claude
+.opencode
+node_modules
+**/node_modules
+dist
+dist-app
+dist-game
+release
+playwright-report
+test-results
+test-results*
+tmp
+logs
+videos
+output
+android-classic/.gradle
+android-classic/app/build
+*.log
