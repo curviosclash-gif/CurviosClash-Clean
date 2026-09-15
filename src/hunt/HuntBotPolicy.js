@@ -222,9 +222,12 @@ function applyRetreatSteeringFallback(policy, input, player, enemy) {
 function applyRetreatSteeringFromSensors(input, snapshot, player) {
     const planarMode = !!resolveGameplayConfig(player).GAMEPLAY.PLANAR_MODE;
     const steering = resolveSensorYawPitch(snapshot);
+    // snapshot.targetYaw traegt dieselbe Zuordnung wie applySteeringTowardPosition, also
+    // "zum Gegner hin". Der Rueckzug braucht das Gegenteil: Vorzeichen umdrehen. Beim Pitch
+    // steht die umgedrehte Zuordnung schon unten.
     if (Math.abs(steering.yaw) > 0.01) {
-        input.yawLeft = steering.yaw > 0;
-        input.yawRight = steering.yaw < 0;
+        input.yawLeft = steering.yaw < 0;
+        input.yawRight = steering.yaw > 0;
     }
     if (!planarMode && Math.abs(steering.pitch) > 0.01) {
         input.pitchUp = steering.pitch < 0;

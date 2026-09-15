@@ -106,10 +106,13 @@ function applyRetreatManeuver(action, player, enemy) {
     }
     TMP_UP.crossVectors(TMP_FORWARD, TMP_RIGHT).normalize();
 
+    // yawTowardEnemy nutzt dieselbe Basis wie applySteeringTowardPosition und zeigt deshalb
+    // zum Gegner. Ein Rueckzug muss weg von ihm lenken, also mit umgedrehtem Vorzeichen -
+    // genau wie es der Pitch unten schon macht.
     const yawTowardEnemy = TMP_RIGHT.dot(TMP_TO_ENEMY);
     if (Math.abs(yawTowardEnemy) > 0.03) {
-        action.yawLeft = yawTowardEnemy > 0;
-        action.yawRight = yawTowardEnemy < 0;
+        action.yawLeft = yawTowardEnemy < 0;
+        action.yawRight = yawTowardEnemy > 0;
     }
 
     if (!planarMode) {

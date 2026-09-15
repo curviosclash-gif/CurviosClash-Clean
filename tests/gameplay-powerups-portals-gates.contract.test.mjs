@@ -1118,3 +1118,116 @@ test('a checkpoint under a portal end counts before the portal moves the player'
     // The portal still works: it just no longer swallows the checkpoint it sits on.
     assert.ok(player.position.x > 100, 'the player is teleported in the same tick');
 });
+
+// Blickrichtung (0,0,-1), Gegner rechts vorn bei (10,0,-20): Der Rueckzug muss nach links
+// lenken. Die gemeinsame Basis cross(WORLD_UP, forward) zeigt hier nach (-1,0,0), also nach
+// links; ein Skalarprodukt kleiner null heisst deshalb "Gegner rechts".
+function createHuntRetreatEnemy() {
+    return {
+        id: 'enemy-front-right',
+        index: 1,
+        alive: true,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 100,
+        position: new THREE.Vector3(10, 0, -20),
+    };
+}
+
+test('P5 E2 HuntBotPolicy Sensor-Rueckzug lenkt vom Gegner rechts vorn nach links', () => {
+    const player = {
+        id: 'hunt-sensor-retreat',
+        index: 0,
+        alive: true,
+        hp: 18,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 100,
+        inventory: [],
+        position: new THREE.Vector3(0, 0, 0),
+        getDirection(out) {
+            return out.set(0, 0, -1);
+        },
+    };
+    const enemy = createHuntRetreatEnemy();
+    const policy = new HuntBotPolicy();
+    policy._fallbackPolicy.update = () => ({
+        yawLeft: false,
+        yawRight: false,
+        pitchUp: false,
+        pitchDown: false,
+        boost: false,
+        shootMG: true,
+        shootItem: false,
+        shootItemIndex: -1,
+        useItem: -1,
+    });
+    // targetYaw ist das Vorzeichen von links * (Gegner - Bot): negativ, weil der Gegner rechts steht.
+    policy._fallbackPolicy.getSensorSnapshot = () => ({
+        targetYaw: -0.447,
+        targetPitch: 0,
+        pressure: 0.9,
+        projectileThreat: true,
+        targetPlayer: enemy,
+        targetInFront: true,
+        targetDistanceSq: player.position.distanceToSquared(enemy.position),
+    });
+
+    const action = policy.update(1 / 60, player, {
+        arena: { portalsEnabled: false, portals: [], specialGates: [] },
+        players: [player, enemy],
+        projectiles: [],
+        huntTarget: null,
+    });
+
+    assert.equal(action.boost, true);
+    assert.equal(action.shootMG, false);
+    assert.equal(action.yawLeft, true, 'Flucht dreht vom Gegner weg nach links');
+    assert.equal(action.yawRight, false);
+});
+
+test('P5 E2 HuntBridgePolicy Rueckzugsmanoever lenkt vom Gegner rechts vorn nach links', () => {
+    const player = {
+        id: 'hunt-bridge-retreat',
+        index: 0,
+        alive: true,
+        hp: 20,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 100,
+        inventory: [],
+        position: new THREE.Vector3(0, 0, 0),
+        getDirection(out) {
+            return out.set(0, 0, -1);
+        },
+    };
+    const enemy = createHuntRetreatEnemy();
+    const observation = new Array(40).fill(0);
+    observation[TARGET_DISTANCE_RATIO] = 0.19;
+    observation[TARGET_IN_FRONT] = 1;
+    observation[PRESSURE_LEVEL] = 0.88;
+    observation[PROJECTILE_THREAT] = 0;
+
+    const policy = new HuntBridgePolicy({
+        fallbackPolicy: {
+            usesRuntimeContext: true,
+            update() {
+                return {};
+            },
+        },
+    });
+    const action = policy.update(1 / 60, player, {
+        arena: { portalsEnabled: false, portals: [], specialGates: [] },
+        players: [player, enemy],
+        projectiles: [],
+        observation,
+        observationContext: { targetDistanceMax: 120 },
+        huntTarget: null,
+    });
+
+    assert.equal(action.boost, true);
+    assert.equal(action.shootMG, false);
+    assert.equal(action.yawLeft, true, 'Rueckzug dreht vom Gegner weg nach links');
+    assert.equal(action.yawRight, false);
+});
