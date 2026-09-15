@@ -59,7 +59,7 @@ node scripts/run-playwright-targeted.mjs tests/physics-core.spec.js
 
 Playwright läuft immer über die Wrapper in `scripts/run-playwright-*.mjs`. Desktop-Profile starten das echte Electron-Fenster gegen den gebauten `dist-app`-Renderer; nur `test:browser:compat` verwendet bewusst den Vite-Browserpfad. `--grep "T1:|T2:"` wird an Playwright durchgereicht.
 
-**Nur ein Playwright-Lauf pro Rechner.** Die Wrapper nehmen ein maschinenweites Schloss (`scripts/playwright-run-lock.mjs`, Datei im Temp-Ordner) und warten, solange eine andere Sitzung läuft — zwei Electron-Läufe auf derselben GPU verfälschen sich gegenseitig. Ein Cluster-Lauf hält das Schloss für alle seine Specs. Wartet ein Wrapper, nennt er Label, PID und Startzeit des Halters; `CURVIOS_PLAYWRIGHT_LOCK=0` schaltet das Schloss ab, `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` begrenzt die Wartezeit (Standard 45 Minuten).
+**Nur ein Playwright-Lauf pro Rechner.** Die Wrapper nehmen ein maschinenweites Schloss (`scripts/playwright-run-lock.mjs`, Datei im Temp-Ordner) und warten, solange eine andere Sitzung läuft — zwei Electron-Läufe auf derselben GPU verfälschen sich gegenseitig. Ein Cluster-Lauf hält das Schloss für alle seine Specs. Wartende reihen sich über Ticketdateien in eine Warteschlange ein (wer zuerst kam, ist zuerst dran) und bekommen ihre Position gemeldet; der Halter schreibt alle 30 Sekunden einen Herzschlag ins Schloss, sodass ein hängender Lauf es nach 10 stillen Minuten freigibt. `CURVIOS_PLAYWRIGHT_LOCK=0` schaltet das Schloss ab, `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` begrenzt die Wartezeit (Standard 120 Minuten); läuft sie ab, endet der Wrapper mit Exit-Code 75 statt 1.
 
 Die Desktop-E2E-Suite ist in benannte Cluster geschnitten (`scripts/playwright-test-clusters.mjs`). Der Cluster-Runner akzeptiert Cluster-IDs *und* Spec-Pfade, sodass gezielt ein Cluster statt der ganzen Suite läuft:
 
@@ -96,7 +96,21 @@ Bots und Performance laufen über `dev/training/scripts/`: `npm run bot:validate
 
 ## Pflichtprüfung vor dem Commit
 
-`AGENTS.md` verlangt „die kleinsten betroffenen Tests und den passenden Build". `npm run quality` ist dafür der Ersatz, wenn nichts Genaueres passt — es ist aber langsam. Zuordnung nach geändertem Bereich (`npm run lint` gilt immer, `test:contract:fast` ist die Grundlast):
+`AGENTS.md` verlangt „die kleinsten betroffenen Tests und den passenden Build". Die Prüfung läuft in **drei Stufen**. Die Trennlinie ist das Playwright-Schloss — die Sperrdatei, die nur einen Playwright-Lauf je Rechner zulässt:
+
+- **Stufe 1 (immer, im Agenten, vor jedem Commit):** der eigene Contract-Test (`node --test tests/<datei>.contract.test.mjs`, vor der Änderung nachweislich rot), `npm run lint`, `npm run test:contract:fast`, dazu die Typecheck- und Architektur-Prüfungen der Tabelle unten. Nichts davon nimmt das Schloss. **Ohne grüne Stufe 1 kein Commit.**
+- **Stufe 2 (gezielt, Richtwert unter 10 Minuten):** die Test-IDs des berührten Bereichs statt eines ganzen Clusters, z. B. `node scripts/run-playwright-targeted.mjs tests/core-targeted-surface.spec.js --grep "T20kb:|T20kc:|T20i:"`. Welche IDs zu welchem Bereich gehören, sagt `node .claude/skills/verify-scope/scripts/select-verification.mjs <deine-dateien>`.
+- **Stufe 3 (ganze Cluster):** nur in der Hauptsitzung, losgelöst gestartet (`Start-Process` mit UTF-8-Protokoll), immer mit `--skip-known` und `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` von mindestens zwei Stunden. **Nie in einem Subagenten** — der wartet 20–40 Minuten und beendet sich vorher. Beleg ist die letzte Zeile `[playwright:summary] passed=… failed=… skipped=… didNotRun=… flaky=… known=… new=…`. Ein Lauf ohne `didNotRun=0` hat über den eigenen Bereich nichts ausgesagt.
+
+**Exit-Code 75** aus einem Playwright-Wrapper heißt Schloss-Timeout, nicht Testfehler (Zeile `[playwright:lock] LOCK_TIMEOUT holder=… pid=… waited=…s`): eine andere Sitzung hielt die Maschine. Später erneut starten, nicht als rot werten.
+
+Bekannte Alt-Fehler stehen in `scripts/architecture/playwright-known-failures.json` (Spec, Testtitel, Datum, Ursache, Art). `--skip-known` blendet sie aus, damit serielle Ketten nicht am ersten davon abbrechen; die Zählung `count` in derselben Datei ist ein Ratchet und darf nur sinken.
+
+`node scripts/run-playwright-targeted-clusters.mjs --print-clusters` listet nur und startet nichts.
+
+Aufträge an Subagenten enthalten den Satz „bis Stufe 1 grün, kein Commit, keine Cluster".
+
+Zuordnung nach geändertem Bereich (`npm run lint` gilt immer, `test:contract:fast` ist die Grundlast; `npm run quality` ist der langsame Ersatz, wenn nichts Genaueres passt):
 
 | Geänderter Bereich | Zusätzlich verpflichtend |
 | --- | --- |
@@ -113,7 +127,7 @@ Bots und Performance laufen über `dev/training/scripts/`: `npm run bot:validate
 | `.opencode/**`, `scripts/council-*` | `npm run council:validate` (Pflicht-Gate laut AGENTS.md) |
 | `scripts/architecture/**`, Lint-/TS-Konfiguration | `npm run quality` vollständig |
 
-Cluster werden mit `node scripts/run-playwright-targeted-clusters.mjs <cluster-id>` gestartet.
+Cluster (Stufe 3) werden mit `node scripts/run-playwright-targeted-clusters.mjs <cluster-id> --skip-known` gestartet.
 
 ## Architektur
 

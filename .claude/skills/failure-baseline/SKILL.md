@@ -5,9 +5,17 @@ description: Klärt in diesem Repo, ob ein roter Playwright-Cluster an der eigen
 
 # Alt-Fehler von eigenen Fehlern trennen
 
-Mehrere Playwright-Cluster in diesem Projekt sind seit längerem teilweise rot. Die Commit-Historie nennt das „at their known pre-existing failures" — aber im Repo steht keine Liste dieser Fehler, und es gibt auch keine, weil sie sich mit jedem Umbau verschiebt. Die Aussage muss deshalb jedes Mal neu belegt werden.
+Mehrere Playwright-Cluster in diesem Projekt sind seit längerem teilweise rot. Die Commit-Historie nennt das „at their known pre-existing failures".
 
 Das ist wichtiger, als es klingt. „War schon vorher kaputt" ist die bequemste Erklärung für jeden roten Test und deshalb genau die, die eine echte Regression durchlässt. Ein Mengenvergleich kann sich nicht selbst belügen.
+
+## Schritt 0 — erst in die eingecheckte Liste schauen
+
+Seit `scripts/architecture/playwright-known-failures.json` im Repo liegt, ist der erste Schritt kein Testlauf, sondern ein Blick in diese Datei. Sie nennt je Eintrag Spec-Datei, Testtitel, das Datum seit wann er rot ist, die Ursache und die Art (`stale-test`, `regression`, `env`, `flaky`). Steht dein roter Test dort, ist der Beleg damit erbracht — nenne im Commit-Body Datum und Grund aus dem Eintrag.
+
+Noch schneller geht es über die Zusammenfassung: `scripts/summarize-playwright-results.mjs` liest dieselbe Datei und klassifiziert jeden roten Test eines Laufs selbst als `known`, `env` oder `new`. Steht in der letzten Zeile `new=0`, hat dein Lauf keinen neuen Fehler erzeugt.
+
+Erst wenn ein roter Test **nicht** in der Liste steht, geht es mit dem Artefakt-Datum weiter (siehe unten) und danach mit einer Gegenprobe. Und umgekehrt: Wird ein Eintrag der Liste wieder grün, nimm ihn heraus und senke `count` — der Contract-Test `tests/playwright-known-failures.contract.test.mjs` erzwingt, dass jeder Eintrag auf einen existierenden Test zeigt.
 
 ## Der günstige Weg: Baseline vor der Änderung
 
