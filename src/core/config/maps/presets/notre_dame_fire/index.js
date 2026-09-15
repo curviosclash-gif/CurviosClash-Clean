@@ -7,16 +7,23 @@
 //
 // The light is copied rather than shared, on purpose. See NotreDameFireLighting.js.
 //
-// The authored obstacle set is deliberately still the intact one. Those boxes only ever compile
+// The authored cathedral boxes are deliberately still the intact ones. They only ever compile
 // when a GLB fails to load, and they are what keeps a match playable in that case -- a fallback
 // that still has a roof is a better failure than a cathedral with no upper storey at all. What
 // the fire changed is carried by the models, because with glbColliderMode 'scene' the drawn
 // surface is the collision.
+//
+// The site frames at the end of that list are the exception: they carry compileWithGlb, so they
+// stand as collision even once the GLBs are up, and their visuals are discarded. Every one of
+// them braces a machine this map does not draw, so they are filtered out below -- otherwise the
+// hoarding on the river approach, the stone hoist's beam and the scaffold decks would be
+// invisible walls and floors in open air.
 
 import { NOTRE_DAME_COMMON } from '../notre_dame/index.js';
 import {
     GROUND,
 } from '../notre_dame/NotreDameStructure.js';
+import { NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID } from '../notre_dame/NotreDameSiteFrames.js';
 import {
     NOTRE_DAME_FIRE_CHECKPOINTS,
     NOTRE_DAME_FIRE_FINISH,
@@ -27,7 +34,10 @@ import {
     NOTRE_DAME_FIRE_ARENA_LIGHTING,
     NOTRE_DAME_FIRE_LIGHTS,
 } from './NotreDameFireLighting.js';
-import { NOTRE_DAME_FIRE_MODELS } from './NotreDameFireModels.js';
+import {
+    NOTRE_DAME_FIRE_MODELS,
+    NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS,
+} from './NotreDameFireModels.js';
 import { NOTRE_DAME_FIRE_FX } from './NotreDameFireFx.js';
 import { NOTRE_DAME_FIRE_HAZARDS } from './NotreDameFireHazards.js';
 
@@ -70,8 +80,16 @@ export const NOTRE_DAME_FIRE_AUDIO_PROFILE = Object.freeze({
     }),
 });
 
+// The intact obstacle list minus the boxes that brace a machine the fire removed. Kept boxes stay
+// the very objects the intact map holds, so they cannot drift apart from it.
+const NOTRE_DAME_FIRE_OBSTACLES = NOTRE_DAME_COMMON.obstacles.filter((obstacle) => {
+    const bracedModelId = NOTRE_DAME_SITE_FRAME_MODEL_ID_BY_FRAME_ID.get(obstacle?.id);
+    return !bracedModelId || !NOTRE_DAME_FIRE_REMOVED_SITE_MODEL_IDS.has(bracedModelId);
+});
+
 const NOTRE_DAME_FIRE_COMMON = {
     ...NOTRE_DAME_COMMON,
+    obstacles: NOTRE_DAME_FIRE_OBSTACLES,
     audioProfile: NOTRE_DAME_FIRE_AUDIO_PROFILE,
     fireFx: NOTRE_DAME_FIRE_FX,
     mapHazards: NOTRE_DAME_FIRE_HAZARDS,
