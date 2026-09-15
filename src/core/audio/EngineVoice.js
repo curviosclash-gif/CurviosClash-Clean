@@ -127,6 +127,10 @@ export function stopEngineVoice(audio) {
         gain.gain.cancelScheduledValues?.(time);
         gain.gain.setTargetAtTime?.(ENGINE_IDLE_GAIN, time, 0.06);
     }
+    // The pulse gain is summed onto engine.gain.gain, so a leftover depth keeps
+    // the body tone throbbing above the idle floor while the engine is stopped.
+    engine.mechanicalPulseGain.gain.cancelScheduledValues?.(time);
+    engine.mechanicalPulseGain.gain.setTargetAtTime?.(0, time, 0.06);
     engine.active = false;
 }
 

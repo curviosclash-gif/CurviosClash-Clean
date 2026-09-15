@@ -1086,3 +1086,30 @@ test('audio can be switched back on after it was disabled at runtime', async () 
         }
     });
 });
+
+test('a stopped engine silences its pulse modulation instead of humming on', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            audio.updateEngine({ alive: true, speed: 30, baseSpeed: 18, boosting: true });
+            assert.ok(audio._engine.mechanicalPulseGain.gain.value > 0.002);
+
+            audio.stopEngine();
+
+            assert.equal(audio._engine.active, false);
+            // mechanicalPulseGain feeds gain.gain, so any residue keeps the body
+            // tone audible even though gain.gain itself is at the idle floor.
+            assert.equal(audio._engine.mechanicalPulseGain.gain.value, 0);
+            assert.ok(audio._engine.gain.gain.value <= 0.0001);
+            assert.ok(audio._engine.turbineGain.gain.value <= 0.0001);
+            assert.ok(audio._engine.airGain.gain.value <= 0.0001);
+
+            audio.updateEngine({ alive: true, speed: 30, baseSpeed: 18, boosting: true });
+            assert.ok(audio._engine.mechanicalPulseGain.gain.value > 0);
+        } finally {
+            audio.dispose();
+        }
+    });
+});
