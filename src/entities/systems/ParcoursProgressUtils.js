@@ -402,7 +402,10 @@ export function resolveExpectedCheckpointEntries(route, state) {
     const allowedEntries = state.expectedEntriesScratch || (state.expectedEntriesScratch = []);
     allowedEntries.length = 0;
     for (const entry of entries) {
-        if (allowedIds.includes(entry.id)) allowedEntries.push(entry);
+        // nextCheckpointIds only ever names canonical checkpoints, so a substitute lane has to be
+        // matched through the stage it stands in for. Comparing its own id dropped it from the
+        // expected set and turned taking that lane into a wrong-order penalty.
+        if (allowedIds.includes(entry.aliasOf || entry.id)) allowedEntries.push(entry);
     }
     return allowedEntries.length > 0 ? allowedEntries : entries;
 }
