@@ -32,6 +32,7 @@ const {
     isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
 const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
+const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');
 const { createMainWindowCloseLifecycle } = require('./main-window-lifecycle.cjs');
 const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');
 const {
@@ -832,19 +833,27 @@ async function offerOrphanedCinematicReplayExports() {
     }
 }
 
-function registerTuningShortcut() {
-    globalShortcut.unregister(TUNING_CONSOLE_HOTKEY);
-    const registered = globalShortcut.register(TUNING_CONSOLE_HOTKEY, () => {
+// The tuning hotkey is a system-wide accelerator, so it must only be held while
+// one of our own windows has focus — otherwise F7 stays swallowed in every other
+// program for as long as the game runs, even minimised.
+const tuningShortcut = createFocusScopedShortcut({
+    globalShortcut,
+    appEvents: app,
+    accelerator: TUNING_CONSOLE_HOTKEY,
+    onTrigger: () => {
         void tuningWindowShellCapability.toggleTuningWindow({ focus: true });
-    });
-    if (!registered) {
-        console.warn(`[tuning] Hotkey ${TUNING_CONSOLE_HOTKEY} konnte nicht registriert werden.`);
-    }
-    return registered;
+    },
+    isAnyWindowFocused: () => BrowserWindow.getAllWindows()
+        .some((window) => !window.isDestroyed() && window.isFocused()),
+});
+
+function registerTuningShortcut() {
+    tuningShortcut.start();
+    return tuningShortcut.isRegistered();
 }
 
 function unregisterTuningShortcut() {
-    globalShortcut.unregister(TUNING_CONSOLE_HOTKEY);
+    tuningShortcut.stop();
 }
 
 function registerTuningBridgeIpc() {
