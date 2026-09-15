@@ -27,6 +27,7 @@
       "hangar-window.cjs",
       "hangar-preload.cjs",
       "editor-download-target.cjs",
+      "main-window-lifecycle.cjs",
       "editor-preload.cjs",
       "editor-vehicle-store.cjs",
       "tuning-console/**/*",

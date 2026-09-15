@@ -32,6 +32,7 @@ const {
     isTrustedEditorUrl,
 } = require('./window-security-options.cjs');
 const { installEditorDownloadTarget } = require('./editor-download-target.cjs');
+const { createMainWindowCloseLifecycle } = require('./main-window-lifecycle.cjs');
 const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');
 const {
     UNTRUSTED_IPC_SENDER_CODE,
@@ -567,17 +568,15 @@ async function createWindow() {
     // Before destroying the window, ask the renderer to run its own lifecycle
     // teardown (facade.dispose → GAME_DISPOSE finalize → MATCH_FINALIZED signal
     // to any connected multiplayer peers).  A GRACEFUL_CLOSE_TIMEOUT_MS timeout
-    // ensures the window always closes even if the renderer is unresponsive.
-    let gracefulCloseReady = false;
-    let exportCloseDecisionPending = false;
-    let exportCloseApproved = false;
-    mainWindow.on('close', (event) => {
-        if (gracefulCloseReady) return;
-        event.preventDefault();
-        if (cinematicReplayVideoExportJob?.getStatus?.().active === true && !exportCloseApproved) {
-            if (exportCloseDecisionPending) return;
-            exportCloseDecisionPending = true;
-            void dialog.showMessageBox(mainWindow, {
+    // ensures the window always closes even if the renderer is unresponsive —
+    // the state machine lives in main-window-lifecycle.cjs so it stays testable
+    // without Electron.
+    const closeLifecycle = createMainWindowCloseLifecycle({
+        getWindow: () => mainWindow,
+        isExportActive: () => cinematicReplayVideoExportJob?.getStatus?.().active === true,
+        cancelExport: (payload) => cinematicReplayVideoExportJob.cancel(payload),
+        confirmExportClose: async () => {
+            const result = await dialog.showMessageBox(mainWindow, {
                 type: 'warning',
                 title: 'Videoexport laeuft',
                 message: 'Ein Cinematic Replay wird noch als MP4 exportiert.',
@@ -586,48 +585,27 @@ async function createWindow() {
                 defaultId: 0,
                 cancelId: 2,
                 noLink: true,
-            }).then(async (result) => {
-                exportCloseDecisionPending = false;
-                if (result.response === 2) return;
-                exportCloseApproved = true;
-                if (result.response === 1) {
-                    await cinematicReplayVideoExportJob.cancel({
-                        reason: 'application_close_confirmed',
-                    });
-                }
-                if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
-            }).catch(() => {
-                exportCloseDecisionPending = false;
             });
-            return;
-        }
-
-        const onGracefulCloseReady = (ipcEvent) => {
-            if (!isTrustedMainWindowSender(ipcEvent)) return;
-            if (timeoutId !== null) clearTimeout(timeoutId);
-            finish();
-        };
-        const finish = () => {
-            if (gracefulCloseReady) return;
-            gracefulCloseReady = true;
-            ipcMain.removeListener('graceful-close-ready', onGracefulCloseReady);
-            if (mainWindow && !mainWindow.isDestroyed()) {
-                mainWindow.close();
-            }
-        };
-
-        const timeoutId = exportCloseApproved
-            ? null
-            : setTimeout(finish, GRACEFUL_CLOSE_TIMEOUT_MS);
-        ipcMain.on('graceful-close-ready', onGracefulCloseReady);
-
-        try {
+            if (result.response === 1) return 'cancel-export';
+            if (result.response === 2) return 'stay';
+            return 'wait';
+        },
+        requestGracefulClose: () => {
             mainWindow.webContents.send('request-graceful-close');
-        } catch {
-            // Renderer already gone — proceed immediately.
-            if (timeoutId !== null) clearTimeout(timeoutId);
-            finish();
-        }
+        },
+        addReadyListener: (handler) => ipcMain.on('graceful-close-ready', handler),
+        removeReadyListener: (handler) => ipcMain.removeListener('graceful-close-ready', handler),
+        isTrustedReadySender: (ipcEvent) => isTrustedMainWindowSender(ipcEvent),
+        timeoutMs: GRACEFUL_CLOSE_TIMEOUT_MS,
+        onError: (error) => {
+            console.warn('[window] Graceful close step failed:', error?.message || error);
+        },
+    });
+    mainWindow.on('close', (event) => closeLifecycle.handleClose(event));
+    // A crashed or killed renderer can never answer the handshake, so drop the
+    // export job and tear the window down instead of waiting for it.
+    mainWindow.webContents.on('render-process-gone', () => {
+        void closeLifecycle.handleRenderProcessGone();
     });
 }
 
