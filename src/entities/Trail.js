@@ -388,6 +388,9 @@ export class Trail {
             reusableRef = oldRef;
             if (oldRef && this.trailSpatialIndex) {
                 this.trailSpatialIndex.unregisterTrailSegment(oldRef.key, oldRef.entry);
+                // The index may have taken the key list back into its pool. Holding on to it
+                // here would let the next registration hand the same array out twice.
+                oldRef.key = null;
             }
         }
 

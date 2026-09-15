@@ -21,6 +21,10 @@ export class TrailSegmentRegistry {
         this._keysBuffer = [];
         this._keyArrayPool = [];
         this._maxKeyArrayPoolSize = 64;
+        // Ownership marker for the pool: an array in here belongs to the pool alone, even
+        // while a caller still holds it in an old ref. Handing it out twice would let two
+        // live segments share one key list, and the loser would stay in the grid forever.
+        this._pooledKeyArrays = new WeakSet();
     }
 
     _getEntryLookupKey(playerIndex, segmentIdx) {
@@ -93,7 +97,7 @@ export class TrailSegmentRegistry {
 
         let keyRef = keys.length === 1 ? keys[0] : null;
         if (keys.length > 1) {
-            if (reusableRef && Array.isArray(reusableRef.key)) {
+            if (reusableRef && Array.isArray(reusableRef.key) && !this._pooledKeyArrays.has(reusableRef.key)) {
                 const reusableKeys = reusableRef.key;
                 reusableKeys.length = 0;
                 for (let i = 0; i < keys.length; i++) {
@@ -102,6 +106,7 @@ export class TrailSegmentRegistry {
                 keyRef = reusableKeys;
             } else {
                 const pooled = this._keyArrayPool.length > 0 ? this._keyArrayPool.pop() : [];
+                this._pooledKeyArrays.delete(pooled);
                 pooled.length = 0;
                 for (let i = 0; i < keys.length; i++) {
                     pooled.push(keys[i]);
@@ -131,8 +136,9 @@ export class TrailSegmentRegistry {
                     this._entryLookup.delete(entry._descriptorKey);
                 }
                 entry._gridKeyRef = null;
-                if (this._keyArrayPool.length < this._maxKeyArrayPoolSize) {
+                if (this._keyArrayPool.length < this._maxKeyArrayPoolSize && !this._pooledKeyArrays.has(key)) {
                     key.length = 0;
+                    this._pooledKeyArrays.add(key);
                     this._keyArrayPool.push(key);
                 }
             }
