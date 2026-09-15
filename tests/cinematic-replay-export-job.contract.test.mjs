@@ -181,8 +181,12 @@ test('desktop shutdown asks before aborting an active export and has no three-se
     assert.doesNotMatch(source, /GRACEFUL_CLOSE_TIMEOUT_MS\s*=\s*3000\b/);
     assert.match(source, /Export abwarten/);
     assert.match(source, /Export abbrechen/);
-    assert.match(source, /application_close_confirmed/);
-    assert.match(source, /exportCloseApproved\s*\?\s*null/);
+    const lifecycle = await readFile(new URL('../electron/main-window-lifecycle.cjs', import.meta.url), 'utf8');
+    assert.match(lifecycle, /application_close_confirmed/);
+    // J1: the fallback timeout must never be skipped, not even after the export
+    // dialog was confirmed — otherwise a hung renderer traps the window.
+    assert.doesNotMatch(source, /exportCloseApproved\s*\?\s*null/);
+    assert.match(source, /render-process-gone/);
     assert.match(source, /Wiederherstellen/);
     assert.match(source, /Bestaetigt bereinigen/);
 });
