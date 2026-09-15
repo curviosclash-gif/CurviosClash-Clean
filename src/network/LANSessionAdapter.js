@@ -224,9 +224,19 @@ export class LANSessionAdapter extends SessionAdapterBase {
         });
     }
 
+    /**
+     * True once disconnect()/dispose() ran or the host stopped its lobby polling.
+     * Signaling work that is still in flight must stop instead of talking to the
+     * server on behalf of a session nobody listens to any more.
+     */
+    _isSignalingAborted() {
+        return this._isDisconnecting || (this.isHost && this._pollStopped);
+    }
+
     async _pollIceCandidates(peerId, options = {}) {
         const playerId = String(options.playerId || this.localPlayerId || '').trim();
         if (!playerId) return;
+        if (this._isSignalingAborted()) return;
         await pollIceCandidates({
             signalingUrl: this._signalingUrl,
             playerId,
@@ -320,14 +330,10 @@ export class LANSessionAdapter extends SessionAdapterBase {
                 body: JSON.stringify({ targetPlayerId: targetPeerId, offer, hostToken: this._peerToken }),
             }).catch((err) => { logger.warn('Offer send to pending client failed:', err); });
 
-            for (let i = 0; i < 30; i += 1) {
+            for (let i = 0; i < 30 && !this._isSignalingAborted(); i += 1) {
                 // Poll for ICE candidates from client while waiting for answer
                 try {
-                    const iceParams = new URLSearchParams({
-                        playerId: 'host',
-                        token: this._peerToken,
-                        fromPlayerId: targetPeerId,
-                    });
+                    const iceParams = new URLSearchParams({ playerId: 'host', token: this._peerToken, fromPlayerId: targetPeerId });
                     const iceRes = await fetch(`${this._signalingUrl}/signaling/ice?${iceParams.toString()}`);
                     const iceData = await iceRes.json();
                     if (Array.isArray(iceData.candidates)) {
@@ -340,10 +346,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
                 }
 
                 try {
-                    const answerParams = new URLSearchParams({
-                        playerId: targetPeerId,
-                        token: this._peerToken,
-                    });
+                    const answerParams = new URLSearchParams({ playerId: targetPeerId, token: this._peerToken });
                     const res = await fetch(`${this._signalingUrl}/signaling/answer?${answerParams.toString()}`);
                     const data = await res.json();
                     if (!data.answer) {
@@ -351,6 +354,9 @@ export class LANSessionAdapter extends SessionAdapterBase {
                         continue;
                     }
                     await this._peerManager.handleAnswer(targetPeerId, data.answer);
+                    // The host shut down while the handshake was in flight: acking the
+                    // pending entry would drop it server-side with nobody listening.
+                    if (this._isSignalingAborted()) return;
                     this._latencyMonitor.addPeer(targetPeerId);
 
                     // Keep this connection attempt in-flight until the server has
