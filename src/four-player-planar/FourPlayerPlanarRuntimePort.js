@@ -24,8 +24,9 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         notifySettingsChanged() {
             runtime()?._onSettingsChanged?.();
         },
+        /** Passes the runtime answer on so a rejected start can be undone. */
         startMatch() {
-            runtime()?.startMatch?.();
+            return runtime()?.startMatch?.();
         },
         getRuntimeConfig() {
             return runtime()?.runtimeConfig || null;

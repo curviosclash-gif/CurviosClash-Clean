@@ -232,8 +232,34 @@ export class FourPlayerPlanarModule {
         // Eine offene Tastenauswahl wuerde jeden Tastendruck des Matches schlucken.
         this.closeSetup();
         this.runtime.notifySettingsChanged();
-        this.runtime.startMatch();
+        this._settleMatchStart(this.runtime.startMatch());
         return true;
+    }
+
+    /**
+     * Ein abgewiesener Start (Startpruefung, offener Hangar) darf die gesicherten
+     * Einstellungen nicht liegen lassen - sonst speichert der Autosave kurz
+     * darauf die Vier-Spieler-Werte als normale Einstellungen.
+     *
+     * @param {unknown} result Rueckmeldung der Laufzeit auf den Startbefehl.
+     */
+    _settleMatchStart(result) {
+        if (result && typeof (/** @type {any} */ (result).then) === 'function') {
+            Promise.resolve(result).then(
+                (value) => { if (value === false && !this._matchActive) this._restoreMatchSettings(true); },
+                () => { if (!this._matchActive) this._restoreMatchSettings(true); }
+            );
+            return;
+        }
+        if (result === false) {
+            this._restoreMatchSettings(true);
+            return;
+        }
+        // Ohne Rueckmeldung zaehlt der Zustand: steht das Spiel noch im Menue,
+        // kam kein Match zustande.
+        if (result == null && this.runtime?.getGameStateId?.() === GAME_STATE_IDS.MENU) {
+            this._restoreMatchSettings(true);
+        }
     }
 
     /**
@@ -258,11 +284,15 @@ export class FourPlayerPlanarModule {
         this._matchSettingsWereActive = false;
     }
 
-    _restoreMatchSettings() {
+    /**
+     * @param {boolean} [force] Setzt auch zurueck, bevor das Match je lief - fuer
+     * einen Start, den die Laufzeit abgewiesen hat.
+     */
+    _restoreMatchSettings(force = false) {
         const snapshot = this._matchSettingsSnapshot;
-        // Erst wenn das Match wirklich lief, darf zurueckgestellt werden. Sonst
-        // wuerde ein Bild zwischen Start und Laufzeit die Werte schon kippen.
-        if (!snapshot || !this._matchSettingsWereActive) return;
+        // Sonst gilt: erst wenn das Match wirklich lief, darf zurueckgestellt
+        // werden. Ein Bild zwischen Start und Laufzeit wuerde die Werte kippen.
+        if (!snapshot || (!force && !this._matchSettingsWereActive)) return;
         this._matchSettingsSnapshot = null;
         this._matchSettingsWereActive = false;
         const settings = this.runtime?.getSettings?.();

@@ -408,7 +408,16 @@ function createFourPlayerHarness() {
         vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship5' },
         localSettings: { sessionType: 'splitscreen' },
     };
-    const state = { gameStateId: 'MENU', runtimeActive: false, startedMatches: 0, settingsChanges: 0 };
+    const state = {
+        gameStateId: 'MENU',
+        runtimeActive: false,
+        startedMatches: 0,
+        settingsChanges: 0,
+        // Ein abgewiesener Start bleibt im Menue; startResult steht fuer die
+        // Rueckmeldung der Laufzeit (false, oder gar keine).
+        rejectStart: false,
+        startResult: true,
+    };
     const runtimePort = {
         getSettings: () => settings,
         ensureLocalSettings: () => settings.localSettings,
@@ -427,8 +436,10 @@ function createFourPlayerHarness() {
         notifySettingsChanged() { state.settingsChanges += 1; },
         startMatch() {
             state.startedMatches += 1;
+            if (state.rejectStart) return state.startResult;
             state.runtimeActive = true;
             state.gameStateId = 'PLAYING';
+            return state.startResult;
         },
     };
     return { settings, state, runtimePort };
@@ -496,4 +507,37 @@ test('starting the match ends an open roll key capture instead of eating the key
     });
     assert.equal(stopped, 0, 'a steering key must reach the input system during the match');
     assert.equal(prevented, 0, 'a steering key is not swallowed by the menu any more');
+});
+
+test('a rejected match start restores the settings immediately', async () => {
+    const rejected = await createFourPlayerModule();
+    rejected.state.rejectStart = true;
+    rejected.state.startResult = false;
+    rejected.module.startMatch();
+    assert.equal(rejected.state.startedMatches, 1, 'the start was attempted');
+    // Kein update() dazwischen: ein abgewiesener Start darf nichts liegen lassen,
+    // sonst schreibt der Autosave die Vier-Spieler-Werte auf die Platte.
+    assert.equal(rejected.settings.gameplay.planarMode, false, '2D mode is not left behind');
+    assert.equal(rejected.settings.autoRoll, true, 'auto roll is not left behind');
+    assert.equal(rejected.settings.gameMode, 'CLASSIC', 'the game mode is not left behind');
+    assert.equal(rejected.settings.numBots, 3, 'the bot count is not left behind');
+    assert.deepEqual(
+        rejected.settings.vehicles,
+        { PLAYER_1: 'ship5', PLAYER_2: 'ship5' },
+        'both hangar vehicles are not left behind'
+    );
+
+    // Gleiches Bild, wenn die Laufzeit gar nichts zurueckmeldet: das Spiel steht
+    // dann noch im Menue, also kam kein Match zustande.
+    const silent = await createFourPlayerModule();
+    silent.state.rejectStart = true;
+    silent.state.startResult = undefined;
+    silent.module.startMatch();
+    assert.equal(silent.settings.gameplay.planarMode, false, 'a silent rejection is treated as a rejection');
+    assert.equal(silent.settings.mapKey, 'standard', 'the map is not left behind');
+
+    // Ein angenommener Start behaelt die Vier-Spieler-Werte fuer das Match.
+    const accepted = await createFourPlayerModule();
+    accepted.module.startMatch();
+    assert.equal(accepted.settings.gameplay.planarMode, true, 'an accepted start keeps the match values');
 });
