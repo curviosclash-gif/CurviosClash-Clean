@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { existsSync, mkdtempSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -23,8 +23,9 @@ const KEYS = [
 ];
 const quantize = (x, y, z) => [x, y, z].map((v) => Math.round(v * 1000)).join(',');
 
-test('desktop asset copy includes every local map pack and excludes Blender sources', () => {
+test('desktop asset copy includes every local map pack and excludes Blender sources', (t) => {
     const outDir = mkdtempSync(path.join(tmpdir(), 'curvios-map-copy-'));
+    t.after(() => rmSync(outDir, { recursive: true, force: true }));
     const plugin = copyObjVehicleAssetsPlugin();
     plugin.configResolved({ root: process.cwd(), build: { outDir } });
     plugin.writeBundle();
