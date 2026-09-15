@@ -39,6 +39,8 @@ export class FourPlayerPlanarModule {
         this._matchActive = false;
         this._hudTickTimer = 0;
         this._rollKeyCapture = null;
+        this._matchSettingsSnapshot = null;
+        this._matchSettingsWereActive = false;
         this._lastHudValues = Array.from({ length: FOUR_PLAYER_PLANAR_HUMAN_COUNT }, () => ({}));
     }
 
@@ -119,6 +121,9 @@ export class FourPlayerPlanarModule {
     }
 
     _captureRollKey(event) {
+        // Eine Auswahl, deren Menue nicht mehr sichtbar ist, darf die Tastatur
+        // nicht laenger abfangen - sonst blockiert sie das laufende Match.
+        if (this._rollKeyCapture && !this.setupView.isSetupVisible()) this._rollKeyCapture = null;
         const capture = this._rollKeyCapture;
         if (!capture) {
             const rollBindings = this.runtime?.getRuntimeConfig?.()?.session?.fourPlayerPlanar?.rollBindings || [];
@@ -176,8 +181,8 @@ export class FourPlayerPlanarModule {
     }
 
     closeSetup() {
-        if (!this.setupView.isMounted()) return;
         this._rollKeyCapture = null;
+        if (!this.setupView.isMounted()) return;
         this.setupView.closeSetup();
     }
 
@@ -213,6 +218,7 @@ export class FourPlayerPlanarModule {
         localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
         localSettings.fourPlayerPlanar = selection;
         localSettings.modePath = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'fight' : 'normal';
+        this._captureMatchSettingsSnapshot(settings);
         settings.mode = '2p';
         settings.gameMode = selection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? 'HUNT' : 'CLASSIC';
         settings.mapKey = selection.mapKey;
@@ -223,9 +229,55 @@ export class FourPlayerPlanarModule {
         if (!settings.vehicles) settings.vehicles = {};
         settings.vehicles.PLAYER_1 = selection.vehicleId;
         settings.vehicles.PLAYER_2 = selection.vehicleId;
+        // Eine offene Tastenauswahl wuerde jeden Tastendruck des Matches schlucken.
+        this.closeSetup();
         this.runtime.notifySettingsChanged();
         this.runtime.startMatch();
         return true;
+    }
+
+    /**
+     * Die Vier-Spieler-Werte gelten nur fuer das Match. RuntimeConfig liest sie
+     * ohnehin aus localSettings.fourPlayerPlanar; die gemeinsamen Einstellungen
+     * werden deshalb vorher gesichert und beim Verlassen wiederhergestellt.
+     *
+     * @param {any} settings
+     */
+    _captureMatchSettingsSnapshot(settings) {
+        if (this._matchSettingsSnapshot) return;
+        this._matchSettingsSnapshot = {
+            mode: settings.mode,
+            gameMode: settings.gameMode,
+            mapKey: settings.mapKey,
+            numBots: settings.numBots,
+            autoRoll: settings.autoRoll,
+            planarMode: settings.gameplay?.planarMode,
+            vehiclePlayer1: settings.vehicles?.PLAYER_1,
+            vehiclePlayer2: settings.vehicles?.PLAYER_2,
+        };
+        this._matchSettingsWereActive = false;
+    }
+
+    _restoreMatchSettings() {
+        const snapshot = this._matchSettingsSnapshot;
+        // Erst wenn das Match wirklich lief, darf zurueckgestellt werden. Sonst
+        // wuerde ein Bild zwischen Start und Laufzeit die Werte schon kippen.
+        if (!snapshot || !this._matchSettingsWereActive) return;
+        this._matchSettingsSnapshot = null;
+        this._matchSettingsWereActive = false;
+        const settings = this.runtime?.getSettings?.();
+        if (!settings) return;
+        settings.mode = snapshot.mode;
+        settings.gameMode = snapshot.gameMode;
+        settings.mapKey = snapshot.mapKey;
+        settings.numBots = snapshot.numBots;
+        settings.autoRoll = snapshot.autoRoll;
+        if (settings.gameplay) settings.gameplay.planarMode = snapshot.planarMode;
+        if (settings.vehicles) {
+            settings.vehicles.PLAYER_1 = snapshot.vehiclePlayer1;
+            settings.vehicles.PLAYER_2 = snapshot.vehiclePlayer2;
+        }
+        this.runtime?.notifySettingsChanged?.();
     }
 
     isRuntimeActive() {
@@ -250,6 +302,7 @@ export class FourPlayerPlanarModule {
     }
 
     activateMatch() {
+        this._matchSettingsWereActive = true;
         if (this._matchActive) return;
         this._matchActive = true;
         this.hudView.setRuntimeSurfaceActive(true);
@@ -261,6 +314,7 @@ export class FourPlayerPlanarModule {
     }
 
     deactivateMatch() {
+        this._restoreMatchSettings();
         if (!this._matchActive && !this.hudView.hasRoot()) return;
         this._matchActive = false;
         this._hudTickTimer = 0;

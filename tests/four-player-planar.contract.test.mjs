@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { register } from 'node:module';
 import * as THREE from 'three';
 
 import { SettingsManager } from '../src/core/SettingsManager.js';
@@ -30,6 +31,9 @@ import {
 } from '../src/four-player-planar/FourPlayerPlanarInputSource.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../src/four-player-planar/FourPlayerPlanarPhysics.js';
 import { VIEWPORT_LAYOUTS } from '../src/shared/contracts/ViewportLayoutContract.js';
+
+// Das Vier-Spieler-Modul importiert sein Stylesheet direkt; Node braucht dafuer einen Hook.
+register('./helpers/style-import-hooks.mjs', import.meta.url);
 
 function createManager() {
     return new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
@@ -353,4 +357,143 @@ test('recording capture metadata segments preserve the visible 2x2 quadrant orde
         { label: 'P3', playerIndex: 2, x: 0, y: 540 },
         { label: 'P4', playerIndex: 3, x: 960, y: 540 },
     ]);
+});
+
+/**
+ * Stellt die Oberflaeche des Vier-Spieler-Menues dar. Nur die Aufrufe, die das
+ * Modul wirklich benutzt; `visible` haelt fest, ob die Auswahl offen ist.
+ */
+function createSetupViewStub() {
+    return {
+        visible: false,
+        keyHints: [],
+        captures: [],
+        controls: { mode: 'hunt', mapKey: 'standard', vehicleId: 'ship1', botCount: '2' },
+        isMounted: () => true,
+        setEntryVisible() {},
+        readControls() { return { ...this.controls }; },
+        applySelection() {},
+        applyNormalizedSelection() {},
+        syncRollKeyButtons() {},
+        showRollKeyCapture(playerIndex, direction) { this.captures.push(`${playerIndex}:${direction}`); },
+        showKeyOccupied() {},
+        setKeyHint(text) { this.keyHints.push(text); },
+        openSetup() { this.visible = true; },
+        closeSetup() { this.visible = false; },
+        isSetupVisible() { return this.visible; },
+        dispose() {},
+    };
+}
+
+function createHudViewStub() {
+    return {
+        setRuntimeSurfaceActive() {},
+        ensureRows() {},
+        setVisible() {},
+        hasRoot: () => true,
+        hasRow: () => false,
+        setRowText() {},
+        dispose() {},
+    };
+}
+
+function createFourPlayerHarness() {
+    const settings = {
+        mode: '1p',
+        gameMode: 'CLASSIC',
+        mapKey: 'standard',
+        numBots: 3,
+        autoRoll: true,
+        gameplay: { planarMode: false },
+        vehicles: { PLAYER_1: 'ship5', PLAYER_2: 'ship5' },
+        localSettings: { sessionType: 'splitscreen' },
+    };
+    const state = { gameStateId: 'MENU', runtimeActive: false, startedMatches: 0, settingsChanges: 0 };
+    const runtimePort = {
+        getSettings: () => settings,
+        ensureLocalSettings: () => settings.localSettings,
+        getGlobalKeyBindings: () => ({}),
+        getRuntimeConfig: () => (state.runtimeActive ? {
+            session: {
+                splitScreenVariant: SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR,
+                viewportLayout: VIEWPORT_LAYOUTS.FOUR_GRID,
+                fourPlayerPlanar: { mode: 'hunt', rollBindings: FOUR_PLAYER_PLANAR_ROLL_BINDINGS },
+            },
+        } : { session: {} }),
+        getGameStateId: () => state.gameStateId,
+        getPlayers: () => [],
+        getGlobalFogState: () => null,
+        forceThirdPersonCameras() {},
+        notifySettingsChanged() { state.settingsChanges += 1; },
+        startMatch() {
+            state.startedMatches += 1;
+            state.runtimeActive = true;
+            state.gameStateId = 'PLAYING';
+        },
+    };
+    return { settings, state, runtimePort };
+}
+
+async function createFourPlayerModule() {
+    const { settings, state, runtimePort } = createFourPlayerHarness();
+    const setupView = createSetupViewStub();
+    const { FourPlayerPlanarModule } = await import('../src/four-player-planar/FourPlayerPlanarModule.js');
+    const module = new FourPlayerPlanarModule({
+        runtimePort,
+        setupView,
+        hudView: createHudViewStub(),
+    });
+    return { module, settings, state, setupView };
+}
+
+test('a four player match does not leave its values in the normal game settings', async () => {
+    const { module, settings, state } = await createFourPlayerModule();
+    const before = {
+        gameMode: settings.gameMode,
+        mapKey: settings.mapKey,
+        numBots: settings.numBots,
+        autoRoll: settings.autoRoll,
+        planarMode: settings.gameplay.planarMode,
+        vehicles: { ...settings.vehicles },
+    };
+
+    assert.equal(module.startMatch(), true, 'the four player match starts');
+    assert.equal(state.startedMatches, 1);
+    // Waehrend des Matches gelten die Vier-Spieler-Werte.
+    assert.equal(settings.gameplay.planarMode, true, 'the match itself runs in 2D mode');
+    module.update();
+
+    // Rueckkehr ins Menue.
+    state.gameStateId = 'MENU';
+    state.runtimeActive = false;
+    module.update();
+
+    assert.equal(settings.gameplay.planarMode, before.planarMode, '2D mode is restored');
+    assert.equal(settings.autoRoll, before.autoRoll, 'auto roll is restored');
+    assert.equal(settings.gameMode, before.gameMode, 'the game mode is restored');
+    assert.equal(settings.mapKey, before.mapKey, 'the map is restored');
+    assert.equal(settings.numBots, before.numBots, 'the bot count is restored');
+    assert.deepEqual(settings.vehicles, before.vehicles, 'both hangar vehicles are restored');
+    // Die Auswahl selbst bleibt erhalten, sie gehoert dem Vier-Spieler-Menue.
+    assert.equal(settings.localSettings.fourPlayerPlanar.mode, 'hunt');
+});
+
+test('starting the match ends an open roll key capture instead of eating the keyboard', async () => {
+    const { module, setupView } = await createFourPlayerModule();
+    module.openSetup();
+    module._beginRollKeyCapture({ playerIndex: 1, direction: 'left' });
+    assert.deepEqual(setupView.captures, ['1:left'], 'the setup waits for a key');
+
+    module.startMatch();
+    assert.equal(setupView.isSetupVisible(), false, 'the setup surface is closed by the match start');
+
+    let prevented = 0;
+    let stopped = 0;
+    module._captureRollKey({
+        code: 'KeyW',
+        preventDefault() { prevented += 1; },
+        stopPropagation() { stopped += 1; },
+    });
+    assert.equal(stopped, 0, 'a steering key must reach the input system during the match');
+    assert.equal(prevented, 0, 'a steering key is not swallowed by the menu any more');
 });

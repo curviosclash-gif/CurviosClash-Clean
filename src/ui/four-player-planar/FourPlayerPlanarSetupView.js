@@ -42,6 +42,7 @@ export class FourPlayerPlanarSetupView {
         this.document = documentRef || null;
         this._listeners = [];
         this._nodes = null;
+        this._setupVisible = false;
     }
 
     isMounted() {
@@ -245,16 +246,30 @@ export class FourPlayerPlanarSetupView {
         if (!this._nodes) return;
         for (const node of this._nodes.standardSections) node.classList.add('four-player-planar-standard-hidden');
         this._nodes.surface.classList.remove('hidden');
+        this._setupVisible = true;
         this._nodes.mode.focus?.();
     }
 
     closeSetup() {
+        this._setupVisible = false;
         if (!this._nodes) return;
         for (const node of this._nodes.standardSections) node.classList.remove('four-player-planar-standard-hidden');
         this._nodes.surface.classList.add('hidden');
     }
 
+    /**
+     * Nur bei sichtbarer Auswahl darf ein Tastendruck als Belegung gelten. Der
+     * Horcher selbst bleibt haengen, weil das Modul im Match die Rolltasten vom
+     * Browser fernhaelt (etwa das Blaettern mit Bild auf/ab).
+     *
+     * @returns {boolean}
+     */
+    isSetupVisible() {
+        return this._setupVisible === true && !!this._nodes;
+    }
+
     dispose() {
+        this._setupVisible = false;
         for (const disposeListener of this._listeners.splice(0)) disposeListener();
         this._nodes?.surface?.remove?.();
         this._nodes?.card?.remove?.();
