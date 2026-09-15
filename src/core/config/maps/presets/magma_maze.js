@@ -134,15 +134,15 @@ export const MAGMA_MAZE_MAP = {
         ],
         items: [
             // Auf dem Weg
-            { id: 'mm_speed_1', type: 'item_battery', pickupType: 'SPEED_UP', x: -45, y: 10, z: -55, weight: 1.5 },
-            { id: 'mm_shield_2', type: 'item_shield', pickupType: 'SHIELD', x: -20, y: 10, z: -25, weight: 1.2 },
-            { id: 'mm_speed_3', type: 'item_battery', pickupType: 'SPEED_UP', x: 15, y: 10, z: 5, weight: 1.4 },
+            { id: 'mm_speed_1', type: 'item_battery', pickupType: 'SPEED_UP', x: -45, y: 15, z: -55, weight: 1.5 },
+            { id: 'mm_shield_2', type: 'item_shield', pickupType: 'SHIELD', x: -20, y: 15, z: -25, weight: 1.2 },
+            { id: 'mm_speed_3', type: 'item_battery', pickupType: 'SPEED_UP', x: 15, y: 15, z: 5, weight: 1.4 },
             // Sackgassen-Belohnungen (Risk/Reward)
             { id: 'mm_rocket_dead1', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 75, y: 10, z: -65, weight: 0.6 },
             { id: 'mm_ghost_dead2', type: 'item_coin', pickupType: 'GHOST', x: -70, y: 10, z: 60, weight: 0.8 },
             { id: 'mm_thick_dead3', type: 'item_coin', pickupType: 'THICK', x: 10, y: 10, z: 75, weight: 0.7 },
             // Nahe Ziel
-            { id: 'mm_speed_fin', type: 'item_battery', pickupType: 'SPEED_UP', x: 60, y: 10, z: 60, weight: 1.6 },
+            { id: 'mm_speed_fin', type: 'item_battery', pickupType: 'SPEED_UP', x: 60, y: 15, z: 60, weight: 1.6 },
         ],
         aircraft: [
             { id: 'mm_air_1', jetId: 'ship6', x: 0, y: 35, z: 0, scale: 1.2, rotateY: 0.7 },
