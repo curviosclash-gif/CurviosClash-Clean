@@ -5,6 +5,7 @@ export const SETTINGS_VERSION_MIGRATION_IDS = Object.freeze({
     V0_TO_V1: 'settings.v0-to-v1',
     V1_TO_V2: 'settings.v1-to-v2',
     V2_TO_V3: 'settings.v2-to-v3',
+    V3_TO_V4: 'settings.v3-to-v4',
 });
 
 function ensureLocalSettings(settings) {
@@ -52,6 +53,19 @@ function migrateV2ToV3(settings, defaults) {
     return settings;
 }
 
+function migrateV3ToV4(settings) {
+    if (!settings.gameplay || typeof settings.gameplay !== 'object' || Array.isArray(settings.gameplay)) {
+        settings.gameplay = {};
+    }
+    settings.gameplay.speed = 30;
+    settings.gameplay.turnSensitivity = 3;
+    settings.gameplay.itemAmount = 60;
+    settings.numBots = 8;
+    settings.autoRoll = false;
+    settings.settingsVersion = 4;
+    return settings;
+}
+
 const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
     Object.freeze({
         id: SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
@@ -70,6 +84,12 @@ const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
         fromVersion: 2,
         toVersion: 3,
         migrate: migrateV2ToV3,
+    }),
+    Object.freeze({
+        id: SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4,
+        fromVersion: 3,
+        toVersion: 4,
+        migrate: migrateV3ToV4,
     }),
 ]);
 
