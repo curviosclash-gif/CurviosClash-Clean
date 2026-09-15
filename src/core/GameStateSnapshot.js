@@ -86,6 +86,10 @@ export function serializePlayer(player) {
         index: player.index ?? 0,
         isBot: !!player.isBot,
         alive: !!player.alive,
+        // Lets a network replica replay the death explosion for a cause it could not
+        // resolve itself (e.g. a rocket hit only the host simulates) - see StateReconciler.
+        deathCause: typeof player.lastDeathCause === 'string' ? player.lastDeathCause : null,
+        deathProjectileType: typeof player.lastDeathProjectileType === 'string' ? player.lastDeathProjectileType : null,
         pos: vecToArray(player.position),
         rot: quatToArray(player.quaternion),
         vel: vecToArray(player.velocity),

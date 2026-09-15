@@ -92,7 +92,16 @@ test('network snapshot reconciles Player hp, shield, inventory, alive state and 
         velocitySnapThreshold: 0,
     });
     reconciler.receiveServerState({ state: snapshot });
-    reconciler.reconcile([clientPlayer], {});
+    // Stands in for EntityManager._killPlayer: an alive-false transition the local
+    // simulation never saw itself now replays through the real kill path (see
+    // StateReconciler._reconcileAuthoritativeFields) instead of only hiding the view.
+    const manager = {
+        _killPlayer(player) {
+            player.alive = false;
+            player.view?.setVisible?.(false);
+        },
+    };
+    reconciler.reconcile([clientPlayer], manager);
 
     assert.equal(clientPlayer.hp, 23);
     assert.equal(clientPlayer.health, 23);

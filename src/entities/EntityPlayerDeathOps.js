@@ -40,6 +40,11 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     entityManager._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
     entityManager.recorder?.captureSnapshotNow?.(entityManager);
     player.kill();
+    // A network replica cannot resolve a projectile hit itself (only the host runs
+    // ProjectileHitResolver), so it must read the cause back off the next snapshot
+    // to replay the same explosion presentation - see StateReconciler.
+    player.lastDeathCause = cause;
+    player.lastDeathProjectileType = deathOptions?.projectileType || null;
     entityManager.recorder?.captureSnapshotNow?.(entityManager);
     entityManager._projectileSystem?.clearRocketTrailsForOwner?.(player);
     if (entityManager.gameModeStrategy?.hasScoring() && entityManager.isFightOutcomeAuthority !== false) {
