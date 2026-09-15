@@ -100,6 +100,18 @@ function stageDockerfileCopies(instructions, stageRoot) {
     return workdir;
 }
 
+test('the signaling image runs the Node major the repository pins', () => {
+    const pinnedMajor = readFileSync(path.join(repositoryRoot, '.nvmrc'), 'utf8').trim().split('.')[0];
+    const { instructions } = parseDockerfile(dockerfileSource);
+    const baseImage = instructions.find((instruction) => instruction.keyword === 'FROM')?.args[0];
+    assert.ok(baseImage, 'the Dockerfile needs a FROM instruction');
+    assert.equal(
+        baseImage.split(':')[1]?.split('-')[0],
+        pinnedMajor,
+        `the base image must track .nvmrc (${pinnedMajor}); older lines are out of support`
+    );
+});
+
 test('the signaling Dockerfile installs from the lockfile and documents its build context', () => {
     const { comments, instructions } = parseDockerfile(dockerfileSource);
     const buildHint = comments.join(' ');
@@ -150,6 +162,9 @@ test('the repository root keeps a .dockerignore that spares the copied sources',
 });
 
 test('every module signaling-server.js imports is copied into the image', (t) => {
+    // The stage deliberately lives under the repository root so node resolves `ws`
+    // from the root node_modules; the image's own `npm ci` step is therefore not
+    // covered here, only the COPY layout and the relative import resolution.
     const stageParent = path.join(repositoryRoot, 'tmp');
     mkdirSync(stageParent, { recursive: true });
     const stageRoot = mkdtempSync(path.join(stageParent, 'dockerfile-stage-'));

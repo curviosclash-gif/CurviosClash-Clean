@@ -1,7 +1,7 @@
 # Build from the repository root, because the server imports shared contracts
 # from src/:
 #   docker build -f server/Dockerfile -t curviosclash-signaling .
-FROM node:20-alpine
+FROM node:24-alpine
 WORKDIR /srv/server
 COPY server/package.json server/package-lock.json ./
 RUN npm ci --omit=dev
