@@ -98,6 +98,12 @@ export function transformElectronMain(source) {
     );
     result = replaceRequired(
         result,
+        "const { createFocusScopedShortcut } = require('./focus-scoped-shortcut.cjs');\n",
+        '',
+        'focus scoped shortcut import'
+    );
+    result = replaceRequired(
+        result,
         "const { createEditorVehicleStore } = require('./editor-vehicle-store.cjs');\n",
         '',
         'editor vehicle store import'
@@ -119,6 +125,7 @@ export function transformElectronMain(source) {
     );
     result = result.replace(/\nfunction resolveTuningConsoleCapabilityState\(\) \{[\s\S]*?\n\}\n\nfunction resolveSharedMenuDefaults/, '\nfunction resolveSharedMenuDefaults');
     result = result.replace(/\nconst tuningWindowShellCapability = createTuningWindowController\([\s\S]*?\n\}\);\nconst recordingVideoExportJob/, '\nconst recordingVideoExportJob');
+    result = result.replace(/\n\/\/ The tuning hotkey is a system-wide accelerator[\s\S]*?\n\}\);\n\nfunction registerTuningShortcut/, '\nfunction registerTuningShortcut');
     result = result.replace(/\nfunction registerTuningShortcut\(\) \{[\s\S]*?\nasync function startDesktopShell\(\) \{\n    registerTuningBridgeIpc\(\);\n    await desktopWindowShellCapability\.start\(\);\n    createTray\(\);\n    registerTuningShortcut\(\);\n\}/, '\nasync function startDesktopShell() {\n    await desktopWindowShellCapability.start();\n    createTray();\n}');
     result = result.replace(/\n    unregisterTuningShortcut\(\);\n    tuningWindowShellCapability\.closeTuningWindow\(\);/g, '');
     result = result.replace(/\n    disposeTuningBridgeIpc\(\);/g, '');

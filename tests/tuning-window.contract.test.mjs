@@ -101,6 +101,11 @@ test('tuning window controller reports blocked capability state', async () => {
 test('main process keeps F7 hotkey wired to tuning window toggle', () => {
     const mainSource = readFileSync(new URL('../electron/main.cjs', import.meta.url), 'utf-8');
     assert.match(mainSource, /const TUNING_CONSOLE_HOTKEY = 'F7';/);
-    assert.match(mainSource, /globalShortcut\.register\(TUNING_CONSOLE_HOTKEY,\s*\(\)\s*=>\s*\{/);
+    // J3: the accelerator is held only while an application window has focus,
+    // so it must go through the focus-scoped helper instead of a permanent
+    // globalShortcut.register in the main process.
+    assert.match(mainSource, /createFocusScopedShortcut\(\{/);
+    assert.match(mainSource, /accelerator: TUNING_CONSOLE_HOTKEY,/);
+    assert.doesNotMatch(mainSource, /globalShortcut\.register\(/);
     assert.match(mainSource, /toggleTuningWindow\(\{ focus: true \}\)/);
 });
