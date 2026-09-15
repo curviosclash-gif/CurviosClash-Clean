@@ -5,6 +5,7 @@ import * as THREE from 'three';
 import { createRuntimeConfigSnapshot } from '../src/core/RuntimeConfig.js';
 import { OverheatGunSystem } from '../src/hunt/OverheatGunSystem.js';
 import { MGHitResolver } from '../src/hunt/mg/MGHitResolver.js';
+import { MGTracerFx } from '../src/hunt/mg/MGTracerFx.js';
 import { resolveHuntLineTarget, isTrailTargetDescriptor } from '../src/hunt/HuntTargetingOps.js';
 import { HUNT_CONFIG } from '../src/hunt/HuntConfig.js';
 import {
@@ -43,6 +44,70 @@ test('Fight machine-gun models change combat values without mutating the base co
     assert.equal(heavy.DAMAGE, 15.5);
     assert.equal(precision.RANGE, 145);
     assert.equal(precision.MIN_FALLOFF, 0.8);
+});
+
+test('Fight machine-gun models resolve distinct pooled shot-animation profiles', () => {
+    const base = {
+        COOLDOWN: 0.1,
+        DAMAGE: 10,
+        RANGE: 100,
+        OVERHEAT_PER_SHOT: 8,
+        MIN_FALLOFF: 0.5,
+        TRACER_BEAM_RADIUS: 0.16,
+        TRACER_BULLET_RADIUS: 0.42,
+    };
+    const profiles = FIGHT_MACHINE_GUN_MODELS.map((model) => resolveFightMachineGunConfig(base, model.id));
+
+    assert.deepEqual(profiles.map((profile) => profile.TRACER_STYLE), [
+        'bolt',
+        'pulse-train',
+        'heavy-slug',
+        'precision-needle',
+    ]);
+    assert.equal(new Set(profiles.map((profile) => [
+        profile.TRACER_STYLE,
+        profile.TRACER_BEAM_RADIUS,
+        profile.TRACER_BULLET_RADIUS,
+        profile.TRACER_DURATION_SECONDS,
+        profile.TRACER_SEGMENT_COUNT,
+    ].join(':'))).size, FIGHT_MACHINE_GUN_MODELS.length);
+    assert.equal(profiles[1].TRACER_SEGMENT_COUNT, 3);
+    assert.ok(profiles[2].TRACER_BEAM_RADIUS > profiles[0].TRACER_BEAM_RADIUS);
+    assert.ok(profiles[3].TRACER_BEAM_RADIUS < profiles[0].TRACER_BEAM_RADIUS);
+});
+
+test('MG shot animations reuse their scene objects and preserve weapon colours on hits', () => {
+    const added = [];
+    const removed = [];
+    const tracerFx = new MGTracerFx({
+        renderer: {
+            addToScene: (mesh) => added.push(mesh),
+            removeFromScene: (mesh) => removed.push(mesh),
+        },
+    });
+    const start = new THREE.Vector3(0, 0, 0);
+    const end = new THREE.Vector3(0, 0, -20);
+    const base = {
+        TRACER_BEAM_RADIUS: 0.16,
+        TRACER_BULLET_RADIUS: 0.42,
+    };
+    const rapid = resolveFightMachineGunConfig(base, 'raptor_r9');
+
+    tracerFx.spawnTracer(start, end, true, rapid);
+    const firstEntry = tracerFx.tracers[0];
+    assert.equal(firstEntry.style, 'pulse-train');
+    assert.equal(firstEntry.beamSegments.filter((segment) => segment.visible).length, 3);
+    assert.equal(firstEntry.beamMaterial.color.getHex(), rapid.TRACER_COLOR);
+    assert.notEqual(firstEntry.impactMaterial.color.getHex(), 0xffe38a);
+
+    tracerFx.update(1);
+    assert.equal(tracerFx.tracers.length, 0);
+    assert.deepEqual(removed, [firstEntry.mesh]);
+
+    tracerFx.spawnTracer(start, end, false, resolveFightMachineGunConfig(base, 'bastion_h3'));
+    assert.equal(tracerFx.tracers[0], firstEntry);
+    assert.equal(tracerFx.tracers[0].style, 'heavy-slug');
+    assert.equal(added.length, 2);
 });
 
 test('Match setup carries the selected model only into Fight loadouts', () => {
