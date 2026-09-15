@@ -131,6 +131,12 @@ BASE = et
 # COLOR_0 off the pack.
 et.GRAIN = False
 
+# A fracture has to read against both the dark iron and the blue-grey siege sky.  The base tower's
+# subtle Signal material is meant for small warning lamps; this hotter variant is local to the
+# break pack and makes a short-lived spray visible without changing the intact Eiffel maps.
+SIEGE_FRACTURE_GLOW = "SiegeFractureGlow"
+et.MATERIAL_COLORS[SIEGE_FRACTURE_GLOW] = ((1.0, 0.16, 0.015, 1.0), 8.0, 0.1)
+
 FPS = et.FPS
 
 # --- The falling pieces ---------------------------------------------------------------------------
@@ -729,17 +735,32 @@ def fracture_cluster_mesh(name, material, seed):
     shedding chips without spending a collider or a simulation body on confetti.
     """
     vertices, faces = [], []
-    for shard in range(4):
+    # The first attempt used four sub-metre tetrahedra, which disappeared at gameplay distance;
+    # simply scaling those up made them read as boulders.  Sixteen thin, twisted cuboids retain a
+    # readable multi-metre silhouette but still look like torn lattice members. They remain one
+    # joined draw call.
+    for shard in range(20):
         # hash01 is the tower pack's stable authoring noise; no ambient RNG is involved.
-        x = (et.hash01(seed, shard, 1) - 0.5) * 3.2
-        y = (et.hash01(seed, shard, 2) - 0.5) * 2.4
-        z = (et.hash01(seed, shard, 3) - 0.5) * 1.8
-        size = 0.32 + et.hash01(seed, shard, 4) * 0.36
+        center = Vector((
+            (et.hash01(seed, shard, 1) - 0.5) * 14.0,
+            (et.hash01(seed, shard, 2) - 0.5) * 10.0,
+            (et.hash01(seed, shard, 3) - 0.5) * 6.0,
+        ))
+        direction = Vector((
+            et.hash01(seed, shard, 5) - 0.5,
+            et.hash01(seed, shard, 6) - 0.5,
+            0.25 + et.hash01(seed, shard, 7),
+        )).normalized()
+        length = 5.0 + et.hash01(seed, shard, 8) * 6.0
+        thickness = 0.45 + et.hash01(seed, shard, 4) * 0.45
+        matrix = (
+            Matrix.Translation(center)
+            @ direction.to_track_quat("Z", "Y").to_matrix().to_4x4()
+            @ Matrix.Diagonal(Vector((thickness, thickness * 0.6, length, 1.0)))
+        )
         offset = len(vertices)
-        vertices.extend(((x - size, y - size, z - size), (x + size, y - size, z + size),
-                         (x - size, y + size, z + size), (x + size, y + size, z - size)))
-        faces.extend(((offset, offset + 1, offset + 2), (offset, offset + 3, offset + 1),
-                      (offset, offset + 2, offset + 3), (offset + 1, offset + 3, offset + 2)))
+        vertices.extend(tuple(matrix @ Vector(vertex)) for vertex in et.CUBE_VERTS)
+        faces.extend(tuple(offset + index for index in face) for face in et.CUBE_FACES)
     mesh = bpy.data.meshes.new(f"{name}_mesh")
     mesh.from_pydata(vertices, [], faces)
     mesh.validate()
@@ -754,14 +775,18 @@ def add_fracture_clusters(scene, stem, root, frame_count):
     for cluster in range(2):
         seed = et.hash01(len(stem), cluster, PIECE_FOOT[root.name.removeprefix("piece_")])
         name = f"{root.name}_fracture_{cluster}_nocol_noshadow"
-        obj = bpy.data.objects.new(name, fracture_cluster_mesh(name, et.IRON_DARK, seed))
+        # One structural cluster and one incandescent fracture burst: dark sub-metre iron was
+        # indistinguishable from the lattice at match distance, while this pair reads as torn
+        # structure plus the hot break that launched it.
+        material = et.IRON_LIGHT if cluster == 0 else SIEGE_FRACTURE_GLOW
+        obj = bpy.data.objects.new(name, fracture_cluster_mesh(name, material, seed))
         bpy.context.collection.objects.link(obj)
         obj.parent = root
         # Local to the break rig: at frame one both clusters are pinpricks on the sheared seat.
-        base = Vector(((cluster * 2 - 1) * (1.8 + seed), (seed - 0.5) * 1.6, 0.65 + cluster * 0.3))
-        travel = Vector((7.0 + 3.0 * seed, (-1.0 if cluster else 1.0) * (3.0 + seed),
-                         1.2 + seed))
-        apex = 5.0 + 3.0 * et.hash01(seed, cluster, 9)
+        base = Vector(((cluster * 2 - 1) * (3.0 + seed), (seed - 0.5) * 1.6, 0.65 + cluster * 0.3))
+        travel = Vector((14.0 + 7.0 * seed, (-1.0 if cluster else 1.0) * (7.0 + 2.0 * seed),
+                         3.0 + 2.0 * seed))
+        apex = 11.0 + 6.0 * et.hash01(seed, cluster, 9)
         spin = 2.2 + et.hash01(seed, cluster, 10) * 1.8
         for index in range(end + 1):
             ratio = index / end

@@ -1,3 +1,5 @@
+import { writeFileSync } from 'node:fs';
+
 import { expect, test } from './helpers.desktop.js';
 import { selectSessionType, waitForLoadedGame } from './helpers.js';
 
@@ -315,19 +317,80 @@ test.describe('Eiffel tower siege', () => {
             const hudElement = document.querySelector('#p1-hud .map-destructible-status');
 
             const clockAtBreak = Number(arena.glbAnimationElapsedSeconds) || 0;
-            const fracture = toppleSlot?.getObjectByName('piece_lower_fracture_0_nocol_noshadow');
+            const fracture = toppleSlot?.getObjectByName('piece_lower_fracture_1_nocol_noshadow');
             const transformOf = (node) => node ? {
                 position: [node.matrixWorld.elements[12], node.matrixWorld.elements[13], node.matrixWorld.elements[14]],
                 scale: node.scale.toArray(),
             } : null;
+            const screenPresenceOf = (node) => {
+                const camera = game.renderer?.cameras?.[0];
+                const canvas = document.querySelector('canvas');
+                if (!node?.geometry || !camera || !canvas) return null;
+                camera.updateMatrixWorld(true);
+                camera.updateProjectionMatrix();
+                node.geometry.computeBoundingSphere();
+                const sphere = node.geometry.boundingSphere;
+                const centre = sphere.center.clone().applyMatrix4(node.matrixWorld);
+                const cameraPosition = camera.getWorldPosition(camera.position.clone());
+                const ndc = centre.clone().project(camera);
+                const matrix = node.matrixWorld.elements;
+                const worldScale = Math.max(
+                    Math.hypot(matrix[0], matrix[1], matrix[2]),
+                    Math.hypot(matrix[4], matrix[5], matrix[6]),
+                    Math.hypot(matrix[8], matrix[9], matrix[10]),
+                );
+                const distance = Math.max(0.001, centre.distanceTo(cameraPosition));
+                const verticalFov = Number(camera.fov) * Math.PI / 180;
+                const diameterPixels = sphere.radius * worldScale * canvas.height
+                    / (distance * Math.tan(verticalFov / 2));
+                return {
+                    ndc: ndc.toArray(),
+                    diameterPixels,
+                    inFrame: Math.abs(ndc.x) <= 1 && Math.abs(ndc.y) <= 1 && ndc.z >= -1 && ndc.z <= 1,
+                };
+            };
             toppleSlot?.updateMatrixWorld(true);
             const fractureAtBreak = transformOf(fracture);
             // Stop at a readable point during the fall: the render-only cluster must animate, but
             // a ray through its current world position must never name it as collision geometry.
             const stepSeconds = 1 / 60;
-            for (let index = 0; index < 12 * 60; index += 1) arena.update(stepSeconds);
+            for (let index = 0; index < 24 * 60; index += 1) arena.update(stepSeconds);
             toppleSlot?.updateMatrixWorld(true);
+            // The fixed-step loop above advances the map synchronously while the normal camera
+            // smoothing has no rendered frames to follow. Put the game's actual perspective
+            // camera at a reproducible inspection point, aimed at the animated fragment, and draw
+            // that exact mid-collapse pose. This makes the attachment a visual proof rather than
+            // a stale pre-collapse canvas.
+            const proofCamera = game.renderer?.cameras?.[0];
+            if (fracture && proofCamera) {
+                fracture.geometry.computeBoundingSphere();
+                const sphere = fracture.geometry.boundingSphere;
+                const fractureWorld = sphere.center.clone().applyMatrix4(fracture.matrixWorld);
+                const radialLength = Math.max(0.001, Math.hypot(fractureWorld.x, fractureWorld.z));
+                const radialX = fractureWorld.x / radialLength;
+                const radialZ = fractureWorld.z / radialLength;
+                proofCamera.position.set(
+                    fractureWorld.x + radialX * world(32),
+                    fractureWorld.y + world(12),
+                    fractureWorld.z + radialZ * world(32),
+                );
+                proofCamera.lookAt(fractureWorld);
+                proofCamera.updateMatrixWorld(true);
+                proofCamera.updateProjectionMatrix();
+            }
+            game.renderer.render();
             const fractureMid = transformOf(fracture);
+            const fractureScreenPresence = screenPresenceOf(fracture);
+            const proofCameraPosition = proofCamera?.getWorldPosition(proofCamera.position.clone()) || null;
+            const fractureCentre = fracture?.geometry?.boundingSphere?.center.clone().applyMatrix4(fracture.matrixWorld) || null;
+            const sightDirection = proofCameraPosition && fractureCentre
+                ? fractureCentre.clone().sub(proofCameraPosition)
+                : null;
+            const sightDistance = sightDirection?.length() || 0;
+            if (sightDirection) sightDirection.normalize();
+            const fractureSightLine = sightDirection && sightDistance > 1
+                ? arena.raycast(proofCameraPosition, sightDirection, sightDistance - world(2))
+                : null;
             // This is the loader's authoritative list, not a ray heuristic: it contains every
             // GLB collider the map built (including hidden break scenes) while `obstacles` is the
             // active query index after the lower scene has been enabled.
@@ -341,7 +404,7 @@ test.describe('Eiffel tower siege', () => {
             // Fifty-two seconds of map time at a fixed step: the collapse clip runs 50.13 s (the
             // tower sags onto its crushed piers, shears at the galleries, and its upper half comes
             // down in pieces), so this walks the whole fall and a moment of the wreck lying still.
-            const stepCount = 40 * 60;
+            const stepCount = 28 * 60;
             for (let index = 0; index < stepCount; index += 1) arena.update(stepSeconds);
             const clockAfterFall = Number(arena.glbAnimationElapsedSeconds) || 0;
             const slotFall = fallDirection(Number(toppleSlot?.rotation?.y) || 0);
@@ -393,6 +456,12 @@ test.describe('Eiffel tower siege', () => {
                 clockAfterFall,
                 fractureAtBreak,
                 fractureMid,
+                fractureScreenPresence,
+                fractureSightLine: fractureSightLine ? {
+                    hit: fractureSightLine.hit === true,
+                    sourceName: String(fractureSightLine.sourceName || ''),
+                    distance: Number(fractureSightLine.distance) || 0,
+                } : null,
                 allGlbColliderSources,
                 activeColliderSources,
                 midCollapseScreenshot,
@@ -411,6 +480,10 @@ test.describe('Eiffel tower siege', () => {
             body: Buffer.from(siege.midCollapseScreenshot.split(',', 2)[1], 'base64'),
             contentType: 'image/png',
         });
+        writeFileSync(
+            testInfo.outputPath('eiffel-tower-siege-mid-collapse-canvas.png'),
+            Buffer.from(siege.midCollapseScreenshot.split(',', 2)[1], 'base64'),
+        );
 
         expect(
             siege.failed,
@@ -493,6 +566,12 @@ test.describe('Eiffel tower siege', () => {
         expect(siege.hudText, 'the sealed tower is announced for eight seconds').toBe('TURM STÜRZT');
         expect(siege.fractureAtBreak, 'the lower break owns a render fracture cluster').toBeTruthy();
         expect(siege.fractureMid, 'the cluster remains under the visible collapse').toBeTruthy();
+        expect(siege.fractureScreenPresence?.inFrame,
+            `the fracture cluster must be on screen: ${JSON.stringify(siege.fractureScreenPresence)}`).toBe(true);
+        expect(siege.fractureScreenPresence?.diameterPixels,
+            'the fracture cluster must be large enough to read from the gameplay camera').toBeGreaterThanOrEqual(24);
+        expect(siege.fractureSightLine?.hit,
+            `no physical tower mesh may hide the fracture group: ${JSON.stringify(siege.fractureSightLine)}`).toBe(false);
         expect(
             siege.fractureMid.position.some((value, index) => Math.abs(value - siege.fractureAtBreak.position[index]) > 0.01)
                 || siege.fractureMid.scale.some((value, index) => Math.abs(value - siege.fractureAtBreak.scale[index]) > 0.01),

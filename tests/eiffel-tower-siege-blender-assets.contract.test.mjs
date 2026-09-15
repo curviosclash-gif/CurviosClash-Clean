@@ -132,9 +132,9 @@ const TRIANGLE_BUDGET = 40_000;
 // Two joined render-only fracture clusters per scene add two mesh nodes beneath the existing rigs.
 const NODE_BUDGET = 30;
 // The whole pack, so a future scene cannot quietly double the download.
-// Measured pack size after the eight small animated clusters is 4,934,104 bytes; keep under 1%
-// headroom rather than granting enough room for another large authored variant.
-const TOTAL_GLB_BUDGET_BYTES = 4.75 * 1024 * 1024;
+// Measured pack size with the eight readable lattice-fragment clusters is 5,008,024 bytes; keep
+// about half a percent of headroom rather than granting enough room for another authored variant.
+const TOTAL_GLB_BUDGET_BYTES = 4.8 * 1024 * 1024;
 
 function glbPath(fileStem) {
     return path.join(ASSET_ROOT, 'glb', `${fileStem}.glb`);
@@ -349,6 +349,17 @@ test('each collapse adds two deterministic visual-only fracture clusters at its 
                 `${name} stays under the root whose chained break hides it`);
             assert.ok(name.includes('_nocol') && name.includes('_noshadow'), `${name} is render-only`);
             assert.notEqual(node.mesh, undefined, `${name} has joined low-poly geometry`);
+            const primitives = document.meshes[node.mesh]?.primitives || [];
+            const positionAccessors = primitives.map((primitive) => document.accessors[primitive.attributes.POSITION]);
+            assert.ok(positionAccessors.reduce((sum, accessor) => sum + accessor.count, 0) >= 160,
+                `${name} carries enough joined shards to read at gameplay distance`);
+            const bounds = positionAccessors.reduce((result, accessor) => ({
+                min: result.min.map((value, axis) => Math.min(value, accessor.min[axis])),
+                max: result.max.map((value, axis) => Math.max(value, accessor.max[axis])),
+            }), { min: [Infinity, Infinity, Infinity], max: [-Infinity, -Infinity, -Infinity] });
+            assert.ok(new THREE.Vector3().fromArray(bounds.max).distanceTo(
+                new THREE.Vector3().fromArray(bounds.min),
+            ) >= 14, `${name} has a readable multi-metre silhouette`);
             const channels = new Map(animation.channels
                 .filter((channel) => channel.target.node === index)
                 .map((channel) => [channel.target.path, animation.samplers[channel.sampler]]));
@@ -380,8 +391,8 @@ test('each collapse adds two deterministic visual-only fracture clusters at its 
                 );
             }
             assert.ok(Math.abs(positions[0][2]) < 1.1, `${name} starts on the authored break line`);
-            assert.ok(positions.every((value) => new THREE.Vector3().fromArray(value).length() < 16),
-                `${name} remains in its small visual debris envelope`);
+            assert.ok(positions.every((value) => new THREE.Vector3().fromArray(value).length() < 32),
+                `${name} remains in its visual debris envelope`);
             assert.ok(rotations.some((value, frame) => frame > 0 && value.some(
                 (component, componentIndex) => Math.abs(component - rotations[0][componentIndex]) > 1e-4,
             )), `${name} actually rotates during its arc`);
@@ -396,6 +407,16 @@ test('each collapse adds two deterministic visual-only fracture clusters at its 
             `${fileStem} fracture clusters have distinct translation samples`);
         assert.ok(tracksDiffer(trajectories[0].rotations, trajectories[1].rotations),
             `${fileStem} fracture clusters have distinct rotation samples`);
+        const clusterMaterials = clusters.flatMap(({ node }) => (
+            (document.meshes[node.mesh]?.primitives || []).map((primitive) => (
+                document.materials?.[primitive.material] || {}
+            ))
+        ));
+        assert.ok(clusterMaterials.some((material) => (
+            material.name === 'SiegeFractureGlow'
+            && Number(material.extensions?.KHR_materials_emissive_strength?.emissiveStrength) >= 6
+            && (material.emissiveFactor || []).some((channel) => Number(channel) > 0)
+        )), `${fileStem} includes a high-contrast emissive fracture burst`);
     }
 });
 
