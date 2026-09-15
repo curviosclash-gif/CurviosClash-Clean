@@ -6,6 +6,7 @@ import {
     acquirePlaywrightRunLock,
     releasePlaywrightRunLockOnExit,
 } from './playwright-run-lock.mjs';
+import { applySkipKnownFailures } from './playwright-known-failures.mjs';
 import { summarizePlaywrightResultsFile } from './summarize-playwright-results.mjs';
 
 /**
@@ -123,8 +124,11 @@ export function applyPlaywrightRunProfileEnv(env, rawValue) {
     return profile;
 }
 
-export async function runPlaywrightProfile(profileName, argv, options = {}) {
+export async function runPlaywrightProfile(profileName, rawArgv, options = {}) {
     const profile = resolvePlaywrightRunProfile(profileName);
+    // `--skip-known` turns the entries of scripts/architecture/playwright-known-failures.json
+    // into a --grep-invert, so a serial chain no longer stops at an old red test.
+    const argv = applySkipKnownFailures(rawArgv);
     if (options.requireExplicitSelection && !hasExplicitBrowserContractSelection(argv)) {
         console.error(
             `[playwright:${profile.name}] requires an explicit spec path or --grep selector ` +

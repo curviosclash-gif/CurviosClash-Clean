@@ -132,6 +132,9 @@ function printClusters() {
     for (const cluster of ALL_CLUSTERS) {
         console.log(`- ${cluster.id}: ${cluster.specs.join(', ')}`);
     }
+    // --skip-known is forwarded to the spec runner, which knows the concrete spec paths and
+    // builds the --grep-invert from scripts/architecture/playwright-known-failures.json.
+    console.log('[playwright:desktop-e2e] options: --dry-run, --skip-known, plus any Playwright argument');
 }
 
 function printDryRun(clusters, playwrightArgs) {
