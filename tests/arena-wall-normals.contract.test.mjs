@@ -72,3 +72,67 @@ test('nearest bounds normal agrees with the arena collision normal', () => {
         );
     }
 });
+
+// Eine hohle Roehre (shape 'tube' mit innerRadius > 0) hat zwei freie Seiten: den Tunnel
+// innen und die Welt aussen. Die Normale muss auf beiden Seiten vom Mantel weg zeigen.
+const TUBE_BOUNDS = Object.freeze({
+    minX: -60, maxX: 60,
+    minY: -60, maxY: 60,
+    minZ: -60, maxZ: 60,
+});
+const TUBE_INNER_RADIUS = 6;
+const TUBE_OUTER_RADIUS = 7.08;
+const TUBE_PROBE_RADIUS = 0.5;
+// Ein Schritt, der von beiden Mantelseiten aus sicher in den freien Raum fuehrt.
+const TUBE_ESCAPE_STEP = 0.75;
+
+function createHollowTubeArena() {
+    const tube = {
+        ax: -20, ay: 5, az: 0,
+        bx: 20, by: 5, bz: 0,
+        innerRadius: TUBE_INNER_RADIUS,
+        outerRadius: TUBE_OUTER_RADIUS,
+        lengthSq: 40 * 40,
+    };
+    const box = new THREE.Box3(
+        new THREE.Vector3(tube.ax - TUBE_OUTER_RADIUS, tube.ay - TUBE_OUTER_RADIUS, tube.az - TUBE_OUTER_RADIUS),
+        new THREE.Vector3(tube.bx + TUBE_OUTER_RADIUS, tube.by + TUBE_OUTER_RADIUS, tube.bz + TUBE_OUTER_RADIUS),
+    );
+    return {
+        bounds: TUBE_BOUNDS,
+        obstacles: [{ box, isWall: false, kind: 'hard', tube }],
+    };
+}
+
+// Kontakt auf der Mantelflaeche in +Z, einmal knapp innerhalb der Aussenhuelle und
+// einmal knapp ausserhalb der Innenwand.
+const TUBE_CONTACTS = [
+    { name: 'outer shell', radialDistance: TUBE_OUTER_RADIUS - 0.08, expectedSign: 1 },
+    { name: 'inner wall', radialDistance: TUBE_INNER_RADIUS - 0.3, expectedSign: -1 },
+];
+
+test('hollow tube collision normals point away from the shell into free space', () => {
+    const arena = createHollowTubeArena();
+    const collision = new ArenaCollision(arena);
+    const axisPoint = new THREE.Vector3(0, 5, 0);
+
+    for (const { name, radialDistance, expectedSign } of TUBE_CONTACTS) {
+        const point = new THREE.Vector3(0, 5, radialDistance);
+        const hit = collision.getBotCollisionInfo(point, TUBE_PROBE_RADIUS);
+        assert.ok(hit?.hit, `${name}: expected the shell to report a hit`);
+
+        const radialDir = new THREE.Vector3().subVectors(point, axisPoint).normalize();
+        assert.ok(
+            hit.normal.dot(radialDir) * expectedSign > 0,
+            `${name}: normal ${hit.normal.toArray().join(',')} does not point to the free side`,
+        );
+
+        // Der Aufprall schiebt entlang der Normale: ein Schritt dorthin muss frei sein.
+        const escaped = point.clone().addScaledVector(hit.normal, TUBE_ESCAPE_STEP);
+        assert.equal(
+            collision.checkWorldGeometryCollision(escaped, TUBE_PROBE_RADIUS),
+            false,
+            `${name}: stepping along the normal stays inside the shell`,
+        );
+    }
+});

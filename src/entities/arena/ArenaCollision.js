@@ -103,7 +103,17 @@ function getTubeCollisionInfo(point, tube, radius = 0, outNormal = null) {
     }
 
     if (outNormal) {
-        outNormal.set(rx, ry, rz);
+        // A hollow tube is free on both sides of its shell: the tunnel inside and the world
+        // outside. A contact closer to the cavity than to the outer hull sits on the inner wall,
+        // and its normal has to point back to the axis - the bounce pushes along the normal, so
+        // the outward one would shove the hit through the wall instead of back into the tunnel.
+        const halfShellRadius = (innerRadius + outerRadius) * 0.5;
+        const onInnerWall = safeInnerRadius > 0 && radialDistanceSq < halfShellRadius * halfShellRadius;
+        if (onInnerWall) {
+            outNormal.set(-rx, -ry, -rz);
+        } else {
+            outNormal.set(rx, ry, rz);
+        }
         if (outNormal.lengthSq() <= 0.000001) {
             outNormal.set(0, 1, 0);
         } else {
