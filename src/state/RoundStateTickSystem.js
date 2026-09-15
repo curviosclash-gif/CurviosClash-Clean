@@ -22,11 +22,24 @@ export class RoundStateTickSystem {
             || null;
     }
 
+    /**
+     * _syncKernelMatchEndLifecycle – the session factory can only signal round end: the
+     * match-end decision is derived afterwards by the round state controller. This state
+     * is the first place that knows the match is over, so it hands that over to the kernel.
+     */
+    _syncKernelMatchEndLifecycle(kernel) {
+        if (kernel.lifecycle !== 'running' && kernel.lifecycle !== 'round_end') return;
+        kernel.signalMatchEnd?.();
+    }
+
     _tickKernelRoundState(dt, expectedLifecycle) {
         const kernelAdapter = this._getKernelAdapter();
         const kernel = kernelAdapter?.kernel || null;
-        if (!kernelAdapter || !kernel || kernel.lifecycle !== expectedLifecycle) {
-            return null;
+        if (!kernelAdapter || !kernel) return null;
+        if (kernel.lifecycle !== expectedLifecycle) {
+            if (expectedLifecycle !== 'match_end') return null;
+            this._syncKernelMatchEndLifecycle(kernel);
+            if (kernel.lifecycle !== expectedLifecycle) return null;
         }
         const renderFrameId = this.game?.gameLoop?.renderFrameId || 0;
         return kernelAdapter.tick(dt, renderFrameId);
@@ -119,6 +132,9 @@ export class RoundStateTickSystem {
     }
 
     _deriveMatchEndTickStep() {
+        if (this.game.roundStateController?.isArcadeRoundStateController) {
+            return this.game.roundStateController.deriveMatchEndTick(this._readMatchEndTickInputs());
+        }
         return this._tickKernelRoundState(0, 'match_end')
             || this.game.roundStateController.deriveMatchEndTick(this._readMatchEndTickInputs());
     }

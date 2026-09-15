@@ -3,7 +3,6 @@ import { EntityManager } from '../entities/EntityManager.js';
 import { PowerupManager } from '../entities/Powerup.js';
 import { ParticleSystem } from '../entities/Particles.js';
 import { createEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
-import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { createInteractiveMatchKernelRunProfile } from '../shared/contracts/MatchKernelRuntimeContract.js';
 import {
     buildArenaSessionKey,
@@ -461,11 +460,11 @@ export function wireInitializedMatchRuntime({
             onPlayerFeedback,
             onPlayerDied,
             onRoundEnd: (winner, outcome = null) => {
-                if (outcome?.state === GAME_STATE_IDS.MATCH_END) {
-                    kernel.signalMatchEnd();
-                } else {
-                    kernel.signalRoundEnd({ roundPause: 3 });
-                }
+                // The round outcome (RoundOutcomeSystem.resolve) only reports that the round is
+                // over; whether the match is decided depends on scores and winsNeeded and is
+                // derived downstream by the round state controller. RoundStateTickSystem hands
+                // that decision to the kernel, so only round end can be signalled here.
+                kernel.signalRoundEnd({ roundPause: 3 });
                 if (typeof onRoundEnd === 'function') {
                     onRoundEnd(winner, outcome);
                 }
