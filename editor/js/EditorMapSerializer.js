@@ -297,20 +297,26 @@ export function generateJSONExport(manager, arenaSize) {
     // without leaking editor-only partner ids into the runtime schema.
     if (payload.portals.length > 1) {
         const portalById = new Map(payload.portals.map((entry) => [entry.id, entry]));
-        const orderedPortals = [];
+        const linkedPortals = [];
+        const unlinkedPortals = [];
         const emitted = new Set();
         for (const portal of payload.portals) {
             if (emitted.has(portal.id)) continue;
-            orderedPortals.push(portal);
-            emitted.add(portal.id);
             const source = manager.getObjectById?.(portal.id);
             const partner = portalById.get(String(source?.userData?.portalPartnerId || ''));
-            if (partner && !emitted.has(partner.id)) {
-                orderedPortals.push(partner);
+            if (partner && partner.id !== portal.id && !emitted.has(partner.id)) {
+                linkedPortals.push(portal, partner);
+                emitted.add(portal.id);
                 emitted.add(partner.id);
+                continue;
             }
+            // A portal without a usable partner must not sit between two linked portals:
+            // sequential runtime pairing would otherwise marry it to the next pair's entry
+            // and drop that pair's real exit. Unlinked portals keep their relative order.
+            unlinkedPortals.push(portal);
+            emitted.add(portal.id);
         }
-        payload.portals = orderedPortals;
+        payload.portals = [...linkedPortals, ...unlinkedPortals];
     }
 
     // Build parcours block from placed checkpoints
