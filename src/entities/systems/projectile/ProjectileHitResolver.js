@@ -3,6 +3,7 @@ import { HUNT_CONFIG } from '../../../hunt/HuntConfig.js';
 import { isHuntHealthActive } from '../../../hunt/HealthSystem.js';
 import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketPickupSystem.js';
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
+import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
 
 function resolveEndlessProjectileDamage(owner, damage) {
     const multiplier = owner?.isBot
@@ -106,6 +107,7 @@ export class ProjectileHitResolver {
                 damageAtCenter * damageFalloff
             )));
             const damageResult = target.takeDamage(explosionDamage);
+            applyExplosionKnockback(target, projectile.position, damageFalloff, this.system);
             this.system?.onProjectileDamage?.(target, projectile.owner, projectile.type, damageResult, projectile);
         }
     }

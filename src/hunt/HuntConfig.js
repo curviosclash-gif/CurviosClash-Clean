@@ -134,6 +134,12 @@ export const HUNT_CONFIG = Object.freeze({
         FLAME_FLICKER_INDEX_PHASE: 7,
         EXPLOSION_RADIUS: 25,
         EXPLOSION_DAMAGE_FALLOFF: 0.5,
+        // Shared with a map structure's blast (see MapDestructibleBlastSystem): both push a
+        // caught vehicle away from the same center for the same felt reason, so one strength
+        // is enough rather than tuning two nearly identical knobs in lockstep.
+        EXPLOSION_KNOCKBACK_IMPULSE: 22,
+        EXPLOSION_KNOCKBACK_LIFT: 6,
+        EXPLOSION_KNOCKBACK_DURATION: 0.6,
         TRAIL_OVERFLOW_DAMAGE_PER_METER: 2.5,
     }),
     FEEDBACK: Object.freeze({
