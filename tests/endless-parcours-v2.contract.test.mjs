@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import {
     ENDLESS_PARCOURS_END_REASONS,
+    ENDLESS_PARCOURS_MODULE_LENGTH,
 } from '../src/shared/contracts/EndlessParcoursContract.js';
 import {
     ENDLESS_PARCOURS_WAVE_PHASES,
@@ -29,6 +30,8 @@ import {
     updateEndlessSideRoute,
 } from '../src/entities/endless/EndlessParcoursObjectiveOps.js';
 import { queueEndlessSettlement, retryEndlessSettlements } from '../src/state/arcade/EndlessParcoursSettlementStore.js';
+import { resolveEndlessSpeedMultiplier } from '../src/shared/contracts/EndlessParcoursStageContract.js';
+import { Player } from '../src/entities/Player.js';
 import { ArcadeModeStrategy } from '../src/modes/ArcadeModeStrategy.js';
 import {
     emitArcadeDamageEvent,
@@ -450,4 +453,44 @@ test('one thousand module switches and ten restarts keep runtime and renderer re
         assert.equal(runtime._sideRouteStates.size, 0);
     }
     assert.equal(transitions, 1000);
+});
+
+test('a vehicle speed upgrade counts once per module, not squared', () => {
+    const store = createStore();
+    const ship1 = createArcadeVehicleProfile('ship1');
+    ship1.upgrades.engine_left = 'T2';
+    ship1.upgrades.core = 'T2';
+    store.records.set(ARCADE_VEHICLE_PROFILE_STORAGE_KEY, { ship1 });
+
+    const { runtime, human } = createRuntime();
+    // Die echte Spielerlogik: sie rechnet den Strategiefaktor selbst wieder ein.
+    human.setControlOptions = (options) => Player.prototype.setControlOptions.call(human, options);
+    const strategy = new ArcadeModeStrategy({ runType: 'endless_parcours', combatProfile: 'hunt' });
+    runtime.setRecordStore(store);
+    runtime.setRunProfile({ recordStore: store, vehicleId: 'ship1', strategy });
+
+    const upgradeFactor = 1 + runtime.startBonuses.speedBonusPct / 100;
+    assert.equal(runtime.startBonuses.speedBonusPct, 8);
+    assert.equal(human.baseSpeed, 20 * upgradeFactor, 'the run starts with the upgrade applied once');
+
+    // Erster Baustein geschafft: das Tempo der Strecke kommt dazu.
+    human.position.set(0, 8, ENDLESS_PARCOURS_MODULE_LENGTH + 4);
+    runtime._updateProgress(human);
+    assert.equal(runtime.completedModules, 1, 'the first module counts as completed');
+    const moduleFactor = resolveEndlessSpeedMultiplier(1);
+    assert.equal(
+        Number(human.baseSpeed.toFixed(6)),
+        Number((20 * upgradeFactor * moduleFactor).toFixed(6)),
+        'the upgrade must not be multiplied in a second time'
+    );
+
+    // Zweiter Baustein: der Faktor darf sich auch danach nicht aufschaukeln.
+    human.position.set(0, 8, ENDLESS_PARCOURS_MODULE_LENGTH * 2 + 4);
+    runtime._updateProgress(human);
+    assert.equal(
+        Number(human.baseSpeed.toFixed(6)),
+        Number((20 * upgradeFactor * resolveEndlessSpeedMultiplier(2)).toFixed(6)),
+        'every further module keeps the upgrade linear'
+    );
+    runtime.dispose();
 });

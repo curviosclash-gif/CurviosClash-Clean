@@ -19,6 +19,22 @@ import {
 } from '../../state/arcade/EndlessParcoursSettlementStore.js';
 import { buildEndlessSummary } from './EndlessParcoursProjection.js';
 
+/**
+ * Grundtempo ohne die Fahrzeug-Aufwertung. Player.setControlOptions rechnet den
+ * Aufwertungsfaktor als baseSpeed/_arcadeBaseSpeed selbst wieder ein. Waere hier
+ * das schon aufgewertete baseSpeed gemerkt, zaehlte die Aufwertung ab dem
+ * zweiten Baustein doppelt.
+ *
+ * @param {any} player
+ * @param {number} fallback
+ * @returns {number}
+ */
+export function resolveEndlessStartSpeed(player, fallback = 1) {
+    const arcadeBase = Number(player?._arcadeBaseSpeed);
+    if (Number.isFinite(arcadeBase) && arcadeBase > 0) return arcadeBase;
+    return Math.max(0.001, Number(player?.baseSpeed) || Number(fallback) || 1);
+}
+
 export function setEndlessRecordStore(runtime, store) {
     runtime._recordStore = store || null;
     runtime._lastPersistenceResult = retryEndlessSettlements(runtime._recordStore);
@@ -44,7 +60,7 @@ export function setEndlessRunProfile(runtime, {
     const human = runtime.entityManager?.humanPlayers?.[0] || null;
     try { strategy?.resetPlayerHealth?.(human); } catch { /* no-op */ }
     try { strategy?.applySpawnStatBonuses?.(human); } catch { /* no-op */ }
-    runtime._startSpeed = Math.max(0.001, Number(human?.baseSpeed) || runtime._startSpeed || 1);
+    runtime._startSpeed = resolveEndlessStartSpeed(human, runtime._startSpeed);
     return { vehicleId: runtime.startVehicleId, bonuses: { ...runtime.startBonuses } };
 }
 

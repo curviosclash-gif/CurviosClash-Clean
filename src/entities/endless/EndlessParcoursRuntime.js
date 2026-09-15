@@ -30,6 +30,7 @@ import {
 import {
     collectEndlessRunXp,
     finalizeEndlessRun,
+    resolveEndlessStartSpeed,
     retryEndlessSettlement,
     setEndlessRecordStore,
     setEndlessRunProfile,
@@ -112,7 +113,7 @@ export class EndlessParcoursRuntime {
         this.runId = `endless-${this.baseSeed.toString(36)}-${runTimePart}-${endlessRunSequence.toString(36)}`;
         this.activeModules = new Map();
         this._records = normalizeEndlessParcoursRecords();
-        this._startSpeed = Math.max(0.001, Number(entityManager?.humanPlayers?.[0]?.baseSpeed) || 1);
+        this._startSpeed = resolveEndlessStartSpeed(entityManager?.humanPlayers?.[0], 1);
         this._path = new EndlessParcoursPath({ baseSeed: this.baseSeed });
         this._sideRouteStates = new Map();
         this._rewardedSideRoutes = new Set();
