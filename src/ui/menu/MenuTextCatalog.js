@@ -71,7 +71,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level3.match.ghost_mode.label': 'Ghost-Wiedergabe',
     'menu.level3.match.ghost_collision.label': 'Ghost-Spur-Kollision',
     'menu.level3.match.arcade_run.title': 'Arcade-Lauf',
-    'menu.level3.match.arcade_sectors.label': 'Sektoren pro Lauf:',
+    'menu.level3.match.arcade_sectors.label': 'Sektoren bis zum Sieg:',
     'menu.level3.match.bot_type.label': 'Bot-Typ',
     'menu.level3.match.kill_limit.label': 'Abschusslimit',
     'menu.level3.presets.title': 'Preset-Standardkombinationen',

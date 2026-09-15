@@ -16,7 +16,7 @@ test('rule summaries distinguish classic rounds, respawning combat and arcade se
     assert.equal(formatMenuRulesSummary(base, 'normal'), '2 Bots · Schwer · 5 Siege');
     assert.equal(formatMenuRulesSummary({ ...base, numBots: 0, winsNeeded: 1 }, 'normal'), 'Ohne Bots · 1 Sieg');
     assert.equal(formatMenuRulesSummary({ ...base, gameMode: 'HUNT', hunt: { respawnEnabled: true, deathmatchKillLimit: 12 } }, 'fight'), '2 Bots · Schwer · 12 Abschüsse · 5 Siege');
-    assert.equal(formatMenuRulesSummary({ ...base, arcade: { sectorCount: 7 } }, 'arcade'), '7 Sektoren · Punkte sammeln');
+    assert.equal(formatMenuRulesSummary({ ...base, arcade: { sectorCount: 7 } }, 'arcade'), '7 Sektoren bis zum Sieg · Punkte sammeln');
 });
 
 test('respawning combat names the round wins once a match needs more than one', () => {

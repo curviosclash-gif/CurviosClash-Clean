@@ -29,7 +29,7 @@ function resolveModeLabel(modePath) {
 export function formatMenuRulesSummary(settings, modePath) {
     if (modePath === 'arcade') {
         const sectors = settings?.arcade?.sectorCount;
-        return sectors ? `${sectors} Sektoren · Punkte sammeln` : 'Sektoren meistern · Punkte sammeln';
+        return sectors ? `${sectors} Sektoren bis zum Sieg · Punkte sammeln` : 'Sektoren meistern · Punkte sammeln';
     }
     const count = Math.max(0, Number(settings?.numBots) || 0);
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[settings?.botDifficulty] || 'Normal';
