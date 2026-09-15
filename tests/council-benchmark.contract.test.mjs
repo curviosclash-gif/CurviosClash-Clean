@@ -5,6 +5,15 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
 
+import { resolveTestTimeScale } from '../scripts/run-contract-tests.mjs';
+
+// Der Deadline-Fall misst echte Zeit: unter Fremdlast braucht schon das Aufsetzen
+// laenger als das 500-ms-Budget. CURVIOS_TEST_TIME_SCALE streckt Budget und Arm-Dauer
+// gemeinsam, damit die Zusage (Arm ueberschreitet die Deadline) unveraendert bleibt.
+const TIME_SCALE = resolveTestTimeScale();
+const BENCHMARK_DEADLINE_MS = Math.round(500 * TIME_SCALE);
+const BENCHMARK_ARM_DURATION_MS = Math.round(550 * TIME_SCALE);
+
 import {
     DEEPSEEK_AGENT,
     DEEPSEEK_COMMAND,
@@ -404,11 +413,11 @@ test('non-graded smoke enforces its total deadline and persists the partial repo
     const smoke = await runBenchmarkHarnessSmoke({
         repositoryRoot: ROOT,
         tempRoot,
-        benchmarkTimeoutMs: 500,
+        benchmarkTimeoutMs: BENCHMARK_DEADLINE_MS,
         listModels: async () => ({ stdout: `${DEEPSEEK_OPENCODE_MODEL}\n` }),
         executeArm: async () => {
             executions += 1;
-            await new Promise((resolve) => setTimeout(resolve, 550));
+            await new Promise((resolve) => setTimeout(resolve, BENCHMARK_ARM_DURATION_MS));
             return { status: 'COMPLETED', modelCalls: 1, toolCalls: 0, inputTokens: 1, outputTokens: 1 };
         },
     });

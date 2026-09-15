@@ -17,8 +17,16 @@ import {
 } from '../src/core/runtime/RuntimeSessionLifecycleService.js';
 import { GAME_STATE_IDS } from '../src/shared/contracts/GameStateIds.js';
 import { SIGNALING_EVENT_TYPES } from '../src/shared/contracts/SignalingSessionContract.js';
+import { resolveTestTimeScale } from '../scripts/run-contract-tests.mjs';
 
-function waitForEvent(emitter, event, timeoutMs = 5000) {
+// Unter Fremdlast (paralleler Cluster oder Build) braucht der Signaling-Roundtrip
+// laenger als die Netzwerkzusage selbst; CURVIOS_TEST_TIME_SCALE streckt nur die
+// Wartebudgets, nicht die geprueften Aussagen.
+const TIME_SCALE = resolveTestTimeScale();
+const EVENT_TIMEOUT_MS = Math.round(5000 * TIME_SCALE);
+const DATA_CHANNEL_OPEN_TIMEOUT_MS = Math.round(1000 * TIME_SCALE);
+
+function waitForEvent(emitter, event, timeoutMs = EVENT_TIMEOUT_MS) {
     return new Promise((resolve, reject) => {
         const timer = setTimeout(
             () => reject(new Error(`Timed out waiting for '${event}'`)),
@@ -243,7 +251,7 @@ test('online match handoff attaches transports to the SAME lobby and completes t
             playerId: clientPeerId,
             lobbyCode,
             sessionToken: clientLobby.getLocalPeerToken(),
-            dataChannelOpenTimeoutMs: 1000,
+            dataChannelOpenTimeoutMs: DATA_CHANNEL_OPEN_TIMEOUT_MS,
         }).then(() => {
             clientConnectResolved = true;
         });

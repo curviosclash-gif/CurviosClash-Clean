@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
+import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
 import { collectNodeTestFileNames, selectNodeTestFiles } from '../scripts/run-contract-tests.mjs';
@@ -12,6 +13,31 @@ import {
 
 function readRepoFile(relativePath) {
     return readFileSync(new URL(`../${relativePath}`, import.meta.url), 'utf8');
+}
+
+// Im Arbeitsordner liegen regelmaessig untracked Specs anderer Sitzungen. Der Katalog
+// kennt nur eingecheckte Dateien, deshalb fragt die Zusage git statt das Dateisystem.
+// Ohne git (oder ausserhalb eines Checkouts) bleibt die Verzeichnisliste der Notnagel.
+function listVersionedSpecFileNames() {
+    const testsDirectory = fileURLToPath(new URL('../tests/', import.meta.url));
+    const result = spawnSync('git', ['ls-files', '--cached', '--', 'tests/*.spec.js'], {
+        cwd: fileURLToPath(new URL('../', import.meta.url)),
+        encoding: 'utf8',
+        windowsHide: true,
+    });
+
+    if (!result.error && result.status === 0) {
+        const versioned = String(result.stdout || '')
+            .split(/\r?\n/)
+            .map((line) => line.trim())
+            .filter((line) => line.endsWith('.spec.js'))
+            .map((line) => line.split('/').pop());
+        if (versioned.length > 0) return versioned.sort();
+    }
+
+    return readdirSync(testsDirectory)
+        .filter((fileName) => fileName.endsWith('.spec.js'))
+        .sort();
 }
 
 test('push and pull requests run the complete quality command set', () => {
@@ -121,8 +147,7 @@ test('the real tests folder exposes its fixture loop but never runs it', () => {
 });
 
 test('CI cluster catalog assigns every Playwright spec exactly once', () => {
-    const allSpecs = readdirSync(new URL('../tests/', import.meta.url))
-        .filter((fileName) => fileName.endsWith('.spec.js'))
+    const allSpecs = listVersionedSpecFileNames()
         .map((fileName) => `tests/${fileName}`)
         .sort();
     const assignedSpecs = [
@@ -135,8 +160,7 @@ test('CI cluster catalog assigns every Playwright spec exactly once', () => {
 });
 
 test('Playwright design keeps skips, fixed sleeps, randomness, and white-box growth out', () => {
-    const specSources = readdirSync(new URL('../tests/', import.meta.url))
-        .filter((fileName) => fileName.endsWith('.spec.js'))
+    const specSources = listVersionedSpecFileNames()
         .map((fileName) => ({
             fileName,
             source: readRepoFile(`tests/${fileName}`),

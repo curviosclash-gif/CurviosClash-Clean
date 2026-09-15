@@ -1,6 +1,6 @@
-import { mkdtempSync, readdirSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
-import { tmpdir } from 'node:os';
+import { cpus, tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
@@ -72,17 +72,73 @@ export function buildCoverageArgs(areaNames, summaryPath) {
     ];
 }
 
+// Ohne Zeitlimit kann ein einzelner haengender Test den ganzen Lauf blockieren; ohne
+// Obergrenze fuer die Parallelitaet nimmt der Lauf alle Kerne und kippt die
+// lastempfindlichen Tests, sobald daneben ein Cluster oder ein Build laeuft.
+export const CONTRACT_TEST_TIMEOUT_MS = 120000;
+export const CONTRACT_CONCURRENCY_HEADROOM = 2;
+
+export function resolveContractTestArgs(env = process.env, cpuCount = cpus().length) {
+    const override = Number.parseInt(String(env?.CURVIOS_TEST_CONCURRENCY ?? ''), 10);
+    const detectedCores = Number.isFinite(cpuCount) && cpuCount > 0 ? cpuCount : CONTRACT_CONCURRENCY_HEADROOM;
+    const concurrency = Number.isInteger(override) && override > 0
+        ? override
+        : Math.max(2, detectedCores - CONTRACT_CONCURRENCY_HEADROOM);
+    return [`--test-timeout=${CONTRACT_TEST_TIMEOUT_MS}`, `--test-concurrency=${concurrency}`];
+}
+
+// Lastempfindliche Tests (Council-Benchmark, Online-Handoff) messen echte Zeit. Unter
+// Fremdlast darf nur ihr Budget wachsen, nie die Zusage selbst - deshalb ist ein
+// Faktor unter 1 nicht zulaessig.
+export function resolveTestTimeScale(env = process.env) {
+    const rawScale = Number.parseFloat(String(env?.CURVIOS_TEST_TIME_SCALE ?? ''));
+    if (!Number.isFinite(rawScale) || rawScale < 1) return 1;
+    return rawScale;
+}
+
+export function resolveContractSummaryPath(timestamp = new Date().toISOString().replace(/[:.]/g, '-')) {
+    return path.resolve('tmp', 'contract', timestamp, 'summary.json');
+}
+
+export function buildContractSummaryReporterArgs(summaryPath) {
+    return [
+        '--test-reporter=./scripts/contract-summary-reporter.mjs',
+        `--test-reporter-destination=${summaryPath}`,
+    ];
+}
+
+export function formatContractSummaryLine(summary, summaryPath) {
+    const pass = Number(summary?.pass) || 0;
+    const fail = Number(summary?.fail) || 0;
+    const skipped = Number(summary?.skipped) || 0;
+    const durationMs = Math.round(Number(summary?.duration_ms) || 0);
+    return `[contract:summary] pass=${pass} fail=${fail} skipped=${skipped} durationMs=${durationMs} summary=${summaryPath}`;
+}
+
+function readContractSummary(summaryPath) {
+    try {
+        const parsed = JSON.parse(readFileSync(summaryPath, 'utf8'));
+        return parsed && typeof parsed === 'object' ? parsed : null;
+    } catch {
+        return null;
+    }
+}
+
 export function runContractTests(argv = process.argv.slice(2)) {
     const mode = argv.find((value) => !String(value).startsWith('-')) || 'fast';
     const coverageEnabled = argv.includes('--coverage');
     const selectedTests = selectNodeTestFiles(collectNodeTestFileNames('tests'), mode);
     const summaryPath = path.join(mkdtempSync(path.join(tmpdir(), 'curvios-coverage-')), 'summary.json');
-    const testArgs = coverageEnabled
+    const contractSummaryPath = resolveContractSummaryPath();
+    mkdirSync(path.dirname(contractSummaryPath), { recursive: true });
+    const reporterArgs = coverageEnabled
         ? buildCoverageArgs(Object.keys(readCoverageRatchet().areas), summaryPath)
-        : [];
+        : ['--test-reporter=spec', '--test-reporter-destination=stdout'];
 
     const result = spawnSync(process.execPath, [
-        ...testArgs,
+        ...reporterArgs,
+        ...buildContractSummaryReporterArgs(contractSummaryPath),
+        ...resolveContractTestArgs(),
         '--test',
         ...selectedTests.map((fileName) => path.join('tests', fileName)),
     ], {
@@ -92,11 +148,18 @@ export function runContractTests(argv = process.argv.slice(2)) {
 
     if (result.error) throw result.error;
     const testStatus = result.status ?? 1;
-    if (!coverageEnabled) return testStatus;
+    // Die Zusammenfassung ist bewusst die letzte Zeile des Laufs, damit sie sich ohne
+    // Parsen der Spec-Ausgabe lesen laesst.
+    const summaryLine = formatContractSummaryLine(readContractSummary(contractSummaryPath), contractSummaryPath);
+    if (!coverageEnabled) {
+        console.log(summaryLine);
+        return testStatus;
+    }
 
     // Der Ratchet laeuft auch bei roten Tests, damit ein Coverage-Einbruch nicht erst
     // beim naechsten gruenen Lauf auffaellt. Der Testfehler bleibt der Rueckgabewert.
     const ratchetStatus = runCoverageRatchet(summaryPath);
+    console.log(summaryLine);
     return testStatus || ratchetStatus;
 }
 
