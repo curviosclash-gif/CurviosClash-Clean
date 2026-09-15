@@ -75,6 +75,9 @@ export class Arena {
         this._glbFootprint = null;
         this._lastBuildSignature = null;
         this._aircraftDecorations = [];
+        // The scale the last build ran at. A prewarmed arena skips the decorations and only
+        // syncs them at match start, where the build context is long gone.
+        this._lastAuthoredBuildScale = 1;
         this._authoredPlayerSpawn = null;
         this._authoredBotSpawns = [];
         this._authoredItemAnchors = [];
@@ -212,7 +215,7 @@ export class Arena {
     }
 
     syncAuthoredAircraftDecorations() {
-        this._buildAuthoredAircraftDecorations(this.currentMapDefinition);
+        this._buildAuthoredAircraftDecorations(this.currentMapDefinition, this._lastAuthoredBuildScale);
     }
 
     build(mapKey, options = {}) {
@@ -221,7 +224,9 @@ export class Arena {
             previousBuildSignature: this._lastBuildSignature,
         });
         this.currentMapDefinition = buildContext.map || null;
-        this._cacheAuthoredMapAnchors(buildContext.map, buildContext.scale);
+        const buildScale = Number(buildContext.scale);
+        this._lastAuthoredBuildScale = Number.isFinite(buildScale) && buildScale > 0 ? buildScale : 1;
+        this._cacheAuthoredMapAnchors(buildContext.map, this._lastAuthoredBuildScale);
 
         if (buildContext.rebuildPolicy === 'reuse') {
             if (includeAuthoredAircraft) {
