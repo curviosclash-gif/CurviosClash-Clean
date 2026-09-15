@@ -15,6 +15,7 @@ import { MapDestructibleBlastSystem } from '../systems/MapDestructibleBlastSyste
 import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -30,6 +31,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapHazardSystem: new MapHazardSystem(owner),
         mapDestructibleSystem: new MapDestructibleSystem(owner),
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
+        objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
         exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,

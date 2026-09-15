@@ -10,6 +10,8 @@ import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
 import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
+import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntimeOps.js';
+import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
 
 function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
@@ -427,6 +429,20 @@ export class GameRuntimeArcadeSupport {
         return this.arcadeRunRuntime.getMenuSurfaceState?.() || null;
     }
 
+    /**
+     * Pushes the bounty target into the entity layer. Entities must not read
+     * arcade state themselves, so core hands over a plain player index here.
+     */
+    _syncObjectiveTargetMarker(runtimeState = this.getRuntimeState()) {
+        const markerSystem = runtimeState?.entityManager?._objectiveTargetMarkerSystem
+            || this.game?.entityManager?._objectiveTargetMarkerSystem
+            || null;
+        if (!markerSystem) return null;
+        return markerSystem.setTarget(
+            resolveObjectiveTargetIndex(getArcadeObjectiveRuntimeState(this.arcadeRunRuntime))
+        );
+    }
+
     tickSuddenDeath(dt = 0) {
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) {
             this.arenaWavesRuntime.update(dt);
@@ -435,6 +451,7 @@ export class GameRuntimeArcadeSupport {
         if (this._getEndlessRuntime()) return null;
         // This established per-frame arcade seam also advances time-based missions.
         this.arcadeRunRuntime.tickGameplay?.(dt);
+        this._syncObjectiveTargetMarker();
         if (this.arcadeRunRuntime.getPhase?.() !== 'sudden_death') {
             return null;
         }

@@ -52,7 +52,7 @@ function bindRuntimePorts(owner, runtime) {
     owner._huntCombatSystem = runtime?.systems?.huntCombatSystem || null;
     owner._globalFogEffectSystem = runtime?.systems?.globalFogEffectSystem || null;
     owner._staticTurretSystem = runtime?.systems?.staticTurretSystem || null;
-    owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null; owner._exclusionZoneSystem = runtime?.systems?.exclusionZoneSystem || null;
+    owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null; owner._exclusionZoneSystem = runtime?.systems?.exclusionZoneSystem || null; owner._objectiveTargetMarkerSystem = runtime?.systems?.objectiveTargetMarkerSystem || null;
     owner._mapDestructibleSystem = runtime?.systems?.mapDestructibleSystem || null; owner._mapDestructibleBlastSystem = runtime?.systems?.mapDestructibleBlastSystem || null;
     // Rockets damage the map through the projectile system, which is built before the systems.
     owner._projectileSystem?.setMapDestructibleSystem?.(owner._mapDestructibleSystem); const emitBreakFeedback = owner.onMapDestructibleBreak;
@@ -116,7 +116,7 @@ export class EntityManager {
         this.botDifficulty = this.entityRuntimeConfig.BOT?.ACTIVE_DIFFICULTY
             || this.entityRuntimeConfig.BOT?.DEFAULT_DIFFICULTY
             || 'NORMAL';
-        this._exclusionZoneSystem = null; this.runtime = assembleEntityRuntime(this);
+        this._exclusionZoneSystem = null; this._objectiveTargetMarkerSystem = null; this.runtime = assembleEntityRuntime(this);
         bindRuntimePorts(this, this.runtime);
         this._lastRoundGhostSystem = new LastRoundGhostSystem(renderer, {
             entityManager: this,
@@ -559,7 +559,7 @@ export class EntityManager {
         }
         this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); this._mapDestructibleBlastSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
         this._globalFogEffectSystem?.reset?.();
-        this._huntScoring.reset();
+        if (disposeProjectileSystem) this._objectiveTargetMarkerSystem?.dispose?.(); else this._objectiveTargetMarkerSystem?.reset?.(); this._huntScoring.reset();
         this._simulationClockMs = 0;
 
         if (this.powerupManager) {

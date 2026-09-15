@@ -21,6 +21,7 @@ export class EntityTickPipeline {
         owner._staticTurretSystem?.update?.(safeDt);
         owner._exclusionZoneSystem?.update?.(safeDt);
         owner._mapDestructibleBlastSystem?.update?.();
+        owner._objectiveTargetMarkerSystem?.update?.(safeDt);
         owner._projectileSystem.update(dt);
         owner._overheatGunSystem.update(dt);
         owner._respawnSystem.update(dt);

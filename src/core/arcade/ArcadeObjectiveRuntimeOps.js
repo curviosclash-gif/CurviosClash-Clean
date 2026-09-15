@@ -85,6 +85,14 @@ export function assignArcadeSectorRuntimeState(runtime) {
     runtime._state.missions = runtime._missionState;
 }
 
+/**
+ * Live read of the objective state without cloning the whole run snapshot,
+ * so per-frame consumers stay allocation free.
+ */
+export function getArcadeObjectiveRuntimeState(runtime) {
+    return runtime?._state?.objectiveState || null;
+}
+
 export function updateArcadeObjectiveRuntimeState(runtime, event) {
     if (!runtime?._state?.objectiveState) return null;
     const next = updateArcadeObjectiveState(runtime._state.objectiveState, event);
