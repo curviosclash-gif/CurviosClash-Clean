@@ -46,10 +46,28 @@ class FakeElement {
         this.parentNode = null;
         this.hidden = false;
         this._innerHTML = '';
+        this.listeners = new Map();
     }
 
-    addEventListener() {}
-    removeEventListener() {}
+    addEventListener(type, handler, options = {}) {
+        if (typeof handler !== 'function') return;
+        const entries = this.listeners.get(type) || [];
+        entries.push({ handler, once: options?.once === true });
+        this.listeners.set(type, entries);
+    }
+
+    removeEventListener(type, handler) {
+        const entries = this.listeners.get(type) || [];
+        this.listeners.set(type, entries.filter((entry) => entry.handler !== handler));
+    }
+
+    dispatch(type) {
+        const entries = this.listeners.get(type) || [];
+        this.listeners.set(type, entries.filter((entry) => !entry.once));
+        entries.forEach((entry) => entry.handler({ type }));
+    }
+
+    focus() {}
     setAttribute(name, value) { this[name] = value; }
 
     appendChild(child) {
@@ -71,10 +89,36 @@ class FakeElement {
     }
 }
 
+// Mirrors <dialog>: showModal() opens, close(value) only overwrites returnValue when a
+// value is passed, and Escape closes without one.
+class FakeDialogElement extends FakeElement {
+    constructor(id) {
+        super('dialog', id);
+        this.returnValue = '';
+        this.open = false;
+    }
+
+    showModal() {
+        this.open = true;
+    }
+
+    close(returnValue) {
+        if (returnValue !== undefined) this.returnValue = String(returnValue);
+        this.open = false;
+        this.dispatch('close');
+    }
+
+    pressEscape() {
+        this.close();
+    }
+}
+
 function createFakeDocument(ids) {
     const elements = new Map(ids.map((id) => [id, new FakeElement('div', id)]));
     elements.set('compareVehicleSelect', new FakeElement('select', 'compareVehicleSelect'));
     elements.set('presetSelect', new FakeElement('select', 'presetSelect'));
+    elements.set('workshopDialog', new FakeDialogElement('workshopDialog'));
+    elements.set('workshopDialogInput', new FakeElement('input', 'workshopDialogInput'));
 
     return {
         getElementById(id) {
@@ -110,6 +154,10 @@ function createWorkshopUi(callbacks = {}) {
         'snapRotate',
         'snapScale',
         'workshopDialogCancel',
+        'workshopDialogTitle',
+        'workshopDialogMessage',
+        'workshopDialogInputLabel',
+        'workshopDialogConfirm',
         'compareRows',
         'shipLabel',
         'shipPrimaryColor',
@@ -253,6 +301,36 @@ test('VehicleLabUI renders the desktop workshop status bar', () => {
         assert.equal(document.getElementById('workshopStatusMessage').textContent, 'Undo angewendet. | Auswahl: Wing');
         assert.equal(document.getElementById('workshopHistoryState').textContent, 'Verlauf 2/3');
         assert.equal(document.getElementById('workshopBlueprintState').textContent, 'Blueprint ok');
+    } finally {
+        restore();
+    }
+});
+
+test('VehicleLabUI treats Escape as cancel after a confirmed dialog', async () => {
+    const { document, restore, ui } = createWorkshopUi();
+    try {
+        const dialog = document.getElementById('workshopDialog');
+
+        const renamePromise = ui.requestDialog({ title: 'Umbenennen', inputLabel: 'Name' });
+        document.getElementById('workshopDialogInput').value = 'Jaeger';
+        dialog.close('confirm');
+        assert.equal(await renamePromise, 'Jaeger');
+
+        const deletePromise = ui.requestDialog({ title: 'Fahrzeug loeschen?', danger: true });
+        dialog.pressEscape();
+        assert.equal(await deletePromise, null);
+    } finally {
+        restore();
+    }
+});
+
+test('VehicleLabUI resolves a confirmed delete dialog without an input', async () => {
+    const { document, restore, ui } = createWorkshopUi();
+    try {
+        const dialog = document.getElementById('workshopDialog');
+        const deletePromise = ui.requestDialog({ title: 'Fahrzeug loeschen?', danger: true });
+        dialog.close('confirm');
+        assert.equal(await deletePromise, true);
     } finally {
         restore();
     }

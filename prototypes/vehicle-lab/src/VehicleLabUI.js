@@ -733,6 +733,10 @@ export class VehicleLabUI {
         label.classList.toggle('is-hidden', !hasInput);
         label.textContent = inputLabel;
         input.value = inputValue;
+        // A <dialog> keeps the returnValue of its previous run. Without this reset an
+        // Escape press (which closes without a return value) would still read 'confirm'
+        // from an earlier confirmed dialog and delete the vehicle.
+        dialog.returnValue = '';
         dialog.showModal();
         if (hasInput) input.focus();
         return new Promise((resolve) => {
