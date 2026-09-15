@@ -136,6 +136,7 @@ et.GRAIN = False
 # break pack and makes a short-lived spray visible without changing the intact Eiffel maps.
 SIEGE_FRACTURE_GLOW = "SiegeFractureGlow"
 et.MATERIAL_COLORS[SIEGE_FRACTURE_GLOW] = ((1.0, 0.16, 0.015, 1.0), 8.0, 0.1)
+SIEGE_BREAK_DUST = "SiegeBreakDust"
 
 FPS = et.FPS
 
@@ -769,6 +770,65 @@ def fracture_cluster_mesh(name, material, seed):
     return mesh
 
 
+def break_dust_material():
+    """Warm translucent dust local to this pack, exported as one blended material."""
+    existing = bpy.data.materials.get(SIEGE_BREAK_DUST)
+    if existing:
+        return existing
+    color = (0.34, 0.27, 0.19, 0.42)
+    value = bpy.data.materials.new(SIEGE_BREAK_DUST)
+    value.diffuse_color = color
+    value.use_nodes = True
+    shader = value.node_tree.nodes.get("Principled BSDF")
+    shader.inputs["Base Color"].default_value = color
+    shader.inputs["Alpha"].default_value = color[3]
+    shader.inputs["Roughness"].default_value = 0.92
+    # Blender 4.2 renamed the viewport blend switch. The glTF exporter reads either generation
+    # and writes alphaMode=BLEND, so the joined low-poly puffs remain a veil, not brown rocks.
+    if hasattr(value, "surface_render_method"):
+        value.surface_render_method = "DITHERED"
+    elif hasattr(value, "blend_method"):
+        value.blend_method = "BLEND"
+    return value
+
+
+def break_dust_mesh(name, seed):
+    """One joined draw call made from irregular octahedral puffs."""
+    octa_vertices = (
+        (-1.0, 0.0, 0.0), (1.0, 0.0, 0.0),
+        (0.0, -1.0, 0.0), (0.0, 1.0, 0.0),
+        (0.0, 0.0, -1.0), (0.0, 0.0, 1.0),
+    )
+    octa_faces = (
+        (4, 0, 2), (4, 2, 1), (4, 1, 3), (4, 3, 0),
+        (5, 2, 0), (5, 1, 2), (5, 3, 1), (5, 0, 3),
+    )
+    vertices, faces = [], []
+    for puff in range(14):
+        centre = Vector((
+            (et.hash01(seed, puff, 21) - 0.5) * 17.0,
+            (et.hash01(seed, puff, 22) - 0.5) * 12.0,
+            et.hash01(seed, puff, 23) * 8.0,
+        ))
+        radius = 1.8 + et.hash01(seed, puff, 24) * 2.8
+        squash = Vector((
+            radius * (0.8 + et.hash01(seed, puff, 25) * 0.7),
+            radius * (0.7 + et.hash01(seed, puff, 26) * 0.6),
+            radius * (0.6 + et.hash01(seed, puff, 27) * 0.8),
+            1.0,
+        ))
+        matrix = Matrix.Translation(centre) @ Matrix.Diagonal(squash)
+        offset = len(vertices)
+        vertices.extend(tuple(matrix @ Vector(vertex)) for vertex in octa_vertices)
+        faces.extend(tuple(offset + index for index in face) for face in octa_faces)
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.validate()
+    mesh.update()
+    mesh.materials.append(break_dust_material())
+    return mesh
+
+
 def add_fracture_clusters(scene, stem, root, frame_count):
     """Key two deterministic, non-colliding arcs from the initiating break line."""
     end = max(8, int((frame_count - 1) * 0.66))
@@ -805,6 +865,41 @@ def add_fracture_clusters(scene, stem, root, frame_count):
         obj.keyframe_insert("location", frame=scene.frame_end)
         obj.keyframe_insert("rotation_euler", frame=scene.frame_end)
         obj.keyframe_insert("scale", frame=scene.frame_end)
+
+
+def add_break_dust(scene, stem, root, frame_count):
+    """Add a delayed expanding dust veil without a particle system or runtime allocation."""
+    seed = et.hash01(len(stem), PIECE_FOOT[root.name.removeprefix("piece_")], 41)
+    name = f"{root.name}_dust_veil_nocol_noshadow"
+    obj = bpy.data.objects.new(name, break_dust_mesh(name, seed))
+    bpy.context.collection.objects.link(obj)
+    obj.parent = root
+    delay = min(8, frame_count - 2)
+    end = min(frame_count - 1, delay + int(FPS * 7.0))
+    base = Vector(((seed - 0.5) * 1.4, (0.5 - seed) * 1.2, 0.4))
+    drift = Vector((3.0 + seed * 2.0, -2.2 + seed * 4.4, 7.0 + seed * 3.0))
+    for index in range(end + 1):
+        if index < delay:
+            ratio = 0.0
+            visible = 0.0
+        else:
+            ratio = (index - delay) / max(1, end - delay)
+            # A fast pressure bloom, then a long dispersal. Scaling rather than spawning puffs
+            # keeps the effect deterministic and one draw call for the full clip.
+            visible = min(1.0, (index - delay) / 7.0) * (1.0 - ratio ** 3)
+        obj.location = base + drift * ratio
+        obj.rotation_mode = "XYZ"
+        obj.rotation_euler = (0.08 * ratio, 0.22 * ratio, (seed - 0.5) * 0.35 * ratio)
+        spread = visible * (0.35 + 1.45 * ratio)
+        obj.scale = (spread, spread * (0.9 + 0.2 * seed), spread * 0.78)
+        at = scene.frame_start + index
+        obj.keyframe_insert("location", frame=at)
+        obj.keyframe_insert("rotation_euler", frame=at)
+        obj.keyframe_insert("scale", frame=at)
+    obj.scale = (0.0, 0.0, 0.0)
+    obj.keyframe_insert("location", frame=scene.frame_end)
+    obj.keyframe_insert("rotation_euler", frame=scene.frame_end)
+    obj.keyframe_insert("scale", frame=scene.frame_end)
 
 
 def build_scene(stem, clip_name):
@@ -855,6 +950,7 @@ def build_scene(stem, clip_name):
         # to the first section that broke, follows that section's baked ownership/hide behaviour,
         # and never enters Bullet or the physical root tracks.
         add_fracture_clusters(scene, stem, rigs[pieces[0]], len(frames))
+        add_break_dust(scene, stem, rigs[pieces[0]], len(frames))
 
         collapse.report(stem, clip_name)
 

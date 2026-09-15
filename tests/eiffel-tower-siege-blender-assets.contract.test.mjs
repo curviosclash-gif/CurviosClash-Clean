@@ -129,12 +129,12 @@ const TIP_METRES = 330.0;
 const TRIANGLE_BUDGET = 40_000;
 // Four rig empties plus one mesh per material the pieces use. Joined per material is the point:
 // the lattice is thousands of members and must not export as thousands of draw calls.
-// Two joined render-only fracture clusters per scene add two mesh nodes beneath the existing rigs.
+// Two joined fracture clusters and one joined dust veil add three render-only mesh nodes.
 const NODE_BUDGET = 30;
 // The whole pack, so a future scene cannot quietly double the download.
-// Measured pack size with the eight readable lattice-fragment clusters is 5,008,024 bytes; keep
-// about half a percent of headroom rather than granting enough room for another authored variant.
-const TOTAL_GLB_BUDGET_BYTES = 4.8 * 1024 * 1024;
+// The dust animation adds one short transform track and 112 triangles per scene. The generated
+// pack is 5,244,828 bytes; 5.01 MiB leaves less than two tenths of a percent of headroom.
+const TOTAL_GLB_BUDGET_BYTES = 5.01 * 1024 * 1024;
 
 function glbPath(fileStem) {
     return path.join(ASSET_ROOT, 'glb', `${fileStem}.glb`);
@@ -417,6 +417,50 @@ test('each collapse adds two deterministic visual-only fracture clusters at its 
             && Number(material.extensions?.KHR_materials_emissive_strength?.emissiveStrength) >= 6
             && (material.emissiveFactor || []).some((channel) => Number(channel) > 0)
         )), `${fileStem} includes a high-contrast emissive fracture burst`);
+    }
+});
+
+test('each collapse layers a delayed translucent dust veil over its initiating break', () => {
+    for (const [fileStem, expected] of Object.entries(SCENES)) {
+        const glb = readGlb(fileStem);
+        const { document } = glb;
+        const [animation] = document.animations;
+        const parents = new Map();
+        for (const [parentIndex, parent] of (document.nodes || []).entries()) {
+            for (const child of parent.children || []) parents.set(child, parentIndex);
+        }
+        const dustNodes = (document.nodes || []).map((node, index) => ({ node, index }))
+            .filter(({ node }) => /_dust_veil_nocol_noshadow$/i.test(String(node.name || '')));
+        assert.equal(dustNodes.length, 1, `${fileStem} has one joined dust veil`);
+        const [{ node, index }] = dustNodes;
+        const name = String(node.name || '');
+        assert.match(name, new RegExp(`^piece_${expected.pieces[0]}_`), `${name} belongs to the initiating piece`);
+        assert.equal(document.nodes[parents.get(index)]?.name, `piece_${expected.pieces[0]}`,
+            `${name} follows the initiating break root`);
+        assert.notEqual(node.mesh, undefined, `${name} has joined low-poly geometry`);
+        const primitives = document.meshes[node.mesh]?.primitives || [];
+        const positionAccessors = primitives.map((primitive) => document.accessors[primitive.attributes.POSITION]);
+        assert.ok(positionAccessors.reduce((sum, accessor) => sum + accessor.count, 0) >= 84,
+            `${name} carries fourteen joined puffs`);
+        const materials = primitives.map((primitive) => document.materials?.[primitive.material] || {});
+        assert.ok(materials.some((material) => material.name === 'SiegeBreakDust'
+            && material.alphaMode === 'BLEND'
+            && Number(material.pbrMetallicRoughness?.baseColorFactor?.[3]) < 0.6),
+        `${name} is a translucent dust layer`);
+        const channels = new Map(animation.channels
+            .filter((channel) => channel.target.node === index)
+            .map((channel) => [channel.target.path, animation.samplers[channel.sampler]]));
+        assert.deepEqual([...channels.keys()].sort(), ['rotation', 'scale', 'translation'],
+            `${name} keys a complete visual transform`);
+        const scale = channels.get('scale');
+        const samples = Array.from({ length: document.accessors[scale.output].count }, (_, frame) => (
+            readAccessorElement(glb, scale.output, frame)
+        ));
+        assert.deepEqual(samples[0], [0, 0, 0], `${name} begins hidden`);
+        assert.ok(samples.slice(1, 6).every((sample) => sample.every((value) => value === 0)),
+            `${name} waits behind the immediate spark burst`);
+        assert.ok(samples.some((sample) => sample[0] >= 0.8), `${name} expands into a readable veil`);
+        assert.deepEqual(samples.at(-1), [0, 0, 0], `${name} disperses before the clip ends`);
     }
 });
 
