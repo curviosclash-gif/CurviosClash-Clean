@@ -38,10 +38,23 @@ export function alignTunnelSegment(mesh, pA, pB, radius) {
     };
 }
 
+/**
+ * @param {*} manager
+ * @param {string} type
+ * @param {string|null} subType
+ * @param {number} x
+ * @param {number} y
+ * @param {number} z
+ * @param {*} sizeInfo
+ * @param {Record<string, any>} [extraProps]
+ * @param {{attachSelectionOutlines?: boolean, register?: boolean, updateUi?: boolean}} [options]
+ */
 export function createEditorMesh(manager, type, subType, x, y, z, sizeInfo, extraProps = {}, options = {}) {
+    /** @type {Record<string, any>} */
     const props = { ...(extraProps || {}) };
     const requestedId = props.id;
     let mesh = null;
+    /** @type {Record<string, any>} */
     const userData = { type, sizeInfo, ...props };
 
     if (type === 'hard' || type === 'foam') {
