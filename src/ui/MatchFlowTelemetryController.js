@@ -139,7 +139,11 @@ export class MatchFlowTelemetryController {
         this._damageDir.normalize();
 
         target.getDirection(this._damageForward).normalize();
-        this._damageRight.crossVectors(this._damageWorldUp, this._damageForward);
+        // Rechts ist forward x up: Bei Blickrichtung (0,0,-1) ergibt das (1,0,0), also die
+        // rechte Bildschirmseite - dieselbe Konvention wie die Kamera, die im Cockpit die
+        // Quaternion des Spielers uebernimmt. Die umgekehrte Reihenfolge lieferte den
+        // Linksvektor und spiegelte den Trefferpfeil.
+        this._damageRight.crossVectors(this._damageForward, this._damageWorldUp);
         if (this._damageRight.lengthSq() <= 0.000001) {
             this._damageRight.set(1, 0, 0);
         } else {

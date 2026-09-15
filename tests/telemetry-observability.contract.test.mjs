@@ -283,3 +283,36 @@ test('desktop debug menu exposes telemetry controls, filters, exports and reset'
         assert.match(html, new RegExp(`id=["']${id}["']`));
     }
 });
+
+// Blickrichtung (0,0,-1), Weltoben (0,1,0): Rechts ist damit lokal +X. Der Pfeil wird im
+// HUD als rotate(angleDeg) auf ein nach oben zeigendes Dreieck gelegt, CSS dreht positiv im
+// Uhrzeigersinn - ein Schuetze rechts muss also +90 Grad ergeben.
+function resolveHuntDamageIndicatorAngle(shooterPosition) {
+    const target = {
+        index: 0,
+        isBot: false,
+        alive: true,
+        position: { x: 0, y: 0, z: 0 },
+        getDirection(out) {
+            return out.set(0, 0, -1);
+        },
+    };
+    const game = {
+        huntState: {},
+        entityManager: { getHumanPlayers: () => [target] },
+    };
+    const controller = new MatchFlowTelemetryController({ game });
+    controller.handleHuntDamageEvent({
+        target,
+        sourcePlayer: { position: shooterPosition },
+        damageResult: { applied: 20, absorbedByShield: 0, hpApplied: 20 },
+    });
+    return game.huntState.damageIndicator.angleDeg;
+}
+
+test('P5 H1 hunt damage arrow points at the shooter side instead of mirroring it', () => {
+    assert.equal(Math.round(resolveHuntDamageIndicatorAngle({ x: 10, y: 0, z: 0 })), 90, 'Schuetze rechts -> Pfeil rechts');
+    assert.equal(Math.round(resolveHuntDamageIndicatorAngle({ x: -10, y: 0, z: 0 })), -90, 'Schuetze links -> Pfeil links');
+    assert.equal(Math.round(resolveHuntDamageIndicatorAngle({ x: 0, y: 0, z: -10 })), 0, 'Schuetze vorn -> Pfeil nach oben');
+    assert.equal(Math.abs(Math.round(resolveHuntDamageIndicatorAngle({ x: 0, y: 0, z: 10 }))), 180, 'Schuetze hinten -> Pfeil nach unten');
+});
