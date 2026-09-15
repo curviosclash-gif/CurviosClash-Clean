@@ -491,7 +491,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         player.speed = player.baseSpeed;
     }
 
-    // 61.4.1: portal_storm — multiplier for item/portal spawn frequency
+    // 61.4.1: portal_storm — multiplier for item spawn frequency
     // 61.6.2: Also aggregates SD stacked modifier effects
     getSpawnRateMultiplier() {
         const fx = this._getAggregatedModifierEffects();

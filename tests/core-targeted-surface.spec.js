@@ -2485,7 +2485,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(initialHudState.missionVisible).toBeTruthy();
         expect(initialHudState.scoreText).toContain('1337');
         expect(initialHudState.scoreText).toContain('x4.0');
-        expect(initialHudState.modifierLabel).toContain('Portal Storm');
+        expect(initialHudState.modifierLabel).toContain('Item-Regen');
         expect(initialHudState.missionCardCount).toBeGreaterThanOrEqual(3);
         expect(initialHudState.objectiveText).toContain('Bot 2');
 

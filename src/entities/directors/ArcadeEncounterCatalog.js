@@ -42,7 +42,7 @@ export const ARCADE_SECTOR_OBJECTIVES = Object.freeze([
 export const ARCADE_SECTOR_MODIFIERS = Object.freeze([
     Object.freeze({ id: 'tight_turns', label: 'Tight Turns', difficultyDelta: 0.1, scoreBonus: 0.08 }),
     Object.freeze({ id: 'heat_stress', label: 'Heat Stress', difficultyDelta: 0.14, scoreBonus: 0.12 }),
-    Object.freeze({ id: 'portal_storm', label: 'Portal Storm', difficultyDelta: 0.18, scoreBonus: 0.15 }),
+    Object.freeze({ id: 'portal_storm', label: 'Item-Regen', difficultyDelta: 0.18, scoreBonus: 0.15 }),
     Object.freeze({ id: 'boost_tax', label: 'Boost Tax', difficultyDelta: 0.2, scoreBonus: 0.18 }),
 ]);
 

@@ -18,9 +18,9 @@ const ARCADE_MODIFIER_META = Object.freeze({
     }),
     portal_storm: Object.freeze({
         id: 'portal_storm',
-        icon: 'PS',
-        label: 'Portal Storm',
-        effectText: 'Spawnrate x2.0',
+        icon: 'IR',
+        label: 'Item-Regen',
+        effectText: 'Doppelt so viele Items',
     }),
     boost_tax: Object.freeze({
         id: 'boost_tax',
