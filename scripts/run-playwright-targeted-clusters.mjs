@@ -22,6 +22,11 @@ import {
     resolveClusterUserDataRoot,
     resolveRemovableUserDataRoot,
 } from './playwright-user-data-root.mjs';
+import {
+    assertEnoughFreeSpace,
+    collectHygieneReport,
+    formatHygieneLine,
+} from './test-hygiene.mjs';
 const PLAYWRIGHT_STARTUP_DIAGNOSTICS_FILE = 'playwright-startup-diagnostics.json';
 const PLAYWRIGHT_SPAWN_DIAGNOSTICS_FILE = 'playwright-spawn-diagnostics.json';
 const ALL_CLUSTERS = Object.freeze([
@@ -439,6 +444,16 @@ async function main() {
     if (shouldDryRun) {
         printDryRun(clusters, playwrightArgs);
         return;
+    }
+
+    // Ein volles Laufwerk bricht den Lauf sonst erst nach 20 Minuten mitten drin ab
+    // (ENOSPC). Der Bericht ist eine Zeile und loescht nichts.
+    const hygieneReport = collectHygieneReport();
+    console.log(formatHygieneLine(hygieneReport));
+    const freeSpace = assertEnoughFreeSpace(hygieneReport.freeBytes);
+    if (!freeSpace.ok) {
+        console.error(freeSpace.message);
+        process.exit(1);
     }
 
     // Hold the machine-wide Playwright lock for the whole cluster list so no other session

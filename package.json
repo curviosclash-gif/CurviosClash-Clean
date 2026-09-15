@@ -51,6 +51,7 @@
     "test:contract:dist": "node scripts/run-contract-tests.mjs dist",
     "test:contract": "npm run test:contract:fast && npm run test:contract:dist",
     "test:dev:training": "node --test \"dev/training/tests/*.test.mjs\" \"dev/training/tests/*.contract.test.mjs\"",
+    "test:hygiene": "node scripts/test-hygiene.mjs",
     "test:desktop:smoke": "npm run build:app:test && node scripts/run-playwright-smoke.mjs tests/core.spec.js --timeout=180000",
     "test:desktop:e2e": "npm run build:app:test && node scripts/run-playwright-targeted-clusters.mjs",
     "test:browser:compat": "node scripts/run-playwright-browser-contract.mjs tests/core-targeted.spec.js --grep \"T1:|T2:|T3:\"",
