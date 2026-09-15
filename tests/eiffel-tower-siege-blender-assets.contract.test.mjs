@@ -129,9 +129,12 @@ const TIP_METRES = 330.0;
 const TRIANGLE_BUDGET = 40_000;
 // Four rig empties plus one mesh per material the pieces use. Joined per material is the point:
 // the lattice is thousands of members and must not export as thousands of draw calls.
-const NODE_BUDGET = 28;
+// Two joined render-only fracture clusters per scene add two mesh nodes beneath the existing rigs.
+const NODE_BUDGET = 30;
 // The whole pack, so a future scene cannot quietly double the download.
-const TOTAL_GLB_BUDGET_BYTES = 4.5 * 1024 * 1024;
+// Measured pack size after the eight small animated clusters is 4,934,104 bytes; keep under 1%
+// headroom rather than granting enough room for another large authored variant.
+const TOTAL_GLB_BUDGET_BYTES = 4.75 * 1024 * 1024;
 
 function glbPath(fileStem) {
     return path.join(ASSET_ROOT, 'glb', `${fileStem}.glb`);
@@ -310,7 +313,10 @@ test('every mesh of a break scene belongs to a piece and is moved by the clip', 
         const moved = animatedMeshNodeNames(document);
         for (const name of meshes) {
             assert.match(name, /^piece_(lower|mid|shaft|summit)_/, `${name} belongs to a piece`);
-            assert.ok(moved.has(name), `${name} is moved by the clip, so it can carry a collider`);
+            assert.ok(moved.has(name), `${name} is moved by the clip`);
+            if (!name.includes('_nocol')) {
+                assert.ok(moved.has(name), `${name} is moved by the clip, so it can carry a collider`);
+            }
         }
 
         const roots = (document.scenes[document.scene || 0].nodes || [])
@@ -320,6 +326,76 @@ test('every mesh of a break scene belongs to a piece and is moved by the clip', 
             expected.pieces.map((piece) => `piece_${piece}`).sort(),
             `${fileStem} drops exactly the pieces above its break`,
         );
+    }
+});
+
+test('each collapse adds two deterministic visual-only fracture clusters at its initiating break', () => {
+    for (const [fileStem, expected] of Object.entries(SCENES)) {
+        const glb = readGlb(fileStem);
+        const { document } = glb;
+        const [animation] = document.animations;
+        const parents = new Map();
+        for (const [parentIndex, parent] of (document.nodes || []).entries()) {
+            for (const child of parent.children || []) parents.set(child, parentIndex);
+        }
+        const clusters = (document.nodes || []).map((node, index) => ({ node, index }))
+            .filter(({ node }) => /_fracture_[01]_nocol_noshadow$/i.test(String(node.name || '')));
+        assert.equal(clusters.length, 2, `${fileStem} has exactly two fracture clusters`);
+        const trajectories = [];
+        for (const { node, index } of clusters) {
+            const name = String(node.name || '');
+            assert.match(name, new RegExp(`^piece_${expected.pieces[0]}_`), `${name} belongs to the initiating piece`);
+            assert.equal(document.nodes[parents.get(index)]?.name, `piece_${expected.pieces[0]}`,
+                `${name} stays under the root whose chained break hides it`);
+            assert.ok(name.includes('_nocol') && name.includes('_noshadow'), `${name} is render-only`);
+            assert.notEqual(node.mesh, undefined, `${name} has joined low-poly geometry`);
+            const channels = new Map(animation.channels
+                .filter((channel) => channel.target.node === index)
+                .map((channel) => [channel.target.path, animation.samplers[channel.sampler]]));
+            assert.deepEqual([...channels.keys()].sort(), ['rotation', 'scale', 'translation'],
+                `${name} keys a complete visual transform`);
+            const scale = channels.get('scale');
+            const translation = channels.get('translation');
+            const rotation = channels.get('rotation');
+            const firstScale = readAccessorElement(glb, scale.output, 0);
+            assert.deepEqual(firstScale, [0, 0, 0], `${name} begins hidden at frame 1`);
+            const lastScale = readAccessorElement(glb, scale.output,
+                document.accessors[scale.output].count - 1);
+            assert.deepEqual(lastScale, [0, 0, 0], `${name} is hidden before the clip ends`);
+            const positions = Array.from({ length: document.accessors[translation.output].count }, (_, frame) => (
+                readAccessorElement(glb, translation.output, frame)
+            ));
+            const rotations = Array.from({ length: document.accessors[rotation.output].count }, (_, frame) => (
+                readAccessorElement(glb, rotation.output, frame)
+            ));
+            assert.ok(positions.some((value, frame) => frame > 0
+                && new THREE.Vector3().fromArray(value).distanceTo(new THREE.Vector3().fromArray(positions[0])) > 0.2),
+            `${name} visibly leaves its authored break line`);
+            for (let frame = 1; frame < positions.length; frame += 1) {
+                assert.ok(
+                    new THREE.Vector3().fromArray(positions[frame]).distanceTo(
+                        new THREE.Vector3().fromArray(positions[frame - 1]),
+                    ) < 1.0,
+                    `${name} has a continuous analytic arc at frame ${frame}`,
+                );
+            }
+            assert.ok(Math.abs(positions[0][2]) < 1.1, `${name} starts on the authored break line`);
+            assert.ok(positions.every((value) => new THREE.Vector3().fromArray(value).length() < 16),
+                `${name} remains in its small visual debris envelope`);
+            assert.ok(rotations.some((value, frame) => frame > 0 && value.some(
+                (component, componentIndex) => Math.abs(component - rotations[0][componentIndex]) > 1e-4,
+            )), `${name} actually rotates during its arc`);
+            trajectories.push({ name, positions, rotations });
+        }
+        const tracksDiffer = (left, right) => left.length !== right.length || left.some(
+            (sample, sampleIndex) => sample.some(
+                (component, componentIndex) => Math.abs(component - right[sampleIndex][componentIndex]) > 1e-4,
+            ),
+        );
+        assert.ok(tracksDiffer(trajectories[0].positions, trajectories[1].positions),
+            `${fileStem} fracture clusters have distinct translation samples`);
+        assert.ok(tracksDiffer(trajectories[0].rotations, trajectories[1].rotations),
+            `${fileStem} fracture clusters have distinct rotation samples`);
     }
 });
 
@@ -415,12 +491,24 @@ function poseAt(glb, track, frame) {
     );
 }
 
+function nodeMatrix(node) {
+    return new THREE.Matrix4().compose(
+        new THREE.Vector3().fromArray(node.translation || [0, 0, 0]),
+        new THREE.Quaternion().fromArray(node.rotation || [0, 0, 0, 1]),
+        new THREE.Vector3().fromArray(node.scale || [1, 1, 1]),
+    );
+}
+
 /** Every vertex under a rig, in the rig's own frame. */
 function pieceVertices({ document, binary }, node) {
     const points = [];
-    const visit = (index) => {
+    const visit = (index, parent) => {
         const child = document.nodes[index];
+        const world = parent.clone().multiply(nodeMatrix(child));
         if (child.mesh !== undefined) {
+            // A fracture chip is an animated child but never part of the physical tower.  It must
+            // not inflate the wreck reach or make the tower look buried in this physical check.
+            if (String(child.name || '').toLowerCase().includes('_nocol')) return;
             for (const primitive of document.meshes[child.mesh].primitives) {
                 const accessor = document.accessors[primitive.attributes.POSITION];
                 const view = document.bufferViews[accessor.bufferView];
@@ -431,13 +519,13 @@ function pieceVertices({ document, binary }, node) {
                         binary.readFloatLE(base + i * stride),
                         binary.readFloatLE(base + i * stride + 4),
                         binary.readFloatLE(base + i * stride + 8),
-                    ));
+                    ).applyMatrix4(world));
                 }
             }
         }
-        for (const grandchild of child.children || []) visit(grandchild);
+        for (const grandchild of child.children || []) visit(grandchild, world);
     };
-    for (const child of node.children || []) visit(child);
+    for (const child of node.children || []) visit(child, new THREE.Matrix4());
     return points;
 }
 

@@ -315,11 +315,33 @@ test.describe('Eiffel tower siege', () => {
             const hudElement = document.querySelector('#p1-hud .map-destructible-status');
 
             const clockAtBreak = Number(arena.glbAnimationElapsedSeconds) || 0;
+            const fracture = toppleSlot?.getObjectByName('piece_lower_fracture_0_nocol_noshadow');
+            const transformOf = (node) => node ? {
+                position: [node.matrixWorld.elements[12], node.matrixWorld.elements[13], node.matrixWorld.elements[14]],
+                scale: node.scale.toArray(),
+            } : null;
+            toppleSlot?.updateMatrixWorld(true);
+            const fractureAtBreak = transformOf(fracture);
+            // Stop at a readable point during the fall: the render-only cluster must animate, but
+            // a ray through its current world position must never name it as collision geometry.
+            const stepSeconds = 1 / 60;
+            for (let index = 0; index < 12 * 60; index += 1) arena.update(stepSeconds);
+            toppleSlot?.updateMatrixWorld(true);
+            const fractureMid = transformOf(fracture);
+            // This is the loader's authoritative list, not a ray heuristic: it contains every
+            // GLB collider the map built (including hidden break scenes) while `obstacles` is the
+            // active query index after the lower scene has been enabled.
+            const allGlbColliderSources = (arena._glbDynamicObstacles || []).map(
+                (collider) => String(collider?.sourceName || ''),
+            );
+            const activeColliderSources = (arena.obstacles || []).map(
+                (collider) => String(collider?.sourceName || ''),
+            );
+            const midCollapseScreenshot = document.querySelector('canvas')?.toDataURL('image/png') || '';
             // Fifty-two seconds of map time at a fixed step: the collapse clip runs 50.13 s (the
             // tower sags onto its crushed piers, shears at the galleries, and its upper half comes
             // down in pieces), so this walks the whole fall and a moment of the wreck lying still.
-            const stepSeconds = 1 / 60;
-            const stepCount = 52 * 60;
+            const stepCount = 40 * 60;
             for (let index = 0; index < stepCount; index += 1) arena.update(stepSeconds);
             const clockAfterFall = Number(arena.glbAnimationElapsedSeconds) || 0;
             const slotFall = fallDirection(Number(toppleSlot?.rotation?.y) || 0);
@@ -369,6 +391,11 @@ test.describe('Eiffel tower siege', () => {
                 hudHidden: hudElement?.classList.contains('hidden') !== false,
                 clockAtBreak,
                 clockAfterFall,
+                fractureAtBreak,
+                fractureMid,
+                allGlbColliderSources,
+                activeColliderSources,
+                midCollapseScreenshot,
                 groundBefore,
                 groundAfter,
             };
@@ -377,6 +404,12 @@ test.describe('Eiffel tower siege', () => {
         await testInfo.attach('eiffel-tower-siege-measurements.json', {
             body: Buffer.from(JSON.stringify(siege, null, 2), 'utf8'),
             contentType: 'application/json',
+        });
+        expect(siege.midCollapseScreenshot, 'the mid-collapse canvas capture is mandatory')
+            .toMatch(/^data:image\/png;base64,[A-Za-z0-9+/=]+$/);
+        await testInfo.attach('eiffel-tower-siege-mid-collapse.png', {
+            body: Buffer.from(siege.midCollapseScreenshot.split(',', 2)[1], 'base64'),
+            contentType: 'image/png',
         });
 
         expect(
@@ -458,6 +491,21 @@ test.describe('Eiffel tower siege', () => {
         ).toBeCloseTo(1, 5);
         expect(siege.hudHidden).toBe(false);
         expect(siege.hudText, 'the sealed tower is announced for eight seconds').toBe('TURM STÜRZT');
+        expect(siege.fractureAtBreak, 'the lower break owns a render fracture cluster').toBeTruthy();
+        expect(siege.fractureMid, 'the cluster remains under the visible collapse').toBeTruthy();
+        expect(
+            siege.fractureMid.position.some((value, index) => Math.abs(value - siege.fractureAtBreak.position[index]) > 0.01)
+                || siege.fractureMid.scale.some((value, index) => Math.abs(value - siege.fractureAtBreak.scale[index]) > 0.01),
+            'the visual fracture changes transform during the collapse',
+        ).toBe(true);
+        expect(
+            siege.allGlbColliderSources.filter((name) => name.includes('fracture')),
+            'the loader never creates a collider for a _nocol fracture mesh',
+        ).toEqual([]);
+        expect(
+            siege.activeColliderSources.filter((name) => name.includes('fracture')),
+            'the active collision index cannot acquire a visual fracture mesh',
+        ).toEqual([]);
 
         expect(
             siege.clockAfterFall - siege.clockAtBreak,

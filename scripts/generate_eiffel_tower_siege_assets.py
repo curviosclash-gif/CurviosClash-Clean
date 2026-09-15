@@ -90,6 +90,7 @@ import sys
 from math import degrees, hypot, radians, sin, sqrt
 from pathlib import Path
 
+import bpy
 from mathutils import Matrix, Vector
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -720,6 +721,67 @@ SCENES = (
 )
 
 
+def fracture_cluster_mesh(name, material, seed):
+    """A small joined cluster of torn iron, deliberately render-only.
+
+    These are authored after Bullet has finished: the collapse bodies remain exactly the roots
+    baked by ``Collapse.run``.  The little tetrahedra are enough to read as a sheared gallery
+    shedding chips without spending a collider or a simulation body on confetti.
+    """
+    vertices, faces = [], []
+    for shard in range(4):
+        # hash01 is the tower pack's stable authoring noise; no ambient RNG is involved.
+        x = (et.hash01(seed, shard, 1) - 0.5) * 3.2
+        y = (et.hash01(seed, shard, 2) - 0.5) * 2.4
+        z = (et.hash01(seed, shard, 3) - 0.5) * 1.8
+        size = 0.32 + et.hash01(seed, shard, 4) * 0.36
+        offset = len(vertices)
+        vertices.extend(((x - size, y - size, z - size), (x + size, y - size, z + size),
+                         (x - size, y + size, z + size), (x + size, y + size, z - size)))
+        faces.extend(((offset, offset + 1, offset + 2), (offset, offset + 3, offset + 1),
+                      (offset, offset + 2, offset + 3), (offset + 1, offset + 3, offset + 2)))
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.validate()
+    mesh.update()
+    mesh.materials.append(et.build_material(material))
+    return mesh
+
+
+def add_fracture_clusters(scene, stem, root, frame_count):
+    """Key two deterministic, non-colliding arcs from the initiating break line."""
+    end = max(8, int((frame_count - 1) * 0.66))
+    for cluster in range(2):
+        seed = et.hash01(len(stem), cluster, PIECE_FOOT[root.name.removeprefix("piece_")])
+        name = f"{root.name}_fracture_{cluster}_nocol_noshadow"
+        obj = bpy.data.objects.new(name, fracture_cluster_mesh(name, et.IRON_DARK, seed))
+        bpy.context.collection.objects.link(obj)
+        obj.parent = root
+        # Local to the break rig: at frame one both clusters are pinpricks on the sheared seat.
+        base = Vector(((cluster * 2 - 1) * (1.8 + seed), (seed - 0.5) * 1.6, 0.65 + cluster * 0.3))
+        travel = Vector((7.0 + 3.0 * seed, (-1.0 if cluster else 1.0) * (3.0 + seed),
+                         1.2 + seed))
+        apex = 5.0 + 3.0 * et.hash01(seed, cluster, 9)
+        spin = 2.2 + et.hash01(seed, cluster, 10) * 1.8
+        for index in range(end + 1):
+            ratio = index / end
+            # An analytic ballistic-looking arc, with a smooth launch and a deterministic spin.
+            obj.location = base + travel * ratio + Vector((0.0, 0.0, apex * 4.0 * ratio * (1.0 - ratio)))
+            obj.rotation_mode = "XYZ"
+            obj.rotation_euler = (spin * ratio, spin * (0.55 + seed) * ratio,
+                                  spin * (1.3 - seed) * ratio)
+            visible = min(1.0, index / 4.0, (end - index) / 6.0)
+            obj.scale = (visible, visible, visible)
+            at = scene.frame_start + index
+            obj.keyframe_insert("location", frame=at)
+            obj.keyframe_insert("rotation_euler", frame=at)
+            obj.keyframe_insert("scale", frame=at)
+        # Hold the invisible end pose through the physical clip, so a one-shot cannot revive it.
+        obj.keyframe_insert("location", frame=scene.frame_end)
+        obj.keyframe_insert("rotation_euler", frame=scene.frame_end)
+        obj.keyframe_insert("scale", frame=scene.frame_end)
+
+
 def build_scene(stem, clip_name):
     """The builder handed to the shared exporter: simulate, bake, then draw the pieces."""
 
@@ -763,6 +825,11 @@ def build_scene(stem, clip_name):
                 rig.keyframe_insert("location", frame=at)
                 rig.rotation_quaternion = rotation
                 rig.keyframe_insert("rotation_quaternion", frame=at)
+
+        # Cosmetic fracture is intentionally authored only after Collapse.run(): it is parented
+        # to the first section that broke, follows that section's baked ownership/hide behaviour,
+        # and never enters Bullet or the physical root tracks.
+        add_fracture_clusters(scene, stem, rigs[pieces[0]], len(frames))
 
         collapse.report(stem, clip_name)
 
