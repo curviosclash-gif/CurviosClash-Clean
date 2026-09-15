@@ -15,6 +15,49 @@ const CLOSE_PHASE = Object.freeze({
 });
 
 /**
+ * @typedef {'idle' | 'export-decision' | 'handshake' | 'closing'} ClosePhase
+ */
+
+/**
+ * @typedef {'wait' | 'cancel-export' | 'stay'} ExportCloseDecision
+ */
+
+/**
+ * @typedef {object} CloseableWindow
+ * @property {() => boolean} [isDestroyed]
+ * @property {() => void} close
+ * @property {() => void} [destroy]
+ */
+
+/**
+ * @typedef {(event?: unknown) => void} GracefulCloseReadyListener
+ */
+
+/**
+ * @typedef {object} MainWindowCloseLifecycleOptions
+ * @property {() => (CloseableWindow | null | undefined)} [getWindow]
+ * @property {() => boolean} [isExportActive]
+ * @property {(payload: { reason: string }) => unknown} [cancelExport]
+ * @property {() => (ExportCloseDecision | Promise<ExportCloseDecision>)} [confirmExportClose]
+ * @property {() => void} [requestGracefulClose]
+ * @property {(handler: GracefulCloseReadyListener) => unknown} [addReadyListener]
+ * @property {(handler: GracefulCloseReadyListener) => unknown} [removeReadyListener]
+ * @property {(event?: unknown) => boolean} [isTrustedReadySender]
+ * @property {number} [timeoutMs]
+ * @property {(handler: () => void, delayMs: number) => unknown} [setTimeoutFn]
+ * @property {(handle: unknown) => void} [clearTimeoutFn]
+ * @property {(error: unknown) => void} [onError]
+ */
+
+/**
+ * @typedef {object} MainWindowCloseLifecycle
+ * @property {(event?: { preventDefault?: () => void }) => void} handleClose
+ * @property {() => Promise<void>} handleRenderProcessGone
+ * @property {() => boolean} isClosing
+ * @property {() => ClosePhase} getPhase
+ */
+
+/**
  * Drives the graceful-close handshake of the main window.
  *
  * Guarantees:
@@ -24,12 +67,15 @@ const CLOSE_PHASE = Object.freeze({
  *   listeners and timeouts,
  * - a dead renderer cancels a running export and tears the window down, because
  *   it can never answer the handshake.
+ *
+ * @param {MainWindowCloseLifecycleOptions} [options]
+ * @returns {MainWindowCloseLifecycle}
  */
 function createMainWindowCloseLifecycle({
     getWindow,
     isExportActive = () => false,
     cancelExport = async () => {},
-    confirmExportClose = async () => 'stay',
+    confirmExportClose = async () => /** @type {ExportCloseDecision} */ ('stay'),
     requestGracefulClose = () => {},
     addReadyListener = () => {},
     removeReadyListener = () => {},
@@ -39,11 +85,16 @@ function createMainWindowCloseLifecycle({
     clearTimeoutFn = clearTimeout,
     onError = () => {},
 } = {}) {
+    /** @type {ClosePhase} */
     let phase = CLOSE_PHASE.IDLE;
+    /** @type {boolean} */
     let exportCloseApproved = false;
+    /** @type {unknown} */
     let timeoutId = null;
+    /** @type {GracefulCloseReadyListener | null} */
     let readyListener = null;
 
+    /** @returns {CloseableWindow | null} */
     function resolveLiveWindow() {
         const window = getWindow?.();
         if (!window) return null;
@@ -62,6 +113,7 @@ function createMainWindowCloseLifecycle({
         }
     }
 
+    /** @param {{ force?: boolean }} [options] */
     function finish({ force = false } = {}) {
         if (phase === CLOSE_PHASE.CLOSING) return;
         phase = CLOSE_PHASE.CLOSING;

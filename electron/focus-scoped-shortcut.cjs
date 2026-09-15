@@ -6,8 +6,40 @@
 // Node contract tests.
 
 /**
+ * @typedef {object} ShortcutRegistry
+ * @property {(accelerator: string, handler: () => void) => boolean} register
+ * @property {(accelerator: string) => void} unregister
+ */
+
+/**
+ * @typedef {object} ShortcutFocusEvents
+ * @property {(eventName: string, handler: () => void) => unknown} on
+ * @property {(eventName: string, handler: () => void) => unknown} off
+ */
+
+/**
+ * @typedef {object} FocusScopedShortcutOptions
+ * @property {ShortcutRegistry} [globalShortcut] Electron's globalShortcut module.
+ * @property {ShortcutFocusEvents} [appEvents] Emitter of browser-window-focus/-blur.
+ * @property {string} [accelerator] Accelerator to hold while focused.
+ * @property {() => void} [onTrigger] Runs when the accelerator fires.
+ * @property {() => boolean} [isAnyWindowFocused] True while an app window has focus.
+ * @property {{ warn?: (message: string) => void } | null} [logger]
+ */
+
+/**
+ * @typedef {object} FocusScopedShortcut
+ * @property {() => void} start
+ * @property {() => void} stop
+ * @property {() => boolean} isRegistered
+ */
+
+/**
  * Holds a system-wide accelerator only while one of the application windows has
  * focus, so the key stays usable in other programs while the game runs.
+ *
+ * @param {FocusScopedShortcutOptions} [options]
+ * @returns {FocusScopedShortcut}
  */
 function createFocusScopedShortcut({
     globalShortcut,
@@ -17,7 +49,9 @@ function createFocusScopedShortcut({
     isAnyWindowFocused = () => false,
     logger = console,
 } = {}) {
+    /** @type {boolean} */
     let registered = false;
+    /** @type {boolean} */
     let started = false;
 
     function register() {
