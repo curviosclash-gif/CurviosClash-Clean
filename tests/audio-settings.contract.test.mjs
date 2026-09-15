@@ -65,6 +65,14 @@ test('audio settings disable audio only for an explicit false value', () => {
     assert.equal(normalizeAudioSettings({ enabled: 0 }).enabled, true);
 });
 
+test('audio settings let an explicit source value win over the current state', () => {
+    const mutedFallback = { ...DEFAULT_AUDIO_SETTINGS, enabled: false };
+    assert.equal(normalizeAudioSettings({ enabled: true }, mutedFallback).enabled, true);
+    assert.equal(normalizeAudioSettings({ enabled: false }, DEFAULT_AUDIO_SETTINGS).enabled, false);
+    assert.equal(normalizeAudioSettings({}, mutedFallback).enabled, false);
+    assert.equal(normalizeAudioSettings({ enabled: 'true' }, mutedFallback).enabled, false);
+});
+
 test('audio settings normalization returns fresh objects without mutating inputs', () => {
     const source = { enabled: false, masterVolume: '0.7' };
     const fallback = { ...DEFAULT_AUDIO_SETTINGS, musicVolume: 0.5 };

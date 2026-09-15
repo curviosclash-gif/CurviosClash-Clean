@@ -1067,3 +1067,22 @@ test('a rocket impact bypasses the explosion cooldown without spending the chain
         }
     });
 });
+
+test('audio can be switched back on after it was disabled at runtime', async () => {
+    await withMockWindow(async (mockWindow) => {
+        mockWindow.AudioContext = createMockAudioContext();
+        const audio = new AudioManager();
+        try {
+            mockWindow.dispatchEvent({ type: 'click' });
+            assert.equal(audio.applySettings({ enabled: false }).enabled, false);
+
+            const reenabled = audio.applySettings({ enabled: true, masterVolume: 0.5 });
+
+            assert.equal(reenabled.enabled, true);
+            assert.equal(audio.enabled, true);
+            assert.equal(reenabled.masterVolume, 0.5);
+        } finally {
+            audio.dispose();
+        }
+    });
+});

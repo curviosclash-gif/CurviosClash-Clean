@@ -49,7 +49,11 @@ export function normalizeAudioSettings(source, fallback = DEFAULT_AUDIO_SETTINGS
     );
     const rawFallback = fallback && typeof fallback === 'object' ? fallback : DEFAULT_AUDIO_SETTINGS;
     const normalized = /** @type {AudioSettings} */ ({
-        enabled: rawSource.enabled === false ? false : rawFallback.enabled !== false,
+        // A boolean in the source always wins: otherwise a fallback carrying the
+        // current muted state would swallow a re-enable request.
+        enabled: typeof rawSource.enabled === 'boolean'
+            ? rawSource.enabled
+            : rawFallback.enabled !== false,
     });
 
     for (const key of VOLUME_KEYS) {
