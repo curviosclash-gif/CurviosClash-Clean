@@ -1,8 +1,20 @@
+// Der Minimap-Hotkey hoert global mit. Wer gerade in ein Eingabefeld tippt, meint den
+// Buchstaben und nicht den Schalter - solche Tastendruecke gehoeren dem Feld.
+function isTextEntryEventTarget(target) {
+    if (!target || typeof target !== 'object') return false;
+    if (target.isContentEditable === true) return true;
+    const tagName = String(target.tagName || '').toUpperCase();
+    return tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT';
+}
+
 export class ParcoursMinimapRenderer {
     constructor() {
         this._canvas = null;
         this._ctx = null;
         this._visible = true;
+        // Der Keydown-Listener ueberlebt das Match. Nur solange eine Route gezeichnet wird,
+        // darf M die Karte umschalten - im Menue gehoert der Buchstabe der Menuesteuerung.
+        this._routeActive = false;
         this._onKeyDown = null;
         this._lastRouteId = null;
         this._cpById = null;
@@ -27,15 +39,17 @@ export class ParcoursMinimapRenderer {
         this._ctx = canvas.getContext('2d');
 
         this._onKeyDown = (e) => {
-            if (e.code === 'KeyM' && !e.ctrlKey && !e.altKey && !e.metaKey) {
-                this._visible = !this._visible;
-                this._canvas.style.display = this._visible ? 'block' : 'none';
-            }
+            if (e.code !== 'KeyM' || e.ctrlKey || e.altKey || e.metaKey) return;
+            if (!this._routeActive) return;
+            if (isTextEntryEventTarget(e.target)) return;
+            this._visible = !this._visible;
+            this._canvas.style.display = this._visible ? 'block' : 'none';
         };
         window.addEventListener('keydown', this._onKeyDown);
     }
 
     _hide() {
+        this._routeActive = false;
         if (this._canvas) this._canvas.style.display = 'none';
     }
 
@@ -84,6 +98,7 @@ export class ParcoursMinimapRenderer {
         }
 
         this._ensureCanvas();
+        this._routeActive = true;
         if (!this._visible) return;
         this._canvas.style.display = 'block';
 
@@ -271,6 +286,7 @@ export class ParcoursMinimapRenderer {
         if (this._canvas?.parentElement) {
             this._canvas.parentElement.removeChild(this._canvas);
         }
+        this._routeActive = false;
         this._canvas = null;
         this._ctx = null;
         this._cpById = null;

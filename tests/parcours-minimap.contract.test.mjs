@@ -145,3 +145,58 @@ test('ParcoursMinimapRenderer shows vertical distance to the next checkpoint', (
         globalThis.window = originalWindow;
     }
 });
+
+test('ParcoursMinimapRenderer toggles with M only during a run and outside text fields', () => {
+    const fakeCanvas = {
+        style: {},
+        getContext() {
+            return createRecordingCanvasContext([]);
+        },
+    };
+    const listeners = [];
+    const originalDocument = globalThis.document;
+    const originalWindow = globalThis.window;
+    globalThis.document = {
+        body: { appendChild() {} },
+        createElement: () => fakeCanvas,
+    };
+    globalThis.window = {
+        addEventListener(type, handler) {
+            listeners.push({ type, handler });
+        },
+        removeEventListener() {},
+    };
+
+    const routeSnapshot = {
+        enabled: true,
+        routeId: 'toggle_probe',
+        totalCheckpoints: 1,
+        checkpoints: [{ id: 'CP01', routeIndex: 0, pos: [0, 0, 0], nextCheckpointIds: [] }],
+        finish: { id: 'FINISH', pos: [10, 0, 0] },
+    };
+
+    try {
+        const renderer = new ParcoursMinimapRenderer();
+        renderer.update(routeSnapshot, 0, [], null, null);
+        const keyDown = listeners.find((entry) => entry.type === 'keydown')?.handler;
+        assert.equal(typeof keyDown, 'function');
+
+        keyDown({ code: 'KeyM', target: { tagName: 'INPUT' } });
+        assert.equal(renderer._visible, true, 'typing M into a field must not toggle the minimap');
+
+        keyDown({ code: 'KeyM', target: { tagName: 'DIV', isContentEditable: true } });
+        assert.equal(renderer._visible, true, 'typing M into an editable must not toggle the minimap');
+
+        keyDown({ code: 'KeyM', target: { tagName: 'CANVAS' } });
+        assert.equal(renderer._visible, false, 'M must toggle the minimap during a run');
+        assert.equal(fakeCanvas.style.display, 'none');
+
+        // Back in the menu the route is gone: M must not bring the overlay back.
+        renderer.update({ enabled: false }, 0, [], null, null);
+        keyDown({ code: 'KeyM', target: { tagName: 'CANVAS' } });
+        assert.equal(fakeCanvas.style.display, 'none', 'M must not show the minimap outside a run');
+    } finally {
+        globalThis.document = originalDocument;
+        globalThis.window = originalWindow;
+    }
+});
