@@ -301,6 +301,18 @@ export class Renderer {
 
     triggerCameraShake(playerIndex, intensity = 0.2, duration = 0.2) {
         this.cameraRigSystem.triggerCameraShake(playerIndex, intensity, duration);
+        this.reportImpact(playerIndex, intensity, duration);
+    }
+
+    // Non-visual impact feedback (controller rumble). Also called where reduced
+    // motion skips the visual shake: a comfort setting for the picture must not
+    // silence the controller.
+    reportImpact(playerIndex, intensity, duration) {
+        this._impactListener?.(playerIndex, intensity, duration);
+    }
+
+    setImpactListener(listener) {
+        this._impactListener = typeof listener === 'function' ? listener : null;
     }
 
     applyCameraShake(playerIndex, camera, dt, out) {

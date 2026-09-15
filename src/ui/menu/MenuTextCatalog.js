@@ -89,6 +89,7 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.level4.tabs.presets.label': 'Vorlagen',
     'menu.level4.tabs.utilities.label': 'Werkzeuge',
     'menu.level4.controls.mouse_steering.label': 'Maus-Lenkung für Spieler 1 (Tasten bleiben für Aktionen aktiv)',
+    'menu.level4.controls.gamepad_vibration.label': 'Controller-Vibration bei Treffern und Explosionen in der Nähe',
     'menu.level4.controls.player1_keys.label': 'Tasten Spieler 1',
     'menu.level4.controls.player2_keys.label': 'Tasten Spieler 2',
     'menu.level4.controls.global_key.label': 'Globale Taste',

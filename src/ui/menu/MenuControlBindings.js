@@ -17,6 +17,16 @@ export function setupMenuControlBindings(ctx) {
         });
     }
 
+    if (ui.gamepadVibrationToggle) {
+        bind(ui.gamepadVibrationToggle, 'change', () => {
+            if (!settings.localSettings || typeof settings.localSettings !== 'object') {
+                settings.localSettings = {};
+            }
+            settings.localSettings.gamepadVibration = ui.gamepadVibrationToggle.checked === true;
+            emitSettingsChangedImmediate([keys.LOCAL_GAMEPAD_VIBRATION]);
+        });
+    }
+
     bind(ui.keybindP1, 'click', (e) => {
         const btn = e.target.closest('button.keybind-btn');
         if (!btn) return;

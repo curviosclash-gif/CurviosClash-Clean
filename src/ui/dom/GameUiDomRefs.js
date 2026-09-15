@@ -128,6 +128,7 @@ export function createGameUiRefs(doc = document) {
         cockpitCamP2: doc.getElementById('cockpit-cam-p2'),
         portalsToggle: doc.getElementById('portals-toggle'),
         mouseSteeringToggle: doc.getElementById('mouse-steering-toggle'),
+        gamepadVibrationToggle: doc.getElementById('gamepad-vibration-toggle'),
         mobileTiltSensitivitySlider: doc.getElementById('mobile-tilt-sensitivity-slider'),
         mobileTiltSensitivityLabel: doc.getElementById('mobile-tilt-sensitivity-label'),
         mobileTiltAssistSelect: doc.getElementById('mobile-tilt-assist-select'),

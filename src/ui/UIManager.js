@@ -476,6 +476,9 @@ export class UIManager {
         if (ui.mouseSteeringToggle) {
             ui.mouseSteeringToggle.checked = settings?.localSettings?.mouseSteering === true;
         }
+        if (ui.gamepadVibrationToggle) {
+            ui.gamepadVibrationToggle.checked = settings?.localSettings?.gamepadVibration !== false;
+        }
         if (ui.mobileTiltSensitivitySlider) {
             ui.mobileTiltSensitivitySlider.value = String(Math.round(mobileControls.tiltSensitivity * 100));
         }

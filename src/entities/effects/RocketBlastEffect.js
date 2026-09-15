@@ -147,7 +147,9 @@ export class RocketBlastEffect {
         const renderer = this.renderer;
         const cameras = renderer?.cameras;
         if (!Array.isArray(cameras) || typeof renderer.triggerCameraShake !== 'function') return;
-        if (renderer.getCameraPerspectiveSettings?.()?.reduceMotion === true) return;
+        // Reduced motion keeps the picture still, but the blast is still reported
+        // so the player's controller can rumble.
+        const reduceMotion = renderer.getCameraPerspectiveSettings?.()?.reduceMotion === true;
 
         for (let i = 0; i < cameras.length; i += 1) {
             const view = cameras[i]?.position;
@@ -156,7 +158,9 @@ export class RocketBlastEffect {
             const dy = view.y - position.y;
             const dz = view.z - position.z;
             const { intensity, duration } = resolveBlastShake(Math.sqrt(dx * dx + dy * dy + dz * dz), radius);
-            if (intensity > 0) renderer.triggerCameraShake(i, intensity, duration);
+            if (intensity <= 0) continue;
+            if (reduceMotion) renderer.reportImpact?.(i, intensity, duration);
+            else renderer.triggerCameraShake(i, intensity, duration);
         }
     }
 

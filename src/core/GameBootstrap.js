@@ -1,6 +1,8 @@
 import { Renderer } from './Renderer.js';
 import { GameLoop } from './GameLoop.js';
 import { InputManager } from './InputManager.js';
+import { GamepadRumble, resolvePlayerGamepadIndex } from './input/GamepadRumble.js';
+import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { ParticleSystem } from '../entities/Particles.js';
 import { AudioManager } from './Audio.js';
 import { RuntimeDiagnosticsSystem } from './RuntimeDiagnosticsSystem.js';
@@ -84,7 +86,17 @@ export function bootstrapGameRuntime(game, options = {}) {
         throw new Error('Cannot initialize game runtime: missing #game-canvas element.');
     }
     const renderer = new Renderer(canvas);
+    const input = new InputManager();
     const audio = new AudioManager(game.settings?.localSettings?.audio);
+    const gamepadRumble = new GamepadRumble({
+        resolveGamepadIndex: (playerIndex) => resolvePlayerGamepadIndex(input.getPlayerSource(playerIndex)),
+        // Only a live round rumbles; replay exports reuse the renderer and must stay silent.
+        isEnabled: () => game.settings?.localSettings?.gamepadVibration !== false
+            && game.state === GAME_STATE_IDS.PLAYING,
+    });
+    renderer.setImpactListener((playerIndex, intensity, duration) => {
+        gamepadRumble.pulse(playerIndex, intensity, duration);
+    });
     renderer.setGraphicsStyle(game.settings?.localSettings?.graphicsStyle);
     renderer.setMapBrightness(game.settings?.localSettings?.mapBrightness);
     renderer.setViewDistance(game.settings?.localSettings?.viewDistance);
@@ -171,7 +183,7 @@ export function bootstrapGameRuntime(game, options = {}) {
         components: {
             renderer,
             mediaRecorderSystem,
-            input: new InputManager(),
+            input,
             audio,
             ui,
         },

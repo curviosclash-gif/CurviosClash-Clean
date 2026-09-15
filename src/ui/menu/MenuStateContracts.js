@@ -222,6 +222,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         shadowQuality: normalizeShadowQuality(source.shadowQuality, defaults.shadowQuality || DEFAULT_SHADOW_QUALITY),
         bloomQuality: normalizeBloomQuality(source.bloomQuality, defaults.bloomQuality ?? DEFAULT_BLOOM_QUALITY),
         mouseSteering: normalizeBoolean(source.mouseSteering, defaults.mouseSteering),
+        gamepadVibration: normalizeBoolean(source.gamepadVibration, defaults.gamepadVibration),
         audio: normalizeAudioSettings(source.audio, defaults.audio),
         hud: normalizeHudAppearance(source.hud, defaults.hud),
         startSetup,

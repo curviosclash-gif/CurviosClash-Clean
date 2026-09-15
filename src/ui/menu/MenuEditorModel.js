@@ -103,7 +103,7 @@ function resolveSettingsPanelId(field, schema) {
     if (path.startsWith('configShare.') || path.includes('.portal') || path.includes('.planar')) {
         return findPanelIdBySemanticId(schema, 'portals', 'submenu-portals');
     }
-    if (path.includes('.controls.') || path.includes('.mouseSteering')
+    if (path.includes('.controls.') || path.includes('.mouseSteering') || path.includes('.gamepadVibration')
         || path.includes('.invertPitch') || path.includes('.mobileControls.')) {
         return findPanelIdBySemanticId(schema, 'controls', 'submenu-controls');
     }
