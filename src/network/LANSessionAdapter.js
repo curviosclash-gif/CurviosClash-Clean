@@ -323,6 +323,7 @@ export class LANSessionAdapter extends SessionAdapterBase {
         if (!targetPeerId) return;
         try {
             const offer = await this._peerManager.createOffer(targetPeerId);
+            if (this._isSignalingAborted()) return;
 
             await fetch(`${this._signalingUrl}/signaling/offer`, {
                 method: 'POST',

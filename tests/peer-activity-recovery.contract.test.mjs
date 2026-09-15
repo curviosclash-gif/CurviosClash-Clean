@@ -47,6 +47,22 @@ test('a peer that answers again after a heartbeat timeout gets its heartbeat bac
     manager.dispose();
 });
 
+test('a fresh replacement connection gets no heartbeat before it is connected', () => {
+    const manager = new PeerConnectionManager({ isHost: true });
+    const resumed = [];
+    manager.on('peerActivityResumed', ({ peerId }) => resumed.push(peerId));
+
+    // _createPeerConnection() replaced the old connection: it is still
+    // negotiating, so a heartbeat would time out before the peer can answer.
+    manager._peers.set('peer-1', createOpenPeerConnectionStub('connecting'));
+    manager.recordPeerActivity('peer-1');
+
+    assert.equal(manager._heartbeats.has('peer-1'), false);
+    assert.deepEqual(resumed, []);
+
+    manager.dispose();
+});
+
 test('a closed peer connection stays without a heartbeat monitor', () => {
     const manager = new PeerConnectionManager({ isHost: true });
     const resumed = [];

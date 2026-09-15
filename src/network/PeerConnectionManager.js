@@ -219,6 +219,9 @@ export class PeerConnectionManager {
      * the peer as alive again so a pending removal can be cancelled.
      */
     _resumeHeartbeatOnActivity(peerId) {
+        // A replacement connection that is still negotiating must not be
+        // monitored yet: it could not answer and would time out at once.
+        if (!this._connectedPeers.has(peerId)) return;
         const pc = this._peers.get(peerId);
         if (!pc) return;
         const state = pc.connectionState;

@@ -335,6 +335,9 @@ export class SessionAdapterBase extends SessionAdapter {
 
     _clearReconnectPeers() {
         this._clientReconnectGeneration += 1;
+        // Callers dispose the peer manager right after this, which drops every
+        // listener: the next disconnect has to subscribe again.
+        this._peerActivityRecoveryBound = false;
         for (const entry of this._disconnectedPeers.values()) {
             if (entry?.timer) {
                 clearTimeout(entry.timer);

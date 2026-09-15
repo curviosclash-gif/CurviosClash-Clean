@@ -7,9 +7,12 @@ function jsonResponse(body) {
     return { ok: true, status: 200, json: async () => body };
 }
 
-function createPeerManagerStub() {
+function createPeerManagerStub(onCreateOffer = () => {}) {
     return {
-        createOffer: async (peerId) => ({ type: 'offer', sdp: `offer-for-${peerId}` }),
+        createOffer: async (peerId) => {
+            onCreateOffer();
+            return { type: 'offer', sdp: `offer-for-${peerId}` };
+        },
         handleOffer: async () => ({ type: 'answer', sdp: 'answer' }),
         handleAnswer: async () => {},
         addIceCandidate: async () => {},
@@ -34,7 +37,7 @@ async function runPendingConnect(hooks = {}) {
         peerToken: 'host-token',
         now: () => 0,
     });
-    adapter._peerManager = createPeerManagerStub();
+    adapter._peerManager = createPeerManagerStub(() => hooks.onCreateOffer?.(adapter));
 
     const calls = [];
     const connected = [];
@@ -77,6 +80,18 @@ test('the host handshake finishes normally while the adapter is alive', async ()
     assert.equal(countOf('/signaling/answer'), 1);
     assert.equal(countOf('/lobby/ack-pending'), 1);
     assert.deepEqual(connected, ['peer-1']);
+});
+
+test('a host disconnect during the offer keeps that offer off the wire', async () => {
+    const { countOf, connected } = await runPendingConnect({
+        onCreateOffer: (adapter) => adapter.disconnect(),
+        skipDispose: true,
+    });
+
+    assert.equal(countOf('/signaling/offer'), 0, 'no offer for a host that already shut down');
+    assert.equal(countOf('/signaling/ice'), 0);
+    assert.equal(countOf('/lobby/ack-pending'), 0);
+    assert.deepEqual(connected, []);
 });
 
 test('a host disconnect stops the pending-client handshake before it polls', async () => {
