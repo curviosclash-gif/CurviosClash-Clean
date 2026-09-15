@@ -3,7 +3,7 @@ import { createMapDocument, parseMapJSON } from '../../src/entities/MapSchema.js
 import {
     deriveItemSpawnModeDefault,
     derivePortalModeDefault,
-} from '../../src/entities/mapSchema/MapSchemaSanitizeOps.js';
+} from '../../src/entities/mapSchema/MapSchemaAuthoringModeDefaults.js';
 
 function cloneSerializable(value) {
     if (value === null || typeof value === 'string' || typeof value === 'boolean') {

@@ -3,6 +3,7 @@ import { DEFAULT_ARENA_SIZE, MAP_SCHEMA_COLLECTION_LIMITS, MAP_SCHEMA_VERSION } 
 import { getPickupDefinition, normalizePickupType } from '../PickupRegistry.js';
 import { normalizeAllowedGLBUrl, sanitizeGLBModels } from './MapSchemaGlbOps.js';
 import { cloneJsonCompatibleValue } from '../../shared/utils/JsonClone.js';
+import { deriveItemSpawnModeDefault, derivePortalModeDefault } from './MapSchemaAuthoringModeDefaults.js';
 
 export function asFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -77,25 +78,6 @@ function normalizeGateType(value) {
         return { type: 'boost', sourceType: normalized || 'boost', warningCode: null };
     }
     return { type: 'boost', sourceType: normalized, warningCode: 'map.warning.gate-type' };
-}
-
-// Guessed defaults: exported so authoring tools can tell an author-set mode apart
-// from one the sanitizer merely derived from the document content.
-/**
- * @param {{hasAuthoredPortalPairs?: boolean, legacyPreferAuthored?: boolean}} [options]
- * @returns {'dynamic'|'authored'|'hybrid'}
- */
-export function derivePortalModeDefault(options = {}) {
-    if (options.legacyPreferAuthored === true) return 'authored';
-    return options.hasAuthoredPortalPairs === true ? 'hybrid' : 'dynamic';
-}
-
-/**
- * @param {{hasAuthoredItems?: boolean}} [options]
- * @returns {'anchor-only'|'fallback-random'}
- */
-export function deriveItemSpawnModeDefault(options = {}) {
-    return options.hasAuthoredItems === true ? 'anchor-only' : 'fallback-random';
 }
 
 function normalizePortalMode(value, options = {}) {
