@@ -19,6 +19,20 @@ const DESKTOP_FAILURE_SCREENSHOT_FILE = 'desktop-renderer-failure.png';
 const DESKTOP_READY_TIMEOUT_MS = 60000;
 const DESKTOP_SCREENSHOT_TIMEOUT_MS = 15000;
 
+// Ohne eigenen Profilpfad schreiben alle Desktop-Tests in %APPDATA%\curviosclash-app,
+// also in dasselbe Verzeichnis wie die echte App des Nutzers. Ein Lauf bekommt hier
+// einen eigenen Unterordner; PW_FRESH_PROFILE=1 gibt zusaetzlich jedem Test einen.
+function resolveDesktopUserDataRoot(testInfo) {
+    const configuredRoot = String(process.env.CURVIOS_USER_DATA_ROOT || '').trim();
+    const runTag = String(process.env.PW_RUN_TAG || '').trim() || 'local';
+    const baseRoot = configuredRoot
+        ? path.resolve(configuredRoot)
+        : path.resolve(process.cwd(), 'tmp', 'playwright', runTag, 'user-data');
+    return String(process.env.PW_FRESH_PROFILE || '').trim() === '1'
+        ? path.join(baseRoot, String(testInfo?.testId || 'test'))
+        : baseRoot;
+}
+
 function toIsoNow(timestamp = Date.now()) {
     return new Date(timestamp).toISOString();
 }
@@ -374,7 +388,10 @@ const desktopTest = base.extend({
             pushChunk(mainProcessEntries, stream, chunk);
         };
 
+        const userDataRoot = resolveDesktopUserDataRoot(testInfo);
+
         try {
+            await mkdir(userDataRoot, { recursive: true });
             app = await electron.launch({
                 executablePath: ELECTRON_EXECUTABLE,
                 args: ['.'],
@@ -383,13 +400,16 @@ const desktopTest = base.extend({
                     ...process.env,
                     CURVIOS_ELECTRON_SHOW_WINDOW: String(process.env.CURVIOS_ELECTRON_SHOW_WINDOW || '0'),
                     CURVIOS_DESKTOP_STATIC_PORT: String(process.env.TEST_PORT || ''),
+                    CURVIOS_USER_DATA_ROOT: userDataRoot,
                 },
             });
 
             const childProcess = app.process?.() || null;
             recordMainProcess(
                 'harness',
-                `launch executable=${ELECTRON_EXECUTABLE} cwd=${ELECTRON_DIR} runProfile=${String(process.env.PW_RUN_PROFILE || 'preview-smoke')}`
+                `launch executable=${ELECTRON_EXECUTABLE} cwd=${ELECTRON_DIR} `
+                + `runProfile=${String(process.env.PW_RUN_PROFILE || 'preview-smoke')} `
+                + `userDataRoot=${userDataRoot}`
             );
 
             if (childProcess?.stdout) {

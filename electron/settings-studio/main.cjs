@@ -5,6 +5,7 @@ const { registerSettingsStudioIpc } = require('./ipc/settings-studio-ipc.cjs');
 const {
     configureStoragePaths,
     initSessionDataSelfHeal,
+    resolveAppDataRoot,
 } = require('../session-data-runtime.cjs');
 const { isTrustedWindowSender } = require('../ipc-sender-guard.cjs');
 const { createSecureWindowWebPreferences } = require('../window-security-options.cjs');
@@ -23,11 +24,11 @@ const SETTINGS_STUDIO_DATA_ENTRIES = Object.freeze([
 let markSessionExitClean = () => {};
 
 function resolveSharedUserDataPath() {
-    return path.join(app.getPath('appData'), SHARED_USER_DATA_DIR_NAME);
+    return path.join(resolveAppDataRoot(app), SHARED_USER_DATA_DIR_NAME);
 }
 
 function resolveLegacyUserDataPath() {
-    return path.join(app.getPath('appData'), LEGACY_ELECTRON_USER_DATA_DIR_NAME);
+    return path.join(resolveAppDataRoot(app), LEGACY_ELECTRON_USER_DATA_DIR_NAME);
 }
 
 function migrateLegacySettingsStudioData() {

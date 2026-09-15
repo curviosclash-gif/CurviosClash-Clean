@@ -2,6 +2,10 @@ const path = require('node:path');
 const { mkdirSync, readFileSync, rmSync, writeFileSync } = require('node:fs');
 
 const CHROMIUM_CACHE_DIRS = Object.freeze(['Cache', 'Code Cache', 'GPUCache']);
+// Testlaeufe duerfen nicht in das echte Spielerprofil unter %APPDATA% schreiben. Ein
+// absoluter Pfad in dieser Variable verschiebt die komplette Profil-, Session- und
+// Override-Ablage; ohne sie bleibt das Verhalten der ausgelieferten App unveraendert.
+const USER_DATA_ROOT_ENV_KEY = 'CURVIOS_USER_DATA_ROOT';
 const SESSION_HEALTH_FILE_NAME = 'session-health.json';
 const SESSION_HEALTH_SCHEMA_VERSION = 1;
 
@@ -42,13 +46,22 @@ function safeClearChromiumCaches(sessionDataPath) {
     return cleared;
 }
 
+function resolveAppDataRoot(app, env = process.env) {
+    const overrideRoot = String(env?.[USER_DATA_ROOT_ENV_KEY] || '').trim();
+    if (overrideRoot && path.isAbsolute(overrideRoot)) {
+        return overrideRoot;
+    }
+    return app.getPath('appData');
+}
+
 function configureStoragePaths({
     app,
     sharedUserDataDirName,
     sessionDataDirName,
     userDataDirName = '',
+    appDataPath = resolveAppDataRoot(app),
 }) {
-    const sharedUserDataPath = path.join(app.getPath('appData'), sharedUserDataDirName);
+    const sharedUserDataPath = path.join(appDataPath, sharedUserDataDirName);
     const userDataPath = userDataDirName
         ? path.join(sharedUserDataPath, userDataDirName)
         : sharedUserDataPath;
@@ -104,6 +117,8 @@ function initSessionDataSelfHeal({ sessionDataPath, processLabel }) {
 }
 
 module.exports = {
+    USER_DATA_ROOT_ENV_KEY,
     configureStoragePaths,
     initSessionDataSelfHeal,
+    resolveAppDataRoot,
 };

@@ -18,6 +18,7 @@ const { startStaticServer } = require('./static-server.cjs');
 const {
     configureStoragePaths,
     initSessionDataSelfHeal,
+    resolveAppDataRoot,
 } = require('./session-data-runtime.cjs');
 const { createRecordingVideoExportJob } = require('./recording-video-export-job.cjs');
 const { createCinematicReplayVideoExportJob } = require('./cinematic-replay-video-export-job.cjs');
@@ -693,7 +694,7 @@ function resolveTuningConsoleCapabilityState() {
 
 function resolveSharedMenuDefaultsOverrideFilePath() {
     return path.join(
-        app.getPath('appData'),
+        resolveAppDataRoot(app),
         SHARED_USER_DATA_DIR_NAME,
         MENU_DEFAULTS_OVERRIDE_FILE_NAME
     );
@@ -707,7 +708,7 @@ function listLegacyMenuDefaultsOverrideSourcePaths(targetFilePath) {
     const candidatePaths = [
         path.join(app.getPath('userData'), MENU_DEFAULTS_OVERRIDE_FILE_NAME),
         path.join(
-            app.getPath('appData'),
+            resolveAppDataRoot(app),
             LEGACY_ELECTRON_USER_DATA_DIR_NAME,
             MENU_DEFAULTS_OVERRIDE_FILE_NAME
         ),
@@ -773,7 +774,7 @@ function readMenuDefaultsOverrideSnapshotSync() {
 
 function readMenuTextOverridesSnapshotSync() {
     const filePath = path.join(
-        app.getPath('appData'),
+        resolveAppDataRoot(app),
         SHARED_USER_DATA_DIR_NAME,
         MENU_TEXT_OVERRIDES_FILE_NAME
     );

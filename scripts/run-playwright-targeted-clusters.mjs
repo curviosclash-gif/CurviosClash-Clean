@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -18,6 +18,10 @@ import {
     DESKTOP_E2E_CLUSTERS,
     HEAVY_DIAGNOSTIC_CLUSTERS,
 } from './playwright-test-clusters.mjs';
+import {
+    resolveClusterUserDataRoot,
+    resolveRemovableUserDataRoot,
+} from './playwright-user-data-root.mjs';
 const PLAYWRIGHT_STARTUP_DIAGNOSTICS_FILE = 'playwright-startup-diagnostics.json';
 const PLAYWRIGHT_SPAWN_DIAGNOSTICS_FILE = 'playwright-spawn-diagnostics.json';
 const ALL_CLUSTERS = Object.freeze([
@@ -147,6 +151,7 @@ function printDryRun(clusters, playwrightArgs) {
         console.log(`  PW_RUN_TAG=${env.PW_RUN_TAG}`);
         console.log(`  PW_RUN_PROFILE=${env.PW_RUN_PROFILE}`);
         console.log(`  PW_OUTPUT_DIR=${env.PW_OUTPUT_DIR}`);
+        console.log(`  CURVIOS_USER_DATA_ROOT=${env.CURVIOS_USER_DATA_ROOT}`);
         console.log(`  args=${[...cluster.specs, ...playwrightArgs].join(' ') || '(none)'}`);
     }
 }
@@ -174,6 +179,8 @@ function buildClusterEnv(cluster, index) {
         PW_SERVER_LOG_OUT: '',
         PW_SERVER_LOG_ERR: '',
         PW_SERVER_LOG_PATHS: '',
+        CURVIOS_USER_DATA_ROOT: String(process.env.CURVIOS_USER_DATA_ROOT || '').trim()
+            || resolveClusterUserDataRoot(process.cwd(), clusterRunTag),
     };
 
     if (String(process.env.TEST_PORT || '').trim()) {
@@ -241,6 +248,7 @@ function runCluster(cluster, playwrightArgs, index, total) {
                 code: 1,
                 signal: null,
                 outputDir: clusterEnv.PW_OUTPUT_DIR,
+                userDataRoot: clusterEnv.CURVIOS_USER_DATA_ROOT,
                 spawnError: serializeSpawnError(error),
             });
         });
@@ -250,6 +258,7 @@ function runCluster(cluster, playwrightArgs, index, total) {
                 code: code ?? 1,
                 signal: signal || null,
                 outputDir: clusterEnv.PW_OUTPUT_DIR,
+                userDataRoot: clusterEnv.CURVIOS_USER_DATA_ROOT,
                 spawnError: null,
             });
         });
@@ -326,6 +335,19 @@ function printClusterSummaries(collected) {
         console.log(formatPlaywrightSummaryLine(entry.summary, `${PLAYWRIGHT_SUMMARY_PREFIX} ${entry.clusterId}`));
     }
     console.log(formatPlaywrightSummaryLine(totals));
+}
+
+// Das Testprofil ist Wegwerfzustand: es bleibt nur fuer die Dauer des Laufs liegen,
+// damit die Ergebnisordner nicht mit Chromium-Caches volllaufen.
+async function removeClusterUserDataRoot(userDataRoot) {
+    const removablePath = resolveRemovableUserDataRoot(userDataRoot, process.cwd());
+    if (!removablePath) return;
+    try {
+        await rm(removablePath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
+        console.log(`[playwright:desktop-e2e] removed run profile ${removablePath}`);
+    } catch (error) {
+        console.warn(`[playwright:desktop-e2e] run profile cleanup skipped: ${error?.message || error}`);
+    }
 }
 
 function toClusterContractDiagnostics(rawDiagnostics) {
@@ -432,6 +454,7 @@ async function main() {
         const result = await runCluster(clusters[index], playwrightArgs, index, clusters.length);
         const collected = collectClusterSummary(clusters[index], result.outputDir);
         if (collected) summaries.push(collected);
+        await removeClusterUserDataRoot(result.userDataRoot);
         if (result.signal) {
             printClusterSummaries(summaries);
             process.kill(process.pid, result.signal);
