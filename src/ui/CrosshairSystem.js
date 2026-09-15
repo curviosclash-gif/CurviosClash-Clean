@@ -22,6 +22,7 @@ export class CrosshairSystem {
         this._tmpQuat = new THREE.Quaternion();
         this._tmpRollEuler = new THREE.Euler(0, 0, 0, 'YXZ');
         this._domStateByElement = new WeakMap();
+        this._mgAimDotByCrosshair = new WeakMap();
     }
 
     _getMatchRuntimeProjection() {
@@ -71,6 +72,104 @@ export class CrosshairSystem {
     _findProjectedLockTarget(projection, playerIndex) {
         if (!Array.isArray(projection?.lockTargets)) return null;
         return projection.lockTargets.find((entry) => entry?.playerIndex === playerIndex) || null;
+    }
+
+    _ensureMgAimDot(crosshairElement, playerIndex) {
+        if (!crosshairElement) return null;
+        const cached = this._mgAimDotByCrosshair.get(crosshairElement);
+        if (cached && cached.isConnected !== false) return cached;
+
+        const container = crosshairElement.parentElement;
+        const doc = crosshairElement.ownerDocument;
+        if (!container?.appendChild || !doc?.createElement) return null;
+
+        const dotId = `mg-aim-dot-p${playerIndex + 1}`;
+        const existing = typeof container.querySelector === 'function'
+            ? container.querySelector(`#${dotId}`)
+            : null;
+        const dot = existing || doc.createElement('div');
+        if (!existing) {
+            dot.id = dotId;
+            dot.className = 'mg-aim-dot';
+            dot.setAttribute?.('aria-hidden', 'true');
+            Object.assign(dot.style, {
+                position: 'absolute',
+                width: '8px',
+                height: '8px',
+                display: 'none',
+                borderRadius: '50%',
+                background: '#ff2d2d',
+                boxShadow: '0 0 3px #ffffff, 0 0 9px rgba(255, 32, 32, 0.95)',
+                transform: 'translate(-50%, -50%)',
+                pointerEvents: 'none',
+            });
+            container.appendChild(dot);
+        }
+        this._mgAimDotByCrosshair.set(crosshairElement, dot);
+        return dot;
+    }
+
+    _shouldShowMgAimDot(projection = null) {
+        if (projection) return projection?.hunt?.active === true;
+        return this.game?.entityManager?.gameModeStrategy?.hasMachineGun?.() === true;
+    }
+
+    _updateMgAimDot(player, crosshairElement, projection = null) {
+        const playerIndex = player?.playerIndex ?? player?.index ?? 0;
+        const dot = this._ensureMgAimDot(crosshairElement, playerIndex);
+        if (!dot) return;
+        if (!player?.alive || !this._shouldShowMgAimDot(projection)) {
+            dot.style.display = 'none';
+            return;
+        }
+
+        const camera = this.game?.renderer?.cameras?.[playerIndex];
+        if (!camera) {
+            dot.style.display = 'none';
+            return;
+        }
+
+        const lockTarget = projection
+            ? this._findProjectedLockTarget(projection, playerIndex)
+            : this.game?.entityManager?.getLockOnTarget?.(playerIndex);
+        const targetPosition = lockTarget?.alive !== false ? lockTarget?.position : null;
+        if (targetPosition) {
+            this._tmpAimVec.set(
+                Number(targetPosition.x) || 0,
+                Number(targetPosition.y) || 0,
+                Number(targetPosition.z) || 0,
+            );
+        } else {
+            this._tmpAimDir.set(
+                Number(player?.aimDirection?.x) || 0,
+                Number(player?.aimDirection?.y) || 0,
+                Number.isFinite(Number(player?.aimDirection?.z)) ? Number(player.aimDirection.z) : -1,
+            );
+            if (this._tmpAimDir.lengthSq() <= 0.000001) this._tmpAimDir.set(0, 0, -1);
+            else this._tmpAimDir.normalize();
+            this._tmpPosition.set(
+                Number(player?.position?.x) || 0,
+                Number(player?.position?.y) || 0,
+                Number(player?.position?.z) || 0,
+            );
+            this._tmpAimVec.copy(this._tmpPosition).addScaledVector(this._tmpAimDir, 80);
+        }
+        this._tmpAimVec.project(camera);
+
+        const screenW = window.innerWidth;
+        const screenH = window.innerHeight;
+        const localHumans = Math.max(1, Number(projection?.localHumanCount || this.game?.numHumans) || 1);
+        const split = localHumans >= 2
+            && projection?.isNetworkSession !== true
+            && !this.game?.runtimeConfig?.session?.networkEnabled;
+        const viewportW = split ? screenW * 0.5 : screenW;
+        const viewportX = split ? (playerIndex === 0 ? 0 : viewportW) : 0;
+        const x = viewportX + (clamp(this._tmpAimVec.x, -1.05, 1.05) * 0.5 + 0.5) * viewportW;
+        const y = (-(clamp(this._tmpAimVec.y, -1.05, 1.05) * 0.5) + 0.5) * screenH;
+
+        dot.style.left = `${x}px`;
+        dot.style.top = `${y}px`;
+        dot.style.display = 'block';
     }
 
     _shouldShowScreenCrosshair(player, fallbackGameplayConfig = null) {
@@ -198,6 +297,7 @@ export class CrosshairSystem {
             }
             this._syncCrosshairLockState(0, game.ui.crosshairP1, projection);
             this._syncCrosshairOverheatState(p1, game.ui.crosshairP1, projection);
+            this._updateMgAimDot(p1, game.ui.crosshairP1, projection);
         }
 
         if (game.ui.crosshairP2) {
@@ -212,8 +312,11 @@ export class CrosshairSystem {
                 }
                 this._syncCrosshairLockState(1, game.ui.crosshairP2, projection);
                 this._syncCrosshairOverheatState(p2, game.ui.crosshairP2, projection);
+                this._updateMgAimDot(p2, game.ui.crosshairP2, projection);
             } else {
                 this._setCrosshairDisplay(game.ui.crosshairP2, false);
+                const dot = this._mgAimDotByCrosshair.get(game.ui.crosshairP2);
+                if (dot) dot.style.display = 'none';
             }
         }
     }
