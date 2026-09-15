@@ -6,6 +6,21 @@ import {
     acquirePlaywrightRunLock,
     releasePlaywrightRunLockOnExit,
 } from './playwright-run-lock.mjs';
+import { summarizePlaywrightResultsFile } from './summarize-playwright-results.mjs';
+
+/**
+ * Prints the machine-readable `[playwright:summary]` line for a finished run and mirrors it
+ * into the run folder. The wrapper keeps Playwright's own exit code; the summary is evidence,
+ * not a second verdict.
+ */
+export function reportPlaywrightRunSummary(env = process.env) {
+    const outputDir = String(env.PW_OUTPUT_DIR || '').trim();
+    if (!outputDir) return null;
+    const resultsPath = String(env.PW_RESULTS_JSON || '').trim() || path.join(outputDir, 'results.json');
+    return summarizePlaywrightResultsFile(resultsPath, {
+        summaryPath: path.join(outputDir, 'summary.txt'),
+    });
+}
 
 export const PLAYWRIGHT_DEFAULT_RUN_PROFILE = 'desktop-smoke';
 
@@ -135,6 +150,14 @@ export async function runPlaywrightProfile(profileName, argv, options = {}) {
     const command = resolvePlaywrightCommand(argv);
     const env = { ...process.env };
     applyPlaywrightRunProfileEnv(env, profile.name);
+    // Pin run tag and output folder here so the wrapper knows where the JSON reporter will
+    // write; playwright.config.js otherwise invents both inside the CLI process.
+    if (!String(env.PW_RUN_TAG || '').trim()) {
+        env.PW_RUN_TAG = `${profile.name}-pid-${process.pid}-${Date.now().toString(36)}`;
+    }
+    if (!String(env.PW_OUTPUT_DIR || '').trim()) {
+        env.PW_OUTPUT_DIR = path.join('test-results', env.PW_RUN_TAG);
+    }
 
     const child = spawn(command.command, command.args, {
         stdio: 'inherit',
@@ -154,6 +177,7 @@ export async function runPlaywrightProfile(profileName, argv, options = {}) {
 
     child.on('exit', (code, signal) => {
         lock.release();
+        reportPlaywrightRunSummary(env);
         if (signal) {
             process.kill(process.pid, signal);
             return;

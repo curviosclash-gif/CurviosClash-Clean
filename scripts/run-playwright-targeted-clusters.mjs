@@ -10,6 +10,11 @@ import {
     releasePlaywrightRunLockOnExit,
 } from './playwright-run-lock.mjs';
 import {
+    PLAYWRIGHT_SUMMARY_PREFIX,
+    formatPlaywrightSummaryLine,
+    summarizePlaywrightResultsFile,
+} from './summarize-playwright-results.mjs';
+import {
     DESKTOP_E2E_CLUSTERS,
     HEAVY_DIAGNOSTIC_CLUSTERS,
 } from './playwright-test-clusters.mjs';
@@ -294,6 +299,32 @@ function runCluster(cluster, playwrightArgs, index, total) {
     });
 }
 
+const SUMMARY_COUNT_KEYS = Object.freeze(['passed', 'failed', 'skipped', 'didNotRun', 'flaky', 'known', 'new']);
+
+/**
+ * Reads the JSON reporter output of one cluster. The spec runner already printed and stored the
+ * same summary, so this stays quiet and only collects the numbers for the roll-up line.
+ */
+function collectClusterSummary(cluster, outputDir) {
+    const resolvedOutputDir = path.resolve(outputDir || path.join('test-results', cluster.id));
+    const summary = summarizePlaywrightResultsFile(path.join(resolvedOutputDir, 'results.json'), {
+        summaryPath: path.join(resolvedOutputDir, 'summary.txt'),
+        log: () => {},
+    });
+    return summary ? { clusterId: cluster.id, summary } : null;
+}
+
+/** Prints one line per cluster and the machine-readable total as the very last line. */
+function printClusterSummaries(collected) {
+    if (collected.length === 0) return;
+    const totals = Object.fromEntries(SUMMARY_COUNT_KEYS.map((key) => [key, 0]));
+    for (const entry of collected) {
+        for (const key of SUMMARY_COUNT_KEYS) totals[key] += Number(entry.summary[key]) || 0;
+        console.log(formatPlaywrightSummaryLine(entry.summary, `${PLAYWRIGHT_SUMMARY_PREFIX} ${entry.clusterId}`));
+    }
+    console.log(formatPlaywrightSummaryLine(totals));
+}
+
 function toClusterContractDiagnostics(rawDiagnostics) {
     if (!rawDiagnostics || typeof rawDiagnostics !== 'object') return null;
     const directContract = rawDiagnostics?.readiness?.contract;
@@ -393,9 +424,13 @@ async function main() {
     releasePlaywrightRunLockOnExit(lock.release);
 
     const failures = [];
+    const summaries = [];
     for (let index = 0; index < clusters.length; index += 1) {
         const result = await runCluster(clusters[index], playwrightArgs, index, clusters.length);
+        const collected = collectClusterSummary(clusters[index], result.outputDir);
+        if (collected) summaries.push(collected);
         if (result.signal) {
+            printClusterSummaries(summaries);
             process.kill(process.pid, result.signal);
             return;
         }
@@ -421,7 +456,12 @@ async function main() {
         }
     }
 
-    if (failures.length > 0) {
+    if (failures.length === 0) {
+        printClusterSummaries(summaries);
+        return;
+    }
+
+    {
         const bucketMap = new Map();
         for (const failure of failures) {
             if (!bucketMap.has(failure.failureClass)) {
@@ -446,6 +486,7 @@ async function main() {
                 `output=${failure.outputDir || 'n/a'}`
             );
         }
+        printClusterSummaries(summaries);
         process.exit(1);
     }
 }

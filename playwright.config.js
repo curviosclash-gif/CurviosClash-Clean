@@ -1,4 +1,5 @@
 // @ts-check
+import path from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import {
     applyPlaywrightRunProfileEnv,
@@ -87,9 +88,13 @@ const traceMode = process.env.PW_TRACE === '1'
 const webServerCommand = serverMode === 'dev'
     ? `node node_modules/vite/bin/vite.js --host ${TEST_HOST} --port ${TEST_PORT} --strictPort --clearScreen false --logLevel error`
     : `node scripts/playwright-preview-server.mjs --host ${TEST_HOST} --port ${TEST_PORT}`;
+// The JSON reporter is always on: it is the only machine-readable record of a run, and
+// `scripts/summarize-playwright-results.mjs` turns it into the `[playwright:summary]` line.
+const jsonResultsFile = path.join(outputDir, 'results.json');
+process.env.PW_RESULTS_JSON = jsonResultsFile;
 const reporters = process.env.PW_HTML_REPORT === '1' || isCI
-    ? [['list'], ['html', { open: 'never', outputFolder: htmlReportDir }]]
-    : [['list']];
+    ? [['list'], ['json', { outputFile: jsonResultsFile }], ['html', { open: 'never', outputFolder: htmlReportDir }]]
+    : [['list'], ['json', { outputFile: jsonResultsFile }]];
 
 export default defineConfig({
     testDir: './tests',
