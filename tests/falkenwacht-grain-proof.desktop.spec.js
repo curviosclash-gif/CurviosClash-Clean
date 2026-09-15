@@ -56,7 +56,7 @@ async function startMap(page, mapKey) {
     await waitForRenderFrames(page, 20);
 }
 
-test('falkenwacht surfaces carry measurable colour variation', async ({ page }, testInfo) => {
+test('falkenwacht surfaces carry measurable colour variation @render', async ({ page }, testInfo) => {
     test.setTimeout(600_000);
     const errors = collectErrors(page);
     await waitForLoadedGame(page);

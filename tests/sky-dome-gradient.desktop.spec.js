@@ -36,7 +36,7 @@ async function startMap(page, mapKey) {
 }
 
 for (const mapKey of MAP_KEYS) {
-    test(`${mapKey} renders its visible sky gradient per pixel without polygon edges`, async ({ page }, testInfo) => {
+    test(`${mapKey} renders its visible sky gradient per pixel without polygon edges @render`, async ({ page }, testInfo) => {
         test.setTimeout(180_000);
         const errors = collectErrors(page);
         await startMap(page, mapKey);

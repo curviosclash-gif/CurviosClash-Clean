@@ -46,7 +46,7 @@ async function startMap(page, mapKey) {
 }
 
 for (const mapKey of ['eiffel_tower_arena', 'eiffel_tower']) {
-    test(mapKey + ' spreads fog closure smoothly across distance at multiple heights', async ({ page }, testInfo) => {
+    test(mapKey + ' spreads fog closure smoothly across distance at multiple heights @render', async ({ page }, testInfo) => {
         test.setTimeout(180_000);
         const errors = collectErrors(page);
         await waitForLoadedGame(page);

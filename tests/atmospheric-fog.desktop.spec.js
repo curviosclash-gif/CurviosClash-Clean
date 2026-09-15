@@ -106,7 +106,7 @@ for (const profile of [
     { key: 'magma_maze', near: 30, far: 130, color: 0x6b2410, height: 2.7 },
     { key: 'burg_falkenwacht', near: 450, far: 600, color: 0xcad4cc, height: 5 },
 ]) {
-test(`${profile.key}: fog compiles and meets the sky at multiple elevations`, async ({ page }, testInfo) => {
+test(`${profile.key}: fog compiles and meets the sky at multiple elevations @render`, async ({ page }, testInfo) => {
     test.setTimeout(120_000);
     const errors = collectErrors(page);
 

@@ -40,7 +40,7 @@ async function startSplitScreenFight(page, mapKey) {
 }
 
 for (const profile of PROFILES) {
-    test(`${profile.mapKey}: global fog renders for every split-screen player and restores the map`, async ({ page }, testInfo) => {
+    test(`${profile.mapKey}: global fog renders for every split-screen player and restores the map @render`, async ({ page }, testInfo) => {
         test.setTimeout(180_000);
         const errors = collectErrors(page);
         await waitForLoadedGame(page);

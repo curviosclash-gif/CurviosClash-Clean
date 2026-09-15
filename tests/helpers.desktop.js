@@ -2,6 +2,11 @@ import path from 'node:path';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import { _electron as electron, expect, test as base } from '@playwright/test';
+import {
+    DEFAULT_TEARDOWN_DEADLINE_MS,
+    closeElectronAppWithDeadline,
+    resolveShowWindow,
+} from './desktop-process-teardown.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -306,6 +311,7 @@ async function createDesktopDiagnostics({
     processInfo,
     failureKind,
     failureHints,
+    teardown = null,
     error = null,
 }) {
     return {
@@ -333,6 +339,7 @@ async function createDesktopDiagnostics({
             closed: rendererState.closed,
         },
         mainProcess: processInfo,
+        teardown,
         artifacts: {
             diagnostics: artifactPaths.diagnosticsPath,
             mainProcessLog: artifactPaths.mainProcessLogPath,
@@ -375,6 +382,7 @@ const desktopTest = base.extend({
         let app = null;
         let page = null;
         let capturedError = null;
+        let harnessChildProcess = null;
 
         const recordStage = (stage, extra = {}) => {
             events.push({
@@ -389,6 +397,9 @@ const desktopTest = base.extend({
         };
 
         const userDataRoot = resolveDesktopUserDataRoot(testInfo);
+        // Ein verstecktes Fenster rendert mit rund einem Bild pro Sekunde; Tests, die auf
+        // gezeichnete Bilder warten (@render), sind damit strukturell unerfuellbar.
+        const showWindow = resolveShowWindow(process.env, testInfo?.titlePath || []);
 
         try {
             await mkdir(userDataRoot, { recursive: true });
@@ -398,13 +409,14 @@ const desktopTest = base.extend({
                 cwd: ELECTRON_DIR,
                 env: {
                     ...process.env,
-                    CURVIOS_ELECTRON_SHOW_WINDOW: String(process.env.CURVIOS_ELECTRON_SHOW_WINDOW || '0'),
+                    CURVIOS_ELECTRON_SHOW_WINDOW: showWindow ? '1' : '0',
                     CURVIOS_DESKTOP_STATIC_PORT: String(process.env.TEST_PORT || ''),
                     CURVIOS_USER_DATA_ROOT: userDataRoot,
                 },
             });
 
             const childProcess = app.process?.() || null;
+            harnessChildProcess = childProcess;
             recordMainProcess(
                 'harness',
                 `launch executable=${ELECTRON_EXECUTABLE} cwd=${ELECTRON_DIR} `
@@ -568,7 +580,17 @@ const desktopTest = base.extend({
         } finally {
             appClosing = true;
             const rendererState = await captureRendererState(page);
-            await app?.close().catch(() => {});
+            const teardown = await closeElectronAppWithDeadline({
+                app,
+                childProcess: harnessChildProcess,
+                deadlineMs: DEFAULT_TEARDOWN_DEADLINE_MS,
+            });
+            if (teardown.forcedKill) {
+                recordMainProcess(
+                    'harness',
+                    `teardown forced kill after ${teardown.afterMs}ms (deadline=${teardown.deadlineMs}ms, exited=${teardown.exited})`
+                );
+            }
             failureKind = failureKind || (capturedError
                 ? resolveDesktopFailureKind({
                     events,
@@ -609,6 +631,7 @@ const desktopTest = base.extend({
                     processInfo,
                     failureKind,
                     failureHints,
+                    teardown,
                     error: capturedError,
                 })),
             ]);

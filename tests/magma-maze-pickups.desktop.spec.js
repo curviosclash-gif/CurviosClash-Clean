@@ -42,7 +42,7 @@ function decodePng(dataUrl) {
     return Buffer.from(dataUrl.split(',')[1], 'base64');
 }
 
-test('Magma Maze keeps its authored tunnel pickups reachable and collectible on Desktop', async ({ page }, testInfo) => {
+test('Magma Maze keeps its authored tunnel pickups reachable and collectible on Desktop @render', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const errors = collectErrors(page);
     await startMagmaMaze(page);

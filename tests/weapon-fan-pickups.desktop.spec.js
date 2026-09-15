@@ -17,7 +17,7 @@ async function startFight(page) {
     await waitForRenderFrames(page, 12);
 }
 
-test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve-shot MG fan', async ({ page }, testInfo) => {
+test('Fight renders marked fan pickups, odd/even rocket fans and a capped twelve-shot MG fan @render', async ({ page }, testInfo) => {
     test.setTimeout(180_000);
     const errors = collectErrors(page);
     await waitForLoadedGame(page);

@@ -42,7 +42,7 @@ function decodePng(dataUrl) {
     return Buffer.from(dataUrl.split(',')[1], 'base64');
 }
 
-test('near-wall flight keeps the Electron arena walls visually continuous', async ({ page }, testInfo) => {
+test('near-wall flight keeps the Electron arena walls visually continuous @render', async ({ page }, testInfo) => {
     test.setTimeout(300_000);
     const errors = collectErrors(page);
     await startNotreDame(page);

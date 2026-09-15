@@ -50,7 +50,7 @@ function decodePng(dataUrl) {
 }
 
 for (const mapKey of MAP_KEYS) {
-    test(`${mapKey} keeps distant darkness atmospheric in the Electron app`, async ({ page }, testInfo) => {
+    test(`${mapKey} keeps distant darkness atmospheric in the Electron app @render`, async ({ page }, testInfo) => {
         test.setTimeout(300_000);
         const errors = collectErrors(page);
         await startNotreDame(page, mapKey);
