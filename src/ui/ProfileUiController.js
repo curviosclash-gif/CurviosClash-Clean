@@ -6,6 +6,24 @@ import { deriveProfileControlSelectState } from './ProfileControlStateOps.js';
 import { deriveProfileActionUiState } from './ProfileUiStateOps.js';
 import { renderProfileSelectOptions } from './dom/ProfileSelectDom.js';
 
+/**
+ * Overwrites the live settings object without swapping its reference. UI
+ * controllers and menu bindings capture `game.settings` once, so replacing the
+ * reference would leave them reading and writing a detached object.
+ * @param {object|null|undefined} target
+ * @param {object} nextSettings
+ * @returns {object} the object every holder keeps referencing
+ */
+function replaceSettingsInPlace(target, nextSettings) {
+    if (!target || typeof target !== 'object' || Array.isArray(target)) return nextSettings;
+    if (!nextSettings || typeof nextSettings !== 'object' || Array.isArray(nextSettings)) return target;
+    for (const key of Object.keys(target)) {
+        if (!Object.hasOwn(nextSettings, key)) delete target[key];
+    }
+    Object.assign(target, nextSettings);
+    return target;
+}
+
 export class ProfileUiController {
     /**
      * @param {{
@@ -175,7 +193,7 @@ export class ProfileUiController {
             return false;
         }
 
-        this._setSettings(result.profile.settings);
+        this._setSettings(replaceSettingsInPlace(this._getSettings(), result.profile.settings));
         this.activeProfileName = this._profileManager.getActiveProfileName();
         this.selectedProfileName = this.activeProfileName;
         this.loadedProfileName = result.profile.name;
