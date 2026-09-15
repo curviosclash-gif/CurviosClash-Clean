@@ -8,6 +8,8 @@
 // - Side effects: mutates player quaternion/position and owner temp vectors
 // - Hotpath guardrail: no per-frame object/array allocations in response methods
 
+import * as THREE from 'three';
+
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 
 const DEFAULT_FOAM_BOUNCE_DISTANCES = Object.freeze([4.0, 7.0, 10.0, 2.0]);
@@ -70,6 +72,10 @@ export class CollisionResponseSystem {
     constructor(owner, spawnPlacementSystem = null) {
         this.owner = owner || null;
         this.spawnPlacementSystem = spawnPlacementSystem || null;
+        // Eigener Kratzvektor fuer die abgeleitete Wandnormale: der Bounce schreibt
+        // owner._tmpVec2 zwischendurch selbst um (Quaternion, Extra-Schub), und die
+        // Normale wird danach noch an Platzierung und Bot-KI weitergereicht.
+        this._boundsNormal = new THREE.Vector3();
     }
 
     isBotPositionSafe(player, position) {
@@ -100,7 +106,7 @@ export class CollisionResponseSystem {
         BOUNCE_HEATMAP_SAMPLE.z = pos.z;
         let normal = normalOverride;
         if (!normal) {
-            normal = resolveNearestBoundsNormal(owner.arena.bounds, pos, owner._tmpVec2);
+            normal = resolveNearestBoundsNormal(owner.arena.bounds, pos, this._boundsNormal);
         }
 
         player.getDirection(owner._tmpDir).normalize();

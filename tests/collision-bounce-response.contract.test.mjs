@@ -333,3 +333,33 @@ test('a grazing human impact keeps its tangential travel instead of fully reflec
     assert.ok(heading.x > 0.97, `tangential direction should survive, got ${heading.toArray()}`);
     assert.ok(heading.z > 0, 'the small normal component must lead away from the wall');
 });
+
+// Die Normale wird ohne Vorgabe aus den Bounds abgeleitet und danach noch zweimal
+// weitergereicht: an die Platzierung und an die Bot-KI. Liegt sie in einem Scratch-Vektor,
+// den der Bounce zwischendurch selbst ueberschreibt, bounct der Bot in die falsche Richtung.
+test('a derived bounce normal survives until placement and bot ai have seen it', () => {
+    for (const wallCase of WALL_CASES) {
+        const owner = createOwnerStub();
+        const seen = [];
+        const capture = (stage, normal) => seen.push({
+            stage,
+            normal: new THREE.Vector3(Number(normal?.x), Number(normal?.y), Number(normal?.z)),
+        });
+        const system = new CollisionResponseSystem(owner, {
+            findSafeBouncePosition(_player, _direction, normal) { capture('placement', normal); },
+        });
+        const player = createPlayerStub({ position: wallCase.position.clone(), direction: wallCase.approach.clone() });
+        owner.botByPlayer.set(player, { onBounce(_source, normal) { capture('bot-ai', normal); } });
+        const expected = resolveNearestBoundsNormal(BOUNDS, wallCase.position, new THREE.Vector3());
+
+        system.bounceBot(player, null, 'WALL', { randomScale: 0, extraPush: 3.2 });
+
+        assert.deepEqual(seen.map((entry) => entry.stage), ['placement', 'bot-ai']);
+        for (const entry of seen) {
+            assert.ok(
+                entry.normal.distanceTo(expected) < 1e-6,
+                `${wallCase.name}/${entry.stage}: expected ${expected.toArray()}, got ${entry.normal.toArray()}`
+            );
+        }
+    }
+});
