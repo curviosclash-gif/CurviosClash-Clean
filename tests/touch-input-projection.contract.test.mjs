@@ -133,23 +133,26 @@ test('TouchInputSource maps the camera button as an edge and the roll buttons as
     assert.equal(first.cameraSwitch, true);
     assert.equal(first.rollLeft, true);
     assert.equal(first.rollRight, false);
-    assert.equal(first.rollAxis, 1);
+    // Held buttons are digital: no numeric roll axis, so the steering ramp applies.
+    assert.equal(first.rollAxis, undefined);
 
     const second = source.poll();
     assert.equal(second.cameraSwitch, false);
     assert.equal(second.rollLeft, true);
-    assert.equal(second.rollAxis, 1);
+    assert.equal(second.rollAxis, undefined);
 
     source._buttons.rollLeft = false;
     source._buttons.rollRight = true;
     const third = source.poll();
     assert.equal(third.rollLeft, false);
     assert.equal(third.rollRight, true);
-    assert.equal(third.rollAxis, -1);
+    assert.equal(third.rollAxis, undefined);
 
     source._releaseAllControls();
     const fourth = source.poll();
-    assert.equal(fourth.rollAxis, 0);
+    assert.equal(fourth.rollLeft, false);
+    assert.equal(fourth.rollRight, false);
+    assert.equal(fourth.rollAxis, undefined);
     assert.equal(fourth.cameraSwitch, false);
 });
 

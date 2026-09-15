@@ -4,14 +4,17 @@ function axisInput(positive, negative) {
     return (positive ? 1 : 0) - (negative ? 1 : 0);
 }
 
-// Analog sources (gamepad, mouse, tilt, touch stick) already deliver a settled deflection.
-function hasAnalogAxis(input, axisKey) {
-    return Number.isFinite(Number(input?.[axisKey]));
+// Analog sources (gamepad, mouse, tilt, touch stick) deliver a settled deflection
+// as a finite *Axis number. Digital sources (keyboard, four player planar keys,
+// touch roll buttons) leave the field undefined, so their booleans are ramped.
+// One read per axis: the value doubles as the analog flag.
+function readAnalogAxis(input, axisKey) {
+    return Number(input?.[axisKey]);
 }
 
-function resolveInputAxis(input, axisKey, positiveKey, negativeKey) {
-    return hasAnalogAxis(input, axisKey)
-        ? Number(input[axisKey])
+function resolveInputAxis(analogValue, input, positiveKey, negativeKey) {
+    return Number.isFinite(analogValue)
+        ? analogValue
         : axisInput(input?.[positiveKey], input?.[negativeKey]);
 }
 
@@ -110,12 +113,15 @@ export class PlayerController {
 
         const hasDirectInput = !!input && steeringLocked !== true;
         if (hasDirectInput) {
-            pitchIsAnalog = hasAnalogAxis(input, 'pitchAxis');
-            yawIsAnalog = hasAnalogAxis(input, 'yawAxis');
-            rollIsAnalog = hasAnalogAxis(input, 'rollAxis');
-            pitchTarget = resolveInputAxis(input, 'pitchAxis', 'pitchUp', 'pitchDown');
-            yawTarget = resolveInputAxis(input, 'yawAxis', 'yawLeft', 'yawRight');
-            rollTarget = resolveInputAxis(input, 'rollAxis', 'rollLeft', 'rollRight');
+            const pitchAnalog = readAnalogAxis(input, 'pitchAxis');
+            const yawAnalog = readAnalogAxis(input, 'yawAxis');
+            const rollAnalog = readAnalogAxis(input, 'rollAxis');
+            pitchIsAnalog = Number.isFinite(pitchAnalog);
+            yawIsAnalog = Number.isFinite(yawAnalog);
+            rollIsAnalog = Number.isFinite(rollAnalog);
+            pitchTarget = resolveInputAxis(pitchAnalog, input, 'pitchUp', 'pitchDown');
+            yawTarget = resolveInputAxis(yawAnalog, input, 'yawLeft', 'yawRight');
+            rollTarget = resolveInputAxis(rollAnalog, input, 'rollLeft', 'rollRight');
             boostHeld = !!input.boost;
             boostPressed = !!input.boostPressed;
             slowMoHeld = !!input.slowMo;
@@ -152,8 +158,11 @@ export class PlayerController {
         }
 
         const frameDt = Number.isFinite(dt) && dt > 0 ? dt : (1 / 60);
-        const attackRate = this._resolveRampRate(player, 'attack', this.rampAttackRate);
-        const releaseRate = this._resolveRampRate(player, 'release', this.rampReleaseRate);
+        // Player.controlRampRates spells the keys attackRate/releaseRate; reading
+        // them under that name means a per player override really wins over the
+        // controller default instead of always falling through to it.
+        const attackRate = this._resolveRampRate(player, 'attackRate', this.rampAttackRate);
+        const releaseRate = this._resolveRampRate(player, 'releaseRate', this.rampReleaseRate);
 
         this._axisState.pitch = pitchIsAnalog ? pitchTarget : clampAxis(
             stepAxisToward(this._axisState.pitch, pitchTarget, attackRate, releaseRate, frameDt)

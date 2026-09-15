@@ -8,9 +8,11 @@ import {
 } from './FourPlayerPlanarContract.js';
 
 function resetInput(input) {
-    input.pitchAxis = 0;
-    input.yawAxis = 0;
-    input.rollAxis = 0;
+    // Keys are digital: the axes stay undefined so the booleans go through the
+    // steering ramp like every other keyboard source.
+    input.pitchAxis = undefined;
+    input.yawAxis = undefined;
+    input.rollAxis = undefined;
     input.pitchUp = false;
     input.pitchDown = false;
     input.yawLeft = false;
@@ -94,10 +96,8 @@ export function createFourPlayerPlanarInputSource({
             const controllerInput = gamepad.poll();
             output.yawLeft = inputManager.isDown(binding.left);
             output.yawRight = inputManager.isDown(binding.right);
-            output.yawAxis = (output.yawLeft ? 1 : 0) - (output.yawRight ? 1 : 0);
             output.rollLeft = inputManager.isDown(resolvedRollBinding.left);
             output.rollRight = inputManager.isDown(resolvedRollBinding.right);
-            output.rollAxis = (output.rollLeft ? 1 : 0) - (output.rollRight ? 1 : 0);
             if (controllerInput) {
                 output.yawLeft = controllerInput.yawLeft; output.yawRight = controllerInput.yawRight;
                 output.yawAxis = controllerInput.yawAxis;

@@ -502,7 +502,8 @@ export class TouchInputSource extends PlayerInputSource {
             rollRight: rollRightDown,
             pitchAxis: touchPitchActive ? -jy : (tiltInput ? -tiltInput.pitchAxis : -jy),
             yawAxis: tiltInput ? -tiltInput.yawAxis : -jx,
-            rollAxis: (rollLeftDown ? 1 : 0) - (rollRightDown ? 1 : 0),
+            // Roll comes from two held buttons, so it is digital and ramped like a key.
+            rollAxis: undefined,
             boost: boostDown,
             boostPressed,
             // Slow motion has no touch button yet; the fields keep the input shape stable.
@@ -527,7 +528,7 @@ export class TouchInputSource extends PlayerInputSource {
             rollRight: false,
             pitchAxis: 0,
             yawAxis: 0,
-            rollAxis: 0,
+            rollAxis: undefined,
             boost: false,
             boostPressed: false,
             slowMo: false, slowMoPressed: false,

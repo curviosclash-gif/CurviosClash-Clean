@@ -4,8 +4,10 @@ export const TOUCH_CONTROL_MODES = Object.freeze({
 });
 
 // Camera sits top right, clear of the optional pause button (58px at 14px inset).
-// The roll pair sits below the joystick home position (left 5%, bottom 20%, 120px
-// wide) so it never covers the area that starts the floating joystick.
+// The roll pair sits to the right of the joystick: the mobile apps pin the
+// joystick to left 14px / bottom 22px at 108-112px (see MobileClassicStyles and
+// MobileArcadeApp), the desktop layout keeps it at left 5% / bottom 20%. Both
+// leave the strip from 142px on free, so the pair never covers the joystick.
 const CAMERA_BUTTON_DEFINITION = Object.freeze({
     id: 'camera',
     label: 'CAM',
@@ -14,9 +16,22 @@ const CAMERA_BUTTON_DEFINITION = Object.freeze({
     size: 48,
 });
 
+const ROLL_BUTTON_BOTTOM = 'max(22px, env(safe-area-inset-bottom))';
 const ROLL_BUTTON_DEFINITIONS = Object.freeze([
-    Object.freeze({ id: 'rollLeft', label: 'ROLL L', bottom: '6%', left: '5%', size: 52 }),
-    Object.freeze({ id: 'rollRight', label: 'ROLL R', bottom: '6%', left: 'calc(5% + 64px)', size: 52 }),
+    Object.freeze({
+        id: 'rollLeft',
+        label: 'ROLL L',
+        bottom: ROLL_BUTTON_BOTTOM,
+        left: 'max(142px, calc(env(safe-area-inset-left) + 142px))',
+        size: 52,
+    }),
+    Object.freeze({
+        id: 'rollRight',
+        label: 'ROLL R',
+        bottom: ROLL_BUTTON_BOTTOM,
+        left: 'max(206px, calc(env(safe-area-inset-left) + 206px))',
+        size: 52,
+    }),
 ]);
 
 const SHARED_BUTTON_DEFINITIONS = Object.freeze([

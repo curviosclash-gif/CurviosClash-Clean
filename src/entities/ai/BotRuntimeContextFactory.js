@@ -126,11 +126,11 @@ function resolveControlDynamics(entityManager, player, target = null) {
         toPositiveNumber(entityRuntimeConfig?.PLAYER?.ROLL_SPEED, 2.0)
     );
     const rampAttackRate = toPositiveNumber(
-        player?.controlRampRates?.attack ?? player?.controller?.rampAttackRate,
+        player?.controlRampRates?.attackRate ?? player?.controller?.rampAttackRate,
         12
     );
     const rampReleaseRate = toPositiveNumber(
-        player?.controlRampRates?.release ?? player?.controller?.rampReleaseRate,
+        player?.controlRampRates?.releaseRate ?? player?.controller?.rampReleaseRate,
         8.5
     );
 

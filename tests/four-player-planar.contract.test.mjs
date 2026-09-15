@@ -188,10 +188,12 @@ test('all four keyboard groups support steering, context action and configurable
         down.delete(FOUR_PLAYER_PLANAR_ROLL_BINDINGS[index].left);
         assert.equal(first.yawLeft, true);
         assert.equal(first.rollLeft, true);
-        assert.equal(first.rollAxis, 1);
+        // Keys are digital: no numeric axis, so the steering ramp applies like on the keyboard.
+        assert.equal(first.rollAxis, undefined);
+        assert.equal(first.yawAxis, undefined);
         assert.equal(first.useItem, true);
         assert.equal(held.useItem, false);
-        assert.equal(first.pitchAxis, 0);
+        assert.equal(first.pitchAxis, undefined);
         for (const key of ['pitchUp', 'pitchDown', 'rollRight', 'boost', 'boostPressed', 'cameraSwitch', 'shootMG']) {
             assert.equal(first[key], false);
         }

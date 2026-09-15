@@ -88,7 +88,7 @@ test('the four-player adapter ignores a disabled controller', (t) => {
     const inputManager = { isDown: () => false, wasPressed: () => false, gamepadControls: { GAMEPAD: { enabled: false } } };
     const source = createFourPlayerPlanarInputSource({ inputManager, playerIndex: 0 });
     source.bind(0); pads[0].axes[0] = -1;
-    assert.equal(source.poll().yawAxis, 0);
+    assert.equal(source.poll().yawAxis, undefined, 'without a controller the keys stay digital and go through the ramp');
     inputManager.gamepadControls.GAMEPAD.enabled = true;
     assert.equal(source.poll().yawAxis, 1);
     source.dispose();

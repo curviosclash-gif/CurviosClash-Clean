@@ -37,21 +37,36 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const fightLoadouts = runtimeConfig?.session?.modePath === 'fight' || isArenaWavesRunType(runtimeConfig?.arcade?.runType)
         ? runtimeConfig?.player?.fightLoadouts || null
         : null;
-    const configuredHumanCount = Math.max(1, Number(runtimeConfig?.session?.numHumans) || 2);
+    const session = runtimeConfig?.session || null;
+    const configuredHumanCount = Math.max(1, Number(session?.numHumans) || 2);
+    // A network match simulates one human entity per slot while numHumans stays
+    // the local count, so the slot list is the real length of the human roster.
+    const humanEntityCount = Math.max(0, Number(session?.humanEntityCount) || 0);
+    const totalHumanCount = Math.max(configuredHumanCount, humanEntityCount);
     const fallbackVehicleId = runtimeVehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1;
-    // Smooth steering is the default for humans; only an explicit false switches the ramp off.
+    // Smooth steering is the default for humans; only an explicit false switches
+    // the ramp off, and only for the slots this machine steers: a guest's own
+    // setting must not follow the host's local settings, and vice versa.
     const smoothSteering = settings?.localSettings?.smoothSteering !== false;
+    const localPlayerIndex = Math.max(0, Number(session?.localPlayerIndex) || 0);
+    const localHumanCount = Math.max(1, Number(session?.localHumanCount) || configuredHumanCount);
+    const isLocalSlot = (index) => index >= localPlayerIndex && index < localPlayerIndex + localHumanCount;
     const configs = [];
     for (let index = 0; index < configuredHumanCount; index += 1) {
         const slot = `PLAYER_${index + 1}`;
         configs.push({
             invertPitch: !!settings?.invertPitch?.[slot],
-            smoothSteering,
+            smoothSteering: isLocalSlot(index) ? smoothSteering : true,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
             color: resolveLocalSplitScreenPlayerColor(runtimeConfig?.session?.splitScreenVariant, index),
         });
+    }
+    // Slots beyond the local count keep the sparse shape they had before (the
+    // entity setup falls back per field); only the steering preference is filled in.
+    for (let index = configuredHumanCount; index < totalHumanCount; index += 1) {
+        configs.push({ smoothSteering: isLocalSlot(index) ? smoothSteering : true });
     }
     return configs;
 }
