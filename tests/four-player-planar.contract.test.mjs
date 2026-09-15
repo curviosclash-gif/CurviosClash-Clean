@@ -13,9 +13,14 @@ import {
     FOUR_PLAYER_PLANAR_PLAYER_COLORS,
     FOUR_PLAYER_PLANAR_ROLL_BINDINGS,
     SPLIT_SCREEN_VARIANTS,
+    THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT,
+    THREE_PLAYER_SPLIT_INPUT_DEVICES,
     normalizeFourPlayerPlanarRollBindings,
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
+    normalizeThreePlayerSplitDeviceAssignment,
+    normalizeThreePlayerSplitSettings,
+    resolveThreePlayerSplitInputDevice,
 } from '../src/four-player-planar/FourPlayerPlanarContract.js';
 import {
     createFourPlayerPlanarInputSource,
@@ -215,6 +220,68 @@ test('four-grid renderer uses P1/P2 top, P3/P4 bottom, updates aspects and reset
         globalThis.window.innerHeight = 720;
         viewport.onResize(cameras);
         assert.equal(viewport.getAspect(), 16 / 9);
+    } finally {
+        globalThis.window = previousWindow;
+    }
+});
+
+test('three-player split settings normalize device assignment, clamp bots and reject unknown variants', () => {
+    assert.equal(normalizeSplitScreenVariant(SPLIT_SCREEN_VARIANTS.THREE_PLAYER), SPLIT_SCREEN_VARIANTS.THREE_PLAYER);
+    assert.equal(normalizeSplitScreenVariant('not-a-real-variant'), SPLIT_SCREEN_VARIANTS.STANDARD);
+
+    assert.deepEqual(
+        normalizeThreePlayerSplitDeviceAssignment(null),
+        THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT
+    );
+    assert.deepEqual(
+        normalizeThreePlayerSplitDeviceAssignment(['keyboard', 'not-a-device', 'gamepad-1']),
+        ['keyboard', THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_2, THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_1]
+    );
+
+    const settings = normalizeThreePlayerSplitSettings({ mode: 'hunt', botCount: 99, deviceAssignment: ['keyboard', 'keyboard', 'keyboard'] });
+    assert.equal(settings.mode, 'hunt');
+    assert.equal(settings.botCount, 6);
+    assert.deepEqual(settings.deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
+});
+
+test('resolveThreePlayerSplitInputDevice reads the default two-gamepad-one-keyboard assignment', () => {
+    assert.deepEqual(resolveThreePlayerSplitInputDevice(null, 0), { type: 'gamepad', gamepadIndex: 0 });
+    assert.deepEqual(resolveThreePlayerSplitInputDevice(null, 1), { type: 'gamepad', gamepadIndex: 1 });
+    assert.deepEqual(resolveThreePlayerSplitInputDevice(null, 2), { type: 'keyboard', gamepadIndex: -1 });
+    assert.equal(resolveThreePlayerSplitInputDevice(null, 3), null);
+    assert.equal(resolveThreePlayerSplitInputDevice(null, -1), null);
+});
+
+test('three-column renderer splits P1/P2/P3 into equal-width panes and resets scissor state', () => {
+    const previousWindow = globalThis.window;
+    globalThis.window = { innerWidth: 1920, innerHeight: 1080 };
+    const calls = [];
+    const renderer = {
+        setSize: (...args) => calls.push(['size', ...args]),
+        setViewport: (...args) => calls.push(['viewport', ...args]),
+        setScissor: (...args) => calls.push(['scissor', ...args]),
+        setScissorTest: (...args) => calls.push(['scissorTest', ...args]),
+        render: (_scene, camera) => calls.push(['render', camera.id]),
+    };
+    const cameras = Array.from({ length: 3 }, (_, index) => ({
+        id: `P${index + 1}`,
+        aspect: 0,
+        updateProjectionMatrix() {},
+    }));
+    try {
+        const viewport = new RenderViewportSystem(renderer, { width: 1920, height: 1080 });
+        viewport.setViewportLayout(VIEWPORT_LAYOUTS.THREE_COLUMNS, cameras);
+        assert.deepEqual(cameras.map((camera) => camera.aspect), Array(3).fill((1920 / 3) / 1080));
+        calls.length = 0;
+        viewport.render({}, cameras);
+        assert.deepEqual(calls.filter(([type]) => type === 'render').map(([, id]) => id), ['P1', 'P2', 'P3']);
+        assert.deepEqual(calls.filter(([type]) => type === 'viewport').slice(0, 3), [
+            ['viewport', 0, 0, 640, 1080],
+            ['viewport', 640, 0, 640, 1080],
+            ['viewport', 1280, 0, 640, 1080],
+        ]);
+        assert.deepEqual(calls.at(-2), ['viewport', 0, 0, 1920, 1080]);
+        assert.deepEqual(calls.at(-3), ['scissorTest', false]);
     } finally {
         globalThis.window = previousWindow;
     }

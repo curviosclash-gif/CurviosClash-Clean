@@ -1,6 +1,7 @@
 export const VIEWPORT_LAYOUTS = Object.freeze({
     SINGLE: 'single',
     TWO_COLUMNS: 'two_columns',
+    THREE_COLUMNS: 'three_columns',
     FOUR_GRID: 'four_grid',
 });
 

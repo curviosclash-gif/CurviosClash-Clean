@@ -3,6 +3,7 @@ import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js'
 export const SPLIT_SCREEN_VARIANTS = Object.freeze({
     STANDARD: 'standard',
     FOUR_PLAYER_PLANAR: 'four_player_planar',
+    THREE_PLAYER: 'three_player',
 });
 
 export const FOUR_PLAYER_PLANAR_MODES = Object.freeze({
@@ -36,6 +37,56 @@ export const FOUR_PLAYER_PLANAR_ROLL_BINDINGS = Object.freeze([
     Object.freeze({ left: 'Numpad7', right: 'Numpad9' }),
 ]);
 
+export const THREE_PLAYER_SPLIT_HUMAN_COUNT = 3;
+export const THREE_PLAYER_SPLIT_MAX_BOTS = 6;
+export const THREE_PLAYER_SPLIT_MAX_PARTICIPANTS = 9;
+export const THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT = VIEWPORT_LAYOUTS.THREE_COLUMNS;
+
+// The full 3D flight model applies here, unlike the flattened four-player-planar mode:
+// these are only slices of the existing key zones, never their own binding set.
+export const THREE_PLAYER_SPLIT_KEY_BINDINGS = Object.freeze(
+    FOUR_PLAYER_PLANAR_KEY_BINDINGS.slice(0, THREE_PLAYER_SPLIT_HUMAN_COUNT)
+);
+export const THREE_PLAYER_SPLIT_PLAYER_COLORS = Object.freeze(
+    FOUR_PLAYER_PLANAR_PLAYER_COLORS.slice(0, THREE_PLAYER_SPLIT_HUMAN_COUNT)
+);
+
+export const THREE_PLAYER_SPLIT_INPUT_DEVICES = Object.freeze({
+    KEYBOARD: 'keyboard',
+    GAMEPAD_1: 'gamepad-1',
+    GAMEPAD_2: 'gamepad-2',
+});
+const THREE_PLAYER_SPLIT_INPUT_DEVICE_SET = new Set(Object.values(THREE_PLAYER_SPLIT_INPUT_DEVICES));
+
+// Matches the user's stated default: two gamepads, one keyboard, in slot order.
+export const THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT = Object.freeze([
+    THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_1,
+    THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_2,
+    THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD,
+]);
+
+export function normalizeThreePlayerSplitDeviceAssignment(value = null) {
+    const source = Array.isArray(value) ? value : [];
+    return THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT.map((fallback, index) => {
+        const candidate = String(source[index] || '').trim().toLowerCase();
+        return THREE_PLAYER_SPLIT_INPUT_DEVICE_SET.has(candidate) ? candidate : fallback;
+    });
+}
+
+/**
+ * Pure lookup, kept in the same {type, gamepadIndex} shape as the existing
+ * two-player resolveSplitscreenInputDevice() so it drops into the input
+ * resolver without a redesign once that file is free to touch again.
+ */
+export function resolveThreePlayerSplitInputDevice(deviceAssignment, playerIndex) {
+    if (playerIndex < 0 || playerIndex >= THREE_PLAYER_SPLIT_HUMAN_COUNT) return null;
+    const assignment = normalizeThreePlayerSplitDeviceAssignment(deviceAssignment);
+    const device = assignment[playerIndex];
+    if (device === THREE_PLAYER_SPLIT_INPUT_DEVICES.KEYBOARD) return { type: 'keyboard', gamepadIndex: -1 };
+    const gamepadIndex = device === THREE_PLAYER_SPLIT_INPUT_DEVICES.GAMEPAD_2 ? 1 : 0;
+    return { type: 'gamepad', gamepadIndex };
+}
+
 const RESERVED_ROLL_KEY_CODES = new Set(['Escape', 'Enter']);
 const KEY_CODE_PATTERN = /^[A-Za-z][A-Za-z0-9]{1,31}$/;
 
@@ -66,9 +117,9 @@ export function normalizeFourPlayerPlanarRollBindings(value = null) {
 }
 
 export function normalizeSplitScreenVariant(value) {
-    return value === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
-        ? SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
-        : SPLIT_SCREEN_VARIANTS.STANDARD;
+    if (value === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR;
+    if (value === SPLIT_SCREEN_VARIANTS.THREE_PLAYER) return SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
+    return SPLIT_SCREEN_VARIANTS.STANDARD;
 }
 
 export function normalizeFourPlayerPlanarMode(value) {
@@ -99,6 +150,50 @@ export function normalizeFourPlayerPlanarSettings(value = null, options = {}) {
         botCount,
         rollBindings: normalizeFourPlayerPlanarRollBindings(source.rollBindings),
     };
+}
+
+export function normalizeThreePlayerSplitSettings(value = null, options = {}) {
+    const source = value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+    const fallbackMapKey = String(options.fallbackMapKey || 'standard');
+    const fallbackVehicleId = String(options.fallbackVehicleId || 'ship5');
+    const botCount = Math.max(0, Math.min(
+        THREE_PLAYER_SPLIT_MAX_BOTS,
+        THREE_PLAYER_SPLIT_MAX_PARTICIPANTS - THREE_PLAYER_SPLIT_HUMAN_COUNT,
+        Math.trunc(Number(source.botCount) || 0)
+    ));
+    return {
+        mode: normalizeFourPlayerPlanarMode(source.mode),
+        mapKey: normalizeSelection(source.mapKey, options.allowedMapKeys, fallbackMapKey),
+        vehicleId: normalizeSelection(source.vehicleId, options.allowedVehicleIds, fallbackVehicleId),
+        botCount,
+        deviceAssignment: normalizeThreePlayerSplitDeviceAssignment(source.deviceAssignment),
+    };
+}
+
+export function isThreePlayerSplitVariant(settings = null) {
+    return String(settings?.localSettings?.sessionType || '').trim().toLowerCase() === 'splitscreen'
+        && normalizeSplitScreenVariant(settings?.localSettings?.splitScreenVariant)
+            === SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
+}
+
+export function createThreePlayerSplitRuntimeSelection(settings = null, options = {}) {
+    const active = isThreePlayerSplitVariant(settings);
+    const selection = normalizeThreePlayerSplitSettings(
+        settings?.localSettings?.threePlayerSplit,
+        options
+    );
+    return {
+        active,
+        variant: active ? SPLIT_SCREEN_VARIANTS.THREE_PLAYER : SPLIT_SCREEN_VARIANTS.STANDARD,
+        viewportLayout: active ? THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT : VIEWPORT_LAYOUTS.TWO_COLUMNS,
+        numHumans: active ? THREE_PLAYER_SPLIT_HUMAN_COUNT : 2,
+        ...selection,
+    };
+}
+
+export function isThreePlayerSplitRuntime(runtimeConfig = null) {
+    return runtimeConfig?.session?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.THREE_PLAYER
+        && runtimeConfig?.session?.viewportLayout === THREE_PLAYER_SPLIT_VIEWPORT_LAYOUT;
 }
 
 export function isFourPlayerPlanarVariant(settings = null) {

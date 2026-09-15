@@ -32,6 +32,9 @@ export class RenderViewportSystem {
         if (this.layout === VIEWPORT_LAYOUTS.FOUR_GRID) {
             return (this.width / 2) / (this.height / 2);
         }
+        if (this.layout === VIEWPORT_LAYOUTS.THREE_COLUMNS) {
+            return (this.width / 3) / this.height;
+        }
         return this.width / this.height;
     }
 
@@ -115,6 +118,26 @@ export class RenderViewportSystem {
                 [leftWidth, 0, rightWidth, bottomHeight, cameras[3]],
             ];
             for (const [x, y, width, height, camera] of quadrants) {
+                this.renderer.setViewport(x, y, width, height);
+                this.renderer.setScissor(x, y, width, height);
+                this.renderer.render(scene, camera);
+            }
+            this.renderer.setScissorTest(false);
+            this.renderer.setViewport(0, 0, w, h);
+            this.renderer.setScissor(0, 0, w, h);
+            return;
+        }
+
+        if (this.layout === VIEWPORT_LAYOUTS.THREE_COLUMNS && cameras.length >= 3) {
+            const columnWidth = Math.floor(w / 3);
+            const lastColumnWidth = w - columnWidth * 2;
+            const columns = [
+                [0, 0, columnWidth, h, cameras[0]],
+                [columnWidth, 0, columnWidth, h, cameras[1]],
+                [columnWidth * 2, 0, lastColumnWidth, h, cameras[2]],
+            ];
+            this.renderer.setScissorTest(true);
+            for (const [x, y, width, height, camera] of columns) {
                 this.renderer.setViewport(x, y, width, height);
                 this.renderer.setScissor(x, y, width, height);
                 this.renderer.render(scene, camera);
