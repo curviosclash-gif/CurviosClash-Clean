@@ -129,6 +129,9 @@ export class Arena {
     _clearAuthoredAircraftDecorations() {
         if (!Array.isArray(this._aircraftDecorations) || this._aircraftDecorations.length === 0) return;
         for (const entry of this._aircraftDecorations) {
+            // The decoration vehicles load their model asynchronously. Without this the loader
+            // still attaches geometry and materials to a root nobody disposes any more.
+            entry?.mesh?.cancelPendingLoad?.();
             const root = entry?.root;
             if (!root) continue;
             this.renderer.removeFromScene(root);
