@@ -52,11 +52,10 @@ export function bindEditorLayerControls(editor) {
             select.className = 'small';
             select.textContent = definition.label;
             select.title = 'Als aktive Platzierungs-Ebene verwenden';
-            select.addEventListener('click', () => {
+            select.addEventListener('click', () => editor.executeHistoryMutation('Change active layer', () => {
                 state.activeLayerId = definition.id;
                 render();
-                editor.markDirty?.(`Aktive Ebene: ${definition.label}.`);
-            });
+            }));
 
             const visibility = document.createElement('button');
             visibility.type = 'button';

@@ -615,6 +615,79 @@ test.describe('Editor Workspace und Desktop-Layout', () => {
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
     });
 
+    test('Aktive Ebene folgt History, Autosave und realer Platzierung', async ({ page }) => {
+        await page.clock.install();
+        await loadEditorPage(page);
+        await activateInspectorTab(page, 'layers');
+
+        const geometryLayer = page.locator('#layerList [data-layer-id="geometry"]');
+        const gameplayLayer = page.locator('#layerList [data-layer-id="gameplay"]');
+        const captureState = () => page.evaluate(() => ({
+            layerState: window.CURVIOS_EDITOR.ui.captureLayerState(),
+            history: window.CURVIOS_EDITOR.ui.commandHistory.getState(),
+            autosave: JSON.parse(window.localStorage.getItem('curviosclash.editor.autosave.v1') || 'null'),
+        }));
+
+        await expect(geometryLayer).toHaveClass(/active/);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
+        expect(await captureState()).toMatchObject({
+            layerState: { activeLayerId: 'geometry' },
+            history: { undoCount: 0, redoCount: 0 },
+            autosave: null,
+        });
+
+        await geometryLayer.getByRole('button', { name: 'Geometrie', exact: true }).click();
+        await page.clock.fastForward(700);
+        await expect(geometryLayer).toHaveClass(/active/);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
+        expect(await captureState()).toMatchObject({
+            layerState: { activeLayerId: 'geometry' },
+            history: { undoCount: 0, redoCount: 0 },
+            autosave: null,
+        });
+
+        await gameplayLayer.getByRole('button', { name: 'Gameplay', exact: true }).click();
+        await expect(gameplayLayer).toHaveClass(/active/);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+        expect(await captureState()).toMatchObject({
+            layerState: { activeLayerId: 'gameplay' },
+            history: { undoCount: 1, redoCount: 0 },
+        });
+        await page.clock.fastForward(700);
+        expect((await captureState()).autosave?.layerState?.activeLayerId).toBe('gameplay');
+
+        await gameplayLayer.getByRole('button', { name: 'Gameplay', exact: true }).click();
+        expect((await captureState()).history).toMatchObject({ undoCount: 1, redoCount: 0 });
+
+        await page.locator('#btnUndo').click();
+        await expect(geometryLayer).toHaveClass(/active/);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
+        expect(await captureState()).toMatchObject({
+            layerState: { activeLayerId: 'geometry' },
+            history: { undoCount: 0, redoCount: 1 },
+            autosave: null,
+        });
+
+        await geometryLayer.getByRole('button', { name: 'Geometrie', exact: true }).click();
+        await expect(page.locator('#btnRedo')).toBeEnabled();
+        expect((await captureState()).history).toMatchObject({ undoCount: 0, redoCount: 1 });
+
+        await page.locator('#btnRedo').click();
+        await expect(gameplayLayer).toHaveClass(/active/);
+        await expect(page.locator('#dirtyStateBadge')).toHaveText('Ungespeichert');
+        expect(await captureState()).toMatchObject({
+            layerState: { activeLayerId: 'gameplay' },
+            history: { undoCount: 1, redoCount: 0 },
+        });
+
+        await activateDockEntry(page, 'build', 'build-hard');
+        await clickCanvas(page, 0.4);
+        await expect(page.locator('#objectList .objectRow')).toHaveCount(1);
+        await expect.poll(() => page.evaluate(() => (
+            window.CURVIOS_EDITOR.ui.selectedObject?.userData?.editorLayerId
+        ))).toBe('gameplay');
+    });
+
     test('Playtest-Rueckkehr behaelt den ungespeicherten Zustand', async ({ page }) => {
         await loadEditorPage(page);
         await activateDockEntry(page, 'flow', 'flow-spawn-player');
