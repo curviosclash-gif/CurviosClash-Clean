@@ -1,7 +1,14 @@
 import {
     FOUR_PLAYER_PLANAR_PLAYER_COLORS,
     SPLIT_SCREEN_VARIANTS,
+    THREE_PLAYER_SPLIT_PLAYER_COLORS,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
+
+function resolveLocalSplitScreenPlayerColor(splitScreenVariant, index) {
+    if (splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return FOUR_PLAYER_PLANAR_PLAYER_COLORS[index];
+    if (splitScreenVariant === SPLIT_SCREEN_VARIANTS.THREE_PLAYER) return THREE_PLAYER_SPLIT_PLAYER_COLORS[index];
+    return undefined;
+}
 
 export function disposeMatchSessionSystems(renderer, currentSession, options = {}) {
     currentSession?.endlessParcoursRuntime?.dispose?.();
@@ -37,9 +44,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
-            color: runtimeConfig?.session?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
-                ? FOUR_PLAYER_PLANAR_PLAYER_COLORS[index]
-                : undefined,
+            color: resolveLocalSplitScreenPlayerColor(runtimeConfig?.session?.splitScreenVariant, index),
         });
     }
     return configs;

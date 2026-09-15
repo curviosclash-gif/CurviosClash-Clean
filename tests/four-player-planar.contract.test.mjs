@@ -15,6 +15,7 @@ import {
     SPLIT_SCREEN_VARIANTS,
     THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT,
     THREE_PLAYER_SPLIT_INPUT_DEVICES,
+    THREE_PLAYER_SPLIT_PLAYER_COLORS,
     normalizeFourPlayerPlanarRollBindings,
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
@@ -96,6 +97,36 @@ test('runtime snapshot creates four local humans, one shared vehicle, four-grid 
     assert.equal(humans.length, 4);
     assert.deepEqual(humans.map((entry) => entry.vehicleId), Array(4).fill(settings.vehicles.PLAYER_1));
     assert.deepEqual(humans.map((entry) => entry.color), FOUR_PLAYER_PLANAR_PLAYER_COLORS);
+});
+
+test('runtime snapshot creates three local humans on equal-width columns with full 3D physics (no planar lock)', () => {
+    const manager = createManager();
+    const settings = manager.createDefaultSettings();
+    settings.localSettings.sessionType = 'splitscreen';
+    settings.localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
+    settings.gameplay.planarMode = false;
+    settings.localSettings.threePlayerSplit = {
+        mode: 'classic',
+        mapKey: settings.mapKey,
+        vehicleId: settings.vehicles.PLAYER_1,
+        botCount: 20,
+        deviceAssignment: ['gamepad-1', 'gamepad-2', 'keyboard'],
+    };
+    const runtime = manager.createRuntimeConfig(settings);
+    assert.equal(runtime.session.numHumans, 3);
+    assert.equal(runtime.session.numBots, 6);
+    assert.equal(runtime.session.splitScreenVariant, SPLIT_SCREEN_VARIANTS.THREE_PLAYER);
+    assert.equal(runtime.session.viewportLayout, VIEWPORT_LAYOUTS.THREE_COLUMNS);
+    assert.equal(runtime.session.fourPlayerPlanar, null);
+    assert.deepEqual(runtime.session.threePlayerSplit.deviceAssignment, ['gamepad-1', 'gamepad-2', 'keyboard']);
+    // Unlike four-player-planar, this variant keeps full 3D flight: no height/pitch lock.
+    assert.equal(runtime.gameplay.planarMode, false);
+    assert.deepEqual(Object.values(runtime.player.vehicles), Array(3).fill(settings.vehicles.PLAYER_1));
+
+    const humans = buildHumanConfigs(settings, runtime);
+    assert.equal(humans.length, 3);
+    assert.deepEqual(humans.map((entry) => entry.vehicleId), Array(3).fill(settings.vehicles.PLAYER_1));
+    assert.deepEqual(humans.map((entry) => entry.color), THREE_PLAYER_SPLIT_PLAYER_COLORS);
 });
 
 test('standard two-player splitscreen remains the compatible two-column adapter', () => {

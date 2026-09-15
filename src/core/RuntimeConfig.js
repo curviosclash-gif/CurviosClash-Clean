@@ -38,6 +38,7 @@ import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
     createFourPlayerPlanarRuntimeSelection,
+    createThreePlayerSplitRuntimeSelection,
 } from '../four-player-planar/FourPlayerPlanarContract.js';
 import { getVehicleIds } from '../entities/vehicle-registry.js';
 
@@ -223,6 +224,15 @@ export function createRuntimeConfigSnapshot(settings, {
     });
     const fourPlayerPlanarActive = sessionType === RUNTIME_SESSION_TYPES.SPLITSCREEN
         && fourPlayerPlanarSelection.active;
+    const threePlayerSplitSelection = createThreePlayerSplitRuntimeSelection(source, {
+        allowedMapKeys: new Set(Object.keys(baseConfig?.MAPS || CONFIG.MAPS || {})),
+        allowedVehicleIds: new Set(getVehicleIds()),
+        fallbackMapKey: String(source.mapKey || 'standard'),
+        fallbackVehicleId: String(source?.vehicles?.PLAYER_1 || baseConfig?.PLAYER?.DEFAULT_VEHICLE_ID || 'ship5'),
+    });
+    const threePlayerSplitActive = sessionType === RUNTIME_SESSION_TYPES.SPLITSCREEN
+        && !fourPlayerPlanarActive
+        && threePlayerSplitSelection.active;
     const multiplayerTransport = sessionType === RUNTIME_SESSION_TYPES.LAN
         ? MULTIPLAYER_TRANSPORTS.LAN
         : (sessionType === RUNTIME_SESSION_TYPES.ONLINE
@@ -237,11 +247,15 @@ export function createRuntimeConfigSnapshot(settings, {
         : {};
     const networkEnabled = sessionContract.isNetworkSession;
     const mode = sessionType === 'splitscreen' ? '2p' : '1p';
-    const numHumans = networkEnabled ? 1 : (fourPlayerPlanarActive ? 4 : (mode === '2p' ? 2 : 1));
+    const numHumans = networkEnabled
+        ? 1
+        : (fourPlayerPlanarActive ? 4 : (threePlayerSplitActive ? 3 : (mode === '2p' ? 2 : 1)));
     const huntFeatureEnabled = baseConfig?.HUNT?.ENABLED !== false;
     const requestedGameMode = fourPlayerPlanarActive
         ? (fourPlayerPlanarSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
-        : source.gameMode;
+        : (threePlayerSplitActive
+            ? (threePlayerSplitSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
+            : source.gameMode);
     const activeGameMode = resolveActiveGameMode(requestedGameMode, huntFeatureEnabled);
     const huntModeActive = isHuntMode(activeGameMode, huntFeatureEnabled);
 
@@ -255,6 +269,7 @@ export function createRuntimeConfigSnapshot(settings, {
     const controlsDefaults = baseConfig.KEYS || CONFIG.KEYS;
     const planarMode = fourPlayerPlanarActive || !!gameplaySource.planarMode;
     const sharedFourPlayerVehicleId = fourPlayerPlanarSelection.vehicleId;
+    const sharedThreePlayerVehicleId = threePlayerSplitSelection.vehicleId;
 
     const botDifficulty = resolveBotDifficulty(source.botDifficulty, botDefaults);
     const requestedHeuristicProfile = String(source.botHeuristicProfile || 'balanced').trim().toLowerCase();
@@ -283,10 +298,12 @@ export function createRuntimeConfigSnapshot(settings, {
             networkEnabled,
             splitScreenVariant: fourPlayerPlanarActive
                 ? SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR
-                : SPLIT_SCREEN_VARIANTS.STANDARD,
+                : (threePlayerSplitActive ? SPLIT_SCREEN_VARIANTS.THREE_PLAYER : SPLIT_SCREEN_VARIANTS.STANDARD),
             viewportLayout: networkEnabled || sessionType !== RUNTIME_SESSION_TYPES.SPLITSCREEN
                 ? VIEWPORT_LAYOUTS.SINGLE
-                : (fourPlayerPlanarActive ? VIEWPORT_LAYOUTS.FOUR_GRID : VIEWPORT_LAYOUTS.TWO_COLUMNS),
+                : (fourPlayerPlanarActive
+                    ? VIEWPORT_LAYOUTS.FOUR_GRID
+                    : (threePlayerSplitActive ? VIEWPORT_LAYOUTS.THREE_COLUMNS : VIEWPORT_LAYOUTS.TWO_COLUMNS)),
             fourPlayerPlanar: fourPlayerPlanarActive ? {
                 mode: fourPlayerPlanarSelection.mode,
                 mapKey: fourPlayerPlanarSelection.mapKey,
@@ -294,14 +311,23 @@ export function createRuntimeConfigSnapshot(settings, {
                 botCount: fourPlayerPlanarSelection.botCount,
                 rollBindings: fourPlayerPlanarSelection.rollBindings,
             } : null,
+            threePlayerSplit: threePlayerSplitActive ? {
+                mode: threePlayerSplitSelection.mode,
+                mapKey: threePlayerSplitSelection.mapKey,
+                vehicleId: sharedThreePlayerVehicleId,
+                botCount: threePlayerSplitSelection.botCount,
+                deviceAssignment: threePlayerSplitSelection.deviceAssignment,
+            } : null,
             maxPlayers: clampSettingValue(source.maxPlayers, { min: 2, max: 10, step: 1 }, 10),
             numBots: fourPlayerPlanarActive
                 ? fourPlayerPlanarSelection.botCount
-                : clampSettingValue(source.numBots, runtimeLimits.session.numBots, 0),
+                : (threePlayerSplitActive
+                    ? threePlayerSplitSelection.botCount
+                    : clampSettingValue(source.numBots, runtimeLimits.session.numBots, 0)),
             winsNeeded: clampSettingValue(source.winsNeeded, runtimeLimits.session.winsNeeded, 5),
             mapKey: fourPlayerPlanarActive
                 ? fourPlayerPlanarSelection.mapKey
-                : String(source.mapKey || 'standard'),
+                : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard')),
             portalsEnabled: !!source.portalsEnabled,
             activeGameMode,
         },
@@ -311,11 +337,18 @@ export function createRuntimeConfigSnapshot(settings, {
             modelScale: clampSettingValue(gameplaySource.planeScale, runtimeLimits.gameplay.planeScale, playerDefaults.MODEL_SCALE),
             autoRoll: typeof source.autoRoll === 'boolean' ? source.autoRoll : !!playerDefaults.AUTO_ROLL,
             vehicles: {
-                PLAYER_1: fourPlayerPlanarActive ? sharedFourPlayerVehicleId : (source?.vehicles?.PLAYER_1 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5'),
-                PLAYER_2: fourPlayerPlanarActive ? sharedFourPlayerVehicleId : (source?.vehicles?.PLAYER_2 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5'),
+                PLAYER_1: fourPlayerPlanarActive
+                    ? sharedFourPlayerVehicleId
+                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (source?.vehicles?.PLAYER_1 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5')),
+                PLAYER_2: fourPlayerPlanarActive
+                    ? sharedFourPlayerVehicleId
+                    : (threePlayerSplitActive ? sharedThreePlayerVehicleId : (source?.vehicles?.PLAYER_2 || playerDefaults.DEFAULT_VEHICLE_ID || 'ship5')),
                 ...(fourPlayerPlanarActive ? {
                     PLAYER_3: sharedFourPlayerVehicleId,
                     PLAYER_4: sharedFourPlayerVehicleId,
+                } : {}),
+                ...(threePlayerSplitActive ? {
+                    PLAYER_3: sharedThreePlayerVehicleId,
                 } : {}),
             },
             fightLoadouts: modePath === 'fight' ? {
