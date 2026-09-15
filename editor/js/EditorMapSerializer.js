@@ -1,5 +1,9 @@
 import * as THREE from 'three';
 import { createMapDocument, parseMapJSON } from '../../src/entities/MapSchema.js';
+import {
+    deriveItemSpawnModeDefault,
+    derivePortalModeDefault,
+} from '../../src/entities/mapSchema/MapSchemaSanitizeOps.js';
 
 function cloneSerializable(value) {
     if (value === null || typeof value === 'string' || typeof value === 'boolean') {
@@ -59,6 +63,25 @@ function readManagerMapMetadata(manager) {
     return metadata;
 }
 
+// The schema normalizer always writes a portalMode/itemSpawnMode, even when the document
+// never carried one. Freezing such a guessed mode in mapDocumentMeta would survive every
+// later export (an undo snapshot of an empty map would pin portalMode=dynamic and make the
+// runtime ignore portals the author places afterwards). Only a mode that deviates from the
+// value derived from this document's own content can come from the author, so only that one
+// is kept; everything else is re-derived from the scene on the next export.
+function isAuthorSetPortalMode(data, portalMode) {
+    const portalCount = Array.isArray(data.portals) ? data.portals.length : 0;
+    return portalMode !== derivePortalModeDefault({
+        hasAuthoredPortalPairs: Math.floor(portalCount / 2) > 0,
+        legacyPreferAuthored: data.preferAuthoredPortals === true,
+    });
+}
+
+function isAuthorSetItemSpawnMode(data, itemSpawnMode) {
+    const itemCount = Array.isArray(data.items) ? data.items.length : 0;
+    return itemSpawnMode !== deriveItemSpawnModeDefault({ hasAuthoredItems: itemCount > 0 });
+}
+
 function extractMapMetadata(data) {
     if (!data || typeof data !== 'object') return {};
 
@@ -72,10 +95,10 @@ function extractMapMetadata(data) {
     if (data.preferAuthoredPortals === true) {
         metadata.preferAuthoredPortals = true;
     }
-    if (typeof data.portalMode === 'string' && data.portalMode) {
+    if (typeof data.portalMode === 'string' && data.portalMode && isAuthorSetPortalMode(data, data.portalMode)) {
         metadata.portalMode = data.portalMode;
     }
-    if (typeof data.itemSpawnMode === 'string' && data.itemSpawnMode) {
+    if (typeof data.itemSpawnMode === 'string' && data.itemSpawnMode && isAuthorSetItemSpawnMode(data, data.itemSpawnMode)) {
         metadata.itemSpawnMode = data.itemSpawnMode;
     }
     if (Array.isArray(data.portalLevels) && data.portalLevels.length > 0) {

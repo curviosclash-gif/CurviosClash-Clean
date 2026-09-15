@@ -79,28 +79,44 @@ function normalizeGateType(value) {
     return { type: 'boost', sourceType: normalized, warningCode: 'map.warning.gate-type' };
 }
 
+// Guessed defaults: exported so authoring tools can tell an author-set mode apart
+// from one the sanitizer merely derived from the document content.
+/**
+ * @param {{hasAuthoredPortalPairs?: boolean, legacyPreferAuthored?: boolean}} [options]
+ * @returns {'dynamic'|'authored'|'hybrid'}
+ */
+export function derivePortalModeDefault(options = {}) {
+    if (options.legacyPreferAuthored === true) return 'authored';
+    return options.hasAuthoredPortalPairs === true ? 'hybrid' : 'dynamic';
+}
+
+/**
+ * @param {{hasAuthoredItems?: boolean}} [options]
+ * @returns {'anchor-only'|'fallback-random'}
+ */
+export function deriveItemSpawnModeDefault(options = {}) {
+    return options.hasAuthoredItems === true ? 'anchor-only' : 'fallback-random';
+}
+
 function normalizePortalMode(value, options = {}) {
     const rawValue = typeof value === 'string'
         ? value.trim()
         : (value === null || value === undefined ? '' : String(value).trim());
     const normalized = rawValue.toLowerCase();
-    const hasAuthoredPortalPairs = options.hasAuthoredPortalPairs === true || options.hasAuthoredPortals === true;
     if (normalized === 'dynamic' || normalized === 'authored' || normalized === 'hybrid') {
         return normalized;
     }
-    const fallback = options.legacyPreferAuthored === true
-        ? 'authored'
-        : (hasAuthoredPortalPairs ? 'hybrid' : 'dynamic');
+    const fallback = derivePortalModeDefault({
+        hasAuthoredPortalPairs: options.hasAuthoredPortalPairs === true || options.hasAuthoredPortals === true,
+        legacyPreferAuthored: options.legacyPreferAuthored === true,
+    });
     if (rawValue.length > 0) {
         pushSanitizeWarning(
             options.warnings,
             `Unsupported portalMode "${rawValue}" normalized to "${fallback}".`
         );
-        return fallback;
     }
-    if (options.legacyPreferAuthored === true) return 'authored';
-    if (hasAuthoredPortalPairs) return 'hybrid';
-    return 'dynamic';
+    return fallback;
 }
 
 function normalizeItemSpawnMode(value, options = {}) {
@@ -111,13 +127,12 @@ function normalizeItemSpawnMode(value, options = {}) {
     if (normalized === 'anchor-only' || normalized === 'hybrid' || normalized === 'fallback-random') {
         return normalized;
     }
-    const fallback = options.hasAuthoredItems === true ? 'anchor-only' : 'fallback-random';
+    const fallback = deriveItemSpawnModeDefault({ hasAuthoredItems: options.hasAuthoredItems === true });
     if (rawValue.length > 0) {
         pushSanitizeWarning(
             options.warnings,
             `Unsupported itemSpawnMode "${rawValue}" normalized to "${fallback}".`
         );
-        return fallback;
     }
     return fallback;
 }
