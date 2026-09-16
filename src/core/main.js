@@ -319,8 +319,19 @@ export class Game {
         uiManager.showToast(message, durationMs, tone);
     }
 
+    /**
+     * The renderer is published onto the runtime by the coordinator, so the Game class never
+     * declares it as a field. This seam keeps that untyped access in one place instead of
+     * spreading casts across the render path.
+     *
+     * @returns {any}
+     */
+    _getPublishedRenderer() {
+        return /** @type {any} */ (this).renderer;
+    }
+
     _toggleCinematicCameraFromGlobalHotkey(enabled = null) {
-        const renderer = this.renderer;
+        const renderer = this._getPublishedRenderer();
         if (!renderer || typeof renderer.getCinematicEnabled !== 'function' || typeof renderer.setCinematicEnabled !== 'function') {
             return;
         }
@@ -523,6 +534,7 @@ export class Game {
     }
 
     render(alpha = this.gameLoop?.renderAlpha ?? 1, renderDelta = this.gameLoop?.renderDelta ?? this.gameLoop?.fixedStep ?? (1 / 60)) {
+        const renderer = this._getPublishedRenderer();
         const numericAlpha = Number(alpha);
         const numericRenderDelta = Number(renderDelta);
         this._renderAlpha = Number.isFinite(numericAlpha) ? Math.max(0, Math.min(1, numericAlpha)) : 1;
@@ -541,7 +553,7 @@ export class Game {
                 entityManager: this.entityManager,
                 roundState: this.roundStateController,
                 particles: this.particles,
-                cameras: this.renderer?.cameras,
+                cameras: renderer?.cameras,
                 renderProjection: matchRenderProjection,
                 dt: this._renderDelta,
                 metadata: {
@@ -551,7 +563,7 @@ export class Game {
                     numHumans: this.numHumans,
                     numBots: this.numBots,
                     winsNeeded: this.winsNeeded,
-                    localPlayerIndex: this.renderer?.viewportSystem?.localPlayerIndex
+                    localPlayerIndex: renderer?.viewportSystem?.localPlayerIndex
                         ?? this.runtimeConfig?.session?.localPlayerIndex
                         ?? 0,
                     runtimeConfig: this.runtimeConfig,
@@ -564,7 +576,7 @@ export class Game {
             });
         }
         const renderStart = this.runtimePerfProfiler?.startSample?.();
-        this.renderer.render();
+        renderer.render();
         this.runtimePerfProfiler?.endSample?.('render', renderStart);
         if (this.state === GAME_STATE_IDS.PLAYING) {
             const killcamCaptureStart = this.runtimePerfProfiler?.startSample?.();
@@ -573,14 +585,14 @@ export class Game {
         }
         if (this.mediaRecorderSystem?.isLiveRecording?.() === true) {
             const recordingRenderStart = this.runtimePerfProfiler?.startSample?.();
-            this.renderer.prepareRecordingCaptureFrame({
+            renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
                 renderProjection: matchRenderProjection,
                 arena: this.arena,
                 renderAlpha: this._renderAlpha,
                 renderDelta: this._renderDelta,
-                splitScreen: this.renderer?.splitScreen === true,
-                viewportLayout: this.renderer?.viewportLayout,
+                splitScreen: renderer?.splitScreen === true,
+                viewportLayout: renderer?.viewportLayout,
             });
             this.runtimePerfProfiler?.endSample?.('render', recordingRenderStart);
         }
