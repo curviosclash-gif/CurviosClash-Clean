@@ -32,6 +32,15 @@ function createRingEntry({ checkpointId, routeIndex }) {
     };
 }
 
+function createGuidanceMotif() {
+    return {
+        visible: false,
+        position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
+        scale: { setScalar() {} },
+        material: { color: { setHex() {} }, opacity: 0 },
+    };
+}
+
 test('CheckpointRingRuntime marks only the taken branch checkpoint as passed', () => {
     let snapshot = {
         passedMask: [1, 1, 1, 0],
@@ -55,4 +64,61 @@ test('CheckpointRingRuntime marks only the taken branch checkpoint as passed', (
 
     assert.equal(rings[2].mesh.userData.ringState, RING_STATE_PASSED);
     assert.equal(rings[3].mesh.userData.ringState, RING_STATE_INACTIVE);
+});
+
+test('CheckpointRingRuntime guides all equal branch targets, then the finish, and clears at zero intensity', () => {
+    const branchA = createRingEntry({ checkpointId: 'CP03A', routeIndex: 2 });
+    const branchB = createRingEntry({ checkpointId: 'CP03B', routeIndex: 2 });
+    const finish = createRingEntry({ checkpointId: 'FINISH', routeIndex: -1 });
+    finish.isFinish = true;
+    branchA.pos = { x: 48, y: 0, z: 0 };
+    branchB.pos = { x: 0, y: 0, z: 48 };
+    finish.pos = { x: 0, y: 0, z: 60 };
+    for (const entry of [branchA, branchB, finish]) {
+        entry.mesh.userData.guidanceMotifs = Array.from({ length: 6 }, createGuidanceMotif);
+    }
+    branchA.mesh.userData.ringState = 'next';
+    branchB.mesh.userData.ringState = 'next';
+    const arena = { checkpointRings: [branchA, branchB, finish], runtimeConfig: { gameplay: { nextCheckpointGlowIntensity: 8 } } };
+    const runtime = new CheckpointRingRuntime(arena);
+    let source = { active: true, player: { position: { x: 0, y: 0, z: 0 } }, nextCheckpointIndex: 2, totalCheckpoints: 3, completed: false };
+    runtime.setGuidanceProvider(() => source);
+    runtime._animateGuidance(arena.checkpointRings, 0);
+
+    assert.equal(runtime.getGuidanceView().targets.length, 2);
+    assert.ok(branchA.mesh.userData.guidanceMotifs.every((motif) => motif.visible));
+    assert.ok(branchB.mesh.userData.guidanceMotifs.every((motif) => motif.material.opacity <= 0.42));
+    assert.equal(runtime.getGuidanceView().intensity, 2);
+    assert.equal(branchA.mesh.userData.guidanceMotifs[0].position.x, -36);
+
+    runtime._animateGuidance(arena.checkpointRings, 1200);
+    assert.equal(runtime.getGuidanceView().active, false);
+    assert.ok(branchA.mesh.userData.guidanceMotifs.every((motif) => !motif.visible));
+
+    runtime._animateGuidance(arena.checkpointRings, 4500);
+    assert.equal(runtime.getGuidanceView().active, true);
+    assert.ok(branchA.mesh.userData.guidanceMotifs.every((motif) => motif.visible));
+
+    arena.runtimeConfig.gameplay.nextCheckpointGlowIntensity = 0;
+    runtime._animateGuidance(arena.checkpointRings, 4600);
+    arena.runtimeConfig.gameplay.nextCheckpointGlowIntensity = 1.35;
+    runtime._animateGuidance(arena.checkpointRings, 4700);
+    assert.equal(runtime.getGuidanceView().active, true);
+    assert.ok(branchA.mesh.userData.guidanceMotifs.every((motif) => motif.visible));
+
+    branchA.mesh.userData.ringState = 'inactive';
+    branchB.mesh.userData.ringState = 'inactive';
+    source = { ...source, nextCheckpointIndex: 3 };
+    runtime._animateGuidance(arena.checkpointRings, 4800);
+    assert.deepEqual(runtime.getGuidanceView().targets, [finish]);
+
+    arena.runtimeConfig.gameplay.nextCheckpointGlowIntensity = 0;
+    runtime._animateGuidance(arena.checkpointRings, 4900);
+    assert.equal(runtime.getGuidanceView().active, false);
+    assert.ok(finish.mesh.userData.guidanceMotifs.every((motif) => !motif.visible));
+
+    arena.runtimeConfig.gameplay.nextCheckpointGlowIntensity = 1.35;
+    finish.pos = { x: 0, y: 0, z: 0 };
+    runtime._animateGuidance(arena.checkpointRings, 5000);
+    assert.ok(finish.mesh.userData.guidanceMotifs.every((motif) => !motif.visible));
 });

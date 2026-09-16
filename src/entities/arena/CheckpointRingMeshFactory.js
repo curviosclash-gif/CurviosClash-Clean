@@ -17,10 +17,12 @@ const LABEL_SIZE = 8;
 const MIN_RING_SCALE = 0.26;
 const MIN_LABEL_SCALE = 0.65;
 const MAX_LABEL_SCALE = 1.15;
+const GUIDANCE_MOTIF_COUNT = 6;
 
 let sharedRingGeometry = null;
 let sharedFinishGeometry = null;
 let sharedLabelGeometry = null;
+let sharedGuidanceGeometry = null;
 
 function getRingGeometry() {
     if (!sharedRingGeometry) {
@@ -44,6 +46,14 @@ function getLabelGeometry() {
         sharedLabelGeometry.userData.__sharedNoDispose = true;
     }
     return sharedLabelGeometry;
+}
+
+function getGuidanceGeometry() {
+    if (!sharedGuidanceGeometry) {
+        sharedGuidanceGeometry = new THREE.TorusGeometry(0.82, 0.07, 6, 16);
+        sharedGuidanceGeometry.userData.__sharedNoDispose = true;
+    }
+    return sharedGuidanceGeometry;
 }
 
 function createRingMaterial(color, overrides = {}) {
@@ -70,6 +80,17 @@ function createLabelMaterial(label) {
     });
 }
 
+function createGuidanceMaterial(color) {
+    return new THREE.MeshBasicMaterial({
+        color,
+        transparent: true,
+        opacity: 0,
+        blending: THREE.AdditiveBlending,
+        depthTest: true,
+        depthWrite: false,
+    });
+}
+
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
 }
@@ -92,8 +113,18 @@ function buildRingGroup(position, rotation, ringGeometry, ringMaterial, label, v
     labelMesh.scale.setScalar(clamp(ringScale * 1.8, MIN_LABEL_SCALE, MAX_LABEL_SCALE));
     group.add(labelMesh);
 
+    const guidanceMotifs = [];
+    for (let i = 0; i < GUIDANCE_MOTIF_COUNT; i += 1) {
+        const motif = new THREE.Mesh(getGuidanceGeometry(), createGuidanceMaterial(ringMaterial.color.getHex()));
+        motif.frustumCulled = false;
+        motif.visible = false;
+        guidanceMotifs.push(motif);
+        group.add(motif);
+    }
+
     group.userData.ringMesh = ringMesh;
     group.userData.labelMesh = labelMesh;
+    group.userData.guidanceMotifs = guidanceMotifs;
     group.userData.ringVisualKind = options.visualKind || 'default';
     return group;
 }
@@ -156,6 +187,7 @@ export function createFinishRingMesh(position, rotation, renderer, visualRadius 
     material.metalness = 0.75;
     const group = buildRingGroup(position, rotation, getFinishGeometry(), material, 'F', visualRadius);
     group.userData.isFinish = true;
+    group.userData.checkpointColor = CHECKPOINT_FINISH_COLOR;
     renderer?.addToScene?.(group);
     return group;
 }

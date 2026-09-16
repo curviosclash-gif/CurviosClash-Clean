@@ -19,6 +19,7 @@ import {
     createPlayerProgressSnapshot,
 } from './ParcoursProgressSnapshot.js';
 import { applyParcoursDeathRespawn, resolveModeParcoursRoute } from './ParcoursRespawnOps.js';
+import { configureParcoursRingProgressProviders } from './ParcoursRingProgressProviders.js';
 
 const NO_EXPECTED_ENTRIES = Object.freeze([]);
 
@@ -90,6 +91,7 @@ export class ParcoursProgressSystem {
         this._completionOrder.length = 0;
         this._respawnPlanByPlayer.clear();
         this.entityManager?.arena?._portalGateSystem?.checkpointRingRuntime?.setProgressProvider?.(null);
+        this.entityManager?.arena?._portalGateSystem?.checkpointRingRuntime?.setGuidanceProvider?.(null);
     }
     startRound(players = []) {
         this._clearGhostRecording('round-start');
@@ -103,6 +105,7 @@ export class ParcoursProgressSystem {
         rt?.setRingsVisible?.(!!this._route);
         if (!this._route) {
             rt?.setProgressProvider?.(null);
+            rt?.setGuidanceProvider?.(null);
             return;
         }
         if (!Array.isArray(players)) return;
@@ -110,10 +113,7 @@ export class ParcoursProgressSystem {
             if (!player || !Number.isInteger(player.index)) continue;
             this._playerStates.set(player.index, createPlayerProgressState(this._route.totalCheckpoints));
         }
-        rt?.setProgressProvider?.(() => {
-            const progressPlayerIndex = this._resolveProgressPlayerIndex(this.entityManager?.players || players);
-            return this.getPlayerProgressSnapshot(progressPlayerIndex);
-        });
+        configureParcoursRingProgressProviders(rt, this, players);
         rt?.setParticleSystem?.(this.entityManager?.particles || null);
     }
     _ensurePlayerState(playerIndex) {
