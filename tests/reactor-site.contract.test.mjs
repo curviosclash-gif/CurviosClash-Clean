@@ -38,6 +38,7 @@ import { resolveMapSinglePlayerScenario } from '../src/shared/contracts/MapSingl
 const MAP_KEY = 'reactor_site';
 const MAP = MAP_PRESET_CATALOG[MAP_KEY];
 const WRECK_MARGIN = 20;
+const RUNTIME_WORLD_SCALE = 3;
 
 // Which intact model each segment's meshes live in, and which scene replaces it.
 const SEGMENT_MODELS = Object.freeze({
@@ -104,6 +105,7 @@ test('the map is a scene-collided, scaled-anchor hunt map with a single-player s
     assert.equal(MAP.glbColliderMode, 'scene');
     assert.equal(MAP.glbAuthoredObstaclesCollisionOnly, true);
     assert.equal(MAP.scaleAuthoredAnchors, true);
+    assert.equal(MAP.itemSpawnMode, 'hybrid', 'authored pickup routes are used before random fallback');
     assert.equal(MAP.parcours, undefined);
     assert.deepEqual(MAP.portals, []);
     const scenario = resolveMapSinglePlayerScenario(MAP);
@@ -111,6 +113,24 @@ test('the map is a scene-collided, scaled-anchor hunt map with a single-player s
     assert.equal(scenario?.modePath, 'fight');
     assert.equal(scenario?.id, MAP_KEY);
     assert.ok(scenario.minBots >= 1 && scenario.minBots <= scenario.botCount);
+});
+
+test('the opening view reaches the plant and traversal stays on persistent site geometry', () => {
+    const spawnDistance = Math.hypot(MAP.playerSpawn.x, MAP.playerSpawn.z) * RUNTIME_WORLD_SCALE;
+    assert.ok(MAP.lighting.fog.near < spawnDistance, 'the plant enters the fog before the spawn view');
+    assert.ok(MAP.lighting.fog.far > spawnDistance, 'the plant remains visible from the opening spawn');
+
+    assert.equal(MAP.items.length, 12);
+    assert.equal(new Set(MAP.items.map((item) => item.id)).size, MAP.items.length, 'pickup ids stay unique');
+    assert.equal(new Set(MAP.gates.map((gate) => gate.id)).size, MAP.gates.length, 'gate ids stay unique');
+    for (const item of MAP.items) {
+        assert.ok(Math.abs(item.x) < MAP.size[0] / 2 && Math.abs(item.z) < MAP.size[2] / 2, `${item.id} stays in the field`);
+        assert.ok(item.y <= REACTOR_SITE_GROUND + 26 * REACTOR_SITE_METRE,
+            `${item.id} is supported by the permanent site instead of a destructible roof or rim`);
+    }
+    for (const gate of MAP.gates) {
+        assert.ok(Math.abs(gate.pos[0]) < MAP.size[0] / 2 && Math.abs(gate.pos[2]) < MAP.size[2] / 2, `${gate.id} stays in the field`);
+    }
 });
 
 test('every model the map places exists on disk at the one shared scale', () => {

@@ -41,6 +41,10 @@ export const REACTOR_SITE_MAPS = {
         // No portals: every one of them would end somewhere a collapse can take away.
         portals: [],
         gates: REACTOR_SITE_GATES,
+        // Prefer the authored plant routes, but keep random fallback available once every
+        // authored anchor is occupied. Without this explicit contract the runtime may ignore
+        // the placements below and scatter pickups across the field instead.
+        itemSpawnMode: 'hybrid',
         items: REACTOR_SITE_ITEMS,
         glbModels: REACTOR_SITE_MODELS,
         // Triangle/BVH collision off the exported concrete: the gap under the towers, the doors
@@ -59,7 +63,10 @@ export const REACTOR_SITE_MAPS = {
             rim: { direction: [-10, 20, 55], color: 0xc9e2a8, intensity: 0.5 },
             hemisphere: { skyColor: 0xb7c6c0, groundColor: 0x4a4f48 },
             fog: {
-                color: 0x27302c, near: 80, far: 200,
+                // Horizontal map coordinates are multiplied by the runtime world scale, while
+                // fog distances are already world units. Keep the plant legible from the
+                // south-west spawn instead of closing the fog before the player can see it.
+                color: 0x27302c, near: 240, far: 600,
                 height: 12, heightFalloff: 0.03, turbulence: 0.1, skyBlend: 1,
                 colorHigh: 0x27302c, colorLow: 0x27302c, clipClosureStart: 0.5,
             },

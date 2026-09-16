@@ -91,34 +91,39 @@ export const REACTOR_SITE_OBSTACLES = [
     },
 ];
 
-// Boosts through the plant. The two cooling towers are chimneys a ship can fly through: in under
-// the shell through the gap the inlet columns leave, and out of the open top on the updraft.
+// Boosts through the plant. These routes are tied to site geometry that survives a collapse:
+// basin rims, service roads, the containment apron and switchyard. The stable ids are retained
+// for replays and authored-map round trips even where the route has moved out of a structure.
 export const REACTOR_SITE_GATES = [
-    { id: 'rs_tower_west_updraft', type: 'slingshot', pos: [-TOWER_X, up(16), 0], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 16, liftImpulse: 34, cooldown: 1.2 } },
-    { id: 'rs_tower_east_updraft', type: 'slingshot', pos: [TOWER_X, up(16), 0], forward: [0, 1, 0], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 16, liftImpulse: 34, cooldown: 1.2 } },
-    // Through the turbine hall, gable door to gable door.
-    { id: 'rs_hall_run_east', type: 'boost', pos: [-across(72), up(6), HALL_Z], forward: [1, 0, 0], params: { duration: 1.2, forwardImpulse: 40, bonusSpeed: 48, cooldown: 0.9 } },
-    { id: 'rs_hall_run_west', type: 'boost', pos: [across(72), up(6), HALL_Z], forward: [-1, 0, 0], params: { duration: 1.2, forwardImpulse: 40, bonusSpeed: 48, cooldown: 0.9 } },
+    { id: 'rs_tower_west_updraft', type: 'slingshot', pos: [-TOWER_X + across(24), up(10), 0], forward: [0.35, 0.94, 0], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 16, liftImpulse: 34, cooldown: 1.2 } },
+    { id: 'rs_tower_east_updraft', type: 'slingshot', pos: [TOWER_X - across(24), up(10), 0], forward: [-0.35, 0.94, 0], up: [0, 1, 0], params: { duration: 1.8, forwardImpulse: 16, liftImpulse: 34, cooldown: 1.2 } },
+    // Along the permanent service road south of the turbine hall and its falling walls.
+    { id: 'rs_hall_run_east', type: 'boost', pos: [-across(72), up(6), HALL_Z - across(30)], forward: [1, 0, 0], params: { duration: 1.2, forwardImpulse: 40, bonusSpeed: 48, cooldown: 0.9 } },
+    { id: 'rs_hall_run_west', type: 'boost', pos: [across(72), up(6), HALL_Z - across(30)], forward: [-1, 0, 0], params: { duration: 1.2, forwardImpulse: 40, bonusSpeed: 48, cooldown: 0.9 } },
     // Around the containment, at the height of its ring beam.
     { id: 'rs_dome_orbit_north', type: 'boost', pos: [0, up(40), across(34)], forward: [1, 0, 0.2], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
     { id: 'rs_dome_orbit_south', type: 'boost', pos: [0, up(40), -across(34)], forward: [-1, 0, -0.2], params: { duration: 1.0, forwardImpulse: 36, bonusSpeed: 44, cooldown: 0.8 } },
-    // Over the switchyard pylons and up the stack.
+    // Over the permanent switchyard pylons. The second slingshot used to climb the destructible
+    // stack; its stable id remains, but the route now follows the east pylon row.
     { id: 'rs_switchyard_sling', type: 'slingshot', pos: [0, up(12), SWITCHYARD_Z], forward: [0, 0.7, -0.7], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 26, liftImpulse: 22, cooldown: 1.1 } },
-    { id: 'rs_stack_climb', type: 'slingshot', pos: [STACK_X + across(12), up(20), STACK_Z], forward: [-0.2, 0.95, 0], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 20, liftImpulse: 28, cooldown: 1.1 } },
+    { id: 'rs_stack_climb', type: 'slingshot', pos: [across(22), up(18), SWITCHYARD_Z - across(10)], forward: [-0.2, 0.8, -0.6], up: [0, 1, 0], params: { duration: 1.5, forwardImpulse: 20, liftImpulse: 28, cooldown: 1.1 } },
 ];
 
 export const REACTOR_SITE_ITEMS = [
-    { id: 'rs_shield_west_rim', type: 'item_shield', pickupType: 'SHIELD', x: -TOWER_X, y: up(104), z: 0, weight: 1.0 },
-    { id: 'rs_shield_east_rim', type: 'item_shield', pickupType: 'SHIELD', x: TOWER_X, y: up(104), z: 0, weight: 1.0 },
-    { id: 'rs_speed_west_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: -TOWER_X, y: up(30), z: 0, weight: 1.1 },
-    { id: 'rs_speed_east_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: TOWER_X, y: up(30), z: 0, weight: 1.1 },
-    { id: 'rs_rocket_dome', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: up(74), z: 0, weight: 0.7 },
+    // The basins, machinery, steam lines and switchyard live in 01_site.glb and remain after a
+    // collapse. Pickups therefore never hang from a tower rim, roof, stack or containment dome
+    // that the break scene has removed. Stable ids are kept for replay compatibility.
+    { id: 'rs_shield_west_rim', type: 'item_shield', pickupType: 'SHIELD', x: -TOWER_X, y: up(6), z: across(36), weight: 1.0 },
+    { id: 'rs_shield_east_rim', type: 'item_shield', pickupType: 'SHIELD', x: TOWER_X, y: up(6), z: -across(36), weight: 1.0 },
+    { id: 'rs_speed_west_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: -TOWER_X, y: up(8), z: -across(36), weight: 1.1 },
+    { id: 'rs_speed_east_basin', type: 'item_battery', pickupType: 'SPEED_UP', x: TOWER_X, y: up(8), z: across(36), weight: 1.1 },
+    { id: 'rs_rocket_dome', type: 'item_rocket', pickupType: 'ROCKET_HEAVY', x: 0, y: up(14), z: south(42), weight: 0.7 },
     { id: 'rs_rocket_hall', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 0, y: up(12), z: HALL_Z, weight: 0.9 },
     { id: 'rs_ghost_switchyard', type: 'item_coin', pickupType: 'GHOST', x: 0, y: up(20), z: SWITCHYARD_Z, weight: 0.8 },
-    { id: 'rs_ghost_stack', type: 'item_coin', pickupType: 'GHOST', x: STACK_X, y: up(96), z: STACK_Z, weight: 0.7 },
-    { id: 'rs_thick_hall_roof', type: 'item_coin', pickupType: 'THICK', x: -across(40), y: up(34), z: HALL_Z, weight: 0.8 },
-    { id: 'rs_shield_wing_north', type: 'item_shield', pickupType: 'SHIELD', x: 0, y: up(30), z: across(46), weight: 1.0 },
-    { id: 'rs_speed_wing_south', type: 'item_battery', pickupType: 'SPEED_UP', x: 0, y: up(30), z: -across(46), weight: 1.1 },
+    { id: 'rs_ghost_stack', type: 'item_coin', pickupType: 'GHOST', x: across(44), y: up(26), z: SWITCHYARD_Z - across(10), weight: 0.7 },
+    { id: 'rs_thick_hall_roof', type: 'item_coin', pickupType: 'THICK', x: -across(36), y: up(10), z: HALL_Z, weight: 0.8 },
+    { id: 'rs_shield_wing_north', type: 'item_shield', pickupType: 'SHIELD', x: 0, y: up(10), z: across(48), weight: 1.0 },
+    { id: 'rs_speed_wing_south', type: 'item_battery', pickupType: 'SPEED_UP', x: across(13), y: up(14), z: south(74), weight: 1.1 },
     { id: 'rs_rocket_east_apron', type: 'item_rocket', pickupType: 'ROCKET_MEDIUM', x: across(120), y: up(14), z: -across(100), weight: 0.8 },
 ];
 
