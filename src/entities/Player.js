@@ -31,6 +31,7 @@ import {
     setPlayerLookAtWorld,
     updatePlayerMotion,
 } from './player/PlayerMotionOps.js';
+import { resetPlayerCharges, resolveMotionClockFactor } from './player/PlayerChargeOps.js';
 import { PlayerController } from './player/PlayerController.js';
 import { createPlayerView } from './player/createPlayerView.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../four-player-planar/FourPlayerPlanarPhysics.js';
@@ -68,12 +69,8 @@ export class Player {
         this._tmpAimUp = new THREE.Vector3();
         this._tmpMat = new THREE.Matrix4();
 
-        // Boost
-        this.boostCharge = playerConfig.BOOST_DURATION;
-        this.boostTimer = this.boostCharge;
-        this.boostCooldown = 0;
-        this.manualBoostActive = false;
-        this.isBoosting = false;
+        // Boost and slow-motion reserves (see PlayerChargeOps)
+        resetPlayerCharges(this, playerConfig);
 
         // Powerup effects
         this.activeEffects = [];
@@ -191,11 +188,7 @@ export class Player {
         }
         this._speedEffectBaseSpeed = null;
         this.speed = this.baseSpeed;
-        this.boostCharge = playerConfig.BOOST_DURATION;
-        this.boostTimer = this.boostCharge;
-        this.boostCooldown = 0;
-        this.manualBoostActive = false;
-        this.isBoosting = false;
+        resetPlayerCharges(this, playerConfig);
         this.activeEffects = [];
         this._pickupShieldOwned = false;
         this.hasShield = false;
@@ -299,11 +292,14 @@ export class Player {
         this._renderPrevPosition.copy(this.position);
         this._renderPrevQuaternion.copy(this.quaternion);
 
-        const controlState = this.controller.resolveControlState(this, input, steeringLocked, dt);
+        // Bullet time: only this vehicle's steering and travel run on the real clock;
+        // every other timer in update() stays on the world clock `dt`.
+        const motionDt = dt * resolveMotionClockFactor(this);
+        const controlState = this.controller.resolveControlState(this, input, steeringLocked, motionDt);
         // 61.4.1: Thread turn rate multiplier from strategy
         const turnRateMultiplier = (strategy && typeof strategy.getTurnRateMultiplier === 'function')
             ? strategy.getTurnRateMultiplier(this) : 1;
-        updatePlayerMotion(this, dt, controlState, turnRateMultiplier);
+        updatePlayerMotion(this, dt, controlState, turnRateMultiplier, motionDt);
     }
 
     setControlOptions(options = {}) {
@@ -398,6 +394,12 @@ export class Player {
     kill() {
         this.alive = false;
         this.hp = 0;
+        // A dead player stops updating, so any clock effect it still carries would
+        // freeze the whole match in slow motion until the next spawn.
+        this.manualSlowMoActive = false;
+        this.isSlowMoActive = false;
+        this.hasSlowTime = false;
+        this.slowTimeScale = 1;
         this.trail?.hideVisualHead?.();
         this.view?.setVisible(false);
     }

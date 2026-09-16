@@ -2,6 +2,7 @@ import { applyHealing, grantShield } from '../../hunt/HealthSystem.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { isPickupTypeAllowedForMode, getPickupDefinition } from '../PickupRegistry.js';
+import { resolveGlobalTimeScale } from './PlayerChargeOps.js';
 
 const SPEED_EFFECT_TYPES = Object.freeze(['SPEED_UP', 'SLOW_DOWN']);
 const TRAIL_EFFECT_TYPES = Object.freeze(['THICK', 'THIN']);
@@ -59,19 +60,6 @@ function resetShieldState(player) {
     player.hasShield = false;
     player.shieldHP = 0;
     player.shieldHitFeedback = 0;
-}
-
-function resolveEffectClockScale(player) {
-    const players = Array.isArray(player?.entityManager?.players)
-        ? player.entityManager.players
-        : [player];
-    let scale = 1;
-    for (const candidate of players) {
-        if (candidate?.hasSlowTime && Number.isFinite(Number(candidate.slowTimeScale))) {
-            scale = Math.min(scale, Number(candidate.slowTimeScale));
-        }
-    }
-    return Math.max(0.05, Math.min(1, scale));
 }
 
 export function recomputePlayerEffectState(player) {
@@ -158,7 +146,11 @@ export function updatePlayerEffects(player, dt) {
     if (!player) return;
 
     const modeType = resolveModeType(player);
-    const effectDt = Math.max(0, Number(dt) || 0) / resolveEffectClockScale(player);
+    // Powerup timers count real seconds, so they are divided by the same global clock
+    // factor the loop runs on. This deliberately includes the slow-motion key: a five
+    // second shield stays five real seconds whether or not somebody slowed the clock,
+    // exactly as the SLOW_TIME powerup already behaved.
+    const effectDt = Math.max(0, Number(dt) || 0) / resolveGlobalTimeScale(player);
     for (let i = player.activeEffects.length - 1; i >= 0; i -= 1) {
         const effect = player.activeEffects[i];
         if (!effect || !isPickupTypeAllowedForMode(effect.type, modeType)) {

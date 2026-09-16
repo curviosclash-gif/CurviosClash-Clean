@@ -10,6 +10,7 @@
 
 import { CONFIG } from './Config.js';
 import { clamp } from '../shared/utils/MathOps.js';
+import { resolveTimeScaleForPlayers } from '../entities/player/PlayerChargeOps.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
 
 export function createPlanarAimAssistRuntimeAccess(runtime) {
@@ -91,14 +92,9 @@ export class PlanarAimAssistSystem {
         if (!entityManager || !gameLoop) return;
 
         gameLoop.setTimeScale(1.0);
-        const players = entityManager.players;
-        let slowestScale = 1.0;
-        for (let p = 0; p < players.length; p++) {
-            const player = players[p];
-            if (player.hasSlowTime && Number.isFinite(player.slowTimeScale)) {
-                slowestScale = Math.min(slowestScale, player.slowTimeScale);
-            }
-        }
-        gameLoop.setTimeScale(slowestScale);
+        // One source for the rule: resolveGlobalTimeScale already folds the SLOW_TIME
+        // powerup, the slow-motion key and the dead-player exception into one factor,
+        // and the player reserves are refilled against exactly the same number.
+        gameLoop.setTimeScale(resolveTimeScaleForPlayers(entityManager.players));
     }
 }

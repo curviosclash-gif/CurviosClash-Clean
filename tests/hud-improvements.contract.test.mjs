@@ -404,6 +404,29 @@ test('HUD builds speed and altitude tapes from the gameplay config ranges', () =
     }
 });
 
+test('HUD marks only the bullet-time actor half and clears it on death', () => {
+    const documentStub = installDocumentStub();
+    try {
+        const { hud } = createHudInstance(documentStub);
+
+        hud.update(createAlivePlayer({ slowMoActive: true }), 0.05, {});
+        assert.equal(hud.playerHud.classList.contains('slowmo-actor'), true);
+
+        hud.update(createAlivePlayer({ slowMoActive: false }), 0.05, {});
+        assert.equal(hud.playerHud.classList.contains('slowmo-actor'), false);
+
+        // Live fallback without a projection field.
+        hud.update(createAlivePlayer({ manualSlowMoActive: true }), 0.05, {});
+        assert.equal(hud.playerHud.classList.contains('slowmo-actor'), true);
+
+        // A dead player never holds bullet time.
+        hud.update(createAlivePlayer({ slowMoActive: true, alive: false }), 0.05, {});
+        assert.equal(hud.playerHud.classList.contains('slowmo-actor'), false);
+    } finally {
+        documentStub.restore();
+    }
+});
+
 test('HUD keeps the classic boost arc percentage and cooldown state in sync', () => {
     const documentStub = installDocumentStub();
     try {

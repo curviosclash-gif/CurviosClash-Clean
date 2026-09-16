@@ -54,6 +54,8 @@ export class PlayerController {
             rollInput: 0,
             boost: false,
             boostPressed: false,
+            slowMo: false,
+            slowMoPressed: false,
         };
         this._axisState = {
             pitch: 0,
@@ -95,6 +97,8 @@ export class PlayerController {
         let rollTarget = 0;
         let boostHeld = false;
         let boostPressed = false;
+        let slowMoHeld = false;
+        let slowMoPressed = false;
 
         const hasDirectInput = !!input && steeringLocked !== true;
         if (hasDirectInput) {
@@ -103,6 +107,8 @@ export class PlayerController {
             rollTarget = resolveInputAxis(input, 'rollAxis', 'rollLeft', 'rollRight');
             boostHeld = !!input.boost;
             boostPressed = !!input.boostPressed;
+            slowMoHeld = !!input.slowMo;
+            slowMoPressed = !!input.slowMoPressed;
 
             if (player?.invertPitchBase) {
                 pitchTarget *= -1;
@@ -129,6 +135,8 @@ export class PlayerController {
             out.rollInput = rollTarget;
             out.boost = boostHeld;
             out.boostPressed = boostPressed;
+            out.slowMo = slowMoHeld;
+            out.slowMoPressed = slowMoPressed;
             return out;
         }
 
@@ -151,6 +159,8 @@ export class PlayerController {
         out.rollInput = Math.abs(this._axisState.roll) < AXIS_RELEASE_DEADZONE ? 0 : this._axisState.roll;
         out.boost = boostHeld;
         out.boostPressed = boostPressed;
+        out.slowMo = slowMoHeld;
+        out.slowMoPressed = slowMoPressed;
         return out;
     }
 }

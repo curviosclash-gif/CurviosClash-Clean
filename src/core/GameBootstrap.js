@@ -217,6 +217,7 @@ export function bootstrapGameRuntime(game, options = {}) {
         isHuntActive: (runtime) => runtime.entityManager?.gameModeStrategy?.hasCombatHud?.() === true
             && runtime.state !== 'MENU',
         getBoostCapacity: () => Number(game.config?.PLAYER?.BOOST_DURATION) || 1,
+        getSlowMoCapacity: () => Number(game.config?.PLAYER?.SLOWMO_DURATION) || 1,
     }));
     registerRuntimeHandle('screenShake', new ScreenShake(renderer));
     registerRuntimeHandle('hudRuntimeSystem', new HudRuntimeSystem({ game, ports: runtimePorts }));

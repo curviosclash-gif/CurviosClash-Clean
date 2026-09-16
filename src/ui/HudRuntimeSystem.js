@@ -7,6 +7,7 @@ import { ArcadeScoreHUD } from './arcade/ArcadeScoreHUD.js';
 import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js';
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
+import { syncHudSlowMoClass } from './HudSlowMoIndicator.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
     clearParcoursPanel,
@@ -36,6 +37,7 @@ export class HudRuntimeSystem {
         this._parcoursMinimapProjection = { parcours: null, players: null };
         this._tutorialCompletionPersisted = false;
         this._hudMode = null;
+        this._slowMoActive = null;
     }
 
     _getMatchRuntimeProjection() {
@@ -83,9 +85,11 @@ export class HudRuntimeSystem {
         return !!this.game?.runtimeConfig?.session?.networkEnabled;
     }
 
-    _syncHudMode() {
+    _syncHudMode(projection = null) {
         const hud = this.game?.ui?.hud;
         if (!hud) return;
+        const slowMoPlayers = projection?.players || this.game?.entityManager?.players;
+        this._slowMoActive = syncHudSlowMoClass(hud, slowMoPlayers, this._slowMoActive);
         const requestedMode = String(this.game?.settings?.localSettings?.modePath || 'normal')
             .trim()
             .toLowerCase();
@@ -485,19 +489,13 @@ export class HudRuntimeSystem {
     }
 
     _resolveScoreHudInterval() {
-        const configuredInterval = Number(this.game?.runtimeConfig?.uiHotpath?.scoreInventoryInterval);
-        if (Number.isFinite(configuredInterval) && configuredInterval > 0) {
-            return configuredInterval;
-        }
-        return 0.2;
+        const configured = Number(this.game?.runtimeConfig?.uiHotpath?.scoreInventoryInterval);
+        return Number.isFinite(configured) && configured > 0 ? configured : 0.2;
     }
 
     _resolveFighterHudInterval() {
-        const configuredInterval = Number(this.game?.runtimeConfig?.uiHotpath?.fighterHudInterval);
-        if (Number.isFinite(configuredInterval) && configuredInterval > 0) {
-            return configuredInterval;
-        }
-        return 0.05;
+        const configured = Number(this.game?.runtimeConfig?.uiHotpath?.fighterHudInterval);
+        return Number.isFinite(configured) && configured > 0 ? configured : 0.05;
     }
 
     _consumeInterval(timerKey, dt, interval) {
@@ -514,7 +512,7 @@ export class HudRuntimeSystem {
         const game = this.game;
         if (!game.entityManager) return;
         const projection = runtimeProjection || this._getMatchRuntimeProjection();
-        this._syncHudMode();
+        this._syncHudMode(projection);
         const updateMinimap = this._consumeInterval(
             '_parcoursMinimapTimer',
             dt,
@@ -597,6 +595,8 @@ export class HudRuntimeSystem {
         if (this.game?.ui?.hud?.dataset) {
             delete this.game.ui.hud.dataset.hudMode;
         }
+        this.game?.ui?.hud?.classList?.remove('slowmo-active');
         this._hudMode = null;
+        this._slowMoActive = null;
     }
 }

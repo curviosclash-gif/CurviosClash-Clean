@@ -88,6 +88,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         : null;
     const boostCapacity = Math.max(0.001, Number(playerConfig.BOOST_DURATION) || 1);
     const boostCharge = Math.max(0, Math.min(boostCapacity, Number(player?.boostCharge) || 0));
+    const slowMoCapacity = Math.max(0.001, Number(playerConfig.SLOWMO_DURATION) || 1);
+    const slowMoCharge = Math.max(0, Math.min(slowMoCapacity, Number(player?.slowMoCharge) || 0));
     return createMatchRuntimePlayerProjection({
         playerIndex: Number.isInteger(player?.index) ? player.index : 0,
         isBot: player?.isBot === true,
@@ -97,6 +99,10 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         boostCharge,
         boostCapacity,
         boostRecharging: !player?.manualBoostActive && boostCharge < (boostCapacity - 0.001),
+        slowMoCharge,
+        slowMoCapacity,
+        slowMoRecharging: !player?.manualSlowMoActive && slowMoCharge < (slowMoCapacity - 0.001),
+        slowMoActive: player?.manualSlowMoActive === true,
         hp: Math.max(0, Number(player?.hp) || 0),
         maxHp: Math.max(1, Number(player?.maxHp) || 1),
         shieldHP: Math.max(0, Number(player?.shieldHP) || 0),

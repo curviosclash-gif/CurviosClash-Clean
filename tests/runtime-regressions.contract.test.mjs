@@ -589,6 +589,53 @@ test('MatchFlowLifecycleController delegates returnToMenu to the injected runtim
     assert.deepEqual(calls, [{ reason: 'contract-test' }]);
 });
 
+test('MatchFlowLifecycleController resets the time scale on round end and on the way back to the menu', () => {
+    // A player who dies while holding slow motion must not stretch the round-end
+    // countdown or the ghost replay, and must not leak the slowed clock into the menu.
+    const timeScales = [];
+    const game = {
+        state: 'PLAYING',
+        roundPause: 0,
+        gameLoop: {
+            setTimeScale(value) {
+                timeScales.push(value);
+            },
+        },
+        entityManager: {
+            clearLastRoundGhost() {},
+            playLastRoundGhost() {},
+        },
+        hudRuntimeSystem: {
+            updateScoreHud() {},
+            refreshArcadeHud() {},
+        },
+    };
+    const lifecycleController = new MatchFlowLifecycleController({
+        game,
+        matchFlowUiController: {
+            _getMatchRuntimeProjection() {
+                return null;
+            },
+            applyLifecycleTransition() {},
+            applyMatchUiState() {},
+            resetCrosshairUi() {},
+            _clearArcadeOverlayPanel() {},
+            _syncArcadeOverlayPanel() {},
+        },
+        runtimePort: {
+            enterRoundEnd() {},
+        },
+        deriveReturnToMenuTransition: () => ({ uiState: {} }),
+        coordinateRoundEnd: () => ({}),
+    });
+
+    lifecycleController.onRoundEnd(null, null);
+    assert.deepEqual(timeScales, [1.0]);
+
+    lifecycleController.applyReturnToMenuUi({ showMenuPanel: false });
+    assert.deepEqual(timeScales, [1.0, 1.0]);
+});
+
 test('MatchFlowLifecycleController applyReturnToMenuUi uses runtime-handle-backed UI feedback ports', () => {
     const uiCalls = [];
     const transition = {
@@ -2736,6 +2783,8 @@ test('LAN client input binds local controls to its network slot only', () => {
         rollRight: false,
         boost: false,
         boostPressed: false,
+        slowMo: false,
+        slowMoPressed: false,
         cameraSwitch: false,
         dropItem: false,
         useItem: false,

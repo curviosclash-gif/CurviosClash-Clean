@@ -3197,6 +3197,20 @@ input[type="range"]::-webkit-slider-thumb {
     box-shadow: 0 0 10px rgba(255, 128, 96, 0.55);
 }
 
+/* Slow motion keeps a fixed cold hue so it never reads as the boost bar. */
+.hud-slowmo-bar {
+    border-color: rgba(122, 215, 255, 0.55);
+}
+
+.hud-slowmo-bar .boost-fill {
+    background: linear-gradient(90deg, #1f6ea8, #7ad7ff);
+    box-shadow: 0 0 10px rgba(122, 215, 255, 0.55);
+}
+
+.hud-slowmo-bar .boost-label {
+    color: #a8e6ff;
+}
+
 /* ========================================= */
 /* Jagd-Modus HUD                            */
 /* ========================================= */
@@ -3528,6 +3542,14 @@ input[type="range"]::-webkit-slider-thumb {
     background: linear-gradient(90deg, #1f5068, #4d90bf);
 }
 
+.hunt-bar-slowmo .hunt-fill {
+    background: linear-gradient(90deg, #1f6ea8, #7ad7ff);
+}
+
+.hunt-bar-slowmo .hunt-fill.cooldown {
+    background: linear-gradient(90deg, #26404f, #4d7a94);
+}
+
 .hunt-bar-overheat .hunt-fill {
     background: linear-gradient(90deg, #00b45c, #70ff45);
 }
@@ -3575,6 +3597,19 @@ input[type="range"]::-webkit-slider-thumb {
     --hunt-arc-track: rgba(77, 184, 238, 0.16);
 }
 
+/* Third arc, outside the boost/overheat pair so the two combat meters keep
+   their established places. */
+.hunt-arc-slowmo {
+    --hunt-arc-color: #7ad7ff;
+    --hunt-arc-track: rgba(122, 215, 255, 0.16);
+    left: 3%;
+}
+
+.hunt-arc-slowmo:has(.cooldown) {
+    --hunt-arc-color: #4d7a94;
+    --hunt-arc-track: rgba(77, 122, 148, 0.16);
+}
+
 .hunt-arc-overheat {
     --hunt-arc-color: #70ff45;
     --hunt-arc-track: rgba(80, 255, 90, 0.16);
@@ -3595,6 +3630,13 @@ input[type="range"]::-webkit-slider-thumb {
     left: auto;
     right: 50%;
     transform-origin: right center;
+}
+
+/* Split-screen gives each player only half the width, and three 170px arcs no longer
+   fit next to each other there. Boost and overheat keep their places; the slow-motion
+   reserve stays readable through the screen border hint and the HUD percentage. */
+#hud.split-screen .hunt-arc-slowmo {
+    display: none;
 }
 
 #hud.split-screen .hunt-arc-overheat {
@@ -3786,6 +3828,10 @@ input[type="range"]::-webkit-slider-thumb {
 
     .hunt-arc-boost {
         left: 31%;
+    }
+
+    .hunt-arc-slowmo {
+        left: 8%;
     }
 
     .hunt-arc-overheat {
@@ -7381,6 +7427,53 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     top: 70px;
     font-size: 1.25rem;
     letter-spacing: 0;
+}
+
+/* Slow motion shares the boost widget geometry and stacks above it. Stacking, not
+   a sideways offset: in split-screen each player owns only half the width, where a
+   second 270px arc next to the first would bleed across the divider. */
+#hud[data-hud-mode="normal"] .classic-slowmo-widget {
+    --hunt-arc-color: #7ad7ff;
+    --hunt-arc-track: rgba(122, 215, 255, 0.16);
+    top: calc(50% - 350px);
+}
+
+#hud[data-hud-mode="normal"] .classic-slowmo-widget.cooldown {
+    --hunt-arc-color: #4d7a94;
+    --hunt-arc-track: rgba(77, 122, 148, 0.16);
+}
+
+#hud[data-hud-mode="normal"] .classic-slowmo-widget.active {
+    --hunt-arc-color: #ffffff;
+    --hunt-arc-track: rgba(122, 215, 255, 0.3);
+}
+
+/* The world is slow for everybody, but only the key holder keeps moving in real time
+   (bullet time). The player-hud box covers its own screen half in every mode, so this
+   brighter inner edge tells the actor's half apart from the half that is merely slowed.
+   Static shadow, no animation. */
+.player-hud.slowmo-actor::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    pointer-events: none;
+    box-shadow:
+        inset 0 0 70px rgba(174, 238, 255, 0.2),
+        inset 0 0 0 3px rgba(174, 238, 255, 0.6);
+}
+
+/* Screen-edge hint while the slow-motion key holds the clock down. Static shadow,
+   no animation: the marker must not cost frames in the very moment it is shown. */
+#hud.slowmo-active::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    box-shadow:
+        inset 0 0 110px rgba(122, 215, 255, 0.22),
+        inset 0 0 0 2px rgba(122, 215, 255, 0.38);
 }
 
 /* Width is a percentage of the owning .player-hud box, not of the viewport:

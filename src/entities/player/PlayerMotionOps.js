@@ -1,5 +1,6 @@
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { applyFourPlayerPlanarPhysicsConstraint } from '../../four-player-planar/FourPlayerPlanarPhysics.js';
+import { updatePlayerCharges } from './PlayerChargeOps.js';
 
 const MIN_HITBOX_RADIUS = 0.2;
 const HITBOX_HEIGHT_FACTOR = 0.7;
@@ -35,60 +36,6 @@ function clampAxisInput(value) {
     if (numeric > 1) return 1;
     if (numeric < -1) return -1;
     return numeric;
-}
-
-function resolveBoostCapacity(player) {
-    return Math.max(0.001, Number(resolveEntityRuntimeConfig(player)?.PLAYER?.BOOST_DURATION) || 1);
-}
-
-function resolveBoostRechargeTime(player) {
-    return Math.max(0.001, Number(resolveEntityRuntimeConfig(player)?.PLAYER?.BOOST_COOLDOWN) || 1);
-}
-
-function syncBoostUiState(player, maxCharge, rechargeRate) {
-    player.boostTimer = player.boostCharge;
-    const missingCharge = Math.max(0, maxCharge - player.boostCharge);
-    player.boostCooldown = rechargeRate > 0 ? missingCharge / rechargeRate : 0;
-}
-
-function updateBoostState(player, dt, controlState = null) {
-    const maxCharge = resolveBoostCapacity(player);
-    const rechargeTime = resolveBoostRechargeTime(player);
-    const rechargeRate = maxCharge / rechargeTime;
-    const minActivationCharge = Math.max(0.05, maxCharge * 0.02);
-    const boostHeld = !!controlState?.boost;
-    const boostPressed = !!controlState?.boostPressed;
-
-    if (!Number.isFinite(player.boostCharge)) {
-        player.boostCharge = maxCharge;
-    } else if (player.boostCharge < 0) {
-        player.boostCharge = 0;
-    } else if (player.boostCharge > maxCharge) {
-        player.boostCharge = maxCharge;
-    }
-
-    if (player.isBot) {
-        player.manualBoostActive = boostHeld && player.boostCharge > minActivationCharge;
-    } else if (boostPressed) {
-        if (player.manualBoostActive) {
-            player.manualBoostActive = false;
-        } else if (player.boostCharge > minActivationCharge) {
-            player.manualBoostActive = true;
-        }
-    }
-
-    if (player.manualBoostActive) {
-        player.boostCharge = Math.max(0, player.boostCharge - dt);
-        if (player.boostCharge <= 0.0001) {
-            player.boostCharge = 0;
-            player.manualBoostActive = false;
-        }
-    } else if (player.boostCharge < maxCharge) {
-        player.boostCharge = Math.min(maxCharge, player.boostCharge + rechargeRate * dt);
-    }
-
-    syncBoostUiState(player, maxCharge, rechargeRate);
-    return player.manualBoostActive;
 }
 
 export function initializePlayerHitbox(player, radius) {
@@ -130,20 +77,31 @@ export function syncPlayerHitboxFromVehicleMesh(player, mesh = null) {
     return player.hitboxBox;
 }
 
-export function updatePlayerMotion(player, dt, controlState = null, turnRateMultiplier = 1) {
+export function updatePlayerMotion(player, dt, controlState = null, turnRateMultiplier = 1, motionDt = dt) {
     const config = resolveEntityRuntimeConfig(player);
     const resolvedTurnSpeed = Number(player?.turnSpeed) || Number(config.PLAYER.TURN_SPEED) || 0;
     const resolvedRollSpeed = Number(player?.rollSpeed) || Number(config.PLAYER.ROLL_SPEED) || 0;
     // 61.4.1: tight_turns modifier reduces turn rate
     const turnRateMul = Number.isFinite(turnRateMultiplier)
         ? Math.max(0.1, turnRateMultiplier) : 1.0;
-    const turnSpeed = resolvedTurnSpeed * turnRateMul * dt;
-    const rollSpeed = resolvedRollSpeed * dt;
+    // Bullet time: `dt` stays the world clock (reserves, powerup timers, trail), while
+    // `motionDt` is the clock this vehicle steers and travels on. They differ only for
+    // the player holding the slow-motion key; otherwise motionDt === dt.
+    //
+    // Collision headroom for the worst case (boost 45 * 2.3 = 103.5 u/s at motionDt
+    // (1/60)/0.4 = 4.3125 units per step, smallest vehicle hitbox radius 0.8):
+    //   wall sweep  ceil(4.3125 / 0.8)  =  6 steps of 0.72 u  <= CRASH_SWEEP_MAX_STEPS 16
+    //   trail sweep ceil(4.3125 / 1.36) =  4 steps of 1.08 u  <= the 12 step cap, and
+    //               1.08 u stays inside the 2 * 1.6 u search diameter.
+    // Both sweeps therefore stay gap-free; no substepping and no raised cap needed.
+    const resolvedMotionDt = Number.isFinite(motionDt) && motionDt > 0 ? motionDt : dt;
+    const turnSpeed = resolvedTurnSpeed * turnRateMul * resolvedMotionDt;
+    const rollSpeed = resolvedRollSpeed * resolvedMotionDt;
 
     const pitchInput = clampAxisInput(controlState?.pitchInput);
     const yawInput = clampAxisInput(controlState?.yawInput);
     const rollInput = clampAxisInput(controlState?.rollInput);
-    const manualBoostActive = updateBoostState(player, dt, controlState);
+    const manualBoostActive = updatePlayerCharges(player, dt, controlState);
     const boostEffectActive = manualBoostActive || player.boostPortalTimer > 0;
     player.isBoosting = boostEffectActive;
 
@@ -158,7 +116,7 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
 
     if (config.PLAYER.AUTO_ROLL && rollInput === 0) {
         player._tmpEuler2.setFromQuaternion(player.quaternion, 'YXZ');
-        player._tmpEuler2.z *= (1 - config.PLAYER.AUTO_ROLL_SPEED * dt);
+        player._tmpEuler2.z *= (1 - config.PLAYER.AUTO_ROLL_SPEED * resolvedMotionDt);
 
         if (config.GAMEPLAY.PLANAR_MODE) {
             player._tmpEuler2.x = 0;
@@ -198,11 +156,11 @@ export function updatePlayerMotion(player, dt, controlState = null, turnRateMult
         player.position.y = player.currentPlanarY;
     }
 
-    player.position.x += player.velocity.x * dt;
+    player.position.x += player.velocity.x * resolvedMotionDt;
     if (!config.GAMEPLAY.PLANAR_MODE) {
-        player.position.y += player.velocity.y * dt;
+        player.position.y += player.velocity.y * resolvedMotionDt;
     }
-    player.position.z += player.velocity.z * dt;
+    player.position.z += player.velocity.z * resolvedMotionDt;
     applyFourPlayerPlanarPhysicsConstraint(player);
 }
 

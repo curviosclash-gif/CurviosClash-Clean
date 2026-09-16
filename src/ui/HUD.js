@@ -45,9 +45,16 @@ export class HUD {
         this.classicBoostWidget = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost');
         this.classicBoostFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost-fill');
         this.classicBoostText = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-boost-text');
+        this.slowMoFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-slowmo-fill');
+        this.classicSlowMoWidget = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-slowmo');
+        this.classicSlowMoFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-slowmo-fill');
+        this.classicSlowMoText = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-classic-slowmo-text');
         this.lifeBar = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-bar');
         this.lifeFill = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud-life-fill');
         const playerHud = document.getElementById((playerIndex === 0 ? 'p1' : 'p2') + '-hud');
+        // Covers this player's own screen half in every mode, so it carries the marker
+        // that tells the bullet-time actor apart from the players stuck in slow motion.
+        this.playerHud = playerHud;
         this.exclusionZoneStatus = document.createElement('div');
         this.exclusionZoneStatus.className = 'exclusion-zone-status hidden';
         this._setAttribute(this.exclusionZoneStatus, 'role', 'status');
@@ -71,6 +78,7 @@ export class HUD {
         this._setAttribute(this.mapDestructibleStatus, 'aria-atomic', 'true');
         playerHud?.appendChild(this.mapDestructibleStatus);
         initializeHudSegmentedArc(this.classicBoostFill, 'horizontal');
+        initializeHudSegmentedArc(this.classicSlowMoFill, 'horizontal');
 
         // Tapes (Scales)
         this.speedScale = this.container.querySelector('#' + (playerIndex === 0 ? 'p1' : 'p2') + '-hud-speed-scale');
@@ -121,6 +129,18 @@ export class HUD {
         if (element.textContent !== value) {
             element.textContent = value;
         }
+    }
+
+    // Shared renderer for the boost and slow-motion reserves: both own a flat bar
+    // (arcade layout) and a segmented arc widget (classic layout) with the same shape.
+    _updateChargeWidget(barFill, widget, arcFill, textElement, charge, capacity, recharging) {
+        const pct = Math.max(0, Math.min(100, (charge / capacity) * 100));
+        this._setStyle(barFill, 'width', `${pct.toFixed(1)}%`);
+        this._setClassFlag(barFill, 'cooldown', recharging);
+        this._setCustomProperty(arcFill, '--hunt-segments-filled', `${Math.round((pct / 100) * HUD_ARC_SEGMENT_COUNT)}%`);
+        this._setText(textElement, `${Math.round(pct)}%`);
+        this._setClassFlag(widget, 'cooldown', recharging);
+        this._setAttribute(widget, 'aria-valuenow', String(Math.round(pct)));
     }
 
     _setAttribute(element, name, value) {
@@ -243,6 +263,8 @@ export class HUD {
 
     update(player, _dt, context = {}) {
         if (!player || !player.alive) {
+            // A dead player never holds bullet time, so the marker must not survive.
+            this._setClassFlag(this.playerHud, 'slowmo-actor', false);
             this._updateExclusionZoneStatus(null);
             this._updateMapExpansionStatus(null);
             this._updateMapDestructibleStatus(null);
@@ -266,6 +288,18 @@ export class HUD {
         const isBoostRecharging = typeof player?.boostRecharging === 'boolean'
             ? player.boostRecharging
             : (!player?.manualBoostActive && boostCharge < (boostCapacity - 0.001));
+        const slowMoCapacity = Math.max(
+            0.001,
+            Number(player?.slowMoCapacity) || Number(fallbackGameplayConfig.PLAYER?.SLOWMO_DURATION) || 1
+        );
+        const slowMoCharge = Math.max(0, Math.min(slowMoCapacity, Number(player?.slowMoCharge) || 0));
+        const isSlowMoRecharging = typeof player?.slowMoRecharging === 'boolean'
+            ? player.slowMoRecharging
+            : (!player?.manualSlowMoActive && slowMoCharge < (slowMoCapacity - 0.001));
+        const isSlowMoActor = typeof player?.slowMoActive === 'boolean'
+            ? player.slowMoActive
+            : player?.manualSlowMoActive === true;
+        this._setClassFlag(this.playerHud, 'slowmo-actor', isSlowMoActor);
         const planarMode = typeof player?.planarMode === 'boolean'
             ? player.planarMode
             : fallbackGameplayConfig.GAMEPLAY?.PLANAR_MODE === true;
@@ -277,17 +311,15 @@ export class HUD {
         ).trim() || GAMEPLAY_CAMERA_MODE_ID;
 
         if (this.boostFill) {
-            const pct = (boostCharge / boostCapacity) * 100;
-            this._setStyle(this.boostFill, 'width', `${pct.toFixed(1)}%`);
-            this._setClassFlag(this.boostFill, 'cooldown', isBoostRecharging);
-            this._setCustomProperty(
-                this.classicBoostFill,
-                '--hunt-segments-filled',
-                `${Math.round((pct / 100) * HUD_ARC_SEGMENT_COUNT)}%`
+            this._updateChargeWidget(
+                this.boostFill, this.classicBoostWidget, this.classicBoostFill, this.classicBoostText,
+                boostCharge, boostCapacity, isBoostRecharging
             );
-            this._setText(this.classicBoostText, `${Math.round(pct)}%`);
-            this._setClassFlag(this.classicBoostWidget, 'cooldown', isBoostRecharging);
-            this._setAttribute(this.classicBoostWidget, 'aria-valuenow', String(Math.round(pct)));
+            this._updateChargeWidget(
+                this.slowMoFill, this.classicSlowMoWidget, this.classicSlowMoFill, this.classicSlowMoText,
+                slowMoCharge, slowMoCapacity, isSlowMoRecharging
+            );
+            this._setClassFlag(this.classicSlowMoWidget, 'active', isSlowMoActor);
         }
 
         if (this.lifeBar && this.lifeFill) {

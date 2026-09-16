@@ -444,6 +444,72 @@ test.describe('Physics Core (Tests 41-60)', () => {
         expect(afterRecharge.boostCharge).toBeLessThanOrEqual(before.boostCapacity);
     });
 
+    // Only the activation half is asserted here. Switching slow motion off again needs
+    // at least one further simulation step at the reduced clock, and this profile's
+    // window is often occluded, where the loop forces every frame back to the fixed
+    // step and a reduced clock produces no steps at all. For the same reason the
+    // per-player `slowmo-actor` marker is only logged, not asserted: it is written on
+    // the throttled fighter-HUD tick, which needs further simulation steps. The off
+    // toggle, the empty reserve, both recharge bonuses, the bullet-time motion step and
+    // the HUD marker are covered by tests/player-slowmo.contract.test.mjs and
+    // tests/hud-improvements.contract.test.mjs.
+    test('T45d: Zeitlupe senkt per Taste den globalen Zeitfaktor und markiert den HUD', async ({ page }) => {
+        await startGame(page);
+
+        const slowMoKey = await page.evaluate(() => (
+            window.GAME_INSTANCE?.settings?.controls?.PLAYER_1?.SLOWMO || 'KeyV'
+        ));
+
+        const sample = () => page.evaluate(() => {
+            const player = window.GAME_INSTANCE?.entityManager?.players?.[0];
+            return {
+                alive: player?.alive !== false,
+                timeScale: Number(window.GAME_INSTANCE?.gameLoop?.timeScale ?? NaN),
+                slowMoCharge: Number(player?.slowMoCharge ?? NaN),
+                slowMoCapacity: Number(window.GAME_INSTANCE?.config?.PLAYER?.SLOWMO_DURATION ?? NaN),
+                slowMoTimeScale: Number(window.GAME_INSTANCE?.config?.PLAYER?.SLOWMO_TIME_SCALE ?? NaN),
+                manualSlowMoActive: !!player?.manualSlowMoActive,
+                boostCharge: Number(player?.boostCharge ?? NaN),
+                hudSlowMo: document.getElementById('hud')?.classList?.contains('slowmo-active') === true,
+                hudSlowMoActor: document.getElementById('p1-hud')?.classList?.contains('slowmo-actor') === true,
+                positionZ: Number(player?.position?.z ?? NaN),
+                motionFactor: player?.manualSlowMoActive === true
+                    ? 1 / Number(window.GAME_INSTANCE?.gameLoop?.timeScale ?? 1)
+                    : 1,
+            };
+        });
+
+        const before = await sample();
+
+        await page.evaluate((keyCode) => {
+            for (const type of ['keydown', 'keyup']) {
+                window.dispatchEvent(new KeyboardEvent(type, { code: keyCode, bubbles: true, cancelable: true }));
+            }
+        }, slowMoKey);
+        await waitForRenderFrames(page, 12);
+        const during = await sample();
+
+        // eslint-disable-next-line no-console
+        console.log('slow motion desktop proof:', JSON.stringify({ before, during }));
+
+        expect(before.alive).toBeTruthy();
+        expect(during.alive).toBeTruthy();
+        expect(before.slowMoCapacity).toBeCloseTo(3, 5);
+        expect(before.slowMoCharge).toBeCloseTo(before.slowMoCapacity, 5);
+        expect(before.timeScale).toBeCloseTo(1, 5);
+        expect(before.manualSlowMoActive).toBeFalsy();
+        expect(before.hudSlowMo).toBeFalsy();
+        expect(during.manualSlowMoActive).toBeTruthy();
+        expect(during.timeScale).toBeCloseTo(during.slowMoTimeScale, 5);
+        expect(during.hudSlowMo).toBeTruthy();
+        expect(during.slowMoCharge).toBeLessThan(before.slowMoCharge);
+        // Bullet time: the key holder keeps travelling on the real clock, so its motion
+        // step is 1 / timeScale. The travelled distance itself is not asserted here - an
+        // occluded window advances the loop too rarely for a stable ratio (see above).
+        expect(during.motionFactor).toBeCloseTo(1 / during.slowMoTimeScale, 5);
+        expect(before.motionFactor).toBeCloseTo(1, 5);
+    });
+
     test('T46: 1 Bot spawnt korrekt', async ({ page }) => {
         test.setTimeout(60000);
         await startGameWithBots(page, 1);

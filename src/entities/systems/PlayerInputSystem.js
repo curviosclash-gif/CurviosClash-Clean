@@ -16,17 +16,15 @@ import { OBSERVATION_LENGTH_V1 } from '../ai/observation/ObservationSchemaV1.js'
 
 // Reused input object to reduce GC
 const SHARED_EMPTY_INPUT = {
-    pitchAxis: undefined,
-    yawAxis: undefined,
-    rollAxis: undefined,
+    pitchAxis: undefined, yawAxis: undefined, rollAxis: undefined,
     pitchUp: false,
     pitchDown: false,
     yawLeft: false,
     yawRight: false,
     rollLeft: false,
     rollRight: false,
-    boost: false,
-    boostPressed: false,
+    boost: false, boostPressed: false,
+    slowMo: false, slowMoPressed: false,
     cameraSwitch: false,
     dropItem: false,
     shootItem: false,
@@ -38,8 +36,7 @@ const SHARED_EMPTY_INPUT = {
 };
 
 function getEmptyInput() {
-    SHARED_EMPTY_INPUT.pitchAxis = undefined;
-    SHARED_EMPTY_INPUT.yawAxis = undefined;
+    SHARED_EMPTY_INPUT.pitchAxis = undefined; SHARED_EMPTY_INPUT.yawAxis = undefined;
     SHARED_EMPTY_INPUT.rollAxis = undefined;
     SHARED_EMPTY_INPUT.pitchUp = false;
     SHARED_EMPTY_INPUT.pitchDown = false;
@@ -49,6 +46,7 @@ function getEmptyInput() {
     SHARED_EMPTY_INPUT.rollRight = false;
     SHARED_EMPTY_INPUT.boost = false;
     SHARED_EMPTY_INPUT.boostPressed = false;
+    SHARED_EMPTY_INPUT.slowMo = false; SHARED_EMPTY_INPUT.slowMoPressed = false;
     SHARED_EMPTY_INPUT.cameraSwitch = false;
     SHARED_EMPTY_INPUT.dropItem = false;
     SHARED_EMPTY_INPUT.shootItem = false; SHARED_EMPTY_INPUT.shootRocket = false;
@@ -531,6 +529,7 @@ export class PlayerInputSystem {
             input.rollRight = inputState.rollRight;
             input.boost = inputState.boost;
             input.boostPressed = inputState.boostPressed;
+            input.slowMo = inputState.slowMo; input.slowMoPressed = inputState.slowMoPressed;
             input.cameraSwitch = inputState.cameraSwitch;
             input.shootItem = inputState.shootItem; input.shootRocket = inputState.shootRocket;
             input.shootMG = inputState.shootMG;

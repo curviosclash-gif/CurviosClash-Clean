@@ -512,6 +512,8 @@ export class TouchInputSource extends PlayerInputSource {
             rollAxis: 0,
             boost: boostDown,
             boostPressed,
+            // Slow motion has no touch button yet; the fields keep the input shape stable.
+            slowMo: false, slowMoPressed: false,
             cameraSwitch: false,
             dropItem: false,
             useItem: useItemPressed && !!actionState?.canUseNow,
@@ -535,6 +537,7 @@ export class TouchInputSource extends PlayerInputSource {
             rollAxis: 0,
             boost: false,
             boostPressed: false,
+            slowMo: false, slowMoPressed: false,
             cameraSwitch: false,
             dropItem: false,
             useItem: false,

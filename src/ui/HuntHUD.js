@@ -1,5 +1,6 @@
 import { clamp01 } from '../shared/utils/MathOps.js';
 import { createHuntHudDomRefs } from './dom/HuntHudDomRefs.js';
+import { updateHuntReserveArcs } from './HuntHudReserveArcs.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
@@ -11,7 +12,6 @@ const HOTPATH_INTERVAL_FALLBACKS = Object.freeze({
     indicator: 0.04,
 });
 const KILL_FEED_SLOT_COUNT = 3;
-const MIN_BOOST_CAPACITY = 0.001;
 const OVERHEAT_CAP = 100;
 const OVERHEAT_WARNING_RESERVE = 0.6;
 const OVERHEAT_DANGER_RESERVE = 0.3;
@@ -67,6 +67,8 @@ export class HuntHUD {
         this.p1ShieldText = refs.p1ShieldText ?? null;
         this.p1BoostFill = refs.p1BoostFill ?? null;
         this.p1BoostText = refs.p1BoostText ?? null;
+        this.p1SlowMoFill = refs.p1SlowMoFill ?? null;
+        this.p1SlowMoText = refs.p1SlowMoText ?? null;
         this.p1OverheatFill = refs.p1OverheatFill ?? null;
         this.p1OverheatText = refs.p1OverheatText ?? null;
         this.p1Turret = refs.p1Turret ?? null;
@@ -78,6 +80,8 @@ export class HuntHUD {
         this.p2ShieldText = refs.p2ShieldText ?? null;
         this.p2BoostFill = refs.p2BoostFill ?? null;
         this.p2BoostText = refs.p2BoostText ?? null;
+        this.p2SlowMoFill = refs.p2SlowMoFill ?? null;
+        this.p2SlowMoText = refs.p2SlowMoText ?? null;
         this.p2OverheatFill = refs.p2OverheatFill ?? null;
         this.p2OverheatText = refs.p2OverheatText ?? null;
         this.p2Turret = refs.p2Turret ?? null;
@@ -92,8 +96,8 @@ export class HuntHUD {
         this._indicatorTickTimer = 0;
         this._wasHuntActive = false;
         this._panelCache = [
-            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null, turretTxt: null },
-            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null, turretTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, slowMoW: null, slowMoCooldownState: null, slowMoTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null, turretTxt: null },
+            { hpW: null, hpTxt: null, shieldW: null, shieldTxt: null, boostW: null, boostCooldown: null, boostTxt: null, slowMoW: null, slowMoCooldownState: null, slowMoTxt: null, overheatW: null, overheatState: null, overheatTxt: null, respawnTxt: null, turretTxt: null },
         ];
         this._objectiveText = null;
         this._scoreboardText = null;
@@ -107,11 +111,16 @@ export class HuntHUD {
         this._getBoostCapacity = typeof options.getBoostCapacity === 'function'
             ? options.getBoostCapacity
             : () => DEFAULT_BOOST_CAPACITY;
+        this._getSlowMoCapacity = typeof options.getSlowMoCapacity === 'function'
+            ? options.getSlowMoCapacity
+            : () => DEFAULT_BOOST_CAPACITY;
 
-        initializeHudSegmentedArc(this.p1BoostFill);
-        initializeHudSegmentedArc(this.p1OverheatFill);
-        initializeHudSegmentedArc(this.p2BoostFill);
-        initializeHudSegmentedArc(this.p2OverheatFill);
+        for (const arcFill of [
+            this.p1BoostFill, this.p1SlowMoFill, this.p1OverheatFill,
+            this.p2BoostFill, this.p2SlowMoFill, this.p2OverheatFill,
+        ]) {
+            initializeHudSegmentedArc(arcFill);
+        }
     }
 
     _getMatchRuntimeProjection() {
@@ -229,6 +238,8 @@ export class HuntHUD {
                 shieldText: this.p1ShieldText,
                 boostFill: this.p1BoostFill,
                 boostText: this.p1BoostText,
+                slowMoFill: this.p1SlowMoFill,
+                slowMoText: this.p1SlowMoText,
                 overheatFill: this.p1OverheatFill,
                 overheatText: this.p1OverheatText,
                 turret: this.p1Turret,
@@ -246,6 +257,8 @@ export class HuntHUD {
                         shieldText: this.p2ShieldText,
                         boostFill: this.p2BoostFill,
                         boostText: this.p2BoostText,
+                        slowMoFill: this.p2SlowMoFill,
+                        slowMoText: this.p2SlowMoText,
                         overheatFill: this.p2OverheatFill,
                         overheatText: this.p2OverheatText,
                         turret: this.p2Turret,
@@ -292,33 +305,13 @@ export class HuntHUD {
             if (cache) cache.shieldTxt = shieldTxt;
         }
 
-        const resolvedBoostCapacity = Number(player?.boostCapacity) || Number(this._getBoostCapacity(player, this.runtime));
-        const boostCapacity = Math.max(
-            MIN_BOOST_CAPACITY,
-            Number.isFinite(resolvedBoostCapacity) ? resolvedBoostCapacity : DEFAULT_BOOST_CAPACITY
+        updateHuntReserveArcs(
+            player,
+            refs,
+            cache,
+            Number(this._getBoostCapacity(player, this.runtime)),
+            Number(this._getSlowMoCapacity(player, this.runtime))
         );
-        const boostCharge = Math.max(0, Math.min(boostCapacity, Number(player?.boostCharge) || 0));
-        const boostRatio = clamp01(boostCharge / boostCapacity);
-        const isBoostCooldown = typeof player?.boostRecharging === 'boolean'
-            ? player.boostRecharging
-            : (!player?.manualBoostActive && boostCharge < (boostCapacity - MIN_BOOST_CAPACITY));
-        const boostW = toPercent(boostRatio);
-        if (refs.boostFill) {
-            if (boostW !== cache?.boostW) {
-                refs.boostFill.style.width = boostW;
-                refs.boostFill.style.setProperty?.('--hunt-segments-filled', `${Math.round(boostRatio * HUD_ARC_SEGMENT_COUNT)}%`);
-                if (cache) cache.boostW = boostW;
-            }
-            if (isBoostCooldown !== cache?.boostCooldown) {
-                refs.boostFill.classList.toggle('cooldown', isBoostCooldown);
-                if (cache) cache.boostCooldown = isBoostCooldown;
-            }
-        }
-        const boostTxt = `${Math.round(boostRatio * 100)}%`;
-        if (refs.boostText && boostTxt !== cache?.boostTxt) {
-            refs.boostText.textContent = boostTxt;
-            if (cache) cache.boostTxt = boostTxt;
-        }
 
         const overheatValue = Math.max(
             0,

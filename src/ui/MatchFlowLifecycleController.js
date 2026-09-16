@@ -140,6 +140,9 @@ export class MatchFlowLifecycleController {
     onRoundEnd(winner, outcome = null) {
         const controller = this.controller;
         const game = this.game;
+        // The round-end countdown and the ghost replay run on game time, so a slow
+        // motion that was still active must not stretch three seconds into seven.
+        game.gameLoop?.setTimeScale?.(1.0);
         this.runtimePort?.enterRoundEnd?.(3.0);
 
         const roundEndPlan = this.coordinateRoundEnd
@@ -214,6 +217,8 @@ export class MatchFlowLifecycleController {
         const controller = this.controller;
         const game = this.game;
         const returnTransition = this.deriveReturnToMenuTransition?.() || {};
+        // Leaving a match mid slow motion must not carry the slowed clock into the menu.
+        game.gameLoop?.setTimeScale?.(1.0);
         controller._clearArcadeOverlayPanel();
         controller.applyLifecycleTransition(returnTransition);
         controller.applyMatchUiState(returnTransition.uiState);
@@ -221,7 +226,8 @@ export class MatchFlowLifecycleController {
         if (options?.showMenuPanel === false) {
             return returnTransition;
         }
-        const panelId = String(options?.panelId || 'submenu-game').trim() || 'submenu-game';
+        const defaultPanelId = game.settings?.localSettings?.sessionType === 'multiplayer' ? 'submenu-multiplayer' : 'submenu-game';
+        const panelId = String(options?.panelId || defaultPanelId).trim() || defaultPanelId;
         const trigger = String(options?.trigger || options?.reason || 'return_to_menu').trim() || 'return_to_menu';
         if (this.runtimePort?.showMenuPanel) {
             this.runtimePort.showMenuPanel(panelId, { trigger });

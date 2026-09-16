@@ -50,6 +50,8 @@ export const MATCH_KERNEL_INPUT_ACTION_KEYS = Object.freeze([
     'rollRight',
     'boost',
     'boostPressed',
+    'slowMo',
+    'slowMoPressed',
     'cameraSwitch',
     'dropItem',
     'useItem',
