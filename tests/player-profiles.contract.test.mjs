@@ -6,6 +6,7 @@ import { flushArcadePersistenceSavesResult } from '../src/core/arcade/ArcadeRunP
 import {
     PLAYER_PROFILE_MIGRATION_STORAGE_KEY,
     PLAYER_PROFILE_REGISTRY_STORAGE_KEY,
+    resolvePlayerScopedStorageKey,
 } from '../src/shared/contracts/PlayerProfileStorageContract.js';
 import {
     normalizePlayerProfileRegistry,
@@ -232,4 +233,205 @@ test('a profile created after the legacy migration starts empty', () => {
     assert.equal(store.records.has(secondPort.resolveStorageKey(legacyKey)), false);
     assert.equal(secondPort.loadJsonRecord(legacyKey), null);
     assert.equal(reloaded.getMigrationState().profileId, migratedProfileId);
+});
+
+test('migration record pointing at a vanished profile falls back to the active profile', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1',
+            profileId: vanishedProfileId,
+            status: 'complete',
+            updatedAt: '2026-08-17T12:00:00.000Z',
+            records: {},
+        },
+    });
+    // The registry was lost, so bootstrap creates a fresh profile while the
+    // migration record still names a profile nobody can reach any more.
+    const manager = createManager(store);
+    assert.equal(manager.bootstrap().ok, true);
+
+    const active = manager.getActiveProfile();
+    assert.notEqual(active.id, vanishedProfileId);
+    assert.equal(manager.getMigrationState().profileId, active.id);
+    const activePort = manager.getActiveRecordStorePort();
+    assert.deepEqual(activePort.loadJsonRecord(legacyKey), { bestScore: 7 });
+    assert.equal(
+        store.records.has(resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey)),
+        false,
+        'legacy data must not land in an orphaned scope'
+    );
+});
+
+test('a vanished migration target resets copied records and makes them reachable from the active profile', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const oldScopedKey = resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey);
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [oldScopedKey]: { bestScore: 42 },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1',
+            profileId: vanishedProfileId,
+            status: 'complete',
+            updatedAt: '2026-08-17T12:00:00.000Z',
+            records: { legacyArcadeRunProfile: { status: 'copied' } },
+        },
+    });
+    const manager = createManager(store);
+    assert.equal(manager.bootstrap().ok, true);
+
+    const activePort = manager.getActiveRecordStorePort();
+    assert.deepEqual(activePort.loadJsonRecord(legacyKey), { bestScore: 42 });
+    assert.equal(manager.getMigrationState().records.legacyArcadeRunProfile.status, 'copied');
+    assert.deepEqual(store.records.get(oldScopedKey), { bestScore: 42 }, 'the retained old scope is not deleted');
+    assert.deepEqual(store.records.get(legacyKey), { bestScore: 7 }, 'the older legacy record is not overwritten');
+});
+
+test('an unreadable retained scope blocks a vanished-target migration instead of falling back to legacy data', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const oldScopedKey = resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey);
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1',
+            profileId: vanishedProfileId,
+            status: 'complete',
+            updatedAt: '2026-08-17T12:00:00.000Z',
+            records: {},
+        },
+    });
+    const originalRead = store.readJsonRecordResult;
+    store.readJsonRecordResult = (key) => key === oldScopedKey
+        ? { ok: false, status: 'invalid', value: null, reason: 'invalid_json' }
+        : originalRead.call(store, key);
+    const manager = createManager(store);
+
+    assert.equal(manager.bootstrap().ok, false);
+    assert.deepEqual(manager.getMigrationState().records.legacyArcadeRunProfile, { status: 'failed', reason: 'invalid_json' });
+    assert.equal(store.records.has(manager.getActiveRecordStorePort().resolveStorageKey(legacyKey)), false);
+});
+
+test('a retry after an unreadable retained scope still prefers its newer record over legacy data', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const oldScopedKey = resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey);
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [oldScopedKey]: { bestScore: 42 },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1', profileId: vanishedProfileId,
+            status: 'complete', updatedAt: '2026-08-17T12:00:00.000Z', records: {},
+        },
+    });
+    const ids = createIds();
+    const originalRead = store.readJsonRecordResult;
+    let oldScopeUnreadable = true;
+    store.readJsonRecordResult = (key) => oldScopeUnreadable && key === oldScopedKey
+        ? { ok: false, status: 'invalid', value: null, reason: 'invalid_json' }
+        : originalRead.call(store, key);
+
+    const failed = createManager(store, ids);
+    assert.equal(failed.bootstrap().ok, false);
+    assert.equal(failed.getMigrationState().profileId, vanishedProfileId);
+
+    oldScopeUnreadable = false;
+    const retried = createManager(store, ids);
+    assert.equal(retried.bootstrap().ok, true);
+    assert.deepEqual(retried.getActiveRecordStorePort().loadJsonRecord(legacyKey), { bestScore: 42 });
+    assert.equal(retried.getMigrationState().profileId, retried.getActiveProfile().id);
+});
+
+test('a retry after writing a retained scope keeps that source ahead of legacy data', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const oldScopedKey = resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey);
+    const activeProfileId = '00000000-0000-4000-8000-000000000001';
+    const activeScopedKey = resolvePlayerScopedStorageKey(activeProfileId, legacyKey);
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [oldScopedKey]: { bestScore: 42 },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1', profileId: vanishedProfileId,
+            status: 'complete', updatedAt: '2026-08-17T12:00:00.000Z', records: {},
+        },
+    });
+    const ids = createIds();
+    store.failures.add(activeScopedKey);
+
+    const failed = createManager(store, ids);
+    assert.equal(failed.bootstrap().ok, false);
+    assert.equal(failed.getMigrationState().profileId, vanishedProfileId);
+
+    store.failures.delete(activeScopedKey);
+    const retried = createManager(store, ids);
+    assert.equal(retried.bootstrap().ok, true);
+    assert.deepEqual(retried.getActiveRecordStorePort().loadJsonRecord(legacyKey), { bestScore: 42 });
+    assert.equal(retried.getMigrationState().profileId, retried.getActiveProfile().id);
+});
+
+test('a partial vanished-source retry keeps its original recovery destination after the active profile changes', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vehicleKey = 'cuviosclash.arcade-vehicle-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const recoveryProfileId = '00000000-0000-4000-8000-000000000001';
+    const oldScopedKey = resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey);
+    const recoveryVehicleKey = resolvePlayerScopedStorageKey(recoveryProfileId, vehicleKey);
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [oldScopedKey]: { bestScore: 42 },
+        [vehicleKey]: { vehicleId: 'scout' },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1', profileId: vanishedProfileId,
+            status: 'complete', updatedAt: '2026-08-17T12:00:00.000Z', records: {},
+        },
+    });
+    const ids = createIds();
+    store.failures.add(recoveryVehicleKey);
+
+    const first = createManager(store, ids);
+    assert.equal(first.bootstrap().ok, false);
+    assert.equal(first.getMigrationState().profileId, vanishedProfileId);
+    assert.equal(first.getMigrationState().recoveryTargetProfileId, recoveryProfileId);
+    assert.deepEqual(first.getActiveRecordStorePort().loadJsonRecord(legacyKey), { bestScore: 42 });
+
+    const second = first.createProfile('B').profile;
+    assert.equal(first.setActiveProfile(second.id).ok, true);
+    store.failures.delete(recoveryVehicleKey);
+    const retried = createManager(store, ids);
+    assert.equal(retried.bootstrap().ok, true);
+
+    const recoveryPort = retried.getRecordStorePort(recoveryProfileId);
+    const secondPort = retried.getRecordStorePort(second.id);
+    assert.deepEqual(recoveryPort.loadJsonRecord(legacyKey), { bestScore: 42 });
+    assert.deepEqual(recoveryPort.loadJsonRecord(vehicleKey), { vehicleId: 'scout' });
+    assert.equal(store.records.has(secondPort.resolveStorageKey(legacyKey)), false);
+    assert.equal(retried.getMigrationState().profileId, recoveryProfileId);
+    assert.equal(retried.getMigrationState().recoveryTargetProfileId, '');
+});
+
+test('a vanished recovery destination falls back to the active profile without deleting the retained source', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const vanishedProfileId = '00000000-0000-4000-8000-00000000dead';
+    const missingRecoveryId = '00000000-0000-4000-8000-00000000beef';
+    const oldScopedKey = resolvePlayerScopedStorageKey(vanishedProfileId, legacyKey);
+    const store = createRecordStore({
+        [legacyKey]: { bestScore: 7 },
+        [oldScopedKey]: { bestScore: 42 },
+        [PLAYER_PROFILE_MIGRATION_STORAGE_KEY]: {
+            schemaVersion: 'player-profile-migration.v1', profileId: vanishedProfileId,
+            recoveryTargetProfileId: missingRecoveryId,
+            status: 'failed', updatedAt: '2026-08-17T12:00:00.000Z', records: {},
+        },
+    });
+    const manager = createManager(store);
+    assert.equal(manager.bootstrap().ok, true);
+
+    assert.deepEqual(manager.getActiveRecordStorePort().loadJsonRecord(legacyKey), { bestScore: 42 });
+    assert.deepEqual(store.records.get(oldScopedKey), { bestScore: 42 });
+    assert.equal(manager.getMigrationState().profileId, manager.getActiveProfile().id);
+    assert.equal(manager.getMigrationState().recoveryTargetProfileId, '');
 });

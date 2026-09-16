@@ -138,9 +138,25 @@ export class PlayerProfileManager {
         // migration first ran. Following the active pointer instead would copy
         // those records into every later profile, so a new or imported profile
         // would inherit the old hangar, leaderboard, ghosts and progress.
+        // A target that no longer exists in the registry (lost or rebuilt storage)
+        // would send the legacy data into an orphaned scope nobody can reach.
         const persistedProfileId = String(persisted?.profileId || '').trim();
-        const targetProfileId = persistedProfileId || this.registry.activeProfileId;
-        this.migration = createPlayerProfileMigrationRecord(targetProfileId, persisted);
+        const targetIsReachable = persistedProfileId !== ''
+            && (this.registry?.profiles || []).some((profile) => profile.id === persistedProfileId);
+        const persistedRecoveryTargetId = String(persisted?.recoveryTargetProfileId || '').trim();
+        const recoveryTargetIsReachable = !targetIsReachable
+            && persistedRecoveryTargetId !== ''
+            && (this.registry?.profiles || []).some((profile) => profile.id === persistedRecoveryTargetId);
+        const targetProfileId = targetIsReachable
+            ? persistedProfileId
+            : (recoveryTargetIsReachable ? persistedRecoveryTargetId : this.registry.activeProfileId);
+        // Per-kind statuses describe the old target's scope, so they only carry
+        // over when that target is still the one being migrated into.
+        // Keep an unreachable source id until every kind transfers. A failed
+        // retry needs it to prefer retained scoped progress over stale legacy data.
+        const migrationProfileId = targetIsReachable ? targetProfileId : (persistedProfileId || targetProfileId);
+        this.migration = createPlayerProfileMigrationRecord(migrationProfileId, targetIsReachable ? persisted : null);
+        if (!targetIsReachable && persistedProfileId !== '') this.migration.recoveryTargetProfileId = targetProfileId;
         this.migration.status = 'pending';
         this._saveMigration();
         let failed = false;
@@ -157,6 +173,26 @@ export class PlayerProfileManager {
             if (scoped?.status !== 'missing') {
                 failed = true;
                 this.migration.records[definition.kind] = { status: 'failed', reason: scoped?.reason || 'destination_read_failed' };
+                this._saveMigration();
+                continue;
+            }
+            const previousScopedKey = targetIsReachable ? '' : resolvePlayerScopedStorageKeyByKind(persistedProfileId, definition.kind);
+            const previousScoped = previousScopedKey ? this.store?.readJsonRecordResult?.(previousScopedKey) : null;
+            if (previousScoped?.status === 'found') {
+                const write = this.store?.saveJsonRecord?.(scopedKey, previousScoped.value);
+                const verified = isSuccess(write) ? this.store?.readJsonRecordResult?.(scopedKey) : null;
+                if (!isSuccess(write) || verified?.status !== 'found') {
+                    failed = true;
+                    this.migration.records[definition.kind] = { status: 'failed', reason: write?.reason || verified?.reason || 'verification_failed' };
+                } else {
+                    this.migration.records[definition.kind] = { status: 'copied' };
+                }
+                this._saveMigration();
+                continue;
+            }
+            if (previousScopedKey && previousScoped?.status !== 'missing') {
+                failed = true;
+                this.migration.records[definition.kind] = { status: 'failed', reason: previousScoped?.reason || previousScoped?.status || 'previous_scope_read_failed' };
                 this._saveMigration();
                 continue;
             }
@@ -183,6 +219,10 @@ export class PlayerProfileManager {
             this._saveMigration();
         }
         this.migration.status = failed ? 'failed' : 'complete';
+        if (!failed) {
+            this.migration.profileId = targetProfileId;
+            this.migration.recoveryTargetProfileId = '';
+        }
         const saved = this._saveMigration();
         if (!isSuccess(saved)) return { ok: false, reason: saved?.reason || 'migration_state_save_failed' };
         return { ok: !failed, reason: failed ? 'migration_incomplete' : 'complete' };
