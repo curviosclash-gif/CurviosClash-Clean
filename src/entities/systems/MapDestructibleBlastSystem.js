@@ -81,6 +81,7 @@ export class MapDestructibleBlastSystem {
         const owner = this.entityManager;
         for (const target of owner?.players || []) {
             if (!target.alive) continue;
+            if (Number(target.spawnProtectionTimer) > 0) continue;
             const dx = target.position.x - entry.position.x;
             const dy = target.position.y - entry.position.y;
             const dz = target.position.z - entry.position.z;

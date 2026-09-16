@@ -87,6 +87,40 @@ test('a target exactly at the blast radius takes no minimum damage', () => {
     assert.equal(calls.some((call) => call.target === edge), false);
 });
 
+test('a collapse blast skips protected players until their spawn protection expires', () => {
+    const definition = createDefinitionWithBlast();
+    const elapsedSecondsBox = { value: 10 };
+    const { owner, calls } = createOwner(definition, elapsedSecondsBox);
+    const protectedTarget = {
+        index: 3, alive: true, position: { x: 5, y: 0, z: 0 }, spawnProtectionTimer: 1,
+        knockbacks: 0,
+        activateSlingshot() { this.knockbacks += 1; },
+    };
+    const exposedTarget = {
+        index: 4, alive: true, position: { x: 10, y: 0, z: 0 },
+        knockbacks: 0,
+        activateSlingshot() { this.knockbacks += 1; },
+    };
+    owner.players = [protectedTarget, exposedTarget];
+    const system = new MapDestructibleBlastSystem(owner);
+
+    system.schedulePendingBlast({ segmentId: 'reactor_dome', kind: 'leg_lower', atSeconds: 10, yaw: 0 });
+    elapsedSecondsBox.value = 13;
+    system.update();
+
+    assert.deepEqual(calls.map((call) => call.target), [exposedTarget]);
+    assert.equal(protectedTarget.knockbacks, 0);
+    assert.equal(exposedTarget.knockbacks, 1);
+
+    protectedTarget.spawnProtectionTimer = 0;
+    system.schedulePendingBlast({ segmentId: 'reactor_dome', kind: 'leg_lower', atSeconds: 13, yaw: 0 });
+    elapsedSecondsBox.value = 16;
+    system.update();
+
+    assert.equal(calls.filter((call) => call.target === protectedTarget).length, 1);
+    assert.equal(protectedTarget.knockbacks, 1);
+});
+
 test('EntityManager preserves reactor feedback while its break callback schedules and applies the blast', () => {
     const definition = createDefinitionWithBlast();
     const manager = new EntityManager(null, null, null, null, null, null);
