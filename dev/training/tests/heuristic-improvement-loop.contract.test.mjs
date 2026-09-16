@@ -73,6 +73,8 @@ test('heuristic improvement loop separates coarse training from rotated holdout 
     assert.match(source, /verifyCurrentProfiles\(CONFIRMATION_SEEDS, false, true\)/);
     assert.match(source, /verifyCurrentProfiles\(FINAL_SEEDS, false, true\)/);
     assert.match(source, /verifyCurrentProfiles\(AUDIT_SEEDS, false, true\)/);
+    assert.match(source, /verifyCurrentProfiles\(parseFreshAuditSeeds\(process\.argv\[3\]\), false, true\)/);
+    assert.match(source, /new Set\(seeds\)\.size !== seeds\.length/);
     assert.match(source, /product \? HEURISTIC_PROFILES\[profile\] : state\.profiles\[profile\]/);
     assert.match(source, /if \(!persist\) return;/);
     assert.match(source, /em\.matchSeed !== seed/);

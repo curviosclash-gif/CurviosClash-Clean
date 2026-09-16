@@ -20,10 +20,11 @@ import { HEURISTIC_IMPROVEMENT_BASELINE } from './heuristic-improvement-baseline
 const FIXED_STEP = MATCH_KERNEL_FIXED_STEP_SECONDS;
 const TRAINING_SEEDS = Object.freeze([2, 5, 13, 29]);
 const HOLDOUT_SEEDS = Object.freeze([3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113]);
-// Never use these for tuning or candidate selection.
+// Fixed evaluation splits; once inspected, their results are development data.
 const FINAL_SEEDS = Object.freeze([293, 307, 317, 331, 347, 359, 373, 389, 401, 419, 433, 449]);
 const CONFIRMATION_SEEDS = Object.freeze([457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601]);
 const AUDIT_SEEDS = Object.freeze([607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673]);
+const FIXED_SEEDS = new Set([...TRAINING_SEEDS, ...HOLDOUT_SEEDS, ...FINAL_SEEDS, ...CONFIRMATION_SEEDS, ...AUDIT_SEEDS]);
 const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
 export const TUNABLE_FIELDS = Object.freeze([
     'predictiveSafetyBias',
@@ -56,6 +57,19 @@ const TARGET_RATIO = 2;
 const STATE_VERSION = 16;
 const MIN_ELIMINATION_SURVIVAL_RETENTION = 0.95;
 const REPOSITORY_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
+
+function parseFreshAuditSeeds(raw) {
+    const tokens = String(raw || '').split(',');
+    if (tokens.length !== 12 || tokens.some((token) => !/^[1-9]\d*$/.test(token))) {
+        throw new Error('fresh audit requires exactly twelve comma-separated positive integer seeds');
+    }
+    const seeds = tokens.map(Number);
+    if (seeds.some((seed) => !Number.isSafeInteger(seed) || FIXED_SEEDS.has(seed))
+        || new Set(seeds).size !== seeds.length) {
+        throw new Error('fresh audit seeds must be distinct and outside the fixed evaluation splits');
+    }
+    return seeds;
+}
 
 function hashSourceTree(hash, directory) {
     for (const entry of fs.readdirSync(directory, { withFileTypes: true }).sort((a, b) => a.name.localeCompare(b.name))) {
@@ -845,6 +859,8 @@ const task = command === '--verify'
     ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false, true)
     : command === '--audit-product'
     ? () => verifyCurrentProfiles(AUDIT_SEEDS, false, true)
+    : command === '--audit-product-seeds'
+    ? () => verifyCurrentProfiles(parseFreshAuditSeeds(process.argv[3]), false, true)
     : command === '--replay'
     ? replayMatch
     : command === '--replay-product'
