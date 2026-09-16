@@ -7,6 +7,7 @@ import { HeuristicBotPolicy } from '../src/entities/ai/HeuristicBotPolicy.js';
 import { sanitizeBotAction } from '../src/entities/ai/actions/BotActionContract.js';
 import {
     applyHeuristicSafetyArbiter,
+    HEURISTIC_SAFETY_CONFIG,
     resolveBoostPressureCeiling,
 } from '../src/entities/ai/HeuristicBotSafetyOps.js';
 import {
@@ -187,6 +188,13 @@ test('final safety arbiter vetoes Hunt combat and boost at the first trail sampl
         assert.equal(snapshot.safetyState, 'evade', profile);
         assert.equal(snapshot.safetyReason, 'trail-ahead', profile);
         assert.equal(snapshot.frontClearance, 0, profile);
+        assert.equal(
+            policy._safetyState.turnHoldTimer,
+            profile === 'aggressive'
+                ? HEURISTIC_SAFETY_CONFIG.aggressivePredictiveTurnHoldSeconds
+                : HEURISTIC_SAFETY_CONFIG.turnHoldSeconds,
+            profile
+        );
     }
 });
 

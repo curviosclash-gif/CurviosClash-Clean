@@ -37,6 +37,7 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     turnSwitchMargin: 0.14,
     verticalPreferenceMargin: 0.05,
     turnHoldSeconds: 0.32,
+    aggressivePredictiveTurnHoldSeconds: 0.18,
     evadeDuration: 0.38,
     recoveryDuration: 0.92,
     cooldownDuration: 0.58,
@@ -428,7 +429,10 @@ function resolvePreferredTurn(policy, state, player, dangerThreshold) {
     if (state.turnDirection === 0 || state.turnHoldTimer <= 0 || heldPathFailed) {
         state.turnAxis = preferredAxis;
         state.turnDirection = preferred;
-        state.turnHoldTimer = HEURISTIC_SAFETY_CONFIG.turnHoldSeconds;
+        state.turnHoldTimer = policy.profileName === 'aggressive'
+            && Number(policy.profile?.predictiveSafetyBias) > 0.7
+            ? HEURISTIC_SAFETY_CONFIG.aggressivePredictiveTurnHoldSeconds
+            : HEURISTIC_SAFETY_CONFIG.turnHoldSeconds;
     }
 }
 

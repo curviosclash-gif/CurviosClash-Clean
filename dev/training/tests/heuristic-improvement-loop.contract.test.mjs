@@ -67,7 +67,9 @@ test('heuristic improvement loop separates coarse training from rotated holdout 
     assert.match(source, /MIN_ELIMINATION_SURVIVAL_RETENTION/);
     assert.match(source, /createHeuristicLifeTracker\(\)/);
     assert.match(source, /FINAL_SEEDS = Object\.freeze\(\[293, 307, 317, 331, 347, 359, 373, 389, 401, 419, 433, 449\]\)/);
-    assert.match(source, /seeds: FINAL_SEEDS/);
+    assert.match(source, /CONFIRMATION_SEEDS = Object\.freeze\(\[457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601\]\)/);
+    assert.match(source, /verifyCurrentProfiles\(CONFIRMATION_SEEDS, false\)/);
+    assert.match(source, /if \(!persist\) return;/);
     assert.match(source, /em\.matchSeed !== seed/);
     assert.match(source, /human\.entitySlotActive = false/);
     assert.match(source, /human\.kill\(\)/);

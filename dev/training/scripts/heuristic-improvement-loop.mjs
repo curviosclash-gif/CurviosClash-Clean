@@ -22,6 +22,7 @@ const TRAINING_SEEDS = Object.freeze([2, 5, 13, 29]);
 const HOLDOUT_SEEDS = Object.freeze([3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 113]);
 // Never use these for tuning or candidate selection.
 const FINAL_SEEDS = Object.freeze([293, 307, 317, 331, 347, 359, 373, 389, 401, 419, 433, 449]);
+const CONFIRMATION_SEEDS = Object.freeze([457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601]);
 const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
 export const TUNABLE_FIELDS = Object.freeze([
     'predictiveSafetyBias',
@@ -627,7 +628,7 @@ async function runIteration() {
     if (state.plateauRounds >= 3) process.exitCode = 3;
 }
 
-async function verifyCurrentProfiles() {
+async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true) {
     const state = loadState();
     const slots = Array.from({ length: NUM_BOTS }, (_, index) => index);
     const completeProfiles = new Set();
@@ -636,17 +637,17 @@ async function verifyCurrentProfiles() {
         const result = await evaluateVariant({
             profile,
             fields,
-            seeds: FINAL_SEEDS,
+            seeds,
             slots,
             maxTicks: FULL_MAX_TICKS,
         });
-        state.verifiedRatios[profile] = toRatioRecord(result);
+        if (persist) state.verifiedRatios[profile] = toRatioRecord(result);
         let shortSafe = true;
         if (targetReached(result)) {
             const shortCurrent = await evaluateVariant({
                 profile,
                 fields: HEURISTIC_IMPROVEMENT_BASELINE[profile],
-                seeds: FINAL_SEEDS,
+                seeds,
                 slots,
                 maxTicks: COARSE_MAX_TICKS,
                 respawnEnabled: false,
@@ -654,7 +655,7 @@ async function verifyCurrentProfiles() {
             const shortCandidate = await evaluateVariant({
                 profile,
                 fields,
-                seeds: FINAL_SEEDS,
+                seeds,
                 slots,
                 maxTicks: COARSE_MAX_TICKS,
                 respawnEnabled: false,
@@ -664,15 +665,16 @@ async function verifyCurrentProfiles() {
         }
         if (targetReached(result) && shortSafe) completeProfiles.add(profile);
         console.log(
-            `profile=${profile} verifiedSurvivalRatio=${formatRatio(result.survivalRatio)}`
-            + ` verifiedKillRatio=${formatRatio(result.killRatio)}`
+            `profile=${profile} ${persist ? 'verified' : 'confirmed'}SurvivalRatio=${formatRatio(result.survivalRatio)}`
+            + ` ${persist ? 'verified' : 'confirmed'}KillRatio=${formatRatio(result.killRatio)}`
             + ` shortSafe=${shortSafe}`
         );
     }
+    if (!persist) return;
     state.completeProfiles = [...completeProfiles];
     state.finalVerification = {
         at: new Date().toISOString(),
-        seeds: FINAL_SEEDS,
+        seeds,
         completeProfiles: [...completeProfiles],
     };
     saveState(state);
@@ -776,6 +778,8 @@ timer.unref?.();
 const command = process.argv[2];
 const task = command === '--verify'
     ? verifyCurrentProfiles
+    : command === '--confirm'
+    ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false)
     : command === '--replay'
     ? replayMatch
     : command === '--probe-coarse' || command === '--probe-full' || command === '--try-full' || command === '--probe-short'
