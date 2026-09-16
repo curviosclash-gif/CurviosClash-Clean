@@ -74,6 +74,8 @@ export class EntitySpawnOps {
         if (!owner || !player || !pos) return;
         player.spawn(pos, dir);
         player.fightLastAttackerIndex = -1;
+        player.fightLastThreatSourceIndex = -1;
+        player.fightLastThreatAtSeconds = -Infinity;
         player.fightTargetPlayerIndex = -1;
         player.fightTargetLockRemaining = 0;
         player.fightSpawnedAtSeconds = Math.max(0, Number(owner._simulationClockMs) || 0) * 0.001;

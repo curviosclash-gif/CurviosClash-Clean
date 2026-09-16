@@ -9,6 +9,7 @@ import {
 } from '../src/hunt/EnvironmentKillCreditOps.js';
 import { HuntScoring } from '../src/hunt/HuntScoring.js';
 import { killPlayer } from '../src/entities/EntityPlayerDeathOps.js';
+import { EntitySpawnOps } from '../src/entities/runtime/EntitySpawnOps.js';
 import { senseProjectiles } from '../src/entities/ai/BotThreatOps.js';
 import { resolveDirectionalProjectileThreat } from '../src/entities/ai/HeuristicProjectileSafetyOps.js';
 import * as THREE from 'three';
@@ -26,6 +27,18 @@ function makePlayer(index, overrides = {}) {
         ...overrides,
     };
 }
+
+test('spawning clears threat credit from the previous life', () => {
+    const player = makePlayer(1, {
+        fightLastThreatSourceIndex: 0,
+        fightLastThreatAtSeconds: 19,
+        spawn() {},
+    });
+    new EntitySpawnOps({ _simulationClockMs: 20000 }).spawnPlayerAt(player, { x: 0, y: 0, z: 0 });
+    assert.equal(player.fightLastThreatSourceIndex, -1);
+    assert.equal(player.fightLastThreatAtSeconds, -Infinity);
+    assert.equal(player.fightSpawnedAtSeconds, 20);
+});
 
 // The damage history is stamped on the scoring clock, so tests place hits relative to it.
 function scoringSecondsAgo(seconds) {
