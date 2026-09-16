@@ -6,10 +6,22 @@ import { generateJSONExport, importFromJSON } from './EditorMapSerializer.js';
 const SCALABLE_OBJECT_TYPES = new Set(['hard', 'foam', 'tunnel', 'portal', 'aircraft', 'glb', 'checkpoint']);
 const CHECKPOINT_SCALE_FACTOR = 14;
 
+/**
+ * @typedef {{
+ *   onTunnelVisualsChanged?: (...args: any[]) => void,
+ *   onHudCountChanged?: (...args: any[]) => void,
+ *   onSceneChanged?: (...args: any[]) => void,
+ *   onObjectCreationRejected?: (...args: any[]) => void,
+ *   onBeforeManagedObjectRemoved?: (...args: any[]) => void,
+ *   onBeforeManagedObjectsCleared?: (...args: any[]) => void,
+ * }} EditorMapCallbacks
+ */
+
 export class EditorMapManager {
     constructor(core, assetLoader, options = {}) {
         this.core = core;
         this.assetLoader = assetLoader;
+        /** @type {EditorMapCallbacks} */
         this.callbacks = {
             onTunnelVisualsChanged: null,
             onHudCountChanged: null,
@@ -37,6 +49,7 @@ export class EditorMapManager {
         });
     }
 
+    /** @param {EditorMapCallbacks} [callbacks] */
     setCallbacks(callbacks = {}) {
         if (!callbacks || typeof callbacks !== 'object') return;
 
