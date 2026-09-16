@@ -46,6 +46,7 @@ const COLLECTION_DEFINITIONS = [
             'notre_dame_fire',
             'eiffel_tower',
             'burg_falkenwacht',
+            'clockwork_canyon',
         ],
     },
     {

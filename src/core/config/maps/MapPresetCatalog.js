@@ -26,6 +26,7 @@ import { EIFFEL_TOWER_MAPS } from './presets/eiffel_tower/index.js';
 import { EIFFEL_TOWER_SIEGE_MAPS } from './presets/eiffel_tower_siege/index.js';
 import { REACTOR_SITE_MAPS } from './presets/reactor_site/index.js';
 import { FALKENWACHT_MAPS } from './presets/burg_falkenwacht/index.js';
+import { CLOCKWORK_CANYON_MAPS } from './presets/clockwork_canyon/index.js';
 
 export const MAP_PRESET_CATALOG = {
     ...(STANDARD_MAPS || {}),
@@ -56,4 +57,5 @@ export const MAP_PRESET_CATALOG = {
     ...(EIFFEL_TOWER_SIEGE_MAPS || {}),
     ...(REACTOR_SITE_MAPS || {}),
     ...FALKENWACHT_MAPS,
+    ...CLOCKWORK_CANYON_MAPS,
 };

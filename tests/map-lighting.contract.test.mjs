@@ -135,6 +135,7 @@ test('only the selected presets define lighting and all others resolve to defaul
     assert.deepEqual(litMapKeys, [
         'burg_falkenwacht',
         'burg_falkenwacht_arena',
+        'clockwork_canyon',
         'complex',
         'eiffel_tower',
         'eiffel_tower_arena',

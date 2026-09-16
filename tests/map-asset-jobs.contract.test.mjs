@@ -35,7 +35,7 @@ test('map asset selection rejects ambiguous and unsafe requests before generatio
 
 test('all includes each built-in map and deduplicates shared Blender packs', () => {
     const plan = resolveMapAssetJobs({ all: true });
-    assert.equal(plan.selectedMaps.length, 61);
+    assert.equal(plan.selectedMaps.length, 62);
     assert.equal(plan.selectedMaps.includes('custom'), false);
     assert.equal(plan.jobs.length, 18);
     assert.equal(new Set(plan.jobs.map((job) => job.pack)).size, 18);
@@ -71,7 +71,7 @@ test('the actual dry-run command needs no Blender executable and writes no asset
         '--blender', 'this-executable-must-not-run'], { encoding: 'utf8', windowsHide: true });
     assert.equal(result.status, 0, result.stderr);
     const plan = JSON.parse(result.stdout);
-    assert.equal(plan.selectedMaps.length, 61);
+    assert.equal(plan.selectedMaps.length, 62);
     assert.equal(plan.jobs.length, 18);
 });
 
