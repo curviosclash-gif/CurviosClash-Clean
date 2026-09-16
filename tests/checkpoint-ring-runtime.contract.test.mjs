@@ -54,10 +54,13 @@ test('Checkpoint guidance motifs have a depth-tested additive core without bloom
     assert.equal(motifs.length, 6);
     assert.ok(motifs.every((motif) => motif.userData.guidanceCore?.isMesh));
     for (const motif of motifs) {
+        assert.equal(motif.geometry.type, 'OctahedronGeometry');
         assert.equal(motif.material.blending, THREE.AdditiveBlending);
         assert.equal(motif.material.depthTest, true);
+        assert.equal(motif.material.toneMapped, false);
         assert.equal(motif.userData.guidanceCore.material.blending, THREE.AdditiveBlending);
         assert.equal(motif.userData.guidanceCore.material.depthTest, true);
+        assert.equal(motif.userData.guidanceCore.material.toneMapped, false);
     }
     let disposed = 0;
     motifs[0].userData.guidanceCore.material.addEventListener('dispose', () => { disposed += 1; });

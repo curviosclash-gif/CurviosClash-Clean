@@ -51,7 +51,7 @@ function getLabelGeometry() {
 
 function getGuidanceGeometry() {
     if (!sharedGuidanceGeometry) {
-        sharedGuidanceGeometry = new THREE.TorusGeometry(0.82, 0.14, 6, 16);
+        sharedGuidanceGeometry = new THREE.OctahedronGeometry(0.72);
         sharedGuidanceGeometry.userData.__sharedNoDispose = true;
     }
     return sharedGuidanceGeometry;
@@ -59,7 +59,7 @@ function getGuidanceGeometry() {
 
 function getGuidanceCoreGeometry() {
     if (!sharedGuidanceCoreGeometry) {
-        sharedGuidanceCoreGeometry = new THREE.OctahedronGeometry(0.42);
+        sharedGuidanceCoreGeometry = new THREE.OctahedronGeometry(0.28);
         sharedGuidanceCoreGeometry.userData.__sharedNoDispose = true;
     }
     return sharedGuidanceCoreGeometry;
@@ -97,6 +97,7 @@ function createGuidanceMaterial(color) {
         blending: THREE.AdditiveBlending,
         depthTest: true,
         depthWrite: false,
+        toneMapped: false,
     });
 }
 

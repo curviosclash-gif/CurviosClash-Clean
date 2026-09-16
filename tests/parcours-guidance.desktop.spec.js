@@ -97,8 +97,20 @@ test('Arcade checkpoint breath remains visible without bloom in a frozen scene',
     await testInfo.attach('arcade-checkpoint-breath-later-no-bloom', { path: laterScreenshot, contentType: 'image/png' });
     expect(await countChangedMotifPixels(page, activePng, laterPng)).toBeGreaterThan(40);
 
+    const bloomEnabled = await page.evaluate(() => {
+        const renderer = window.GAME_INSTANCE.renderer;
+        renderer.setBloomQuality(2);
+        return renderer.postProcessingPipeline.enabled;
+    });
+    expect(bloomEnabled).toBe(true);
+    const bloomScreenshot = testInfo.outputPath('arcade-checkpoint-breath-high-bloom.png');
+    await page.screenshot({ path: bloomScreenshot, animations: 'disabled' });
+    await testInfo.attach('arcade-checkpoint-breath-high-bloom', { path: bloomScreenshot, contentType: 'image/png' });
+
     await page.evaluate(() => {
-        window.GAME_INSTANCE.arena._portalGateSystem.checkpointRingRuntime.setGuidanceProvider(null);
+        const game = window.GAME_INSTANCE;
+        game.renderer.setBloomQuality(0);
+        game.arena._portalGateSystem.checkpointRingRuntime.setGuidanceProvider(null);
     });
     const withoutBreath = testInfo.outputPath('arcade-checkpoint-without-breath-no-bloom.png');
     const withoutPng = await page.screenshot({ path: withoutBreath, animations: 'disabled' });
