@@ -212,3 +212,24 @@ test('multiplayer identity exposes profile UUID and name without changing access
     });
     assert.deepEqual(accessIdentity, { actorId: 'expert-owner', isOwner: true });
 });
+
+test('a profile created after the legacy migration starts empty', () => {
+    const legacyKey = 'cuviosclash.arcade-run-profile.v1';
+    const store = createRecordStore({ [legacyKey]: { bestScore: 42 } });
+    const ids = createIds();
+    const firstManager = createManager(store, ids);
+    assert.equal(firstManager.bootstrap().ok, true);
+    const migratedProfileId = firstManager.getActiveProfile().id;
+    const second = firstManager.createProfile('Zweiter Spieler').profile;
+    assert.equal(firstManager.setActiveProfile(second.id).ok, true);
+
+    // Switching profiles reloads the page, so bootstrap() runs again.
+    const reloaded = createManager(store, ids);
+    assert.equal(reloaded.bootstrap().ok, true);
+    assert.equal(reloaded.getActiveProfile().id, second.id);
+
+    const secondPort = reloaded.getActiveRecordStorePort();
+    assert.equal(store.records.has(secondPort.resolveStorageKey(legacyKey)), false);
+    assert.equal(secondPort.loadJsonRecord(legacyKey), null);
+    assert.equal(reloaded.getMigrationState().profileId, migratedProfileId);
+});

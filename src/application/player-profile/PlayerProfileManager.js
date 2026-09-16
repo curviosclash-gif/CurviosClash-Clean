@@ -36,6 +36,7 @@ function createDefaultId() {
     return globalThis.crypto.randomUUID();
 }
 
+/** @param {{ profileId?: string, globalRecordStore?: *, allowLegacyFallback?: () => boolean }} [options] */
 export function createPlayerRecordStorePort({ profileId, globalRecordStore, allowLegacyFallback = () => false } = {}) {
     const boundProfileId = String(profileId || '').trim();
     const store = globalRecordStore || null;
@@ -127,16 +128,19 @@ export class PlayerProfileManager {
     }
 
     _migrateLegacyRecords() {
-        const targetProfileId = this.registry.activeProfileId;
         const loaded = this.store?.readJsonRecordResult?.(PLAYER_PROFILE_MIGRATION_STORAGE_KEY);
         if (!loaded || !['found', 'missing'].includes(loaded.status)) return { ok: false, reason: loaded?.reason || 'migration_read_failed' };
         if (loaded.status === 'found' && loaded.value?.schemaVersion !== PLAYER_PROFILE_MIGRATION_SCHEMA_VERSION) {
             return { ok: false, reason: 'unsupported_migration_schema' };
         }
-        this.migration = createPlayerProfileMigrationRecord(
-            targetProfileId,
-            loaded?.status === 'found' && loaded.value?.profileId === targetProfileId ? loaded.value : null
-        );
+        const persisted = loaded.status === 'found' ? loaded.value : null;
+        // The legacy records belong to whichever profile was active when the
+        // migration first ran. Following the active pointer instead would copy
+        // those records into every later profile, so a new or imported profile
+        // would inherit the old hangar, leaderboard, ghosts and progress.
+        const persistedProfileId = String(persisted?.profileId || '').trim();
+        const targetProfileId = persistedProfileId || this.registry.activeProfileId;
+        this.migration = createPlayerProfileMigrationRecord(targetProfileId, persisted);
         this.migration.status = 'pending';
         this._saveMigration();
         let failed = false;
