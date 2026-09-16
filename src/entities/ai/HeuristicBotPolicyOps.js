@@ -81,7 +81,7 @@ export const HEURISTIC_PROFILES = Object.freeze({
         opportunistBias: 0.5,
         openingHookBias: 0.5,
         trafficAvoidanceBias: 0.5,
-        predictiveSafetyBias: 0.56,
+        predictiveSafetyBias: 0.75,
     }),
 });
 

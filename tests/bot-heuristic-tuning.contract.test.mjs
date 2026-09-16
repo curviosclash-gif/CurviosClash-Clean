@@ -75,7 +75,7 @@ test('validated Hunt profile defaults retain their independent tuning', () => {
     assert.equal(HEURISTIC_PROFILES.defensive.predictiveSafetyBias, 0.63);
     assert.equal(HEURISTIC_PROFILES.defensive.openingFanoutBias, 0.6);
     assert.equal(HEURISTIC_PROFILES.balanced.predictiveSafetyBias, 0.6);
-    assert.equal(HEURISTIC_PROFILES.aggressive.predictiveSafetyBias, 0.56);
+    assert.equal(HEURISTIC_PROFILES.aggressive.predictiveSafetyBias, 0.75);
     assert.equal(HEURISTIC_PROFILES.aggressive.safetyDistance, 0.22);
 });
 
