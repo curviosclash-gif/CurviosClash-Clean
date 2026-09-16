@@ -13,6 +13,7 @@ export class RoundStateTickSystem {
         this._readRuntimeIntentPort = typeof deps.getRuntimeIntentPort === 'function'
             ? deps.getRuntimeIntentPort
             : () => deps.runtimeIntentPort || null;
+        this._arenaWavesTransitionRestartRequested = false;
     }
 
     _getKernelAdapter() {
@@ -73,12 +74,48 @@ export class RoundStateTickSystem {
         };
     }
 
+    _readArcadeSurfaceState() {
+        return this.game?.runtimeCoordinator?.getArcadeMenuSurfaceState?.() || null;
+    }
+
+    _deriveArenaWavesRoundEndStep(inputs) {
+        const surface = this._readArcadeSurfaceState();
+        if (surface?.runType !== 'arena_waves') return null;
+        const phase = surface.phase;
+        // Death on maps 1-4 opens the upgrade choice; the round-end countdown must wait
+        // through it (and the finished screen) instead of restarting the old arena.
+        if (phase === 'upgrade' || phase === 'finished') {
+            this._arenaWavesTransitionRestartRequested = false;
+            if (inputs.escapePressed) {
+                return { action: 'RETURN_TO_MENU', nextRoundPause: inputs.roundPause,
+                    shouldUpdateCameras: false, countdownMessageSub: null };
+            }
+            return { action: 'WAIT', nextRoundPause: inputs.roundPause,
+                shouldUpdateCameras: true, countdownMessageSub: null };
+        }
+        // Selection advanced the run: consume the pending map transition immediately.
+        if (phase === 'transition') {
+            if (this._arenaWavesTransitionRestartRequested) {
+                return { action: 'WAIT', nextRoundPause: inputs.roundPause,
+                    shouldUpdateCameras: true, countdownMessageSub: null };
+            }
+            this._arenaWavesTransitionRestartRequested = true;
+            return { action: 'START_ROUND', nextRoundPause: 0,
+                shouldUpdateCameras: true, countdownMessageSub: null };
+        }
+        this._arenaWavesTransitionRestartRequested = false;
+        return null;
+    }
+
     _deriveRoundEndTickStep(dt) {
+        const inputs = this._readRoundEndTickInputs(dt);
+        const arenaWavesStep = this._deriveArenaWavesRoundEndStep(inputs);
+        if (arenaWavesStep) return arenaWavesStep;
         if (this.game.roundStateController?.isArcadeRoundStateController) {
-            return this.game.roundStateController.deriveRoundEndTick(this._readRoundEndTickInputs(dt));
+            return this.game.roundStateController.deriveRoundEndTick(inputs);
         }
         return this._tickKernelRoundState(dt, 'round_end')
-            || this.game.roundStateController.deriveRoundEndTick(this._readRoundEndTickInputs(dt));
+            || this.game.roundStateController.deriveRoundEndTick(inputs);
     }
 
     _deriveMatchEndTickStep() {
