@@ -266,6 +266,7 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
             itemShots: 0,
             boosts: 0,
             deaths: [],
+            recentSafety: [],
         } : null;
         if (actionTrace) {
             const originalUpdate = candidateBot.ai.update;
@@ -284,6 +285,15 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
                 if (safety.leftClearance > 0.9 && safety.rightClearance > 0.9) actionTrace.bothSafeTurns += 1;
                 if (safety.hasCollisionNormal) actionTrace.collisionNormalUpdates += 1;
                 if (safety.bounceWindowTimer > 0) actionTrace.activeBounceWindowUpdates += 1;
+                actionTrace.recentSafety.push({
+                    reason: decision.safetyReason,
+                    turn: `${safety.turnAxis}:${safety.turnDirection}`,
+                    front: safety.frontClearance,
+                    left: safety.leftClearance,
+                    right: safety.rightClearance,
+                    planned: safety.plannedClearance,
+                });
+                if (actionTrace.recentSafety.length > 8) actionTrace.recentSafety.shift();
                 if (Array.isArray(player?.inventory) && player.inventory.length > 0) actionTrace.inventoryUpdates += 1;
                 if (Array.isArray(player?.rocketInventory) && player.rocketInventory.length > 0) actionTrace.rocketUpdates += 1;
                 if (action.useItem >= 0) actionTrace.itemUses += 1;
@@ -327,6 +337,9 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
                     cause,
                     candidateKill: currentKills > lastCandidateKills,
                     distance: Number.isFinite(distance) ? Math.round(distance) : null,
+                    ...(deadPlayer.index === candidateIndex
+                        ? { recentSafety: [...actionTrace.recentSafety] }
+                        : {}),
                 });
                 lastCandidateKills = currentKills;
             }

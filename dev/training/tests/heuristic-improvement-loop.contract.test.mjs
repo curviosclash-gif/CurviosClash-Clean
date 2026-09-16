@@ -112,6 +112,9 @@ test('match replay is stable for one seed and changes for another seed', () => {
     );
     assert(Array.isArray(first.actionTrace.deaths));
     assert(first.actionTrace.deaths.every((death) => typeof death.candidateKill === 'boolean'));
+    assert(first.actionTrace.recentSafety.length <= 8);
+    assert(first.actionTrace.deaths.every((death) => death.victim !== 'candidate'
+        || (Array.isArray(death.recentSafety) && death.recentSafety.length <= 8)));
     assert(first.actionTrace.mgShots <= first.actionTrace.updates);
     const other = replay(139);
     assert.equal(first.matchSeed, 127);
