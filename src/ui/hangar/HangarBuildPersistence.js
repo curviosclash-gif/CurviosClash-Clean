@@ -149,7 +149,7 @@ function unwrapRecord(facadeResult, fallback, mode) {
 
 function createBuildId(vehicleId, name) {
     const prefix = String(name || 'build').trim().toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'build';
-    return `${prefix}-${String(vehicleId || 'ship5').toLowerCase()}-${Date.now()}`;
+    return `${prefix}-${String(vehicleId || 'ship5').toLowerCase()}-${Date.now()}-${globalThis.crypto.randomUUID()}`;
 }
 
 export function createHangarBuildPersistenceAdapter(options = {}) {
