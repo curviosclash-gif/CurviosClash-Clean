@@ -28,22 +28,27 @@ function materialRoleForNode(node) {
 
 function pickupMaterial(role, color) {
     if (role === 'frame') {
-        return createStandardMaterial(0xdce7f1, {
-            emissiveIntensity: 0.12, roughness: 0.3, metalness: 0.72,
+        return createStandardMaterial(0xdbe5ea, {
+            emissiveIntensity: 0.015, roughness: 0.38, metalness: 0.08,
         });
     }
     if (role === 'metal') {
-        return createStandardMaterial(0x111923, {
-            emissiveIntensity: 0.04, roughness: 0.34, metalness: 0.86,
+        return createStandardMaterial(0x526477, {
+            emissiveIntensity: 0.015, roughness: 0.35, metalness: 0.35,
+        });
+    }
+    if (role === 'matte') {
+        return createStandardMaterial(color, {
+            emissiveIntensity: 0.01, roughness: 0.72, metalness: 0.04,
         });
     }
     if (role === 'glow') {
         return createStandardMaterial(color, {
-            emissiveIntensity: 1.25, roughness: 0.18, metalness: 0.35,
+            emissiveIntensity: 0.6, roughness: 0.24, metalness: 0.08,
         });
     }
     return createStandardMaterial(color, {
-        emissiveIntensity: 0.48, roughness: 0.25, metalness: 0.66,
+        emissiveIntensity: 0.08, roughness: 0.32, metalness: 0.15,
     });
 }
 

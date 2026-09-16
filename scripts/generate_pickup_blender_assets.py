@@ -9,7 +9,7 @@ import math
 from pathlib import Path
 
 import bpy
-from mathutils import Vector
+from mathutils import Color, Vector
 
 
 SEMANTIC_BASELINES = {
@@ -31,9 +31,9 @@ LEGACY_EXTENTS = {
 }
 
 COLORS = {
-    "SPEED_UP": (0.0, 1.0, .13, 1), "SLOW_DOWN": (1.0, .04, .03, 1),
+    "SPEED_UP": (0.0, 1.0, .4, 1), "SLOW_DOWN": (1.0, .04, .03, 1),
     "THICK": (1.0, .55, 0.0, 1), "THIN": (.48, .08, 1.0, 1),
-    "SHIELD": (.05, .28, 1.0, 1), "HEALTH": (.05, 1.0, .38, 1),
+    "SHIELD": (.267, .533, 1.0, 1), "HEALTH": (.267, 1.0, .533, 1),
     "MG_TURRET": (1.0, .42, .08, 1), "ROCKET_TURRET": (1.0, .04, .16, 1),
     "SLOW_TIME": (.04, 1.0, .42, 1), "GHOST": (1.0, .12, .58, 1),
     "INVERT": (1.0, 0.0, 1.0, 1), "FOG": (.62, .68, .76, 1),
@@ -43,7 +43,7 @@ COLORS = {
     "DECOY": (1.0, .18, .68, 1), "PURGE": (.8, .9, 1.0, 1),
     "SWAP": (.55, .12, 1.0, 1), "MINE": (1.0, .08, .02, 1),
     "ROCKET_WEAK": (1.0, .55, .12, 1), "ROCKET_MEDIUM": (1.0, .25, .03, 1),
-    "ROCKET_HEAVY": (1.0, .03, .04, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1),
+    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1),
 }
 
 ROOTS = {}
@@ -72,24 +72,27 @@ def reset():
 
 
 def material(name, color, metal=.65, rough=.28, emission=.0):
+    rgb = Color(color[:3]).from_srgb_to_scene_linear()
+    linear = (*rgb, color[3])
     mat = bpy.data.materials.new(name)
-    mat.diffuse_color = color
+    mat.diffuse_color = linear
     mat.use_nodes = True
     bsdf = mat.node_tree.nodes.get("Principled BSDF")
-    bsdf.inputs["Base Color"].default_value = color
+    bsdf.inputs["Base Color"].default_value = linear
     bsdf.inputs["Metallic"].default_value = metal
     bsdf.inputs["Roughness"].default_value = rough
     if "Emission Color" in bsdf.inputs:
-        bsdf.inputs["Emission Color"].default_value = color
+        bsdf.inputs["Emission Color"].default_value = linear
         bsdf.inputs["Emission Strength"].default_value = emission
     return mat
 
 
 def make_materials():
-    MATS["metal"] = material("Pickup_Metal", (.025, .045, .07, 1), .9, .3, .02)
-    MATS["frame"] = material("Pickup_Frame", (.72, .82, .9, 1), .78, .25, .08)
-    MATS["accent"] = material("Pickup_Accent", (.08, .55, 1, 1), .58, .24, .3)
-    MATS["glow"] = material("Pickup_Glow", (.1, .75, 1, 1), .25, .18, 1.4)
+    MATS["metal"] = material("Pickup_Metal", (0x52/255, 0x64/255, 0x77/255, 1), .35, .35, .015)
+    MATS["frame"] = material("Pickup_Frame", (0xdb/255, 0xe5/255, 0xea/255, 1), .08, .38, .015)
+    MATS["accent"] = material("Pickup_Accent", (.267, .533, 1, 1), .15, .32, .08)
+    MATS["glow"] = material("Pickup_Glow", (.267, .533, 1, 1), .08, .24, .6)
+    MATS["matte"] = material("Pickup_Matte", (.68, .74, .79, 1), .04, .72, .01)
 
 
 def attach(obj, root, role, name):
@@ -131,8 +134,8 @@ def cylinder(root, name, loc, radius, depth, role="metal", vertices=12, axis="Z"
     return obj
 
 
-def sphere(root, name, loc, radius, role="metal", scale=(1, 1, 1)):
-    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=8, radius=radius, location=loc)
+def sphere(root, name, loc, radius, role="metal", scale=(1, 1, 1), ring_count=8):
+    bpy.ops.mesh.primitive_uv_sphere_add(segments=12, ring_count=ring_count, radius=radius, location=loc)
     obj = bpy.context.object
     obj.scale = scale
     bpy.ops.object.transform_apply(location=False, rotation=False, scale=True)
@@ -155,6 +158,108 @@ def torus(root, name, loc, major, minor, role="accent", rot=(math.pi / 2, 0, 0))
     return attach(bpy.context.object, root, role, name)
 
 
+def polygon_prism(root, name, contour, depth, role="accent", bevel_size=.06,
+                  loc=(0, 0, 0), rot=(0, 0, 0)):
+    """Create a closed, beveled silhouette in the X/Z plane with real thickness along Y."""
+    contour = list(contour)
+    signed_area = sum(
+        x * contour[(index + 1) % len(contour)][1]
+        - contour[(index + 1) % len(contour)][0] * z
+        for index, (x, z) in enumerate(contour)
+    ) / 2
+    if abs(signed_area) < 1e-8:
+        raise ValueError(f"{name} contour must enclose a non-zero area")
+    # Faces below expect clockwise X/Z contours. Normalize here because mirrored
+    # silhouettes otherwise export with inward-facing caps and side walls.
+    if signed_area > 0:
+        contour.reverse()
+    half = depth / 2
+    vertices = [(x, -half, z) for x, z in contour] + [(x, half, z) for x, z in contour]
+    count = len(contour)
+    faces = [tuple(range(count - 1, -1, -1)), tuple(range(count, count * 2))]
+    for index in range(count):
+        following = (index + 1) % count
+        faces.append((index, following, following + count, index + count))
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    obj.location = loc
+    obj.rotation_euler = rot
+    root.users_collection[0].objects.link(obj)
+    if bevel_size:
+        bevel(obj, bevel_size, 3)
+    return attach(obj, root, role, name)
+
+
+def lathe_profile(root, name, profile, role="accent", segments=18, loc=(0, 0, 0),
+                  cap_start=True, cap_end=True):
+    """Revolve a radius/Z profile for smooth missile bodies, noses, and nozzles."""
+    vertices = []
+    for radius, z in profile:
+        for index in range(segments):
+            angle = math.tau * index / segments
+            vertices.append((radius * math.cos(angle), radius * math.sin(angle), z))
+    faces = []
+    rings = len(profile)
+    for ring in range(rings - 1):
+        for index in range(segments):
+            following = (index + 1) % segments
+            a = ring * segments + index
+            b = ring * segments + following
+            c = (ring + 1) * segments + following
+            d = (ring + 1) * segments + index
+            faces.append((a, b, c, d))
+    if cap_start and profile[0][0] > 0:
+        faces.append(tuple(range(segments - 1, -1, -1)))
+    if cap_end and profile[-1][0] > 0:
+        faces.append(tuple((rings - 1) * segments + i for i in range(segments)))
+    mesh = bpy.data.meshes.new(f"{name}_mesh")
+    mesh.from_pydata(vertices, [], faces)
+    mesh.update()
+    obj = bpy.data.objects.new(name, mesh)
+    obj.location = loc
+    root.users_collection[0].objects.link(obj)
+    for poly in mesh.polygons:
+        poly.use_smooth = True
+    return attach(obj, root, role, name)
+
+
+def tube_path(root, name, points, radius, role="accent", closed=False):
+    """Build a smooth connected tube through X/Y/Z points and convert it to exportable mesh."""
+    curve = bpy.data.curves.new(f"{name}_curve", "CURVE")
+    curve.dimensions = "3D"
+    curve.resolution_u = 2
+    curve.bevel_depth = radius
+    curve.bevel_resolution = 2
+    curve.resolution_u = 2
+    spline = curve.splines.new("BEZIER")
+    spline.bezier_points.add(len(points) - 1)
+    for point, coordinates in zip(spline.bezier_points, points):
+        point.co = coordinates
+        point.handle_left_type = "AUTO"
+        point.handle_right_type = "AUTO"
+    spline.use_cyclic_u = closed
+    obj = bpy.data.objects.new(name, curve)
+    root.users_collection[0].objects.link(obj)
+    bpy.ops.object.select_all(action="DESELECT")
+    bpy.context.view_layer.objects.active = obj
+    obj.select_set(True)
+    bpy.ops.object.convert(target="MESH")
+    obj.select_set(False)
+    for polygon in obj.data.polygons:
+        polygon.use_smooth = True
+    return attach(obj, root, role, name)
+
+
+def arc_points(radius, start, end, count, y=0, center=(0, 0)):
+    cx, cz = center
+    return [(cx + math.cos(start + (end-start)*index/(count-1))*radius,
+             y,
+             cz + math.sin(start + (end-start)*index/(count-1))*radius)
+            for index in range(count)]
+
+
 def root_for(identifier, color=None):
     collection = bpy.data.collections.new(f"MODEL_{identifier}")
     bpy.context.scene.collection.children.link(collection)
@@ -168,165 +273,307 @@ def root_for(identifier, color=None):
 
 
 def arrow(root, x=0, z=0, direction=1, role="accent", scale=1):
-    box(root, "arrow_shaft", (x, 0, z), (.26*scale, .34*scale, .85*scale), role)
-    cone(root, "arrow_head", (x, 0, z + direction*.62*scale), .42*scale, .62*scale, role,
-         direction="UP" if direction > 0 else "DOWN")
+    contour = [(-.18, -.62), (.18, -.62), (.18, .18), (.46, .18),
+               (0, .72), (-.46, .18), (-.18, .18)]
+    if direction < 0:
+        contour = [(px, -pz) for px, pz in reversed(contour)]
+    return polygon_prism(root, "direction_arrow", [(x + px*scale, z + pz*scale)
+                                                     for px, pz in contour],
+                         .3*scale, role, .055*scale)
 
 
 def build_speed(root):
-    arrow(root, -.38, -.08, 1, "glow", .78)
-    arrow(root, .38, .08, 1, "accent", .78)
-    box(root, "thruster_frame", (0, .04, -.72), (1.25, .38, .22), "frame")
-    cone(root, "exhaust_left", (-.38, 0, -1.0), .18, .46, "glow", direction="DOWN")
-    cone(root, "exhaust_right", (.38, 0, -1.0), .18, .46, "glow", direction="DOWN")
+    bolt = [(-.08, 1.15), (.62, 1.15), (.18, .26), (.62, .26),
+            (-.42, -1.15), (-.14, -.2), (-.58, -.2)]
+    trim = [(x * 1.12, z * 1.06) for x, z in bolt]
+    spine = [(x * .42 + .01, z * .74 + .08) for x, z in bolt]
+    polygon_prism(root, "lightning_trim", trim, .38, "frame", .08, loc=(0, .06, 0))
+    polygon_prism(root, "lightning_body", bolt, .34, "accent", .07, loc=(0, -.1, 0))
+    polygon_prism(root, "lightning_spine", spine, .08, "frame", .025, loc=(0, -.32, 0))
+    polygon_prism(root, "lightning_body_back", bolt, .08, "accent", .04, loc=(0, .29, 0))
+    polygon_prism(root, "lightning_spine_back", spine, .055, "frame", .018, loc=(0, .36, 0))
 
 
 def build_slow(root):
-    cylinder(root, "brake_disc", (0, 0, 0), .83, .28, "metal", 16, "Y")
-    cylinder(root, "brake_hub", (0, -.18, 0), .28, .22, "glow", 12, "Y")
-    for x in (-.78, .78):
-        box(root, "brake_pad", (x, 0, 0), (.33, .48, 1.12), "accent", .09)
-    box(root, "stop_bar", (0, -.31, .02), (1.22, .12, .2), "frame", .04)
+    foot = [(-1.02, -.5), (.72, -.5), (1.0, -.34), (.9, -.12),
+            (.4, -.04), (-.72, -.06), (-1.04, -.22)]
+    head = [(.52, -.08), (.88, -.02), (1.02, .24), (.95, .48),
+            (.62, .5), (.4, .3)]
+    polygon_prism(root, "snail_connected_foot", foot, .42, "accent", .09)
+    polygon_prism(root, "snail_head", head, .42, "accent", .08)
+    cylinder(root, "snail_spiral_shell", (-.25, 0, .28), .68, .46, "frame", 18, "Y")
+    tube_path(root, "snail_shell_spiral",
+              [(-.25 + math.cos(t)*(.52 - .055*t), -.27, .28 + math.sin(t)*(.52 - .055*t))
+               for t in [index*math.tau*1.55/15 for index in range(16)]],
+              .065, "accent")
+    for x in (.7, .96):
+        tube_path(root, "snail_antenna", [(x, 0, .4), (x+.04, 0, .72), (x+.1, 0, .86)], .045, "frame")
+        sphere(root, "snail_feeler", (x+.1, 0, .86), .085, "accent", (1, .8, 1))
 
 
 def build_trail(root, thin=False, gap=False):
-    width = .18 if thin else .62
     if gap:
-        for x in (-.72, .72):
-            box(root, "broken_trail", (x, 0, 0), (.72, .42, .42), "accent", .12)
-            box(root, "broken_core", (x, -.24, 0), (.5, .1, .2), "glow", .03)
-        for x, direction in ((-.27, -1), (.27, 1)):
-            cone(root, "fracture", (x, 0, 0), .2, .34, "frame", direction="DOWN" if direction < 0 else "UP")
+        left = [(-1.02, -.34), (-.2, -.34), (-.4, -.06), (-.18, .2), (-1.02, .2)]
+        right = [(1.02, -.34), (.2, -.34), (.4, -.06), (.18, .2), (1.02, .2)]
+        for name, contour in (("broken_trail_left", left), ("broken_trail_right", right)):
+            polygon_prism(root, name, contour, .42, "accent", .07)
+        box(root, "broken_trail_frame", (0, .08, -.07), (2.2, .22, .72), "metal", .1)
+        for x in (-.73, .73):
+            box(root, "broken_trail_highlight", (x, -.25, -.07), (.5, .07, .12), "frame", .025)
     else:
-        box(root, "trail_cartridge", (0, 0, 0), (1.72, .5, width), "accent", .12)
-        box(root, "trail_core", (0, -.3, 0), (1.3, .12, width*.45), "glow", .03)
-        for x in (-.78, .78):
-            cylinder(root, "cartridge_cap", (x, 0, 0), max(.15, width*.62), .18, "frame", 12, "X")
+        strip_height = .58 if not thin else .26
+        box(root, "trail_module_housing", (0, .08, 0), (2.05, .42, .9), "metal", .12)
+        box(root, "trail_raised_strip", (0, -.2, 0), (1.68, .18, strip_height), "accent", .07)
+        box(root, "trail_strip_back", (0, .31, 0), (1.68, .06, strip_height), "accent", .04)
+        arrow_group = bpy.data.objects.new("trailWidthArrowAssembly", None)
+        root.users_collection[0].objects.link(arrow_group)
+        arrow_group.parent = root
+        arrow_group["trailWidthArrowAssembly"] = True
+        arrow_group["trailArrowMode"] = "inward" if thin else "outward"
+        for face, face_y, view_sign in (("front", -.36, 1), ("back", .40, -1)):
+            for side, view_x in (("left", -.66), ("right", .66)):
+                # The rear is viewed along -Y, so its screen-space left/right axes are
+                # the inverse of Blender X. Mirror both placement and direction to keep
+                # THICK visibly expanding and THIN visibly contracting on either face.
+                x = view_x * view_sign
+                view_direction = (1 if side == "right" else -1) * (-1 if thin else 1)
+                world_direction = view_direction * view_sign
+                arrow_shape = [(-.2, -.12), (.03, -.12), (.03, -.25), (.28, 0),
+                               (.03, .25), (.03, .12), (-.2, .12)]
+                if world_direction < 0:
+                    arrow_shape = [(-px, pz) for px, pz in reversed(arrow_shape)]
+                arrow_obj = polygon_prism(
+                    root, f"trail_width_arrow_{face}_{side}",
+                    [(x+px, pz) for px, pz in arrow_shape],
+                    .075, "frame", .025, loc=(0, face_y, 0),
+                )
+                arrow_obj["trailArrowFace"] = face
+                arrow_obj["trailArrowSide"] = side
+                arrow_obj["trailArrowDirection"] = "right" if view_direction > 0 else "left"
+                arrow_obj["trailArrowWorldDirection"] = "right" if world_direction > 0 else "left"
+                arrow_obj.parent = arrow_group
+                arrow_obj.matrix_parent_inverse = arrow_group.matrix_world.inverted()
 
 
 def build_shield(root):
-    cylinder(root, "hex_shield", (0, 0, 0), .9, .32, "accent", 6, "Y")
-    cylinder(root, "hex_inset", (0, -.2, .02), .62, .12, "metal", 6, "Y")
-    box(root, "shield_spine", (0, -.3, -.05), (.16, .12, 1.05), "glow", .04)
-    box(root, "shield_chevron", (0, -.31, -.38), (.65, .1, .16), "frame", .04, rot=(0, .45, 0))
+    outer = [(-.88, .68), (-.55, 1.0), (.55, 1.0), (.88, .68),
+             (.72, -.32), (0, -1.12), (-.72, -.32)]
+    inner = [(-.69, .6), (-.45, .8), (.45, .8), (.69, .6),
+             (.56, -.24), (0, -.88), (-.56, -.24)]
+    polygon_prism(root, "shield_back", [(x*1.04, z*1.03) for x, z in outer], .42,
+                  "metal", .08, loc=(0, .08, 0))
+    polygon_prism(root, "shield_continuous_rim", outer, .34, "frame", .075, loc=(0, -.08, 0))
+    polygon_prism(root, "shield_armor", inner, .16, "accent", .06, loc=(0, -.27, .01))
+    polygon_prism(root, "shield_rim_back", outer, .08, "frame", .045, loc=(0, .34, 0))
+    polygon_prism(root, "shield_armor_back", inner, .07, "accent", .035, loc=(0, .41, .01))
 
 
 def build_health(root):
-    cylinder(root, "capsule", (0, 0, 0), .52, 1.25, "metal", 16, "Z")
-    sphere(root, "capsule_top", (0, 0, .63), .52, "frame", (1, .75, .55))
-    sphere(root, "capsule_bottom", (0, 0, -.63), .52, "accent", (1, .75, .55))
-    box(root, "cross_vertical", (0, -.5, 0), (.22, .12, .72), "glow", .05)
-    box(root, "cross_horizontal", (0, -.5, 0), (.72, .12, .22), "glow", .05)
+    box(root, "case_shadow", (0, .08, -.18), (1.92, .48, 1.34), "metal", .18)
+    box(root, "medical_case", (0, -.16, -.16), (1.78, .34, 1.2), "frame", .16)
+    box(root, "case_inset", (0, -.35, -.16), (1.48, .08, .91), "metal", .11)
+    for x in (-.46, .46):
+        box(root, "handle_post", (x, -.08, .72), (.22, .32, .62), "frame", .08)
+    box(root, "handle_grip", (0, -.08, .98), (1.05, .32, .2), "frame", .08)
+    box(root, "case_seam", (0, -.405, -.16), (1.42, .035, .07), "metal", .015)
+    box(root, "medical_cross_v", (0, -.43, -.15), (.25, .09, .68), "accent", .045)
+    box(root, "medical_cross_h", (0, -.43, -.15), (.68, .09, .25), "accent", .045)
+    box(root, "case_back_lid", (0, .37, -.16), (1.78, .08, 1.2), "frame", .14)
+    box(root, "case_back_inset", (0, .425, -.16), (1.48, .045, .91), "metal", .1)
+    box(root, "medical_cross_v_back", (0, .47, -.15), (.25, .07, .68), "accent", .04)
+    box(root, "medical_cross_h_back", (0, .47, -.15), (.68, .07, .25), "accent", .04)
 
 
 def build_turret(root, rocket=False):
-    cylinder(root, "turret_base", (0, 0, -.55), .72, .3, "metal", 12)
-    cylinder(root, "turret_ring", (0, 0, -.32), .52, .18, "accent", 12)
-    sphere(root, "turret_head", (0, 0, .08), .55, "frame", (1, .78, .75))
+    cylinder(root, "turret_stable_base", (0, 0, -.62), .76, .26, "metal", 16)
+    cylinder(root, "turret_swivel_ring", (0, 0, -.4), .55, .2, "accent", 16)
     if rocket:
-        for x in (-.25, .25):
-            cylinder(root, "rocket_tube", (x, -.68, .2), .18, 1.15, "accent", 12, "Y")
-            cylinder(root, "tube_muzzle", (x, -1.25, .2), .22, .12, "glow", 12, "Y")
+        box(root, "rocket_pod", (0, -.1, .06), (1.18, .72, .74), "frame", .14)
+        for x, z in ((-.3,-.08),(.3,-.08),(-.3,.25),(.3,.25)):
+            cylinder(root, "rocket_pod_tube", (x, -.5, z), .14, .3, "metal", 12, "Y")
+            cylinder(root, "rocket_pod_muzzle", (x, -.68, z), .105, .035, "glow", 12, "Y")
     else:
-        cylinder(root, "mg_barrel", (0, -.78, .2), .12, 1.5, "metal", 12, "Y")
-        cylinder(root, "mg_shroud", (0, -1.52, .2), .2, .28, "glow", 12, "Y")
-        box(root, "ammo_box", (.56, 0, -.06), (.35, .52, .5), "accent", .06)
+        box(root, "mg_swivel_head", (0, -.05, .08), (.92, .72, .68), "frame", .13)
+        cylinder(root, "mg_barrel", (0, -.88, .14), .105, 1.35, "metal", 14, "Y")
+        cylinder(root, "mg_barrel_jacket", (0, -.95, .14), .17, .54, "accent", 14, "Y")
+        cylinder(root, "mg_muzzle", (0, -1.58, .14), .15, .18, "metal", 14, "Y")
+        box(root, "mg_ammo_box", (.58, -.04, -.02), (.34, .58, .48), "accent", .07)
 
 
 def build_hourglass(root):
-    torus(root, "time_top", (0, 0, .72), .55, .09, "frame")
-    torus(root, "time_bottom", (0, 0, -.72), .55, .09, "frame")
-    cone(root, "upper_sand", (0, 0, .29), .4, .72, "accent", direction="DOWN")
-    cone(root, "lower_sand", (0, 0, -.29), .4, .72, "glow")
-    for x in (-.5, .5):
-        box(root, "time_post", (x, 0, 0), (.11, .22, 1.38), "metal", .04)
+    for z in (-.82, .82):
+        box(root, "hourglass_cap", (0, 0, z), (1.32, .42, .2), "frame", .07)
+    for x in (-.54, .54):
+        box(root, "hourglass_sidepost", (x, .02, 0), (.16, .34, 1.48), "metal", .055)
+    upper = [(-.43, .66), (.43, .66), (.17, .12), (.07, .02), (-.07, .02), (-.17, .12)]
+    lower = [(-.07, -.02), (.07, -.02), (.18, -.16), (.42, -.66), (-.42, -.66), (-.18, -.16)]
+    polygon_prism(root, "hourglass_upper_sand", upper, .26, "accent", .035)
+    polygon_prism(root, "hourglass_lower_sand", lower, .26, "accent", .035)
+    sphere(root, "hourglass_pinched_flow", (0, -.17, 0), .075, "glow", (1, .55, 1.5))
 
 
 def build_ghost(root):
-    sphere(root, "phase_body", (0, 0, .15), .75, "accent", (1, .7, 1.05))
-    for x in (-.48, 0, .48):
-        sphere(root, "phase_tail", (x, 0, -.58), .28, "glow", (1, .75, 1))
+    outline = [(-.72, -.68), (-.68, .25), (-.55, .7), (-.28, .96),
+               (0, 1.04), (.28, .96), (.55, .7), (.68, .25), (.72, -.68),
+               (.46, -.48), (.2, -.72), (0, -.48), (-.2, -.72), (-.46, -.48)]
+    polygon_prism(root, "classic_ghost_body", outline, .48, "accent", .1)
     for x in (-.25, .25):
-        sphere(root, "phase_eye", (x, -.55, .28), .11, "frame", (1, .45, 1))
-    torus(root, "phase_arc", (0, .15, .05), .9, .055, "glow", rot=(math.pi/2, .45, 0))
+        box(root, "ghost_recessed_eye", (x, -.3, .3), (.17, .06, .31), "metal", .06)
+        box(root, "ghost_recessed_eye_back", (-x, .3, .3), (.17, .06, .31), "metal", .06)
+    tube_path(root, "ghost_hem_highlight", [(-.55,-.3,-.47),(-.32,-.3,-.58),(0,-.3,-.48),
+                                             (.32,-.3,-.58),(.55,-.3,-.47)], .045, "frame")
 
 
 def build_fog(root):
-    for x, z, radius in ((-.62,-.15,.55),(0,.2,.72),(.66,-.1,.58),(-.18,-.52,.52),(.42,-.48,.48)):
-        sphere(root, "fog_lobe", (x, 0, z), radius, "frame", (1, .72, .8))
-    for x in (-.55, 0, .55):
-        box(root, "fog_scan", (x, -.58, -.72), (.42, .08, .09), "glow", .03)
+    for x, z, radius in ((-.68,-.1,.58),(-.25,.28,.72),(.3,.34,.76),(.72,-.08,.6),
+                         (-.35,-.42,.58),(.25,-.44,.62)):
+        sphere(root, "connected_cloud_lobe", (x, 0, z), radius, "matte", (1, .72, .82))
+    box(root, "cloud_connected_base", (0, 0, -.43), (1.62, .7, .42), "matte", .18)
+    tube_path(root, "cloud_silver_lining", [(-.78,-.42,-.3),(-.4,-.44,-.5),(0,-.44,-.42),
+                                              (.4,-.44,-.5),(.78,-.42,-.3)], .055, "frame")
 
 
 def build_crossed_arrows(root, swap=False):
     if swap:
-        arrow(root, -.45, 0, 1, "accent", .7)
-        arrow(root, .45, 0, -1, "glow", .7)
-        box(root, "swap_bridge", (0, .1, 0), (.75, .25, .16), "frame", .04)
+        top = [(-.92, .16), (-.3, .16), (-.06, .42), (.48, .42), (.48, .66),
+               (1.02, .28), (.48, -.1), (.48, .14), (.06, .14), (-.18, -.12), (-.92, -.12)]
+        bottom = [(-x, -z) for x, z in reversed(top)]
+        polygon_prism(root, "swap_interlock_top", top, .38, "accent", .065, loc=(0, -.04, 0))
+        polygon_prism(root, "swap_interlock_bottom", bottom, .38, "frame", .065, loc=(0, .04, 0))
+        tube_path(root, "swap_center_bridge", [(-.3,-.23,.1),(0,-.25,0),(.3,-.23,-.1)], .055, "metal")
     else:
-        first = box(root, "invert_arrow_a", (0, 0, 0), (.24, .34, 1.25), "accent", .06, rot=(0, .65, 0))
-        second = box(root, "invert_arrow_b", (0, .04, 0), (.24, .34, 1.25), "glow", .06, rot=(0, -.65, 0))
-        for x, z, direction in ((-.62,.48,1),(.62,.48,1),(-.62,-.48,-1),(.62,-.48,-1)):
-            cone(root, "invert_head", (x, 0, z), .28, .42, "frame", direction="UP" if direction > 0 else "DOWN")
+        contour = [(-.18, -.72), (.18, -.72), (.18, .22), (.45, .22),
+                   (0, .78), (-.45, .22), (-.18, .22)]
+        def rotated(points, angle):
+            cosine, sine = math.cos(angle), math.sin(angle)
+            return [(x*cosine + z*sine, -x*sine + z*cosine) for x, z in points]
+
+        polygon_prism(root, "invert_cross_arrow_a", rotated(contour, -.72), .3,
+                      "accent", .055, loc=(0, -.08, 0))
+        polygon_prism(root, "invert_cross_arrow_b", rotated(contour, .72), .3,
+                      "frame", .055, loc=(0, .08, 0))
+        cylinder(root, "invert_crossing_pin", (0, -.24, 0), .13, .07, "metal", 12, "Y")
 
 
 def build_emp(root):
-    cylinder(root, "emp_core", (0, 0, 0), .34, 1.15, "metal", 12)
-    for z, radius in ((-.55,.48),(-.25,.62),(.08,.68),(.4,.58),(.65,.42)):
-        torus(root, "emp_coil", (0, 0, z), radius, .075, "glow")
-    sphere(root, "emp_charge", (0, 0, .04), .22, "accent")
+    cylinder(root, "emp_impulse_puck", (0, 0, -.25), .78, .34, "metal", 18, "Y")
+    cylinder(root, "emp_raised_center", (0, -.22, -.25), .36, .16, "accent", 16, "Y")
+    cylinder(root, "emp_center_insert", (0, -.33, -.25), .17, .04, "glow", 14, "Y")
+    for radius in (.62, .96):
+        points = arc_points(radius, math.radians(22), math.radians(158), 7, -.27, (0, -.12))
+        tube_path(root, "emp_wave_arc", points, .065, "frame")
+        points_back = [(-x, .27, z) for x, _y, z in reversed(points)]
+        tube_path(root, "emp_wave_arc_back", points_back, .055, "frame")
 
 
 def build_magnet(root):
-    for x in (-.5, .5):
-        box(root, "magnet_leg", (x, 0, .25), (.38, .45, 1.18), "accent", .13)
-        box(root, "magnet_pole", (x, 0, .91), (.46, .52, .28), "frame", .08)
-    for i in range(5):
-        angle = math.pi + i * math.pi / 4
-        x, z = math.cos(angle)*.5, math.sin(angle)*.5 - .28
-        box(root, "magnet_curve", (x, 0, z), (.4, .44, .4), "accent", .12)
+    horseshoe = [(-.68,0,.72),(-.68,0,.1),(-.56,0,-.46),(-.28,0,-.76),
+                 (0,0,-.84),(.28,0,-.76),(.56,0,-.46),(.68,0,.1),(.68,0,.72)]
+    tube_path(root, "continuous_horseshoe", horseshoe, .22, "accent")
+    for x in (-.68, .68):
+        box(root, "magnet_pale_endcap", (x, 0, .78), (.5, .5, .28), "frame", .08)
+        box(root, "magnet_back_endcap", (x, .26, .78), (.42, .05, .21), "frame", .035)
+    tube_path(root, "magnet_inner_highlight",
+              [(-.48,-.2,.52),(-.46,-.2,-.2),(-.2,-.2,-.54),(0,-.2,-.61),
+               (.2,-.2,-.54),(.46,-.2,-.2),(.48,-.2,.52)], .045, "glow")
 
 
 def build_decoy(root):
-    for x, z, role in ((-.38,.18,"accent"),(.38,-.18,"glow")):
-        sphere(root, "decoy_body", (x, 0, z), .52, role, (1, .7, 1.15))
-        box(root, "decoy_fin", (x, 0, z-.52), (.68, .3, .18), "frame", .05)
-        sphere(root, "decoy_eye", (x, -.38, z+.12), .1, "frame", (1,.5,1))
-    box(root, "decoy_offset", (0, .18, 0), (.16, .18, 1.2), "metal", .04, rot=(0,.55,0))
+    aircraft = [(0, .78), (.2, .22), (.7, -.02), (.67, -.25), (.18, -.14),
+                (.28, -.72), (0, -.54), (-.28, -.72), (-.18, -.14), (-.67, -.25),
+                (-.7, -.02), (-.2, .22)]
+    front = [(x-.33, z+.2) for x, z in aircraft]
+    rear = [(x*.78+.46, z*.78-.3) for x, z in aircraft]
+    polygon_prism(root, "decoy_front_aircraft", front, .34, "accent", .055, loc=(0, -.12, 0))
+    tube_path(root, "decoy_rear_signal_outline", [(x,.2,z) for x,z in rear], .065, "frame", closed=True)
+    for radius in (.35, .55):
+        tube_path(root, "decoy_signal_arc", arc_points(radius, math.radians(205), math.radians(320), 6,
+                                                        .24, (.48,-.3)), .035, "glow")
 
 
 def build_purge(root):
-    for radius, rot in ((.45,(math.pi/2,0,0)),(.68,(math.pi/2,.65,0)),(.88,(math.pi/2,-.65,0))):
-        torus(root, "cleanse_ring", (0, 0, 0), radius, .07, "glow", rot)
-    sphere(root, "cleanse_core", (0, 0, 0), .25, "frame")
+    droplet = [(0, 1.02), (.22, .58), (.53, .08), (.62, -.3), (.5, -.66),
+               (.22, -.9), (0, -.96), (-.22, -.9), (-.5, -.66), (-.62, -.3),
+               (-.53, .08), (-.22, .58)]
+    rim = [(x*1.12, z*1.08) for x,z in droplet]
+    polygon_prism(root, "purge_droplet_rim", rim, .4, "frame", .08)
+    polygon_prism(root, "purge_droplet", droplet, .3, "accent", .07, loc=(0,-.12,0))
+    star = []
+    for index in range(10):
+        angle = math.pi/2 + index*math.pi/5
+        radius = .3 if index % 2 == 0 else .13
+        star.append((math.cos(angle)*radius, math.sin(angle)*radius-.18))
+    polygon_prism(root, "purge_clean_star", star, .055, "glow", .018, loc=(0,-.34,0))
+    polygon_prism(root, "purge_clean_star_back",
+                  [(-x, z) for x, z in reversed(star)], .05, "glow", .018,
+                  loc=(0,.34,0))
+    tube_path(root, "purge_gleam", [(-.22,-.33,.54),(-.34,-.34,.18),(-.29,-.34,-.15)], .055, "glow")
 
 
 def build_mine(root):
-    sphere(root, "mine_body", (0, 0, 0), .65, "metal")
-    cylinder(root, "mine_band", (0, 0, 0), .72, .2, "accent", 12, "Y")
+    lathe_profile(root, "mine_squat_armored_body",
+                  [(.48,-.48),(.7,-.28),(.76,0),(.7,.28),(.48,.48)], "metal", 18)
+    cylinder(root, "mine_armor_seam", (0, 0, 0), .78, .12, "accent", 18, "Y")
     for i in range(8):
         angle = i * math.tau / 8
-        x, z = math.cos(angle)*.88, math.sin(angle)*.88
-        spike = cone(root, "mine_spike", (x, 0, z), .18, .58, "frame")
-        spike.rotation_euler.y = angle + math.pi/2
-    sphere(root, "mine_trigger", (0, -.62, 0), .18, "glow", (1,.55,1))
+        direction = Vector((math.cos(angle), 0, math.sin(angle)))
+        center = direction * .88
+        spike = cone(root, "mine_short_radial_fuse", center, .13, .42, "frame", 10)
+        spike.rotation_euler = direction.to_track_quat("Z", "Y").to_euler()
+    cylinder(root, "mine_red_trigger", (0, -.57, .04), .2, .12, "glow", 14, "Y")
+
+
+def build_pilot_rocket(root, tier="HEAVY"):
+    marker_count = {"WEAK":0,"MEDIUM":1,"HEAVY":2,"MEGA":3}[tier]
+    size = {"WEAK":.82,"MEDIUM":.94,"HEAVY":1.06,"MEGA":1.2}[tier]
+    body_profile = [(.22*size, -.76*size), (.34*size, -.64*size), (.41*size, -.38*size),
+                    (.43*size, .24*size), (.39*size, .58*size)]
+    nose_profile = [(.39*size, .57*size), (.36*size, .7*size), (.29*size, .86*size),
+                    (.19*size, 1.0*size), (.08*size, 1.1*size), (.006*size, 1.14*size)]
+    nozzle_profile = [(.2*size, -1.04*size), (.33*size, -1.0*size), (.38*size, -.9*size),
+                      (.3*size, -.76*size), (.25*size, -.62*size)]
+    lathe_profile(root, "rocket_curved_body", body_profile, "accent", 20)
+    lathe_profile(root, "rocket_ogive_nose", nose_profile, "frame", 20)
+    nozzle_group = bpy.data.objects.new("rocketNozzleAssembly", None)
+    root.users_collection[0].objects.link(nozzle_group)
+    nozzle_group.parent = root
+    nozzle_group["rocketNozzleAssembly"] = True
+    nozzle = lathe_profile(root, "rocket_recessed_nozzle", nozzle_profile, "metal", 18,
+                           cap_start=False, cap_end=True)
+    nozzle["rocketNozzle"] = True
+    nozzle.parent = nozzle_group
+    nozzle.matrix_parent_inverse = nozzle_group.matrix_world.inverted()
+
+    fin_contour = [(0.2*size, -.35*size), (.76*size, -.72*size),
+                   (.68*size, -1.02*size), (.2*size, -.8*size)]
+    left_contour = [(-x, z) for x, z in reversed(fin_contour)]
+    polygon_prism(root, "rocket_fin_right", fin_contour, .13*size, "metal", .035)
+    polygon_prism(root, "rocket_fin_left", left_contour, .13*size, "metal", .035)
+    polygon_prism(root, "rocket_fin_front", fin_contour, .13*size, "metal", .035,
+                  rot=(0, 0, math.pi/2))
+    polygon_prism(root, "rocket_fin_back", left_contour, .13*size, "metal", .035,
+                  rot=(0, 0, math.pi/2))
+    glow = cylinder(root, "nozzle_glow", (0, 0, -.99*size), .145*size, .035*size,
+                    "glow", 16, "Z")
+    glow["rocketNozzleGlow"] = True
+    glow.parent = nozzle_group
+    glow.matrix_parent_inverse = nozzle_group.matrix_world.inverted()
+    marker_group = bpy.data.objects.new("rocketTierCollars", None)
+    root.users_collection[0].objects.link(marker_group)
+    marker_group.parent = root
+    marker_group["rocketTierCollars"] = True
+    marker_group["tierMarkerCount"] = marker_count
+    for i in range(marker_count):
+        marker = torus(root, "tier_collar", (0, 0, -.22*size + i*.32*size), .44*size,
+                       .045*size, "frame", rot=(0, 0, 0))
+        marker.parent = marker_group
+        marker.matrix_parent_inverse = marker_group.matrix_world.inverted()
+    root["rocketTier"] = tier
+    root["tierMarkers"] = marker_count
 
 
 def build_rocket(root, tier="WEAK"):
-    marker_count = {"WEAK":0,"MEDIUM":1,"HEAVY":2,"MEGA":3}[tier]
-    size = {"WEAK":.82,"MEDIUM":.94,"HEAVY":1.06,"MEGA":1.2}[tier]
-    cylinder(root, "rocket_body", (0, 0, 0), .27*size, 1.5*size, "accent", 14)
-    cone(root, "rocket_nose", (0, 0, 1.02*size), .3*size, .58*size, "frame")
-    cylinder(root, "rocket_exhaust", (0, 0, -.82*size), .2*size, .22*size, "metal", 12)
-    cone(root, "rocket_flame", (0, 0, -1.15*size), .18*size, .55*size, "glow", direction="DOWN")
-    for angle in (0, math.pi/2, math.pi, math.pi*1.5):
-        x, y = math.cos(angle)*.34*size, math.sin(angle)*.34*size
-        fin = box(root, "rocket_fin", (x, y, -.56*size), (.42*size,.12*size,.46*size), "metal", .04)
-        fin.rotation_euler.z = angle
-    for i in range(marker_count):
-        torus(root, "tier_marker", (0, 0, -.3*size + i*.3*size), .38*size, .055*size, "frame")
-    root["rocketTier"] = tier
-    root["tierMarkers"] = marker_count
+    build_pilot_rocket(root, tier)
 
 
 DIGITS = {
@@ -335,64 +582,160 @@ DIGITS = {
 }
 
 
-def label_bar(root, label, name, x, z, w, h, angle=0):
-    obj = box(root, name, (x, -.58, z), (w, .09, h), "frame", .025)
+def label_bar(root, label, name, x, y, z, w, h, angle=0):
+    obj = box(root, name, (x, y, z), (w, .07, h), "frame", 0)
     obj.rotation_euler.y = angle
     obj.parent = label
     obj.matrix_parent_inverse = label.matrix_world.inverted()
+    return obj
+
+
+def connector_box(root, name, start, end, width, depth, role="metal"):
+    """Create a closed box whose local Z axis joins two X/Z points."""
+    dx, dz = end[0] - start[0], end[1] - start[1]
+    length = math.hypot(dx, dz)
+    return box(
+        root, name, ((start[0] + end[0]) / 2, 0, (start[1] + end[1]) / 2),
+        (width, depth, length), role, 0,
+        rot=(0, math.atan2(dx, dz), 0),
+    )
+
+
+def build_fan_label_surface(root, label, count, side):
+    """Build one raised label, mirrored so the rear reads correctly from behind."""
+    front = side == "front"
+    mirror = 1 if front else -1
+    y = -.345 if front else .345
+    pieces = []
+    for x, z, w, h in (
+        (0, -.56, 1.55, .045), (0, -.84, 1.55, .045),
+        (-.775, -.70, .045, .32), (.775, -.70, .045, .32),
+    ):
+        pieces.append(label_bar(root, label, "label_border", mirror*x, y, z, w, h))
+    for angle in (-.72, .72):
+        pieces.append(label_bar(root, label, "multiply", mirror*-.52, y, -.565,
+                                .075, .32, mirror*angle))
+    for segment in DIGITS[count]:
+        horizontal = segment in ("t", "m", "b")
+        x = .37 if horizontal else (.20 if segment.startswith("l") else .54)
+        z = {"t":-.43, "m":-.565, "b":-.70}.get(
+            segment, -.497 if segment.endswith("t") else -.632,
+        )
+        pieces.append(label_bar(
+            root, label, "digit", mirror*x, y, z,
+            .34 if horizontal else .07, .07 if horizontal else .17,
+        ))
+    surface = join_meshes(pieces, f"weaponFanLabelSurface_{side}", label, "frame")
+    surface["weaponFanLabelSurface"] = True
+    surface["labelSide"] = side
+    surface["markerText"] = f"×{count}"
+    return surface
 
 
 def build_fan(root, count):
-    cylinder(root, "fan_hub", (0, 0, -.2), .48, .4, "metal", 12, "Y")
+    base = box(root, "fan_closed_base", (0, 0, -.56), (2.02, .62, .68), "metal", .12)
+    base["weaponFanClosedBase"] = True
+    cluster = bpy.data.objects.new("weaponFanProjectileCluster", None)
+    root.users_collection[0].objects.link(cluster)
+    cluster.parent = root
+    cluster["weaponFanProjectileCluster"] = True
+    cluster["projectileCount"] = count
+    projectiles = []
+    tips = []
+    connector_group = bpy.data.objects.new("weaponFanConnectorAssembly", None)
+    root.users_collection[0].objects.link(connector_group)
+    connector_group.parent = root
+    connector_group["weaponFanConnectorAssembly"] = True
+    connector_group["connectorCount"] = count
+    connectors = []
+    projectile_shape = [(-.12,-.38),(.12,-.38),(.15,.18),(0,.48),(-.15,.18)]
     for i in range(count):
-        angle = -.65 + 1.3 * i / (count-1)
-        x, z = math.sin(angle)*.88, math.cos(angle)*.88 - .12
-        shaft = box(root, "projectile_marker", (x, 0, z), (.13,.28,.72), "glow", .04)
-        shaft.rotation_euler.y = angle
-        cone_obj = cone(root, "projectile_tip", (math.sin(angle)*1.18, 0, math.cos(angle)*1.18-.12), .16, .36, "accent")
-        cone_obj.rotation_euler.y = angle
+        angle = -.62 + 1.24 * i / (count-1)
+        x, z = math.sin(angle)*.72, math.cos(angle)*.72 + .02
+        projectile = polygon_prism(root, "fan_stout_projectile", projectile_shape, .28,
+                                  "accent", .045, loc=(x, 0, z), rot=(0, angle, 0))
+        projectile.parent = cluster
+        projectile.matrix_parent_inverse = cluster.matrix_world.inverted()
+        projectiles.append(projectile)
+        tip = sphere(root, "fan_projectile_insert",
+                     (math.sin(angle)*.96, -.16, math.cos(angle)*.96+.02), .075,
+                     "glow", (1,.55,1), ring_count=7)
+        tip.parent = cluster
+        tip.matrix_parent_inverse = cluster.matrix_world.inverted()
+        tips.append(tip)
+        connector = connector_box(
+            root, "fan_projectile_connector",
+            (math.sin(angle)*.22, -.25),
+            (math.sin(angle)*.34, math.cos(angle)*.34+.02),
+            .13, .3,
+        )
+        connector.parent = connector_group
+        connector.matrix_parent_inverse = connector_group.matrix_world.inverted()
+        connectors.append(connector)
+    join_meshes(projectiles, "weaponFanProjectileGeometry", cluster, "accent")
+    join_meshes(tips, "weaponFanProjectileInsertGeometry", cluster, "glow")
+    connector_geometry = join_meshes(connectors, "weaponFanConnectorGeometry", connector_group, "metal")
+    connector_geometry["weaponFanConnectorGeometry"] = True
     label = bpy.data.objects.new("weaponFanLabel", None)
     root.users_collection[0].objects.link(label)
     label.parent = root
     label["weaponFanLabel"] = True
     label["markerText"] = f"×{count}"
-    for angle in (-.75, .75):
-        label_bar(root, label, "multiply", -.52, -1.1, .1, .5, angle)
-    segments = DIGITS[count]
-    for seg in segments:
-        horizontal = seg in ("t","m","b")
-        x = .38 if horizontal else (.18 if seg.startswith("l") else .58)
-        z = {"t":- .82,"m":-1.08,"b":-1.34}.get(seg, -.95 if seg.endswith("t") else -1.22)
-        label_bar(root, label, "digit", x, z, .42 if horizontal else .1, .1 if horizontal else .3)
+    build_fan_label_surface(root, label, count, "front")
+    build_fan_label_surface(root, label, count, "back")
     root["fanProjectiles"] = count
     root["markerText"] = f"×{count}"
 
 
 def build_legacy(root, identifier):
-    if identifier in ("item_arrow", "item_battery"):
-        arrow(root, 0, 0, 1, "accent", 1.0)
-        if identifier == "item_battery":
-            box(root, "battery_case", (0, .12, -.3), (.95,.46,1.35), "metal", .12)
+    if identifier == "item_arrow":
+        contour = [(-.2,-.7),(.2,-.7),(.2,.12),(.52,.12),(0,.78),(-.52,.12),(-.2,.12)]
+        polygon_prism(root, "legacy_arrow_frame", [(x*1.12,z*1.1) for x,z in contour], .4, "frame", .07)
+        polygon_prism(root, "legacy_arrow", contour, .28, "accent", .06, loc=(0,-.12,0))
+    elif identifier == "item_battery":
+        box(root, "battery_case", (0,0,-.06), (1.0,.48,1.45), "metal", .14)
+        box(root, "battery_face", (0,-.28,-.06), (.78,.08,1.18), "frame", .09)
+        box(root, "battery_terminal", (0,0,.76), (.42,.38,.2), "frame", .05)
+        for z in (-.42,-.07,.28):
+            box(root, "battery_charge_bar", (0,-.35,z), (.58,.06,.18), "accent", .04)
     elif identifier in ("item_box", "item_crate"):
-        box(root, "cargo_body", (0,0,0), (1.45,1.15,1.45), "accent", .16)
-        for angle in (-.72,.72): box(root,"cargo_brace",(0,-.62,0),(.16,.1,1.72),"frame",.03,rot=(0,angle,0))
+        box(root, "cargo_body", (0,0,0), (1.45,1.15,1.45), "metal", .16)
+        box(root, "cargo_front_panel", (0,-.62,0), (1.12,.08,1.12), "accent", .11)
+        for angle in (-.72,.72):
+            box(root,"cargo_brace",(0,-.69,0),(.16,.08,1.5),"frame",.03,rot=(0,angle,0))
     elif identifier == "item_capsule": build_health(root)
     elif identifier == "item_coin":
-        cylinder(root,"coin",(0,0,0),.82,.25,"accent",16,"Y"); cylinder(root,"coin_inset",(0,-.18,0),.52,.1,"glow",12,"Y")
+        cylinder(root,"coin_rim",(0,0,0),.82,.28,"frame",18,"Y")
+        cylinder(root,"coin_face",(0,-.19,0),.63,.08,"accent",18,"Y")
+        cylinder(root,"coin_back",(0,.19,0),.63,.08,"accent",18,"Y")
+        polygon_prism(root,"coin_chevron",[(-.18,-.32),(.28,0),(-.18,.32),(-.05,0)],.055,"metal",.02,loc=(0,-.27,0))
     elif identifier in ("item_crystal","item_gem"):
-        cone(root,"gem_upper",(0,0,.45),.72,1.25,"accent",8); cone(root,"gem_lower",(0,0,-.45),.72,.65,"glow",8,direction="DOWN")
+        gem = [(0,1.0),(.62,.42),(.5,-.45),(0,-1.0),(-.5,-.45),(-.62,.42)]
+        polygon_prism(root,"gem_frame",[(x*1.1,z*1.06) for x,z in gem],.46,"frame",.055)
+        polygon_prism(root,"gem_body",gem,.34,"accent",.045,loc=(0,-.1,0))
+        tube_path(root,"gem_facet",[(0,-.3,.86),(-.23,-.31,.25),(0,-.31,-.78),(.23,-.31,.25),(0,-.31,.86)],.025,"glow")
     elif identifier == "item_health": build_health(root)
     elif identifier in ("item_orb","item_sphere"):
-        sphere(root,"orb",(0,0,0),.78,"accent"); torus(root,"orb_band",(0,0,0),.86,.06,"frame",(math.pi/2,.55,0))
-    elif identifier == "item_pyramid": cone(root,"pyramid",(0,0,0),.92,1.75,"accent",4)
+        sphere(root,"orb_core",(0,0,0),.76,"accent")
+        torus(root,"orb_orbit_a",(0,0,0),.84,.055,"frame",(math.pi/2,.55,0))
+        torus(root,"orb_orbit_b",(0,0,0),.84,.04,"frame",(math.pi/2,-.55,0))
+    elif identifier == "item_pyramid":
+        cone(root,"pyramid_body",(0,0,0),.92,1.75,"accent",4)
+        box(root,"pyramid_base",(0,0,-.82),(1.42,1.42,.14),"frame",.04)
     elif identifier in ("item_ring","item_torus"):
-        torus(root,"ring",(0,0,0),.72,.2,"accent"); torus(root,"ring_core",(0,0,0),.72,.06,"glow")
+        torus(root,"ring_body",(0,0,0),.72,.2,"frame")
+        torus(root,"ring_core",(0,-.1,0),.72,.07,"accent")
     elif identifier == "item_rocket": build_rocket(root,"MEDIUM")
     elif identifier == "item_shield": build_shield(root)
     elif identifier == "item_star":
-        for angle in (0, math.pi/2, math.pi/4, -math.pi/4):
-            box(root,"star_ray",(0,0,0),(.28,.38,1.75),"accent",.06,rot=(0,angle,0))
-        sphere(root,"star_core",(0,-.12,0),.35,"glow",(1,.55,1))
+        star = []
+        for index in range(10):
+            angle = math.pi/2 + index*math.pi/5
+            radius = .92 if index % 2 == 0 else .42
+            star.append((math.cos(angle)*radius, math.sin(angle)*radius))
+        polygon_prism(root,"star_frame",[(x*1.1,z*1.1) for x,z in star],.42,"frame",.055)
+        polygon_prism(root,"star_body",star,.3,"accent",.045,loc=(0,-.12,0))
+        sphere(root,"star_core",(0,-.31,0),.2,"glow",(1,.45,1))
 
 
 def bounds(root):
@@ -433,9 +776,12 @@ def join_meshes(objects, name, parent, role):
 def consolidate(root):
     """Keep each pickup to four material batches plus the optional fan label batch."""
     label = next((child for child in root.children if child.get("weaponFanLabel") is True), None)
-    if label:
+    if label and not any(child.get("weaponFanLabelSurface") is True for child in label.children):
         join_meshes(list(label.children), "weaponFanLabelGeometry", label, "frame")
-    for role in ("metal", "frame", "accent", "glow"):
+    collar_group = next((child for child in root.children if child.get("rocketTierCollars") is True), None)
+    if collar_group:
+        join_meshes(list(collar_group.children), "rocketTierCollarGeometry", collar_group, "frame")
+    for role in ("metal", "frame", "accent", "glow", "matte"):
         role_objects = [obj for obj in root.children
                         if obj.type == "MESH" and obj.get("pickupMaterialRole") == role]
         join_meshes(role_objects, f"{root.name}_{role}", root, role)
@@ -454,7 +800,7 @@ def build_all():
         "DECOY": build_decoy, "PURGE": build_purge, "SWAP": lambda r: build_crossed_arrows(r, True),
         "MINE": build_mine, "ROCKET_WEAK": lambda r: build_rocket(r,"WEAK"),
         "ROCKET_MEDIUM": lambda r: build_rocket(r,"MEDIUM"),
-        "ROCKET_HEAVY": lambda r: build_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"),
+        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"),
     }
     for identifier, builder in builders.items():
         root = root_for(identifier, COLORS[identifier])
@@ -484,77 +830,152 @@ def aim(obj, target=(0,0,0)):
     obj.rotation_euler = (Vector(target) - obj.location).to_track_quat("-Z", "Y").to_euler()
 
 
-def render_preview(args):
-    args.preview_dir.mkdir(parents=True, exist_ok=True)
-    active = list(SEMANTIC_BASELINES)
-    for i, identifier in enumerate(active):
-        col, row = i % 7, i // 7
-        root = ROOTS[identifier]
-        root.location = ((col - 3) * 5.4, 0, (1.5 - row) * 5.0)
-        root.scale = tuple(value * .72 for value in root.scale)
-        root.rotation_euler.z = -.18 if i % 2 else .18
-        preview_color = COLORS[identifier]
-        preview_accent = material(f"Preview_{identifier}_Accent", preview_color, .55, .24, .25)
-        preview_glow = material(f"Preview_{identifier}_Glow", preview_color, .18, .18, 1.1)
-        for obj in root.children_recursive:
-            if obj.type != "MESH":
-                continue
-            role = obj.get("pickupMaterialRole", "")
-            if role in ("accent", "glow"):
-                obj.data.materials.clear()
-                obj.data.materials.append(preview_glow if role == "glow" else preview_accent)
+def apply_preview_color(root, identifier, color):
+    preview_accent = material(f"Preview_{identifier}_Accent", color, .15, .32, .08)
+    preview_glow = material(f"Preview_{identifier}_Glow", color, .08, .24, .6)
+    preview_matte = material(f"Preview_{identifier}_Matte", color, .04, .72, .01)
+    for obj in root.children_recursive:
+        if obj.type != "MESH":
+            continue
+        role = obj.get("pickupMaterialRole", "")
+        if role in ("accent", "glow", "matte"):
+            obj.data.materials.clear()
+            preview_material = preview_glow if role == "glow" else preview_matte if role == "matte" else preview_accent
+            obj.data.materials.append(preview_material)
 
-        bpy.ops.object.text_add(location=(root.location.x, -1.15, root.location.z - 2.0), rotation=(math.pi/2,0,0))
+
+def render_overview(args):
+    preview_objects = []
+    identifiers = list(SEMANTIC_BASELINES) + list(LEGACY_EXTENTS)
+    legacy_palette = ((.208,.851,1,1), (.267,1,.533,1), (1,.769,.278,1), (.706,.412,1,1))
+    for index, identifier in enumerate(identifiers):
+        column, row = index % 7, index // 7
+        root = ROOTS[identifier]
+        target = float(root.get("targetLargestDimension", 1))
+        presentation_scale = 2.35 / target
+        root.scale = tuple(value * presentation_scale for value in root.scale)
+        root.location = ((column - 3) * 4.2, 0, (3 - row) * 4.2 + .35)
+        root.hide_render = False
+        for obj in root.children_recursive:
+            obj.hide_render = False
+        color = COLORS.get(identifier, legacy_palette[(index-len(SEMANTIC_BASELINES)) % len(legacy_palette)])
+        apply_preview_color(root, identifier, color)
+        bpy.ops.object.text_add(location=(root.location.x, -1.0, root.location.z - 1.72),
+                                rotation=(math.pi/2,0,0))
         label = bpy.context.object
-        label.data.body = identifier.replace("ROCKET_", "R_").replace("_TURRET", "_TUR")
+        label.name = f"overview_label_{identifier}"
+        label.data.body = identifier
         label.data.align_x = "CENTER"
         label.data.align_y = "CENTER"
-        label.data.size = .38
-        label.data.extrude = .012
+        label.data.size = .26 if len(identifier) < 15 else .21
+        label.data.extrude = .01
         label.data.materials.append(MATS["frame"])
-    for identifier in LEGACY_EXTENTS:
-        ROOTS[identifier].hide_render = True
-        for obj in ROOTS[identifier].children_recursive:
-            obj.hide_render = True
+        preview_objects.append(label)
 
-    bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 1.25, -10.3), rotation=(math.pi/2,0,0))
+    bpy.ops.mesh.primitive_plane_add(size=60, location=(0, 1.4, 0), rotation=(math.pi/2,0,0))
     backdrop = bpy.context.object
-    backdrop.data.materials.append(material("Preview_Backdrop", (.012,.02,.035,1), .1, .42))
+    backdrop.name = "overview_backdrop"
+    backdrop.data.materials.append(material("Overview_Backdrop", (.018,.035,.06,1), .02, .58))
+    preview_objects.append(backdrop)
 
-    bpy.ops.object.camera_add(location=(0, -46, 4.0))
+    bpy.ops.object.camera_add(location=(0, -42, 0))
     camera = bpy.context.object
     camera.data.type = "ORTHO"
-    camera.data.ortho_scale = 39
-    aim(camera, (0,0,-1.2))
+    camera.data.ortho_scale = 35.5
+    aim(camera, (0,0,0))
     bpy.context.scene.camera = camera
+    preview_objects.append(camera)
 
-    bpy.ops.object.light_add(type="AREA", location=(-12,-12,15))
-    bpy.context.object.data.energy = 1900
-    bpy.context.object.data.shape = "DISK"
-    bpy.context.object.data.size = 12
-    aim(bpy.context.object, (0,0,0))
-    bpy.ops.object.light_add(type="AREA", location=(14,-5,5))
-    bpy.context.object.data.energy = 1200
-    bpy.context.object.data.size = 10
-    aim(bpy.context.object, (0,0,0))
+    for location, energy, size, color in (
+        ((-12,-12,16), 1700, 10, (1,.9,.78)),
+        ((14,-8,8), 1350, 9, (.52,.7,1)),
+        ((0,3,14), 1500, 10, (.4,.6,1)),
+    ):
+        bpy.ops.object.light_add(type="AREA", location=location)
+        light = bpy.context.object
+        light.data.energy = energy
+        light.data.size = size
+        light.data.color = color
+        aim(light, (0,0,0))
+        preview_objects.append(light)
 
     scene = bpy.context.scene
-    scene.render.engine = "BLENDER_WORKBENCH"
-    scene.display.shading.light = "STUDIO"
-    scene.display.shading.studio_light = "basic.sl"
-    scene.display.shading.color_type = "MATERIAL"
-    scene.display.shading.show_shadows = False
-    scene.display.shading.show_cavity = True
-    scene.display.shading.cavity_type = "WORLD"
-    scene.display.shading.background_type = "VIEWPORT"
-    scene.display.shading.background_color = (.018, .028, .05)
-    scene.render.resolution_x = 1800
-    scene.render.resolution_y = 1150
+    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.render.resolution_x = 2400
+    scene.render.resolution_y = 2100
     scene.render.resolution_percentage = 100
     scene.render.image_settings.file_format = "PNG"
-    scene.render.filepath = str(args.preview_dir / "pickup-library-overview.png")
+    scene.render.filepath = str(args.preview_dir / "pickup-library-pbr-v2.png")
     scene.render.film_transparent = False
-    scene.world.color = (.008,.012,.025)
+    scene.world.use_nodes = True
+    background = scene.world.node_tree.nodes.get("Background")
+    background.inputs["Color"].default_value = (.006,.014,.03,1)
+    background.inputs["Strength"].default_value = .24
+    scene.view_settings.look = "AgX - Medium High Contrast"
+    bpy.ops.render.render(write_still=True)
+    for obj in preview_objects:
+        obj.hide_render = True
+
+
+def render_preview(args):
+    args.preview_dir.mkdir(parents=True, exist_ok=True)
+    pilots = ["SPEED_UP", "SHIELD", "HEALTH", "ROCKET_HEAVY"]
+    for identifier, root in ROOTS.items():
+        hidden = identifier not in pilots
+        root.hide_render = hidden
+        for obj in root.children_recursive:
+            obj.hide_render = hidden
+
+    for i, identifier in enumerate(pilots):
+        root = ROOTS[identifier]
+        root.location = ((i - 1.5) * 3.7, 0, .15)
+        apply_preview_color(root, identifier, COLORS[identifier])
+
+        bpy.ops.object.text_add(location=(root.location.x, -1.1, -2.18), rotation=(math.pi/2,0,0))
+        label = bpy.context.object
+        label.data.body = identifier
+        label.data.align_x = "CENTER"
+        label.data.align_y = "CENTER"
+        label.data.size = .3
+        label.data.extrude = .012
+        label.data.materials.append(MATS["frame"])
+    bpy.ops.mesh.primitive_plane_add(size=40, location=(0, 0, -2.35))
+    floor = bpy.context.object
+    floor.data.materials.append(material("Preview_Floor", (.025, .045, .075, 1), .05, .52))
+
+    bpy.ops.object.camera_add(location=(0, -22, 4.0))
+    camera = bpy.context.object
+    camera.data.type = "ORTHO"
+    camera.data.ortho_scale = 15.5
+    aim(camera, (0,0,0))
+    bpy.context.scene.camera = camera
+
+    for location, energy, size, color in (
+        ((-7, -9, 11), 1150, 7, (1.0, .91, .8)),
+        ((8, -4, 6), 900, 6, (.55, .72, 1.0)),
+        ((0, 4, 9), 1200, 5, (.35, .58, 1.0)),
+    ):
+        bpy.ops.object.light_add(type="AREA", location=location)
+        light = bpy.context.object
+        light.data.energy = energy
+        light.data.shape = "DISK"
+        light.data.size = size
+        light.data.color = color
+        aim(light, (0,0,0))
+
+    scene = bpy.context.scene
+    scene.render.engine = "BLENDER_EEVEE_NEXT"
+    scene.render.resolution_x = 1600
+    scene.render.resolution_y = 900
+    scene.render.resolution_percentage = 100
+    scene.render.image_settings.file_format = "PNG"
+    scene.render.filepath = str(args.preview_dir / "pickup-pilot-pbr-series.png")
+    scene.render.film_transparent = False
+    scene.world.use_nodes = True
+    background = scene.world.node_tree.nodes.get("Background")
+    background.inputs["Color"].default_value = (.008, .018, .035, 1)
+    background.inputs["Strength"].default_value = .28
+    scene.view_settings.look = "AgX - Medium High Contrast"
     bpy.ops.render.render(write_still=True)
 
 
@@ -564,10 +985,12 @@ def main():
     make_materials()
     build_all()
     export_assets(args)
+    render_overview(args)
     render_preview(args)
     print(f"PICKUP_LIBRARY_BLEND={args.output_blend}")
     print(f"PICKUP_LIBRARY_GLB={args.output_glb}")
-    print(f"PICKUP_LIBRARY_PREVIEW={args.preview_dir / 'pickup-library-overview.png'}")
+    print(f"PICKUP_LIBRARY_OVERVIEW={args.preview_dir / 'pickup-library-pbr-v2.png'}")
+    print(f"PICKUP_LIBRARY_PREVIEW={args.preview_dir / 'pickup-pilot-pbr-series.png'}")
 
 
 if __name__ == "__main__":
