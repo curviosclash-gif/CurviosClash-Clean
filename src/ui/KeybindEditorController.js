@@ -1,3 +1,4 @@
+import { renderGamepadBindingEditor } from './GamepadBindingEditor.js';
 import { GLOBAL_KEY_BIND_ACTIONS, KEY_BIND_ACTIONS } from './KeybindActionCatalog.js';
 import { formatKeyCode } from './KeybindLabels.js';
 import { createRuntimeAccess } from '../shared/runtime/RuntimeAccessFactory.js';
@@ -44,6 +45,10 @@ export function createKeybindEditorRuntimeAccess(runtime) {
         actionOnSettingsChanged,
         actionApplyPauseBindings,
         actionShowStatusToast,
+        actionSaveControllerSettings() {
+            game?._saveSettings?.();
+            return game?.settingsDirty === false;
+        },
         // Backward-compatible aliases for transitional call sites.
         ensurePlayerControls: actionEnsurePlayerControls,
         onSettingsChanged: actionOnSettingsChanged,
@@ -67,6 +72,7 @@ export class KeybindEditorController {
         this.renderKeybindRows('PLAYER_2', ui?.keybindP2, KEY_BIND_ACTIONS, conflicts);
         this.renderKeybindRows('GLOBAL', ui?.keybindGlobal, GLOBAL_KEY_BIND_ACTIONS, conflicts);
         this.updateKeyConflictWarning(conflicts);
+        renderGamepadBindingEditor(ui?.keybindGlobal, this.runtimeAccess);
     }
 
     renderPauseEditor() {
@@ -75,6 +81,7 @@ export class KeybindEditorController {
         this.renderKeybindRows('PLAYER_1', ui?.pauseKeybindP1, KEY_BIND_ACTIONS, conflicts);
         this.renderKeybindRows('PLAYER_2', ui?.pauseKeybindP2, KEY_BIND_ACTIONS, conflicts);
         this._updateWarningElement(ui?.pauseKeybindWarning, conflicts);
+        renderGamepadBindingEditor(ui?.pauseKeybindP2, this.runtimeAccess);
     }
 
     renderKeybindRows(playerKey, container, actions, conflicts) {

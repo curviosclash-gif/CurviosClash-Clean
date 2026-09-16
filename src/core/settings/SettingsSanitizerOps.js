@@ -1,3 +1,4 @@
+import { createGamepadControlsSnapshot } from '../../shared/contracts/GamepadControlsContract.js';
 import { CONFIG } from '../Config.js';
 import { CUSTOM_MAP_KEY } from '../../entities/MapSchema.js';
 import {
@@ -154,6 +155,7 @@ function applyControlAndMediaSanitization({ merged, src, defaults }) {
     merged.controls.PLAYER_1 = normalizeControlBindings(src?.controls?.PLAYER_1, defaults.controls.PLAYER_1, { guardCombatConflicts: true });
     merged.controls.PLAYER_2 = normalizeControlBindings(src?.controls?.PLAYER_2, defaults.controls.PLAYER_2, { guardCombatConflicts: true });
     merged.controls.GLOBAL = normalizeGlobalControlBindings(src?.controls?.GLOBAL, defaults.controls.GLOBAL);
+    Object.assign(merged.controls, createGamepadControlsSnapshot(src?.controls));
 }
 
 function applyMenuContractPayloadSanitization({ merged, src }) {

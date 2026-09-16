@@ -1,4 +1,6 @@
 import { resolveInventoryActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
+import { createGamepadInputSource } from '../shared/input/GamepadInputSource.js';
+import { isGamepadInputEnabled } from '../shared/contracts/GamepadControlsContract.js';
 import {
     FOUR_PLAYER_PLANAR_KEY_BINDINGS,
     FOUR_PLAYER_PLANAR_MODES,
@@ -17,6 +19,8 @@ function resetInput(input) {
     input.rollRight = false;
     input.boost = false;
     input.boostPressed = false;
+    input.slowMo = false;
+    input.slowMoPressed = false;
     input.cameraSwitch = false;
     input.dropItem = false;
     input.useItem = false;
@@ -59,33 +63,48 @@ export function createFourPlayerPlanarInputSource({
     const resolvedRollBinding = rollBinding || FOUR_PLAYER_PLANAR_ROLL_BINDINGS[playerIndex];
     if (!inputManager || !binding || !resolvedRollBinding) return null;
     const output = resetInput({});
+    const gamepad = createGamepadInputSource(
+        playerIndex,
+        () => inputManager.gamepadControls?.[`GAMEPAD_${playerIndex + 1}`],
+        () => isGamepadInputEnabled(inputManager.gamepadControls)
+    );
 
     return {
         type: 'four-player-planar-keyboard',
         playerIndex: -1,
         active: false,
         bind(index) {
+            gamepad.bind(index);
             this.playerIndex = index;
             this.active = true;
         },
         unbind() {
+            gamepad.unbind();
             this.playerIndex = -1;
             this.active = false;
             resetInput(output);
         },
         clearInputState() {
+            gamepad.clearInputState();
             resetInput(output);
         },
         poll() {
             resetInput(output);
             if (!this.active) return output;
+            const controllerInput = gamepad.poll();
             output.yawLeft = inputManager.isDown(binding.left);
             output.yawRight = inputManager.isDown(binding.right);
             output.yawAxis = (output.yawLeft ? 1 : 0) - (output.yawRight ? 1 : 0);
             output.rollLeft = inputManager.isDown(resolvedRollBinding.left);
             output.rollRight = inputManager.isDown(resolvedRollBinding.right);
             output.rollAxis = (output.rollLeft ? 1 : 0) - (output.rollRight ? 1 : 0);
-            if (inputManager.wasPressed(binding.action)) {
+            if (controllerInput) {
+                output.yawLeft = controllerInput.yawLeft; output.yawRight = controllerInput.yawRight;
+                output.yawAxis = controllerInput.yawAxis;
+                output.rollLeft = controllerInput.rollLeft; output.rollRight = controllerInput.rollRight;
+                output.rollAxis = controllerInput.rollAxis;
+            }
+            if (inputManager.wasPressed(binding.action) || controllerInput?.useItem || controllerInput?.shootRocket) {
                 const action = resolveFourPlayerPlanarContextAction(
                     typeof getPlayer === 'function' ? getPlayer() : null,
                     typeof getMode === 'function' ? getMode() : FOUR_PLAYER_PLANAR_MODES.CLASSIC
@@ -97,6 +116,7 @@ export function createFourPlayerPlanarInputSource({
             return output;
         },
         dispose() {
+            gamepad.dispose();
             this.unbind();
         },
     };

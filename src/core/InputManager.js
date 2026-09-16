@@ -2,6 +2,7 @@
 // InputManager.js - keyboard input and dynamic bindings
 // ============================================
 
+import { GamepadPauseInput } from '../shared/input/GamepadInputSource.js';
 import { CONFIG } from './Config.js';
 
 const ACTION_KEYS = [
@@ -12,6 +13,7 @@ const ACTION_KEYS = [
     'ROLL_LEFT',
     'ROLL_RIGHT',
     'BOOST',
+    'SLOWMO',
     'SHOOT',
     'SHOOT_MG',
     'NEXT_ITEM',
@@ -32,6 +34,8 @@ function deepClone(obj) {
 
 export class InputManager {
     constructor() {
+        this._gamepadPause = new GamepadPauseInput();
+        this._gamepadPause.setBindings();
         this.keys = {};
         this.justPressed = {};
         this.bindings = deepClone(CONFIG.KEYS);
@@ -47,6 +51,8 @@ export class InputManager {
             rollRight: false,
             boost: false,
             boostPressed: false,
+            slowMo: false,
+            slowMoPressed: false,
             cameraSwitch: false,
             dropItem: false,
             useItem: false,
@@ -103,6 +109,8 @@ export class InputManager {
     }
 
     setBindings(bindingsByPlayer) {
+        this.gamepadControls = bindingsByPlayer;
+        this._gamepadPause?.setBindings(bindingsByPlayer);
         this.bindings = {
             PLAYER_1: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_1, CONFIG.KEYS.PLAYER_1),
             PLAYER_2: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_2, CONFIG.KEYS.PLAYER_2),
@@ -193,11 +201,12 @@ export class InputManager {
     }
 
     wasPressed(code) {
+        const controllerPressed = code === 'Escape' && this._gamepadPause?.wasPressed() === true;
         if (this.justPressed[code]) {
             this.justPressed[code] = false;
             return true;
         }
-        return false;
+        return controllerPressed;
     }
 
     clearJustPressed() {
@@ -205,6 +214,8 @@ export class InputManager {
     }
 
     clearInputState(_reason = 'manual') {
+        // Optional: tests build InputManager from its prototype without the constructor.
+        this._gamepadPause?.clearInputState();
         this.keys = {};
         this.justPressed = {};
         for (const source of this._playerSources.values()) {
@@ -221,6 +232,8 @@ export class InputManager {
         inputObj.rollRight = false;
         inputObj.boost = false;
         inputObj.boostPressed = false;
+        inputObj.slowMo = false;
+        inputObj.slowMoPressed = false;
         inputObj.cameraSwitch = false;
         inputObj.dropItem = false;
         inputObj.useItem = false;
@@ -307,6 +320,8 @@ export class InputManager {
         this._reuseInput.rollRight = this._isActionDown(keyMap.ROLL_RIGHT, altKeyMap?.ROLL_RIGHT || '');
         this._reuseInput.boost = this._isActionDown(keyMap.BOOST, altKeyMap?.BOOST || '');
         this._reuseInput.boostPressed = this._wasActionPressed(keyMap.BOOST, altKeyMap?.BOOST || '');
+        this._reuseInput.slowMo = this._isActionDown(keyMap.SLOWMO, altKeyMap?.SLOWMO || '');
+        this._reuseInput.slowMoPressed = this._wasActionPressed(keyMap.SLOWMO, altKeyMap?.SLOWMO || '');
         this._reuseInput.cameraSwitch = this._wasActionPressed(keyMap.CAMERA, altKeyMap?.CAMERA || '');
         this._reuseInput.useItem = this._wasActionPressed(keyMap.USE_ITEM, altKeyMap?.USE_ITEM || '');
         // The shoot key fires the next queued rocket; every item action runs through USE_ITEM.

@@ -33,6 +33,18 @@ export const CONFIG_SECTIONS = {
         BOOST_MULTIPLIER: 2.3,
         BOOST_DURATION: 4.0,
         BOOST_COOLDOWN: 5.0,
+        // Slow motion is a second reserve next to boost (see PlayerChargeOps):
+        // SLOWMO_DURATION counts REAL seconds of held slow motion, while
+        // SLOWMO_COOLDOWN counts GAME seconds to refill without any bonus.
+        // SLOWMO_TIME_SCALE is the global clock factor while the key is held, and the
+        // two bonus factors are the mutual speed-up between the two reserves.
+        // Bullet time: whoever holds the key keeps moving in real time, everybody and
+        // everything else runs at SLOWMO_TIME_SCALE.
+        SLOWMO_DURATION: 3.0,
+        SLOWMO_COOLDOWN: 8.0,
+        SLOWMO_TIME_SCALE: 0.4,
+        SLOWMO_BOOST_RECHARGE_BONUS: 2,
+        BOOST_SLOWMO_RECHARGE_BONUS: 2,
         SPAWN_PROTECTION: 1.0,
         HITBOX_RADIUS: 0.8,
         MODEL_SCALE: 1.0,
@@ -346,6 +358,7 @@ export const CONFIG_SECTIONS = {
             ROLL_LEFT: 'KeyQ',
             ROLL_RIGHT: 'KeyE',
             BOOST: 'ShiftLeft',
+            SLOWMO: 'KeyV',
             SHOOT: 'KeyF',
             SHOOT_MG: 'KeyX',
             NEXT_ITEM: 'KeyR',
@@ -360,6 +373,7 @@ export const CONFIG_SECTIONS = {
             ROLL_LEFT: 'Numpad7',
             ROLL_RIGHT: 'Numpad9',
             BOOST: 'ArrowRight',
+            SLOWMO: 'Numpad0',
             SHOOT: 'ArrowUp',
             SHOOT_MG: 'ArrowDown',
             NEXT_ITEM: 'ArrowLeft',

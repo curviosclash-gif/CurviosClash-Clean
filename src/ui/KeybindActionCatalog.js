@@ -6,6 +6,7 @@ export const KEY_BIND_ACTIONS = [
     { label: 'Rollen Links', key: 'ROLL_LEFT' },
     { label: 'Rollen Rechts', key: 'ROLL_RIGHT' },
     { label: 'Boost', key: 'BOOST' },
+    { label: 'Zeitlupe', key: 'SLOWMO' },
     { label: 'Rakete abfeuern', key: 'SHOOT' },
     { label: 'MG Schiessen', key: 'SHOOT_MG' },
     { label: 'Item nutzen', key: 'USE_ITEM' },

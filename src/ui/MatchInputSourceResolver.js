@@ -1,18 +1,14 @@
+import { createGamepadInputSource } from '../shared/input/GamepadInputSource.js';
+import { isGamepadInputEnabled, resolveSplitscreenInputDevice } from '../shared/contracts/GamepadControlsContract.js';
 import { TOUCH_CONTROL_MODES, TouchInputSource } from './TouchInputSource.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
 
-const GAMEPAD_DEADZONE = 0.15;
 const MOUSE_STEERING_DEADZONE = 0.08;
-const GAMEPAD_MAPPING = Object.freeze({
-    pitchAxis: 1,
-    yawAxis: 0,
-    rollAxis: 2,
-    fireButton: 7,
-    boostButton: 0,
-    shootMGButton: 6,
-    nextItemButton: 3,
-    useItemButton: 2,
-    cameraButton: 1,
+const DISCONNECTED_CONTROLLER_INPUT = Object.freeze({
+    pitchAxis: 0, yawAxis: 0, rollAxis: 0,
+    pitchUp: false, pitchDown: false, yawLeft: false, yawRight: false, rollLeft: false, rollRight: false,
+    boost: false, boostPressed: false, slowMo: false, slowMoPressed: false, cameraSwitch: false,
+    useItem: false, nextItem: false, shootMG: false, shootRocket: false, shootItem: false, dropItem: false,
 });
 
 function isMobileClassicTarget(game = null) {
@@ -56,80 +52,6 @@ function createKeyboardInputSource(inputManager, includeSecondaryBindings = fals
             return inputManager.getKeyboardInput(inputPlayerIndex, { includeSecondaryBindings });
         },
         dispose() {
-            this.unbind();
-        },
-    };
-}
-
-function createGamepadInputSource(gamepadIndex = 0) {
-    return {
-        type: 'gamepad',
-        playerIndex: -1,
-        active: false,
-        gamepadIndex,
-        deadzone: GAMEPAD_DEADZONE,
-        _prevButtons: {},
-        bind(playerIndex) {
-            this.playerIndex = playerIndex;
-            this.active = true;
-        },
-        unbind() {
-            this.playerIndex = -1;
-            this.active = false;
-        },
-        _getGamepad() {
-            if (typeof navigator === 'undefined' || typeof navigator.getGamepads !== 'function') return null;
-            return navigator.getGamepads()[this.gamepadIndex] || null;
-        },
-        isConnected() {
-            return !!this._getGamepad();
-        },
-        _axis(value) {
-            return Math.abs(value) >= this.deadzone ? value : 0;
-        },
-        _buttonDown(gamepad, buttonIndex) {
-            if (!gamepad || buttonIndex < 0 || buttonIndex >= gamepad.buttons.length) return false;
-            return gamepad.buttons[buttonIndex].pressed === true;
-        },
-        _buttonPressed(gamepad, buttonIndex) {
-            const down = this._buttonDown(gamepad, buttonIndex);
-            const wasDown = !!this._prevButtons[buttonIndex];
-            this._prevButtons[buttonIndex] = down;
-            return down && !wasDown;
-        },
-        poll() {
-            const gamepad = this._getGamepad();
-            if (!gamepad) {
-                return null;
-            }
-
-            const pitch = this._axis(gamepad.axes[GAMEPAD_MAPPING.pitchAxis] || 0);
-            const yaw = this._axis(gamepad.axes[GAMEPAD_MAPPING.yawAxis] || 0);
-            const roll = this._axis(gamepad.axes[GAMEPAD_MAPPING.rollAxis] || 0);
-
-            return {
-                pitchUp: pitch < -this.deadzone,
-                pitchDown: pitch > this.deadzone,
-                yawLeft: yaw < -this.deadzone,
-                yawRight: yaw > this.deadzone,
-                rollLeft: roll < -this.deadzone,
-                rollRight: roll > this.deadzone,
-                pitchAxis: -pitch,
-                yawAxis: -yaw,
-                rollAxis: -roll,
-                boost: this._buttonDown(gamepad, GAMEPAD_MAPPING.boostButton),
-                boostPressed: this._buttonPressed(gamepad, GAMEPAD_MAPPING.boostButton),
-                cameraSwitch: this._buttonPressed(gamepad, GAMEPAD_MAPPING.cameraButton),
-                dropItem: false,
-                useItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.useItemButton),
-                shootItem: false,
-                shootRocket: this._buttonPressed(gamepad, GAMEPAD_MAPPING.fireButton),
-                shootMG: this._buttonDown(gamepad, GAMEPAD_MAPPING.shootMGButton),
-                nextItem: this._buttonPressed(gamepad, GAMEPAD_MAPPING.nextItemButton),
-            };
-        },
-        dispose() {
-            this._prevButtons = {};
             this.unbind();
         },
     };
@@ -335,6 +257,22 @@ export function createPreferredMatchInputSource({
     const resolvedInputDeviceIndex = Number.isInteger(inputDeviceIndex)
         ? Math.max(0, inputDeviceIndex)
         : Math.max(0, Number(inputDeviceIndex) || 0);
+    const assignedDevice = localHumanCount === 2 && game?.runtimeConfig?.session?.networkEnabled !== true
+        ? resolveSplitscreenInputDevice(game?.settings?.controls?.SPLITSCREEN?.layout, resolvedInputDeviceIndex)
+        : null;
+    if (assignedDevice?.type === 'keyboard') {
+        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: resolvedInputDeviceIndex });
+    }
+    const gamepadEnabled = () => isGamepadInputEnabled(game?.settings?.controls);
+    if (assignedDevice?.type === 'gamepad') {
+        const controlKey = `GAMEPAD_${assignedDevice.gamepadIndex + 1}`;
+        const source = createGamepadInputSource(assignedDevice.gamepadIndex, () => game?.settings?.controls?.[controlKey], gamepadEnabled);
+        const poll = source.poll.bind(source);
+        // Explicit assignments stay separate even when a controller is unplugged;
+        // a disabled controller yields null so InputManager falls back to this player's keys.
+        source.poll = () => poll() || (gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
+        return source;
+    }
     const touchAvailable = resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable();
     const mobileClassic = touchAvailable && isMobileClassicTarget(game);
     const mobileArcade = touchAvailable && isMobileArcadeTarget(game);
@@ -356,12 +294,20 @@ export function createPreferredMatchInputSource({
             { keyboardPlayerIndex: 0 }
         );
     }
-    const gamepadSource = createGamepadInputSource(resolvedInputDeviceIndex);
-    if (gamepadSource.isConnected()) {
-        return touchAvailable
-            ? createGamepadWithTouchFallback(gamepadSource, createTouchSource())
-            : gamepadSource;
+    const gamepadSource = createGamepadInputSource(resolvedInputDeviceIndex, () => game?.settings?.controls?.[`GAMEPAD_${resolvedInputDeviceIndex + 1}`], gamepadEnabled);
+    if (!touchAvailable) {
+        const keyboardSource = createKeyboardInputSource(inputManager, resolvedInputDeviceIndex === 0 && localHumanCount === 1, { keyboardPlayerIndex: resolvedInputDeviceIndex });
+        return {
+            playerIndex: -1, active: false, gamepadIndex: resolvedInputDeviceIndex,
+            get type() { return gamepadSource.isConnected() ? 'gamepad' : 'keyboard'; },
+            bind(index) { this.playerIndex = index; this.active = true; gamepadSource.bind(index); keyboardSource.bind(index); },
+            unbind() { this.playerIndex = -1; this.active = false; gamepadSource.unbind(); keyboardSource.unbind(); },
+            poll() { return gamepadSource.poll() || keyboardSource.poll(); },
+            clearInputState() { gamepadSource.clearInputState(); },
+            dispose() { this.unbind(); gamepadSource.dispose(); keyboardSource.dispose(); },
+        };
     }
+    if (gamepadSource.isConnected()) return createGamepadWithTouchFallback(gamepadSource, createTouchSource());
     gamepadSource.dispose();
 
     if (touchAvailable) {

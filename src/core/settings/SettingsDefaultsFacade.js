@@ -1,3 +1,4 @@
+import { createGamepadControlsSnapshot } from '../../shared/contracts/GamepadControlsContract.js';
 import { CONFIG } from '../Config.js';
 import {
     createMenuSettingsDefaults,
@@ -53,7 +54,7 @@ export function createDefaultSettingsSnapshot() {
         defaults.cameraPerspective,
         createDefaultCameraPerspectiveSettings()
     );
-    defaults.controls = cloneDefaultControlsSnapshot();
+    defaults.controls = { ...cloneDefaultControlsSnapshot(), ...createGamepadControlsSnapshot() };
     return ensureMenuContractState(defaults);
 }
 

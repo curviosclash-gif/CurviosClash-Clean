@@ -56,6 +56,7 @@ export const THREE_PLAYER_SPLIT_INPUT_DEVICES = Object.freeze({
     GAMEPAD_1: 'gamepad-1',
     GAMEPAD_2: 'gamepad-2',
 });
+/** @type {Set<string>} */
 const THREE_PLAYER_SPLIT_INPUT_DEVICE_SET = new Set(Object.values(THREE_PLAYER_SPLIT_INPUT_DEVICES));
 
 // Matches the user's stated default: two gamepads, one keyboard, in slot order.

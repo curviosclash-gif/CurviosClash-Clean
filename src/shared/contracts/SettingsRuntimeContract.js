@@ -1,3 +1,4 @@
+import { createGamepadControlsSnapshot } from './GamepadControlsContract.js';
 import { toFiniteNumber } from '../utils/MathOps.js';
 
 export const MG_TRAIL_AIM_RADIUS_LIMITS = Object.freeze({ min: 0.2, max: 6 });
@@ -78,6 +79,9 @@ export function normalizeControlBindings(source, fallback, { guardCombatConflict
         ROLL_LEFT: src.ROLL_LEFT || base.ROLL_LEFT,
         ROLL_RIGHT: src.ROLL_RIGHT || base.ROLL_RIGHT,
         BOOST: src.BOOST || base.BOOST,
+        // Stored snapshots from before slow motion existed carry no SLOWMO key,
+        // so they inherit the default binding instead of an empty one.
+        SLOWMO: src.SLOWMO || base.SLOWMO,
         SHOOT: shoot,
         SHOOT_MG: shootMg,
         NEXT_ITEM: src.NEXT_ITEM || base.NEXT_ITEM,
@@ -102,5 +106,6 @@ export function createControlBindingsSnapshot(controls, fallbackControls, option
         PLAYER_1: normalizeControlBindings(src.PLAYER_1, defaults.PLAYER_1, options),
         PLAYER_2: normalizeControlBindings(src.PLAYER_2, defaults.PLAYER_2, options),
         GLOBAL: normalizeGlobalControlBindings(src.GLOBAL, defaults.GLOBAL),
+        ...createGamepadControlsSnapshot({ ...defaults, ...src }),
     };
 }
