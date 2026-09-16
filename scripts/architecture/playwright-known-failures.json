@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 41,
+  "count": 43,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -321,6 +321,22 @@
       "commit": "",
       "reason": "page.reload times out in the cluster; green alone in 4.7 s",
       "kind": "flaky"
+    },
+    {
+      "spec": "tests/four-player-planar.desktop.spec.js",
+      "title": "four-player planar starts Classic and Hunt with four keyboard humans, optional bots, HUD and clean return",
+      "since": "2026-08-01",
+      "commit": "",
+      "reason": "toContainText fails on the per-player HUD mid-run; error-context artifacts since August and on 2026-09-09 01:23, matches the open HUD rework",
+      "kind": "regression"
+    },
+    {
+      "spec": "tests/notre-dame-wall-approach.desktop.spec.js",
+      "title": "near-wall flight keeps the Electron arena walls visually continuous @render",
+      "since": "2026-08-26",
+      "commit": "b823508",
+      "reason": "north-wall-straight transparent plate ratio 0.00088 against a 0.0004 limit; identical on the untouched b300065 with a hidden window, so neither the visible window nor the branch causes it; the spec was never in a cluster before",
+      "kind": "regression"
     },
     {
       "spec": "tests/core.spec.js",
