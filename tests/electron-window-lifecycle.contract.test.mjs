@@ -66,13 +66,17 @@ function createLifecycleHarness(overrides = {}) {
     const timers = createFakeTimers();
     const { state, window } = createFakeWindow();
     const listeners = [];
-    const calls = { cancelExport: [], gracefulCloseRequests: 0 };
+    const calls = { cancelExport: [], gracefulCloseRequests: 0, settleExport: 0, errors: [] };
     const options = {
         getWindow: () => (state.destroyed ? null : window),
         isExportActive: () => false,
         cancelExport: async (payload) => {
             calls.cancelExport.push(payload);
         },
+        settleExport: async () => {
+            calls.settleExport += 1;
+        },
+        onError: (error) => calls.errors.push(error),
         confirmExportClose: async () => 'stay',
         requestGracefulClose: () => {
             calls.gracefulCloseRequests += 1;
@@ -92,25 +96,106 @@ function createLifecycleHarness(overrides = {}) {
     return { lifecycle, timers, state, window, listeners, calls };
 }
 
-test('the graceful close handshake always arms its timeout, even after an approved export close', async () => {
+async function flush(times = 4) {
+    for (let index = 0; index < times; index += 1) {
+        await new Promise((resolve) => setImmediate(resolve));
+    }
+}
+
+test('the graceful close handshake always arms its timeout once it starts', async () => {
+    const harness = createLifecycleHarness();
+
+    harness.window.close();
+    await flush();
+
+    assert.equal(harness.calls.gracefulCloseRequests, 1);
+    assert.equal(harness.timers.pendingCount(), 1, 'every handshake must arm the fallback timeout');
+
+    // The renderer never answers: the fallback timeout has to finish the close.
+    harness.timers.runAll();
+    await flush();
+    assert.equal(harness.state.destroyed, true, 'the fallback timeout must close the window');
+});
+
+test('"wait for the export" lets a long export finish instead of cutting it off', async () => {
     let exportActive = true;
+    let releaseSettle = () => {};
+    const settled = new Promise((resolve) => { releaseSettle = resolve; });
     const harness = createLifecycleHarness({
         isExportActive: () => exportActive,
         confirmExportClose: async () => 'wait',
+        settleExport: async () => {
+            harness.calls.settleExport += 1;
+            await settled;
+        },
     });
 
     harness.window.close();
-    assert.equal(harness.state.destroyed, false, 'the export dialog must keep the window alive');
-    await new Promise((resolve) => setImmediate(resolve));
+    await flush();
 
-    // The dialog was confirmed with "wait for the export", so the handshake now runs.
-    assert.equal(harness.calls.gracefulCloseRequests, 1);
-    assert.equal(harness.timers.pendingCount(), 1, 'an approved export close must still arm the fallback timeout');
+    assert.equal(harness.calls.settleExport, 1, 'the close must wait for the export to settle');
+    assert.equal(harness.calls.gracefulCloseRequests, 0, 'no handshake before the export is done');
+    assert.equal(harness.timers.pendingCount(), 0, 'no 30 s cutoff may run against a healthy export');
 
-    // The renderer never answers: the fallback timeout has to finish the close.
-    exportActive = false;
+    // Far more than timeoutMs of export time passes — nothing may tear it down.
     harness.timers.runAll();
-    assert.equal(harness.state.destroyed, true, 'the fallback timeout must close the window');
+    assert.equal(harness.state.destroyed, false, 'a running export must not be cut off');
+    assert.deepEqual(harness.calls.cancelExport, []);
+
+    exportActive = false;
+    releaseSettle();
+    await flush();
+
+    assert.equal(harness.calls.gracefulCloseRequests, 1, 'the handshake starts once the export is done');
+    assert.equal(harness.timers.pendingCount(), 1, 'the handshake itself is still time-boxed');
+});
+
+test('a renderer that dies while the export settles cancels the export and destroys the window', async () => {
+    const harness = createLifecycleHarness({
+        isExportActive: () => true,
+        confirmExportClose: async () => 'wait',
+        settleExport: () => new Promise(() => {}),
+    });
+
+    harness.window.close();
+    await flush();
+    assert.equal(harness.calls.gracefulCloseRequests, 0);
+
+    await harness.lifecycle.handleRenderProcessGone({ reason: 'crashed' });
+
+    assert.deepEqual(harness.calls.cancelExport, [{ reason: 'render_process_gone' }]);
+    assert.equal(harness.state.destroyed, true);
+});
+
+test('the fallback timeout cancels a running export before destroying the window', async () => {
+    let exportActive = false;
+    const harness = createLifecycleHarness({ isExportActive: () => exportActive });
+
+    // No dialog: the export only starts once the handshake is already running,
+    // and then the renderer stops answering.
+    harness.window.close();
+    await flush();
+    assert.equal(harness.timers.pendingCount(), 1);
+    exportActive = true;
+
+    harness.timers.runAll();
+    await flush();
+
+    assert.deepEqual(
+        harness.calls.cancelExport,
+        [{ reason: 'graceful_close_timeout' }],
+        'FFmpeg and the temp files must not be orphaned by the timeout',
+    );
+    assert.equal(harness.state.destroyed, true);
+});
+
+test('a clean renderer exit is not treated as a crash', async () => {
+    const harness = createLifecycleHarness({ isExportActive: () => true });
+
+    await harness.lifecycle.handleRenderProcessGone({ reason: 'clean-exit' });
+
+    assert.deepEqual(harness.calls.cancelExport, [], 'a clean exit must not abort the export');
+    assert.equal(harness.state.destroyed, false);
 });
 
 test('repeated close clicks reuse the running handshake instead of stacking listeners', () => {
@@ -185,7 +270,7 @@ test('cancelling the export from the close dialog still closes the window', asyn
     });
 
     harness.window.close();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flush();
 
     assert.deepEqual(harness.calls.cancelExport, [{ reason: 'application_close_confirmed' }]);
     exportActive = false;
@@ -201,13 +286,13 @@ test('choosing "back to the application" keeps the window open and stays reusabl
     });
 
     harness.window.close();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flush();
     assert.equal(harness.state.destroyed, false);
     assert.equal(harness.calls.gracefulCloseRequests, 0);
 
     decision = 'wait';
     harness.window.close();
-    await new Promise((resolve) => setImmediate(resolve));
+    await flush();
     assert.equal(harness.calls.gracefulCloseRequests, 1, 'a later close must re-open the decision');
 });
 

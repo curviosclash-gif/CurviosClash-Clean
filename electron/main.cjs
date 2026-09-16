@@ -576,6 +576,10 @@ async function createWindow() {
         getWindow: () => mainWindow,
         isExportActive: () => cinematicReplayVideoExportJob?.getStatus?.().active === true,
         cancelExport: (payload) => cinematicReplayVideoExportJob.cancel(payload),
+        // "Export abwarten" hands the deadline to the export itself: the job
+        // settles when FFmpeg closed, and only then does the renderer teardown
+        // handshake (and its timeout) start.
+        settleExport: () => cinematicReplayVideoExportJob.settle(),
         confirmExportClose: async () => {
             const result = await dialog.showMessageBox(mainWindow, {
                 type: 'warning',
@@ -604,9 +608,11 @@ async function createWindow() {
     });
     mainWindow.on('close', (event) => closeLifecycle.handleClose(event));
     // A crashed or killed renderer can never answer the handshake, so drop the
-    // export job and tear the window down instead of waiting for it.
-    mainWindow.webContents.on('render-process-gone', () => {
-        void closeLifecycle.handleRenderProcessGone();
+    // export job and tear the window down instead of waiting for it. A clean
+    // exit is left to the regular close path.
+    mainWindow.webContents.on('render-process-gone', (event, details) => {
+        console.warn(`[window] Renderer process gone: ${details?.reason || 'unknown'}`);
+        void closeLifecycle.handleRenderProcessGone(details);
     });
 }
 

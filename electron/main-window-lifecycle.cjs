@@ -10,12 +10,17 @@ const DEFAULT_GRACEFUL_CLOSE_TIMEOUT_MS = 30000;
 const CLOSE_PHASE = Object.freeze({
     IDLE: 'idle',
     EXPORT_DECISION: 'export-decision',
+    AWAITING_EXPORT: 'awaiting-export',
     HANDSHAKE: 'handshake',
     CLOSING: 'closing',
 });
 
+// A renderer that exited on its own after a normal teardown is not a crash; the
+// regular close path already owns the window at that point.
+const CLEAN_RENDERER_EXIT_REASON = 'clean-exit';
+
 /**
- * @typedef {'idle' | 'export-decision' | 'handshake' | 'closing'} ClosePhase
+ * @typedef {'idle' | 'export-decision' | 'awaiting-export' | 'handshake' | 'closing'} ClosePhase
  */
 
 /**
@@ -38,6 +43,7 @@ const CLOSE_PHASE = Object.freeze({
  * @property {() => (CloseableWindow | null | undefined)} [getWindow]
  * @property {() => boolean} [isExportActive]
  * @property {(payload: { reason: string }) => unknown} [cancelExport]
+ * @property {() => unknown} [settleExport] Resolves once a running export ended.
  * @property {() => (ExportCloseDecision | Promise<ExportCloseDecision>)} [confirmExportClose]
  * @property {() => void} [requestGracefulClose]
  * @property {(handler: GracefulCloseReadyListener) => unknown} [addReadyListener]
@@ -52,7 +58,7 @@ const CLOSE_PHASE = Object.freeze({
 /**
  * @typedef {object} MainWindowCloseLifecycle
  * @property {(event?: { preventDefault?: () => void }) => void} handleClose
- * @property {() => Promise<void>} handleRenderProcessGone
+ * @property {(details?: { reason?: string } | null) => Promise<void>} handleRenderProcessGone
  * @property {() => boolean} isClosing
  * @property {() => ClosePhase} getPhase
  */
@@ -75,6 +81,7 @@ function createMainWindowCloseLifecycle({
     getWindow,
     isExportActive = () => false,
     cancelExport = async () => {},
+    settleExport = async () => {},
     confirmExportClose = async () => /** @type {ExportCloseDecision} */ ('stay'),
     requestGracefulClose = () => {},
     addReadyListener = () => {},
@@ -136,9 +143,14 @@ function createMainWindowCloseLifecycle({
         addReadyListener(readyListener);
         // The fallback timeout is unconditional: without it an unresponsive or
         // dead renderer would leave the window only killable via the task
-        // manager.
+        // manager. A still-running export is aborted first so FFmpeg and its
+        // temp files never outlive the window.
         timeoutId = setTimeoutFn(() => {
             timeoutId = null;
+            if (isExportActive() === true) {
+                void abortExportThenFinish('graceful_close_timeout');
+                return;
+            }
             finish({ force: true });
         }, timeoutMs);
 
@@ -148,6 +160,31 @@ function createMainWindowCloseLifecycle({
             // Renderer already gone — proceed immediately.
             finish({ force: true });
         }
+    }
+
+    /** @param {string} reason */
+    async function abortExportThenFinish(reason) {
+        if (phase === CLOSE_PHASE.CLOSING) return;
+        try {
+            await cancelExport({ reason });
+        } catch (error) {
+            onError(error);
+        }
+        finish({ force: true });
+    }
+
+    // "Wait for the export" means exactly that: the renderer keeps encoding and
+    // the window only starts its teardown handshake once the export ended. A
+    // timeout here would silently truncate every export longer than timeoutMs.
+    async function startExportSettleWait() {
+        phase = CLOSE_PHASE.AWAITING_EXPORT;
+        try {
+            await settleExport();
+        } catch (error) {
+            onError(error);
+        }
+        if (phase !== CLOSE_PHASE.AWAITING_EXPORT) return;
+        startHandshake();
     }
 
     function startExportDecision() {
@@ -179,21 +216,23 @@ function createMainWindowCloseLifecycle({
         handleClose(event) {
             if (phase === CLOSE_PHASE.CLOSING) return;
             event?.preventDefault?.();
-            if (phase === CLOSE_PHASE.HANDSHAKE || phase === CLOSE_PHASE.EXPORT_DECISION) return;
-            if (!exportCloseApproved && isExportActive() === true) {
-                startExportDecision();
+            if (phase !== CLOSE_PHASE.IDLE) return;
+            if (isExportActive() === true) {
+                if (!exportCloseApproved) {
+                    startExportDecision();
+                    return;
+                }
+                void startExportSettleWait();
                 return;
             }
             startHandshake();
         },
-        async handleRenderProcessGone() {
+        async handleRenderProcessGone(details = null) {
+            if (details?.reason === CLEAN_RENDERER_EXIT_REASON) return;
             if (phase === CLOSE_PHASE.CLOSING) return;
             if (isExportActive() === true) {
-                try {
-                    await cancelExport({ reason: 'render_process_gone' });
-                } catch (error) {
-                    onError(error);
-                }
+                await abortExportThenFinish('render_process_gone');
+                return;
             }
             finish({ force: true });
         },

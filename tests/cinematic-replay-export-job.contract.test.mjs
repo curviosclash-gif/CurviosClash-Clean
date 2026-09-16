@@ -176,17 +176,23 @@ test('cinematic exporter reports an early encoder pipe close without an unhandle
     }
 });
 
-test('desktop shutdown asks before aborting an active export and has no three-second cutoff', async () => {
+test('desktop shutdown waits out an approved export and aborts it only on a dead renderer', async () => {
     const source = await readFile(new URL('../electron/main.cjs', import.meta.url), 'utf8');
     assert.doesNotMatch(source, /GRACEFUL_CLOSE_TIMEOUT_MS\s*=\s*3000\b/);
     assert.match(source, /Export abwarten/);
     assert.match(source, /Export abbrechen/);
+    // "Export abwarten" hands the deadline to the export: main waits for the
+    // job to settle, so an export longer than the handshake timeout is never
+    // truncated.
+    assert.match(source, /settleExport:\s*\(\)\s*=>\s*cinematicReplayVideoExportJob\.settle\(\)/);
+    assert.match(source, /render-process-gone/);
+
     const lifecycle = await readFile(new URL('../electron/main-window-lifecycle.cjs', import.meta.url), 'utf8');
     assert.match(lifecycle, /application_close_confirmed/);
-    // J1: the fallback timeout must never be skipped, not even after the export
-    // dialog was confirmed — otherwise a hung renderer traps the window.
-    assert.doesNotMatch(source, /exportCloseApproved\s*\?\s*null/);
-    assert.match(source, /render-process-gone/);
+    // A dead renderer and the handshake timeout both abort the job, so FFmpeg
+    // and the temp files never outlive the window.
+    assert.match(lifecycle, /render_process_gone/);
+    assert.match(lifecycle, /graceful_close_timeout/);
     assert.match(source, /Wiederherstellen/);
     assert.match(source, /Bestaetigt bereinigen/);
 });
