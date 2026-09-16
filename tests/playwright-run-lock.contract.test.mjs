@@ -225,6 +225,105 @@ test('playwright lock: a fresh heartbeat keeps the lock even for an old run', as
     }
 });
 
+// Review finding 16.09.2026: a reader can catch the lock half-written (an older wrapper
+// rewrites it in place). Such a file must not count as "dead" while it is fresh.
+test('playwright lock: an unreadable but fresh lock file is never stolen', async () => {
+    const lockPath = createLockPath('half-written');
+    const env = {};
+    try {
+        fs.writeFileSync(lockPath, ''); // exactly what a truncate-then-write looks like mid-way
+        let clock = Date.now();
+        await assert.rejects(
+            acquirePlaywrightRunLock({
+                label: 'fresh run',
+                env,
+                lockPath,
+                waitMs: 20,
+                pollMs: 10,
+                now: () => clock,
+                sleep: async (ms) => { clock += ms; },
+                isAlive: () => true,
+                log: quietLog,
+            }),
+            (error) => error.exitCode === 75
+        );
+        assert.equal(fs.existsSync(lockPath), true, 'the half-written lock survives');
+        assert.equal(fs.readFileSync(lockPath, 'utf8'), '', 'and is left untouched');
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+test('playwright lock: an unreadable lock file older than the heartbeat allowance is taken over', async () => {
+    const lockPath = createLockPath('half-written-old');
+    const env = {};
+    const messages = [];
+    try {
+        fs.writeFileSync(lockPath, '');
+        const twentyMinutesAgo = new Date(Date.now() - 20 * 60 * 1000);
+        fs.utimesSync(lockPath, twentyMinutesAgo, twentyMinutesAgo);
+        const lock = await acquirePlaywrightRunLock({
+            label: 'fresh run',
+            env,
+            lockPath,
+            waitMs: 50,
+            pollMs: 10,
+            sleep: noSleep,
+            isAlive: () => true,
+            log: (message) => messages.push(message),
+        });
+        assert.equal(lock.acquired, true);
+        assert.equal(readPlaywrightRunLock(lockPath).label, 'fresh run');
+        assert.ok(messages.some((message) => message.includes('stale')), 'the takeover is reported');
+        lock.release();
+    } finally {
+        cleanup(lockPath);
+    }
+});
+
+test('playwright lock: a waiter whose ticket vanished re-enters the queue instead of jumping ahead', async () => {
+    const lockPath = createLockPath('lost-ticket');
+    const queueDir = `${lockPath}.queue`;
+    const env = {};
+    try {
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: process.pid, label: 'busy run', heartbeat: new Date().toISOString() }));
+        // An older waiter is already queued ahead of us.
+        fs.mkdirSync(queueDir, { recursive: true });
+        fs.writeFileSync(path.join(queueDir, `${'1'.padStart(16, '0')}-${process.pid}.json`), JSON.stringify({ pid: process.pid, label: 'older waiter' }));
+        let clock = Date.now();
+        let polls = 0;
+        await assert.rejects(
+            acquirePlaywrightRunLock({
+                label: 'late run',
+                env,
+                lockPath,
+                queueDir,
+                waitMs: 40,
+                pollMs: 10,
+                now: () => clock,
+                sleep: async (ms) => {
+                    clock += ms;
+                    polls += 1;
+                    // Somebody wipes every ticket of ours between two polls.
+                    for (const entry of fs.readdirSync(queueDir)) {
+                        if (entry.endsWith(`-${process.pid}.json`) && !entry.startsWith('0000000000000001')) {
+                            fs.unlinkSync(path.join(queueDir, entry));
+                        }
+                    }
+                },
+                isAlive: () => true,
+                log: quietLog,
+            }),
+            (error) => error.exitCode === 75
+        );
+        assert.ok(polls >= 2, 'the waiter polled more than once');
+        assert.equal(readPlaywrightRunLock(lockPath).label, 'busy run', 'the busy lock was never taken');
+    } finally {
+        cleanup(lockPath);
+        fs.rmSync(queueDir, { recursive: true, force: true });
+    }
+});
+
 test('playwright lock: the holder writes a heartbeat into the lock file', async () => {
     const lockPath = createLockPath('beat-write');
     const env = {};

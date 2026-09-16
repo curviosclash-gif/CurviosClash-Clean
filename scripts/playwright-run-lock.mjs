@@ -139,11 +139,9 @@ function ticketAsHolder(ticket) {
     };
 }
 
-function removeQueueDirIfEmpty(queueDir) {
-    try {
-        fs.rmdirSync(queueDir);
-    } catch { /* still in use or already gone */ }
-}
+// The queue folder is never removed: a newcomer's mkdir + write would otherwise race a
+// finisher's rmdir and fail with ENOENT (exit 1, looking like a test failure). An empty
+// folder in the temp directory costs nothing.
 
 // ---------- lock file ----------
 
@@ -174,10 +172,38 @@ export function isPlaywrightRunLockStale(holder, nowMs, { isAlive = isProcessAli
     return nowMs - beatAt > staleMs;
 }
 
+/**
+ * An unreadable lock file is not proof of a dead run: an older wrapper rewrites the file in
+ * place, so a reader can catch it half-written. Such a file is only stale when its
+ * modification time is older than the heartbeat allowance.
+ */
+export function isUnreadableLockStale(lockPath, nowMs, { staleMs = PLAYWRIGHT_RUN_LOCK_HEARTBEAT_STALE_MS, stat = fs.statSync } = {}) {
+    try {
+        return nowMs - stat(lockPath).mtimeMs > staleMs;
+    } catch {
+        return false; // gone already; the next tryCreateLock will simply succeed
+    }
+}
+
 function removeStaleLock(lockPath, holder, nowMs, isAlive) {
-    if (!isPlaywrightRunLockStale(holder, nowMs, { isAlive })) return false;
+    const stale = holder
+        ? isPlaywrightRunLockStale(holder, nowMs, { isAlive })
+        : isUnreadableLockStale(lockPath, nowMs);
+    if (!stale) return false;
     removeFileQuietly(lockPath);
     return true;
+}
+
+/** Replaces the lock file in one step so no reader ever sees it half-written. */
+function writeLockAtomically(lockPath, payload, pid) {
+    const tempPath = `${lockPath}.${pid}.tmp`;
+    fs.writeFileSync(tempPath, `${JSON.stringify(payload, null, 2)}\n`, 'utf8');
+    try {
+        fs.renameSync(tempPath, lockPath);
+    } catch (error) {
+        removeFileQuietly(tempPath);
+        throw error;
+    }
 }
 
 function startHeartbeat(lockPath, pid, intervalMs, now) {
@@ -185,9 +211,8 @@ function startHeartbeat(lockPath, pid, intervalMs, now) {
         const current = readPlaywrightRunLock(lockPath);
         if (!current || Number(current.pid) !== pid) return;
         try {
-            const next = { ...current, heartbeat: new Date(now()).toISOString() };
-            fs.writeFileSync(lockPath, `${JSON.stringify(next, null, 2)}\n`, 'utf8');
-        } catch { /* the lock may vanish between read and write */ }
+            writeLockAtomically(lockPath, { ...current, heartbeat: new Date(now()).toISOString() }, pid);
+        } catch { /* the lock may vanish between read and write; the next beat retries */ }
     };
     const timer = setInterval(writeBeat, Math.max(1, intervalMs));
     // The heartbeat must never keep the wrapper process alive on its own.
@@ -260,14 +285,21 @@ export async function acquirePlaywrightRunLock({
         return takeLock();
     }
 
-    const ticketPath = enqueuePlaywrightRunLockTicket(queueDir, { pid, label, cwd, enqueuedAt: startedAtMs });
+    const enqueue = () => enqueuePlaywrightRunLockTicket(queueDir, { pid, label, cwd, enqueuedAt: startedAtMs });
+    const ticketPath = enqueue();
     const deadline = startedAtMs + Math.max(0, waitMs);
     let lastReportAt = -Infinity;
     let announced = false;
 
     try {
         for (;;) {
-            const queue = readPlaywrightRunLockQueue(queueDir, { isAlive });
+            let queue = readPlaywrightRunLockQueue(queueDir, { isAlive });
+            if (!queue.some((ticket) => ticket.path === ticketPath)) {
+                // Somebody removed our ticket (a cleanup, a foreign wrapper): re-enter at the
+                // original time instead of silently assuming first place.
+                enqueue();
+                queue = readPlaywrightRunLockQueue(queueDir, { isAlive });
+            }
             const position = Math.max(1, queue.findIndex((ticket) => ticket.path === ticketPath) + 1);
             const isOurTurn = position === 1;
 
@@ -304,7 +336,6 @@ export async function acquirePlaywrightRunLock({
         }
     } finally {
         removeFileQuietly(ticketPath);
-        removeQueueDirIfEmpty(queueDir);
     }
 }
 

@@ -96,7 +96,9 @@ test('verify-scope: every stage-2 id really exists in its spec', () => {
             assert.ok(fs.existsSync(specPath), `${spec} does not exist`);
             const source = fs.readFileSync(specPath, 'utf8');
             for (const id of /--grep "([^"]+)"/.exec(entry.command)?.[1].split('|') || []) {
-                assert.ok(source.includes(`'${id}`) || source.includes(`"${id}`), `${id} is not a title in ${spec}`);
+                // The colon is part of the check: without it `T2` would pass on every `T20…` title.
+                const titleStart = `${id.replace(/:$/, '')}:`;
+                assert.ok(source.includes(`'${titleStart}`) || source.includes(`"${titleStart}`), `${id} is not a title in ${spec}`);
                 seen.add(id);
             }
         }

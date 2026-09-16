@@ -328,18 +328,27 @@ function collectClusterSummary(cluster, outputDir) {
         summaryPath: path.join(resolvedOutputDir, 'summary.txt'),
         log: () => {},
     });
-    return summary ? { clusterId: cluster.id, summary } : null;
+    // A cluster without results.json (crashed before the reporter ran) must stay visible:
+    // it is reported as missing instead of silently dropping out of the roll-up.
+    return { clusterId: cluster.id, summary: summary || null };
 }
 
 /** Prints one line per cluster and the machine-readable total as the very last line. */
 function printClusterSummaries(collected) {
     if (collected.length === 0) return;
     const totals = Object.fromEntries(SUMMARY_COUNT_KEYS.map((key) => [key, 0]));
+    let missingClusters = 0;
     for (const entry of collected) {
+        if (!entry.summary) {
+            missingClusters += 1;
+            console.log(`${PLAYWRIGHT_SUMMARY_PREFIX} ${entry.clusterId} no results.json (run ended before the reporter)`);
+            continue;
+        }
         for (const key of SUMMARY_COUNT_KEYS) totals[key] += Number(entry.summary[key]) || 0;
         console.log(formatPlaywrightSummaryLine(entry.summary, `${PLAYWRIGHT_SUMMARY_PREFIX} ${entry.clusterId}`));
     }
-    console.log(formatPlaywrightSummaryLine(totals));
+    const totalLine = formatPlaywrightSummaryLine(totals);
+    console.log(missingClusters > 0 ? `${totalLine} missingClusters=${missingClusters}` : totalLine);
 }
 
 // Das Testprofil ist Wegwerfzustand: es bleibt nur fuer die Dauer des Laufs liegen,
