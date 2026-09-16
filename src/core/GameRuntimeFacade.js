@@ -237,7 +237,17 @@ export class GameRuntimeFacade {
 
     _resetArcadeRunState(options = undefined) { this._arcadeSupport.resetRunState({ preserveRecords: true, ...(options || {}) }); }
     getArcadeRunState() { return this._arcadeSupport.getRunState(); }
-    getArcadeMenuSurfaceState() { return this._arcadeSupport.getMenuSurfaceState(); }
+    getArcadeMenuSurfaceState() {
+        const state = this._arcadeSupport.getMenuSurfaceState();
+        if (state?.runType !== 'arena_waves') return state;
+        const records = state.records && typeof state.records === 'object'
+            ? { ...state.records, bestScore: state.records.bestScore ?? state.records.bestTotal, lastScore: state.records.lastScore ?? state.records.lastTotal }
+            : state.records;
+        const postRunSummary = state.postRunSummary && typeof state.postRunSummary === 'object'
+            ? { ...state.postRunSummary, score: state.postRunSummary.score ?? state.postRunSummary.total }
+            : state.postRunSummary;
+        return { ...state, records, postRunSummary };
+    }
     tickArcadeSuddenDeath(dt = 0) { return this._arcadeSupport.tickSuddenDeath(dt); }
     selectArcadeIntermissionChoice(choiceId) { return this._arcadeSupport.selectIntermissionChoice(choiceId); }
     resolveArcadeVictoryChoice(choice) { return this.arcadeRunRuntime?.resolveVictoryChoice(choice); }

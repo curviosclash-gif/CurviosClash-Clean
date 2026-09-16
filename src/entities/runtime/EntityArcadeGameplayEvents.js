@@ -43,5 +43,22 @@ export function emitArcadeEliminationEvents(owner, player, cause, options = {}) 
                 ? options.activationGeneration
                 : null,
         });
+    } else if (
+        player?.isBot === true
+        && owner?.runtimeConfig?.arcade?.enabled === true
+        && String(owner.runtimeConfig.arcade.runType || '').trim().toLowerCase() === 'arena_waves'
+    ) {
+        // Arena Waves needs every active bot removal, including environment and bot kills.
+        // Deliberately omit playerIndex so this event cannot become a score source.
+        owner?.onArcadeGameplayEvent?.({
+            type: 'kill',
+            victimIndex: player.index,
+            count: 0,
+            runId: options?.runId || '',
+            botSlot: Number.isInteger(options?.botSlot) ? options.botSlot : null,
+            activationGeneration: Number.isInteger(options?.activationGeneration)
+                ? options.activationGeneration
+                : null,
+        });
     }
 }

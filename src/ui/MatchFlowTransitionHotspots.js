@@ -161,8 +161,10 @@ export function getArcadeMenuSurfaceState(runtimePort, game) {
 }
 
 export function selectArcadeIntermissionChoice(runtimePort, game, choiceId) {
-    return runtimePort?.selectArcadeIntermissionChoice?.(choiceId)
+    const result = runtimePort?.selectArcadeIntermissionChoice?.(choiceId)
         ?? createTransitionArcadeAdapter(game).selectIntermissionChoice(choiceId);
+    game?.matchFlowUiController?._syncArcadeOverlayPanel?.();
+    return result;
 }
 
 export function selectArcadeReward(runtimePort, game, rewardId) {

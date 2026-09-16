@@ -371,7 +371,14 @@ export function createRuntimeProjectionPort(game) {
             return buildMatchFlowProjection(game);
         },
         getMatchRuntimeProjection() {
-            return buildMatchRuntimeProjectionSnapshot({ game, runtimeState: getRuntimeState(game), facade: getRuntimeFacade(game), sessionRuntime: getSessionRuntime(game) });
+            const facade = getRuntimeFacade(game);
+            const projection = buildMatchRuntimeProjectionSnapshot({ game, runtimeState: getRuntimeState(game), facade, sessionRuntime: getSessionRuntime(game) });
+            if (projection?.arcade || typeof facade?.getArcadeRunState !== 'function') {
+                return projection;
+            }
+            const arcade = facade.getArcadeRunState() || null;
+            if (arcade?.runType !== 'arena_waves') return projection;
+            return { ...projection, arcade };
         },
         getMatchRenderProjection(options = undefined) {
             return buildMatchRenderProjectionSnapshot({ game, runtimeState: getRuntimeState(game), facade: getRuntimeFacade(game), sessionRuntime: getSessionRuntime(game), renderAlpha: options?.renderAlpha });

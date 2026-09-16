@@ -25,6 +25,14 @@ export function createPlayingStateRuntimeAccess(runtime) {
         const actionApplyPlayingTimeScaleFromEffects = () => {
             game?._applyPlayingTimeScaleFromEffects?.();
         };
+        const getArcadeMenuSurfaceState = () => (
+            game?.runtimeBundle?.ports?.arcadePort?.getMenuSurfaceState?.()
+            || game?.runtimePorts?.arcadePort?.getMenuSurfaceState?.()
+            || null
+        );
+        const actionSyncArcadeOverlay = () => {
+            game?.matchFlowUiController?._syncArcadeOverlayPanel?.();
+        };
         return {
         getRenderFrameId: () => game?.gameLoop?.renderFrameId || 0,
         getPausePressed: () => game?.input?.wasPressed?.('Escape') === true,
@@ -39,6 +47,8 @@ export function createPlayingStateRuntimeAccess(runtime) {
         actionTickSuddenDeath,
         actionUpdatePlayingHudTick,
         actionApplyPlayingTimeScaleFromEffects,
+        getArcadeMenuSurfaceState,
+        actionSyncArcadeOverlay,
         // Backward-compatible aliases for transitional call sites.
         wasPausePressed: () => game?.input?.wasPressed?.('Escape') === true,
         pauseMatch: actionPauseMatch,
@@ -67,6 +77,9 @@ export class PlayingStateSystem {
         this._lastOverheatSnapshotVersion = -1;
         this._matchRuntimeProjection = null;
         this._matchRenderProjection = null;
+        this._arenaWavesOverlayPhase = '';
+        this._arenaWavesOverlayMapIndex = -1;
+        this._arenaWavesOverlayChoiceCount = -1;
         // V84: optional MatchKernelInteractiveAdapter; when set, simulation tick
         // is driven through the kernel instead of direct game.* calls.
         this._kernelAdapter = null;
@@ -113,6 +126,29 @@ export class PlayingStateSystem {
         huntState.overheatByPlayer = snapshot;
     }
 
+    _syncArenaWavesOverlay(runtimeState) {
+        if (runtimeState?.runType !== 'arena_waves') {
+            this._arenaWavesOverlayPhase = '';
+            this._arenaWavesOverlayMapIndex = -1;
+            this._arenaWavesOverlayChoiceCount = -1;
+            return false;
+        }
+        const phase = String(runtimeState.phase || '');
+        const mapIndex = Number(runtimeState.mapIndex) || 0;
+        const choiceCount = Array.isArray(runtimeState.choices) ? runtimeState.choices.length : 0;
+        if (
+            phase !== this._arenaWavesOverlayPhase
+            || mapIndex !== this._arenaWavesOverlayMapIndex
+            || choiceCount !== this._arenaWavesOverlayChoiceCount
+        ) {
+            this._arenaWavesOverlayPhase = phase;
+            this._arenaWavesOverlayMapIndex = mapIndex;
+            this._arenaWavesOverlayChoiceCount = choiceCount;
+            this.runtimeAccess.actionSyncArcadeOverlay?.();
+        }
+        return phase === 'upgrade';
+    }
+
     update(dt) {
         const entityManager = this.runtimeAccess.getEntityManager?.() || null;
         const renderFrameId = this.runtimeAccess.getRenderFrameId?.() || 0;
@@ -122,31 +158,41 @@ export class PlayingStateSystem {
             return;
         }
 
-        this.runtimeAccess.actionUpdatePlanarAimAssist?.(dt);
+        let arcadeState = this.runtimeAccess.getArcadeMenuSurfaceState?.() || null;
+        const arenaWavesUpgradeActive = this._syncArenaWavesOverlay(arcadeState);
 
-        // V84: drive simulation through MatchKernel when an adapter is present;
-        // fall back to direct calls for backwards compatibility during migration.
-        if (this._kernelAdapter) {
-            this._kernelAdapter.tick(dt, renderFrameId);
-            this._syncHuntOverheatSnapshot();
-        } else {
-            entityManager.update(dt, this.runtimeAccess.getInput?.(), renderFrameId);
-            entityManager?.endlessParcoursRuntime?.update?.(dt);
-            this._syncHuntOverheatSnapshot();
-            this.runtimeAccess.getPowerupManager?.()?.update?.(dt);
-            this.runtimeAccess.getParticles?.()?.update?.(dt);
-            this.runtimeAccess.getArena?.()?.update?.(dt);
+        if (!arenaWavesUpgradeActive) {
+            this.runtimeAccess.actionUpdatePlanarAimAssist?.(dt);
+
+            // V84: drive simulation through MatchKernel when an adapter is present;
+            // fall back to direct calls for backwards compatibility during migration.
+            if (this._kernelAdapter) {
+                this._kernelAdapter.tick(dt, renderFrameId);
+                this._syncHuntOverheatSnapshot();
+            } else {
+                entityManager.update(dt, this.runtimeAccess.getInput?.(), renderFrameId);
+                entityManager?.endlessParcoursRuntime?.update?.(dt);
+                this._syncHuntOverheatSnapshot();
+                this.runtimeAccess.getPowerupManager?.()?.update?.(dt);
+                this.runtimeAccess.getParticles?.()?.update?.(dt);
+                this.runtimeAccess.getArena?.()?.update?.(dt);
+            }
+
+            this.runtimeAccess.actionTickSuddenDeath?.(dt);
+            arcadeState = this.runtimeAccess.getArcadeMenuSurfaceState?.() || arcadeState;
+            this._syncArenaWavesOverlay(arcadeState);
         }
 
-        this.runtimeAccess.actionTickSuddenDeath?.(dt);
-        // Legacy runtime-access callers still expose the shorter alias during kernel migration.
-        const updateLastRoundGhostPlayback = this.runtimeAccess.actionUpdateLastRoundGhostPlayback
-            || this.runtimeAccess.updateLastRoundGhostPlayback;
-        updateLastRoundGhostPlayback?.(dt);
+        if (!arenaWavesUpgradeActive) {
+            // Legacy runtime-access callers still expose the shorter alias during kernel migration.
+            const updateLastRoundGhostPlayback = this.runtimeAccess.actionUpdateLastRoundGhostPlayback
+                || this.runtimeAccess.updateLastRoundGhostPlayback;
+            updateLastRoundGhostPlayback?.(dt);
+        }
         this._matchRuntimeProjection = this.runtimeAccess.getRuntimeProjectionPort?.()
             ?.getMatchRuntimeProjection?.() || null;
         this.runtimeAccess.actionUpdatePlayingHudTick?.(dt, this._matchRuntimeProjection);
-        this.runtimeAccess.actionApplyPlayingTimeScaleFromEffects?.();
+        if (!arenaWavesUpgradeActive) this.runtimeAccess.actionApplyPlayingTimeScaleFromEffects?.();
     }
 
     getMatchRuntimeProjection() {
