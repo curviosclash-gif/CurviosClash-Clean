@@ -201,9 +201,10 @@ export function routeOnlineLobbyMessage(
         const err = createServerSignalingError(msg.code, msg.message, msg.details);
         lobby._rejectAllPendingMutationAcks(err);
         lobby._emit('error', toErrorPayload(err));
-        if (connectReject) {
-            if (connectState?.rejected) break;
-            if (connectState) connectState.rejected = true;
+        // connectReject() owns the `rejected` flag and returns early when it is
+        // already set. Setting it here would silence the rejection and leave the
+        // join pending until the connect timeout fires.
+        if (connectReject && !connectState?.settled && !connectState?.rejected) {
             connectReject(err);
         }
         break;
