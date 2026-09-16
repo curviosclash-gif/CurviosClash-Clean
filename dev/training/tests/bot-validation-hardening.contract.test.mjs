@@ -231,6 +231,11 @@ test('runner applies selected ids, records real bot deaths, and analysis default
     assert.match(runnerSource, /bot count contract mismatched/);
     assert.match(runnerSource, /buildScenarioMetrics\(allRounds, validationRuntimeSamples, validationSurvivalObservations\)/);
     assert.match(runnerSource, /browser runtime errors encountered/);
+    assert.match(runnerSource, /huntRespawnEnabled: entityManager\?\._roundOutcomeSystem\?\.isRespawnEnabled\?\.\(\) \?\? null/);
+    assert.match(runnerSource, /renderFrameId: Number\(game\?\.gameLoop\?\.renderFrameId \?\? 0\)/);
+    assert.match(runnerSource, /pageVisibility: document\.visibilityState/);
+    assert.match(runnerSource, /respawnRemainingByPlayer: entityManager\?\.getHuntRespawnRemainingByPlayer\?\.\(\) \|\| \{\}/);
+    assert.match(runnerSource, /huntScoreboard: entityManager\?\.getHuntScoreboard\?\.\(\) \|\| \[\]/);
     assert.doesNotMatch(runnerSource, /DEFAULT_SCENARIO_COUNT/);
     assert.match(runnerSource, /if \(raw === 'dev'\) return 'dev';\s+return 'preview';/);
     assert.match(analysisSource, /readOption\(\['policy', 'policy-type'\], 'heuristic'\)/);

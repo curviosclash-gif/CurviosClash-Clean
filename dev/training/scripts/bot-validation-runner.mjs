@@ -661,13 +661,24 @@ async function captureGameDiagnostics(page) {
     try {
         return await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
-            const players = Array.isArray(game?.entityManager?.players) ? game.entityManager.players : [];
+            const entityManager = game?.entityManager;
+            const players = Array.isArray(entityManager?.players) ? entityManager.players : [];
             return {
                 hasGameInstance: !!game,
                 state: game?.state || null,
                 roundPause: Number(game?.roundPause ?? 0),
                 winsNeeded: Number(game?.winsNeeded ?? game?.settings?.winsNeeded ?? 0),
                 roundsRecorded: Number(game?.recorder?.getRoundSummaries?.().length ?? 0),
+                simulationSeconds: Number(entityManager?._simulationClockMs ?? 0) * 0.001,
+                gameLoopRunning: game?.gameLoop?.running === true,
+                renderFrameId: Number(game?.gameLoop?.renderFrameId ?? 0),
+                renderTiming: game?.gameLoop?.getRenderTiming?.() || null,
+                runtimePerf: game?.gameLoop?.runtimePerfProfiler?.getSnapshot?.({ windowSize: 60, spikeEventsLimit: 0 }) || null,
+                pageVisibility: document.visibilityState,
+                huntRespawnEnabled: entityManager?._roundOutcomeSystem?.isRespawnEnabled?.() ?? null,
+                respawnSystemEnabled: entityManager?._respawnSystem?.isEnabled?.() ?? null,
+                respawnRemainingByPlayer: entityManager?.getHuntRespawnRemainingByPlayer?.() || {},
+                huntScoreboard: entityManager?.getHuntScoreboard?.() || [],
                 players: players.map((p) => ({
                     index: p?.index ?? null,
                     isBot: !!p?.isBot,
