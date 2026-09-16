@@ -42,6 +42,7 @@ import {
     normalizeSplitScreenVariant,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { getVehicleIds } from '../../entities/vehicle-registry.js';
+import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 
 function applySessionSanitization({ merged, src, defaults, migratedSessionType, runtimeLimits }) {
     const huntFeatureEnabled = CONFIG.HUNT?.ENABLED !== false;
@@ -63,6 +64,10 @@ function applySessionSanitization({ merged, src, defaults, migratedSessionType, 
         ? src.botDifficulty
         : defaults.botDifficulty;
     merged.botPolicyStrategy = normalizeBotPolicyStrategy(src.botPolicyStrategy, defaults.botPolicyStrategy);
+    merged.botHeuristicProfile = ['defensive', 'balanced', 'aggressive'].includes(src.botHeuristicProfile)
+        ? src.botHeuristicProfile
+        : defaults.botHeuristicProfile;
+    merged.botHeuristicTuning = createBotHeuristicTuningSnapshot(src.botHeuristicTuning);
     merged.winsNeeded = clampSettingValue(
         src.winsNeeded ?? defaults.winsNeeded,
         runtimeLimits.session.winsNeeded,

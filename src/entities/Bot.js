@@ -186,6 +186,9 @@ export class BotAI {
         input.rollLeft = false;
         input.rollRight = false;
         input.boost = false;
+        // Bots never bend the global clock: the slow-motion reserve stays untouched.
+        input.slowMo = false;
+        input.slowMoPressed = false;
         input.cameraSwitch = false;
         input.dropItem = false;
         input.shootItem = false;

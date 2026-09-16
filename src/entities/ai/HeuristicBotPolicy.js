@@ -14,7 +14,7 @@ import { FIGHT_TARGET_LOCK_SECONDS } from '../../hunt/FightTargetSelector.js';
 import { clamp } from '../../shared/utils/MathOps.js';
 import { applyHeuristicClassicBehavior } from './HeuristicClassicTacticsOps.js';
 import { applyHeuristicHuntBehavior } from './HeuristicHuntTacticsOps.js';
-import { HEURISTIC_DIFFICULTIES, HEURISTIC_PROFILES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
+import { HEURISTIC_DIFFICULTIES, hasYaw, normalizeDifficultyName, normalizeProfileName, readObservationValue, readVectorLikePosition, resetInput, resolveEffectiveHeuristicProfile, resolveInventoryLength, resolveMode, resolveProgressPlayerIndex } from './HeuristicBotPolicyOps.js';
 import {
     applyHeuristicObstacleAvoidance,
     applyHeuristicSafetyArbiter,
@@ -39,7 +39,11 @@ export class HeuristicBotPolicy {
             || options.runtimeConfig?.bot?.heuristicProfile
             || options.runtimeConfig?.bot?.profile
         );
-        this.profile = HEURISTIC_PROFILES[this.profileName];
+        this.profileTuning = options.heuristicTuning
+            || options.runtimeConfig?.bot?.heuristicTuning?.[this.profileName]
+            || null;
+        this.profile = resolveEffectiveHeuristicProfile(this.profileName, this.profileTuning);
+        this._runtimeBotSettings = options.runtimeConfig?.bot || null;
         this.difficultyName = normalizeDifficultyName(
             options.difficulty
             || options.runtimeConfig?.bot?.activeDifficulty
@@ -73,6 +77,7 @@ export class HeuristicBotPolicy {
         this._huntState = {
             movementIntent: 'search',
             commitTimer: 0,
+            openingTimer: 1.35,
         };
         this._decisionCounters = {
             updates: 0,
@@ -92,6 +97,15 @@ export class HeuristicBotPolicy {
         this._tmpProjectileRelative = new THREE.Vector3();
         this._tmpProjectileVelocity = new THREE.Vector3();
         this._tmpEvade = new THREE.Vector3();
+    }
+
+    _syncRuntimeSettings(runtimeContext) {
+        const botSettings = runtimeContext?.runtimeConfig?.bot || null;
+        if (!botSettings || botSettings === this._runtimeBotSettings) return;
+        this._runtimeBotSettings = botSettings;
+        const profileName = normalizeProfileName(botSettings.heuristicProfile || botSettings.profile);
+        this.setProfile(profileName, botSettings.heuristicTuning?.[profileName]);
+        this.setDifficulty(botSettings.activeDifficulty);
     }
 
     _updateSnapshot(mode, intent, pressure, boostAllowed, selectedItemReason, targetDistanceRatio, retreatReason, input) {
@@ -129,28 +143,6 @@ export class HeuristicBotPolicy {
         snapshot.safetyTransitions = counters.safetyTransitions;
         snapshot.steeringChanges = counters.steeringChanges;
         snapshot.safetyActiveRatio = counters.updates > 0 ? counters.safetyActiveUpdates / counters.updates : 0;
-    }
-
-    _resolveProfileFromContext(runtimeContext) {
-        const nextProfileName = normalizeProfileName(
-            runtimeContext?.heuristicProfile
-            || runtimeContext?.runtimeConfig?.bot?.heuristicProfile
-            || runtimeContext?.runtimeConfig?.bot?.profile
-            || this.profileName
-        );
-        if (nextProfileName !== this.profileName) {
-            this.profileName = nextProfileName;
-            this.profile = HEURISTIC_PROFILES[nextProfileName];
-        }
-        const nextDifficultyName = normalizeDifficultyName(
-            runtimeContext?.difficulty
-            || runtimeContext?.runtimeConfig?.bot?.activeDifficulty
-            || this.difficultyName
-        );
-        if (nextDifficultyName !== this.difficultyName) {
-            this.difficultyName = nextDifficultyName;
-            this.difficulty = HEURISTIC_DIFFICULTIES[nextDifficultyName];
-        }
     }
 
     _resolveParcoursProgressSnapshot(runtimeContext, player) {
@@ -258,7 +250,7 @@ export class HeuristicBotPolicy {
     update(dt, player, runtimeContext = null) {
         const input = resetInput(this._input);
         if (!player || player.alive === false) return input;
-        this._resolveProfileFromContext(runtimeContext);
+        this._syncRuntimeSettings(runtimeContext);
         const observation = runtimeContext?.observation || null;
         applyHeuristicObstacleAvoidance(this, input, player, observation);
 
@@ -324,14 +316,17 @@ export class HeuristicBotPolicy {
         return this._decisionSnapshot;
     }
 
-    setProfile(profileName) {
+    setProfile(profileName, tuning = null) {
         this.profileName = normalizeProfileName(profileName);
-        this.profile = HEURISTIC_PROFILES[this.profileName];
+        this.profileTuning = tuning;
+        this.profile = resolveEffectiveHeuristicProfile(this.profileName, tuning);
+        this._decisionSnapshot.profile = this.profileName;
     }
 
     setDifficulty(profileName) {
         this.difficultyName = normalizeDifficultyName(profileName);
         this.difficulty = HEURISTIC_DIFFICULTIES[this.difficultyName];
+        this._decisionSnapshot.difficulty = this.difficultyName;
     }
 
     onBounce(type, normal = null) {

@@ -6,10 +6,15 @@ import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigCont
 import { clamp } from '../../shared/utils/MathOps.js';
 import { WORLD_UP, readObservationValue } from './HeuristicBotPolicyOps.js';
 import { resolveDirectionalProjectileThreat } from './HeuristicProjectileSafetyOps.js';
-import { checkTrailCollision, refreshHeuristicPlannedPathClearance } from './HeuristicTrailSafetyOps.js';
+import {
+    resolvePredictiveDangerThreshold, resolvePredictiveSafetyLookAhead,
+    resolvePredictiveSafetySampleCount, resolvePredictiveSafetyScale, samplePredictivePath,
+} from './HeuristicPredictiveSafetyOps.js';
+import { refreshHeuristicPlannedPathClearance } from './HeuristicTrailSafetyOps.js';
 import { resolveHeuristicSelfTrailSkipRecentSegments } from './HeuristicTrailSafetyOps.js';
 export { applyHeuristicObstacleAvoidance, resolveBoostPressureCeiling } from './HeuristicObstacleAvoidanceOps.js';
 export { checkTrailCollision, resolveHeuristicSelfTrailSkipRecentSegments } from './HeuristicTrailSafetyOps.js';
+export { checkArenaCollision } from './HeuristicPredictiveSafetyOps.js';
 
 export const HEURISTIC_SAFETY_STATES = Object.freeze({
     NORMAL: 'normal',
@@ -187,49 +192,6 @@ export function recordHeuristicBounce(state, type, normal = null) {
     }
 }
 
-export function checkArenaCollision(arena, position, radius) {
-    if (typeof arena?.checkBotCollisionFast === 'function') {
-        return !!arena.checkBotCollisionFast(position, radius);
-    }
-    if (typeof arena?.checkCollisionFast === 'function') {
-        return !!arena.checkCollisionFast(position, radius);
-    }
-    if (typeof arena?.checkCollision === 'function') {
-        return !!arena.checkCollision(position, radius);
-    }
-    return false;
-}
-
-function samplePath(policy, state, runtimeContext, player, direction, lookAhead, radius, skipRecent) {
-    state.sampleArenaClearance = 1;
-    state.sampleTrailClearance = 1;
-    const sampleCount = HEURISTIC_SAFETY_CONFIG.probeSampleCount;
-    for (let sampleIndex = 1; sampleIndex <= sampleCount; sampleIndex += 1) {
-        const ratio = sampleIndex / sampleCount;
-        const intervalStart = (sampleIndex - 1) / sampleCount;
-        policy._tmpTarget.copy(player.position).addScaledVector(direction, lookAhead * ratio);
-        if (
-            state.sampleArenaClearance === 1
-            && checkArenaCollision(runtimeContext?.arena, policy._tmpTarget, radius)
-        ) {
-            state.sampleArenaClearance = intervalStart;
-        }
-        if (
-            state.sampleTrailClearance === 1
-            && checkTrailCollision(
-                runtimeContext?.trailSpatialIndex,
-                policy._tmpTarget,
-                radius,
-                player,
-                skipRecent
-            )
-        ) {
-            state.sampleTrailClearance = intervalStart;
-        }
-        if (state.sampleArenaClearance < 1 && state.sampleTrailClearance < 1) break;
-    }
-}
-
 function refreshSafetyProbes(policy, state, player, runtimeContext, observation) {
     state.probeTimer = HEURISTIC_SAFETY_CONFIG.probeInterval;
     state.probeDirty = false;
@@ -272,12 +234,15 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
             policy._tmpUp.normalize();
         }
 
-        const speedLookAhead = Math.abs(Number(player.speed) || Number(player.baseSpeed) || 0)
-            * HEURISTIC_SAFETY_CONFIG.probeSpeedSeconds;
-        const lookAhead = clamp(
-            speedLookAhead,
-            HEURISTIC_SAFETY_CONFIG.probeMinLookAhead,
-            HEURISTIC_SAFETY_CONFIG.probeMaxLookAhead
+        const predictiveScale = resolvePredictiveSafetyScale(policy.profile);
+        const lookAhead = resolvePredictiveSafetyLookAhead(
+            Number(player.speed) || Number(player.baseSpeed),
+            HEURISTIC_SAFETY_CONFIG,
+            predictiveScale
+        );
+        const sampleCount = resolvePredictiveSafetySampleCount(
+            predictiveScale,
+            HEURISTIC_SAFETY_CONFIG.probeSampleCount
         );
         const radius = Math.max(0.1, Number(player.hitboxRadius) || 0.8)
             * HEURISTIC_SAFETY_CONFIG.probeRadiusMultiplier;
@@ -287,21 +252,21 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
             HEURISTIC_SAFETY_CONFIG.trailSkipRecentSegments
         );
 
-        samplePath(policy, state, runtimeContext, player, policy._tmpForward, lookAhead, radius, skipRecent);
+        samplePredictivePath(policy, state, runtimeContext, player, policy._tmpForward, lookAhead, radius, skipRecent, sampleCount);
         state.frontArenaClearance = state.sampleArenaClearance;
         state.frontTrailClearance = state.sampleTrailClearance;
 
         policy._tmpGate.copy(policy._tmpForward)
             .addScaledVector(policy._tmpRight, HEURISTIC_SAFETY_CONFIG.probeSideSpread)
             .normalize();
-        samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent);
+        samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent, sampleCount);
         state.leftArenaClearance = state.sampleArenaClearance;
         state.leftTrailClearance = state.sampleTrailClearance;
 
         policy._tmpGate.copy(policy._tmpForward)
             .addScaledVector(policy._tmpRight, -HEURISTIC_SAFETY_CONFIG.probeSideSpread)
             .normalize();
-        samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent);
+        samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent, sampleCount);
         state.rightArenaClearance = state.sampleArenaClearance;
         state.rightTrailClearance = state.sampleTrailClearance;
 
@@ -309,14 +274,14 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
             policy._tmpGate.copy(policy._tmpForward)
                 .addScaledVector(policy._tmpUp, HEURISTIC_SAFETY_CONFIG.probeSideSpread)
                 .normalize();
-            samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent);
+            samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent, sampleCount);
             state.upArenaClearance = state.sampleArenaClearance;
             state.upTrailClearance = state.sampleTrailClearance;
 
             policy._tmpGate.copy(policy._tmpForward)
                 .addScaledVector(policy._tmpUp, -HEURISTIC_SAFETY_CONFIG.probeSideSpread)
                 .normalize();
-            samplePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent);
+            samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent, sampleCount);
             state.downArenaClearance = state.sampleArenaClearance;
             state.downTrailClearance = state.sampleTrailClearance;
         }
@@ -483,9 +448,13 @@ export function applyHeuristicSafetyArbiter(policy, input, dt, player, runtimeCo
     }
     refreshHeuristicPlannedPathClearance(state, input);
 
-    const dangerThreshold = Math.max(
+    const baseDangerThreshold = Math.max(
         Number(policy.profile?.safetyDistance) || 0,
         HEURISTIC_SAFETY_CONFIG.minimumDangerClearance
+    );
+    const dangerThreshold = resolvePredictiveDangerThreshold(
+        baseDangerThreshold,
+        resolvePredictiveSafetyScale(policy.profile)
     );
     const observedProjectileThreat = readObservationValue(observation, PROJECTILE_THREAT, 0) >= 0.5;
     const hasProjectileRuntimeSource = Array.isArray(runtimeContext?.projectiles);

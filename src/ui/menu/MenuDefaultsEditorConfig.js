@@ -10,6 +10,7 @@ import { DEFAULT_VIEW_DISTANCE } from '../../shared/contracts/ViewDistanceContra
 import { createDefaultHudAppearance } from '../../shared/contracts/HudAppearanceContract.js';
 import { createDefaultAudioSettings, normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 import { createDefaultArcadeRunSettings } from '../../shared/contracts/ArcadeRunSettingsContract.js';
+import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 import {
     SPLIT_SCREEN_VARIANTS,
     normalizeFourPlayerPlanarSettings,
@@ -37,13 +38,15 @@ function deepClone(value) {
 const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     schemaVersion: MENU_DEFAULT_EDITOR_SCHEMA_VERSION,
     baseSettings: {
-        settingsVersion: 4,
+        settingsVersion: 5,
         mode: '2p',
         gameMode: HUNT_CONFIG.DEFAULT_MODE,
         mapKey: 'mega_maze',
         numBots: 8,
         botDifficulty: 'HARD',
         botPolicyStrategy: 'auto',
+        botHeuristicProfile: 'balanced',
+        botHeuristicTuning: createBotHeuristicTuningSnapshot(),
         winsNeeded: 5,
         autoRoll: false,
         invertPitch: {
@@ -165,6 +168,8 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         numBots: 1,
         botDifficulty: 'NORMAL',
         botPolicyStrategy: 'auto',
+        botHeuristicProfile: 'balanced',
+        botHeuristicTuning: createBotHeuristicTuningSnapshot(),
         winsNeeded: 5,
         autoRoll: false,
         portalsEnabled: true,
@@ -383,6 +388,8 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
                 : MENU_DEFAULT_EDITOR_CONFIG.baseSettings.numBots,
             botDifficulty: String(source.botDifficulty || MENU_DEFAULT_EDITOR_CONFIG.baseSettings.botDifficulty),
             botPolicyStrategy: String(source.botPolicyStrategy || MENU_DEFAULT_EDITOR_CONFIG.baseSettings.botPolicyStrategy),
+            botHeuristicProfile: String(source.botHeuristicProfile || MENU_DEFAULT_EDITOR_CONFIG.baseSettings.botHeuristicProfile),
+            botHeuristicTuning: createBotHeuristicTuningSnapshot(source.botHeuristicTuning),
             winsNeeded: Number.isFinite(Number(source.winsNeeded))
                 ? Number(source.winsNeeded)
                 : MENU_DEFAULT_EDITOR_CONFIG.baseSettings.winsNeeded,

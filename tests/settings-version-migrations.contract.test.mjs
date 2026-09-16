@@ -28,6 +28,7 @@ test('settings migration lifts a version-less snapshot to the current version in
         SETTINGS_VERSION_MIGRATION_IDS.V1_TO_V2,
         SETTINGS_VERSION_MIGRATION_IDS.V2_TO_V3,
         SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4,
+        SETTINGS_VERSION_MIGRATION_IDS.V4_TO_V5,
     ]);
     assert.equal(result.settings.settingsVersion, defaults.settingsVersion);
     assert.equal(result.settings.localSettings.sessionType, 'splitscreen');
@@ -62,6 +63,7 @@ test('settings migration only runs the remaining steps for a partially migrated 
         SETTINGS_VERSION_MIGRATION_IDS.V1_TO_V2,
         SETTINGS_VERSION_MIGRATION_IDS.V2_TO_V3,
         SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4,
+        SETTINGS_VERSION_MIGRATION_IDS.V4_TO_V5,
     ]);
     assert.equal(result.settings.settingsVersion, defaults.settingsVersion);
 });
@@ -74,10 +76,10 @@ test('settings migration treats an unreadable version stamp as version zero', ()
 
     assert.equal(result.fromVersion, 0);
     assert.equal(result.reachedVersion, defaults.settingsVersion);
-    assert.equal(result.appliedMigrations.length, 4);
+    assert.equal(result.appliedMigrations.length, 5);
 });
 
-test('settings migration applies the requested gameplay defaults to existing version-three saves', () => {
+test('settings migration applies gameplay defaults and neutral bot tuning to version-three saves', () => {
     const manager = createManager();
     const defaults = manager.createDefaultSettings();
 
@@ -92,13 +94,17 @@ test('settings migration applies the requested gameplay defaults to existing ver
         },
     }, defaults);
 
-    assert.deepEqual(result.appliedMigrations, [SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4]);
-    assert.equal(result.settings.settingsVersion, 4);
+    assert.deepEqual(result.appliedMigrations, [
+        SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4,
+        SETTINGS_VERSION_MIGRATION_IDS.V4_TO_V5,
+    ]);
+    assert.equal(result.settings.settingsVersion, 5);
     assert.equal(result.settings.gameplay.speed, 30);
     assert.equal(result.settings.gameplay.turnSensitivity, 3);
     assert.equal(result.settings.gameplay.itemAmount, 60);
     assert.equal(result.settings.numBots, 8);
     assert.equal(result.settings.autoRoll, false);
+    assert.equal(result.settings.botHeuristicTuning.balanced.aggression, 50);
 });
 
 test('settings migration leaves a snapshot from a newer version untouched', () => {

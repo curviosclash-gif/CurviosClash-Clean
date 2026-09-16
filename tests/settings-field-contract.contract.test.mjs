@@ -131,6 +131,8 @@ test('settings versions migrate through explicit ordered steps', () => {
         SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
         SETTINGS_VERSION_MIGRATION_IDS.V1_TO_V2,
         SETTINGS_VERSION_MIGRATION_IDS.V2_TO_V3,
+        SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4,
+        SETTINGS_VERSION_MIGRATION_IDS.V4_TO_V5,
     ]);
     assert.equal(migration.reachedVersion, defaults.settingsVersion);
     assert.equal(migration.settings.settingsVersion, defaults.settingsVersion);

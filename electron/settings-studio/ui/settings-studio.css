@@ -856,6 +856,25 @@ textarea:focus-visible {
     justify-self: end;
 }
 
+.field-range {
+    display: grid;
+    grid-template-columns: 1fr 3ch;
+    align-items: center;
+    gap: 8px;
+}
+
+.field-input.field-input--range {
+    padding: 0;
+    border: 0;
+    cursor: pointer;
+}
+
+.field-range output {
+    font-size: 12px;
+    font-variant-numeric: tabular-nums;
+    text-align: right;
+}
+
 /* Spielmenü-Editor */
 .menu-editor-toolbar {
     display: flex;

@@ -216,6 +216,38 @@ test('predictive trail probes match the runtime collision radius and self-trail 
     assert.ok(calls.every((call) => call.playerRef === null));
 });
 
+test('predictive safety tuning sees a distant trail while neutral probing remains unchanged', () => {
+    const createContext = () => ({
+        mode: 'CLASSIC',
+        players: [],
+        arena: {},
+        trailSpatialIndex: {
+            checkGlobalCollision(position) {
+                return position.z <= -5 ? { hit: true } : null;
+            },
+        },
+        observation: createSafeObservation(),
+    });
+    const neutralPlayer = createPlayer(1);
+    const neutral = new HeuristicBotPolicy({ profile: 'balanced' });
+    neutral.update(1 / 60, neutralPlayer, {
+        ...createContext(),
+        players: [neutralPlayer],
+    });
+    const predictivePlayer = createPlayer(1);
+    const predictive = new HeuristicBotPolicy({ profile: 'balanced' });
+    predictive.profile = Object.freeze({ ...predictive.profile, predictiveSafetyBias: 0.6 });
+    const predictiveAction = predictive.update(1 / 60, predictivePlayer, {
+        ...createContext(),
+        players: [predictivePlayer],
+    });
+
+    assert.equal(neutral.getDecisionSnapshot().safetyState, 'normal');
+    assert.equal(predictive.getDecisionSnapshot().safetyState, 'evade');
+    assert.equal(predictive.getDecisionSnapshot().safetyReason, 'trail-ahead');
+    assert.equal(predictiveAction.boost, false);
+});
+
 test('safety arbiter vetoes a steering command that points into a side trail', () => {
     const player = createPlayer(1);
     const policy = new HeuristicBotPolicy({ profile: 'balanced' });
@@ -437,6 +469,184 @@ test('Hunt bot leads a moving target while approaching from outside its attack w
 
     assert.equal(policy.getDecisionSnapshot().intent, 'approach');
     assert.equal(action.yawRight, true);
+});
+
+test('Hunt attack cutoff tactic extends the lead without changing the neutral profile', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -108);
+    enemy.velocity = new THREE.Vector3(18, 0, 0);
+    const context = {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
+    };
+    const neutral = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    neutral.update(1 / 60, player, context);
+    const neutralLeadX = neutral._tmpAimTarget.x;
+
+    const cutoff = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    cutoff.profile = Object.freeze({ ...cutoff.profile, attackCutoffBias: 1 });
+    cutoff.update(1 / 60, player, context);
+
+    assert.equal(HEURISTIC_PROFILES.balanced.attackCutoffBias, 0.5);
+    assert.ok(cutoff._tmpAimTarget.x > neutralLeadX);
+});
+
+test('Hunt escape tactic adds a lateral roll only above the neutral bias', () => {
+    const player = createPlayer(1);
+    player.hp = 20;
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -30);
+    const context = {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
+    };
+    const neutral = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    const neutralAction = neutral.update(1, player, context);
+    const evasive = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    evasive.profile = Object.freeze({ ...evasive.profile, escapeLateralBias: 1 });
+    const evasiveAction = evasive.update(1, player, context);
+
+    assert.equal(neutral.getDecisionSnapshot().intent, 'retreat');
+    assert.equal(neutralAction.rollLeft || neutralAction.rollRight, false);
+    assert.equal(evasive.getDecisionSnapshot().intent, 'retreat');
+    assert.equal(evasiveAction.rollLeft !== evasiveAction.rollRight, true);
+});
+
+test('Hunt finisher keeps firing at a weak target only above the neutral bias', () => {
+    const player = createPlayer(1);
+    player.hp = 50;
+    const enemy = createPlayer(2, false);
+    enemy.hp = 20;
+    enemy.position.set(0, 0, -30);
+    const context = {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
+    };
+    const neutral = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
+    const neutralAction = neutral.update(1 / 60, player, context);
+    const finisher = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
+    finisher.profile = Object.freeze({ ...finisher.profile, finisherBias: 1 });
+    const finisherAction = finisher.update(1 / 60, player, context);
+
+    assert.equal(HEURISTIC_PROFILES.defensive.finisherBias, 0.5);
+    assert.equal(neutral.getDecisionSnapshot().intent, 'retreat');
+    assert.equal(neutralAction.shootMG, false);
+    assert.notEqual(finisher.getDecisionSnapshot().intent, 'retreat');
+    assert.equal(finisherAction.shootMG, true);
+});
+
+test('Hunt safety still vetoes the finisher under projectile threat', () => {
+    const player = createPlayer(1);
+    player.hp = 50;
+    const enemy = createPlayer(2, false);
+    enemy.hp = 20;
+    enemy.position.set(0, 0, -30);
+    const observation = createSafeObservation();
+    observation[PROJECTILE_THREAT] = 1;
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
+    policy.profile = Object.freeze({ ...policy.profile, finisherBias: 1 });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT', players: [player, enemy], arena: {}, observation,
+        observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(policy.getDecisionSnapshot().intent, 'evade');
+    assert.equal(action.shootMG, false);
+});
+
+test('Hunt opening fanout separates lanes only above the neutral bias', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(30, 0, -30);
+    const context = {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
+    };
+    const neutral = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    const neutralAction = neutral.update(1 / 60, player, context);
+    const disengage = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    disengage.profile = Object.freeze({ ...disengage.profile, openingFanoutBias: 1 });
+    const disengageAction = disengage.update(1 / 60, player, context);
+
+    assert.equal(HEURISTIC_PROFILES.balanced.openingFanoutBias, 0.5);
+    assert.notEqual(neutral.getDecisionSnapshot().intent, 'opening-fanout');
+    assert.equal(
+        neutralAction.yawLeft || neutralAction.yawRight
+            || neutralAction.rollLeft || neutralAction.rollRight,
+        true
+    );
+    assert.equal(disengage.getDecisionSnapshot().intent, 'opening-fanout');
+    assert.equal(disengageAction.yawLeft !== disengageAction.yawRight, true);
+    assert.equal(disengageAction.boost, false);
+});
+
+test('Hunt opportunist steals a vulnerable target without changing the neutral target ring', () => {
+    const neutralPlayer = createPlayer(1);
+    const opportunistPlayer = createPlayer(1);
+    const ringTarget = createPlayer(2, false);
+    const weakTarget = createPlayer(3, false);
+    ringTarget.position.set(0, 0, -20);
+    weakTarget.position.set(0, 0, -35);
+    weakTarget.hp = 10;
+    const observation = createSafeObservation();
+    const neutral = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    neutral.update(1 / 60, neutralPlayer, {
+        mode: 'HUNT', players: [neutralPlayer, ringTarget, weakTarget], projectiles: [], arena: {},
+        observation, observationContext: { targetDistanceMax: 120 },
+    });
+    const opportunist = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    opportunist.profile = Object.freeze({ ...opportunist.profile, opportunistBias: 1 });
+    opportunist.update(1 / 60, opportunistPlayer, {
+        mode: 'HUNT', players: [opportunistPlayer, ringTarget, weakTarget], projectiles: [], arena: {},
+        observation, observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(HEURISTIC_PROFILES.balanced.opportunistBias, 0.5);
+    assert.equal(neutralPlayer.fightTargetPlayerIndex, ringTarget.index);
+    assert.equal(opportunistPlayer.fightTargetPlayerIndex, weakTarget.index);
+});
+
+test('Hunt opening hook reverses its fan to lay a crossing trail', () => {
+    const player = createPlayer(1);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(30, 0, -30);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    policy.profile = Object.freeze({ ...policy.profile, openingHookBias: 1 });
+    const context = {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
+    };
+    const first = policy.update(0.1, player, context);
+    const firstYawDirection = first.yawRight ? -1 : 1;
+    const second = policy.update(0.80, player, context);
+    const secondYawDirection = second.yawRight ? -1 : 1;
+    const third = policy.update(0.09, player, context);
+    const thirdYawDirection = third.yawRight ? -1 : 1;
+
+    assert.equal(HEURISTIC_PROFILES.balanced.openingHookBias, 0.5);
+    assert.equal(policy.getDecisionSnapshot().intent, 'opening-hook');
+    assert.ok(firstYawDirection * secondYawDirection < 0);
+    assert.equal(firstYawDirection, thirdYawDirection);
+});
+
+test('Hunt traffic avoidance steers before another flight path crosses', () => {
+    const player = createPlayer(1);
+    player.velocity = new THREE.Vector3(0, 0, -18);
+    const enemy = createPlayer(2, false);
+    enemy.position.set(0, 0, -10);
+    enemy.velocity = new THREE.Vector3(0, 0, 18);
+    const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'balanced' });
+    policy.profile = Object.freeze({ ...policy.profile, trafficAvoidanceBias: 1 });
+    const action = policy.update(1 / 60, player, {
+        mode: 'HUNT', players: [player, enemy], projectiles: [], arena: {},
+        observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
+    });
+
+    assert.equal(HEURISTIC_PROFILES.balanced.trafficAvoidanceBias, 0.5);
+    assert.equal(policy.getDecisionSnapshot().intent, 'traffic-avoid');
+    assert.equal(action.yawLeft !== action.yawRight, true);
+    assert.equal(action.boost, false);
 });
 
 test('Hunt bot boosts while safely aligned with a distant target', () => {

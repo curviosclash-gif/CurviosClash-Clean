@@ -227,6 +227,9 @@ function renderFieldInput(field, value, dirty, resolvedLimits = null) {
         const min = limits?.min != null ? `min="${esc(limits.min)}"` : '';
         const max = limits?.max != null ? `max="${esc(limits.max)}"` : '';
         const step = limits?.step != null ? `step="${esc(limits.step)}"` : 'step="any"';
+        if (field.control === 'range') {
+            return `<span class="field-range"><input class="field-input field-input--range" type="range" data-path="${esc(path)}" data-type="number" value="${esc(value ?? '')}" ${min} ${max} ${step} ${dirtyAttr} /><output data-range-output="${esc(path)}">${esc(value ?? '')}</output></span>`;
+        }
         return `<input class="field-input" type="number" data-path="${esc(path)}" data-type="number" value="${esc(value ?? '')}" ${min} ${max} ${step} ${dirtyAttr} />`;
     }
 
@@ -252,7 +255,7 @@ function renderFieldRow(field, draft, baseDraft, t, validationErrors) {
         ? validationErrors.filter((e) => e.path === field.path)
         : [];
     const hasError = fieldErrors.length > 0;
-    const label = fieldLabel(field.path);
+    const label = field.label?.[t.language] || fieldLabel(field.path);
     const input = renderFieldInput(field, value, dirty, resolvedLimits);
     const riskClass = field.riskLevel === 'high' ? ' field-row--risk-high' : '';
     const classes = ['field-row', dirty ? 'dirty' : '', hasError ? 'has-error' : ''].filter(Boolean).join(' ') + riskClass;

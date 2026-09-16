@@ -1,5 +1,10 @@
 import * as THREE from 'three';
 import { MODE_ID } from './observation/ObservationSchemaV1.js';
+import {
+    isNeutralBotHeuristicProfileTuning,
+    normalizeBotHeuristicProfileTuning,
+    toBotHeuristicTuningOffset,
+} from '../../shared/contracts/BotHeuristicTuningContract.js';
 
 export const WORLD_UP = new THREE.Vector3(0, 1, 0);
 
@@ -31,6 +36,14 @@ export const HEURISTIC_PROFILES = Object.freeze({
         safetyDistance: 0.44,
         preferredRange: 0.46,
         strafeDistance: 0.60,
+        escapeLateralBias: 0.5,
+        attackCutoffBias: 0.5,
+        finisherBias: 0.5,
+        openingFanoutBias: 0.5,
+        opportunistBias: 0.5,
+        openingHookBias: 0.5,
+        trafficAvoidanceBias: 0.5,
+        predictiveSafetyBias: 0.5,
     }),
     balanced: Object.freeze({
         retreatVitality: 0.38,
@@ -42,6 +55,14 @@ export const HEURISTIC_PROFILES = Object.freeze({
         safetyDistance: 0.3,
         preferredRange: 0.34,
         strafeDistance: 0.5,
+        escapeLateralBias: 0.5,
+        attackCutoffBias: 0.5,
+        finisherBias: 0.5,
+        openingFanoutBias: 0.5,
+        opportunistBias: 0.5,
+        openingHookBias: 0.5,
+        trafficAvoidanceBias: 0.5,
+        predictiveSafetyBias: 0.5,
     }),
     aggressive: Object.freeze({
         retreatVitality: 0.20,
@@ -53,8 +74,71 @@ export const HEURISTIC_PROFILES = Object.freeze({
         safetyDistance: 0.18,
         preferredRange: 0.20,
         strafeDistance: 0.38,
+        escapeLateralBias: 0.5,
+        attackCutoffBias: 0.5,
+        finisherBias: 0.5,
+        openingFanoutBias: 0.5,
+        opportunistBias: 0.5,
+        openingHookBias: 0.5,
+        trafficAvoidanceBias: 0.5,
+        predictiveSafetyBias: 0.5,
     }),
 });
+
+export const HEURISTIC_PROFILE_FIELD_BOUNDS = Object.freeze({
+    retreatVitality: Object.freeze([0.10, 0.80]),
+    retreatPressure: Object.freeze([0.40, 1.00]),
+    boostBias: Object.freeze([0.50, 1.60]),
+    defensiveItemThresholdScale: Object.freeze([0.50, 1.50]),
+    offensiveItemThresholdScale: Object.freeze([0.50, 1.50]),
+    attackWindow: Object.freeze([0.30, 1.00]),
+    safetyDistance: Object.freeze([0.08, 0.60]),
+    preferredRange: Object.freeze([0.10, 0.70]),
+    strafeDistance: Object.freeze([0.20, 0.80]),
+    escapeLateralBias: Object.freeze([0.25, 1.00]),
+    attackCutoffBias: Object.freeze([0.25, 1.00]),
+    finisherBias: Object.freeze([0.25, 1.00]),
+    openingFanoutBias: Object.freeze([0.25, 1.00]),
+    opportunistBias: Object.freeze([0.25, 1.00]),
+    openingHookBias: Object.freeze([0.25, 1.00]),
+    trafficAvoidanceBias: Object.freeze([0.25, 1.00]),
+    predictiveSafetyBias: Object.freeze([0.25, 1.00]),
+});
+
+function scaleProfileField(baseProfile, field, offset, direction) {
+    const bounds = HEURISTIC_PROFILE_FIELD_BOUNDS[field];
+    const value = Number(baseProfile[field]) * (1 + direction * offset * 0.3);
+    return Math.max(bounds[0], Math.min(bounds[1], value));
+}
+
+export function resolveEffectiveHeuristicProfile(profileName, tuning = null) {
+    const normalizedName = normalizeProfileName(profileName);
+    const baseProfile = HEURISTIC_PROFILES[normalizedName];
+    const normalizedTuning = normalizeBotHeuristicProfileTuning(tuning);
+    if (isNeutralBotHeuristicProfileTuning(normalizedTuning)) return baseProfile;
+
+    const aggressionOffset = toBotHeuristicTuningOffset(normalizedTuning.aggression);
+    const survivalOffset = toBotHeuristicTuningOffset(normalizedTuning.survivalFocus);
+    return Object.freeze({
+        retreatVitality: scaleProfileField(baseProfile, 'retreatVitality', survivalOffset, 1),
+        retreatPressure: scaleProfileField(baseProfile, 'retreatPressure', survivalOffset, -1),
+        boostBias: scaleProfileField(baseProfile, 'boostBias', aggressionOffset, 1),
+        defensiveItemThresholdScale: scaleProfileField(baseProfile, 'defensiveItemThresholdScale', survivalOffset, -1),
+        offensiveItemThresholdScale: scaleProfileField(baseProfile, 'offensiveItemThresholdScale', aggressionOffset, -1),
+        attackWindow: scaleProfileField(baseProfile, 'attackWindow', aggressionOffset, 1),
+        safetyDistance: scaleProfileField(baseProfile, 'safetyDistance', survivalOffset, 1),
+        preferredRange: scaleProfileField(baseProfile, 'preferredRange', aggressionOffset, -1),
+        strafeDistance: scaleProfileField(baseProfile, 'strafeDistance', aggressionOffset, -1),
+        escapeLateralBias: baseProfile.escapeLateralBias,
+        attackCutoffBias: baseProfile.attackCutoffBias,
+        finisherBias: baseProfile.finisherBias,
+        openingFanoutBias: baseProfile.openingFanoutBias,
+        opportunistBias: baseProfile.opportunistBias,
+        openingHookBias: baseProfile.openingHookBias,
+        trafficAvoidanceBias: baseProfile.trafficAvoidanceBias,
+        predictiveSafetyBias: baseProfile.predictiveSafetyBias,
+    });
+}
 
 export const HEURISTIC_DIFFICULTIES = Object.freeze({
     easy: Object.freeze({

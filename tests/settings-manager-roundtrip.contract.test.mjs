@@ -96,6 +96,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['mapKey', 'maze'],
     ['botDifficulty', 'EASY'],
     ['botPolicyStrategy', 'heuristic'],
+    ['botHeuristicProfile', 'aggressive'],
     ['vehicles.PLAYER_1', 'aircraft'],
     ['vehicles.PLAYER_2', 'drone'],
     ['arcade.profileId', 'arcade-alt'],
@@ -152,6 +153,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['controls.PLAYER_1.ROLL_LEFT', 'KeyO'],
     ['controls.PLAYER_1.ROLL_RIGHT', 'KeyP'],
     ['controls.PLAYER_1.BOOST', 'KeyH'],
+    ['controls.PLAYER_1.SLOWMO', 'KeyQ'],
     ['controls.PLAYER_1.SHOOT', 'KeyJ'],
     ['controls.PLAYER_1.SHOOT_ROCKET', 'KeyK'],
     ['controls.PLAYER_1.SHOOT_MG', 'KeyL'],
@@ -165,6 +167,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['controls.PLAYER_2.ROLL_LEFT', 'Digit5'],
     ['controls.PLAYER_2.ROLL_RIGHT', 'Digit6'],
     ['controls.PLAYER_2.BOOST', 'Digit7'],
+    ['controls.PLAYER_2.SLOWMO', 'Numpad1'],
     ['controls.PLAYER_2.SHOOT', 'Digit8'],
     ['controls.PLAYER_2.SHOOT_ROCKET', 'Digit9'],
     ['controls.PLAYER_2.SHOOT_MG', 'Digit0'],
@@ -173,6 +176,7 @@ const ALTERNATIVE_VALUES = new Map([
     ['controls.PLAYER_2.CAMERA', 'Backslash'],
     ['controls.GLOBAL.CINEMATIC_TOGGLE', 'F7'],
     ['controls.GLOBAL.RECORDING_TOGGLE', 'F6'],
+    ['controls.SPLITSCREEN.layout', 'controller-keyboard'],
 ]);
 
 function resolveSettingsLimitRule(path) {
@@ -350,6 +354,7 @@ test('SettingsManager derives hunt respawn from the stored mode path', () => {
 
 test('SettingsManager clamps every gameplay field to its declared limit rule', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
+    const settingsVersion = manager.createDefaultSettings().settingsVersion;
     const belowMinimum = {};
     const aboveMaximum = {};
     for (const [field, rule] of Object.entries(SETTINGS_LIMITS.gameplay)) {
@@ -357,8 +362,8 @@ test('SettingsManager clamps every gameplay field to its declared limit rule', (
         aboveMaximum[field] = rule.max + 1000;
     }
 
-    const clampedLow = manager.sanitizeSettings({ gameplay: belowMinimum }).gameplay;
-    const clampedHigh = manager.sanitizeSettings({ gameplay: aboveMaximum }).gameplay;
+    const clampedLow = manager.sanitizeSettings({ settingsVersion, gameplay: belowMinimum }).gameplay;
+    const clampedHigh = manager.sanitizeSettings({ settingsVersion, gameplay: aboveMaximum }).gameplay;
 
     for (const [field, rule] of Object.entries(SETTINGS_LIMITS.gameplay)) {
         assert.equal(clampedLow[field], rule.min, `${field} is not clamped to its minimum`);

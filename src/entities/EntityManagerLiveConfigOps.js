@@ -58,6 +58,13 @@ export function applyLiveRuntimeConfig(em, entityRuntimeConfig, runtimeConfig) {
     if (runtimeConfig !== undefined) {
         em.runtimeConfig = runtimeConfig;
     }
+    const heuristicProfile = runtimeConfig?.bot?.heuristicProfile;
+    const heuristicTuning = runtimeConfig?.bot?.heuristicTuning?.[heuristicProfile];
+    if (heuristicProfile) {
+        for (const bot of em.bots || []) {
+            bot?.ai?.setProfile?.(heuristicProfile, heuristicTuning);
+        }
+    }
     const arcadeAggressiveness = runtimeConfig?.bot?.arcadeAggressiveness;
     if (Number.isFinite(Number(arcadeAggressiveness))) {
         for (const bot of em.bots || []) {

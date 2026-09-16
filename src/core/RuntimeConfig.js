@@ -41,6 +41,7 @@ import {
     createThreePlayerSplitRuntimeSelection,
 } from '../four-player-planar/FourPlayerPlanarContract.js';
 import { getVehicleIds } from '../entities/vehicle-registry.js';
+import { createBotHeuristicTuningSnapshot } from '../shared/contracts/BotHeuristicTuningContract.js';
 
 function toNumber(value, fallback) {
     const parsed = Number(value);
@@ -384,6 +385,7 @@ export function createRuntimeConfigSnapshot(settings, {
         bot: {
             activeDifficulty: botDifficulty,
             heuristicProfile: botHeuristicProfile,
+            heuristicTuning: createBotHeuristicTuningSnapshot(source.botHeuristicTuning),
             policyStrategy: botPolicyStrategy,
             policyType: botPolicyType,
             trainerBridgeEnabled,

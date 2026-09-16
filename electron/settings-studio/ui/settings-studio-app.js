@@ -481,7 +481,8 @@ function showInfoPanel(path, triggerElement = null) {
         ? triggerElement
         : fallbackTrigger;
 
-    const label = String(path.split('.').pop() || path).replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
+    const label = field.label?.[state.language]
+        || String(path.split('.').pop() || path).replace(/([A-Z])/g, ' $1').replace(/^./, (c) => c.toUpperCase());
 
     refs.infoPanelTitle.textContent = label;
     refs.infoPanelBody.innerHTML = renderInfoPanelBody(field);
@@ -920,6 +921,8 @@ function onFieldChange(eventOrTarget, options = {}) {
     writePath(state.draft, path, value);
 
     const row = target.closest('.field-row');
+    const rangeOutput = row?.querySelector?.(`[data-range-output="${String(path).replace(/"/g, '\\"')}"]`);
+    if (rangeOutput) rangeOutput.textContent = String(value);
     if (updateUi && row) {
         const isDirtyNow = JSON.stringify(readPath(state.draft, path)) !== JSON.stringify(readPath(state.baseDraft, path));
         row.classList.toggle('dirty', isDirtyNow);

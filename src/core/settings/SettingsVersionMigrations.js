@@ -6,6 +6,7 @@ export const SETTINGS_VERSION_MIGRATION_IDS = Object.freeze({
     V1_TO_V2: 'settings.v1-to-v2',
     V2_TO_V3: 'settings.v2-to-v3',
     V3_TO_V4: 'settings.v3-to-v4',
+    V4_TO_V5: 'settings.v4-to-v5',
 });
 
 function ensureLocalSettings(settings) {
@@ -66,6 +67,12 @@ function migrateV3ToV4(settings) {
     return settings;
 }
 
+function migrateV4ToV5(settings, defaults) {
+    settings.botHeuristicTuning = deepClone(defaults?.botHeuristicTuning || {});
+    settings.settingsVersion = 5;
+    return settings;
+}
+
 const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
     Object.freeze({
         id: SETTINGS_VERSION_MIGRATION_IDS.V0_TO_V1,
@@ -90,6 +97,12 @@ const SETTINGS_VERSION_MIGRATIONS = Object.freeze([
         fromVersion: 3,
         toVersion: 4,
         migrate: migrateV3ToV4,
+    }),
+    Object.freeze({
+        id: SETTINGS_VERSION_MIGRATION_IDS.V4_TO_V5,
+        fromVersion: 4,
+        toVersion: 5,
+        migrate: migrateV4ToV5,
     }),
 ]);
 

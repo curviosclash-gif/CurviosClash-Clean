@@ -34,13 +34,20 @@ import {
     resolveStableStrafeRight,
 } from './HeuristicBotPolicyOps.js';
 import { findPreferredPickupTarget } from './BotPickupTargetingOps.js';
-
+import { resolveOpportunisticEnemy } from './HeuristicHuntTargetingOps.js';
+import {
+    applyTrafficAvoidanceSteering,
+    findImminentTrafficThreat,
+} from './HeuristicTrafficAvoidanceOps.js';
 const PRECISION_AIM_STEERING = Object.freeze({ precision: true, gain: 12 });
 const FIGHT_CORRIDOR_BLOCKED = 0;
 const FIGHT_CORRIDOR_TRAIL = 1;
 const FIGHT_CORRIDOR_CLEAR = 2;
 const HUNT_BREAKAWAY_DISTANCE_SQ = 18 * 18;
-
+const NEUTRAL_TACTIC_BIAS = 0.5;
+function resolveTacticStrength(value) {
+    return clamp((Number(value) - NEUTRAL_TACTIC_BIAS) * 2, 0, 1);
+}
 function probeFightCorridor(policy, player, targetPosition, runtimeContext) {
     if (!policy || !player?.position || !targetPosition) return FIGHT_CORRIDOR_BLOCKED;
     policy._tmpGate.subVectors(targetPosition, player.position);
@@ -75,7 +82,6 @@ function probeFightCorridor(policy, player, targetPosition, runtimeContext) {
     }
     return trailBlocked ? FIGHT_CORRIDOR_TRAIL : FIGHT_CORRIDOR_CLEAR;
 }
-
 function applyRetreatSteering(policy, input, player, enemy) {
     if (!player?.position) return;
     if (enemy?.position) {
@@ -96,7 +102,53 @@ function applyRetreatSteering(policy, input, player, enemy) {
     input.yawRight = true;
     input.yawLeft = false;
 }
-
+function applyEvasiveRetreatSteering(policy, input, player, enemy, arena) {
+    const strength = resolveTacticStrength(policy.profile.escapeLateralBias);
+    if (!(strength > 0) || !player?.position || !enemy?.position) {
+        applyRetreatSteering(policy, input, player, enemy);
+        return;
+    }
+    policy._tmpGate.subVectors(player.position, enemy.position);
+    if (policy._tmpGate.lengthSq() <= 0.000001) {
+        applyRetreatSteering(policy, input, player, enemy);
+        return;
+    }
+    policy._tmpGate.normalize();
+    policy._tmpRight.crossVectors(WORLD_UP, policy._tmpGate);
+    if (policy._tmpRight.lengthSq() <= 0.000001) policy._tmpRight.set(1, 0, 0);
+    else policy._tmpRight.normalize();
+    let side = resolveStableStrafeRight(player) ? 1 : -1;
+    const bounds = arena?.bounds;
+    if (bounds) {
+        const centerX = (Number(bounds.minX) + Number(bounds.maxX)) * 0.5;
+        const centerY = (Number(bounds.minY) + Number(bounds.maxY)) * 0.5;
+        const centerZ = (Number(bounds.minZ) + Number(bounds.maxZ)) * 0.5;
+        const centerDot = (centerX - player.position.x) * policy._tmpRight.x
+            + (centerY - player.position.y) * policy._tmpRight.y
+            + (centerZ - player.position.z) * policy._tmpRight.z;
+        if (Number.isFinite(centerDot) && Math.abs(centerDot) > 0.01) side = centerDot > 0 ? 1 : -1;
+    }
+    policy._tmpTarget.copy(player.position)
+        .addScaledVector(policy._tmpGate, 24)
+        .addScaledVector(policy._tmpRight, side * 14 * strength);
+    applyArenaCenterBias(policy._tmpTarget, player, arena);
+    applySteeringTowardPosition(policy, input, player, policy._tmpTarget);
+    input.rollRight = side < 0;
+    input.rollLeft = side > 0;
+}
+function applyAttackCutoffTarget(policy, player, enemy, targetDistance) {
+    const strength = resolveTacticStrength(policy.profile.attackCutoffBias);
+    const velocity = enemy?.velocity;
+    if (!(strength > 0) || !player?.position || !velocity) return;
+    const velocityX = Number(velocity.x);
+    const velocityY = Number(velocity.y);
+    const velocityZ = Number(velocity.z);
+    if (!Number.isFinite(velocityX) || !Number.isFinite(velocityY) || !Number.isFinite(velocityZ)) return;
+    const extraLeadSeconds = strength * clamp(targetDistance / 160, 0.08, 0.48);
+    policy._tmpAimTarget.x += velocityX * extraLeadSeconds;
+    policy._tmpAimTarget.y += velocityY * extraLeadSeconds;
+    policy._tmpAimTarget.z += velocityZ * extraLeadSeconds;
+}
 function applyArenaCenterBias(target, player, arena) {
     const bounds = arena?.bounds;
     if (!target || !player?.position || !bounds) return target;
@@ -123,11 +175,11 @@ function applyArenaCenterBias(target, player, arena) {
     target.z += (centerZ - target.z) * blend;
     return target;
 }
-
 function resolveMovementIntent(policy, dt, requestedIntent) {
     const state = policy._huntState;
     state.commitTimer = Math.max(0, state.commitTimer - Math.max(0, Number(dt) || 0));
     const canSwitch = requestedIntent === 'retreat'
+        || requestedIntent === 'traffic-avoid'
         || state.movementIntent === 'retreat'
         || state.movementIntent === 'search'
         || state.commitTimer <= 0;
@@ -137,7 +189,6 @@ function resolveMovementIntent(policy, dt, requestedIntent) {
     }
     return state.movementIntent;
 }
-
 function applyBreakawaySteering(policy, input, player, enemy, arena) {
     if (!player?.position || !enemy?.position) return;
     policy._tmpGate.subVectors(player.position, enemy.position);
@@ -149,7 +200,6 @@ function applyBreakawaySteering(policy, input, player, enemy, arena) {
     policy._tmpRight.crossVectors(WORLD_UP, policy._tmpGate);
     if (policy._tmpRight.lengthSq() <= 0.000001) policy._tmpRight.set(1, 0, 0);
     else policy._tmpRight.normalize();
-
     let side = resolveStableStrafeRight(player) ? 1 : -1;
     const bounds = arena?.bounds;
     if (bounds) {
@@ -169,19 +219,23 @@ function applyBreakawaySteering(policy, input, player, enemy, arena) {
     input.rollRight = side < 0;
     input.rollLeft = side > 0;
 }
-
 export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeContext, observation) {
+    policy._huntState.openingTimer = Math.max(
+        0,
+        Number(policy._huntState.openingTimer) - Math.max(0, Number(dt) || 0)
+    );
     const players = Array.isArray(runtimeContext?.visiblePlayers)
         ? runtimeContext.visiblePlayers
         : (Array.isArray(runtimeContext?.players) ? runtimeContext.players : []);
     const huntTarget = runtimeContext?.huntTarget || null;
     const preferred = getPreferredFightEnemy(player, players, policy._tmpToEnemy, runtimeContext?.dt);
     const targetPlayer = resolveHuntTargetOwnerPlayer(huntTarget, players);
-    const enemy = targetPlayer && (
+    let enemy = targetPlayer && (
         targetPlayer === preferred.enemy
         || preferred.candidateCount <= 1
         || targetPlayer.index === player.fightLastAttackerIndex
     ) ? targetPlayer : preferred.enemy;
+    enemy = resolveOpportunisticEnemy(policy, player, players, enemy);
     if (player?.endlessForcedRetreat === true) {
         clearSteeringInput(input);
         applyRetreatSteering(policy, input, player, enemy);
@@ -239,10 +293,14 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
             && Number.isFinite(Number(enemy.velocity.y)) && Number.isFinite(Number(enemy.velocity.z))) {
             policy._tmpAimTarget.addScaledVector(enemy.velocity, leadSeconds);
         }
+        if (targetDistanceRatio >= attackWindow) {
+            applyAttackCutoffTarget(policy, player, enemy, targetDistance);
+        }
     }
     const wallFront = clamp(readObservationValue(observation, WALL_DISTANCE_FRONT, 1), 0, 1);
     const aggression = clamp(0.5 + (vitalityRatio - enemyVitalityRatio) * 0.9, 0.12, 1);
     const survivalPressure = Math.max(pressureLevel, projectileThreat ? 0.84 : 0, (1 - vitalityRatio) * 0.95);
+    const trafficThreat = findImminentTrafficThreat(policy, player, players);
     const rocketIndex = findQueuedRocketIndex(player);
     let intent = 'fight-search';
     let retreatReason = '';
@@ -278,6 +336,16 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         : FIGHT_CORRIDOR_BLOCKED;
     const clearMgShot = fightCorridor !== FIGHT_CORRIDOR_BLOCKED;
     const clearProjectileShot = fightCorridor === FIGHT_CORRIDOR_CLEAR;
+    const finisherOpportunity = (Number(policy.profile.finisherBias) > NEUTRAL_TACTIC_BIAS
+        || Number(policy.profile.openingFanoutBias) > NEUTRAL_TACTIC_BIAS)
+        && enemy
+        && enemyVitalityRatio <= 0.28
+        && vitalityRatio >= 0.30
+        && survivalPressure < 0.70
+        && !projectileThreat
+        && targetInFront
+        && targetAlignment >= mgAimDot
+        && clearMgShot;
     if (enemy && targetInFront && targetAlignment >= mgAimDot
         && survivalPressure < 0.84 && aggression >= 0.38
         && targetDistanceRatio < attackWindow && clearMgShot) {
@@ -295,12 +363,24 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         input.shootItemIndex = itemAction.shootItemIndex;
     }
 
-    const retreatRequested = enemy && (vitalityRatio <= policy.profile.retreatVitality
-        || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure));
+    const retreatRequested = enemy && !finisherOpportunity
+        && (vitalityRatio <= policy.profile.retreatVitality
+            || (vitalityRatio < 0.52 && survivalPressure > policy.profile.retreatPressure));
     const pickupTarget = !retreatRequested && survivalPressure < 0.82
         ? findPreferredPickupTarget(player, runtimeContext, { pressure: survivalPressure, maxDistance: 75 })
         : null;
-    const requestedMovementIntent = retreatRequested
+    const openingHook = Number(policy.profile.openingHookBias) > NEUTRAL_TACTIC_BIAS
+        && policy._huntState.openingTimer > 0;
+    const openingFanout = (Number(policy.profile.openingFanoutBias) > NEUTRAL_TACTIC_BIAS
+        || openingHook)
+        && policy._huntState.openingTimer > 0;
+    const requestedMovementIntent = trafficThreat
+        ? 'traffic-avoid'
+        : openingHook
+        ? 'opening-hook'
+        : openingFanout
+        ? 'opening-fanout'
+        : retreatRequested
         ? 'retreat'
         : (pickupTarget ? 'pickup'
         : (targetDistanceRatio > policy.profile.strafeDistance
@@ -308,7 +388,30 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
             : (targetDistanceSq > HUNT_BREAKAWAY_DISTANCE_SQ ? 'strafe' : 'breakaway')));
     const movementIntent = resolveMovementIntent(policy, dt, enemy ? requestedMovementIntent : 'search');
 
-    if (enemy && movementIntent === 'retreat') {
+    if (movementIntent === 'traffic-avoid' && trafficThreat) {
+        clearSteeringInput(input);
+        applyTrafficAvoidanceSteering(policy, input, player, trafficThreat);
+        input.boost = false;
+        intent = 'traffic-avoid';
+    } else if (movementIntent === 'opening-fanout' || movementIntent === 'opening-hook') {
+        clearSteeringInput(input);
+        const stableFanRight = resolveStableStrafeRight(player);
+        const hookActive = movementIntent === 'opening-hook'
+            && policy._huntState.openingTimer < 0.50
+            && policy._huntState.openingTimer >= 0.42;
+        const fanRight = hookActive
+            ? !stableFanRight
+            : stableFanRight;
+        if (hookActive) {
+            input.yawRight = fanRight;
+            input.yawLeft = !fanRight;
+        } else {
+            input.yawRight = fanRight;
+            input.yawLeft = !fanRight;
+        }
+        input.boost = false;
+        intent = movementIntent;
+    } else if (enemy && movementIntent === 'retreat') {
         intent = 'retreat';
         retreatReason = vitalityRatio <= policy.profile.retreatVitality ? 'low-vitality' : 'pressure';
         const huntConfig = resolveGameplayConfig(player).HUNT;
@@ -324,7 +427,7 @@ export function applyHeuristicHuntBehavior(policy, input, dt, player, runtimeCon
         clearSteeringInput(input);
         if (readyGate?.gate) applySteeringTowardPosition(policy, input, player, readyGate.gate.pos);
         else if (readyPortal?.entry) applySteeringTowardPosition(policy, input, player, readyPortal.entry);
-        else applyRetreatSteering(policy, input, player, enemy);
+        else applyEvasiveRetreatSteering(policy, input, player, enemy, runtimeContext?.arena);
         if (!hasYaw(input)) applyRetreatSteering(policy, input, player, enemy);
         input.boost = wallFront > Math.max(policy.profile.safetyDistance, 0.34);
         input.shootMG = false;

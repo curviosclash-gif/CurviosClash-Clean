@@ -122,6 +122,7 @@ const DICTIONARY = Object.freeze({
         browserDemoRiskHintMedium: (count) => `${count} Medium-Risk-Aenderung(en): pruefen, ob Presets, Maps und Capability-Details wie erwartet begrenzt sind.`,
         categoryGameplay: 'Gameplay',
         categoryBotBridge: 'Bot Bridge',
+        categoryBotHeuristicTuning: 'Heuristik-Bot',
         categoryHunt: 'Hunt',
         categoryRecording: 'Aufnahme',
         categoryCameraPerspective: 'Kamera',
@@ -313,6 +314,7 @@ const DICTIONARY = Object.freeze({
         browserDemoRiskHintMedium: (count) => `${count} medium-risk change(s): verify presets, maps, and capability details are limited as intended.`,
         categoryGameplay: 'Gameplay',
         categoryBotBridge: 'Bot Bridge',
+        categoryBotHeuristicTuning: 'Heuristic Bot',
         categoryHunt: 'Hunt',
         categoryRecording: 'Recording',
         categoryCameraPerspective: 'Camera',
@@ -391,10 +393,12 @@ export function normalizeLanguage(language) {
 export function createTranslator(language) {
     const lang = normalizeLanguage(language);
     const table = DICTIONARY[lang];
-    return (key, ...args) => {
+    const translator = (key, ...args) => {
         const entry = table[key] ?? DICTIONARY.de[key] ?? key;
         return typeof entry === 'function' ? entry(...args) : entry;
     };
+    translator.language = lang;
+    return translator;
 }
 
 export const SECTIONS = Object.freeze([

@@ -41,7 +41,11 @@ test('four-player planar settings migrate and sanitize without changing legacy p
         settingsVersion: 2,
         localSettings: { sessionType: 'splitscreen' },
     }, defaults);
-    assert.deepEqual(migrated.appliedMigrations, ['settings.v2-to-v3']);
+    assert.deepEqual(migrated.appliedMigrations, [
+        'settings.v2-to-v3',
+        'settings.v3-to-v4',
+        'settings.v4-to-v5',
+    ]);
     assert.equal(migrated.settings.localSettings.splitScreenVariant, SPLIT_SCREEN_VARIANTS.STANDARD);
 
     const sanitized = manager.sanitizeSettings({

@@ -307,7 +307,7 @@ test('integer range rules, granular dirty state, and component/field/panel/menu 
         true
     );
 
-    assert.equal(applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 7 }).valid, true);
+    assert.equal(applyMenuEditorNumericRangeValue({ draft, item, component: 'max', value: 9 }).valid, true);
     const dirtyModel = createMenuEditorModel({
         fields: createSettingsOverrideFieldRegistry(),
         draft,

@@ -4,6 +4,7 @@ import {
     getSettingsFieldDescriptorForOverridePath,
 } from '../../composition/core-ui/CoreSettingsPorts.js';
 import { SETTINGS_LIMITS, clampSettingValue } from '../../shared/contracts/SettingsRuntimeContract.js';
+import { BOT_HEURISTIC_FIELD_HELP_METADATA, BOT_HEURISTIC_FIELD_LIMITS } from './BotHeuristicSettingsStudioContract.js';
 import {
     collectPrimitiveLeafPaths,
     deepCloneJson,
@@ -46,6 +47,7 @@ const DEFAULT_LANGUAGE = 'de';
 const SUPPORTED_LANGUAGES = new Set(['de', 'en']);
 
 const FIELD_HELP_METADATA = Object.freeze({
+    ...BOT_HEURISTIC_FIELD_HELP_METADATA,
     'baseSettings.gameplay.trailLength': Object.freeze({ riskLevel: 'medium', unit: 'segments', example: '5000', help: { de: 'Maximale Segmentanzahl der Kursspur.', en: 'Maximum segment count of each flight trail.' }, impact: { de: 'Hoehere Werte verlaengern die Spur, erhoehen aber Speicher-, GPU- und Kollisionskosten.', en: 'Higher values make trails longer, but increase memory, GPU, and collision cost.' } }),
     'baseSettings.numBots': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Anzahl der KI-Gegner pro Match.', en: 'Number of AI opponents per match.' }, impact: { de: 'Mehr Bots erzeugen mehr Spielaktion, erhöhen aber den Rechenaufwand.', en: 'More bots create more action, but increase CPU load.' } }),
     'baseSettings.winsNeeded': Object.freeze({ riskLevel: 'low', unit: null, example: '3', help: { de: 'Rundensiege, die zum Matchgewinn benötigt werden.', en: 'Round wins needed to win the match.' }, impact: { de: 'Bestimmt die Matchlänge direkt.', en: 'Directly determines match length.' } }),
@@ -75,7 +77,7 @@ function resolveFieldHelpMetadata(path) {
         const mirror = path.replace(/^configShare\./, 'baseSettings.');
         if (FIELD_HELP_METADATA[mirror]) return FIELD_HELP_METADATA[mirror];
     }
-    return Object.freeze({ riskLevel: 'low', unit: null, example: null, help: null, impact: null });
+    return Object.freeze({ label: null, riskLevel: 'low', unit: null, example: null, help: null, impact: null });
 }
 
 const SECTION_DEFINITIONS = Object.freeze([
@@ -87,6 +89,7 @@ const SECTION_DEFINITIONS = Object.freeze([
 ]);
 
 const DEFAULT_FIELD_LIMITS = Object.freeze({
+    ...BOT_HEURISTIC_FIELD_LIMITS,
     'baseSettings.gameplay.trailLength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailLength, step: 100 }),
     'configShare.gameplay.trailLength': Object.freeze({ ...SETTINGS_LIMITS.gameplay.trailLength, step: 100 }),
     'baseSettings.numBots': Object.freeze({ ...SETTINGS_LIMITS.session.numBots, step: 1 }),
@@ -156,6 +159,7 @@ function resolveFieldCategory(path, fallbackCategory) {
     if (!normalized) return fallbackCategory;
     if (normalized.includes('.gameplay.')) return 'gameplay';
     if (normalized.includes('.botBridge.')) return 'botBridge';
+    if (normalized.includes('.botHeuristicTuning.')) return 'botHeuristicTuning';
     if (normalized.includes('.hunt.')) return 'hunt';
     if (normalized.includes('.recording.')) return 'recording';
     if (normalized.includes('.cameraPerspective.')) return 'cameraPerspective';
@@ -217,7 +221,7 @@ export function createSettingsOverrideFieldRegistry() {
                 section: section.key,
                 category: resolveFieldCategory(path, section.category),
                 type,
-                labelKey: `settings.field.${path}`,
+                labelKey: `settings.field.${path}`, label: meta.label, control: path.startsWith('baseSettings.botHeuristicTuning.') ? 'range' : null,
                 defaultValue: deepCloneJson(value),
                 limits,
                 riskLevel: meta.riskLevel,
@@ -240,7 +244,7 @@ export function createSettingsOverrideFieldRegistry() {
             section: path.split('.')[0],
             category: resolveFieldCategory(path, 'gameplay'),
             type: 'number',
-            labelKey: `settings.field.${path}`,
+            labelKey: `settings.field.${path}`, label: meta.label, control: path.startsWith('baseSettings.botHeuristicTuning.') ? 'range' : null,
             defaultValue: deriveSeedDefaultValue(path, draft),
             limits: deepCloneJson(DEFAULT_FIELD_LIMITS[path]),
             riskLevel: meta.riskLevel,

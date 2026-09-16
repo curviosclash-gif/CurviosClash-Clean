@@ -3,6 +3,7 @@ import {
     createMenuLocalSettingsDefaults,
 } from './MenuDefaultsEditorConfig.js';
 import { resolveArtifactVersionState } from '../../shared/contracts/ArtifactVersionMigrationContract.js';
+import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
 
 export const MENU_CONFIG_SHARE_CONTRACT_VERSION = 'menu-config-share.v1';
 const MENU_CONFIG_SHARE_VERSION_FIELDS = Object.freeze(['contractVersion']);
@@ -76,6 +77,10 @@ function createSharePayload(settings) {
         numBots: Number.isFinite(Number(source.numBots)) ? Number(source.numBots) : defaults.numBots,
         botDifficulty: sanitizeString(source.botDifficulty, defaults.botDifficulty).toUpperCase(),
         botPolicyStrategy: sanitizeString(source.botPolicyStrategy, defaults.botPolicyStrategy).toLowerCase(),
+        botHeuristicProfile: ['defensive', 'balanced', 'aggressive'].includes(source.botHeuristicProfile)
+            ? source.botHeuristicProfile
+            : defaults.botHeuristicProfile,
+        botHeuristicTuning: createBotHeuristicTuningSnapshot(source.botHeuristicTuning),
         winsNeeded: Number.isFinite(Number(source.winsNeeded)) ? Number(source.winsNeeded) : defaults.winsNeeded,
         autoRoll: typeof source.autoRoll === 'boolean' ? source.autoRoll : defaults.autoRoll,
         portalsEnabled: typeof source.portalsEnabled === 'boolean' ? source.portalsEnabled : defaults.portalsEnabled,
@@ -99,6 +104,10 @@ export function applyMenuConfigPayload(settings, payload) {
     settings.numBots = Number.isFinite(Number(payload.numBots)) ? Number(payload.numBots) : settings.numBots;
     settings.botDifficulty = sanitizeString(payload.botDifficulty, settings.botDifficulty || defaults.botDifficulty).toUpperCase();
     settings.botPolicyStrategy = sanitizeString(payload.botPolicyStrategy, settings.botPolicyStrategy || defaults.botPolicyStrategy).toLowerCase();
+    settings.botHeuristicProfile = ['defensive', 'balanced', 'aggressive'].includes(payload.botHeuristicProfile)
+        ? payload.botHeuristicProfile
+        : defaults.botHeuristicProfile;
+    settings.botHeuristicTuning = createBotHeuristicTuningSnapshot(payload.botHeuristicTuning);
     settings.winsNeeded = Number.isFinite(Number(payload.winsNeeded)) ? Number(payload.winsNeeded) : settings.winsNeeded;
     settings.autoRoll = typeof payload.autoRoll === 'boolean' ? payload.autoRoll : defaults.autoRoll;
     settings.portalsEnabled = typeof payload.portalsEnabled === 'boolean' ? payload.portalsEnabled : defaults.portalsEnabled;
