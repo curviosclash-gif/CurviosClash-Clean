@@ -79,11 +79,10 @@ test('settings migration treats an unreadable version stamp as version zero', ()
     assert.equal(result.appliedMigrations.length, 5);
 });
 
-test('settings migration applies gameplay defaults and neutral bot tuning to version-three saves', () => {
+test('settings migration preserves configured version-three gameplay values', () => {
     const manager = createManager();
     const defaults = manager.createDefaultSettings();
-
-    const result = migrateSettingsSnapshot({
+    const saved = {
         settingsVersion: 3,
         numBots: 2,
         autoRoll: true,
@@ -92,19 +91,38 @@ test('settings migration applies gameplay defaults and neutral bot tuning to ver
             turnSensitivity: 2.2,
             itemAmount: 8,
         },
-    }, defaults);
+    };
+    const result = migrateSettingsSnapshot(saved, defaults);
 
     assert.deepEqual(result.appliedMigrations, [
         SETTINGS_VERSION_MIGRATION_IDS.V3_TO_V4,
         SETTINGS_VERSION_MIGRATION_IDS.V4_TO_V5,
     ]);
     assert.equal(result.settings.settingsVersion, 5);
-    assert.equal(result.settings.gameplay.speed, 30);
-    assert.equal(result.settings.gameplay.turnSensitivity, 3);
-    assert.equal(result.settings.gameplay.itemAmount, 60);
-    assert.equal(result.settings.numBots, 8);
-    assert.equal(result.settings.autoRoll, false);
+    assert.equal(result.settings.gameplay.speed, 18);
+    assert.equal(result.settings.gameplay.turnSensitivity, 2.2);
+    assert.equal(result.settings.gameplay.itemAmount, 8);
+    assert.equal(result.settings.numBots, 2);
+    assert.equal(result.settings.autoRoll, true);
     assert.equal(result.settings.botHeuristicTuning.balanced.aggression, 50);
+    const sanitized = manager.sanitizeSettings(saved);
+    assert.equal(sanitized.gameplay.speed, 18);
+    assert.equal(sanitized.gameplay.turnSensitivity, 2.2);
+    assert.equal(sanitized.gameplay.itemAmount, 8);
+    assert.equal(sanitized.numBots, 2);
+    assert.equal(sanitized.autoRoll, true);
+});
+
+test('settings migration fills missing version-three fields from current defaults', () => {
+    const manager = createManager();
+    const defaults = manager.createDefaultSettings();
+    const result = migrateSettingsSnapshot({ settingsVersion: 3, gameplay: {} }, defaults);
+
+    assert.equal(result.settings.gameplay.speed, defaults.gameplay.speed);
+    assert.equal(result.settings.gameplay.turnSensitivity, defaults.gameplay.turnSensitivity);
+    assert.equal(result.settings.gameplay.itemAmount, defaults.gameplay.itemAmount);
+    assert.equal(result.settings.numBots, defaults.numBots);
+    assert.equal(result.settings.autoRoll, defaults.autoRoll);
 });
 
 test('settings migration leaves a snapshot from a newer version untouched', () => {
