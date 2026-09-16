@@ -31,25 +31,33 @@ test('every contract test gets a hard time limit', () => {
     assert.ok(resolveContractTestArgs({}, 8).includes('--test-timeout=120000'));
 });
 
+const FORCE_EXIT = '--test-force-exit';
+
 test('contract concurrency leaves two cores for the rest of the machine', () => {
-    assert.deepEqual(resolveContractTestArgs({}, 8), ['--test-timeout=120000', '--test-concurrency=6']);
-    assert.deepEqual(resolveContractTestArgs({}, 6), ['--test-timeout=120000', '--test-concurrency=4']);
-    assert.deepEqual(resolveContractTestArgs({}, 2), ['--test-timeout=120000', '--test-concurrency=2']);
-    assert.deepEqual(resolveContractTestArgs({}, 0), ['--test-timeout=120000', '--test-concurrency=2']);
+    assert.deepEqual(resolveContractTestArgs({}, 8), ['--test-timeout=120000', '--test-concurrency=6', FORCE_EXIT]);
+    assert.deepEqual(resolveContractTestArgs({}, 6), ['--test-timeout=120000', '--test-concurrency=4', FORCE_EXIT]);
+    assert.deepEqual(resolveContractTestArgs({}, 2), ['--test-timeout=120000', '--test-concurrency=2', FORCE_EXIT]);
+    assert.deepEqual(resolveContractTestArgs({}, 0), ['--test-timeout=120000', '--test-concurrency=2', FORCE_EXIT]);
 });
 
 test('CURVIOS_TEST_CONCURRENCY overrides the detected core count', () => {
     assert.deepEqual(
         resolveContractTestArgs({ CURVIOS_TEST_CONCURRENCY: '3' }, 16),
-        ['--test-timeout=120000', '--test-concurrency=3']
+        ['--test-timeout=120000', '--test-concurrency=3', FORCE_EXIT]
     );
     for (const invalidValue of ['0', '-4', 'auto', '']) {
         assert.deepEqual(
             resolveContractTestArgs({ CURVIOS_TEST_CONCURRENCY: invalidValue }, 8),
-            ['--test-timeout=120000', '--test-concurrency=6'],
+            ['--test-timeout=120000', '--test-concurrency=6', FORCE_EXIT],
             `invalid override ${invalidValue} must fall back`
         );
     }
+});
+
+// A file whose server socket stays open after its last test kept a run alive for four
+// hours at zero CPU (seen 15.09.2026); the per-test timeout cannot end that process.
+test('the runner forces the child to exit once the last test is done', () => {
+    assert.ok(resolveContractTestArgs({}, 8).includes(FORCE_EXIT));
 });
 
 test('the time scale only ever stretches budgets, never shortens them', () => {

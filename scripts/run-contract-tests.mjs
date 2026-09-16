@@ -84,7 +84,14 @@ export function resolveContractTestArgs(env = process.env, cpuCount = cpus().len
     const concurrency = Number.isInteger(override) && override > 0
         ? override
         : Math.max(2, detectedCores - CONTRACT_CONCURRENCY_HEADROOM);
-    return [`--test-timeout=${CONTRACT_TEST_TIMEOUT_MS}`, `--test-concurrency=${concurrency}`];
+    // --test-force-exit: a test file whose server socket or timer stays open after its last
+    // test would otherwise keep the child alive forever (seen: signaling-connection-limit,
+    // four hours at zero CPU). The per-test timeout alone does not end that process.
+    return [
+        `--test-timeout=${CONTRACT_TEST_TIMEOUT_MS}`,
+        `--test-concurrency=${concurrency}`,
+        '--test-force-exit',
+    ];
 }
 
 // Lastempfindliche Tests (Council-Benchmark, Online-Handoff) messen echte Zeit. Unter
