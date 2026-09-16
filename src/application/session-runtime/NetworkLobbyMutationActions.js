@@ -48,7 +48,8 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
     }
     if (sessionState.settingsRevision != null && options.settingsSnapshot
         && JSON.stringify(options.settingsSnapshot) !== JSON.stringify(service._hostSettingsSnapshot)) {
-        return service._fail('Die aktuellen Match-Einstellungen sind noch nicht bestätigt.', 'settings_revision_mismatch');
+        void service.publishHostSettings(options.settingsSnapshot);
+        return service._fail('Match-Einstellungen werden übertragen. Danach müssen alle erneut Ready sein.', 'settings_sync_pending');
     }
     if (sessionState.memberCount < 2) {
         return service._fail('Mindestens zwei Teilnehmer werden benoetigt.', 'not_enough_members');

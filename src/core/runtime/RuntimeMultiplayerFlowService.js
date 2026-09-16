@@ -31,7 +31,6 @@ export function syncRuntimeMultiplayerContext({
     changedKeys,
     menuMultiplayerBridge,
     resolveMenuAccessContext,
-    didHostChangeMatchSettings,
     captureSettingsSnapshot,
     syncUiState,
 }) {
@@ -40,7 +39,7 @@ export function syncRuntimeMultiplayerContext({
 
     const accessContext = resolveMenuAccessContext?.();
     menuMultiplayerBridge?.syncActorIdentity?.(game?.playerProfileManager?.getActiveProfile?.()?.id || accessContext?.actorId);
-    if (Array.isArray(changedKeys) && changedKeys.length > 0 && didHostChangeMatchSettings?.(changedKeys)) {
+    if (Array.isArray(changedKeys) && changedKeys.length > 0) {
         menuMultiplayerBridge?.publishHostSettings?.(captureSettingsSnapshot?.());
     }
     syncUiState?.();
