@@ -701,11 +701,11 @@ async function runIteration() {
     if (state.plateauRounds >= 3) process.exitCode = 3;
 }
 
-async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, product = false) {
+async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, product = false, profiles = PROFILES) {
     const state = loadState();
     const slots = Array.from({ length: NUM_BOTS }, (_, index) => index);
     const completeProfiles = new Set();
-    for (const profile of PROFILES) {
+    for (const profile of profiles) {
         const fields = clampProfile(profile, product ? HEURISTIC_PROFILES[profile] : state.profiles[profile]);
         const result = await evaluateVariant({
             profile,
@@ -740,6 +740,7 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, produc
         console.log(
             `profile=${profile} ${product ? 'product' : persist ? 'verified' : 'confirmed'}SurvivalRatio=${formatRatio(result.survivalRatio)}`
             + ` ${product ? 'product' : persist ? 'verified' : 'confirmed'}KillRatio=${formatRatio(result.killRatio)}`
+            + (product ? ` candidateKills=${result.candidateKills.toFixed(3)} baselineKills=${result.baselineKills.toFixed(3)}` : '')
             + ` shortSafe=${shortSafe}`
         );
     }
@@ -860,7 +861,11 @@ const task = command === '--verify'
     : command === '--audit-product'
     ? () => verifyCurrentProfiles(AUDIT_SEEDS, false, true)
     : command === '--audit-product-seeds'
-    ? () => verifyCurrentProfiles(parseFreshAuditSeeds(process.argv[3]), false, true)
+    ? () => {
+        const profile = process.argv[4];
+        if (profile && !PROFILES.includes(profile)) throw new Error(`unknown audit profile: ${profile}`);
+        return verifyCurrentProfiles(parseFreshAuditSeeds(process.argv[3]), false, true, profile ? [profile] : PROFILES);
+    }
     : command === '--replay'
     ? replayMatch
     : command === '--replay-product'
