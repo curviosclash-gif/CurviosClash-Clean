@@ -3,8 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+    CONTRACT_LOAD_TIME_SCALE,
     CONTRACT_TEST_TIMEOUT_MS,
     buildContractSummaryReporterArgs,
+    resolveAutoTimeScaleEnv,
     formatContractSummaryLine,
     resolveContractSummaryPath,
     resolveContractTestArgs,
@@ -58,6 +60,15 @@ test('CURVIOS_TEST_CONCURRENCY overrides the detected core count', () => {
 // hours at zero CPU (seen 15.09.2026); the per-test timeout cannot end that process.
 test('the runner forces the child to exit once the last test is done', () => {
     assert.ok(resolveContractTestArgs({}, 8).includes(FORCE_EXIT));
+});
+
+// Measured 16.09.2026: with a cluster on the GPU the online handoff took 9.1 s instead of 0.4 s
+// and went red; the runner now stretches the budgets itself when the Playwright lock is held.
+test('the runner scales time budgets by itself while a Playwright run holds the lock', () => {
+    assert.equal(CONTRACT_LOAD_TIME_SCALE, 3);
+    assert.deepEqual(resolveAutoTimeScaleEnv({}, true), { CURVIOS_TEST_TIME_SCALE: '3' });
+    assert.deepEqual(resolveAutoTimeScaleEnv({}, false), {});
+    assert.deepEqual(resolveAutoTimeScaleEnv({ CURVIOS_TEST_TIME_SCALE: '2' }, true), {}, 'a hand-set scale wins');
 });
 
 test('the time scale only ever stretches budgets, never shortens them', () => {

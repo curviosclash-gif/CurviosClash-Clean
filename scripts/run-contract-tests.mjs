@@ -1,10 +1,11 @@
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 import { readCoverageRatchet, runCoverageRatchet } from './check-coverage-ratchet.mjs';
+import { resolvePlaywrightRunLockPath } from './playwright-run-lock.mjs';
 
 const distDependentTests = new Set([
     'electron-renderer-dist-drift.contract.test.mjs',
@@ -103,6 +104,16 @@ export function resolveTestTimeScale(env = process.env) {
     return rawScale;
 }
 
+export const CONTRACT_LOAD_TIME_SCALE = 3;
+
+// An Electron run on the same machine (the Playwright lock is held) is exactly the load that
+// tipped the online handoff from 0.4 s to 9 s. When nobody set a scale by hand, the runner
+// stretches the budgets itself instead of relying on every agent to remember the variable.
+export function resolveAutoTimeScaleEnv(env = process.env, playwrightLockHeld = false) {
+    if (String(env?.CURVIOS_TEST_TIME_SCALE ?? '').trim()) return {};
+    return playwrightLockHeld ? { CURVIOS_TEST_TIME_SCALE: String(CONTRACT_LOAD_TIME_SCALE) } : {};
+}
+
 export function resolveContractSummaryPath(timestamp = new Date().toISOString().replace(/[:.]/g, '-')) {
     return path.resolve('tmp', 'contract', timestamp, 'summary.json');
 }
@@ -138,6 +149,11 @@ export function runContractTests(argv = process.argv.slice(2)) {
     const summaryPath = path.join(mkdtempSync(path.join(tmpdir(), 'curvios-coverage-')), 'summary.json');
     const contractSummaryPath = resolveContractSummaryPath();
     mkdirSync(path.dirname(contractSummaryPath), { recursive: true });
+    const autoScale = resolveAutoTimeScaleEnv(process.env, existsSync(resolvePlaywrightRunLockPath(process.env)));
+    const childEnv = { ...process.env, ...autoScale };
+    if (autoScale.CURVIOS_TEST_TIME_SCALE) {
+        console.log(`[contract] playwright lock is held by another run; CURVIOS_TEST_TIME_SCALE=${autoScale.CURVIOS_TEST_TIME_SCALE}`);
+    }
     const reporterArgs = coverageEnabled
         ? buildCoverageArgs(Object.keys(readCoverageRatchet().areas), summaryPath)
         : ['--test-reporter=spec', '--test-reporter-destination=stdout'];
@@ -150,7 +166,7 @@ export function runContractTests(argv = process.argv.slice(2)) {
         ...selectedTests.map((fileName) => path.join('tests', fileName)),
     ], {
         stdio: 'inherit',
-        env: process.env,
+        env: childEnv,
     });
 
     if (result.error) throw result.error;
