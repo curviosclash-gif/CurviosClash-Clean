@@ -7,7 +7,8 @@ import { normalizeArcadeBotAggressiveness } from './ArcadeBotAggressionContract.
 
 export const ARENA_WAVES_RUN_TYPE = 'arena_waves';
 export const ARENA_WAVES_COMBAT_PROFILE = 'hunt';
-export const ARENA_WAVES_BOT_CAPACITY = 12;
+export const ARENA_WAVES_BOT_CAPACITY = 24;
+export const ARENA_WAVES_INTERVAL_SECONDS = 60;
 export const ARENA_WAVES_MAPS = Object.freeze([
     'notre_dame_arena', 'notre_dame_fire_arena', 'eiffel_tower_siege',
     'burg_falkenwacht_arena', 'reactor_site',

@@ -1,5 +1,6 @@
 import { expect, test } from './helpers.desktop.js';
 import { waitForLoadedGame } from './helpers.js';
+import { applyArenaWavesChoice } from '../src/shared/contracts/ArenaWavesContract.js';
 
 // This intentionally uses the runtime's test-visible arcade seam to avoid waiting
 // for combat AI. It still exercises the production menu button and overlay clicks.
@@ -14,13 +15,16 @@ test('Five Fronts starts, offers one upgrade, retains it across a forced map tra
     await page.locator('#btn-arcade-five-fronts-start-inline').click({ force: true });
     await page.waitForFunction(() => {
         const runtime = window.GAME_INSTANCE?.runtimeFacade?._arcadeSupport?.arenaWavesRuntime;
-        return runtime?.phase !== 'idle' && runtime?.entityManager?.bots?.length === 12;
+        return runtime?.phase !== 'idle' && runtime?.entityManager?.bots?.length === 24;
     }, null, { timeout: 60_000 });
     const started = await page.evaluate(() => {
         const game = window.GAME_INSTANCE; const runtime = game.runtimeFacade?._arcadeSupport?.arenaWavesRuntime;
-        return { map: runtime?.mapIndex, slots: runtime?.entityManager?.bots?.length, endless: !!runtime?.entityManager?.endlessParcoursRuntime };
+        return { map: runtime?.mapIndex, slots: runtime?.entityManager?.bots?.length, endless: !!runtime?.entityManager?.endlessParcoursRuntime, nextWaveInSeconds: runtime?.getHudState?.().nextWaveInSeconds };
     });
-    expect(started).toEqual({ map: 0, slots: 12, endless: false });
+    expect(started.map).toBe(0);
+    expect(started.slots).toBe(24);
+    expect(started.endless).toBe(false);
+    expect(started.nextWaveInSeconds).toBeGreaterThan(0);
 
     await page.evaluate(() => {
         const runtime = window.GAME_INSTANCE.runtimeFacade._arcadeSupport.arenaWavesRuntime;
@@ -45,6 +49,7 @@ test('Five Fronts starts, offers one upgrade, retains it across a forced map tra
         game.matchFlowUiController?._syncArcadeOverlayPanel?.();
     });
     await expect(page.locator('#arcade-overlay-panel .arcade-overlay-choice-btn')).toHaveCount(4);
+    const deathChoice = await page.evaluate(() => window.GAME_INSTANCE.runtimeFacade._arcadeSupport.arenaWavesRuntime.getHudState().choices[0]);
     await page.locator('#arcade-overlay-panel .arcade-overlay-choice-btn').first().click();
     await page.evaluate(async () => window.GAME_INSTANCE.runtimeFacade.restartRound());
     await page.waitForFunction(() => {
@@ -64,7 +69,7 @@ test('Five Fronts starts, offers one upgrade, retains it across a forced map tra
     expect(transitioned.mapIndex).toBe(1);
     expect(transitioned.mapKey).toBe('notre_dame_fire_arena');
     expect(transitioned.managerRebuilt).toBeTruthy();
-    expect(transitioned.upgrades).toEqual(retained);
+    expect(transitioned.upgrades).toEqual(applyArenaWavesChoice(retained, deathChoice));
 
     await page.evaluate(() => {
         const runtime = window.GAME_INSTANCE.runtimeFacade._arcadeSupport.arenaWavesRuntime;

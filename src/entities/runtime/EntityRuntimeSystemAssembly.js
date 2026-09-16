@@ -13,6 +13,7 @@ import { MapHazardSystem } from '../systems/MapHazardSystem.js';
 import { MapDestructibleSystem } from '../systems/MapDestructibleSystem.js';
 import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
+import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -34,7 +35,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
             getBots: () => owner.bots,
             getScoreboard: () => owner.getHuntScoreboard(),
             isRespawnEnabled: () => owner.gameModeStrategy?.isRespawnEnabled?.() === true,
-            isEliminationSuppressed: () => owner._parcoursProgressSystem?.isRespawnEnabled?.() === true,
+            isEliminationSuppressed: () => owner._parcoursProgressSystem?.isRespawnEnabled?.() === true
+                || isArenaWavesConfig(owner.runtimeConfig),
             isRespawnPending: (player) => owner._respawnSystem?.isRespawnPending?.(player) === true,
             isOutcomeAuthority: () => owner.isFightOutcomeAuthority !== false,
             getDeathmatchKillLimit: () => owner.entityRuntimeConfig?.HUNT?.DEATHMATCH_KILL_LIMIT || 10,

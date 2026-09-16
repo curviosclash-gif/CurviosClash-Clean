@@ -4,6 +4,7 @@ import test from 'node:test';
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { PlayingStateSystem } from '../src/core/PlayingStateSystem.js';
 import { emitArcadeEliminationEvents } from '../src/entities/runtime/EntityArcadeGameplayEvents.js';
+import { createEntityRuntimeSystems } from '../src/entities/runtime/EntityRuntimeSystemAssembly.js';
 import { createRuntimeProjectionPort } from '../src/shared/runtime/GameRuntimePorts.js';
 import { selectArcadeIntermissionChoice } from '../src/ui/MatchFlowTransitionHotspots.js';
 
@@ -83,6 +84,19 @@ test('only arena-waves emits a neutral bot elimination without a human killer', 
     assert.deepEqual(events, [{ type: 'kill', victimIndex: 7, count: 0, runId: '', botSlot: null, activationGeneration: null }]);
     emitArcadeEliminationEvents({ ...arenaOwner, runtimeConfig: { arcade: { enabled: true, runType: 'gauntlet' } } }, { index: 8, isBot: true }, 'TRAIL_SELF');
     assert.equal(events.length, 1);
+});
+
+test('arena-waves suppresses round elimination between waves but still ends on human death', () => {
+    const human = { index: 0, isBot: false, alive: true };
+    const bot = { index: 1, isBot: true, alive: false };
+    const owner = {
+        players: [human, bot], humanPlayers: [human], bots: [{ player: bot }],
+        runtimeConfig: { arcade: { enabled: true, runType: 'arena_waves' } },
+    };
+    const outcome = createEntityRuntimeSystems(owner, {}).roundOutcomeSystem;
+    assert.equal(outcome.resolve().shouldEnd, false);
+    human.alive = false;
+    assert.equal(outcome.resolve().shouldEnd, true);
 });
 
 test('arena-waves menu state retains total fields and exposes score aliases', () => {

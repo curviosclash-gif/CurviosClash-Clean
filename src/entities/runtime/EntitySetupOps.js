@@ -8,7 +8,7 @@ import { createGameModeStrategy } from '../../modes/GameModeRegistry.js';
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
-import { isArenaWavesRunType } from '../../shared/contracts/ArenaWavesContract.js';
+import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesRunType } from '../../shared/contracts/ArenaWavesContract.js';
 
 function normalizeActiveMode(mode) {
     return String(mode || '').trim().toLowerCase();
@@ -65,8 +65,8 @@ export class EntitySetupOps {
         const setupContext = this.resolveSetupPlayerContext(options);
         this.resetSetupCollections();
         this.setupHumanPlayers(numHumans, setupContext);
-        const botSlotCount = owner.gameModeStrategy?.isEndlessParcours?.() || isArenaWavesRunType(owner.runtimeConfig?.arcade?.runType)
-            ? 12 : numBots;
+        const botSlotCount = isArenaWavesRunType(owner.runtimeConfig?.arcade?.runType)
+            ? ARENA_WAVES_BOT_CAPACITY : (owner.gameModeStrategy?.isEndlessParcours?.() ? 12 : numBots);
         this.setupBotPlayers(numHumans, botSlotCount, setupContext);
     }
 

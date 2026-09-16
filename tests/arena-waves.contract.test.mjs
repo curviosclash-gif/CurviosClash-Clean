@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ARENA_WAVES_MAPS, applyArenaWavesChoice, applyArenaWavesMachineGunTuning, createArenaWavesUpgrades, resolveArenaWavesChoices, resolveArenaWavesMapMultipliers, resolveArenaWavesProfile, resolveArenaWavesSupplyPickup } from '../src/shared/contracts/ArenaWavesContract.js';
+import { ARENA_WAVES_BOT_CAPACITY, ARENA_WAVES_INTERVAL_SECONDS, ARENA_WAVES_MAPS, applyArenaWavesChoice, applyArenaWavesMachineGunTuning, createArenaWavesUpgrades, resolveArenaWavesChoices, resolveArenaWavesMapMultipliers, resolveArenaWavesProfile, resolveArenaWavesSupplyPickup } from '../src/shared/contracts/ArenaWavesContract.js';
 import { normalizeArcadeRunSettings } from '../src/shared/contracts/ArcadeRunSettingsContract.js';
 import { ArenaWavesRuntime } from '../src/core/arcade/ArenaWavesRuntime.js';
 import { GameRuntimeArcadeSupport } from '../src/core/runtime/GameRuntimeArcadeSupport.js';
 
 function fixture() {
     const human = { index: 0, isBot: false, alive: true, maxHp: 100, hp: 40, baseSpeed: 10, speed: 10, fightLoadout: {}, position: { x: 2, y: 3, z: 4 } };
-    const bots = Array.from({ length: 12 }, (_, slot) => ({ player: { index: slot + 1, isBot: true, alive: false, maxHp: 100, hp: 100, endlessDamageMultiplier: 1 }, ai: { setProfile() {}, reset() {} }, slot }));
+    const bots = Array.from({ length: ARENA_WAVES_BOT_CAPACITY }, (_, slot) => ({ player: { index: slot + 1, isBot: true, alive: false, maxHp: 100, hp: 100, endlessDamageMultiplier: 1 }, ai: { setProfile() {}, reset() {} }, slot }));
     const active = new Set(); const supplies = []; const strategyEffects = [];
     const manager = {
         humanPlayers: [human], players: [human, ...bots.map((entry) => entry.player)], bots,
@@ -38,17 +38,62 @@ test('telegraph delays activation, applies non-compounding bot HP and the consum
     const f = fixture(); const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager, strategy: f.strategy });
     runtime.update(5); assert.equal(runtime.phase, 'telegraph'); assert.equal(runtime.getHudState().plannedSpawnCount, 2); assert.equal(f.active.size, 0);
     runtime.update(1); assert.equal(runtime.phase, 'combat'); assert.equal(f.bots[0].player.maxHp, 100); assert.equal(f.bots[0].player.endlessDamageMultiplier, 1);
-    runtime.wave = 2; runtime.phase = 'countdown'; runtime.countdown = 0; runtime.update(0); runtime.update(1);
-    assert.ok(Math.abs(f.bots[0].player.maxHp - 110) < 1e-9); assert.equal(f.bots[0].player.endlessDamageMultiplier, 1.05);
+    runtime.update(59); assert.equal(runtime.phase, 'telegraph'); runtime.update(1);
+    assert.ok(Math.abs(f.bots[2].player.maxHp - 110) < 1e-9); assert.equal(f.bots[2].player.endlessDamageMultiplier, 1.05);
     runtime._deactivateBots('test'); assert.equal(f.bots[0].player.endlessDamageMultiplier, 1);
 });
 
-test('one choice branches once: milestone resumes countdown and death waits for choice before one map transition', () => {
+test('a new wave starts on the minute even while earlier bots are alive, with a visible countdown', () => {
+    const f = fixture(); const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager }); enterCombat(runtime);
+    assert.equal(ARENA_WAVES_INTERVAL_SECONDS, 60);
+    assert.equal(runtime.getHudState().nextWaveInSeconds, 60);
+    runtime.update(58);
+    assert.equal(runtime.phase, 'combat'); assert.equal(runtime.getHudState().nextWaveInSeconds, 2);
+    runtime.update(1);
+    assert.equal(runtime.phase, 'telegraph'); assert.equal(runtime.getHudState().spawnWarning.count, 3);
+    runtime.update(1);
+    assert.equal(runtime.phase, 'combat'); assert.equal(runtime.wave, 2);
+    assert.equal(runtime.getHudState().alive, 5); assert.equal(runtime.getHudState().nextWaveInSeconds, 60);
+    assert.deepEqual([...runtime._slotWave.values()], [1, 1, 2, 2, 2]);
+});
+
+test('killed waves score once, but capacity evictions do not award kills or completion', () => {
+    const f = fixture(); const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager }); enterCombat(runtime);
+    runtime.handleGameplayEvent({ type: 'kill', playerIndex: f.human.index, victimIndex: f.bots[0].player.index });
+    assert.equal(runtime.regularKills, 1); assert.deepEqual(runtime.completedWaves, []);
+    runtime.handleGameplayEvent({ type: 'kill', victimIndex: f.bots[1].player.index });
+    assert.deepEqual(runtime.completedWaves, [1]);
+    for (let wave = 2; wave <= 4; wave += 1) { runtime.update(59); runtime.update(1); assert.equal(runtime.wave, wave); }
+    assert.equal(runtime.regularKills, 1);
+    runtime.update(60); runtime.selectChoice(runtime.getHudState().choices[0]); runtime.update(1);
+    assert.equal(runtime.wave, 5);
+    runtime.update(59); runtime.update(1); assert.equal(runtime.wave, 6);
+    assert.equal(runtime._activeSlots.size, ARENA_WAVES_BOT_CAPACITY);
+    const oldest = runtime._spawnOrder[0];
+    runtime.update(59); runtime.update(1); assert.equal(runtime.wave, 7);
+    assert.equal(runtime._activeSlots.size, ARENA_WAVES_BOT_CAPACITY);
+    assert.equal(runtime._slotWave.get(oldest), 7);
+    assert.equal(runtime.regularKills, 1); assert.deepEqual(runtime.completedWaves, [1]);
+});
+
+test('upgrade freezes the next-wave timer until a choice, then gives a one-second warning', () => {
+    const f = fixture(); const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager }); enterCombat(runtime);
+    for (let wave = 2; wave <= 4; wave += 1) { runtime.update(59); runtime.update(1); assert.equal(runtime.wave, wave); }
+    runtime.update(60); assert.equal(runtime.phase, 'upgrade');
+    const survival = runtime.survivalSeconds; runtime.update(120);
+    assert.equal(runtime.survivalSeconds, survival); assert.equal(runtime.getHudState().nextWaveInSeconds, null);
+    runtime.selectChoice(runtime.getHudState().choices[0]);
+    assert.equal(runtime.phase, 'telegraph'); assert.equal(runtime.getHudState().nextWaveInSeconds, 1);
+    runtime.update(1); assert.equal(runtime.wave, 5); assert.equal(runtime.getHudState().nextWaveInSeconds, 60);
+});
+
+test('one choice branches once: milestone pauses the next wave and death waits for choice before one map transition', () => {
     const f = fixture(); const transitions = []; const runtime = new ArenaWavesRuntime({ requestMapTransition: (item) => transitions.push(item) });
-    runtime.start({ entityManager: f.manager, strategy: f.strategy, seed: 9 }); runtime.wave = 4; enterCombat(runtime);
-    for (const slot of [...f.active]) runtime.handleGameplayEvent({ type: 'kill', victimIndex: f.bots[slot].player.index });
+    runtime.start({ entityManager: f.manager, strategy: f.strategy, seed: 9 }); enterCombat(runtime); runtime.wave = 4;
+    for (const slot of [...f.active]) runtime.handleGameplayEvent({ type: 'kill', playerIndex: f.human.index, victimIndex: f.bots[slot].player.index });
+    assert.equal(runtime.phase, 'combat'); runtime.update(60);
     assert.equal(runtime.phase, 'upgrade'); const choice = runtime.getHudState().choices[0]; runtime.selectChoice(choice);
-    assert.equal(runtime.phase, 'countdown'); assert.equal(runtime.getHudState().choices.length, 0); assert.equal(runtime.selectChoice(choice), null);
+    assert.equal(runtime.phase, 'telegraph'); assert.equal(runtime.getHudState().choices.length, 0); assert.equal(runtime.selectChoice(choice), null);
     runtime.phase = 'combat'; f.human.alive = false; runtime.update(0);
     assert.equal(runtime.phase, 'upgrade'); assert.equal(transitions.length, 0);
     const deathChoice = runtime.getHudState().choices[0]; runtime.selectChoice(deathChoice);
@@ -77,7 +122,7 @@ test('survival only advances in combat and final map persists total and summary'
 test('map time is independent after a death and late map damage keeps its designed factor', () => {
     const f = fixture(); const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager }); enterCombat(runtime); runtime.update(4);
     runtime.phase = 'combat'; f.human.alive = false; runtime.update(0); assert.equal(runtime.mapStats[0].survivalSeconds, 4); assert.equal(runtime.survivalSeconds, 0);
-    f.human.alive = true; runtime.selectChoice(runtime.getHudState().choices[0]); runtime.start({ entityManager: f.manager }); runtime.mapIndex = 4; runtime.wave = 17; runtime.countdown = 0; runtime.update(0); runtime.update(1);
+    f.human.alive = true; runtime.selectChoice(runtime.getHudState().choices[0]); runtime.start({ entityManager: f.manager }); runtime.mapIndex = 4; runtime.wave = 17; runtime.countdown = 0; runtime.update(0); runtime._planWave(17); runtime.update(1);
     assert.ok(Math.abs(f.bots[0].player.arenaWavesDamageMultiplier - 2.16) < 1e-9);
 });
 
@@ -86,7 +131,7 @@ test('dispose deactivates bots, clears transient supply/projectiles and cannot r
     f.manager._projectileSystem = { clearForOwner(player) { cleared.push(player.index); } };
     f.manager.powerupManager.removeByOwnerId = (ownerId) => { removed = ownerId; };
     const runtime = new ArenaWavesRuntime(); runtime.start({ entityManager: f.manager, strategy: f.strategy }); enterCombat(runtime);
-    runtime.dispose(); assert.equal(runtime.phase, 'idle'); assert.equal(f.active.size, 0); assert.deepEqual(cleared, Array.from({ length: 13 }, (_, index) => index));
+    runtime.dispose(); assert.equal(runtime.phase, 'idle'); assert.equal(f.active.size, 0); assert.deepEqual(cleared, Array.from({ length: ARENA_WAVES_BOT_CAPACITY + 1 }, (_, index) => index));
     assert.equal(removed, 'arena-waves-supply'); assert.equal(f.human.fightLoadout.arenaWavesMgTuning, 0); assert.equal(f.strategyEffects.at(-1), null);
 });
 

@@ -8,7 +8,7 @@ import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogCo
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
-import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 
 function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
@@ -264,7 +264,7 @@ export class GameRuntimeArcadeSupport {
         if (isArenaWavesConfig(runtimeConfig)) {
             this._preparedEncounterPlan = null;
             this._pendingSectorTransition = null;
-            return { mapKey: 'notre_dame_arena', botCount: 12, arenaWaves: true };
+            return { mapKey: 'notre_dame_arena', botCount: ARENA_WAVES_BOT_CAPACITY, arenaWaves: true };
         }
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._preparedEncounterPlan = null;
