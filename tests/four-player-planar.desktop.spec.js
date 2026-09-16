@@ -60,6 +60,7 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
                     return {
                         player: card.querySelector('[data-fpp-player]')?.textContent,
                         stat: card.querySelector('[data-fpp-stat]')?.textContent,
+                        rank: card.querySelector('[data-fpp-rank]')?.textContent,
                         item: card.querySelector('[data-fpp-item]')?.textContent,
                         rect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
                     };
@@ -81,9 +82,10 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         expect(state.rollBindings[0].left).toBe('KeyZ');
         expect(state.hudQuadrants).toBe(4);
         state.hudCards.forEach((card, index) => {
-            expect({ player: card.player, stat: card.stat, item: card.item }).toEqual({
+            expect({ player: card.player, stat: card.stat, rank: card.rank, item: card.item }).toEqual({
                 player: `P${index + 1}`,
-                stat: scenario.mode === 'hunt' ? 'HP 100' : 'Punkte 0',
+                stat: scenario.mode === 'hunt' ? 'Abschüsse 0 · HP 100' : 'Punkte 0',
+                rank: `Rang 1/${scenario.bots + 4}`,
                 item: 'Kein Item',
             });
             expect(card.rect.width).toBeLessThan(state.viewport.width / 3);
@@ -95,6 +97,29 @@ test('four-player planar starts Classic and Hunt with four keyboard humans, opti
         expect(state.legacyHudVisible).toEqual([]);
         expect(state.crosshairHidden).toBeTruthy();
         expect(state.fighterHudHidden).toBeTruthy();
+
+        for (const viewport of [{ width: 1920, height: 1080 }, { width: 1280, height: 720 }, { width: 900, height: 720 }]) {
+            await page.setViewportSize(viewport);
+            for (const scale of [0.6, 1.4]) {
+                const cards = await page.evaluate((hudScale) => {
+                    document.documentElement.style.setProperty('--hud-scale', String(hudScale));
+                    return Array.from(document.querySelectorAll('.four-player-planar-hud-quadrant')).map((quadrant) => {
+                        const pane = quadrant.getBoundingClientRect();
+                        const card = quadrant.querySelector('.four-player-planar-hud-card').getBoundingClientRect();
+                        return { pane: { left: pane.left, right: pane.right, top: pane.top, bottom: pane.bottom },
+                            card: { left: card.left, right: card.right, top: card.top, bottom: card.bottom } };
+                    });
+                }, scale);
+                expect(cards).toHaveLength(4);
+                cards.forEach(({ pane, card }, index) => {
+                    expect(card.left, `P${index + 1} left at ${viewport.width} scale ${scale}`).toBeGreaterThanOrEqual(pane.left - 1);
+                    expect(card.right, `P${index + 1} right at ${viewport.width} scale ${scale}`).toBeLessThanOrEqual(pane.right + 1);
+                    expect(card.top).toBeGreaterThanOrEqual(pane.top - 1);
+                    expect(card.bottom).toBeLessThanOrEqual(pane.bottom + 1);
+                });
+            }
+        }
+        await page.evaluate(() => document.documentElement.style.removeProperty('--hud-scale'));
 
         await page.keyboard.press('Escape');
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PAUSED');

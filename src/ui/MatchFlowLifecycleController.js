@@ -131,6 +131,11 @@ export class MatchFlowLifecycleController {
         this.sessionOrchestrator?.resetRoundRuntime?.();
         this._requestGhostPlaybackForActiveRoute();
 
+        game.hudRuntimeSystem?.resetMatchScoreEvents?.();
+        game.huntHud?.resetMatchScoreEvents?.();
+        game.fourPlayerPlanar?.resetMatchScoreEvents?.();
+        game.threePlayerSplit?.resetMatchScoreEvents?.();
+
         game.gameLoop.setTimeScale(1.0);
         controller.applyMatchUiState(roundStartTransition.uiState);
         game.hudRuntimeSystem.updateScoreHud();

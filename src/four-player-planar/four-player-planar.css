@@ -89,7 +89,7 @@
 
 .four-player-planar-hud-card {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: baseline;
     gap: 3px 12px;
     max-width: 100%;
@@ -109,6 +109,18 @@
 
 .four-player-planar-hud-card strong {
     color: var(--player-color);
+}
+
+.four-player-planar-hud-card [data-fpp-stat] {
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.four-player-planar-hud-card [data-fpp-rank] {
+    grid-column: 1 / -1;
+    color: color-mix(in srgb, #fff 72%, var(--player-color));
+    font-size: 0.72em;
+    text-transform: uppercase;
 }
 
 .four-player-planar-hud-card [data-fpp-item] {
@@ -137,6 +149,11 @@
 
 .four-player-planar-hud-quadrant.q4 .four-player-planar-hud-card {
     transform-origin: right bottom;
+}
+
+.four-player-planar-hud > .match-hud-announcement {
+    top: calc(50% + 8px);
+    max-width: min(36vw, 300px);
 }
 
 .four-player-planar-active #hud > :not(#four-player-planar-hud):not(#message-overlay):not(#pause-overlay),

@@ -840,6 +840,7 @@ test('requestArcadeReplayPlayback preserves JSON export when no recorded round c
 
 test('MatchFlowLifecycleController startRound requests ghost playback by active route/map key', () => {
     const arcadeEventCalls = [];
+    const scoreEventResets = [];
     let resetRoundRuntimeCalls = 0;
     let timeScaleValue = null;
     let updateScoreHudCalls = 0;
@@ -866,10 +867,13 @@ test('MatchFlowLifecycleController startRound requests ghost playback by active 
             },
         },
         hudRuntimeSystem: {
+            resetMatchScoreEvents() { scoreEventResets.push('classic'); },
             updateScoreHud() {
                 updateScoreHudCalls += 1;
             },
         },
+        huntHud: { resetMatchScoreEvents() { scoreEventResets.push('fight'); } },
+        fourPlayerPlanar: { resetMatchScoreEvents() { scoreEventResets.push('split'); } },
         crosshairSystem: {
             updateCrosshairs() {
                 updateCrosshairCalls += 1;
@@ -899,6 +903,7 @@ test('MatchFlowLifecycleController startRound requests ghost playback by active 
     lifecycleController.startRound();
 
     assert.equal(resetRoundRuntimeCalls, 1);
+    assert.deepEqual(scoreEventResets, ['classic', 'fight', 'split']);
     assert.equal(timeScaleValue, 1.0);
     assert.equal(updateScoreHudCalls, 1);
     assert.equal(updateCrosshairCalls, 1);

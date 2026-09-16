@@ -1,3 +1,5 @@
+import { MatchHudAnnouncement } from '../MatchHudAnnouncement.js';
+
 function createStaticElement(documentRef, markup) {
     const range = documentRef.createRange();
     const fragment = range.createContextualFragment(String(markup || '').trim());
@@ -17,6 +19,7 @@ export class FourPlayerPlanarHudView {
         this.document = documentRef || null;
         this._root = null;
         this._rows = [];
+        this._announcement = null;
     }
 
     hasRoot() {
@@ -50,6 +53,7 @@ export class FourPlayerPlanarHudView {
                     <div class="four-player-planar-hud-card">
                         <strong data-fpp-player>P${index + 1}</strong>
                         <span data-fpp-stat>–</span>
+                        <span data-fpp-rank>Rang –</span>
                         <span data-fpp-item>Kein Item</span>
                     </div>
                 </section>`);
@@ -57,11 +61,13 @@ export class FourPlayerPlanarHudView {
             root.appendChild(row);
             this._rows.push({
                 stat: row.querySelector('[data-fpp-stat]'),
+                rank: row.querySelector('[data-fpp-rank]'),
                 item: row.querySelector('[data-fpp-item]'),
             });
         }
         hud.appendChild(root);
         this._root = root;
+        this._announcement = new MatchHudAnnouncement(root);
         return true;
     }
 
@@ -72,7 +78,7 @@ export class FourPlayerPlanarHudView {
 
     /**
      * @param {number} playerIndex
-     * @param {'stat'|'item'} field
+     * @param {'stat'|'rank'|'item'} field
      * @param {string} text
      */
     setRowText(playerIndex, field, text) {
@@ -84,7 +90,17 @@ export class FourPlayerPlanarHudView {
         return !!this._rows[playerIndex];
     }
 
+    observeScores(rows, options) {
+        this._announcement?.observe(rows, options);
+    }
+
+    resetScoreEvent() {
+        this._announcement?.reset();
+    }
+
     dispose() {
+        this._announcement?.dispose();
+        this._announcement = null;
         this._root?.remove?.();
         this._root = null;
         this._rows.length = 0;

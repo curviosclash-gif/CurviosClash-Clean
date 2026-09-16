@@ -6,6 +6,7 @@ import { resolveInventoryActionAvailability } from '../shared/contracts/Gameplay
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isMapEligibleForModePath } from '../shared/contracts/MapModeContract.js';
 import { FourPlayerPlanarHudView } from '../ui/four-player-planar/FourPlayerPlanarHudView.js';
+import { scoreRank } from '../ui/MatchHudAnnouncement.js';
 import { FourPlayerPlanarSetupView } from '../ui/four-player-planar/FourPlayerPlanarSetupView.js';
 import { createFourPlayerPlanarInputSource } from './FourPlayerPlanarInputSource.js';
 import {
@@ -36,6 +37,7 @@ export class FourPlayerPlanarModule {
         this.setupView = setupView || new FourPlayerPlanarSetupView({ documentRef });
         this.hudView = hudView || new FourPlayerPlanarHudView({ documentRef });
         this._matchActive = false;
+        this._hudTickTimer = 0;
         this._rollKeyCapture = null;
         this._lastHudValues = Array.from({ length: FOUR_PLAYER_PLANAR_HUMAN_COUNT }, () => ({}));
     }
@@ -261,28 +263,42 @@ export class FourPlayerPlanarModule {
     deactivateMatch() {
         if (!this._matchActive && !this.hudView.hasRoot()) return;
         this._matchActive = false;
+        this._hudTickTimer = 0;
         this.hudView.setRuntimeSurfaceActive(false);
         this.hudView.setVisible(false);
+        this.hudView.resetScoreEvent?.();
         this._lastHudValues.forEach((state) => {
             for (const key of Object.keys(state)) delete state[key];
         });
     }
 
-    update() {
+    resetMatchScoreEvents() {
+        this.hudView.resetScoreEvent?.();
+    }
+
+    update(dt = 1 / 60) {
         const runtimeActive = this.isRuntimeActive()
             && this.runtime?.getGameStateId?.() !== GAME_STATE_IDS.MENU;
         if (!runtimeActive) {
             this.deactivateMatch();
             return;
         }
+        const firstFrame = !this._matchActive;
         this.activateMatch();
+        this.runtime.forceThirdPersonCameras(FOUR_PLAYER_PLANAR_HUMAN_COUNT);
+        this._hudTickTimer += Math.max(0, Number(dt) || 0);
+        if (!firstFrame && this._hudTickTimer < 0.1) return;
+        this._hudTickTimer %= 0.1;
         const hunt = this.runtime.getRuntimeConfig()?.session?.fourPlayerPlanar?.mode === FOUR_PLAYER_PLANAR_MODES.HUNT;
         const players = this.runtime.getPlayers();
+        const fightRows = hunt ? this.runtime.getHuntScoreboard?.() || [] : [];
+        const scoreRows = hunt ? fightRows : players;
+        const scoreKey = hunt ? 'kills' : 'score';
+        this.hudView.observeScores?.(scoreRows, { scoreKey });
         const globalFog = this.runtime.getGlobalFogState?.();
         const fogLabel = globalFog?.active === true && Number(globalFog.remainingSeconds) > 0
             ? `☁ Nebel ${Math.ceil(Number(globalFog.remainingSeconds))}s`
             : '';
-        this.runtime.forceThirdPersonCameras(FOUR_PLAYER_PLANAR_HUMAN_COUNT);
         for (let index = 0; index < FOUR_PLAYER_PLANAR_HUMAN_COUNT; index += 1) {
             const player = players[index];
             if (!player || !this.hudView.hasRow(index)) continue;
@@ -291,12 +307,17 @@ export class FourPlayerPlanarModule {
                 modeType: hunt ? 'HUNT' : 'CLASSIC',
             });
             const itemLabel = availability.hasItem ? availability.type : 'Kein Item';
+            const fightRow = hunt ? fightRows.find((row) => row.playerIndex === index) : null;
+            const rank = scoreRank(scoreRows, index, scoreKey);
             const values = {
-                stat: hunt ? `HP ${Math.max(0, Math.ceil(Number(player.hp) || 0))}` : `Punkte ${Number(player.score) || 0}`,
+                stat: hunt
+                    ? `Abschüsse ${fightRow?.kills || 0} · HP ${Math.max(0, Math.ceil(Number(player.hp) || 0))}`
+                    : `Punkte ${Number(player.score) || 0}`,
+                rank: rank ? `Rang ${rank}/${scoreRows.length}` : 'Rang –',
                 item: fogLabel ? `${itemLabel} · ${fogLabel}` : itemLabel,
             };
             const previous = this._lastHudValues[index];
-            for (const key of /** @type {Array<'stat'|'item'>} */ (['stat', 'item'])) {
+            for (const key of /** @type {Array<'stat'|'rank'|'item'>} */ (['stat', 'rank', 'item'])) {
                 if (previous[key] === values[key]) continue;
                 previous[key] = values[key];
                 this.hudView.setRowText(index, key, values[key]);

@@ -36,6 +36,9 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         getPlayers() {
             return runtime()?.entityManager?.players || [];
         },
+        getHuntScoreboard() {
+            return runtime()?.entityManager?.getHuntScoreboard?.() || [];
+        },
         getGlobalFogState() {
             return runtime()?.entityManager?.getGlobalFogState?.() || null;
         },

@@ -7975,3 +7975,162 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 body:has(#message-overlay.has-arcade-results:not(.hidden)) :is(
     #arcade-score-hud, #arcade-mission-hud, #arcade-sector-transition-overlay, #arcade-sudden-death-overlay
 ) { visibility: hidden; }
+
+/* Compact match header: keep the aiming area and the existing resource HUD clear. */
+#hud[data-hud-mode="normal"] .player-hud-summary {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    width: min(280px, calc(100% - 24px));
+    min-height: 62px;
+    padding: 9px 16px;
+}
+
+#hud[data-hud-mode="normal"] .player-hud-summary::before {
+    clip-path: polygon(0 0, 93% 0, 100% 50%, 93% 100%, 0 100%);
+}
+
+#hud[data-hud-mode="normal"] .player-hud.right .player-hud-summary::before {
+    clip-path: polygon(7% 0, 100% 0, 100% 100%, 7% 100%, 0 50%);
+}
+
+#hud[data-hud-mode="normal"] .player-name { font-size: 0.76rem; }
+#hud[data-hud-mode="normal"] .player-score { font-size: 2.4rem; }
+
+.classic-match-score-label {
+    position: absolute;
+    top: 82px;
+    left: 50%;
+    z-index: 102;
+    width: max-content;
+    max-width: min(32vw, 260px);
+    padding: 5px 20px;
+    box-sizing: border-box;
+    border-top: 1px solid var(--hud-line, rgba(0, 229, 255, 0.78));
+    border-bottom: 1px solid var(--hud-line-soft, rgba(0, 229, 255, 0.5));
+    background: rgba(2, 14, 27, 0.86);
+    clip-path: polygon(7% 0, 93% 0, 100% 50%, 93% 100%, 7% 100%, 0 50%);
+    color: var(--hud-text, #f6fbff);
+    font: italic 800 0.78rem var(--menu-theme-display-font);
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transform: translateX(-50%) scale(var(--hud-scale, 1));
+    transform-origin: center top;
+    pointer-events: none;
+}
+
+.match-hud-announcement {
+    position: absolute;
+    top: 124px;
+    left: 50%;
+    z-index: 103;
+    max-width: min(40vw, 360px);
+    padding: 5px 20px;
+    border-left: 3px solid var(--hud-color, #70ff45);
+    background: rgba(2, 14, 27, 0.9);
+    color: var(--hud-text, #f6fbff);
+    font: italic 800 0.76rem var(--menu-theme-display-font);
+    text-align: center;
+    text-transform: uppercase;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    opacity: 0;
+    transform: translate(-50%, -4px) scale(var(--hud-scale, 1));
+    transform-origin: center top;
+    transition: opacity 150ms ease, transform 150ms ease;
+    pointer-events: none;
+}
+
+.match-hud-announcement.is-visible {
+    opacity: var(--hud-opacity, 1);
+    transform: translate(-50%, 0) scale(var(--hud-scale, 1));
+}
+
+.hunt-hud > .match-hud-announcement { top: 92px; }
+
+.hunt-match-status {
+    min-width: 0;
+    width: min(520px, 48vw);
+    padding: 5px 22px 7px;
+}
+
+.hunt-match-status .hunt-value { margin-top: 3px; }
+
+.hunt-target-progress {
+    display: flex;
+    gap: 3px;
+    justify-content: center;
+    margin: 6px auto 0;
+    max-width: 230px;
+    height: 4px;
+}
+
+.hunt-target-progress.hidden { display: none; }
+.hunt-target-progress > span {
+    flex: 1 1 0;
+    min-width: 0;
+    border: 1px solid var(--hud-line-soft, rgba(0, 229, 255, 0.5));
+    background: rgba(0, 229, 255, 0.08);
+}
+.hunt-target-progress > span.filled {
+    border-color: var(--hud-color, #70ff45);
+    background: var(--hud-color, #70ff45);
+}
+
+.mp-scoreboard {
+    top: 16px;
+    right: 16px;
+    min-width: 188px;
+    max-height: min(50vh, 340px);
+    overflow: hidden;
+    border: 1px solid var(--hud-line-soft, rgba(0, 229, 255, 0.5));
+    border-radius: 0;
+    background: rgba(2, 14, 27, 0.88);
+    color: var(--hud-text, #f6fbff);
+    font: 700 0.78rem var(--menu-theme-display-font);
+    clip-path: polygon(0 0, 94% 0, 100% 10%, 100% 100%, 0 100%);
+    transform: scale(var(--hud-scale, 1));
+    transform-origin: right top;
+}
+.mp-scoreboard-row {
+    gap: 8px;
+    padding: 4px 6px;
+    border-left: 2px solid transparent;
+}
+.mp-scoreboard-row.is-local { background: rgba(0, 229, 255, 0.12); }
+.mp-scoreboard-row.is-leading { border-left-color: var(--hud-color, #70ff45); }
+.mp-scoreboard-row.is-leading .mp-sb-score { color: var(--hud-color, #70ff45); }
+.mp-scoreboard[data-metric="kills"]::before {
+    display: block;
+    padding: 5px 8px 3px;
+    color: var(--hud-color, #70ff45);
+    content: 'ABSCHÜSSE';
+    font-size: 0.68rem;
+    letter-spacing: 0.08em;
+}
+
+#hud[data-hud-mode="arcade"] #arcade-score-hud {
+    top: 20px !important;
+    left: 20px !important;
+    padding: 9px 16px !important;
+}
+#hud[data-hud-mode="arcade"] #arcade-score-hud .arcade-score-hud-score {
+    font-size: 1.25rem !important;
+    color: var(--hud-text, #f6fbff) !important;
+}
+#hud[data-hud-mode="arcade"] #p1-hud .player-hud-summary { top: 104px; }
+
+@media (max-width: 900px) {
+    .classic-match-score-label { max-width: 28vw; padding-inline: 12px; }
+    .hunt-match-status { width: min(430px, 48vw); padding-inline: 12px; }
+    .hunt-match-status .hunt-value { font-size: 0.72rem; }
+    .match-hud-announcement { max-width: 42vw; font-size: 0.68rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .match-hud-announcement { transition: none; }
+}

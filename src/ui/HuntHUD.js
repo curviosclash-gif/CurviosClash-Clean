@@ -1,6 +1,8 @@
 import { clamp01 } from '../shared/utils/MathOps.js';
 import { createHuntHudDomRefs } from './dom/HuntHudDomRefs.js';
 import { updateHuntReserveArcs } from './HuntHudReserveArcs.js';
+import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
+import { formatHuntClock, formatHuntScoreboard, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
@@ -20,11 +22,6 @@ const INDICATOR_MIN_OPACITY = 0.2;
 const DEFAULT_BOOST_CAPACITY = 1;
 function toPercent(value) {
     return `${(clamp01(value) * 100).toFixed(1)}%`;
-}
-
-function formatClock(seconds) {
-    const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
-    return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
 function normalizeConstructorOptions(input) {
@@ -60,6 +57,10 @@ export class HuntHUD {
         this.root = refs.root ?? null;
         this.objective = refs.objective ?? null;
         this.scoreboard = refs.scoreboard ?? null;
+        this.targetProgress = refs.targetProgress ?? null;
+        this._progressState = { target: 0, filled: -1 };
+        this._matchAnnouncement = this.root?.ownerDocument
+            ? new MatchHudAnnouncement(this.root) : null;
         this.p1HpFill = refs.p1HpFill ?? null;
         this.p1HpText = refs.p1HpText ?? null;
         this.p1Respawn = refs.p1Respawn ?? null;
@@ -178,7 +179,16 @@ export class HuntHUD {
         this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
+        this._matchAnnouncement?.reset();
+        this._progressState.filled = -1;
+        this.targetProgress?.classList.add('hidden');
         this._indicatorP2Visible = null;
+    }
+
+    resetMatchScoreEvents() {
+        this._matchAnnouncement?.reset();
+        this._leaderIndex = null;
+        this._leaderKills = -1;
     }
 
     _setVisible(visible) {
@@ -373,22 +383,19 @@ export class HuntHUD {
         const killLimit = Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10);
         const rows = Array.isArray(huntProjection?.scoreboardRows) ? huntProjection.scoreboardRows : [];
         const leader = rows[0] || null;
-        const localRow = rows.find((row) => row?.playerIndex === localPlayerIndex) || null;
         const timeText = huntProjection?.overtime
             ? ' · Golden Kill'
-            : (Number(huntProjection?.timeLimitSeconds) > 0 ? ` · ${formatClock(huntProjection?.timeRemainingSeconds)}` : '');
+            : (Number(huntProjection?.timeLimitSeconds) > 0 ? ` · ${formatHuntClock(huntProjection?.timeRemainingSeconds)}` : '');
         const matchPointText = leader && leader.kills === killLimit - 1 ? ' · Matchball' : '';
         const objectiveText = respawnEnabled
             ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
             : 'Elimination · letzter Überlebender gewinnt';
-        const visibleRows = rows.slice(0, 3);
-        if (localRow && !visibleRows.includes(localRow)) visibleRows.push(localRow);
-        const scoreboardText = visibleRows.length > 0
-            ? visibleRows.map((row) => `${row.playerIndex === localPlayerIndex ? '▶ ' : ''}${row.label} ${row.kills}`).join('   |   ')
-            : String(huntProjection?.scoreboardSummary || 'Noch keine Abschüsse');
+        const scoreboardText = formatHuntScoreboard(rows, localPlayerIndex, huntProjection?.scoreboardSummary);
         const scoreboardDetails = rows.length > 0
             ? rows.map((row) => `${row.label}: ${row.kills}/${killLimit} Abschüsse, ${row.deaths} Tode, ${row.assists} Assists`).join('. ')
             : scoreboardText;
+        updateHuntTargetProgress(this.targetProgress, this._progressState,
+            respawnEnabled ? killLimit : 0, leader?.kills || 0);
         if (leader && this._leaderIndex !== null && leader.playerIndex !== this._leaderIndex) {
             this.runtime?.audio?.play?.('FIGHT_LEAD');
         } else if (leader && leader.kills === killLimit - 1 && leader.kills !== this._leaderKills) {
@@ -408,6 +415,10 @@ export class HuntHUD {
             this.scoreboard.setAttribute?.('aria-label', scoreboardDetails);
             this._scoreboardDetails = scoreboardDetails;
         }
+        this._matchAnnouncement?.observe(rows, {
+            scoreKey: 'kills',
+            target: respawnEnabled ? killLimit : 0,
+        });
     }
 
     _ensureKillFeedSlots() {
@@ -511,6 +522,7 @@ export class HuntHUD {
 
     dispose() {
         this._resetTickState();
+        this._matchAnnouncement?.dispose();
         this._setVisible(false);
         this.p2Panel?.classList.add('hidden');
         this.p2Panel?.setAttribute?.('aria-hidden', 'true');

@@ -8,6 +8,7 @@ import { ParcoursOverlayController } from './arcade/ParcoursOverlayController.js
 import { updateActiveEffectBar, updateItemBar, updateRocketBar } from './ItemBarPresenter.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { syncHudSlowMoClass } from './HudSlowMoIndicator.js';
+import { MatchScoreHudPresenter } from './MatchScoreHudPresenter.js';
 import { updateTraversalStatus } from './TraversalHudPresenter.js';
 import {
     clearParcoursPanel,
@@ -25,8 +26,7 @@ export class HudRuntimeSystem {
         this._hudP2Visible = null;
         this._fighterHudTimer = 0;
         this._parcoursMinimapTimer = PARCOURS_MINIMAP_INTERVAL_SECONDS;
-        /** @type {HTMLElement|null} */
-        this._scoreboardContainer = null;
+        this._scorePresenter = null;
         this._arcadeMissionHud = null;
         this._arcadeScoreHud = null;
         this._arcadeSuddenDeathOverlay = null;
@@ -47,11 +47,6 @@ export class HudRuntimeSystem {
     _findProjectedPlayer(projection, playerIndex) {
         if (!Array.isArray(projection?.players)) return null;
         return projection.players.find((player) => player?.playerIndex === playerIndex) || null;
-    }
-
-    _findProjectedSessionPlayer(projection, playerIndex) {
-        if (!Array.isArray(projection?.sessionPlayers)) return null;
-        return projection.sessionPlayers.find((player) => player?.playerIndex === playerIndex) || null;
     }
 
     _findProjectedLockTarget(projection, playerIndex) {
@@ -97,8 +92,20 @@ export class HudRuntimeSystem {
             ? requestedMode
             : 'normal';
         if (mode === this._hudMode) return;
+        this._scorePresenter?.resetEvent();
         hud.dataset.hudMode = mode;
         this._hudMode = mode;
+    }
+
+    _getScorePresenter() {
+        const hud = this.game?.ui?.hud;
+        if (!hud) return null;
+        if (!this._scorePresenter) this._scorePresenter = new MatchScoreHudPresenter(hud);
+        return this._scorePresenter;
+    }
+
+    resetMatchScoreEvents() {
+        this._scorePresenter?.resetEvent();
     }
 
     updateScoreHud(projection = null) {
@@ -107,7 +114,12 @@ export class HudRuntimeSystem {
 
         // Network mode: update N-player scoreboard
         if (this._isNetworkSession(runtimeProjection)) {
-            this._updateNetworkScoreboard(runtimeProjection);
+            this._getScorePresenter()?.updateNetwork(
+                runtimeProjection,
+                game.entityManager?.players,
+                this._getLocalPlayerIndex(runtimeProjection)
+            );
+            this._scorePresenter?.hideClassic();
             // Still update local player's item bar
             const localIdx = Math.max(0, this._getLocalPlayerIndex(runtimeProjection));
             const localPlayer = this._findProjectedPlayer(runtimeProjection, localIdx)
@@ -123,6 +135,15 @@ export class HudRuntimeSystem {
         const humans = Array.isArray(runtimeProjection?.players)
             ? runtimeProjection.players.filter((player) => player?.isBot !== true)
             : (game.entityManager?.getHumanPlayers ? game.entityManager.getHumanPlayers() : []);
+        const isClassic = this._hudMode === 'normal' && runtimeProjection?.hunt?.active !== true;
+        if (isClassic) {
+            const players = Array.isArray(runtimeProjection?.players)
+                ? runtimeProjection.players
+                : game.entityManager?.players || [];
+            this._getScorePresenter()?.updateClassic(players);
+        } else {
+            this._scorePresenter?.hideClassic();
+        }
 
         if (humans.length > 0) {
             const p1Score = String(humans[0].score);
@@ -144,86 +165,10 @@ export class HudRuntimeSystem {
     }
 
     /**
-     * Renders a dynamic N-player scoreboard for network sessions (up to 10 players).
-     * Shows all players with score and ping indicator.
-     */
-    _updateNetworkScoreboard(projection = null) {
-        const game = this.game;
-        const players = Array.isArray(projection?.players) ? projection.players : game.entityManager?.players;
-        if (!players || players.length === 0) return;
-
-        const container = this._ensureScoreboardContainer();
-        if (!container) return;
-
-        // Ensure we have enough rows
-        while (container.children.length < players.length) {
-            const row = document.createElement('div');
-            row.className = 'mp-scoreboard-row';
-            const name = document.createElement('span');
-            name.className = 'mp-sb-name';
-            const score = document.createElement('span');
-            score.className = 'mp-sb-score';
-            const ping = document.createElement('span');
-            ping.className = 'mp-sb-ping';
-            row.appendChild(name);
-            row.appendChild(score);
-            row.appendChild(ping);
-            container.appendChild(row);
-        }
-        while (container.children.length > players.length) {
-            container.removeChild(container.lastChild);
-        }
-
-        const sessionPlayers = Array.isArray(projection?.sessionPlayers)
-            ? projection.sessionPlayers
-            : [];
-
-        for (let i = 0; i < players.length; i++) {
-            const p = players[i];
-            const row = container.children[i];
-            const nameEl = row.children[0];
-            const scoreEl = row.children[1];
-            const pingEl = row.children[2];
-
-            const idx = p.playerIndex ?? p.index ?? i;
-            const label = p.isBot ? `Bot ${idx + 1}` : `P${idx + 1}`;
-            if (nameEl.textContent !== label) nameEl.textContent = label;
-
-            const scoreStr = String(p.score ?? 0);
-            if (scoreEl.textContent !== scoreStr) scoreEl.textContent = scoreStr;
-
-            // Ping from session peer data (if available)
-            const playerIndex = p?.playerIndex ?? p?.index ?? i;
-            const peer = this._findProjectedSessionPlayer(projection, playerIndex)
-                || sessionPlayers.find((sp) => (sp?.playerIndex ?? sp?.index) === playerIndex);
-            const pingMs = peer?.pingMs ?? peer?.ping ?? (p.isBot ? 0 : -1);
-            const pingLabel = pingMs >= 0 ? `${pingMs}ms` : '';
-            if (pingEl.textContent !== pingLabel) pingEl.textContent = pingLabel;
-        }
-    }
-
-    _ensureScoreboardContainer() {
-        if (this._scoreboardContainer) return this._scoreboardContainer;
-        const hud = this.game?.ui?.hud;
-        if (!hud) return null;
-        let container = hud.querySelector('.mp-scoreboard');
-        if (!container) {
-            container = document.createElement('div');
-            container.className = 'mp-scoreboard';
-            hud.appendChild(container);
-        }
-        this._scoreboardContainer = container;
-        return container;
-    }
-
-    /**
      * Removes the network scoreboard DOM element (e.g. when returning to menu).
      */
     clearNetworkScoreboard() {
-        if (this._scoreboardContainer) {
-            this._scoreboardContainer.remove();
-            this._scoreboardContainer = null;
-        }
+        this._scorePresenter?.reset();
         this._setParcoursHudVisible(false);
         this._hideArcadeHud();
         // The minimap canvas hangs on document.body, outside the HUD, so hiding the HUD misses it.
@@ -576,6 +521,8 @@ export class HudRuntimeSystem {
             this._rocketBars.clear();
         }
         this.clearNetworkScoreboard();
+        this._scorePresenter?.dispose();
+        this._scorePresenter = null;
         this._arcadeMissionHud?.dispose?.();
         this._arcadeScoreHud?.dispose?.();
         this._arcadeMissionHud = null;

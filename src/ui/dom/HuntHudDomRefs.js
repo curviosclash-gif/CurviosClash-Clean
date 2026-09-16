@@ -3,6 +3,7 @@ export function createHuntHudDomRefs(doc = document) {
         root: doc.getElementById('hunt-hud'),
         objective: doc.getElementById('hunt-objective'),
         scoreboard: doc.getElementById('hunt-scoreboard'),
+        targetProgress: doc.getElementById('hunt-target-progress'),
         p1HpFill: doc.getElementById('hunt-p1-hp-fill'),
         p1HpText: doc.getElementById('hunt-p1-hp-text'),
         p1Respawn: doc.getElementById('hunt-p1-respawn'),

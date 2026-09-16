@@ -72,7 +72,7 @@
 
 .three-player-split-hud-card {
     display: grid;
-    grid-template-columns: auto auto;
+    grid-template-columns: auto minmax(0, 1fr);
     align-items: baseline;
     gap: 3px 12px;
     max-width: 100%;
@@ -94,6 +94,18 @@
     color: var(--player-color);
 }
 
+.three-player-split-hud-card [data-tps-stat] {
+    font-weight: 800;
+    white-space: nowrap;
+}
+
+.three-player-split-hud-card [data-tps-rank] {
+    grid-column: 1 / -1;
+    color: color-mix(in srgb, #fff 72%, var(--player-color));
+    font-size: 0.72em;
+    text-transform: uppercase;
+}
+
 .three-player-split-hud-card [data-tps-item] {
     grid-column: 1 / -1;
     overflow: hidden;
@@ -110,6 +122,11 @@
     border-right-width: 4px;
     border-left-width: 1px;
     transform-origin: right top;
+}
+
+.three-player-split-hud > .match-hud-announcement {
+    top: 96px;
+    max-width: min(30vw, 300px);
 }
 
 .three-player-split-active #hud > :not(#three-player-split-hud):not(#message-overlay):not(#pause-overlay),

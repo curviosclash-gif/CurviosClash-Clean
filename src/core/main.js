@@ -496,7 +496,7 @@ export class Game {
                 : null;
             this.huntHud.update(dt, runtimeProjection);
         }
-        this.fourPlayerPlanar?.update?.();
+        this.fourPlayerPlanar?.update?.(dt);
     }
 
     // Legacy compatibility hook retained for runtime/tests.

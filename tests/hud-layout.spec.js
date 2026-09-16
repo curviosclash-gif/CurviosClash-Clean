@@ -9,6 +9,44 @@ const VIEWPORTS = [
 
 const SCALES = [0.6, 1.4];
 
+test('three-player score cards stay in their columns across desktop sizes and HUD scales', async ({ page }) => {
+    await page.goto(resolveAppUrl(page, '/'), { waitUntil: 'domcontentloaded' });
+    await page.addStyleTag({ path: 'src/four-player-planar/three-player-split.css' });
+    await page.evaluate(() => {
+        document.querySelector('#main-menu')?.classList.add('hidden');
+        const hud = document.querySelector('#hud');
+        hud.classList.remove('hidden');
+        const root = document.createElement('div');
+        root.className = 'three-player-split-hud';
+        root.innerHTML = [0, 1, 2].map((index) => `
+            <section class="three-player-split-hud-column c${index + 1}" style="--player-color:#70ff45">
+                <div class="three-player-split-hud-card">
+                    <strong>P${index + 1}</strong><span data-tps-stat>Abschüsse 0 · HP 100</span>
+                    <span data-tps-rank>Rang 1/9</span><span data-tps-item>Kein Item</span>
+                </div>
+            </section>`).join('');
+        hud.appendChild(root);
+    });
+    for (const viewport of VIEWPORTS) {
+        await page.setViewportSize(viewport);
+        for (const scale of SCALES) {
+            const columns = await page.evaluate((hudScale) => {
+                document.documentElement.style.setProperty('--hud-scale', String(hudScale));
+                return [...document.querySelectorAll('.three-player-split-hud-column')].map((column) => {
+                    const pane = column.getBoundingClientRect();
+                    const card = column.querySelector('.three-player-split-hud-card').getBoundingClientRect();
+                    return { pane: { left: pane.left, right: pane.right }, card: { left: card.left, right: card.right } };
+                });
+            }, scale);
+            expect(columns).toHaveLength(3);
+            for (const [index, { pane, card }] of columns.entries()) {
+                expect(card.left, `P${index + 1} left at ${viewport.width} scale ${scale}`).toBeGreaterThanOrEqual(pane.left - 1);
+                expect(card.right, `P${index + 1} right at ${viewport.width} scale ${scale}`).toBeLessThanOrEqual(pane.right + 1);
+            }
+        }
+    }
+});
+
 function expectNear(actual, expected, tolerance = 1) {
     expect(Math.abs(actual - expected)).toBeLessThanOrEqual(tolerance);
 }
