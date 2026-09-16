@@ -423,30 +423,43 @@ export class Game {
         return messages[cause] || messages['UNKNOWN'];
     }
 
+    /**
+     * The coordinator answers with a promise that resolves to false when the start was
+     * rejected. Callers such as the four-player module need that answer to undo the settings
+     * they staged for the match, so it is handed through instead of swallowed.
+     *
+     * @returns {unknown}
+     */
     startMatch() {
         if (this._mobileClassicAppTarget) {
             applyMobileClassicSettings(this.settings);
             applyMobileClassicUiLocks(this);
         }
-        this.runtimeCoordinator.startMatch();
+        return this.runtimeCoordinator.startMatch();
     }
 
     _onRoundEnd(winner = null, outcome = null) {
         this.matchFlowUiController?.onRoundEnd?.(winner, outcome);
-        if (
-            outcome?.state === GAME_STATE_IDS.MATCH_END
-            && this.mediaRecorderSystem?.isCinematicReplayRecording?.() === true
-        ) {
-            this.mediaRecorderSystem.stopRecording({
-                type: 'match_completed',
-                context: {
-                    winnerIndex: Number.isInteger(winner?.index) ? winner.index : null,
-                    outcome,
-                },
-            }).catch((error) => {
-                console.warn('[Game] automatic cinematic replay queueing failed', error);
-            });
-        }
+    }
+
+    /**
+     * A cinematic replay keeps recording across the round breaks and is only queued once the
+     * match is decided. The round outcome (RoundOutcomeSystem.resolve) reports the round end
+     * only and never carries a state field, so the match end is not visible there; the round
+     * state controller derives it afterwards. MATCH_END is therefore the first runtime signal
+     * that the match is over. stopRecording() keeps a pending stop, so the guard below turns
+     * this per-frame state tick into a single stop.
+     */
+    _stopCinematicReplayRecordingAtMatchEnd() {
+        if (this.mediaRecorderSystem?.isCinematicReplayRecording?.() !== true) return;
+        this.mediaRecorderSystem.stopRecording({
+            type: 'match_completed',
+            context: {
+                gameStateId: this.state,
+            },
+        }).catch((error) => {
+            console.warn('[Game] automatic cinematic replay queueing failed', error);
+        });
     }
 
     _getPlanarAimAxis(playerIndex) {
@@ -470,6 +483,7 @@ export class Game {
     }
 
     _updateMatchEndState(dt) {
+        this._stopCinematicReplayRecordingAtMatchEnd();
         this.roundStateTickSystem.updateMatchEnd(dt);
     }
 
