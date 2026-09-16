@@ -98,12 +98,14 @@ function createDefaultTransitionMap() {
 
 function canTransitionInCustomFlow(fromState, toState) {
     if (!CUSTOM_FLOW_STATE_SET.has(fromState)) return false;
-    return CUSTOM_FLOW_STATE_SET.has(toState) || toState === MENU_STATE_IDS.MAIN || toState === MENU_STATE_IDS.QUICKSTART;
+    return CUSTOM_FLOW_STATE_SET.has(toState) || toState === MENU_STATE_IDS.MAIN
+        || toState === MENU_STATE_IDS.QUICKSTART || toState === MENU_STATE_IDS.MULTIPLAYER;
 }
 
 export class MenuStateMachine {
     constructor(options = {}) {
         this.currentState = normalizeStateId(options.initialState, MENU_STATE_IDS.MAIN);
+        /** @type {Map<string, Set<string>>} */
         this.transitionMap = createDefaultTransitionMap();
         this.history = [];
     }

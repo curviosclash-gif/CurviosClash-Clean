@@ -97,10 +97,11 @@ function disposeMaterial(material) {
     else material?.dispose?.();
 }
 
-export function createStartSetupMapPicker3d({ ui, listen } = {}) {
+/** @param {{ ui?: any, listen?: any, readOnly?: boolean }} options */
+export function createStartSetupMapPicker3d({ ui, listen, readOnly = false } = {}) {
     const mount = ui?.mapPreview3dMount || null;
     const select = ui?.mapSelect || null;
-    if (!mount || !select) {
+    if (!mount || (!select && !readOnly)) {
         return Object.freeze({ sync() {}, dispose() {}, getState: () => ({ status: 'unavailable' }) });
     }
 
@@ -124,6 +125,8 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
     };
 
     let renderer = null;
+    let rendererAttempted = false;
+    const reducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)');
     let controls = null;
     let mapRoot = null;
     let status = 'booting';
@@ -291,6 +294,9 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
         renderer.setSize(width, height, false);
         camera.aspect = width / height;
         camera.updateProjectionMatrix();
+        // Resizing clears the WebGL drawing buffer. A read-only preview has no
+        // continuous loop, so the resize itself must request a fresh frame.
+        scheduleFrame();
     }
 
     function scheduleFrame() {
@@ -307,7 +313,7 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
         lastFrameMs = nowMs;
         controls?.update(dt);
         renderer.render(scene, camera);
-        scheduleFrame();
+        if (!readOnly && !reducedMotion?.matches) scheduleFrame();
     }
 
     const markManualInteraction = () => {
@@ -315,24 +321,27 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
         mount.dataset.previewMotion = 'manual';
     };
     const resumeIdleRotation = () => {
-        if (controls) controls.autoRotate = true;
+        if (controls) controls.autoRotate = !readOnly && !reducedMotion?.matches;
         mount.dataset.previewMotion = 'idle-spin';
     };
 
     function initializeRenderer() {
+        rendererAttempted = true;
         try {
             renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, powerPreference: 'high-performance' });
             renderer.setPixelRatio(Math.min(2, normalizeNumber(window.devicePixelRatio, 1)));
             renderer.outputColorSpace = THREE.SRGBColorSpace;
             renderer.domElement.className = 'start-map-preview-canvas-node';
-            renderer.domElement.setAttribute('aria-label', 'Interaktive 3D-Kartenansicht');
+            renderer.domElement.setAttribute('aria-label', readOnly ? 'Kartenvorschau der Lobby' : 'Interaktive 3D-Kartenansicht');
             canvasHost.appendChild(renderer.domElement);
 
             controls = new OrbitControls(camera, renderer.domElement);
             controls.enablePan = false;
             controls.enableDamping = true;
             controls.dampingFactor = 0.075;
-            controls.autoRotate = true;
+            controls.autoRotate = !readOnly && !reducedMotion?.matches;
+            controls.enabled = !readOnly;
+            controls.addEventListener('change', scheduleFrame);
             controls.autoRotateSpeed = 0.32;
             controls.minDistance = 3.4;
             controls.maxDistance = 10;
@@ -358,16 +367,17 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
 
     function isPreviewVisible() {
         const sectionOpen = !ui.mapPickerSection || ui.mapPickerSection.open === true;
-        const panel = mount.closest?.('#submenu-game');
+        const panel = mount.closest?.('.submenu-panel');
         const menu = mount.closest?.('#main-menu');
         const panelVisible = !panel || (!panel.classList.contains('hidden') && panel.getAttribute('aria-hidden') !== 'true');
         const menuVisible = !menu || (!menu.classList.contains('hidden') && menu.getAttribute('aria-hidden') !== 'true');
-        return sectionOpen && panelVisible && menuVisible && document.visibilityState !== 'hidden';
+        return sectionOpen && panelVisible && menuVisible && !mount.classList.contains('hidden') && document.visibilityState !== 'hidden';
     }
 
     function syncVisibility() {
         if (disposed) return;
         active = isPreviewVisible();
+        if (active && !rendererAttempted) initializeRenderer();
         mount.dataset.previewActive = String(active);
         if (!active && rafId) {
             window.cancelAnimationFrame(rafId);
@@ -450,7 +460,7 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
 
     function sync({ mapKey, maps } = {}) {
         if (disposed) return;
-        const selectedMapKey = String(mapKey || select.value || 'standard').trim();
+        const selectedMapKey = String(mapKey || select?.value || 'standard').trim();
         const definition = maps?.[selectedMapKey] || FALLBACK_MAP_DEFINITION;
         const signature = [
             selectedMapKey,
@@ -462,7 +472,7 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
             activeMapSignature = signature;
             buildMapMiniature(selectedMapKey, definition);
         }
-        renderChoices(selectedMapKey);
+        if (!readOnly) renderChoices(selectedMapKey);
         syncVisibility();
     }
 
@@ -483,26 +493,28 @@ export function createStartSetupMapPicker3d({ ui, listen } = {}) {
     bind(ui.mapPickerSection, 'toggle', syncVisibility);
     bind(document, 'visibilitychange', syncVisibility);
 
-    const menuPanel = mount.closest?.('#submenu-game');
+    const menuPanel = mount.closest?.('.submenu-panel');
     const menuRoot = mount.closest?.('#main-menu');
     const visibilityObserver = typeof MutationObserver !== 'undefined' ? new MutationObserver(syncVisibility) : null;
+    const resizeObserver = typeof ResizeObserver !== 'undefined' ? new ResizeObserver(() => syncRendererSize()) : null;
+    resizeObserver?.observe(canvasHost);
     if (menuPanel) visibilityObserver?.observe(menuPanel, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
     if (menuRoot) visibilityObserver?.observe(menuRoot, { attributes: true, attributeFilter: ['class', 'aria-hidden'] });
 
-    initializeRenderer();
     syncVisibility();
 
     return Object.freeze({
         sync,
         getState: () => ({
             status,
-            mapKey: String(select.value || ''),
+            mapKey: String(select?.value || ''),
             active: isPreviewVisible(),
         }),
         dispose() {
             if (disposed) return;
             disposed = true;
             visibilityObserver?.disconnect();
+            resizeObserver?.disconnect();
             fallbackDisposers.splice(0).forEach((dispose) => dispose());
             if (rafId) window.cancelAnimationFrame(rafId);
             rafId = 0;

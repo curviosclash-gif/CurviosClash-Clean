@@ -1,4 +1,5 @@
 import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCatalog.js';
+import { syncLobbyScreen } from './LobbyScreenUi.js';
 import { MENU_SESSION_TYPES } from '../menu/MenuStateContracts.js';
 import {
     MULTIPLAYER_TRANSPORTS,
@@ -255,6 +256,9 @@ export function renderStartSetupSummaryAndPreview({
             formatMenuRulesSummary(settings, modePath),
         ].join(' · ');
     }
+    const quickLabel = ui.quickStartLastButton?.querySelector?.('.menu-primary-start-label');
+    if (quickLabel) quickLabel.textContent = sessionType === MENU_SESSION_TYPES.MULTIPLAYER
+        ? (hasActiveLobbySession ? 'Zur Lobby' : 'Mehrspieler öffnen') : 'Sofort spielen';
     renderSelectionPreviews(ui, mapPreview, vehiclePreviewP1, vehiclePreviewP2);
 }
 
@@ -269,6 +273,7 @@ export function syncStartSetupMultiplayerUi({
 }) {
     const isMultiplayerSession = sessionType === MENU_SESSION_TYPES.MULTIPLAYER;
     const isHost = hasActiveLobbySession && resolvedMultiplayerSessionState?.isHost === true;
+    syncLobbyScreen(ui, resolvedMultiplayerSessionState, isMultiplayerSession);
     if (ui.multiplayerInlineState) {
         ui.multiplayerInlineState.classList.toggle('hidden', !isMultiplayerSession);
         if (typeof HTMLDetailsElement !== 'undefined' && ui.multiplayerInlineState instanceof HTMLDetailsElement) {
@@ -387,6 +392,9 @@ export function syncStartSetupMultiplayerUi({
     if (ui.multiplayerReadyToggle) {
         ui.multiplayerReadyToggle.disabled = !hasActiveLobbySession
             || isHost
+            || resolvedMultiplayerSessionState?.connectionPhase === 'reconnecting'
+            || resolvedMultiplayerSessionState?.matchStartPending === true
+            || !!resolvedMultiplayerSessionState?.pendingMatchCommandId
             || resolvedMultiplayerSessionState?.readyMutationPending === true;
         ui.multiplayerReadyToggle.checked = isMultiplayerSession
             ? resolvedMultiplayerSessionState?.localReady === true
@@ -404,7 +412,7 @@ export function syncStartSetupMultiplayerUi({
         ui.multiplayerStartMatchButton.textContent = pendingMatchStart
             ? 'Match wird gestartet …'
             : (isHost
-                ? (canStart ? 'Match starten' : 'Warte auf Teilnehmer')
+                ? 'Match starten'
                 : 'Warte auf Host');
         ui.multiplayerStartMatchButton.title = pendingMatchStart
             ? 'Das Startsignal wurde an die Lobby gesendet.'

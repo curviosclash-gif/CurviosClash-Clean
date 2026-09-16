@@ -209,6 +209,9 @@ export class MenuNavigationRuntime {
     showPanel(requestedPanelId, metadata = null) {
         const panelId = this.panelRegistry?.resolvePanelId(requestedPanelId) || normalizeId(requestedPanelId);
         if (!panelId) return false;
+        if (this.ui.multiplayerPanel?.dataset?.lobbyJoined === 'true'
+            && this.ui.multiplayerPanel.dataset.lobbyHost !== 'true'
+            && (panelId === 'submenu-custom' || panelId === 'submenu-game')) return false;
 
         const targetPanel = this._panelById.get(panelId) || document.getElementById(panelId);
         if (!targetPanel) return false;
@@ -277,6 +280,7 @@ export class MenuNavigationRuntime {
     }
 
     showMainNav(metadata = null) {
+        if (this.ui.multiplayerPanel?.dataset?.lobbyJoined === 'true') return this.showPanel('submenu-multiplayer', { ...metadata, backNavigation: true });
         this._submenuPanels.forEach((panel) => {
             panel.classList.add('hidden');
             panel.setAttribute('aria-hidden', 'true');
@@ -470,6 +474,7 @@ export class MenuNavigationRuntime {
             this.onLevel4CloseRequested?.({ trigger });
             return true;
         }
+        if (this._getVisiblePanelElement()?.id === 'submenu-multiplayer' && this.ui.multiplayerPanel?.dataset?.lobbyJoined === 'true') return true;
 
         const normalizedExplicitTarget = normalizeId(explicitTargetId);
         if (normalizedExplicitTarget) {

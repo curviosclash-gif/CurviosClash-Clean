@@ -304,14 +304,15 @@ export function handleLevel3ResetAction(ctx) {
 export function handleLevel4OpenAction(ctx) {
     const { game, event } = ctx;
     const requestedSectionId = String(event?.sectionId || '').trim();
-    const requestedReturnTarget = String(event?.returnTarget || '').trim().toLowerCase() === 'main' ? 'main' : 'game';
+    const returnTarget = String(event?.returnTarget || '').trim().toLowerCase();
+    const requestedReturnTarget = ['main', 'lobby'].includes(returnTarget) ? returnTarget : 'game';
     const validSectionIds = new Set(Object.values(LEVEL4_SECTION_IDS));
     if (!game.settings.localSettings.toolsState || typeof game.settings.localSettings.toolsState !== 'object') {
         game.settings.localSettings.toolsState = {};
     }
     game.settings.localSettings.toolsState.level4ReturnTarget = requestedReturnTarget;
     game.ui?.level4Drawer?.setAttribute?.('data-level4-return-target', requestedReturnTarget);
-    game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-game', { trigger: 'open_level4' });
+    game.uiManager?.menuNavigationRuntime?.showPanel?.(requestedReturnTarget === 'lobby' ? 'submenu-multiplayer' : 'submenu-game', { trigger: 'open_level4' });
     if (validSectionIds.has(requestedSectionId)) {
         game.settings.localSettings.toolsState.activeSection = requestedSectionId;
         game.uiManager?.setLevel4Section?.(requestedSectionId, { persist: true, focus: false });

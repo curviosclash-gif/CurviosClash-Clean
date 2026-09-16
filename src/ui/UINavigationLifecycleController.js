@@ -235,6 +235,9 @@ export class UINavigationLifecycleController {
             delete drawer.dataset.level4ReturnTarget;
             if (returnTarget === 'main') {
                 this.manager.menuNavigationRuntime?.showMainNav?.({ trigger: 'level4_close' });
+            } else if (returnTarget === 'lobby') {
+                this.manager.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'level4_close', backNavigation: true });
+                focusWithoutScroll(this.ui.multiplayerPanel?.querySelector?.('.lobby-settings'));
             } else if (this._getActiveSubmenu() === 'submenu-game') {
                 focusWithoutScroll(this.ui.openLevel4Button);
             }
@@ -348,7 +351,7 @@ export class UINavigationLifecycleController {
                 if (panelId === 'submenu-expert') {
                     this._getExpertLoginRuntime()?.focusPrimaryControl?.();
                 }
-                if (panelId !== 'submenu-game' && this._getSettings()?.localSettings?.toolsState?.level4Open) {
+                if (panelId !== 'submenu-game' && panelId !== 'submenu-multiplayer' && this._getSettings()?.localSettings?.toolsState?.level4Open) {
                     this._updateToolsState({ level4Open: false });
                     manager.setLevel4Open(false);
                 }

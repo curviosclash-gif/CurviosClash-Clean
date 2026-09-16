@@ -1,6 +1,7 @@
 // UIManager.js - schlanke Menu-Shell fuer Controller-Verdrahtung und einfache DOM-Syncs.
 
 import { clampSettingValue } from '../shared/contracts/SettingsRuntimeContract.js';
+import { resolveLobbyStatus } from './start-setup/LobbyScreenUi.js';
 import { GAME_MODE_TYPES, resolveActiveGameMode } from '../hunt/HuntMode.js';
 import { isSettingsChangeKey, normalizeSettingsChangeKeys } from '../shared/settings/SettingsChangeKeys.js';
 import { resolveSyncMethodNamesForChangeKeys } from './UISettingsSyncMap.js';
@@ -634,24 +635,16 @@ export class UIManager {
                 sessionType,
                 multiplayerTransport: settings?.localSettings?.multiplayerTransport,
             });
-            this.ui.multiplayerStatus.textContent = `Noch nicht verbunden · ${sessionContract.transportAudienceLabel}. Erstelle eine Lobby oder tritt einer bei.`;
+            this.ui.multiplayerStatus.textContent = sessionState?.connectionPhase === 'disconnected'
+                ? resolveLobbyStatus(sessionState)
+                : `Noch nicht verbunden · ${sessionContract.transportAudienceLabel}. Erstelle eine Lobby oder tritt einer bei.`;
             if (this.ui.startButton) {
                 this.ui.startButton.disabled = false;
                 this.ui.startButton.title = surfaceEntryCopy.multiplayerJoinWaitTitle;
             }
             return;
         }
-        if (sessionState.connectionPhase === 'reconnecting') {
-            this.ui.multiplayerStatus.textContent = `Verbindung wird wiederhergestellt (${sessionState.reconnectAttempt}/${sessionState.reconnectMaxAttempts}) …`;
-        } else if (sessionState.readyMutationPending) {
-            this.ui.multiplayerStatus.textContent = 'Bereitschaft wird aktualisiert …';
-        } else if (sessionState.matchStartPending || sessionState.pendingMatchCommandId) {
-            this.ui.multiplayerStatus.textContent = 'Match wird gestartet …';
-        } else {
-            this.ui.multiplayerStatus.textContent = sessionState.canStart
-                ? 'Alle sind bereit.'
-                : 'Lobby verbunden.';
-        }
+        this.ui.multiplayerStatus.textContent = resolveLobbyStatus(sessionState);
         if (this.ui.startButton) {
             this.ui.startButton.disabled = false;
             this.ui.startButton.title = sessionState.pendingMatchCommandId

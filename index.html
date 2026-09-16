@@ -6,6 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Curvios Clash</title>
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="src/ui/menu/Leuchtspuren.css">
     <script type="importmap">
     {
         "imports": {
@@ -49,6 +50,13 @@
             data-shell-ready="false" data-menu-depth="1" data-menu-panel="main" data-level4-open="false">
             <div class="menu-content" role="document">
                 <div class="menu-shell">
+                    <svg class="menu-trail-scene" viewBox="0 0 1200 700" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+                        <defs><linearGradient id="trail-cyan"><stop stop-color="#00cbff" stop-opacity="0"/><stop offset="1" stop-color="#00dcff"/></linearGradient><linearGradient id="trail-orange"><stop stop-color="#ff7d34"/><stop offset="1" stop-color="#ff7d34" stop-opacity="0"/></linearGradient></defs>
+                        <path class="menu-trail menu-trail-cyan" d="M-60 590 C100 520 110 380 192 198"/>
+                        <path class="menu-trail menu-trail-orange" d="M1004 210 C1100 390 1160 480 1260 490"/>
+                        <g class="menu-craft" transform="translate(192 186) rotate(14)"><path d="M0-45 10-8 48 18 46 27 8 17 0 34-8 17-46 27-48 18-10-8Z"/><path class="craft-spine" d="M0-45 0 34 10-8Z"/></g>
+                        <g class="menu-craft" transform="translate(1004 198) rotate(-18)"><path d="M0-45 10-8 48 18 46 27 8 17 0 34-8 17-46 27-48 18-10-8Z"/><path class="craft-spine" d="M0-45 0 34 10-8Z"/></g>
+                    </svg>
                     <div class="menu-hero-shell">
                         <div class="menu-brand-copy">
                             <h1 id="main-menu-title" data-menu-text-id="menu.brand.title">Curvios Clash</h1>
@@ -70,21 +78,25 @@
                     <div id="menu-nav" class="menu-nav-grid" role="navigation" aria-label="Hauptmenue">
                         <button type="button" class="nav-btn" data-session-type="single" data-submenu="submenu-custom"
                             aria-controls="submenu-custom" aria-expanded="false" data-menu-action="session-select">
+                            <svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8ZM4 21v-2a8 6 0 0 1 16 0v2Z"/></svg>
                             <span class="nav-btn-label" data-menu-text-id="menu.level1.single.label">Einzelspieler</span>
                         </button>
-                        <button type="button" class="nav-btn" data-session-type="multiplayer" data-submenu="submenu-custom"
-                            aria-controls="submenu-custom" aria-expanded="false" data-menu-action="session-select">
+                        <button type="button" class="nav-btn" data-session-type="multiplayer" data-submenu="submenu-multiplayer"
+                            aria-controls="submenu-multiplayer" aria-expanded="false" data-menu-action="session-select">
+                            <svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M9 11a3.5 3.5 0 1 0 0-7 3.5 3.5 0 0 0 0 7ZM2 21v-3a7 5 0 0 1 14 0v3ZM16 4a3.5 3.5 0 0 1 0 7M18 14a6 5 0 0 1 4 4v3"/></svg>
                             <span class="nav-btn-label" data-menu-text-id="menu.level1.multiplayer.label">Mehrspieler</span>
                         </button>
                         <button type="button" class="nav-btn" data-session-type="splitscreen" data-submenu="submenu-custom"
                             aria-controls="submenu-custom" aria-expanded="false" data-menu-action="session-select">
+                            <svg class="session-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" aria-hidden="true"><path d="M2 4h20v13H2ZM12 4v13M8 21h8M12 17v4"/></svg>
                             <span class="nav-btn-label" data-menu-text-id="menu.level1.splitscreen.label">Geteilter Bildschirm</span>
                         </button>
                     </div>
 
-                    <button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Neu hier? Steuerung lernen</button>
+
 
                     <div class="menu-utility-shell" role="navigation" aria-label="Weitere Bereiche">
+<button type="button" id="btn-main-tutorial" class="secondary-btn menu-tutorial-entry" data-menu-text-id="menu.utility.tutorial.label">Steuerung lernen</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
                             data-level4-section="gameplay" data-level4-return-target="main" data-menu-text-id="menu.utility.settings.label">Einstellungen</button>
                         <button type="button" class="secondary-btn menu-utility-btn" data-menu-action="level4-open"
@@ -150,100 +162,7 @@
                             </button>
                         </nav>
 
-                        <details id="multiplayer-inline-stub" class="menu-section menu-accordion start-section-card hidden"
-                            data-start-section="multiplayer">
-                            <summary class="menu-accordion-summary">
-                                <span class="section-title" data-menu-text-id="menu.level3.multiplayer.inline.title">Lobby & Bereitschaft</span>
-                                <span class="menu-accordion-copy" data-menu-text-id="menu.level3.multiplayer.inline.description">Lobby verbinden, Teilnehmer prüfen und gemeinsam starten</span>
-                            </summary>
-                            <div class="menu-accordion-body">
-                                <details class="multiplayer-connection-details"><summary>Verbindungsdetails</summary><p id="multiplayer-lobby-state" class="menu-hint">Nicht verbunden</p></details>
-                                <p id="multiplayer-status" class="menu-field-hint" role="status" aria-live="polite">
-                                    Lobby inaktiv | Rolle: nicht verbunden
-                                </p>
 
-                                <div id="multiplayer-connection-controls" data-connection-intent="join">
-                                    <div class="mp-intent-choices" role="group" aria-label="Mehrspieler starten">
-                                        <button type="button" class="secondary-btn" data-connection-intent-target="host" data-requires-cap="host" aria-pressed="false">Spiel erstellen</button>
-                                        <button type="button" class="secondary-btn active" data-connection-intent-target="join" aria-pressed="true">Spiel beitreten</button>
-                                    </div>
-                                    <p class="mp-host-help">Erstelle eine Lobby und teile anschließend den Code mit deinen Mitspielern.</p>
-                                    <p class="mp-join-help">Wähle eine Lobby oder gib den Code deiner Mitspieler ein.</p>
-                                    <div class="mp-transport-fields">
-                                    <p id="multiplayer-transport-hint" class="menu-hint">Verbindung: LAN</p>
-                                    <div class="btn-group secondary-btn-spaced" role="group" aria-label="Multiplayer-Transport">
-                                        <button type="button" id="btn-multiplayer-transport-lan" class="secondary-btn active"
-                                            data-multiplayer-transport="lan" aria-pressed="true">LAN</button>
-                                        <button type="button" id="btn-multiplayer-transport-online" class="secondary-btn"
-                                            data-multiplayer-transport="online" aria-pressed="false">Online</button>
-                                    </div>
-                                    </div>
-                                    <div class="mp-join-fields">
-                                    <div id="multiplayer-open-lobbies-controls" class="hidden">
-                                        <label id="multiplayer-open-lobbies-label" for="multiplayer-open-lobbies" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
-                                        <div class="btn-group secondary-btn-spaced">
-                                            <select id="multiplayer-open-lobbies" disabled>
-                                                <option value="">Aktualisieren, um Lobbys zu suchen</option>
-                                            </select>
-                                            <button type="button" id="btn-multiplayer-lobbies-refresh" class="secondary-btn">
-                                                Aktualisieren
-                                            </button>
-                                        </div>
-                                    </div>
-                                    </div>
-                                    <div class="mp-code-fields">
-                                    <label for="multiplayer-lobby-code" data-menu-text-id="menu.level3.multiplayer.code.label">Lobby-Code</label>
-                                    <input type="text" id="multiplayer-lobby-code" maxlength="32" placeholder="z. B. TEST-1234"
-                                        autocomplete="off" spellcheck="false">
-                                    </div>
-                                    <div class="mp-join-fields">
-                                    <details id="multiplayer-manual-address" class="multiplayer-manual-address">
-                                        <summary>Manuelle LAN-Adresse</summary>
-                                        <label for="multiplayer-host-address" data-menu-text-id="menu.level3.multiplayer.host_address.label">Host-Adresse</label>
-                                        <input type="text" id="multiplayer-host-address" maxlength="96" placeholder="localhost:9090"
-                                            autocomplete="off" spellcheck="false">
-                                    </details>
-                                    </div>
-                                    <div class="btn-group secondary-btn-spaced">
-                                        <button type="button" id="btn-multiplayer-host" class="secondary-btn"
-                                            data-menu-action="multiplayer-host" data-requires-cap="host">Lobby erstellen</button>
-                                        <button type="button" id="btn-multiplayer-join" class="secondary-btn"
-                                            data-menu-action="multiplayer-join">Beitreten</button>
-                                    </div>
-                                </div>
-
-                                <div id="multiplayer-session-controls" class="hidden">
-                                    <div id="multiplayer-share-card" class="mp-share-card">
-                                        <div class="mp-share-row">
-                                            <span class="mp-code-label">Lobby-Code</span>
-                                            <output id="multiplayer-share-code" class="mp-code-value">—</output>
-                                            <button type="button" id="btn-multiplayer-copy-code" class="secondary-btn">Code kopieren</button>
-                                        </div>
-                                        <div id="multiplayer-share-address-row" class="mp-share-row hidden">
-                                            <span class="mp-code-label">LAN-Adresse</span>
-                                            <output id="multiplayer-share-address" class="mp-share-address">—</output>
-                                            <button type="button" id="btn-multiplayer-copy-address" class="secondary-btn">Adresse kopieren</button>
-                                        </div>
-                                    </div>
-                                    <div class="mp-player-list">
-                                        <div class="mp-player-list-header">
-                                            <span>Teilnehmer</span>
-                                            <span id="multiplayer-member-count" class="mp-player-count">0 / 10</span>
-                                        </div>
-                                        <div id="multiplayer-member-list" aria-live="polite"></div>
-                                    </div>
-                                    <label id="multiplayer-ready-control" class="toggle-row secondary-btn-spaced"
-                                        for="multiplayer-ready-toggle">
-                                        <input type="checkbox" id="multiplayer-ready-toggle">
-                                        Bereit
-                                    </label>
-                                    <button type="button" id="btn-multiplayer-start" class="start-btn"
-                                        data-menu-action="start-match" disabled>Warte auf Teilnehmer</button>
-                                    <button type="button" id="btn-multiplayer-leave" class="secondary-btn"
-                                        data-menu-action="multiplayer-leave">Lobby verlassen</button>
-                                </div>
-                            </div>
-                        </details>
 
                         <div class="menu-section setup-summary-section start-rail">
                             <div class="start-rail-copy">
@@ -254,6 +173,8 @@
                             </div>
                             <p id="start-validation-status" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
                             <div class="start-rail-actions">
+                                <button type="button" id="btn-setup-lobby" class="secondary-btn hidden" data-back data-back-target="submenu-multiplayer">Zur Lobby</button>
+                                <button type="button" id="btn-setup-mode" class="secondary-btn hidden" data-menu-step-target="submenu-custom">Spielstil ändern</button>
                                 <button type="button" id="btn-level3-reset" class="secondary-btn"
                                     data-menu-text-id="menu.level3.reset.label">Zurücksetzen</button>
                                 <button type="button" id="btn-open-fight-hangar" class="secondary-btn hidden"
@@ -1156,21 +1077,105 @@
 
                 <!-- ======= SUBMENU: MULTIPLAYER ======= -->
                 <div id="submenu-multiplayer" class="submenu-panel hidden" role="region"
-                    aria-labelledby="submenu-multiplayer-title" aria-hidden="true" data-menu-panel="multiplayer">
-                    <div class="submenu-header">
-                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">←
-                            Zurück</button>
-                        <h2 id="submenu-multiplayer-title" class="submenu-title">🌐 <span data-menu-text-id="menu.multiplayer.title">Multiplayer</span></h2>
+                    aria-labelledby="submenu-multiplayer-title" aria-hidden="true" data-menu-panel="multiplayer" data-lobby-joined="false">
+                    <div class="submenu-header lobby-heading">
+                        <button type="button" class="back-btn" data-back data-menu-action="back" aria-label="Zur Hauptnavigation">← Zurück</button>
+                        <h2 id="submenu-multiplayer-title" class="submenu-title">Multiplayer-Lobby</h2>
+                        <span id="multiplayer-connection-badge" class="lobby-connection-badge">LAN · Nicht verbunden</span>
+                        <button type="button" class="secondary-btn lobby-settings" data-menu-action="level4-open"
+                            data-level4-section="audio" data-level4-return-target="lobby">Einstellungen</button>
                     </div>
-
-                    <div class="submenu-body">
-                        <div class="menu-section">
-                            <h2 class="section-title" data-menu-text-id="menu.multiplayer.redirect.title">Weiterleitung</h2>
-                            <p class="menu-hint menu-copy-secondary">
-                                Multiplayer liegt im 4-Ebenen-Flow in Ebene 3 (Start-Setup) als echte Lobby-Steuerung.
-                            </p>
-                            <p class="menu-hint menu-copy-secondary">Bitte Sitzungstyp „Mehrspieler“ wählen und in der Match-Vorbereitung fortfahren.</p>
+                    <div id="multiplayer-inline-stub" class="lobby-surface">
+                        <div id="multiplayer-connection-controls" data-connection-intent="join">
+                                    <div class="mp-intent-choices" role="group" aria-label="Mehrspieler starten">
+                                        <button type="button" class="secondary-btn" data-connection-intent-target="host" data-requires-cap="host" aria-pressed="false">Spiel erstellen</button>
+                                        <button type="button" class="secondary-btn active" data-connection-intent-target="join" aria-pressed="true">Spiel beitreten</button>
+                                    </div>
+                                    <p class="mp-host-help">Erstelle eine Lobby und teile anschließend den Code mit deinen Mitspielern.</p>
+                                    <p class="mp-join-help">Wähle eine Lobby oder gib den Code deiner Mitspieler ein.</p>
+                                    <div class="mp-transport-fields">
+                                    <p id="multiplayer-transport-hint" class="menu-hint">Verbindung: LAN</p>
+                                    <div class="btn-group secondary-btn-spaced" role="group" aria-label="Multiplayer-Transport">
+                                        <button type="button" id="btn-multiplayer-transport-lan" class="secondary-btn active"
+                                            data-multiplayer-transport="lan" aria-pressed="true">LAN</button>
+                                        <button type="button" id="btn-multiplayer-transport-online" class="secondary-btn"
+                                            data-multiplayer-transport="online" aria-pressed="false">Online</button>
+                                    </div>
+                                    </div>
+                                    <div class="mp-join-fields">
+                                    <div id="multiplayer-open-lobbies-controls" class="hidden">
+                                        <label id="multiplayer-open-lobbies-label" for="multiplayer-open-lobbies" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
+                                        <div class="btn-group secondary-btn-spaced">
+                                            <select id="multiplayer-open-lobbies" disabled>
+                                                <option value="">Aktualisieren, um Lobbys zu suchen</option>
+                                            </select>
+                                            <button type="button" id="btn-multiplayer-lobbies-refresh" class="secondary-btn">
+                                                Aktualisieren
+                                            </button>
+                                        </div>
+                                    </div>
+                                    </div>
+                                    <div class="mp-code-fields">
+                                    <label for="multiplayer-lobby-code" data-menu-text-id="menu.level3.multiplayer.code.label">Lobby-Code</label>
+                                    <input type="text" id="multiplayer-lobby-code" maxlength="32" placeholder="z. B. TEST-1234"
+                                        autocomplete="off" spellcheck="false">
+                                    </div>
+                                    <div class="mp-join-fields">
+                                    <details id="multiplayer-manual-address" class="multiplayer-manual-address">
+                                        <summary>Manuelle LAN-Adresse</summary>
+                                        <label for="multiplayer-host-address" data-menu-text-id="menu.level3.multiplayer.host_address.label">Host-Adresse</label>
+                                        <input type="text" id="multiplayer-host-address" maxlength="96" placeholder="localhost:9090"
+                                            autocomplete="off" spellcheck="false">
+                                    </details>
+                                    </div>
+                                    <div class="btn-group secondary-btn-spaced">
+                                        <button type="button" id="btn-multiplayer-host" class="secondary-btn"
+                                            data-menu-action="multiplayer-host" data-requires-cap="host">Lobby erstellen</button>
+                                        <button type="button" id="btn-multiplayer-join" class="secondary-btn"
+                                            data-menu-action="multiplayer-join">Beitreten</button>
+                                    </div>
+                                </div>
+                        <div id="multiplayer-session-controls" class="hidden">
+                            <div id="multiplayer-share-card" class="mp-share-card">
+                                        <div class="mp-share-row">
+                                            <span class="mp-code-label">Lobby-Code</span>
+                                            <output id="multiplayer-share-code" class="mp-code-value">—</output>
+                                            <button type="button" id="btn-multiplayer-copy-code" class="secondary-btn">Code kopieren</button>
+                                        </div>
+                                        <div id="multiplayer-share-address-row" class="mp-share-row hidden">
+                                            <span class="mp-code-label">LAN-Adresse</span>
+                                            <output id="multiplayer-share-address" class="mp-share-address">—</output>
+                                            <button type="button" id="btn-multiplayer-copy-address" class="secondary-btn">Adresse kopieren</button>
+                                        </div>
+                                    </div>
+                            <div class="lobby-columns">
+                                <div class="mp-player-list">
+                                        <div class="mp-player-list-header">
+                                            <span>Teilnehmer</span>
+                                            <span id="multiplayer-member-count" class="mp-player-count">0 / 10</span>
+                                        </div>
+                                        <div id="multiplayer-member-list" aria-live="polite"></div>
+                                    </div>
+                                <section class="lobby-match-card" aria-labelledby="lobby-match-title">
+                                    <h3 id="lobby-match-title">Match-Einstellungen</h3>
+                                    <div id="lobby-map-preview-mount" class="lobby-map-preview"></div>
+                                    <dl id="lobby-match-summary" class="lobby-match-facts" aria-live="polite"></dl>
+                                    <button type="button" id="btn-lobby-edit-match" class="secondary-btn"
+                                        data-menu-step-target="submenu-game">Match ändern</button>
+                                    <p id="lobby-host-settings-hint" class="menu-hint hidden">Der Host legt die Match-Einstellungen fest.</p>
+                                </section>
+                            </div>
                         </div>
+                        <div class="lobby-action-bar">
+                            <p id="multiplayer-status" role="status" aria-live="polite">Erstelle eine Lobby oder tritt einer bei.</p>
+                            <label id="multiplayer-ready-control" class="toggle-row hidden" for="multiplayer-ready-toggle">
+                                <input type="checkbox" id="multiplayer-ready-toggle"> Bereit
+                            </label>
+                            <button type="button" id="btn-lobby-retry-settings" class="secondary-btn hidden">Erneut übertragen</button>
+                            <button type="button" id="btn-multiplayer-start" class="start-btn hidden" disabled>Match starten</button>
+                            <button type="button" id="btn-multiplayer-leave" class="secondary-btn hidden">Lobby verlassen</button>
+                        </div>
+                        <details class="multiplayer-connection-details"><summary>Verbindungsdetails</summary><p id="multiplayer-lobby-state" class="menu-hint">Nicht verbunden</p></details>
                     </div>
                 </div>
 

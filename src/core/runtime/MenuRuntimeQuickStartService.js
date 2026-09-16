@@ -75,6 +75,10 @@ function resolveProductSurfaceId(game) {
 
 export async function handleQuickStartLastStartAction(ctx) {
     const { game, recordMenuTelemetry, startMatch } = ctx;
+    if (game?.settings?.localSettings?.sessionType === 'multiplayer') {
+        game.uiManager?.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'quickstart_lobby' });
+        return false;
+    }
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Direktstart');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);

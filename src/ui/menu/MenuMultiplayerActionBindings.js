@@ -134,4 +134,7 @@ export function bindMenuMultiplayerActionButtons({
             emit(eventTypes.START_MATCH);
         });
     }
+    if (ui.lobbyRetrySettingsButton) {
+        bind(ui.lobbyRetrySettingsButton, 'click', () => emit(eventTypes.MULTIPLAYER_SETTINGS_RETRY));
+    }
 }

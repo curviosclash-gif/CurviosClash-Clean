@@ -1,5 +1,9 @@
 import assert from 'node:assert/strict';
-import test from 'node:test';
+import test, { before, after } from 'node:test';
+import { acquirePlaywrightRunLock } from '../scripts/playwright-run-lock.mjs';
+let desktopRunLock;
+before(async () => { desktopRunLock = await acquirePlaywrightRunLock({ label: 'Leuchtspuren desktop menu and LAN' }); });
+after(() => desktopRunLock?.release());
 import fs from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
@@ -47,6 +51,17 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await expect(page.locator('#btn-quick-last-settings')).toContainText('Sofort spielen');
         await expect(page.locator('#quick-last-summary')).toContainText('Schwer');
         await capture('home');
+        await page.emulateMedia({ reducedMotion: 'reduce' });
+        assert.equal(await page.locator('.menu-trail-cyan').evaluate((element) => getComputedStyle(element).animationName), 'none');
+        await page.emulateMedia({ reducedMotion: 'no-preference' });
+        for (const size of [[1280, 720], [1600, 900], [1920, 1080]]) {
+            await app.evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), size);
+            await expect(page.locator('#btn-quick-last-settings')).toBeInViewport();
+            await expect(page.locator('[data-session-type="splitscreen"]')).toBeInViewport();
+            await expect(page.locator('.menu-utility-shell [data-level4-section="utilities"]')).toBeInViewport();
+            await capture('home-' + size[0]);
+        }
+        await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1280, 720));
 
         // Every visible main action must be reachable from the quick start using arrows.
         const reachability = await page.evaluate(() => {
@@ -146,7 +161,6 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await page.keyboard.press('Escape');
         await app.evaluate(({ BrowserWindow }) => BrowserWindow.getAllWindows()[0].setContentSize(1280, 720));
         await page.locator('[data-session-type="multiplayer"]').click();
-        await page.locator('[data-mode-path="normal"]').click();
         await page.locator('[data-connection-intent-target="host"]').click();
         await expect(page.locator('#btn-multiplayer-host')).toBeVisible();
         await expect(page.locator('#btn-multiplayer-join')).toBeHidden();
@@ -179,6 +193,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
 test('desktop LAN lobby creates, joins, readies, starts and leaves through menu controls', { timeout: 180_000 }, async () => {
     const artifacts = await fs.mkdtemp(path.join(os.tmpdir(), 'curvios-menu-lan-'));
     const apps = [];
+    console.log('Lobby screenshots:', artifacts);
     try {
         for (const role of ['host', 'client']) {
             const profile = path.join(artifacts, role);
@@ -193,10 +208,9 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         for (const page of [host, client]) {
             await page.waitForSelector('#main-menu[data-shell-ready="true"]', { timeout: 60_000 });
             await page.locator('[data-session-type="multiplayer"]').click();
-            await page.locator('[data-mode-path="normal"]').click();
         }
         await host.locator('[data-connection-intent-target="host"]').click();
-        await host.locator('#multiplayer-lobby-code').fill('MENU-' + Date.now().toString(36).toUpperCase());
+
         await host.locator('#btn-multiplayer-host').click();
         await expect(host.locator('#multiplayer-session-controls')).toBeVisible({ timeout: 25_000 });
         const code = await host.locator('#multiplayer-share-code').textContent();
@@ -217,19 +231,49 @@ test('desktop LAN lobby creates, joins, readies, starts and leaves through menu 
         await client.locator('#multiplayer-ready-toggle').click();
         await expect(client.locator('#multiplayer-ready-toggle')).toBeChecked({ timeout: 15_000 });
         await expect(host.locator('#btn-multiplayer-start')).toBeEnabled({ timeout: 15_000 });
+        const personalMap = await client.evaluate(() => window.GAME_INSTANCE.settings.mapKey);
+        await client.locator('.lobby-settings').click();
+        await expect(client.locator('#submenu-level4')).toBeVisible();
+        await client.keyboard.press('Escape');
+        await expect(client.locator('.lobby-settings')).toBeFocused();
+        await client.keyboard.press('Escape');
+        await expect(client.locator('#submenu-multiplayer')).toBeVisible();
+        await host.locator('#btn-lobby-edit-match').click();
+        await expect(host.locator('#submenu-game')).toBeVisible();
+        await host.locator('#btn-setup-mode').click();
+        await host.locator('[data-mode-path="normal"]').click();
+        await host.locator('#map-select').selectOption('maze');
+        await host.locator('.start-step-tab[data-start-section-target="match"]').click();
+        await host.locator('#bot-difficulty').selectOption('EASY');
+        await host.locator('#btn-setup-lobby').click();
+        await expect(host.locator('#btn-lobby-edit-match')).toBeFocused();
+        await expect(host.locator('#lobby-map-preview-mount')).toHaveAttribute('data-preview-status', 'ready');
+        await expect(client.locator('#lobby-match-summary')).toContainText('Leicht');
+        await expect(client.locator('#multiplayer-ready-toggle')).not.toBeChecked();
+        await expect(host.locator('#btn-multiplayer-start')).toBeDisabled();
+        assert.equal(await client.evaluate(() => window.GAME_INSTANCE.settings.mapKey), personalMap);
+        for (const size of [[1280, 720], [1600, 900], [1920, 1080]]) {
+            await apps[0].evaluate(({ BrowserWindow }, size) => BrowserWindow.getAllWindows()[0].setContentSize(...size), size);
+            await expect(host.locator('#btn-multiplayer-start')).toBeInViewport();
+            await expect(host.locator('#btn-multiplayer-leave')).toBeInViewport();
+            await host.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+            await host.screenshot({ path: path.join(artifacts, 'lobby-' + size[0] + '.png') });
+        }
+        await client.locator('#multiplayer-ready-toggle').check();
+        await expect(host.locator('#btn-multiplayer-start')).toBeEnabled({ timeout: 15_000 });
         await host.locator('#btn-multiplayer-start').click();
         for (const page of [host, client]) await expect(page.locator('#main-menu')).toBeHidden({ timeout: 30_000 });
         for (const page of [client, host]) {
             await page.evaluate(() => window.GAME_INSTANCE._returnToMenu());
             await expect(page.locator('#main-menu')).toBeVisible();
         }
-        // Match return may restore the lobby panel directly or the main navigation.
+        // Multiplayer returns directly to its room; leaving remains explicit.
         for (const page of [client, host]) {
             if (await page.locator('[data-session-type="multiplayer"]').isVisible()) {
                 await page.locator('[data-session-type="multiplayer"]').click();
-                await page.locator('[data-mode-path="normal"]').click();
             }
             const leave = page.locator('#btn-multiplayer-leave');
+            await expect(page.locator('#submenu-multiplayer')).toBeVisible();
             if (await leave.isVisible()) await leave.click();
             await expect(page.locator('#multiplayer-connection-controls')).toBeVisible();
         }

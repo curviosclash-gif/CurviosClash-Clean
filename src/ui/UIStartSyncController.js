@@ -64,6 +64,7 @@ export class UIStartSyncController {
         this._startValidationIssue = null;
         this._activeSyncSnapshot = null;
         this._mapPicker3d = null;
+        this._lobbyMapPicker3d = null;
         this._vehiclePicker3d = null;
     }
 
@@ -171,6 +172,7 @@ export class UIStartSyncController {
         const settings = this._getSettings();
         if (!settings) return;
         this._mapPicker3d?.dispose();
+        this._lobbyMapPicker3d?.dispose();
         this._mapPicker3d = null;
         this._vehiclePicker3d?.dispose();
         this._vehiclePicker3d = null;
@@ -186,6 +188,9 @@ export class UIStartSyncController {
 
         bindStartSetupControls(this, listen, getSettings);
         this._mapPicker3d = createStartSetupMapPicker3d({ ui: this.ui, listen });
+        this._lobbyMapPicker3d = createStartSetupMapPicker3d({
+            ui: { mapPreview3dMount: this.ui.lobbyMapPreviewMount }, listen, readOnly: true,
+        });
         this._vehiclePicker3d = createStartSetupVehiclePicker3d({ ui: this.ui, listen });
     }
 
@@ -382,6 +387,9 @@ export class UIStartSyncController {
                 ghostDuelState,
             });
             this._mapPicker3d?.sync({ mapKey: effectiveMapKey, maps: runtimeMaps });
+            const lobbyMapKey = resolvedMultiplayerSessionState?.metadata?.mapKey;
+            this.ui.lobbyMapPreviewMount?.classList.toggle('hidden', !hasActiveLobbySession || !runtimeMaps[lobbyMapKey]);
+            this._lobbyMapPicker3d?.sync({ mapKey: lobbyMapKey, maps: runtimeMaps });
             this._vehiclePicker3d?.sync({ settings, sessionType });
 
         const surfaceEntryCopy = resolveSurfaceEntryCopy({
@@ -428,6 +436,8 @@ export class UIStartSyncController {
     // ------------------------------------------------------------------
 
     dispose() {
+        this._lobbyMapPicker3d?.dispose();
+        this._lobbyMapPicker3d = null;
         this._mapPicker3d?.dispose();
         this._mapPicker3d = null;
         this._vehiclePicker3d?.dispose();
