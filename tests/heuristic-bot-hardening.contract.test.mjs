@@ -321,6 +321,27 @@ test('extended predictive safety checks the near turn arc before choosing a clea
     assert.equal(neutralInput.yawLeft, true);
 });
 
+test('near turn arc reaches hazards beyond the first short steering segment', () => {
+    const player = createPlayer(1);
+    const policy = new HeuristicBotPolicy({ profile: 'defensive' });
+    const input = { yawLeft: true };
+    applyHeuristicSafetyArbiter(policy, input, 1 / 60, player, {
+        arena: {},
+        trailSpatialIndex: {
+            checkGlobalCollision(position) {
+                return position.x < -1.1 && position.x > -1.4
+                    && position.z < -3.9 && position.z > -4.5
+                    ? { hit: true } : null;
+            },
+        },
+    }, createSafeObservation());
+
+    assert.ok(policy._safetyState.leftTrailClearance < 0.3);
+    assert.equal(policy._safetyState.rightTrailClearance, 1);
+    assert.equal(input.yawLeft, false);
+    assert.equal(input.yawRight, true);
+});
+
 test('projectile pressure vetoes boost even when both side paths are cramped', () => {
     const player = createPlayer(1);
     const observation = createSafeObservation();
