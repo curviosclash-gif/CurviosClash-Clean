@@ -4,7 +4,7 @@ import { getVehicleIds, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry
 import { resolveInventoryActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isMapEligibleForModePath } from '../shared/contracts/MapModeContract.js';
-import { scoreRank } from '../ui/MatchHudAnnouncement.js';
+import { scoreRank } from '../shared/contracts/MatchScoreRanking.js';
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,

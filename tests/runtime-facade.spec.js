@@ -80,32 +80,6 @@ test.describe('V59-59.7.2: GameRuntimeFacade', () => {
         expect(snapshot.hasSessionOrchestratorComponent).toBe(true);
     });
 
-    test('Owned runtime config store clears on dispose only for the owning bundle', async ({ page }) => {
-        await loadGame(page);
-        const result = await page.evaluate(async () => {
-            const runtimeConfigStore = await window.__curviosImport('/src/core/runtime/ActiveRuntimeConfigStore.js');
-            const g = window.GAME_INSTANCE;
-            g?.runtimeFacade?.applySettingsToRuntime?.({ schedulePrewarm: false });
-            const foreignClearResult = runtimeConfigStore.clearActiveRuntimeConfig?.({ owner: { foreign: true } });
-            const stillPresentAfterForeignClear = !!runtimeConfigStore.getActiveRuntimeConfig?.(null);
-            const ownerBeforeDispose = runtimeConfigStore.getActiveRuntimeConfigOwner?.() === g?.runtimeBundle;
-            // Game.dispose() is asynchronous; the store is only released once it settles.
-            await g?.dispose?.();
-            return {
-                foreignClearResult,
-                stillPresentAfterForeignClear,
-                ownerBeforeDispose,
-                clearedAfterDispose: runtimeConfigStore.getActiveRuntimeConfig?.(null) === null,
-                ownerAfterDispose: runtimeConfigStore.getActiveRuntimeConfigOwner(),
-            };
-        });
-        expect(result.foreignClearResult).toBe(false);
-        expect(result.stillPresentAfterForeignClear).toBe(true);
-        expect(result.ownerBeforeDispose).toBe(true);
-        expect(result.clearedAfterDispose).toBe(true);
-        expect(result.ownerAfterDispose).toBeNull();
-    });
-
     test('Session switch: start match then return to menu', async ({ page }) => {
         await startGameWithBots(page, 1);
         await waitForRenderFrames(page, 120);

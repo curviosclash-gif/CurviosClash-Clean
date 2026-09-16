@@ -9,7 +9,7 @@ import {
 import { SessionRuntimeCommandExecutor } from '../src/application/session-runtime/SessionRuntimeCommandExecutor.js';
 import { GameRuntimeFacade } from '../src/core/GameRuntimeFacade.js';
 import { GameRuntimeCoordinator } from '../src/core/runtime/GameRuntimeCoordinator.js';
-import { createGameRuntimeBundle } from '../src/core/runtime/GameRuntimeBundle.js';
+import { clearGameRuntimeState, createGameRuntimeBundle } from '../src/core/runtime/GameRuntimeBundle.js';
 import { InputManager } from '../src/core/InputManager.js';
 import { toggleCinematicRecordingFromHotkey } from '../src/core/runtime/GameRuntimeRecordingSupport.js';
 import { GameRuntimeSessionHandler } from '../src/core/runtime/GameRuntimeSessionHandler.js';
@@ -18,6 +18,8 @@ import { MatchStartRuntimeService } from '../src/core/runtime/MatchStartRuntimeS
 import {
     clearActiveRuntimeConfig,
     createActiveRuntimeConfigReadPort,
+    getActiveRuntimeConfig,
+    getActiveRuntimeConfigOwner,
     setActiveRuntimeConfig,
 } from '../src/core/runtime/ActiveRuntimeConfigStore.js';
 import {
@@ -402,6 +404,22 @@ test('V96.7 active runtime config read port wraps transition store access', () =
         assert.equal(port.getOwner(), owner);
     } finally {
         clearActiveRuntimeConfig({ owner });
+    }
+});
+
+test('runtime bundle ownership prevents foreign config clears and releases the store on reset', () => {
+    const bundle = createGameRuntimeBundle();
+    const activeConfig = { PLAYER: { SPEED: 22 } };
+    try {
+        setActiveRuntimeConfig(activeConfig, { owner: bundle });
+        assert.equal(clearActiveRuntimeConfig({ owner: { foreign: true } }), false);
+        assert.deepEqual(getActiveRuntimeConfig(), activeConfig);
+        assert.equal(getActiveRuntimeConfigOwner(), bundle);
+        clearGameRuntimeState(bundle);
+        assert.equal(getActiveRuntimeConfig(), null);
+        assert.equal(getActiveRuntimeConfigOwner(), null);
+    } finally {
+        clearActiveRuntimeConfig({ owner: bundle });
     }
 });
 

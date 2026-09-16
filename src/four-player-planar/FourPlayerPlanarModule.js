@@ -6,7 +6,7 @@ import { resolveInventoryActionAvailability } from '../shared/contracts/Gameplay
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isMapEligibleForModePath } from '../shared/contracts/MapModeContract.js';
 import { FourPlayerPlanarHudView } from '../ui/four-player-planar/FourPlayerPlanarHudView.js';
-import { scoreRank } from '../ui/MatchHudAnnouncement.js';
+import { scoreRank } from '../shared/contracts/MatchScoreRanking.js';
 import { FourPlayerPlanarSetupView } from '../ui/four-player-planar/FourPlayerPlanarSetupView.js';
 import { createFourPlayerPlanarInputSource } from './FourPlayerPlanarInputSource.js';
 import {

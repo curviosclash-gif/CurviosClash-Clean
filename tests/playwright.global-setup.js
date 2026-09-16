@@ -51,7 +51,6 @@ const MODULE_WARMUP_REQUEST_PATHS = [
     '/src/core/recording/MediaRecorderSupport.js',
     '/src/core/config/ConfigSections.js',
     '/src/core/config/MapPresets.js',
-    '/src/core/runtime/ActiveRuntimeConfigStore.js',
     '/src/core/runtime/GameRuntimeBundle.js',
     '/src/shared/logging/Logger.js',
     '/src/state/recorder/RoundEventStore.js',
