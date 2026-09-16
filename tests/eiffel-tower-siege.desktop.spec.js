@@ -602,7 +602,7 @@ test.describe('Eiffel tower siege', () => {
             'the fall line the slot produces is the diagonal of the destroyed leg',
         ).toBeCloseTo(1, 5);
         expect(siege.hudHidden).toBe(false);
-        expect(siege.hudText, 'the sealed tower is announced for eight seconds').toBe('TURM STÜRZT');
+        expect(siege.hudText, 'the segment that seals the tower is named for eight seconds').toBe('BEIN NW ZERSTÖRT');
         expect(siege.fractureAtBreak, 'the lower break owns a render fracture cluster').toBeTruthy();
         expect(siege.fractureMid, 'the cluster remains under the visible collapse').toBeTruthy();
         expect(siege.dustAtBreak, 'the lower break owns a render-only dust veil').toBeTruthy();

@@ -467,6 +467,7 @@ test('the hud focuses the segment under fire and announces every break for a whi
     applyMapDestructibleDamage(state, definition, 'summit', 10, { atSeconds: 6 });
     assert.equal(MAP_DESTRUCTIBLE_HUD.breakingAnnounceSeconds, 8);
     assert.equal(hudAt(6).breakingSecondsRemaining, 8);
+    assert.deepEqual(hudAt(6).focusSegment, { id: 'summit', label: 'Spitze', ratio: 0 });
     assert.equal(hudAt(10).breakingSecondsRemaining, 4);
     assert.equal(hudAt(14).breakingSecondsRemaining, 0);
     assert.equal(hudAt(14).focusSegment?.id, 'leg_b');
@@ -479,7 +480,7 @@ test('the hud focuses the segment under fire and announces every break for a whi
     const sealed = resolveMapDestructibleHudState(sealedState, definition, 21);
     assert.equal(sealed.sealed, true);
     assert.equal(sealed.active, true);
-    assert.equal(sealed.focusSegment, null);
+    assert.deepEqual(sealed.focusSegment, { id: 'leg_a', label: 'Bein A', ratio: 0 });
     assert.equal(sealed.breakingSecondsRemaining, 7);
     assert.equal(resolveMapDestructibleHudState(sealedState, definition, 40).active, false);
 });

@@ -449,6 +449,8 @@ test('every break reaches the arena, on the host and on a replica alike', () => 
 
     // The replica never books damage of its own; the host's events are what drives its tower.
     assert.deepEqual(replicaFixture.entityManager.arena.sceneCalls, [['shaft', 'leg_a']]);
+    assert.equal(replicaFixture.entityManager.breaks.length, 1, 'the newest replicated break emits feedback once');
+    assert.equal(replicaFixture.entityManager.breaks[0].context.replicated, true);
     assert.equal(replicaFixture.system.applyNetworkState(null), replicaFixture.system.getState());
     assert.equal(replicaFixture.entityManager.arena.sceneCalls.length, 1);
 
@@ -458,6 +460,7 @@ test('every break reaches the arena, on the host and on a replica alike', () => 
         replicaFixture.system.applyNetworkState(hostFixture.system.serializeNetworkState());
     }
     assert.equal(replicaFixture.entityManager.arena.sceneCalls.length, 1);
+    assert.equal(replicaFixture.entityManager.breaks.length, 1, 'unchanged snapshots do not repeat feedback');
 
     // A break that really is new still gets through.
     hostFixture.system.clear();
@@ -465,12 +468,14 @@ test('every break reaches the arena, on the host and on a replica alike', () => 
     hostFixture.system.applyMeshHit('Tower_Shaft_Top', 40, { hitDirection: { x: 1, z: 0 } });
     replicaFixture.system.applyNetworkState(hostFixture.system.serializeNetworkState());
     assert.deepEqual(replicaFixture.entityManager.arena.sceneCalls, [['shaft', 'leg_a'], ['shaft']]);
+    assert.equal(replicaFixture.entityManager.breaks.length, 2);
 
     // The round start clears the memory, so the same events are handed over again afterwards.
     replicaFixture.system.startRound();
     replicaFixture.system.applyNetworkState(hostFixture.system.serializeNetworkState());
     assert.equal(replicaFixture.entityManager.arena.sceneCalls.length, 3);
     assert.equal(replicaFixture.entityManager.arena.sceneResets, 2);
+    assert.equal(replicaFixture.entityManager.breaks.length, 3, 'a new round may present the same break again');
 });
 
 test('a map destructible in one mode only stays whole in every other', () => {

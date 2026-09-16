@@ -28,6 +28,7 @@ export class MapDestructibleSystem {
         this.networkReplica = false;
         this.anchorScale = 1;
         this._forwardedEventSignature = '';
+        this._feedbackEventSignature = '';
     }
 
     /**
@@ -50,6 +51,7 @@ export class MapDestructibleSystem {
             : 1;
         this.state = createMapDestructibleState(this.definition);
         this._forwardedEventSignature = '';
+        this._feedbackEventSignature = '';
         // An arena that was reused rather than rebuilt still shows last round's collapse.
         arena?.resetMapDestructibleScenes?.();
         return this.state.segments.length;
@@ -64,6 +66,7 @@ export class MapDestructibleSystem {
         this.state = createMapDestructibleState(null);
         this.anchorScale = 1;
         this._forwardedEventSignature = '';
+        this._feedbackEventSignature = '';
     }
 
     /** Whether this map has anything to shoot apart at all. */
@@ -128,6 +131,9 @@ export class MapDestructibleSystem {
         // The host sends state, not animation commands. The replica derives the same collapse
         // from the same events, so both towers stand or lie exactly alike.
         this._forwardEventsToArena();
+        const events = this.state.events;
+        const last = events[events.length - 1];
+        if (last) this._emitBreakFeedback(last, { replicated: true });
         return this.state;
     }
 
@@ -155,13 +161,24 @@ export class MapDestructibleSystem {
      * feedback the rest of the game wants to hang off one place.
      */
     _onSegmentDestroyed(event, options = {}) {
-        const owner = this.entityManager;
         this._forwardEventsToArena();
+        this._emitBreakFeedback(event, {
+            sourcePlayer: options?.sourcePlayer || null,
+            cause: options?.cause || null,
+            replicated: false,
+        });
+    }
+
+    _emitBreakFeedback(event, context = {}) {
+        const signature = event
+            ? `${event.segmentId}|${event.kind}|${event.atSeconds}|${event.yaw}`
+            : '';
+        if (!signature || signature === this._feedbackEventSignature) return false;
+        this._feedbackEventSignature = signature;
+        const owner = this.entityManager;
         if (typeof owner?.onMapDestructibleBreak === 'function') {
-            owner.onMapDestructibleBreak(event, {
-                sourcePlayer: options?.sourcePlayer || null,
-                cause: options?.cause || null,
-            });
+            owner.onMapDestructibleBreak(event, context);
         }
+        return true;
     }
 }

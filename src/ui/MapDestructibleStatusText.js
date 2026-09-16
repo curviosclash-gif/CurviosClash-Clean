@@ -9,8 +9,8 @@
  */
 
 /**
- * A fresh break is announced for a few seconds; a tower that went down for good says so. The
- * rest of the time the line shows how much is left of the segment currently under fire.
+ * A fresh break names the segment that caused it. The rest of the time the line shows how much
+ * is left of the segment currently under fire.
  * @param {{
  *   active?: boolean,
  *   sealed?: boolean,
@@ -21,14 +21,15 @@
  */
 export function formatMapDestructibleStatus(state) {
     if (state?.active !== true) return '';
+    const focus = state.focusSegment;
+    const label = typeof focus?.label === 'string' ? focus.label.trim() : '';
+    const name = label || (typeof focus?.id === 'string' ? focus.id.trim() : '') || 'SEGMENT';
     if (Number(state.breakingSecondsRemaining) > 0) {
-        return state.sealed === true ? 'TURM STÜRZT' : 'TURM BRICHT';
+        if (!focus) return state.sealed === true ? 'TURM STÜRZT' : 'TURM BRICHT';
+        return `${name.toUpperCase()} ${state.sealed === true ? 'ZERSTÖRT' : 'BRICHT'}`;
     }
 
-    const focus = state.focusSegment;
     if (!focus) return '';
-    const label = typeof focus.label === 'string' ? focus.label.trim() : '';
-    const name = label || (typeof focus.id === 'string' ? focus.id.trim() : '') || 'SEGMENT';
     const ratio = Math.max(0, Math.min(1, Number(focus.ratio) || 0));
-    return `TURM · ${name.toUpperCase()} ${Math.round(ratio * 100)} %`;
+    return `STRUKTUR · ${name.toUpperCase()} ${Math.round(ratio * 100)} %`;
 }

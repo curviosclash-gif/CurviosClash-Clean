@@ -18,6 +18,7 @@ import { createRuntimeRng } from '../shared/contracts/RuntimeRngContract.js';
 import { emitArcadeDamageEvent, emitArcadeGameplayEvent } from './runtime/EntityArcadeGameplayEvents.js';
 import { updateEntityCameras } from './runtime/EntityCameraUpdateOps.js';
 import { clearEndlessBotRuntimeIdentity, resetEndlessBotRuntimeIdentity } from './endless/EndlessBotRuntimeIdentityOps.js';
+import { emitMapDestructibleBreakFeedback } from './effects/MapDestructibleBreakFeedback.js';
 
 function clampInt(value, min, max) {
     return Math.max(min, Math.min(max, value));
@@ -109,6 +110,7 @@ export class EntityManager {
         this.onHuntFeedEvent = null;
         this.onHuntDamageEvent = null;
         this.onArcadeGameplayEvent = null;
+        this.onMapDestructibleBreak = (event) => emitMapDestructibleBreakFeedback(this, event);
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options?.entityRuntimeConfig || arena || null);
         this.botDifficulty = this.entityRuntimeConfig.BOT?.ACTIVE_DIFFICULTY
             || this.entityRuntimeConfig.BOT?.DEFAULT_DIFFICULTY

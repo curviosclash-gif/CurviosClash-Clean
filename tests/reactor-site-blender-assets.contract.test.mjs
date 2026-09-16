@@ -356,6 +356,14 @@ test('the site is static ground that reaches past the furthest wreck', () => {
         Math.min(-bounds.min.x, bounds.max.x) > reach,
         `the grass reaches ${bounds.max.x.toFixed(0)} m, short of the tower wreck at ${reach.toFixed(1)} m`,
     );
+
+    const wallNode = (document.nodes || []).find((node) => node.name === 'site_blastwall');
+    assert.ok(wallNode?.mesh !== undefined, 'the static site includes its irregular blast-wall compounds');
+    const wallTriangles = (document.meshes?.[wallNode.mesh]?.primitives || []).reduce((total, primitive) => {
+        const indices = document.accessors?.[primitive.indices];
+        return total + (indices ? Math.trunc(indices.count / 3) : 0);
+    }, 0);
+    assert.ok(wallTriangles >= 250, `the compounds provide real cover, not one token wall (${wallTriangles} triangles)`);
 });
 
 test('the tower wreck reaches what the generator reported, and the preset states', () => {

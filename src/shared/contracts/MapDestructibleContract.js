@@ -178,7 +178,8 @@ export const MAP_DESTRUCTIBLE_LIMITS = Object.freeze({
  * @typedef {object} MapDestructibleHudState
  * @property {boolean} active Whether the HUD has anything to say about the tower right now.
  * @property {boolean} sealed
- * @property {MapDestructibleHudSegment | null} focusSegment Standing segment under fire.
+ * @property {MapDestructibleHudSegment | null} focusSegment Standing segment under fire, or the
+ * last segment that broke while its announcement is active.
  * @property {number} breakingSecondsRemaining Rest of the announcement of the last break.
  * @property {MapDestructibleHudSegment[]} segments
  */
@@ -901,8 +902,8 @@ function resolveBreakingSecondsRemaining(state, elapsedSeconds) {
 }
 
 /**
- * What the HUD needs: the segment currently under fire, how long the last break is still
- * announced, and how much is left of every segment.
+ * What the HUD needs: the segment currently under fire, which segment caused the last break, how
+ * long that break is still announced, and how much is left of every segment.
  *
  * The focus is the standing segment with the least health left - what a player is shooting at
  * right now. Two equally hurt segments are decided by the newer hit, so the line does not jump
@@ -943,6 +944,11 @@ export function resolveMapDestructibleHudState(state, definition, elapsedSeconds
     }
 
     const breakingSecondsRemaining = resolveBreakingSecondsRemaining(state, elapsedSeconds);
+    if (breakingSecondsRemaining > 0) {
+        const events = Array.isArray(state?.events) ? state.events : [];
+        const lastEvent = events.length > 0 ? events[events.length - 1] : null;
+        focusSegment = segments.find((entry) => entry.id === lastEvent?.segmentId) || null;
+    }
     return {
         active: focusSegment !== null || breakingSecondsRemaining > 0,
         sealed,

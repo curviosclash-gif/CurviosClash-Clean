@@ -19,9 +19,10 @@ files loading exactly like every other Blender map.
 What stands on the site
 -----------------------
   01_site           the apron, the grass beyond it, roads, the perimeter fence, the switchyard
-                    and its pylons, lamp masts, the basin under each cooling tower, and
-                    everything around and inside the turbine hall that survives it: the floor,
-                    the turbine sets, the annexes, the steam lines. Static.
+                    and its pylons, irregular blast-wall compounds, staggered checkpoints, lamp
+                    masts, the basin under each cooling tower, and everything around and inside
+                    the turbine hall that survives it: the floor, the turbine sets, the annexes,
+                    the steam lines. Static.
   02_turbine_hall   the shell of the long hall south of the reactor: four walls, the roof, the
                     two gable doors a ship can fly through. Destructible: segment `turbine_hall`.
   03_reactor_block  the containment cylinder with its dome, flanked by two auxiliary wings on
@@ -114,6 +115,7 @@ FPS = et.FPS
 CONCRETE = "Concrete"
 CONCRETE_DARK = "ConcreteDark"
 CONCRETE_PALE = "ConcretePale"
+BLAST_WALL = "BlastWall"
 ASPHALT = "Asphalt"
 GRASS = et.GRASS
 STEEL = et.STEEL
@@ -133,6 +135,7 @@ et.MATERIAL_COLORS.update({
     CONCRETE: ((0.56, 0.55, 0.52, 1.0), 0.0, 0.0),
     CONCRETE_DARK: ((0.36, 0.36, 0.35, 1.0), 0.0, 0.0),
     CONCRETE_PALE: ((0.68, 0.67, 0.63, 1.0), 0.0, 0.0),
+    BLAST_WALL: ((0.43, 0.42, 0.39, 1.0), 0.0, 0.0),
     ASPHALT: ((0.16, 0.16, 0.17, 1.0), 0.0, 0.0),
     STEEL_DARK: ((0.22, 0.24, 0.27, 1.0), 0.0, 0.7),
     WATER: ((0.08, 0.22, 0.28, 1.0), 0.0, 0.3),
@@ -151,6 +154,7 @@ et.MATERIAL_GRAIN.update({
     CONCRETE: 0.09,
     CONCRETE_DARK: 0.08,
     CONCRETE_PALE: 0.08,
+    BLAST_WALL: 0.11,
     ASPHALT: 0.06,
     RUBBLE: 0.12,
     SCORCHED: 0.05,
@@ -488,8 +492,78 @@ def angle_inside(angle, angle_range):
 # --- Static parts ------------------------------------------------------------------------------------
 
 
+def wall_segment(canvas, start, end, height, thickness=1.4, material=BLAST_WALL,
+                 warning_cap=True):
+    """One ground wall between two plan points, with collision and a readable hazard cap."""
+    delta_x = end[0] - start[0]
+    delta_y = end[1] - start[1]
+    length = hypot(delta_x, delta_y)
+    if length < 0.1:
+        return
+    centre = ((start[0] + end[0]) / 2, (start[1] + end[1]) / 2)
+    angle = atan2(delta_y, delta_x)
+    canvas.box(material, (centre[0], centre[1], height / 2),
+               (length, thickness, height), rotation=(0, 0, angle))
+    if warning_cap:
+        canvas.box(WARNING, (centre[0], centre[1], height + 0.16),
+                   (max(0.6, length - 0.5), thickness + 0.08, 0.32),
+                   rotation=(0, 0, angle), decorative=True)
+
+
+def build_security_compounds(canvas):
+    """Irregular static walls that divide the plant into readable, flyable compounds.
+
+    None of these walls belongs to a destructible building. The four inner runs sit between the
+    containment wings and cooling basins, the switchyard enclosure follows the permanent slab,
+    and the low checkpoint baffles leave offset openings rather than closing a route outright.
+    """
+    inner_runs = (
+        ((-58, -38), (-49, -49), (-35, -54), (-27, -44)),
+        ((27, -44), (36, -55), (51, -50), (58, -37)),
+        ((-58, 35), (-51, 48), (-36, 57), (-27, 48)),
+        ((27, 48), (38, 58), (52, 51), (58, 36)),
+    )
+    for run_index, points in enumerate(inner_runs):
+        for segment_index in range(len(points) - 1):
+            height = 6.0 + 2.4 * et.hash01(run_index, segment_index, 13.0)
+            thickness = 1.35 + 0.35 * et.hash01(segment_index, run_index, 5.0)
+            wall_segment(canvas, points[segment_index], points[segment_index + 1], height, thickness)
+        # Uneven end buttresses make the runs read as installed blast walls, not arena polygons.
+        for end_index in (0, -1):
+            x, y = points[end_index]
+            height = 3.8 + 1.6 * et.hash01(run_index, end_index, 19.0)
+            canvas.box(BLAST_WALL, (x, y, height / 2), (3.0, 3.0, height),
+                       rotation=(0, 0, run_index * 0.31))
+
+    # A crooked three-sided switchyard perimeter. The gaps at the centre and both northern
+    # corners preserve the authored slingshot approaches.
+    switchyard_runs = (
+        ((-66, -137), (-73, -123), (-67, -108), (-75, -92)),
+        ((66, -137), (75, -121), (68, -105), (77, -91)),
+        ((-59, -86), (-39, -90), (-19, -86)),
+        ((17, -87), (39, -91), (59, -84)),
+    )
+    for run_index, points in enumerate(switchyard_runs):
+        for segment_index in range(len(points) - 1):
+            height = 4.8 + 2.0 * et.hash01(run_index, segment_index, 31.0)
+            wall_segment(canvas, points[segment_index], points[segment_index + 1], height,
+                         1.25 + 0.25 * (segment_index % 2))
+
+    # Low, staggered entry baffles at the outer north and south service approaches. A ship can
+    # weave through the offsets or simply clear the three-metre walls.
+    checkpoint_segments = (
+        ((-72, 138), (-49, 143)), ((-42, 145), (-20, 139)),
+        ((18, 140), (39, 146)), ((46, 142), (71, 136)),
+        ((-70, -145), (-47, -140)), ((-39, -138), (-18, -144)),
+        ((20, -144), (42, -138)), ((49, -141), (71, -146)),
+    )
+    for index, (start, end) in enumerate(checkpoint_segments):
+        wall_segment(canvas, start, end, 2.6 + 0.8 * et.hash01(index, 41.0, 2.0),
+                     1.7, warning_cap=index % 2 == 0)
+
+
 def build_site(canvas):
-    """The apron, the grass, the roads, the fence, the switchyard, the basins and the masts."""
+    """The apron, roads, irregular compounds, switchyard, basins and permanent machinery."""
     canvas.box(GRASS, (0, 0, -0.9), (GROUND_HALF * 2, GROUND_HALF * 2, 1.4))
     canvas.box(CONCRETE_PALE, (0, 0, -0.2), (APRON_HALF * 2, APRON_HALF * 2, 0.4))
     # The ring road around the apron and the two access roads out to the fence.
@@ -498,6 +572,7 @@ def build_site(canvas):
         canvas.box(ASPHALT, (sign * (APRON_HALF + 8), 0, 0.02), (12, APRON_HALF * 2 + 32, 0.3))
         canvas.box(ASPHALT, (sign * (GROUND_HALF - 45), 0, 0.02), (90, 12, 0.3))
     canvas.box(ASPHALT, (0, GROUND_HALF - 45, 0.02), (12, 90, 0.3))
+    build_security_compounds(canvas)
     # The perimeter fence: posts that collide, mesh panels that do not.
     fence = APRON_HALF + 20
     for index in range(-17, 18):

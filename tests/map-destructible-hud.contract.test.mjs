@@ -52,6 +52,15 @@ test('the status line reports a break first and the segment under fire afterward
         formatMapDestructibleStatus({ active: true, sealed: true, breakingSecondsRemaining: 0.2 }),
         'TURM STÜRZT',
     );
+    assert.equal(
+        formatMapDestructibleStatus({
+            active: true,
+            sealed: true,
+            breakingSecondsRemaining: 0.2,
+            focusSegment: { id: 'reactor_dome', label: 'Reaktor', ratio: 0 },
+        }),
+        'REAKTOR ZERSTÖRT',
+    );
 
     assert.equal(
         formatMapDestructibleStatus({
@@ -59,16 +68,16 @@ test('the status line reports a break first and the segment under fire afterward
             breakingSecondsRemaining: 0,
             focusSegment: { id: 'leg_a', label: 'Bein A', ratio: 0.4 },
         }),
-        'TURM · BEIN A 40 %',
+        'STRUKTUR · BEIN A 40 %',
     );
     // Percentages are rounded, never truncated, and a missing label falls back to the id.
     assert.equal(
         formatMapDestructibleStatus({ active: true, focusSegment: { id: 'shaft', label: '  ', ratio: 0.666 } }),
-        'TURM · SHAFT 67 %',
+        'STRUKTUR · SHAFT 67 %',
     );
     assert.equal(
         formatMapDestructibleStatus({ active: true, focusSegment: { ratio: 'viel' } }),
-        'TURM · SEGMENT 0 %',
+        'STRUKTUR · SEGMENT 0 %',
     );
 });
 
@@ -149,18 +158,18 @@ test('the runtime projection carries the tower condition to every player HUD', (
     assert.equal(damaged.length, 2);
     assert.deepEqual(damaged[0], damaged[1], 'every player sees the same tower');
     assert.deepEqual(damaged[0].focusSegment, { id: 'shaft', label: 'Schaft', ratio: 0.6 });
-    assert.equal(formatMapDestructibleStatus(damaged[0]), 'TURM · SCHAFT 60 %');
+    assert.equal(formatMapDestructibleStatus(damaged[0]), 'STRUKTUR · SCHAFT 60 %');
 
     entityManager.arena.glbAnimationElapsedSeconds = 6;
     destructibles.applyMeshHit('legs_lower_iron', 100, { hitPoint: [20, 4, 20] });
     const broken = projectAt(6);
     assert.equal(broken[0].sealed, true);
     assert.equal(broken[0].breakingSecondsRemaining, 8);
-    assert.equal(formatMapDestructibleStatus(broken[0]), 'TURM STÜRZT');
+    assert.equal(formatMapDestructibleStatus(broken[0]), 'BEIN A ZERSTÖRT');
 
     // Once the announcement has run out the line goes quiet instead of handing the player back a
     // target: a sealed tower is already on its way down, and the damaged shaft is going with it.
-    assert.equal(broken[0].focusSegment, null);
+    assert.deepEqual(broken[0].focusSegment, { id: 'leg_a', label: 'Bein A', ratio: 0 });
     assert.equal(formatMapDestructibleStatus(projectAt(15)[0]), '');
     assert.deepEqual(projectAt(15)[0], { ...INACTIVE, sealed: true });
 
@@ -266,7 +275,7 @@ test('the HUD shows the tower line only while there is something to report', () 
             },
         }, 0.016);
         assert.equal(element.classList.contains('hidden'), false);
-        assert.equal(element.textContent, 'TURM · BEIN A 42 %');
+        assert.equal(element.textContent, 'STRUKTUR · BEIN A 42 %');
         assert.equal(element.classList.contains('breaking'), false);
 
         hud.update({
@@ -278,7 +287,7 @@ test('the HUD shows the tower line only while there is something to report', () 
                 breakingSecondsRemaining: 5,
             },
         }, 0.016);
-        assert.equal(element.textContent, 'TURM BRICHT');
+        assert.equal(element.textContent, 'BEIN A BRICHT');
         assert.equal(element.classList.contains('breaking'), true);
 
         // A dead player clears the line instead of leaving the last announcement standing.
@@ -301,13 +310,13 @@ test('a segment that went down with another piece leaves the HUD', () => {
 
     applyMapDestructibleDamage(state, definition, 'summit', 30, { atSeconds: 2 });
     assert.deepEqual(hudAt(2).focusSegment, { id: 'summit', label: 'Spitze', ratio: 0.4 });
-    assert.equal(formatMapDestructibleStatus(hudAt(2)), 'TURM · SPITZE 40 %');
+    assert.equal(formatMapDestructibleStatus(hudAt(2)), 'STRUKTUR · SPITZE 40 %');
 
     applyMapDestructibleDamage(state, definition, 'shaft', 50, { atSeconds: 6, hitDirection: { x: 1, z: 0 } });
     assert.equal(state.segments[1].collapsed, true);
     // The break is announced, and nothing takes the line back once it has run out.
-    assert.equal(formatMapDestructibleStatus(hudAt(6)), 'TURM BRICHT');
-    assert.equal(hudAt(6).focusSegment, null);
+    assert.equal(formatMapDestructibleStatus(hudAt(6)), 'SCHAFT BRICHT');
+    assert.deepEqual(hudAt(6).focusSegment, { id: 'shaft', label: 'Schaft', ratio: 0 });
     assert.equal(hudAt(20).active, false);
     assert.equal(formatMapDestructibleStatus(hudAt(20)), '');
     // Both segments still report a ratio of zero, so the full list stays honest about the tower.
@@ -326,6 +335,6 @@ test('host and replica derive the same HUD line from the same state', () => {
         }).mapDestructible,
     );
 
-    assert.equal(line(4), 'TURM · SCHAFT 60 %');
-    assert.equal(line(400), 'TURM · SCHAFT 60 %', 'partial damage is not announced, it just stands');
+    assert.equal(line(4), 'STRUKTUR · SCHAFT 60 %');
+    assert.equal(line(400), 'STRUKTUR · SCHAFT 60 %', 'partial damage is not announced, it just stands');
 });

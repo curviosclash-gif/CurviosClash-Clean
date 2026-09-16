@@ -94,6 +94,18 @@ test.describe('Reactor site', () => {
                 breakScenes: sceneModels.map(slotState),
                 intact: intactModels.map(slotState),
                 segmentIds: game.entityManager._mapDestructibleSystem.getState().segments.map((entry) => entry.id),
+                itemSpawnMode: String(arena.currentMapDefinition?.itemSpawnMode || ''),
+                authoredItemCount: arena.getAuthoredItemAnchors?.().length || 0,
+                blastWallMeshes: (() => {
+                    let count = 0;
+                    arena._glbScene.getObjectByName('glb-slot-reactor-site')?.traverse?.((node) => {
+                        if (String(node?.name || '') === 'site_blastwall') count += 1;
+                    });
+                    return count;
+                })(),
+                blastWallColliders: arena.obstacles.filter(
+                    (entry) => String(entry?.sourceName || '') === 'site_blastwall',
+                ).length,
             };
         }, { sceneModels: BREAK_SCENE_MODELS, intactModels: INTACT_MODELS });
 
@@ -107,6 +119,10 @@ test.describe('Reactor site', () => {
         expect(loaded.intact).toEqual(INTACT_MODELS.map((modelId) => ({ modelId, found: true, visible: true })));
         expect(loaded.segmentIds).toHaveLength(SEGMENT_COUNT);
         expect(loaded.segmentIds).toContain(TOWER_SEGMENT_ID);
+        expect(loaded.itemSpawnMode).toBe('hybrid');
+        expect(loaded.authoredItemCount).toBe(12);
+        expect(loaded.blastWallMeshes, 'the complex static compound is visible').toBeGreaterThan(0);
+        expect(loaded.blastWallColliders, 'the irregular walls provide real cover').toBeGreaterThan(0);
 
         // --- 2 to 4, in one evaluate ------------------------------------------------------
         const siege = await page.evaluate(({ mapScale, towerId, axisX }) => {
@@ -278,6 +294,16 @@ test.describe('Reactor site', () => {
             });
             const cloudColliders = arena.obstacles.filter((entry) => /cloud|fire|dust/.test(String(entry?.sourceName || '').toLowerCase())).length;
 
+            // Freeze a genuine exterior overview for the attached visual proof. The gameplay
+            // camera used to remain in the west tower's fall line and photographed the wreck
+            // from inside, which could not prove either the cloud or the wider facility.
+            game.state = 'PAUSED';
+            const overviewCamera = game.renderer.cameras?.[0];
+            overviewCamera?.position?.set?.(0, 300, -430);
+            overviewCamera?.lookAt?.(0, 70, 0);
+            overviewCamera?.updateMatrixWorld?.(true);
+            game.renderer.render();
+
             return {
                 failed: '',
                 rays,
@@ -372,7 +398,7 @@ test.describe('Reactor site', () => {
             ((siege.event.yaw - BAKED_FALL_HEADING) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2), 6,
         );
         expect(siege.slotFall.x, `the wreck runs towards (${siege.slotFall.x.toFixed(3)}, ${siege.slotFall.z.toFixed(3)})`).toBeCloseTo(-1, 5);
-        expect(siege.hudAfterTower, 'a break that does not seal is announced as a break').toBe('TURM BRICHT');
+        expect(siege.hudAfterTower, 'a break that does not seal names its structure').toBe('KÜHLTURM WEST BRICHT');
         expect(siege.clockAfterFall - siege.clockAtBreak).toBeCloseTo(25, 1);
         const isPiece = (entry) => entry.sourceName.toLowerCase().startsWith('piece_tower_w');
         expect(siege.groundBefore.hits.filter(isPiece), `${siege.groundBefore.probed} probes before the break reported no wreck`).toEqual([]);
@@ -389,7 +415,7 @@ test.describe('Reactor site', () => {
         expect(siege.cloudVisible, 'the cloud appears').toBe(true);
         expect(siege.cloudYaw, 'a cloud is never turned').toBeCloseTo(0, 6);
         expect(siege.blockVisible, 'the intact block leaves the world').toBe(false);
-        expect(siege.hudAfterBreach).toBe('TURM STÜRZT');
+        expect(siege.hudAfterBreach).toBe('REAKTOR ZERSTÖRT');
         expect(siege.blockCollidersBefore).toBeGreaterThan(0);
         expect(siege.blockCollidersAfter, 'the block\'s colliders go with it').toBe(0);
         expect(siege.ruinCollidersBefore, 'the ruin collides only once it is there').toBe(0);
@@ -398,6 +424,109 @@ test.describe('Reactor site', () => {
         expect(siege.capProbeHit, 'a ship inside the cap flies through smoke').toBe(false);
         expect(siege.ruinProbe.sourceName, `the ruin's wall answered "${siege.ruinProbe.sourceName}"`).toMatch(/^piece_reactor_ruin/);
         expect(siege.refused, 'after the breach no hit books anywhere').toBe(true);
+    });
+
+    test('the east tower, stack and turbine hall each run their own collapse scene', async ({ page }, testInfo) => {
+        test.setTimeout(480_000);
+        await startMatch(page, { modePath: 'fight', sessionType: 'single' });
+
+        await expect.poll(() => page.evaluate((modelCount) => {
+            const arena = window.GAME_INSTANCE?.arena;
+            return !arena?._glbLoadError && (arena?._glbScene?.children?.length || 0) === modelCount;
+        }, GLB_MODEL_COUNT), { timeout: 360_000, message: 'the complete reactor pack has to load' }).toBe(true);
+
+        const collapses = await page.evaluate((mapScale) => {
+            const game = window.GAME_INSTANCE;
+            const arena = game.arena;
+            const system = game.entityManager._mapDestructibleSystem;
+            const definition = system.getDefinition();
+            const colliderCount = (prefix) => arena.obstacles.filter(
+                (entry) => String(entry?.sourceName || '').toLowerCase().startsWith(prefix),
+            ).length;
+            const steps = [
+                {
+                    segmentId: 'cooling_tower_e', meshName: 'cooling_tower_concrete',
+                    intactId: 'reactor-cooling-tower-east', sceneId: 'reactor-topple-tower-east',
+                    piecePrefix: 'piece_tower_e', seconds: 25,
+                },
+                {
+                    segmentId: 'vent_stack', meshName: 'vent_stack_concrete',
+                    intactId: 'reactor-vent-stack', sceneId: 'reactor-topple-stack',
+                    piecePrefix: 'piece_stack', seconds: 15,
+                },
+                {
+                    segmentId: 'turbine_hall', meshName: 'turbine_hall_concrete',
+                    intactId: 'reactor-turbine-hall', sceneId: 'reactor-collapse-hall',
+                    piecePrefix: 'piece_hall', seconds: 11,
+                },
+            ];
+            const results = [];
+            for (const step of steps) {
+                const segment = definition.segments.find((entry) => entry.id === step.segmentId);
+                const intact = arena._glbScene.getObjectByName(`glb-slot-${step.intactId}`);
+                const scene = arena._glbScene.getObjectByName(`glb-slot-${step.sceneId}`);
+                const intactCollidersBefore = colliderCount(step.meshName.replace('_concrete', ''));
+                const result = system.applyMeshHit(step.meshName, segment.hp, {
+                    hitPoint: {
+                        x: segment.anchor[0] * mapScale,
+                        y: segment.anchor[1] * mapScale,
+                        z: segment.anchor[2] * mapScale,
+                    },
+                    hitDirection: { x: 1, y: 0, z: -0.25 },
+                    cause: 'MG_BULLET',
+                });
+                const visibleAtBreak = scene?.visible === true;
+                const intactVisibleAtBreak = intact?.visible === true;
+                for (let frame = 0; frame < step.seconds * 60; frame += 1) arena.update(1 / 60);
+                results.push({
+                    segmentId: step.segmentId,
+                    applied: result?.applied === true,
+                    destroyed: result?.destroyed === true,
+                    sealed: system.getState().sealed === true,
+                    visibleAtBreak,
+                    visibleAfterRest: scene?.visible === true,
+                    intactVisibleAtBreak,
+                    intactVisibleAfterRest: intact?.visible === true,
+                    intactCollidersBefore,
+                    intactCollidersAfter: colliderCount(step.meshName.replace('_concrete', '')),
+                    pieceCollidersAfter: colliderCount(step.piecePrefix),
+                });
+            }
+
+            game.state = 'PAUSED';
+            const overviewCamera = game.renderer.cameras?.[0];
+            overviewCamera?.position?.set?.(0, 300, -430);
+            overviewCamera?.lookAt?.(0, 70, 0);
+            overviewCamera?.updateMatrixWorld?.(true);
+            game.renderer.render();
+            return {
+                events: system.getState().events.map((entry) => entry.segmentId),
+                results,
+            };
+        }, MAP_SCALE);
+
+        const measurements = testInfo.outputPath('reactor-site-secondary-collapses.json');
+        await writeFile(measurements, JSON.stringify(collapses, null, 2), 'utf8');
+        await testInfo.attach('reactor-site-secondary-collapses.json', { path: measurements, contentType: 'application/json' });
+        await page.waitForTimeout(500);
+        const screenshot = testInfo.outputPath('reactor-site-secondary-collapses.png');
+        await page.screenshot({ path: screenshot });
+        await testInfo.attach('reactor-site-secondary-collapses.png', { path: screenshot, contentType: 'image/png' });
+
+        expect(collapses.events).toEqual(['cooling_tower_e', 'vent_stack', 'turbine_hall']);
+        for (const result of collapses.results) {
+            expect(result.applied, `${result.segmentId} accepts its break`).toBe(true);
+            expect(result.destroyed, `${result.segmentId} reaches zero hp`).toBe(true);
+            expect(result.sealed, `${result.segmentId} must not seal the reactor site`).toBe(false);
+            expect(result.visibleAtBreak, `${result.segmentId} scene appears immediately`).toBe(true);
+            expect(result.visibleAfterRest, `${result.segmentId} scene remains at rest`).toBe(true);
+            expect(result.intactVisibleAtBreak, `${result.segmentId} intact model leaves immediately`).toBe(false);
+            expect(result.intactVisibleAfterRest, `${result.segmentId} intact model stays hidden`).toBe(false);
+            expect(result.intactCollidersBefore, `${result.segmentId} starts collidable`).toBeGreaterThan(0);
+            expect(result.intactCollidersAfter, `${result.segmentId} drops its own intact colliders`)
+                .toBeLessThan(result.intactCollidersBefore);
+            expect(result.pieceCollidersAfter, `${result.segmentId} wreck remains collidable`).toBeGreaterThan(0);
+        }
     });
 
     test('outside the hunt the same plant is intact concrete', async ({ page }) => {
