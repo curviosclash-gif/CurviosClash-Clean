@@ -180,18 +180,6 @@ export class ThreePlayerSplitModule {
         return isThreePlayerSplitRuntime(this.runtime?.getRuntimeConfig?.());
     }
 
-    /**
-     * Pending: wiring an actual keyboard/gamepad source per slot needs the
-     * shared input-resolution rework (MatchInputSourceResolver.js,
-     * InputManager.js) that is mid-flight elsewhere in this tree. Once that
-     * lands, this should read runtimeConfig.session.threePlayerSplit
-     * .deviceAssignment and bind a source per slot via
-     * resolveThreePlayerSplitInputDevice() from FourPlayerPlanarContract.js.
-     */
-    configureInputSources() {
-        return false;
-    }
-
     activateMatch() {
         if (this._matchActive) return;
         this._matchActive = true;

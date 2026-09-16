@@ -108,14 +108,14 @@ export class ThreePlayerSplitSetupView {
         }
 
         const devices = surface.querySelector('.three-player-split-devices');
-        const deviceSelects = keyBindings.map((binding, index) => {
+        const deviceSelects = keyBindings.map((_, index) => {
             const row = createStaticElement(this.document, `
                 <div class="three-player-split-device-row">
                     <strong>P${index + 1}</strong>
                     <select data-three-player-split-device data-player-index="${index}">
                         ${Object.entries(DEVICE_LABELS).map(([value, label]) => `<option value="${value}">${label}</option>`).join('')}
                     </select>
-                    <p class="menu-hint">Tastatur-Zone: ${binding.label}</p>
+                    <p class="menu-hint">Tastatur: Belegung Spieler ${index === 0 ? 1 : 2}</p>
                 </div>`);
             row.style.setProperty('--player-color', colorToCss(playerColors[index]));
             devices.appendChild(row);

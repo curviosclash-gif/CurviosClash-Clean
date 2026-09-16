@@ -249,6 +249,7 @@ export function createPreferredMatchInputSource({
     playerIndex,
     localHumanCount,
     inputDeviceIndex = playerIndex,
+    assignedInputDevice = null,
     game = null,
     getMatchRuntimeProjection = null,
 }) {
@@ -257,11 +258,11 @@ export function createPreferredMatchInputSource({
     const resolvedInputDeviceIndex = Number.isInteger(inputDeviceIndex)
         ? Math.max(0, inputDeviceIndex)
         : Math.max(0, Number(inputDeviceIndex) || 0);
-    const assignedDevice = localHumanCount === 2 && game?.runtimeConfig?.session?.networkEnabled !== true
+    const assignedDevice = assignedInputDevice || (localHumanCount === 2 && game?.runtimeConfig?.session?.networkEnabled !== true
         ? resolveSplitscreenInputDevice(game?.settings?.controls?.SPLITSCREEN?.layout, resolvedInputDeviceIndex)
-        : null;
+        : null);
     if (assignedDevice?.type === 'keyboard') {
-        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: resolvedInputDeviceIndex });
+        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: Math.min(resolvedInputDeviceIndex, 1) });
     }
     const gamepadEnabled = () => isGamepadInputEnabled(game?.settings?.controls);
     if (assignedDevice?.type === 'gamepad') {
