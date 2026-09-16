@@ -4,6 +4,7 @@ import * as THREE from 'three';
 
 import { TrailSpatialIndex } from '../src/entities/systems/TrailSpatialIndex.js';
 import { Trail } from '../src/entities/Trail.js';
+import { RocketTrailSystem } from '../src/entities/systems/projectile/RocketTrailSystem.js';
 
 // A segment that leaves its grid cell gets a key ARRAY, one that stays inside a single cell
 // gets a plain numeric key. Only the array is pooled, which is where ownership can slip.
@@ -81,4 +82,38 @@ test('a wrapped trail leaves no segment behind in the collision grid after clear
     trail.clear();
 
     assert.equal(index.spatialGrid.size, 0, 'clear() must leave no lethal leftovers in the grid');
+});
+
+test('a wrapped rocket trail never shares one pooled key array between two segments', () => {
+    const index = createIndex();
+    const rocketTrails = new RocketTrailSystem({
+        renderer: createRenderer(),
+        trailSpatialIndex: index,
+        maxSegments: 4,
+        width: 0.6,
+        segmentHp: 3,
+    });
+    const handle = rocketTrails.createTrailHandle({ index: 0 });
+
+    const from = new THREE.Vector3(0, 2, 5);
+    const to = new THREE.Vector3(0, 2, 5);
+    // Long steps cross cell borders (key array), short steps stay inside one cell (numeric key),
+    // so the ring buffer reuses and pools key arrays in turn.
+    for (let step = 0; step < 12; step++) {
+        from.copy(to);
+        to.x += step % 2 === 0 ? 34 : 1;
+        rocketTrails.appendSegment(handle, from, to);
+    }
+
+    const liveRefs = rocketTrails.segmentRefs.filter(Boolean);
+    assert.equal(liveRefs.length, 4, 'expected the ring buffer to have wrapped');
+    const seenKeyArrays = new Set();
+    for (const ref of liveRefs) {
+        if (Array.isArray(ref.key)) {
+            assert.equal(seenKeyArrays.has(ref.key), false, 'two live segments must not share one key array');
+            seenKeyArrays.add(ref.key);
+        }
+        assert.deepEqual(cellsHolding(index, ref.entry), keysOf(ref), 'a live segment sits in exactly its own cells');
+    }
+    assert.ok(seenKeyArrays.size >= 2, 'the ring buffer must have handed out pooled key arrays');
 });

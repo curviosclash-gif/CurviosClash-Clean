@@ -165,6 +165,10 @@ export class RocketTrailSystem {
         const replacingActiveSegment = !!oldRef;
         if (oldRef) {
             this.getTrailSpatialIndex()?.unregisterTrailSegment?.(oldRef.key, oldRef.entry);
+            // The index may have taken the key list back into its pool, and oldRef is handed
+            // straight back below as the reusable ref. Dropping the key here keeps the
+            // ownership with the pool instead of with a ref that no longer holds the array.
+            oldRef.key = null;
             this.segmentSlots.delete(oldRef.entry);
         }
 
