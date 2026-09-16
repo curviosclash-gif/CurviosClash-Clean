@@ -23,6 +23,7 @@ const HOLDOUT_SEEDS = Object.freeze([3, 7, 11, 17, 23, 31, 41, 53, 67, 79, 97, 1
 // Never use these for tuning or candidate selection.
 const FINAL_SEEDS = Object.freeze([293, 307, 317, 331, 347, 359, 373, 389, 401, 419, 433, 449]);
 const CONFIRMATION_SEEDS = Object.freeze([457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601]);
+const AUDIT_SEEDS = Object.freeze([607, 613, 617, 619, 631, 641, 643, 647, 653, 659, 661, 673]);
 const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
 export const TUNABLE_FIELDS = Object.freeze([
     'predictiveSafetyBias',
@@ -842,6 +843,8 @@ const task = command === '--verify'
     ? () => verifyCurrentProfiles(FINAL_SEEDS, false, true)
     : command === '--confirm-product'
     ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false, true)
+    : command === '--audit-product'
+    ? () => verifyCurrentProfiles(AUDIT_SEEDS, false, true)
     : command === '--replay'
     ? replayMatch
     : command === '--replay-product'
