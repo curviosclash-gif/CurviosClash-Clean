@@ -3875,7 +3875,7 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 #hud.split-screen .hunt-arc-meter {
-    top: 45%;
+    top: min(45%, calc(100% - var(--hud-bar-stack-top) - 260px));
 }
 
 #hud.split-screen .hunt-kill-feed {
