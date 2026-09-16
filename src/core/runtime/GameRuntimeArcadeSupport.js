@@ -12,6 +12,8 @@ import { ARENA_WAVES_BOT_CAPACITY, isArenaWavesConfig } from '../../shared/contr
 import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 import { getArcadeObjectiveRuntimeState } from '../arcade/ArcadeObjectiveRuntimeOps.js';
 import { resolveObjectiveTargetIndex } from '../../entities/systems/ObjectiveTargetMarkerOps.js';
+import { FIVE_PORTALS_MAPS, isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
+import { FivePortalsRuntime } from '../arcade/FivePortalsRuntime.js';
 
 function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
@@ -74,6 +76,7 @@ export class GameRuntimeArcadeSupport {
         nowMs = undefined,
         logger = console,
         applySectorRuntimeProfile = null,
+        requestRunAdvance = null,
     } = {}) {
         this._getGame = typeof getGame === 'function' ? getGame : () => null;
         this._getRuntimeState = typeof getRuntimeState === 'function' ? getRuntimeState : () => null;
@@ -87,6 +90,7 @@ export class GameRuntimeArcadeSupport {
         this._applySectorRuntimeProfile = typeof applySectorRuntimeProfile === 'function'
             ? applySectorRuntimeProfile
             : null;
+        this._requestRunAdvance = typeof requestRunAdvance === 'function' ? requestRunAdvance : () => {};
         this._preparedEncounterPlan = null;
         this._pendingSectorTransition = null;
         // Ein Sektorwechsel, der Karte oder Bot-Anzahl aendert, baut die Laufzeitsitzung
@@ -115,7 +119,13 @@ export class GameRuntimeArcadeSupport {
             getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
             requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
         });
+        this.fivePortalsRuntime = new FivePortalsRuntime({
+            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+            requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
+            requestAdvance: () => this._requestRunAdvance(),
+        });
         this._arcadeGameplayEventHandler = (event) => {
+            if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.handleGameplayEvent(event);
             if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.handleGameplayEvent(event);
             const endless = this._getEndlessRuntime();
             if (endless) return endless.handleGameplayEvent?.(event);
@@ -185,6 +195,10 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig) {
             return;
         }
+        if (isFivePortalsConfig(runtimeConfig)) {
+            this._deactivateRoundController();
+            return;
+        }
         this.arcadeRunRuntime.configure(runtimeConfig);
         if (runtimeConfig?.arcade?.enabled && !isEndlessParcoursConfig(runtimeConfig)) {
             this._activateRoundController();
@@ -217,16 +231,19 @@ export class GameRuntimeArcadeSupport {
 
     _bindParcoursCallbacks(runtimeState = this.getRuntimeState()) {
         const parcoursSystem = runtimeState?.entityManager?._parcoursProgressSystem;
+        const fivePortals = isFivePortalsConfig(runtimeState?.runtimeConfig);
         if (parcoursSystem && typeof parcoursSystem.setXpEventCallback === 'function') {
             parcoursSystem.setXpEventCallback(
-                (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex)
+                fivePortals ? null : (eventType, playerIndex) => this.arcadeRunRuntime.applyParcoursXpEvent(eventType, playerIndex)
             );
         }
         if (parcoursSystem && typeof parcoursSystem.setLeaderboardCallback === 'function') {
             parcoursSystem.setLeaderboardCallback(
-                (data) => this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data)
+                fivePortals ? (data) => this.fivePortalsRuntime.handleParcoursEvent(data)
+                    : (data) => this.arcadeRunRuntime.applyParcoursLeaderboardEvent(data)
             );
         }
+        parcoursSystem?.setAttemptResetCallback?.(fivePortals ? () => this.fivePortalsRuntime.handleAttemptReset() : null);
         if (parcoursSystem && typeof parcoursSystem.setGhostRecorder === 'function') {
             parcoursSystem.setGhostRecorder(this.arcadeRunRuntime.getGhostRecorder?.() || null);
         }
@@ -262,6 +279,12 @@ export class GameRuntimeArcadeSupport {
             this._preparedEncounterPlan = null;
             this._pendingSectorTransition = null;
             return null;
+        }
+        if (isFivePortalsConfig(runtimeConfig)) {
+            this._preparedEncounterPlan = null;
+            this._pendingSectorTransition = null;
+            const state = this.fivePortalsRuntime.getHudState();
+            return { mapKey: FIVE_PORTALS_MAPS[state.phase === 'idle' || state.phase === 'finished' ? 0 : state.mapIndex], botCount: 0, fivePortals: true };
         }
         if (isArenaWavesConfig(runtimeConfig)) {
             this._preparedEncounterPlan = null;
@@ -334,6 +357,12 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
+        if (isFivePortalsConfig(runtimeConfig)) {
+            this._bindGameplayCallback(runtimeState);
+            const started = this.fivePortalsRuntime.start(runtimeState?.entityManager || null);
+            this._sectorRebuildInFlight = false;
+            return started;
+        }
         if (isArenaWavesConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const existing = this.arenaWavesRuntime.getHudState();
@@ -396,13 +425,22 @@ export class GameRuntimeArcadeSupport {
         // neu aufgebaut wird. Nur ein ausdrueckliches force (Matchende, Rueckkehr ins
         // Menue, abgeschalteter Arcade-Modus) verwirft ihn.
         if (this._sectorRebuildInFlight && options?.force !== true) {
-            return isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)
+            return isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)
+                ? this.fivePortalsRuntime.getHudState()
+                : (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)
                 ? this.arenaWavesRuntime.getHudState()
-                : (this.arcadeRunRuntime.getStateSnapshot?.() || null);
+                : (this.arcadeRunRuntime.getStateSnapshot?.() || null));
         }
         this._sectorRebuildInFlight = false;
         this._preparedEncounterPlan = null;
         this._pendingSectorTransition = null;
+        const fivePortalsState = this.fivePortalsRuntime.getHudState();
+        if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)
+            || fivePortalsState.phase !== 'idle') {
+            this.fivePortalsRuntime.dispose();
+            this.arcadeRunRuntime.resetRunState({ preserveRecords: true });
+            return this.fivePortalsRuntime.getHudState();
+        }
         const arenaState = this.arenaWavesRuntime.getHudState?.() || null;
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)
             || (arenaState?.runType === 'arena_waves' && arenaState.phase !== 'idle')) {
@@ -416,6 +454,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getRunState() {
+        if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
         const endless = this._getEndlessRuntime();
         if (endless) return endless.getHudState?.() || null;
@@ -423,6 +462,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     getMenuSurfaceState() {
+        if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return this.fivePortalsRuntime.getHudState();
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
         const endless = this._getEndlessRuntime();
         if (endless) return endless.getHudState?.() || null;
@@ -444,6 +484,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     tickSuddenDeath(dt = 0) {
+        if (isFivePortalsConfig(this.getRuntimeState()?.runtimeConfig)) return null;
         if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) {
             this.arenaWavesRuntime.update(dt);
             return null;

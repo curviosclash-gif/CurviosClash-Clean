@@ -89,7 +89,7 @@ export function applyParcoursDeathRespawn(route, state, player, options = {}) {
     if (restartAtFirstCheckpoint) {
         resetParcoursProgressState(state, {
             countReset: true,
-            preserveCounters: true,
+            preserveCounters: route?.rules?.resetAttemptOnExhaustion !== true,
             errorMessage: 'Zurueck zu Checkpoint 1',
             now: options.now,
             setErrorState: options.setErrorState,

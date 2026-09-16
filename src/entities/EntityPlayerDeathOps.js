@@ -52,6 +52,7 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     if (environmentCredit) deathOptions.killer = environmentCredit.killer;
     rememberFightDeath(player);
     entityManager._parcoursProgressSystem?.onPlayerDeath?.(player, { cause });
+    if (player.isBot !== true) entityManager.powerupManager?.refillAuthoredOnDeath?.();
     entityManager.recorder?.captureSnapshotNow?.(entityManager);
     player.kill();
     // A network replica cannot resolve a projectile hit itself (only the host runs

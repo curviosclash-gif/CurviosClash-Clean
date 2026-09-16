@@ -25,6 +25,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/kinetic-tide.desktop.spec.js',
             'tests/magma-maze-pickups.desktop.spec.js',
             'tests/parcours-guidance.desktop.spec.js',
+            'tests/five-portals.desktop.spec.js',
             'tests/pickup-blender.desktop.spec.js',
             'tests/portal-visual-design.desktop.spec.js',
             'tests/verdant-aperture.desktop.spec.js',

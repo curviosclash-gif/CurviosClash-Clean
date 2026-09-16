@@ -13,8 +13,9 @@ import {
 } from '../shared/contracts/ArcadeRunRewardEffectsContract.js';
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import { HuntModeStrategy } from './HuntModeStrategy.js';
-import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE, normalizeArcadeCombatProfile } from '../shared/contracts/EndlessParcoursContract.js';
-import { ARENA_WAVES_COMBAT_PROFILE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from '../shared/contracts/ArenaWavesContract.js';
+import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE } from '../shared/contracts/EndlessParcoursContract.js';
+import { ARENA_WAVES_COMBAT_PROFILE } from '../shared/contracts/ArenaWavesContract.js';
+import { resolveArcadeParcoursRespawnFallback, resolveArcadeRunCombatProfile } from './ArcadeRunRulesOps.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 
 const DEFAULT_MAX_HP = 100;
@@ -55,9 +56,6 @@ export const ARCADE_SECTOR_TYPES = Object.freeze({
     ARENA: 'sector_arena',
     PARCOURS: 'sector_parcours',
 });
-// A parcours sector on a map without authored respawns forgives three deaths at the last
-// checkpoint; the fourth ends the run. Maps that author their own respawn keep it.
-const ARCADE_PARCOURS_SECTOR_RULES = Object.freeze({ respawnOnDeath: true, lastCheckpointRespawns: 3, endRunWhenRespawnsExhausted: true });
 
 export class ArcadeModeStrategy extends GameModeContract {
     constructor(options = {}) {
@@ -80,7 +78,7 @@ export class ArcadeModeStrategy extends GameModeContract {
         // 82.1.1: Current sector type (null = default arena)
         this._sectorType = null;
         this._runType = String(options.runType || '').trim().toLowerCase();
-        this._combatProfile = isArenaWavesRunType(this._runType) ? normalizeArenaWavesCombatProfile(options.combatProfile, this._runType) : normalizeArcadeCombatProfile(options.combatProfile, this._runType);
+        this._combatProfile = resolveArcadeRunCombatProfile(this._runType, options.combatProfile);
         this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE || this._combatProfile === ARENA_WAVES_COMBAT_PROFILE
             ? new HuntModeStrategy({
                 entityRuntimeConfig: options.entityRuntimeConfig,
@@ -259,7 +257,7 @@ export class ArcadeModeStrategy extends GameModeContract {
     isSectorParcours() {
         return this._sectorType === ARCADE_SECTOR_TYPES.PARCOURS;
     }
-    getParcoursRespawnFallback() { return this.isSectorParcours() ? ARCADE_PARCOURS_SECTOR_RULES : null; }
+    getParcoursRespawnFallback() { return resolveArcadeParcoursRespawnFallback(this._runType, this.isSectorParcours()); }
 
     // 61.4.1: Active sector modifier
     setActiveModifier(modifierId) {

@@ -8,6 +8,7 @@ import { MapFireFxController } from './MapFireFxController.js';
 import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
+import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
 
 function asPositiveScale(value, fallback = 1) {
@@ -62,6 +63,7 @@ export class ArenaBuilder {
             portalCount: config.GAMEPLAY.PORTAL_COUNT,
             planarLevelCount: config.GAMEPLAY.PLANAR_LEVEL_COUNT,
             graphicsStyle,
+            runVariant: isFivePortalsConfig(this.arena.runtimeConfig) ? 'five_portals' : '',
         });
         const canReuse = previousBuildSignature
             && previousBuildSignature === buildSignature

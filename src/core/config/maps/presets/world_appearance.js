@@ -19,6 +19,8 @@ export const WIND_CATHEDRAL_WORLD_LIGHTING = normalizeMapLighting({
 
 export const WIND_CATHEDRAL_WORLD_LIGHTS = [
     { id: 'wind_aisle', x: -32, y: 37, z: 8, color: 0xffebc5, intensity: 2800, distance: 85 },
+    { id: 'wind_middle', x: 30, y: 62, z: -18, color: 0x91ffdf, intensity: 1900, distance: 58 },
+    { id: 'wind_descent', x: -34, y: 76, z: 0, color: 0xc7afff, intensity: 1800, distance: 55 },
     { id: 'wind_crown', x: 25, y: 90, z: 6, color: 0xc3edff, intensity: 3600, distance: 75 },
 ];
 

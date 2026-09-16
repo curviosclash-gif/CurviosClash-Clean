@@ -17,6 +17,7 @@ import {
     hasExplicitArcadeSeed,
     normalizeArcadeRunSettings,
 } from '../shared/contracts/ArcadeRunSettingsContract.js';
+import { FIVE_PORTALS_MAPS, isFivePortalsRunType } from '../shared/contracts/FivePortalsContract.js';
 import {
     createDefaultRecordingCaptureSettings,
     normalizeRecordingCaptureSettings,
@@ -258,6 +259,7 @@ export function createRuntimeConfigSnapshot(settings, {
             ? (threePlayerSplitSelection.mode === FOUR_PLAYER_PLANAR_MODES.HUNT ? GAME_MODE_TYPES.HUNT : GAME_MODE_TYPES.CLASSIC)
             : source.gameMode);
     const activeGameMode = resolveActiveGameMode(requestedGameMode, huntFeatureEnabled);
+    const fivePortalsActive = arcadeEnabled && isFivePortalsRunType(arcadeSource.runType);
     const huntModeActive = isHuntMode(activeGameMode, huntFeatureEnabled);
 
     const playerDefaults = baseConfig.PLAYER || CONFIG.PLAYER;
@@ -320,16 +322,16 @@ export function createRuntimeConfigSnapshot(settings, {
                 deviceAssignment: threePlayerSplitSelection.deviceAssignment,
             } : null,
             maxPlayers: clampSettingValue(source.maxPlayers, { min: 2, max: 10, step: 1 }, 10),
-            numBots: fourPlayerPlanarActive
+            numBots: fivePortalsActive ? 0 : fourPlayerPlanarActive
                 ? fourPlayerPlanarSelection.botCount
                 : (threePlayerSplitActive
                     ? threePlayerSplitSelection.botCount
                     : clampSettingValue(source.numBots, runtimeLimits.session.numBots, 0)),
             winsNeeded: clampSettingValue(source.winsNeeded, runtimeLimits.session.winsNeeded, 5),
-            mapKey: fourPlayerPlanarActive
+            mapKey: fivePortalsActive ? FIVE_PORTALS_MAPS[0] : fourPlayerPlanarActive
                 ? fourPlayerPlanarSelection.mapKey
                 : (threePlayerSplitActive ? threePlayerSplitSelection.mapKey : String(source.mapKey || 'standard')),
-            portalsEnabled: !!source.portalsEnabled,
+            portalsEnabled: fivePortalsActive || !!source.portalsEnabled,
             activeGameMode,
         },
         player: {

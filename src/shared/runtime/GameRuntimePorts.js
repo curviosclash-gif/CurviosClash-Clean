@@ -372,12 +372,16 @@ export function createRuntimeProjectionPort(game) {
         },
         getMatchRuntimeProjection() {
             const facade = getRuntimeFacade(game);
-            const projection = buildMatchRuntimeProjectionSnapshot({ game, runtimeState: getRuntimeState(game), facade, sessionRuntime: getSessionRuntime(game) });
+            const runtimeState = getRuntimeState(game);
+            const projection = buildMatchRuntimeProjectionSnapshot({ game, runtimeState, facade, sessionRuntime: getSessionRuntime(game) });
+            if (runtimeState?.runtimeConfig?.arcade?.runType === 'five_portals') {
+                return { ...projection, arcade: facade?.getArcadeRunState?.() || null };
+            }
             if (projection?.arcade || typeof facade?.getArcadeRunState !== 'function') {
                 return projection;
             }
             const arcade = facade.getArcadeRunState() || null;
-            if (arcade?.runType !== 'arena_waves') return projection;
+            if (arcade?.runType !== 'arena_waves' && arcade?.runType !== 'five_portals') return projection;
             return { ...projection, arcade };
         },
         getMatchRenderProjection(options = undefined) {

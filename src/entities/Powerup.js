@@ -23,6 +23,10 @@ import {
     removePowerupsByOwnerId,
     spawnPowerupAtAnchor,
 } from './powerup/PowerupAnchoredSpawnOps.js';
+import {
+    buildAnchorKey, createAuthoredRespawnClock, refillAuthoredAnchors, resetAuthoredRespawnClock,
+    resolveFixedItemRespawnSeconds, scheduleCollectedAnchorRespawn, spawnDueAuthoredAnchors,
+} from './powerup/PowerupAuthoredRespawnOps.js';
 
 const SPAWN_TELEGRAPH_SECONDS = 0.75;
 const PICKUP_PREDICTION_GRACE_SECONDS = 0.35;
@@ -75,18 +79,6 @@ function resolveAuthoredPickupType(anchor, modeType, entityRuntimeConfig) {
     return null;
 }
 
-function buildAnchorKey(anchor, index = 0) {
-    if (typeof anchor?.id === 'string' && anchor.id.trim()) {
-        return anchor.id.trim();
-    }
-    return [
-        'anchor',
-        index,
-        Math.round((Number(anchor?.x) || 0) * 1000),
-        Math.round((Number(anchor?.y) || 0) * 1000),
-        Math.round((Number(anchor?.z) || 0) * 1000),
-    ].join(':');
-}
 
 function resolveItemSpawnAuthoringContract(mapDefinition) {
     const rawMode = String(mapDefinition?.itemSpawnMode || '').trim().toLowerCase();
@@ -128,6 +120,7 @@ export class PowerupManager {
         this._sharedGeo = new THREE.BoxGeometry(size, size, size);
         this._sharedWireGeo = new THREE.BoxGeometry(size * 1.15, size * 1.15, size * 1.15);
         this._occupiedAnchorKeys = new Set();
+        this._authoredRespawnClock = createAuthoredRespawnClock();
         this._nextNetworkId = 1;
         this._lastRandomType = '';
         this.networkReplica = false;
@@ -136,6 +129,7 @@ export class PowerupManager {
     update(dt) {
         const config = this.entityRuntimeConfig;
         this.spawnTimer += dt;
+        this._authoredRespawnClock.elapsedSeconds += Math.max(0, Number(dt) || 0);
 
         // Neue Items spawnen
         // 61.4.1: portal_storm modifier increases spawn rate via strategy multiplier
@@ -148,7 +142,11 @@ export class PowerupManager {
             ? (this.arena?.getAuthoredItemAnchors?.().length || 0)
             : 0;
         const runtimeOwnsSpawns = strategy?.isEndlessParcours?.() === true;
-        if (!runtimeOwnsSpawns && !this.networkReplica && authoredItemTarget > 0) {
+        const fixedRespawns = resolveFixedItemRespawnSeconds(this.arena?.currentMapDefinition) > 0;
+        if (!runtimeOwnsSpawns && !this.networkReplica && fixedRespawns) {
+            spawnDueAuthoredAnchors(this, this._authoredRespawnClock, strategy);
+            this.spawnTimer = 0;
+        } else if (!runtimeOwnsSpawns && !this.networkReplica && authoredItemTarget > 0) {
             while (this.items.length < authoredItemTarget) {
                 const previousCount = this.items.length;
                 this._spawnRandom();
@@ -368,7 +366,7 @@ export class PowerupManager {
                     item.box.makeEmpty();
                 } else {
                     this.items.splice(i, 1);
-                    this._disposeSpawnedItem(item);
+                    this._disposeSpawnedItem(item, true);
                 }
                 return buildGameplayActionResult({
                     ok: true,
@@ -390,6 +388,23 @@ export class PowerupManager {
         this.spawnTimer = 0;
         this._lastRandomType = '';
         this._occupiedAnchorKeys.clear();
+        resetAuthoredRespawnClock(this._authoredRespawnClock);
+    }
+
+    refillAuthoredOnDeath() {
+        if (this.networkReplica || this.arena?.currentMapDefinition?.itemRespawnOnDeath !== true) return;
+        const strategy = typeof this.getStrategy === 'function' ? this.getStrategy() : null;
+        refillAuthoredAnchors(this, this._authoredRespawnClock, strategy);
+    }
+
+    _spawnFixedAuthoredAnchor(anchor, key, strategy) {
+        const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
+        const type = resolveAuthoredPickupType(anchor, modeType, this.entityRuntimeConfig);
+        if (!type) return;
+        const item = this.spawnAtAnchor({ ...anchor, type, ownerId: `authored:${key}` });
+        if (!item) return;
+        item.anchorKey = key;
+        this._occupiedAnchorKeys.add(key);
     }
 
     dispose() {
@@ -445,10 +460,11 @@ export class PowerupManager {
         return availableAnchors[availableAnchors.length - 1];
     }
 
-    _disposeSpawnedItem(item) {
+    _disposeSpawnedItem(item, collected = false) {
         if (!item) return;
         if (item.anchorKey) {
             this._occupiedAnchorKeys.delete(item.anchorKey);
+            if (collected) scheduleCollectedAnchorRespawn(this._authoredRespawnClock, item.anchorKey, this.arena?.currentMapDefinition);
         }
         this.renderer.removeFromScene(item.mesh);
         disposeMeshMaterials(item.mesh);

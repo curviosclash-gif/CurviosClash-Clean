@@ -23,6 +23,7 @@ import {
     ENDLESS_PARCOURS_RECORDS_STORAGE_KEY,
     summarizeEndlessRecordsLine,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
+import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -245,10 +246,16 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
         const phaseLabel = runtimeState?.phase ? ` | ${String(runtimeState.phase).toUpperCase()}` : '';
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
-        refs.runLine.textContent = settings.arcade?.dailyChallenge
+        const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
+        const fivePortalsRecord = runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null) || null;
+        refs.runLine.textContent = fivePortalsSelected
+            ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
+            : settings.arcade?.dailyChallenge
             ? 'Daily: Solo · ship5 ohne Leistungsboni · 5 Sektoren · NORMAL. Ergebnis bis zum Boss zählt.'
             : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
-        refs.recordsLine.textContent = `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
+        refs.recordsLine.textContent = fivePortalsSelected
+            ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
+            : `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
             + (runtimeState?.legacyRecords ? ` | Bisherige Wertung: ${Math.round(runtimeState.legacyRecords.bestScore)} Punkte` : '');
         refs.endlessRecordsLine.textContent = summarizeEndlessRecordsLine(
             runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(ENDLESS_PARCOURS_RECORDS_STORAGE_KEY, null) || null
@@ -267,7 +274,9 @@ export function setupArcadeMenuSurface(ctx = {}) {
             ? String(Math.max(0, Number(records.lastCombo) || 0))
             : '0';
 
-        if (postRunSummary) {
+        if (fivePortalsSelected && postRunSummary?.totalMs >= 0) {
+            refs.postRunLine.textContent = `Fünf Portale: ${(postRunSummary.totalMs / 1000).toFixed(2)} s gesamt`;
+        } else if (postRunSummary) {
             refs.postRunLine.textContent = `Score ${Math.max(0, Math.round(Number(postRunSummary.score) || 0))} | Combo ${Math.max(0, Number(postRunSummary.bestCombo) || 0)} | Mission-Rate ${Math.round(Math.max(0, Math.min(1, Number(postRunSummary.missionCompletionRate) || 0)) * 100)}%`;
         } else if (lastRunSnapshot) {
             const timeLabel = formatRunTime(lastRunSnapshot.at);
@@ -346,6 +355,21 @@ export function setupArcadeMenuSurface(ctx = {}) {
         settings.gameMode = 'ARCADE';
         settings.mapKey = 'notre_dame_arena';
         settings.numBots = 12;
+        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
+        settings.localSettings.modePath = 'arcade';
+        const prepared = prepareHangarRunStart();
+        if (prepared?.ok === false) return;
+        recordRunStart(prepared?.build);
+        emit(eventTypes.START_MATCH);
+    });
+
+    bind(refs.startFivePortalsButton, 'click', () => {
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
+        settings.arcade.runType = 'five_portals';
+        settings.arcade.combatProfile = 'hunt';
+        settings.gameMode = 'ARCADE';
+        settings.mapKey = 'micro_maw';
+        settings.numBots = 0;
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
         settings.localSettings.modePath = 'arcade';
         const prepared = prepareHangarRunStart();

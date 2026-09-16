@@ -540,6 +540,26 @@ export class MatchFlowArcadeOverlayController {
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
+    _renderFivePortalsPostRunPanel(runtimeState) {
+        const summary = runtimeState?.postRunSummary;
+        if (runtimeState?.runType !== 'five_portals' || !summary || !Array.isArray(summary.maps)) return false;
+        const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
+        while (panel.firstChild) panel.removeChild(panel.firstChild);
+        const formatTime = (ms) => `${(Math.max(0, Number(ms) || 0) / 1000).toFixed(2)} s`;
+        const title = document.createElement('h2'); title.textContent = 'Fünf Portale abgeschlossen';
+        const list = document.createElement('ol'); list.className = 'arcade-overlay-list';
+        summary.maps.forEach((map) => {
+            const row = document.createElement('li');
+            row.textContent = `${String(map?.mapKey || '-')}: ${formatTime(map?.timeMs)}`;
+            list.appendChild(row);
+        });
+        const total = document.createElement('p');
+        total.textContent = `Gesamtzeit: ${formatTime(summary.totalMs)} | Persönlicher Rekord: ${formatTime(summary.bestTotalMs)}`;
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
+        close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
+        panel.append(title, list, total, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
+    }
+
     syncArcadeOverlayPanel() {
         const game = this.game;
         const runtimeProjection = this.runtimePort?.getMatchRuntimeProjection?.() || null;
@@ -548,8 +568,9 @@ export class MatchFlowArcadeOverlayController {
         const runtimeState = getArcadeMenuSurfaceState(this.runtimePort, this.game);
         const arenaUpgrade = runtimeState?.runType === 'arena_waves' && runtimeState?.phase === 'upgrade';
         const arenaFinished = runtimeState?.runType === 'arena_waves' && !!runtimeState?.postRunSummary;
-        if (arenaUpgrade || arenaFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
-        if (!arcadeActive || (!overlayVisible && !arenaUpgrade && !arenaFinished)) {
+        const fivePortalsFinished = runtimeState?.runType === 'five_portals' && !!runtimeState?.postRunSummary;
+        if (arenaUpgrade || arenaFinished || fivePortalsFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
+        if (!arcadeActive || (!overlayVisible && !arenaUpgrade && !arenaFinished && !fivePortalsFinished)) {
             this.clearArcadeOverlayPanel();
             return;
         }
@@ -563,6 +584,7 @@ export class MatchFlowArcadeOverlayController {
         if (key === this._renderKey) return;
         const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
         this._renderKey = key;
+        if (this._renderFivePortalsPostRunPanel(runtimeState)) return;
         if (this._renderArenaWavesPostRunPanel(runtimeState)) return;
         if (this._renderArcadeVictoryPanel(runtimeState)) return;
         const state = normalizeGameStateId(game?.state, GAME_STATE_IDS.MENU);

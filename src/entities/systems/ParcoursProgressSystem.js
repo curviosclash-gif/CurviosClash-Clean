@@ -38,16 +38,14 @@ export class ParcoursProgressSystem {
         this._completionOrder = [];
         this._xpEventCallback = null;
         this._leaderboardCallback = null;
+        this._attemptResetCallback = null;
         this._ghostRecorder = null;
         this._progressPlayerIndexResolver = null;
         this._respawnPlanByPlayer = new Map();
     }
-    setXpEventCallback(callback) {
-        this._xpEventCallback = typeof callback === 'function' ? callback : null;
-    }
-    setLeaderboardCallback(callback) {
-        this._leaderboardCallback = typeof callback === 'function' ? callback : null;
-    }
+    setXpEventCallback(callback) { this._xpEventCallback = typeof callback === 'function' ? callback : null; }
+    setLeaderboardCallback(callback) { this._leaderboardCallback = typeof callback === 'function' ? callback : null; }
+    setAttemptResetCallback(callback) { this._attemptResetCallback = typeof callback === 'function' ? callback : null; }
     setGhostRecorder(recorder) {
         this._ghostRecorder = recorder && typeof recorder.sample === 'function' ? recorder : null;
     }
@@ -227,6 +225,7 @@ export class ParcoursProgressSystem {
                 setErrorState: this._setErrorState.bind(this),
             });
             if (result.plan) this._respawnPlanByPlayer.set(player.index, result.plan);
+            if (result.plan?.restartAtFirstCheckpoint) this._attemptResetCallback?.(player.index);
             this._notifyPlayer(player, result.feedback);
             this._logRecorderEvent('PARCOURS_RESET', player, result.logDetails);
             return;

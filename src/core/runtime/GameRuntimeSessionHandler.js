@@ -213,6 +213,9 @@ export class GameRuntimeSessionHandler {
             });
             facade?.settingsHandler?.applySurfacePolicyStartDefaults?.();
             facade?.settingsHandler?.applyMapScenarioStartDefaults?.();
+            if (options?.arcadeSectorTransition?.fivePortals === true) {
+                facade?._applyArcadeSectorRuntimeProfile?.(options.arcadeSectorTransition);
+            }
             const sessionContract = resolveRuntimeSessionContract(game?.settings?.localSettings);
             const telemetryPayload = buildTelemetryPayload();
             const isReceivedMultiplayerStartCommand = sessionContract.sessionType === RUNTIME_SESSION_TYPES.MULTIPLAYER

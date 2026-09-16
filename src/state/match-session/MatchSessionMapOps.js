@@ -4,6 +4,7 @@ import {
 } from '../../shared/contracts/RuntimeMapCatalogContract.js';
 import { resolveArenaMapSelection } from '../../entities/CustomMapLoader.js';
 import { createArenaMapFingerprint } from '../../entities/arena/ArenaBuildResourceCache.js';
+import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 
 export function toSafeInt(value, fallback) {
     const parsed = Number(value);
@@ -36,6 +37,7 @@ export function buildArenaSessionKey(mapResolution, runtimeConfig, portalsEnable
         gameplay.planarMode ? '1' : '0',
         Math.max(0, Math.round(Number(gameplay.portalCount) || 0)),
         Math.max(0, Math.round(Number(gameplay.planarLevelCount) || 0)),
+        isFivePortalsConfig(runtimeConfig) ? 'five_portals' : '',
         String(graphicsStyle || 'modern'),
     ].join('|');
 }

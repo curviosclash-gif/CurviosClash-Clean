@@ -136,9 +136,13 @@ export function buildArcadeSurface(level3Body, ui) {
     const startFiveFrontsButton = createElement('button', 'start-btn', 'Fünf Fronten');
     startFiveFrontsButton.type = 'button';
     startFiveFrontsButton.id = 'btn-arcade-five-fronts-start-inline';
+    const startFivePortalsButton = createElement('button', 'start-btn', 'Fünf Portale');
+    startFivePortalsButton.type = 'button';
+    startFivePortalsButton.id = 'btn-arcade-five-portals-start-inline';
     ctaRow.appendChild(startRunButton);
     ctaRow.appendChild(startEndlessButton);
     ctaRow.appendChild(startFiveFrontsButton);
+    ctaRow.appendChild(startFivePortalsButton);
     body.appendChild(ctaRow);
 
     details.appendChild(body);
@@ -154,6 +158,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeStartInlineButton = startRunButton;
     ui.arcadeEndlessStartInlineButton = startEndlessButton;
     ui.arcadeFiveFrontsStartInlineButton = startFiveFrontsButton;
+    ui.arcadeFivePortalsStartInlineButton = startFivePortalsButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
     ui.arcadeSeedCopyButton = copySeedButton;
     ui.arcadeSeedInput = seedInput;
@@ -177,6 +182,7 @@ export function buildArcadeSurface(level3Body, ui) {
         startRunButton,
         startEndlessButton,
         startFiveFrontsButton,
+        startFivePortalsButton,
         rerollSeedButton,
         copySeedButton,
         seedInput,

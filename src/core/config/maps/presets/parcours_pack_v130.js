@@ -1,77 +1,35 @@
 import { WIND_CATHEDRAL_WORLD_LIGHTING, WIND_CATHEDRAL_WORLD_LIGHTS } from './world_appearance.js';
+import { parcoursRules, V130_BOT_SPAWNS } from './parcours_pack_v130_shared.js';
+import { CHRONO_SPILLWAY_MAP } from './parcours_pack_v130_chrono_spillway.js';
 
-const BASE_PARCOURS_RULES = Object.freeze({
-    ordered: true,
-    resetOnDeath: true,
-    resetToLastValid: false,
-    maxSegmentTimeMs: 14000,
-    cooldownMs: 430,
-    wrongOrderCooldownMs: 650,
-    wrongOrderPenaltyMs: 2000,
-    errorIndicatorMs: 1400,
-    allowLaneAliases: true,
-    winnerByParcoursComplete: true,
-    animateCheckpoints: true,
-    showGhost: true,
-});
-
-function parcoursRules(overrides = {}) {
-    return { ...BASE_PARCOURS_RULES, ...overrides };
-}
-
-const V130_BOT_SPAWNS = Object.freeze({
-    micro_maw: Object.freeze([
-        { x: -54, y: 12, z: -56 },
-        { x: -54, y: 12, z: -44 },
-        { x: -46, y: 12, z: -50 },
-    ]),
-    mirror_docks: Object.freeze([
-        { x: -92, y: 16, z: -10 },
-        { x: -92, y: 16, z: 10 },
-        { x: -80, y: 16, z: 0 },
-    ]),
-    glass_serpent: Object.freeze([
-        { x: -128, y: 20, z: -44 },
-        { x: -126, y: 20, z: -28 },
-        { x: -112, y: 20, z: -36 },
-    ]),
-    storm_switchyard: Object.freeze([
-        { x: -116, y: 14, z: -10 },
-        { x: -116, y: 14, z: 10 },
-        { x: -100, y: 14, z: 0 },
-    ]),
-    wind_cathedral: Object.freeze([
-        { x: -76, y: 16, z: -10 },
-        { x: -76, y: 16, z: 10 },
-        { x: -62, y: 16, z: 0 },
-    ]),
-    chrono_spillway: Object.freeze([
-        { x: -138, y: 72, z: -38 },
-        { x: -138, y: 72, z: -18 },
-        { x: -124, y: 72, z: -28 },
-    ]),
-});
 
 export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     micro_maw: {
         name: 'Mikro-Maul',
-        size: [120, 50, 120],
+        size: [132, 50, 150],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
+        itemSpawnMode: 'anchor-only',
+        itemRespawnSeconds: 30,
+        itemRespawnOnDeath: true,
+        fivePortalsExit: { pos: [55, 16, -68], color: 0xffcc44 },
         portalLevels: [12, 18, 24],
         obstacles: [
             { pos: [-44, 9, -42], size: [18, 4, 22], kind: 'foam' },
             { pos: [-28, 16, -22], size: [8, 26, 42] },
-            { pos: [-12, 16, -4], size: [10, 30, 18], tunnel: { radius: 4.2, axis: 'x' } },
+            { pos: [-12, 16, -4], size: [10, 30, 18], tunnel: { radius: 5.1, axis: 'x' } },
             { pos: [8, 13, 16], size: [24, 4, 18], kind: 'foam' },
             { pos: [20, 18, 26], size: [4, 24, 8] },
             { pos: [30, 17, 8], size: [8, 4, 8] },
-            { pos: [42, 18, -18], size: [10, 30, 18], tunnel: { radius: 4.1, axis: 'x' } },
+            { pos: [42, 18, -18], size: [10, 30, 18], tunnel: { radius: 5.0, axis: 'x' } },
             { pos: [42, 11, -18], size: [24, 4, 22], kind: 'foam' },
             { pos: [50, 16, -46], size: [18, 4, 18], kind: 'foam' },
             { pos: [-4, 14, 34], size: [4, 18, 4] },
             { pos: [18, 15, -30], size: [4, 18, 4] },
             { pos: [36, 15, -38], size: [4, 18, 4] },
+            { pos: [-36, 12, -7], size: [7, 15, 9], kind: 'foam' },
+            { pos: [14, 14, -12], size: [9, 16, 10], kind: 'foam' },
+            { pos: [51, 12, -65], size: [24, 4, 22], kind: 'foam' },
         ],
         portals: [],
         gates: [
@@ -85,9 +43,13 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         ],
         playerSpawn: { x: -54, y: 12, z: -50 },
         botSpawns: V130_BOT_SPAWNS.micro_maw,
+        staticTurrets: [
+            { id: 'mm_mg_pillar', weapon: 'mg', pos: [24, 21, 27], range: 42, cooldown: 1.3, damage: 2, phase: 1.1, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+        ],
         items: [
             { id: 'mm_speed_entry', type: 'item_battery', pickupType: 'SPEED_UP', x: -30, y: 14, z: -22, weight: 1.1 },
-            { id: 'mm_shield_precision', type: 'item_shield', pickupType: 'SHIELD', x: 26, y: 18, z: 10, weight: 1.0 },
+            { id: 'mm_shield_precision', type: 'item_shield', pickupType: 'SHIELD', x: 16, y: 18, z: 12, weight: 1.0 },
+            { id: 'mm_rocket_pocket', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: -40, y: 14, z: -30, weight: 1.0 },
             { id: 'mm_ghost_finish', type: 'item_coin', pickupType: 'GHOST', x: 48, y: 17, z: -40, weight: 0.8 },
         ],
         missions: [
@@ -120,9 +82,13 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     mirror_docks: {
         name: 'Spiegelwerft',
-        size: [204, 65, 150],
+        size: [240, 65, 170],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
+        itemSpawnMode: 'anchor-only',
+        itemRespawnSeconds: 30,
+        itemRespawnOnDeath: true,
+        fivePortalsExit: { pos: [108, 24, -53], color: 0xffcc44 },
         portalLevels: [16, 24, 34],
         obstacles: [
             { pos: [-82, 13, 0], size: [18, 4, 28], kind: 'foam' },
@@ -136,10 +102,14 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [88, 24, -30], size: [26, 4, 20], kind: 'foam' },
             { pos: [-8, 18, -52], size: [70, 14, 4], kind: 'foam' },
             { pos: [-8, 18, 52], size: [70, 14, 4], kind: 'foam' },
+            { pos: [-3, 25, -47], size: [48, 8, 5], kind: 'foam' },
+            { pos: [1, 23, 47], size: [38, 8, 5], kind: 'foam' },
+            { pos: [36, 22, 29], size: [8, 15, 7], kind: 'foam' },
+            { pos: [91, 21, -52], size: [26, 4, 18], kind: 'foam' },
         ],
         portals: [
-            { a: [-12, 18, -60], b: [22, 24, -4], color: 0x44ccff },
-            { a: [-12, 18, 60], b: [22, 24, 4], color: 0xff88cc },
+            { a: [2, 23, -58], b: [18, 24, -16], color: 0x44ccff },
+            { a: [2, 22, 58], b: [18, 24, 16], color: 0xff88cc },
         ],
         gates: [
             {
@@ -152,10 +122,15 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         ],
         playerSpawn: { x: -94, y: 16, z: 0 },
         botSpawns: V130_BOT_SPAWNS.mirror_docks,
+        staticTurrets: [
+            { id: 'md_mg_right', weapon: 'mg', pos: [0, 29, 42], range: 38, cooldown: 1.5, damage: 2, phase: 0.4, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'md_mg_merge', weapon: 'mg', pos: [44, 34, 29], range: 40, cooldown: 1.6, damage: 2, phase: 1.4, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'md_mg_exit', weapon: 'mg', pos: [82, 34, 7], range: 35, cooldown: 1.7, damage: 2, phase: 0.9, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+        ],
         items: [
             { id: 'md_speed_left', type: 'item_battery', pickupType: 'SPEED_UP', x: -16, y: 24, z: -32, weight: 1.2 },
             { id: 'md_shield_right', type: 'item_shield', pickupType: 'SHIELD', x: -12, y: 22, z: 34, weight: 1.1 },
-            { id: 'md_ghost_merge', type: 'item_coin', pickupType: 'GHOST', x: 26, y: 25, z: 0, weight: 1.0 },
+            { id: 'md_rocket_merge', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 14, y: 25, z: -4, weight: 1.0 },
         ],
         missions: [
             { type: 'TIME_TRIAL', params: { target: 46 }, weight: 1.5 },
@@ -209,9 +184,13 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     glass_serpent: {
         name: 'Glasschlange',
-        size: [260, 80, 160],
+        size: [260, 80, 200],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
+        itemSpawnMode: 'anchor-only',
+        itemRespawnSeconds: 30,
+        itemRespawnOnDeath: true,
+        fivePortalsExit: { pos: [106, 32, 85], color: 0xffcc44 },
         portalLevels: [20, 36, 48],
         obstacles: [
             { pos: [-116, 18, -36], size: [22, 4, 24], kind: 'foam' },
@@ -226,6 +205,11 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [116, 29, 52], size: [34, 4, 20], kind: 'foam' },
             { pos: [-52, 18, 42], size: [90, 4, 5], kind: 'foam' },
             { pos: [62, 28, -58], size: [70, 4, 5], kind: 'foam' },
+            { pos: [16, 27, 15], size: [24, 4, 18], kind: 'foam' },
+            { pos: [55, 31, -47], size: [30, 4, 10], kind: 'foam' },
+            { pos: [82, 35, 12], size: [28, 4, 15], kind: 'foam' },
+            { pos: [101, 28, 79], size: [28, 4, 20], kind: 'foam' },
+            { pos: [61, 40, -51], size: [25, 6, 3], kind: 'foam' },
         ],
         portals: [
             { a: [66, 26, -58], b: [24, 34, -10], color: 0x66e6ff },
@@ -256,11 +240,15 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         ],
         playerSpawn: { x: -128, y: 20, z: -38 },
         botSpawns: V130_BOT_SPAWNS.glass_serpent,
+        staticTurrets: [
+            { id: 'gs_rocket_balcony', weapon: 'rocket', pos: [76, 47, 24], range: 53, cooldown: 4.0, rocketType: 'ROCKET_MEDIUM', phase: 0.7, destructible: true, maxHp: 80, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'gs_mg_precision', weapon: 'mg', pos: [111, 44, -20], range: 35, cooldown: 1.6, damage: 2, phase: 1.3, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+        ],
         items: [
-            { id: 'gs_speed_entry', type: 'item_battery', pickupType: 'SPEED_UP', x: -82, y: 23, z: -16, weight: 1.3 },
-            { id: 'gs_shield_tube', type: 'item_shield', pickupType: 'SHIELD', x: 50, y: 38, z: -24, weight: 1.0 },
-            { id: 'gs_speed_merge', type: 'item_battery', pickupType: 'SPEED_UP', x: 96, y: 42, z: -6, weight: 1.2 },
-            { id: 'gs_rocket_outer', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 72, y: 44, z: 18, weight: 0.7 },
+            { id: 'gs_shield_choice', type: 'item_shield', pickupType: 'SHIELD', x: 39, y: 38, z: -17, weight: 1.0 },
+            { id: 'gs_rocket_outer', type: 'item_rocket', pickupType: 'ROCKET_MEDIUM', x: 67, y: 44, z: 9, weight: 1.0 },
+            { id: 'gs_speed_balcony', type: 'item_battery', pickupType: 'SPEED_UP', x: 81, y: 43, z: 11, weight: 1.0 },
+            { id: 'gs_shield_merge', type: 'item_shield', pickupType: 'SHIELD', x: 98, y: 42, z: -4, weight: 1.0 },
         ],
         missions: [
             { type: 'TIME_TRIAL', params: { target: 56 }, weight: 1.5 },
@@ -314,9 +302,13 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     storm_switchyard: {
         name: 'Sturmweiche',
-        size: [248, 70, 180],
+        size: [280, 70, 210],
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
+        itemSpawnMode: 'anchor-only',
+        itemRespawnSeconds: 30,
+        itemRespawnOnDeath: true,
+        fivePortalsExit: { pos: [123, 22, 78], color: 0xffcc44 },
         portalLevels: [14, 28, 42],
         obstacles: [
             { pos: [-104, 11, 0], size: [24, 4, 30], kind: 'foam' },
@@ -335,10 +327,15 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [20, 24, 0], size: [6, 34, 6] },
             { pos: [48, 26, -20], size: [6, 34, 6] },
             { pos: [78, 28, 12], size: [6, 34, 6] },
+            { pos: [2, 17, -31], size: [8, 16, 7], kind: 'foam' },
+            { pos: [36, 21, -32], size: [8, 15, 7], kind: 'foam' },
+            { pos: [24, 30, 44], size: [24, 4, 10], kind: 'foam' },
+            { pos: [46, 32, 34], size: [8, 13, 8], kind: 'foam' },
+            { pos: [118, 18, 73], size: [28, 4, 22], kind: 'foam' },
         ],
         portals: [
-            { a: [8, 18, -66], b: [44, 28, -8], color: 0x33ddff },
-            { a: [8, 20, 66], b: [44, 30, 8], color: 0xffcc33 },
+            { a: [31, 19, -61], b: [44, 28, -13], color: 0x33ddff },
+            { a: [29, 36, 53], b: [44, 30, 13], color: 0xcc88ff },
         ],
         gates: [
             {
@@ -358,10 +355,16 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         ],
         playerSpawn: { x: -118, y: 14, z: 0 },
         botSpawns: V130_BOT_SPAWNS.storm_switchyard,
+        staticTurrets: [
+            { id: 'ss_mg_low_entry', weapon: 'mg', pos: [-1, 24, -57], range: 39, cooldown: 1.6, damage: 2, phase: 0.4, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'ss_mg_low_exit', weapon: 'mg', pos: [41, 25, -54], range: 39, cooldown: 1.7, damage: 2, phase: 1.2, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'ss_rocket_cp07', weapon: 'rocket', pos: [82, 35, -41], range: 54, cooldown: 4.2, rocketType: 'ROCKET_MEDIUM', phase: 0.8, destructible: true, maxHp: 80, allowedModes: ['HUNT', 'ARCADE'] },
+        ],
         items: [
             { id: 'ss_speed_low', type: 'item_battery', pickupType: 'SPEED_UP', x: 18, y: 20, z: -42, weight: 1.2 },
-            { id: 'ss_shield_mid', type: 'item_shield', pickupType: 'SHIELD', x: 72, y: 31, z: -22, weight: 1.0 },
-            { id: 'ss_ghost_merge', type: 'item_coin', pickupType: 'GHOST', x: 96, y: 29, z: 4, weight: 1.0 },
+            { id: 'ss_rocket_high', type: 'item_rocket', pickupType: 'ROCKET_MEDIUM', x: 18, y: 39, z: 34, weight: 1.0 },
+            { id: 'ss_shield_mid', type: 'item_shield', pickupType: 'SHIELD', x: 43, y: 30, z: 4, weight: 1.0 },
+            { id: 'ss_shield_finish', type: 'item_shield', pickupType: 'SHIELD', x: 107, y: 26, z: 39, weight: 1.0 },
         ],
         missions: [
             { type: 'TIME_TRIAL', params: { target: 62 }, weight: 1.4 },
@@ -413,7 +416,7 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
     },
     wind_cathedral: {
         name: 'Windkathedrale',
-        size: [180, 120, 180],
+        size: [200, 120, 200],
         lighting: WIND_CATHEDRAL_WORLD_LIGHTING,
         glbModels: [{ id: 'wind-cathedral-world', url: 'assets/maps/wind_cathedral/glb/01_world.glb',
             position: [0, -0.12, 0], scale: 1 }],
@@ -422,6 +425,10 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         lights: WIND_CATHEDRAL_WORLD_LIGHTS,
         scaleAuthoredAnchors: true,
         preferAuthoredPortals: true,
+        itemSpawnMode: 'anchor-only',
+        itemRespawnSeconds: 30,
+        itemRespawnOnDeath: true,
+        fivePortalsExit: { pos: [-72, 22, -53], color: 0xffcc44 },
         portalLevels: [18, 42, 68, 92],
         obstacles: [
             { pos: [-64, 13, 0], size: [24, 4, 30], kind: 'foam' },
@@ -442,6 +449,11 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             { pos: [46, 70, -42], size: [6, 84, 6] },
             { pos: [46, 70, 42], size: [6, 84, 6] },
             { pos: [20, 52, 0], size: [120, 4, 120], kind: 'foam' },
+            { pos: [-26, 28, -15], size: [20, 4, 14], kind: 'foam' },
+            { pos: [18, 43, -24], size: [20, 4, 12], kind: 'foam' },
+            { pos: [38, 63, 28], size: [18, 4, 14], kind: 'foam' },
+            { pos: [-20, 84, 35], size: [24, 4, 14], kind: 'foam' },
+            { pos: [-73, 18, -49], size: [26, 4, 20], kind: 'foam' },
         ],
         portals: [
             { a: [18, 48, -52], b: [-12, 50, -24], color: 0xbbeeff },
@@ -474,10 +486,17 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
         ],
         playerSpawn: { x: -78, y: 16, z: 0 },
         botSpawns: V130_BOT_SPAWNS.wind_cathedral,
+        staticTurrets: [
+            { id: 'wc_mg_aisle', weapon: 'mg', pos: [-25, 38, 10], range: 34, cooldown: 1.7, damage: 2, phase: 0.3, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'wc_mg_tower', weapon: 'mg', pos: [38, 63, -35], range: 34, cooldown: 1.7, damage: 2, phase: 1.1, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'wc_rocket_roof', weapon: 'rocket', pos: [9, 94, 47], range: 42, cooldown: 4.4, rocketType: 'ROCKET_MEDIUM', phase: 0.9, destructible: true, maxHp: 80, allowedModes: ['HUNT', 'ARCADE'] },
+            { id: 'wc_mg_descent', weapon: 'mg', pos: [-43, 62, -27], range: 35, cooldown: 1.8, damage: 2, phase: 1.6, destructible: true, maxHp: 55, allowedModes: ['HUNT', 'ARCADE'] },
+        ],
         items: [
-            { id: 'wc_shield_bell', type: 'item_shield', pickupType: 'SHIELD', x: 18, y: 82, z: 32, weight: 1.1 },
+            { id: 'wc_shield_ascent', type: 'item_shield', pickupType: 'SHIELD', x: -42, y: 24, z: -3, weight: 1.0 },
+            { id: 'wc_rocket_upper', type: 'item_rocket', pickupType: 'ROCKET_MEDIUM', x: 42, y: 70, z: 10, weight: 1.0 },
             { id: 'wc_speed_roof', type: 'item_battery', pickupType: 'SPEED_UP', x: -8, y: 94, z: 30, weight: 1.2 },
-            { id: 'wc_ghost_descent', type: 'item_coin', pickupType: 'GHOST', x: -34, y: 79, z: 0, weight: 1.0 },
+            { id: 'wc_shield_descent', type: 'item_shield', pickupType: 'SHIELD', x: -39, y: 76, z: -3, weight: 1.0 },
         ],
         missions: [
             { type: 'TIME_TRIAL', params: { target: 65 }, weight: 1.4 },
@@ -505,118 +524,5 @@ export const PARCOURS_PACK_V130_MAPS = Object.freeze({
             finish: { id: 'FINISH', type: 'finish', pos: [-64, 24, -34], radius: 7.0, forward: [-0.4, -0.6, -1] },
         },
     },
-    chrono_spillway: {
-        name: 'Chrono-Abfluss',
-        size: [280, 95, 160],
-        scaleAuthoredAnchors: true,
-        preferAuthoredPortals: true,
-        portalLevels: [16, 32, 52, 72],
-        obstacles: [
-            { pos: [-128, 70, -28], size: [26, 4, 28], kind: 'foam' },
-            { pos: [-104, 68, -8], size: [38, 4, 18] },
-            { pos: [-78, 62, 24], size: [38, 4, 18], kind: 'foam' },
-            { pos: [-42, 56, 34], size: [12, 34, 24], tunnel: { radius: 5.0, axis: 'x' } },
-            { pos: [-8, 50, 20], size: [34, 4, 18] },
-            { pos: [22, 44, -6], size: [34, 4, 18], kind: 'foam' },
-            { pos: [50, 38, -28], size: [24, 4, 24] },
-            { shape: 'tube', kind: 'hard', start: [50, 38, -28], end: [78, 30, -44], radius: 4.2 },
-            { pos: [76, 36, 8], size: [48, 4, 22], kind: 'foam' },
-            { pos: [104, 28, -16], size: [30, 4, 28], kind: 'foam' },
-            { pos: [122, 24, 18], size: [12, 32, 24], tunnel: { radius: 4.8, axis: 'z' } },
-            { pos: [132, 20, 42], size: [24, 4, 18] },
-            { pos: [118, 16, 62], size: [32, 4, 18], kind: 'foam' },
-            { pos: [-30, 40, -58], size: [170, 5, 5], kind: 'foam' },
-            { pos: [-20, 46, 54], size: [150, 5, 5], kind: 'foam' },
-            { pos: [80, 26, -58], size: [74, 5, 5], kind: 'foam' },
-            { pos: [116, 20, 58], size: [54, 5, 5], kind: 'foam' },
-        ],
-        portals: [
-            { a: [100, 18, -60], b: [100, 28, -16], color: 0x2288ff },
-        ],
-        gates: [
-            {
-                id: 'cs_boost_upper',
-                type: 'boost',
-                pos: [-78, 62, 24],
-                forward: [1, -0.2, 0.2],
-                params: { duration: 1.1, forwardImpulse: 40, bonusSpeed: 48, cooldown: 1.0 },
-            },
-            {
-                id: 'cs_sluice_boost',
-                type: 'boost',
-                pos: [78, 30, -44],
-                forward: [1, -0.2, 0.7],
-                params: { duration: 0.9, forwardImpulse: 42, bonusSpeed: 50, cooldown: 0.9 },
-            },
-            {
-                id: 'cs_boost_final',
-                type: 'boost',
-                pos: [104, 28, -16],
-                forward: [1, -0.2, 0.8],
-                params: { duration: 1.0, forwardImpulse: 38, bonusSpeed: 46, cooldown: 0.9 },
-            },
-        ],
-        playerSpawn: { x: -138, y: 72, z: -28 },
-        botSpawns: V130_BOT_SPAWNS.chrono_spillway,
-        items: [
-            { id: 'cs_speed_upper', type: 'item_battery', pickupType: 'SPEED_UP', x: -76, y: 64, z: 24, weight: 1.2 },
-            { id: 'cs_shield_sluice', type: 'item_shield', pickupType: 'SHIELD', x: 56, y: 38, z: -30, weight: 1.0 },
-            { id: 'cs_speed_lower', type: 'item_battery', pickupType: 'SPEED_UP', x: 104, y: 30, z: -16, weight: 1.2 },
-            { id: 'cs_rocket_overflow', type: 'item_rocket', pickupType: 'ROCKET_WEAK', x: 76, y: 38, z: 8, weight: 0.8 },
-            { id: 'cs_ghost_finale', type: 'item_coin', pickupType: 'GHOST', x: 126, y: 22, z: 38, weight: 1.0 },
-        ],
-        missions: [
-            { type: 'TIME_TRIAL', params: { target: 78 }, weight: 1.4 },
-            { type: 'TRAIL_MASTER', params: { target: 160 }, weight: 0.9 },
-        ],
-        parcours: {
-            enabled: true,
-            routeId: 'chrono_spillway_v1',
-            rules: parcoursRules({
-                resetToLastValid: true,
-                maxSegmentTimeMs: 17000,
-                cooldownMs: 450,
-                wrongOrderCooldownMs: 700,
-                wrongOrderPenaltyMs: 2500,
-                errorIndicatorMs: 1500,
-            }),
-            checkpoints: [
-                { id: 'CP01', type: 'entry', pos: [-128, 72, -28], radius: 7.0, forward: [1, -0.2, 0.4] },
-                { id: 'CP02', type: 'gate', pos: [-104, 68, -8], radius: 5.8, forward: [1, -0.2, 0.6] },
-                { id: 'CP03', type: 'gate', pos: [-78, 62, 24], radius: 5.6, forward: [1, -0.2, 0.2] },
-                { id: 'CP04', type: 'tunnel', pos: [-42, 56, 34], radius: 5.0, forward: [1, -0.2, -0.4] },
-                { id: 'CP05', type: 'gate', pos: [-8, 50, 20], radius: 5.4, forward: [1, -0.2, -0.7] },
-                { id: 'CP06', type: 'gate', pos: [22, 44, -6], radius: 5.2, forward: [1, -0.2, -0.6] },
-                {
-                    id: 'CP07',
-                    type: 'branch_entry',
-                    pos: [50, 38, -28],
-                    radius: 5.0,
-                    forward: [1, -0.2, -0.2],
-                    nextIds: ['CP08_SLUICE', 'CP08_OVERFLOW'],
-                },
-                {
-                    id: 'CP08_SLUICE',
-                    type: 'branch_precision',
-                    pos: [78, 30, -44],
-                    radius: 4.2,
-                    forward: [1, -0.2, 0.6],
-                    nextIds: ['CP09'],
-                },
-                {
-                    id: 'CP08_OVERFLOW',
-                    type: 'branch_gate',
-                    pos: [76, 36, 8],
-                    radius: 6.0,
-                    forward: [1, -0.3, -0.6],
-                    nextIds: ['CP09'],
-                },
-                { id: 'CP09', type: 'gate', pos: [104, 28, -16], radius: 5.4, forward: [1, -0.2, 0.8] },
-                { id: 'CP10', type: 'tunnel', pos: [122, 24, 18], radius: 4.8, forward: [0.4, -0.2, 1] },
-                { id: 'CP11', type: 'gate', pos: [132, 20, 42], radius: 5.2, forward: [-0.2, -0.2, 1] },
-                { id: 'CP12', type: 'finish_pre', pos: [118, 16, 62], radius: 5.4, forward: [-0.7, -0.1, 1] },
-            ],
-            finish: { id: 'FINISH', type: 'finish', pos: [104, 14, 72], radius: 7.0, forward: [-0.8, 0, 1] },
-        },
-    },
+    chrono_spillway: CHRONO_SPILLWAY_MAP,
 });

@@ -89,6 +89,7 @@ export class GameRuntimeFacade {
             nowMs: this.runtimeClock.nowMs,
             logger: console,
             applySectorRuntimeProfile: (profile) => this._applyArcadeSectorRuntimeProfile(profile),
+            requestRunAdvance: () => queueMicrotask(() => this.restartRound()),
         });
         this._recordingSupport = createGameRuntimeRecordingFacadeSupport({
             getGame: () => this.game,

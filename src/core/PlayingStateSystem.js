@@ -80,6 +80,7 @@ export class PlayingStateSystem {
         this._arenaWavesOverlayPhase = '';
         this._arenaWavesOverlayMapIndex = -1;
         this._arenaWavesOverlayChoiceCount = -1;
+        this._fivePortalsFinishedShown = false;
         // V84: optional MatchKernelInteractiveAdapter; when set, simulation tick
         // is driven through the kernel instead of direct game.* calls.
         this._kernelAdapter = null;
@@ -181,6 +182,12 @@ export class PlayingStateSystem {
             this.runtimeAccess.actionTickSuddenDeath?.(dt);
             arcadeState = this.runtimeAccess.getArcadeMenuSurfaceState?.() || arcadeState;
             this._syncArenaWavesOverlay(arcadeState);
+            if (arcadeState?.runType === 'five_portals' && arcadeState?.phase === 'finished') {
+                if (!this._fivePortalsFinishedShown) this.runtimeAccess.actionSyncArcadeOverlay?.();
+                this._fivePortalsFinishedShown = true;
+            } else {
+                this._fivePortalsFinishedShown = false;
+            }
         }
 
         if (!arenaWavesUpgradeActive) {

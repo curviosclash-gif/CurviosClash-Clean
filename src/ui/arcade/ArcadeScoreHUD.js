@@ -55,6 +55,7 @@ export class ArcadeScoreHUD {
         this._breakdownValueByKey = new Map();
         this._breakdownWrap = null;
         this._scoreValue = null;
+        this._scoreLabel = null;
         this._comboValue = null;
         this._metricLine = null;
         this._endlessSection = null;
@@ -104,7 +105,8 @@ export class ArcadeScoreHUD {
 
         const scoreLine = createElement('div', 'arcade-score-hud-scoreline');
         scoreLine.style.cssText = 'display:flex;align-items:baseline;justify-content:space-between;gap:8px;';
-        scoreLine.appendChild(createElement('span', 'arcade-score-hud-label', 'Score'));
+        this._scoreLabel = createElement('span', 'arcade-score-hud-label', 'Score');
+        scoreLine.appendChild(this._scoreLabel);
         this._scoreValue = createElement('strong', 'arcade-score-hud-score', '0');
         this._scoreValue.style.cssText = 'font-size:16px;color:#9cf7a8;';
         scoreLine.appendChild(this._scoreValue);
@@ -231,6 +233,22 @@ export class ArcadeScoreHUD {
         const score = hudState.score && typeof hudState.score === 'object' ? hudState.score : {};
         const isEndless = String(hudState.runType || '') === 'endless_parcours';
         const isArenaWaves = String(hudState.runType || '') === 'arena_waves';
+        const isFivePortals = String(hudState.runType || '') === 'five_portals';
+        setNodeText(this._scoreLabel, isFivePortals ? 'Map-Zeit' : 'Score');
+        if (isFivePortals) {
+            if (this._metricLine) this._metricLine.style.display = 'none';
+            this._endlessSection?.hide();
+            if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
+            if (this._modifierWrap) this._modifierWrap.style.display = 'none';
+            this._suddenDeathBanner?.classList?.add('hidden');
+            this._transitionBanner?.classList?.add('hidden');
+            this._arenaWavesSection.style.display = 'block';
+            setNodeText(this._scoreValue, formatTimerMs(hudState.currentTimeMs));
+            const mapNumber = Math.min(5, Math.max(1, Number(hudState.mapIndex || 0) + 1));
+            const status = hudState.phase === 'portal' ? '\nZiel erreicht · Goldenes Portal durchfliegen' : '';
+            this._arenaWavesSection.textContent = `Map ${mapNumber}/5: ${hudState.currentMapKey || '-'}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
+            return;
+        }
         if (isArenaWaves) {
             if (this._metricLine) this._metricLine.style.display = 'none';
             this._endlessSection?.hide();

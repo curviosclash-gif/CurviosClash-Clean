@@ -22,6 +22,7 @@ import {
 } from '../PortalPlacementOps.js';
 import { resolveEntityRuntimeConfig } from '../../../shared/contracts/EntityRuntimeConfig.js';
 import { resolvePortalMode, resolvePortalPairCount } from '../../../shared/contracts/PortalAuthoringContract.js';
+import { isFivePortalsConfig } from '../../../shared/contracts/FivePortalsContract.js';
 
 const PORTAL_EXIT_OFFSET = 1.8;
 const PORTAL_NORMAL = new THREE.Vector3(0, 0, 1);
@@ -146,8 +147,8 @@ export class PortalLayoutBuilder {
 
     _buildExitPortals(map, scale) {
         this.arena.exitPortals = [];
-        if (!map || !map.exitPortal) return;
-        const def = map.exitPortal;
+        const def = isFivePortalsConfig(this.arena.runtimeConfig) ? map?.fivePortalsExit : map?.exitPortal;
+        if (!def) return;
         if (!Array.isArray(def.pos)) return;
 
         const pos = new THREE.Vector3(
