@@ -16,9 +16,10 @@ function getPlayerLabel(player) {
 }
 
 export class HuntScoring {
-    constructor() {
+    constructor(nowSeconds = getNowSeconds) {
         this._statsByPlayer = new Map();
         this._damageHistoryByTarget = new Map();
+        this._nowSeconds = nowSeconds;
     }
 
     reset() {
@@ -40,7 +41,7 @@ export class HuntScoring {
         return this._statsByPlayer.get(playerIndex);
     }
 
-    registerDamage(sourcePlayer, targetPlayer, damageResult, nowSeconds = getNowSeconds()) {
+    registerDamage(sourcePlayer, targetPlayer, damageResult, nowSeconds = this._nowSeconds()) {
         const sourceIndex = sourcePlayer?.index;
         const targetIndex = targetPlayer?.index;
         if (!Number.isInteger(sourceIndex) || !Number.isInteger(targetIndex) || sourceIndex === targetIndex) {
@@ -74,7 +75,7 @@ export class HuntScoring {
     // Read-only view on the damage history: how long ago each attacker last hit the target.
     // Ages are measured on the same clock that stamped the hits, so callers on a different
     // clock (the simulation clock) can still use them without converting timestamps.
-    getDamageHistoryAges(targetIndex, nowSeconds = getNowSeconds()) {
+    getDamageHistoryAges(targetIndex, nowSeconds = this._nowSeconds()) {
         const byAttacker = this._damageHistoryByTarget.get(targetIndex);
         if (!byAttacker) return [];
         const now = Number(nowSeconds) || 0;
@@ -89,7 +90,7 @@ export class HuntScoring {
         const targetIndex = targetPlayer?.index;
         if (!Number.isInteger(targetIndex)) return { killerIndex: -1, assistIndices: [] };
 
-        const nowSeconds = Number.isFinite(options.nowSeconds) ? options.nowSeconds : getNowSeconds();
+        const nowSeconds = Number.isFinite(options.nowSeconds) ? options.nowSeconds : this._nowSeconds();
         const killerIndex = Number.isInteger(options?.killer?.index) ? options.killer.index : -1;
 
         const targetStats = this._ensureStats(targetIndex);

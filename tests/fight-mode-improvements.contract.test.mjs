@@ -12,6 +12,8 @@ import { deriveFightTuningSummary } from '../src/ui/menu/FightMenuTuningSync.js'
 import { createMenuDefaultsEditorConfigSnapshot } from '../src/ui/menu/MenuDefaultsEditorConfig.js';
 import { createMatchRuntimeProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { HuntHUD } from '../src/ui/HuntHUD.js';
+import { Player } from '../src/entities/Player.js';
+import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 function player(index, { alive = true, isBot = false, x = 0 } = {}) {
     return {
@@ -25,6 +27,38 @@ function player(index, { alive = true, isBot = false, x = 0 } = {}) {
         position: new THREE.Vector3(x, 0, 0),
     };
 }
+
+test('Hunt damage and regeneration use the same simulation clock', () => {
+    const entityRuntimeConfig = createEntityRuntimeConfig(null, {
+        HUNT: {
+            ACTIVE_MODE: 'HUNT',
+            ENABLED: true,
+            PLAYER_REGEN_DELAY: 3,
+            PLAYER_REGEN_PER_SECOND: 2,
+        },
+    });
+    const entityManager = { _simulationClockMs: 5000, entityRuntimeConfig };
+    const combatant = {
+        index: 0,
+        hp: 100,
+        maxHp: 100,
+        shieldHP: 0,
+        maxShieldHp: 40,
+        entityManager,
+        entityRuntimeConfig,
+    };
+    Player.prototype.takeDamage.call(combatant, 20);
+    assert.equal(combatant.lastDamageTimestamp, 5);
+    const strategy = new HuntModeStrategy({ entityRuntimeConfig });
+    entityManager._simulationClockMs = 7000;
+    strategy.updateHealthRegen(combatant, 1, entityManager);
+    assert.equal(combatant.hp, 80);
+    entityManager._simulationClockMs = 9000;
+    strategy.updateHealthRegen(combatant, 1, entityManager);
+    assert.equal(combatant.hp, 82);
+    Player.prototype.takeDamage.call(combatant, 2, { nowSeconds: 12 });
+    assert.equal(combatant.lastDamageTimestamp, 12);
+});
 
 test('Fight elimination counts humans and bots symmetrically', () => {
     const human = player(0);

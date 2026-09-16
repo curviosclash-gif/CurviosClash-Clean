@@ -405,7 +405,9 @@ export class Player {
     }
 
     takeDamage(amount, options = {}) {
-        return applyDamage(this, amount, options);
+        const clockMs = this.entityManager?._simulationClockMs;
+        if (!Number.isFinite(clockMs) || options.nowSeconds != null) return applyDamage(this, amount, options);
+        return applyDamage(this, amount, { ...options, nowSeconds: Math.max(0, clockMs) * 0.001 });
     }
 
     heal(amount) {

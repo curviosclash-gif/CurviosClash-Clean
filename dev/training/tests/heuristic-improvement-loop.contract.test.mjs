@@ -1,6 +1,10 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import fs from 'node:fs';
+import { spawnSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
+import os from 'node:os';
+import path from 'node:path';
 
 const sourceUrl = new URL('../scripts/heuristic-improvement-loop.mjs', import.meta.url);
 const source = fs.readFileSync(sourceUrl, 'utf8');
@@ -29,18 +33,23 @@ test('heuristic coordinate ascent evaluates the accumulated candidate profile', 
 });
 
 test('heuristic candidate injection preserves the complete named profile', () => {
-    assert.match(source, /const result = \{ \.\.\.baseProfile, \.\.\.source \};/);
+    assert.match(source, /const result = \{ \.\.\.baseProfile \};/);
     assert.match(source, /clampProfile\(profile, candidateFields\)/);
     assert.match(source, /clampScalar\(field, source\[field\], baseProfile\[field\]\)/);
+    assert.match(source, /bot\.ai\.profile = baselineFields/);
+    assert.match(source, /benchmark profile injection lost/);
 });
 
 test('heuristic improvement state keeps raw values behind survival and kill ratios', () => {
-    assert.match(source, /candidateSurvival: reported\.candidateSurvival/);
-    assert.match(source, /baselineSurvival: reported\.baselineSurvival/);
-    assert.match(source, /candidateKills: reported\.candidateKills/);
-    assert.match(source, /baselineKills: reported\.baselineKills/);
-    assert.match(source, /candidateDeathCauses: reported\.candidateDeathCauses/);
-    assert.match(source, /baselineDeathCauses: reported\.baselineDeathCauses/);
+    assert.match(source, /candidateSurvival: result\.candidateSurvival/);
+    assert.match(source, /baselineSurvival: result\.baselineSurvival/);
+    assert.match(source, /candidateKills: result\.candidateKills/);
+    assert.match(source, /baselineKills: result\.baselineKills/);
+    assert.match(source, /candidateDeathCauses: result\.candidateDeathCauses/);
+    assert.match(source, /baselineDeathCauses: result\.baselineDeathCauses/);
+    assert.match(source, /state\.verifiedRatios\[profile\] = toRatioRecord\(reported\)/);
+    assert.match(source, /command === '--verify'/);
+    assert.match(source, /command === '--probe-coarse' \|\| command === '--probe-full' \|\| command === '--try-full' \|\| command === '--probe-short'/);
 });
 
 test('heuristic improvement loop separates coarse training from rotated holdout validation', () => {
@@ -49,9 +58,45 @@ test('heuristic improvement loop separates coarse training from rotated holdout 
     assert.match(source, /coarseSlots = \[\.\.\.new Set\(\[0, Math\.max\(0, NUM_BOTS - 1\)\]\)\]/);
     assert.match(source, /fullSlots = Array\.from\(\{ length: NUM_BOTS \}/);
     assert.match(source, /isStrictlyBetterOnBoth\(fullCandidate, fullCurrent\)/);
+    assert.match(source, /candidate\.survivalRatio > current\.survivalRatio \+ MIN_CONFIRMED_GAIN/);
+    assert.match(source, /candidate\.killRatio > current\.killRatio \+ MIN_CONFIRMED_GAIN/);
+    assert.match(source, /state\.holdoutCache\[profile\]\?\.key === currentCacheKey/);
+    assert.match(source, /holdoutCacheKey\(current, HOLDOUT_SEEDS, fullSlots, FULL_MAX_TICKS\)/);
+    assert.match(source, /JSON\.stringify\(\[BENCHMARK_FINGERPRINT, fields, seeds, slots, maxTicks\]\)/);
+    assert.match(source, /respawnEnabled: false/);
+    assert.match(source, /MIN_ELIMINATION_SURVIVAL_RETENTION/);
+    assert.match(source, /createHeuristicLifeTracker\(\)/);
+    assert.match(source, /FINAL_SEEDS = Object\.freeze\(\[293, 307, 317, 331, 347, 359, 373, 389, 401, 419, 433, 449\]\)/);
+    assert.match(source, /seeds: FINAL_SEEDS/);
+    assert.match(source, /em\.matchSeed !== seed/);
+    assert.match(source, /human\.entitySlotActive = false/);
+    assert.match(source, /human\.kill\(\)/);
+    assert.match(source, /benchmark match ended early/);
 });
 
 test('heuristic improvement loop keeps state outside the repository and emits no report', () => {
     assert.match(source, /path\.join\(os\.tmpdir\(\), 'curviosclash-heuristic-improvement-state\.json'\)/);
     assert.doesNotMatch(source, /reports[\\/]|buildReport|report-/);
+});
+
+test('match replay is stable for one seed and changes for another seed', () => {
+    const replay = (seed) => {
+        const child = spawnSync(process.execPath, [fileURLToPath(sourceUrl), '--replay', 'defensive', String(seed), '0'], {
+            env: {
+                ...process.env,
+                HEURISTIC_LOOP_COARSE_MAX_TICKS: '180',
+                HEURISTIC_LOOP_STATE_PATH: path.join(os.tmpdir(), `heuristic-replay-test-${process.pid}.json`),
+            },
+            encoding: 'utf8',
+            timeout: 15000,
+        });
+        assert.equal(child.status, 0, child.stderr);
+        return JSON.parse(child.stdout.trim());
+    };
+    const first = replay(127);
+    assert.deepEqual(replay(127), first);
+    const other = replay(139);
+    assert.equal(first.matchSeed, 127);
+    assert.equal(other.matchSeed, 139);
+    assert.notEqual(first.endPositionSignature, other.endPositionSignature);
 });

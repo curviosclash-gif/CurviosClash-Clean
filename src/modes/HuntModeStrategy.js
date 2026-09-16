@@ -258,7 +258,9 @@ export class HuntModeStrategy extends GameModeContract {
         const maxHp = Math.max(1, toSafeNumber(player.maxHp, toSafeNumber(activeConfig?.HUNT?.PLAYER_MAX_HP, 100)));
         if (player.hp >= maxHp) return;
         const regenDelay = Math.max(0, toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_DELAY, 3.0));
-        const now = toSafeNumber(nowSeconds, getNowSeconds());
+        const simulationClockMs = config?._simulationClockMs;
+        const now = toSafeNumber(nowSeconds, Number.isFinite(simulationClockMs)
+            ? Math.max(0, simulationClockMs) * 0.001 : getNowSeconds());
         const lastDamageTimestamp = toSafeNumber(player.lastDamageTimestamp, -Infinity);
         if ((now - lastDamageTimestamp) < regenDelay) return;
         const regenPerSecond = Math.max(0, toSafeNumber(activeConfig?.HUNT?.PLAYER_REGEN_PER_SECOND, 2.5));

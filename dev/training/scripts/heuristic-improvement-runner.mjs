@@ -8,7 +8,7 @@ import { fileURLToPath } from 'node:url';
 
 const PROFILES = Object.freeze(['defensive', 'balanced', 'aggressive']);
 const TARGET_RATIO = 2;
-const SEARCH_STATE_VERSION = 12;
+const SEARCH_STATE_VERSION = 16;
 const DEFAULT_MAX_ITERATIONS = 256;
 export const MAX_RUNNER_TIMEOUT_MS = 3 * 60 * 60 * 1000;
 const DEFAULT_TIMEOUT_MS = MAX_RUNNER_TIMEOUT_MS;
@@ -44,7 +44,7 @@ function loadState(statePath) {
 function targetReached(state) {
     const completeProfiles = new Set(state?.completeProfiles || []);
     return PROFILES.every((profile) => {
-        const ratios = state?.lastRatios?.[profile];
+        const ratios = state?.verifiedRatios?.[profile];
         return completeProfiles.has(profile)
             && Number(ratios?.survival) >= TARGET_RATIO
             && Number(ratios?.kills) >= TARGET_RATIO;
@@ -91,7 +91,7 @@ export function runSearch({
 
 function formatRatios(state) {
     return PROFILES.map((profile) => {
-        const ratios = state?.lastRatios?.[profile];
+        const ratios = state?.verifiedRatios?.[profile];
         const survival = Number(ratios?.survival);
         const kills = Number(ratios?.kills);
         return `${profile}=${Number.isFinite(survival) ? survival.toFixed(3) : 'n/a'}`
@@ -100,6 +100,7 @@ function formatRatios(state) {
 }
 
 function runCli() {
+    const startedAt = Date.now();
     const env = process.env;
     const statePath = defaultStatePath(env);
     const loopPath = fileURLToPath(new URL('./heuristic-improvement-loop.mjs', import.meta.url));
@@ -112,24 +113,61 @@ function runCli() {
         MAX_RUNNER_TIMEOUT_MS
     );
 
-    const result = runSearch({
-        maxIterations,
-        timeoutMs,
-        readState: () => loadState(statePath),
-        executeIteration: (remainingMs) => {
-            const child = spawnSync(process.execPath, [loopPath], {
-                cwd: process.cwd(),
-                env,
-                stdio: 'inherit',
-                timeout: remainingMs,
-                windowsHide: true,
-            });
-            return {
-                status: child.status,
-                timedOut: child.error?.code === 'ETIMEDOUT',
-            };
-        },
-    });
+    let result = null;
+    let completedIterations = 0;
+    do {
+        const remainingMs = timeoutMs - (Date.now() - startedAt);
+        if (remainingMs <= 0) {
+            result = { outcome: 'timeout', iterations: completedIterations, state: loadState(statePath) };
+            break;
+        }
+        result = runSearch({
+            maxIterations: maxIterations - completedIterations,
+            timeoutMs: remainingMs,
+            readState: () => loadState(statePath),
+            executeIteration: (iterationRemainingMs) => {
+                const child = spawnSync(process.execPath, [loopPath], {
+                    cwd: process.cwd(),
+                    env,
+                    stdio: 'inherit',
+                    timeout: iterationRemainingMs,
+                    windowsHide: true,
+                });
+                return {
+                    status: child.status,
+                    timedOut: child.error?.code === 'ETIMEDOUT',
+                };
+            },
+        });
+        completedIterations += result.iterations;
+        result.iterations = completedIterations;
+        if (result.outcome !== 'target') break;
+        const verificationTimeMs = timeoutMs - (Date.now() - startedAt);
+        if (verificationTimeMs <= 0) {
+            result.outcome = 'timeout';
+            break;
+        }
+        const verification = spawnSync(process.execPath, [loopPath, '--verify'], {
+            cwd: process.cwd(),
+            env,
+            stdio: 'inherit',
+            timeout: verificationTimeMs,
+            windowsHide: true,
+        });
+        const verifiedState = loadState(statePath);
+        result = {
+            ...result,
+            state: verifiedState,
+            outcome: verification.error?.code === 'ETIMEDOUT'
+                ? 'timeout'
+                : verification.status !== 0
+                ? 'error'
+                : targetReached(verifiedState)
+                ? 'target'
+                : 'continue',
+        };
+    } while (result.outcome === 'continue' && completedIterations < maxIterations);
+    if (result.outcome === 'continue') result.outcome = 'iterationLimit';
 
     console.log(
         `heuristic-runner outcome=${result.outcome} iterations=${result.iterations}`

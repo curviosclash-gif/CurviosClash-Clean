@@ -231,6 +231,22 @@ test('environment kill credit: windows default to 4 and 2 seconds', () => {
     assert.equal(ENVIRONMENT_KILL_THREAT_WINDOW_SECONDS, 2);
 });
 
+test('hunt scoring can use a deterministic clock for accelerated matches', () => {
+    let nowSeconds = 10;
+    const scoring = new HuntScoring(() => nowSeconds);
+    const shooter = makePlayer(0);
+    const victim = makePlayer(1, { isBot: true });
+    scoring.registerDamage(shooter, victim, { applied: 30, hpApplied: 30 });
+    nowSeconds = 12;
+    assert.deepEqual(scoring.getDamageHistoryAges(victim.index), [
+        { attackerIndex: shooter.index, ageSeconds: 2 },
+    ]);
+    nowSeconds = 20;
+    assert.deepEqual(scoring.getDamageHistoryAges(victim.index), [
+        { attackerIndex: shooter.index, ageSeconds: 10 },
+    ]);
+});
+
 test('environment kill credit: a wall death after a hit scores for the shooter', () => {
     const shooter = makePlayer(0);
     const victim = makePlayer(1, { isBot: true });

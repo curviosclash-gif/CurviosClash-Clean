@@ -39,11 +39,11 @@ export const HEURISTIC_PROFILES = Object.freeze({
         escapeLateralBias: 0.5,
         attackCutoffBias: 0.5,
         finisherBias: 0.5,
-        openingFanoutBias: 0.5,
+        openingFanoutBias: 0.6,
         opportunistBias: 0.5,
         openingHookBias: 0.5,
         trafficAvoidanceBias: 0.5,
-        predictiveSafetyBias: 0.5,
+        predictiveSafetyBias: 0.63,
     }),
     balanced: Object.freeze({
         retreatVitality: 0.38,
@@ -62,7 +62,7 @@ export const HEURISTIC_PROFILES = Object.freeze({
         opportunistBias: 0.5,
         openingHookBias: 0.5,
         trafficAvoidanceBias: 0.5,
-        predictiveSafetyBias: 0.5,
+        predictiveSafetyBias: 0.6,
     }),
     aggressive: Object.freeze({
         retreatVitality: 0.20,
@@ -71,7 +71,7 @@ export const HEURISTIC_PROFILES = Object.freeze({
         defensiveItemThresholdScale: 1.14,
         offensiveItemThresholdScale: 0.82,
         attackWindow: 0.86,
-        safetyDistance: 0.18,
+        safetyDistance: 0.22,
         preferredRange: 0.20,
         strafeDistance: 0.38,
         escapeLateralBias: 0.5,
@@ -81,7 +81,7 @@ export const HEURISTIC_PROFILES = Object.freeze({
         opportunistBias: 0.5,
         openingHookBias: 0.5,
         trafficAvoidanceBias: 0.5,
-        predictiveSafetyBias: 0.5,
+        predictiveSafetyBias: 0.56,
     }),
 });
 

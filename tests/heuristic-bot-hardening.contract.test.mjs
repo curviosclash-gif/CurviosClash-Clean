@@ -164,6 +164,7 @@ test('final safety arbiter vetoes Hunt combat and boost at the first trail sampl
         enemy.position.set(0, 0, -30);
         player.inventory = ['ROCKET_HEAVY'];
         const policy = new HeuristicBotPolicy({ difficulty: 'HARD', profile });
+        policy.profile = Object.freeze({ ...policy.profile, openingFanoutBias: 0.5 });
         policy._huntState.movementIntent = 'strafe';
         const action = policy.update(1 / 60, player, {
             mode: 'HUNT',
@@ -230,6 +231,7 @@ test('predictive safety tuning sees a distant trail while neutral probing remain
     });
     const neutralPlayer = createPlayer(1);
     const neutral = new HeuristicBotPolicy({ profile: 'balanced' });
+    neutral.profile = Object.freeze({ ...neutral.profile, predictiveSafetyBias: 0.5 });
     neutral.update(1 / 60, neutralPlayer, {
         ...createContext(),
         players: [neutralPlayer],
@@ -524,9 +526,10 @@ test('Hunt finisher keeps firing at a weak target only above the neutral bias', 
         observation: createSafeObservation(), observationContext: { targetDistanceMax: 120 },
     };
     const neutral = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
+    neutral.profile = Object.freeze({ ...neutral.profile, openingFanoutBias: 0.5 });
     const neutralAction = neutral.update(1 / 60, player, context);
     const finisher = new HeuristicBotPolicy({ difficulty: 'HARD', profile: 'defensive' });
-    finisher.profile = Object.freeze({ ...finisher.profile, finisherBias: 1 });
+    finisher.profile = Object.freeze({ ...finisher.profile, openingFanoutBias: 0.5, finisherBias: 1 });
     const finisherAction = finisher.update(1 / 60, player, context);
 
     assert.equal(HEURISTIC_PROFILES.defensive.finisherBias, 0.5);
@@ -606,6 +609,7 @@ test('Hunt opportunist steals a vulnerable target without changing the neutral t
     assert.equal(neutralPlayer.fightTargetPlayerIndex, ringTarget.index);
     assert.equal(opportunistPlayer.fightTargetPlayerIndex, weakTarget.index);
 });
+
 
 test('Hunt opening hook reverses its fan to lay a crossing trail', () => {
     const player = createPlayer(1);

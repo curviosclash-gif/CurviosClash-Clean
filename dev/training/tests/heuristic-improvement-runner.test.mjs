@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import fs from 'node:fs';
 
 import {
     MAX_RUNNER_TIMEOUT_MS,
@@ -12,12 +13,19 @@ test('runner has a hard three-hour execution ceiling', () => {
     assert.equal(MAX_RUNNER_TIMEOUT_MS, 3 * 60 * 60 * 1000);
 });
 
+test('runner re-verifies before reporting a target from stored state', () => {
+    const source = fs.readFileSync(new URL('../scripts/heuristic-improvement-runner.mjs', import.meta.url), 'utf8');
+    assert.match(source, /if \(result\.outcome !== 'target'\) break;/);
+    assert.match(source, /\[loopPath, '--verify'\]/);
+    assert.match(source, /targetReached\(verifiedState\)/);
+});
+
 function targetState(overrides = {}) {
     return {
-        version: 12,
+        version: 16,
         plateauRounds: 0,
         completeProfiles: ['defensive', 'balanced', 'aggressive'],
-        lastRatios: {
+        verifiedRatios: {
             defensive: { survival: 2, kills: 2 },
             balanced: { survival: 2.1, kills: 2.2 },
             aggressive: { survival: 3, kills: 2 },
@@ -32,8 +40,8 @@ test('runner requires both metrics and all profiles before reporting the target'
         completeProfiles: ['defensive', 'balanced'],
     })), 'continue');
     assert.equal(classifySearchState(targetState({
-        lastRatios: {
-            ...targetState().lastRatios,
+        verifiedRatios: {
+            ...targetState().verifiedRatios,
             aggressive: { survival: 2, kills: 1.99 },
         },
     })), 'continue');
@@ -41,7 +49,7 @@ test('runner requires both metrics and all profiles before reporting the target'
 
 test('runner stops immediately on an existing plateau without starting an iteration', () => {
     let calls = 0;
-    const state = { version: 12, plateauRounds: 3 };
+    const state = { version: 16, plateauRounds: 3 };
     const result = runSearch({
         executeIteration: () => {
             calls += 1;
@@ -57,8 +65,8 @@ test('runner stops immediately on an existing plateau without starting an iterat
 
 test('runner invokes bounded iterations serially until the target is recorded', () => {
     const states = [
-        { version: 12, plateauRounds: 0 },
-        { version: 12, plateauRounds: 1 },
+        { version: 16, plateauRounds: 0 },
+        { version: 16, plateauRounds: 1 },
         targetState(),
     ];
     let cursor = 0;
@@ -86,17 +94,17 @@ test('runner preserves timeout, child failure, and iteration-limit outcomes', ()
     assert.equal(runSearch({
         maxIterations: 1,
         executeIteration: () => ({ status: 0 }),
-        readState: () => ({ version: 12, plateauRounds: 0 }),
+        readState: () => ({ version: 16, plateauRounds: 0 }),
     }).outcome, 'iterationLimit');
 
     assert.equal(runSearch({
         executeIteration: () => ({ status: null, timedOut: true }),
-        readState: () => ({ version: 12, plateauRounds: 0 }),
+        readState: () => ({ version: 16, plateauRounds: 0 }),
     }).outcome, 'timeout');
 
     assert.equal(runSearch({
         executeIteration: () => ({ status: 7 }),
-        readState: () => ({ version: 12, plateauRounds: 0 }),
+        readState: () => ({ version: 16, plateauRounds: 0 }),
     }).outcome, 'error');
 
     assert.deepEqual(RUNNER_EXIT_CODES, {

@@ -67,8 +67,16 @@ test('heuristic tuning clamps values and moves every requested field monotonical
     assert.equal(low.openingHookBias, 0.5);
     assert.equal(high.trafficAvoidanceBias, 0.5);
     assert.equal(low.trafficAvoidanceBias, 0.5);
-    assert.equal(high.predictiveSafetyBias, 0.5);
-    assert.equal(low.predictiveSafetyBias, 0.5);
+    assert.equal(high.predictiveSafetyBias, 0.6);
+    assert.equal(low.predictiveSafetyBias, 0.6);
+});
+
+test('validated Hunt profile defaults retain their independent tuning', () => {
+    assert.equal(HEURISTIC_PROFILES.defensive.predictiveSafetyBias, 0.63);
+    assert.equal(HEURISTIC_PROFILES.defensive.openingFanoutBias, 0.6);
+    assert.equal(HEURISTIC_PROFILES.balanced.predictiveSafetyBias, 0.6);
+    assert.equal(HEURISTIC_PROFILES.aggressive.predictiveSafetyBias, 0.56);
+    assert.equal(HEURISTIC_PROFILES.aggressive.safetyDistance, 0.22);
 });
 
 test('settings sanitizer migrates missing tuning and clamps persisted values', () => {
