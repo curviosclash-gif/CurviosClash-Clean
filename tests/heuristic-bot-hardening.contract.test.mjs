@@ -329,8 +329,8 @@ test('near turn arc reaches hazards beyond the first short steering segment', ()
         arena: {},
         trailSpatialIndex: {
             checkGlobalCollision(position) {
-                return position.x < -1.1 && position.x > -1.4
-                    && position.z < -3.9 && position.z > -4.5
+                return position.x < -1.3 && position.x > -1.5
+                    && position.z < -4.5 && position.z > -4.9
                     ? { hit: true } : null;
             },
         },
