@@ -4,6 +4,7 @@ import {
     normalizeArcadeCombatProfile,
     normalizeArcadeRunType,
 } from './EndlessParcoursContract.js';
+import { ARENA_WAVES_COMBAT_PROFILE, ARENA_WAVES_RUN_TYPE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from './ArenaWavesContract.js';
 
 // Persisted arcade run settings: the single source for the shape and the ranges.
 // Both the settings sanitizer (what survives a save) and the runtime config
@@ -70,16 +71,18 @@ export function createDefaultArcadeRunSettings() {
  */
 export function normalizeArcadeRunSettings(source) {
     const input = source && typeof source === 'object' && !Array.isArray(source) ? source : {};
-    const runType = normalizeArcadeRunType(input.runType) === ENDLESS_PARCOURS_RUN_TYPE
-        ? ENDLESS_PARCOURS_RUN_TYPE
-        : DEFAULTS.runType;
+    const runType = isArenaWavesRunType(input.runType)
+        ? ARENA_WAVES_RUN_TYPE
+        : (normalizeArcadeRunType(input.runType) === ENDLESS_PARCOURS_RUN_TYPE ? ENDLESS_PARCOURS_RUN_TYPE : DEFAULTS.runType);
     return {
         profileId: normalizeText(input.profileId, DEFAULTS.profileId),
         runType,
         combatProfile: runType === ENDLESS_PARCOURS_RUN_TYPE
             && normalizeArcadeCombatProfile(input.combatProfile, runType) === ENDLESS_PARCOURS_COMBAT_PROFILE
             ? ENDLESS_PARCOURS_COMBAT_PROFILE
-            : DEFAULTS.combatProfile,
+            : (runType === ARENA_WAVES_RUN_TYPE
+                && normalizeArenaWavesCombatProfile(input.combatProfile, runType) === ARENA_WAVES_COMBAT_PROFILE
+                ? ARENA_WAVES_COMBAT_PROFILE : DEFAULTS.combatProfile),
         scoreModel: normalizeArcadeScoreModel(input.scoreModel),
         seed: clampInteger(input.seed, ARCADE_RUN_SETTINGS_RANGES.seed, DEFAULTS.seed),
         sectorCount: clampInteger(input.sectorCount, ARCADE_RUN_SETTINGS_RANGES.sectorCount, DEFAULTS.sectorCount),

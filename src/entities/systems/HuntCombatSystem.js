@@ -28,6 +28,7 @@ import {
 } from '../../shared/contracts/GameplayActionResultContract.js';
 import { applyFightHumanAimAssist } from '../../hunt/FightAimAssist.js';
 import { resolveFightMachineGunConfig } from '../../shared/contracts/FightMachineGunContract.js';
+import { applyArenaWavesMachineGunTuning } from '../../shared/contracts/ArenaWavesContract.js';
 import { ensurePlayerInventoryCollections } from '../player/PlayerInventoryOps.js';
 
 function resolveActionResultCodes(action = 'use') {
@@ -323,10 +324,10 @@ export class HuntCombatSystem {
             return itemTarget;
         }
 
-        const mg = resolveFightMachineGunConfig(
+        const mg = applyArenaWavesMachineGunTuning(resolveFightMachineGunConfig(
             config?.HUNT?.MG || {},
             player?.fightLoadout?.machineGunId
-        );
+        ), player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning);
         const visiblePlayers = player?.isBot
             ? player?.entityManager?._globalFogEffectSystem?.filterVisiblePlayers?.(player, runtime.players) || runtime.players
             : runtime.players;

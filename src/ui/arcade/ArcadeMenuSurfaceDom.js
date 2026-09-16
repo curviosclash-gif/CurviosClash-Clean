@@ -133,8 +133,12 @@ export function buildArcadeSurface(level3Body, ui) {
     const startEndlessButton = createElement('button', 'start-btn', 'Endlosjagd starten');
     startEndlessButton.type = 'button';
     startEndlessButton.id = 'btn-arcade-endless-start-inline';
+    const startFiveFrontsButton = createElement('button', 'start-btn', 'Fünf Fronten');
+    startFiveFrontsButton.type = 'button';
+    startFiveFrontsButton.id = 'btn-arcade-five-fronts-start-inline';
     ctaRow.appendChild(startRunButton);
     ctaRow.appendChild(startEndlessButton);
+    ctaRow.appendChild(startFiveFrontsButton);
     body.appendChild(ctaRow);
 
     details.appendChild(body);
@@ -149,6 +153,7 @@ export function buildArcadeSurface(level3Body, ui) {
     ui.arcadeInlineSurface = details;
     ui.arcadeStartInlineButton = startRunButton;
     ui.arcadeEndlessStartInlineButton = startEndlessButton;
+    ui.arcadeFiveFrontsStartInlineButton = startFiveFrontsButton;
     ui.arcadeSeedRerollButton = rerollSeedButton;
     ui.arcadeSeedCopyButton = copySeedButton;
     ui.arcadeSeedInput = seedInput;
@@ -171,6 +176,7 @@ export function buildArcadeSurface(level3Body, ui) {
         metricChain: metricChain.value,
         startRunButton,
         startEndlessButton,
+        startFiveFrontsButton,
         rerollSeedButton,
         copySeedButton,
         seedInput,

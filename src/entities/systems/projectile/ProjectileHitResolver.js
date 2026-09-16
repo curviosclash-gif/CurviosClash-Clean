@@ -6,7 +6,9 @@ import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.
 
 function resolveEndlessProjectileDamage(owner, damage) {
     const multiplier = owner?.isBot
-        ? Math.max(0, Math.min(1.5, Number(owner.endlessDamageMultiplier) || 1))
+        ? (Number.isFinite(Number(owner.arenaWavesDamageMultiplier))
+            ? Math.max(0, Math.min(3, Number(owner.arenaWavesDamageMultiplier)))
+            : Math.max(0, Math.min(1.5, Number(owner.endlessDamageMultiplier) || 1)))
         : 1;
     return damage * multiplier;
 }

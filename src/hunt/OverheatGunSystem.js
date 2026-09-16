@@ -8,6 +8,7 @@ import {
     buildGameplayActionResult,
 } from '../shared/contracts/GameplayActionResultContract.js';
 import { resolveFightMachineGunConfig } from '../shared/contracts/FightMachineGunContract.js';
+import { applyArenaWavesMachineGunTuning } from '../shared/contracts/ArenaWavesContract.js';
 import { MAP_DESTRUCTIBLE_DAMAGE } from '../shared/contracts/MapDestructibleContract.js';
 import {
     applyWeaponFanDirection,
@@ -80,7 +81,10 @@ export class OverheatGunSystem {
     update(dt) {
         const mg = getMgConfig(this.runtimeContext || this.entityManager);
         const players = this.entityManager?.players || [];
-        this._state.update(players, dt, mg);
+        this._state.update(players, dt, (player) => applyArenaWavesMachineGunTuning(
+            mg,
+            player?.isBot === true ? 0 : player?.fightLoadout?.arenaWavesMgTuning
+        ));
         this._tracerFx.update(dt);
     }
 

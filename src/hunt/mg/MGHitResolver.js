@@ -240,7 +240,9 @@ export class MGHitResolver {
         const baseDamage = Math.max(1, Number(mg.DAMAGE || 9));
         const distRatio = clamp(distance / maxRange, 0, 1);
         const endlessMultiplier = attacker?.isBot
-            ? Math.max(0, Math.min(1.5, Number(attacker.endlessDamageMultiplier) || 1))
+            ? (Number.isFinite(Number(attacker.arenaWavesDamageMultiplier))
+                ? Math.max(0, Math.min(3, Number(attacker.arenaWavesDamageMultiplier)))
+                : Math.max(0, Math.min(1.5, Number(attacker.endlessDamageMultiplier) || 1)))
             : 1;
         const damage = baseDamage * (1 - (1 - minFalloff) * distRatio) * endlessMultiplier;
 

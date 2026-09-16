@@ -1,3 +1,4 @@
+/* eslint-disable max-lines */ // Overlay variants intentionally share one lifecycle/controller seam.
 import { formatArcadeBreakdown } from '../shared/contracts/ArcadeScorePresentationContract.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
@@ -327,6 +328,27 @@ export class MatchFlowArcadeOverlayController {
         return true;
     }
 
+    _renderArenaWavesUpgradePanel(runtimeState) {
+        if (runtimeState?.runType !== 'arena_waves' || runtimeState?.phase !== 'upgrade') return false;
+        const panel = this._ensureArcadeOverlayPanel();
+        if (!panel) return false;
+        while (panel.firstChild) panel.removeChild(panel.firstChild);
+        const title = document.createElement('h2');
+        title.textContent = 'Fünf Fronten – Vorteil wählen';
+        const copy = document.createElement('p');
+        copy.textContent = 'Wähle einen dauerhaften Vorteil. Enter aktiviert die fokussierte Wahl.';
+        const grid = document.createElement('div'); grid.className = 'arcade-overlay-choice-grid';
+        for (const choiceId of runtimeState.choices || []) {
+            const button = document.createElement('button'); button.type = 'button'; button.className = 'arcade-overlay-choice-btn';
+            const supplyLabels = { 'supply:shield': 'Kampfvorrat: Schild', 'supply:rocket': 'Kampfvorrat: Rakete', 'supply:health': 'Kampfvorrat: Reparatur', 'supply:thick': 'Kampfvorrat: Dicke Spur' };
+            button.textContent = supplyLabels[choiceId] || choiceId.replace('machine_gun:', 'MG: ').replace('_', ' ');
+            button.addEventListener('click', () => selectArcadeIntermissionChoice(this.runtimePort, this.game, choiceId));
+            grid.appendChild(button);
+        }
+        panel.append(title, copy, grid); panel.classList.remove('hidden');
+        return true;
+    }
+
     _renderArcadePostRunPanel(runtimeState) {
         const panel = this._ensureArcadeOverlayPanel();
         const summary = runtimeState?.postRunSummary;
@@ -501,16 +523,36 @@ export class MatchFlowArcadeOverlayController {
         return true;
     }
 
+    _renderArenaWavesPostRunPanel(runtimeState) {
+        const summary = runtimeState?.postRunSummary;
+        if (runtimeState?.runType !== 'arena_waves' || !summary || !Array.isArray(summary.maps)) return false;
+        const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
+        while (panel.firstChild) panel.removeChild(panel.firstChild);
+        const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${Math.round(toSafeNumber(summary.total, 0))} Punkte`;
+        const list = document.createElement('ul'); list.className = 'arcade-overlay-list';
+        summary.maps.forEach((map, index) => {
+            const row = document.createElement('li'); const waves = Array.isArray(map?.completedWaves) ? map.completedWaves : [];
+            row.textContent = `Karte ${index + 1}: ${String(map?.mapKey || '-')} | ${Math.floor(toSafeNumber(map?.survivalSeconds, 0))} s | Welle ${Math.max(0, ...waves)} | Kills ${Math.floor(toSafeNumber(map?.regularKills, 0))}/${Math.floor(toSafeNumber(map?.eliteKills, 0))} | ${Math.round(toSafeNumber(map?.score, 0))} Punkte`;
+            list.appendChild(row);
+        });
+        const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
+        close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
+        panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
+    }
+
     syncArcadeOverlayPanel() {
         const game = this.game;
         const runtimeProjection = this.runtimePort?.getMatchRuntimeProjection?.() || null;
         const arcadeActive = !!runtimeProjection?.arcade;
         const overlayVisible = !!game?.ui?.messageOverlay && !game.ui.messageOverlay.classList.contains('hidden');
-        if (!arcadeActive || !overlayVisible) {
+        const runtimeState = getArcadeMenuSurfaceState(this.runtimePort, this.game);
+        const arenaUpgrade = runtimeState?.runType === 'arena_waves' && runtimeState?.phase === 'upgrade';
+        const arenaFinished = runtimeState?.runType === 'arena_waves' && !!runtimeState?.postRunSummary;
+        if (arenaUpgrade || arenaFinished) game?.ui?.messageOverlay?.classList?.remove?.('hidden');
+        if (!arcadeActive || (!overlayVisible && !arenaUpgrade && !arenaFinished)) {
             this.clearArcadeOverlayPanel();
             return;
         }
-        const runtimeState = getArcadeMenuSurfaceState(this.runtimePort, this.game);
         game.ui.messageOverlay.classList.toggle?.('has-arcade-results', !!(runtimeState?.victory || runtimeState?.intermission || runtimeState?.postRunSummary));
         const key = JSON.stringify([game.state, runtimeState]);
         const countdown = this._arcadeOverlayPanel?.querySelector('#arcade-intermission-countdown');
@@ -521,8 +563,13 @@ export class MatchFlowArcadeOverlayController {
         if (key === this._renderKey) return;
         const focusedId = this._arcadeOverlayPanel?.ownerDocument?.activeElement?.id;
         this._renderKey = key;
+        if (this._renderArenaWavesPostRunPanel(runtimeState)) return;
         if (this._renderArcadeVictoryPanel(runtimeState)) return;
         const state = normalizeGameStateId(game?.state, GAME_STATE_IDS.MENU);
+        if (this._renderArenaWavesUpgradePanel(runtimeState)) {
+            this._arcadeOverlayPanel?.querySelector('button')?.focus({ preventScroll: true });
+            return;
+        }
         if (state === GAME_STATE_IDS.ROUND_END && this._renderArcadeIntermissionPanel(runtimeState)) {
             const focus = focusedId && document.getElementById(focusedId);
             (focus || this._arcadeOverlayPanel?.querySelector('button'))?.focus({ preventScroll: true });

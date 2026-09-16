@@ -14,6 +14,7 @@ import {
 import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import { HuntModeStrategy } from './HuntModeStrategy.js';
 import { ENDLESS_PARCOURS_COMBAT_PROFILE, ENDLESS_PARCOURS_RUN_TYPE, normalizeArcadeCombatProfile } from '../shared/contracts/EndlessParcoursContract.js';
+import { ARENA_WAVES_COMBAT_PROFILE, isArenaWavesRunType, normalizeArenaWavesCombatProfile } from '../shared/contracts/ArenaWavesContract.js';
 import { applyArcadeEndlessSpawnBonuses, resetArcadeEndlessPlayerHealth } from './ArcadeEndlessVehicleBonusOps.js';
 
 const DEFAULT_MAX_HP = 100;
@@ -79,8 +80,8 @@ export class ArcadeModeStrategy extends GameModeContract {
         // 82.1.1: Current sector type (null = default arena)
         this._sectorType = null;
         this._runType = String(options.runType || '').trim().toLowerCase();
-        this._combatProfile = normalizeArcadeCombatProfile(options.combatProfile, this._runType);
-        this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE
+        this._combatProfile = isArenaWavesRunType(this._runType) ? normalizeArenaWavesCombatProfile(options.combatProfile, this._runType) : normalizeArcadeCombatProfile(options.combatProfile, this._runType);
+        this._huntCombat = this._combatProfile === ENDLESS_PARCOURS_COMBAT_PROFILE || this._combatProfile === ARENA_WAVES_COMBAT_PROFILE
             ? new HuntModeStrategy({
                 entityRuntimeConfig: options.entityRuntimeConfig,
                 runtimeRng: this.runtimeRng,

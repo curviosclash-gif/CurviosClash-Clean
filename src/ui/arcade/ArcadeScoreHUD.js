@@ -58,6 +58,7 @@ export class ArcadeScoreHUD {
         this._comboValue = null;
         this._metricLine = null;
         this._endlessSection = null;
+        this._arenaWavesSection = null;
         this._comboMetricWrap = null;
         this._comboDecayValue = null;
         this._multiplierValue = null;
@@ -121,6 +122,8 @@ export class ArcadeScoreHUD {
         this._sectorValue = this._createMetric(metricLine, 'Sektor', '0').value;
 
         this._endlessSection = new ArcadeEndlessHudSection();
+        this._arenaWavesSection = createElement('div', 'arcade-waves-hud-section');
+        this._arenaWavesSection.style.cssText = 'display:none;font-size:11px;line-height:1.5;color:#d9efff;white-space:pre-line;';
 
         const breakdown = createElement('div', 'arcade-score-hud-breakdown');
         breakdown.style.cssText = 'display:none;grid-template-columns:repeat(2,minmax(0,1fr));gap:4px 8px;font-size:11px;';
@@ -180,6 +183,7 @@ export class ArcadeScoreHUD {
         this._container.appendChild(scoreLine);
         this._container.appendChild(metricLine);
         this._container.appendChild(this._endlessSection.element);
+        this._container.appendChild(this._arenaWavesSection);
         this._container.appendChild(breakdown);
         this._container.appendChild(this._modifierWrap);
         this._container.appendChild(this._suddenDeathBanner);
@@ -226,6 +230,23 @@ export class ArcadeScoreHUD {
 
         const score = hudState.score && typeof hudState.score === 'object' ? hudState.score : {};
         const isEndless = String(hudState.runType || '') === 'endless_parcours';
+        const isArenaWaves = String(hudState.runType || '') === 'arena_waves';
+        if (isArenaWaves) {
+            if (this._metricLine) this._metricLine.style.display = 'none';
+            this._endlessSection?.hide();
+            if (this._breakdownWrap) this._breakdownWrap.style.display = 'none';
+            if (this._modifierWrap) this._modifierWrap.style.display = 'none';
+            this._suddenDeathBanner?.classList?.add('hidden');
+            this._transitionBanner?.classList?.add('hidden');
+            this._arenaWavesSection.style.display = 'block';
+            setNodeText(this._scoreValue, formatRounded(score.total));
+            const kills = hudState.kills || {};
+            const upgrades = hudState.upgrades || {};
+            const telegraph = hudState.spawnWarning ? `\nAnkommend: ${hudState.plannedSpawnCount || 0} Gegner in ${Math.max(0, Math.ceil(hudState.spawnWarning.remaining || 0))} s` : (hudState.phase === 'countdown' ? `\nNächste Welle in ${Math.max(0, Math.ceil(hudState.countdown || 0))} s` : '');
+            this._arenaWavesSection.textContent = `Karte ${Number(hudState.mapIndex || 0) + 1}/${hudState.mapCount || 5}: ${hudState.currentMapKey || '-'}\nWelle ${hudState.wave || 1} | Gegner ${hudState.alive || 0} | Aggro ${Math.round((Number(hudState.aggression) || 0) * 100)}%\nKills ${kills.regular || 0} + Elite ${kills.elite || 0} | Zeit ${Math.floor(Number(hudState.survivalSeconds) || 0)} s\nMG ${upgrades.machineGunId || '-'} | Speed +${upgrades.speed || 0}% | HP +${upgrades.maxHp || 0}${telegraph}`;
+            return;
+        }
+        if (this._arenaWavesSection) this._arenaWavesSection.style.display = 'none';
         if (this._metricLine) this._metricLine.style.display = isEndless ? 'none' : 'grid';
         if (isEndless) {
             setNodeText(this._scoreValue, formatRounded(score.total));

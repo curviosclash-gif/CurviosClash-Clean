@@ -3,6 +3,7 @@ import {
     SPLIT_SCREEN_VARIANTS,
     THREE_PLAYER_SPLIT_PLAYER_COLORS,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
+import { isArenaWavesRunType } from '../../shared/contracts/ArenaWavesContract.js';
 
 function resolveLocalSplitScreenPlayerColor(splitScreenVariant, index) {
     if (splitScreenVariant === SPLIT_SCREEN_VARIANTS.FOUR_PLAYER_PLANAR) return FOUR_PLAYER_PLANAR_PLAYER_COLORS[index];
@@ -31,7 +32,7 @@ export function disposeMatchSessionSystems(renderer, currentSession, options = {
 
 export function buildHumanConfigs(settings, runtimeConfig = null) {
     const runtimeVehicles = runtimeConfig?.player?.vehicles || null;
-    const fightLoadouts = runtimeConfig?.session?.modePath === 'fight'
+    const fightLoadouts = runtimeConfig?.session?.modePath === 'fight' || isArenaWavesRunType(runtimeConfig?.arcade?.runType)
         ? runtimeConfig?.player?.fightLoadouts || null
         : null;
     const configuredHumanCount = Math.max(1, Number(runtimeConfig?.session?.numHumans) || 2);

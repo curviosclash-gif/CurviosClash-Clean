@@ -339,6 +339,21 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH);
     });
 
+    bind(refs.startFiveFrontsButton, 'click', () => {
+        applySeedToSettings(activeSeed, { dailyChallenge: false });
+        settings.arcade.runType = 'arena_waves';
+        settings.arcade.combatProfile = 'hunt';
+        settings.gameMode = 'ARCADE';
+        settings.mapKey = 'notre_dame_arena';
+        settings.numBots = 12;
+        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
+        settings.localSettings.modePath = 'arcade';
+        const prepared = prepareHangarRunStart();
+        if (prepared?.ok === false) return;
+        recordRunStart(prepared?.build);
+        emit(eventTypes.START_MATCH);
+    });
+
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });
         if (result?.ok !== true) showToast(runtimeAccess, 'Hangar-Fenster konnte nicht geöffnet werden.', 'warning', 1600);

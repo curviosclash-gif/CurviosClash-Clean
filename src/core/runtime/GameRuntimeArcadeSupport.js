@@ -8,6 +8,8 @@ import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogCo
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
+import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
+import { ArenaWavesRuntime } from '../arcade/ArenaWavesRuntime.js';
 
 function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
     if (!plan || !Array.isArray(plan.sequence) || plan.sequence.length === 0) return plan;
@@ -106,7 +108,13 @@ export class GameRuntimeArcadeSupport {
                 request
             ),
         });
+        this.arenaWavesRuntime = new ArenaWavesRuntime({
+            now: this._nowMs,
+            getRecordStore: () => this.game?.settingsManager?.getPlayerRecordStorePort?.() || null,
+            requestMapTransition: (transition) => { this._pendingSectorTransition = transition; },
+        });
         this._arcadeGameplayEventHandler = (event) => {
+            if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.handleGameplayEvent(event);
             const endless = this._getEndlessRuntime();
             if (endless) return endless.handleGameplayEvent?.(event);
             return this.arcadeRunRuntime.applyGameplayEvent(event);
@@ -253,12 +261,16 @@ export class GameRuntimeArcadeSupport {
             this._pendingSectorTransition = null;
             return null;
         }
+        if (isArenaWavesConfig(runtimeConfig)) {
+            this._preparedEncounterPlan = null;
+            this._pendingSectorTransition = null;
+            return { mapKey: 'notre_dame_arena', botCount: 12, arenaWaves: true };
+        }
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._preparedEncounterPlan = null;
             this._pendingSectorTransition = null;
             return null;
         }
-
         this.arcadeRunRuntime.setActiveVehicle(this._resolveActiveVehicleId(runtimeConfig));
         const existing = this.arcadeRunRuntime.getStateSnapshot?.();
         let profile = null;
@@ -320,6 +332,26 @@ export class GameRuntimeArcadeSupport {
         if (!runtimeConfig?.arcade?.enabled) {
             return null;
         }
+        if (isArenaWavesConfig(runtimeConfig)) {
+            this._bindGameplayCallback(runtimeState);
+            const existing = this.arenaWavesRuntime.getHudState();
+            if (existing.phase !== 'idle' && existing.phase !== 'finished') {
+                const rebound = this.arenaWavesRuntime.start({
+                    entityManager: runtimeState?.entityManager || null,
+                    strategy: runtimeState?.entityManager?.gameModeStrategy || null,
+                });
+                this._sectorRebuildInFlight = false;
+                return rebound;
+            }
+            const started = this.arenaWavesRuntime.start({
+                entityManager: runtimeState?.entityManager || null,
+                strategy: runtimeState?.entityManager?.gameModeStrategy || null,
+                seed: runtimeConfig?.arcade?.seed,
+                selectedMachineGunId: runtimeState?.entityManager?.humanPlayers?.[0]?.fightLoadout?.machineGunId,
+            });
+            this._sectorRebuildInFlight = false;
+            return started;
+        }
         if (isEndlessParcoursConfig(runtimeConfig)) {
             this._bindGameplayCallback(runtimeState);
             const runtime = this._getEndlessRuntime(runtimeState);
@@ -362,11 +394,19 @@ export class GameRuntimeArcadeSupport {
         // neu aufgebaut wird. Nur ein ausdrueckliches force (Matchende, Rueckkehr ins
         // Menue, abgeschalteter Arcade-Modus) verwirft ihn.
         if (this._sectorRebuildInFlight && options?.force !== true) {
-            return this.arcadeRunRuntime.getStateSnapshot?.() || null;
+            return isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)
+                ? this.arenaWavesRuntime.getHudState()
+                : (this.arcadeRunRuntime.getStateSnapshot?.() || null);
         }
         this._sectorRebuildInFlight = false;
         this._preparedEncounterPlan = null;
         this._pendingSectorTransition = null;
+        const arenaState = this.arenaWavesRuntime.getHudState?.() || null;
+        if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)
+            || (arenaState?.runType === 'arena_waves' && arenaState.phase !== 'idle')) {
+            this.arenaWavesRuntime.dispose();
+            return this.arenaWavesRuntime.getHudState();
+        }
         return this.arcadeRunRuntime.resetRunState({
             preserveRecords: true,
             ...(options && typeof options === 'object' ? options : {}),
@@ -374,18 +414,24 @@ export class GameRuntimeArcadeSupport {
     }
 
     getRunState() {
+        if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
         const endless = this._getEndlessRuntime();
         if (endless) return endless.getHudState?.() || null;
         return this.arcadeRunRuntime.getStateSnapshot?.() || null;
     }
 
     getMenuSurfaceState() {
+        if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.getHudState();
         const endless = this._getEndlessRuntime();
         if (endless) return endless.getHudState?.() || null;
         return this.arcadeRunRuntime.getMenuSurfaceState?.() || null;
     }
 
     tickSuddenDeath(dt = 0) {
+        if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) {
+            this.arenaWavesRuntime.update(dt);
+            return null;
+        }
         if (this._getEndlessRuntime()) return null;
         // This established per-frame arcade seam also advances time-based missions.
         this.arcadeRunRuntime.tickGameplay?.(dt);
@@ -402,6 +448,7 @@ export class GameRuntimeArcadeSupport {
     }
 
     selectIntermissionChoice(choiceId) {
+        if (isArenaWavesConfig(this.getRuntimeState()?.runtimeConfig)) return this.arenaWavesRuntime.selectChoice(choiceId);
         return this.arcadeRunRuntime.selectIntermissionChoice?.(choiceId);
     }
 

@@ -45,8 +45,9 @@ export class MGOverheatState {
     }
 
     update(players, dt, mg = getMgConfig(this.configSource)) {
-        const coolPerSecond = Math.max(0, Number(mg.COOLING_PER_SECOND || 22));
         for (const player of players || []) {
+            const playerMg = typeof mg === 'function' ? mg(player) : mg;
+            const coolPerSecond = Math.max(0, Number(playerMg?.COOLING_PER_SECOND || 22));
             const idx = player.index;
             const currentHeat = Math.max(0, Number(this.overheatByPlayer[idx] || 0));
             this.setOverheatValue(idx, clamp(currentHeat - coolPerSecond * dt, 0, 100));
