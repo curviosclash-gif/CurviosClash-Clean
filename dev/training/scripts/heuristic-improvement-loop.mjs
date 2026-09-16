@@ -246,16 +246,47 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         const candidateBot = bots[candidateSlot];
         const activeCandidateFields = Object.freeze(clampProfile(profile, candidateFields));
         candidateBot.ai.profile = activeCandidateFields;
-        const actionTrace = trace ? { updates: 0, safetyStates: {}, safetyReasons: {}, intents: {}, mgShots: 0, rocketShots: 0, itemShots: 0, boosts: 0 } : null;
+        const actionTrace = trace ? {
+            updates: 0,
+            modes: {},
+            targetDistanceBuckets: {},
+            safetyStates: {},
+            safetyReasons: {},
+            intents: {},
+            turnChoices: {},
+            yawTies: 0,
+            bothSafeTurns: 0,
+            collisionNormalUpdates: 0,
+            activeBounceWindowUpdates: 0,
+            inventoryUpdates: 0,
+            rocketUpdates: 0,
+            itemUses: 0,
+            mgShots: 0,
+            rocketShots: 0,
+            itemShots: 0,
+            boosts: 0,
+            deaths: [],
+        } : null;
         if (actionTrace) {
             const originalUpdate = candidateBot.ai.update;
             candidateBot.ai.update = function (dt, player, context) {
                 const action = originalUpdate.call(this, dt, player, context);
                 const decision = this.getDecisionSnapshot();
                 actionTrace.updates += 1;
+                incrementCauseCount(actionTrace.modes, decision.mode);
+                incrementCauseCount(actionTrace.targetDistanceBuckets, String(Math.floor(decision.targetDistanceRatio * 10) / 10));
                 incrementCauseCount(actionTrace.safetyStates, decision.safetyState);
                 incrementCauseCount(actionTrace.safetyReasons, decision.safetyReason || 'none');
                 incrementCauseCount(actionTrace.intents, decision.intent);
+                const safety = this._safetyState;
+                incrementCauseCount(actionTrace.turnChoices, `${safety.turnAxis}:${safety.turnDirection}`);
+                if (Math.abs(safety.leftClearance - safety.rightClearance) <= 0.06) actionTrace.yawTies += 1;
+                if (safety.leftClearance > 0.9 && safety.rightClearance > 0.9) actionTrace.bothSafeTurns += 1;
+                if (safety.hasCollisionNormal) actionTrace.collisionNormalUpdates += 1;
+                if (safety.bounceWindowTimer > 0) actionTrace.activeBounceWindowUpdates += 1;
+                if (Array.isArray(player?.inventory) && player.inventory.length > 0) actionTrace.inventoryUpdates += 1;
+                if (Array.isArray(player?.rocketInventory) && player.rocketInventory.length > 0) actionTrace.rocketUpdates += 1;
+                if (action.useItem >= 0) actionTrace.itemUses += 1;
                 if (action.shootMG) actionTrace.mgShots += 1;
                 if (action.shootRocket) actionTrace.rocketShots += 1;
                 if (action.shootItem) actionTrace.itemShots += 1;
@@ -267,6 +298,7 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         const lifeTracker = createHeuristicLifeTracker();
         const candidateDeathCauses = {};
         const baselineDeathCauses = {};
+        let lastCandidateKills = 0;
         let forced = true;
         const inputFrame = { players: [{ actions: {} }] };
         const tickOptions = {
@@ -285,6 +317,19 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
                 deadPlayer.index === candidateIndex ? candidateDeathCauses : baselineDeathCauses,
                 cause
             );
+            if (actionTrace) {
+                const rows = em.getHuntScoreboard?.() || [];
+                const currentKills = Number(rows.find((row) => row.playerIndex === candidateIndex)?.kills) || 0;
+                const distance = candidateBot.player.position?.distanceTo?.(deadPlayer.position);
+                actionTrace.deaths.push({
+                    second: Math.round((Number(em._simulationClockMs) || 0) * 0.001),
+                    victim: deadPlayer.index === candidateIndex ? 'candidate' : 'baseline',
+                    cause,
+                    candidateKill: currentKills > lastCandidateKills,
+                    distance: Number.isFinite(distance) ? Math.round(distance) : null,
+                });
+                lastCandidateKills = currentKills;
+            }
         };
 
         for (let frame = 1; frame <= maxTicks; frame += 1) {
