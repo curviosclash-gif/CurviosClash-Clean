@@ -178,6 +178,7 @@ export function createMultiplayerMatchSettingsSnapshot(settings = {}) {
         autoRoll: settings?.autoRoll === true,
         portalsEnabled: settings?.portalsEnabled !== false,
         hunt: settings?.hunt ? { ...settings.hunt } : { respawnEnabled: false },
+        arcade: settings?.arcade ? { ...settings.arcade } : {},
         gameplay: settings?.gameplay ? { ...settings.gameplay } : {},
         vehicles: settings?.vehicles ? { ...settings.vehicles } : {},
         matchSettings: settings?.matchSettings ? { ...settings.matchSettings } : {},
@@ -200,6 +201,9 @@ export function applyMultiplayerMatchSettingsSnapshot(targetSettings, snapshot =
 
     targetSettings.mode = '1p';
     targetSettings.gameMode = snapshot.gameMode || targetSettings.gameMode;
+    if (snapshot.arcade && typeof snapshot.arcade === 'object') {
+        targetSettings.arcade = { ...targetSettings.arcade, ...snapshot.arcade };
+    }
     targetSettings.mapKey = snapshot.mapKey || targetSettings.mapKey;
     targetSettings.numBots = Number.isFinite(Number(snapshot.numBots))
         ? Number(snapshot.numBots)
@@ -275,6 +279,7 @@ export function invalidateMultiplayerReadyIfHostChangedSettings({
     if (!didHostChangeMatchSettings(changedKeys, matchSettingChangeKeySet)) return;
     const accessContext = resolveMenuAccessContext?.();
     if (!accessContext?.isOwner) return;
+    if (menuMultiplayerBridge?.handlesSettingsReadiness === true) return;
 
     const invalidationResult = menuMultiplayerBridge?.invalidateReadyForAll('host_settings_changed');
     if (!invalidationResult) return null;

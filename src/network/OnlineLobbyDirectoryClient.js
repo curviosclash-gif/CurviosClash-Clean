@@ -15,6 +15,33 @@ import {
 
 const LOBBY_LIST_TIMEOUT_MS = 3_500;
 const MAX_LOBBY_LIST_ITEMS = 50;
+const LOBBY_LIST_CACHE_TTL_MS = 750;
+const MAX_LOBBY_LIST_CACHE_ENTRIES = 16;
+const webSocketImplementationIds = new WeakMap();
+const lobbyListCache = new Map();
+const lobbyListInflight = new Map();
+let nextWebSocketImplementationId = 1;
+
+function cloneLobbyList(value) {
+    return value.map((entry) => ({ ...entry }));
+}
+
+function getWebSocketImplementationId(WebSocketImpl) {
+    let id = webSocketImplementationIds.get(WebSocketImpl);
+    if (!id) {
+        id = nextWebSocketImplementationId++;
+        webSocketImplementationIds.set(WebSocketImpl, id);
+    }
+    return id;
+}
+
+function writeLobbyListCache(key, value, expiresAt) {
+    lobbyListCache.delete(key);
+    lobbyListCache.set(key, { value: cloneLobbyList(value), expiresAt });
+    while (lobbyListCache.size > MAX_LOBBY_LIST_CACHE_ENTRIES) {
+        lobbyListCache.delete(lobbyListCache.keys().next().value);
+    }
+}
 
 function normalizeOpenLobbyList(value, signalingUrl = '') {
     if (!Array.isArray(value)) return [];
@@ -41,17 +68,7 @@ function normalizeOpenLobbyList(value, signalingUrl = '') {
     });
 }
 
-export function listOpenOnlineLobbies(signalingUrl, options = {}) {
-    const resolvedUrl = resolveOnlineSignalingUrl(signalingUrl);
-    const WebSocketImpl = options.WebSocketImpl || globalThis.WebSocket;
-    const timeoutMs = resolveConnectTimeoutMs(options.timeoutMs, LOBBY_LIST_TIMEOUT_MS);
-    if (typeof WebSocketImpl !== 'function') {
-        return Promise.reject(createNetworkUnavailableSignalingError({
-            signalingUrl: resolvedUrl,
-            source: 'lobby_list_websocket_missing',
-        }));
-    }
-
+function requestOpenOnlineLobbies(resolvedUrl, WebSocketImpl, timeoutMs) {
     return new Promise((resolve, reject) => {
         const socket = new WebSocketImpl(resolvedUrl);
         let settled = false;
@@ -107,4 +124,44 @@ export function listOpenOnlineLobbies(signalingUrl, options = {}) {
             finish(reject, createSocketLifecycleError('close', buildSocketCloseDetails(event, resolvedUrl)));
         };
     });
+}
+
+export function listOpenOnlineLobbies(signalingUrl, options = {}) {
+    const resolvedUrl = resolveOnlineSignalingUrl(signalingUrl);
+    const WebSocketImpl = options.WebSocketImpl || globalThis.WebSocket;
+    const timeoutMs = resolveConnectTimeoutMs(options.timeoutMs, LOBBY_LIST_TIMEOUT_MS);
+    if (typeof WebSocketImpl !== 'function') {
+        return Promise.reject(createNetworkUnavailableSignalingError({
+            signalingUrl: resolvedUrl,
+            source: 'lobby_list_websocket_missing',
+        }));
+    }
+
+    const implementationId = getWebSocketImplementationId(WebSocketImpl);
+    const cacheKey = `${implementationId}:${resolvedUrl}`;
+    const now = typeof options.now === 'function' ? Number(options.now()) : Date.now();
+    const cacheTtlMs = Number.isFinite(Number(options.cacheTtlMs))
+        ? Math.max(0, Math.floor(Number(options.cacheTtlMs)))
+        : LOBBY_LIST_CACHE_TTL_MS;
+    if (options.forceRefresh !== true) {
+        const cached = lobbyListCache.get(cacheKey);
+        if (cached && cached.expiresAt > now) return Promise.resolve(cloneLobbyList(cached.value));
+        if (cached) lobbyListCache.delete(cacheKey);
+        const inflightKey = `${cacheKey}:${timeoutMs}`;
+        const inflight = lobbyListInflight.get(inflightKey);
+        if (inflight) return inflight.then(cloneLobbyList);
+    }
+
+    const inflightKey = `${cacheKey}:${timeoutMs}`;
+    const request = requestOpenOnlineLobbies(resolvedUrl, WebSocketImpl, timeoutMs)
+        .then((result) => {
+            const completedAt = typeof options.now === 'function' ? Number(options.now()) : Date.now();
+            writeLobbyListCache(cacheKey, result, completedAt + cacheTtlMs);
+            return cloneLobbyList(result);
+        })
+        .finally(() => {
+            if (lobbyListInflight.get(inflightKey) === request) lobbyListInflight.delete(inflightKey);
+        });
+    if (options.forceRefresh !== true) lobbyListInflight.set(inflightKey, request);
+    return request;
 }

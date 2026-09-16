@@ -29,6 +29,8 @@ export function buildLanRequestError({
         message = 'Spieler-Autorisierung fehlgeschlagen.';
     } else if (signalingCode === 'members_not_ready') {
         message = 'Alle Teilnehmer muessen Ready sein.';
+    } else if (signalingCode === 'settings_revision_mismatch') {
+        message = 'Match-Einstellungen wurden geändert. Bitte erneut bereit werden.';
     } else if (signalingCode === 'not_enough_members') {
         message = 'Mindestens zwei Teilnehmer werden benoetigt.';
     } else if (signalingCode === 'mobile_protocol_incompatible') {

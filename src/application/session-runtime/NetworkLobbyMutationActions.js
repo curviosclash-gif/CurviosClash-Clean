@@ -43,6 +43,13 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
         return service._fail('Lobby fehlt.', 'not_in_lobby');
     }
     if (!sessionState.isHost) return service._fail('Nur der Host kann starten.', 'host_required');
+    if (sessionState.settingsSyncPending || sessionState.settingsSyncError) {
+        return service._fail('Match-Einstellungen müssen zuerst übertragen werden.', 'settings_sync_pending');
+    }
+    if (sessionState.settingsRevision != null && options.settingsSnapshot
+        && JSON.stringify(options.settingsSnapshot) !== JSON.stringify(service._hostSettingsSnapshot)) {
+        return service._fail('Die aktuellen Match-Einstellungen sind noch nicht bestätigt.', 'settings_revision_mismatch');
+    }
     if (sessionState.memberCount < 2) {
         return service._fail('Mindestens zwei Teilnehmer werden benoetigt.', 'not_enough_members');
     }
@@ -56,7 +63,7 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
     const settingsSnapshot = deepClone(options.settingsSnapshot ?? service._hostSettingsSnapshot);
     service._matchStartPending = true;
     service.onStateChanged?.(service.getSessionState());
-    return Promise.resolve(service._transportSession.startMatch({ settingsSnapshot })).then((response) => {
+    return Promise.resolve(service._transportSession.startMatch({ settingsSnapshot, settingsRevision: sessionState.settingsRevision })).then((response) => {
         const updatedSessionState = service.getSessionState();
         const commandId = normalizeString(
             response?.pendingMatchStart?.commandId || response?.sessionState?.pendingMatchStart?.commandId,

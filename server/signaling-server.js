@@ -3,6 +3,7 @@
 // ============================================
 
 import crypto from 'node:crypto';
+import { isLobbySettingsRevisionCurrent } from '../src/shared/contracts/LobbyMatchSummaryContract.js';
 import { WebSocketServer } from 'ws';
 import {
     SIGNALING_COMMAND_TYPES,
@@ -11,6 +12,7 @@ import {
     createSignalingEnvelope,
     normalizeSignalingEnvelope,
     resolveSignalingCommandRole,
+    normalizePublicLobbyMetadata,
 } from '../src/shared/contracts/SignalingSessionContract.js';
 
 function generateLobbyCode() {
@@ -93,8 +95,23 @@ function isValidSessionToken(expectedToken, providedToken) {
 }
 
 function sendJson(ws, data) {
-    if (ws.readyState === 1) {
-        ws.send(JSON.stringify(data));
+    if (ws.readyState !== 1) return;
+    if (ws._serverMetrics) ws._serverMetrics.jsonSerializations += 1;
+    sendSerialized(ws, JSON.stringify(data));
+}
+
+function sendSerialized(ws, serialized) {
+    if (ws.readyState !== 1) return;
+    try {
+        ws.send(serialized);
+        const metrics = ws._serverMetrics;
+        if (metrics) {
+            metrics.txMessages += 1;
+            metrics.txBytes += Buffer.byteLength(serialized, 'utf8');
+        }
+    } catch (error) {
+        if (ws._serverMetrics) ws._serverMetrics.sendErrors += 1;
+        throw error;
     }
 }
 
@@ -111,21 +128,17 @@ function sendSignalingError(ws, code, message, details = null) {
 }
 
 function normalizeLobbyMetadata(value = null, fallbackHostName = 'Host') {
-    const source = value && typeof value === 'object' ? value : {};
-    return {
-        hostName: normalizeString(source.hostName, fallbackHostName).slice(0, 48),
-        mapKey: normalizeString(source.mapKey, 'standard').slice(0, 48),
-        gameMode: normalizeString(source.gameMode, 'CLASSIC').slice(0, 32),
-        modePath: normalizeString(source.modePath, 'normal').slice(0, 32),
-        winsNeeded: Math.max(1, Math.min(99, Math.floor(Number(source.winsNeeded) || 5))),
-    };
+    return normalizePublicLobbyMetadata(value, fallbackHostName);
 }
 
 function broadcastToLobby(lobby, type, payload = null, excludeWs = null) {
-    for (const player of lobby.players) {
-        if (player.ws === excludeWs) continue;
-        sendSignaling(player.ws, type, payload);
-    }
+    const recipients = lobby.players
+        .map((player) => player.ws)
+        .filter((ws) => ws !== excludeWs && ws?.readyState === 1);
+    if (recipients.length === 0) return;
+    const serialized = JSON.stringify(createSignalingEnvelope(type, payload));
+    if (recipients[0]._serverMetrics) recipients[0]._serverMetrics.jsonSerializations += 1;
+    for (const ws of recipients) sendSerialized(ws, serialized);
 }
 
 function touchLobbyActivity(lobby, timestamp = Date.now()) {
@@ -193,6 +206,7 @@ function bumpLobbyState(lobby) {
     lobby.revision = Number.isFinite(Number(lobby.revision))
         ? Math.max(0, Math.floor(Number(lobby.revision))) + 1
         : 1;
+    lobby.invalidateDirectory?.();
 }
 
 function buildLobbyState(lobby) {
@@ -216,6 +230,7 @@ function buildLobbyState(lobby) {
         createdAt: lobby.createdAt,
         updatedAt: Number(lobby.updatedAt || lobby.createdAt || Date.now()),
         revision: Number(lobby.revision || 0),
+        settingsRevision: lobby.settingsRevision,
         pendingMatchStart: lobby.pendingMatchStart || null,
         metadata: { ...lobby.metadata },
         members,
@@ -223,8 +238,11 @@ function buildLobbyState(lobby) {
     };
 }
 
-function buildOpenLobbyList() {
-    return [...lobbies.values()]
+function buildOpenLobbyList(serverLobbyCodes = null) {
+    const source = serverLobbyCodes
+        ? [...serverLobbyCodes].map((code) => lobbies.get(code)).filter(Boolean)
+        : [...lobbies.values()];
+    return source
         .filter((lobby) => (
             !lobby.pendingMatchStart
             && lobby.players.length < lobby.maxPlayers
@@ -370,6 +388,26 @@ export function createSignalingServer(port = 9090, options = {}) {
         : MAX_LOBBIES;
     const ipConnectionCounts = new Map();
     const serverLobbyCodes = new Set();
+    let directoryVersion = 0;
+    let directoryCache = { version: -1, serialized: '' };
+    const invalidateDirectory = () => { directoryVersion += 1; };
+    const metrics = {
+        startedAt: Date.now(),
+        rxMessages: 0,
+        rxBytes: 0,
+        txMessages: 0,
+        txBytes: 0,
+        jsonSerializations: 0,
+        parseErrors: 0,
+        sendErrors: 0,
+        rateLimitRejects: 0,
+        directoryRequests: 0,
+        directoryCacheHits: 0,
+        directoryRebuilds: 0,
+        handlerDurationCount: 0,
+        handlerDurationTotalMs: 0,
+        handlerDurationMaxMs: 0,
+    };
     const wss = new WebSocketServer({
         port,
         maxPayload: MAX_SIGNALING_PAYLOAD_BYTES,
@@ -377,7 +415,24 @@ export function createSignalingServer(port = 9090, options = {}) {
     });
     const ipMessageRates = new Map();
 
+    wss.getMetrics = () => {
+        const memory = process.memoryUsage();
+        return {
+            ...metrics,
+            uptimeMs: Math.max(0, Date.now() - metrics.startedAt),
+            activeConnections: [...wss.clients].filter((client) => client.readyState === 1).length,
+            activeLobbies: serverLobbyCodes.size,
+            processMemory: {
+                rssBytes: memory.rss,
+                heapUsedBytes: memory.heapUsed,
+                heapTotalBytes: memory.heapTotal,
+                externalBytes: memory.external,
+            },
+        };
+    };
+
     wss.on('connection', (ws, request) => {
+        ws._serverMetrics = metrics;
         ws._peerId = `peer-${nextPeerId++}`;
         ws._lastPong = Date.now();
         ws._messageWindowStartedAt = Date.now();
@@ -422,6 +477,17 @@ export function createSignalingServer(port = 9090, options = {}) {
         });
 
         ws.on('message', (raw) => {
+            const handlerStartedAt = performance.now();
+            queueMicrotask(() => {
+                const durationMs = Math.max(0, performance.now() - handlerStartedAt);
+                metrics.handlerDurationCount += 1;
+                metrics.handlerDurationTotalMs += durationMs;
+                metrics.handlerDurationMaxMs = Math.max(metrics.handlerDurationMaxMs, durationMs);
+            });
+            metrics.rxMessages += 1;
+            metrics.rxBytes += Buffer.isBuffer(raw)
+                ? raw.length
+                : Buffer.byteLength(String(raw), 'utf8');
             const timestamp = Date.now();
             if (timestamp - ws._messageWindowStartedAt >= MESSAGE_RATE_WINDOW_MS) {
                 ws._messageWindowStartedAt = timestamp;
@@ -435,6 +501,7 @@ export function createSignalingServer(port = 9090, options = {}) {
             ws._messageCount += 1;
             ipRate.count += 1;
             if (ws._messageCount > socketMessageLimit || ipRate.count > ipMessageLimit) {
+                metrics.rateLimitRejects += 1;
                 sendSignalingError(ws, 'rate_limit_exceeded', 'Rate limit exceeded');
                 ws.close(1008, 'rate_limit_exceeded');
                 return;
@@ -444,6 +511,7 @@ export function createSignalingServer(port = 9090, options = {}) {
             try {
                 parsed = JSON.parse(raw);
             } catch {
+                metrics.parseErrors += 1;
                 return;
             }
             const envelope = normalizeSignalingEnvelope(parsed);
@@ -460,11 +528,24 @@ export function createSignalingServer(port = 9090, options = {}) {
             }
 
             switch (envelope.type) {
-            case SIGNALING_COMMAND_TYPES.LIST_LOBBIES:
-                sendSignaling(ws, SIGNALING_EVENT_TYPES.LOBBY_LIST, {
-                    lobbies: buildOpenLobbyList(),
-                });
+            case SIGNALING_COMMAND_TYPES.LIST_LOBBIES: {
+                metrics.directoryRequests += 1;
+                if (directoryCache.version !== directoryVersion) {
+                    metrics.directoryRebuilds += 1;
+                    metrics.jsonSerializations += 1;
+                    directoryCache = {
+                        version: directoryVersion,
+                        serialized: JSON.stringify(createSignalingEnvelope(
+                            SIGNALING_EVENT_TYPES.LOBBY_LIST,
+                            { lobbies: buildOpenLobbyList(serverLobbyCodes) }
+                        )),
+                    };
+                } else {
+                    metrics.directoryCacheHits += 1;
+                }
+                sendSerialized(ws, directoryCache.serialized);
                 break;
+            }
 
             case SIGNALING_COMMAND_TYPES.CREATE_LOBBY: {
                 if (lobbies.size >= lobbyCapacity) {
@@ -501,13 +582,16 @@ export function createSignalingServer(port = 9090, options = {}) {
                     updatedAt: createdAt,
                     lastActivityAt: createdAt,
                     revision: 1,
+                    settingsRevision: 1,
                     pendingMatchStart: null,
                     metadata: normalizeLobbyMetadata(msg.metadata, normalizeString(msg.name || msg.actorId, 'Host')),
                     ownerAddress: ws._remoteAddress,
                     serverLobbyCodes,
+                    invalidateDirectory,
                 };
                 lobbies.set(code, lobby);
                 serverLobbyCodes.add(code);
+                invalidateDirectory();
                 peerToLobby.set(ws, code);
                 sendSignaling(ws, SIGNALING_EVENT_TYPES.LOBBY_CREATED, {
                     lobbyCode: code,
@@ -700,6 +784,10 @@ export function createSignalingServer(port = 9090, options = {}) {
                 const lobbyCode = peerToLobby.get(ws);
                 const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
                 if (!lobby) break;
+                if (!isLobbySettingsRevisionCurrent(msg.settingsRevision, lobby.settingsRevision)) {
+                    sendSignalingError(ws, 'settings_revision_mismatch', 'Match-Einstellungen wurden geändert. Bitte erneut bereit werden.');
+                    break;
+                }
                 const player = lobby.players.find((entry) => entry.peerId === peerId);
                 if (player) {
                     player.ready = msg.ready === true;
@@ -745,8 +833,14 @@ export function createSignalingServer(port = 9090, options = {}) {
                     sendSignalingError(ws, 'host_required', 'Host required');
                     break;
                 }
+                if (lobby.pendingMatchStart) {
+                    sendSignalingError(ws, 'match_start_pending', 'Das Match wird bereits gestartet.');
+                    break;
+                }
                 const host = lobby.players.find((player) => player.peerId === lobby.hostPeerId);
                 lobby.metadata = normalizeLobbyMetadata(msg.metadata, host?.name || host?.actorId || 'Host');
+                lobby.settingsRevision += 1;
+                for (const player of lobby.players) player.ready = player.isHost === true;
                 bumpLobbyState(lobby);
                 broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED, {
                     metadata: lobby.metadata,
@@ -759,6 +853,10 @@ export function createSignalingServer(port = 9090, options = {}) {
                 const lobbyCode = peerToLobby.get(ws);
                 const lobby = lobbyCode ? lobbies.get(lobbyCode) : null;
                 if (!lobby || lobby.hostPeerId !== peerId) break;
+                if (!isLobbySettingsRevisionCurrent(msg.settingsRevision, lobby.settingsRevision)) {
+                    sendSignalingError(ws, 'settings_revision_mismatch', 'Match-Einstellungen wurden geändert.');
+                    break;
+                }
                 if (lobby.pendingMatchStart) {
                     sendSignaling(ws, SIGNALING_EVENT_TYPES.MATCH_START, {
                         pendingMatchStart: lobby.pendingMatchStart,
@@ -780,6 +878,7 @@ export function createSignalingServer(port = 9090, options = {}) {
                     hostPeerId: lobby.hostPeerId,
                     issuedAt: Date.now(),
                     settingsSnapshot: msg.settingsSnapshot ?? null,
+                    settingsRevision: lobby.settingsRevision,
                 };
                 bumpLobbyState(lobby);
                 broadcastToLobby(lobby, SIGNALING_EVENT_TYPES.MATCH_START, {
@@ -850,6 +949,7 @@ export function createSignalingServer(port = 9090, options = {}) {
             clearLobbyReconnectLeases(code);
             serverLobbyCodes.delete(code);
             lobbies.delete(code);
+            invalidateDirectory();
         }
     }, HEARTBEAT_INTERVAL);
 

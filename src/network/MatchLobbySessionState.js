@@ -1,5 +1,6 @@
 import { MULTIPLAYER_SESSION_ROLES } from '../shared/contracts/RuntimeSessionContract.js';
 import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
+import { normalizePublicLobbyMetadata } from '../shared/contracts/SignalingSessionContract.js';
 
 function normalizeBoolean(value) {
     return value === true;
@@ -64,6 +65,8 @@ export function normalizeLobbySessionState(state = {}) {
         allReady: memberCount > 0 && readyCount === memberCount,
         maxPlayers: toNonNegativeInt(state?.maxPlayers, 10) || 10,
         revision: toNonNegativeInt(state?.revision, 0),
+        settingsRevision: Number.isSafeInteger(state?.settingsRevision) ? state.settingsRevision : null,
+        metadata: state?.metadata ? normalizePublicLobbyMetadata(state.metadata) : null,
         members: normalizedMembers,
         players: normalizedMembers.map((member) => ({
             id: member.peerId,

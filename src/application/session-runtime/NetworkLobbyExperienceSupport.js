@@ -1,4 +1,5 @@
 import { LOBBY_SERVICE_TRANSPORTS } from '../../shared/contracts/LobbyServiceContract.js';
+import { createLobbyMatchSummary } from '../../shared/contracts/LobbyMatchSummaryContract.js';
 import {
     MULTIPLAYER_PROTOCOL_VERSION,
     normalizePublicLobbyMetadata,
@@ -19,6 +20,7 @@ export function createPublicLobbyMetadata(settingsSnapshot = null, actorId = '')
         modePath: normalizeString(snapshot?.localSettings?.modePath, 'normal'),
         winsNeeded: Math.max(1, Math.floor(Number(snapshot.winsNeeded) || 5)),
         protocolVersion: MULTIPLAYER_PROTOCOL_VERSION,
+        matchSummary: createLobbyMatchSummary(snapshot),
     });
 }
 

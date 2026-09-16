@@ -25,6 +25,25 @@ const PRIORITY_STATE_MESSAGE_TYPES = new Set([
 
 const MAX_DATA_CHANNEL_MESSAGE_CHARS = 128 * 1024;
 
+function utf8ByteLength(value) {
+    let bytes = 0;
+    for (let index = 0; index < value.length; index += 1) {
+        const code = value.charCodeAt(index);
+        if (code < 0x80) bytes += 1;
+        else if (code < 0x800) bytes += 2;
+        else if (code >= 0xD800 && code <= 0xDBFF
+            && value.charCodeAt(index + 1) >= 0xDC00 && value.charCodeAt(index + 1) <= 0xDFFF) {
+            bytes += 4;
+            index += 1;
+        } else bytes += 3;
+    }
+    return bytes;
+}
+
+function createTrafficMetrics() {
+    return { rxMessages: 0, rxBytes: 0, txMessages: 0, txBytes: 0, backpressureDrops: 0, sendErrors: 0 };
+}
+
 function isPriorityStateMessage(channelName, data) {
     return channelName === 'state' && PRIORITY_STATE_MESSAGE_TYPES.has(data?.type);
 }
@@ -47,6 +66,14 @@ export class DataChannelManager {
             : 500;
         this._onBackpressure = typeof options.onBackpressure === 'function' ? options.onBackpressure : null;
         this._lastBackpressureByChannel = new Map();
+        this._metrics = {
+            total: createTrafficMetrics(),
+            channels: {
+                inputs: createTrafficMetrics(),
+                state: createTrafficMetrics(),
+                snapshots: createTrafficMetrics(),
+            },
+        };
     }
 
     createChannels(peerId, peerConnection) {
@@ -95,6 +122,8 @@ export class DataChannelManager {
                 this._emit('protocolError', { peerId, channel: name, reason: 'invalid_message_size' });
                 return;
             }
+            this._recordTraffic(name, 'rxMessages', 1);
+            this._recordTraffic(name, 'rxBytes', utf8ByteLength(event.data));
             let data;
             try {
                 data = JSON.parse(event.data);
@@ -115,18 +144,27 @@ export class DataChannelManager {
         const channel = this._channels.get(key);
         if (!channel || channel.readyState !== 'open') return false;
         if (this._isBackpressured(peerId, channelName, channel)
-            && !isPriorityStateMessage(channelName, data)) return false;
+            && !isPriorityStateMessage(channelName, data)) {
+            this._recordTraffic(channelName, 'backpressureDrops', 1);
+            return false;
+        }
 
         try {
-            channel.send(JSON.stringify(data));
+            const json = JSON.stringify(data);
+            const byteLength = utf8ByteLength(json);
+            channel.send(json);
+            this._recordTraffic(channelName, 'txMessages', 1);
+            this._recordTraffic(channelName, 'txBytes', byteLength);
             return true;
         } catch {
+            this._recordTraffic(channelName, 'sendErrors', 1);
             return false;
         }
     }
 
     sendToAll(channelName, data, excludePeerId) {
         const json = JSON.stringify(data);
+        const byteLength = utf8ByteLength(json);
         for (const [key, channel] of this._channels) {
             if (!key.endsWith(`:${channelName}`)) continue;
             if (excludePeerId && key.startsWith(`${excludePeerId}:`)) continue;
@@ -134,13 +172,38 @@ export class DataChannelManager {
             const separatorIndex = key.indexOf(':');
             const peerId = separatorIndex >= 0 ? key.slice(0, separatorIndex) : '';
             if (this._isBackpressured(peerId, channelName, channel)
-                && !isPriorityStateMessage(channelName, data)) continue;
+                && !isPriorityStateMessage(channelName, data)) {
+                this._recordTraffic(channelName, 'backpressureDrops', 1);
+                continue;
+            }
             try {
                 channel.send(json);
+                this._recordTraffic(channelName, 'txMessages', 1);
+                this._recordTraffic(channelName, 'txBytes', byteLength);
             } catch {
-                // skip failed sends
+                this._recordTraffic(channelName, 'sendErrors', 1);
             }
         }
+    }
+
+    _recordTraffic(channelName, field, amount) {
+        const channelMetrics = this._metrics.channels[channelName];
+        if (!channelMetrics || !Number.isFinite(amount)) return;
+        channelMetrics[field] += amount;
+        this._metrics.total[field] += amount;
+    }
+
+    getMetrics() {
+        const channels = {};
+        for (const [name, metrics] of Object.entries(this._metrics.channels)) {
+            let bufferedBytes = 0;
+            for (const [key, channel] of this._channels) {
+                if (!key.endsWith(`:${name}`)) continue;
+                bufferedBytes += Math.max(0, Number(channel?.bufferedAmount) || 0);
+            }
+            channels[name] = { ...metrics, bufferedBytes };
+        }
+        return { total: { ...this._metrics.total }, channels };
     }
 
     getChannel(peerId, channelName) {
@@ -228,5 +291,13 @@ export class DataChannelManager {
         this._channels.clear();
         this._listeners.clear();
         this._lastBackpressureByChannel.clear();
+        this._metrics = {
+            total: createTrafficMetrics(),
+            channels: {
+                inputs: createTrafficMetrics(),
+                state: createTrafficMetrics(),
+                snapshots: createTrafficMetrics(),
+            },
+        };
     }
 }

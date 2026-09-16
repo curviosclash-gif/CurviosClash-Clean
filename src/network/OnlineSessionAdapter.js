@@ -31,6 +31,7 @@ import {
 } from './OnlineSignalingSupport.js';
 import { routeOnlineSessionSignalingMessage } from './OnlineSessionSignalingRouter.js';
 import { waitForStateChannelOpen } from './LANSignalingClient.js';
+import { createOnlineSessionDiagnostics } from './OnlineSessionDiagnostics.js';
 
 const logger = createLogger('OnlineSessionAdapter');
 const CLIENT_CHANNEL_OPEN_TIMEOUT_MS = 10_000;
@@ -517,6 +518,10 @@ export class OnlineSessionAdapter extends SessionAdapterBase {
         }
 
         return players;
+    }
+
+    async getDiagnostics() {
+        return createOnlineSessionDiagnostics(this);
     }
 
     disconnect() {

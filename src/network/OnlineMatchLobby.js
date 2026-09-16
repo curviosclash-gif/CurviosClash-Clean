@@ -57,6 +57,7 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     _applySessionState(nextState) {
+        if (Number.isSafeInteger(nextState?.settingsRevision) && this.sessionState.settingsRevision != null && nextState.settingsRevision < this.sessionState.settingsRevision) return;
         this.sessionState = normalizeLobbySessionState(nextState);
         this.lobbyCode = this.sessionState.lobbyCode;
         this.players = this.sessionState.players;
@@ -470,7 +471,7 @@ export class OnlineMatchLobby extends MatchLobby {
         }
         return this._sendMutationWithAck({
             commandType: SIGNALING_COMMAND_TYPES.READY,
-            payload: { ready: expectedReady },
+            payload: { ready: expectedReady, settingsRevision: this.sessionState.settingsRevision ?? undefined },
             ackMatcher: (msg) => {
                 if (msg?.type !== SIGNALING_EVENT_TYPES.PLAYER_READY) return false;
                 const msgPeerId = String(msg.peerId || '').trim();
@@ -508,9 +509,7 @@ export class OnlineMatchLobby extends MatchLobby {
         });
     }
 
-    updateSettings(settings) {
-        applyOnlineLobbySettings(this, settings);
-    }
+    updateSettings(settings) { return applyOnlineLobbySettings(this, settings); }
 
     async startMatch(options = {}) {
         if (this.isHost !== true) {
@@ -523,6 +522,7 @@ export class OnlineMatchLobby extends MatchLobby {
             hostPeerId: this.sessionState.hostPeerId || this._playerId || '',
             issuedAt: this._lobbyRuntime.nowMs(),
             settingsSnapshot: options?.settingsSnapshot ?? this.settings ?? null,
+            settingsRevision: options.settingsRevision ?? this.sessionState.settingsRevision ?? undefined,
         };
         await this._sendMutationWithAck({
             commandType: SIGNALING_COMMAND_TYPES.START_MATCH,
@@ -537,7 +537,6 @@ export class OnlineMatchLobby extends MatchLobby {
     }
 
     getLocalPeerId() { return String(this._playerId || '').trim(); }
-
     getLocalPeerToken() { return this._sessionToken; }
 
     dispose() {

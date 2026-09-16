@@ -5,6 +5,7 @@ import { resolveGlobalObject, toCallable } from './LobbyRuntimeEnvironment.js';
 import { createNetworkLobbyDiscoveryPort } from './NetworkLobbyDiscoveryPort.js';
 import { createNetworkLobbySessionStateProjection } from './NetworkLobbySessionStateProjection.js';
 import { NetworkLobbyTransportSession } from './NetworkLobbyTransportSession.js';
+import { createNetworkLobbySettingsPublisher } from './NetworkLobbySettingsPublisher.js';
 import {
     createLobbyServiceDescriptor,
     LOBBY_SERVICE_EVENT_TYPES,
@@ -92,6 +93,8 @@ export class NetworkLobbyService {
             ? { ...options.participantMetadata }
             : null;
         this._hostSettingsSnapshot = null;
+        this.handlesSettingsReadiness = true;
+        this._settingsPublisher = createNetworkLobbySettingsPublisher(this);
         this._connectionPhase = 'idle';
         this._reconnectAttempt = 0;
         this._reconnectMaxAttempts = 0;
@@ -424,12 +427,7 @@ export class NetworkLobbyService {
     }
 
     publishHostSettings(settingsSnapshot) {
-        this._hostSettingsSnapshot = deepClone(settingsSnapshot);
-        this._transportSession.updateSettings({
-            ...this._hostSettingsSnapshot,
-            metadata: createPublicLobbyMetadata(this._hostSettingsSnapshot, this._name || this._actorId),
-        });
-        return this.getSnapshot();
+        return this._settingsPublisher.publish(settingsSnapshot);
     }
 
     requestMatchStart(options = {}) {
@@ -438,6 +436,7 @@ export class NetworkLobbyService {
 
     leave(options = {}) {
         const previousState = this.getSessionState();
+        this._settingsPublisher.reset();
         this._transportSession.dispose();
         this._sessionStateProjection.reset();
         this._connectionPhase = 'idle';
@@ -461,8 +460,13 @@ export class NetworkLobbyService {
     }
 
     getSessionState() {
+        const settingsState = this._settingsPublisher.getState();
+        const state = this._sessionStateProjection.getSessionState();
         return {
-            ...this._sessionStateProjection.getSessionState(),
+            ...state,
+            ...settingsState,
+            canStart: state.canStart && !settingsState.settingsSyncPending && !settingsState.settingsSyncError
+                && this._connectionPhase === 'connected',
             connectionPhase: this._connectionPhase,
             reconnectAttempt: this._reconnectAttempt,
             reconnectMaxAttempts: this._reconnectMaxAttempts,

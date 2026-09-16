@@ -1,4 +1,5 @@
 import { normalizeString } from './ContractNormalizeUtils.js';
+import { normalizeLobbyMatchSummary } from './LobbyMatchSummaryContract.js';
 
 export { MULTIPLAYER_SESSION_ROLES } from './RuntimeSessionContract.js';
 
@@ -65,6 +66,7 @@ export function normalizePublicLobbyMetadata(value = null, fallbackHostName = 'H
         modePath: normalizeString(source.modePath, 'normal').slice(0, 32),
         winsNeeded: Math.max(1, Math.min(99, Math.floor(Number(source.winsNeeded) || 5))),
         protocolVersion: normalizeString(source.protocolVersion, MULTIPLAYER_PROTOCOL_VERSION).slice(0, 48),
+        matchSummary: normalizeLobbyMatchSummary(source.matchSummary),
     };
 }
 

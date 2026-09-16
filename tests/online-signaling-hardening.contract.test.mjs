@@ -109,6 +109,7 @@ test('online signaling lists only joinable lobby summaries', async () => {
         const updatedLobbies = await listOpenOnlineLobbies(url, {
             WebSocketImpl: WebSocket,
             timeoutMs: 2_000,
+            forceRefresh: true,
         });
         assert.equal(updatedLobbies[0].hostName, 'Admiral');
 
@@ -121,6 +122,7 @@ test('online signaling lists only joinable lobby summaries', async () => {
         const fullLobbyList = await listOpenOnlineLobbies(url, {
             WebSocketImpl: WebSocket,
             timeoutMs: 2_000,
+            forceRefresh: true,
         });
         assert.deepEqual(fullLobbyList, []);
     } finally {

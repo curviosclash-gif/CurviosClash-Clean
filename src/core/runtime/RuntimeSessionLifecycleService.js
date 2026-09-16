@@ -35,6 +35,32 @@ function resolveSessionContract(sessionSource = null) {
     return resolveRuntimeSessionContract(sessionSource);
 }
 
+function createMeasuredGameStateSnapshot(facade, entityManager, roundStateController) {
+    const startedAt = performance.now();
+    try {
+        return createGameStateSnapshot(entityManager, roundStateController);
+    } finally {
+        const durationMs = Math.max(0, performance.now() - startedAt);
+        const metrics = facade._stateSnapshotMetrics || {
+            count: 0,
+            totalDurationMs: 0,
+            maxDurationMs: 0,
+            lastDurationMs: 0,
+        };
+        metrics.count += 1;
+        metrics.totalDurationMs += durationMs;
+        metrics.maxDurationMs = Math.max(metrics.maxDurationMs, durationMs);
+        metrics.lastDurationMs = durationMs;
+        facade._stateSnapshotMetrics = metrics;
+    }
+}
+
+export function getRuntimeStateSnapshotMetrics(facade) {
+    const metrics = facade?._stateSnapshotMetrics;
+    if (!metrics) return { count: 0, totalDurationMs: 0, maxDurationMs: 0, lastDurationMs: 0 };
+    return { ...metrics };
+}
+
 export async function createRuntimeSessionAdapter(sessionSource, adapterOptions = {}) {
     const sessionContract = resolveSessionContract(sessionSource);
     if (sessionContract.adapterSessionType === RUNTIME_SESSION_TYPES.LAN) {
@@ -112,10 +138,11 @@ export async function initRuntimeSession(facade) {
 
 export function startRuntimeStateBroadcast(facade) {
     stopRuntimeStateBroadcast(facade);
+    facade._stateSnapshotMetrics = null;
     facade._stateBroadcastTimer = setInterval(() => {
         const game = facade?.game;
         if (!game?.entityManager || game.state !== GAME_STATE_IDS.PLAYING) return;
-        const snapshot = createGameStateSnapshot(game.entityManager, game.roundStateController);
+        const snapshot = createMeasuredGameStateSnapshot(facade, game.entityManager, game.roundStateController);
         facade.session?.broadcastState?.(snapshot);
     }, STATE_BROADCAST_INTERVAL_MS);
 }
@@ -145,7 +172,7 @@ export function setupRuntimeHostFullStateSyncHandler(facade) {
         const game = facade?.game;
         if (!game?.entityManager) return;
         try {
-            const snapshot = createGameStateSnapshot(game.entityManager, game.roundStateController);
+            const snapshot = createMeasuredGameStateSnapshot(facade, game.entityManager, game.roundStateController);
             facade.session?.sendStateToPeer?.(normalizedPeerId, snapshot);
         } catch {
             // Best-effort: the host's periodic broadcast will catch the client up on the
@@ -227,7 +254,11 @@ function configureFightNetworkAuthority(facade) {
     if (!entityManager || !facade?.session) return;
     entityManager.isFightOutcomeAuthority = facade.session.isHost !== false;
     entityManager.onAuthoritativeFightStateChanged = facade.session.isHost
-        ? () => facade.session?.broadcastState?.(createGameStateSnapshot(entityManager, facade?.game?.roundStateController))
+        ? () => facade.session?.broadcastState?.(createMeasuredGameStateSnapshot(
+            facade,
+            entityManager,
+            facade?.game?.roundStateController
+        ))
         : null;
 }
 
@@ -474,6 +505,7 @@ export function teardownRuntimeSession(facade) {
     }
     if (facade) {
         facade._runtimeSessionContract = null;
+        facade._stateSnapshotMetrics = null;
     }
     facade?._stateReconciler?.reset?.();
     facade?._resetArcadeRunState?.();

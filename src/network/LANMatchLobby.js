@@ -166,8 +166,11 @@ export class LANMatchLobby extends MatchLobby {
         }
     }
 
+    /** @param {any} serverState */
     _syncWithServerStatus(serverState = {}) {
         const status = serverState && typeof serverState === 'object' ? serverState : {};
+        if (Number.isSafeInteger(status.settingsRevision) && this.sessionState.settingsRevision != null
+            && status.settingsRevision < this.sessionState.settingsRevision) return;
         const existingMembers = Array.isArray(this.sessionState?.members) ? this.sessionState.members : [];
         const serverPlayers = Array.isArray(status.players) ? status.players : [];
 
@@ -208,6 +211,8 @@ export class LANMatchLobby extends MatchLobby {
             hostPeerId,
             maxPlayers: Number(status.maxPlayers || this.sessionState.maxPlayers || 10),
             members: merged,
+            metadata: status.metadata,
+            settingsRevision: status.settingsRevision,
             pendingMatchStart: status?.pendingMatchStart && typeof status.pendingMatchStart === 'object'
                 ? { ...status.pendingMatchStart }
                 : null,
@@ -220,6 +225,8 @@ export class LANMatchLobby extends MatchLobby {
         const status = serverState?.sessionState && typeof serverState.sessionState === 'object'
             ? serverState.sessionState
             : serverState;
+        if (Number.isSafeInteger(status?.settingsRevision) && this.sessionState.settingsRevision != null
+            && status.settingsRevision < this.sessionState.settingsRevision) return;
         this._syncWithServerStatus(status);
 
         const pendingMatchStart = status?.pendingMatchStart && typeof status.pendingMatchStart === 'object'
@@ -421,6 +428,7 @@ export class LANMatchLobby extends MatchLobby {
             body: JSON.stringify({
                 playerId: this._localPeerId || 'host',
                 ready: ready === true,
+                settingsRevision: this.sessionState.settingsRevision ?? undefined,
                 hostToken: this.isHost ? this._localPeerToken : undefined,
                 playerToken: this.isHost ? undefined : this._localPeerToken,
             }),
@@ -454,9 +462,6 @@ export class LANMatchLobby extends MatchLobby {
         }).then((data) => {
             this._processServerStatus(data);
             return data;
-        }).catch((error) => {
-            logger.warn('Lobby metadata update failed:', error);
-            return null;
         });
     }
 
@@ -494,6 +499,7 @@ export class LANMatchLobby extends MatchLobby {
                 hostToken: this._localPeerToken,
                 commandId,
                 settingsSnapshot,
+                settingsRevision: options.settingsRevision ?? this.sessionState.settingsRevision ?? undefined,
             }),
         });
         if (res?.ok === false) {

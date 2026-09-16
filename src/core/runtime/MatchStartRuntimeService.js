@@ -36,6 +36,7 @@ export class MatchStartRuntimeService {
                 ports?.uiFeedbackPort?.showStatusToast?.(message, 2500, 'error');
             },
             onRoundEnd: (winner, outcome) => {
+                if (this._facade?.isNetworkSession?.() && !this._facade?.isHost?.()) return;
                 ports?.matchUiPort?.onRoundEnd?.(winner, outcome);
             },
         };

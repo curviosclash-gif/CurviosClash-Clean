@@ -2,6 +2,7 @@ import { normalizeString } from '../shared/contracts/ContractNormalizeUtils.js';
 
 import {
     SIGNALING_COMMAND_TYPES,
+    SIGNALING_EVENT_TYPES,
     createSignalingEnvelope,
 } from '../shared/contracts/SignalingSessionContract.js';
 
@@ -91,12 +92,17 @@ export function emitOnlineLobbyReconnectProgress(lobby, attempt, maxAttempts) {
 
 export function applyOnlineLobbySettings(lobby, settings = {}) {
     Object.assign(lobby.settings, settings);
-    if (lobby.isHost === true && settings?.metadata) {
-        lobby._send(createSignalingEnvelope(SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA, {
-            metadata: settings.metadata,
-        }));
-    }
     lobby._emit('settingsChanged', { settings: lobby.settings, sessionState: lobby.sessionState });
+    if (lobby.isHost === true && settings?.metadata) {
+        const previousRevision = lobby.sessionState.settingsRevision ?? 0;
+        return lobby._sendMutationWithAck({
+            commandType: SIGNALING_COMMAND_TYPES.UPDATE_LOBBY_METADATA,
+            payload: { metadata: settings.metadata },
+            ackMatcher: (msg) => msg?.type === SIGNALING_EVENT_TYPES.LOBBY_METADATA_UPDATED
+                && (msg?.sessionState?.settingsRevision == null
+                    || msg.sessionState.settingsRevision > previousRevision),
+        });
+    }
 }
 
 export function isRetryableSignalingError(error) {

@@ -48,6 +48,10 @@ export function createIdleSessionState(lobbyCode = '', transport = LOBBY_SERVICE
         reconnectMaxAttempts: 0,
         readyMutationPending: false,
         matchStartPending: false,
+        settingsRevision: null,
+        metadata: null,
+        settingsSyncPending: false,
+        settingsSyncError: '',
         shareAddress: '',
         signalingUrl: '',
         transport,
@@ -85,6 +89,7 @@ export function buildSessionState(lobbyState, options = {}) {
     const allReady = memberCount > 0 && readyCount === memberCount;
 
     return {
+        ...createIdleSessionState('', transport),
         peerId: localPeerId,
         joined,
         connected: joined && (isHost || hostConnected),
@@ -100,6 +105,8 @@ export function buildSessionState(lobbyState, options = {}) {
         hostPeerId,
         hostConnected,
         pendingMatchCommandId: normalizeString(lobbyState?.pendingMatchStart?.commandId, ''),
+        settingsRevision: lobbyState.settingsRevision ?? null,
+        metadata: deepClone(lobbyState.metadata),
         signalingUrl,
         transport,
         members: normalizedMembers,
