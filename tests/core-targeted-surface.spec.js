@@ -173,7 +173,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
         const runtimeState = await page.evaluate((lastRunKey) => {
             const game = window.GAME_INSTANCE;
-            const snapshot = JSON.parse(localStorage.getItem(lastRunKey) || '{}');
+            // The last run lives in the active player profile (PlayerProfileStorageContract scopes the
+            // legacy key per profile), so read the profile-scoped record and fall back to the legacy key.
+            const lastRunSuffix = lastRunKey.replace(/^cuviosclash\./, '');
+            const scopedKey = Object.keys(localStorage)
+                .find((key) => key !== lastRunKey && key.startsWith('cuviosclash.player.') && key.endsWith(`.${lastRunSuffix}`));
+            const snapshot = JSON.parse(localStorage.getItem(scopedKey || lastRunKey) || '{}');
             return {
                 selectedVehicleId: String(document.getElementById('vehicle-select-p1')?.value || ''),
                 settingsVehicleId: String(game?.settings?.vehicles?.PLAYER_1 || ''),

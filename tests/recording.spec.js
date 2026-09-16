@@ -35,7 +35,7 @@ test.describe('V59-59.7.1: MediaRecorderSystem', () => {
     test('Browser recording capability adapter reports browser-native or degraded demo state consistently', async ({ page }) => {
         await loadGame(page);
         const state = await page.evaluate(async () => {
-            const { createPlatformRecordingCapabilityAdapter } = await import('/src/core/recording/MediaRecorderSupport.js');
+            const { createPlatformRecordingCapabilityAdapter } = await window.__curviosImport('/src/core/recording/MediaRecorderSupport.js');
             const canvas = document.querySelector('canvas');
             const adapter = createPlatformRecordingCapabilityAdapter(globalThis, canvas);
             return {
@@ -48,7 +48,15 @@ test.describe('V59-59.7.1: MediaRecorderSystem', () => {
                 hasRecorder: adapter?.support?.hasRecorder === true,
             };
         });
-        expect(state.adapterName).toBe('browser.recording.v1');
+        // The desktop shell resolves the Electron preload adapter; the browser adapter only
+        // appears outside Electron. Both must report a coherent capability descriptor.
+        expect(['browser.recording.v1', 'electron.preload.recording.v1']).toContain(state.adapterName);
+        if (state.adapterName === 'electron.preload.recording.v1') {
+            expect(state.contractVersion).toBeTruthy();
+            expect(state.providerKind).toBeTruthy();
+            if (!state.available) expect(state.degradedReason.length).toBeGreaterThan(0);
+            return;
+        }
         expect(state.contractVersion).toBe('browser.recording.v1');
         expect(['browser-demo', 'browser-native']).toContain(state.providerKind);
         expect(typeof state.supportReason).toBe('string');
@@ -77,7 +85,7 @@ test.describe('V59-59.7.1: MediaRecorderSystem', () => {
             const {
                 detectNativeRecorderSupport,
                 resolveSafeMediaRecorderMimeType,
-            } = await import('/src/core/recording/MediaRecorderSupport.js');
+            } = await window.__curviosImport('/src/core/recording/MediaRecorderSupport.js');
             const canvas = document.querySelector('canvas');
             const support = detectNativeRecorderSupport(globalThis, canvas);
             return {

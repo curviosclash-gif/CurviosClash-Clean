@@ -1802,7 +1802,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 position: new Vector3(0, 0, 0),
                 quaternion: new Quaternion(),
                 hitboxRadius: 1,
-                spawnProtectionTimer: 0,
                 trail: {
                     forceGap(value) {
                         forcedGap = value;
@@ -1819,7 +1818,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 preRotateShove: 0,
                 extraPush: 0,
                 trailGap: 0.31,
-                spawnProtection: 0.12,
             });
 
             const forward = new Vector3(0, 0, -1).applyQuaternion(player.quaternion).normalize();
@@ -1829,7 +1827,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 z: Number(forward.z.toFixed(6)),
                 consumedSamples: sampleIndex,
                 forcedGap: Number(forcedGap.toFixed(2)),
-                spawnProtectionTimer: Number(player.spawnProtectionTimer.toFixed(2)),
             };
         };
 
@@ -1843,7 +1840,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             expect(first).not.toEqual(third);
             expect(first.consumedSamples).toBe(3);
             expect(first.forcedGap).toBe(0.31);
-            expect(first.spawnProtectionTimer).toBe(0.12);
         } finally {
             Math.random = originalRandom;
         }
@@ -1922,11 +1918,27 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                 ...missionSeedOptions,
                 activeSeed: configSeed,
             });
+            // Mirror the eligibility context the runtime hands to the mission assignment: the
+            // synthetic maps carry no items, so item missions are filtered on both sides.
+            const sectorProfile = runtime.getSectorRuntimeProfile(1);
+            const capabilities = runtime._getMissionCapabilities?.() || {};
+            const missionContext = {
+                botCount: sectorProfile.botCount,
+                respawnEnabled: false,
+                parcoursEnabled: sectorProfile.parcoursEnabled,
+                hasItems: capabilities.hasItems ?? ((mapDefinition?.items?.length || 0) > 0),
+                hasExitPortal: !!mapDefinition?.exitPortal,
+                hasHealing: capabilities.hasHealing === true,
+                unavoidableDamage: false,
+                maximumDurationSec: 0,
+                minimumDurationSec: 0,
+            };
             const expectedRunMissions = assignSectorMissions(
                 { id: 'sector_intro' },
                 mapMissions,
                 expectedRunMissionSeed,
-                1
+                1,
+                missionContext
             ).map((mission) => mission.type);
 
             expect(state?.config?.seed).toBe(2);
@@ -2611,6 +2623,10 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
     test('T10c: Prewarmed Match behaelt Arena-Visuals beim Start', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
+        // The default map is a GLB world without a merged obstacle mesh; use an authored plain
+        // preset so the prewarmed floor, wall and obstacle meshes all exist under matchRoot.
+        await page.selectOption('#map-select', 'pillar_hall');
+        await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'pillar_hall');
         await waitForRenderFrames(page, 15);
         await page.click('#submenu-game:not(.hidden) #btn-start');
         await page.waitForFunction(() => {

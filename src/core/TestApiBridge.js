@@ -24,7 +24,9 @@ import * as RecordingCaptureContractModule from '../shared/contracts/RecordingCa
 import * as RecordingCapturePipelineModule from './renderer/RecordingCapturePipeline.js';
 import * as RecordingOrbitCameraDirectorModule from './renderer/camera/RecordingOrbitCameraDirector.js';
 import * as DownloadServiceModule from './recording/DownloadService.js';
+import * as MediaRecorderSupportModule from './recording/MediaRecorderSupport.js';
 import * as WebCodecsRecorderEngineModule from './recording/engines/WebCodecsRecorderEngine.js';
+import * as ActiveRuntimeConfigStoreModule from './runtime/ActiveRuntimeConfigStore.js';
 import * as RuntimeSessionLifecycleServiceModule from './runtime/RuntimeSessionLifecycleService.js';
 import * as MatchStartValidationServiceModule from './runtime/MatchStartValidationService.js';
 import * as TelemetryHistoryStoreModule from '../state/TelemetryHistoryStore.js';
@@ -42,7 +44,9 @@ const TEST_MODULE_EXPORTS = Object.freeze({
     '/src/core/renderer/RecordingCapturePipeline.js': Object.freeze({ ...RecordingCapturePipelineModule }),
     '/src/core/renderer/camera/RecordingOrbitCameraDirector.js': Object.freeze({ ...RecordingOrbitCameraDirectorModule }),
     '/src/core/recording/DownloadService.js': Object.freeze({ ...DownloadServiceModule }),
+    '/src/core/recording/MediaRecorderSupport.js': Object.freeze({ ...MediaRecorderSupportModule }),
     '/src/core/recording/engines/WebCodecsRecorderEngine.js': Object.freeze({ ...WebCodecsRecorderEngineModule }),
+    '/src/core/runtime/ActiveRuntimeConfigStore.js': Object.freeze({ ...ActiveRuntimeConfigStoreModule }),
     '/src/core/runtime/RuntimeSessionLifecycleService.js': Object.freeze({ ...RuntimeSessionLifecycleServiceModule }),
     '/src/core/runtime/MatchStartValidationService.js': Object.freeze({ ...MatchStartValidationServiceModule }),
     '/src/state/TelemetryHistoryStore.js': Object.freeze({ ...TelemetryHistoryStoreModule }),

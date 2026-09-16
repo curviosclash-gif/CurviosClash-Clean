@@ -626,7 +626,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.error).toBeNull();
         expect(result.damageApplied).toBeGreaterThan(0);
         expect(result.hpAfter).toBeLessThan(result.hpBefore);
-        expect(result.alive).toBeTruthy();
+        // An enemy trail is lethal since the trail ownership rules: the hit kills the player.
+        expect(result.alive).toBeFalsy();
     });
 
     test('T85: Hunt-Trail-Kollision trifft gegnerische Spur auch bei kleinen Frames (Enemy-Offset)', async ({ page }) => {
@@ -717,7 +718,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.error).toBeNull();
         expect(result.damageApplied).toBeGreaterThan(0);
         expect(result.hpAfter).toBeLessThan(result.hpBefore);
-        expect(result.alive).toBeTruthy();
+        // An enemy trail is lethal since the trail ownership rules: the hit kills the player.
+        expect(result.alive).toBeFalsy();
     });
 
     test('T86: Hunt-MG zerstoert gegnerisches echtes Trail-Segment (ownerTrail) sofort', async ({ page }) => {
@@ -1531,7 +1533,9 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         expect(result.hpAfterLateRegen).toBeGreaterThan(70);
     });
 
-    test('T89b: Hunt-Pickups limitieren Raketenflut und filtern punitive Debuffs', async ({ page }) => {
+    test('T89b: Hunt-Pickups limitieren Raketenflut und halten die Raketenstaffelung', async ({ page }) => {
+        const { HUNT_CONFIG } = await import('../src/hunt/HuntConfig.js');
+        const expectedRocketShare = Number(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE);
         await startHuntGame(page);
         const result = await page.evaluate(() => {
             const game = window.GAME_INSTANCE;
@@ -1582,9 +1586,11 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
         });
 
         expect(result.error).toBeNull();
-        expect(result.counts.SLOW_DOWN || 0).toBe(0);
-        expect(result.counts.INVERT || 0).toBe(0);
-        expect(result.rocketTotal).toBeLessThan(90);
+        // SLOW_DOWN and INVERT are deliberate Hunt pickups since the spawn rebalance (HuntConfig weights 1.0).
+        // The rocket share follows ROCKET_PICKUP_SPAWN_CHANCE; 200 seeded draws stay within ten points of it.
+        expect(expectedRocketShare).toBeGreaterThan(0);
+        expect(expectedRocketShare).toBeLessThan(0.8);
+        expect(Math.abs(result.rocketTotal / 200 - expectedRocketShare)).toBeLessThan(0.1);
         expect(result.counts.ROCKET_MEGA || 0).toBeLessThan(result.counts.ROCKET_HEAVY || 0);
         expect(result.counts.ROCKET_HEAVY || 0).toBeLessThan(result.counts.ROCKET_MEDIUM || 0);
         expect(result.counts.ROCKET_MEDIUM || 0).toBeLessThan(result.counts.ROCKET_WEAK || 0);
