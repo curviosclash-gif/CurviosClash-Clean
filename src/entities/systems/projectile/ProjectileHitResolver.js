@@ -5,6 +5,17 @@ import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketP
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
 import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
 
+// Der Spawnschutz aus dem RespawnSystem (INVULNERABILITY_SECONDS) macht einen frisch
+// eingesetzten Spieler unangreifbar - Spur, Wand, Crash, Hazard und Turret halten sich
+// daran, also duerfen Raketen, ihre Druckwelle und Minen ihn auch nicht treffen.
+function isSpawnProtected(player) {
+    return (Number(player?.spawnProtectionTimer) || 0) > 0;
+}
+
+function damagesOnContact(projectile) {
+    return isRocketTierType(projectile?.type) || projectile?.type === 'MINE';
+}
+
 function resolveEndlessProjectileDamage(owner, damage) {
     const multiplier = owner?.isBot
         ? (Number.isFinite(Number(owner.arenaWavesDamageMultiplier))
@@ -95,6 +106,7 @@ export class ProjectileHitResolver {
 
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner || target === directHitTarget) continue;
+            if (isSpawnProtected(target)) continue;
             if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;
             if (projectile.turretTargeting && !isTurretTargetPlayerEligible(target, projectile.owner, projectile.turretTargeting.targetPlayers)) continue;
 
@@ -234,6 +246,7 @@ export class ProjectileHitResolver {
         let hit = false;
         for (const target of players || []) {
             if (!target.alive || target === projectile.owner) continue;
+            if (damagesOnContact(projectile) && isSpawnProtected(target)) continue;
             if (projectile.environmentProjectile && Number(target.index) !== projectile.targetPlayerIndex) continue;
             if (projectile.owner?.staticTurret === true && projectile.owner.targetPlayers !== 'all' && target.isBot === true) continue;
             if (projectile.turretTargeting && !isTurretTargetPlayerEligible(target, projectile.owner, projectile.turretTargeting.targetPlayers)) continue;
