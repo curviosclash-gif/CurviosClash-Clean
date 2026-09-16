@@ -69,6 +69,9 @@ test('heuristic improvement loop separates coarse training from rotated holdout 
     assert.match(source, /FINAL_SEEDS = Object\.freeze\(\[293, 307, 317, 331, 347, 359, 373, 389, 401, 419, 433, 449\]\)/);
     assert.match(source, /CONFIRMATION_SEEDS = Object\.freeze\(\[457, 461, 479, 487, 499, 503, 521, 541, 557, 569, 587, 601\]\)/);
     assert.match(source, /verifyCurrentProfiles\(CONFIRMATION_SEEDS, false\)/);
+    assert.match(source, /verifyCurrentProfiles\(CONFIRMATION_SEEDS, false, true\)/);
+    assert.match(source, /verifyCurrentProfiles\(FINAL_SEEDS, false, true\)/);
+    assert.match(source, /product \? HEURISTIC_PROFILES\[profile\] : state\.profiles\[profile\]/);
     assert.match(source, /if \(!persist\) return;/);
     assert.match(source, /em\.matchSeed !== seed/);
     assert.match(source, /human\.entitySlotActive = false/);
@@ -82,8 +85,8 @@ test('heuristic improvement loop keeps state outside the repository and emits no
 });
 
 test('match replay is stable for one seed and changes for another seed', () => {
-    const replay = (seed) => {
-        const child = spawnSync(process.execPath, [fileURLToPath(sourceUrl), '--replay', 'defensive', String(seed), '0'], {
+    const replay = (seed, command = '--replay') => {
+        const child = spawnSync(process.execPath, [fileURLToPath(sourceUrl), command, 'defensive', String(seed), '0'], {
             env: {
                 ...process.env,
                 HEURISTIC_LOOP_COARSE_MAX_TICKS: '180',
@@ -117,6 +120,7 @@ test('match replay is stable for one seed and changes for another seed', () => {
         || (Array.isArray(death.recentSafety) && death.recentSafety.length <= 8)));
     assert(first.actionTrace.mgShots <= first.actionTrace.updates);
     const other = replay(139);
+    assert.deepEqual(replay(127, '--replay-product'), replay(127, '--replay-product'));
     assert.equal(first.matchSeed, 127);
     assert.equal(other.matchSeed, 139);
     assert.notEqual(first.endPositionSignature, other.endPositionSignature);

@@ -11,7 +11,7 @@ import { createRuntimeConfigSnapshot } from '../../../src/core/RuntimeConfig.js'
 import { MATCH_KERNEL_FIXED_STEP_SECONDS } from '../../../src/shared/contracts/MatchKernelRuntimeContract.js';
 import { createHeadlessMatchKernelRuntime } from '../src/state/HeadlessMatchKernelRuntime.js';
 import {
-    HEURISTIC_PROFILE_FIELD_BOUNDS,
+    HEURISTIC_PROFILE_FIELD_BOUNDS, HEURISTIC_PROFILES,
 } from '../../../src/entities/ai/HeuristicBotPolicyOps.js';
 import { createRuntimeRng } from '../../../src/shared/contracts/RuntimeRngContract.js';
 import { createHeuristicLifeTracker } from './heuristic-improvement-metrics.mjs';
@@ -686,12 +686,12 @@ async function runIteration() {
     if (state.plateauRounds >= 3) process.exitCode = 3;
 }
 
-async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true) {
+async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true, product = false) {
     const state = loadState();
     const slots = Array.from({ length: NUM_BOTS }, (_, index) => index);
     const completeProfiles = new Set();
     for (const profile of PROFILES) {
-        const fields = clampProfile(profile, state.profiles[profile]);
+        const fields = clampProfile(profile, product ? HEURISTIC_PROFILES[profile] : state.profiles[profile]);
         const result = await evaluateVariant({
             profile,
             fields,
@@ -723,8 +723,8 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true) {
         }
         if (targetReached(result) && shortSafe) completeProfiles.add(profile);
         console.log(
-            `profile=${profile} ${persist ? 'verified' : 'confirmed'}SurvivalRatio=${formatRatio(result.survivalRatio)}`
-            + ` ${persist ? 'verified' : 'confirmed'}KillRatio=${formatRatio(result.killRatio)}`
+            `profile=${profile} ${product ? 'product' : persist ? 'verified' : 'confirmed'}SurvivalRatio=${formatRatio(result.survivalRatio)}`
+            + ` ${product ? 'product' : persist ? 'verified' : 'confirmed'}KillRatio=${formatRatio(result.killRatio)}`
             + ` shortSafe=${shortSafe}`
         );
     }
@@ -738,7 +738,7 @@ async function verifyCurrentProfiles(seeds = FINAL_SEEDS, persist = true) {
     saveState(state);
 }
 
-async function replayMatch() {
+async function replayMatch(product = false) {
     const profile = String(process.argv[3] || '').trim().toLowerCase();
     const seed = Number(process.argv[4]);
     const candidateSlot = Number(process.argv[5] ?? 0);
@@ -750,7 +750,7 @@ async function replayMatch() {
     const result = await runMatch({
         profile,
         seed,
-        candidateFields: state.profiles[profile],
+        candidateFields: product ? HEURISTIC_PROFILES[profile] : state.profiles[profile],
         candidateSlot,
         maxTicks: COARSE_MAX_TICKS,
         trace: true,
@@ -838,8 +838,14 @@ const task = command === '--verify'
     ? verifyCurrentProfiles
     : command === '--confirm'
     ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false)
+    : command === '--verify-product'
+    ? () => verifyCurrentProfiles(FINAL_SEEDS, false, true)
+    : command === '--confirm-product'
+    ? () => verifyCurrentProfiles(CONFIRMATION_SEEDS, false, true)
     : command === '--replay'
     ? replayMatch
+    : command === '--replay-product'
+    ? () => replayMatch(true)
     : command === '--probe-coarse' || command === '--probe-full' || command === '--try-full' || command === '--probe-short'
     ? () => probeCurrentProfile(command !== '--probe-coarse', command === '--try-full', command === '--probe-short')
     : runIteration;
