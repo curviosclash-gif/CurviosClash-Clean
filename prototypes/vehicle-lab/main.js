@@ -1092,6 +1092,7 @@ class VehicleLabApp {
             this.catalogRecord = saveVehicleLabCatalog(saved.record, localStorage);
             this.savedVehicles = this.catalogRecord.vehicles;
             const diskResult = await this.requestDiskApi(EDITOR_API_ROUTES.SAVE_VEHICLE_DISK, {
+                vehicleId: saved.vehicle.id,
                 jsonText: JSON.stringify(saved.vehicle.config),
                 vehicleName: saved.vehicle.label,
                 arcadeBlueprint: guardResult.blueprint,

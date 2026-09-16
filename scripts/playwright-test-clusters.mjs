@@ -63,6 +63,7 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
             'tests/editor-glb-preview.spec.js',
             'tests/editor-map-ui.spec.js',
             'tests/editor-vehicle.spec.js',
+            'tests/vehicle-lab-disk-identity.desktop.spec.js',
         ],
     },
 ]);

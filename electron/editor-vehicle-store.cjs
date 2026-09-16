@@ -4,7 +4,9 @@ const path = require('node:path');
 const { existsSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } = require('node:fs');
 
 const VEHICLE_FILE_SUFFIX = '.vehicle.json';
-const VEHICLE_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,63}$/;
+// Vehicle Lab ids can reach 66 characters: 15 for "editor_vehicle_",
+// a 48-character slug and a collision suffix through "-24".
+const VEHICLE_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{0,65}$/;
 const MAX_VEHICLES = 200;
 const MAX_JSON_BYTES = 2 * 1024 * 1024;
 
@@ -108,7 +110,9 @@ function createEditorVehicleStore({ getVehiclesDirectory }) {
         } catch {
             return { ok: false, error: 'invalid_json' };
         }
-        const resolvedId = isValidVehicleId(vehicleId) ? vehicleId : toVehicleId(vehicleName || config?.label);
+        const requestedId = String(vehicleId ?? '');
+        if (requestedId && !isValidVehicleId(requestedId)) return { ok: false, error: 'invalid_vehicle_id' };
+        const resolvedId = requestedId || toVehicleId(vehicleName || config?.label);
         const filePath = resolveVehicleFile(resolvedId);
         if (!filePath) return { ok: false, error: 'invalid_vehicle_id' };
         writeFileSync(filePath, `${JSON.stringify(config, null, 2)}\n`, 'utf8');
