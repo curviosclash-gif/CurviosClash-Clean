@@ -31,6 +31,9 @@ export const HEURISTIC_SAFETY_CONFIG = Object.freeze({
     probeSpeedSeconds: 0.34,
     probeSideSpread: 0.82,
     probeRadiusMultiplier: 2,
+    turnArcProbeMinPredictiveScale: 2.5,
+    turnArcProbeSpreadScale: 0.35,
+    turnArcProbeLookAheadScale: 0.22,
     trailSkipRecentSegments: 12,
     minimumDangerClearance: 0.22,
     turnTieThreshold: 0.06,
@@ -263,6 +266,14 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
         samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent, sampleCount);
         state.leftArenaClearance = state.sampleArenaClearance;
         state.leftTrailClearance = state.sampleTrailClearance;
+        if (predictiveScale >= HEURISTIC_SAFETY_CONFIG.turnArcProbeMinPredictiveScale) {
+            policy._tmpGate.copy(policy._tmpForward)
+                .addScaledVector(policy._tmpRight, HEURISTIC_SAFETY_CONFIG.probeSideSpread * HEURISTIC_SAFETY_CONFIG.turnArcProbeSpreadScale)
+                .normalize();
+            samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead * HEURISTIC_SAFETY_CONFIG.turnArcProbeLookAheadScale, radius, skipRecent, sampleCount);
+            if (state.sampleArenaClearance < 1) state.leftArenaClearance = Math.min(state.leftArenaClearance, state.sampleArenaClearance * HEURISTIC_SAFETY_CONFIG.turnArcProbeLookAheadScale);
+            if (state.sampleTrailClearance < 1) state.leftTrailClearance = Math.min(state.leftTrailClearance, state.sampleTrailClearance * HEURISTIC_SAFETY_CONFIG.turnArcProbeLookAheadScale);
+        }
 
         policy._tmpGate.copy(policy._tmpForward)
             .addScaledVector(policy._tmpRight, -HEURISTIC_SAFETY_CONFIG.probeSideSpread)
@@ -270,6 +281,14 @@ function refreshSafetyProbes(policy, state, player, runtimeContext, observation)
         samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead, radius, skipRecent, sampleCount);
         state.rightArenaClearance = state.sampleArenaClearance;
         state.rightTrailClearance = state.sampleTrailClearance;
+        if (predictiveScale >= HEURISTIC_SAFETY_CONFIG.turnArcProbeMinPredictiveScale) {
+            policy._tmpGate.copy(policy._tmpForward)
+                .addScaledVector(policy._tmpRight, -HEURISTIC_SAFETY_CONFIG.probeSideSpread * HEURISTIC_SAFETY_CONFIG.turnArcProbeSpreadScale)
+                .normalize();
+            samplePredictivePath(policy, state, runtimeContext, player, policy._tmpGate, lookAhead * HEURISTIC_SAFETY_CONFIG.turnArcProbeLookAheadScale, radius, skipRecent, sampleCount);
+            if (state.sampleArenaClearance < 1) state.rightArenaClearance = Math.min(state.rightArenaClearance, state.sampleArenaClearance * HEURISTIC_SAFETY_CONFIG.turnArcProbeLookAheadScale);
+            if (state.sampleTrailClearance < 1) state.rightTrailClearance = Math.min(state.rightTrailClearance, state.sampleTrailClearance * HEURISTIC_SAFETY_CONFIG.turnArcProbeLookAheadScale);
+        }
 
         if (!state.planarMode) {
             policy._tmpGate.copy(policy._tmpForward)

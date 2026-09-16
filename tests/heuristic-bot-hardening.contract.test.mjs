@@ -291,6 +291,36 @@ test('safety arbiter vetoes a steering command that points into a side trail', (
     assert.equal(input.boost, false);
 });
 
+test('extended predictive safety checks the near turn arc before choosing a clear side', () => {
+    const player = createPlayer(1);
+    const context = {
+        arena: {},
+        trailSpatialIndex: {
+            checkGlobalCollision(position) {
+                return position.x < -0.15 && position.x > -1
+                    && position.z < -1 && position.z > -5
+                    ? { hit: true } : null;
+            },
+        },
+    };
+    const predictive = new HeuristicBotPolicy({ profile: 'defensive' });
+    const predictiveInput = { yawLeft: true };
+    applyHeuristicSafetyArbiter(predictive, predictiveInput, 1 / 60, player, context, createSafeObservation());
+
+    assert.equal(predictive._safetyState.frontTrailClearance, 1);
+    assert.ok(predictive._safetyState.leftTrailClearance < 0.1);
+    assert.equal(predictive._safetyState.rightTrailClearance, 1);
+    assert.equal(predictiveInput.yawLeft, false);
+    assert.equal(predictiveInput.yawRight, true);
+
+    const neutral = new HeuristicBotPolicy({ profile: 'defensive' });
+    neutral.profile = Object.freeze({ ...neutral.profile, predictiveSafetyBias: 0.5 });
+    const neutralInput = { yawLeft: true };
+    applyHeuristicSafetyArbiter(neutral, neutralInput, 1 / 60, player, context, createSafeObservation());
+    assert.equal(neutral._safetyState.state, 'normal');
+    assert.equal(neutralInput.yawLeft, true);
+});
+
 test('projectile pressure vetoes boost even when both side paths are cramped', () => {
     const player = createPlayer(1);
     const observation = createSafeObservation();
