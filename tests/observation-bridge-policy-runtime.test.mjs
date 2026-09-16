@@ -21,8 +21,10 @@ import {
     TARGET_DISTANCE_RATIO,
     TARGET_IN_FRONT,
     WALL_DISTANCE_FRONT,
+    WALL_DISTANCE_DOWN,
     WALL_DISTANCE_LEFT,
     WALL_DISTANCE_RIGHT,
+    WALL_DISTANCE_UP,
 } from '../src/entities/ai/observation/ObservationSchemaV1.js';
 
 test('ObservationBridgePolicy skips latest checkpoint auto-load in desktop app runtime', async () => {
@@ -290,6 +292,11 @@ test('HeuristicBotPolicy profiles alter retreat thresholds predictably', () => {
         [MODE_ID]: 1,
         [TARGET_DISTANCE_RATIO]: 0.34,
         [PRESSURE_LEVEL]: 0.24,
+        [WALL_DISTANCE_FRONT]: 1,
+        [WALL_DISTANCE_LEFT]: 1,
+        [WALL_DISTANCE_RIGHT]: 1,
+        [WALL_DISTANCE_UP]: 1,
+        [WALL_DISTANCE_DOWN]: 1,
     });
     const player = createHeuristicPlayer({
         hp: 34,
@@ -302,12 +309,32 @@ test('HeuristicBotPolicy profiles alter retreat thresholds predictably', () => {
         rules: { huntEnabled: true },
     };
 
+    defensive.update(1.4, player, context);
+    aggressive.update(1.4, player, context);
     defensive.update(1 / 60, player, context);
     aggressive.update(1 / 60, player, context);
+
 
     assert.equal(defensive.getDecisionSnapshot().profile, 'defensive');
     assert.equal(defensive.getDecisionSnapshot().intent, 'retreat');
     assert.equal(defensive.getDecisionSnapshot().retreatReason, 'low-vitality');
     assert.equal(aggressive.getDecisionSnapshot().profile, 'aggressive');
     assert.notEqual(aggressive.getDecisionSnapshot().intent, 'retreat');
+});
+
+test('HeuristicBotPolicy safety evasion takes priority over a retreat decision near a wall', () => {
+    const policy = new HeuristicBotPolicy({ profile: 'defensive' });
+    const player = createHeuristicPlayer({ hp: 34, shieldHP: 20 });
+    const enemy = createHeuristicPlayer({ index: 2, position: new THREE.Vector3(0, 0, 32) });
+    const observation = createHeuristicObservation({
+        [MODE_ID]: 1,
+        [WALL_DISTANCE_FRONT]: 0.1,
+    });
+
+    policy.update(1 / 60, player, {
+        mode: 'HUNT', observation, players: [player, enemy], rules: { huntEnabled: true },
+    });
+
+    assert.equal(policy.getDecisionSnapshot().intent, 'evade');
+    assert.equal(policy.getDecisionSnapshot().safetyState, 'evade');
 });
