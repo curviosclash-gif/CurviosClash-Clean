@@ -1,8 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import path from 'node:path';
-import { readFileSync } from 'node:fs';
+import fs, { readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
+import process from 'node:process';
 
 import {
     ARTIFACT_MAX_AGE_DAYS,
@@ -10,9 +11,11 @@ import {
     MIN_FREE_BYTES,
     assertEnoughFreeSpace,
     classifyElectronProcesses,
+    detectStaleRunLock,
     formatHygieneLine,
     isDeletablePath,
     listWorktrees,
+    minFreeBytes,
     resolveAllowedRoots,
     resolveFreeBytes,
     selectStaleArtifacts,
@@ -34,11 +37,45 @@ test('only the known throwaway roots may be deleted', () => {
 
     assert.equal(isDeletablePath(path.join(REPO_ROOT, 'src', 'core'), allowedRoots), false);
     assert.equal(isDeletablePath(path.join(REPO_ROOT, 'tests', 'core.spec.js'), allowedRoots), false);
-    assert.equal(isDeletablePath(path.join(REPO_ROOT, 'tmp', 'contract'), allowedRoots), false);
+    assert.equal(isDeletablePath(path.join(REPO_ROOT, 'tmp', 'contract', '2026-09-16T00-00-00-000Z'), allowedRoots), true);
+
+    assert.equal(isDeletablePath(path.join(REPO_ROOT, 'tmp', 'contract'), allowedRoots), false, 'roots themselves stay');
     assert.equal(isDeletablePath(path.join(REPO_ROOT, 'test-results'), allowedRoots), false);
     assert.equal(isDeletablePath(path.join(tmpdir(), 'other-session'), allowedRoots), false);
     assert.equal(isDeletablePath('', allowedRoots), false);
     assert.equal(isDeletablePath(path.join(REPO_ROOT, 'test-results', '..', 'src'), allowedRoots), false);
+});
+
+// Review finding 16.09.2026: the curvios- restriction used to hinge on a string compare with the
+// global tmpdir(); a different tempRoot silently made the whole folder deletable.
+test('the temp restriction follows the configured temp root, not the global one', () => {
+    const otherTemp = path.join(REPO_ROOT, 'tmp', 'fake-temp');
+    const allowedRoots = resolveAllowedRoots(REPO_ROOT, otherTemp);
+    assert.equal(isDeletablePath(path.join(otherTemp, 'curvios-menu-lan-x'), allowedRoots), true);
+    assert.equal(isDeletablePath(path.join(otherTemp, 'someone-elses-dir'), allowedRoots), false);
+});
+
+test('the free space guard looks at the fuller of repo and temp drive', () => {
+    assert.equal(minFreeBytes(8 * 1024 ** 3, 1024 ** 3), 1024 ** 3);
+    assert.equal(minFreeBytes(null, 5), 5);
+    assert.equal(minFreeBytes(null, null), null);
+});
+
+test('a lock file whose holder is gone is reported, never deleted', () => {
+    const lockPath = path.join(REPO_ROOT, 'tmp', `hygiene-lock-test-${process.pid}.lock`);
+    fs.mkdirSync(path.dirname(lockPath), { recursive: true });
+    try {
+        fs.writeFileSync(lockPath, JSON.stringify({ pid: 999999, label: 'dead run' }));
+        const stale = detectStaleRunLock(lockPath, () => false);
+        assert.deepEqual(stale, { path: lockPath, pid: 999999, label: 'dead run' });
+        assert.equal(detectStaleRunLock(lockPath, () => true), null, 'a living holder is not stale');
+        assert.equal(fs.existsSync(lockPath), true, 'the report never removes the lock');
+        assert.equal(detectStaleRunLock(`${lockPath}.missing`, () => false), null);
+    } finally {
+        fs.rmSync(lockPath, { force: true });
+    }
+    const source = readRepoFile('scripts/test-hygiene.mjs');
+    assert.doesNotMatch(source, /rmSync\([^)]*lock/i, 'the hygiene tool must not delete lock files');
 });
 
 test('only artifacts older than the age limit are offered for removal', () => {
@@ -115,6 +152,20 @@ test('the report line stays a single parseable line', () => {
         '[test:hygiene] freeGb=8 staleArtifacts=2 staleTempDirs=1 orphanElectron=1 worktrees=3'
     );
     assert.equal(line.includes('\n'), false);
+
+    const withTempAndLock = formatHygieneLine({
+        freeBytes: 1024 ** 3,
+        freeBytesTemp: 1024 ** 3,
+        staleLock: { pid: 1, label: 'x', path: 'y' },
+        staleArtifacts: [],
+        staleTempDirs: [],
+        processes: { orphaned: [] },
+        worktrees: [],
+    });
+    assert.equal(
+        withTempAndLock,
+        '[test:hygiene] freeGb=1 freeGbTemp=1 staleArtifacts=0 staleTempDirs=0 orphanElectron=0 worktrees=0 staleLock=1'
+    );
 });
 
 test('the free space reader survives an unknown drive', () => {

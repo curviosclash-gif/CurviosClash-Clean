@@ -4,6 +4,7 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import process from 'node:process';
 import { pathToFileURL } from 'node:url';
+import { isProcessAlive, readPlaywrightRunLock, resolvePlaywrightRunLockPath } from './playwright-run-lock.mjs';
 
 // Testlaeufe hinterlassen Ergebnisordner, Temp-Verzeichnisse und abgestuerzte
 // Electron-Prozesse. Dieses Werkzeug berichtet standardmaessig nur; geloescht wird
@@ -14,12 +15,16 @@ export const TEMP_MAX_AGE_DAYS = 2;
 export const DAY_MS = 86_400_000;
 export const ORPHAN_COMMAND_MARKERS = Object.freeze(['--inspect=0', '--remote-debugging-port=0']);
 
+// Jede Wurzel traegt ihre Einschraenkung selbst; so haengt die Temp-Regel nicht an einem
+// Stringvergleich mit dem globalen tmpdir(), der bei einem anderen tempRoot stumm entfiele.
 export function resolveAllowedRoots(repoRoot = process.cwd(), tempRoot = tmpdir()) {
     return Object.freeze([
-        path.resolve(repoRoot, 'test-results'),
-        path.resolve(repoRoot, 'playwright-report'),
-        path.resolve(repoRoot, 'tmp', 'playwright'),
-        path.resolve(tempRoot),
+        { path: path.resolve(repoRoot, 'test-results'), requiredPrefix: '' },
+        { path: path.resolve(repoRoot, 'playwright-report'), requiredPrefix: '' },
+        { path: path.resolve(repoRoot, 'tmp', 'playwright'), requiredPrefix: '' },
+        { path: path.resolve(repoRoot, 'tmp', 'contract'), requiredPrefix: '' },
+        // Unterhalb des Temp-Ordners gehoert uns nur, was wir selbst angelegt haben.
+        { path: path.resolve(tempRoot), requiredPrefix: 'curvios-' },
     ]);
 }
 
@@ -28,14 +33,12 @@ export function isDeletablePath(candidatePath, allowedRoots) {
     if (!candidate) return false;
     const absoluteCandidate = path.resolve(candidate);
     return (allowedRoots || []).some((rawRoot) => {
-        const root = path.resolve(String(rawRoot || ''));
+        const rootPath = typeof rawRoot === 'string' ? rawRoot : rawRoot?.path;
+        const requiredPrefix = typeof rawRoot === 'string' ? '' : String(rawRoot?.requiredPrefix || '');
+        const root = path.resolve(String(rootPath || ''));
         const relative = path.relative(root, absoluteCandidate);
         if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return false;
-        // Unterhalb des Temp-Ordners gehoert uns nur, was wir selbst angelegt haben.
-        if (root === path.resolve(tmpdir())) {
-            return relative.split(path.sep)[0].startsWith('curvios-');
-        }
-        return true;
+        return relative.split(path.sep)[0].startsWith(requiredPrefix);
     });
 }
 
@@ -106,12 +109,29 @@ export function toGigabytes(bytes) {
     return Number.isFinite(Number(bytes)) ? Math.round((Number(bytes) / 1024 ** 3) * 10) / 10 : null;
 }
 
+/** The smaller of two free-space readings; an unknown drive never hides the known one. */
+export function minFreeBytes(...values) {
+    const known = values.filter((value) => Number.isFinite(Number(value)) && value !== null).map(Number);
+    return known.length ? Math.min(...known) : null;
+}
+
+/** Report only: a lock file whose holder process is gone (a killed wrapper left it behind). */
+export function detectStaleRunLock(lockPath = resolvePlaywrightRunLockPath(), isAlive = isProcessAlive) {
+    const holder = readPlaywrightRunLock(lockPath);
+    if (!holder) return null;
+    return isAlive(holder.pid) ? null : { path: lockPath, pid: Number(holder.pid), label: String(holder.label || '') };
+}
+
 export function formatHygieneLine(report) {
-    return `[test:hygiene] freeGb=${toGigabytes(report?.freeBytes) ?? 'unknown'} `
+    const tempSuffix = Number.isFinite(Number(report?.freeBytesTemp)) && report?.freeBytesTemp !== null
+        ? ` freeGbTemp=${toGigabytes(report.freeBytesTemp)}`
+        : '';
+    const lockSuffix = report?.staleLock ? ' staleLock=1' : '';
+    return `[test:hygiene] freeGb=${toGigabytes(report?.freeBytes) ?? 'unknown'}${tempSuffix} `
         + `staleArtifacts=${report?.staleArtifacts?.length ?? 0} `
         + `staleTempDirs=${report?.staleTempDirs?.length ?? 0} `
         + `orphanElectron=${report?.processes?.orphaned?.length ?? 0} `
-        + `worktrees=${report?.worktrees?.length ?? 0}`;
+        + `worktrees=${report?.worktrees?.length ?? 0}${lockSuffix}`;
 }
 
 export function assertEnoughFreeSpace(freeBytes, minBytes = MIN_FREE_BYTES) {
@@ -189,13 +209,22 @@ export function collectHygieneReport({ repoRoot = process.cwd(), tempRoot = tmpd
     const artifactEntries = [
         ...listDirectoryEntries(path.resolve(repoRoot, 'test-results')),
         ...listDirectoryEntries(path.resolve(repoRoot, 'playwright-report')),
+        // Contract summaries land in tmp/contract/<timestamp>/ on every run; age them out too.
+        ...listDirectoryEntries(path.resolve(repoRoot, 'tmp', 'contract')),
     ];
     const playwrightTempEntries = listDirectoryEntries(path.resolve(repoRoot, 'tmp', 'playwright'));
     const tempEntries = listCurviosTempEntries(tempRoot);
+    // The repo may sit on F: while the temp folder (Chromium profiles, recorder scratch) is on C:;
+    // the fuller of the two drives is the one that ends a run with ENOSPC.
+    const freeBytesRepo = resolveFreeBytes(repoRoot);
+    const freeBytesTemp = resolveFreeBytes(tempRoot);
 
     return {
         repoRoot: path.resolve(repoRoot),
-        freeBytes: resolveFreeBytes(repoRoot),
+        freeBytes: minFreeBytes(freeBytesRepo, freeBytesTemp),
+        freeBytesRepo,
+        freeBytesTemp,
+        staleLock: detectStaleRunLock(),
         allowedRoots: resolveAllowedRoots(repoRoot, tempRoot),
         staleArtifacts: selectStaleArtifacts(artifactEntries, now, ARTIFACT_MAX_AGE_DAYS),
         staleTempDirs: [
@@ -213,7 +242,9 @@ function killOrphanProcess(pid) {
             stdio: 'ignore',
             windowsHide: true,
         });
-        if (!result.error && result.status === 0) return true;
+        // No SIGKILL fallback on Windows: a failed taskkill almost always means "already gone",
+        // and a blind kill would widen the window in which the pid could belong to someone else.
+        return !result.error && result.status === 0;
     }
     try {
         process.kill(pid, 'SIGKILL');
@@ -257,6 +288,9 @@ function printReport(report) {
     for (const orphan of report.processes.orphaned) {
         console.log(`  orphan electron pid=${orphan.pid} parent=${orphan.parentPid} (parent gone)`);
     }
+    if (report.staleLock) {
+        console.log(`  stale playwright lock (listed only, the next wrapper takes it over): pid=${report.staleLock.pid} ${report.staleLock.label} ${report.staleLock.path}`);
+    }
     for (const worktree of report.worktrees) {
         console.log(`  worktree (listed only, never removed): ${worktree}`);
     }
@@ -273,7 +307,7 @@ export function runTestHygiene(argv = process.argv.slice(2)) {
     }
 
     const applied = applyHygiene(report);
-    const freeAfter = resolveFreeBytes(report.repoRoot);
+    const freeAfter = minFreeBytes(resolveFreeBytes(report.repoRoot), resolveFreeBytes(tmpdir()));
     console.log(
         `[test:hygiene] removed=${applied.removed.length} killed=${applied.killed.length} `
         + `freeGbBefore=${toGigabytes(report.freeBytes) ?? 'unknown'} freeGbAfter=${toGigabytes(freeAfter) ?? 'unknown'}`

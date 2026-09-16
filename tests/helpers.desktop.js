@@ -29,7 +29,11 @@ const DESKTOP_SCREENSHOT_TIMEOUT_MS = 15000;
 // einen eigenen Unterordner; PW_FRESH_PROFILE=1 gibt zusaetzlich jedem Test einen.
 function resolveDesktopUserDataRoot(testInfo) {
     const configuredRoot = String(process.env.CURVIOS_USER_DATA_ROOT || '').trim();
-    const runTag = String(process.env.PW_RUN_TAG || '').trim() || 'local';
+    // Same slug rule as the cluster runner, so a hand-set tag can never leave tmp/playwright.
+    const runTag = String(process.env.PW_RUN_TAG || '')
+        .trim()
+        .replace(/[^a-zA-Z0-9-_]+/g, '-')
+        .replace(/^-+|-+$/g, '') || 'local';
     const baseRoot = configuredRoot
         ? path.resolve(configuredRoot)
         : path.resolve(process.cwd(), 'tmp', 'playwright', runTag, 'user-data');

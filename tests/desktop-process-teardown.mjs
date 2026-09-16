@@ -9,7 +9,10 @@ export const RENDER_TAG = '@render';
 
 export function resolveShowWindow(env = {}, titlePath = []) {
     if (String(env?.PW_SHOW_WINDOW || '').trim() === '1') return true;
-    if (String(env?.CURVIOS_ELECTRON_SHOW_WINDOW || '').trim() === '1') return true;
+    // Same reading as electron/main.cjs: anything set that is not '0' shows the window, so a
+    // value like 'true' that used to work keeps working instead of silently hiding it (1 fps).
+    const electronSwitch = String(env?.CURVIOS_ELECTRON_SHOW_WINDOW ?? '').trim();
+    if (electronSwitch && electronSwitch !== '0') return true;
     const titles = Array.isArray(titlePath) ? titlePath : [titlePath];
     return titles.some((entry) => String(entry || '').includes(RENDER_TAG));
 }

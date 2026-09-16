@@ -32,6 +32,9 @@ test('resolveShowWindow reacts to the env switch and to the render tag', () => {
     assert.equal(resolveShowWindow({ PW_SHOW_WINDOW: '1' }, ['T1: menu opens']), true);
     assert.equal(resolveShowWindow({ PW_SHOW_WINDOW: '0' }, ['T1: menu opens']), false);
     assert.equal(resolveShowWindow({ CURVIOS_ELECTRON_SHOW_WINDOW: '1' }, []), true);
+    assert.equal(resolveShowWindow({ CURVIOS_ELECTRON_SHOW_WINDOW: 'true' }, []), true, 'same reading as electron/main.cjs');
+    assert.equal(resolveShowWindow({ CURVIOS_ELECTRON_SHOW_WINDOW: '0' }, []), false);
+    assert.equal(resolveShowWindow({ CURVIOS_ELECTRON_SHOW_WINDOW: '' }, []), false);
     assert.equal(
         resolveShowWindow({}, ['tests/atmospheric-fog.desktop.spec.js', 'fog meets the sky @render']),
         true
@@ -48,15 +51,17 @@ test('a clean close reports no forced kill', async () => {
                 await waitForProcessExit(child, 2000);
             },
         };
+        // Generous deadline on purpose: the clean path returns as soon as close() is done, and a
+        // 1.5 s limit measured 0.8 s idle, which a parallel cluster or build would push over.
         const result = await closeElectronAppWithDeadline({
             app,
             childProcess: child,
-            deadlineMs: 1500,
+            deadlineMs: 10000,
         });
 
         assert.equal(result.forcedKill, false);
         assert.equal(result.closeError, null);
-        assert.ok(result.afterMs < 1500, `afterMs=${result.afterMs}`);
+        assert.ok(result.afterMs < 10000, `afterMs=${result.afterMs}`);
     } finally {
         child.kill('SIGKILL');
     }
