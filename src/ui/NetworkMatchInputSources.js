@@ -18,13 +18,24 @@ const INPUT_DEFAULTS = Object.freeze({
     nextItem: false,
 });
 
+const ANALOG_AXIS_KEYS = Object.freeze(['pitchAxis', 'yawAxis', 'rollAxis']);
+
 function normalizePeerId(value) {
     return typeof value === 'string' ? value.trim() : '';
 }
 
+// Analog axes stay optional on purpose: a missing field lets PlayerController fall
+// back to the digital keys, while a hard 0 would mute keyboard players.
+function normalizeAnalogAxis(value) {
+    if (typeof value !== 'number' || !Number.isFinite(value)) return undefined;
+    const clamped = Math.min(1, Math.max(-1, value));
+    const rounded = Math.round(clamped * 1000) / 1000;
+    return rounded === 0 ? 0 : rounded;
+}
+
 export function normalizeNetworkInputState(input = null) {
     const source = input && typeof input === 'object' ? input : {};
-    return {
+    const normalized = {
         pitchUp: source.pitchUp === true,
         pitchDown: source.pitchDown === true,
         yawLeft: source.yawLeft === true,
@@ -43,6 +54,12 @@ export function normalizeNetworkInputState(input = null) {
         shootMG: source.shootMG === true,
         nextItem: source.nextItem === true,
     };
+    for (let i = 0; i < ANALOG_AXIS_KEYS.length; i += 1) {
+        const key = ANALOG_AXIS_KEYS[i];
+        const axis = normalizeAnalogAxis(source[key]);
+        if (axis !== undefined) normalized[key] = axis;
+    }
+    return normalized;
 }
 
 export function createPassiveNetworkInputSource() {
