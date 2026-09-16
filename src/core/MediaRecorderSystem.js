@@ -43,6 +43,7 @@ import {
 } from './recording/MediaRecorderSystemOps.js';
 import {
     attachDirectMediaRecorderStopHandler,
+    DEFAULT_EXPORT_WAIT_TIMEOUT_MS,
     finalizeMediaRecorderBlobExport,
 } from './recording/MediaRecorderExportFinalizeOps.js';
 import { CinematicReplayRecorder } from './recording/CinematicReplayRecorder.js';
@@ -61,6 +62,7 @@ export class MediaRecorderSystem {
         canvas = null,
         autoRecordingEnabled = true,
         autoDownload = false,
+        exportWaitTimeoutMs = DEFAULT_EXPORT_WAIT_TIMEOUT_MS,
         downloadDirectoryName = RECORDING_DOWNLOAD_DIRECTORY,
         captureFps = 60,
         onRecordingStateChange = null,
@@ -81,6 +83,7 @@ export class MediaRecorderSystem {
         this.canvas = canvas || null;
         this.autoRecordingEnabled = autoRecordingEnabled !== false;
         this.autoDownload = !!autoDownload;
+        this.exportWaitTimeoutMs = exportWaitTimeoutMs;
         this.downloadDirectoryName = sanitizeFileToken(downloadDirectoryName, RECORDING_DOWNLOAD_DIRECTORY);
         this.captureFps = Math.max(1, Number(captureFps) || 60);
         this._activeCaptureFps = this.captureFps;

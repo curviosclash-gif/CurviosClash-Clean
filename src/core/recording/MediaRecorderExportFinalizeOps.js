@@ -10,6 +10,12 @@ import {
 } from './MediaRecorderSupport.js';
 import { resolveRecordingExportContainerFromMimeType } from './RecordingVideoExportContract.js';
 
+// The desktop save answers only after the native save dialog closed and an optional
+// ffmpeg transcode ran. Nobody answers that dialog during automation, so a stop waits
+// at most this long and lets the save settle in the background.
+export const DEFAULT_EXPORT_WAIT_TIMEOUT_MS = 10_000;
+export const RECORDING_EXPORT_PENDING_STATUS = 'export_pending';
+
 export function attachDirectMediaRecorderStopHandler(system) {
     const recorder = system?._mediaRecorder;
     if (!recorder) return false;
@@ -115,6 +121,100 @@ async function attemptSystemAutoDownload(
     });
 }
 
+function resolveExportWaitTimeoutMs(system) {
+    const configured = toFiniteNumber(system?.exportWaitTimeoutMs, DEFAULT_EXPORT_WAIT_TIMEOUT_MS);
+    return configured > 0 ? configured : DEFAULT_EXPORT_WAIT_TIMEOUT_MS;
+}
+
+/** Resolves with the export status, or with null once the wait timed out. */
+function waitForExportStatus(system, exportPromise, timeoutMs) {
+    const timerScope = typeof system._globalScope?.setTimeout === 'function' ? system._globalScope : globalThis;
+    return new Promise((resolve, reject) => {
+        const timeoutHandle = timerScope.setTimeout(() => resolve(null), timeoutMs);
+        exportPromise.then((status) => {
+            timerScope.clearTimeout?.(timeoutHandle);
+            resolve(status);
+        }, (error) => {
+            timerScope.clearTimeout?.(timeoutHandle);
+            reject(error);
+        });
+    });
+}
+
+function createPendingExportStatus(masterContainer, timeoutMs) {
+    return {
+        requested: true,
+        transport: 'pending',
+        status: RECORDING_EXPORT_PENDING_STATUS,
+        fallbackReason: null,
+        failureReason: null,
+        apiStatus: null,
+        message: 'Aufnahme ist beendet; Speichern (Dialog oder Umwandlung) laeuft noch.',
+        warnings: [`export_wait_timeout_${timeoutMs}ms`],
+        filePath: null,
+        container: masterContainer || null,
+        masterContainer: masterContainer || null,
+        deliveryContainer: masterContainer || null,
+        transcodeApplied: false,
+        masterPath: null,
+        deliveryPath: null,
+        saveCapabilityId: null,
+        saveCode: null,
+        exportMatrix: null,
+        nativeTranscodeCapability: null,
+        transcodeFailureCode: null,
+    };
+}
+
+function resolveExportStatusFields(exportStatus, fallbackMasterContainer) {
+    const masterContainer = exportStatus?.masterContainer || fallbackMasterContainer;
+    const deliveryContainer = exportStatus?.deliveryContainer
+        || exportStatus?.container
+        || masterContainer;
+    const deliveryPath = exportStatus?.deliveryPath || exportStatus?.filePath || null;
+    return {
+        filePath: deliveryPath,
+        container: deliveryContainer,
+        masterContainer,
+        deliveryContainer,
+        transcodeApplied: exportStatus?.transcodeApplied === true,
+        nativeTranscodeCapability: exportStatus?.nativeTranscodeCapability
+            && typeof exportStatus.nativeTranscodeCapability === 'object'
+            ? { ...exportStatus.nativeTranscodeCapability }
+            : null,
+        transcodeFailureCode: String(exportStatus?.transcodeFailureCode || '').trim() || null,
+        masterPath: exportStatus?.masterPath || exportStatus?.filePath || null,
+        deliveryPath,
+        warnings: Array.isArray(exportStatus?.warnings) ? exportStatus.warnings.slice() : [],
+        failureReason: String(exportStatus?.failureReason || exportStatus?.fallbackReason || '').trim() || null,
+        saveCapabilityId: exportStatus?.saveCapabilityId || null,
+        saveCode: exportStatus?.saveCode || null,
+        exportMatrix: exportStatus?.exportMatrix ? { ...exportStatus.exportMatrix } : null,
+        exportStatus: { ...exportStatus },
+    };
+}
+
+function settleLateExport(system, exportRecord, exportPromise) {
+    const apply = (lateStatus) => {
+        // A disposed recorder or a newer export owns the state now.
+        if (system._lastExport !== exportRecord) return;
+        Object.assign(exportRecord, resolveExportStatusFields(lateStatus, exportRecord.masterContainer));
+        system.logger?.info?.(
+            `[MediaRecorderSystem] recording export settled after stop: status=${lateStatus?.status}, filePath=${exportRecord.filePath}`
+        );
+    };
+    exportPromise.then(apply, (error) => {
+        system.logger?.warn?.('[MediaRecorderSystem] recording export failed after stop', error);
+        apply({
+            requested: true,
+            transport: 'failed',
+            status: 'export_failed',
+            failureReason: 'export_failed',
+            message: String(error?.message || error || 'export_failed'),
+        });
+    });
+}
+
 export async function finalizeMediaRecorderBlobExport(system, blob, mimeType = DEFAULT_MIME_TYPE) {
     const activeRecording = system._activeRecording || null;
     // Silent switch-stop (for example switching from auto-recording to cinematic) - discard blob, no download.
@@ -153,73 +253,46 @@ export async function finalizeMediaRecorderBlobExport(system, blob, mimeType = D
     const resolvedRecorderEngine = String(
         recorderDiagnostics?.recorderEngine || system._activeRecorderEngine || RECORDER_ENGINE.NONE
     ).trim() || RECORDER_ENGINE.NONE;
+    const captureProfile = activeRecording?.captureProfile || system.recordingCaptureSettings?.profile || null;
     const captureExportPreset = activeRecording?.captureExportPreset
         || system.recordingCaptureSettings?.exportPreset
         || null;
-    const exportStatus = await attemptSystemAutoDownload(system, safeBlob, {
+    const exportPromise = attemptSystemAutoDownload(system, safeBlob, {
         fileName,
         downloadFileName,
         mimeType: resolvedMimeType,
-        captureProfile: activeRecording?.captureProfile || system.recordingCaptureSettings?.profile || null,
+        captureProfile,
         exportPreset: captureExportPreset,
         masterContainer: resolvedMasterContainer,
     });
-    const resolvedMasterContainerFromStatus = exportStatus?.masterContainer || resolvedMasterContainer;
-    const resolvedDeliveryContainer = exportStatus?.deliveryContainer
-        || exportStatus?.container
-        || resolvedMasterContainerFromStatus;
-    const resolvedTranscodeApplied = exportStatus?.transcodeApplied === true;
-    const resolvedMasterPath = exportStatus?.masterPath || exportStatus?.filePath || null;
-    const resolvedDeliveryPath = exportStatus?.deliveryPath || exportStatus?.filePath || null;
-    const resolvedWarnings = Array.isArray(exportStatus?.warnings)
-        ? exportStatus.warnings.slice()
-        : [];
-    const resolvedFailureReason = String(
-        exportStatus?.failureReason || exportStatus?.fallbackReason || ''
-    ).trim() || null;
-    const resolvedNativeTranscodeCapability = exportStatus?.nativeTranscodeCapability
-        && typeof exportStatus.nativeTranscodeCapability === 'object'
-        ? { ...exportStatus.nativeTranscodeCapability }
-        : null;
-    const resolvedTranscodeFailureCode = String(
-        exportStatus?.transcodeFailureCode || ''
-    ).trim() || null;
+    const exportWaitTimeoutMs = resolveExportWaitTimeoutMs(system);
+    const settledExportStatus = await waitForExportStatus(system, exportPromise, exportWaitTimeoutMs);
+    const exportPending = settledExportStatus === null;
+    if (exportPending) {
+        system.logger?.warn?.(
+            `[MediaRecorderSystem] recording export still open after ${exportWaitTimeoutMs}ms; stop resolves, save continues`
+        );
+    }
+    const exportStatus = settledExportStatus
+        || createPendingExportStatus(resolvedMasterContainer, exportWaitTimeoutMs);
+    const exportFields = resolveExportStatusFields(exportStatus, resolvedMasterContainer);
 
     if (system._lastExport?.objectUrl) {
         URL.revokeObjectURL(system._lastExport.objectUrl);
     }
     const objectUrl = safeBlob.size > 0 ? URL.createObjectURL(safeBlob) : null;
-    system._lastExport = {
-        blob: safeBlob,
-        objectUrl,
+    const exportSummary = {
         fileName,
         downloadFileName,
-        filePath: resolvedDeliveryPath,
         mimeType: resolvedMimeType,
-        container: resolvedDeliveryContainer,
         sizeBytes: safeBlob.size,
         startedAt: timing.startedAt,
         endedAt: timing.endedAt,
         durationMs: timing.durationMs,
-        trigger: activeRecording?.stopTrigger || activeRecording?.trigger || null,
         recorderEngine: resolvedRecorderEngine,
-        captureProfile: activeRecording?.captureProfile || system.recordingCaptureSettings?.profile || null,
+        captureProfile,
         hudMode: activeRecording?.hudMode || system.recordingCaptureSettings?.hudMode || null,
-        captureExportPreset: captureExportPreset || null,
-        masterContainer: resolvedMasterContainerFromStatus,
-        deliveryContainer: resolvedDeliveryContainer,
-        transcodeApplied: resolvedTranscodeApplied,
-        nativeTranscodeCapability: resolvedNativeTranscodeCapability,
-        transcodeFailureCode: resolvedTranscodeFailureCode,
-        masterPath: resolvedMasterPath,
-        deliveryPath: resolvedDeliveryPath,
-        warnings: resolvedWarnings,
-        failureReason: resolvedFailureReason,
-        saveCapabilityId: exportStatus?.saveCapabilityId || null,
-        saveCode: exportStatus?.saveCode || null,
-        exportMatrix: exportStatus?.exportMatrix
-            ? { ...exportStatus.exportMatrix }
-            : null,
+        captureExportPreset,
         frameIntervalStats: frameIntervalStats
             ? { ...frameIntervalStats }
             : null,
@@ -230,55 +303,29 @@ export async function finalizeMediaRecorderBlobExport(system, blob, mimeType = D
             adjusted: timing.adjusted,
             estimatedDurationMs: timing.estimatedDurationMs,
         },
-        exportStatus: { ...exportStatus },
     };
+    const exportRecord = {
+        ...exportSummary,
+        ...exportFields,
+        blob: safeBlob,
+        objectUrl,
+        trigger: activeRecording?.stopTrigger || activeRecording?.trigger || null,
+    };
+    system._lastExport = exportRecord;
 
     const resolve = activeRecording?.stopResolve;
     system._cleanupRuntimeRecorder();
-    const result = system._buildStopResult(true, 'stopped', {
-        fileName,
-        downloadFileName,
-        filePath: resolvedDeliveryPath,
-        mimeType: resolvedMimeType,
-        container: resolvedDeliveryContainer,
-        recorderEngine: resolvedRecorderEngine,
-        masterContainer: resolvedMasterContainerFromStatus,
-        deliveryContainer: resolvedDeliveryContainer,
-        transcodeApplied: resolvedTranscodeApplied,
-        nativeTranscodeCapability: resolvedNativeTranscodeCapability,
-        transcodeFailureCode: resolvedTranscodeFailureCode,
-        masterPath: resolvedMasterPath,
-        deliveryPath: resolvedDeliveryPath,
-        warnings: resolvedWarnings,
-        failureReason: resolvedFailureReason,
-        sizeBytes: safeBlob.size,
+    const result = system._buildStopResult(true, exportPending ? RECORDING_EXPORT_PENDING_STATUS : 'stopped', {
+        ...exportSummary,
+        ...exportFields,
         exportTransport: exportStatus.transport,
-        exportStatus: { ...exportStatus },
-        startedAt: timing.startedAt,
-        endedAt: timing.endedAt,
-        durationMs: timing.durationMs,
-        captureProfile: system._lastExport.captureProfile,
-        hudMode: system._lastExport.hudMode,
-        captureExportPreset: system._lastExport.captureExportPreset,
-        saveCapabilityId: system._lastExport.saveCapabilityId || null,
-        saveCode: system._lastExport.saveCode || null,
-        exportMatrix: system._lastExport.exportMatrix
-            ? { ...system._lastExport.exportMatrix }
-            : null,
-        frameIntervalStats: frameIntervalStats
-            ? { ...frameIntervalStats }
-            : null,
-        recorderDiagnostics: recorderDiagnostics
-            ? { ...recorderDiagnostics }
-            : null,
-        timestampValidation: {
-            adjusted: timing.adjusted,
-            estimatedDurationMs: timing.estimatedDurationMs,
-        },
     });
     if (typeof resolve === 'function') {
         resolve(result);
     }
     system._pendingStop = null;
+    if (exportPending) {
+        settleLateExport(system, exportRecord, exportPromise);
+    }
     return result;
 }
