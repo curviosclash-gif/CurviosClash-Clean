@@ -95,6 +95,12 @@ test('match replay is stable for one seed and changes for another seed', () => {
     };
     const first = replay(127);
     assert.deepEqual(replay(127), first);
+    assert(first.actionTrace.updates > 0);
+    assert.equal(
+        Object.values(first.actionTrace.safetyStates).reduce((sum, count) => sum + count, 0),
+        first.actionTrace.updates
+    );
+    assert(first.actionTrace.mgShots <= first.actionTrace.updates);
     const other = replay(139);
     assert.equal(first.matchSeed, 127);
     assert.equal(other.matchSeed, 139);

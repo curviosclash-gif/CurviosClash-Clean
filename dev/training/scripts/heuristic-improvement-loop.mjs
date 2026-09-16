@@ -203,7 +203,7 @@ function isTrailDeath(cause) {
     return cause === 'TRAIL_SELF' || cause === 'TRAIL_OTHER';
 }
 
-async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTicks, respawnEnabled = true }) {
+async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTicks, respawnEnabled = true, trace = false }) {
     const originalRandom = Math.random;
     const seededRandom = createRuntimeRng({ seed });
     let runtime = null;
@@ -245,6 +245,23 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
         const candidateBot = bots[candidateSlot];
         const activeCandidateFields = Object.freeze(clampProfile(profile, candidateFields));
         candidateBot.ai.profile = activeCandidateFields;
+        const actionTrace = trace ? { updates: 0, safetyStates: {}, safetyReasons: {}, intents: {}, mgShots: 0, rocketShots: 0, itemShots: 0, boosts: 0 } : null;
+        if (actionTrace) {
+            const originalUpdate = candidateBot.ai.update;
+            candidateBot.ai.update = function (dt, player, context) {
+                const action = originalUpdate.call(this, dt, player, context);
+                const decision = this.getDecisionSnapshot();
+                actionTrace.updates += 1;
+                incrementCauseCount(actionTrace.safetyStates, decision.safetyState);
+                incrementCauseCount(actionTrace.safetyReasons, decision.safetyReason || 'none');
+                incrementCauseCount(actionTrace.intents, decision.intent);
+                if (action.shootMG) actionTrace.mgShots += 1;
+                if (action.shootRocket) actionTrace.rocketShots += 1;
+                if (action.shootItem) actionTrace.itemShots += 1;
+                if (action.boost) actionTrace.boosts += 1;
+                return action;
+            };
+        }
         const candidateIndex = candidateBot.player.index;
         const lifeTracker = createHeuristicLifeTracker();
         const candidateDeathCauses = {};
@@ -337,6 +354,7 @@ async function runMatch({ profile, seed, candidateFields, candidateSlot, maxTick
             candidateDeathCauses,
             baselineDeathCauses,
             forced,
+            ...(actionTrace ? { actionTrace } : {}),
         };
     } finally {
         runtime?.dispose?.();
@@ -675,6 +693,7 @@ async function replayMatch() {
         candidateFields: state.profiles[profile],
         candidateSlot,
         maxTicks: COARSE_MAX_TICKS,
+        trace: true,
     });
     console.log(JSON.stringify(result));
 }
