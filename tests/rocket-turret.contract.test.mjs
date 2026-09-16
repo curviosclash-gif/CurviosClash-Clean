@@ -127,8 +127,13 @@ test('failed rocket spawn does not report or charge a shot', () => {
     const { system, manager, owner, enemy } = fixture();
     try {
         const turret = system.deployForPlayer(owner, 'rocket');
-        manager._projectileSystem.spawnExternalProjectile = () => null;
-        system._fire(turret, enemy);
+        let spawnCalls = 0;
+        manager._projectileSystem.spawnExternalProjectile = () => {
+            spawnCalls++;
+            return null;
+        };
+        system.fire(turret, enemy);
+        assert.equal(spawnCalls, 1);
         assert.equal(turret.shotsFired, 0);
         assert.equal(turret.cooldownRemaining, 0);
         assert.equal(turret.flashRemaining, 0);
