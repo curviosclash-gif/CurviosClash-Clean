@@ -10,6 +10,24 @@ function asPositiveNumber(value, fallback) {
     return Number.isFinite(numeric) && numeric > 0 ? numeric : fallback;
 }
 
+function clearUploadedColorRanges() {
+    this.clearUpdateRanges();
+}
+
+function markColorSlotUpdated(attribute, slot) {
+    const start = slot * 3;
+    const end = start + 3;
+    const range = attribute.updateRanges[0];
+    if (!range) {
+        attribute.addUpdateRange(start, 3);
+    } else {
+        const rangeEnd = range.start + range.count;
+        range.start = Math.min(range.start, start);
+        range.count = Math.max(rangeEnd, end) - range.start;
+    }
+    attribute.needsUpdate = true;
+}
+
 export class RocketTrailSystem {
     static forProjectileSystem(system) {
         return new RocketTrailSystem({
@@ -55,6 +73,8 @@ export class RocketTrailSystem {
         const initialColors = new Float32Array(this.capacity * 3).fill(1);
         this.mesh.instanceColor = new THREE.InstancedBufferAttribute(initialColors, 3);
         this.glowMesh.instanceColor = new THREE.InstancedBufferAttribute(initialColors.slice(), 3);
+        this.mesh.instanceColor.onUpload(clearUploadedColorRanges);
+        this.glowMesh.instanceColor.onUpload(clearUploadedColorRanges);
         this.mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.glowMesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
         this.mesh.frustumCulled = false;
@@ -210,8 +230,8 @@ export class RocketTrailSystem {
         this.glowMesh.count = this.mesh.count;
         this.mesh.instanceMatrix.needsUpdate = true;
         this.glowMesh.instanceMatrix.needsUpdate = true;
-        if (this.mesh.instanceColor) this.mesh.instanceColor.needsUpdate = true;
-        if (this.glowMesh.instanceColor) this.glowMesh.instanceColor.needsUpdate = true;
+        markColorSlotUpdated(this.mesh.instanceColor, slot);
+        markColorSlotUpdated(this.glowMesh.instanceColor, slot);
         return ref?.entry || null;
     }
 
@@ -273,6 +293,8 @@ export class RocketTrailSystem {
         this.glowMesh.count = 0;
         this.mesh.instanceMatrix.clearUpdateRanges();
         this.glowMesh.instanceMatrix.clearUpdateRanges();
+        this.mesh.instanceColor.clearUpdateRanges();
+        this.glowMesh.instanceColor.clearUpdateRanges();
     }
 
     dispose() {
