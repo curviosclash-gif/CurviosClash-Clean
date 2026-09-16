@@ -17,7 +17,7 @@ const NEXT_EMISSIVE_MAX = 1.5;
 const NEXT_GLOW_STRENGTH_FALLBACK = 1.35;
 const GUIDANCE_CYCLE_MS = 4500;
 const GUIDANCE_BREATH_MS = 1200;
-const GUIDANCE_MAX_DISTANCE = 36;
+const GUIDANCE_MAX_DISTANCE = 24;
 const GUIDANCE_MAX_OPACITY = 0.42;
 
 function safeNow() {
@@ -264,11 +264,10 @@ export class CheckpointRingRuntime {
             for (let i = 0; i < targets.length; i += 1) this._hideGuidanceMotifs(targets[i]);
             return;
         }
-        const cycleT = cycleElapsed / GUIDANCE_CYCLE_MS;
         const breathT = cycleElapsed / GUIDANCE_BREATH_MS;
         // A target handoff starts at the breath peak so the new route is readable immediately.
         const breath = Math.cos(breathT * Math.PI * 0.5);
-        const opacity = Math.min(GUIDANCE_MAX_OPACITY, (0.21 + breath * 0.21) * factor);
+        const opacity = Math.min(GUIDANCE_MAX_OPACITY, GUIDANCE_MAX_OPACITY * factor) * breath;
         for (let targetIndex = 0; targetIndex < targets.length; targetIndex += 1) {
             const entry = targets[targetIndex];
             const dx = (Number(entry.pos.x) || 0) - (Number(player.position.x) || 0);
@@ -286,7 +285,8 @@ export class CheckpointRingRuntime {
             const color = entry.mesh?.userData?.checkpointColor;
             for (let i = 0; i < motifs.length; i += 1) {
                 const motif = motifs[i];
-                const t = (cycleT + i / motifs.length) % 1;
+                const t = (breathT + i / motifs.length) % 1;
+                const edgeFade = Math.min(1, t * 6, (1 - t) * 6);
                 const along = startDistance + travelDistance * t;
                 motif.position.set(
                     (Number(player.position.x) || 0) + dx * inverseDistance * along,
@@ -306,8 +306,10 @@ export class CheckpointRingRuntime {
                 motif.visible = true;
                 if (motif.material) {
                     if (Number.isFinite(color)) motif.material.color.setHex(color);
-                    motif.material.opacity = opacity * (0.5 + t * 0.5);
+                    motif.material.opacity = opacity * edgeFade * 0.75;
                 }
+                const coreMaterial = motif.userData?.guidanceCore?.material;
+                if (coreMaterial) coreMaterial.opacity = opacity * edgeFade;
             }
         }
     }

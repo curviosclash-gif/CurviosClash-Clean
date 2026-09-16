@@ -23,6 +23,7 @@ let sharedRingGeometry = null;
 let sharedFinishGeometry = null;
 let sharedLabelGeometry = null;
 let sharedGuidanceGeometry = null;
+let sharedGuidanceCoreGeometry = null;
 
 function getRingGeometry() {
     if (!sharedRingGeometry) {
@@ -50,10 +51,18 @@ function getLabelGeometry() {
 
 function getGuidanceGeometry() {
     if (!sharedGuidanceGeometry) {
-        sharedGuidanceGeometry = new THREE.TorusGeometry(0.82, 0.07, 6, 16);
+        sharedGuidanceGeometry = new THREE.TorusGeometry(0.82, 0.14, 6, 16);
         sharedGuidanceGeometry.userData.__sharedNoDispose = true;
     }
     return sharedGuidanceGeometry;
+}
+
+function getGuidanceCoreGeometry() {
+    if (!sharedGuidanceCoreGeometry) {
+        sharedGuidanceCoreGeometry = new THREE.OctahedronGeometry(0.42);
+        sharedGuidanceCoreGeometry.userData.__sharedNoDispose = true;
+    }
+    return sharedGuidanceCoreGeometry;
 }
 
 function createRingMaterial(color, overrides = {}) {
@@ -116,6 +125,10 @@ function buildRingGroup(position, rotation, ringGeometry, ringMaterial, label, v
     const guidanceMotifs = [];
     for (let i = 0; i < GUIDANCE_MOTIF_COUNT; i += 1) {
         const motif = new THREE.Mesh(getGuidanceGeometry(), createGuidanceMaterial(ringMaterial.color.getHex()));
+        const core = new THREE.Mesh(getGuidanceCoreGeometry(), createGuidanceMaterial(0xf6fff0));
+        core.frustumCulled = false;
+        motif.add(core);
+        motif.userData.guidanceCore = core;
         motif.frustumCulled = false;
         motif.visible = false;
         guidanceMotifs.push(motif);

@@ -1,7 +1,13 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
+import * as THREE from 'three';
 
-import { RING_STATE_INACTIVE, RING_STATE_PASSED } from '../src/entities/arena/CheckpointRingMeshFactory.js';
+import {
+    createCheckpointRingMesh,
+    disposeCheckpointRingMesh,
+    RING_STATE_INACTIVE,
+    RING_STATE_PASSED,
+} from '../src/entities/arena/CheckpointRingMeshFactory.js';
 import { CheckpointRingRuntime } from '../src/entities/arena/portal/CheckpointRingRuntime.js';
 
 function createRingEntry({ checkpointId, routeIndex }) {
@@ -38,8 +44,26 @@ function createGuidanceMotif() {
         position: { x: 0, y: 0, z: 0, set(x, y, z) { this.x = x; this.y = y; this.z = z; } },
         scale: { setScalar() {} },
         material: { color: { setHex() {} }, opacity: 0 },
+        userData: { guidanceCore: { material: { opacity: 0 } } },
     };
 }
+
+test('Checkpoint guidance motifs have a depth-tested additive core without bloom', () => {
+    const group = createCheckpointRingMesh(new THREE.Vector3(), null, 1);
+    const motifs = group.userData.guidanceMotifs;
+    assert.equal(motifs.length, 6);
+    assert.ok(motifs.every((motif) => motif.userData.guidanceCore?.isMesh));
+    for (const motif of motifs) {
+        assert.equal(motif.material.blending, THREE.AdditiveBlending);
+        assert.equal(motif.material.depthTest, true);
+        assert.equal(motif.userData.guidanceCore.material.blending, THREE.AdditiveBlending);
+        assert.equal(motif.userData.guidanceCore.material.depthTest, true);
+    }
+    let disposed = 0;
+    motifs[0].userData.guidanceCore.material.addEventListener('dispose', () => { disposed += 1; });
+    disposeCheckpointRingMesh(group);
+    assert.equal(disposed, 1);
+});
 
 test('CheckpointRingRuntime marks only the taken branch checkpoint as passed', () => {
     let snapshot = {
@@ -89,7 +113,11 @@ test('CheckpointRingRuntime guides all equal branch targets, then the finish, an
     assert.ok(branchA.mesh.userData.guidanceMotifs.every((motif) => motif.visible));
     assert.ok(branchB.mesh.userData.guidanceMotifs.every((motif) => motif.material.opacity <= 0.42));
     assert.equal(runtime.getGuidanceView().intensity, 2);
-    assert.equal(branchA.mesh.userData.guidanceMotifs[0].position.x, -36);
+    assert.equal(branchA.mesh.userData.guidanceMotifs[0].position.x, -24);
+
+    runtime._animateGuidance(arena.checkpointRings, 600);
+    assert.equal(branchA.mesh.userData.guidanceMotifs[0].position.x, -12);
+    assert.ok(branchA.mesh.userData.guidanceMotifs[0].userData.guidanceCore.material.opacity > 0);
 
     runtime._animateGuidance(arena.checkpointRings, 1200);
     assert.equal(runtime.getGuidanceView().active, false);
