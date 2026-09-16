@@ -13,7 +13,6 @@ export async function load(url, context, nextLoad) {
 const { ThreePlayerSplitModule } = await import('../src/four-player-planar/ThreePlayerSplitModule.js');
 const {
     SPLIT_SCREEN_VARIANTS,
-    THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT,
     THREE_PLAYER_SPLIT_PLAYER_COLORS,
 } = await import('../src/four-player-planar/FourPlayerPlanarContract.js');
 const { VIEWPORT_LAYOUTS } = await import('../src/shared/contracts/ViewportLayoutContract.js');
@@ -122,7 +121,7 @@ test('startMatch stores the three-player selection, gives all three slots the sh
     assert.equal(runtime.started, 1);
 });
 
-test('an unknown device in one slot falls back to that slot default instead of dropping the whole assignment', () => {
+test('an unknown device in one slot falls back to an unused device instead of dropping the whole assignment', () => {
     const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
     const setupView = createSetupView({
         mode: 'classic',
@@ -135,10 +134,25 @@ test('an unknown device in one slot falls back to that slot default instead of d
 
     module._persistSetupSelection();
 
-    const expected = ['gamepad-2', THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT[1], 'keyboard'];
+    const expected = ['gamepad-2', 'gamepad-1', 'keyboard'];
     assert.deepEqual(runtime.settings.localSettings.threePlayerSplit.deviceAssignment, expected);
     assert.deepEqual(setupView.calls.applyNormalizedSelection.at(-1).deviceAssignment, expected);
     assert.equal(runtime.notified, 1);
+});
+
+test('duplicate three-player devices are reassigned before the selection is saved', () => {
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['gamepad-1', 'gamepad-1', 'keyboard'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView() });
+
+    module._persistSetupSelection();
+
+    const expected = ['gamepad-1', 'gamepad-2', 'keyboard'];
+    assert.deepEqual(runtime.settings.localSettings.threePlayerSplit.deviceAssignment, expected);
+    assert.deepEqual(setupView.calls.applyNormalizedSelection.at(-1).deviceAssignment, expected);
 });
 
 test('update drives a three-row HUD only while the three-player runtime is active', () => {
