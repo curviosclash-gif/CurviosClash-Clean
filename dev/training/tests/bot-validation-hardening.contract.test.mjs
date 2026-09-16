@@ -63,6 +63,7 @@ test('vertical Arcade bot validation avoids parcours-only maps', () => {
     assert.equal(scenario.mapKey, 'vertical_maze');
     assert.equal(scenario.bots, 1);
     assert.equal(scenario.expectedRuntimeBotCount, 3);
+    assert.equal(scenario.expectedRuntimeBotCountFromArcadeSeed, true);
     assert.equal(scenario.expectedPolicyType, 'heuristic');
 });
 
@@ -179,6 +180,18 @@ test('runtime verification reports missing, additional, policyless, and botless 
         arcadeSeed: 1337,
     };
     assert.equal(buildBotValidationRuntimeVerification(scenario, [sample]).botCount.ok, true);
+    const secondEncounterSample = {
+        ...sample,
+        arcadeSeed: 1338,
+        botCount: 2,
+        botPolicyTypes: ['heuristic', 'heuristic'],
+        botDecisions: sample.botDecisions.slice(0, 2),
+    };
+    const seededCounts = buildBotValidationRuntimeVerification(scenario, [sample, secondEncounterSample]).botCount;
+    assert.equal(seededCounts.ok, true);
+    assert.deepEqual(seededCounts.expectedBySample, [3, 2]);
+    assert.equal(buildBotValidationRuntimeVerification(scenario, [{ ...secondEncounterSample, botCount: 3 }]).botCount.ok, false);
+    assert.equal(buildBotValidationRuntimeVerification(scenario, [{ ...sample, arcadeSeed: null }]).botCount.ok, false);
 
     const invalid = buildBotValidationRuntimeVerification(scenario, [
         { ...sample, botCount: 2, botPolicyTypes: ['heuristic', 'heuristic'] },

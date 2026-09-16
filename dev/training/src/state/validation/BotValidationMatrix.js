@@ -14,6 +14,7 @@ function cloneScenario(entry) {
         expectedRuntimeBotCount: Number.isFinite(Number(entry.expectedRuntimeBotCount))
             ? Math.max(0, Math.trunc(Number(entry.expectedRuntimeBotCount)))
             : bots,
+        expectedRuntimeBotCountFromArcadeSeed: entry.expectedRuntimeBotCountFromArcadeSeed === true,
         mapKey: String(entry.mapKey || 'standard'),
         gameMode: normalizedMode,
         botPolicyStrategy: strategy,
@@ -204,6 +205,7 @@ export function getBotValidationMatrix() {
             mode: '1p',
             bots: 1,
             expectedRuntimeBotCount: 3,
+            expectedRuntimeBotCountFromArcadeSeed: true,
             mapKey: 'vertical_maze',
             gameMode: 'ARCADE',
             botPolicyStrategy: 'heuristic',

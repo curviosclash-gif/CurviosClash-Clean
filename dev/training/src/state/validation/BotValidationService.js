@@ -1,5 +1,6 @@
 import { getBotValidationMatrix, resolveBotValidationScenario } from './BotValidationMatrix.js';
 import { writeHangarMapSelection } from '../../../../../src/ui/hangar/HangarSelectionWritebackContract.js';
+import { buildArcadeSectorPlan, resolveArcadeSectorRuntimeProfile } from '../../../../../src/entities/directors/ArcadeEncounterCatalog.js';
 
 function normalizeLabel(label) {
     return String(label || 'BASELINE').trim().toUpperCase() || 'BASELINE';
@@ -51,6 +52,20 @@ function expectedRuntimeGameMode(gameMode) {
     return gameMode;
 }
 
+function expectedBotCountForSample(scenario, sample, fallbackCount) {
+    if (scenario.expectedRuntimeBotCountFromArcadeSeed !== true) return fallbackCount;
+    const seed = Number(sample.arcadeSeed);
+    if (sample.arcadeEnabled !== true || sample.arcadeSeed == null || !Number.isInteger(seed) || seed < 0) return 0;
+    const firstSector = buildArcadeSectorPlan({
+        seed,
+        difficulty: scenario.botDifficulty,
+    }).sequence?.[0];
+    return resolveArcadeSectorRuntimeProfile(firstSector, {
+        fallbackBotCount: scenario.bots,
+        fallbackDifficulty: scenario.botDifficulty,
+    }).botCount;
+}
+
 export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamples = []) {
     const samples = Array.isArray(runtimeSamples) ? runtimeSamples.filter(Boolean) : [];
     const expectedPolicyType = normalizePolicyType(scenario.expectedPolicyType);
@@ -76,19 +91,22 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
     let policylessBots = 0;
     let botCountMismatchSamples = 0;
     let botlessSamples = 0;
+    const expectedBotCounts = [];
     for (const sample of samples) {
         const botCount = Math.max(0, Math.trunc(Number(sample.botCount) || 0));
+        const expectedBotCount = expectedBotCountForSample(scenario, sample, expectedRuntimeBotCount);
+        expectedBotCounts.push(expectedBotCount);
         const policyCount = Array.isArray(sample.botPolicyTypes)
             ? sample.botPolicyTypes.filter((type) => !!normalizePolicyType(type)).length
             : 0;
-        missingBots += Math.max(0, expectedRuntimeBotCount - botCount);
-        additionalBots += Math.max(0, botCount - expectedRuntimeBotCount);
+        missingBots += Math.max(0, expectedBotCount - botCount);
+        additionalBots += Math.max(0, botCount - expectedBotCount);
         policylessBots += Math.max(0, botCount - policyCount);
-        if (botCount !== expectedRuntimeBotCount) botCountMismatchSamples += 1;
+        if (botCount !== expectedBotCount || expectedBotCount <= 0) botCountMismatchSamples += 1;
         if (botCount === 0) botlessSamples += 1;
     }
     const botCountMatches = samples.length > 0
-        && expectedRuntimeBotCount > 0
+        && expectedBotCounts.every((count) => count > 0)
         && botCountMismatchSamples === 0
         && botlessSamples === 0;
     const policyMatches = samples.length > 0
@@ -146,6 +164,7 @@ export function buildBotValidationRuntimeVerification(scenario = {}, runtimeSamp
         botCount: {
             ok: botCountMatches,
             expectedRuntimeBotCount,
+            expectedBySample: expectedBotCounts,
             mismatchSamples: botCountMismatchSamples,
             missingBots,
             additionalBots,
