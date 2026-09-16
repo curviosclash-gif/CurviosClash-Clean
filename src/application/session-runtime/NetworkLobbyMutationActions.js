@@ -43,6 +43,9 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
         return service._fail('Lobby fehlt.', 'not_in_lobby');
     }
     if (!sessionState.isHost) return service._fail('Nur der Host kann starten.', 'host_required');
+    if (service._matchStartPending || sessionState.pendingMatchCommandId) {
+        return service._fail('Match wird bereits gestartet.', 'match_start_pending');
+    }
     if (sessionState.settingsSyncPending || sessionState.settingsSyncError) {
         return service._fail('Match-Einstellungen müssen zuerst übertragen werden.', 'settings_sync_pending');
     }
@@ -57,10 +60,6 @@ export function requestNetworkLobbyMatchStart(service, options = {}) {
     if (!sessionState.allReady) {
         return service._fail('Alle Teilnehmer muessen Ready sein.', 'members_not_ready');
     }
-    if (service._matchStartPending || sessionState.pendingMatchCommandId) {
-        return service._fail('Match wird bereits gestartet.', 'match_start_pending');
-    }
-
     const settingsSnapshot = deepClone(options.settingsSnapshot ?? service._hostSettingsSnapshot);
     service._matchStartPending = true;
     service.onStateChanged?.(service.getSessionState());

@@ -46,3 +46,22 @@ test('a stale host snapshot starts a settings transfer instead of remaining bloc
     assert.deepEqual(published, [snapshot]);
     assert.equal(starts, 0);
 });
+
+test('an in-flight match start does not claim to republish changed settings', () => {
+    let publishes = 0;
+    const sessionState = {
+        joined: true, isHost: true, settingsRevision: 2,
+        settingsSyncPending: false, settingsSyncError: '', memberCount: 2, allReady: true,
+    };
+    const service = {
+        _matchStartPending: true,
+        _hostSettingsSnapshot: { mapKey: 'old' },
+        _transportSession: { hasLobby: () => true },
+        getSessionState: () => sessionState,
+        publishHostSettings: () => { publishes += 1; },
+        _fail: (message, code) => ({ ok: false, message, code }),
+    };
+    const result = requestNetworkLobbyMatchStart(service, { settingsSnapshot: { mapKey: 'new' } });
+    assert.equal(result.code, 'match_start_pending');
+    assert.equal(publishes, 0);
+});
