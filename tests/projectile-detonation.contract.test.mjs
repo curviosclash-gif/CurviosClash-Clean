@@ -227,3 +227,58 @@ test('swap projectiles exchange player positions without drawing a connecting tr
     assert.equal(gaps, 2);
     system.dispose();
 });
+
+test('an owner cleared during update never simulates a surviving projectile twice', () => {
+    const { owner, players, system } = createProjectileSystem();
+    const bot = {
+        index: 2,
+        alive: true,
+        isBot: true,
+        position: new THREE.Vector3(0, 0, 200),
+        getDirection(out) { return out.set(0, 0, 1); },
+    };
+    const target = {
+        index: 1,
+        alive: true,
+        position: new THREE.Vector3(3, 0, 0),
+        hitboxRadius: 1,
+        isSphereInOBB: () => true,
+        takeDamage() {
+            target.alive = false;
+            return { applied: 50, isDead: true };
+        },
+    };
+    players.push(target, bot);
+
+    // Endless deactivates the killed bot's slot, which clears the bot's projectiles from
+    // the very list ProjectileSystem.update() is walking.
+    system.onProjectileDamage = () => { system.clearForOwner(bot); };
+
+    const stepped = [];
+    const simulationOps = system._simulationOps;
+    const stepProjectile = simulationOps.stepProjectile.bind(simulationOps);
+    simulationOps.stepProjectile = (projectile, index, dt, arena, list, trailIndex, time) => {
+        stepped.push(projectile);
+        return stepProjectile(projectile, index, dt, arena, list, trailIndex, time);
+    };
+
+    const botRocket = system.spawnExternalProjectile({
+        owner: bot, type: 'ROCKET_WEAK', position: { x: 0, y: 0, z: 200 }, direction: { x: 0, y: 0, z: 1 },
+    });
+    const bystanderRocket = system.spawnExternalProjectile({
+        owner, type: 'ROCKET_WEAK', position: { x: 0, y: 0, z: -200 }, direction: { x: 0, y: 0, z: -1 },
+    });
+    const killingRocket = system.spawnExternalProjectile({
+        owner, type: 'ROCKET_WEAK', position: { x: 0, y: 0, z: 0 }, direction: { x: 1, y: 0, z: 0 },
+    });
+    assert.ok(botRocket && bystanderRocket && killingRocket);
+    assert.deepEqual(system.projectiles, [botRocket, bystanderRocket, killingRocket]);
+
+    system.update(1 / 60);
+
+    assert.equal(stepped.filter((projectile) => projectile === killingRocket).length, 1);
+    assert.equal(stepped.filter((projectile) => projectile === bystanderRocket).length, 1);
+    assert.equal(stepped.includes(botRocket), false);
+    assert.deepEqual(system.projectiles, [bystanderRocket]);
+    system.dispose();
+});

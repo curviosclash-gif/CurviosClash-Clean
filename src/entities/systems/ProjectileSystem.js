@@ -64,6 +64,10 @@ export class ProjectileSystem {
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
 
         this.projectiles = [];
+        // Removals requested from inside a hit callback are collected here and applied after
+        // the update loop, so the swap-remove never moves an entry into an unvisited slot.
+        this._pendingRemovals = [];
+        this._deferProjectileRemovals = false;
         this._projectileAssets = new Map();
         this._projectilePools = new Map();
         this._statePool = new ProjectileStatePool();
@@ -431,23 +435,58 @@ export class ProjectileSystem {
 
         for (let i = this.projectiles.length - 1; i >= 0; i--) {
             const projectile = this.projectiles[i];
-            const simulationResult = this._simulationOps.stepProjectile(projectile, i, dt, arena, players, trailSpatialIndex, time);
-            const shouldRemove = this._hitResolver.resolveProjectileOutcome(
-                projectile,
-                players,
-                trailSpatialIndex,
-                simulationResult
-            );
+            // A kill booked by an earlier projectile can clear a whole owner from this list.
+            // Those entries are gone as far as the game is concerned; stepping them anyway
+            // would let a dead bot's rocket still score a hit in the same frame.
+            if (this._isPendingRemoval(projectile)) continue;
+            let shouldRemove = false;
+            // Hit callbacks reach back into this list (bot deactivation clears its rockets).
+            // While one projectile is being resolved every removal is only booked.
+            this._deferProjectileRemovals = true;
+            let simulationResult = null;
+            try {
+                simulationResult = this._simulationOps.stepProjectile(projectile, i, dt, arena, players, trailSpatialIndex, time);
+                shouldRemove = this._hitResolver.resolveProjectileOutcome(
+                    projectile,
+                    players,
+                    trailSpatialIndex,
+                    simulationResult
+                );
+            } finally {
+                this._deferProjectileRemovals = false;
+            }
             this._rocketTrailSystem.updateProjectile(projectile, dt, this.entityRuntimeConfig?.TRAIL?.UPDATE_INTERVAL, shouldRemove);
             if (shouldRemove) {
                 this._removeProjectileAt(i);
             }
         }
+        this._flushPendingRemovals();
+    }
+
+    _isPendingRemoval(projectile) {
+        return this._pendingRemovals.length > 0 && this._pendingRemovals.indexOf(projectile) >= 0;
+    }
+
+    _flushPendingRemovals() {
+        const pending = this._pendingRemovals;
+        if (pending.length === 0) return;
+        for (let i = 0; i < pending.length; i++) {
+            // A booked projectile can already be gone: the update loop removed it itself, or a
+            // detonation callback cleared it along with its owner.
+            const index = this.projectiles.indexOf(pending[i]);
+            if (index >= 0) this._removeProjectileAt(index);
+        }
+        pending.length = 0;
     }
 
     _removeProjectileAt(index) {
         const projectile = this.projectiles[index];
         if (!projectile) return;
+
+        if (this._deferProjectileRemovals) {
+            if (this._pendingRemovals.indexOf(projectile) < 0) this._pendingRemovals.push(projectile);
+            return;
+        }
 
         this._hitResolver.detonateProjectile(projectile);
         this._releaseProjectileMesh(projectile);
@@ -479,6 +518,7 @@ export class ProjectileSystem {
             this._releaseProjectileState(projectile);
         }
         this.projectiles.length = 0;
+        this._pendingRemovals.length = 0;
         this._elapsedSeconds = 0;
         this._rocketTrailSystem.clear();
     }
