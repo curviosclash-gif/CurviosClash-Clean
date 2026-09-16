@@ -43,7 +43,7 @@ export const HEURISTIC_PROFILES = Object.freeze({
         opportunistBias: 0.5,
         openingHookBias: 0.5,
         trafficAvoidanceBias: 0.5,
-        predictiveSafetyBias: 0.63,
+        predictiveSafetyBias: 0.85,
     }),
     balanced: Object.freeze({
         retreatVitality: 0.38,
@@ -62,7 +62,7 @@ export const HEURISTIC_PROFILES = Object.freeze({
         opportunistBias: 0.5,
         openingHookBias: 0.5,
         trafficAvoidanceBias: 0.5,
-        predictiveSafetyBias: 0.6,
+        predictiveSafetyBias: 0.75,
     }),
     aggressive: Object.freeze({
         retreatVitality: 0.20,
