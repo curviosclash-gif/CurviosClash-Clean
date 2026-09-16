@@ -1556,7 +1556,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
                     game.settings.localSettings = {};
                 }
                 game.settings.localSettings.modePath = String(gameMode || '').toUpperCase() === 'HUNT' ? 'fight' : 'normal';
-                game._onSettingsChanged();
+                game.runtimeCoordinator.onSettingsChanged();
                 const startResult = game.startMatch();
                 if (startResult && typeof startResult.then === 'function') {
                     await startResult;
@@ -1628,7 +1628,7 @@ test.describe('Physics Policy (Tests 65-82)', () => {
             }
             game.settings.localSettings.modePath = 'normal';
             game.settings.gameplay.planarMode = false;
-            game._onSettingsChanged();
+            game.runtimeCoordinator.onSettingsChanged();
             const startResult = game.startMatch();
             if (startResult && typeof startResult.then === 'function') {
                 await startResult;

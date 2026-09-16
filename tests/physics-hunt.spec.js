@@ -358,7 +358,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             };
 
             game.settings.gameplay.mgTrailAimRadius = 0.25;
-            game._applySettingsToRuntime();
+            game.runtimeFacade.applySettingsToRuntime();
             const lowRef = registerOffsetSegment((writeIndex + Math.floor(maxSegments * 0.35)) % maxSegments, 1.1);
             resetShotState();
             const lowShot = entityManager._shootHuntGun(player);
@@ -367,7 +367,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             }
 
             game.settings.gameplay.mgTrailAimRadius = 1.6;
-            game._applySettingsToRuntime();
+            game.runtimeFacade.applySettingsToRuntime();
             const highRef = registerOffsetSegment((writeIndex + Math.floor(maxSegments * 0.55)) % maxSegments, 1.1);
             resetShotState();
             const highShot = entityManager._shootHuntGun(player);
@@ -1643,7 +1643,7 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             }
 
             game.settings.hunt.respawnEnabled = true;
-            game._applySettingsToRuntime?.();
+            game.runtimeFacade?.applySettingsToRuntime?.();
 
             player.inventory = ['SHIELD'];
             player.rocketInventory = ['ROCKET_HEAVY', 'ROCKET_MEDIUM'];
