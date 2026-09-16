@@ -29,6 +29,14 @@ class MockEncoderProcess extends EventEmitter {
     }
 }
 
+class ClosingEncoderProcess extends MockEncoderProcess {
+    constructor() {
+        super();
+        // Like ffmpeg: the process exits once its stdin is closed.
+        this.stdin.on('finish', () => queueMicrotask(() => this.emit('close', 0, null)));
+    }
+}
+
 class FailingEncoderProcess extends MockEncoderProcess {
     constructor() {
         super();
@@ -173,6 +181,65 @@ test('cinematic exporter reports an early encoder pipe close without an unhandle
         await job.cancel({ exportId: started.exportId });
     } finally {
         await rm(root, { recursive: true });
+    }
+});
+
+test('settle resolves only after the export job left the registry, not when ffmpeg closed', async () => {
+    const root = await mkdtemp(path.join(os.tmpdir(), 'curvios-export-settle-'));
+    const videoDirectory = path.join(root, 'videos');
+    const job = createCinematicReplayVideoExportJob({
+        app: {
+            getPath(name) {
+                return name === 'videos' ? videoDirectory : root;
+            },
+        },
+        dialog: {
+            async showSaveDialog() {
+                return { canceled: false, filePath: path.join(videoDirectory, 'settle.mp4') };
+            },
+        },
+        spawnProcess: () => new ClosingEncoderProcess(),
+        probeCapability: async () => ({ available: true, command: 'ffmpeg', source: 'test' }),
+        executeCommand: async () => ({ ok: true, stdout: ' V..... libx264 H.264 encoder', stderr: '' }),
+    });
+    try {
+        const started = await job.begin({
+            matchId: 'match-settle',
+            fileName: 'settle.mp4',
+            width: 1920,
+            height: 1080,
+            fps: 60,
+            expectedDurationMs: 1000,
+        });
+        assert.equal(started.started, true);
+        const accepted = await job.appendFrame({
+            exportId: started.exportId,
+            frameIndex: 0,
+            frameBytes: new Uint8Array(1920 * 1080 * 4),
+        });
+        assert.equal(accepted.accepted, true);
+
+        // ffmpeg closes as soon as stdin ends, but validation and the atomic
+        // publish keep the job active for a while afterwards.
+        let activeWhenSettled = null;
+        const settled = job.settle().then(() => {
+            activeWhenSettled = job.getStatus().active;
+        });
+        await job.finish({
+            exportId: started.exportId,
+            frameCount: 1,
+            expectedDurationMs: 1000,
+        }).catch(() => null);
+        await settled;
+
+        assert.equal(
+            activeWhenSettled,
+            false,
+            'settle() must not resolve while the job still validates or publishes'
+        );
+        assert.equal(job.getStatus().active, false);
+    } finally {
+        await rm(root, { recursive: true, force: true });
     }
 });
 

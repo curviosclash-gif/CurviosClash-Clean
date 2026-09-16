@@ -6,6 +6,9 @@
 // exercised in plain Node contract tests.
 
 const DEFAULT_GRACEFUL_CLOSE_TIMEOUT_MS = 30000;
+// How often the close re-checks whether a still-running export job finally left
+// the registry after its encoder closed.
+const EXPORT_SETTLE_POLL_MS = 250;
 
 const CLOSE_PHASE = Object.freeze({
     IDLE: 'idle',
@@ -100,6 +103,8 @@ function createMainWindowCloseLifecycle({
     let timeoutId = null;
     /** @type {GracefulCloseReadyListener | null} */
     let readyListener = null;
+    /** @type {unknown} */
+    let settlePollId = null;
 
     /** @returns {CloseableWindow | null} */
     function resolveLiveWindow() {
@@ -110,6 +115,10 @@ function createMainWindowCloseLifecycle({
     }
 
     function clearHandshakeResources() {
+        if (settlePollId !== null) {
+            clearTimeoutFn(settlePollId);
+            settlePollId = null;
+        }
         if (timeoutId !== null) {
             clearTimeoutFn(timeoutId);
             timeoutId = null;
@@ -183,8 +192,23 @@ function createMainWindowCloseLifecycle({
         } catch (error) {
             onError(error);
         }
+        waitForIdleExportJob();
+    }
+
+    // settleExport() resolves when the encoder closed, but the job only leaves
+    // the registry after validation and the atomic publish. Starting the
+    // time-boxed handshake earlier would let its timeout cancel the export
+    // while the finished file is being renamed into place.
+    function waitForIdleExportJob() {
         if (phase !== CLOSE_PHASE.AWAITING_EXPORT) return;
-        startHandshake();
+        if (isExportActive() !== true) {
+            startHandshake();
+            return;
+        }
+        settlePollId = setTimeoutFn(() => {
+            settlePollId = null;
+            waitForIdleExportJob();
+        }, EXPORT_SETTLE_POLL_MS);
     }
 
     function startExportDecision() {
@@ -228,8 +252,11 @@ function createMainWindowCloseLifecycle({
             startHandshake();
         },
         async handleRenderProcessGone(details = null) {
-            if (details?.reason === CLEAN_RENDERER_EXIT_REASON) return;
             if (phase === CLOSE_PHASE.CLOSING) return;
+            // A clean exit while no close is pending belongs to the regular
+            // close path. Mid-close it still means nobody will send frames or
+            // the finish IPC any more, so the export must not be waited for.
+            if (details?.reason === CLEAN_RENDERER_EXIT_REASON && phase === CLOSE_PHASE.IDLE) return;
             if (isExportActive() === true) {
                 await abortExportThenFinish('render_process_gone');
                 return;

@@ -150,6 +150,36 @@ test('"wait for the export" lets a long export finish instead of cutting it off'
     assert.equal(harness.timers.pendingCount(), 1, 'the handshake itself is still time-boxed');
 });
 
+test('the close keeps waiting while the export job still validates and publishes', async () => {
+    let exportActive = true;
+    const harness = createLifecycleHarness({
+        isExportActive: () => exportActive,
+        confirmExportClose: async () => 'wait',
+        // settle() resolves when FFmpeg closed — validation and the atomic
+        // publish still run afterwards, so the job stays active.
+        settleExport: async () => { harness.calls.settleExport += 1; },
+    });
+
+    harness.window.close();
+    await flush();
+
+    assert.equal(harness.calls.settleExport, 1);
+    assert.equal(harness.calls.gracefulCloseRequests, 0, 'no handshake while the job still publishes');
+
+    harness.timers.runAll();
+    await flush();
+    assert.deepEqual(harness.calls.cancelExport, [], 'the publish step must never be cancelled');
+    assert.equal(harness.state.destroyed, false);
+    assert.equal(harness.calls.gracefulCloseRequests, 0);
+
+    exportActive = false;
+    harness.timers.runAll();
+    await flush();
+
+    assert.equal(harness.calls.gracefulCloseRequests, 1, 'the handshake starts once the job is really done');
+    assert.equal(harness.timers.pendingCount(), 1);
+});
+
 test('a renderer that dies while the export settles cancels the export and destroys the window', async () => {
     const harness = createLifecycleHarness({
         isExportActive: () => true,
@@ -267,27 +297,38 @@ test('cancelling the export from the close dialog still closes the window', asyn
     const harness = createLifecycleHarness({
         isExportActive: () => exportActive,
         confirmExportClose: async () => 'cancel-export',
+        cancelExport: async (payload) => {
+            harness.calls.cancelExport.push(payload);
+            exportActive = false;
+        },
     });
 
     harness.window.close();
     await flush();
 
     assert.deepEqual(harness.calls.cancelExport, [{ reason: 'application_close_confirmed' }]);
-    exportActive = false;
+    assert.equal(harness.calls.gracefulCloseRequests, 1, 'the handshake runs once the job is gone');
     harness.timers.runAll();
+    await flush();
     assert.equal(harness.state.destroyed, true);
 });
 
 test('choosing "back to the application" keeps the window open and stays reusable', async () => {
     let decision = 'stay';
+    let exportActive = true;
     const harness = createLifecycleHarness({
-        isExportActive: () => true,
+        isExportActive: () => exportActive,
         confirmExportClose: async () => decision,
+        settleExport: async () => {
+            harness.calls.settleExport += 1;
+            exportActive = false;
+        },
     });
 
     harness.window.close();
     await flush();
     assert.equal(harness.state.destroyed, false);
+    assert.equal(harness.calls.settleExport, 0, 'staying must not touch the export');
     assert.equal(harness.calls.gracefulCloseRequests, 0);
 
     decision = 'wait';

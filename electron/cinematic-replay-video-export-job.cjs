@@ -336,6 +336,14 @@ function createCinematicReplayVideoExportJob({
 
     const resolveTempRoot = () => path.join(app.getPath('temp'), TEMP_DIRECTORY_NAME);
 
+    // Single exit door of a job: whoever removes it from the registry also has
+    // to wake everybody waiting on it, or a graceful shutdown would hang.
+    function releaseJob(exportId, job) {
+        jobs.delete(exportId);
+        activeExportId = activeExportId === exportId ? null : activeExportId;
+        job?.resolveDone?.();
+    }
+
     async function cleanupJobFiles(job, { keepVideo = false } = {}) {
         const paths = [
             keepVideo ? null : job?.tempVideoPath,
@@ -442,10 +450,17 @@ function createCinematicReplayVideoExportJob({
             capability,
             child: null,
             closePromise: null,
+            // Resolves when the job leaves the registry — the encoder closing is
+            // only the first half; validation and the atomic publish follow.
+            donePromise: null,
+            resolveDone: null,
             stderr: '',
             cancelled: false,
             startedAt: now(),
         };
+        job.donePromise = new Promise((resolve) => {
+            job.resolveDone = resolve;
+        });
         if (job.audioPath) {
             await fsPromises.writeFile(job.audioPath, Buffer.from(
                 audioBytes.buffer,
@@ -521,6 +536,18 @@ function createCinematicReplayVideoExportJob({
     async function finish(payload = null) {
         const request = payload && typeof payload === 'object' ? payload : {};
         const exportId = normalizeString(request.exportId);
+        try {
+            return await runFinish(exportId, request);
+        } catch (error) {
+            // An unexpected failure must never leave the job in the registry:
+            // a graceful shutdown would then wait for an export that can no
+            // longer end.
+            releaseJob(exportId, jobs.get(exportId));
+            throw error;
+        }
+    }
+
+    async function runFinish(exportId, request) {
         const job = jobs.get(exportId);
         if (!job || job.cancelled) return { saved: false, reason: 'export_not_active' };
         if (Number(request.frameCount) !== job.frameCount || job.frameCount <= 0) {
@@ -530,8 +557,7 @@ function createCinematicReplayVideoExportJob({
         const closeResult = await job.closePromise;
         if (!closeResult.ok || job.cancelled) {
             await cleanupJobFiles(job);
-            jobs.delete(exportId);
-            activeExportId = activeExportId === exportId ? null : activeExportId;
+            releaseJob(exportId, job);
             return {
                 saved: false,
                 reason: job.cancelled ? 'cancelled' : 'ffmpeg_encode_failed',
@@ -551,8 +577,7 @@ function createCinematicReplayVideoExportJob({
         });
         if (!validation.valid) {
             await cleanupJobFiles(job);
-            jobs.delete(exportId);
-            activeExportId = activeExportId === exportId ? null : activeExportId;
+            releaseJob(exportId, job);
             return { saved: false, reason: validation.reason, validation };
         }
         try {
@@ -560,8 +585,7 @@ function createCinematicReplayVideoExportJob({
             await fsPromises.rename(job.tempVideoPath, job.targetPath);
         } catch (error) {
             await cleanupJobFiles(job);
-            jobs.delete(exportId);
-            activeExportId = activeExportId === exportId ? null : activeExportId;
+            releaseJob(exportId, job);
             return {
                 saved: false,
                 reason: 'atomic_publish_failed',
@@ -570,8 +594,7 @@ function createCinematicReplayVideoExportJob({
         }
         const warnings = job.audioPath ? [] : [job.audioWarning || 'audio_capture_unavailable'];
         await cleanupJobFiles(job, { keepVideo: true });
-        jobs.delete(exportId);
-        activeExportId = activeExportId === exportId ? null : activeExportId;
+        releaseJob(exportId, job);
         return {
             saved: true,
             code: 'RECORDING_SAVE_OK',
@@ -606,8 +629,7 @@ function createCinematicReplayVideoExportJob({
             new Promise((resolve) => setTimeout(resolve, 2500)),
         ]);
         await cleanupJobFiles(job);
-        jobs.delete(exportId);
-        activeExportId = activeExportId === exportId ? null : activeExportId;
+        releaseJob(exportId, job);
         return { cancelled: true, exportId };
     }
 
@@ -744,6 +766,10 @@ function createCinematicReplayVideoExportJob({
         const job = activeExportId ? jobs.get(activeExportId) : null;
         if (!job) return { settled: true, active: false };
         const result = await job.closePromise;
+        // FFmpeg closing is only the first half. Validation and the atomic
+        // publish still run and keep the job active; resolving here would let a
+        // shutdown cancel the export while it is being renamed into place.
+        await job.donePromise;
         return { settled: true, active: false, result };
     }
 
