@@ -16,7 +16,7 @@ const capacitorCli = path.join(repoRoot, 'node_modules', '@capacitor', 'cli', 'b
 const appId = 'de.curviosclash.classic';
 const debugApkPath = path.join(androidRoot, 'app', 'build', 'outputs', 'apk', 'debug', 'app-debug.apk');
 const androidGeneratedAssets = new Set(['cordova.js', 'cordova_plugins.js']);
-const androidCopyActions = new Set(['copy', 'sync', 'apk', 'install', 'check-assets']);
+const androidCopyActions = new Set(['copy', 'sync', 'apk', 'install', 'test', 'check-assets']);
 
 const action = String(process.argv[2] || 'sync').trim().toLowerCase();
 const defaultAndroidSdk = process.env.LOCALAPPDATA
@@ -153,7 +153,7 @@ async function verifyAndroidAssetsFresh() {
 }
 
 async function main() {
-  if (!['add', 'sync', 'copy', 'open', 'apk', 'install', 'doctor', 'check-assets'].includes(action)) {
+  if (!['add', 'sync', 'copy', 'open', 'apk', 'install', 'test', 'doctor', 'check-assets'].includes(action)) {
     throw new Error(`Unsupported action: ${action}`);
   }
 
@@ -189,6 +189,9 @@ async function main() {
     await runGradle(['assembleDebug', '--no-problems-report']);
     await runAdb(['install', '-r', debugApkPath]);
     await runAdb(['shell', 'monkey', '-p', appId, '-c', 'android.intent.category.LAUNCHER', '1']);
+  } else if (action === 'test') {
+    await runCapacitor(['sync', 'android'], 240_000);
+    await runGradle([':app:connectedDebugAndroidTest', '--no-problems-report']);
   }
 }
 

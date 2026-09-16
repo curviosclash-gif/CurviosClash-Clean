@@ -1251,6 +1251,16 @@ test('Mobile Classic build prunes developer DOM and inactive preloads', () => {
   assert.match(prunedHtml, /submenu-debug/);
 });
 
+test('Unified Mobile Android test action syncs before running device instrumentation', async () => {
+  const capacitorScript = await readText('scripts/capacitor-mobile-classic.mjs');
+
+  assert.match(capacitorScript, /androidCopyActions = new Set\([^\n]*'test'/);
+  assert.match(
+    capacitorScript,
+    /action === 'test'\) \{\s*await runCapacitor\(\['sync', 'android'\], 240_000\);\s*await runGradle\(\[':app:connectedDebugAndroidTest', '--no-problems-report'\]\);/,
+  );
+});
+
 test('Unified Mobile Android scripts build, wrap, and validate the phone app path', async () => {
   const packageJson = await readJson('package.json');
   const buildScript = await readText('scripts/build-mobile-classic-app.mjs');
@@ -1357,4 +1367,3 @@ test('Unified Mobile Android scripts build, wrap, and validate the phone app pat
   assert.match(matchInputResolver, /TOUCH_CONTROL_MODES\.TILT/);
   assert.match(matchInputResolver, /_mobileClassicAppTarget/);
 });
-
