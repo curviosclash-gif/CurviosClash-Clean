@@ -1,8 +1,40 @@
 import { test, expect } from './helpers.desktop.js';
-import { loadGame, startHuntGame, startHuntGameWithBots } from './helpers.js';
+import { loadGame, openCustomSubmenu, startHuntGame, startHuntGameWithBots } from './helpers.js';
 
 test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
     test.describe.configure({ timeout: 120000 });
+
+    test('Hunt keeps eight active bots after a saved Arena Waves run', async ({ page }) => {
+        await loadGame(page);
+        await openCustomSubmenu(page);
+        await page.locator('#submenu-custom:not(.hidden) [data-mode-path="fight"]').click();
+        await page.waitForSelector('#submenu-game:not(.hidden)');
+        await page.selectOption('#map-select', 'maze');
+        await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            game.settings.arcade = { ...game.settings.arcade, runType: 'arena_waves', combatProfile: 'hunt' };
+            const slider = document.getElementById('bot-count');
+            slider.value = '8';
+            slider.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        await page.click('#btn-start');
+        await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'PLAYING'
+            && window.GAME_INSTANCE?.entityManager?.humanPlayers?.[0]?.alive === true
+            && window.GAME_INSTANCE?.entityManager?._simulationClockMs > 0);
+        const state = await page.evaluate(() => {
+            const game = window.GAME_INSTANCE;
+            return {
+                arcadeEnabled: game.runtimeConfig.arcade.enabled,
+                savedRunType: game.runtimeConfig.arcade.runType,
+                requestedBots: game.runtimeConfig.session.numBots,
+                botSlots: game.entityManager.bots.length,
+                activeBots: game.entityManager.bots.filter(({ player }) => player.entitySlotActive !== false && player.alive).length,
+                scoreboardRows: game.entityManager.getHuntScoreboard().length,
+            };
+        });
+        expect(state).toEqual({ arcadeEnabled: false, savedRunType: 'arena_waves', requestedBots: 8,
+            botSlots: 8, activeBots: 8, scoreboardRows: 9 });
+    });
 
     test('T61: Hunt-MG entfernt getroffenes Spursegment sofort', async ({ page }) => {
         await startHuntGame(page);
