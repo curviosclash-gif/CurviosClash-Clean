@@ -1,7 +1,7 @@
 import process from 'node:process';
 
 import { createRoundStateController } from '../src/state/RoundStateController.js';
-import { coordinateRoundEnd } from '../src/state/RoundEndCoordinator.js';
+import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
 
 function assert(condition, message) {
     if (!condition) {
