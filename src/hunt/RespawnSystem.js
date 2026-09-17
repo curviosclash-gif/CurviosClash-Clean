@@ -141,7 +141,7 @@ export class RespawnSystem {
                 });
             }
             if (!spawnDir) {
-                spawnDir = this.runtime.spawn.findSafeSpawnDirection(spawnPos, player.hitboxRadius);
+                spawnDir = this.runtime.spawn.findSafeSpawnDirection(spawnPos, player.hitboxRadius, player);
             }
             player.spawn(spawnPos, spawnDir);
             const strategy = this.runtime?.callbacks?.getStrategy?.() || null;

@@ -280,17 +280,11 @@ export class EntityManager {
         return best;
     }
 
-    _findSpawnPosition(minDistance = 12, margin = 12, planarLevel = null) {
-        return this._spawnPlacementSystem.findSpawnPosition(minDistance, margin, planarLevel);
-    }
+    _findSpawnPosition(minDistance = 12, margin = 12, planarLevel = null) { return this._spawnPlacementSystem.findSpawnPosition(minDistance, margin, planarLevel); }
 
-    _findSafeSpawnDirection(position, radius = 0.8) {
-        return this._spawnPlacementSystem.findSafeSpawnDirection(position, radius);
-    }
+    _findSafeSpawnDirection(position, radius = 0.8, player = null) { return this._spawnPlacementSystem.findSafeSpawnDirection(position, radius, player); }
 
-    _traceFreeDistance(origin, direction, maxDistance, stepDistance, radius = 0.8) {
-        return this._spawnPlacementSystem.traceFreeDistance(origin, direction, maxDistance, stepDistance, radius);
-    }
+    _traceFreeDistance(origin, direction, maxDistance, stepDistance, radius = 0.8) { return this._spawnPlacementSystem.traceFreeDistance(origin, direction, maxDistance, stepDistance, radius); }
 
     update(dt, inputManager, renderFrameId = 0) {
         this._tickPipeline.update(dt, inputManager, renderFrameId);

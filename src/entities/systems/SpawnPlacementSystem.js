@@ -39,6 +39,19 @@ export function resolveSpawnLookaheadDistance(config) {
     return Math.max(DEFAULT_SPAWN_LOOKAHEAD, speed * protection);
 }
 
+// Fallbacks match HUNT_CONFIG.MG for owners whose runtime config carries no gun block.
+const DEFAULT_SPAWN_AIM_RANGE = 152;
+const DEFAULT_SPAWN_AIM_DOT = 0.965;
+
+function resolveSpawnAimCone(config) {
+    const range = Number(config?.HUNT?.MG?.RANGE);
+    const dot = Number(config?.HUNT?.MG?.AIM_DOT_MIN);
+    return {
+        rangeSq: (Number.isFinite(range) && range > 0 ? range : DEFAULT_SPAWN_AIM_RANGE) ** 2,
+        dot: Number.isFinite(dot) ? dot : DEFAULT_SPAWN_AIM_DOT,
+    };
+}
+
 function isFiniteNumber(value) {
     return Number.isFinite(Number(value));
 }
@@ -141,18 +154,21 @@ export class SpawnPlacementSystem {
         return this._rememberSpawn(safestFallback || checkedFallback);
     }
 
-    findSafeSpawnDirection(position, radius = 0.8) {
+    findSafeSpawnDirection(position, radius = 0.8, player = null) {
         const owner = this.owner;
         if (!owner) return null;
 
         // Reaching only a fixed 36 units left the probe blind for the rest of the protected
         // flight, so a heading that ends in a wall right after the timer scored as freely
         // as an open corridor.
-        const maxDistance = resolveSpawnLookaheadDistance(resolveEntityRuntimeConfig(owner));
+        const config = resolveEntityRuntimeConfig(owner);
+        const maxDistance = resolveSpawnLookaheadDistance(config);
+        const aimCone = resolveSpawnAimCone(config);
         const sampleDir = owner._tmpDir;
         const bestDirection = owner._tmpDir2;
         bestDirection.set(0, 0, -1);
         let bestDistance = -1;
+        let bestTier = -1;
 
         // In open geometry most samples reach the cap and tie. Keeping the first of them
         // always meant sample 0, which is exactly -Z: two thirds of all respawns left on
@@ -170,7 +186,13 @@ export class SpawnPlacementSystem {
                 SPAWN_DIRECTION_STEP,
                 radius
             );
-            if (freeDistance > bestDistance) {
+            // A clear protected flight matters most; among those, a heading that does not
+            // put an enemy straight into the gun sight wins. On the maze the tie break
+            // otherwise lined a bot up behind the human, firing from the first frame.
+            const tier = (freeDistance >= maxDistance ? 2 : 0)
+                + (this._isHeadingAimedAtEnemy(position, sampleDir, player, aimCone) ? 0 : 1);
+            if (tier > bestTier || (tier === bestTier && freeDistance > bestDistance)) {
+                bestTier = tier;
                 bestDistance = freeDistance;
                 bestDirection.copy(sampleDir);
             }
@@ -178,6 +200,21 @@ export class SpawnPlacementSystem {
         this._spawnDirectionCursor = (startSample + SPAWN_DIRECTION_STRIDE) % SPAWN_DIRECTION_SAMPLES;
 
         return bestDirection;
+    }
+
+    _isHeadingAimedAtEnemy(position, direction, player, aimCone) {
+        const players = this.owner?.players;
+        if (!Array.isArray(players)) return false;
+        const toEnemy = this._tmpSpawnDirection;
+        for (let i = 0; i < players.length; i++) {
+            const other = players[i];
+            if (!other?.alive || other === player || !other.position) continue;
+            toEnemy.subVectors(other.position, position);
+            const distanceSq = toEnemy.lengthSq();
+            if (distanceSq <= 0.000001 || distanceSq > aimCone.rangeSq) continue;
+            if (direction.dot(toEnemy) / Math.sqrt(distanceSq) >= aimCone.dot) return true;
+        }
+        return false;
     }
 
     traceFreeDistance(origin, direction, maxDistance, stepDistance, radius = 0.8) {

@@ -106,6 +106,56 @@ test('the spawn heading keeps room for the whole protected flight', () => {
     );
 });
 
+test('a spawn heading does not point the machine gun at an enemy that is already in the round', () => {
+    const owner = createSpawnOwner();
+    const system = new SpawnPlacementSystem(owner);
+    const origin = new THREE.Vector3(0, 50, 0);
+    const spawning = { index: 1, alive: true, position: new THREE.Vector3(300, 50, 300) };
+    const range = CONFIG_BASE.HUNT.MG.RANGE;
+    const aimDot = CONFIG_BASE.HUNT.MG.AIM_DOT_MIN;
+
+    // Open space, so every heading is equally free. Whatever the tie break would pick,
+    // an enemy sits right in front of it: on the maze this was the human at match start,
+    // under fire from the first frame.
+    for (let round = 0; round < 20; round++) {
+        const probe = new SpawnPlacementSystem(createSpawnOwner());
+        probe._spawnDirectionCursor = system._spawnDirectionCursor;
+        const unguarded = probe.findSafeSpawnDirection(origin, 0.8).clone();
+        const enemy = {
+            index: 0,
+            alive: true,
+            position: origin.clone().addScaledVector(unguarded, range * 0.6),
+        };
+        owner.players = [enemy, spawning];
+
+        const direction = system.findSafeSpawnDirection(origin, 0.8, spawning).clone();
+        const toEnemy = enemy.position.clone().sub(origin).normalize();
+        assert.ok(
+            direction.dot(toEnemy) < aimDot,
+            `round ${round}: the spawn heading aims at the enemy (dot ${direction.dot(toEnemy).toFixed(3)})`
+        );
+    }
+});
+
+test('an enemy in front never outweighs a wall right ahead', () => {
+    // Only +X stays open; the enemy sits there too. Turning away from it would fly the
+    // protected vehicle straight into a wall, which is worse than being aimed at.
+    const checkCollision = (position) => position.x < 2;
+    const owner = createSpawnOwner({ checkCollision });
+    const system = new SpawnPlacementSystem(owner);
+    const origin = new THREE.Vector3(3, 50, 0);
+    const spawning = { index: 1, alive: true, position: new THREE.Vector3(-300, 50, 0) };
+    owner.players = [
+        { index: 0, alive: true, position: new THREE.Vector3(60, 50, 0) },
+        spawning,
+    ];
+
+    const direction = system.findSafeSpawnDirection(origin, 0.8, spawning).clone();
+    const free = measureFreeDistance(checkCollision, origin, direction);
+
+    assert.ok(free >= PROTECTED_TRAVEL, `the heading has to stay clear, saw ${free}`);
+});
+
 /** Stands in for Player: the collision phase reads pose, hitbox and the damage entry. */
 function createPlayerStub({ position = new THREE.Vector3() } = {}) {
     return {

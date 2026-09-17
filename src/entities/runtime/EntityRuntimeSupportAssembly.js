@@ -207,7 +207,7 @@ export function createEntityRuntimeSupport(owner) {
             spawn: {
                 getPlanarSpawnLevel: () => owner._getPlanarSpawnLevel(),
                 findSpawnPosition: (minDistance = 12, margin = 12, planarLevel = null) => owner._findSpawnPosition(minDistance, margin, planarLevel),
-                findSafeSpawnDirection: (position, radius = 0.8) => owner._findSafeSpawnDirection(position, radius),
+                findSafeSpawnDirection: (position, radius = 0.8, player = null) => owner._findSafeSpawnDirection(position, radius, player),
             },
             lifecycle: {
                 killPlayer: (player, cause = 'UNKNOWN', options = {}) => owner._killPlayer(player, cause, options),

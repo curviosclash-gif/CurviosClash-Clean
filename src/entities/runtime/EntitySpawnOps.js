@@ -56,7 +56,7 @@ export class EntitySpawnOps {
             player,
         });
         const dir = this._resolveRouteSpawnDirection(player, pos)
-            || owner._findSafeSpawnDirection(pos, player.hitboxRadius);
+            || owner._findSafeSpawnDirection(pos, player.hitboxRadius, player);
         this.spawnPlayerAt(player, pos, dir);
     }
 
