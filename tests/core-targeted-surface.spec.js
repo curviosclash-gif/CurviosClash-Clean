@@ -1126,7 +1126,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             };
 
             game.settings.recording = { profile: 'youtube_short', hudMode: 'with_hud' };
-            game._onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
+            game.runtimeCoordinator.onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
             game.renderer.prepareRecordingCaptureFrame({
                 recordingActive: true,
                 renderProjection: game.playingStateSystem?.getMatchRenderProjection?.() || null,
@@ -1188,7 +1188,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
             if (!game || !renderer || !entityManager || !recorder) return null;
 
             game.settings.recording = { profile: 'youtube_short', hudMode: 'clean' };
-            game._onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
+            game.runtimeCoordinator.onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
 
             const pipeline = renderer.recordingCapturePipeline;
             const originalEnsure = pipeline?._ensureShortsRenderer?.bind?.(pipeline);

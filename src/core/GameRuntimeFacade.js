@@ -352,7 +352,6 @@ export class GameRuntimeFacade {
             changedKeys,
             menuMultiplayerBridge: this.menuMultiplayerBridge,
             resolveMenuAccessContext: () => this._resolveMenuAccessContext(),
-            didHostChangeMatchSettings: (nextChangedKeys) => this._didHostChangeMatchSettings(nextChangedKeys),
             captureSettingsSnapshot: () => this._captureMultiplayerMatchSettings(),
             syncUiState: () => this._syncMultiplayerUiState(),
         });

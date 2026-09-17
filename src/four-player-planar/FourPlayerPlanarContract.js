@@ -68,9 +68,15 @@ export const THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT = Object.freeze([
 
 export function normalizeThreePlayerSplitDeviceAssignment(value = null) {
     const source = Array.isArray(value) ? value : [];
+    const usedDevices = new Set();
     return THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT.map((fallback, index) => {
         const candidate = String(source[index] || '').trim().toLowerCase();
-        return THREE_PLAYER_SPLIT_INPUT_DEVICE_SET.has(candidate) ? candidate : fallback;
+        const preferred = THREE_PLAYER_SPLIT_INPUT_DEVICE_SET.has(candidate) ? candidate : fallback;
+        const device = !usedDevices.has(preferred)
+            ? preferred
+            : [fallback, ...THREE_PLAYER_SPLIT_DEFAULT_DEVICE_ASSIGNMENT].find((entry) => !usedDevices.has(entry));
+        usedDevices.add(device);
+        return device;
     });
 }
 

@@ -444,7 +444,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             for (let i = 0; i < 12; i += 1) {
                 const variant = variants[i % variants.length];
                 game.settings.recording = { ...variant };
-                game._onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
+                game.runtimeCoordinator.onSettingsChanged({ changedKeys: ['recording.profile', 'recording.hudMode'] });
                 renderer.prepareRecordingCaptureFrame({
                     recordingActive: true,
                     renderProjection: game.playingStateSystem?.getMatchRenderProjection?.() || null,

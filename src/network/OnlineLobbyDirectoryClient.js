@@ -3,6 +3,7 @@ import {
     SIGNALING_EVENT_TYPES,
     createSignalingEnvelope,
 } from '../shared/contracts/SignalingSessionContract.js';
+import { createRuntimeClock } from '../shared/contracts/RuntimeClockContract.js';
 import {
     buildSocketCloseDetails,
     createInvalidSignalingPayloadError,
@@ -139,7 +140,8 @@ export function listOpenOnlineLobbies(signalingUrl, options = {}) {
 
     const implementationId = getWebSocketImplementationId(WebSocketImpl);
     const cacheKey = `${implementationId}:${resolvedUrl}`;
-    const now = typeof options.now === 'function' ? Number(options.now()) : Date.now();
+    const nowMs = createRuntimeClock({ nowMs: options.now }).nowMs;
+    const now = nowMs();
     const cacheTtlMs = Number.isFinite(Number(options.cacheTtlMs))
         ? Math.max(0, Math.floor(Number(options.cacheTtlMs)))
         : LOBBY_LIST_CACHE_TTL_MS;
@@ -155,7 +157,7 @@ export function listOpenOnlineLobbies(signalingUrl, options = {}) {
     const inflightKey = `${cacheKey}:${timeoutMs}`;
     const request = requestOpenOnlineLobbies(resolvedUrl, WebSocketImpl, timeoutMs)
         .then((result) => {
-            const completedAt = typeof options.now === 'function' ? Number(options.now()) : Date.now();
+            const completedAt = nowMs();
             writeLobbyListCache(cacheKey, result, completedAt + cacheTtlMs);
             return cloneLobbyList(result);
         })

@@ -459,13 +459,9 @@ export class EntityManager {
         return this._killcamReplaySystem?.playClip?.(clip, options) || false;
     }
 
-    clearLastRoundGhost() {
-        this._lastRoundGhostSystem?.clear?.();
-    }
+    clearLastRoundGhost() { this._lastRoundGhostSystem?.clear?.(); }
 
-    clearKillcamReplay() {
-        this._killcamReplaySystem?.clear?.();
-    }
+    clearKillcamReplay() { this._killcamReplaySystem?.clear?.(); }
 
     updateLastRoundGhostPlayback(dt) {
         const killcam = this._killcamSystem;

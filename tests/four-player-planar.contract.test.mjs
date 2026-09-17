@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import * as THREE from 'three';
 
 import { SettingsManager } from '../src/core/SettingsManager.js';
+import { ensureMenuContractState } from '../src/ui/menu/MenuStateContracts.js';
 import { RenderViewportSystem } from '../src/core/renderer/RenderViewportSystem.js';
 import { buildStandardCaptureSegments } from '../src/core/renderer/RecordingCaptureLayoutOps.js';
 import { buildHumanConfigs } from '../src/state/match-session/MatchSessionSetupOps.js';
@@ -33,6 +34,13 @@ import { VIEWPORT_LAYOUTS } from '../src/shared/contracts/ViewportLayoutContract
 function createManager() {
     return new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
 }
+
+test('menu normalization keeps a reordered three-player device assignment', () => {
+    const settings = { localSettings: { sessionType: 'splitscreen', splitScreenVariant: 'three_player',
+        threePlayerSplit: { deviceAssignment: ['keyboard', 'gamepad-2', 'gamepad-1'] } } };
+    ensureMenuContractState(settings);
+    assert.deepEqual(settings.localSettings.threePlayerSplit.deviceAssignment, ['keyboard', 'gamepad-2', 'gamepad-1']);
+});
 
 test('four-player planar settings migrate and sanitize without changing legacy profiles', () => {
     const manager = createManager();
@@ -276,7 +284,11 @@ test('three-player split settings normalize device assignment, clamp bots and re
     const settings = normalizeThreePlayerSplitSettings({ mode: 'hunt', botCount: 99, deviceAssignment: ['keyboard', 'keyboard', 'keyboard'] });
     assert.equal(settings.mode, 'hunt');
     assert.equal(settings.botCount, 6);
-    assert.deepEqual(settings.deviceAssignment, ['keyboard', 'keyboard', 'keyboard']);
+    assert.deepEqual(settings.deviceAssignment, ['keyboard', 'gamepad-2', 'gamepad-1']);
+    assert.deepEqual(
+        normalizeThreePlayerSplitDeviceAssignment(['gamepad-1', 'gamepad-1', 'keyboard']),
+        ['gamepad-1', 'gamepad-2', 'keyboard']
+    );
 });
 
 test('resolveThreePlayerSplitInputDevice reads the default two-gamepad-one-keyboard assignment', () => {

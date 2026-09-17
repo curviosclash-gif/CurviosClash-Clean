@@ -24,6 +24,7 @@ import {
     syncMatchP2HudVisibility,
 } from './MatchFlowTransitionHotspots.js';
 import { VIEWPORT_LAYOUTS } from '../shared/contracts/ViewportLayoutContract.js';
+import { resolveThreePlayerSplitInputDevice, SPLIT_SCREEN_VARIANTS } from '../four-player-planar/FourPlayerPlanarContract.js';
 
 function hasOwnProperty(source, key) {
     return !!source && Object.prototype.hasOwnProperty.call(source, key);
@@ -150,6 +151,11 @@ export class MatchFlowUiController {
             } else {
                 game.fourPlayerPlanar?.deactivateMatch?.();
             }
+            if (uiState.viewportLayout === VIEWPORT_LAYOUTS.THREE_COLUMNS) {
+                game.threePlayerSplit?.activateMatch?.();
+            } else {
+                game.threePlayerSplit?.deactivateMatch?.();
+            }
         } else if (typeof uiState?.splitScreenEnabled === 'boolean') {
             game.ui.hud?.classList.toggle('split-screen', uiState.splitScreenEnabled);
             if (this.runtimePort?.setSplitScreen) {
@@ -262,6 +268,7 @@ export class MatchFlowUiController {
             playerIndex,
             localHumanCount,
             inputDeviceIndex: options.inputDeviceIndex ?? playerIndex,
+            assignedInputDevice: options.assignedInputDevice || null,
             getMatchRuntimeProjection: () => this.runtimePort?.getMatchRuntimeProjection?.() || null,
         });
     }
@@ -331,9 +338,16 @@ export class MatchFlowUiController {
         if (game.fourPlayerPlanar?.configureInputSources?.(input)) {
             return;
         }
-        const localHumanCount = Math.max(1, Number(game?.runtimeConfig?.session?.numHumans) || 1);
+        const session = game?.runtimeConfig?.session;
+        const localHumanCount = Math.max(1, Number(session?.numHumans) || 1);
+        const threePlayerAssignment = session?.splitScreenVariant === SPLIT_SCREEN_VARIANTS.THREE_PLAYER
+            && localHumanCount === 3 ? (session.threePlayerSplit?.deviceAssignment || []) : null;
         for (let playerIndex = 0; playerIndex < localHumanCount; playerIndex += 1) {
-            const source = this._createPreferredInputSource(playerIndex, localHumanCount);
+            const source = this._createPreferredInputSource(playerIndex, localHumanCount, {
+                assignedInputDevice: threePlayerAssignment
+                    ? resolveThreePlayerSplitInputDevice(threePlayerAssignment, playerIndex)
+                    : null,
+            });
             if (source) {
                 input.setPlayerSource(playerIndex, source);
             }

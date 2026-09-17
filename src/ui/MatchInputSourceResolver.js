@@ -249,6 +249,7 @@ export function createPreferredMatchInputSource({
     playerIndex,
     localHumanCount,
     inputDeviceIndex = playerIndex,
+    assignedInputDevice = null,
     game = null,
     getMatchRuntimeProjection = null,
 }) {
@@ -257,20 +258,20 @@ export function createPreferredMatchInputSource({
     const resolvedInputDeviceIndex = Number.isInteger(inputDeviceIndex)
         ? Math.max(0, inputDeviceIndex)
         : Math.max(0, Number(inputDeviceIndex) || 0);
-    const assignedDevice = localHumanCount === 2 && game?.runtimeConfig?.session?.networkEnabled !== true
+    const assignedDevice = assignedInputDevice || (localHumanCount === 2 && game?.runtimeConfig?.session?.networkEnabled !== true
         ? resolveSplitscreenInputDevice(game?.settings?.controls?.SPLITSCREEN?.layout, resolvedInputDeviceIndex)
-        : null;
+        : null);
     if (assignedDevice?.type === 'keyboard') {
-        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: resolvedInputDeviceIndex });
+        return createKeyboardInputSource(inputManager, false, { keyboardPlayerIndex: Math.min(resolvedInputDeviceIndex, 1) });
     }
     const gamepadEnabled = () => isGamepadInputEnabled(game?.settings?.controls);
     if (assignedDevice?.type === 'gamepad') {
         const controlKey = `GAMEPAD_${assignedDevice.gamepadIndex + 1}`;
         const source = createGamepadInputSource(assignedDevice.gamepadIndex, () => game?.settings?.controls?.[controlKey], gamepadEnabled);
         const poll = source.poll.bind(source);
-        // Explicit assignments stay separate even when a controller is unplugged;
-        // a disabled controller yields null so InputManager falls back to this player's keys.
-        source.poll = () => poll() || (gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
+        const threePlayerAssignment = localHumanCount === 3 && assignedInputDevice?.type === 'gamepad';
+        // Three-player slots must never share the two available keyboard bindings.
+        source.poll = () => poll() || (threePlayerAssignment || gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
         return source;
     }
     const touchAvailable = resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable();
