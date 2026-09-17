@@ -16,7 +16,7 @@ export const MAP_PRESET_CATALOG_EXPERT_DATA = {
         obstacles: [
             { pos: [-40, 12, -30], size: [20, 24, 3], tunnel: { radius: 4.0, axis: 'z' } },
             { pos: [0, 23, -30], size: [20, 24, 3], tunnel: { radius: 3.8, axis: 'z' } },
-            { pos: [40, 12, -30], size: [20, 24, 3] },
+            { pos: [40, 12, -30], size: [20, 24, 3], tunnel: { radius: 4.0, axis: 'z' } },
             { pos: [-20, 23, -10], size: [20, 24, 3] },
             { pos: [20, 12, -10], size: [20, 24, 3], tunnel: { radius: 4.2, axis: 'z' } },
             { pos: [-40, 12, 10], size: [20, 24, 3] },
