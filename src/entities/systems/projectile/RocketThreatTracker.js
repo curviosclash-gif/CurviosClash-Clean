@@ -59,6 +59,7 @@ function resetThreatEntry(entry) {
     entry.nearestInterceptableDistance = 0;
 }
 
+/** @type {Set<string>} */
 const KNOWN_THREAT_SOURCES = new Set(Object.values(ROCKET_THREAT_SOURCES));
 
 /**

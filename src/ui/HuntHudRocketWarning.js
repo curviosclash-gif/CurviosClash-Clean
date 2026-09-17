@@ -29,6 +29,7 @@ const AXIS_WORDS = Object.freeze({ behind: 'HINTEN', ahead: 'VORN' });
 const TMP_DIRECTION = new THREE.Vector3();
 const TMP_QUATERNION = new THREE.Quaternion();
 // Shared result of the bearing: callers read it immediately, they never store it.
+/** @type {{angleDeg: number, axis: 'side'|'ahead'|'behind'|'unknown'}} */
 const BEARING = { angleDeg: 0, axis: 'unknown' };
 
 function isFiniteNumber(value) {
