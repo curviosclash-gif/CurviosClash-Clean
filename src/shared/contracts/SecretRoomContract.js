@@ -12,11 +12,16 @@
  * whether a portal teleports and whether a player is still inside. Both go through the normalizer
  * here, so an authored room can never mean one thing while loading and another while playing.
  *
- * Coordinates stay exactly as the map author wrote them. Custom maps are authored in map units and
- * the map pipeline divides them by the map scale on its way into the runtime definition
- * (`MapSchemaRuntimeOps`), the same way portals, turrets and gates are scaled; map presets are
- * already authored in world units and pass straight through. Scaling therefore belongs to the
- * runtime conversion and must not happen twice - this contract never touches the numbers.
+ * Coordinates stay exactly as the map author wrote them, and they are map units - the same units as
+ * `size`, `obstacles` and `portals` of the same map, never world units. The arena multiplies every
+ * one of them by the map scale while it builds, unconditionally and not through the optional
+ * `scaleAuthoredAnchors` path, and it does so for `bounds`, `entryPortal`, `roomPortal`,
+ * `ejectPoint` and `items` alike. A custom map passes the map pipeline first, which divides its
+ * numbers by the map scale on the way into the runtime definition (`MapSchemaRuntimeOps`), exactly
+ * as it does for portals, turrets and gates, so that the multiplication at build time lands back on
+ * the authored value; a map preset skips that step and is authored in those same map units
+ * directly. Scaling therefore belongs to the pipeline and to the arena, and must not happen twice -
+ * this contract never touches the numbers.
  *
  * Unlocking needs no network message. The destructible state is already reconciled between host
  * and clients (`MapDestructibleContract`), so every machine adds the same delay to the same

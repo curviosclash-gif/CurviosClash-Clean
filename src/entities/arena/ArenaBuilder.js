@@ -10,6 +10,7 @@ import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
+import { resolveArenaPlayableVolumes } from './ArenaPlayableVolumes.js';
 
 function asPositiveScale(value, fallback = 1) {
     const scale = Number(value);
@@ -50,6 +51,9 @@ export class ArenaBuilder {
         this.fireFxController.build(mapResolution.map, scale, this.mapLightRig.lights);
         this.mapHazardVisualController.build(mapResolution.map, scale);
         this._applyArenaBounds(size);
+        // Beside the bounds, and scaled with them: the rooms of the previous map end here whether
+        // the new one brings its own or not.
+        this.arena.playableVolumes = resolveArenaPlayableVolumes(mapResolution.map, scale);
 
         const buildSignature = createArenaBuildSignature({
             mapKey: mapResolution.currentMapKey,

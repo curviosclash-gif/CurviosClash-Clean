@@ -81,7 +81,9 @@ export function sanitizeSecretRoomList(rawSecretRooms, options = {}) {
 }
 
 /**
- * Hands the block to the runtime map definition, scaled into world units.
+ * Hands the block to the runtime map definition, divided by the map scale like every other authored
+ * position. The result is still map units, the same ones the arena multiplies by the map scale
+ * while it builds - world units only exist inside the arena.
  * @param {unknown} secretRooms
  * @param {number} invScale
  * @returns {Record<string, any>[] | null}

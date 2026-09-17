@@ -304,7 +304,7 @@ test('T-SR25: too many rooms are refused like every other map collection', () =>
     assert.throws(() => normalizeMapSchemaDocument({ secretRooms: tooMany }), /secretRooms/);
 });
 
-test('T-SR26: the runtime map definition carries the block in world units', () => {
+test('T-SR26: the runtime map definition carries the block in map units', () => {
     const converted = toArenaMapDefinition({ secretRooms: [authoredRoom()] }, { mapScale: 2 });
     const room = converted.map.secretRooms[0];
     assert.equal(room.id, 'vault');
