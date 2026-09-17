@@ -4,6 +4,7 @@ import { isHuntHealthActive } from '../../../hunt/HealthSystem.js';
 import { isRocketTierType, resolveRocketTierDamage } from '../../../hunt/RocketPickupSystem.js';
 import { applyTrailDamageFromProjectile } from '../../../hunt/DestructibleTrail.js';
 import { applyExplosionKnockback } from '../ExplosionKnockbackOps.js';
+import { resolveInterceptHit } from './RocketInterceptOps.js';
 
 // Der Spawnschutz aus dem RespawnSystem (INVULNERABILITY_SECONDS) macht einen frisch
 // eingesetzten Spieler unangreifbar - Spur, Wand, Crash, Hazard und Turret halten sich
@@ -236,6 +237,12 @@ export class ProjectileHitResolver {
                 }
             }
 
+            return true;
+        }
+
+        // A4 puts trails ahead of the intercept: a defence rocket that runs into a trail
+        // dies there. Ahead of turrets and players, because an intercept damages nothing.
+        if (resolveInterceptHit(this.system, projectile, this)) {
             return true;
         }
 

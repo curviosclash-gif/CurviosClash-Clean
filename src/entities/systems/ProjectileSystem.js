@@ -61,6 +61,7 @@ export class ProjectileSystem {
             ? options.applyEnvironmentDamage
             : (() => null);
         this.onTrailSegmentHit = typeof options.onTrailSegmentHit === 'function' ? options.onTrailSegmentHit : (() => { });
+        this.onRocketIntercepted = typeof options.onRocketIntercepted === 'function' ? options.onRocketIntercepted : (() => { });
         this.runtimeProfiler = options.runtimeProfiler || null;
         this.entityRuntimeConfig = resolveEntityRuntimeConfig(options.entityRuntimeConfig || null);
 

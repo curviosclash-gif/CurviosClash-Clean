@@ -116,6 +116,9 @@ export const HUNT_CONFIG = Object.freeze({
         HOMING_MIN_RANGE: 10,
         // How close a locked-on rocket has to be before its target is warned.
         WARNING_RANGE: 140,
+        // How close a defence rocket has to pass its target to destroy it (E35). Both
+        // rockets are fast, so the check sweeps the whole frame, not just end points.
+        INTERCEPT_HIT_RADIUS: 3,
         HOMING_SPEED_EPSILON: 0.0001,
         HOMING_LEAD_TIME_MAX: 0.45,
         HOMING_FALLBACK_ANGLE_SCALE: 1.75,
