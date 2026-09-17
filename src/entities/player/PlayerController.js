@@ -1,57 +1,20 @@
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
+import {
+    applySteeringReleaseDeadzone,
+    clampSteeringAxis as clampAxis,
+    createSteeringRampState,
+    DEFAULT_AXIS_ATTACK_RATE,
+    DEFAULT_AXIS_RELEASE_RATE,
+    readAnalogAxis,
+    resolveSteeringAxisTarget as resolveInputAxis,
+    resolveSteeringStepSeconds,
+    stepSteeringAxisToward as stepAxisToward,
+    toPositiveSteeringRate as toPositiveRate,
+} from '../../shared/input/SteeringRampOps.js';
 
-function axisInput(positive, negative) {
-    return (positive ? 1 : 0) - (negative ? 1 : 0);
-}
-
-// Analog sources (gamepad, mouse, tilt, touch stick) deliver a settled deflection
-// as a finite *Axis number. Digital sources (keyboard, four player planar keys,
-// touch roll buttons) leave the field undefined, so their booleans are ramped.
-// One read per axis: the value doubles as the analog flag.
-function readAnalogAxis(input, axisKey) {
-    return Number(input?.[axisKey]);
-}
-
-function resolveInputAxis(analogValue, input, positiveKey, negativeKey) {
-    return Number.isFinite(analogValue)
-        ? analogValue
-        : axisInput(input?.[positiveKey], input?.[negativeKey]);
-}
-
-function clampAxis(value) {
-    if (!Number.isFinite(value)) return 0;
-    if (value > 1) return 1;
-    if (value < -1) return -1;
-    return value;
-}
-
-function toPositiveRate(value, fallback) {
-    const numeric = Number(value);
-    if (!Number.isFinite(numeric) || numeric <= 0) return fallback;
-    return numeric;
-}
-
-function stepAxisToward(current, target, attackRate, releaseRate, dt) {
-    const diff = target - current;
-    if (Math.abs(diff) <= 0.000001) return target;
-    if (!Number.isFinite(dt) || dt <= 0) return target;
-
-    const sameDirection = Math.sign(target) === Math.sign(current);
-    const absTarget = Math.abs(target);
-    const absCurrent = Math.abs(current);
-    const isAttackPhase = !sameDirection || absTarget > absCurrent;
-    const rate = isAttackPhase ? attackRate : releaseRate;
-    const step = Math.max(0, rate) * dt;
-
-    if (step <= 0 || Math.abs(diff) <= step) {
-        return target;
-    }
-    return current + Math.sign(diff) * step;
-}
-
-export const DEFAULT_AXIS_ATTACK_RATE = 18.0;
-export const DEFAULT_AXIS_RELEASE_RATE = 12.0;
-const AXIS_RELEASE_DEADZONE = 0.0005;
+// Re-exported so the entity setup and the tests keep one name for the rates while
+// the ramp itself lives in src/shared, where the network input source reaches it too.
+export { DEFAULT_AXIS_ATTACK_RATE, DEFAULT_AXIS_RELEASE_RATE };
 
 export class PlayerController {
     constructor() {
@@ -64,11 +27,7 @@ export class PlayerController {
             slowMo: false,
             slowMoPressed: false,
         };
-        this._axisState = {
-            pitch: 0,
-            yaw: 0,
-            roll: 0,
-        };
+        this._axisState = createSteeringRampState();
         this.rampAttackRate = DEFAULT_AXIS_ATTACK_RATE;
         this.rampReleaseRate = DEFAULT_AXIS_RELEASE_RATE;
     }
@@ -157,7 +116,7 @@ export class PlayerController {
             return out;
         }
 
-        const frameDt = Number.isFinite(dt) && dt > 0 ? dt : (1 / 60);
+        const frameDt = resolveSteeringStepSeconds(dt);
         // Player.controlRampRates spells the keys attackRate/releaseRate; reading
         // them under that name means a per player override really wins over the
         // controller default instead of always falling through to it.
@@ -174,9 +133,9 @@ export class PlayerController {
             stepAxisToward(this._axisState.roll, rollTarget, attackRate, releaseRate, frameDt)
         );
 
-        out.pitchInput = Math.abs(this._axisState.pitch) < AXIS_RELEASE_DEADZONE ? 0 : this._axisState.pitch;
-        out.yawInput = Math.abs(this._axisState.yaw) < AXIS_RELEASE_DEADZONE ? 0 : this._axisState.yaw;
-        out.rollInput = Math.abs(this._axisState.roll) < AXIS_RELEASE_DEADZONE ? 0 : this._axisState.roll;
+        out.pitchInput = applySteeringReleaseDeadzone(this._axisState.pitch);
+        out.yawInput = applySteeringReleaseDeadzone(this._axisState.yaw);
+        out.rollInput = applySteeringReleaseDeadzone(this._axisState.roll);
         out.boost = boostHeld;
         out.boostPressed = boostPressed;
         out.slowMo = slowMoHeld;
