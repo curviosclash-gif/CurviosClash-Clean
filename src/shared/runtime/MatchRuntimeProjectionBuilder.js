@@ -119,6 +119,7 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         planarMode: gameplayConfig?.PLANAR_MODE === true,
         cameraModeId: String(cameraModeId || 'THIRD_PERSON'),
         exclusionZoneState: player?.exclusionZoneState,
+        rocketThreat: entityManager?._projectileSystem?.getRocketThreat?.(player?.index) || null,
         mapExpansion: entityManager?.arena?.getMapExpansionHudState?.() || null,
         mapDestructible: entityManager?._mapDestructibleSystem?.getHudState?.() || null,
         traversal: buildTraversalProjection(entityManager, player?.index),

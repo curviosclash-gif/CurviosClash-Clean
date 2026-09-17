@@ -203,6 +203,33 @@ function createMapDestructibleProjection(value = null) {
     };
 }
 
+const ROCKET_THREAT_PROJECTION_SOURCES = Object.freeze(['player', 'turret', 'zone']);
+
+/**
+ * How many homing rockets are chasing this player right now, and from where.
+ *
+ * Additive v1 field: a producer that does not know it yields the inactive default.
+ * The tracker behind it reuses one object per player every frame, so this always
+ * returns a fresh copy - a HUD may hold on to it for a frame without seeing it change
+ * under its hands. `count` is the single source of truth: no rocket, no warning.
+ */
+export function createRocketThreatProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const count = normalizeNonNegativeInt(source.count, 0);
+    const active = count > 0;
+    // The tracker names its nearest-rocket source `nearestSource`; both spellings are accepted.
+    const threatSource = normalizeString(source.source, normalizeString(source.nearestSource, ''));
+    return {
+        active,
+        count,
+        nearestDistance: active ? Math.max(0, normalizeNumber(source.nearestDistance, 0)) : 0,
+        // 0 seconds means unknown: the rocket is locked on but not closing in.
+        timeToImpactSeconds: active ? Math.max(0, normalizeNumber(source.timeToImpactSeconds, 0)) : 0,
+        direction: createVector3Projection(active ? source.direction : null),
+        source: active && ROCKET_THREAT_PROJECTION_SOURCES.includes(threatSource) ? threatSource : '',
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -246,6 +273,7 @@ function createPlayerProjection(value = null) {
         planarMode: value.planarMode === true,
         cameraModeId: normalizeString(value.cameraModeId, GAMEPLAY_CAMERA_MODE_ID),
         exclusionZoneState: createExclusionZoneProjection(value.exclusionZoneState),
+        rocketThreat: createRocketThreatProjection(value.rocketThreat),
         mapExpansion: createMapExpansionProjection(value.mapExpansion),
         mapDestructible: createMapDestructibleProjection(value.mapDestructible),
         traversal: createTraversalProjection(value.traversal),
