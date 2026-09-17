@@ -239,7 +239,7 @@ export class HuntHUD {
         }
 
         if (this._consumeTick('_playerPanelTickTimer', dt, playerPanelInterval) > 0) {
-            this._updateMatchStatus(huntProjection, humans[0]?.playerIndex ?? humans[0]?.index);
+            this._updateMatchStatus(huntProjection, humans.map((human) => human?.playerIndex ?? human?.index));
             this._updatePlayerPanel(humans[0], {
                 hpFill: this.p1HpFill,
                 hpText: this.p1HpText,
@@ -378,7 +378,7 @@ export class HuntHUD {
         }
     }
 
-    _updateMatchStatus(huntProjection = null, localPlayerIndex = -1) {
+    _updateMatchStatus(huntProjection = null, localPlayerIndices = []) {
         const respawnEnabled = huntProjection?.respawnEnabled === true;
         const killLimit = Math.max(1, Number(huntProjection?.deathmatchKillLimit) || 10);
         const rows = Array.isArray(huntProjection?.scoreboardRows) ? huntProjection.scoreboardRows : [];
@@ -390,7 +390,7 @@ export class HuntHUD {
         const objectiveText = respawnEnabled
             ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
             : 'Elimination · letzter Überlebender gewinnt';
-        const scoreboardText = formatHuntScoreboard(rows, localPlayerIndex, huntProjection?.scoreboardSummary);
+        const scoreboardText = formatHuntScoreboard(rows, localPlayerIndices, huntProjection?.scoreboardSummary);
         const scoreboardDetails = rows.length > 0
             ? rows.map((row) => `${row.label}: ${row.kills}/${killLimit} Abschüsse, ${row.deaths} Tode, ${row.assists} Assists`).join('. ')
             : scoreboardText;

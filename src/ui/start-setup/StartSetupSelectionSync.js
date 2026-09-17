@@ -9,6 +9,7 @@ import { resolveMapPreview, resolveVehiclePreview } from '../menu/MenuPreviewCat
 import { isMapEligibleForModePath } from '../../shared/contracts/MapModeContract.js';
 import { ARCADE_GHOST_DUEL_MODES } from '../../shared/contracts/ArcadeGhostDuelContract.js';
 import { renderQuickList } from './StartSetupUiOps.js';
+import { isMapOfferedForModePath } from './StartSetupMapOffer.js';
 
 const MAP_FILTER_OPTIONS = Object.freeze([
     ['arena', 'Sammlung: Arenen'],
@@ -148,7 +149,8 @@ function syncMapSelect({
                 || (startSetupFilters.mapFilter === 'parcours-collection' && entry.collection === 'parcours')
                 || entry.filterTags?.includes(startSetupFilters.mapFilter);
             const mapDefinition = runtimeMaps?.[entry.key];
-            const matchesModePath = isMapEligibleForModePath(mapDefinition, modePath);
+            const matchesModePath = isMapEligibleForModePath(mapDefinition, modePath)
+                && isMapOfferedForModePath(entry, mapDefinition, modePath, startSetupFilters.mapFilter);
             const matchesSurfacePolicy = surfacePolicyPort.isMapAllowed(entry.key, modePath);
             return matchesSearch && matchesFilter && matchesModePath && matchesSurfacePolicy;
         })
@@ -314,15 +316,17 @@ export function syncStartSetupSelectionState({
 
     const resolveMapQuickLabel = (mapKey) => mapPreviewEntries.find((entry) => entry.key === mapKey)?.name
         || resolveMapPreview(mapKey).name;
+    const isQuickMapOffered = (mapKey) => surfacePolicyPort.isMapAllowed(mapKey, modePath)
+        && isMapOfferedForModePath(resolveMapPreview(mapKey), runtimeMaps?.[mapKey], modePath, startSetup.mapFilter);
     renderQuickList(
         ui.mapFavoritesList,
-        startSetup.favoriteMaps.filter((mapKey) => surfacePolicyPort.isMapAllowed(mapKey, modePath)),
+        startSetup.favoriteMaps.filter(isQuickMapOffered),
         'mapKey',
         resolveMapQuickLabel
     );
     renderQuickList(
         ui.mapRecentList,
-        startSetup.recentMaps.filter((mapKey) => surfacePolicyPort.isMapAllowed(mapKey, modePath)),
+        startSetup.recentMaps.filter(isQuickMapOffered),
         'mapKey',
         resolveMapQuickLabel
     );

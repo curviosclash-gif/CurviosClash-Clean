@@ -3879,7 +3879,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 #hud.split-screen .hunt-kill-feed {
-    top: 82px;
+    /* Below the centred match announcement (top 92px), which shares this column. */
+    top: 126px;
     right: auto;
     bottom: auto;
     left: 50%;
@@ -7798,6 +7799,22 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
 }
 
 #hud.killcam-active .hunt-respawn-status {
+    visibility: hidden;
+}
+
+/* The Fight HUD stacks above the round result and the pause settings (z-index 100/101),
+   and it stops updating once the round is over. The overlay controllers flag #hud, so
+   hiding the same parts as for the killcam stays a cheap class match. */
+#hud:is(.result-overlay-open, .pause-settings-open) > :is(.fighter-hud, .player-hud, .parcours-hud),
+#hud:is(.result-overlay-open, .pause-settings-open) :is(
+    .hunt-match-status,
+    .hunt-vitals,
+    .hunt-arc-meter,
+    #hunt-p2-panel,
+    .hunt-kill-feed,
+    .hunt-damage-indicator,
+    .hunt-respawn-status
+) {
     visibility: hidden;
 }
 

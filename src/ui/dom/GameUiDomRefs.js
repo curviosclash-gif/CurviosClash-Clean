@@ -81,6 +81,7 @@ export function createGameUiRefs(doc = document) {
         classicTutorialButton: doc.getElementById('btn-classic-tutorial'),
         mainTutorialButton: doc.getElementById('btn-main-tutorial'),
         openFightHangarButton: doc.getElementById('btn-open-fight-hangar'),
+        arcadeOnlySections: Array.from(doc.querySelectorAll('.menu-arcade-only')),
         customStepperButtons: Array.from(doc.querySelectorAll('[data-menu-step], [data-menu-step-target]')),
         buildInfo: doc.getElementById('build-info'),
         buildInfoDetail: doc.getElementById('build-info-detail'),

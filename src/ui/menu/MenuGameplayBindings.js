@@ -20,6 +20,7 @@ import {
 import { createHangarWindowMenuPort } from '../hangar/HangarWindowMenuBridge.js';
 import { FIGHT_TUNING_PRESETS } from './FightMenuTuningSync.js';
 import { bindGraphicsStyleSelect } from './MenuGraphicsStyleBindings.js';
+import { applyMenuPlanarMode } from './MenuPlanarModeOps.js';
 import { normalizeAudioSettings } from '../../shared/contracts/AudioSettingsContract.js';
 export function setupMenuGameplayBindings(ctx) {
     const ui = ctx.ui;
@@ -42,15 +43,10 @@ export function setupMenuGameplayBindings(ctx) {
     [ui.cockpitCamP1, ui.cockpitCamP2].forEach((toggle) => { if (toggle) { toggle.checked = GAMEPLAY_COCKPIT_CAMERA_ENABLED; toggle.disabled = true; } });
     const resolveCurrentHangarModePath = () => String(settings?.localSettings?.modePath || 'normal').trim().toLowerCase() || 'normal';
     const isFightModePathActive = () => resolveCurrentHangarModePath() === 'fight';
+    const planarModeMemory = { portalsBeforePlanar: null };
     const applyPlanarMode = (enabled) => {
-        if (!settings.gameplay) settings.gameplay = {};
-        settings.gameplay.planarMode = !!enabled;
-        const changedKeys = [keys.GAMEPLAY_PLANAR_MODE];
-        if (settings.gameplay.planarMode && settings.portalsEnabled !== true) {
-            settings.portalsEnabled = true; changedKeys.push(keys.RULES_PORTALS_ENABLED);
-        }
-        if (settings.gameplay.planarMode && (settings.gameplay.portalCount || 0) === 0) {
-            settings.gameplay.portalCount = 4; changedKeys.push(keys.GAMEPLAY_PORTAL_COUNT);
+        const { changedKeys, portalCountRaised } = applyMenuPlanarMode(settings, enabled, keys, planarModeMemory);
+        if (portalCountRaised) {
             emit(eventTypes.SHOW_STATUS_TOAST, { message: 'Ebenen-Modus: 4 Portal-Eingänge aktiviert' });
         }
         emitSettingsChangedImmediate(changedKeys);

@@ -3,12 +3,15 @@ export function formatHuntClock(seconds) {
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
 }
 
-export function formatHuntScoreboard(rows, localPlayerIndex, fallback) {
+// Top three plus every local player below them, so a split screen shows both humans.
+export function formatHuntScoreboard(rows, localPlayerIndices, fallback) {
+    const locals = new Set(Array.isArray(localPlayerIndices) ? localPlayerIndices : [localPlayerIndices]);
     const visible = rows.slice(0, 3);
-    const local = rows.find((row) => row?.playerIndex === localPlayerIndex);
-    if (local && !visible.includes(local)) visible.push(local);
+    for (const row of rows) {
+        if (locals.has(row?.playerIndex) && !visible.includes(row)) visible.push(row);
+    }
     return visible.length > 0
-        ? visible.map((row) => `${row.playerIndex === localPlayerIndex ? '▶ ' : ''}${row.label} ${row.kills}`).join('   |   ')
+        ? visible.map((row) => `${locals.has(row.playerIndex) ? '▶ ' : ''}${row.label} ${row.kills}`).join('   |   ')
         : String(fallback || 'Noch keine Abschüsse');
 }
 

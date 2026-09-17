@@ -166,6 +166,20 @@ test('Fight keeps the local player beside the leaders', () => {
     assert.equal(formatHuntScoreboard(rows, 3), 'P1 8   |   P2 7   |   P3 6   |   ▶ P4 1');
 });
 
+test('fight scoreboard keeps both split screen players in view', () => {
+    const rows = [
+        { playerIndex: 2, label: 'Bot 3', kills: 5 },
+        { playerIndex: 3, label: 'Bot 4', kills: 4 },
+        { playerIndex: 0, label: 'P1', kills: 3 },
+        { playerIndex: 4, label: 'Bot 5', kills: 2 },
+        { playerIndex: 1, label: 'P2', kills: 1 },
+    ];
+    assert.equal(
+        formatHuntScoreboard(rows, [0, 1]),
+        'Bot 3 5   |   Bot 4 4   |   ▶ P1 3   |   ▶ P2 1'
+    );
+});
+
 test('fight target ticks rebuild only for target changes and hide in elimination', () => {
     const hud = createHud();
     const progress = hud.ownerDocument.createElement('div');

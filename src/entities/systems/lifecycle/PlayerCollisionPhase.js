@@ -28,10 +28,10 @@ export class PlayerCollisionPhase {
 
     run(player, prevPos, strategy) {
         const entityManager = this.entityManager;
-        const spawnProtected = (player.spawnProtectionTimer || 0) > 0;
-        if (player.isGhost || spawnProtected) {
+        if (player.isGhost) {
             return false;
         }
+        const spawnProtected = (player.spawnProtectionTimer || 0) > 0;
 
         const hRadius = Math.max(0.05, Number(player.hitboxRadius) || 0.4);
         let bouncedOnFoam = false;
@@ -41,6 +41,14 @@ export class PlayerCollisionPhase {
         if ((player.arenaCollisionGraceTimer || 0) <= 0) {
             const arenaCollision = this._resolveArenaCollision(player, prevPos, hRadius);
             if (arenaCollision?.hit) {
+                // Protection suspends the damage, not the geometry. Skipping the arena
+                // entirely let the vehicle travel its whole protected flight through solid
+                // walls and resolve the contact from inside one the moment the timer ran
+                // out - a frontal hit at full speed, which bills the lethal impact damage.
+                if (spawnProtected) {
+                    this._separateProtectedVehicle(player, arenaCollision);
+                    return false;
+                }
                 const hitKind = String(arenaCollision.kind || 'wall').toLowerCase();
                 if (hitKind === 'foam') {
                     if (entityManager.audio) entityManager.audio.play('HIT');
@@ -52,6 +60,11 @@ export class PlayerCollisionPhase {
                     if (died) return true;
                 }
             }
+        }
+
+        // Trails and vehicle crashes stay disarmed for the whole protection, unchanged.
+        if (spawnProtected) {
+            return false;
         }
 
         if (!bouncedOnFoam) {
@@ -117,6 +130,15 @@ export class PlayerCollisionPhase {
         }
 
         return null;
+    }
+
+    // Same separation the wall path uses, minus the damage: the vehicle is pushed clear and
+    // turned away from the surface, so the protection ends in free space.
+    _separateProtectedVehicle(player, collision) {
+        const entityManager = this.entityManager;
+        if (typeof entityManager._pushPlayerOutOfCollision !== 'function') return;
+        entityManager._pushPlayerOutOfCollision(player, collision?.normal || null, 1.6, collision, true);
+        player.arenaCollisionGraceTimer = Math.max(player.arenaCollisionGraceTimer || 0, 0.16);
     }
 
     _prepareArenaCollisionResponse(collision, probePoint, player, alreadySeparated = false) {

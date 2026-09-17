@@ -99,6 +99,13 @@ export function syncMenuSurfacePolicyUi({
         ui.openFightHangarButton.disabled = !hangarWindowAvailable;
     }
 
+    // Sector count, combo window and multiplier only mean something for an Arcade run.
+    if (Array.isArray(ui.arcadeOnlySections)) {
+        ui.arcadeOnlySections.forEach((section) => {
+            section.classList.toggle('hidden', modePath !== 'arcade');
+        });
+    }
+
     const quickStartButtons = [
         { button: ui.quickStartLastButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.LAST_SETTINGS, alternative: false },
         { button: ui.quickStartEventPlaylistButton, actionId: PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST, alternative: true },

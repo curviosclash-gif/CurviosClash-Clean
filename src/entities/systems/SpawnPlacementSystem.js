@@ -1,5 +1,7 @@
 import * as THREE from 'three';
 
+import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+
 // ============================================
 // SpawnPlacementSystem.js - spawn and safe reposition helpers
 // ============================================
@@ -11,6 +13,44 @@ import * as THREE from 'three';
 // - Hotpath guardrail: never allocate per call in update/render-adjacent paths
 
 const DEFAULT_SAFE_BOUNCE_DISTANCES = Object.freeze([1.5, 3.0, 5.0, 0.5]);
+
+const SPAWN_DIRECTION_SAMPLES = 20;
+const SPAWN_DIRECTION_STEP = 2.2;
+const DEFAULT_SPAWN_LOOKAHEAD = 36;
+// Coprime with the sample count, so the rotation still visits every heading while two
+// spawns in a row end up on opposite sides instead of 18 degrees apart.
+const SPAWN_DIRECTION_STRIDE = 7;
+
+/**
+ * Distance a vehicle covers before anything resolves its arena contacts again. The spawn
+ * protection suspends the wall response, so a heading that stays clear for less than this
+ * hands the vehicle a wall from the inside the moment the timer expires.
+ *
+ * @param {object|null} config Entity runtime config.
+ * @returns {number} Look-ahead in world units, never below the legacy 36.
+ */
+export function resolveSpawnLookaheadDistance(config) {
+    const speed = Number(config?.PLAYER?.SPEED);
+    const protection = Math.max(
+        Number(config?.PLAYER?.SPAWN_PROTECTION) || 0,
+        Number(config?.HUNT?.RESPAWN?.INVULNERABILITY_SECONDS) || 0
+    );
+    if (!Number.isFinite(speed) || speed <= 0 || protection <= 0) return DEFAULT_SPAWN_LOOKAHEAD;
+    return Math.max(DEFAULT_SPAWN_LOOKAHEAD, speed * protection);
+}
+
+// Fallbacks match HUNT_CONFIG.MG for owners whose runtime config carries no gun block.
+const DEFAULT_SPAWN_AIM_RANGE = 152;
+const DEFAULT_SPAWN_AIM_DOT = 0.965;
+
+function resolveSpawnAimCone(config) {
+    const range = Number(config?.HUNT?.MG?.RANGE);
+    const dot = Number(config?.HUNT?.MG?.AIM_DOT_MIN);
+    return {
+        rangeSq: (Number.isFinite(range) && range > 0 ? range : DEFAULT_SPAWN_AIM_RANGE) ** 2,
+        dot: Number.isFinite(dot) ? dot : DEFAULT_SPAWN_AIM_DOT,
+    };
+}
 
 function isFiniteNumber(value) {
     return Number.isFinite(Number(value));
@@ -47,6 +87,7 @@ export class SpawnPlacementSystem {
             : (() => false);
         this._assignedSpawnByPlayer = new Map();
         this._botSpawnCursor = 0;
+        this._spawnDirectionCursor = 0;
         this._tmpSpawnProbe = new THREE.Vector3();
         this._tmpSpawnDirection = new THREE.Vector3();
         this._tmpBounceDirection = new THREE.Vector3();
@@ -56,6 +97,7 @@ export class SpawnPlacementSystem {
     resetAssignments() {
         this._assignedSpawnByPlayer.clear();
         this._botSpawnCursor = 0;
+        this._spawnDirectionCursor = 0;
         this._recentSpawnPositions.length = 0;
     }
 
@@ -112,27 +154,67 @@ export class SpawnPlacementSystem {
         return this._rememberSpawn(safestFallback || checkedFallback);
     }
 
-    findSafeSpawnDirection(position, radius = 0.8) {
+    findSafeSpawnDirection(position, radius = 0.8, player = null) {
         const owner = this.owner;
         if (!owner) return null;
 
-        const sampleCount = 20;
+        // Reaching only a fixed 36 units left the probe blind for the rest of the protected
+        // flight, so a heading that ends in a wall right after the timer scored as freely
+        // as an open corridor.
+        const config = resolveEntityRuntimeConfig(owner);
+        const maxDistance = resolveSpawnLookaheadDistance(config);
+        const aimCone = resolveSpawnAimCone(config);
         const sampleDir = owner._tmpDir;
         const bestDirection = owner._tmpDir2;
         bestDirection.set(0, 0, -1);
         let bestDistance = -1;
+        let bestTier = -1;
 
-        for (let i = 0; i < sampleCount; i++) {
-            const angle = (Math.PI * 2 * i) / sampleCount;
+        // In open geometry most samples reach the cap and tie. Keeping the first of them
+        // always meant sample 0, which is exactly -Z: two thirds of all respawns left on
+        // the same heading and piled into the same walls. The rotation breaks the tie by
+        // where the round starts counting, which keeps the choice replay-stable.
+        const startSample = this._spawnDirectionCursor;
+        for (let i = 0; i < SPAWN_DIRECTION_SAMPLES; i++) {
+            const sampleIndex = (startSample + i) % SPAWN_DIRECTION_SAMPLES;
+            const angle = (Math.PI * 2 * sampleIndex) / SPAWN_DIRECTION_SAMPLES;
             sampleDir.set(Math.sin(angle), 0, -Math.cos(angle));
-            const freeDistance = this.traceFreeDistance(position, sampleDir, 36, 2.2, radius);
-            if (freeDistance > bestDistance) {
+            const freeDistance = this.traceFreeDistance(
+                position,
+                sampleDir,
+                maxDistance,
+                SPAWN_DIRECTION_STEP,
+                radius
+            );
+            // A clear protected flight matters most; among those, a heading that does not
+            // put an enemy straight into the gun sight wins. On the maze the tie break
+            // otherwise lined a bot up behind the human, firing from the first frame.
+            const tier = (freeDistance >= maxDistance ? 2 : 0)
+                + (this._isHeadingAimedAtEnemy(position, sampleDir, player, aimCone) ? 0 : 1);
+            if (tier > bestTier || (tier === bestTier && freeDistance > bestDistance)) {
+                bestTier = tier;
                 bestDistance = freeDistance;
                 bestDirection.copy(sampleDir);
             }
         }
+        this._spawnDirectionCursor = (startSample + SPAWN_DIRECTION_STRIDE) % SPAWN_DIRECTION_SAMPLES;
 
         return bestDirection;
+    }
+
+    _isHeadingAimedAtEnemy(position, direction, player, aimCone) {
+        const players = this.owner?.players;
+        if (!Array.isArray(players)) return false;
+        const toEnemy = this._tmpSpawnDirection;
+        for (let i = 0; i < players.length; i++) {
+            const other = players[i];
+            if (!other?.alive || other === player || !other.position) continue;
+            toEnemy.subVectors(other.position, position);
+            const distanceSq = toEnemy.lengthSq();
+            if (distanceSq <= 0.000001 || distanceSq > aimCone.rangeSq) continue;
+            if (direction.dot(toEnemy) / Math.sqrt(distanceSq) >= aimCone.dot) return true;
+        }
+        return false;
     }
 
     traceFreeDistance(origin, direction, maxDistance, stepDistance, radius = 0.8) {

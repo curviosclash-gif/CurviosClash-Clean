@@ -415,7 +415,8 @@ export class HudRuntimeSystem {
             Number(player?.shootCooldown) || 0,
             Number(player?.itemUseCooldownRemaining) || 0
         );
-        if (remaining > 0.001) {
+        // One decimal is shown, so anything below 0.05 s would read "0.0s".
+        if (remaining >= 0.05) {
             indicator.textContent = remaining.toFixed(1) + 's';
             indicator.classList.remove('hidden');
         } else {

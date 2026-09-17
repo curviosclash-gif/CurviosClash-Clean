@@ -34,6 +34,14 @@ function formatDecimal(value, digits = 1) {
     return normalizeNumber(value, 0).toFixed(digits);
 }
 
+// Every held machine gun frame and every refused attempt is logged as an item action too;
+// players only count the items they actually used or fired.
+function countUsedItems(modeCounts, failedModeCounts) {
+    const count = (source, mode) => Math.max(0, normalizeNumber(source?.[mode], 0));
+    return Math.max(0, count(modeCounts, 'use') + count(modeCounts, 'shoot')
+        - count(failedModeCounts, 'use') - count(failedModeCounts, 'shoot'));
+}
+
 function formatPlayerName(player) {
     if (!player) {
         return 'Unbekannt';
@@ -83,10 +91,10 @@ function buildRoundBlock(lastRoundMetrics, players, outcome) {
             { key: 'winner', label: 'Sieger', value: resolveWinnerLabel(lastRoundMetrics, players) },
             { key: 'objective', label: 'Grund', value: resolveObjectiveLabel(lastRoundMetrics.reason || outcome?.reason) },
             { key: 'duration', label: 'Dauer', value: formatDuration(lastRoundMetrics.duration) },
-            { key: 'bot-survival', label: 'Bot-Ueberleben', value: formatDuration(lastRoundMetrics.botSurvivalAverage) },
+            { key: 'bot-survival', label: 'Bot-Überleben', value: formatDuration(lastRoundMetrics.botSurvivalAverage) },
             { key: 'self-collisions', label: 'Selbstcrashs', value: String(Math.max(0, normalizeNumber(lastRoundMetrics.selfCollisions, 0))) },
-            { key: 'item-uses', label: 'Items', value: String(Math.max(0, normalizeNumber(lastRoundMetrics.itemUseEvents, 0))) },
-            { key: 'stuck-rate', label: 'Stuck/min', value: formatDecimal(lastRoundMetrics.stuckPerMinute, 1) },
+            { key: 'item-uses', label: 'Items', value: String(countUsedItems(lastRoundMetrics.itemUseModeCounts, lastRoundMetrics.failedItemActionModeCounts)) },
+            { key: 'stuck-rate', label: 'Hänger/min', value: formatDecimal(lastRoundMetrics.stuckPerMinute, 1) },
         ],
     };
 }
@@ -145,10 +153,10 @@ function buildMatchBlock(aggregateMetrics, outcome) {
         rows: [
             { key: 'rounds', label: 'Runden', value: String(Math.max(0, normalizeNumber(aggregateMetrics.rounds, 0))) },
             { key: 'bot-win-rate', label: 'Bot-Siegrate', value: formatPercent(aggregateMetrics.botWinRate) },
-            { key: 'bot-survival-average', label: 'Bot-Ueberleben', value: formatDuration(aggregateMetrics.averageBotSurvival) },
+            { key: 'bot-survival-average', label: 'Bot-Überleben', value: formatDuration(aggregateMetrics.averageBotSurvival) },
             { key: 'self-collisions-per-round', label: 'Selbstcrashs/R', value: formatDecimal(aggregateMetrics.selfCollisionsPerRound, 1) },
-            { key: 'item-use-per-round', label: 'Items/R', value: formatDecimal(aggregateMetrics.itemUsePerRound, 1) },
-            { key: 'bounce-wall-per-round', label: 'Wall-Bounces/R', value: formatDecimal(aggregateMetrics.bounceWallPerRound, 1) },
+            { key: 'item-use-per-round', label: 'Items/R', value: formatDecimal(countUsedItems(aggregateMetrics.itemUseModePerRound, aggregateMetrics.failedItemActionModePerRound), 1) },
+            { key: 'bounce-wall-per-round', label: 'Wandabpraller/R', value: formatDecimal(aggregateMetrics.bounceWallPerRound, 1) },
         ],
     };
 }

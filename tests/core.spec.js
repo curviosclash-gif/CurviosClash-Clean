@@ -196,11 +196,18 @@ test.describe('Desktop Smoke', () => {
             const game = window.GAME_INSTANCE;
             const endless = game.entityManager.endlessParcoursRuntime;
             const seen = new Set();
+            const human = game.entityManager.humanPlayers[0];
+            // The jumps land inside module geometry. The revived vehicle is still protected,
+            // and protection now separates it from walls, which would push it sideways out of
+            // the gates. The walk only checks the track, so the arena response sits it out.
+            const graceBefore = human.arenaCollisionGraceTimer;
+            human.arenaCollisionGraceTimer = 999;
             for (let step = 2; step < 26; step += 1) {
-                game.entityManager.humanPlayers[0].position.z = step * 120 + 10;
+                human.position.z = step * 120 + 10;
                 await new Promise((resolve) => requestAnimationFrame(() => resolve()));
                 for (const id of endless.getDebugSnapshot().connectors) seen.add(id);
             }
+            human.arenaCollisionGraceTimer = graceBefore;
             return [...seen];
         });
         expect(connectors.length).toBeGreaterThan(1);
