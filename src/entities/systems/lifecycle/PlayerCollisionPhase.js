@@ -46,7 +46,7 @@ export class PlayerCollisionPhase {
                 // walls and resolve the contact from inside one the moment the timer ran
                 // out - a frontal hit at full speed, which bills the lethal impact damage.
                 if (spawnProtected) {
-                    this._separateProtectedVehicle(player, arenaCollision);
+                    this._separateProtectedVehicle(player, arenaCollision, hRadius);
                     return false;
                 }
                 const hitKind = String(arenaCollision.kind || 'wall').toLowerCase();
@@ -134,11 +134,21 @@ export class PlayerCollisionPhase {
 
     // Same separation the wall path uses, minus the damage: the vehicle is pushed clear and
     // turned away from the surface, so the protection ends in free space.
-    _separateProtectedVehicle(player, collision) {
+    _separateProtectedVehicle(player, collision, hRadius) {
         const entityManager = this.entityManager;
         if (typeof entityManager._pushPlayerOutOfCollision !== 'function') return;
-        entityManager._pushPlayerOutOfCollision(player, collision?.normal || null, 1.6, collision, true);
-        player.arenaCollisionGraceTimer = Math.max(player.arenaCollisionGraceTimer || 0, 0.16);
+        const checkCollision = entityManager.arena?.checkCollision;
+        const wasInside = typeof checkCollision === 'function'
+            && checkCollision.call(entityManager.arena, player.position, hRadius);
+        const responseSucceeded = entityManager._pushPlayerOutOfCollision(
+            player, collision?.normal || null, 1.6, collision, true
+        );
+        const isFree = typeof checkCollision === 'function'
+            ? !checkCollision.call(entityManager.arena, player.position, hRadius)
+            : responseSucceeded === true;
+        if (isFree && (collision?.responseAlreadySeparated === true || wasInside)) {
+            player.arenaCollisionGraceTimer = Math.max(player.arenaCollisionGraceTimer || 0, 0.16);
+        }
     }
 
     _prepareArenaCollisionResponse(collision, probePoint, player, alreadySeparated = false) {

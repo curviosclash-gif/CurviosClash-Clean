@@ -22,21 +22,22 @@ const DEFAULT_SPAWN_LOOKAHEAD = 36;
 const SPAWN_DIRECTION_STRIDE = 7;
 
 /**
- * Distance a vehicle covers before anything resolves its arena contacts again. The spawn
- * protection suspends the wall response, so a heading that stays clear for less than this
- * hands the vehicle a wall from the inside the moment the timer expires.
+ * Distance from the configured base speed that a vehicle can cover while protected, including
+ * the immediately available boost. Loadout speed changes happen later in the spawn flow; wall
+ * contacts still separate safely during protection, while clear runway avoids a forced turn.
  *
  * @param {object|null} config Entity runtime config.
  * @returns {number} Look-ahead in world units, never below the legacy 36.
  */
 export function resolveSpawnLookaheadDistance(config) {
     const speed = Number(config?.PLAYER?.SPEED);
+    const boostMultiplier = Math.max(1, Number(config?.PLAYER?.BOOST_MULTIPLIER) || 1);
     const protection = Math.max(
         Number(config?.PLAYER?.SPAWN_PROTECTION) || 0,
         Number(config?.HUNT?.RESPAWN?.INVULNERABILITY_SECONDS) || 0
     );
     if (!Number.isFinite(speed) || speed <= 0 || protection <= 0) return DEFAULT_SPAWN_LOOKAHEAD;
-    return Math.max(DEFAULT_SPAWN_LOOKAHEAD, speed * protection);
+    return Math.max(DEFAULT_SPAWN_LOOKAHEAD, speed * boostMultiplier * protection);
 }
 
 // Fallbacks match HUNT_CONFIG.MG for owners whose runtime config carries no gun block.

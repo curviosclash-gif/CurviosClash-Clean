@@ -4,15 +4,16 @@ import * as THREE from 'three';
 
 import { CONFIG_BASE } from '../src/core/Config.js';
 import { MAP_PRESET_CATALOG_EXPERT_DATA } from '../src/core/config/maps/MapPresetCatalogExpertData.js';
+import { CollisionResponseSystem } from '../src/entities/systems/CollisionResponseSystem.js';
 import { PlayerCollisionPhase } from '../src/entities/systems/lifecycle/PlayerCollisionPhase.js';
-import { SpawnPlacementSystem } from '../src/entities/systems/SpawnPlacementSystem.js';
+import { SpawnPlacementSystem, resolveSpawnLookaheadDistance } from '../src/entities/systems/SpawnPlacementSystem.js';
 import { HuntModeStrategy } from '../src/modes/HuntModeStrategy.js';
 import { createEntityRuntimeConfig } from '../src/shared/contracts/EntityRuntimeConfig.js';
 
 // Distance a vehicle covers while the spawn protection is still running. The heading
 // picked at spawn has to stay clear for at least this far, because nothing resolves an
 // arena contact before the timer expires.
-const PROTECTED_TRAVEL = CONFIG_BASE.PLAYER.SPEED * Math.max(
+const PROTECTED_TRAVEL = CONFIG_BASE.PLAYER.SPEED * CONFIG_BASE.PLAYER.BOOST_MULTIPLIER * Math.max(
     CONFIG_BASE.PLAYER.SPAWN_PROTECTION,
     CONFIG_BASE.HUNT.RESPAWN.INVULNERABILITY_SECONDS
 );
@@ -226,6 +227,13 @@ function createEntityManagerStub({ players = [], solidBox = null } = {}) {
     return manager;
 }
 
+test('spawn lookahead accounts for the immediately available boost speed', () => {
+    assert.equal(
+        resolveSpawnLookaheadDistance(createEntityRuntimeConfig(null, CONFIG_BASE)),
+        PROTECTED_TRAVEL
+    );
+});
+
 test('a spawn protected vehicle is stopped at the wall instead of passing through it', () => {
     // Thin wall the vehicle crosses within one frame while its protection still runs.
     const wall = new THREE.Box3(
@@ -249,6 +257,35 @@ test('a spawn protected vehicle is stopped at the wall instead of passing throug
         player.position.z > 0.5,
         `the protection must not carry the vehicle through the wall, ended at z ${player.position.z}`
     );
+});
+
+test('a protected vehicle that cannot leave geometry receives no grace and is checked again', () => {
+    const wall = new THREE.Box3(
+        new THREE.Vector3(-50, -50, -50),
+        new THREE.Vector3(50, 50, 50)
+    );
+    const player = createPlayerStub({ position: new THREE.Vector3(0, 0, 0) });
+    player.spawnProtectionTimer = CONFIG_BASE.HUNT.RESPAWN.INVULNERABILITY_SECONDS;
+    const entityManager = createEntityManagerStub({ players: [player], solidBox: wall });
+    const phase = new PlayerCollisionPhase(entityManager);
+    const strategy = new HuntModeStrategy({ entityRuntimeConfig: createEntityRuntimeConfig(null, CONFIG_BASE) });
+    let collisionChecks = 0;
+    const originalCollisionInfo = entityManager.arena.getCollisionInfo;
+    entityManager.arena.getCollisionInfo = (point) => {
+        collisionChecks += 1;
+        return originalCollisionInfo(point);
+    };
+
+    // The embedded previous pose is far enough away to take the swept branch. It must not be
+    // treated as a free pose just because the sweep has no free sample before the first hit.
+    phase.run(player, new THREE.Vector3(0, 0, 10), strategy);
+    assert.equal(player.arenaCollisionGraceTimer, 0);
+    assert.equal(entityManager.arena.checkCollision(player.position, player.hitboxRadius), true);
+    const firstChecks = collisionChecks;
+
+    phase.run(player, player.position.clone(), strategy);
+    assert.ok(collisionChecks > firstChecks, 'the next protected frame checks the unresolved wall again');
+    assert.equal(player.arenaCollisionGraceTimer, 0);
 });
 
 test('every mega_maze wall in the row at z -30 offers a way through', () => {
