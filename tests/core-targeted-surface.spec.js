@@ -474,10 +474,12 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await loadGame(page);
         await openCustomSubmenu(page);
 
+        // submenu-expert carries an OPEN access policy, so only the state machine can refuse it:
+        // the custom flow reaches path/start_setup/main/quickstart/multiplayer, never "expert".
         const result = await page.evaluate(() => {
             const runtime = window.GAME_INSTANCE?.uiManager?.menuNavigationRuntime;
             return {
-                opened: runtime?.showPanel?.('submenu-multiplayer', { trigger: 'blocked_transition_test' }),
+                opened: runtime?.showPanel?.('submenu-expert', { trigger: 'blocked_transition_test' }),
                 menuState: window.GAME_INSTANCE?.uiManager?.menuStateMachine?.getState?.() || '',
                 visiblePanels: Array.from(document.querySelectorAll('.submenu-panel:not(.hidden)')).map((panel) => panel.id),
             };

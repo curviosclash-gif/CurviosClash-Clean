@@ -508,7 +508,8 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T20e: Open-Preset speichert Metadatenvertrag vollstaendig', async ({ page }) => {
         await loadGame(page);
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), MENU_PRESETS_STORAGE_KEY);
-        await openLevel4Drawer(page, { section: 'tools' });
+        // #preset-name lives in the "presets" tab; the level-4 tabs are mutually exclusive.
+        await openLevel4Drawer(page, { section: 'presets' });
         await page.fill('#preset-name', 'Open Preset QA');
         await page.click('#btn-preset-save-open');
         await waitForRenderFrames(page, 1);

@@ -431,10 +431,10 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         });
         expect(previewState.facts).toEqual(expect.arrayContaining([
             expect.objectContaining({ label: 'Tunnel', value: '4' }),
-            expect.objectContaining({ label: 'Gates', value: '3' }),
-            expect.objectContaining({ label: 'Spawns', value: '5' }),
+            expect.objectContaining({ label: 'Tore', value: '3' }),
+            expect.objectContaining({ label: 'Startpunkte', value: '5' }),
             expect.objectContaining({ label: 'Items', value: '4' }),
-            expect.objectContaining({ label: 'Deko', value: '3' }),
+            expect.objectContaining({ label: 'Deko-Flieger', value: '3' }),
         ]));
 
         const probe = await page.evaluate(async () => {
@@ -727,7 +727,11 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         expect(metrics.actionResultCodeTotals['gate.trigger.boost']).toBe(1);
     });
 
-    test('T14ed: Effekt-Neubewertung laesst aeltere Speed-Effekte nach Konflikten wieder greifen', async () => {
+    // SPEED_UP and SLOW_DOWN share effectCategory 'speed' with stackPolicy 'replace-category'
+    // (PickupRegistryContract.js:56-57, 83-84), so applyPlayerPowerup drops the older one
+    // ("latest-wins", PlayerEffectOps.js:72, 244-255). When the winner expires the player
+    // falls back to the plain base speed, not to the replaced effect.
+    test('T14ed: Speed-Effekte ersetzen sich und geben nach Ablauf die Grundgeschwindigkeit zurueck', async () => {
         const player = {
             entityRuntimeConfig: {
                 ...CONFIG,
@@ -747,28 +751,38 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         };
 
         applyPlayerPowerup(player, 'SPEED_UP');
+        expect(player.baseSpeed).toBeGreaterThan(CONFIG.PLAYER.SPEED);
+
         applyPlayerPowerup(player, 'SLOW_DOWN');
+        expect(player.activeEffects.some((entry) => entry.type === 'SPEED_UP')).toBeFalsy();
+        expect(player.activeEffects.some((entry) => entry.type === 'SLOW_DOWN')).toBeTruthy();
         expect(player.baseSpeed).toBeLessThan(CONFIG.PLAYER.SPEED);
 
-        const speedUp = player.activeEffects.find((entry) => entry.type === 'SPEED_UP');
         const slowDown = player.activeEffects.find((entry) => entry.type === 'SLOW_DOWN');
-        speedUp.remaining = 99;
         slowDown.remaining = 0.01;
 
         updatePlayerEffects(player, 0.02);
 
         expect(player.activeEffects.some((entry) => entry.type === 'SLOW_DOWN')).toBeFalsy();
-        expect(player.activeEffects.some((entry) => entry.type === 'SPEED_UP')).toBeTruthy();
-        expect(player.baseSpeed).toBeGreaterThan(CONFIG.PLAYER.SPEED);
+        expect(player.activeEffects.some((entry) => entry.type === 'SPEED_UP')).toBeFalsy();
+        expect(player.baseSpeed).toBe(CONFIG.PLAYER.SPEED);
+        expect(player.speed).toBe(CONFIG.PLAYER.SPEED);
     });
 
-    test('T14ee: Hunt-Shields bleiben persistent, waehrend Legacy-SLOW_TIME im Hunt-Modus entfernt wird', async () => {
+    // SLOW_TIME is allowed in every mode and even carries a HUNT spawn weight
+    // (PickupRegistryContract.js:254,258), so HUNT keeps it. PURGE is the retired type
+    // (playable: false, PickupExpansionDefinitionsContract.js:41-48) that the mode filter
+    // in PlayerEffectOps.js:157-159 must still strip out of a legacy effect list.
+    test('T14ee: Hunt-Shields und Zeitlupe bleiben, waehrend nicht spielbare Legacy-Effekte entfernt werden', async () => {
         const player = {
             entityRuntimeConfig: {
                 ...CONFIG,
                 HUNT: { ...CONFIG.HUNT, ACTIVE_MODE: 'HUNT', DEFAULT_MODE: 'HUNT', ENABLED: true },
             },
-            activeEffects: [{ type: 'SLOW_TIME', remaining: 10 }],
+            activeEffects: [
+                { type: 'SLOW_TIME', remaining: 10 },
+                { type: 'PURGE', remaining: 10 },
+            ],
             baseSpeed: CONFIG.PLAYER.SPEED,
             speed: CONFIG.PLAYER.SPEED,
             hasShield: false,
@@ -788,7 +802,9 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
 
         updatePlayerEffects(player, 0.5);
 
-        expect(player.activeEffects.some((entry) => entry.type === 'SLOW_TIME')).toBeFalsy();
+        expect(player.activeEffects.some((entry) => entry.type === 'PURGE')).toBeFalsy();
+        expect(player.activeEffects.some((entry) => entry.type === 'SLOW_TIME')).toBeTruthy();
+        expect(player.hasSlowTime).toBeTruthy();
         expect(player.activeEffects.some((entry) => entry.type === 'SHIELD')).toBeTruthy();
         expect(player.hasShield).toBeTruthy();
         expect(player.shieldHP).toBeGreaterThan(0);
