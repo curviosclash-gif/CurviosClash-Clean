@@ -4,6 +4,7 @@ import {
     encodeGameplayActionResultForLog,
 } from '../../../shared/contracts/GameplayActionResultContract.js';
 import { resolveGameplayConfig } from '../../../shared/contracts/GameplayConfigContract.js';
+import { extinguishBurning } from '../../player/PlayerEffectOps.js';
 
 export class PlayerInteractionPhase {
     constructor(entityManager) {
@@ -23,6 +24,8 @@ export class PlayerInteractionPhase {
 
         if (gateType === 'boost') {
             player.activateBoostPortal(gateResult.params, gateResult.forward);
+            // E16: the push of the gate blows out the flamethrower afterburn.
+            extinguishBurning(player);
             if (entityManager.audio && !player.isBot) entityManager.audio.play('BOOST');
             entityManager.recorder?.logEvent?.('GATE_TRIGGER', player.index, encodeGameplayActionResultForLog(buildGameplayActionResult({
                 ok: true,
@@ -78,6 +81,8 @@ export class PlayerInteractionPhase {
                 player.quaternion.premultiply(portalResult.rotation).normalize();
             }
             player.trail.forceGap(0.5);
+            // E16: the jump through the portal blows out the flamethrower afterburn.
+            extinguishBurning(player);
 
             if (entityManager.audio && !player.isBot) entityManager.audio.play('PORTAL');
             entityManager.recorder?.logEvent?.('PORTAL_USE', player.index, encodeGameplayActionResultForLog(buildGameplayActionResult({

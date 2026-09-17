@@ -10,6 +10,18 @@ const GLOBAL_TIME_EFFECT_TYPES = Object.freeze(['SLOW_TIME']);
 const FLAMETHROWER_EFFECT_TYPES = Object.freeze(['FLAMETHROWER']);
 const FUEL_EMPTY_SECONDS = 0.000001;
 
+// Afterburn. Unlike every other entry in activeEffects this one is no pickup, so it has no
+// registry definition: it is lit by the flame cone, not collected. Everything that reads the
+// registry (mode filter, item bar) therefore has to skip it explicitly.
+export const BURNING_EFFECT_TYPE = 'BURNING';
+const DEFAULT_AFTERBURN_SECONDS = 3;
+const DEFAULT_AFTERBURN_DAMAGE_PER_SECOND = 5;
+
+function resolveAfterburnValue(player, key, fallback) {
+    const configured = Number(resolveEntityRuntimeConfig(player)?.HUNT?.FLAMETHROWER?.[key]);
+    return Number.isFinite(configured) && configured > 0 ? configured : fallback;
+}
+
 function resolveFlamethrowerFuelSeconds(player) {
     const configured = Number(resolveEntityRuntimeConfig(player)?.HUNT?.FLAMETHROWER?.FUEL_SECONDS);
     return Number.isFinite(configured) && configured > 0 ? configured : 0;
@@ -169,6 +181,89 @@ export function consumeFlamethrowerFuel(player, seconds) {
     return consumed;
 }
 
+/**
+ * Sets a target alight. E17: a later hit restarts the fixed time and takes over the source,
+ * it never adds a second fire and never extends the first one.
+ */
+export function igniteBurning(player, sourcePlayer = null) {
+    if (!player || !Array.isArray(player.activeEffects)) return;
+    const seconds = resolveAfterburnValue(player, 'AFTERBURN_SECONDS', DEFAULT_AFTERBURN_SECONDS);
+    const sourcePlayerIndex = Number.isInteger(sourcePlayer?.index) ? sourcePlayer.index : null;
+    for (let i = 0; i < player.activeEffects.length; i += 1) {
+        const effect = player.activeEffects[i];
+        if (effect?.type !== BURNING_EFFECT_TYPE) continue;
+        effect.remaining = seconds;
+        effect.sourcePlayerIndex = sourcePlayerIndex;
+        return;
+    }
+    player.activeEffects.push({ type: BURNING_EFFECT_TYPE, remaining: seconds, sourcePlayerIndex });
+}
+
+/**
+ * Puts the afterburn out (E16: boost key, SPEED_UP, boost gate, portal). Answers whether
+ * anything was burning, so the boost paths can stay silent when there is no fire.
+ */
+export function extinguishBurning(player) {
+    const effects = player?.activeEffects;
+    if (!Array.isArray(effects)) return false;
+    for (let i = effects.length - 1; i >= 0; i -= 1) {
+        if (effects[i]?.type !== BURNING_EFFECT_TYPE) continue;
+        removeEffectAtIndex(player, i);
+        recomputePlayerEffectState(player);
+        return true;
+    }
+    return false;
+}
+
+function resolveEffectSourcePlayer(player, effect) {
+    const index = effect?.sourcePlayerIndex;
+    if (!Number.isInteger(index)) return null;
+    const players = player?.entityManager?.players;
+    if (!Array.isArray(players)) return null;
+    for (let i = 0; i < players.length; i += 1) {
+        if (players[i]?.index === index) return players[i];
+    }
+    return null;
+}
+
+/**
+ * One tick of afterburn damage. The tick is clamped to the time the fire has left, so the
+ * total never exceeds seconds * damage per second no matter how the frames fall.
+ */
+function applyAfterburnTick(player, effect, dtSeconds) {
+    if (player.alive !== true || dtSeconds <= 0) return;
+    const entityManager = player.entityManager || null;
+    // Replicas carry the fire for the display only; the host books hit points (same split
+    // the flame cone itself uses).
+    if (entityManager?.isFightOutcomeAuthority === false) return;
+    const burnedSeconds = Math.min(dtSeconds, Math.max(0, Number(effect.remaining) || 0));
+    const damage = resolveAfterburnValue(
+        player,
+        'AFTERBURN_DAMAGE_PER_SECOND',
+        DEFAULT_AFTERBURN_DAMAGE_PER_SECOND,
+    ) * burnedSeconds;
+    if (damage <= 0) return;
+
+    const sourcePlayer = resolveEffectSourcePlayer(player, effect);
+    // Every tick refreshes lastDamageTimestamp inside applyDamage, which is what keeps the
+    // health regeneration paused while the target burns.
+    const damageResult = player.takeDamage?.(damage) || null;
+    entityManager?._emitHuntDamageEvent?.({
+        target: player,
+        sourcePlayer,
+        cause: BURNING_EFFECT_TYPE,
+        damageResult,
+        impactPoint: player.position,
+    });
+    if (damageResult?.isDead) {
+        entityManager?._killPlayer?.(player, 'PROJECTILE', {
+            killer: sourcePlayer,
+            impactPoint: player.position,
+            projectileType: BURNING_EFFECT_TYPE,
+        });
+    }
+}
+
 export function removePlayerEffect(player, effect) {
     if (!player || !effect || !Array.isArray(player.activeEffects)) return;
     const index = player.activeEffects.indexOf(effect);
@@ -189,6 +284,15 @@ export function updatePlayerEffects(player, dt) {
     const effectDt = Math.max(0, Number(dt) || 0) / resolveGlobalTimeScale(player);
     for (let i = player.activeEffects.length - 1; i >= 0; i -= 1) {
         const effect = player.activeEffects[i];
+        if (effect?.type === BURNING_EFFECT_TYPE) {
+            // The afterburn is no pickup, so the registry mode filter below would drop it
+            // on its first tick. It only exists in modes with hunt health anyway, because
+            // that is the only place the flame cone lights it (E14).
+            applyAfterburnTick(player, effect, effectDt);
+            effect.remaining -= effectDt;
+            if (effect.remaining <= 0) removeEffectAtIndex(player, i);
+            continue;
+        }
         if (!effect || !isPickupTypeAllowedForMode(effect.type, modeType)) {
             removeEffectAtIndex(player, i);
             continue;
@@ -306,6 +410,9 @@ export function applyPlayerPowerup(player, type, options = {}) {
     if (type === 'FLAMETHROWER') {
         player.activeEffects[player.activeEffects.length - 1].fuelSeconds = resolveFlamethrowerFuelSeconds(player);
     }
+
+    // E16: the burst of speed blows the afterburn out, exactly like the boost key and the gate.
+    if (type === 'SPEED_UP') extinguishBurning(player);
 
     recomputePlayerEffectState(player);
 }

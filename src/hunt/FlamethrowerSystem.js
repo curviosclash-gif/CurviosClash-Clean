@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { consumeFlamethrowerFuel } from '../entities/player/PlayerEffectOps.js';
+import { consumeFlamethrowerFuel, igniteBurning } from '../entities/player/PlayerEffectOps.js';
 import { isDestructibleTurret } from '../shared/contracts/TurretCombatContract.js';
 import { shouldSkipOwnerSegment } from '../entities/systems/trails/TrailCollisionQuery.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -177,7 +177,9 @@ export class FlamethrowerSystem {
                     impactPoint: target.position,
                     projectileType: FLAMETHROWER_CAUSE,
                 });
+                continue;
             }
+            igniteBurning(target, player);
         }
     }
 

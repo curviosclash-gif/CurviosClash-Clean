@@ -273,6 +273,10 @@ export const HUNT_CONFIG = Object.freeze({
         DAMAGE_PER_SECOND: 30,
         // Seconds a trail segment has to sit in the flame before the gap opens.
         TRAIL_BURN_SECONDS: 0.3,
+        // Afterburn: a hit target keeps burning for a fixed time. A later hit restarts
+        // the clock instead of extending it, so the fire never outlasts these seconds.
+        AFTERBURN_SECONDS: 3,
+        AFTERBURN_DAMAGE_PER_SECOND: 5,
     }),
     TRAIL_SEGMENT_HP: 3,
     RESPAWN: Object.freeze({
