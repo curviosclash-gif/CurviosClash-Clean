@@ -121,6 +121,8 @@ export class MatchFlowUiController {
             }
             if (hasOwn('messageOverlayHidden')) {
                 game.ui.messageOverlay.classList.toggle('hidden', visibility.messageOverlayHidden !== false);
+                // style.css hides the frozen Fight HUD behind the result through this flag.
+                game.ui.hud?.classList.toggle('result-overlay-open', visibility.messageOverlayHidden === false);
             }
         }
         if (hasOwnProperty(uiState, 'overlayStats')) {
@@ -418,6 +420,7 @@ export class MatchFlowUiController {
     }
     pause() { this.pauseOverlayController.pause(); }
     resumeFromPause() { this.pauseOverlayController.resumeFromPause(); }
+    closePauseSettingsIfOpen() { return this.pauseOverlayController.closeSettingsIfOpen(); }
     returnToMenuFromPause() { this.pauseOverlayController.returnToMenuFromPause(); }
     applyPauseProjection() { return this.pauseOverlayController.applyPauseProjection(); }
     applyResumeProjection(options = undefined) { return this.pauseOverlayController.applyResumeProjection(options); }

@@ -205,7 +205,7 @@ export class PauseOverlayController {
     _restorePauseButtonLabels() {
         const game = this.game;
         if (game?.ui?.pauseMenuButton) {
-            game.ui.pauseMenuButton.textContent = 'Hauptmenue';
+            game.ui.pauseMenuButton.textContent = 'Hauptmenü';
         }
         if (game?.ui?.pauseResumeButton) {
             game.ui.pauseResumeButton.textContent = 'Weiterspielen';
@@ -256,9 +256,18 @@ export class PauseOverlayController {
         if (game.ui.pauseSettingsPanel) {
             game.ui.pauseSettingsPanel.classList.remove('hidden');
         }
+        game.ui.hud?.classList.add('pause-settings-open');
         if (game.ui.pauseSettingsButton) {
             game.ui.pauseSettingsButton.classList.add('hidden');
         }
+    }
+
+    // Escape backs out of the pause settings first; only the next Escape resumes the match.
+    closeSettingsIfOpen() {
+        const panel = this.game?.ui?.pauseSettingsPanel;
+        if (!panel || panel.classList.contains('hidden')) return false;
+        this._hideSettings();
+        return true;
     }
 
     _hideSettings() {
@@ -272,6 +281,7 @@ export class PauseOverlayController {
         if (game.ui.pauseSettingsPanel) {
             game.ui.pauseSettingsPanel.classList.add('hidden');
         }
+        game.ui.hud?.classList.remove('pause-settings-open');
         if (game.ui.pauseSettingsButton) {
             game.ui.pauseSettingsButton.classList.remove('hidden');
         }
