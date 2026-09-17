@@ -52,7 +52,20 @@ function resetThreatEntry(entry) {
     entry.nearestSource = '';
 }
 
-function resolveThreatSource(projectile) {
+const KNOWN_THREAT_SOURCES = new Set(Object.values(ROCKET_THREAT_SOURCES));
+
+/**
+ * Where a rocket comes from.
+ *
+ * A network replica cannot derive this: it resolves `owner` among the players only, so a
+ * turret rocket arrives without its turret. The snapshot therefore carries the already
+ * resolved source in `threatSource`, and a valid value there always wins over the
+ * derivation. Host projectiles leave the field empty and fall through.
+ */
+export function resolveRocketThreatSource(projectile) {
+    if (!projectile) return ROCKET_THREAT_SOURCES.PLAYER;
+    const declared = projectile.threatSource;
+    if (typeof declared === 'string' && KNOWN_THREAT_SOURCES.has(declared)) return declared;
     if (projectile.zoneProjectile === true) return ROCKET_THREAT_SOURCES.ZONE;
     if (projectile.owner?.staticTurret === true || projectile.environmentProjectile === true) {
         return ROCKET_THREAT_SOURCES.TURRET;
@@ -127,7 +140,7 @@ export class RocketThreatTracker {
             entry.active = true;
             entry.nearestDistance = distance;
             entry.nearestProjectileId = String(projectile.traversalId || '');
-            entry.nearestSource = resolveThreatSource(projectile);
+            entry.nearestSource = resolveRocketThreatSource(projectile);
             const scale = distance > 0 ? 1 / distance : 0;
             entry.direction.x = dx * scale;
             entry.direction.y = dy * scale;

@@ -1,6 +1,8 @@
 // ============================================
 
 import { createHuntNetworkState } from '../hunt/HuntNetworkState.js';
+import { isRocketTierType } from '../hunt/RocketPickupSystem.js';
+import { ROCKET_THREAT_SOURCES, resolveRocketThreatSource } from '../entities/systems/projectile/RocketThreatTracker.js';
 // GameStateSnapshot.js - serializable game state for network transport
 // ============================================
 
@@ -40,6 +42,7 @@ export function createGameStateSnapshot(entityManager, roundState) {
             serializedProjectile.targetPlayerIndex = Number.isInteger(proj.targetPlayerIndex) ? proj.targetPlayerIndex : -1;
             serializedProjectile.zoneProjectile = proj.zoneProjectile === true;
         }
+        appendRocketThreatFields(serializedProjectile, proj);
         projectiles.push(serializedProjectile);
     }
 
@@ -77,6 +80,24 @@ export function createGameStateSnapshot(entityManager, roundState) {
             scores: roundState.scores || [],
         } : null,
     };
+}
+
+/**
+ * Adds the rocket warning fields to a serialized projectile.
+ *
+ * Both fields are optional on the wire, so an older host stays readable and a snapshot
+ * only grows for the rockets that actually chase somebody: `lockedPlayerIndex` appears
+ * for rocket tier projectiles with a lock, `threatSource` only when the source is not a
+ * player - a replica resolves `owner` among the players and would otherwise mistake a
+ * turret rocket for a player rocket.
+ */
+function appendRocketThreatFields(serialized, projectile) {
+    if (!isRocketTierType(serialized.type)) return;
+    const lockedPlayerIndex = Number(projectile.lockedPlayerIndex);
+    if (!Number.isInteger(lockedPlayerIndex) || lockedPlayerIndex < 0) return;
+    serialized.lockedPlayerIndex = lockedPlayerIndex;
+    const threatSource = resolveRocketThreatSource(projectile);
+    if (threatSource !== ROCKET_THREAT_SOURCES.PLAYER) serialized.threatSource = threatSource;
 }
 
 export function serializePlayer(player) {

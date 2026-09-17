@@ -398,6 +398,8 @@ export class ProjectileSystem {
             projectile.environmentProjectile = entry.environmentProjectile === true;
             projectile.targetPlayerIndex = Number.isInteger(entry.targetPlayerIndex) ? entry.targetPlayerIndex : -1;
             projectile.zoneProjectile = entry.zoneProjectile === true;
+            projectile.lockedPlayerIndex = Number.isInteger(entry.lockedPlayerIndex) ? entry.lockedPlayerIndex : -1;
+            projectile.threatSource = typeof entry.threatSource === 'string' ? entry.threatSource : '';
             projectile.mesh.position.copy(projectile.position);
             projectile.visualScale = Math.max(0.01, Number(entry.visualScale) || 1);
             projectile.mesh.scale.setScalar(projectile.visualScale);

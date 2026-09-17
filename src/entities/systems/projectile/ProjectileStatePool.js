@@ -66,6 +66,9 @@ export class ProjectileStatePool {
             // Who this projectile is steering at right now (-1 = nobody). Feeds the rocket
             // warning; targetPlayerIndex stays the "may hit" rule of environment rockets.
             lockedPlayerIndex: -1,
+            // Only a network replica fills this: it cannot derive a turret or zone source
+            // from `owner` alone, so the snapshot hands it the resolved value.
+            threatSource: '',
             targetReacquireDisabled: false,
             ignoresTrails: false,
             ignoresTurrets: false,
@@ -112,6 +115,7 @@ export class ProjectileStatePool {
         projectile.environmentProjectile = false;
         projectile.targetPlayerIndex = -1;
         projectile.lockedPlayerIndex = -1;
+        projectile.threatSource = '';
         projectile.targetReacquireDisabled = false;
         projectile.ignoresTrails = false;
         projectile.ignoresTurrets = false;
