@@ -104,7 +104,14 @@ export async function handleQuickStartLastStartAction(ctx) {
 }
 
 export async function handleQuickStartEventPlaylistStartAction(ctx) {
-    const { game, onSettingsChanged, resolveMenuAccessContext, recordMenuTelemetry, startMatch } = ctx;
+    const {
+        game,
+        onSettingsChanged,
+        resolveMenuAccessContext,
+        recordMenuTelemetry,
+        startMatch,
+        cancelPendingSettingsAutoSave,
+    } = ctx;
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Event-Playlist');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
@@ -159,6 +166,9 @@ export async function handleQuickStartEventPlaylistStartAction(ctx) {
         // Event-Playlist darf nur den Cursor persistieren, nicht still die komplette Runtime-Konfiguration als neue Baseline speichern.
         const persistedSettings = buildEventPlaylistPersistedSettings(baselineSettingsSnapshot, game.settings);
         if (persistedSettings) {
+            // The autosave armed by onSettingsChanged above would write the running playlist
+            // configuration over this baseline 400 ms later, dropping the player's own map.
+            cancelPendingSettingsAutoSave?.();
             game.settingsManager.saveSettings(persistedSettings);
         }
         game._showStatusToast(

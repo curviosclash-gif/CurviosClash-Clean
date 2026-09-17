@@ -251,6 +251,7 @@ export class GameRuntimeMenuActionHandler {
             recordMenuTelemetry: (type, payload) => this._facade?._recordMenuTelemetry?.(type, payload),
             startMatch: () => this._facade?.startMatch?.(),
             markSettingsDirty: (dirty) => this._facade?.markSettingsDirty?.(dirty),
+            cancelPendingSettingsAutoSave: () => this._facade?.cancelPendingSettingsAutoSave?.(),
         };
     }
 

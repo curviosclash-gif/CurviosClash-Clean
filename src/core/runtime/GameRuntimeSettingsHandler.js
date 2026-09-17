@@ -247,10 +247,18 @@ export class GameRuntimeSettingsHandler {
         return changedKeys;
     }
 
+    // Callers that deliberately persist a different snapshot than the live settings must
+    // drop the armed autosave first - it would write the live settings over that snapshot
+    // 400 ms later (event playlist start used to lose the player's own map that way).
+    cancelPendingSettingsAutoSave() {
+        if (this._pendingAutoSaveId == null) return false;
+        clearTimeout(this._pendingAutoSaveId);
+        this._pendingAutoSaveId = null;
+        return true;
+    }
+
     _scheduleSettingsAutoSave() {
-        if (this._pendingAutoSaveId != null) {
-            clearTimeout(this._pendingAutoSaveId);
-        }
+        this.cancelPendingSettingsAutoSave();
         this._pendingAutoSaveId = setTimeout(() => {
             this._pendingAutoSaveId = null;
             if (this._facade?._disposed === true) return;
@@ -259,10 +267,7 @@ export class GameRuntimeSettingsHandler {
     }
 
     dispose() {
-        if (this._pendingAutoSaveId != null) {
-            clearTimeout(this._pendingAutoSaveId);
-            this._pendingAutoSaveId = null;
-        }
+        this.cancelPendingSettingsAutoSave();
         this._facade = null;
     }
 
