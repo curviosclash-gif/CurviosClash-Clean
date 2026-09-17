@@ -358,6 +358,8 @@ function createHuntProjection(value = null, nowMs = 0) {
             damage: normalizeNonNegativeInt(row?.damage, 0),
             shieldDamage: normalizeNonNegativeInt(row?.shieldDamage, 0),
             spawnDeaths: normalizeNonNegativeInt(row?.spawnDeaths, 0),
+            // Rockets shot down by this player (E38). Statistics only, never a kill (E75).
+            intercepts: normalizeNonNegativeInt(row?.intercepts, 0),
         }))
         : [];
     const respawnRemainingByPlayer = {};

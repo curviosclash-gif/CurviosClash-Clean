@@ -36,6 +36,7 @@ export class HuntScoring {
                 damage: 0,
                 shieldDamage: 0,
                 spawnDeaths: 0,
+                intercepts: 0,
             });
         }
         return this._statsByPlayer.get(playerIndex);
@@ -84,6 +85,13 @@ export class HuntScoring {
             entries.push({ attackerIndex, ageSeconds: now - (Number(entry?.lastHitAt) || 0) });
         }
         return entries;
+    }
+
+    // E75: shooting down an incoming rocket is counted, but it is not a kill - it stays
+    // out of the kill tally, out of the sorting and out of the round decision.
+    registerIntercept(playerIndex) {
+        if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+        this._ensureStats(playerIndex).intercepts += 1;
     }
 
     registerElimination(targetPlayer, options = {}) {
@@ -140,6 +148,7 @@ export class HuntScoring {
                 damage: Math.round(stats.damage),
                 shieldDamage: Math.round(stats.shieldDamage || 0),
                 spawnDeaths: stats.spawnDeaths,
+                intercepts: stats.intercepts,
             });
         }
 
@@ -164,6 +173,8 @@ export class HuntScoring {
                 damage: Math.max(0, Number(row?.damage) || 0),
                 shieldDamage: Math.max(0, Number(row?.shieldDamage) || 0),
                 spawnDeaths: Math.max(0, Number(row?.spawnDeaths) || 0),
+                // A snapshot from a host that predates S2.3 has no field here and reads as 0.
+                intercepts: Math.max(0, Number(row?.intercepts) || 0),
             });
         }
     }

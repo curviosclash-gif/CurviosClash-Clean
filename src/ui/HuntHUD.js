@@ -8,6 +8,7 @@ import {
 import { updateHuntReserveArcs } from './HuntHudReserveArcs.js';
 import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from './HuntHudRocketWarning.js';
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
+import { HuntInterceptAnnouncer } from './HuntInterceptAnnouncer.js';
 import { formatHuntClock, formatHuntScoreboard, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
@@ -65,6 +66,7 @@ export class HuntHUD {
         this._progressState = { target: 0, filled: -1 };
         this._matchAnnouncement = this.root?.ownerDocument
             ? new MatchHudAnnouncement(this.root) : null;
+        this._interceptAnnouncer = new HuntInterceptAnnouncer();
         this.p1HpFill = refs.p1HpFill ?? null;
         this.p1HpText = refs.p1HpText ?? null;
         this.p1Respawn = refs.p1Respawn ?? null;
@@ -195,6 +197,7 @@ export class HuntHUD {
         this._leaderIndex = null;
         this._leaderKills = -1;
         this._matchAnnouncement?.reset();
+        this._interceptAnnouncer.reset();
         this._progressState.filled = -1;
         this.targetProgress?.classList.add('hidden');
         this._damageIndicatorCache.p2Visible = null;
@@ -202,6 +205,7 @@ export class HuntHUD {
 
     resetMatchScoreEvents() {
         this._matchAnnouncement?.reset();
+        this._interceptAnnouncer.reset();
         this._leaderIndex = null;
         this._leaderKills = -1;
     }
@@ -434,6 +438,8 @@ export class HuntHUD {
             scoreKey: 'kills',
             target: respawnEnabled ? killLimit : 0,
         });
+        const interceptMessage = this._interceptAnnouncer.consume(rows, localPlayerIndices);
+        if (interceptMessage) this._matchAnnouncement?.show(interceptMessage);
     }
 
     _ensureKillFeedSlots() {
