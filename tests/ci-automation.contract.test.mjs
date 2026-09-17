@@ -1,10 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-import { collectNodeTestFileNames, selectNodeTestFiles } from '../scripts/run-contract-tests.mjs';
+import {
+    collectNodeTestFileNames,
+    runContractTests,
+    selectNodeTestFiles,
+} from '../scripts/run-contract-tests.mjs';
 import {
     DESKTOP_E2E_CLUSTERS,
     HEAVY_DIAGNOSTIC_CLUSTERS,
@@ -213,4 +219,37 @@ test('weekly audits cover every dependency tree without automatic major updates'
         assert.match(dependabot, new RegExp(`directory: ${directory.replace('/', '\\/')}(?:\\r?\\n|$)`));
     }
     assert.equal((dependabot.match(/version-update:semver-major/g) || []).length, 3);
+});
+
+function withTempRoots(assertions) {
+    const tmpRoot = mkdtempSync(path.join(tmpdir(), 'curvios-contract-runner-'));
+    const summaryRoot = mkdtempSync(path.join(tmpdir(), 'curvios-contract-summary-'));
+    try {
+        assertions(tmpRoot, path.join(summaryRoot, 'summary.json'));
+    } finally {
+        rmSync(tmpRoot, { recursive: true, force: true });
+        rmSync(summaryRoot, { recursive: true, force: true });
+    }
+}
+
+test('the contract runner leaves no coverage temp folder behind', () => {
+    withTempRoots((tmpRoot, contractSummaryPath) => {
+        const status = runContractTests(['fast'], { tmpRoot, contractSummaryPath, log: () => {}, spawn: () => ({ status: 0 }) });
+
+        assert.equal(status, 0);
+        assert.deepEqual(readdirSync(tmpRoot), [], 'a run without --coverage needs no temp folder at all');
+    });
+});
+
+test('a coverage run cleans up its temp folder even when the ratchet fails', () => {
+    withTempRoots((tmpRoot, contractSummaryPath) => {
+        // Without a summary file the ratchet throws; the temp folder must still be gone.
+        assert.throws(() => runContractTests(['fast', '--coverage'], {
+            tmpRoot,
+            contractSummaryPath,
+            log: () => {},
+            spawn: () => ({ status: 0 }),
+        }));
+        assert.deepEqual(readdirSync(tmpRoot), [], 'the coverage temp folder is removed');
+    });
 });

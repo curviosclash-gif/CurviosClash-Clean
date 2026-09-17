@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync } from 'node:fs';
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { cpus, tmpdir } from 'node:os';
 import path from 'node:path';
@@ -142,23 +142,38 @@ function readContractSummary(summaryPath) {
     }
 }
 
-export function runContractTests(argv = process.argv.slice(2)) {
+export function runContractTests(argv = process.argv.slice(2), {
+    spawn = spawnSync,
+    tmpRoot = tmpdir(),
+    contractSummaryPath = resolveContractSummaryPath(),
+    log = console.log,
+} = {}) {
     const mode = argv.find((value) => !String(value).startsWith('-')) || 'fast';
     const coverageEnabled = argv.includes('--coverage');
     const selectedTests = selectNodeTestFiles(collectNodeTestFileNames('tests'), mode);
-    const summaryPath = path.join(mkdtempSync(path.join(tmpdir(), 'curvios-coverage-')), 'summary.json');
-    const contractSummaryPath = resolveContractSummaryPath();
+    // Only a coverage run needs the temp folder; it is removed again once the ratchet has read it.
+    const coverageDirectory = coverageEnabled ? mkdtempSync(path.join(tmpRoot, 'curvios-coverage-')) : null;
+    try {
+        return runSelectedContractTests({ coverageDirectory, contractSummaryPath, selectedTests, spawn, log });
+    } finally {
+        if (coverageDirectory) rmSync(coverageDirectory, { recursive: true, force: true });
+    }
+}
+
+function runSelectedContractTests({ coverageDirectory, contractSummaryPath, selectedTests, spawn, log }) {
+    const coverageEnabled = coverageDirectory !== null;
+    const summaryPath = coverageEnabled ? path.join(coverageDirectory, 'summary.json') : null;
     mkdirSync(path.dirname(contractSummaryPath), { recursive: true });
     const autoScale = resolveAutoTimeScaleEnv(process.env, existsSync(resolvePlaywrightRunLockPath(process.env)));
     const childEnv = { ...process.env, ...autoScale };
     if (autoScale.CURVIOS_TEST_TIME_SCALE) {
-        console.log(`[contract] playwright lock is held by another run; CURVIOS_TEST_TIME_SCALE=${autoScale.CURVIOS_TEST_TIME_SCALE}`);
+        log(`[contract] playwright lock is held by another run; CURVIOS_TEST_TIME_SCALE=${autoScale.CURVIOS_TEST_TIME_SCALE}`);
     }
     const reporterArgs = coverageEnabled
         ? buildCoverageArgs(Object.keys(readCoverageRatchet().areas), summaryPath)
         : ['--test-reporter=spec', '--test-reporter-destination=stdout'];
 
-    const result = spawnSync(process.execPath, [
+    const result = spawn(process.execPath, [
         ...reporterArgs,
         ...buildContractSummaryReporterArgs(contractSummaryPath),
         ...resolveContractTestArgs(),
@@ -175,14 +190,14 @@ export function runContractTests(argv = process.argv.slice(2)) {
     // Parsen der Spec-Ausgabe lesen laesst.
     const summaryLine = formatContractSummaryLine(readContractSummary(contractSummaryPath), contractSummaryPath);
     if (!coverageEnabled) {
-        console.log(summaryLine);
+        log(summaryLine);
         return testStatus;
     }
 
     // Der Ratchet laeuft auch bei roten Tests, damit ein Coverage-Einbruch nicht erst
     // beim naechsten gruenen Lauf auffaellt. Der Testfehler bleibt der Rueckgabewert.
     const ratchetStatus = runCoverageRatchet(summaryPath);
-    console.log(summaryLine);
+    log(summaryLine);
     return testStatus || ratchetStatus;
 }
 
