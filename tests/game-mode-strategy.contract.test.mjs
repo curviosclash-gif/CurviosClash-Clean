@@ -149,15 +149,14 @@ test('Fight fans receive 5/4/3 percent and every other base spawn chance shrinks
     const nonRocketTypes = getPickupTypes().filter((type) => (
         isPickupTypeAllowedForMode(type, 'HUNT')
         && !isRocketPickupType(type)
-        // Items parked at weight 0 (the flamethrower until S4.2 ships its effect) never
-        // spawn and therefore take no share of the percentage split.
+        // Items parked at weight 0 never spawn and therefore take no share of the split.
         && (HUNT_CONFIG.PICKUP_WEIGHTS[type] ?? 1) > 0
     ));
     const otherTypes = nonRocketTypes.filter((type) => type !== 'MG_TURRET' && type !== 'ROCKET_TURRET');
     const weights = HUNT_CONFIG.PICKUP_WEIGHTS;
     const turretWeight = weights.MG_TURRET;
     const otherWeights = otherTypes.map((type) => weights[type] ?? 1);
-    const weightedTypes = new Set(['FOG', 'FAN_3', 'FAN_4', 'FAN_5']);
+    const weightedTypes = new Set(['FOG', 'FAN_3', 'FAN_4', 'FAN_5', 'FLAMETHROWER']);
     const standardOtherWeights = otherTypes
         .filter((type) => !weightedTypes.has(type))
         .map((type) => weights[type] ?? 1);
@@ -169,17 +168,21 @@ test('Fight fans receive 5/4/3 percent and every other base spawn chance shrinks
     const launcherChance = nonRocketChance * launcherWeight / totalNonRocketWeight;
     const otherChance = nonRocketChance - turretChance - launcherChance;
 
+    // The fan targets were tuned before the flamethrower existed. A new item in the pool takes its
+    // share from everyone, so every older target shrinks by the same factor.
+    const dilution = (totalNonRocketWeight - weights.FLAMETHROWER) / totalNonRocketWeight;
     const remainingScale = 0.88 / (1 - 0.30 / 31.7);
     assert.ok(Math.abs(HUNT_CONFIG.ROCKET_PICKUP_SPAWN_CHANCE / 0.70 - remainingScale) < 1e-12);
     assert.ok(standardOtherWeights.every((weight) => weight === 1));
     assert.equal(weights.FOG, 0.7);
+    assert.equal(weights.FLAMETHROWER, 0.225, 'the flamethrower is the only item added after the fan split');
     for (const [type, chance] of [['FAN_3', 0.05], ['FAN_4', 0.04], ['FAN_5', 0.03]]) {
-        assert.ok(Math.abs(nonRocketChance * weights[type] / totalNonRocketWeight - chance) < 1e-12, type);
+        assert.ok(Math.abs(nonRocketChance * weights[type] / totalNonRocketWeight - chance * dilution) < 1e-12, type);
     }
     for (const type of nonRocketTypes.filter((type) => !type.startsWith('FAN_'))) {
         const previousChance = 0.30 * (weights[type] ?? 1) / 31.7;
         const nextChance = nonRocketChance * (weights[type] ?? 1) / totalNonRocketWeight;
-        assert.ok(Math.abs(nextChance / previousChance - remainingScale) < 1e-12, type);
+        assert.ok(Math.abs(nextChance / previousChance - remainingScale * dilution) < 1e-12, type);
     }
     assert.deepEqual(Object.values(HUNT_CONFIG.ROCKET_TIERS).map((tier) => tier.spawnChance), [0.5, 0.28, 0.18, 0.03]);
     assert.equal(turretWeight, 10);

@@ -9,7 +9,12 @@ const CELL_OFFSETS_3X3 = [
     [-1, 1], [0, 1], [1, 1],
 ];
 
-function shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent) {
+/**
+ * Is this segment one the shooter must not hit - his own rocket smoke, or a piece of his own trail
+ * that is still too close to his tail? Exported so every weapon uses the one rule instead of
+ * repeating the ring buffer arithmetic.
+ */
+export function shouldSkipOwnerSegment(seg, players, excludePlayerIndex, skipRecent) {
     if (seg.playerIndex !== excludePlayerIndex) return false;
     const ownerTrail = seg.ownerTrail;
     if (ownerTrail?.kind === 'rocket-trail') return true;

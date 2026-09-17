@@ -55,7 +55,7 @@ function createFlamePlayer() {
     return player;
 }
 
-test('flamethrower item is registered, self-usable and parked at spawn weight zero', () => {
+test('flamethrower item is registered, self-usable and spawns at its target rarity', () => {
     const definition = getPickupDefinition('FLAMETHROWER');
     assert.ok(definition, 'FLAMETHROWER resolves through the shared pickup registry');
     assert.equal(typeof definition.name, 'string');
@@ -78,17 +78,26 @@ test('flamethrower item is registered, self-usable and parked at spawn weight ze
         assert.equal(isPickupTypeAllowedForMode('FLAMETHROWER', mode), true, `usable in ${mode}`);
         assert.equal(isPickupTypeSelfUsable('FLAMETHROWER', mode), true, `self-usable in ${mode}`);
         assert.equal(isPickupTypeShootable('FLAMETHROWER', mode), false, `never a projectile in ${mode}`);
-        assert.equal(getPickupSpawnWeight('FLAMETHROWER', mode), 0, `no natural spawns in ${mode} yet`);
         assert.ok(FLAMETHROWER_TARGET_SPAWN_WEIGHTS[mode] > 0, `target weight for ${mode} is recorded`);
+        assert.equal(
+            getPickupSpawnWeight('FLAMETHROWER', mode),
+            FLAMETHROWER_TARGET_SPAWN_WEIGHTS[mode],
+            `spawns at the target rarity in ${mode}`,
+        );
     }
-    assert.equal(HUNT_CONFIG.PICKUP_WEIGHTS.FLAMETHROWER, 0, 'Hunt spawns use their own weight table');
+    assert.equal(
+        HUNT_CONFIG.PICKUP_WEIGHTS.FLAMETHROWER,
+        FLAMETHROWER_TARGET_SPAWN_WEIGHTS.HUNT,
+        'Hunt spawns use their own weight table, which has to match the definition',
+    );
 
     const everyType = getPickupTypes();
     for (const mode of ['CLASSIC', 'ARCADE', 'HUNT']) {
-        for (let roll = 0; roll < 200; roll += 1) {
-            const picked = pickWeightedPickupType(everyType, mode, () => roll / 200);
-            assert.notEqual(picked, 'FLAMETHROWER', `weighted spawn never returns the item in ${mode}`);
+        let picked = false;
+        for (let roll = 0; roll < 2000 && !picked; roll += 1) {
+            picked = pickWeightedPickupType(everyType, mode, () => roll / 2000) === 'FLAMETHROWER';
         }
+        assert.equal(picked, true, `a weighted spawn can return the item in ${mode}`);
     }
 });
 

@@ -18,6 +18,7 @@ export class TrailSegmentRegistry {
         // that a segment appeared or vanished in between.
         this.version = 0;
         this._entryLookup = new Map();
+        this._areaQueryStamp = 1;
         this._keysBuffer = [];
         this._keyArrayPool = [];
         this._maxKeyArrayPoolSize = 64;
@@ -85,6 +86,9 @@ export class TrailSegmentRegistry {
         entry.maxHp = Math.max(1, Number(data.maxHp) || Number(data.hp) || 1);
         entry.hp = Math.max(0, Number(data.hp) || entry.maxHp);
         entry.destroyed = false;
+        // Seconds this segment has spent inside a flame cone. Entries are recycled slot by slot,
+        // so a fresh segment must not inherit the contact time of the one it replaced.
+        entry.burnSeconds = 0;
         entry._descriptorKey = nextLookupKey;
 
         const keys = this._getSegmentGridKeys(data);
@@ -159,6 +163,39 @@ export class TrailSegmentRegistry {
             }
             entry._gridKeyRef = null;
         }
+    }
+
+    /**
+     * Every live segment whose grid cells overlap the box, collected into `out`, which the caller
+     * owns and reuses. The collision query only ever looks at the 3x3 neighbourhood of one point;
+     * an area query is needed for shapes that are longer than a cell, such as the flame cone.
+     */
+    collectSegmentsInArea(minX, minZ, maxX, maxZ, out = []) {
+        const target = Array.isArray(out) ? out : [];
+        target.length = 0;
+        if (!Number.isFinite(minX) || !Number.isFinite(minZ) || !Number.isFinite(maxX) || !Number.isFinite(maxZ)) {
+            return target;
+        }
+
+        this._areaQueryStamp += 1;
+        const stamp = this._areaQueryStamp;
+        const minCellX = Math.floor(Math.min(minX, maxX) / this.gridSize);
+        const maxCellX = Math.floor(Math.max(minX, maxX) / this.gridSize);
+        const minCellZ = Math.floor(Math.min(minZ, maxZ) / this.gridSize);
+        const maxCellZ = Math.floor(Math.max(minZ, maxZ) / this.gridSize);
+
+        for (let cx = minCellX; cx <= maxCellX; cx++) {
+            for (let cz = minCellZ; cz <= maxCellZ; cz++) {
+                const cell = this.spatialGrid.get((cx + 1000) * 2000 + (cz + 1000));
+                if (!cell) continue;
+                for (const seg of cell) {
+                    if (!seg || seg.destroyed || seg._areaQueryStamp === stamp) continue;
+                    seg._areaQueryStamp = stamp;
+                    target.push(seg);
+                }
+            }
+        }
+        return target;
     }
 
     resolveTrailEntry(playerIndex, segmentIdx) {

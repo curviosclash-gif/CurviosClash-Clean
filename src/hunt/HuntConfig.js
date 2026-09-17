@@ -1,4 +1,5 @@
 import { WEAPON_FAN_PICKUP_DEFINITIONS } from '../shared/contracts/WeaponFanPickupDefinitionsContract.js';
+import { FLAMETHROWER_TARGET_SPAWN_WEIGHTS } from '../shared/contracts/FlamethrowerPickupDefinitionsContract.js';
 
 export const HUNT_CONFIG = Object.freeze({
     DEFAULT_MODE: 'HUNT',
@@ -260,9 +261,9 @@ export const HUNT_CONFIG = Object.freeze({
         FAN_3: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_3.spawnWeights.HUNT,
         FAN_4: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_4.spawnWeights.HUNT,
         FAN_5: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_5.spawnWeights.HUNT,
-        // Hunt picks from this table, not from the registry spawn weights. Zero keeps the
-        // flamethrower out of the pool until S4.2/S4.3 give it an effect.
-        FLAMETHROWER: 0,
+        // Hunt picks from this table, not from the registry spawn weights, so the rarity of
+        // the flamethrower has to be kept in step with its definition by hand.
+        FLAMETHROWER: FLAMETHROWER_TARGET_SPAWN_WEIGHTS.HUNT,
     }),
     FLAMETHROWER: Object.freeze({
         FUEL_SECONDS: 6,
@@ -270,6 +271,8 @@ export const HUNT_CONFIG = Object.freeze({
         // Full opening angle of the cone, so the flame reaches 15 degrees to either side.
         CONE_DEGREES: 30,
         DAMAGE_PER_SECOND: 30,
+        // Seconds a trail segment has to sit in the flame before the gap opens.
+        TRAIL_BURN_SECONDS: 0.3,
     }),
     TRAIL_SEGMENT_HP: 3,
     RESPAWN: Object.freeze({

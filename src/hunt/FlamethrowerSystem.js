@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { consumeFlamethrowerFuel } from '../entities/player/PlayerEffectOps.js';
 import { isDestructibleTurret } from '../shared/contracts/TurretCombatContract.js';
+import { shouldSkipOwnerSegment } from '../entities/systems/trails/TrailCollisionQuery.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { isHuntHealthActive } from './HealthSystem.js';
@@ -10,6 +11,11 @@ export const FLAMETHROWER_CAUSE = 'FLAMETHROWER';
 const DEFAULT_RANGE = 18;
 const DEFAULT_CONE_DEGREES = 30;
 const DEFAULT_DAMAGE_PER_SECOND = 30;
+const DEFAULT_TRAIL_BURN_SECONDS = 0.3;
+const DEFAULT_TRAIL_SELF_SKIP_RECENT = 8;
+// Summed frame deltas never land exactly on the threshold, so a rest far below one frame counts
+// as reached instead of costing the segment another whole tick.
+const BURN_EPSILON = 0.000001;
 
 function positiveNumber(value, fallback) {
     const parsed = Number(value);
@@ -45,6 +51,8 @@ export class FlamethrowerSystem {
         this._aim = new THREE.Vector3();
         this._offset = new THREE.Vector3();
         this._sight = new THREE.Vector3();
+        this._trailPoint = new THREE.Vector3();
+        this._trailCandidates = [];
     }
 
     /**
@@ -82,6 +90,66 @@ export class FlamethrowerSystem {
         if (isHuntHealthActive(runtimeConfig)) this._burnPlayers(player, origin, aim, range, tanHalfAngle, damage);
         this._burnTurrets(player, origin, aim, range, tanHalfAngle, damage);
         this._burnMap(player, origin, aim, range, damage);
+        // Trails burn in every mode, Classic included: there the gap in the wall is the whole
+        // point of the item, because Classic knows no player damage at all.
+        this._burnTrails(player, origin, aim, range, tanHalfAngle, seconds, runtimeConfig);
+    }
+
+    /**
+     * Burns gaps into trails. Segments collect contact time and vanish once they have spent
+     * TRAIL_BURN_SECONDS inside the cone, so a short sweep marks a wall while a held burst opens it.
+     * Own segments burn too - freeing yourself from your own trap is the point - except for the
+     * freshest pieces at the tail, which follow the same skip rule the machine gun uses.
+     *
+     * ponytail: collected contact time never decays, so releasing the key and firing again
+     * continues where it stopped. Add a decay if freeing yourself turns out too easy.
+     * ponytail: one line of sight ray per segment inside the cone. The area query is bounded by
+     * the cone box, so the count is bounded too; add a per tick cap if profiling asks for it.
+     */
+    _burnTrails(player, origin, aim, range, tanHalfAngle, seconds, runtimeConfig) {
+        const trails = this.entityManager?.getTrailSpatialIndex?.();
+        if (typeof trails?.collectSegmentsInArea !== 'function') return;
+
+        const halfWidth = range * tanHalfAngle;
+        const endX = origin.x + aim.x * range;
+        const endZ = origin.z + aim.z * range;
+        const candidates = trails.collectSegmentsInArea(
+            Math.min(origin.x, endX) - halfWidth,
+            Math.min(origin.z, endZ) - halfWidth,
+            Math.max(origin.x, endX) + halfWidth,
+            Math.max(origin.z, endZ) + halfWidth,
+            this._trailCandidates,
+        );
+        if (candidates.length === 0) return;
+
+        const flame = runtimeConfig?.HUNT?.FLAMETHROWER || {};
+        const burnSeconds = positiveNumber(flame.TRAIL_BURN_SECONDS, DEFAULT_TRAIL_BURN_SECONDS);
+        const skipRecent = positiveNumber(runtimeConfig?.HUNT?.MG?.TRAIL_SELF_SKIP_RECENT, DEFAULT_TRAIL_SELF_SKIP_RECENT);
+        const ownerIndex = Number.isInteger(player?.index) ? player.index : -1;
+        const players = this.entityManager?.players || [];
+        const point = this._trailPoint;
+
+        for (const segment of candidates) {
+            if (segment.destroyed) continue;
+            if (shouldSkipOwnerSegment(segment, players, ownerIndex, skipRecent)) continue;
+            point.set(
+                (segment.fromX + segment.toX) * 0.5,
+                (segment.fromY + segment.toY) * 0.5,
+                (segment.fromZ + segment.toZ) * 0.5,
+            );
+            const radius = Math.max(0, Number(segment.radius) || 0);
+            if (!isInsideFlameCone(origin, aim, point, radius, range, tanHalfAngle, this._offset)) continue;
+            // Only map geometry blocks the flame; other trail segments do not, so the fire eats
+            // its way through a stack of walls instead of stopping at the first one.
+            if (!this._hasLineOfSight(origin, point)) continue;
+
+            const burned = (Number(segment.burnSeconds) || 0) + seconds;
+            if (burned + BURN_EPSILON < burnSeconds) {
+                segment.burnSeconds = burned;
+                continue;
+            }
+            trails.destroySegment(segment);
+        }
     }
 
     _burnPlayers(player, origin, aim, range, tanHalfAngle, damage) {
