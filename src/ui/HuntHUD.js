@@ -1,6 +1,12 @@
 import { clamp01 } from '../shared/utils/MathOps.js';
 import { createHuntHudDomRefs } from './dom/HuntHudDomRefs.js';
+import {
+    createDamageIndicatorCache,
+    resolveOverlayLeft,
+    updateHuntDamageIndicators,
+} from './HuntHudDamageIndicators.js';
 import { updateHuntReserveArcs } from './HuntHudReserveArcs.js';
+import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from './HuntHudRocketWarning.js';
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
 import { formatHuntClock, formatHuntScoreboard, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import {
@@ -17,8 +23,6 @@ const KILL_FEED_SLOT_COUNT = 3;
 const OVERHEAT_CAP = 100;
 const OVERHEAT_WARNING_RESERVE = 0.6;
 const OVERHEAT_DANGER_RESERVE = 0.3;
-const INDICATOR_DEFAULT_INTENSITY = 0.6;
-const INDICATOR_MIN_OPACITY = 0.2;
 const DEFAULT_BOOST_CAPACITY = 1;
 function toPercent(value) {
     return `${(clamp01(value) * 100).toFixed(1)}%`;
@@ -92,6 +96,15 @@ export class HuntHUD {
         this._createKillFeedItem = resolveCreateListItem(refs);
         this.damageIndicatorP1 = refs.damageIndicatorP1 ?? null;
         this.damageIndicatorP2 = refs.damageIndicatorP2 ?? null;
+        this._damageIndicatorElements = { p1: this.damageIndicatorP1, p2: this.damageIndicatorP2 };
+        this._damageIndicatorCache = createDamageIndicatorCache();
+        this._rocketWarningRefs = [
+            { root: refs.rocketWarningP1 ?? null, arrow: refs.rocketWarningArrowP1 ?? null, text: refs.rocketWarningTextP1 ?? null },
+            { root: refs.rocketWarningP2 ?? null, arrow: refs.rocketWarningArrowP2 ?? null, text: refs.rocketWarningTextP2 ?? null },
+        ];
+        this._rocketWarningCaches = [createRocketWarningCache(), createRocketWarningCache()];
+        // Reused per tick so the indicator hot path allocates nothing.
+        this._rocketWarningOptions = { huntActive: true, reduceMotion: true, leftPercent: '50%' };
         this._playerPanelTickTimer = 0;
         this._killFeedTickTimer = 0;
         this._indicatorTickTimer = 0;
@@ -105,7 +118,6 @@ export class HuntHUD {
         this._scoreboardDetails = null;
         this._leaderIndex = null;
         this._leaderKills = -1;
-        this._indicatorP2Visible = null;
         this._isHuntActive = typeof options.isHuntActive === 'function'
             ? options.isHuntActive
             : defaultIsHuntActive;
@@ -152,6 +164,9 @@ export class HuntHUD {
         this._indicatorTickTimer = 0;
         this.damageIndicatorP1?.classList.add('hidden');
         this.damageIndicatorP2?.classList.add('hidden');
+        for (let i = 0; i < this._rocketWarningRefs.length; i += 1) {
+            hideRocketWarning(this._rocketWarningRefs[i], this._rocketWarningCaches[i]);
+        }
         this.p1Respawn?.classList.add('hidden');
         this.p2Respawn?.classList.add('hidden');
         this.p1Turret?.classList.add('hidden');
@@ -182,7 +197,7 @@ export class HuntHUD {
         this._matchAnnouncement?.reset();
         this._progressState.filled = -1;
         this.targetProgress?.classList.add('hidden');
-        this._indicatorP2Visible = null;
+        this._damageIndicatorCache.p2Visible = null;
     }
 
     resetMatchScoreEvents() {
@@ -283,7 +298,7 @@ export class HuntHUD {
 
         const indicatorElapsed = this._consumeTick('_indicatorTickTimer', dt, indicatorInterval);
         if (indicatorElapsed > 0) {
-            this._updateDamageIndicators(indicatorElapsed, humans, huntProjection);
+            this._updateThreatOverlays(indicatorElapsed, humans, huntProjection);
         }
     }
 
@@ -457,67 +472,26 @@ export class HuntHUD {
         }
     }
 
-    _resolveDamageIndicatorState(playerIndex, huntProjection = null, allowLegacyFallback = false) {
-        const byPlayer = huntProjection?.damageIndicatorsByPlayer;
-        if (Number.isInteger(playerIndex) && byPlayer && typeof byPlayer === 'object') {
-            const indicatorByPlayer = byPlayer[playerIndex];
-            if (indicatorByPlayer) {
-                return indicatorByPlayer;
-            }
+    _updateThreatOverlays(dt, humans = [], huntProjection = null) {
+        const p2Visible = updateHuntDamageIndicators(
+            this._damageIndicatorElements,
+            this._damageIndicatorCache,
+            humans,
+            huntProjection,
+            this.runtime?.huntState?.damageIndicator || null,
+            dt
+        );
+        const options = this._rocketWarningOptions;
+        options.reduceMotion = this.runtime?.runtimeConfig?.cameraPerspective?.reduceMotion !== false;
+        for (let i = 0; i < this._rocketWarningRefs.length; i += 1) {
+            options.leftPercent = resolveOverlayLeft(p2Visible, i === 1);
+            updateRocketWarning(
+                this._rocketWarningRefs[i],
+                this._rocketWarningCaches[i],
+                i === 0 || p2Visible ? humans[i] : null,
+                options
+            );
         }
-        if (!allowLegacyFallback) return null;
-        return huntProjection?.damageIndicator || this.runtime?.huntState?.damageIndicator || null;
-    }
-
-    _updateDamageIndicatorElement(element, indicator, dt) {
-        if (!element) return;
-        if (!indicator) {
-            element.classList.add('hidden');
-            return;
-        }
-
-        let remainingMs = Number(indicator.remainingMs);
-        if (!Number.isFinite(remainingMs)) {
-            const legacyTtl = Number(indicator.ttl);
-            if (Number.isFinite(legacyTtl)) {
-                indicator.ttl = Math.max(0, legacyTtl - dt);
-                remainingMs = indicator.ttl * 1000;
-            }
-        }
-        if (!(remainingMs > 0)) {
-            element.classList.add('hidden');
-            return;
-        }
-
-        const angle = Number(indicator.angleDeg) || 0;
-        const intensity = clamp01(indicator.intensity || INDICATOR_DEFAULT_INTENSITY);
-        element.classList.remove('hidden');
-        element.style.opacity = String(Math.max(INDICATOR_MIN_OPACITY, intensity));
-        element.style.transform = `translate(-50%, -50%) rotate(${angle.toFixed(1)}deg) scale(var(--hud-scale, 1))`;
-    }
-
-    _updateDamageIndicators(dt, humans = [], huntProjection = null) {
-        const p1 = humans[0] || null;
-        const p2Visible = humans.length > 1;
-        if (p2Visible !== this._indicatorP2Visible) {
-            if (this.damageIndicatorP1) {
-                this.damageIndicatorP1.style.left = p2Visible ? '25%' : '50%';
-            }
-            if (this.damageIndicatorP2) {
-                this.damageIndicatorP2.style.left = p2Visible ? '75%' : '50%';
-            }
-            this._indicatorP2Visible = p2Visible;
-        }
-        const p1Indicator = this._resolveDamageIndicatorState(p1?.playerIndex ?? p1?.index, huntProjection, true);
-        this._updateDamageIndicatorElement(this.damageIndicatorP1, p1Indicator, dt);
-
-        if (!p2Visible) {
-            this.damageIndicatorP2?.classList.add('hidden');
-            return;
-        }
-        const p2 = humans[1] || null;
-        const p2Indicator = this._resolveDamageIndicatorState(p2?.playerIndex ?? p2?.index, huntProjection, false);
-        this._updateDamageIndicatorElement(this.damageIndicatorP2, p2Indicator, dt);
     }
 
     dispose() {

@@ -32,6 +32,12 @@ export function createHuntHudDomRefs(doc = document) {
         killFeedList: doc.getElementById('hunt-kill-feed-list'),
         damageIndicatorP1: doc.getElementById('hunt-damage-indicator'),
         damageIndicatorP2: doc.getElementById('hunt-damage-indicator-p2'),
+        rocketWarningP1: doc.getElementById('hunt-rocket-warning'),
+        rocketWarningArrowP1: doc.getElementById('hunt-rocket-warning-arrow'),
+        rocketWarningTextP1: doc.getElementById('hunt-rocket-warning-text'),
+        rocketWarningP2: doc.getElementById('hunt-rocket-warning-p2'),
+        rocketWarningArrowP2: doc.getElementById('hunt-rocket-warning-arrow-p2'),
+        rocketWarningTextP2: doc.getElementById('hunt-rocket-warning-text-p2'),
         createKillFeedItem: () => doc.createElement('li'),
     };
 }
