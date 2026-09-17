@@ -60,12 +60,14 @@
           "core/Config.js",
           "core/config/**/*.js",
           "core/runtime/ActiveRuntimeConfigStore.js",
+          "core/settings/BotHeuristicSettingsStudioContract.js",
           "core/settings/SettingsOverrideContract.js",
           "core/settings/SettingsOverrideMergeOps.js",
           "core/settings/SettingsOverrideRangeContract.js",
           "dev/tuning/*.js",
           "entities/GeneratedLocalMaps.js",
           "entities/PickupRegistry.js",
+          "four-player-planar/FourPlayerPlanarContract.js",
           "hunt/HuntConfig.js",
           "hunt/HuntMode.js",
           "platform/PlatformCapabilityAdapterSupport.js",
@@ -75,12 +77,13 @@
           "shared/runtime/BrowserStoragePorts.js",
           "shared/settings/*.js",
           "shared/storage/*.js",
+          "shared/telemetry/TelemetryPreferencesStore.js",
           "shared/utils/CanonicalJson.js",
           "shared/utils/JsonClone.js",
+          "shared/utils/MathOps.js",
           "state/storage/*.js",
           "ui/menu/*.js",
-          "ui/SettingsFieldRegistry.js",
-          "utils/MathOps.js"
+          "ui/SettingsFieldRegistry.js"
         ]
       },
       {

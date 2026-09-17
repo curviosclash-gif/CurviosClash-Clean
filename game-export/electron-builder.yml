@@ -31,6 +31,7 @@ extraResources:
       - core/Config.js
       - core/config/**/*.js
       - core/runtime/ActiveRuntimeConfigStore.js
+      - core/settings/BotHeuristicSettingsStudioContract.js
       - core/settings/SettingsOverrideContract.js
       - core/settings/SettingsOverrideMergeOps.js
       - core/settings/SettingsOverrideRangeContract.js
@@ -53,13 +54,13 @@ extraResources:
       - shared/telemetry/TelemetryPreferencesStore.js
       - shared/utils/CanonicalJson.js
       - shared/utils/JsonClone.js
+      - shared/utils/MathOps.js
       - state/storage/*.js
       - ui/menu/*.js
       - '!ui/menu/MenuDeveloperStateSync.js'
       - '!ui/menu/MenuTelemetryDashboard.js'
       - '!ui/menu/MenuTelemetryHeatmapView.js'
       - ui/SettingsFieldRegistry.js
-      - utils/MathOps.js
   - from: runtime-resources/package.json
     to: package.json
 asarUnpack:
