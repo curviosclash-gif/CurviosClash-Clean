@@ -17,6 +17,7 @@ import { GlobalFogEffectSystem } from '../systems/GlobalFogEffectSystem.js';
 import { ExclusionZoneSystem } from '../systems/ExclusionZoneSystem.js';
 import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js';
 import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
+import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -33,6 +34,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
         mapDestructibleSystem: new MapDestructibleSystem(owner),
         mapDestructibleBlastSystem: new MapDestructibleBlastSystem(owner),
         objectiveTargetMarkerSystem: new ObjectiveTargetMarkerSystem(owner),
+        secretRoomSystem: new SecretRoomSystem(owner),
         exclusionZoneSystem: null,
         roundOutcomeSystem: new RoundOutcomeSystem({
             getPlayers: () => owner.players,
@@ -57,5 +59,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.exclusionZoneSystem = new ExclusionZoneSystem(owner, {
         projectileSystem: systems.projectileSystem,
     });
+    // Published here rather than with the other systems in EntityManager: that file sits on the
+    // 500 line limit, and this is the module that owns the wiring anyway.
+    owner._secretRoomSystem = systems.secretRoomSystem;
     return systems;
 }

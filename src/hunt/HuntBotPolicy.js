@@ -276,7 +276,8 @@ export function findNearestReadyPortal(policy, player, arena, maxDistanceSq = In
     let nearestDistSq = Infinity;
 
     for (const portal of arena.portals) {
-        if (!portal?.posA || !portal?.posB) continue;
+        // Secret rooms are a reward for the player who earned them; bots stay out of them.
+        if (!portal?.posA || !portal?.posB || portal.secret === true) continue;
         const cooldownRemaining = portal.cooldowns instanceof Map && cooldownKey != null
             ? Number(portal.cooldowns.get(cooldownKey) || 0)
             : 0;

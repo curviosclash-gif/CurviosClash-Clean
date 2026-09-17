@@ -49,17 +49,18 @@ export class PortalRuntimeSystem {
     _syncPortalVisualState(portal, timeSeconds = 0) {
         if (!portal) return;
         const pulseStrength = Math.min(1, Math.max(0, Number(portal.visualPulseRemaining) || 0) / 0.35);
+        const active = portal.secret !== true || portal.active === true;
         portal.meshA?.updatePortalVisualState?.(
             timeSeconds,
             pulseStrength,
             portal.visualPulseDestination === 'A',
-            true
+            active
         );
         portal.meshB?.updatePortalVisualState?.(
             timeSeconds,
             pulseStrength,
             portal.visualPulseDestination === 'B',
-            true
+            active
         );
     }
 
@@ -140,6 +141,8 @@ export class PortalRuntimeSystem {
         let blockedCooldownRemaining = 0;
 
         for (const portal of this.arena.portals) {
+            // A secret room stays sealed until it is unlocked - for players, bots and shots alike.
+            if (portal.secret === true && portal.active !== true) continue;
             const distASq = position.distanceToSquared(portal.posA);
             const distBSq = position.distanceToSquared(portal.posB);
             const inRangeA = distASq < triggerRadiusSq;
