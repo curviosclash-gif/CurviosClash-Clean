@@ -2665,6 +2665,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
                     bestScore: 4820,
                     isNewBest: true,
                     tiedBest: false,
+                    succeeded: true,
                 },
             };
             runtime._state.replay = { runReplayId: 'arcade-run-replay', playbackEnabled: true };
@@ -2701,7 +2702,7 @@ test('T20x3: Ghost-Selbstduell spielt in Single-Normal und Single-Arcade und per
         expect(state.healedDelta).toBeGreaterThan(0);
         expect(state.healedPlayers).toBeGreaterThan(0);
         expect(state.postRunVisible).toBeTruthy();
-        expect(state.postRunText).toContain('Daily Challenge abgeschlossen');
+        expect(state.postRunText).toContain('Daily geschafft');
         expect(state.postRunText).toContain('Neuer Tagesbestwert');
         expect(state.postRunText).toContain('Tagesbestwert 4820');
         expect(state.replayCode).toBe('replay_export_ready');
