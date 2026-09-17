@@ -62,7 +62,7 @@ const SPEC_IDS = Object.freeze({
     physicsCore: { spec: 'tests/physics-core.spec.js', ids: ['T41', 'T42', 'T44', 'T46', 'T49'] },
     parcours: { spec: 'tests/physics-core.spec.js', ids: ['T60a', 'T60b', 'T60c', 'T60d', 'T60e', 'T60f'] },
     physicsHunt: { spec: 'tests/physics-hunt.spec.js', ids: ['T61', 'T83', 'T86'] },
-    physicsPolicy: { spec: 'tests/physics-policy.spec.js', ids: ['T65', 'T73', 'T81'] },
+    physicsPolicy: { spec: 'tests/physics-policy.spec.js', ids: ['T70', 'T72', 'T77'] },
     surface: { spec: 'tests/core-targeted-surface.spec.js', ids: ['T20kb', 'T20kc', 'T20kd', 'T20i', 'T20ha', 'T66a'] },
     runtime: { spec: 'tests/core-targeted-runtime.spec.js', ids: ['T20ab', 'T20ae3', 'T20ae4', 'T20am2'] },
     shell: { spec: 'tests/core-targeted.spec.js', ids: ['T1', 'T4', 'T7', 'T10', 'T11'] },
