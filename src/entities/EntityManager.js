@@ -55,7 +55,8 @@ function bindRuntimePorts(owner, runtime) {
     owner._mapHazardSystem = runtime?.systems?.mapHazardSystem || null; owner._exclusionZoneSystem = runtime?.systems?.exclusionZoneSystem || null;
     owner._mapDestructibleSystem = runtime?.systems?.mapDestructibleSystem || null; owner._mapDestructibleBlastSystem = runtime?.systems?.mapDestructibleBlastSystem || null;
     // Rockets damage the map through the projectile system, which is built before the systems.
-    owner._projectileSystem?.setMapDestructibleSystem?.(owner._mapDestructibleSystem); owner.onMapDestructibleBreak = (event, options) => owner._mapDestructibleBlastSystem?.schedulePendingBlast?.(event, options);
+    owner._projectileSystem?.setMapDestructibleSystem?.(owner._mapDestructibleSystem); const emitBreakFeedback = owner.onMapDestructibleBreak;
+    owner.onMapDestructibleBreak = (event, options) => { emitBreakFeedback?.(event, options); owner._mapDestructibleBlastSystem?.schedulePendingBlast?.(event, options); };
     owner._roundOutcomeSystem = runtime?.systems?.roundOutcomeSystem || null;
     owner._setupOps = runtime?.systems?.setupOps || null;
     owner._spawnOps = runtime?.systems?.spawnOps || null;

@@ -31,6 +31,9 @@ export class MapDestructibleBlastSystem {
      */
     schedulePendingBlast(event, options = {}) {
         const destructibles = this.entityManager?._mapDestructibleSystem;
+        // Replicas receive the break event so they can animate it and play its feedback, but
+        // host snapshots remain the only authority for damage and knockback.
+        if (destructibles?.networkReplica === true) return;
         const scene = resolveMapDestructibleBreakScene(destructibles?.getDefinition?.(), event);
         const blast = scene?.blast;
         if (!blast) return;
@@ -56,13 +59,17 @@ export class MapDestructibleBlastSystem {
     update() {
         if (this._pending.length === 0) return;
         const elapsedSeconds = this.entityManager?._mapDestructibleSystem?.getElapsedSeconds?.() ?? 0;
-        const due = [];
-        this._pending = this._pending.filter((entry) => {
-            if (elapsedSeconds < entry.atSeconds) return true;
-            due.push(entry);
-            return false;
-        });
-        for (const entry of due) this._applyBlast(entry);
+        let writeIndex = 0;
+        for (let readIndex = 0; readIndex < this._pending.length; readIndex += 1) {
+            const entry = this._pending[readIndex];
+            if (elapsedSeconds >= entry.atSeconds) {
+                this._applyBlast(entry);
+                continue;
+            }
+            this._pending[writeIndex] = entry;
+            writeIndex += 1;
+        }
+        this._pending.length = writeIndex;
     }
 
     /**
@@ -81,6 +88,7 @@ export class MapDestructibleBlastSystem {
             if (distance > entry.radius) continue;
 
             const falloff = 1 - distance / entry.radius;
+            if (falloff <= 0) continue;
             const damage = Math.max(1, Math.floor(entry.damage * falloff));
             owner._applyModeDamage(target, damage, 'BLAST', {
                 sourcePlayer: entry.sourcePlayer,

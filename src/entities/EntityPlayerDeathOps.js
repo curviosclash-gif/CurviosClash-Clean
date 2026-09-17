@@ -23,6 +23,20 @@ function resolveEnvironmentCredit(entityManager, player, cause, deathOptions, no
     return credit.killer ? credit : null;
 }
 
+export function replayPlayerDeathPresentation(entityManager, player, cause = 'UNKNOWN', options = {}) {
+    if (!player) return false;
+    player.view?.setVisible?.(false);
+    entityManager?.particles?.spawnExplosion?.(player.position, player.color, {
+        cause,
+        projectileType: options?.projectileType || null,
+    });
+    entityManager?.audio?.play?.(
+        'EXPLOSION',
+        resolveWorldAudioOptions(entityManager, player.position)
+    );
+    return true;
+}
+
 export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {}) {
     if (!player || !player.alive) return;
     const nowSeconds = Math.max(0, Number(entityManager._simulationClockMs) || 0) * 0.001;
@@ -77,18 +91,9 @@ export function killPlayer(entityManager, player, cause = 'UNKNOWN', options = {
     const suppressLiveDeathEffects = killcamStarted
         && entityManager._killcamSystem?.shouldSuppressLiveDeathEffects?.() !== false;
     if (!suppressLiveDeathEffects) {
-        entityManager.particles?.spawnExplosion?.(player.position, player.color, {
-            cause,
-            projectileType: deathOptions?.projectileType || null,
-        });
+        replayPlayerDeathPresentation(entityManager, player, cause, deathOptions);
     }
     const killer = deathOptions?.killer || null;
-    if (!suppressLiveDeathEffects) {
-        entityManager.audio?.play?.(
-            'EXPLOSION',
-            resolveWorldAudioOptions(entityManager, player.position)
-        );
-    }
     if (entityManager.recorder) {
         const killerIndex = Number.isInteger(killer?.index) ? killer.index : -1;
         const creditSuffix = environmentCredit ? ` credit=${environmentCredit.credit}` : '';

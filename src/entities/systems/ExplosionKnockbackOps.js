@@ -20,6 +20,9 @@ export function applyExplosionKnockback(target, sourcePosition, falloff, runtime
 
     const config = resolveEntityRuntimeConfig(runtimeConfigSource)?.HUNT?.ROCKET || HUNT_CONFIG.ROCKET;
     const strength = Math.max(0, Math.min(1, Number(falloff) || 0));
+    // PlayerMotionOps treats an omitted/zero forward impulse as its default slingshot. At the
+    // exact blast radius there is no force to apply, so never enter that path.
+    if (strength <= 0) return;
     target.activateSlingshot(
         {
             duration: Number(config.EXPLOSION_KNOCKBACK_DURATION) || 0.6,

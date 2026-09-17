@@ -51,3 +51,9 @@ test('a dead player and a hit with no distance from the blast are never knocked 
     applyExplosionKnockback(onTopOfIt, { x: 0, y: 0, z: 0 }, 1);
     assert.equal(onTopOfIt._calls.length, 0, 'no direction to push in without a safe distance to divide by');
 });
+
+test('a target exactly at the blast radius never receives a zero-strength slingshot', () => {
+    const edge = createTarget({ x: 10, y: 0, z: 0 });
+    applyExplosionKnockback(edge, { x: 0, y: 0, z: 0 }, 0);
+    assert.equal(edge._calls.length, 0);
+});

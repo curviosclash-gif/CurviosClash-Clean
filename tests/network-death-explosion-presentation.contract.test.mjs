@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import { StateReconciler } from '../src/network/StateReconciler.js';
 import { killPlayer } from '../src/entities/EntityPlayerDeathOps.js';
+import { serializePlayer } from '../src/core/GameStateSnapshot.js';
 
 /**
  * Stands in for Player.js on a network replica: alive/hp/view mirror the real
@@ -37,16 +38,22 @@ function createReplicaPlayer(index, alive = true) {
  */
 function createReplicaManager(player) {
     const explosions = [];
+    const respawn = {
+        scheduled: 0,
+        elapsedSeconds: 0,
+        onPlayerDied() { this.scheduled += 1; },
+        update(seconds) { this.elapsedSeconds += seconds; },
+    };
     const manager = {
         players: [player],
         particles: { spawnExplosion(_position, _color, options) { explosions.push(options); } },
         audio: { play() {} },
-        _respawnSystem: { onPlayerDied() {} },
+        _respawnSystem: respawn,
         _eventBus: { emitPlayerDied() {} },
         applyNetworkSnapshot() {},
     };
     manager._killPlayer = (targetPlayer, cause, options) => killPlayer(manager, targetPlayer, cause, options);
-    return { manager, explosions };
+    return { manager, explosions, respawn };
 }
 
 function createReconciler() {
@@ -59,7 +66,7 @@ function createReconciler() {
 
 test('a client replays the explosion for a remote death it could not simulate itself', () => {
     const player = createReplicaPlayer(1, true);
-    const { manager, explosions } = createReplicaManager(player);
+    const { manager, explosions, respawn } = createReplicaManager(player);
     const reconciler = createReconciler();
 
     // The host resolved a rocket hit that this replica never runs itself -
@@ -82,6 +89,8 @@ test('a client replays the explosion for a remote death it could not simulate it
     assert.equal(player.alive, false, 'the player is marked dead');
     assert.equal(explosions.length, 1, 'the explosion presentation ran exactly once');
     assert.deepEqual(explosions[0], { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+    respawn.update(10);
+    assert.equal(respawn.scheduled, 0, 'the replica remains dead after a full respawn delay until the host respawns it');
 });
 
 test('a death the local simulation already resolved is not replayed a second time', () => {
@@ -128,4 +137,19 @@ test('a respawn reported by the host makes the replica visible again without an 
     assert.equal(player.alive, true, 'the player is marked alive again');
     assert.equal(player.view.visible, true, 'the view becomes visible again');
     assert.equal(explosions.length, 0, 'a respawn never triggers an explosion');
+});
+
+test('snapshots preserve the death presentation fields from the authoritative player', () => {
+    const snapshot = serializePlayer({
+        index: 4,
+        alive: false,
+        lastDeathCause: 'PROJECTILE',
+        lastDeathProjectileType: 'ROCKET_HEAVY',
+        position: { x: 0, y: 0, z: 0 },
+        quaternion: { x: 0, y: 0, z: 0, w: 1 },
+        velocity: { x: 0, y: 0, z: 0 },
+    });
+
+    assert.equal(snapshot.deathCause, 'PROJECTILE');
+    assert.equal(snapshot.deathProjectileType, 'ROCKET_HEAVY');
 });

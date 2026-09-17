@@ -3,6 +3,7 @@
 // ============================================
 import { normalizeMultiplayerStateUpdateEvent } from '../shared/contracts/MultiplayerSessionContract.js';
 import { applyHuntNetworkState } from '../hunt/HuntNetworkState.js';
+import { replayPlayerDeathPresentation } from '../entities/EntityPlayerDeathOps.js';
 
 const MIN_POSITION_DISTANCE = 0.01;
 const MIN_VECTOR_DISTANCE = 0.001;
@@ -198,10 +199,9 @@ export class StateReconciler {
             const aliveChanged = localPlayer.alive !== serverPlayer.alive;
             if (aliveChanged && serverPlayer.alive === false) {
                 // The local simulation never saw this death happen (e.g. a rocket hit,
-                // which only the host resolves in ProjectileSystem.update) - replay the
-                // same explosion presentation the host already showed, instead of just
-                // hiding the player. killPlayer() no-ops if localPlayer is already dead.
-                entityManager?._killPlayer?.(localPlayer, serverPlayer.deathCause || 'UNKNOWN', {
+                // which only the host resolves in ProjectileSystem.update). Replay only its
+                // presentation: host state owns scoring, lifecycle and respawn timing.
+                replayPlayerDeathPresentation(entityManager, localPlayer, serverPlayer.deathCause || 'UNKNOWN', {
                     projectileType: serverPlayer.deathProjectileType || null,
                 });
             }
