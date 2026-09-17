@@ -151,6 +151,11 @@ export class MatchFlowUiController {
             } else {
                 game.fourPlayerPlanar?.deactivateMatch?.();
             }
+            if (uiState.viewportLayout === VIEWPORT_LAYOUTS.THREE_COLUMNS) {
+                game.threePlayerSplit?.activateMatch?.();
+            } else {
+                game.threePlayerSplit?.deactivateMatch?.();
+            }
         } else if (typeof uiState?.splitScreenEnabled === 'boolean') {
             game.ui.hud?.classList.toggle('split-screen', uiState.splitScreenEnabled);
             if (this.runtimePort?.setSplitScreen) {

@@ -43,6 +43,7 @@ import {
 import { installDesktopTuningRuntimeBridge } from '../dev/tuning/TuningRuntimeIpcBridge.js';
 import { FourPlayerPlanarModule } from '../four-player-planar/FourPlayerPlanarModule.js';
 import { createFourPlayerPlanarRuntimePort } from '../four-player-planar/FourPlayerPlanarRuntimePort.js';
+import { createThreePlayerSplitModule } from '../composition/core-ui/ThreePlayerSplitComposition.js';
 
 /* global __APP_VERSION__, __BUILD_TIME__, __BUILD_ID__ */
 const APP_VERSION = typeof __APP_VERSION__ !== 'undefined' ? __APP_VERSION__ : 'dev';
@@ -100,10 +101,11 @@ export class Game {
         this._disposePromise = null;
         this._playtestStartTimeoutId = null;
         this.runtimeCoordinator = new GameRuntimeCoordinator({ runtime: this });
-        this.fourPlayerPlanar = new FourPlayerPlanarModule({
-            runtimePort: createFourPlayerPlanarRuntimePort({ getRuntime: () => this }),
-        });
+        const localSplitRuntimePort = createFourPlayerPlanarRuntimePort({ getRuntime: () => this });
+        this.fourPlayerPlanar = new FourPlayerPlanarModule({ runtimePort: localSplitRuntimePort });
+        this.threePlayerSplit = createThreePlayerSplitModule({ runtimePort: localSplitRuntimePort });
         this.fourPlayerPlanar.mountSetupUi();
+        this.threePlayerSplit.mountSetupUi();
         this._boundKeyCaptureHandler = (event) => this.runtimeCoordinator?.getRuntimeHandle?.('keybindEditorController')?.handleKeyCapture?.(event);
 
         this.runtimeCoordinator.initialize({
@@ -497,6 +499,7 @@ export class Game {
             this.huntHud.update(dt, runtimeProjection);
         }
         this.fourPlayerPlanar?.update?.(dt);
+        this.threePlayerSplit?.update?.(dt);
     }
 
     // Legacy compatibility hook retained for runtime/tests.
@@ -593,6 +596,8 @@ export class Game {
             .finally(() => {
                 this.fourPlayerPlanar?.dispose?.();
                 this.fourPlayerPlanar = null;
+                this.threePlayerSplit?.dispose?.();
+                this.threePlayerSplit = null;
                 releasePublishedRuntimeHandles(this, runtimeFacade, this.debugApi);
             });
         return this._disposePromise;

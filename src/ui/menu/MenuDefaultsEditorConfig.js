@@ -14,6 +14,7 @@ import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeur
 import {
     SPLIT_SCREEN_VARIANTS,
     normalizeFourPlayerPlanarSettings,
+    normalizeThreePlayerSplitSettings,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 
 export const MENU_DEFAULT_EDITOR_SCHEMA_VERSION = 'menu-default-editor.v1';
@@ -112,6 +113,7 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         sessionType: 'splitscreen',
         splitScreenVariant: SPLIT_SCREEN_VARIANTS.STANDARD,
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(),
+        threePlayerSplit: normalizeThreePlayerSplitSettings(),
         modePath: 'fight',
         themeMode: 'dunkel',
         graphicsStyle: GRAPHICS_STYLES.MODERN,

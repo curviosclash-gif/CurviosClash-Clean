@@ -17,6 +17,7 @@ import { normalizeString } from '../../shared/contracts/ContractNormalizeUtils.j
 import {
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
+    normalizeThreePlayerSplitSettings,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import {
     createMenuEventPlaylistStateDefaults,
@@ -213,6 +214,7 @@ function normalizeLocalSettingsState(localSettings = null) {
         sessionType,
         splitScreenVariant: normalizeSplitScreenVariant(source.splitScreenVariant),
         fourPlayerPlanar: normalizeFourPlayerPlanarSettings(source.fourPlayerPlanar),
+        threePlayerSplit: normalizeThreePlayerSplitSettings(source.threePlayerSplit),
         multiplayerTransport,
         modePath,
         themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',

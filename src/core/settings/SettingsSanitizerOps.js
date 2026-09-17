@@ -40,6 +40,7 @@ import { migrateSettingsSnapshot } from './SettingsVersionMigrations.js';
 import {
     normalizeFourPlayerPlanarSettings,
     normalizeSplitScreenVariant,
+    normalizeThreePlayerSplitSettings,
 } from '../../four-player-planar/FourPlayerPlanarContract.js';
 import { getVehicleIds } from '../../entities/vehicle-registry.js';
 import { createBotHeuristicTuningSnapshot } from '../../shared/contracts/BotHeuristicTuningContract.js';
@@ -189,6 +190,15 @@ function finalizeSanitizedSettings({ merged, migratedSessionType }) {
     );
     merged.localSettings.fourPlayerPlanar = normalizeFourPlayerPlanarSettings(
         merged.localSettings.fourPlayerPlanar,
+        {
+            allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
+            allowedVehicleIds: new Set(getVehicleIds()),
+            fallbackMapKey: merged.mapKey || 'standard',
+            fallbackVehicleId: merged?.vehicles?.PLAYER_1 || DEFAULT_VEHICLE_ID,
+        }
+    );
+    merged.localSettings.threePlayerSplit = normalizeThreePlayerSplitSettings(
+        merged.localSettings.threePlayerSplit,
         {
             allowedMapKeys: new Set(Object.keys(CONFIG.MAPS || {})),
             allowedVehicleIds: new Set(getVehicleIds()),
