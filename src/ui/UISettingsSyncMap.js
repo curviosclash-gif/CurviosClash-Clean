@@ -1,5 +1,8 @@
 import { SETTINGS_CHANGE_KEYS } from '../shared/settings/SettingsChangeKeys.js';
 
+// syncMap redraws the whole start setup - selection, summary and preview - not only the map.
+export const START_SETUP_SYNC_METHOD = 'syncMap';
+
 export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.SESSION_TYPE]: ['syncSessionState', 'syncModes', 'syncMultiplayerState'],
     [SETTINGS_CHANGE_KEYS.MODE_PATH]: ['syncSessionState', 'syncGameplay'],
@@ -31,17 +34,18 @@ export const UI_SETTINGS_SYNC_MAP = Object.freeze({
     [SETTINGS_CHANGE_KEYS.LOCAL_MOBILE_TILT_SENSOR_HZ_VISIBLE]: ['syncGameplay'],
     [SETTINGS_CHANGE_KEYS.MODE]: ['syncModes'],
     [SETTINGS_CHANGE_KEYS.GAME_MODE]: ['syncModes'],
-    [SETTINGS_CHANGE_KEYS.HUNT_RESPAWN_ENABLED]: ['syncModes'],
-    [SETTINGS_CHANGE_KEYS.HUNT_DEATHMATCH_KILL_LIMIT]: ['syncModes'],
+    // Rules that the start summary spells out redraw it as well, or it keeps the old value.
+    [SETTINGS_CHANGE_KEYS.HUNT_RESPAWN_ENABLED]: ['syncModes', START_SETUP_SYNC_METHOD],
+    [SETTINGS_CHANGE_KEYS.HUNT_DEATHMATCH_KILL_LIMIT]: ['syncModes', START_SETUP_SYNC_METHOD],
     [SETTINGS_CHANGE_KEYS.HUNT_TIME_LIMIT_ENABLED]: ['syncModes'],
-    [SETTINGS_CHANGE_KEYS.ARCADE_SECTOR_COUNT]: ['syncModes'],
+    [SETTINGS_CHANGE_KEYS.ARCADE_SECTOR_COUNT]: ['syncModes', START_SETUP_SYNC_METHOD],
     [SETTINGS_CHANGE_KEYS.ARCADE_COMBO_WINDOW]: ['syncModes'],
     [SETTINGS_CHANGE_KEYS.ARCADE_MAX_MULTIPLIER]: ['syncModes'],
     [SETTINGS_CHANGE_KEYS.MAP_KEY]: ['syncMap'],
-    [SETTINGS_CHANGE_KEYS.BOTS_COUNT]: ['syncBots'],
-    [SETTINGS_CHANGE_KEYS.BOTS_DIFFICULTY]: ['syncBots'],
+    [SETTINGS_CHANGE_KEYS.BOTS_COUNT]: ['syncBots', START_SETUP_SYNC_METHOD],
+    [SETTINGS_CHANGE_KEYS.BOTS_DIFFICULTY]: ['syncBots', START_SETUP_SYNC_METHOD],
     [SETTINGS_CHANGE_KEYS.BOTS_POLICY_STRATEGY]: ['syncBots'],
-    [SETTINGS_CHANGE_KEYS.RULES_WINS_NEEDED]: ['syncRules'],
+    [SETTINGS_CHANGE_KEYS.RULES_WINS_NEEDED]: ['syncRules', START_SETUP_SYNC_METHOD],
     [SETTINGS_CHANGE_KEYS.RULES_AUTO_ROLL]: ['syncRules'],
     [SETTINGS_CHANGE_KEYS.RULES_INVERT_P1]: ['syncRules'],
     [SETTINGS_CHANGE_KEYS.RULES_INVERT_P2]: ['syncRules'],

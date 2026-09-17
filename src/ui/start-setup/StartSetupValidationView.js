@@ -84,6 +84,16 @@ export function resolveLockedStartFieldHints(settings, settingsManager) {
     return lockHints;
 }
 
+export const SOLO_FIGHT_WITHOUT_BOTS_HINT = 'Ohne Bots hast du im Kampf keine Gegner. Stelle mindestens einen Bot ein.';
+
+// A lone Fight match is allowed, but it is five minutes without anybody to shoot at.
+export function resolveSoloFightWithoutBotsHint(settings) {
+    const sessionType = normalizeString(settings?.localSettings?.sessionType, '');
+    const modePath = normalizeString(settings?.localSettings?.modePath, '');
+    const noBots = Math.max(0, Number(settings?.numBots) || 0) === 0;
+    return sessionType === 'single' && modePath === 'fight' && noBots ? SOLO_FIGHT_WITHOUT_BOTS_HINT : '';
+}
+
 export function renderStartFieldHints({
     ui,
     settings,
@@ -98,6 +108,12 @@ export function renderStartFieldHints({
         const binding = getStartFieldBinding(ui, fieldKey);
         if (binding.hint) setStartFieldHint(binding.hint, message, 'lock');
     });
+    const soloFightHint = resolveSoloFightWithoutBotsHint(settings);
+    const matchHint = getStartFieldBinding(ui, 'match').hint;
+    if (soloFightHint && matchHint) {
+        const lockMessage = lockHints.get('match') || '';
+        setStartFieldHint(matchHint, lockMessage ? `${lockMessage} ${soloFightHint}` : soloFightHint, lockMessage ? 'lock' : 'info');
+    }
 
     const issue = startValidationIssue && typeof startValidationIssue === 'object'
         ? startValidationIssue

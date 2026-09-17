@@ -34,9 +34,11 @@ export function formatMenuRulesSummary(settings, modePath) {
     const count = Math.max(0, Number(settings?.numBots) || 0);
     const difficulty = { EASY: 'Leicht', NORMAL: 'Normal', HARD: 'Schwer' }[settings?.botDifficulty] || 'Normal';
     const bots = count ? `${count} Bots · ${difficulty}` : 'Ohne Bots';
+    const winsNeeded = Math.max(1, Number(settings?.winsNeeded) || 1);
+    const winsLabel = `${winsNeeded} ${winsNeeded === 1 ? 'Sieg' : 'Siege'}`;
     const objective = settings?.gameMode === 'HUNT' && settings?.hunt?.respawnEnabled
-        ? `${settings.hunt.deathmatchKillLimit || 10} Abschüsse`
-        : `${settings?.winsNeeded || 1} ${Number(settings?.winsNeeded || 1) === 1 ? 'Sieg' : 'Siege'}`;
+        ? `${settings.hunt.deathmatchKillLimit || 10} Abschüsse${winsNeeded > 1 ? ` · ${winsLabel}` : ''}`
+        : winsLabel;
     return `${bots} · ${objective}`;
 }
 
