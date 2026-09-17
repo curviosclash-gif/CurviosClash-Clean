@@ -6,6 +6,10 @@ import {
     resolveSecretRoomUnlockSeconds,
 } from '../../shared/contracts/SecretRoomContract.js';
 import { setSecretRoomPortalOpen } from '../arena/portal/SecretRoomPortalOps.js';
+import {
+    createSecretRoomItemPoints,
+    refillSecretRoomItems,
+} from '../powerup/SecretRoomRefillOps.js';
 
 const DEGREES_TO_RADIANS = Math.PI / 180;
 
@@ -120,6 +124,9 @@ export class SecretRoomSystem {
     update(dt = 0) {
         this._updateUnlocks();
         this._updateStayClocks(Math.max(0, Number(dt) || 0));
+        // The item points refill even while a portal is still shut, so the first visitor finds a
+        // stocked room. The powerup manager owns the items; this tick only hands it the clock.
+        refillSecretRoomItems(this.entityManager?.powerupManager || null, this._rooms, dt);
     }
 
     _updateUnlocks() {
@@ -263,6 +270,7 @@ export class SecretRoomSystem {
  * @property {boolean} open
  * @property {boolean} clockPaused While true the stay clocks of this room stand still (E62).
  * @property {{ bounds: { min: number[], max: number[] } }} scaledRoom Box in world units.
+ * @property {object | null} itemPoints Refill bookkeeping of the item points, in world units.
  * @property {number[]} ejectPosition Safe place in world units.
  * @property {number} ejectYawRad
  * @property {number} stayLimitSeconds
@@ -285,6 +293,7 @@ function createRoomEntry(room, portal, mapScale) {
         open: false,
         clockPaused: false,
         scaledRoom: { bounds: { min: scalePoint(room.bounds.min), max: scalePoint(room.bounds.max) } },
+        itemPoints: createSecretRoomItemPoints(room, mapScale),
         ejectPosition: scalePoint(room.ejectPoint.pos),
         ejectYawRad: Number(room.ejectPoint.yawDeg) * DEGREES_TO_RADIANS,
         stayLimitSeconds: Number(room.stayLimitSeconds) || 0,
