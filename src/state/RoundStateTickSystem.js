@@ -2,7 +2,16 @@
 // RoundStateTickSystem.js - round/match-end tick orchestration
 // ============================================
 
+import { CONTINUE_INTENT_KEY } from '../shared/input/ContinueIntentOps.js';
 import { deriveRoundEndCountdownUiState } from '../shared/contracts/MatchUiStateContract.js';
+import {
+    ROUND_END_INPUT_LOCK_PHASES,
+    armRoundEndInputLock,
+    createRoundEndInputLock,
+    readLatchedContinuePress,
+    readRoundEndInputLockState,
+    releaseRoundEndInputLock,
+} from './RoundEndInputLockOps.js';
 
 export class RoundStateTickSystem {
     constructor(deps = {}) {
@@ -13,7 +22,97 @@ export class RoundStateTickSystem {
         this._readRuntimeIntentPort = typeof deps.getRuntimeIntentPort === 'function'
             ? deps.getRuntimeIntentPort
             : () => deps.runtimeIntentPort || null;
+        this._readSessionSnapshot = typeof deps.getSessionSnapshot === 'function'
+            ? deps.getSessionSnapshot
+            : () => deps.sessionSnapshot || null;
         this._arenaWavesTransitionRestartRequested = false;
+        // Board lock for the controller path; the kernel keeps its own and reports it.
+        this._inputLock = createRoundEndInputLock();
+        this._continueBlocked = false;
+        // Identity of the board the lock belongs to: a new match brings a new kernel,
+        // a new round raises its roundIndex - both mean "a different board".
+        this._lockKernel = null;
+        this._lockRoundIndex = -1;
+    }
+
+    /**
+     * Opening a board drops the pending "continue" press and starts the lock.
+     * The session role is read once per board, not once per frame.
+     */
+    _syncInputLockPhase(phase) {
+        const kernel = this._getKernelAdapter()?.kernel || null;
+        const roundIndex = Number(kernel?.roundIndex) || 0;
+        const sameBoard = this._inputLock.phase === phase
+            && this._lockKernel === kernel
+            && this._lockRoundIndex === roundIndex;
+        if (sameBoard) return false;
+        armRoundEndInputLock(this._inputLock, phase);
+        this._lockKernel = kernel;
+        this._lockRoundIndex = roundIndex;
+        this._continueBlocked = this._isRemoteSessionClient();
+        this.game?.input?.clearContinueIntent?.();
+        return true;
+    }
+
+    /**
+     * resetRoundEndInputLock – the board was closed. Called by the state dispatch on
+     * every frame outside ROUND_END/MATCH_END, so exits that never reach a tick action
+     * (overlay buttons, a host kick, an arcade run advance) also drop the lock.
+     */
+    resetRoundEndInputLock() {
+        if (this._inputLock.phase === '' && this._lockKernel === null) return;
+        releaseRoundEndInputLock(this._inputLock);
+        this._lockKernel = null;
+        this._lockRoundIndex = -1;
+        this._continueBlocked = false;
+    }
+
+    /** Replicas never own the match: a client must not start a round or a match. */
+    _isRemoteSessionClient() {
+        const snapshot = this._readSessionSnapshot();
+        return snapshot?.isNetworkSession === true && snapshot?.isHost !== true;
+    }
+
+    /** Lock snapshot for the result board: remaining seconds, full duration and board. */
+    getRoundEndInputLockState() {
+        return readRoundEndInputLockState(this._inputLock);
+    }
+
+    _applyStepInputLock(tickStep) {
+        if (!tickStep || typeof tickStep.nextInputLockRemaining !== 'number') return;
+        this._inputLock.remaining = Math.max(0, tickStep.nextInputLockRemaining);
+        if (typeof tickStep.inputLockTotal === 'number' && tickStep.inputLockTotal > 0) {
+            this._inputLock.total = tickStep.inputLockTotal;
+        }
+    }
+
+    /**
+     * The kernel reads the board keys itself, so a replica's veto has to reach it
+     * before the tick: it then still consumes the keys, but acts on neither.
+     */
+    _tickKernelRoundStateWithInputPolicy(dt, expectedLifecycle) {
+        this._getKernelAdapter()?.kernel?.setRoundStateContinueBlocked?.(this._continueBlocked);
+        const kernelStep = this._tickKernelRoundState(dt, expectedLifecycle);
+        if (kernelStep) {
+            this._inputLock.remaining = Math.max(0, Number(kernelStep.inputLockRemaining) || 0);
+            if (Number(kernelStep.inputLockTotal) > 0) {
+                this._inputLock.total = Number(kernelStep.inputLockTotal);
+            }
+        }
+        return kernelStep;
+    }
+
+    /**
+     * One read per frame and key: the continue intent polls the gamepads while it is
+     * asked. Enter runs through the same edge latch, so a held key neither piles up
+     * during the lock nor fires on every frame afterwards.
+     */
+    _readBoardPress() {
+        const enterRead = this.game.input.wasPressed('Enter') === true;
+        const continueRead = this.game.input.wasPressed(CONTINUE_INTENT_KEY) === true;
+        const boardPress = readLatchedContinuePress(this._inputLock, enterRead || continueRead)
+            && !this._continueBlocked;
+        return { continuePressed: boardPress, enterPressed: enterRead && boardPress };
     }
 
     _getKernelAdapter() {
@@ -49,14 +148,17 @@ export class RoundStateTickSystem {
         const game = this.game;
         const lifecyclePort = this._readLifecyclePort();
         if (action === 'RETURN_TO_MENU') {
+            this.resetRoundEndInputLock();
             lifecyclePort?.returnToMenu?.({ reason: 'round_state_return_to_menu' });
             return true;
         }
         if (action === 'START_ROUND') {
+            this.resetRoundEndInputLock();
             lifecyclePort?.restartRound?.();
             return true;
         }
         if (action === 'RESTART_MATCH') {
+            this.resetRoundEndInputLock();
             const runtimeIntentPort = this._readRuntimeIntentPort();
             if (runtimeIntentPort) {
                 if (typeof runtimeIntentPort.startMatch !== 'function') return false;
@@ -74,16 +176,18 @@ export class RoundStateTickSystem {
         return {
             dt,
             roundPause: game.roundPause,
-            enterPressed: game.input.wasPressed('Enter'),
+            ...this._readBoardPress(),
             escapePressed: game.input.wasPressed('Escape'),
+            inputLockRemaining: this._inputLock.remaining,
         };
     }
 
-    _readMatchEndTickInputs() {
-        const game = this.game;
+    _readMatchEndTickInputs(dt = 0) {
         return {
-            enterPressed: game.input.wasPressed('Enter'),
-            escapePressed: game.input.wasPressed('Escape'),
+            dt,
+            ...this._readBoardPress(),
+            escapePressed: this.game.input.wasPressed('Escape'),
+            inputLockRemaining: this._inputLock.remaining,
         };
     }
 
@@ -121,26 +225,38 @@ export class RoundStateTickSystem {
     }
 
     _deriveRoundEndTickStep(dt) {
-        // The kernel step reads Enter/Escape itself, so the keys are read here only when no
-        // kernel step owns them; reading them first would leave the kernel an empty press.
+        this._syncInputLockPhase(ROUND_END_INPUT_LOCK_PHASES.ROUND_END);
+        // The kernel step reads Enter/Escape/Continue itself, so the keys are read here only
+        // when no kernel step owns them; reading them first would leave the kernel an empty press.
         const arenaWavesRun = this._readArcadeSurfaceState()?.runType === 'arena_waves';
         if (!arenaWavesRun && !this.game.roundStateController?.isArcadeRoundStateController) {
             this._arenaWavesTransitionRestartRequested = false;
-            const kernelStep = this._tickKernelRoundState(dt, 'round_end');
+            const kernelStep = this._tickKernelRoundStateWithInputPolicy(dt, 'round_end');
             if (kernelStep) return kernelStep;
         }
         const inputs = this._readRoundEndTickInputs(dt);
         const arenaWavesStep = this._deriveArenaWavesRoundEndStep(inputs);
         if (arenaWavesStep) return arenaWavesStep;
-        return this.game.roundStateController.deriveRoundEndTick(inputs);
+        const tickStep = this.game.roundStateController.deriveRoundEndTick(inputs);
+        this._applyStepInputLock(tickStep);
+        return tickStep;
     }
 
-    _deriveMatchEndTickStep() {
+    _deriveControllerMatchEndTickStep(dt) {
+        const tickStep = this.game.roundStateController.deriveMatchEndTick(
+            this._readMatchEndTickInputs(dt)
+        );
+        this._applyStepInputLock(tickStep);
+        return tickStep;
+    }
+
+    _deriveMatchEndTickStep(dt) {
+        this._syncInputLockPhase(ROUND_END_INPUT_LOCK_PHASES.MATCH_END);
         if (this.game.roundStateController?.isArcadeRoundStateController) {
-            return this.game.roundStateController.deriveMatchEndTick(this._readMatchEndTickInputs());
+            return this._deriveControllerMatchEndTickStep(dt);
         }
-        return this._tickKernelRoundState(0, 'match_end')
-            || this.game.roundStateController.deriveMatchEndTick(this._readMatchEndTickInputs());
+        return this._tickKernelRoundStateWithInputPolicy(dt, 'match_end')
+            || this._deriveControllerMatchEndTickStep(dt);
     }
 
     _applyRoundEndTickUi(roundEndTick) {

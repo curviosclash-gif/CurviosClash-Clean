@@ -4,6 +4,7 @@ import test from 'node:test';
 import { createRoundStateHarness } from './helpers/round-state-tick-harness.mjs';
 import { wireInitializedMatchRuntime } from '../src/state/MatchSessionFactory.js';
 import { RoundOutcomeSystem } from '../src/entities/systems/RoundOutcomeSystem.js';
+import { MATCH_END_INPUT_LOCK_SECONDS } from '../src/state/RoundEndInputLockOps.js';
 
 test('match-end Escape reaches the kernel lifecycle and is consumed exactly once', () => {
     const harness = createRoundStateHarness({ roundPause: 3 });
@@ -24,13 +25,26 @@ test('match-end Enter restarts the match and is consumed exactly once', () => {
     const harness = createRoundStateHarness({ roundPause: 3 });
     harness.kernel.signalRoundEnd({ roundPause: 3 });
     harness.game.state = 'MATCH_END';
+    // The match-end board opens with an input lock; Enter counts once it has run out.
+    harness.system.updateMatchEnd(MATCH_END_INPUT_LOCK_SECONDS);
     harness.input.press('Enter');
 
     harness.system.updateMatchEnd(0);
 
     assert.equal(harness.kernel.lifecycle, 'match_end');
-    assert.equal(harness.input.callCount('Enter'), 1, 'Enter must be read by exactly one owner');
+    assert.equal(harness.input.callCount('Enter'), 2, 'Enter must be read by exactly one owner per frame');
     assert.equal(harness.calls.startMatch, 1, 'Enter must restart the match');
+});
+
+test('match-end Enter is swallowed while the board input lock runs', () => {
+    const harness = createRoundStateHarness({ roundPause: 3 });
+    harness.kernel.signalRoundEnd({ roundPause: 3 });
+    harness.game.state = 'MATCH_END';
+    harness.input.press('Enter');
+
+    harness.system.updateMatchEnd(1 / 60);
+
+    assert.equal(harness.calls.startMatch, 0, 'the lock must also cover Enter');
 });
 
 test('arcade round state controllers keep owning the match-end keys', () => {
