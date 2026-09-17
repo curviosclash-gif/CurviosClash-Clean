@@ -216,6 +216,8 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
     test('T14b: GLB-Maps markieren UI und starten mit Loader-Overlay und Szene-Collidern', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);
+        // Fight lists the GLB test hangar only behind the showcase collection filter.
+        await page.selectOption('#map-filter-select', 'showcase');
         const mapSelection = await page.evaluate(() => {
             const select = document.getElementById('map-select');
             const options = select instanceof HTMLSelectElement
@@ -399,6 +401,8 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         const errors = collectErrors(page);
         await loadGame(page);
         await openGameSubmenu(page);
+        // Fight lists the model showcases only behind their own collection filter.
+        await page.selectOption('#map-filter-select', 'showcase');
         await page.selectOption('#map-select', 'showcase_nexus');
         await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'showcase_nexus', null, { timeout: 5000 });
         await page.evaluate(() => {

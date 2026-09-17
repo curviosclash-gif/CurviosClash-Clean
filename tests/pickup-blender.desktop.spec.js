@@ -29,6 +29,8 @@ test('desktop loads Blender pickups, preserves authored shapes and reloads after
     await openCustomSubmenu(page);
     await page.click('#submenu-custom:not(.hidden) [data-mode-path="fight"]');
     await page.waitForSelector('#submenu-game:not(.hidden)');
+    // Fight lists the model showcases only behind their own collection filter.
+    await page.selectOption('#map-filter-select', 'showcase');
     await page.selectOption('#map-select', 'item_showcase');
     await page.evaluate(() => {
         const game = window.GAME_INSTANCE;
