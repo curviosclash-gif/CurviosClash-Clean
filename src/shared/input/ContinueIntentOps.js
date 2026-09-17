@@ -34,6 +34,8 @@ const INTERACTIVE_TAGS = new Set(['INPUT', 'TEXTAREA', 'SELECT', 'BUTTON', 'SUMM
  */
 export function isInteractiveContinueTarget(element) {
     if (!element || typeof element !== 'object') return false;
+    // The board's own continue button has no action of its own: a press on it is the intent.
+    if (element.getAttribute?.('data-postmatch-action') === 'continue') return false;
     if (element.isContentEditable === true) return true;
     const tagName = typeof element.tagName === 'string' ? element.tagName.toUpperCase() : '';
     return INTERACTIVE_TAGS.has(tagName);

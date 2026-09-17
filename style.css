@@ -2665,6 +2665,64 @@ input[type="range"]::-webkit-slider-thumb {
 
 .message-stats-details > .message-stats-card { margin-top: 10px; }
 
+/* Continue prompt below the board (P7c). Full layout follows in P5. */
+#message-actions {
+    width: min(920px, calc(100% - 32px));
+    margin-top: 16px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
+    text-align: center;
+}
+
+.message-actions-buttons {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+}
+
+.message-actions-btn:focus-visible {
+    outline: 2px solid #8ecbff;
+    outline-offset: 2px;
+}
+
+/* The input lock is one custom property: 0 right after the board opened, 1 once continue is free. */
+.message-actions-continue[aria-disabled="true"] {
+    cursor: default;
+    background-image: linear-gradient(
+        to right,
+        rgba(142, 203, 255, 0.35) calc(var(--progress, 0) * 100%),
+        rgba(8, 18, 36, 0.75) calc(var(--progress, 0) * 100%)
+    );
+}
+
+.message-actions-hints {
+    margin: 0;
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 6px 14px;
+    color: rgba(208, 226, 255, 0.82);
+    font-size: 0.9rem;
+}
+
+.message-actions-key {
+    padding: 1px 6px;
+    border: 1px solid rgba(110, 180, 255, 0.45);
+    border-radius: 5px;
+    background: rgba(8, 18, 36, 0.8);
+    font-family: inherit;
+    font-size: 0.85em;
+}
+
+.message-actions-wait {
+    margin: 0;
+    color: rgba(208, 226, 255, 0.7);
+    font-size: 0.9rem;
+}
+
 #arcade-score-hud .hidden {
     display: none !important;
 }

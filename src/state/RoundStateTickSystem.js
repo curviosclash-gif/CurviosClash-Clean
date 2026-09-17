@@ -3,7 +3,10 @@
 // ============================================
 
 import { CONTINUE_INTENT_KEY } from '../shared/input/ContinueIntentOps.js';
-import { deriveRoundEndCountdownUiState } from '../shared/contracts/MatchUiStateContract.js';
+import {
+    deriveRoundEndCountdownUiState,
+    normalizeContinuePromptState,
+} from '../shared/contracts/MatchUiStateContract.js';
 import {
     ROUND_END_INPUT_LOCK_PHASES,
     armRoundEndInputLock,
@@ -259,11 +262,41 @@ export class RoundStateTickSystem {
             || this._deriveControllerMatchEndTickStep(dt);
     }
 
-    _applyRoundEndTickUi(roundEndTick) {
-        if (!roundEndTick.countdownMessageSub) return;
-        this.game.matchFlowUiController.applyMatchUiState(
-            deriveRoundEndCountdownUiState(this.game.roundPause)
-        );
+    /**
+     * True while the board itself owns the keys. The arcade WAIT branches (victory, sector,
+     * sudden death, a paused intermission, the arena waves upgrade and finish screens) return a
+     * step without lock values, and the intermission and the advantage choice confirm with their
+     * own buttons - none of them may offer "continue".
+     */
+    _boardOwnsContinue(tickStep) {
+        const carriesLock = typeof tickStep?.nextInputLockRemaining === 'number'
+            || typeof tickStep?.inputLockRemaining === 'number';
+        if (!carriesLock) return false;
+        const phase = this._readArcadeSurfaceState()?.phase;
+        return phase !== 'intermission' && phase !== 'upgrade';
+    }
+
+    _buildContinuePromptUiState(tickStep) {
+        const lock = this.getRoundEndInputLockState();
+        const ownsContinue = this._boardOwnsContinue(tickStep);
+        return normalizeContinuePromptState({
+            phase: lock.phase,
+            lockRemaining: lock.remaining,
+            lockTotal: lock.total,
+            visible: ownsContinue,
+            canContinue: ownsContinue,
+            waitingForHost: this._continueBlocked,
+        });
+    }
+
+    /** Runs on every board frame: the countdown text only changes, the lock bar always moves. */
+    _applyRoundEndTickUi(tickStep) {
+        const uiState = { continuePrompt: this._buildContinuePromptUiState(tickStep) };
+        const countdown = tickStep?.countdownMessageSub
+            ? deriveRoundEndCountdownUiState(this.game.roundPause)
+            : null;
+        if (countdown) uiState.messageSub = countdown.messageSub;
+        this.game.matchFlowUiController?.applyMatchUiState(uiState);
     }
 
     _applyRoundEndTickMutableState(roundEndTick) {
@@ -308,6 +341,8 @@ export class RoundStateTickSystem {
     }
 
     _applyMatchEndTickStep(matchEndTick, dt) {
+        // The match board has no countdown, so this is its only UI update per frame.
+        this._applyRoundEndTickUi(matchEndTick);
         return this._runRoundStateTickStepCore(matchEndTick, dt, {
             beforeBase: (tickStep) => {
                 if (tickStep.action === 'RESTART_MATCH') {

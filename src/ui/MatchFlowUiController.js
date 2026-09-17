@@ -18,6 +18,7 @@ import {
     deriveRoundStartTransition,
 } from '../shared/contracts/MatchFlowTransitionContract.js';
 import { coordinateRoundEnd } from './MatchFlowRoundEndCoordinator.js';
+import { createPostMatchContinuePrompt } from './postmatch/PostMatchContinuePrompt.js';
 import { createMatchFlowUiControllerPort } from '../shared/runtime/UiControllerRuntimePorts.js';
 import {
     getMatchSessionAccessSnapshot,
@@ -95,6 +96,20 @@ export class MatchFlowUiController {
         this.arcadeOverlayController.renderMessageStatsUi(overlayStats);
     }
 
+    /** The prompt lives next to the board and is built on the first result screen of a session. */
+    _applyContinuePromptUi(promptState) {
+        if (!this.continuePrompt) {
+            const container = this.game?.ui?.messageActions || null;
+            if (!container) return;
+            this.continuePrompt = createPostMatchContinuePrompt({
+                container,
+                runtimePort: this.runtimePort,
+                getControls: () => this.game?.settings?.controls || null,
+            });
+        }
+        this.continuePrompt.apply(promptState);
+    }
+
     _clearArcadeOverlayPanel() {
         this.arcadeOverlayController.clearArcadeOverlayPanel();
     }
@@ -128,6 +143,9 @@ export class MatchFlowUiController {
         }
         if (hasOwnProperty(uiState, 'overlayStats')) {
             this._renderMessageStatsUi(uiState.overlayStats);
+        }
+        if (hasOwnProperty(uiState, 'continuePrompt')) {
+            this._applyContinuePromptUi(uiState.continuePrompt);
         }
         if (game.ui.pauseOverlay && hasOwn('pauseOverlayHidden')) {
             game.ui.pauseOverlay.classList.toggle('hidden', visibility.pauseOverlayHidden !== false);
@@ -441,6 +459,8 @@ export class MatchFlowUiController {
     applyDisconnectConfirmationProjection() { return this.pauseOverlayController.applyDisconnectConfirmationProjection(); }
     setupPauseOverlayListeners() { this.pauseOverlayController.setupListeners(); }
     dispose() {
+        this.continuePrompt?.dispose?.();
+        this.continuePrompt = null;
         this.arcadeOverlayController?.dispose?.();
         this.pauseOverlayController?.dispose?.();
     }

@@ -25,6 +25,7 @@ export function createGameUiRefs(doc = document) {
         hud: doc.getElementById('hud'),
         p2Hud: doc.getElementById('p2-hud'),
         messageStats: doc.getElementById('message-stats'),
+        messageActions: doc.getElementById('message-actions'),
         p1Score: doc.querySelector('#p1-hud .player-score'),
         p2Score: doc.querySelector('#p2-hud .player-score'),
         p1Items: doc.getElementById('p1-items'),
