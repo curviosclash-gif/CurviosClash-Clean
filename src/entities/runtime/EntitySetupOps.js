@@ -202,7 +202,7 @@ export class EntitySetupOps {
                 cockpitCamera: !!setupContext.humanConfigs[i]?.cockpitCamera,
                 modelScale: setupContext.modelScale,
                 // Humans steer with the controller rates; the slower player defaults stay with the bots.
-                controlRampEnabled: setupContext.humanConfigs[i]?.smoothSteering !== false,
+                controlRampEnabled: setupContext.humanConfigs[i]?.smoothSteering === true,
                 controlRampAttackRate: DEFAULT_AXIS_ATTACK_RATE,
                 controlRampReleaseRate: DEFAULT_AXIS_RELEASE_RATE,
             });

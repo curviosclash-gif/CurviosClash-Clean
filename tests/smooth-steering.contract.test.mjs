@@ -94,29 +94,29 @@ test('digital sources that encode keys as numbers would skip the ramp, so they l
 });
 
 test('buildHumanConfigs covers every network slot and reads the setting only for local slots', () => {
-    const guest = buildHumanConfigs({ localSettings: { smoothSteering: false } }, {
+    const guest = buildHumanConfigs({ localSettings: { smoothSteering: true } }, {
         session: { networkEnabled: true, numHumans: 1, humanEntityCount: 3, localPlayerIndex: 1, localHumanCount: 1 },
     });
     assert.equal(guest.length, 3, 'one config per simulated human slot');
-    assert.equal(guest[1].smoothSteering, false, 'the guest steers its own slot with its own setting');
-    assert.equal(guest[0].smoothSteering, true, 'remote humans keep the default');
-    assert.equal(guest[2].smoothSteering, true);
+    assert.equal(guest[1].smoothSteering, true, 'the guest steers its own slot with its own setting');
+    assert.equal(guest[0].smoothSteering, false, 'remote humans keep the default');
+    assert.equal(guest[2].smoothSteering, false);
     assert.equal(guest[2].vehicleId, undefined, 'extra slots keep their sparse shape');
 
-    const host = buildHumanConfigs({ localSettings: { smoothSteering: false } }, {
+    const host = buildHumanConfigs({ localSettings: { smoothSteering: true } }, {
         session: { networkEnabled: true, numHumans: 1, humanEntityCount: 2, localPlayerIndex: 0, localHumanCount: 1 },
     });
-    assert.equal(host[0].smoothSteering, false);
-    assert.equal(host[1].smoothSteering, true, 'the host setting does not reach the guest slot');
+    assert.equal(host[0].smoothSteering, true);
+    assert.equal(host[1].smoothSteering, false, 'the host setting does not reach the guest slot');
 });
 
-test('buildHumanConfigs carries the smooth steering setting and defaults to on', () => {
+test('buildHumanConfigs carries the smooth steering setting and defaults to off', () => {
     const runtimeConfig = { session: { numHumans: 2 } };
 
     const defaulted = buildHumanConfigs({}, runtimeConfig);
     assert.equal(defaulted.length, 2);
-    assert.equal(defaulted[0].smoothSteering, true);
-    assert.equal(defaulted[1].smoothSteering, true);
+    assert.equal(defaulted[0].smoothSteering, false);
+    assert.equal(defaulted[1].smoothSteering, false);
 
     const disabled = buildHumanConfigs({ localSettings: { smoothSteering: false } }, runtimeConfig);
     assert.equal(disabled[0].smoothSteering, false);
@@ -148,6 +148,8 @@ test('the human setup hands the smooth steering flag and the controller rates to
 
     const direct = setupHuman({ smoothSteering: false });
     assert.equal(direct.controlRampEnabled, false);
+
+    assert.equal(setupHuman({}).controlRampEnabled, false, 'a config without the flag steers directly');
 });
 
 test('bots keep their own ramp defaults', () => {
@@ -157,12 +159,12 @@ test('bots keep their own ramp defaults', () => {
     assert.equal(controller.resolveControlState(bot, { yawLeft: true }, false, FRAME).yawInput, 1);
 });
 
-test('smooth steering defaults to on, also for settings saved before the option existed', () => {
+test('smooth steering defaults to off, also for settings saved before the option existed', () => {
     const migrated = { localSettings: { mouseSteering: false } };
     ensureMenuContractState(migrated);
-    assert.equal(migrated.localSettings.smoothSteering, true);
+    assert.equal(migrated.localSettings.smoothSteering, false);
 
-    const disabled = { localSettings: { smoothSteering: false } };
-    ensureMenuContractState(disabled);
-    assert.equal(disabled.localSettings.smoothSteering, false);
+    const enabled = { localSettings: { smoothSteering: true } };
+    ensureMenuContractState(enabled);
+    assert.equal(enabled.localSettings.smoothSteering, true);
 });

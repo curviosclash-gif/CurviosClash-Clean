@@ -44,10 +44,10 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     const humanEntityCount = Math.max(0, Number(session?.humanEntityCount) || 0);
     const totalHumanCount = Math.max(configuredHumanCount, humanEntityCount);
     const fallbackVehicleId = runtimeVehicles?.PLAYER_1 || settings?.vehicles?.PLAYER_1;
-    // Smooth steering is the default for humans; only an explicit false switches
-    // the ramp off, and only for the slots this machine steers: a guest's own
-    // setting must not follow the host's local settings, and vice versa.
-    const smoothSteering = settings?.localSettings?.smoothSteering !== false;
+    // Smooth steering is opt-in; only an explicit true switches the ramp on, and only for
+    // the slots this machine steers: a guest's own setting must not follow the host's local
+    // settings, and vice versa. Remote slots keep the default.
+    const smoothSteering = settings?.localSettings?.smoothSteering === true;
     const localPlayerIndex = Math.max(0, Number(session?.localPlayerIndex) || 0);
     const localHumanCount = Math.max(1, Number(session?.localHumanCount) || configuredHumanCount);
     const isLocalSlot = (index) => index >= localPlayerIndex && index < localPlayerIndex + localHumanCount;
@@ -56,7 +56,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
         const slot = `PLAYER_${index + 1}`;
         configs.push({
             invertPitch: !!settings?.invertPitch?.[slot],
-            smoothSteering: isLocalSlot(index) ? smoothSteering : true,
+            smoothSteering: isLocalSlot(index) && smoothSteering,
             cockpitCamera: true,
             vehicleId: runtimeVehicles?.[slot] || settings?.vehicles?.[slot] || fallbackVehicleId,
             fightLoadout: fightLoadouts?.[slot] || fightLoadouts?.PLAYER_1 || null,
@@ -66,7 +66,7 @@ export function buildHumanConfigs(settings, runtimeConfig = null) {
     // Slots beyond the local count keep the sparse shape they had before (the
     // entity setup falls back per field); only the steering preference is filled in.
     for (let index = configuredHumanCount; index < totalHumanCount; index += 1) {
-        configs.push({ smoothSteering: isLocalSlot(index) ? smoothSteering : true });
+        configs.push({ smoothSteering: isLocalSlot(index) && smoothSteering });
     }
     return configs;
 }
