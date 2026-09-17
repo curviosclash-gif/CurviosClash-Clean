@@ -82,18 +82,29 @@ test('known failures: only entries of the selected specs are skipped', () => {
     );
 });
 
-test('known failures: the grep-invert uses test ids where they exist and titles otherwise', () => {
+test('known failures: the grep-invert scopes test ids and titles to their spec', () => {
     const pattern = buildKnownFailureGrepInvert([
         { spec: 'tests/core-targeted-surface.spec.js', title: 'T66b: Vehicle-Selection bleibt konsistent' },
         { spec: 'tests/recording.spec.js', title: 'Format detection returns supported MIME type (v2)' },
     ]);
-    assert.equal(pattern, '\\bT66b:|Format detection returns supported MIME type \\(v2\\)');
 
     const regex = new RegExp(pattern);
     assert.equal(regex.test('desktop-e2e > core-targeted-surface.spec.js > T66b: anything at all'), true);
     assert.equal(regex.test('desktop-e2e > core-targeted-surface.spec.js > T66: something else'), false);
     assert.equal(regex.test('gameplay-smoke > recording.spec.js > Format detection returns supported MIME type (v2)'), true);
     assert.equal(regex.test('gameplay-smoke > recording.spec.js > Format detection returns supported MIME type'), false);
+});
+
+test('known failures: selecting physics-hunt and stress keeps an unrelated stress T64 runnable', () => {
+    const selected = selectKnownFailuresForSpecs([
+        { spec: 'tests/physics-hunt.spec.js', title: 'T64: Hunt failure' },
+    ], ['tests/physics-hunt.spec.js', 'tests/stress.spec.js']);
+    const pattern = buildKnownFailureGrepInvert(selected);
+    const regex = new RegExp(pattern);
+
+    assert.equal(regex.test('desktop-e2e > physics-hunt.spec.js > T64: Hunt failure'), true);
+    assert.equal(regex.test('desktop-e2e > stress.spec.js > T64: another stress assertion'), false);
+    assert.equal(regex.test('desktop-e2e > physics-hunt.spec.js > T64: another hunt assertion'), true);
 });
 
 test('known failures: an empty selection produces no pattern at all', () => {

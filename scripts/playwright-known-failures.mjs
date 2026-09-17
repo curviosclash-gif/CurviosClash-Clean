@@ -51,14 +51,16 @@ function escapeRegExp(value) {
 
 /**
  * Builds the `--grep-invert` source for a set of entries. Playwright matches the whole title
- * path ("project > file > describe > title"), so an id is anchored with a word boundary rather
- * than with `^` - anchoring at the start would never match anything.
+ * path ("project > file > describe > title"), so every alternative includes its spec basename.
+ * Test IDs are only unique within a spec; a global `T64:` pattern would hide an unrelated T64.
  */
 export function buildKnownFailureGrepInvert(entries) {
     const alternatives = [];
     for (const entry of Array.isArray(entries) ? entries : []) {
         const id = TEST_ID_PATTERN.exec(String(entry?.title || ''))?.[1];
-        const alternative = id ? `\\b${escapeRegExp(id)}:` : escapeRegExp(entry?.title);
+        const titlePattern = id ? `\\b${escapeRegExp(id)}:` : escapeRegExp(entry?.title);
+        const specPattern = escapeRegExp(toKnownFailureSpecKey(entry?.spec));
+        const alternative = specPattern && titlePattern ? `${specPattern}.*${titlePattern}` : '';
         if (alternative && !alternatives.includes(alternative)) alternatives.push(alternative);
     }
     return alternatives.join('|');

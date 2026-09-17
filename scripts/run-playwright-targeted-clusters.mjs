@@ -1,5 +1,5 @@
 import { spawn } from 'node:child_process';
-import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
@@ -20,7 +20,6 @@ import {
 } from './playwright-test-clusters.mjs';
 import {
     resolveClusterUserDataRoot,
-    resolveRemovableUserDataRoot,
 } from './playwright-user-data-root.mjs';
 import {
     assertEnoughFreeSpace,
@@ -351,19 +350,6 @@ function printClusterSummaries(collected) {
     console.log(missingClusters > 0 ? `${totalLine} missingClusters=${missingClusters}` : totalLine);
 }
 
-// Das Testprofil ist Wegwerfzustand: es bleibt nur fuer die Dauer des Laufs liegen,
-// damit die Ergebnisordner nicht mit Chromium-Caches volllaufen.
-async function removeClusterUserDataRoot(userDataRoot) {
-    const removablePath = resolveRemovableUserDataRoot(userDataRoot, process.cwd());
-    if (!removablePath) return;
-    try {
-        await rm(removablePath, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
-        console.log(`[playwright:desktop-e2e] removed run profile ${removablePath}`);
-    } catch (error) {
-        console.warn(`[playwright:desktop-e2e] run profile cleanup skipped: ${error?.message || error}`);
-    }
-}
-
 function toClusterContractDiagnostics(rawDiagnostics) {
     if (!rawDiagnostics || typeof rawDiagnostics !== 'object') return null;
     const directContract = rawDiagnostics?.readiness?.contract;
@@ -478,7 +464,6 @@ async function main() {
         const result = await runCluster(clusters[index], playwrightArgs, index, clusters.length);
         const collected = collectClusterSummary(clusters[index], result.outputDir);
         if (collected) summaries.push(collected);
-        await removeClusterUserDataRoot(result.userDataRoot);
         if (result.signal) {
             printClusterSummaries(summaries);
             process.kill(process.pid, result.signal);

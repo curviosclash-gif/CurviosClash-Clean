@@ -149,10 +149,9 @@ test('the desktop harness pins the Electron profile to a per-run directory', () 
     );
 });
 
-test('the cluster runner only removes profile roots below tmp/playwright', async () => {
+test('the cluster runner creates isolated profile roots without deleting them', async () => {
     const {
         resolveClusterUserDataRoot,
-        resolveRemovableUserDataRoot,
     } = await import('../scripts/playwright-user-data-root.mjs');
     const repoRoot = path.resolve('.');
 
@@ -165,16 +164,7 @@ test('the cluster runner only removes profile roots below tmp/playwright', async
         path.join(repoRoot, 'tmp', 'playwright', 'local', 'user-data')
     );
 
-    assert.equal(
-        resolveRemovableUserDataRoot(path.join(repoRoot, 'tmp', 'playwright', 'run-a', 'user-data'), repoRoot),
-        path.join(repoRoot, 'tmp', 'playwright', 'run-a', 'user-data')
-    );
-    assert.equal(resolveRemovableUserDataRoot(path.join(repoRoot, 'tmp', 'playwright'), repoRoot), null);
-    assert.equal(resolveRemovableUserDataRoot(path.join(repoRoot, 'src'), repoRoot), null);
-    assert.equal(resolveRemovableUserDataRoot(path.join(tmpdir(), 'user-data'), repoRoot), null);
-    assert.equal(resolveRemovableUserDataRoot('', repoRoot), null);
-    assert.equal(
-        resolveRemovableUserDataRoot(path.join(repoRoot, 'tmp', 'playwright', '..', 'other'), repoRoot),
-        null
-    );
+    const runnerSource = readFileSync(new URL('../scripts/run-playwright-targeted-clusters.mjs', import.meta.url), 'utf8');
+    assert.doesNotMatch(runnerSource, /removeClusterUserDataRoot|resolveRemovableUserDataRoot/);
+    assert.doesNotMatch(runnerSource, /rm\([^)]*userData/i);
 });

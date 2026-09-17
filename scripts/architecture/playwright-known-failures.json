@@ -1,6 +1,6 @@
 {
   "$comment": "Playwright tests that are red without anyone's current change. The list is a ratchet: `count` may sink, never rise. Raise it only on an explicit instruction. Every entry must point at an existing spec and an existing test title - tests/playwright-known-failures.contract.test.mjs enforces that, so a fixed or renamed test forces the entry out.",
-  "count": 43,
+  "count": 41,
   "entries": [
     {
       "spec": "tests/physics-hunt.spec.js",
@@ -16,14 +16,6 @@
       "since": "2026-07-23",
       "commit": "96d27ec",
       "reason": "same trail ownership cause as T84",
-      "kind": "stale-test"
-    },
-    {
-      "spec": "tests/physics-hunt.spec.js",
-      "title": "T89b: Hunt-Pickups limitieren Raketenflut und filtern punitive Debuffs",
-      "since": "2026-07-26",
-      "commit": "4e8a086",
-      "reason": "rebalanced item spawns make SLOW_DOWN appear; the ROCKET_HEAVY count was brittle before that",
       "kind": "stale-test"
     },
     {
@@ -257,14 +249,6 @@
       "commit": "3b052dc",
       "reason": "startMatch was taken off the match UI port",
       "kind": "stale-test"
-    },
-    {
-      "spec": "tests/runtime-facade.spec.js",
-      "title": "Owned runtime config store clears on dispose only for the owning bundle",
-      "since": "2026-07-13",
-      "commit": "d9bfc59",
-      "reason": "red in the seed commit; fails on a dynamically imported /src module",
-      "kind": "env"
     },
     {
       "spec": "tests/runtime-facade.spec.js",
