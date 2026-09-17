@@ -1,6 +1,7 @@
 import { DEFAULT_PORTAL_COLORS } from './MapSchemaConstants.js';
 import { asPositiveNumber } from './MapSchemaSanitizeOps.js';
 import { createMapDocument } from './MapSchemaMigrationOps.js';
+import { toRuntimeSecretRooms } from './MapSchemaSecretRoomOps.js';
 
 function cloneObject(value) {
     if (!value || typeof value !== 'object' || Array.isArray(value)) return undefined;
@@ -322,6 +323,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
         params: gate.params ? { ...gate.params } : undefined,
     }));
     const parcours = mapParcoursToRuntime(normalized.parcours, invScale);
+    const secretRooms = toRuntimeSecretRooms(normalized.secretRooms, invScale);
 
     return {
         map: {
@@ -354,6 +356,7 @@ export function toArenaMapDefinition(mapDocument, options = {}) {
             glbModels,
             glbColliderMode: typeof normalized.glbColliderMode === 'string' ? normalized.glbColliderMode : undefined,
             parcours,
+            ...(secretRooms ? { secretRooms } : null),
         },
         warnings,
         mapDocument: normalized,
