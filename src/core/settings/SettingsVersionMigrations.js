@@ -54,15 +54,16 @@ function migrateV2ToV3(settings, defaults) {
     return settings;
 }
 
-function migrateV3ToV4(settings) {
+function migrateV3ToV4(settings, defaults) {
     if (!settings.gameplay || typeof settings.gameplay !== 'object' || Array.isArray(settings.gameplay)) {
         settings.gameplay = {};
     }
-    settings.gameplay.speed = 30;
-    settings.gameplay.turnSensitivity = 3;
-    settings.gameplay.itemAmount = 60;
-    settings.numBots = 8;
-    settings.autoRoll = false;
+    const migrateOldDefault = (value, oldDefault, newDefault) => value == null || value === oldDefault ? newDefault : value;
+    settings.gameplay.speed = migrateOldDefault(settings.gameplay.speed, 18, defaults?.gameplay?.speed ?? 30);
+    settings.gameplay.turnSensitivity = migrateOldDefault(settings.gameplay.turnSensitivity, 2.2, defaults?.gameplay?.turnSensitivity ?? 3);
+    settings.gameplay.itemAmount = migrateOldDefault(settings.gameplay.itemAmount, 8, defaults?.gameplay?.itemAmount ?? 60);
+    settings.numBots = migrateOldDefault(settings.numBots, 5, defaults?.numBots ?? 8);
+    settings.autoRoll ??= defaults?.autoRoll ?? false;
     settings.settingsVersion = 4;
     return settings;
 }

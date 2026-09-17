@@ -508,7 +508,6 @@ test.describe('Reactor site', () => {
         const measurements = testInfo.outputPath('reactor-site-secondary-collapses.json');
         await writeFile(measurements, JSON.stringify(collapses, null, 2), 'utf8');
         await testInfo.attach('reactor-site-secondary-collapses.json', { path: measurements, contentType: 'application/json' });
-        await page.waitForTimeout(500);
         const screenshot = testInfo.outputPath('reactor-site-secondary-collapses.png');
         await page.screenshot({ path: screenshot });
         await testInfo.attach('reactor-site-secondary-collapses.png', { path: screenshot, contentType: 'image/png' });

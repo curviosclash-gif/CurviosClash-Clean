@@ -4,7 +4,9 @@ import { getVehicleIds, VEHICLE_DEFINITIONS } from '../entities/vehicle-registry
 import { resolveInventoryActionAvailability } from '../shared/contracts/GameplayActionAvailabilityContract.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
 import { isMapEligibleForModePath } from '../shared/contracts/MapModeContract.js';
-import { scoreRank } from '../ui/MatchHudAnnouncement.js';
+import { scoreRank } from '../shared/contracts/MatchScoreRanking.js';
+import { isGamepadInputEnabled } from '../shared/contracts/GamepadControlsContract.js';
+import { readGamepad } from '../shared/input/GamepadInputSource.js';
 import {
     FOUR_PLAYER_PLANAR_MODES,
     SPLIT_SCREEN_VARIANTS,
@@ -42,12 +44,14 @@ export class ThreePlayerSplitModule {
      * @param {any} options.setupView  ThreePlayerSplitSetupView or an object with the same methods
      * @param {any} options.hudView  ThreePlayerSplitHudView or an object with the same methods
      * @param {Record<string, any>} [options.mapDefinitions]  CONFIG.MAPS, passed in from the composition side
+     * @param {(index: number) => any} [options.getGamepad]
      */
-    constructor({ runtimePort, setupView, hudView, mapDefinitions = {} }) {
+    constructor({ runtimePort, setupView, hudView, mapDefinitions = {}, getGamepad = readGamepad }) {
         this.runtime = runtimePort || null;
         this.setupView = setupView;
         this.hudView = hudView;
         this.mapDefinitions = mapDefinitions;
+        this.getGamepad = getGamepad;
         this._matchActive = false;
         this._hudTickTimer = 0;
         this._lastHudValues = Array.from({ length: THREE_PLAYER_SPLIT_HUMAN_COUNT }, () => ({}));
@@ -66,6 +70,8 @@ export class ThreePlayerSplitModule {
                 onCloseRequested: () => this.closeSetup(),
                 onStartRequested: () => this.startMatch(),
                 onControlChanged: () => this._persistSetupSelection(),
+                onDeviceAssignmentChanged: (index) => this._persistSetupSelection(index),
+                onDeviceAvailabilityChanged: () => this._updateDeviceStatus(),
                 onSessionTypeChanged: () => this.syncSetupUi(),
                 onStandardModeSelected: () => this._selectStandardSplitScreen(),
             },
@@ -114,7 +120,9 @@ export class ThreePlayerSplitModule {
         const isSplitScreen = String(sessionType || '').toLowerCase() === 'splitscreen';
         this.setupView.setEntryVisible(isSplitScreen);
         if (!isSplitScreen) this.closeSetup();
-        this.setupView.applySelection(this._resolveSelection());
+        const selection = this._resolveSelection();
+        this.setupView.applySelection(selection);
+        this._updateDeviceStatus(selection);
     }
 
     openSetup() {
@@ -130,10 +138,18 @@ export class ThreePlayerSplitModule {
         this.setupView.closeSetup();
     }
 
-    _persistSetupSelection() {
+    _persistSetupSelection(changedDeviceIndex = -1) {
         const controls = this.setupView.readControls();
         const localSettings = this.runtime?.ensureLocalSettings?.();
         if (!controls || !localSettings) return;
+        if (changedDeviceIndex >= 0) {
+            const previous = this._resolveSelection().deviceAssignment;
+            const requestedDevice = controls.deviceAssignment[changedDeviceIndex];
+            const previousOwner = previous.indexOf(requestedDevice);
+            if (previousOwner >= 0 && previousOwner !== changedDeviceIndex) {
+                controls.deviceAssignment[previousOwner] = previous[changedDeviceIndex];
+            }
+        }
         const eligibleMapKeys = this._getEligibleMapKeys(controls.mode);
         const selection = normalizeThreePlayerSplitSettings({
             mode: controls.mode,
@@ -149,7 +165,27 @@ export class ThreePlayerSplitModule {
         localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
         localSettings.threePlayerSplit = selection;
         this.setupView.applyNormalizedSelection(selection);
+        this._updateDeviceStatus(selection);
         this.runtime?.notifySettingsChanged?.();
+    }
+
+    _getDeviceIssue(selection) {
+        if (!isGamepadInputEnabled(this.runtime?.getSettings?.()?.controls)) {
+            return 'Gamepads sind deaktiviert. Aktiviere sie in den Steuerungs-Einstellungen.';
+        }
+        for (const device of selection.deviceAssignment) {
+            if (!device.startsWith('gamepad-')) continue;
+            const index = Number(device.slice('gamepad-'.length)) - 1;
+            const pad = this.getGamepad(index);
+            if (!pad || pad.connected === false) {
+                return `Gamepad ${index + 1} fehlt. Verbinde es und drücke eine Taste.`;
+            }
+        }
+        return '';
+    }
+
+    _updateDeviceStatus(selection = this._resolveSelection()) {
+        this.setupView.setDeviceStatus?.(this._getDeviceIssue(selection));
     }
 
     startMatch() {
@@ -157,6 +193,11 @@ export class ThreePlayerSplitModule {
         if (!settings) return false;
         this._persistSetupSelection();
         const selection = this._resolveSelection();
+        const deviceIssue = this._getDeviceIssue(selection);
+        if (deviceIssue) {
+            this.setupView.setDeviceStatus?.(deviceIssue);
+            return false;
+        }
         const localSettings = this.runtime.ensureLocalSettings();
         localSettings.sessionType = 'splitscreen';
         localSettings.splitScreenVariant = SPLIT_SCREEN_VARIANTS.THREE_PLAYER;
@@ -178,18 +219,6 @@ export class ThreePlayerSplitModule {
 
     isRuntimeActive() {
         return isThreePlayerSplitRuntime(this.runtime?.getRuntimeConfig?.());
-    }
-
-    /**
-     * Pending: wiring an actual keyboard/gamepad source per slot needs the
-     * shared input-resolution rework (MatchInputSourceResolver.js,
-     * InputManager.js) that is mid-flight elsewhere in this tree. Once that
-     * lands, this should read runtimeConfig.session.threePlayerSplit
-     * .deviceAssignment and bind a source per slot via
-     * resolveThreePlayerSplitInputDevice() from FourPlayerPlanarContract.js.
-     */
-    configureInputSources() {
-        return false;
     }
 
     activateMatch() {
