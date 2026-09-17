@@ -328,6 +328,9 @@ export class GameRuntimeSessionHandler {
         }
         this._matchStartRuntime.cancel();
         this._facade?.settingsHandler?.restoreMapScenarioBotCount?.();
+        // Order matters: the scenario bot count goes back first, so this restore compares
+        // against the value the quickstart preset wrote and may hand the player value back.
+        this._facade?.settingsHandler?.restoreSessionSettings?.();
         return this._facade?.finalizeMatch?.({
             ...options,
             reason: options?.reason || SESSION_FINALIZE_TRIGGERS.RETURN_TO_MENU,
