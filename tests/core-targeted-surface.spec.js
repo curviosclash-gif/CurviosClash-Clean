@@ -51,8 +51,6 @@ async function openMatchAdvancedSettings(page) {
 }
 
 test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('T20kb: Map- und Flugzeugauswahl bleiben in State und Match konsistent', async ({ page }) => {
         await loadGame(page);
         await openGameSubmenu(page);

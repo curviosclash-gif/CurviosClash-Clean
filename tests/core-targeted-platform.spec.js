@@ -47,8 +47,6 @@ import {
 } from './core-targeted.shared.js';
 
 test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('T20a: Recorder-Support-Probe liefert lifecycle.v1-Metadaten', async ({ page }) => {
         await loadGame(page);
         const probe = await page.evaluate(() => {

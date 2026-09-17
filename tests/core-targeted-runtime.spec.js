@@ -45,8 +45,6 @@ import {
 } from './core-targeted.shared.js';
 
 test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('T20ab: GameLoop akkumuliert Sub-Step-Frames ohne Doppel-Simulation', async ({ page }) => {
         await loadGame(page);
         const result = await page.evaluate(async () => {
