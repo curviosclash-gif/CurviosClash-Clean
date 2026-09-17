@@ -178,6 +178,7 @@ test.describe('T61-125: Stress, I/O & Sicherheit', () => {
             // Fight lists the model showcases only behind their own collection filter.
             await page.selectOption('#map-filter-select', 'showcase');
             await page.selectOption('#map-select', 'showcase_nexus');
+            await page.selectOption('#map-filter-select', 'all');
             await page.evaluate(() => {
                 const slider = document.getElementById('bot-count');
                 slider.value = '2';

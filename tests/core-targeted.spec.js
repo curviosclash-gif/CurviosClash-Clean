@@ -245,6 +245,7 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         if (mapSelection.visibleGlbKey) {
             await page.selectOption('#map-select', glbMapKey);
             await page.waitForFunction((mapKey) => window.GAME_INSTANCE?.settings?.mapKey === mapKey, glbMapKey, { timeout: 5000 });
+            await page.selectOption('#map-filter-select', 'all');
             await page.waitForFunction(() => {
                 const previewText = document.getElementById('map-preview')?.textContent || '';
                 return /\bGLB\b/i.test(previewText);
@@ -405,6 +406,8 @@ test.describe('T1-20: Core & Infrastruktur - Shell & Setup', () => {
         await page.selectOption('#map-filter-select', 'showcase');
         await page.selectOption('#map-select', 'showcase_nexus');
         await page.waitForFunction(() => window.GAME_INSTANCE?.settings?.mapKey === 'showcase_nexus', null, { timeout: 5000 });
+        // The filter is saved in the profile; later specs expect the full list again.
+        await page.selectOption('#map-filter-select', 'all');
         await page.evaluate(() => {
             const slider = document.getElementById('bot-count');
             slider.value = '3';
