@@ -16,6 +16,11 @@ import {
     resolveItemProjectileTarget,
 } from './ItemProjectileTargetingOps.js';
 import { resolveLockedPlayerIndex } from './RocketThreatTracker.js';
+import {
+    clearInterceptState,
+    findProjectileByTraversalId,
+    resolveInterceptAimPosition,
+} from './RocketInterceptOps.js';
 
 function clamp01(value) {
     const numeric = Number(value);
@@ -328,7 +333,17 @@ export class ProjectileSimulationOps {
             );
         }
 
-        if (homingEnabled) {
+        // A defence rocket chases a rocket, not a player. Its target is looked up by id
+        // every tick: pooled states are recycled, so a stale id simply finds nothing and
+        // the rocket falls back to normal hunting (A3).
+        let interceptTarget = null;
+        if (projectile.isInterceptor) {
+            interceptTarget = findProjectileByTraversalId(this.system?.projectiles, projectile.interceptTargetId);
+            if (!interceptTarget) clearInterceptState(projectile);
+            else projectile.target = null;
+        }
+
+        if (homingEnabled && !interceptTarget) {
             projectile.homingReacquireTimer = Math.max(0, (projectile.homingReacquireTimer || 0) - dt);
             let currentTarget = resolveHuntTargetPosition(
                 projectile.target,
@@ -353,16 +368,25 @@ export class ProjectileSimulationOps {
             }
         }
 
-        const targetPosition = resolveHuntTargetPosition(
-            projectile.target,
-            players,
-            trailSpatialIndex,
-            this._tmpTargetPosition,
-            { scratch: this._targetingScratch }
-        );
-        projectile.lockedPlayerIndex = resolveLockedPlayerIndex(projectile.target, players);
+        const targetPosition = interceptTarget
+            ? resolveInterceptAimPosition(
+                projectile,
+                interceptTarget,
+                this._tmpTargetPosition,
+                rocketRuntime.homingLeadTimeMax,
+                rocketRuntime.homingSpeedEpsilon
+            )
+            : resolveHuntTargetPosition(
+                projectile.target,
+                players,
+                trailSpatialIndex,
+                this._tmpTargetPosition,
+                { scratch: this._targetingScratch }
+            );
+        // E37: an interceptor locks on nobody, so it never raises a rocket warning.
+        projectile.lockedPlayerIndex = interceptTarget ? -1 : resolveLockedPlayerIndex(projectile.target, players);
         if (targetPosition) {
-            const targetPlayer = resolveHuntTargetOwnerPlayer(projectile.target, players);
+            const targetPlayer = interceptTarget ? null : resolveHuntTargetOwnerPlayer(projectile.target, players);
             const leadOnPlayer = !!targetPlayer?.velocity && (
                 isPlayerTargetDescriptor(projectile.target)
                 || projectile.target === targetPlayer

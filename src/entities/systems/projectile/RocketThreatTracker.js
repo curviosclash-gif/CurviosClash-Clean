@@ -37,6 +37,11 @@ function createThreatEntry() {
         direction: { x: 0, y: 0, z: 0 },
         nearestProjectileId: '',
         nearestSource: '',
+        // The nearest rocket a defence rocket may actually be sent after: exclusion zone
+        // rockets cannot be shot down (A9), so they never appear here even when they are
+        // the closest threat.
+        nearestInterceptableId: '',
+        nearestInterceptableDistance: 0,
     };
 }
 
@@ -50,6 +55,8 @@ function resetThreatEntry(entry) {
     entry.direction.z = 0;
     entry.nearestProjectileId = '';
     entry.nearestSource = '';
+    entry.nearestInterceptableId = '';
+    entry.nearestInterceptableDistance = 0;
 }
 
 const KNOWN_THREAT_SOURCES = new Set(Object.values(ROCKET_THREAT_SOURCES));
@@ -117,6 +124,8 @@ export class RocketThreatTracker {
         for (let i = 0; i < projectiles.length; i += 1) {
             const projectile = projectiles[i];
             if (!projectile || !isRocketTierType(projectile.type)) continue;
+            // E37: a defence rocket chases a rocket, never a player - it is no threat.
+            if (projectile.isInterceptor === true) continue;
 
             const playerIndex = Number(projectile.lockedPlayerIndex);
             if (!Number.isInteger(playerIndex) || playerIndex < 0) continue;
@@ -135,12 +144,21 @@ export class RocketThreatTracker {
 
             const entry = this._threats[playerIndex];
             entry.count += 1;
+            const traversalId = String(projectile.traversalId || '');
+            const source = resolveRocketThreatSource(projectile);
+            // Tracked before the "nearest" shortcut below, so a closer zone rocket never
+            // hides the player rocket a defence rocket could still reach.
+            if (source !== ROCKET_THREAT_SOURCES.ZONE && traversalId
+                && (!entry.nearestInterceptableId || distance < entry.nearestInterceptableDistance)) {
+                entry.nearestInterceptableId = traversalId;
+                entry.nearestInterceptableDistance = distance;
+            }
             if (entry.active && distance >= entry.nearestDistance) continue;
 
             entry.active = true;
             entry.nearestDistance = distance;
-            entry.nearestProjectileId = String(projectile.traversalId || '');
-            entry.nearestSource = resolveRocketThreatSource(projectile);
+            entry.nearestProjectileId = traversalId;
+            entry.nearestSource = source;
             const scale = distance > 0 ? 1 / distance : 0;
             entry.direction.x = dx * scale;
             entry.direction.y = dy * scale;

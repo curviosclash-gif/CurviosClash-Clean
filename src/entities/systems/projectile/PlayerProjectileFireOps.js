@@ -11,6 +11,11 @@ import {
 } from '../../../shared/contracts/GameplayActionResultContract.js';
 import { configureProjectileRange } from './ProjectileStatePool.js';
 import {
+    canRocketIntercept,
+    pickWeakestRocketIndex,
+    resolveInterceptTargetId,
+} from './RocketInterceptOps.js';
+import {
     ITEM_PROJECTILE_TARGETING_PROFILE,
     isItemProjectileType,
 } from './ItemProjectileTargetingOps.js';
@@ -31,7 +36,12 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     const strategy = system.getStrategy();
     const modeType = String(strategy?.getPickupModeType?.() || strategy?.modeType || 'CLASSIC').trim().toUpperCase();
     const { rocketInventory } = ensurePlayerInventoryCollections(player);
-    const rocketType = normalizePickupType(rocketInventory[0], { fallback: rocketInventory[0] });
+    // E76: nothing fires by itself. The player pressed the rocket key; only because a
+    // rocket is chasing them right now does this shot become a defence rocket.
+    const interceptTargetId = resolveInterceptTargetId(system, player);
+    // E77: defending spends the weakest rocket, an ordinary shot the front one.
+    const rocketIndex = interceptTargetId && rocketOnly ? pickWeakestRocketIndex(rocketInventory) : 0;
+    const rocketType = normalizePickupType(rocketInventory[rocketIndex], { fallback: rocketInventory[rocketIndex] });
     const itemPreview = rocketOnly
         ? (rocketType
             ? buildGameplayActionResult({ ok: true, code: GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_SUCCESS, type: rocketType })
@@ -100,7 +110,10 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     system._tmpFanAxis.crossVectors(system._tmpDir, system._tmpFanRight);
     if (system._tmpFanAxis.lengthSq() <= 0.000001) system._tmpFanAxis.set(0, 1, 0);
     else system._tmpFanAxis.normalize();
-    const lockOnTarget = system.resolveLockOn(player, itemHomingProfile ? 'item' : 'rocket');
+    const intercepting = !!interceptTargetId && canRocketIntercept(type, itemHomingProfile);
+    const lockOnTarget = intercepting
+        ? null
+        : system.resolveLockOn(player, itemHomingProfile ? 'item' : 'rocket');
     if (itemHomingProfile && (!lockOnTarget || !lockOnTarget.alive || lockOnTarget.decoyActive)) {
         return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_FORBIDDEN, 'Kein Ziel', type);
     }
@@ -134,8 +147,10 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.homingRange = homingRange;
         projectile.homingReacquireInterval = homingReacquireInterval;
         projectile.homingReacquireTimer = 0;
+        projectile.isInterceptor = intercepting;
+        projectile.interceptTargetId = intercepting ? interceptTargetId : '';
         projectile.target = lockOnTarget;
-        if (homingEnabled && (!projectile.target || !projectile.target.alive)) {
+        if (!intercepting && homingEnabled && (!projectile.target || !projectile.target.alive)) {
             projectile.target = system._acquireHomingTarget(
                 projectile,
                 system.getPlayers(),
@@ -152,7 +167,7 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
     }
 
     const itemResult = rocketOnly && rocketType
-        ? { ok: rocketInventory.shift() === rocketType, type: rocketType }
+        ? { ok: rocketInventory.splice(rocketIndex, 1)[0] === rocketType, type: rocketType }
         : system.takeInventoryItem(player, preferredIndex, 'shoot');
     if (!itemResult.ok) {
         return failed(GAMEPLAY_ACTION_RESULT_CODES.ITEM_SHOOT_EMPTY, 'Kein Item verfuegbar', type);
