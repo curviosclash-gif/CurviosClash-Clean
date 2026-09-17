@@ -122,6 +122,8 @@ function buildPlayerHudProjection({ runtimeState, game, entityManager, player })
         rocketThreat: entityManager?._projectileSystem?.getRocketThreat?.(player?.index) || null,
         mapExpansion: entityManager?.arena?.getMapExpansionHudState?.() || null,
         mapDestructible: entityManager?._mapDestructibleSystem?.getHudState?.() || null,
+        secretRoom: entityManager?._secretRoomSystem?.getHudStateForPlayer?.(player?.index) || null,
+        secretRoomsOpen: entityManager?._secretRoomSystem?.getOpenedRoomCount?.() || 0,
         traversal: buildTraversalProjection(entityManager, player?.index),
         turrets: entityManager?._staticTurretSystem?.getHudStatesForPlayer?.(player?.index) || [],
         turret: entityManager?._staticTurretSystem?.getHudStateForPlayer?.(player?.index) || null,

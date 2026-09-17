@@ -10,6 +10,7 @@ import {
 } from './HudSegmentedArc.js';
 import { formatMapDestructibleStatus } from './MapDestructibleStatusText.js';
 import { formatMapExpansionStatus } from './MapExpansionStatusText.js';
+import { formatSecretRoomStatus } from './SecretRoomStatusText.js';
 
 function toFiniteNumber(value, fallback = 0) {
     const parsed = Number(value);
@@ -273,7 +274,7 @@ export class HUD {
         }
 
         this._updateExclusionZoneStatus(player.exclusionZoneState);
-        this._updateMapExpansionStatus(player.mapExpansion);
+        this._updateMapExpansionStatus(player.mapExpansion, player.secretRoom);
         this._updateMapDestructibleStatus(player.mapDestructible);
 
         const fallbackGameplayConfig = resolveGameplayConfig({
@@ -504,11 +505,14 @@ export class HUD {
         this._setClassFlag(this.exclusionZoneStatus, 'salvo', phase === 'SALVO');
     }
 
-    _updateMapExpansionStatus(state) {
-        const text = formatMapExpansionStatus(state);
+    // One line, two senders: inside a secret room the countdown wins, because a hint about the
+    // next sector is worthless to someone who is about to be thrown out of the map.
+    _updateMapExpansionStatus(state, secretRoomState = null) {
+        const secretText = formatSecretRoomStatus(secretRoomState);
+        const text = secretText || formatMapExpansionStatus(state);
         this._setClassFlag(this.mapExpansionStatus, 'hidden', !text);
         this._setText(this.mapExpansionStatus, text);
-        this._setClassFlag(this.mapExpansionStatus, 'opening', state?.phase === 'OPENING');
+        this._setClassFlag(this.mapExpansionStatus, 'opening', !secretText && state?.phase === 'OPENING');
     }
 
     _updateMapDestructibleStatus(state) {

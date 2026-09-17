@@ -9,6 +9,7 @@ import { updateHuntReserveArcs } from './HuntHudReserveArcs.js';
 import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from './HuntHudRocketWarning.js';
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
 import { HuntInterceptAnnouncer } from './HuntInterceptAnnouncer.js';
+import { SecretRoomAnnouncer } from './SecretRoomAnnouncer.js';
 import { formatHuntClock, formatHuntScoreboard, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
@@ -67,6 +68,7 @@ export class HuntHUD {
         this._matchAnnouncement = this.root?.ownerDocument
             ? new MatchHudAnnouncement(this.root) : null;
         this._interceptAnnouncer = new HuntInterceptAnnouncer();
+        this._secretRoomAnnouncer = new SecretRoomAnnouncer();
         this.p1HpFill = refs.p1HpFill ?? null;
         this.p1HpText = refs.p1HpText ?? null;
         this.p1Respawn = refs.p1Respawn ?? null;
@@ -198,6 +200,7 @@ export class HuntHUD {
         this._leaderKills = -1;
         this._matchAnnouncement?.reset();
         this._interceptAnnouncer.reset();
+        this._secretRoomAnnouncer.reset();
         this._progressState.filled = -1;
         this.targetProgress?.classList.add('hidden');
         this._damageIndicatorCache.p2Visible = null;
@@ -259,6 +262,9 @@ export class HuntHUD {
 
         if (this._consumeTick('_playerPanelTickTimer', dt, playerPanelInterval) > 0) {
             this._updateMatchStatus(huntProjection, humans.map((human) => human?.playerIndex ?? human?.index));
+            // E8: the opened room count is match wide, so any projected player carries it.
+            const secretRoomMessage = this._secretRoomAnnouncer.consume(humans[0]?.secretRoomsOpen);
+            if (secretRoomMessage) this._matchAnnouncement?.show(secretRoomMessage);
             this._updatePlayerPanel(humans[0], {
                 hpFill: this.p1HpFill,
                 hpText: this.p1HpText,

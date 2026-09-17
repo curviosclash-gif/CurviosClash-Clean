@@ -230,6 +230,22 @@ export function createRocketThreatProjection(value = null) {
     };
 }
 
+/**
+ * How long this player may still stay in the hidden room he is standing in.
+ *
+ * Additive v1 field: a producer that knows no secret rooms yields "outside", and so does anything
+ * unreadable - a HUD must never count down for a player who is not in a room at all.
+ */
+function createSecretRoomProjection(value = null) {
+    const source = value && typeof value === 'object' ? value : {};
+    const inside = source.inside === true;
+    return {
+        inside,
+        remainingSeconds: inside ? Math.max(0, normalizeNumber(source.remainingSeconds, 0)) : 0,
+        roomId: inside ? normalizeString(source.roomId, '').slice(0, 80) : '',
+    };
+}
+
 function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
@@ -276,6 +292,9 @@ function createPlayerProjection(value = null) {
         rocketThreat: createRocketThreatProjection(value.rocketThreat),
         mapExpansion: createMapExpansionProjection(value.mapExpansion),
         mapDestructible: createMapDestructibleProjection(value.mapDestructible),
+        secretRoom: createSecretRoomProjection(value.secretRoom),
+        // Match wide, like the expansion above: opened rooms that had to be unlocked first.
+        secretRoomsOpen: normalizeNonNegativeInt(value.secretRoomsOpen, 0),
         traversal: createTraversalProjection(value.traversal),
         turrets: Array.isArray(value.turrets) ? value.turrets.filter((entry) => entry && (entry.weapon === 'mg' || entry.weapon === 'rocket')).map((entry) => ({
             weapon: entry.weapon,
