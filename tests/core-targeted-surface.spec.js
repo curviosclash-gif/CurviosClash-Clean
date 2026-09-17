@@ -1399,9 +1399,11 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
 
     test('T20p: Multiplayer-Join zeigt Feldgrund und fokussiert den Lobby-Code', async ({ page }) => {
         await loadGame(page);
-        await openMultiplayerSubmenu(page);
+        await openMultiplayerSubmenu(page, { requireActive: true });
         await expect(page.locator('#btn-start')).toBeHidden();
-        await expect(page.locator('#multiplayer-inline-stub')).toHaveJSProperty('open', true);
+        // The lobby surface is a div since 879e9ac4, so "open" no longer exists on it.
+        await expect(page.locator('#multiplayer-inline-stub')).toBeVisible();
+        await expect(page.locator('#multiplayer-connection-controls')).toBeVisible();
         await page.click('#btn-multiplayer-join');
         await expect(page.locator('#multiplayer-status')).toContainText('Lobby-Code fehlt');
         await expect(page.locator('#multiplayer-lobby-code')).toHaveAttribute('aria-invalid', 'true');

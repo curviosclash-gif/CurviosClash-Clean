@@ -233,13 +233,11 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T20c: Multiplayer ist als Session-Typ in Ebene 1 waehlbar', async ({ page }) => {
         await loadGame(page);
         await expect(page.locator('#menu-nav [data-session-type="multiplayer"]')).toBeVisible();
-        const multiplayerActive = await openMultiplayerSubmenu(page);
-        await expect(page.locator('#submenu-game')).toBeVisible();
-        if (multiplayerActive) {
-            await expect(page.locator('#multiplayer-inline-stub')).toBeVisible();
-            return;
-        }
-        await expect(page.locator('#multiplayer-inline-stub')).toBeHidden();
+        // This test proves the user path, so the helper may not fall back to the runtime: the
+        // nav button itself has to open the lobby and switch the session type.
+        await openMultiplayerSubmenu(page, { requireActive: true, allowRuntimeFallback: false });
+        await expect(page.locator('#submenu-multiplayer')).toBeVisible();
+        await expect(page.locator('#multiplayer-inline-stub')).toBeVisible();
     });
 
     test('T20d: Multiplayer-Bridge emittiert lifecycle.v1 Event-Contract', async ({ page }) => {
@@ -369,6 +367,10 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             await page.click('#btn-multiplayer-host');
             await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
 
+            // The map picker lives in the match setup screen, which the host reaches from the
+            // lobby through "Match aendern" and leaves again through "Zur Lobby".
+            await page.click('#btn-lobby-edit-match');
+            await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
             const selectedMapKey = await page.evaluate(() => {
                 const select = document.getElementById('map-select');
                 if (!(select instanceof HTMLSelectElement)) return null;
@@ -380,6 +382,8 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             expect(selectedMapKey).toBeTruthy();
             await page.selectOption('#map-select', String(selectedMapKey));
             await page.waitForFunction((mapKey) => window.GAME_INSTANCE?.settings?.mapKey === mapKey, String(selectedMapKey), { timeout: 5000 });
+            await page.click('#btn-setup-lobby');
+            await page.waitForSelector('#submenu-multiplayer:not(.hidden)', { timeout: 5000 });
 
             const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
             expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
