@@ -60,6 +60,54 @@ test('RoundRecorder erzeugt Ghost-Clip auch bei stark gedrosselter Frame-Aufnahm
     }
 });
 
+test('RoundRecorder haelt Ghost-Frames auseinander, wenn die Runde nur Sekundenbruchteile zaehlt', () => {
+    // A hidden or throttled window advances the round clock by fractions of a millisecond
+    // between snapshots. The ghost clip format stores whole milliseconds, so such a timeline
+    // would collapse into a single instant and the replay would freeze on the last pose.
+    const recorder = new RoundRecorder();
+    const players = [createPlayer(0, false, 0, 1, 0)];
+    recorder.startRound(players);
+
+    const sampleTimes = [0, 0.0001, 0.0001, 0.0001, 0.0001, 0.0002];
+    for (let index = 0; index < sampleTimes.length; index++) {
+        const snapshot = recorder.snapshots[index];
+        snapshot.time = sampleTimes[index];
+        snapshot.playerCount = 1;
+        snapshot.players[0] = {
+            idx: 0,
+            alive: true,
+            x: -18 + index * 4.2,
+            y: 1,
+            z: 9 - index * 1.8,
+            qx: 0,
+            qy: 0,
+            qz: 0,
+            qw: 1,
+            bot: false,
+        };
+    }
+    recorder.snapshotCount = sampleTimes.length;
+    recorder.snapshotIndex = sampleTimes.length;
+
+    const clip = recorder.getLastRoundGhostClip(players, { displayDuration: 3 });
+
+    assert.ok(clip, 'expected a ghost clip');
+    const frameTimes = clip.frames.map((frame) => frame.time);
+    assert.ok(
+        clip.sourceDuration >= 0.001,
+        `source duration must survive millisecond rounding, got ${clip.sourceDuration}`
+    );
+    assert.ok(
+        frameTimes[frameTimes.length - 1] > frameTimes[0],
+        `frame times must span the clip, got ${JSON.stringify(frameTimes)}`
+    );
+    assert.equal(
+        new Set(frameTimes).size,
+        frameTimes.length,
+        `every frame needs its own playback time, got ${JSON.stringify(frameTimes)}`
+    );
+});
+
 test('RoundRecorder kann Bot-Ghost-Clips nur explizit fuer Debug-Pfade einschliessen', () => {
     const recorder = new RoundRecorder();
     recorder._snapshotInterval = 1000;
