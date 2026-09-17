@@ -7,6 +7,12 @@ import { resolveGlobalTimeScale } from './PlayerChargeOps.js';
 const SPEED_EFFECT_TYPES = Object.freeze(['SPEED_UP', 'SLOW_DOWN']);
 const TRAIL_EFFECT_TYPES = Object.freeze(['THICK', 'THIN']);
 const GLOBAL_TIME_EFFECT_TYPES = Object.freeze(['SLOW_TIME']);
+const FLAMETHROWER_EFFECT_TYPES = Object.freeze(['FLAMETHROWER']);
+
+function resolveFlamethrowerFuelSeconds(player) {
+    const configured = Number(resolveEntityRuntimeConfig(player)?.HUNT?.FLAMETHROWER?.FUEL_SECONDS);
+    return Number.isFinite(configured) && configured > 0 ? configured : 0;
+}
 
 function removeEffectsByRole(player, role) {
     for (let i = player.activeEffects.length - 1; i >= 0; i -= 1) {
@@ -120,6 +126,13 @@ export function recomputePlayerEffectState(player) {
     player.hasSlowTime = !!slowTimeEffect;
     player.slowTimeScale = Number.isFinite(slowTimeDef?.timeScale) ? slowTimeDef.timeScale : 1;
     player.slowTimeExemptsOwner = !!slowTimeEffect && slowTimeDef?.timeScaleExemptsOwner === true;
+
+    // Flamethrower tank: the fuel lives on the effect entry, so every activeEffects reset
+    // (death, respawn, round restart) empties the tank without a second bookkeeping site.
+    // S4.2 drains effect.fuelSeconds while the machine gun key is held.
+    const flameEffect = findLatestAllowedEffect(player, FLAMETHROWER_EFFECT_TYPES, modeType);
+    player.flameFuelSeconds = flameEffect ? Math.max(0, Number(flameEffect.fuelSeconds) || 0) : 0;
+    player.hasFlamethrower = !!flameEffect && player.flameFuelSeconds > 0;
 
     // Shield: mode-specific - in HUNT expires by HP, in CLASSIC/ARCADE by timer
     const shieldEffectActive = hasAllowedEffect(player, 'SHIELD', modeType);
@@ -266,6 +279,10 @@ export function applyPlayerPowerup(player, type, options = {}) {
         const runtimeConfig = resolveEntityRuntimeConfig(player);
         player._pickupShieldOwned = true;
         grantShield(player, runtimeConfig);
+    }
+
+    if (type === 'FLAMETHROWER') {
+        player.activeEffects[player.activeEffects.length - 1].fuelSeconds = resolveFlamethrowerFuelSeconds(player);
     }
 
     recomputePlayerEffectState(player);

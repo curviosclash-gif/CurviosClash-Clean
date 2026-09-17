@@ -260,6 +260,12 @@ export const HUNT_CONFIG = Object.freeze({
         FAN_3: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_3.spawnWeights.HUNT,
         FAN_4: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_4.spawnWeights.HUNT,
         FAN_5: WEAPON_FAN_PICKUP_DEFINITIONS.FAN_5.spawnWeights.HUNT,
+        // Hunt picks from this table, not from the registry spawn weights. Zero keeps the
+        // flamethrower out of the pool until S4.2/S4.3 give it an effect.
+        FLAMETHROWER: 0,
+    }),
+    FLAMETHROWER: Object.freeze({
+        FUEL_SECONDS: 6,
     }),
     TRAIL_SEGMENT_HP: 3,
     RESPAWN: Object.freeze({

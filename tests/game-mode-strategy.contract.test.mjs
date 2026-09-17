@@ -149,6 +149,9 @@ test('Fight fans receive 5/4/3 percent and every other base spawn chance shrinks
     const nonRocketTypes = getPickupTypes().filter((type) => (
         isPickupTypeAllowedForMode(type, 'HUNT')
         && !isRocketPickupType(type)
+        // Items parked at weight 0 (the flamethrower until S4.2 ships its effect) never
+        // spawn and therefore take no share of the percentage split.
+        && (HUNT_CONFIG.PICKUP_WEIGHTS[type] ?? 1) > 0
     ));
     const otherTypes = nonRocketTypes.filter((type) => type !== 'MG_TURRET' && type !== 'ROCKET_TURRET');
     const weights = HUNT_CONFIG.PICKUP_WEIGHTS;
