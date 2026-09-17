@@ -1011,6 +1011,8 @@ test.describe('Physics Hunt (Tests 61-64, 83-89e)', () => {
             enemy.maxHp = Math.max(100, Number(enemy.maxHp) || 100);
             enemy.hasShield = false;
             enemy.shieldHP = 0;
+            // The round just started; the spawn protection would swallow the rocket damage.
+            enemy.spawnProtectionTimer = 0;
             enemy.position.set(0, 50, -30);
 
             game.audio.clearDebugEvents();

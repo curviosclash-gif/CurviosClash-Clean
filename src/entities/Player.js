@@ -99,7 +99,7 @@ export class Player {
         this.cockpitCamera = gameplayCameraState.cockpitCamera;
         this.spawnProtectionTimer = 0;
         // Short grace after a bounce so the same wall is not hit again on the next frame.
-        // Kept apart from spawnProtectionTimer, which also makes a player untargetable.
+        // Kept apart from spawnProtectionTimer, which also makes a player immune to damage.
         this.arenaCollisionGraceTimer = 0;
         this.wallDamageCooldown = 0;
         this.crashDamageCooldown = 0;
@@ -405,9 +405,10 @@ export class Player {
     }
 
     takeDamage(amount, options = {}) {
+        // Walls, trails, hazards and turrets already skip a protected vehicle; weapon hits land here.
+        if ((this.spawnProtectionTimer || 0) > 0) return { applied: 0, absorbedByShield: 0, hpApplied: 0, remainingHp: this.hp, isDead: this.hp <= 0 };
         const clockMs = this.entityManager?._simulationClockMs;
-        if (!Number.isFinite(clockMs) || options.nowSeconds != null) return applyDamage(this, amount, options);
-        return applyDamage(this, amount, { ...options, nowSeconds: Math.max(0, clockMs) * 0.001 });
+        return applyDamage(this, amount, Number.isFinite(clockMs) && options.nowSeconds == null ? { ...options, nowSeconds: Math.max(0, clockMs) * 0.001 } : options);
     }
 
     heal(amount) {
