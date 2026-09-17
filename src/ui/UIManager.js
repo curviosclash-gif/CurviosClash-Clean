@@ -26,6 +26,7 @@ import {
 import { normalizeHudAppearance } from '../shared/contracts/HudAppearanceContract.js';
 import { applyRuntimeHudAppearance, resolveHudColorPresetLabel } from './HudAppearance.js';
 import { syncArcadeRunSettings } from './menu/MenuArcadeRunSettingsBindings.js';
+import { syncHuntRespawnToggle } from './menu/MenuHuntRespawnToggleSync.js';
 import { syncMenuPresetState } from './menu/MenuPresetStateSync.js';
 import { syncMenuDeveloperState } from './menu/MenuDeveloperStateSync.js';
 import { syncNormalCameraPerspectiveUi } from './menu/CameraPerspectiveUiSync.js';
@@ -400,10 +401,7 @@ export class UIManager {
         if (ui.huntRespawnRow) {
             ui.huntRespawnRow.classList.toggle('hidden', resolvedGameMode !== GAME_MODE_TYPES.HUNT);
         }
-        if (ui.huntRespawnToggle) {
-            ui.huntRespawnToggle.checked = huntRespawnEnabled;
-            ui.huntRespawnToggle.disabled = resolvedGameMode !== GAME_MODE_TYPES.HUNT;
-        }
+        syncHuntRespawnToggle(ui.huntRespawnToggle, settings, { huntModeActive: resolvedGameMode === GAME_MODE_TYPES.HUNT, respawnEnabled: huntRespawnEnabled });
         if (ui.huntDeathmatchRules) {
             ui.huntDeathmatchRules.classList.toggle('hidden', !huntRespawnEnabled);
             ui.huntDeathmatchRules.setAttribute('aria-hidden', String(!huntRespawnEnabled));

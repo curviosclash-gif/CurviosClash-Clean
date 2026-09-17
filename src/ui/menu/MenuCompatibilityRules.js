@@ -117,6 +117,14 @@ function applySessionTypeModeSyncRule(settings, result) {
     );
 }
 
+const RESPAWN_FIXED_MODE_PATHS = Object.freeze(['fight', 'arcade', 'normal']);
+
+// These mode paths decide respawn on their own (on for Fight, off otherwise), so the menu
+// toggle cannot change it and has to show that instead of silently snapping back.
+export function isHuntRespawnFixedByModePath(settings) {
+    return RESPAWN_FIXED_MODE_PATHS.includes(normalizeString(settings?.localSettings?.modePath));
+}
+
 function applyModePathGameModeSyncRule(settings, result) {
     if (!settings?.localSettings || typeof settings.localSettings !== 'object') return;
     const modePath = normalizeString(settings.localSettings.modePath);
@@ -152,7 +160,7 @@ function applyModePathGameModeSyncRule(settings, result) {
         settings.hunt.respawnEnabled = false;
     }
     const expectedRespawnEnabled = shouldUseHunt;
-    if ((shouldUseHunt || shouldUseArcade || shouldUseClassic)
+    if (isHuntRespawnFixedByModePath(settings)
         && settings.hunt.respawnEnabled !== expectedRespawnEnabled) {
         const previousRespawnEnabled = settings.hunt.respawnEnabled;
         settings.hunt.respawnEnabled = expectedRespawnEnabled;
