@@ -4,6 +4,7 @@
 
 import * as THREE from 'three';
 import { runDecision } from './ai/BotDecisionOps.js';
+import { createRocketDefenseMemory, resetRocketDefenseMemory } from './ai/BotRocketDefenseOps.js';
 import { runAction } from './ai/BotActionOps.js';
 import { estimateEnemyPressure, estimatePointRisk, selectTarget } from './ai/BotTargetingOps.js';
 import { enterRecovery, updateRecovery, updateStuckState } from './ai/BotRecoveryOps.js';
@@ -102,6 +103,9 @@ export class BotAI {
         this._lastCollisionNormal = new THREE.Vector3();
         this._hasCollisionNormal = false;
 
+        // S2.5: one answer per chasing rocket, in a ring that never grows.
+        this._rocketDefenseMemory = createRocketDefenseMemory();
+
         this._portalEntry = new THREE.Vector3();
         this._portalExit = new THREE.Vector3();
         this._portalTarget = null;
@@ -151,6 +155,8 @@ export class BotAI {
         this.reactionTimer = 0;
         this.state.turnCommitTimer = 0;
         this.state.recoveryActive = false;
+        // A new round means new rockets: old defence answers must not linger.
+        resetRocketDefenseMemory(this._rocketDefenseMemory);
     }
 
     setArcadeBotAggressiveness(value) {
