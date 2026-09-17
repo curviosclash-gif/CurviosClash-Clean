@@ -3879,7 +3879,8 @@ input[type="range"]::-webkit-slider-thumb {
 }
 
 #hud.split-screen .hunt-kill-feed {
-    top: 82px;
+    /* Below the centred match announcement (top 92px), which shares this column. */
+    top: 126px;
     right: auto;
     bottom: auto;
     left: 50%;
