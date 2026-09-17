@@ -24,6 +24,7 @@ import {
     summarizeEndlessRecordsLine,
 } from '../../shared/contracts/EndlessParcoursRecordsContract.js';
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
+import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -466,7 +467,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
     if (ui.startButton) {
         bind(ui.startButton, 'click', (event) => {
             if (!shouldShowArcade(settings)) return;
-            applySeedToSettings(activeSeed, { dailyChallenge: false });
+            releaseButtonOnlyArcadeRun(settings); applySeedToSettings(activeSeed, { dailyChallenge: false });
             const prepared = prepareHangarRunStart();
             if (prepared?.ok === false) {
                 event.preventDefault();
