@@ -24,6 +24,8 @@ export class GameRuntimeSettingsHandler {
     constructor({ facade = null } = {}) {
         this._facade = facade || null;
         this._pendingAutoSaveId = null;
+        // Bot count a scenario map replaced for its match, handed back on the way to the menu.
+        this._scenarioBotCountRestore = null;
     }
 
     captureMultiplayerMatchSettings() {
@@ -160,6 +162,7 @@ export class GameRuntimeSettingsHandler {
         }
 
         const changedKeys = [];
+        const botCountBefore = Number(settings.numBots);
         if (settings.localSettings.modePath !== scenario.modePath) {
             settings.localSettings.modePath = scenario.modePath;
             changedKeys.push(SETTINGS_CHANGE_KEYS.MODE_PATH);
@@ -174,6 +177,9 @@ export class GameRuntimeSettingsHandler {
         } else if (Number(settings.numBots) < scenario.minBots) {
             settings.numBots = scenario.minBots;
             changedKeys.push(SETTINGS_CHANGE_KEYS.BOTS_COUNT);
+        }
+        if (changedKeys.includes(SETTINGS_CHANGE_KEYS.BOTS_COUNT) && !this._scenarioBotCountRestore) {
+            this._scenarioBotCountRestore = { numBots: botCountBefore, scenarioNumBots: settings.numBots };
         }
         if (changedKeys.length === 0) {
             return { changed: false, changedKeys: [] };
@@ -206,6 +212,22 @@ export class GameRuntimeSettingsHandler {
             scenarioId: scenario.id,
             changedKeys: resolvedChangedKeys,
         };
+    }
+
+    // A scenario map sets its bots for the match it starts. Written straight into the
+    // settings, that count used to stay for every later map as well.
+    restoreMapScenarioBotCount() {
+        const restore = this._scenarioBotCountRestore;
+        this._scenarioBotCountRestore = null;
+        const game = this._facade?.game;
+        const settings = game?.settings;
+        if (!restore || !settings || Number(settings.numBots) !== restore.scenarioNumBots) return false;
+        if (!Number.isFinite(restore.numBots)) return false;
+        settings.numBots = restore.numBots;
+        game.uiManager?.syncByChangeKeys?.([SETTINGS_CHANGE_KEYS.BOTS_COUNT]);
+        game.uiManager?.updateContext?.();
+        this._scheduleSettingsAutoSave();
+        return true;
     }
 
     onSettingsChanged(event = null) {

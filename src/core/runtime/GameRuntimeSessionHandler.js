@@ -327,6 +327,7 @@ export class GameRuntimeSessionHandler {
             return false;
         }
         this._matchStartRuntime.cancel();
+        this._facade?.settingsHandler?.restoreMapScenarioBotCount?.();
         return this._facade?.finalizeMatch?.({
             ...options,
             reason: options?.reason || SESSION_FINALIZE_TRIGGERS.RETURN_TO_MENU,
