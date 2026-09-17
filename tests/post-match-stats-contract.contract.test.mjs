@@ -13,8 +13,6 @@ import {
     normalizePostMatchStats,
     upgradePostMatchStatsV1,
 } from '../src/shared/contracts/PostMatchStatsContract.js';
-import { RoundRecorder } from '../src/state/RoundRecorder.js';
-import { coordinateRoundEnd } from '../src/ui/MatchFlowRoundEndCoordinator.js';
 
 function findBlock(stats, blockId) {
     return stats.blocks.find((block) => block.id === blockId) || null;
@@ -393,31 +391,43 @@ test('the round trip through the normalizer keeps an already normalized summary 
     assert.deepEqual(second, first);
 });
 
-// The overlay summary that the live round-end coordinator produces today is v1: every value is an
-// already formatted string. The upgrade has to carry all of it across without losing a single row.
+// A stored v1 summary as the round-end coordinator produced it before P3: every value is an already
+// formatted string. Live production moved to v2, but such a payload still arrives from an old
+// recording or a peer on an older build, and the upgrade has to carry all of it across.
 function buildLiveV1Summary() {
-    const players = [
-        { index: 0, isBot: false, score: 0 },
-        { index: 1, isBot: true, score: 0 },
-    ];
-    const recorder = new RoundRecorder();
-    recorder.startMatch?.();
-    recorder.startRound(players);
-    recorder.logEvent('ITEM_USE', 0, 'mode=use type=SHIELD code=item.use.success ok=1');
-    const result = coordinateRoundEnd({
-        recorder,
-        winner: players[0],
-        players: players.map((player) => ({ ...player })),
-        roundStateController: {
-            deriveOnRoundEndPlan: () => ({ outcome: { state: 'ROUND_END', requiredWins: 2 }, transition: {} }),
-        },
-        humanPlayerCount: 1,
-        totalBots: 1,
-        winsNeeded: 2,
-        outcomeReason: 'KILL_LIMIT',
-        logger: { log() {} },
-    });
-    return result.statsSummary;
+    return {
+        contractVersion: POST_MATCH_STATS_LEGACY_CONTRACT_VERSION,
+        visible: true,
+        blocks: [
+            {
+                id: 'round',
+                title: 'Diese Runde',
+                rows: [
+                    { key: 'winner', label: 'Sieger', value: 'Spieler 1' },
+                    { key: 'objective', label: 'Grund', value: 'Abschusslimit erreicht' },
+                    { key: 'duration', label: 'Dauer', value: '12.5s' },
+                    { key: 'item-uses', label: 'Items', value: '1' },
+                    { key: 'stuck-rate', label: 'Hänger/min', value: '0.0' },
+                ],
+            },
+            {
+                id: 'match',
+                title: 'Match bisher',
+                rows: [
+                    { key: 'rounds', label: 'Runden', value: '1' },
+                    { key: 'bot-win-rate', label: 'Bot-Siegrate', value: '0%' },
+                ],
+            },
+            {
+                id: 'scoreboard',
+                title: 'Zwischenstand',
+                rows: [
+                    { key: 'player-0', label: 'Spieler 1', value: '1/2' },
+                    { key: 'player-1', label: 'Bot 2', value: '0/2' },
+                ],
+            },
+        ],
+    };
 }
 
 test('a real v1 summary from the round-end coordinator upgrades into v2 text rows', () => {

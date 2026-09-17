@@ -1,4 +1,5 @@
 import { createRoundEndRecorderAdapter, getLastRoundGhostClip } from './MatchFlowTransitionHotspots.js';
+import { resolveLocalPlayerIndexes } from './postmatch/PostMatchStandingsBlock.js';
 
 export class MatchFlowLifecycleController {
     constructor(deps = {}) {
@@ -192,8 +193,18 @@ export class MatchFlowLifecycleController {
             winsNeeded: game.winsNeeded,
             outcomeReason: typeof normalizedOutcome.reason === 'string' ? normalizedOutcome.reason : '',
             parcours: normalizedOutcome.parcours || null,
+            huntScoreboard: this._resolveHuntScoreboard(),
+            localPlayerIndexes: resolveLocalPlayerIndexes(game?.runtimeConfig?.session || null),
             logger: console,
         };
+    }
+
+    // Only HUNT keeps kills, deaths and assists; in every other mode the standings would show three
+    // zeroes per player, so the board gets nothing and prints nothing.
+    _resolveHuntScoreboard() {
+        const huntProjection = this.controller?._getMatchRuntimeProjection?.()?.hunt || null;
+        if (huntProjection?.active !== true) return null;
+        return this.game?.entityManager?.getHuntScoreboard?.() || null;
     }
 
     applyRoundEndCoordinatorPlan(roundEndPlan) {

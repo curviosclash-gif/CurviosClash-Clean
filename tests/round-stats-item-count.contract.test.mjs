@@ -50,8 +50,9 @@ test('the round result overlay counts used items, not machine gun trigger frames
     const recorder = recordRound();
     const result = endRound(recorder);
 
-    assert.equal(readRow(result.statsSummary, 'round', 'item-uses'), '3');
-    assert.equal(readRow(result.statsSummary, 'match', 'item-use-per-round'), '3.0');
+    // v2 carries raw numbers, so the board can show "3" and a tooltip can show "3,0".
+    assert.equal(readRow(result.statsSummary, 'round', 'item-uses'), 3);
+    assert.equal(readRow(result.statsSummary, 'match', 'item-use-per-round'), 3);
 });
 
 test('the raw telemetry count stays untouched by the overlay figure', () => {

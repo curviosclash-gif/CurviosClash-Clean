@@ -61,11 +61,12 @@ test('a new match restarts the aggregate round counter', () => {
     const recorder = new RoundRecorder();
     const renderer = createRendererStub();
 
+    // Die Tafel liefert seit v2 Rohzahlen statt fertiger Texte.
     const firstSummary = playOneRoundInFreshMatch(recorder, renderer);
-    assert.equal(readRoundsRow(firstSummary), '1');
+    assert.equal(readRoundsRow(firstSummary), 1);
 
     const secondSummary = playOneRoundInFreshMatch(recorder, renderer);
-    assert.equal(readRoundsRow(secondSummary), '1');
+    assert.equal(readRoundsRow(secondSummary), 1);
 });
 
 test('a new match also restarts the values derived from the round count', () => {
