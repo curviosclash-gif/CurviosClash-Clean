@@ -66,6 +66,39 @@ function playRocketShoot(audio, options) {
     });
 }
 
+/**
+ * Two short high beeps while a homing rocket is chasing the local player.
+ *
+ * Deliberately thin and bright so it cuts through the engine and never gets confused
+ * with HIT or ROCKET_SHOOT, both of which are low sawtooth hits. `intensity` rises when
+ * the rocket is close: the pair then sits higher and a touch louder.
+ */
+function playRocketWarning(audio, options) {
+    const intensity = audio._intensity(options, 0.6, 0.3, 1.2);
+    const gain = audio._createVoiceGraph(options);
+    if (!gain) return;
+    const t = audio.ctx.currentTime;
+    const beep = 0.055;
+    const gap = 0.05;
+    const total = (beep * 2) + gap;
+    const peak = Math.max(0.0001, 0.17 * intensity);
+    gain.gain.cancelScheduledValues(t);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + beep);
+    gain.gain.exponentialRampToValueAtTime(peak, t + beep + gap + 0.005);
+    gain.gain.exponentialRampToValueAtTime(0.0001, t + total);
+    const osc = audio.ctx.createOscillator();
+    osc.type = 'square';
+    const base = 1180 + (intensity * 260);
+    osc.frequency.setValueAtTime(base, t);
+    osc.frequency.setValueAtTime(base * 1.2, t + beep + gap);
+    osc.connect(gain);
+    osc.start(t);
+    osc.stop(t + total + 0.02);
+    audio._releaseVoice(total);
+}
+
 function playHit(audio, options) {
     const intensity = audio._intensity(options, 0.9, 0.2, 1.4);
     const playedRecording = audio._playRecordedSample?.('armorHit', {
@@ -252,6 +285,7 @@ const PLAYERS = Object.freeze({
     SHOOT: playShoot,
     MG_SHOOT: playMgShoot,
     ROCKET_SHOOT: playRocketShoot,
+    ROCKET_WARNING: playRocketWarning,
     HIT: playHit,
     MG_HIT: playMgHit,
     SHIELD_HIT: playShieldHit,
@@ -287,5 +321,6 @@ const PLAYERS = Object.freeze({
 });
 
 export function playGameplayVoice(audio, type, options = {}) {
-    PLAYERS[type]?.(audio, options);
+    if (!Object.hasOwn(PLAYERS, type)) return;
+    PLAYERS[type](audio, options);
 }
