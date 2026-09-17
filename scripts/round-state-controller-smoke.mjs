@@ -175,7 +175,7 @@ function runTickCases() {
     assert(roundReturn.action === 'RETURN_TO_MENU', `expected RETURN_TO_MENU, got ${roundReturn.action}`);
     assert(matchRestart.action === 'RESTART_MATCH', `expected RESTART_MATCH, got ${matchRestart.action}`);
     assert(matchReturn.action === 'RETURN_TO_MENU', `expected RETURN_TO_MENU, got ${matchReturn.action}`);
-    assert(typeof roundWait.countdownMessageSub === 'string' && roundWait.countdownMessageSub.includes('Naechste Runde'), 'expected roundWait countdown text');
+    assert(typeof roundWait.countdownMessageSub === 'string' && roundWait.countdownMessageSub.includes('Nächste Runde'), 'expected roundWait countdown text');
     assert(roundStart.shouldUpdateCameras === true, 'expected cameras=true on START_ROUND');
     assert(roundReturn.shouldUpdateCameras === false, 'expected cameras=false on round RETURN_TO_MENU');
     assert(matchRestart.shouldUpdateCameras === true, 'expected cameras=true on RESTART_MATCH');

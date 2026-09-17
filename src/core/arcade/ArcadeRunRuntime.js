@@ -1110,7 +1110,7 @@ export class ArcadeRunRuntime {
             ? `Arcade Run beendet - Score ${Math.round(scoreTotal)}`
             : `Sektor ${sectorLabel} abgeschlossen`;
         const messageSub = this._state.phase === ARCADE_RUN_PHASES.VICTORY ? 'Run abschließen oder freiwillig weiterspielen' : finished
-            ? 'ENTER fuer neuen Run oder ESC fuer Menue'
+            ? 'ENTER für neuen Run oder ESC für Menü'
             : `Intermission: Combo ${combo} / x${multiplier}`;
 
         return {

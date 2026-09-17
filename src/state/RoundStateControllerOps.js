@@ -55,7 +55,7 @@ export function deriveRoundEndTickStep(inputs = {}) {
         action: nextRoundPause <= 0 ? 'START_ROUND' : 'WAIT',
         nextRoundPause,
         shouldUpdateCameras: true,
-        countdownMessageSub: countdown > 0 ? `Naechste Runde in ${countdown}...` : null,
+        countdownMessageSub: countdown > 0 ? `Nächste Runde in ${countdown}...` : null,
     };
 }
 

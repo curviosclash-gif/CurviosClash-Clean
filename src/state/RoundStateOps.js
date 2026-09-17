@@ -60,8 +60,8 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
                 ? `Neuer Rekord - Score ${Math.floor(Number(summary.score) || 0)}`
                 : `Endlosjagd beendet - Score ${Math.floor(Number(summary.score) || 0)}`,
             messageSub: Array.isArray(summary.newMilestones) && summary.newMilestones.length > 0
-                ? `${summary.newMilestones.length} neue Meilensteine - ENTER fuer neuen Lauf`
-                : 'ENTER fuer neuen Lauf oder ESC fuer Menue',
+                ? `${summary.newMilestones.length} neue Meilensteine - ENTER für neuen Lauf`
+                : 'ENTER für neuen Lauf oder ESC für Menü',
         };
     }
 
@@ -79,7 +79,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
                 reason,
                 parcours,
                 messageText: `Parcours abgeschlossen: ${name}${completionSuffix}`,
-                messageSub: 'ENTER fuer neues Match oder ESC fuer Menue',
+                messageSub: 'ENTER für neues Match oder ESC für Menü',
             };
         }
         return {
@@ -90,7 +90,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             reason,
             parcours,
             messageText: `Sieg: ${name} (Score: ${matchWinner.score})`,
-            messageSub: 'ENTER fuer neues Match oder ESC fuer Menue',
+            messageSub: 'ENTER für neues Match oder ESC für Menü',
         };
     }
 
@@ -108,7 +108,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
                 reason,
                 parcours,
                 messageText: `Parcours abgeschlossen: ${name}${completionSuffix}`,
-                messageSub: 'Naechste Runde in 3...',
+                messageSub: 'Nächste Runde in 3...',
             };
         }
         return {
@@ -119,7 +119,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             reason,
             parcours,
             messageText: `${name} gewinnt die Runde`,
-            messageSub: 'Naechste Runde in 3...',
+            messageSub: 'Nächste Runde in 3...',
         };
     }
 
@@ -131,6 +131,6 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
         reason,
         parcours,
         messageText: 'Unentschieden',
-        messageSub: 'Naechste Runde in 3...',
+        messageSub: 'Nächste Runde in 3...',
     };
 }

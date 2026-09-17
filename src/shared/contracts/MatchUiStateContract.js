@@ -87,7 +87,7 @@ export function deriveRoundEndCountdownUiState(roundPause) {
         return null;
     }
     return {
-        messageSub: `Naechste Runde in ${countdown}...`,
+        messageSub: `Nächste Runde in ${countdown}...`,
     };
 }
 

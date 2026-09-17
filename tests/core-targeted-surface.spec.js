@@ -244,7 +244,7 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         expect(Number.parseFloat(overlayState.roundDuration)).toBeCloseTo(overlayState.recordedDuration, 2);
         expect(overlayState.matchRounds).toBe('1');
         expect(overlayState.scoreLeader).toBe('1/5');
-        expect(overlayState.countdownText).toContain('Naechste Runde in 3');
+        expect(overlayState.countdownText).toContain('Nächste Runde in 3');
     });
 
     test('T20kd: Match-End-Overlay zeigt Endstand und aggregierte Match-Stats', async ({ page }) => {

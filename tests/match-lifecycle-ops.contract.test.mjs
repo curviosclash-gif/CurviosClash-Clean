@@ -129,7 +129,7 @@ test('the round pause counts down and shows whole seconds', () => {
 
     assert.equal(step.action, 'WAIT');
     assert.ok(Math.abs(step.nextRoundPause - 2.6) < 1e-9);
-    assert.equal(step.countdownMessageSub, 'Naechste Runde in 3...');
+    assert.equal(step.countdownMessageSub, 'Nächste Runde in 3...');
 });
 
 test('a broken delta cannot rewind the countdown', () => {
