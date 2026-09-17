@@ -2,6 +2,13 @@
 // InputManager.js - keyboard input and dynamic bindings
 // ============================================
 
+import {
+    CONTINUE_INTENT_KEY,
+    GamepadContinueInput,
+    isContinueKeyEvent,
+    isContinueMouseEvent,
+    isInteractiveContinueTarget,
+} from '../shared/input/ContinueIntentOps.js';
 import { GamepadPauseInput } from '../shared/input/GamepadInputSource.js';
 import { CONFIG } from './Config.js';
 
@@ -36,8 +43,11 @@ export class InputManager {
     constructor() {
         this._gamepadPause = new GamepadPauseInput();
         this._gamepadPause.setBindings();
+        this._gamepadContinue = new GamepadContinueInput(this._gamepadPause);
         this.keys = {};
         this.justPressed = {};
+        // "Any key means continue" at round and match end; read via wasPressed('Continue').
+        this._continueIntent = false;
         this.bindings = deepClone(CONFIG.KEYS);
         this._preventDefaultCodes = new Set();
 
@@ -72,6 +82,7 @@ export class InputManager {
         this._document = window.document;
         this._onKeyDown = (e) => this._handleKeyDown(e);
         this._onKeyUp = (e) => this._handleKeyUp(e);
+        this._onMouseDown = (e) => this._handleMouseDown(e);
         this._onWindowBlur = () => this.clearInputState('window-blur');
         this._onWindowFocus = () => this.clearInputState('window-focus');
         this._onVisibilityChange = () => {
@@ -82,12 +93,43 @@ export class InputManager {
 
         window.addEventListener('keydown', this._onKeyDown);
         window.addEventListener('keyup', this._onKeyUp);
+        window.addEventListener('mousedown', this._onMouseDown);
         window.addEventListener('blur', this._onWindowBlur);
         window.addEventListener('focus', this._onWindowFocus);
         this._document?.addEventListener?.('visibilitychange', this._onVisibilityChange);
     }
 
+    /**
+     * DOM side of the continue rule: focus and event target are only readable here.
+     * The pure rules in ContinueIntentOps only get a finished yes/no.
+     */
+    _isContinueTargetInteractive(e) {
+        if (isInteractiveContinueTarget(e?.target)) return true;
+        return isInteractiveContinueTarget(document.activeElement);
+    }
+
+    _noteContinueIntentFromKey(e) {
+        // An already held key repeats; only the first edge is a decision.
+        if (this.keys[e.code]) return;
+        if (!isContinueKeyEvent({
+            code: e.code,
+            key: e.key,
+            repeat: e.repeat === true,
+            targetIsInteractive: this._isContinueTargetInteractive(e),
+        })) return;
+        this._continueIntent = true;
+    }
+
+    _handleMouseDown(e) {
+        if (!isContinueMouseEvent({
+            button: e?.button,
+            targetIsInteractive: this._isContinueTargetInteractive(e),
+        })) return;
+        this._continueIntent = true;
+    }
+
     _handleKeyDown(e) {
+        this._noteContinueIntentFromKey(e);
         if (this._isTextInputFocused()) return;
         if (!this.keys[e.code]) {
             this.justPressed[e.code] = true;
@@ -111,6 +153,8 @@ export class InputManager {
     setBindings(bindingsByPlayer) {
         this.gamepadControls = bindingsByPlayer;
         this._gamepadPause?.setBindings(bindingsByPlayer);
+        // A moved PAUSE button must not turn the button it left behind into a stale edge.
+        this._gamepadContinue?.clearInputState();
         this.bindings = {
             PLAYER_1: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_1, CONFIG.KEYS.PLAYER_1),
             PLAYER_2: this._normalizePlayerBindings(bindingsByPlayer?.PLAYER_2, CONFIG.KEYS.PLAYER_2),
@@ -201,12 +245,28 @@ export class InputManager {
     }
 
     wasPressed(code) {
+        if (code === CONTINUE_INTENT_KEY) return this._readContinueIntent();
         const controllerPressed = code === 'Escape' && this._gamepadPause?.wasPressed() === true;
         if (this.justPressed[code]) {
             this.justPressed[code] = false;
             return true;
         }
         return controllerPressed;
+    }
+
+    /** True for exactly one frame after a key, click or pad button said "continue". */
+    _readContinueIntent() {
+        // Poll unconditionally: the pad edge memory must advance every frame.
+        const gamepadPressed = this._gamepadContinue?.wasPressed() === true;
+        const pressed = this._continueIntent || gamepadPressed;
+        this._continueIntent = false;
+        return pressed;
+    }
+
+    /** Drops a pending continue so a board can open without consuming the press that closed the last one. */
+    clearContinueIntent() {
+        this._continueIntent = false;
+        this._gamepadContinue?.clearInputState();
     }
 
     clearJustPressed() {
@@ -216,6 +276,7 @@ export class InputManager {
     clearInputState(_reason = 'manual') {
         // Optional: tests build InputManager from its prototype without the constructor.
         this._gamepadPause?.clearInputState();
+        this.clearContinueIntent();
         this.keys = {};
         this.justPressed = {};
         for (const source of this._playerSources.values()) {
@@ -353,6 +414,10 @@ export class InputManager {
         if (this._onKeyUp) {
             window.removeEventListener('keyup', this._onKeyUp);
             this._onKeyUp = null;
+        }
+        if (this._onMouseDown) {
+            window.removeEventListener('mousedown', this._onMouseDown);
+            this._onMouseDown = null;
         }
         if (this._onWindowBlur) {
             window.removeEventListener('blur', this._onWindowBlur);
