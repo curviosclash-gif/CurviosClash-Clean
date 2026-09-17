@@ -20,12 +20,12 @@ const { GAME_STATE_IDS } = await import('../src/shared/contracts/GameStateIds.js
 const { getVehicleIds } = await import('../src/entities/vehicle-registry.js');
 const { CONFIG } = await import('../src/core/Config.js');
 
-function createModule({ runtimePort, setupView, hudView }) {
-    return new ThreePlayerSplitModule({ runtimePort, setupView, hudView, mapDefinitions: CONFIG.MAPS });
+function createModule({ runtimePort, setupView, hudView, getGamepad = () => ({ connected: true }) }) {
+    return new ThreePlayerSplitModule({ runtimePort, setupView, hudView, mapDefinitions: CONFIG.MAPS, getGamepad });
 }
 
 function createSetupView(controls) {
-    const calls = { applySelection: [], applyNormalizedSelection: [], opened: 0, closed: 0 };
+    const calls = { applySelection: [], applyNormalizedSelection: [], deviceStatus: [], opened: 0, closed: 0 };
     return {
         calls,
         controls,
@@ -35,6 +35,7 @@ function createSetupView(controls) {
         readControls: () => ({ ...controls, deviceAssignment: [...controls.deviceAssignment] }),
         applySelection: (selection) => calls.applySelection.push(selection),
         applyNormalizedSelection: (selection) => calls.applyNormalizedSelection.push(selection),
+        setDeviceStatus: (message) => calls.deviceStatus.push(message),
         openSetup: () => { calls.opened += 1; },
         closeSetup: () => { calls.closed += 1; },
         dispose() {},
@@ -153,6 +154,51 @@ test('duplicate three-player devices are reassigned before the selection is save
     const expected = ['gamepad-1', 'gamepad-2', 'keyboard'];
     assert.deepEqual(runtime.settings.localSettings.threePlayerSplit.deviceAssignment, expected);
     assert.deepEqual(setupView.calls.applyNormalizedSelection.at(-1).deviceAssignment, expected);
+});
+
+test('changing a device picker swaps its previous owner instead of reverting the choice', () => {
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['gamepad-1', 'gamepad-2', 'gamepad-1'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView() });
+
+    module._persistSetupSelection(2);
+
+    const expected = ['keyboard', 'gamepad-2', 'gamepad-1'];
+    assert.deepEqual(runtime.settings.localSettings.threePlayerSplit.deviceAssignment, expected);
+    assert.deepEqual(setupView.calls.applyNormalizedSelection.at(-1).deviceAssignment, expected);
+});
+
+test('three-player match start explains a missing assigned gamepad and keeps the menu open', () => {
+    const runtime = createRuntime({ localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {} });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['gamepad-1', 'gamepad-2', 'keyboard'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView(),
+        getGamepad: (index) => index === 0 ? { connected: true } : null });
+
+    assert.equal(module.startMatch(), false);
+    assert.equal(runtime.started, 0);
+    assert.match(setupView.calls.deviceStatus.at(-1), /Gamepad 2 fehlt/);
+});
+
+test('three-player match start requires enabled gamepads', () => {
+    const runtime = createRuntime({
+        controls: { GAMEPAD: { enabled: false } },
+        localSettings: { sessionType: 'splitscreen' }, mapKey: 'standard', vehicles: {},
+    });
+    const setupView = createSetupView({
+        mode: 'classic', mapKey: 'standard', vehicleId: getVehicleIds()[0], botCount: '0',
+        deviceAssignment: ['gamepad-1', 'gamepad-2', 'keyboard'],
+    });
+    const module = createModule({ runtimePort: runtime, setupView, hudView: createHudView() });
+
+    assert.equal(module.startMatch(), false);
+    assert.equal(runtime.started, 0);
+    assert.match(setupView.calls.deviceStatus.at(-1), /Gamepads sind deaktiviert/);
 });
 
 test('update drives a three-row HUD only while the three-player runtime is active', () => {

@@ -3,7 +3,7 @@ import test from 'node:test';
 
 import { MatchFlowUiController } from '../src/ui/MatchFlowUiController.js';
 
-function createHarness(deviceAssignment) {
+function createHarness(deviceAssignment, gamepadEnabled = true) {
     const sources = new Map();
     const keyboardPolls = [];
     const input = {
@@ -16,7 +16,7 @@ function createHarness(deviceAssignment) {
     };
     const game = {
         input,
-        settings: { controls: { GAMEPAD: { enabled: true } }, localSettings: {} },
+        settings: { controls: { GAMEPAD: { enabled: gamepadEnabled } }, localSettings: {} },
         runtimeConfig: {
             session: {
                 numHumans: 3,
@@ -46,5 +46,15 @@ test('three-player input follows a reordered per-slot device assignment', () => 
     assert.deepEqual(sources.get(0).poll(), { keyboardIndex: 0 });
     assert.equal(sources.get(1).gamepadIndex, 1);
     assert.equal(sources.get(2).gamepadIndex, 0);
+    input.clearPlayerSources();
+});
+
+test('disabled gamepads cannot fall through onto another three-player keyboard slot', () => {
+    const { input, sources, keyboardPolls } = createHarness(['gamepad-1', 'gamepad-2', 'keyboard'], false);
+    assert.equal(sources.get(0).poll().yawLeft, false);
+    assert.equal(sources.get(1).poll().yawLeft, false);
+    assert.deepEqual(keyboardPolls, []);
+    assert.deepEqual(sources.get(2).poll(), { keyboardIndex: 1 });
+    assert.deepEqual(keyboardPolls, [1]);
     input.clearPlayerSources();
 });

@@ -93,6 +93,7 @@ export class ThreePlayerSplitSetupView {
                 <summary>Geräte-Zuordnung</summary>
                 <div class="three-player-split-devices" aria-label="Geräte-Zuordnung für drei Spieler"></div>
                 <p class="menu-hint">Standard: Spieler 1+2 Gamepad, Spieler 3 Tastatur · lässt sich pro Platz umstellen.</p>
+                <p class="menu-hint" data-three-player-split-device-status role="status" aria-live="polite" hidden></p>
             </details>
             <button type="button" class="start-btn" data-three-player-split-start>3-Spieler-Match starten</button>
             </section>`);
@@ -132,6 +133,7 @@ export class ThreePlayerSplitSetupView {
             bots: surface.querySelector('[data-three-player-split-bots]'),
             botLabel: surface.querySelector('[data-three-player-split-bot-label]'),
             deviceSelects,
+            deviceStatus: surface.querySelector('[data-three-player-split-device-status]'),
             back: surface.querySelector('[data-three-player-split-back]'),
             start: surface.querySelector('[data-three-player-split-start]'),
         };
@@ -145,10 +147,15 @@ export class ThreePlayerSplitSetupView {
         this._listen(nodes.card, 'click', () => handlers.onOpenRequested?.());
         this._listen(nodes.back, 'click', () => handlers.onCloseRequested?.());
         this._listen(nodes.start, 'click', () => handlers.onStartRequested?.());
-        for (const control of [nodes.mode, nodes.map, nodes.vehicle, nodes.bots, ...nodes.deviceSelects]) {
+        for (const control of [nodes.mode, nodes.map, nodes.vehicle, nodes.bots]) {
             this._listen(control, 'input', () => handlers.onControlChanged?.());
             this._listen(control, 'change', () => handlers.onControlChanged?.());
         }
+        nodes.deviceSelects.forEach((control, index) => {
+            this._listen(control, 'change', () => handlers.onDeviceAssignmentChanged?.(index));
+        });
+        this._listen(this.document.defaultView, 'gamepadconnected', () => handlers.onDeviceAvailabilityChanged?.());
+        this._listen(this.document.defaultView, 'gamepaddisconnected', () => handlers.onDeviceAvailabilityChanged?.());
         for (const sessionButton of Array.from(this.document.querySelectorAll('[data-session-type]'))) {
             this._listen(sessionButton, 'click', () => this._scheduleFrame(() => handlers.onSessionTypeChanged?.()));
         }
@@ -210,6 +217,12 @@ export class ThreePlayerSplitSetupView {
         this._nodes.deviceSelects.forEach((select, index) => {
             select.value = selection.deviceAssignment?.[index] || select.value;
         });
+    }
+
+    setDeviceStatus(message) {
+        if (!this._nodes) return;
+        this._nodes.deviceStatus.textContent = message;
+        this._nodes.deviceStatus.hidden = !message;
     }
 
     openSetup() {

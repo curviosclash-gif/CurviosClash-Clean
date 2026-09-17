@@ -269,9 +269,9 @@ export function createPreferredMatchInputSource({
         const controlKey = `GAMEPAD_${assignedDevice.gamepadIndex + 1}`;
         const source = createGamepadInputSource(assignedDevice.gamepadIndex, () => game?.settings?.controls?.[controlKey], gamepadEnabled);
         const poll = source.poll.bind(source);
-        // Explicit assignments stay separate even when a controller is unplugged;
-        // a disabled controller yields null so InputManager falls back to this player's keys.
-        source.poll = () => poll() || (gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
+        const threePlayerAssignment = localHumanCount === 3 && assignedInputDevice?.type === 'gamepad';
+        // Three-player slots must never share the two available keyboard bindings.
+        source.poll = () => poll() || (threePlayerAssignment || gamepadEnabled() ? DISCONNECTED_CONTROLLER_INPUT : null);
         return source;
     }
     const touchAvailable = resolvedInputDeviceIndex === 0 && TouchInputSource.isAvailable();
