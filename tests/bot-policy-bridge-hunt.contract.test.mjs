@@ -49,8 +49,11 @@ test('T82c: Hunt-Bot nutzt nahe Special Gates als Retreat-Anker', () => {
         shootItem: false,
         shootItemIndex: -1,
     });
+    // The sensors point the retreat to the LEFT while the ready gate sits to the right. Since
+    // f7393e5c turned the retreat away from the enemy, a positive yaw sent both branches to the
+    // right and the test stayed green without any gate search at all.
     policy._fallbackPolicy.getSensorSnapshot = () => ({
-        targetYaw: 0.8,
+        targetYaw: -0.8,
         targetPitch: 0,
         pressure: 0.92,
         projectileThreat: true,
