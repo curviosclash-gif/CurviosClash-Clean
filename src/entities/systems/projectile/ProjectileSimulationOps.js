@@ -15,6 +15,7 @@ import {
     ITEM_PROJECTILE_TARGETING_PROFILE,
     resolveItemProjectileTarget,
 } from './ItemProjectileTargetingOps.js';
+import { resolveLockedPlayerIndex } from './RocketThreatTracker.js';
 
 function clamp01(value) {
     const numeric = Number(value);
@@ -359,6 +360,7 @@ export class ProjectileSimulationOps {
             this._tmpTargetPosition,
             { scratch: this._targetingScratch }
         );
+        projectile.lockedPlayerIndex = resolveLockedPlayerIndex(projectile.target, players);
         if (targetPosition) {
             const targetPlayer = resolveHuntTargetOwnerPlayer(projectile.target, players);
             const leadOnPlayer = !!targetPlayer?.velocity && (

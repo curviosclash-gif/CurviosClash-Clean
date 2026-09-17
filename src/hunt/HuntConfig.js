@@ -114,6 +114,8 @@ export const HUNT_CONFIG = Object.freeze({
         HOMING_FALLBACK_REACQUIRE_INTERVAL: 0.2,
         HOMING_RANGE: 140,
         HOMING_MIN_RANGE: 10,
+        // How close a locked-on rocket has to be before its target is warned.
+        WARNING_RANGE: 140,
         HOMING_SPEED_EPSILON: 0.0001,
         HOMING_LEAD_TIME_MAX: 0.45,
         HOMING_FALLBACK_ANGLE_SCALE: 1.75,

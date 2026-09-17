@@ -63,6 +63,9 @@ export class ProjectileStatePool {
             networkId: '',
             environmentProjectile: false,
             targetPlayerIndex: -1,
+            // Who this projectile is steering at right now (-1 = nobody). Feeds the rocket
+            // warning; targetPlayerIndex stays the "may hit" rule of environment rockets.
+            lockedPlayerIndex: -1,
             targetReacquireDisabled: false,
             ignoresTrails: false,
             ignoresTurrets: false,
@@ -108,6 +111,7 @@ export class ProjectileStatePool {
         projectile.networkId = '';
         projectile.environmentProjectile = false;
         projectile.targetPlayerIndex = -1;
+        projectile.lockedPlayerIndex = -1;
         projectile.targetReacquireDisabled = false;
         projectile.ignoresTrails = false;
         projectile.ignoresTurrets = false;
