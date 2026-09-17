@@ -5,6 +5,7 @@ import { ParcoursProgressSystem } from '../systems/ParcoursProgressSystem.js';
 import { RoundOutcomeSystem } from '../systems/RoundOutcomeSystem.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { OverheatGunSystem } from '../../hunt/OverheatGunSystem.js';
+import { FlamethrowerSystem } from '../../hunt/FlamethrowerSystem.js';
 import { RespawnSystem } from '../../hunt/RespawnSystem.js';
 import { EntitySetupOps } from './EntitySetupOps.js';
 import { EntitySpawnOps } from './EntitySpawnOps.js';
@@ -57,5 +58,9 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.exclusionZoneSystem = new ExclusionZoneSystem(owner, {
         projectileSystem: systems.projectileSystem,
     });
+    // The flamethrower publishes itself: EntityManager.js sits at its max-lines budget, so the
+    // usual owner._xySystem assignment over there would cost a line the file does not have.
+    systems.flamethrowerSystem = new FlamethrowerSystem(owner);
+    if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;
 }

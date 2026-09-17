@@ -266,6 +266,10 @@ export const HUNT_CONFIG = Object.freeze({
     }),
     FLAMETHROWER: Object.freeze({
         FUEL_SECONDS: 6,
+        RANGE: 18,
+        // Full opening angle of the cone, so the flame reaches 15 degrees to either side.
+        CONE_DEGREES: 30,
+        DAMAGE_PER_SECOND: 30,
     }),
     TRAIL_SEGMENT_HP: 3,
     RESPAWN: Object.freeze({

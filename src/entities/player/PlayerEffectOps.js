@@ -8,6 +8,7 @@ const SPEED_EFFECT_TYPES = Object.freeze(['SPEED_UP', 'SLOW_DOWN']);
 const TRAIL_EFFECT_TYPES = Object.freeze(['THICK', 'THIN']);
 const GLOBAL_TIME_EFFECT_TYPES = Object.freeze(['SLOW_TIME']);
 const FLAMETHROWER_EFFECT_TYPES = Object.freeze(['FLAMETHROWER']);
+const FUEL_EMPTY_SECONDS = 0.000001;
 
 function resolveFlamethrowerFuelSeconds(player) {
     const configured = Number(resolveEntityRuntimeConfig(player)?.HUNT?.FLAMETHROWER?.FUEL_SECONDS);
@@ -145,6 +146,27 @@ export function recomputePlayerEffectState(player) {
         resetShieldState(player);
         player._pickupShieldOwned = false;
     }
+}
+
+/**
+ * Burns tank fuel for one tick and answers the seconds the tank could actually deliver, so the
+ * cone damage of a tick never outlives the fuel that paid for it. An empty tank ends the effect
+ * through the normal removal path, which also clears player.hasFlamethrower.
+ */
+export function consumeFlamethrowerFuel(player, seconds) {
+    const requested = Math.max(0, Number(seconds) || 0);
+    if (!player || requested <= 0) return 0;
+    const effect = findLatestAllowedEffect(player, FLAMETHROWER_EFFECT_TYPES, resolveModeType(player));
+    const fuel = Math.max(0, Number(effect?.fuelSeconds) || 0);
+    if (!effect || fuel <= 0) return 0;
+
+    const consumed = Math.min(requested, fuel);
+    // Summing 1/60 second steps never lands exactly on zero, so a leftover far below one frame
+    // counts as empty instead of keeping a spent effect alive.
+    effect.fuelSeconds = fuel - consumed <= FUEL_EMPTY_SECONDS ? 0 : fuel - consumed;
+    player.flameFuelSeconds = effect.fuelSeconds;
+    if (effect.fuelSeconds <= 0) removePlayerEffect(player, effect);
+    return consumed;
 }
 
 export function removePlayerEffect(player, effect) {
