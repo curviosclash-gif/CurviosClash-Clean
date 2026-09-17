@@ -3,7 +3,7 @@ import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
 import { normalizeMapAnimationClock } from '../shared/contracts/MapAnimationClockContract.js';
 import { createGlbAnimationTrack } from './arena/GlbAnimationDriver.js';
 import { createDynamicMeshCollider, createStaticMeshCollider } from './arena/StaticMeshCollider.js';
-import { normalizeAllowedGLBUrl } from './mapSchema/MapSchemaGlbOps.js';
+import { normalizeAllowedGLBUrl, resolveGLBColliderMode } from './mapSchema/MapSchemaGlbOps.js';
 import { disposeObject3DResources } from '../shared/rendering/ThreeDisposal.js';
 
 const SHARED_GLB_LOADER = new GLTFLoader();
@@ -105,7 +105,7 @@ export function classifyGLBModelSource(glbModel) {
 }
 
 export function resolveGLBFootprint(glbModel, options = {}) {
-    const colliderMode = normalizeUrl(options.colliderMode) || 'scene';
+    const colliderMode = resolveGLBColliderMode(options.colliderMode);
     return {
         sourceKind: classifyGLBModelSource(glbModel),
         colliderMode,
@@ -115,7 +115,7 @@ export function resolveGLBFootprint(glbModel, options = {}) {
 
 export function resolveGLBCollectionFootprint(glbModels, options = {}) {
     const models = normalizeGLBModelCollection(glbModels);
-    const colliderMode = normalizeUrl(options.colliderMode) || 'scene';
+    const colliderMode = resolveGLBColliderMode(options.colliderMode);
     const loadedCount = Number.isFinite(Number(options.loadedCount))
         ? Math.max(0, Math.min(models.length, Math.trunc(Number(options.loadedCount))))
         : undefined;
@@ -135,7 +135,7 @@ export function hasGLBMapSource(mapDefinition) {
 
 export function resolveGLBMapSourceFootprint(mapDefinition) {
     const models = normalizeGLBModelCollection(mapDefinition?.glbModels);
-    const colliderMode = normalizeUrl(mapDefinition?.glbColliderMode) || 'scene';
+    const colliderMode = resolveGLBColliderMode(mapDefinition?.glbColliderMode);
     if (models.length > 0) {
         return resolveGLBCollectionFootprint(models, { colliderMode });
     }
@@ -355,7 +355,7 @@ export async function loadGLBMap(glbModel, options = {}) {
         footprint: resolveGLBFootprint(modelUrl, {
             colliderMode: options.collectColliders === false
                 ? 'fallbackOnly'
-                : (normalizeUrl(options.colliderMode) || 'scene'),
+                : resolveGLBColliderMode(options.colliderMode),
         }),
         scene,
         animationMixers: animationMixer ? [animationMixer] : [],
@@ -458,7 +458,7 @@ export async function loadGLBMapCollection(glbModels, options = {}) {
         footprint: resolveGLBCollectionFootprint(models, {
             colliderMode: options.collectColliders === false
                 ? 'fallbackOnly'
-                : (normalizeUrl(options.colliderMode) || 'scene'),
+                : resolveGLBColliderMode(options.colliderMode),
             loadedCount,
         }),
         scene,

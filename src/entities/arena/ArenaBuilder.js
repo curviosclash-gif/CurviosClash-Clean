@@ -8,6 +8,7 @@ import { MapFireFxController } from './MapFireFxController.js';
 import { MapHazardVisualController } from './MapHazardVisualController.js';
 import { resolveVisibleShadowBounds } from './ShadowCoverageOps.js';
 import { resolveMapExclusionZone } from '../../shared/contracts/ExclusionZoneContract.js';
+import { resolveGLBColliderMode } from '../mapSchema/MapSchemaGlbOps.js';
 import { ArenaExpansionController } from './ArenaExpansionController.js';
 
 function asPositiveScale(value, fallback = 1) {
@@ -99,7 +100,7 @@ export class ArenaBuilder {
                 : [],
             glbLoadDelayMs: Number(mapResolution.map?.glbLoadDelayMs) || 0,
             glbLoadConcurrency: Number(mapResolution.map?.glbLoadConcurrency) || 4,
-            glbColliderMode: typeof mapResolution.map?.glbColliderMode === 'string' ? mapResolution.map.glbColliderMode : 'mesh',
+            glbColliderMode: resolveGLBColliderMode(mapResolution.map?.glbColliderMode),
             glbAnimationClock: mapResolution.map?.glbAnimationClock ?? null,
             materialBundle,
             graphicsStyle,
