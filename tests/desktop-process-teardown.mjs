@@ -17,6 +17,18 @@ export function resolveShowWindow(env = {}, titlePath = []) {
     return titles.some((entry) => String(entry || '').includes(RENDER_TAG));
 }
 
+// Ein `show: false`-Fenster bekommt von Windows rund ein Bild pro Sekunde. Solange
+// niemand ausdruecklich ein sichtbares Fenster verlangt, starten Testlaeufe deshalb
+// im Render-Modus: gezeigt, aber weit ausserhalb des Bildschirms und ohne Fokus.
+export function resolveTestRenderMode(env = {}) {
+    // Notschalter, falls eine Umgebung (z. B. CI ohne echten Bildschirm) damit nicht klarkommt.
+    if (String(env?.PW_TEST_RENDER || '').trim() === '0') return 'off';
+    if (String(env?.PW_SHOW_WINDOW || '').trim() === '1') return 'off';
+    const electronSwitch = String(env?.CURVIOS_ELECTRON_SHOW_WINDOW ?? '').trim();
+    if (electronSwitch && electronSwitch !== '0') return 'off';
+    return 'inactive';
+}
+
 export function isProcessRunning(childProcess) {
     if (!childProcess) return false;
     return childProcess.exitCode === null && !childProcess.signalCode;

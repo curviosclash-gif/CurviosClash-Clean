@@ -6,6 +6,7 @@ import {
     DEFAULT_TEARDOWN_DEADLINE_MS,
     closeElectronAppWithDeadline,
     resolveShowWindow,
+    resolveTestRenderMode,
 } from './desktop-process-teardown.mjs';
 
 const require = createRequire(import.meta.url);
@@ -403,6 +404,8 @@ const desktopTest = base.extend({
         const userDataRoot = resolveDesktopUserDataRoot(testInfo);
         // Ein verstecktes Fenster rendert mit rund einem Bild pro Sekunde; Tests, die auf
         // gezeichnete Bilder warten (@render), sind damit strukturell unerfuellbar.
+        // Der Render-Modus (siehe resolveTestRenderMode) ersetzt das versteckte Fenster
+        // durch ein gezeigtes weit ausserhalb des Bildschirms: volle Bildrate, kein Fokus.
         const showWindow = resolveShowWindow(process.env, testInfo?.titlePath || []);
 
         try {
@@ -414,6 +417,7 @@ const desktopTest = base.extend({
                 env: {
                     ...process.env,
                     CURVIOS_ELECTRON_SHOW_WINDOW: showWindow ? '1' : '0',
+                    CURVIOS_ELECTRON_TEST_RENDER: resolveTestRenderMode(process.env),
                     CURVIOS_DESKTOP_STATIC_PORT: String(process.env.TEST_PORT || ''),
                     CURVIOS_USER_DATA_ROOT: userDataRoot,
                 },

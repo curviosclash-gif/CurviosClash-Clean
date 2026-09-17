@@ -40,6 +40,19 @@ const {
     assertTrustedWindowSender,
     isTrustedWindowSender,
 } = require('./ipc-sender-guard.cjs');
+const {
+    createMainWindowOptions,
+    listTestRenderCommandLineSwitches,
+    resolveTestRenderMode,
+    shouldShowInactive,
+} = require('./test-render-window.cjs');
+
+// Playwright only: a packaged app ignores the switch (see test-render-window.cjs).
+const testRenderMode = resolveTestRenderMode(process.env, { isPackaged: app.isPackaged });
+for (const entry of listTestRenderCommandLineSwitches(testRenderMode)) {
+    if (typeof entry?.value === 'string') app.commandLine.appendSwitch(entry.name, entry.value);
+    else app.commandLine.appendSwitch(entry.name);
+}
 
 let mainWindow = null;
 let tray = null;
@@ -527,17 +540,24 @@ async function stopAppServer() {
 async function createWindow() {
     const appServer = await startAppServer();
     const shouldShowWindow = String(process.env.CURVIOS_ELECTRON_SHOW_WINDOW || '').trim() !== '0';
-    mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 720,
-        title: 'CurviosClash',
-        backgroundColor: '#050510',
-        show: shouldShowWindow,
-        webPreferences: createSecureWindowWebPreferences({
-            preload: path.join(__dirname, 'preload.cjs'),
-            backgroundThrottling: false,
-        }),
-    });
+    mainWindow = new BrowserWindow(createMainWindowOptions({
+        mode: testRenderMode,
+        baseOptions: {
+            width: 1280,
+            height: 720,
+            title: 'CurviosClash',
+            backgroundColor: '#050510',
+            show: shouldShowWindow,
+            webPreferences: createSecureWindowWebPreferences({
+                preload: path.join(__dirname, 'preload.cjs'),
+                backgroundThrottling: false,
+            }),
+        },
+    }));
+    if (shouldShowInactive(testRenderMode)) {
+        // showInactive() makes the window paint at full rate without taking the focus.
+        mainWindow.showInactive();
+    }
 
     mainWindow.webContents.on('will-navigate', (event) => {
         event.preventDefault();
