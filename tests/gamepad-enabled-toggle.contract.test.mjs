@@ -105,3 +105,18 @@ test('the switch persists through save, reload and runtime projection; old saves
     assert.equal(isGamepadInputEnabled({}), true, 'saves without the field keep controllers on');
     assert.equal(createGamepadControlsSnapshot({ GAMEPAD: { enabled: 'no' } }).GAMEPAD.enabled, true);
 });
+
+test('a plugged-in controller keeps the keyboard alive for the same player', (t) => {
+    const { input, controls, pads } = setup(t);
+    input.keys[controls.PLAYER_1.LEFT] = true;
+    const resting = { ...input.getPlayerInput(0) };
+    assert.equal(input.getPlayerSource(0).type, 'gamepad');
+    assert.equal(resting.yawLeft, true, 'a resting pad must not mute the keyboard');
+    assert.equal(resting.yawAxis, undefined, 'a resting stick hands the axis back to the key booleans');
+
+    input.keys[controls.PLAYER_1.BOOST] = true;
+    assert.equal(input.getPlayerInput(0).boost, true, 'keyboard buttons count while the pad is plugged in');
+
+    pads[0].axes[0] = 0.7;
+    assert.equal(input.getPlayerInput(0).yawAxis, -stickAxis(0.7), 'a deflected stick owns the axis');
+});

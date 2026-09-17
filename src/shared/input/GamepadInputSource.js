@@ -3,6 +3,27 @@ import { applyAxisDeadzone, applyRadialDeadzone } from '../utils/InputAxisOps.js
 const MAPPING_KEYS = Object.keys(normalizeGamepadControls());
 const GAMEPAD_DEADZONE = 0.15;
 
+const INPUT_BOOLEAN_KEYS = Object.freeze([
+    'pitchUp', 'pitchDown', 'yawLeft', 'yawRight', 'rollLeft', 'rollRight', 'boost', 'boostPressed',
+    'slowMo', 'slowMoPressed', 'cameraSwitch', 'dropItem', 'useItem', 'shootItem', 'shootRocket', 'shootMG', 'nextItem',
+]);
+const INPUT_AXIS_KEYS = Object.freeze(['pitchAxis', 'yawAxis', 'rollAxis']);
+
+/**
+ * One input from a pad and a keyboard that are both live: every boolean is an OR, and a stick
+ * axis only counts while it is deflected, so a resting pad hands the axis back to the keys.
+ * Chromium announces a pad on its first button press, so replacing the keyboard outright muted
+ * a player the moment somebody touched a pad lying around.
+ */
+export function mergeGamepadWithKeyboard(gamepadInput, keyboardInput, output = {}) {
+    for (const key of INPUT_BOOLEAN_KEYS) output[key] = gamepadInput[key] === true || keyboardInput[key] === true;
+    for (const key of INPUT_AXIS_KEYS) {
+        const value = gamepadInput[key];
+        output[key] = typeof value === 'number' && value !== 0 ? value : undefined;
+    }
+    return output;
+}
+
 export function readGamepad(slot) {
     const pads = globalThis.navigator?.getGamepads?.();
     // Keep hardware indices stable when another controller is unplugged.

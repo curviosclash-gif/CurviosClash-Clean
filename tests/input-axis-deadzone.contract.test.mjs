@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import { applyAxisDeadzone, applyRadialDeadzone } from '../src/shared/utils/InputAxisOps.js';
+import { createGamepadInputSource } from '../src/shared/input/GamepadInputSource.js';
 import { createPreferredMatchInputSource } from '../src/ui/MatchInputSourceResolver.js';
 import { TOUCH_CONTROL_MODES, TouchInputSource } from '../src/ui/TouchInputSource.js';
 
@@ -32,6 +33,18 @@ function withFakeGamepad(axes, run) {
 
 function pollGamepadSource(axes) {
     return withFakeGamepad(axes, () => {
+        // The desktop match merges this source with the keyboard (gamepad-enabled-toggle
+        // covers that); the deadzone itself lives in the plain gamepad source.
+        const source = createGamepadInputSource(0);
+        source.bind(0);
+        const polled = { ...source.poll() };
+        source.dispose();
+        return polled;
+    });
+}
+
+test('the desktop match pairs the keyboard with a hot-pluggable gamepad', () => {
+    withFakeGamepad([0, 0, 0], () => {
         const source = createPreferredMatchInputSource({
             inputManager: { getKeyboardInput: () => ({}) },
             playerIndex: 0,
@@ -39,12 +52,9 @@ function pollGamepadSource(axes) {
             inputDeviceIndex: 0,
         });
         assert.equal(source.type, 'gamepad');
-        source.bind(0);
-        const polled = source.poll();
         source.dispose();
-        return polled;
     });
-}
+});
 
 test('applyAxisDeadzone keeps the rest position and the full deflection', () => {
     assert.equal(applyAxisDeadzone(0, 0.15), 0);

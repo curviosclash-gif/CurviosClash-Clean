@@ -1,4 +1,4 @@
-import { createGamepadInputSource } from '../shared/input/GamepadInputSource.js';
+import { createGamepadInputSource, mergeGamepadWithKeyboard } from '../shared/input/GamepadInputSource.js';
 import { isGamepadInputEnabled, resolveSplitscreenInputDevice } from '../shared/contracts/GamepadControlsContract.js';
 import { TOUCH_CONTROL_MODES, TouchInputSource } from './TouchInputSource.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
@@ -296,12 +296,17 @@ export function createPreferredMatchInputSource({
     const gamepadSource = createGamepadInputSource(resolvedInputDeviceIndex, () => game?.settings?.controls?.[`GAMEPAD_${resolvedInputDeviceIndex + 1}`], gamepadEnabled);
     if (!touchAvailable) {
         const keyboardSource = createKeyboardInputSource(inputManager, resolvedInputDeviceIndex === 0 && localHumanCount === 1, { keyboardPlayerIndex: resolvedInputDeviceIndex });
+        const mergedInput = {};
         return {
             playerIndex: -1, active: false, gamepadIndex: resolvedInputDeviceIndex,
             get type() { return gamepadSource.isConnected() ? 'gamepad' : 'keyboard'; },
             bind(index) { this.playerIndex = index; this.active = true; gamepadSource.bind(index); keyboardSource.bind(index); },
             unbind() { this.playerIndex = -1; this.active = false; gamepadSource.unbind(); keyboardSource.unbind(); },
-            poll() { return gamepadSource.poll() || keyboardSource.poll(); },
+            poll() {
+                const pad = gamepadSource.poll();
+                const keys = keyboardSource.poll();
+                return pad && keys ? mergeGamepadWithKeyboard(pad, keys, mergedInput) : (pad || keys);
+            },
             clearInputState() { gamepadSource.clearInputState(); },
             dispose() { this.unbind(); gamepadSource.dispose(); keyboardSource.dispose(); },
         };
