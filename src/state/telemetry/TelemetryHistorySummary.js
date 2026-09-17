@@ -55,6 +55,7 @@ export function createEmptyTelemetryHistorySummary() {
         averageDuration: 0,
         selfCollisionsPerRound: 0,
         itemUsesPerRound: 0,
+        itemUsesWithoutMgPerRound: 0,
         itemUseModePerRound: normalizeItemUseModeCounts(),
         itemUseTypeTotals: {},
         mgHitsPerRound: 0,
@@ -170,6 +171,11 @@ export function computeTelemetryHistorySummary(rows) {
         averageDuration: rounds > 0 ? totalDuration / rounds : 0,
         selfCollisionsPerRound: rounds > 0 ? totalSelfCollisions / rounds : 0,
         itemUsesPerRound: rounds > 0 ? totalItemUses / rounds : 0,
+        // Der MG-freie Wert entsteht aus bereits gespeicherten Feldern und gilt
+        // deshalb rueckwirkend auch fuer Runden, die vor dieser Kennzahl liegen.
+        itemUsesWithoutMgPerRound: rounds > 0
+            ? Math.max(0, totalItemUses - totalItemUseByMode.mg) / rounds
+            : 0,
         itemUseModePerRound: {
             use: rounds > 0 ? totalItemUseByMode.use / rounds : 0,
             shoot: rounds > 0 ? totalItemUseByMode.shoot / rounds : 0,

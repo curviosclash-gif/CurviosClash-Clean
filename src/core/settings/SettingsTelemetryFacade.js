@@ -84,6 +84,9 @@ function deriveTelemetryTopBuckets(source, fallbackKey) {
                 averageRoundDuration: bucket.rounds > 0 ? bucket.totalDuration / bucket.rounds : 0,
                 selfCollisionsPerRound: bucket.rounds > 0 ? bucket.totalSelfCollisions / bucket.rounds : 0,
                 itemUsesPerRound: bucket.rounds > 0 ? bucket.totalItemUses / bucket.rounds : 0,
+                itemUsesWithoutMgPerRound: bucket.rounds > 0
+                    ? Math.max(0, bucket.totalItemUses - bucket.totalItemUseModeCounts.mg) / bucket.rounds
+                    : 0,
                 itemUseModePerRound: {
                     use: bucket.rounds > 0 ? bucket.totalItemUseModeCounts.use / bucket.rounds : 0,
                     shoot: bucket.rounds > 0 ? bucket.totalItemUseModeCounts.shoot / bucket.rounds : 0,
@@ -247,6 +250,11 @@ export function normalizeTelemetrySnapshot(snapshot) {
             averageRoundDuration: rounds > 0 ? totalDuration / rounds : 0,
             selfCollisionsPerRound: rounds > 0 ? totalSelfCollisions / rounds : 0,
             itemUsesPerRound: rounds > 0 ? totalItemUses / rounds : 0,
+            // MG-Dauerfeuer dominiert totalItemUses um Groessenordnungen. Der
+            // MG-freie Wert ist der, der zur Item-Balance etwas aussagt.
+            itemUsesWithoutMgPerRound: rounds > 0
+                ? Math.max(0, totalItemUses - totalItemUseModeCounts.mg) / rounds
+                : 0,
             itemUseModePerRound: {
                 use: rounds > 0 ? totalItemUseModeCounts.use / rounds : 0,
                 shoot: rounds > 0 ? totalItemUseModeCounts.shoot / rounds : 0,

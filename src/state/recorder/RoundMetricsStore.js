@@ -445,6 +445,12 @@ export class RoundMetricsStore {
             bounceWallPerRound: rounds > 0 ? this._aggregate.totalBounceWallEvents / rounds : 0,
             bounceTrailPerRound: rounds > 0 ? this._aggregate.totalBounceTrailEvents / rounds : 0,
             itemUsePerRound: rounds > 0 ? this._aggregate.totalItemUseEvents / rounds : 0,
+            // MG-Schuesse sind Dauerfeuer und liegen drei Groessenordnungen ueber
+            // allen anderen Item-Einsaetzen. In der Summe ueberdecken sie jede
+            // Aussage zur Item-Nutzung, deshalb steht daneben der MG-freie Wert.
+            itemUseWithoutMgPerRound: rounds > 0
+                ? Math.max(0, this._aggregate.totalItemUseEvents - this._aggregate.totalItemUseModeCounts.mg) / rounds
+                : 0,
             failedItemActionsPerRound: rounds > 0 ? this._aggregate.totalFailedItemActions / rounds : 0,
             itemUseFailureRate: this._aggregate.totalItemUseEvents > 0
                 ? this._aggregate.totalFailedItemActions / this._aggregate.totalItemUseEvents

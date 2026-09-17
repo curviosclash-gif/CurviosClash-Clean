@@ -32,6 +32,15 @@ function topCountLabel(source = null) {
     return `${key} (${Math.max(0, Number(count) || 0)})`;
 }
 
+// Ein MG-Schuss ist kein Item-Einsatz. Er steht nur deshalb in derselben Summe,
+// weil beide als ITEM_USE protokolliert werden - in HUNT ueberdeckt er den Rest
+// dann um das Hundertfache. Die Anzeige zieht ihn daher wieder ab.
+function itemUsesWithoutMg(entry = null) {
+    const total = Math.max(0, Number(entry?.itemUses) || 0);
+    const mgShots = Math.max(0, Number(entry?.itemUseByMode?.mg) || 0);
+    return Math.max(0, total - mgShots);
+}
+
 function clearContainer(container) {
     if (!container) return;
     container.replaceChildren();
@@ -115,7 +124,7 @@ function renderRecentRoundsCard(container, recentRounds = []) {
                 String(entry?.winnerLabel || 'Unbekannt'),
                 `${String(entry?.mapKey || 'unknown')} / ${String(entry?.mode || 'classic')}`,
                 formatDuration(entry?.duration),
-                `Items ${Math.max(0, Number(entry?.itemUses) || 0)}`,
+                `Items ${itemUsesWithoutMg(entry)}`,
                 `Self ${Math.max(0, Number(entry?.selfCollisions) || 0)}`,
                 entry?.parcoursCompleted ? `Parcours ${formatDurationMs(entry?.parcoursCompletionTimeMs)}` : 'Parcours -',
             ].join(' | ');
@@ -187,7 +196,8 @@ export function renderMenuTelemetryDashboard(container, telemetrySnapshot = null
     appendRow(balanceCard, 'bot-win-rate', 'Bot-Winrate', formatPercent(balance?.botWinRate));
     appendRow(balanceCard, 'average-round-duration', 'Avg. Rundendauer', formatDuration(balance?.averageRoundDuration));
     appendRow(balanceCard, 'self-collisions-per-round', 'Selfcrash/R', formatDecimal(balance?.selfCollisionsPerRound));
-    appendRow(balanceCard, 'item-uses-per-round', 'Items/R', formatDecimal(balance?.itemUsesPerRound));
+    appendRow(balanceCard, 'item-uses-without-mg-per-round', 'Items/R (ohne MG)', formatDecimal(balance?.itemUsesWithoutMgPerRound));
+    appendRow(balanceCard, 'mg-shots-per-round', 'MG-Versuche/R', formatDecimal(balance?.itemUseModePerRound?.mg));
     appendRow(balanceCard, 'kills-per-round', 'Kills/R', formatDecimal(balance?.killsPerRound));
     appendRow(balanceCard, 'spawn-deaths-per-round', 'Spawn-Tode/R', formatDecimal(balance?.spawnDeathsPerRound));
     appendRow(balanceCard, 'parcours-rate', 'Parcours-Rate', formatPercent(balance?.parcoursCompletionRate));
@@ -243,7 +253,8 @@ export function renderTelemetryHistorySection(container, historySummary) {
     appendRow(list, 'history-bot-wr', 'Bot-Winrate', formatPercent(historySummary.botWinRate));
     appendRow(list, 'history-avg-dur', 'Avg. Dauer', formatDuration(historySummary.averageDuration));
     appendRow(list, 'history-self-cr', 'Selfcrash/R', formatDecimal(historySummary.selfCollisionsPerRound));
-    appendRow(list, 'history-items-r', 'Items/R', formatDecimal(historySummary.itemUsesPerRound));
+    appendRow(list, 'history-items-r', 'Items/R (ohne MG)', formatDecimal(historySummary.itemUsesWithoutMgPerRound));
+    appendRow(list, 'history-mg-shots-r', 'MG-Versuche/R', formatDecimal(historySummary.itemUseModePerRound?.mg));
     appendRow(list, 'history-kills-r', 'Kills/R', formatDecimal(historySummary.killsPerRound));
     appendRow(list, 'history-spawn-deaths-r', 'Spawn-Tode/R', formatDecimal(historySummary.spawnDeathsPerRound));
     appendRow(list, 'history-parcours-rate', 'Parcours-Rate', formatPercent(historySummary.parcoursCompletionRate));

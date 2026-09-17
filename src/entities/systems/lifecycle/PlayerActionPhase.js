@@ -3,6 +3,64 @@ import {
     buildGameplayActionResult,
     encodeGameplayActionResultForLog,
 } from '../../../shared/contracts/GameplayActionResultContract.js';
+import { isRocketPickupType, normalizePickupType } from '../../PickupRegistry.js';
+
+// Abgelehnte Item-Aktionen nennen ihren Typ nicht immer: Cooldown- und
+// EMP-Absagen entstehen, bevor das Item ueberhaupt gelesen wird. In der
+// Telemetrie kamen sie deshalb als UNKNOWN an und liessen sich keinem Item
+// zuordnen. Diese reine Vorschau bildet die Legacy-Raketenmigration virtuell
+// nach: Raketen sind nicht waehlbare Items, aber fuer shootRocket verfuegbar.
+// Sie darf die Inventar-Sammlungen oder den selektierten Slot nicht veraendern.
+function resolvePendingItemType(player, preferredIndex) {
+    const legacyInventory = Array.isArray(player?.inventory) ? player.inventory : null;
+    if (!legacyInventory || legacyInventory.length === 0) return null;
+    let selectableCount = 0;
+    for (let index = 0; index < legacyInventory.length; index += 1) {
+        const rawType = legacyInventory[index];
+        const type = normalizePickupType(rawType, { fallback: rawType });
+        if (!isRocketPickupType(type)) selectableCount += 1;
+    }
+    if (selectableCount === 0 || (Number.isInteger(preferredIndex) && preferredIndex >= selectableCount)) {
+        return null;
+    }
+    let selectedIndex = Number.isInteger(player?.selectedItemIndex)
+        ? Math.max(0, player.selectedItemIndex)
+        : 0;
+    if (selectedIndex >= selectableCount) selectedIndex = 0;
+    const requestedIndex = Number.isInteger(preferredIndex) && preferredIndex >= 0
+        ? preferredIndex
+        : selectedIndex;
+    let selectableIndex = 0;
+    for (let index = 0; index < legacyInventory.length; index += 1) {
+        const rawType = legacyInventory[index];
+        const type = normalizePickupType(rawType, { fallback: rawType });
+        if (isRocketPickupType(type)) continue;
+        if (selectableIndex === requestedIndex) return type || null;
+        selectableIndex += 1;
+    }
+    return null;
+}
+
+// Raketen liegen in einer eigenen Warteschlange und werden immer von vorn
+// verschossen; das Item-Inventar kennt sie nicht.
+function resolvePendingShootType(player, input) {
+    if (input.shootRocket === true) {
+        const rocketInventory = Array.isArray(player?.rocketInventory) ? player.rocketInventory : [];
+        if (rocketInventory.length > 0) {
+            const rawType = rocketInventory[0];
+            return normalizePickupType(rawType, { fallback: rawType }) || null;
+        }
+        const legacyInventory = Array.isArray(player?.inventory) ? player.inventory : null;
+        if (!legacyInventory) return null;
+        for (let index = 0; index < legacyInventory.length; index += 1) {
+            const rawType = legacyInventory[index];
+            const type = normalizePickupType(rawType, { fallback: rawType });
+            if (isRocketPickupType(type)) return type;
+        }
+        return null;
+    }
+    return resolvePendingItemType(player, input.shootItemIndex);
+}
 
 export class PlayerActionPhase {
     constructor(entityManager) {
@@ -33,7 +91,7 @@ export class PlayerActionPhase {
             if (entityManager.recorder && result) {
                 entityManager.recorder.logEvent('ITEM_USE', player.index, encodeGameplayActionResultForLog(result, {
                     mode: 'use',
-                    type: result?.type,
+                    type: result?.type || resolvePendingItemType(player, input.useItem),
                 }));
             }
             if (!result.ok && !player.isBot) {
@@ -60,7 +118,7 @@ export class PlayerActionPhase {
             if (entityManager.recorder && result) {
                 entityManager.recorder.logEvent('ITEM_USE', player.index, encodeGameplayActionResultForLog(result, {
                     mode: 'shoot',
-                    type: result?.type,
+                    type: result?.type || resolvePendingShootType(player, input),
                 }));
             }
             if (result && !result.ok && !player.isBot) {
