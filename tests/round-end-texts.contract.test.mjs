@@ -102,6 +102,9 @@ const DISPLAY_TEXT_SOURCES = [
     '../src/shared/contracts/MatchUiStateContract.js',
     '../src/ui/MatchFlowArcadeOverlayController.js',
     '../src/ui/arcade/ArcadeResultTexts.js',
+    '../src/ui/arcade/postrun/ArcadePostRunBlocks.js',
+    '../src/ui/arcade/postrun/ArcadeRunTypeBlocks.js',
+    '../src/ui/arcade/postrun/ArcadePostRunCards.js',
     '../src/ui/postmatch/PostMatchLabels.js',
 ];
 
@@ -130,19 +133,18 @@ test('arcade result texts use the german word list', async () => {
     const texts = await import('../src/ui/arcade/ArcadeResultTexts.js');
 
     assert.equal(texts.formatIntermissionTitle(3), 'Zwischenstopp Sektor 3');
-    assert.equal(
-        texts.formatPostRunHeadline({ score: 1200, bestCombo: 7, missionRate: '80%' }),
-        'Gesamtpunkte 1200 | Beste Kombo 7 | Missions-Rate 80%'
-    );
-    assert.equal(texts.formatPeakMultiplier(2.5), 'Höchster Multiplikator 2.5x');
-    assert.equal(texts.formatSectorScoreRow({ sectorIndex: 2, mapKey: 'burg', awardedPoints: 340 }), 'S2 | burg | 340 Punkte');
-    assert.equal(texts.formatDailyAttemptLine({ attempt: 2, score: 900, bestScore: 1500 }), 'Versuch 2 | 900 Punkte | Tagesbestwert 1500');
     assert.equal(texts.ARCADE_RESULT_TEXTS.sectorScoreHeading, 'Punkte pro Sektor');
     assert.equal(texts.ARCADE_RESULT_TEXTS.nextSectorHeading, 'Nächster Sektor');
     assert.equal(texts.ARCADE_RESULT_TEXTS.emptyRewards, 'Keine Belohnungen verfügbar.');
     assert.equal(texts.ARCADE_RESULT_TEXTS.confirmSelection, 'Auswahl bestätigen');
 
-    const rendered = Object.values(texts.ARCADE_RESULT_TEXTS).join('\n');
+    // P8 moved the post-run values into card blocks, so their labels are checked where they live now.
+    const blocks = await import('../src/ui/arcade/postrun/ArcadePostRunBlocks.js');
+    const runLabels = blocks.createArcadeRunBlocks({ score: 1200, bestCombo: 7, peakMultiplier: 2.5 })
+        .flatMap((block) => block.rows.map((row) => row.label));
+    assert.deepEqual(runLabels, ['Gesamtpunkte', 'Beste Kombo', 'Missions-Rate', 'Höchster Multiplikator']);
+
+    const rendered = [...Object.values(texts.ARCADE_RESULT_TEXTS), ...runLabels].join('\n');
     for (const english of ['Score', 'Items', 'Combo', 'Peak-Multi', 'Rewards', 'Intermission']) {
         assert.ok(!rendered.includes(english), `"${english}" must not be shown to the player: ${rendered}`);
     }

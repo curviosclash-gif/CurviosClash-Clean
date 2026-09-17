@@ -2933,13 +2933,18 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(16, 42, 58, 0.84);
 }
 
-.arcade-overlay-list {
-    margin: 0;
-    padding-left: 18px;
+/* Every sector/map of a run stays reachable: the list scrolls instead of silently cutting off. */
+.arcade-overlay-scroll {
     display: grid;
-    gap: 4px;
-    font-size: 0.78rem;
-    color: #d5e8f4;
+    gap: 8px;
+    max-height: 38vh;
+    overflow-y: auto;
+    overscroll-behavior: contain;
+}
+
+.arcade-overlay-scroll:focus-visible {
+    outline: 2px solid rgba(106, 226, 255, 0.72);
+    outline-offset: 2px;
 }
 
 .arcade-overlay-empty {

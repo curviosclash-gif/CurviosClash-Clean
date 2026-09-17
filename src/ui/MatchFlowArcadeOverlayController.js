@@ -1,13 +1,16 @@
-/* eslint-disable max-lines */ // Overlay variants intentionally share one lifecycle/controller seam.
-import { formatArcadeBreakdown } from '../shared/contracts/ArcadeScorePresentationContract.js';
 import {
     ARCADE_RESULT_TEXTS,
-    formatDailyAttemptLine,
     formatIntermissionTitle,
-    formatPeakMultiplier,
-    formatPostRunHeadline,
-    formatSectorScoreRow,
 } from './arcade/ArcadeResultTexts.js';
+import {
+    createArcadeIntermissionBlocks,
+    createArcadeNextSectorBlock,
+    createArcadeRunBlocks,
+    createArcadeSectorBlock,
+    createArcadeVictoryBlocks,
+} from './arcade/postrun/ArcadePostRunBlocks.js';
+import { appendArcadeCards, createArcadeCardScroller } from './arcade/postrun/ArcadePostRunCards.js';
+import { createArenaWavesMapBlocks, createFivePortalsBlocks } from './arcade/postrun/ArcadeRunTypeBlocks.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -23,10 +26,6 @@ import {
 function toSafeNumber(value, fallback = 0) {
     const numeric = Number(value);
     return Number.isFinite(numeric) ? numeric : fallback;
-}
-
-function formatPercent(value) {
-    return `${Math.round(Math.max(0, Math.min(1, toSafeNumber(value, 0))) * 100)}%`;
 }
 
 export class MatchFlowArcadeOverlayController {
@@ -117,15 +116,8 @@ export class MatchFlowArcadeOverlayController {
         panel.replaceChildren();
         const heading = document.createElement('h3');
         heading.textContent = 'Run geschafft!';
-        const result = document.createElement('p');
-        result.textContent = `${Math.round(runtimeState.victory.score)} Punkte | ${runtimeState.victory.xpEarned} XP`;
-        panel.append(heading, result);
-        if (runtimeState.victory.lastSector) {
-            const sector = runtimeState.victory.lastSector;
-            const details = document.createElement('p');
-            details.textContent = `Letzter Sektor: ${sector.awardedPoints} Punkte | ${formatArcadeBreakdown(sector.breakdown)} | Faktor ×${Number(sector.scoreFactor || 1).toFixed(2)} | Missionsbonus: +${sector.missionBonus || 0}`;
-            panel.appendChild(details);
-        }
+        panel.appendChild(heading);
+        appendArcadeCards(panel, createArcadeVictoryBlocks(runtimeState.victory));
         for (const [choice, label] of [['finish', 'Run abschließen'], ['continue', 'In Sudden Death weiterspielen']]) {
             const button = document.createElement('button');
             button.type = 'button';
@@ -177,14 +169,17 @@ export class MatchFlowArcadeOverlayController {
         h3.textContent = formatIntermissionTitle(nextSectorIndex);
         header.appendChild(h3);
 
-        const headerP = document.createElement('p');
-        headerP.textContent = `Letzter Sektor: ${lastSectorPoints} Punkte | ${lastSectorXp} XP | Missionen ${missionsCompleted}/${missionsTotal}`;
-        header.appendChild(headerP);
-        if (intermission.breakdown) {
-            const details = document.createElement('p');
-            details.textContent = `${formatArcadeBreakdown(intermission.breakdown)} | Faktor ×${Number(intermission.scoreFactor || 1).toFixed(2)} | Missionsbonus: +${intermission.missionBonus || 0}`;
-            if (missionsCompleted < missionsTotal) details.textContent += ' | Bonus für alle Missionen verpasst';
-            header.appendChild(details);
+        appendArcadeCards(header, createArcadeIntermissionBlocks({
+            ...intermission,
+            lastSectorPoints,
+            lastSectorXp,
+            missionsCompleted,
+            missionsTotal,
+        }));
+        if (missionsCompleted < missionsTotal) {
+            const missed = document.createElement('p');
+            missed.textContent = 'Bonus für alle Missionen verpasst.';
+            header.appendChild(missed);
         }
         panel.appendChild(header);
 
@@ -197,14 +192,7 @@ export class MatchFlowArcadeOverlayController {
         const s1h4 = document.createElement('h4');
         s1h4.textContent = ARCADE_RESULT_TEXTS.nextSectorHeading;
         sect1.appendChild(s1h4);
-
-        const s1p1 = document.createElement('p');
-        s1p1.textContent = `${String(preview.mapLabel || preview.mapKey || 'Unbekannte Map')} | ${String(preview.modifierLabel || 'Kein Modifier')}`;
-        sect1.appendChild(s1p1);
-
-        const s1p2 = document.createElement('p');
-        s1p2.textContent = String(preview.modifierEffect || '').trim() || ARCADE_RESULT_TEXTS.noExtraEffect;
-        sect1.appendChild(s1p2);
+        appendArcadeCards(sect1, [createArcadeNextSectorBlock(preview)]);
         bodyDiv.appendChild(sect1);
 
         // Section 2: Map-/Modifier-Wahl
@@ -382,24 +370,13 @@ export class MatchFlowArcadeOverlayController {
         const h3 = document.createElement('h3');
         h3.textContent = dailyResult ? (dailyResult.succeeded ? 'Daily geschafft' : 'Daily-Versuch beendet') : 'Arcade Run abgeschlossen';
         header.appendChild(h3);
-        if (dailyResult) {
-            const dailyLine = document.createElement('p');
-            dailyLine.textContent = `Daily-Ergebnis: ${Math.round(dailyResult.score)} | Bonusfortsetzung: ${Math.round(summary.bonusScore || 0)} Punkte`;
-            header.appendChild(dailyLine);
-        }
-        
-        const headerP = document.createElement('p');
-        headerP.textContent = formatPostRunHeadline({
+        appendArcadeCards(header, createArcadeRunBlocks({
+            ...summary,
             score,
-            bestCombo: summary.bestCombo,
-            missionRate: formatPercent(summary.missionCompletionRate),
-        });
-        header.appendChild(headerP);
-        if (summary.breakdown) {
-            const details = document.createElement('p');
-            details.textContent = formatArcadeBreakdown(summary.breakdown);
-            header.appendChild(details);
-        }
+            dailyResult: dailyResult
+                ? { ...dailyResult, bestScore: toSafeNumber(dailyResult.bestScore, score) }
+                : null,
+        }));
         panel.appendChild(header);
 
         const bodyDiv = document.createElement('div');
@@ -412,20 +389,11 @@ export class MatchFlowArcadeOverlayController {
         s1h4.textContent = ARCADE_RESULT_TEXTS.sectorScoreHeading;
         sect1.appendChild(s1h4);
         
-        const ul = document.createElement('ul');
-        ul.className = 'arcade-overlay-list';
-        if (Array.isArray(summary.scorePerSector) && summary.scorePerSector.length > 0) {
-            summary.scorePerSector.slice(0, 8).forEach((entry) => {
-                const li = document.createElement('li');
-                li.textContent = formatSectorScoreRow(entry || {});
-                ul.appendChild(li);
-            });
-        } else {
-            const li = document.createElement('li');
-            li.textContent = ARCADE_RESULT_TEXTS.emptySectors;
-            ul.appendChild(li);
-        }
-        sect1.appendChild(ul);
+        sect1.appendChild(createArcadeCardScroller(
+            [createArcadeSectorBlock(summary.scorePerSector)],
+            ARCADE_RESULT_TEXTS.sectorScoreHeading,
+            ARCADE_RESULT_TEXTS.emptySectors
+        ));
         bodyDiv.appendChild(sect1);
 
         // Section 2: XP
@@ -439,28 +407,7 @@ export class MatchFlowArcadeOverlayController {
         xpP.id = 'arcade-overlay-xp-counter';
         xpP.textContent = '0 XP';
         sect2.appendChild(xpP);
-        
-        const multiP = document.createElement('p');
-        multiP.textContent = formatPeakMultiplier(summary.peakMultiplier);
-        sect2.appendChild(multiP);
         bodyDiv.appendChild(sect2);
-
-        if (dailyResult) {
-            const dailySection = document.createElement('section');
-            dailySection.className = 'arcade-overlay-section';
-            const dailyHeading = document.createElement('h4');
-            dailyHeading.textContent = dailyResult.isNewBest === true ? 'Neuer Tagesbestwert' : 'Daily-Ergebnis';
-            dailySection.appendChild(dailyHeading);
-
-            const dailyText = document.createElement('p');
-            dailyText.textContent = formatDailyAttemptLine({
-                attempt: dailyResult.attempt,
-                score: dailyResult.score,
-                bestScore: toSafeNumber(dailyResult.bestScore, score),
-            });
-            dailySection.appendChild(dailyText);
-            bodyDiv.appendChild(dailySection);
-        }
 
         // Section 3: Replay
         const sect3 = document.createElement('section');
@@ -538,12 +485,7 @@ export class MatchFlowArcadeOverlayController {
         const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
         while (panel.firstChild) panel.removeChild(panel.firstChild);
         const title = document.createElement('h2'); title.textContent = `Fünf Fronten abgeschlossen – ${Math.round(toSafeNumber(summary.total, 0))} Punkte`;
-        const list = document.createElement('ul'); list.className = 'arcade-overlay-list';
-        summary.maps.forEach((map, index) => {
-            const row = document.createElement('li'); const waves = Array.isArray(map?.completedWaves) ? map.completedWaves : [];
-            row.textContent = `Karte ${index + 1}: ${String(map?.mapKey || '-')} | ${Math.floor(toSafeNumber(map?.survivalSeconds, 0))} s | Welle ${Math.max(0, ...waves)} | Kills ${Math.floor(toSafeNumber(map?.regularKills, 0))}/${Math.floor(toSafeNumber(map?.eliteKills, 0))} | ${Math.round(toSafeNumber(map?.score, 0))} Punkte`;
-            list.appendChild(row);
-        });
+        const list = createArcadeCardScroller(createArenaWavesMapBlocks(summary), 'Karten', 'Keine Kartendaten.');
         const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
         close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
         panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
@@ -554,19 +496,11 @@ export class MatchFlowArcadeOverlayController {
         if (runtimeState?.runType !== 'five_portals' || !summary || !Array.isArray(summary.maps)) return false;
         const panel = this._ensureArcadeOverlayPanel(); if (!panel) return false;
         while (panel.firstChild) panel.removeChild(panel.firstChild);
-        const formatTime = (ms) => `${(Math.max(0, Number(ms) || 0) / 1000).toFixed(2)} s`;
         const title = document.createElement('h2'); title.textContent = 'Fünf Portale abgeschlossen';
-        const list = document.createElement('ol'); list.className = 'arcade-overlay-list';
-        summary.maps.forEach((map) => {
-            const row = document.createElement('li');
-            row.textContent = `${String(map?.mapKey || '-')}: ${formatTime(map?.timeMs)}`;
-            list.appendChild(row);
-        });
-        const total = document.createElement('p');
-        total.textContent = `Gesamtzeit: ${formatTime(summary.totalMs)} | Persönlicher Rekord: ${formatTime(summary.bestTotalMs)}`;
+        const list = createArcadeCardScroller(createFivePortalsBlocks(summary), 'Zeiten', 'Keine Zeiten.');
         const close = document.createElement('button'); close.type = 'button'; close.className = 'arcade-overlay-action-btn'; close.textContent = 'Schließen';
         close.addEventListener('click', () => { panel.classList.add('hidden'); this.game?.ui?.messageOverlay?.classList?.add?.('hidden'); });
-        panel.append(title, list, total, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
+        panel.append(title, list, close); panel.classList.remove('hidden'); close.focus({ preventScroll: true }); return true;
     }
 
     syncArcadeOverlayPanel() {

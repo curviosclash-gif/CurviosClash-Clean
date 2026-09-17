@@ -22,6 +22,8 @@ const METRES_PER_KILOMETRE = 1000;
 // From this distance on, metres stop being readable and the board switches to kilometres.
 const KILOMETRE_THRESHOLD_METRES = 10000;
 const KILOMETRE_PRECISION = 1;
+// From this many decimals on a duration keeps its fraction in the minute form ("1:15,43").
+const RACE_TIME_PRECISION = 2;
 
 const MIN_PRECISION = 0;
 const MAX_PRECISION = 3;
@@ -130,6 +132,12 @@ export function formatDuration(seconds, precision) {
     const rounded = roundToPrecision(numeric, decimals);
     if (rounded < SECONDS_PER_MINUTE) {
         return `${formatNumber(rounded, decimals)}${NON_BREAKING_SPACE}s`;
+    }
+    // A caller that asks for hundredths is timing a race: "1:15" would hide who was faster.
+    if (decimals >= RACE_TIME_PRECISION) {
+        const minutes = Math.floor(rounded / SECONDS_PER_MINUTE);
+        const seconds = formatNumber(rounded - minutes * SECONDS_PER_MINUTE, decimals);
+        return `${minutes}:${seconds.length < decimals + 3 ? '0' : ''}${seconds}`;
     }
     const totalSeconds = Math.round(numeric);
     const hours = Math.floor(totalSeconds / SECONDS_PER_HOUR);

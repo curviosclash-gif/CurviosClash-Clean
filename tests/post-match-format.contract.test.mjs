@@ -144,3 +144,13 @@ test('the number formatter is built once per precision and stays stable', () => 
     const second = formatPostMatchValue({ value: 12.5, type: 'duration' });
     assert.equal(first, second, 'a cached formatter returns the same text every time');
 });
+
+// A race result asks for hundredths. The plain minute form "1:15" would hide who was faster, so
+// from two decimals on the fraction stays: the five portals board compares times like these.
+test('a duration with hundredths keeps them in the minute form', () => {
+    assert.equal(formatDuration(75.43, 2), '1:15,43');
+    assert.equal(formatDuration(65.04, 2), '1:05,04');
+    assert.equal(formatDuration(59.996, 2), '1:00,00');
+    assert.equal(formatDuration(12.5, 2), '12,50\u00a0s');
+    assert.equal(formatDuration(75.43), '1:15', 'the board default stays the short form');
+});
