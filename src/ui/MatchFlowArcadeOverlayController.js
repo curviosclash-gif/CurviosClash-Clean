@@ -1,5 +1,13 @@
 /* eslint-disable max-lines */ // Overlay variants intentionally share one lifecycle/controller seam.
 import { formatArcadeBreakdown } from '../shared/contracts/ArcadeScorePresentationContract.js';
+import {
+    ARCADE_RESULT_TEXTS,
+    formatDailyAttemptLine,
+    formatIntermissionTitle,
+    formatPeakMultiplier,
+    formatPostRunHeadline,
+    formatSectorScoreRow,
+} from './arcade/ArcadeResultTexts.js';
 import { clearMessageStats, renderMessageStats } from './dom/MessageStatsDom.js';
 import {
     getArcadeMenuSurfaceState,
@@ -166,7 +174,7 @@ export class MatchFlowArcadeOverlayController {
         header.className = 'arcade-overlay-header';
 
         const h3 = document.createElement('h3');
-        h3.textContent = `Intermission Sektor ${nextSectorIndex}`;
+        h3.textContent = formatIntermissionTitle(nextSectorIndex);
         header.appendChild(h3);
 
         const headerP = document.createElement('p');
@@ -183,11 +191,11 @@ export class MatchFlowArcadeOverlayController {
         const bodyDiv = document.createElement('div');
         bodyDiv.className = 'arcade-overlay-body';
 
-        // Section 1: Naechster Sektor
+        // Section 1: next sector
         const sect1 = document.createElement('section');
         sect1.className = 'arcade-overlay-section';
         const s1h4 = document.createElement('h4');
-        s1h4.textContent = 'Naechster Sektor';
+        s1h4.textContent = ARCADE_RESULT_TEXTS.nextSectorHeading;
         sect1.appendChild(s1h4);
 
         const s1p1 = document.createElement('p');
@@ -195,7 +203,7 @@ export class MatchFlowArcadeOverlayController {
         sect1.appendChild(s1p1);
 
         const s1p2 = document.createElement('p');
-        s1p2.textContent = String(preview.modifierEffect || '').trim() || 'Keine zusaetzliche Wirkung.';
+        s1p2.textContent = String(preview.modifierEffect || '').trim() || ARCADE_RESULT_TEXTS.noExtraEffect;
         sect1.appendChild(s1p2);
         bodyDiv.appendChild(sect1);
 
@@ -211,7 +219,7 @@ export class MatchFlowArcadeOverlayController {
         if (choices.length === 0) {
             const emptyP = document.createElement('p');
             emptyP.className = 'arcade-overlay-empty';
-            emptyP.textContent = 'Keine Optionen verfuegbar.';
+            emptyP.textContent = ARCADE_RESULT_TEXTS.emptyChoices;
             choiceGrid.appendChild(emptyP);
         } else {
             choices.forEach((entry) => {
@@ -260,7 +268,7 @@ export class MatchFlowArcadeOverlayController {
         if (rewards.length === 0) {
             const emptyP = document.createElement('p');
             emptyP.className = 'arcade-overlay-empty';
-            emptyP.textContent = 'Keine Rewards verfuegbar.';
+            emptyP.textContent = ARCADE_RESULT_TEXTS.emptyRewards;
             rewardGrid.appendChild(emptyP);
         } else {
             rewards.forEach((entry) => {
@@ -314,7 +322,7 @@ export class MatchFlowArcadeOverlayController {
         continueButton.type = 'button';
         continueButton.id = 'btn-arcade-intermission-continue';
         continueButton.className = 'arcade-overlay-action-btn';
-        continueButton.textContent = 'Auswahl bestaetigen';
+        continueButton.textContent = ARCADE_RESULT_TEXTS.confirmSelection;
         continueButton.addEventListener('click', () => {
             continueButton.disabled = true;
             this.runtimePort?.setArcadeIntermissionPaused?.(false);
@@ -360,8 +368,6 @@ export class MatchFlowArcadeOverlayController {
         }
 
         const score = Math.max(0, Math.round(toSafeNumber(summary.score, 0)));
-        const bestCombo = Math.max(0, Math.floor(toSafeNumber(summary.bestCombo, 0)));
-        const missionRate = formatPercent(summary.missionCompletionRate);
         const xpEarned = Math.max(0, Math.round(toSafeNumber(summary.xpEarned, 0)));
         const dailyResult = summary?.dailyResult && typeof summary.dailyResult === 'object'
             ? summary.dailyResult
@@ -383,7 +389,11 @@ export class MatchFlowArcadeOverlayController {
         }
         
         const headerP = document.createElement('p');
-        headerP.textContent = `Gesamtscore ${score} | Best Combo ${bestCombo} | Mission-Rate ${missionRate}`;
+        headerP.textContent = formatPostRunHeadline({
+            score,
+            bestCombo: summary.bestCombo,
+            missionRate: formatPercent(summary.missionCompletionRate),
+        });
         header.appendChild(headerP);
         if (summary.breakdown) {
             const details = document.createElement('p');
@@ -395,11 +405,11 @@ export class MatchFlowArcadeOverlayController {
         const bodyDiv = document.createElement('div');
         bodyDiv.className = 'arcade-overlay-body';
 
-        // Section 1: Score pro Sektor
+        // Section 1: points per sector
         const sect1 = document.createElement('section');
         sect1.className = 'arcade-overlay-section';
         const s1h4 = document.createElement('h4');
-        s1h4.textContent = 'Score pro Sektor';
+        s1h4.textContent = ARCADE_RESULT_TEXTS.sectorScoreHeading;
         sect1.appendChild(s1h4);
         
         const ul = document.createElement('ul');
@@ -407,15 +417,12 @@ export class MatchFlowArcadeOverlayController {
         if (Array.isArray(summary.scorePerSector) && summary.scorePerSector.length > 0) {
             summary.scorePerSector.slice(0, 8).forEach((entry) => {
                 const li = document.createElement('li');
-                const sectorIdx = Math.max(0, Math.floor(toSafeNumber(entry?.sectorIndex, 0)));
-                const mapKey = String(entry?.mapKey || '-');
-                const awarded = Math.max(0, Math.round(toSafeNumber(entry?.awardedPoints, 0)));
-                li.textContent = `S${sectorIdx} | ${mapKey} | ${awarded} Punkte`;
+                li.textContent = formatSectorScoreRow(entry || {});
                 ul.appendChild(li);
             });
         } else {
             const li = document.createElement('li');
-            li.textContent = 'Keine Sektordaten.';
+            li.textContent = ARCADE_RESULT_TEXTS.emptySectors;
             ul.appendChild(li);
         }
         sect1.appendChild(ul);
@@ -434,7 +441,7 @@ export class MatchFlowArcadeOverlayController {
         sect2.appendChild(xpP);
         
         const multiP = document.createElement('p');
-        multiP.textContent = `${Math.max(1, Math.round(toSafeNumber(summary.peakMultiplier, 1) * 10) / 10)}x Peak-Multi`;
+        multiP.textContent = formatPeakMultiplier(summary.peakMultiplier);
         sect2.appendChild(multiP);
         bodyDiv.appendChild(sect2);
 
@@ -446,9 +453,11 @@ export class MatchFlowArcadeOverlayController {
             dailySection.appendChild(dailyHeading);
 
             const dailyText = document.createElement('p');
-            const attempt = Math.max(1, Math.floor(toSafeNumber(dailyResult.attempt, 1)));
-            const bestScore = Math.max(0, Math.round(toSafeNumber(dailyResult.bestScore, score)));
-            dailyText.textContent = `Versuch ${attempt} | Score ${Math.round(dailyResult.score)} | Tagesbestwert ${bestScore}`;
+            dailyText.textContent = formatDailyAttemptLine({
+                attempt: dailyResult.attempt,
+                score: dailyResult.score,
+                bestScore: toSafeNumber(dailyResult.bestScore, score),
+            });
             dailySection.appendChild(dailyText);
             bodyDiv.appendChild(dailySection);
         }
@@ -502,7 +511,7 @@ export class MatchFlowArcadeOverlayController {
                 : (code === 'replay_disabled'
                     ? 'Replay ist in den Runtime-Einstellungen deaktiviert.'
                     : (code === 'replay_unavailable'
-                        ? 'Kein Replay fuer diesen Run verfuegbar.'
+                        ? ARCADE_RESULT_TEXTS.replayUnavailable
                         : 'Replay-Status aktualisiert.')));
             this.game?._showStatusToast?.(message, 1800, tone);
         });
