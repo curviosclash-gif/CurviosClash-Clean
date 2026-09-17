@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { consumeFlamethrowerFuel, igniteBurning } from '../entities/player/PlayerEffectOps.js';
+import { spawnFlameJet } from './FlamethrowerFlameEffect.js';
 import { isDestructibleTurret } from '../shared/contracts/TurretCombatContract.js';
 import { shouldSkipOwnerSegment } from '../entities/systems/trails/TrailCollisionQuery.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
@@ -56,18 +57,23 @@ export class FlamethrowerSystem {
     }
 
     /**
-     * One tick of held fire. Answers true when the flamethrower took the tick, which is what tells
-     * the caller that the machine gun stays silent (E79).
+     * One tick of fire. Answers true when the flamethrower took the tick, which is what tells
+     * the caller that the machine gun stays silent (E79). It is called on every tick, held or
+     * not, because only a tick that knows the key was released can end the jet.
      */
-    fire(player, dt) {
-        if (player?.alive !== true || player.hasFlamethrower !== true) return false;
+    fire(player, dt, held = true) {
+        if (player?.alive !== true) return false;
+        const armed = player.hasFlamethrower === true;
         // Only the host burns. A replica still swallows the key so it fires no machine gun
-        // bullets the host never saw, but the tank and the damage belong to the host.
-        if (this.entityManager?.isFightOutcomeAuthority === false) return true;
+        // bullets the host never saw, but the tank, the damage and the visible jet follow the
+        // host snapshot (player.flameActive, applied by StateReconciler).
+        if (this.entityManager?.isFightOutcomeAuthority === false) return armed && held === true;
 
-        const seconds = consumeFlamethrowerFuel(player, dt);
+        const seconds = armed && held === true ? consumeFlamethrowerFuel(player, dt) : 0;
+        // A per tick fact, not a state: an empty tank or a released key ends the jet at once.
+        player.flameActive = seconds > 0;
         if (seconds > 0) this._burn(player, seconds);
-        return true;
+        return armed && held === true;
     }
 
     _burn(player, seconds) {
@@ -86,6 +92,7 @@ export class FlamethrowerSystem {
         player.getAimDirection(aim);
         if (aim.lengthSq() <= 0.000001) return;
         aim.normalize();
+        spawnFlameJet(this.entityManager?.particles, player);
 
         if (isHuntHealthActive(runtimeConfig)) this._burnPlayers(player, origin, aim, range, tanHalfAngle, damage);
         this._burnTurrets(player, origin, aim, range, tanHalfAngle, damage);

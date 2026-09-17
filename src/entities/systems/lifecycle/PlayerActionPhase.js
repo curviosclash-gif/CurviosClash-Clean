@@ -129,8 +129,7 @@ export class PlayerActionPhase {
         // E79: once the item is active, the held machine gun key sprays fire instead of bullets -
         // in every mode, because Classic has no machine gun but does have the same key. The
         // flamethrower answers true for the ticks it took, so the gun neither fires nor heats up.
-        const firedFlame = input.shootMG === true
-            && entityManager._flamethrowerSystem?.fire(player, dt) === true;
+        const firedFlame = entityManager._flamethrowerSystem?.fire(player, dt, input.shootMG === true) === true;
 
         if (input.shootMG && !firedFlame && strategy?.hasMachineGun()) {
             const result = entityManager._shootHuntGun(player);
