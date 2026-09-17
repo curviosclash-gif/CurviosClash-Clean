@@ -121,14 +121,18 @@ export class RoundStateTickSystem {
     }
 
     _deriveRoundEndTickStep(dt) {
+        // The kernel step reads Enter/Escape itself, so the keys are read here only when no
+        // kernel step owns them; reading them first would leave the kernel an empty press.
+        const arenaWavesRun = this._readArcadeSurfaceState()?.runType === 'arena_waves';
+        if (!arenaWavesRun && !this.game.roundStateController?.isArcadeRoundStateController) {
+            this._arenaWavesTransitionRestartRequested = false;
+            const kernelStep = this._tickKernelRoundState(dt, 'round_end');
+            if (kernelStep) return kernelStep;
+        }
         const inputs = this._readRoundEndTickInputs(dt);
         const arenaWavesStep = this._deriveArenaWavesRoundEndStep(inputs);
         if (arenaWavesStep) return arenaWavesStep;
-        if (this.game.roundStateController?.isArcadeRoundStateController) {
-            return this.game.roundStateController.deriveRoundEndTick(inputs);
-        }
-        return this._tickKernelRoundState(dt, 'round_end')
-            || this.game.roundStateController.deriveRoundEndTick(inputs);
+        return this.game.roundStateController.deriveRoundEndTick(inputs);
     }
 
     _deriveMatchEndTickStep() {
