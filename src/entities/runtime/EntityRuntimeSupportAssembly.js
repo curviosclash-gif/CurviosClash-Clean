@@ -43,6 +43,8 @@ export function handleRocketIntercept(owner, event) {
     const defenderIndex = Number(defender?.index);
     if (!defender || defender.staticTurret === true || !Number.isInteger(defenderIndex) || defenderIndex < 0) return;
     owner?._huntScoring?.registerIntercept?.(defenderIndex);
+    // The endless parcours pays its run xp per event (like a kill), and only to a human.
+    if (defender.isBot !== true) owner?.endlessParcoursRuntime?.collectRunXp?.('intercept', 1);
     owner?.recorder?.logEvent?.(
         'ROCKET_INTERCEPT',
         defenderIndex,

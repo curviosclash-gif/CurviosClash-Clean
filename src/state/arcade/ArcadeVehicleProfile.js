@@ -14,6 +14,7 @@ import {
     resolveArcadeHangarUnlockedSlots,
 } from '../../shared/contracts/ArcadeHangarRulesContract.js';
 import { toSafeNumber, clampInteger as clampInt } from '../../shared/utils/ArcadeUtils.js';
+import { XP_REWARD_TABLE, calculateSectorXp } from './ArcadeXpRewards.js';
 import {
     buildUpgradeState,
     computeLevel,
@@ -44,17 +45,7 @@ export const XP_CONFIG = Object.freeze({
 
 export const SLOT_UNLOCK_LEVELS = ARCADE_HANGAR_SLOT_UNLOCK_GATES;
 
-export const XP_REWARD_TABLE = Object.freeze({
-    sectorComplete: 50,
-    killBase: 15,
-    missionComplete: 80,
-    allMissionsBonus: 120,
-    cleanSector: 40,
-    comboMultiplierCap: 3.0,
-    parcoursCheckpoint: 10,
-    parcoursFinish: 80,
-    parcoursNewBestTime: 40,
-});
+export { XP_REWARD_TABLE, calculateSectorXp };
 
 export const UPGRADE_PURCHASE_CODES = Object.freeze({
     APPLIED: 'applied',
@@ -402,30 +393,6 @@ export function applyLoadoutPreset(profile, upgrades, nowMs = Date.now()) {
         rejectedEntries: sanitized.rejectedEntries.slice(),
         acceptedCount: sanitized.acceptedCount,
     };
-}
-
-// XP Reward Calculation
-
-export function calculateSectorXp(telemetry) {
-    if (!telemetry || typeof telemetry !== 'object') return 0;
-    const kills = Math.max(0, toSafeNumber(telemetry.kills, 0));
-    const comboMultiplier = Math.min(
-        XP_REWARD_TABLE.comboMultiplierCap,
-        Math.max(1, toSafeNumber(telemetry.multiplier, 1))
-    );
-    const missionsCompleted = Math.max(0, toSafeNumber(telemetry.missionsCompleted, 0));
-    const totalMissions = Math.max(0, toSafeNumber(telemetry.totalMissions, 0));
-    const isClean = telemetry.cleanSector === true;
-
-    let xp = XP_REWARD_TABLE.sectorComplete;
-    xp += kills * XP_REWARD_TABLE.killBase;
-    xp += missionsCompleted * XP_REWARD_TABLE.missionComplete;
-    if (totalMissions > 0 && missionsCompleted >= totalMissions) {
-        xp += XP_REWARD_TABLE.allMissionsBonus;
-    }
-    if (isClean) xp += XP_REWARD_TABLE.cleanSector;
-
-    return Math.floor(xp * comboMultiplier);
 }
 
 // Persistence

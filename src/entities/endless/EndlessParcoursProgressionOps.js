@@ -68,6 +68,7 @@ export function collectEndlessRunXp(runtime, kind, count = 1) {
     const baseByKind = {
         checkpoint: XP_REWARD_TABLE.parcoursCheckpoint,
         kill: XP_REWARD_TABLE.killBase,
+        intercept: XP_REWARD_TABLE.interceptBase,
         mission: XP_REWARD_TABLE.missionComplete,
     };
     const base = Math.max(0, Number(baseByKind[String(kind || '')]) || 0)
