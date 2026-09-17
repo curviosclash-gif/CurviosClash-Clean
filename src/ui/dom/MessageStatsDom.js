@@ -1,12 +1,19 @@
 // Renders the post-match board (contract: post-match-stats.v2).
 //
-// The producer hands over raw numbers plus a type, so every visible string is written here through
-// PostMatchFormat. Standings entries are still shown as plain rows (name, wins, in HUNT also
-// kills/deaths/assists) — the real table and the folded detail section are P4's job. What must not
-// change are `data-stats-block-id` and `data-stats-row-key`: the desktop tests hang on them.
+// The board has two parts. Everything the player cares about right away stays open: the standings as
+// a real table plus the primary cards. Everything that only helps development (stuck rate, bot
+// survival, bot win rate) moves into a single <details> that starts folded — decision E2. <details>
+// is used on purpose instead of a hand built toggle, because the browser already gives it keyboard
+// operation, an accessible state and a focusable summary.
+//
+// What must not change are `data-stats-block-id` and `data-stats-row-key`: the desktop tests hang on
+// them, and a folded <details> still keeps its content in the DOM, so a text search finds it.
 
 import { normalizePostMatchStats } from '../../shared/contracts/PostMatchStatsContract.js';
-import { formatPostMatchValue } from '../postmatch/PostMatchFormat.js';
+import { createPostMatchCard, createStatsElement } from '../postmatch/PostMatchCards.js';
+import { createPostMatchStandingsTable } from '../postmatch/PostMatchStandingsTable.js';
+
+const DETAILS_SUMMARY_LABEL = 'Details';
 
 export function clearMessageStats(container) {
     if (!container) return;
@@ -14,41 +21,25 @@ export function clearMessageStats(container) {
     container.classList.add('hidden');
 }
 
-function appendStatsRow(list, key, label, value) {
-    const rowElement = document.createElement('div');
-    rowElement.className = 'message-stats-row';
-    rowElement.setAttribute('data-stats-row-key', key);
-
-    const labelElement = document.createElement('dt');
-    labelElement.className = 'message-stats-label';
-    labelElement.textContent = label;
-
-    const valueElement = document.createElement('dd');
-    valueElement.className = 'message-stats-value';
-    valueElement.textContent = value;
-
-    rowElement.appendChild(labelElement);
-    rowElement.appendChild(valueElement);
-    list.appendChild(rowElement);
+/**
+ * @param {import('../../shared/contracts/PostMatchStatsContract.js').PostMatchStatsBlock} block
+ * @returns {HTMLElement|null}
+ */
+function createBlockElement(block) {
+    return block.kind === 'standings'
+        ? createPostMatchStandingsTable(block)
+        : createPostMatchCard(block);
 }
 
-// "2/3" everywhere, plus "7/1/2" (kills/deaths/assists) as soon as the mode counts them.
-function formatStandingsValue(entry) {
-    const progress = `${entry.roundWins}/${entry.requiredWins}`;
-    if (entry.kills === null) return progress;
-    return `${progress} · ${entry.kills}/${entry.deaths}/${entry.assists}`;
-}
-
-function renderStandingsEntries(list, entries) {
-    for (const entry of entries) {
-        appendStatsRow(list, `player-${entry.playerIndex}`, entry.label, formatStandingsValue(entry));
-    }
-}
-
-function renderValueRows(list, rows) {
-    for (const row of rows) {
-        appendStatsRow(list, row.key, row.label, formatPostMatchValue(row));
-    }
+/**
+ * @param {HTMLElement[]} blockElements
+ * @returns {HTMLElement}
+ */
+function createDetailsSection(blockElements) {
+    const details = createStatsElement('details', 'message-stats-details');
+    details.appendChild(createStatsElement('summary', 'message-stats-summary', DETAILS_SUMMARY_LABEL));
+    for (const element of blockElements) details.appendChild(element);
+    return details;
 }
 
 export function renderMessageStats(container, overlayStats) {
@@ -61,27 +52,16 @@ export function renderMessageStats(container, overlayStats) {
     }
 
     container.replaceChildren();
+    /** @type {HTMLElement[]} */
+    const detailElements = [];
     for (const block of stats.blocks) {
-        const blockElement = document.createElement('section');
-        blockElement.className = 'message-stats-card';
-        blockElement.setAttribute('data-stats-block-id', block.id);
-        blockElement.setAttribute('data-stats-block-tier', block.tier);
-
-        const title = document.createElement('h3');
-        title.className = 'message-stats-title';
-        title.textContent = block.title || 'Stats';
-        blockElement.appendChild(title);
-
-        const list = document.createElement('dl');
-        list.className = 'message-stats-list';
-        if (block.kind === 'standings') {
-            renderStandingsEntries(list, block.entries);
-        } else {
-            renderValueRows(list, block.rows);
-        }
-
-        blockElement.appendChild(list);
-        container.appendChild(blockElement);
+        const element = createBlockElement(block);
+        if (!element) continue;
+        if (block.tier === 'detail') detailElements.push(element);
+        else container.appendChild(element);
+    }
+    if (detailElements.length > 0) {
+        container.appendChild(createDetailsSection(detailElements));
     }
 
     container.classList.remove('hidden');

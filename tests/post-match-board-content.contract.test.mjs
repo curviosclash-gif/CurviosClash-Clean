@@ -254,6 +254,8 @@ function createStubElement(tagName = 'div') {
         textContent: '',
         attributes: {},
         children: [],
+        // The standings table paints the player colour as an inline style.
+        style: {},
         classList: createStubClassList(),
         appendChild(child) { this.children.push(child); return child; },
         replaceChildren() { this.children.length = 0; },
@@ -269,6 +271,18 @@ function installDocumentStub() {
         if (previousDocument === undefined) delete globalThis.document;
         else globalThis.document = previousDocument;
     };
+}
+
+function walkElements(node, found = []) {
+    for (const child of node.children || []) {
+        found.push(child);
+        walkElements(child, found);
+    }
+    return found;
+}
+
+function findBlockElement(root, blockId) {
+    return walkElements(root).find((node) => node.getAttribute('data-stats-block-id') === blockId) || null;
 }
 
 function collectRows(blockElement) {
@@ -289,17 +303,33 @@ test('the overlay renders the v2 board with german values and keeps its test hoo
         renderMessageStats(container, summary);
 
         assert.equal(container.classList.contains('hidden'), false);
+        // P4: the primary blocks stay open, the detail blocks moved into one folded <details>.
         assert.deepEqual(
-            container.children.map((block) => block.getAttribute('data-stats-block-id')),
+            container.children
+                .filter((block) => block.getAttribute('data-stats-block-id'))
+                .map((block) => block.getAttribute('data-stats-block-id')),
+            ['scoreboard', 'round']
+        );
+        assert.deepEqual(
+            walkElements(container)
+                .filter((node) => node.getAttribute('data-stats-block-id'))
+                .map((node) => node.getAttribute('data-stats-block-id')),
             ['scoreboard', 'round', 'round-detail', 'match']
         );
 
-        const standingsRows = collectRows(container.children[0]);
-        assert.equal(standingsRows[0].key, 'player-0');
-        assert.equal(standingsRows[0].label, 'Spieler 1');
-        assert.equal(standingsRows[0].value, '1/3');
+        const standingsRow = walkElements(findBlockElement(container, 'scoreboard'))
+            .find((node) => node.getAttribute('data-stats-row-key') === 'player-0');
+        assert.ok(standingsRow, 'the standings row keeps its player key');
+        assert.equal(
+            walkElements(standingsRow).find((node) => node.getAttribute('data-stats-value') === 'progress').textContent,
+            '1/3'
+        );
+        assert.ok(
+            walkElements(standingsRow).some((node) => node.textContent === 'Spieler 1'),
+            'the player name stays readable in the table'
+        );
 
-        const matchRows = collectRows(container.children[3]);
+        const matchRows = collectRows(findBlockElement(container, 'match'));
         // 0 as a fraction has to reach the board as "0 %", never as "0".
         assert.match(matchRows.find((row) => row.key === 'bot-win-rate').value, /^0 %$/);
     } finally {

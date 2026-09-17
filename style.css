@@ -2611,6 +2611,60 @@ input[type="range"]::-webkit-slider-thumb {
     text-align: right;
 }
 
+/* P4 base look for the standings table and the folded detail section; P5 does the real styling. */
+.message-stats-standings,
+.message-stats-details { grid-column: 1 / -1; }
+
+.message-stats-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
+}
+
+.message-stats-table th,
+.message-stats-table td {
+    padding: 4px 8px;
+    text-align: left;
+    vertical-align: middle;
+}
+
+.message-stats-head {
+    color: rgba(208, 226, 255, 0.78);
+    font-size: 0.8rem;
+    font-weight: 600;
+}
+
+.message-stats-rank,
+.message-stats-kda { text-align: right; }
+
+.message-stats-dot {
+    display: inline-block;
+    width: 0.7em;
+    height: 0.7em;
+    margin-right: 0.5em;
+    border-radius: 50%;
+    border: 1px solid rgba(255, 255, 255, 0.35);
+}
+
+.message-stats-dot.no-color { background: rgba(255, 255, 255, 0.12); }
+.message-stats-pips { margin-right: 0.5em; letter-spacing: 0.1em; }
+.message-stats-tag,
+.message-stats-winner { margin-left: 0.4em; font-size: 0.85em; color: rgba(208, 226, 255, 0.9); }
+
+.message-stats-summary {
+    cursor: pointer;
+    padding: 6px 4px;
+    color: rgba(208, 226, 255, 0.85);
+    font-size: 0.9rem;
+}
+
+.message-stats-summary:focus-visible {
+    outline: 2px solid #8ecbff;
+    outline-offset: 2px;
+}
+
+.message-stats-details > .message-stats-card { margin-top: 10px; }
+
 #arcade-score-hud .hidden {
     display: none !important;
 }
