@@ -5,6 +5,7 @@ import {
     waitForRuntimeReady,
     waitForShellOrRuntimeReady,
 } from './playwright-readiness.js';
+import { consumeFreshBootMark, isForceGotoEnv, shouldSkipInitialGoto } from './fresh-boot-mark.mjs';
 import { performance } from 'node:perf_hooks';
 
 function toPositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
@@ -121,7 +122,14 @@ async function ensureTestModuleImportBridge(page, timeoutMs = 5000) {
 }
 
 // Load page and wait for visible main menu.
-export async function loadGame(page) {
+// The desktop harness already booted the app, so the first call on an untouched
+// page only waits for readiness instead of booting it a second time. Pass
+// { forceReload: true } where a test needs the navigation itself.
+export async function loadGame(page, options = {}) {
+    const forceReload = options?.forceReload === true;
+    const envForce = isForceGotoEnv(process.env);
+    // One shot: a retry and every later loadGame in the same test navigate again.
+    const freshBoot = consumeFreshBootMark(page);
     const maxAttempts = toPositiveInt(process.env.PW_LOAD_GAME_MAX_ATTEMPTS, 2, 1, 5);
     const gotoTimeoutMs = toPositiveInt(process.env.PW_LOAD_GAME_GOTO_TIMEOUT_MS, 60000, 1_000, 300_000);
     const serverTimeoutMs = toPositiveInt(process.env.PW_LOAD_GAME_SERVER_TIMEOUT_MS, 80000, 1_000, 300_000);
@@ -136,6 +144,7 @@ export async function loadGame(page) {
     let lastError = null;
     let lastStage = 'idle';
     let lastDiagnostics = null;
+    let skippedInitialGoto = false;
     const startedAt = performance.now();
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -158,17 +167,31 @@ export async function loadGame(page) {
                 });
             }
 
-            const elapsedBeforeGoto = performance.now() - startedAt;
-            const remainingBeforeGoto = totalTimeoutMs - elapsedBeforeGoto;
-            if (remainingBeforeGoto <= 1_000) {
-                throw new Error('loadGame timeout budget exhausted before navigation');
+            const targetUrl = resolveAppUrl(page, '/');
+            const skipGoto = attempt === 1 && shouldSkipInitialGoto({
+                fresh: freshBoot,
+                currentUrl: page.url(),
+                targetUrl,
+                forceReload,
+                envForce,
+            });
+
+            if (skipGoto) {
+                skippedInitialGoto = true;
+                lastStage = 'fresh_boot';
+            } else {
+                const elapsedBeforeGoto = performance.now() - startedAt;
+                const remainingBeforeGoto = totalTimeoutMs - elapsedBeforeGoto;
+                if (remainingBeforeGoto <= 1_000) {
+                    throw new Error('loadGame timeout budget exhausted before navigation');
+                }
+                const gotoBudgetMs = Math.max(
+                    1_000,
+                    Math.min(gotoTimeoutMs, remainingBeforeGoto - 1_500)
+                );
+                lastStage = 'goto';
+                await page.goto(targetUrl, { waitUntil: gotoWaitUntil, timeout: gotoBudgetMs });
             }
-            const gotoBudgetMs = Math.max(
-                1_000,
-                Math.min(gotoTimeoutMs, remainingBeforeGoto - 1_500)
-            );
-            lastStage = 'goto';
-            await page.goto(resolveAppUrl(page, '/'), { waitUntil: gotoWaitUntil, timeout: gotoBudgetMs });
 
             const elapsedBeforeReady = performance.now() - startedAt;
             const remainingBeforeReady = totalTimeoutMs - elapsedBeforeReady;
@@ -221,6 +244,7 @@ export async function loadGame(page) {
         totalTimeoutMs,
         retryDelayMs,
         snapshotTimeoutMs,
+        skippedInitialGoto,
     })}`;
     throw new Error(
         `loadGame failed after ${maxAttempts} attempts in runProfile "${runProfile}" ` +

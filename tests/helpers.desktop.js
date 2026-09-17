@@ -8,6 +8,7 @@ import {
     resolveShowWindow,
     resolveTestRenderMode,
 } from './desktop-process-teardown.mjs';
+import { installFreshBootGuards, markFreshBoot } from './fresh-boot-mark.mjs';
 
 const require = createRequire(import.meta.url);
 
@@ -308,6 +309,7 @@ async function createDesktopDiagnostics({
     testInfo,
     events,
     rendererState,
+    mainFrameNavigations = [],
     consoleMessages,
     rendererErrors,
     mainProcessEvents,
@@ -342,6 +344,8 @@ async function createDesktopDiagnostics({
             url: rendererState.url,
             title: rendererState.title,
             closed: rendererState.closed,
+            mainFrameLoads: 1 + mainFrameNavigations.filter((entry) => !entry.duringHarnessBoot).length,
+            mainFrameNavigations: mainFrameNavigations.slice(-10),
         },
         mainProcess: processInfo,
         teardown,
@@ -388,6 +392,12 @@ const desktopTest = base.extend({
         let page = null;
         let capturedError = null;
         let harnessChildProcess = null;
+        // Counting main document loads is the cheap, load independent proof that the
+        // app boots once per test instead of twice. The harness boot itself commits
+        // before firstWindow() resolves, so it is counted as the fixed first load and
+        // every navigation observed after it is an extra boot.
+        const mainFrameNavigations = [];
+        let harnessBootSettled = false;
 
         const recordStage = (stage, extra = {}) => {
             events.push({
@@ -469,6 +479,14 @@ const desktopTest = base.extend({
             processPid = childProcess?.pid ?? null;
 
             page = await withTimeout(app.firstWindow(), DESKTOP_READY_TIMEOUT_MS, 'window_created');
+            page.on('framenavigated', (frame) => {
+                if (frame !== page.mainFrame()) return;
+                mainFrameNavigations.push({
+                    recordedAt: toIsoNow(),
+                    url: String(frame.url() || ''),
+                    duringHarnessBoot: !harnessBootSettled,
+                });
+            });
             page.on('console', (message) => {
                 const type = String(message?.type?.() || '').trim().toLowerCase() || 'log';
                 const location = formatLocation(message?.location?.());
@@ -528,6 +546,7 @@ const desktopTest = base.extend({
             });
 
             await page.waitForLoadState('load', { timeout: DESKTOP_READY_TIMEOUT_MS });
+            harnessBootSettled = true;
             recordStage('renderer_loaded', {
                 url: page.url(),
             });
@@ -553,6 +572,13 @@ const desktopTest = base.extend({
                 });
             }
             setupComplete = true;
+
+            // The app is booted and untouched at this point: loadGame may skip its own
+            // navigation. The guards drop that mark again as soon as a test registers
+            // something that needs a following navigation, and the listener baseline
+            // taken here covers tests that want to watch a load (collectErrors).
+            installFreshBootGuards({ page, context: page.context() });
+            markFreshBoot(page);
 
             await use({
                 app,
@@ -631,6 +657,7 @@ const desktopTest = base.extend({
                     testInfo,
                     events,
                     rendererState,
+                    mainFrameNavigations,
                     consoleMessages: summarizeConsoleMessages(rendererConsoleEntries),
                     rendererErrors: summarizeRendererErrors(rendererErrorEntries),
                     mainProcessEvents: summarizeMainProcess(mainProcessEntries),
