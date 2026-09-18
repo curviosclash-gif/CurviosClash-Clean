@@ -151,6 +151,8 @@ function normalizeEffects(effects) {
             // nonsense in it, keeps the effect - the badge then simply shows no tank.
             const fuelSeconds = Number(effect?.fuelSeconds);
             if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) normalized.fuelSeconds = fuelSeconds;
+            const shots = Number(effect?.shots);
+            if (Number.isFinite(shots) && shots >= 0) normalized.shots = Math.trunc(shots);
             return normalized;
         })
         .filter(Boolean);
@@ -253,6 +255,7 @@ export class StateReconciler {
         // host really burned fuel, no damage of its own (S4.2).
         localPlayer.flameActive = serverPlayer.flameActive === true;
         if (localPlayer.flameActive) spawnFlameJet(entityManager?.particles, localPlayer);
+        localPlayer.railCharge = Math.max(0, toFiniteNumber(serverPlayer.railCharge, 0));
 
         if (typeof serverPlayer.score === 'number') {
             localPlayer.score = serverPlayer.score;

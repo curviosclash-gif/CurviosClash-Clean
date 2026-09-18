@@ -124,6 +124,8 @@ export function serializePlayer(player) {
         // tick really burned fuel, so the fact travels as its own field (S4.6). A dead vehicle
         // skips its action phase, so the flag is gated on alive instead of reset on death.
         flameActive: player.alive === true && player.flameActive === true,
+        // The railgun charge, so a replica can show how far a held shot is.
+        railCharge: player.alive === true ? Math.max(0, toFiniteNumber(player.railCharge, 0)) : 0,
         hasShield: player.hasShield === true,
         shieldHP: toFiniteNumber(player.shieldHP, 0),
         speed: toFiniteNumber(player.speed, 0),
@@ -178,6 +180,9 @@ function serializeEffects(effects) {
             // the client, where the item bar shows fuel instead of the expiry.
             const fuelSeconds = Number(effect?.fuelSeconds);
             if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) serialized.fuelSeconds = fuelSeconds;
+            // The railgun's shots, for the same reason as the tank.
+            const shots = Number(effect?.shots);
+            if (Number.isFinite(shots) && shots >= 0) serialized.shots = Math.trunc(shots);
             return serialized;
         })
         .filter(Boolean);
