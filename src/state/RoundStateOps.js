@@ -46,8 +46,8 @@ function getRunnerUpWins(players, matchWinner) {
     return best;
 }
 
-const RESTART_HINT = 'ENTER für neues Match oder ESC für Menü';
-
+// The key hints live on the result board's continue prompt (P7c), so the subtitle carries only
+// the outcome itself.
 export function deriveRoundEndOutcome(players, inputs = {}) {
     const safePlayers = ensureArray(players);
     const winner = inputs.winner || null;
@@ -74,8 +74,8 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
                 ? `Neuer Rekord - ${Math.floor(Number(summary.score) || 0)} Punkte`
                 : `Endlosjagd beendet - ${Math.floor(Number(summary.score) || 0)} Punkte`,
             messageSub: Array.isArray(summary.newMilestones) && summary.newMilestones.length > 0
-                ? `${summary.newMilestones.length} neue Meilensteine - ENTER für neuen Lauf`
-                : 'ENTER für neuen Lauf oder ESC für Menü',
+                ? `${summary.newMilestones.length} neue Meilensteine`
+                : '',
         };
     }
 
@@ -93,7 +93,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
                 reason,
                 parcours,
                 messageText: `Parcours abgeschlossen: ${name}${completionSuffix}`,
-                messageSub: RESTART_HINT,
+                messageSub: '',
             };
         }
         return {
@@ -104,8 +104,7 @@ export function deriveRoundEndOutcome(players, inputs = {}) {
             reason,
             parcours,
             messageText: `${name} gewinnt das Match`,
-            messageSub: `${normalizeCount(matchWinner.score)} : ${getRunnerUpWins(safePlayers, matchWinner)} Runden`
-                + ` - ${RESTART_HINT}`,
+            messageSub: `${normalizeCount(matchWinner.score)} : ${getRunnerUpWins(safePlayers, matchWinner)} Runden`,
         };
     }
 

@@ -35,7 +35,7 @@ test('match end names the winner in a full sentence', () => {
     assert.match(outcome.messageSub, /^3 : 1 Runden/);
 });
 
-test('match end works for a bot winner and keeps the restart hint', () => {
+test('match end works for a bot winner and leaves the key hints to the board', () => {
     const players = [makePlayer(0, 0), makePlayer(1, 2, true), makePlayer(2, 1, true)];
     const outcome = deriveRoundEndOutcome(players, {
         winner: players[1],
@@ -46,8 +46,9 @@ test('match end works for a bot winner and keeps the restart hint', () => {
     });
 
     assert.equal(outcome.messageText, 'Bot 2 gewinnt das Match');
-    assert.match(outcome.messageSub, /^2 : 1 Runden/);
-    assert.ok(outcome.messageSub.includes('ENTER'), 'restart hint must survive the rewording');
+    assert.equal(outcome.messageSub, '2 : 1 Runden');
+    // The continue prompt on the board shows the keys (P7c); the subtitle must not repeat them.
+    assert.ok(!outcome.messageSub.includes('ENTER'), 'no key hint in the subtitle');
 });
 
 test('round end and draw keep short german sentences', () => {

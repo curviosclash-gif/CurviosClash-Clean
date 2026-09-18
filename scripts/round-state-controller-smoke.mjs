@@ -106,7 +106,8 @@ function runMatchEndCase() {
     assert(result.score?.score === 3, `expected score 3, got ${result.score?.score}`);
     assert(result.effectsPlan?.shouldUpdateHud === true, 'expected HUD update on match-end roundEnd coordination');
     assert(result.uiState?.visibility?.messageOverlayHidden === false, 'expected match-end overlay visible');
-    assert(String(result.uiState?.messageSub || '').includes('ENTER'), 'expected restart hint in match-end uiState');
+    // The key hints belong to the board's continue prompt; the subtitle carries the round score.
+    assert(/^\d+ : \d+ Runden$/.test(String(result.uiState?.messageSub || '')), 'expected round score in match-end uiState');
 
     return {
         transitionState: result.transition.nextState,
