@@ -19,6 +19,7 @@ import {
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
 import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 import { crushTrailsUnderUnit } from './map-units/MapUnitTrailOps.js';
+import { applyMapUnitsNetworkState, serializeMapUnits } from './map-units/MapUnitNetworkOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -156,6 +157,17 @@ export class MapUnitSystem {
 
     setNetworkReplica(enabled) {
         this.networkReplica = enabled === true;
+    }
+
+    serializeNetworkState() {
+        return serializeMapUnits(this.units);
+    }
+
+    applyNetworkState(entries) {
+        applyMapUnitsNetworkState(this, entries, (unit) => {
+            this._placeCentre(unit);
+            updateMapUnitVisual(unit);
+        });
     }
 
     clear() {

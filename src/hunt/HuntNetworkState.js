@@ -15,6 +15,8 @@ export function createHuntNetworkState(entityManager) {
         ...matchState,
         // Null on every map without destructible geometry, so the block costs nothing there.
         mapDestructibles: entityManager._mapDestructibleSystem?.serializeNetworkState?.() || null,
+        // Tanks: host truth for position, hit points and shots; null on maps without them.
+        mapUnits: entityManager._mapUnitSystem?.serializeNetworkState?.() || null,
         outcome: normalizeOutcome(entityManager._lastRoundOutcome),
     };
 }
@@ -27,6 +29,7 @@ export function applyHuntNetworkState(entityManager, state) {
     if (state.mapDestructibles) {
         entityManager._mapDestructibleSystem?.applyNetworkState?.(state.mapDestructibles);
     }
+    if (state.mapUnits) entityManager._mapUnitSystem?.applyNetworkState?.(state.mapUnits);
 
     const outcome = state.outcome;
     if (!outcome) return;

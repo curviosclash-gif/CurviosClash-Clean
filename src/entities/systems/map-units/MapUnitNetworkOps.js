@@ -1,0 +1,83 @@
+import { resolveUnitPathPose } from './MapUnitMovementOps.js';
+
+/**
+ * Map units across the network. The host decides where a tank is, whether it lives and when it
+ * fires; clients build the same tanks from the same map, keep driving them along the path between
+ * two snapshots (smooth motion) and take every snapshot as the truth. A client never deals damage.
+ */
+
+const BLAST_COLOR = 0xff8a3d;
+
+function round(value, digits = 1000) {
+    return Math.round((Number(value) || 0) * digits) / digits;
+}
+
+/** Null on every map without tanks, so the block costs nothing there. */
+export function serializeMapUnits(units) {
+    if (!Array.isArray(units) || units.length === 0) return null;
+    return units.map((unit) => ({
+        id: unit.id,
+        alive: unit.alive === true,
+        hp: round(unit.hp, 10),
+        from: unit.fromIndex,
+        to: unit.toIndex,
+        progress: round(unit.progress),
+        yaw: round(unit.yaw),
+        mounts: unit.mounts.map((mount) => ({
+            aim: [round(mount.aimDirection.x), round(mount.aimDirection.y), round(mount.aimDirection.z)],
+            shots: mount.shotsFired,
+        })),
+    }));
+}
+
+function applyMounts(system, unit, entries) {
+    const turrets = system.entityManager?._staticTurretSystem;
+    for (let index = 0; index < unit.mounts.length; index += 1) {
+        const mount = unit.mounts[index];
+        const entry = entries?.[index];
+        if (!entry) continue;
+        const aim = Array.isArray(entry.aim) ? entry.aim : null;
+        if (aim) mount.aimDirection.set(Number(aim[0]) || 0, Number(aim[1]) || 0, Number(aim[2]) || 1);
+        if (mount.aimDirection.lengthSq() > 0.000001) {
+            system._tmpPoint.copy(unit.position).add(mount.aimDirection);
+            mount.root?.userData?.headPivot?.lookAt?.(system._tmpPoint);
+        }
+        const shots = Math.max(0, Math.trunc(Number(entry.shots) || 0));
+        // The first snapshot only learns the count; later ones replay every new shot as a tracer.
+        if (mount.networkShotsInitialized === true && shots > mount.shotsFired && unit.alive) {
+            turrets?._playReplicatedShot?.(mount);
+        }
+        mount.shotsFired = shots;
+        mount.networkShotsInitialized = true;
+    }
+}
+
+export function applyMapUnitsNetworkState(system, entries, onPoseChanged) {
+    if (!Array.isArray(entries)) return;
+    system.networkReplica = true;
+    const byId = new Map(entries.map((entry) => [String(entry?.id || ''), entry]));
+    for (const unit of system.units) {
+        const entry = byId.get(unit.id);
+        if (!entry) continue;
+        const wasAlive = unit.alive;
+        const pathLength = unit.path.length;
+        const from = Math.trunc(Number(entry.from));
+        const to = Math.trunc(Number(entry.to));
+        if (from >= 0 && from < pathLength && to >= 0 && to < pathLength && from !== to) {
+            unit.fromIndex = from;
+            unit.toIndex = to;
+            unit.progress = Math.max(0, Number(entry.progress) || 0);
+        }
+        unit.yaw = Number.isFinite(Number(entry.yaw)) ? Number(entry.yaw) : unit.yaw;
+        unit.hp = Math.max(0, Number(entry.hp) || 0);
+        unit.alive = entry.alive === true;
+        resolveUnitPathPose(unit, unit.path, unit.groundPosition);
+        onPoseChanged(unit);
+        if (unit.root) unit.root.visible = unit.alive;
+        if (wasAlive && !unit.alive) {
+            // Only the picture: damage, loot and credit already happened on the host.
+            system.entityManager?.particles?.spawnExplosion?.(unit.position, BLAST_COLOR, { cause: 'PROJECTILE', projectileType: 'ROCKET_HEAVY' });
+        }
+        applyMounts(system, unit, entry.mounts);
+    }
+}
