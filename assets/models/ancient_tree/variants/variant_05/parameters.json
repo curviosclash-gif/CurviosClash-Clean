@@ -1,0 +1,60 @@
+{
+  "name": "variant_05",
+  "seed": 80668,
+  "height_scale": 1.014877732765454,
+  "crown_scale": 1.0377150145912353,
+  "crown_aspect": 1.0519442800590015,
+  "trunk_lean_x": -0.03681659300924056,
+  "trunk_lean_y": 0.30911082100719733,
+  "trunk_twist_deg": -2.2923340692116563,
+  "wood_thickness_scale": 0.9449278053384871,
+  "main_length_scales": [
+    0.9134463658508883,
+    0.9278393486349493,
+    0.9347632093240625,
+    0.9716289846670659,
+    0.9560604741561975
+  ],
+  "main_elevation_scales": [
+    0.9423852718451583,
+    0.9773125773802087,
+    0.881119083511724,
+    1.0116945399470894,
+    0.9600218758947775
+  ],
+  "main_azimuth_offsets_deg": [
+    -0.14437088516764085,
+    -2.939353090957212,
+    -2.9116433032665707,
+    -0.34127307535455653,
+    -1.3060494995271412
+  ],
+  "branch_density_scale": 0.930184887881507,
+  "secondary_length_scale": 1.0715990625192051,
+  "tertiary_length_scale": 1.039822728536385,
+  "fine_length_scale": 0.8581331603862032,
+  "gravity_scale": 1.1160914042034573,
+  "phototropism_scale": 0.8757129891797713,
+  "foliage_density_scale": 0.8523857287078012,
+  "foliage_spread_scale": 0.9835715031833785,
+  "leaf_size_scale": 0.938139653792701,
+  "leaf_hue_shift": 0.03317070497426128,
+  "dry_leaf_ratio": 0.06716505656483379,
+  "root_count": 10,
+  "root_length_scale": 1.1494299803911683,
+  "root_thickness_scale": 1.1182555447192772,
+  "bark_scale": 1.1007695173912644,
+  "bark_lightness": 1.0803060707803274,
+  "bark_roughness": 0.9782258471864448,
+  "groove_count": 6,
+  "deadwood_length_scale": 0.9467006043187896,
+  "age_detail_scale": 1.1857490961864423,
+  "wind_scale": 1.0855437976407156,
+  "files": {
+    "hero": "assets\\models\\ancient_tree\\variants\\variant_05\\ancient_tree_05.glb",
+    "lod1": "assets\\models\\ancient_tree\\variants\\variant_05\\ancient_tree_05_lod1.glb",
+    "lod2": "assets\\models\\ancient_tree\\variants\\variant_05\\ancient_tree_05_lod2.glb",
+    "collision": "assets\\models\\ancient_tree\\variants\\variant_05\\ancient_tree_05_collision.glb",
+    "preview": "assets\\models\\ancient_tree\\variants\\variant_05\\previews\\ancient_tree_front.png"
+  }
+}
