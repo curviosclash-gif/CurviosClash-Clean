@@ -274,13 +274,18 @@ function createPlayerProjection(value = null) {
             .map((effect) => {
                 const type = normalizeString(effect?.type, '').trim().toUpperCase();
                 if (!type) return null;
-                return {
+                /** @type {{ type: string, remaining: number, sourcePlayerIndex: number | null, fuelSeconds?: number }} */
+                const projected = {
                     type,
                     remaining: Math.max(0, normalizeNumber(effect?.remaining, 0)),
                     sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
                         ? effect.sourcePlayerIndex
                         : null,
                 };
+                // Additive: the flamethrower tank, which the item bar shows instead of the expiry.
+                const fuelSeconds = Number(effect?.fuelSeconds);
+                if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) projected.fuelSeconds = fuelSeconds;
+                return projected;
             })
             .filter(Boolean) : [],
         selectedItemIndex: normalizeInt(value.selectedItemIndex, 0),

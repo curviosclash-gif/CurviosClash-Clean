@@ -9,7 +9,23 @@ import { FLAME_JET_PARTICLE_BUDGET, spawnFlameJet } from '../src/hunt/Flamethrow
 import { FlamethrowerSystem } from '../src/hunt/FlamethrowerSystem.js';
 import { applyPlayerPowerup, recomputePlayerEffectState } from '../src/entities/player/PlayerEffectOps.js';
 import { StateReconciler } from '../src/network/StateReconciler.js';
+import { createMatchRuntimePlayerProjection } from '../src/shared/contracts/MatchRuntimeProjectionContract.js';
 import { resolveActiveEffectTimeLabel } from '../src/ui/ItemBarPresenter.js';
+
+test('the hud projection keeps the tank, so the badge on screen counts fuel and not zero', () => {
+    // The item bar reads runtimeProjection.players, not the live player (HudRuntimeSystem);
+    // the play test showed "0.0s Tank" while the live tank held 3.3 s.
+    const projected = createMatchRuntimePlayerProjection({
+        index: 0,
+        activeEffects: [
+            { type: 'FLAMETHROWER', remaining: 27.4, fuelSeconds: 3.3 },
+            { type: 'SHIELD', remaining: 5 },
+        ],
+    });
+    assert.equal(projected.activeEffects[0].fuelSeconds, 3.3, 'the projection carries the tank');
+    assert.equal('fuelSeconds' in projected.activeEffects[1], false, 'other effects carry no tank field');
+    assert.equal(resolveActiveEffectTimeLabel(projected.activeEffects[0], projected), '3.3s Tank');
+});
 
 const HUNT_MODE_CONFIG = {
     ...CONFIG_BASE,
