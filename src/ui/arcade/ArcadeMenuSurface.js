@@ -334,50 +334,29 @@ export function setupArcadeMenuSurface(ctx = {}) {
         emit(eventTypes.START_MATCH);
     });
 
-    bind(refs.startEndlessButton, 'click', () => {
+    // These runs play on their own map and bot count. Both only ride along with the start
+    // (borrowedSettings), so the menu keeps the player's map and bots afterwards.
+    const startRunWithOwnMap = (runType, borrowedSettings) => {
         applySeedToSettings(activeSeed, { dailyChallenge: false });
-        settings.arcade.runType = 'endless_parcours';
+        settings.arcade.runType = runType;
         settings.arcade.combatProfile = 'hunt';
         settings.gameMode = 'ARCADE';
-        settings.mapKey = 'standard';
-        settings.numBots = 0;
         if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
         settings.localSettings.modePath = 'arcade';
         const prepared = prepareHangarRunStart();
         if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.START_MATCH);
-    });
+        const snapshot = createArcadeRunSnapshot({ ...settings, ...borrowedSettings }, activeSeed, prepared?.build);
+        if (shouldShowArcade(settings)) {
+            lastRunSnapshot = snapshot;
+            saveLastRunSnapshot(snapshot, runtimeAccess?.getSettingsStore?.());
+            sync();
+        }
+        emit(eventTypes.START_MATCH, { borrowedSettings });
+    };
 
-    bind(refs.startFiveFrontsButton, 'click', () => {
-        applySeedToSettings(activeSeed, { dailyChallenge: false });
-        settings.arcade.runType = 'arena_waves';
-        settings.arcade.combatProfile = 'hunt';
-        settings.gameMode = 'ARCADE';
-        settings.mapKey = 'notre_dame_arena';
-        settings.numBots = 12;
-        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
-        settings.localSettings.modePath = 'arcade';
-        const prepared = prepareHangarRunStart();
-        if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.START_MATCH);
-    });
-
-    bind(refs.startFivePortalsButton, 'click', () => {
-        applySeedToSettings(activeSeed, { dailyChallenge: false });
-        settings.arcade.runType = 'five_portals';
-        settings.arcade.combatProfile = 'hunt';
-        settings.gameMode = 'ARCADE';
-        settings.mapKey = 'micro_maw';
-        settings.numBots = 0;
-        if (!settings.localSettings || typeof settings.localSettings !== 'object') settings.localSettings = {};
-        settings.localSettings.modePath = 'arcade';
-        const prepared = prepareHangarRunStart();
-        if (prepared?.ok === false) return;
-        recordRunStart(prepared?.build);
-        emit(eventTypes.START_MATCH);
-    });
+    bind(refs.startEndlessButton, 'click', () => startRunWithOwnMap('endless_parcours', { mapKey: 'standard', numBots: 0 }));
+    bind(refs.startFiveFrontsButton, 'click', () => startRunWithOwnMap('arena_waves', { mapKey: 'notre_dame_arena', numBots: 12 }));
+    bind(refs.startFivePortalsButton, 'click', () => startRunWithOwnMap('five_portals', { mapKey: 'micro_maw', numBots: 0 }));
 
     bind(refs.openHangarButton, 'click', async () => {
         const result = await hangarWindow.openWindow?.({ mode: 'arcade', focus: true });

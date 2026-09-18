@@ -1,4 +1,5 @@
 import { MENU_CONTROLLER_EVENT_TYPES } from '../../../shared/contracts/MenuControllerContract.js';
+import { startMatchWithBorrowedSettings } from '../BorrowedMatchSettingsOps.js';
 
 export function registerSessionMenuEventHandlers(facade, registry) {
     registry.set(MENU_CONTROLLER_EVENT_TYPES.SETTINGS_CHANGED, (event) => facade.onSettingsChanged(event));
@@ -14,5 +15,5 @@ export function registerSessionMenuEventHandlers(facade, registry) {
     registry.set(MENU_CONTROLLER_EVENT_TYPES.CONFIG_EXPORT_CODE, () => facade.handleConfigExportCode());
     registry.set(MENU_CONTROLLER_EVENT_TYPES.CONFIG_EXPORT_JSON, () => facade.handleConfigExportJson());
     registry.set(MENU_CONTROLLER_EVENT_TYPES.CONFIG_IMPORT, (event) => facade.handleConfigImport(event));
-    registry.set(MENU_CONTROLLER_EVENT_TYPES.START_MATCH, () => facade.startMatch());
+    registry.set(MENU_CONTROLLER_EVENT_TYPES.START_MATCH, (event) => startMatchWithBorrowedSettings(facade, event?.borrowedSettings));
 }
