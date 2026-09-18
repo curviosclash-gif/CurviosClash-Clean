@@ -57,15 +57,19 @@ export const EIFFEL_SIEGE_SECRET_ROOM_OBSTACLES = Object.freeze([
 
 /**
  * Three emplacements around the way back, so arriving in the middle of the room costs something.
- * Ranges, cooldown and damage stay at the contract's own fallbacks: the room is 40 map units
- * across, every one of them is in reach of everything anyway, and a number that never changes does
- * not belong in the map file. What the map does say is what the plan decided: 45 hit points and 45
- * seconds until a destroyed guard stands there again.
+ * Ranges stay at the contract's own fallbacks: the room is 40 map units across, so everything is
+ * in reach of everything anyway. What the map does say is what was decided: 45 hit points, 45
+ * seconds until a destroyed guard stands there again - and a fire rate tamed so that a vehicle
+ * just sitting there lasts about twelve seconds instead of four (guns 2 hp every 1.3 s instead
+ * of 4 every 0.8 s, a rocket every 6 s instead of 3.4 s). tests/secret-room-guard-balance pins it.
  */
+const MG_GUARD = Object.freeze({ weapon: 'mg', damage: 2, cooldown: 1.3 });
+const ROCKET_GUARD = Object.freeze({ weapon: 'rocket', rocketType: 'ROCKET_WEAK', cooldown: 6 });
+
 export const EIFFEL_SIEGE_SECRET_ROOM_TURRETS = Object.freeze([
-    { id: 'eiffel_siege_vault_mg_west', weapon: 'mg', pos: [-13, -13, -13] },
-    { id: 'eiffel_siege_vault_mg_east', weapon: 'mg', pos: [13, -13, -13] },
-    { id: 'eiffel_siege_vault_rocket', weapon: 'rocket', rocketType: 'ROCKET_WEAK', pos: [0, -13, 14] },
+    { ...MG_GUARD, id: 'eiffel_siege_vault_mg_west', pos: [-13, -13, -13] },
+    { ...MG_GUARD, id: 'eiffel_siege_vault_mg_east', pos: [13, -13, -13] },
+    { ...ROCKET_GUARD, id: 'eiffel_siege_vault_rocket', pos: [0, -13, 14] },
 ].map((turret) => Object.freeze({
     ...turret,
     destructible: true,
