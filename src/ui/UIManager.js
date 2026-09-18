@@ -40,6 +40,7 @@ import {
 } from '../shared/runtime/UiControllerRuntimePorts.js';
 import { UIStartSyncController } from './UIStartSyncController.js';
 import { UINavigationLifecycleController } from './UINavigationLifecycleController.js';
+import { closeLevel4InPause, openLevel4InPause } from './menu/Level4PauseHost.js';
 import { resolveGameplayConfig } from '../shared/contracts/GameplayConfigContract.js';
 import { createRuntimeSettingsLimitsForRuntime } from '../shared/contracts/SettingsRuntimeLimitsContract.js';
 import { normalizeMobileClassicControlSettings } from '../shared/contracts/MobileClassicControlsContract.js';
@@ -286,6 +287,8 @@ export class UIManager {
     showMainNav()                          { return this._navLifecycle.showMainNav(); }
     setLevel4Open(isOpen)                  { return this._navLifecycle.setLevel4Open(isOpen); }
     setLevel4Section(sectionId, options)   { return this._navLifecycle.setLevel4Section(sectionId, options); }
+    openPauseSettings()                    { return openLevel4InPause(this); }
+    closePauseSettings()                   { return closeLevel4InPause(this); }
     showToast(message, durationOrTone, tone) { return this._navLifecycle.showToast(message, durationOrTone, tone); }
     updateContext(settings = this.settings) { return this._navLifecycle.updateContext(this._resolveMenuUiContext(settings)); }
 

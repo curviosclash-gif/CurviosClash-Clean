@@ -1,8 +1,5 @@
-import {
-    evaluateMenuAccessPolicy,
-    resolveDebugAccessPolicy,
-    resolveDeveloperAccessPolicy,
-} from './MenuAccessPolicy.js';
+import { evaluateMenuAccessPolicy, resolveDebugAccessPolicy, resolveDeveloperAccessPolicy } from './MenuAccessPolicy.js';
+import { isLevel4PauseHosted } from './Level4PauseHost.js';
 import { isAvailable, getFocusableElements, focusWithoutScroll, moveMainMenuFocus, adjustGamepadControl } from './MenuNavigationFocusOps.js';
 import { MENU_STATE_IDS } from './MenuStateMachine.js';
 
@@ -335,6 +332,7 @@ export class MenuNavigationRuntime {
             && (this._isLevel4Open() || this.stateMachine?.getState?.() !== MENU_STATE_IDS.MAIN)
         ) {
             event.preventDefault();
+            if (isLevel4PauseHosted(this.ui)) event.stopPropagation();
             this._goBackFromCurrent('escape');
             return;
         }

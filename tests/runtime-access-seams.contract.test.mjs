@@ -206,9 +206,9 @@ test('V104.2 keybind capture commits in PAUSED flow and reapplies pause bindings
                 pauseBindingCalls += 1;
             },
         },
+        // The pause shows the menu's settings window, so the menu root is visible.
         ui: {
-            mainMenu: { classList: createClassList(['hidden']) },
-            pauseSettingsPanel: { classList: createClassList() },
+            mainMenu: { classList: createClassList(), dataset: { pauseSettings: 'true' } },
         },
         _onSettingsChanged() {
             settingsChangedCalls += 1;
@@ -220,7 +220,7 @@ test('V104.2 keybind capture commits in PAUSED flow and reapplies pause bindings
 
     const controller = new KeybindEditorController(createKeybindEditorRuntimeAccess(runtime));
     let pauseRenderCalls = 0;
-    controller.renderPauseEditor = () => {
+    controller.renderEditor = () => {
         pauseRenderCalls += 1;
     };
 
@@ -325,7 +325,6 @@ test('Keybind capture rejects duplicate bindings before changing controls', () =
     };
     const controller = new KeybindEditorController(createKeybindEditorRuntimeAccess(runtime));
     controller.renderEditor = () => {};
-    controller.renderPauseEditor = () => {};
 
     const handled = controller.handleKeyCapture({
         code: 'KeyW',
@@ -363,7 +362,6 @@ test('Keybind capture clears the rejected-key hint after a successful binding', 
     };
     const controller = new KeybindEditorController(createKeybindEditorRuntimeAccess(runtime));
     controller.renderEditor = () => {};
-    controller.renderPauseEditor = () => {};
     controller.handleKeyCapture({ code: 'KeyW', preventDefault() {}, stopPropagation() {} });
     runtime.keyCapture = { playerKey: 'PLAYER_2', actionKey: 'DOWN' };
     controller.handleKeyCapture({ code: 'KeyK', preventDefault() {}, stopPropagation() {} });

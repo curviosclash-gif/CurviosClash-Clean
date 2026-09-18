@@ -15,6 +15,7 @@ import { resolveMapPreview } from './menu/MenuPreviewCatalog.js';
 import { resolveMenuCatalogText } from './menu/MenuTextCatalog.js';
 import { resolveDeveloperReleaseState } from './menu/MenuUiSyncContext.js';
 import { applyMenuChromeState } from './menu/MenuChromeStateOps.js';
+import { leaveLevel4PauseHost, PAUSE_LEVEL4_RETURN_TARGET } from './menu/Level4PauseHost.js';
 import { showStatusToast } from './menu/StatusToastOps.js';
 
 function focusWithoutScroll(element) {
@@ -234,7 +235,9 @@ export class UINavigationLifecycleController {
         } else if (!open && wasOpen) {
             const returnTarget = String(drawer.dataset?.level4ReturnTarget || 'game').trim().toLowerCase();
             delete drawer.dataset.level4ReturnTarget;
-            if (returnTarget === 'main') {
+            if (returnTarget === PAUSE_LEVEL4_RETURN_TARGET) {
+                leaveLevel4PauseHost(this.ui);
+            } else if (returnTarget === 'main') {
                 this.manager.menuNavigationRuntime?.showMainNav?.({ trigger: 'level4_close' });
             } else if (returnTarget === 'lobby') {
                 this.manager.menuNavigationRuntime?.showPanel?.('submenu-multiplayer', { trigger: 'level4_close', backNavigation: true });

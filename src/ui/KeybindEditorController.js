@@ -77,15 +77,6 @@ export class KeybindEditorController {
         renderGamepadBindingEditor(ui?.keybindGlobal, this.runtimeAccess);
     }
 
-    renderPauseEditor() {
-        const ui = this.runtimeAccess.getUi?.() || null;
-        const conflicts = this.collectKeyConflicts();
-        this.renderKeybindRows('PLAYER_1', ui?.pauseKeybindP1, KEY_BIND_ACTIONS, conflicts);
-        this.renderKeybindRows('PLAYER_2', ui?.pauseKeybindP2, KEY_BIND_ACTIONS, conflicts);
-        this._updateWarningElement(ui?.pauseKeybindWarning, conflicts);
-        renderGamepadBindingEditor(ui?.pauseKeybindP2, this.runtimeAccess);
-    }
-
     renderKeybindRows(playerKey, container, actions, conflicts) {
         if (!container) return;
 
@@ -126,19 +117,12 @@ export class KeybindEditorController {
     startKeyCapture(playerKey, actionKey) {
         this.runtimeAccess.setKeyCapture?.({ playerKey, actionKey });
         this.renderEditor();
-        this.renderPauseEditor();
     }
 
+    // The pause shows the menu's settings window, so the menu root is visible there too.
     _isKeybindEditorVisible() {
         const ui = this.runtimeAccess.getUi?.() || null;
-        const state = this.runtimeAccess.getState?.() || '';
-        if (ui?.mainMenu && !ui.mainMenu.classList.contains('hidden')) {
-            return true;
-        }
-        if (state === 'PAUSED' && ui?.pauseSettingsPanel && !ui.pauseSettingsPanel.classList.contains('hidden')) {
-            return true;
-        }
-        return false;
+        return !!ui?.mainMenu && !ui.mainMenu.classList.contains('hidden');
     }
 
     handleKeyCapture(event) {
@@ -154,7 +138,6 @@ export class KeybindEditorController {
         if (event.code === 'Escape') {
             this.runtimeAccess.setKeyCapture?.(null);
             this.renderEditor();
-            this.renderPauseEditor();
             return true;
         }
 
@@ -162,7 +145,6 @@ export class KeybindEditorController {
         if (conflict) {
             this.runtimeAccess.setKeyCapture?.(null);
             this.renderEditor();
-            this.renderPauseEditor();
             this._showKeyConflictFeedback(event.code, conflict);
             return true;
         }
@@ -170,13 +152,11 @@ export class KeybindEditorController {
         this.setControlValue(keyCapture.playerKey, keyCapture.actionKey, event.code);
         this.runtimeAccess.setKeyCapture?.(null);
         // A successful binding replaces the rejected-key hint with the real conflict state.
-        const conflicts = this.collectKeyConflicts();
-        this.updateKeyConflictWarning(conflicts);
-        this._updateWarningElement(this.runtimeAccess.getUi?.()?.pauseKeybindWarning, conflicts);
+        this.updateKeyConflictWarning(this.collectKeyConflicts());
         this.runtimeAccess.actionOnSettingsChanged?.();
         if (state === 'PAUSED') {
             this.runtimeAccess.actionApplyPauseBindings?.();
-            this.renderPauseEditor();
+            this.renderEditor();
         }
         this.runtimeAccess.actionShowStatusToast?.('Taste gespeichert!');
         return true;
@@ -208,9 +188,8 @@ export class KeybindEditorController {
 
     _showKeyConflictFeedback(code, conflict) {
         const message = `Taste ${this.formatKeyCode(code)} ist bereits mit ${conflict.action.label} (${conflict.scope.label}) belegt`;
-        const ui = this.runtimeAccess.getUi?.() || null;
-        for (const warningElement of [ui?.keybindWarning, ui?.pauseKeybindWarning]) {
-            if (!warningElement) continue;
+        const warningElement = this.runtimeAccess.getUi?.()?.keybindWarning;
+        if (warningElement) {
             warningElement.classList.remove('hidden');
             warningElement.textContent = message;
         }

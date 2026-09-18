@@ -3097,65 +3097,41 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     text-align: center;
 }
 
-#pause-settings {
-    margin-top: 24px;
-    min-width: 260px;
-    max-height: 70vh;
-    overflow-y: auto;
-    padding: 16px 20px;
-    border-radius: 14px;
-    background: rgba(15, 15, 30, 0.7);
-    border: 1px solid rgba(110, 180, 255, 0.2);
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
+/* Pause settings: the menu root only carries its settings drawer over the paused match. */
+#main-menu[data-pause-settings="true"] {
+    position: absolute;
+    inset: 0;
+    z-index: 100;
+    justify-content: flex-end;
+    padding: 0;
+    background: none;
+    animation: none;
 }
 
-.pause-settings-title {
-    font-family: var(--menu-theme-display-font);
-    font-size: 1rem;
-    font-weight: 700;
-    color: #88bbff;
-    margin: 0 0 4px;
-    text-align: center;
+#main-menu[data-pause-settings="true"] .menu-content {
+    width: min(560px, 100%);
+    max-width: none;
+    height: 100%;
+    max-height: none;
+    padding: 0;
+    border: 0;
+    border-radius: 0;
+    background: none !important;
+    box-shadow: none;
+    backdrop-filter: none;
 }
 
-.pause-toggle {
-    color: rgba(208, 226, 255, 0.9);
-    font-size: 0.95rem;
+/* The pause title and buttons stay readable in the space left of the drawer. */
+#hud.pause-settings-open #pause-overlay {
+    padding-right: min(560px, 100%);
 }
 
-#pause-settings .secondary-btn {
-    margin-top: 6px;
-    width: 100%;
-    text-align: center;
+#main-menu[data-pause-settings="true"] :is(.menu-shell, .submenu-panel) {
+    display: none !important;
 }
 
-.pause-keybinds-section {
-    margin-top: 10px;
-    width: 100%;
-}
-
-.pause-settings-subtitle {
-    font-family: var(--menu-theme-display-font);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: #88bbff;
-    margin: 0 0 8px;
-    text-align: center;
-}
-
-.pause-keybind-columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 14px;
-}
-
-.pause-keybind-header {
-    font-size: 0.8rem;
-    font-weight: 600;
-    color: rgba(208, 226, 255, 0.7);
-    margin: 0 0 6px;
+#main-menu[data-pause-settings="true"] .level4-section-tab:not([data-level4-section-target="controls"]):not([data-level4-section-target="audio"]):not([data-level4-section-target="graphics"]):not([data-level4-section-target="hud"]) {
+    display: none !important;
 }
 
 #status-toast {

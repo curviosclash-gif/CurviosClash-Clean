@@ -554,6 +554,10 @@
                             </label>
                             <div class="toggle-grid secondary-btn-spaced">
                                 <label class="toggle-row">
+                                    <input type="checkbox" id="auto-roll-toggle">
+                                    <span data-menu-text-id="menu.level4.gameplay.auto_roll.label">Auto-Roll aktiv</span>
+                                </label>
+                                <label class="toggle-row">
                                     <input type="checkbox" id="invert-p1" checked>
                                     <span data-menu-text-id="menu.level4.gameplay.invert_pitch_p1.label">Flugstick-Modus P1 (W = Nase runter)</span>
                                 </label>
@@ -633,10 +637,6 @@
                                     <input type="range" id="gap-frequency-slider" min="0" max="0.25" step="0.005" value="0.02">
                                     <label for="item-amount-slider"><span data-menu-text-id="menu.level4.gameplay.item_amount.label">Item-Menge:</span> <span id="item-amount-label">10</span></label>
                                     <input type="range" id="item-amount-slider" min="1" max="60" step="1" value="10">
-                                    <label class="toggle-row secondary-btn-spaced">
-                                        <input type="checkbox" id="auto-roll-toggle">
-                                        <span data-menu-text-id="menu.level4.gameplay.auto_roll.label">Auto-Roll aktiv</span>
-                                    </label>
                                 </div>
                             </details>
 
@@ -1615,36 +1615,6 @@
                     <button type="button" id="btn-pause-resume" class="start-btn">Fortsetzen</button>
                     <button type="button" id="btn-pause-settings" class="secondary-btn">Einstellungen</button>
                     <button type="button" id="btn-pause-menu" class="secondary-btn">Men&uuml;</button>
-                </div>
-                <div id="pause-settings" class="hidden">
-                    <h3 class="pause-settings-title">Einstellungen</h3>
-                    <label class="toggle-row pause-toggle">
-                        <input type="checkbox" id="pause-auto-roll-toggle">
-                        <span>Auto-Roll aktiv</span>
-                    </label>
-                    <label class="toggle-row pause-toggle">
-                        <input type="checkbox" id="pause-invert-p1" checked>
-                        <span>Invert Pitch P1</span>
-                    </label>
-                    <label class="toggle-row pause-toggle">
-                        <input type="checkbox" id="pause-invert-p2" checked>
-                        <span>Invert Pitch P2</span>
-                    </label>
-                    <div class="pause-keybinds-section">
-                        <h4 class="pause-settings-subtitle">Tastenbelegung</h4>
-                        <div class="pause-keybind-columns">
-                            <div class="pause-keybind-column">
-                                <h5 class="pause-keybind-header">Spieler 1</h5>
-                                <div id="pause-keybind-p1" class="keybind-grid"></div>
-                            </div>
-                            <div class="pause-keybind-column">
-                                <h5 class="pause-keybind-header">Spieler 2</h5>
-                                <div id="pause-keybind-p2" class="keybind-grid"></div>
-                            </div>
-                        </div>
-                        <div id="pause-keybind-warning" class="keybind-warning hidden" role="status" aria-live="polite"></div>
-                    </div>
-                    <button type="button" id="btn-pause-settings-back" class="secondary-btn">Zur&uuml;ck</button>
                 </div>
             </div>
             <div id="status-toast" class="hidden" role="status" aria-live="polite" aria-atomic="true"></div>

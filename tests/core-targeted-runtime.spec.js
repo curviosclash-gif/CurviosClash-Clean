@@ -1770,38 +1770,14 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const { PauseOverlayController } = await window.__curviosImport('/src/ui/PauseOverlayController.js');
 
             const makeButton = () => document.createElement('button');
-            const makeCheckbox = () => {
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                return input;
-            };
-
-            const keybindP1 = document.createElement('div');
-            const keybindButton = document.createElement('button');
-            keybindButton.className = 'keybind-btn';
-            keybindButton.dataset.action = 'THRUST';
-            keybindP1.appendChild(keybindButton);
-
-            const keybindP2 = document.createElement('div');
-            const pauseOverlay = document.createElement('div');
-            const pauseSettingsPanel = document.createElement('div');
-            pauseSettingsPanel.classList.add('hidden');
-
             const ui = {
-                pauseOverlay,
+                pauseOverlay: document.createElement('div'),
                 pauseResumeButton: makeButton(),
                 pauseSettingsButton: makeButton(),
-                pauseSettingsBackButton: makeButton(),
                 pauseMenuButton: makeButton(),
-                pauseSettingsPanel,
-                pauseKeybindP1: keybindP1,
-                pauseKeybindP2: keybindP2,
-                pauseAutoRollToggle: makeCheckbox(),
-                pauseInvertP1: makeCheckbox(),
-                pauseInvertP2: makeCheckbox(),
             };
 
-            let keyCaptureCalls = 0;
+            let settingsOpenCalls = 0;
             const game = {
                 state: 'PAUSED',
                 ui,
@@ -1810,7 +1786,10 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                     invertPitch: { PLAYER_1: false, PLAYER_2: false },
                 },
                 entityManager: { players: [] },
-                keybindEditorController: { renderPauseEditor() { } },
+                uiManager: {
+                    openPauseSettings() { settingsOpenCalls += 1; return true; },
+                    closePauseSettings() { return false; },
+                },
                 gameLoop: { requestDeltaReset() { } },
                 runtimeFacade: {
                     isNetworkSession: () => false,
@@ -1831,7 +1810,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const ports = {
                 inputPort: {
                     clearJustPressed() { },
-                    startKeyCapture() { keyCaptureCalls += 1; },
                 },
                 settingsPort: { applyAutoRoll() { } },
                 sessionPort: {
@@ -1864,34 +1842,34 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
             ui.pauseResumeButton.click();
             ui.pauseMenuButton.click();
-            keybindButton.click();
+            ui.pauseSettingsButton.click();
 
             const beforeDispose = {
                 resumeCalls,
                 menuCalls,
-                keyCaptureCalls,
+                settingsOpenCalls,
             };
 
             controller.dispose();
             ui.pauseResumeButton.click();
             ui.pauseMenuButton.click();
-            keybindButton.click();
+            ui.pauseSettingsButton.click();
 
             const afterDispose = {
                 resumeCalls,
                 menuCalls,
-                keyCaptureCalls,
+                settingsOpenCalls,
             };
 
             controller.setupListeners();
             ui.pauseResumeButton.click();
             ui.pauseMenuButton.click();
-            keybindButton.click();
+            ui.pauseSettingsButton.click();
 
             const afterRebind = {
                 resumeCalls,
                 menuCalls,
-                keyCaptureCalls,
+                settingsOpenCalls,
             };
 
             controller.dispose();
@@ -1905,13 +1883,13 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
 
         expect(result.beforeDispose.resumeCalls).toBe(1);
         expect(result.beforeDispose.menuCalls).toBe(1);
-        expect(result.beforeDispose.keyCaptureCalls).toBe(1);
+        expect(result.beforeDispose.settingsOpenCalls).toBe(1);
         expect(result.afterDispose.resumeCalls).toBe(result.beforeDispose.resumeCalls);
         expect(result.afterDispose.menuCalls).toBe(result.beforeDispose.menuCalls);
-        expect(result.afterDispose.keyCaptureCalls).toBe(result.beforeDispose.keyCaptureCalls);
+        expect(result.afterDispose.settingsOpenCalls).toBe(result.beforeDispose.settingsOpenCalls);
         expect(result.afterRebind.resumeCalls).toBe(2);
         expect(result.afterRebind.menuCalls).toBe(2);
-        expect(result.afterRebind.keyCaptureCalls).toBe(2);
+        expect(result.afterRebind.settingsOpenCalls).toBe(2);
     });
 
     test('T20ae2: PauseOverlayController delegiert Return-to-Menu an den Lifecycle-Port', async ({ page }) => {
@@ -1920,11 +1898,6 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
             const { PauseOverlayController } = await window.__curviosImport('/src/ui/PauseOverlayController.js');
 
             const makeButton = () => document.createElement('button');
-            const makeCheckbox = () => {
-                const input = document.createElement('input');
-                input.type = 'checkbox';
-                return input;
-            };
 
             let lifecycleReturnCalls = 0;
             let sessionTeardownCalls = 0;
@@ -1936,21 +1909,13 @@ test.describe('T1-20: Core & Infrastruktur - Runtime Loop, Recording & Prewarm',
                     pauseOverlay: document.createElement('div'),
                     pauseResumeButton: makeButton(),
                     pauseSettingsButton: makeButton(),
-                    pauseSettingsBackButton: makeButton(),
                     pauseMenuButton: makeButton(),
-                    pauseSettingsPanel: document.createElement('div'),
-                    pauseKeybindP1: document.createElement('div'),
-                    pauseKeybindP2: document.createElement('div'),
-                    pauseAutoRollToggle: makeCheckbox(),
-                    pauseInvertP1: makeCheckbox(),
-                    pauseInvertP2: makeCheckbox(),
                 },
                 settings: {
                     autoRoll: false,
                     invertPitch: { PLAYER_1: false, PLAYER_2: false },
                 },
                 entityManager: { players: [] },
-                keybindEditorController: { renderPauseEditor() { } },
                 gameLoop: { requestDeltaReset() { } },
                 runtimeFacade: {
                     isNetworkSession: () => false,

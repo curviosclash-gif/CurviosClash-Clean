@@ -4,23 +4,21 @@ import test from 'node:test';
 
 import { PauseOverlayController } from '../src/ui/PauseOverlayController.js';
 
-function createClassList(initial = []) {
-    const classes = new Set(initial);
-    return {
-        add: (name) => classes.add(name),
-        remove: (name) => classes.delete(name),
-        contains: (name) => classes.has(name),
-    };
-}
-
+// The pause settings are the menu's settings window; the UI manager opens and closes it.
 function createPausedGame({ settingsOpen }) {
-    return {
+    const game = {
         keyCapture: null,
-        ui: {
-            pauseSettingsPanel: { classList: createClassList(settingsOpen ? [] : ['hidden']) },
-            pauseSettingsButton: { classList: createClassList(settingsOpen ? ['hidden'] : []) },
+        settingsOpen,
+        ui: {},
+        uiManager: {
+            closePauseSettings() {
+                if (!game.settingsOpen) return false;
+                game.settingsOpen = false;
+                return true;
+            },
         },
     };
+    return game;
 }
 
 function createController(game) {
@@ -32,8 +30,7 @@ test('Escape closes the open pause settings instead of resuming', () => {
     const controller = createController(game);
 
     assert.equal(controller.closeSettingsIfOpen(), true);
-    assert.equal(game.ui.pauseSettingsPanel.classList.contains('hidden'), true);
-    assert.equal(game.ui.pauseSettingsButton.classList.contains('hidden'), false, 'the settings button is back in the pause menu');
+    assert.equal(game.settingsOpen, false);
 });
 
 test('without open settings Escape is left to the resume path', () => {
