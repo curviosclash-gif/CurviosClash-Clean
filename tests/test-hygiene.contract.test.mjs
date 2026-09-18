@@ -9,8 +9,11 @@ import {
     ARTIFACT_MAX_AGE_DAYS,
     DAY_MS,
     MIN_FREE_BYTES,
+    applyHygiene,
     assertEnoughFreeSpace,
     classifyElectronProcesses,
+    classifyRemovalTarget,
+    collectHygieneReport,
     detectStaleRunLock,
     formatHygieneLine,
     isDeletablePath,
@@ -187,6 +190,212 @@ test('worktrees are listed, never removed', () => {
         };
     }, REPO_ROOT);
     assert.deepEqual(worktrees, ['F:/repo', 'F:/repo/.claude/worktrees/a']);
+});
+
+// --- links are never followed ------------------------------------------------
+// A junction inside (or in place of) a throwaway root used to be indistinguishable from a
+// real directory, because the listing used statSync. Everything below runs in a private
+// temp tree; the real repo roots are never touched.
+
+function makeSandbox() {
+    const base = fs.mkdtempSync(path.join(tmpdir(), 'curvios-hygiene-links-'));
+    const sandbox = {
+        base,
+        repoRoot: path.join(base, 'repo'),
+        fakeTemp: path.join(base, 'temp'),
+        outside: path.join(base, 'outside'),
+        links: [],
+    };
+    fs.mkdirSync(sandbox.repoRoot, { recursive: true });
+    fs.mkdirSync(sandbox.fakeTemp, { recursive: true });
+    fs.mkdirSync(sandbox.outside, { recursive: true });
+    return sandbox;
+}
+
+function makeDirectoryWithFile(directoryPath, fileName = 'keep.txt') {
+    fs.mkdirSync(directoryPath, { recursive: true });
+    fs.writeFileSync(path.join(directoryPath, fileName), 'survive');
+    return path.join(directoryPath, fileName);
+}
+
+function ageDirectory(directoryPath, days) {
+    const seconds = (Date.now() - days * DAY_MS) / 1000;
+    fs.utimesSync(directoryPath, seconds, seconds);
+}
+
+function linkDirectory(sandbox, targetPath, linkPath, t) {
+    try {
+        fs.symlinkSync(targetPath, linkPath, process.platform === 'win32' ? 'junction' : 'dir');
+        sandbox.links.push(linkPath);
+        return true;
+    } catch (error) {
+        t.skip(`directory links are not available here: ${error?.code || error}`);
+        return false;
+    }
+}
+
+function dropSandbox(sandbox) {
+    // Unhook every link first: cleaning up must never reach into a link target.
+    for (const link of sandbox.links) {
+        try {
+            if (!fs.lstatSync(link).isSymbolicLink()) continue;
+            try { fs.unlinkSync(link); } catch { fs.rmdirSync(link); }
+        } catch { /* already gone */ }
+    }
+    fs.rmSync(sandbox.base, { recursive: true, force: true, maxRetries: 2, retryDelay: 100 });
+}
+
+function runHygiene(sandbox, { now = Date.now() } = {}) {
+    const report = collectHygieneReport({
+        repoRoot: sandbox.repoRoot,
+        tempRoot: sandbox.fakeTemp,
+        now,
+        readProcessList: () => [],
+        listWorktreePaths: () => [],
+    });
+    return { report, applied: applyHygiene(report) };
+}
+
+test('a stale entry that is a link is skipped, never followed', (t) => {
+    const sandbox = makeSandbox();
+    try {
+        const target = path.join(sandbox.outside, 'target');
+        const keptFile = makeDirectoryWithFile(target);
+        const linkPath = path.join(sandbox.repoRoot, 'test-results', 'linked-run');
+        fs.mkdirSync(path.dirname(linkPath), { recursive: true });
+        if (!linkDirectory(sandbox, target, linkPath, t)) return;
+        const plainOld = path.join(sandbox.repoRoot, 'test-results', 'plain-old-run');
+        makeDirectoryWithFile(plainOld, 'trace.zip');
+
+        // The listing reads the link's own date (lstat), and a fresh link is never stale. The
+        // clock is moved instead, so the link is old enough and only the link filter saves it.
+        const { report, applied } = runHygiene(sandbox, { now: Date.now() + 30 * DAY_MS });
+
+        assert.deepEqual(applied.removed.map((entry) => path.basename(entry)), ['plain-old-run'], 'the clock really made things stale');
+        assert.equal(fs.existsSync(keptFile), true, 'the link target keeps its content');
+        assert.equal(fs.existsSync(linkPath), true, 'a skipped entry is left alone, not unhooked');
+        assert.ok(
+            report.skippedLinks.some((entry) => path.resolve(entry.path) === path.resolve(linkPath) && entry.reason),
+            'the report names the skipped link and why'
+        );
+        assert.equal(
+            report.staleArtifacts.some((entry) => path.resolve(entry.path) === path.resolve(linkPath)),
+            false,
+            'a link never becomes a removal candidate'
+        );
+        assert.equal(classifyRemovalTarget(linkPath, report.allowedRoots).ok, false);
+        assert.match(classifyRemovalTarget(linkPath, report.allowedRoots).reason, /link/);
+    } finally {
+        dropSandbox(sandbox);
+    }
+});
+
+test('a real stale folder is still removed, and a link inside it is only unhooked', (t) => {
+    const sandbox = makeSandbox();
+    try {
+        const target = path.join(sandbox.outside, 'node-modules-target');
+        const keptFile = makeDirectoryWithFile(target);
+        const holder = path.join(sandbox.repoRoot, 'test-results', 'old-run');
+        makeDirectoryWithFile(holder, 'trace.zip');
+        if (!linkDirectory(sandbox, target, path.join(holder, 'node_modules'), t)) return;
+        const plainOld = path.join(sandbox.repoRoot, 'test-results', 'plain-old-run');
+        makeDirectoryWithFile(plainOld, 'trace.zip');
+        const fresh = path.join(sandbox.repoRoot, 'test-results', 'fresh-run');
+        makeDirectoryWithFile(fresh, 'trace.zip');
+        ageDirectory(holder, 30);
+        ageDirectory(plainOld, 30);
+
+        const { applied } = runHygiene(sandbox);
+
+        assert.equal(fs.existsSync(keptFile), true, 'the link target keeps its content');
+        assert.equal(fs.existsSync(holder), false, 'the stale folder itself is gone');
+        assert.equal(fs.existsSync(plainOld), false, 'the tool still does its job');
+        assert.equal(fs.existsSync(fresh), true, 'a fresh folder stays');
+        assert.equal(applied.removed.length, 2);
+    } finally {
+        dropSandbox(sandbox);
+    }
+});
+
+test('a root that is itself a link is left out completely', (t) => {
+    const sandbox = makeSandbox();
+    try {
+        const target = path.join(sandbox.outside, 'reports');
+        const staleChild = path.join(target, 'old-report');
+        const keptFile = makeDirectoryWithFile(staleChild);
+        ageDirectory(staleChild, 30);
+        const rootPath = path.join(sandbox.repoRoot, 'playwright-report');
+        if (!linkDirectory(sandbox, target, rootPath, t)) return;
+
+        const { report, applied } = runHygiene(sandbox);
+
+        assert.equal(fs.existsSync(keptFile), true, 'nothing under the link target is removed');
+        assert.equal(fs.existsSync(staleChild), true);
+        assert.deepEqual(applied.removed, []);
+        assert.ok(
+            report.skippedRoots.some((entry) => path.resolve(entry.path) === path.resolve(rootPath) && entry.reason),
+            'the report names the skipped root and why'
+        );
+        assert.equal(report.staleArtifacts.length, 0, 'children of a linked root are never listed');
+        assert.equal(
+            classifyRemovalTarget(path.join(rootPath, 'old-report'), report.allowedRoots).ok,
+            false,
+            'even a hand-made candidate under a linked root is refused'
+        );
+    } finally {
+        dropSandbox(sandbox);
+    }
+});
+
+// Only direct children reach the tool today, so this guard needs a hand-made deeper path: a
+// link BETWEEN root and entry resolves somewhere else and must be refused.
+test('a candidate behind a link inside the root resolves outside and is refused', (t) => {
+    const sandbox = makeSandbox();
+    try {
+        const target = path.join(sandbox.outside, 'target');
+        const keptFile = makeDirectoryWithFile(path.join(target, 'child'));
+        const holder = path.join(sandbox.repoRoot, 'test-results', 'run');
+        fs.mkdirSync(holder, { recursive: true });
+        if (!linkDirectory(sandbox, target, path.join(holder, 'link'), t)) return;
+        const { report } = runHygiene(sandbox);
+
+        const verdict = classifyRemovalTarget(path.join(holder, 'link', 'child'), report.allowedRoots);
+
+        assert.deepEqual(verdict, { ok: false, reason: 'resolves-outside-its-root' });
+        assert.equal(fs.existsSync(keptFile), true);
+    } finally {
+        dropSandbox(sandbox);
+    }
+});
+
+test('the report line names skipped roots and links only when there are any', () => {
+    const base = { freeBytes: 8 * 1024 ** 3, staleArtifacts: [], staleTempDirs: [], processes: { orphaned: [] }, worktrees: [] };
+
+    assert.equal(
+        formatHygieneLine({ ...base, skippedRoots: [{ path: 'r' }], skippedLinks: [{ path: 'a' }, { path: 'b' }] }),
+        '[test:hygiene] freeGb=8 staleArtifacts=0 staleTempDirs=0 orphanElectron=0 worktrees=0 skippedRoots=1 skippedLinks=2'
+    );
+    assert.doesNotMatch(formatHygieneLine({ ...base, skippedRoots: [], skippedLinks: [] }), /skipped/);
+});
+
+test('a stale temp folder with the curvios prefix is still removed', () => {
+    const sandbox = makeSandbox();
+    try {
+        const stale = path.join(sandbox.fakeTemp, 'curvios-menu-lan-old');
+        makeDirectoryWithFile(stale, 'profile.json');
+        ageDirectory(stale, 30);
+        const foreign = path.join(sandbox.fakeTemp, 'someone-else');
+        makeDirectoryWithFile(foreign, 'profile.json');
+        ageDirectory(foreign, 30);
+
+        const { applied } = runHygiene(sandbox);
+
+        assert.equal(fs.existsSync(stale), false);
+        assert.equal(fs.existsSync(foreign), true, 'foreign temp folders stay untouched');
+        assert.deepEqual(applied.removed.map((entry) => path.basename(entry)), ['curvios-menu-lan-old']);
+    } finally {
+        dropSandbox(sandbox);
+    }
 });
 
 test('the hygiene report is wired into npm and into the cluster runner', () => {

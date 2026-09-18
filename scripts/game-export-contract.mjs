@@ -46,6 +46,7 @@ export const GAME_EXPORT_ELECTRON_FILES = new Set([
     'electron/runtime-resources/package.json',
     'electron/session-data-runtime.cjs',
     'electron/static-server.cjs',
+    'electron/test-render-window.cjs',
     'electron/window-security-options.cjs',
 ]);
 

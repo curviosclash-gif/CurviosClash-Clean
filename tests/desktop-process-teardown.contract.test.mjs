@@ -7,8 +7,10 @@ import {
     DEFAULT_TEARDOWN_DEADLINE_MS,
     RENDER_TAG,
     closeElectronAppWithDeadline,
+    destroyAllElectronWindows,
     isProcessRunning,
     resolveShowWindow,
+    shouldForceDesktopWindowTeardown,
     waitForProcessExit,
 } from './desktop-process-teardown.mjs';
 
@@ -112,6 +114,69 @@ test('the desktop harness uses the deadline teardown and the render tag', () => 
     assert.ok(source.includes('resolveShowWindow'), 'helpers.desktop.js must resolve the window visibility');
     assert.ok(!/await app\?\.close\(\)/.test(source), 'helpers.desktop.js must not close without a deadline');
     assert.ok(source.includes('teardown'), 'the teardown outcome must reach the diagnostics json');
+});
+
+test('a main window without the running game skips the graceful-close wait', () => {
+    // electron/main.cjs blocks every main window close for GRACEFUL_CLOSE_TIMEOUT_MS
+    // while it waits for 'graceful-close-ready'. Only the running game answers that
+    // (src/core/AppInitializerLifecycle.js publishes GAME_INSTANCE and attaches the
+    // shell bridge in the same step), so a page without it can never reply.
+    assert.equal(
+        shouldForceDesktopWindowTeardown({ pageClosed: false, gameInstancePresent: false, probeError: null }),
+        true,
+        'vehicle lab / 3D editor / hangar page: nobody answers the handshake'
+    );
+    assert.equal(
+        shouldForceDesktopWindowTeardown({ pageClosed: false, gameInstancePresent: true, probeError: null }),
+        false,
+        'the game page keeps its full dispose handshake'
+    );
+    assert.equal(
+        shouldForceDesktopWindowTeardown({ pageClosed: true, gameInstancePresent: false, probeError: null }),
+        false,
+        'a closed page tells nothing about the windows that are left'
+    );
+    assert.equal(
+        shouldForceDesktopWindowTeardown({ pageClosed: false, gameInstancePresent: false, probeError: 'Error: boom' }),
+        false,
+        'an unreadable page falls back to the regular close path'
+    );
+    assert.equal(
+        shouldForceDesktopWindowTeardown({ pageClosed: false, gameInstancePresent: null, probeError: null }),
+        false,
+        'an unread page is not proof of a missing game'
+    );
+    assert.equal(shouldForceDesktopWindowTeardown(), false, 'no knowledge means no forced teardown');
+});
+
+test('the forced teardown destroys every live window exactly once', () => {
+    const calls = [];
+    const makeWindow = (name, destroyed) => ({
+        isDestroyed: () => destroyed,
+        destroy: () => calls.push(name),
+    });
+    const windows = [makeWindow('main', false), makeWindow('gone', true), makeWindow('hangar', false)];
+
+    const destroyed = destroyAllElectronWindows({ BrowserWindow: { getAllWindows: () => windows } });
+
+    assert.deepEqual(calls, ['main', 'hangar']);
+    assert.equal(destroyed, 2);
+});
+
+test('the desktop harness skips the graceful close only for pages without the game', () => {
+    const source = readFileSync(new URL('./helpers.desktop.js', import.meta.url), 'utf8');
+    assert.ok(
+        source.includes('shouldForceDesktopWindowTeardown'),
+        'helpers.desktop.js must decide the forced window teardown through the shared rule'
+    );
+    assert.ok(
+        source.includes('GAME_INSTANCE'),
+        'the decision needs the running game instance as its probe'
+    );
+    assert.ok(
+        source.includes('destroyAllElectronWindows'),
+        'the forced teardown must reuse the tested window loop'
+    );
 });
 
 test('render proof specs carry the render tag in their titles', () => {

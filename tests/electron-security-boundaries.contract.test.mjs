@@ -87,13 +87,23 @@ test('main window allows only same-origin editor popups with isolated renderers'
     }
 
     const source = readSource('../electron/main.cjs');
-    assert.match(source, /setWindowOpenHandler\(createEditorWindowOpenHandler\(appServer\.url,/);
+    // Die Test-Huelle reicht die Antwort des Sicherheitshandlers durch und kann eine
+    // Ablehnung nicht in eine Erlaubnis drehen (tests/test-render-window.contract.test.mjs).
+    assert.match(
+        source,
+        /setWindowOpenHandler\(withTestRenderWindowOpenHandler\(\s*createEditorWindowOpenHandler\(appServer\.url,/
+    );
+    // ... und die Huelle ist die geprueft reine aus test-render-window.cjs, keine lokale Namensvetterin.
+    assert.match(source, /withTestRenderWindowOpenHandler,\s*\}\s*=\s*require\('\.\/test-render-window\.cjs'\)/);
     // Autorenfenster bekommen ein eigenes, schmales Preload - niemals das des
     // Hauptfensters, das die vollen Desktop-Faehigkeiten traegt.
     assert.match(source, /editorPreloadPath:\s*path\.join\(__dirname,\s*'editor-preload\.cjs'\)/);
     assert.doesNotMatch(source, /editorPreloadPath:\s*path\.join\(__dirname,\s*'preload\.cjs'\)/);
     assert.match(source, /'did-create-window'[\s\S]*createPlaytestWindowOpenHandler\(appServer\.url\)/);
-    assert.match(source, /playtestWindow\.webContents\.setWindowOpenHandler\(\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\)\)/);
+    assert.match(
+        source,
+        /playtestWindow\.webContents\.setWindowOpenHandler\(withTestRenderWindowOpenHandler\(\s*\(\)\s*=>\s*\(\{\s*action:\s*'deny'\s*\}\),/
+    );
 });
 
 test('map editor allows only its same-origin playtest popup', () => {

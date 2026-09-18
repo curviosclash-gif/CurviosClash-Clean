@@ -96,7 +96,7 @@
     "council:runner:record": "node scripts/council-runner.mjs record",
     "council:runner:report": "node scripts/council-runner.mjs report",
     "council:runner:reset": "node scripts/council-runner.mjs reset",
-    "quality": "npm run council:check && npm run lint && npm run typecheck:architecture && npm run typecheck:contracts && npm run check:architecture && npm run check:parcours && npm run test:contract:coverage && npm run test:dev:training && npm run test:contract:dist"
+    "quality": "node scripts/run-quality.mjs"
   },
   "dependencies": {
     "@capacitor/android": "8.3.4",

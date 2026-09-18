@@ -1311,18 +1311,37 @@ test('SessionRuntimeCommandExecutor settled result stays on the use-case boundar
         },
     });
 
-    await assert.rejects(
-        executor.execute(createStartMatchCommand({ source: 'raw_start' })),
-        /command-boom/
-    );
+    // The unhandled-rejection guard comes from the retired
+    // core-targeted-regressions.spec.js test of the same name (P3): the executor must not
+    // leave an extra rejected promise branch behind while it observes the failure.
+    const unhandled = [];
+    const onUnhandled = (reason) => {
+        unhandled.push(reason?.message || String(reason || 'unknown'));
+    };
+    process.on('unhandledRejection', onUnhandled);
 
-    const settledResult = await executor.executeResult(createStartMatchCommand({ source: 'settled_start' }));
+    let settledResult = null;
+    try {
+        // Let the rejection settle BEFORE attaching a handler: only then does a missing
+        // internal guard surface as an unhandled rejection.
+        const rawPromise = executor.execute(createStartMatchCommand({ source: 'raw_start' }));
+        await Promise.resolve();
+        await new Promise((resolve) => setTimeout(resolve, 0));
+        await assert.rejects(rawPromise, /command-boom/);
+
+        settledResult = await executor.executeResult(createStartMatchCommand({ source: 'settled_start' }));
+        await new Promise((resolve) => setTimeout(resolve, 0));
+    } finally {
+        // The listener must not outlive this test: the file runs its tests in one process.
+        process.off('unhandledRejection', onUnhandled);
+    }
     const failedEvents = sessionRuntime.observability.events.filter((event) => (
         event.type === SESSION_RUNTIME_EVENT_TYPES.COMMAND_OBSERVED
         && event.payload?.phase === 'failed'
-        && event.payload?.resultStatus === 'rejected'
     ));
 
+    assert.deepEqual(unhandled, []);
+    assert.ok(failedEvents.every((event) => event.payload?.resultStatus === 'rejected'));
     assert.equal(settledResult.ok, false);
     assert.equal(settledResult.commandType, 'start_match');
     assert.equal(settledResult.resultStatus, 'rejected');

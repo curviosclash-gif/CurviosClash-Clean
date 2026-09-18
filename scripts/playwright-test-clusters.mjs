@@ -6,7 +6,15 @@ export const DESKTOP_E2E_CLUSTERS = Object.freeze([
     { id: 'core-surface', specs: ['tests/core-targeted-surface.spec.js'] },
     { id: 'core-runtime', specs: ['tests/core-targeted-runtime.spec.js'] },
     { id: 'core-regressions', specs: ['tests/core-targeted-regressions.spec.js'] },
-    { id: 'network', runProfile: 'browser-compat', specs: ['tests/network-adapter.spec.js'] },
+    {
+        id: 'network',
+        runProfile: 'browser-compat',
+        specs: [
+            'tests/network-adapter.spec.js',
+            // Two-tab lobby tests: Electron cannot open a second tab, so they only run here.
+            'tests/multiplayer-lobby-tabs.spec.js',
+        ],
+    },
     {
         id: 'desktop-flows',
         specs: [

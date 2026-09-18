@@ -325,11 +325,19 @@ export class MatchFlowUiController {
                 const preferredSource = this._createPreferredInputSource(playerIndex, localHumanCount, {
                     inputDeviceIndex: 0,
                 });
+                const isGuest = session?.isHost !== true;
                 input.setPlayerSource(playerIndex, createNetworkLocalInputSource({
                     source: preferredSource,
                     session,
                     playerId: slot.peerId || slot.playerId || slot.id || '',
-                    sendToSession: session?.isHost !== true,
+                    sendToSession: isGuest,
+                    // Only a guest ramps here. Its slot is reconciled against the host, and the
+                    // host cannot know this machine's smooth steering setting, so the guest ships
+                    // the smoothed axis instead of the raw keys. The host steers its own slot
+                    // through PlayerController, where nothing reconciles it.
+                    steeringRamp: {
+                        enabled: isGuest && game?.settings?.localSettings?.smoothSteering === true,
+                    },
                 }));
                 continue;
             }

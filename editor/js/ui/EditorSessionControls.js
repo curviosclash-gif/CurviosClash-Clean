@@ -13,6 +13,12 @@ import {
     resolveEditorTemplateImportCapability,
 } from './EditorBuildCatalog.js';
 import { getJsonEditorText, setJsonEditorText } from './EditorFormState.js';
+import {
+    listMapsThroughDesktopBridge,
+    openMapsFolderThroughDesktopBridge,
+    resolveEditorDiskBridge,
+    saveMapThroughDesktopBridge,
+} from './EditorDiskBridge.js';
 
 const LAST_DISK_MAP_NAME_STORAGE_KEY = 'editor_last_disk_map_name';
 const DEFAULT_DISK_MAP_NAME = 'Editor Map';
@@ -221,19 +227,24 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
     const saveCurrentMapToDisk = async (mapName, { saveAsCopy = false } = {}) => {
         const { jsonText, warnings: exportWarnings } = generateCurrentMapJson();
         const editorDocument = editor.createEditorDocument?.(jsonText) || null;
-        const payload = await fetchEditorApi(EDITOR_API_ROUTES.SAVE_MAP_DISK, {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify({
-                contractVersion: EDITOR_DISK_IO_CONTRACT_VERSION,
-                jsonText,
-                mapName,
-                editorDocument,
-                saveAsCopy,
-            })
-        });
+        const desktopBridge = resolveEditorDiskBridge(window);
+        // Im Desktop gibt es keinen Entwicklungsserver, der /api/... beantwortet.
+        // Dort geht derselbe Vorgang ueber den Hauptprozess in den Nutzerordner.
+        const payload = desktopBridge
+            ? await saveMapThroughDesktopBridge(desktopBridge, { jsonText, mapName, editorDocument, saveAsCopy })
+            : await fetchEditorApi(EDITOR_API_ROUTES.SAVE_MAP_DISK, {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    contractVersion: EDITOR_DISK_IO_CONTRACT_VERSION,
+                    jsonText,
+                    mapName,
+                    editorDocument,
+                    saveAsCopy,
+                })
+            });
 
         return {
             jsonText,
@@ -407,7 +418,10 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
         dom.exportDialog.showModal();
         dom.exportMapName?.focus();
 
-        void fetchEditorApi(EDITOR_API_ROUTES.LIST_MAPS_DISK)
+        const listBridge = resolveEditorDiskBridge(window);
+        void (listBridge
+            ? listMapsThroughDesktopBridge(listBridge)
+            : fetchEditorApi(EDITOR_API_ROUTES.LIST_MAPS_DISK))
             .then((payload) => {
                 if (!exportState || !dom.exportDialog?.open) return;
                 exportState.savedMaps = Array.isArray(payload.maps) ? payload.maps : [];
@@ -536,7 +550,10 @@ export function bindEditorSessionControls(editor, { syncArenaValues } = {}) {
     });
     dom.btnExportOpenFolder?.addEventListener('click', async () => {
         try {
-            const payload = await fetchEditorApi(EDITOR_API_ROUTES.OPEN_MAPS_FOLDER, { method: 'POST' });
+            const folderBridge = resolveEditorDiskBridge(window);
+            const payload = folderBridge
+                ? await openMapsFolderThroughDesktopBridge(folderBridge)
+                : await fetchEditorApi(EDITOR_API_ROUTES.OPEN_MAPS_FOLDER, { method: 'POST' });
             editor.notify?.(`Map-Ordner geoeffnet: ${payload.folderPath}.`, 'success');
         } catch (error) {
             editor.notify?.(`Map-Ordner konnte nicht geoeffnet werden: ${error.message}`, 'error');
