@@ -13,7 +13,7 @@ white seed silhouette remains stable from every gameplay angle.
 from __future__ import annotations
 
 from dataclasses import dataclass
-from math import cos, pi, sin, sqrt
+from math import cos, pi, radians, sin, sqrt
 from pathlib import Path
 import random
 
@@ -384,6 +384,8 @@ def flight_seed_specs(count, rng):
     wind = Vector((0.965, 0.08, 0.25)).normalized()
     crosswind = Vector((-wind.y, wind.x, 0)).normalized()
     upward = Vector((0, 0, 1))
+    horizontal_wind = Vector((wind.x, wind.y, 0)).normalized()
+    release_tilts = (72, 17, 48, 80, 28, 63, 12, 54, 75)
     phase = rng.uniform(-0.35, 0.35)
     for index in range(count):
         progress = (index + 0.42) / max(1, count)
@@ -395,9 +397,10 @@ def flight_seed_specs(count, rng):
                 + 0.52 * sin(progress * pi * 3.4 + phase)
                 + rng.uniform(-0.28, 0.28))
         pappus_center = HEAD_CENTER + wind * distance + crosswind * cross_offset + upward * lift
-        axis = (upward + wind * rng.uniform(0.10, 0.20)
-                + crosswind * rng.uniform(-0.11, 0.11)).normalized()
-        yield pappus_center, axis
+        tilt = release_tilts[index] + rng.uniform(-4.0, 4.0)
+        heading = (horizontal_wind + crosswind * rng.uniform(-0.22, 0.22)).normalized()
+        axis = upward * cos(radians(tilt)) + heading * sin(radians(tilt))
+        yield pappus_center, axis, tilt
 
 
 def build_head(collection, profile, materials, rng):
@@ -448,7 +451,7 @@ def build_head(collection, profile, materials, rng):
         else ()
     )
     for source_index in flight_indices:
-        pappus_center, axis = all_flight_specs[source_index]
+        pappus_center, axis, tilt = all_flight_specs[source_index]
         detached = MeshBuilder()
         append_detached_seed(detached, rng, Vector((0, 0, 0)), axis,
                              profile.bristles_per_seed)
@@ -458,6 +461,8 @@ def build_head(collection, profile, materials, rng):
                                   "flying_seed", profile.label)
         obj.location = pappus_center
         obj["seed_index"] = source_index + 1
+        obj["release_tilt_deg"] = tilt
+        obj["release_direction"] = tuple(axis)
         obj["wind_stiffness"] = 0.18
         flying_seeds.append(obj)
     return core_obj, seed_obj, flying_seeds
@@ -476,6 +481,8 @@ def animate_flying_seeds(objects):
         launch = (HEAD_CENTER + wind * rng.uniform(2.50, 2.75)
                   + crosswind * rng.uniform(-0.28, 0.28)
                   + Vector((0, 0, rng.uniform(-0.16, 0.22))))
+        release_direction = Vector(obj["release_direction"])
+        first_drift = launch + release_direction * 1.45
         base_roll = rng.uniform(-0.18, 0.18)
         sway_phase = rng.uniform(-pi, pi)
         obj["release_frame"] = launch_frame
@@ -483,7 +490,9 @@ def animate_flying_seeds(objects):
 
         def pose(frame, progress):
             progress = min(1.0, max(0.0, progress))
-            trajectory = launch.lerp(destination, progress)
+            trajectory = (launch * (1.0 - progress) ** 2
+                          + first_drift * (2.0 * progress * (1.0 - progress))
+                          + destination * progress ** 2)
             turbulence = sin(progress * pi * 2.7 + sway_phase) - sin(sway_phase)
             trajectory += crosswind * turbulence * (0.10 + 0.43 * progress)
             trajectory.z += 0.23 * sin(progress * pi * 2.0) * (0.25 + progress)

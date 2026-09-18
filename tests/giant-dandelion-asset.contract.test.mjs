@@ -113,6 +113,12 @@ test('runtime GLBs are valid, animated, and decrease in complexity by LOD', asyn
         'hero GLB must contain morph targets');
     const heroSeeds = assertFlightClip(hero, 9);
     const lod1Seeds = assertFlightClip(lod1, 5);
+    const tilts = heroSeeds.map((seed) => seed.extras.release_tilt_deg);
+    assert.ok(tilts.filter((tilt) => tilt < 25).length >= 2,
+        'at least two seeds should release nearly vertically');
+    assert.ok(tilts.filter((tilt) => tilt > 65).length >= 2,
+        'at least two seeds should release nearly horizontally');
+    assert.ok(tilts.every((tilt) => tilt >= 0 && tilt <= 90));
     assert.ok(heroSeeds[0].extras.release_frame > heroSeeds.at(-1).extras.release_frame,
         'near seeds should release after far seeds');
     assert.deepEqual(lod1Seeds.map((seed) => seed.extras.seed_index), [1, 3, 5, 7, 9]);
@@ -122,6 +128,8 @@ test('runtime GLBs are valid, animated, and decrease in complexity by LOD', asyn
     for (const seed of lod1Seeds) {
         const heroSeed = heroSeeds.find((candidate) =>
             candidate.extras.seed_index === seed.extras.seed_index);
+        assert.equal(seed.extras.release_tilt_deg, heroSeed.extras.release_tilt_deg,
+            `${seed.name} must keep the hero release angle`);
         const distance = Math.hypot(...flightPosition(lod1, seed, true)
             .map((value, axis) => value - flightPosition(hero, heroSeed, true)[axis]));
         assert.ok(distance < 0.001, `${seed.name} must match the hero flight path`);

@@ -14,8 +14,9 @@ double-sided runtime material is required.
 ## Files
 
 - `giant_dandelion.glb`: hero mesh with nine individually addressable flying seeds and one
-  120-frame `SeedFlight` clip. The seeds release at staggered times, drift and rotate through
-  a widening plume while the stem, leaves and head sway.
+  120-frame `SeedFlight` clip. The seeds release at staggered times with angles ranging from
+  nearly vertical to nearly horizontal, then drift and rotate through a widening plume while
+  the stem, leaves and head sway.
 - `giant_dandelion_lod1.glb`: middle-distance mesh with five synchronized animated seeds.
 - `giant_dandelion_lod2.glb`: far-distance silhouette mesh.
 - `giant_dandelion_collision.glb`: simple stem-and-head collision proxy.
