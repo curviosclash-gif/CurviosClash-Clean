@@ -125,6 +125,35 @@ test('focused or targeted interactive elements keep the key for themselves', (t)
     assert.equal(input.wasPressed('Continue'), true, 'a free document still counts');
 });
 
+test('a click beside a focused summary still means continue', (t) => {
+    // Opening the details with the mouse leaves the summary focused; the next click on the
+    // board surface is decided by its own target, not by that focus (play test: the second
+    // click did nothing).
+    const { input, doc, mousedown } = setup(t);
+    doc.activeElement = { tagName: 'SUMMARY' };
+    mousedown({ target: { tagName: 'DIV' } });
+    assert.equal(input.wasPressed('Continue'), true, 'the click target decides');
+    mousedown({ target: { tagName: 'SUMMARY' } });
+    assert.equal(input.wasPressed('Continue'), false, 'a click on the summary itself stays with it');
+});
+
+test('enter on a focused summary or button never reaches the raw key path either', (t) => {
+    // The board reads wasPressed('Enter') next to the continue intent; a press that belongs to
+    // the details toggle must not slip through that second door (seen in the Electron play test:
+    // Enter on "Details" started the next round).
+    const { input, doc, tap } = setup(t);
+    for (const element of [{ tagName: 'SUMMARY' }, { tagName: 'BUTTON', getAttribute: () => 'menu' }]) {
+        doc.activeElement = element;
+        tap({ code: 'Enter', key: 'Enter', target: element });
+        assert.equal(input.wasPressed('Enter'), false, `enter on ${element.tagName} stays with the element`);
+        tap({ code: 'Space', key: ' ', target: element });
+        assert.equal(input.wasPressed('Space'), false, `space on ${element.tagName} stays with the element`);
+        doc.activeElement = null;
+    }
+    tap({ code: 'Enter', key: 'Enter' });
+    assert.equal(input.wasPressed('Enter'), true, 'a free document still delivers enter');
+});
+
 test('a primary mouse click means continue, other buttons do not', (t) => {
     const { input, mousedown } = setup(t);
     mousedown({ button: 2 });

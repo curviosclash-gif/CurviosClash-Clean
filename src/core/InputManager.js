@@ -12,6 +12,9 @@ import {
 import { GamepadPauseInput } from '../shared/input/GamepadInputSource.js';
 import { CONFIG } from './Config.js';
 
+// Keys that activate a focused button or details toggle by themselves.
+const ACTIVATION_CODES = new Set(['Enter', 'NumpadEnter', 'Space']);
+
 const ACTION_KEYS = [
     'UP',
     'DOWN',
@@ -121,9 +124,11 @@ export class InputManager {
     }
 
     _handleMouseDown(e) {
+        // A click is decided by what it lands on, never by what happens to hold the focus:
+        // mousedown fires before the focus moves away from a summary opened a moment ago.
         if (!isContinueMouseEvent({
             button: e?.button,
-            targetIsInteractive: this._isContinueTargetInteractive(e),
+            targetIsInteractive: isInteractiveContinueTarget(e?.target),
         })) return;
         this._continueIntent = true;
     }
@@ -131,6 +136,9 @@ export class InputManager {
     _handleKeyDown(e) {
         this._noteContinueIntentFromKey(e);
         if (this._isTextInputFocused()) return;
+        // A button or a details toggle activates on Enter and Space itself; that press belongs
+        // to the element, so it must not also arrive as a raw game key (the board reads Enter).
+        if (ACTIVATION_CODES.has(e.code) && this._isContinueTargetInteractive(e)) return;
         if (!this.keys[e.code]) {
             this.justPressed[e.code] = true;
         }
