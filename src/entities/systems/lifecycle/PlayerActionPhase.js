@@ -139,8 +139,10 @@ export class PlayerActionPhase {
         // in every mode, because Classic has no machine gun but does have the same key. The
         // flamethrower answers true for the ticks it took, so the gun neither fires nor heats up.
         const firedFlame = entityManager._flamethrowerSystem?.fire(player, dt, input.shootMG === true) === true;
+        // The railgun owns the key the same way; it charges while held and fires on release.
+        const firedRail = !firedFlame && entityManager._railgunSystem?.fire(player, dt, input.shootMG === true) === true;
 
-        if (input.shootMG && !firedFlame && strategy?.hasMachineGun()) {
+        if (input.shootMG && !firedFlame && !firedRail && strategy?.hasMachineGun()) {
             const result = entityManager._shootHuntGun(player);
             if (entityManager.recorder && result) {
                 entityManager.recorder.logEvent('ITEM_USE', player.index, encodeGameplayActionResultForLog(result, {

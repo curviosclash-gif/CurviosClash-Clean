@@ -171,7 +171,8 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#dockRecentList')).toContainText('Noch nichts benutzt');
         await expect(page.locator('#dockFavoriteList')).toContainText('Keine Favoriten');
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
-        await expect(page.locator('#validationList li')).toHaveCount(10);
+        // Blocked checkpoint centres got their own (export blocking) item next to the reachability hint.
+        await expect(page.locator('#validationList li')).toHaveCount(11);
         await expect(page.locator('#validationStateBadge')).toHaveText('1 Fehler · 1 Warnung');
         await expect(page.locator('#validationIssueBadge')).toHaveText('2');
         await expect(page.locator('#btnDuplicateSelected')).toBeHidden();
@@ -1445,6 +1446,8 @@ test('Raketenwerfer: Editor properties, duplicate, undo and saved roundtrip', as
     await page.locator('#propTurretCooldown').press('Tab');
     await page.locator('#propTurretRocketType').selectOption('ROCKET_MEDIUM');
     await page.locator('#propTurretHp').fill('130');
+    // Under load the queued workspace refresh lands between typing and blur; force it here.
+    await page.evaluate(() => window.CURVIOS_EDITOR.ui.refreshLayerState());
     await page.locator('#propTurretHp').press('Tab');
     const result = await page.evaluate(() => {
         const { ui } = window.CURVIOS_EDITOR;

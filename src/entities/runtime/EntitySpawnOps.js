@@ -40,6 +40,8 @@ export class EntitySpawnOps {
             this.spawnPlayer(player, spawnContext);
         }
         owner._staticTurretSystem?.startRound?.();
+        owner._mapUnitSystem?.startRound?.();
+        owner._lightningStrikeSystem?.reset?.();
     }
 
     createSpawnContext() {

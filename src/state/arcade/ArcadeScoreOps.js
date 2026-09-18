@@ -3,7 +3,8 @@ import { toSafeNumber, clampInteger } from '../../shared/utils/ArcadeUtils.js';
 import { CURRENT_ARCADE_SCORE_MODEL } from '../../shared/contracts/ArcadeRunSettingsContract.js';
 
 const SURVIVAL_LATE_THRESHOLD_SEC = 30;
-const SURVIVAL_MAX_DURATION_SEC = 180;
+// No objective lasts longer than 55 s; past 90 s a sector only grows by keeping the last bot alive.
+const SURVIVAL_MAX_DURATION_SEC = 90;
 const SURVIVAL_LATE_BONUS_CAP = 2000;
 
 /** Base score per sector template — harder templates reward more. */

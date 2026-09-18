@@ -26,6 +26,7 @@ import {
 import { FIVE_PORTALS_RECORD_KEY } from '../../shared/contracts/FivePortalsContract.js';
 import { releaseButtonOnlyArcadeRun } from './ArcadeRunTypeOps.js';
 import { observeMenuReturn } from './MenuReturnObserver.js';
+import { bindArcadeNightmareToggle, syncArcadeNightmareToggle } from './ArcadeNightmareToggle.js';
 
 function normalizeString(value, fallback = '') {
     const normalized = typeof value === 'string' ? value.trim() : '';
@@ -248,13 +249,15 @@ export function setupArcadeMenuSurface(ctx = {}) {
 
         const phaseLabel = runtimeState?.phase ? ` | ${String(runtimeState.phase).toUpperCase()}` : '';
         const dailyLabel = runtimeState?.isDailyChallenge === true ? ' | DAILY' : '';
+        const tierLabel = settings.arcade?.nightmare === true && !settings.arcade?.dailyChallenge ? ' | ALBTRAUM' : '';
+        syncArcadeNightmareToggle(refs.nightmareInput, settings);
         const fivePortalsSelected = settings.arcade?.runType === 'five_portals';
         const fivePortalsRecord = runtimeAccess?.getSettingsStore?.()?.loadJsonRecord?.(FIVE_PORTALS_RECORD_KEY, null) || null;
         refs.runLine.textContent = fivePortalsSelected
             ? 'Fünf Portale: fünf Parcours, drei Checkpoint-Respawns je Map, dann Neustart der aktuellen Map. Solo ohne Bots.'
             : settings.arcade?.dailyChallenge
             ? 'Daily: Solo · ship5 ohne Leistungsboni · 5 Sektoren · NORMAL. Ergebnis bis zum Boss zählt.'
-            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${mapKey} | Bots ${botCount} | ${difficulty}${dailyLabel}${phaseLabel}`;
+            : `${Number(settings.arcade?.sectorCount) || 5} Sektoren meistern, danach freiwillig Sudden Death. ${mapKey} | Bots ${botCount} | ${difficulty}${tierLabel}${dailyLabel}${phaseLabel}`;
         refs.recordsLine.textContent = fivePortalsSelected
             ? `Persönliche Bestzeit: ${fivePortalsRecord?.bestTotalMs > 0 ? `${(fivePortalsRecord.bestTotalMs / 1000).toFixed(2)} s` : '–'}`
             : `Neue Wertung: ${Math.round(runtimeState?.records?.bestScore || 0)} Punkte`
@@ -503,6 +506,7 @@ export function setupArcadeMenuSurface(ctx = {}) {
         bind(element, 'click', syncOnInteraction);
     });
 
+    bindArcadeNightmareToggle(refs.nightmareInput, settings, bind, sync);
     observeMenuReturn(level3Body.closest?.('#main-menu'), syncOnInteraction);
     sync();
 }

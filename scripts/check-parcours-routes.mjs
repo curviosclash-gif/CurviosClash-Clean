@@ -2,6 +2,7 @@
 import { MAP_PRESET_CATALOG } from '../src/core/config/maps/MapPresetCatalog.js';
 import { CONFIG_SECTIONS } from '../src/core/config/ConfigSections.js';
 import { buildRouteFromParcours } from '../src/entities/systems/ParcoursProgressUtils.js';
+import { listRingsInsideObstacles } from './parcours-ring-clearance.mjs';
 
 const MIN_STAGE_STEP_DISTANCE = 0.35;
 const BASE_MAX_STAGE_STEP_DISTANCE = 80;
@@ -253,6 +254,9 @@ function evaluateRoute(mapKey, mapDef) {
     evaluateStageDistanceHeuristics(findings, mapDef, route, byStage);
     evaluateStageJumpHeuristics(findings, route);
     evaluateSpatialContract(findings, mapDef, route);
+    for (const { ringId } of listRingsInsideObstacles(mapDef, MAP_SCALE)) {
+        findings.errors.push(`${ringId} ring-centre-inside-obstacle`);
+    }
 
     const requiresDirectionalCrossing = route.rules?.bidirectionalCheckpoints === false;
     if (!requiresDirectionalCrossing) {

@@ -18,6 +18,20 @@ registerMapCatalogConfigSource({
 
 const { buildArcadeIntermissionChoices } = await import('../src/core/arcade/ArcadeIntermissionPlanOps.js');
 
+test('the Daily offers only the planned route so every player flies the same run', () => {
+    // Decision D4 (18.09.2026): the Daily stays comparable, no alternative routes.
+    const runtime = {
+        _state: { mapSequence: ['standard', 'burg', 'canyon'], isDailyChallenge: true },
+        _config: { dailyChallenge: true },
+        _activeModifierId: '',
+        _getEncounterSectorEntry: () => ({ parcoursEnabled: false, modifierId: 'tight_turns' }),
+    };
+    const choices = buildArcadeIntermissionChoices(runtime, 2);
+    assert.equal(choices.length, 1, choices.map((choice) => choice.id).join(','));
+    assert.equal(choices[0].mapKey, 'burg');
+    assert.equal(choices[0].source, 'plan');
+});
+
 test('the route choice never offers the custom slot or maps hidden from the map picker', () => {
     for (let sector = 2; sector <= 6; sector += 1) {
         const runtime = {

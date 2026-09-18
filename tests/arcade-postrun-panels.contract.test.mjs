@@ -239,6 +239,16 @@ test('the post-run panel keeps its replay button and xp counter hooks', () => {
     });
 });
 
+test('the post-run panel offers watching and exporting the replay separately', () => {
+    withDocument(() => {
+        const { controller, panel } = makeController();
+        controller._renderArcadePostRunPanel(postRunState());
+        const root = panel();
+        assert.equal(findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay')?.textContent, 'Replay ansehen');
+        assert.equal(findFirst(root, (node) => node.id === 'btn-arcade-overlay-replay-export')?.textContent, 'Exportieren');
+    });
+});
+
 test('a missing or empty summary leaves the panel empty instead of crashing', () => {
     withDocument(() => {
         const { controller, panel } = makeController();

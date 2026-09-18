@@ -17,6 +17,9 @@ import {
     resolveScenarioBotTuning,
 } from './HuntScenarioBotRoles.js';
 import { applyBotFlamethrowerInput } from './HuntBotFlamethrowerOps.js';
+import { applyBotMapUnitFire } from './HuntBotMapUnitOps.js';
+import { applyBotLightningInput } from './HuntBotLightningOps.js';
+import { applyBotRailgunInput, holdsRailgunCharge } from './HuntBotRailgunOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
@@ -454,6 +457,9 @@ export class HuntBotPolicy {
         }
 
         applyBotFlamethrowerInput(this, input, player, enemy, distSq);
+        applyBotMapUnitFire(this, input, player, runtimeContext);
+        applyBotLightningInput(input, player, runtimeContext);
+        applyBotRailgunInput(this, input, player, runtimeContext);
 
         const shouldRetreat = !!enemy && (
             vitalityRatio <= scenarioTuning.retreatVitality
@@ -479,7 +485,7 @@ export class HuntBotPolicy {
             } else {
                 applyRetreatSteeringFallback(this, input, player, enemy);
             }
-            input.shootMG = false;
+            input.shootMG = holdsRailgunCharge(player);
             input.boost = true;
             if (rocketIndex < 0) {
                 input.shootItem = false;

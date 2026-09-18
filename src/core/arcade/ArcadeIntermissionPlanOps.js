@@ -115,6 +115,8 @@ export function buildArcadeIntermissionChoices(runtime, nextSectorIndex) {
     };
 
     pushChoice(baseMapKey, baseModifierId, 'plan');
+    // The Daily is the same run for everyone, so it offers no alternative routes.
+    if (runtime._state?.isDailyChallenge === true || runtime._config?.dailyChallenge === true) return choices;
 
     const nextSectorIsParcours = encounterEntry?.parcoursEnabled === true;
     const candidateMaps = mapCatalogKeys.filter((mapKey) => {
