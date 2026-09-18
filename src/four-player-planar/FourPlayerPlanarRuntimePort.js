@@ -40,6 +40,10 @@ export function createFourPlayerPlanarRuntimePort({ getRuntime }) {
         getHuntScoreboard() {
             return runtime()?.entityManager?.getHuntScoreboard?.() || [];
         },
+        /** Inbound rocket threat of one player - the same source the Hunt HUD reads. */
+        getRocketThreat(playerIndex) {
+            return runtime()?.entityManager?._projectileSystem?.getRocketThreat?.(playerIndex) || null;
+        },
         getGlobalFogState() {
             return runtime()?.entityManager?.getGlobalFogState?.() || null;
         },
