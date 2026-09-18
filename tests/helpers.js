@@ -5,6 +5,7 @@ import {
     waitForRuntimeReady,
     waitForShellOrRuntimeReady,
 } from './playwright-readiness.js';
+import { consumeFreshBootMark, isForceGotoEnv, shouldSkipInitialGoto } from './fresh-boot-mark.mjs';
 import { performance } from 'node:perf_hooks';
 
 function toPositiveInt(rawValue, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) {
@@ -121,7 +122,14 @@ async function ensureTestModuleImportBridge(page, timeoutMs = 5000) {
 }
 
 // Load page and wait for visible main menu.
-export async function loadGame(page) {
+// The desktop harness already booted the app, so the first call on an untouched
+// page only waits for readiness instead of booting it a second time. Pass
+// { forceReload: true } where a test needs the navigation itself.
+export async function loadGame(page, options = {}) {
+    const forceReload = options?.forceReload === true;
+    const envForce = isForceGotoEnv(process.env);
+    // One shot: a retry and every later loadGame in the same test navigate again.
+    const freshBoot = consumeFreshBootMark(page);
     const maxAttempts = toPositiveInt(process.env.PW_LOAD_GAME_MAX_ATTEMPTS, 2, 1, 5);
     const gotoTimeoutMs = toPositiveInt(process.env.PW_LOAD_GAME_GOTO_TIMEOUT_MS, 60000, 1_000, 300_000);
     const serverTimeoutMs = toPositiveInt(process.env.PW_LOAD_GAME_SERVER_TIMEOUT_MS, 80000, 1_000, 300_000);
@@ -136,6 +144,7 @@ export async function loadGame(page) {
     let lastError = null;
     let lastStage = 'idle';
     let lastDiagnostics = null;
+    let skippedInitialGoto = false;
     const startedAt = performance.now();
 
     for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
@@ -158,17 +167,31 @@ export async function loadGame(page) {
                 });
             }
 
-            const elapsedBeforeGoto = performance.now() - startedAt;
-            const remainingBeforeGoto = totalTimeoutMs - elapsedBeforeGoto;
-            if (remainingBeforeGoto <= 1_000) {
-                throw new Error('loadGame timeout budget exhausted before navigation');
+            const targetUrl = resolveAppUrl(page, '/');
+            const skipGoto = attempt === 1 && shouldSkipInitialGoto({
+                fresh: freshBoot,
+                currentUrl: page.url(),
+                targetUrl,
+                forceReload,
+                envForce,
+            });
+
+            if (skipGoto) {
+                skippedInitialGoto = true;
+                lastStage = 'fresh_boot';
+            } else {
+                const elapsedBeforeGoto = performance.now() - startedAt;
+                const remainingBeforeGoto = totalTimeoutMs - elapsedBeforeGoto;
+                if (remainingBeforeGoto <= 1_000) {
+                    throw new Error('loadGame timeout budget exhausted before navigation');
+                }
+                const gotoBudgetMs = Math.max(
+                    1_000,
+                    Math.min(gotoTimeoutMs, remainingBeforeGoto - 1_500)
+                );
+                lastStage = 'goto';
+                await page.goto(targetUrl, { waitUntil: gotoWaitUntil, timeout: gotoBudgetMs });
             }
-            const gotoBudgetMs = Math.max(
-                1_000,
-                Math.min(gotoTimeoutMs, remainingBeforeGoto - 1_500)
-            );
-            lastStage = 'goto';
-            await page.goto(resolveAppUrl(page, '/'), { waitUntil: gotoWaitUntil, timeout: gotoBudgetMs });
 
             const elapsedBeforeReady = performance.now() - startedAt;
             const remainingBeforeReady = totalTimeoutMs - elapsedBeforeReady;
@@ -221,6 +244,7 @@ export async function loadGame(page) {
         totalTimeoutMs,
         retryDelayMs,
         snapshotTimeoutMs,
+        skippedInitialGoto,
     })}`;
     throw new Error(
         `loadGame failed after ${maxAttempts} attempts in runProfile "${runProfile}" ` +
@@ -383,27 +407,57 @@ export async function openCustomSubmenu(page) {
     await openSubmenu(page, 'submenu-custom');
 }
 
+// Multiplayer is its own level-1 screen since 879e9ac4: the nav button carries both the session
+// type and the panel target, so a single user click switches the session AND opens the lobby.
+// There is no `details[data-start-section="multiplayer"]` inside #submenu-game any more.
+// `allowRuntimeFallback: false` is for the test that proves the user path itself: the runtime
+// fallback opens the lobby without the nav button, so it would hide a button that lost its
+// panel binding while the second listener still switches the session type.
 export async function openMultiplayerSubmenu(page, options = {}) {
     const requireActive = options.requireActive === true;
-    await selectSessionType(page, 'multiplayer');
-    const nextButton = page
-        .locator('#submenu-custom:not(.hidden) [data-menu-step-target="submenu-game"]:visible:not([disabled])')
+    const allowRuntimeFallback = options.allowRuntimeFallback !== false;
+    const navButton = page
+        .locator('#menu-nav [data-session-type="multiplayer"][data-submenu="submenu-multiplayer"]')
         .first();
-    if (await nextButton.count()) {
-        await nextButton.click({ force: true });
-    } else {
-        await openViaNavigationRuntime(page, 'submenu-game');
-    }
-    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
-    const activeSessionType = await page.evaluate(() => (
+    const readSessionType = () => page.evaluate(() => (
         String(window.GAME_INSTANCE?.settings?.localSettings?.sessionType || '').trim().toLowerCase()
     ));
-    if (activeSessionType === 'multiplayer') {
-        await openStartSetupSection(page, 'multiplayer');
+    const lobbyOpened = () => page
+        .waitForSelector('#submenu-multiplayer:not(.hidden)', { timeout: 4000 })
+        .then(() => true)
+        .catch(() => false);
+
+    // The lobby hides the level-1 nav, so a second call would only burn the click timeout.
+    const alreadyOpen = await page.locator('#submenu-multiplayer:not(.hidden)').count() > 0
+        && await readSessionType() === 'multiplayer';
+    if (alreadyOpen) return true;
+
+    let lobbyVisible = false;
+    let lastClickError = '';
+    if (await navButton.count()) {
+        // No `force` here: the level-1 grid is still settling right after the load, and a forced
+        // click skips the stability check and lands next to the button.
+        for (let attempt = 0; attempt < 2 && !lobbyVisible; attempt += 1) {
+            await navButton.click({ timeout: 10_000 }).catch((error) => {
+                lastClickError = String(error?.message || error).split('\n')[0];
+            });
+            lobbyVisible = await lobbyOpened();
+        }
+    }
+    if (!lobbyVisible && allowRuntimeFallback) {
+        await openViaNavigationRuntime(page, 'submenu-multiplayer').catch(() => {});
+        lobbyVisible = await lobbyOpened();
+    }
+    const activeSessionType = await readSessionType();
+    if (lobbyVisible && activeSessionType === 'multiplayer') {
         return true;
     }
     if (requireActive) {
-        throw new Error(`Multiplayer-Session nicht aktiv (sessionType="${activeSessionType || 'unknown'}").`);
+        throw new Error(
+            `Multiplayer-Lobby nicht aktiv (sessionType="${activeSessionType || 'unknown'}", `
+            + `Lobby ${lobbyVisible ? 'sichtbar' : 'verborgen'}`
+            + `${lastClickError ? `, letzter Klickfehler: ${lastClickError}` : ''}).`
+        );
     }
     return false;
 }

@@ -1,5 +1,11 @@
 const path = require('node:path');
 const { createSecureWindowWebPreferences } = require('./window-security-options.cjs');
+const {
+    TEST_RENDER_MODE_OFF,
+    createSecondaryWindowOptions,
+    shouldShowInactive,
+    showWindowForMode,
+} = require('./test-render-window.cjs');
 
 const HANGAR_WINDOW_SHELL_CONTRACT_VERSION = 'hangar-window-shell.v1';
 const HANGAR_WINDOW_MIN_WIDTH = 1100;
@@ -16,6 +22,8 @@ function createHangarWindowController({
     resolveWindowUrl,
     preloadPath = path.resolve(__dirname, 'hangar-preload.cjs'),
     shouldShowWindow = () => String(process.env.CURVIOS_ELECTRON_SHOW_WINDOW || '').trim() !== '0',
+    // Nur Playwright setzt einen anderen Modus; die gepackte App kennt hier immer 'off'.
+    testRenderMode = TEST_RENDER_MODE_OFF,
 } = {}) {
     if (typeof BrowserWindow !== 'function') throw new TypeError('BrowserWindow fehlt.');
     if (typeof resolveWindowUrl !== 'function') throw new TypeError('resolveWindowUrl fehlt.');
@@ -58,26 +66,29 @@ function createHangarWindowController({
                 await hangarWindow.loadURL(nextUrl);
                 activeMode = requestedMode;
             }
-            if (options.focus !== false) hangarWindow.focus();
+            if (options.focus !== false && !shouldShowInactive(testRenderMode)) hangarWindow.focus();
             return { ok: true, reused: true, window: hangarWindow };
         }
         const parent = resolveParentWindow();
         hasUnsavedChanges = false;
         allowWindowClose = false;
-        hangarWindow = new BrowserWindow({
-            width: 1600,
-            height: 1000,
-            minWidth: HANGAR_WINDOW_MIN_WIDTH,
-            minHeight: HANGAR_WINDOW_MIN_HEIGHT,
-            title: 'CurviosClash Hangar',
-            autoHideMenuBar: true,
-            show: false,
-            parent: isWindowAlive(parent) ? parent : undefined,
-            webPreferences: createSecureWindowWebPreferences({
-                preload: preloadPath,
-                backgroundThrottling: false,
-            }),
-        });
+        hangarWindow = new BrowserWindow(createSecondaryWindowOptions({
+            mode: testRenderMode,
+            baseOptions: {
+                width: 1600,
+                height: 1000,
+                minWidth: HANGAR_WINDOW_MIN_WIDTH,
+                minHeight: HANGAR_WINDOW_MIN_HEIGHT,
+                title: 'CurviosClash Hangar',
+                autoHideMenuBar: true,
+                show: false,
+                parent: isWindowAlive(parent) ? parent : undefined,
+                webPreferences: createSecureWindowWebPreferences({
+                    preload: preloadPath,
+                    backgroundThrottling: false,
+                }),
+            },
+        }));
         hangarWindow.on('close', (event) => {
             if (allowWindowClose || !hasUnsavedChanges) return;
             let response = 1;
@@ -109,6 +120,9 @@ function createHangarWindowController({
         const current = hangarWindow;
         current.once?.('ready-to-show', () => {
             if (!isWindowAlive(current)) return;
+            // `maximize()` holt auch ein `show: false`-Fenster auf den Bildschirm - im
+            // Testmodus ist deshalb `showInactive()` der einzige erlaubte Weg.
+            if (showWindowForMode(current, testRenderMode)) return;
             current.maximize?.();
             if (shouldShowWindow()) current.show?.();
         });
@@ -119,7 +133,7 @@ function createHangarWindowController({
         });
         await current.loadURL(windowUrl);
         activeMode = requestedMode;
-        if (options.focus !== false && isWindowAlive(current)) current.focus();
+        if (options.focus !== false && isWindowAlive(current) && !shouldShowInactive(testRenderMode)) current.focus();
         return { ok: true, reused: false, window: current };
     }
 

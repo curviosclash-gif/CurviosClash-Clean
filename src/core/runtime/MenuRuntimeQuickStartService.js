@@ -10,6 +10,10 @@ import { PLATFORM_SURFACE_QUICK_START_ACTION_IDS } from '../../shared/contracts/
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
 import { createRuntimeRng } from '../../shared/contracts/RuntimeRngContract.js';
 import { appendMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
+import { createSessionSettingsRestorePlan } from './SessionSettingsRestorePlan.js';
+
+// The one value a playlist start is allowed to keep: its cursor is persisted on purpose.
+const EVENT_PLAYLIST_STATE_PATH = 'localSettings.eventPlaylistState';
 
 export function resolvePresetFailureMessage(result, fallbackMessage) {
     switch (result?.reason) {
@@ -104,7 +108,16 @@ export async function handleQuickStartLastStartAction(ctx) {
 }
 
 export async function handleQuickStartEventPlaylistStartAction(ctx) {
-    const { game, onSettingsChanged, resolveMenuAccessContext, recordMenuTelemetry, startMatch } = ctx;
+    const {
+        game,
+        onSettingsChanged,
+        resolveMenuAccessContext,
+        recordMenuTelemetry,
+        startMatch,
+        cancelPendingSettingsAutoSave,
+        holdSessionSettingsRestore,
+        restoreSessionSettings,
+    } = ctx;
     if (!getSurfacePort(game).isQuickStartAllowed(PLATFORM_SURFACE_QUICK_START_ACTION_IDS.EVENT_PLAYLIST)) {
         const feedback = getSurfacePort(game).resolveBlockedFeatureFeedback('Event-Playlist');
         game._showStatusToast(feedback.message, feedback.durationMs, feedback.tone);
@@ -139,6 +152,12 @@ export async function handleQuickStartEventPlaylistStartAction(ctx) {
     appendMutationChangedKeys(changedKeys, presetResult);
     onSettingsChanged({ changedKeys: Array.from(new Set(changedKeys)) });
 
+    // The preset only borrows the live settings for this one match. Remembering what it
+    // replaced is what lets the way back to the menu hand the player his own setup again.
+    holdSessionSettingsRestore?.(createSessionSettingsRestorePlan(baselineSettingsSnapshot, game.settings, {
+        ignoredPaths: [EVENT_PLAYLIST_STATE_PATH],
+    }));
+
     const presetName = String(playlistStep?.preset?.name || presetId).trim() || presetId;
     let started = false;
     try {
@@ -146,27 +165,37 @@ export async function handleQuickStartEventPlaylistStartAction(ctx) {
     } catch {
         started = false;
     }
-    if (started) {
-        recordMenuTelemetry('quickstart', {
-            variant: 'event_playlist',
-            playlistId: playlistStep?.playlist?.id || '',
-            presetId,
-            stepIndex: playlistStep.currentIndex,
-            displayIndex: playlistStep.displayIndex,
-            totalSteps: playlistStep.totalSteps,
-            sessionType: game?.settings?.localSettings?.sessionType || 'single',
-        });
-        // Event-Playlist darf nur den Cursor persistieren, nicht still die komplette Runtime-Konfiguration als neue Baseline speichern.
-        const persistedSettings = buildEventPlaylistPersistedSettings(baselineSettingsSnapshot, game.settings);
-        if (persistedSettings) {
-            game.settingsManager.saveSettings(persistedSettings);
-        }
-        game._showStatusToast(
-            `Event-Playlist: ${presetName} (${playlistStep.displayIndex}/${playlistStep.totalSteps})`,
-            1300,
-            'info'
-        );
+    if (!started) {
+        // No match ran: the cursor must not move on either, or the next click skips an entry.
+        game.settings.localSettings.eventPlaylistState = {
+            ...(baselineSettingsSnapshot?.localSettings?.eventPlaylistState || {}),
+        };
+        cancelPendingSettingsAutoSave?.();
+        restoreSessionSettings?.();
+        return;
     }
+    recordMenuTelemetry('quickstart', {
+        variant: 'event_playlist',
+        playlistId: playlistStep?.playlist?.id || '',
+        presetId,
+        stepIndex: playlistStep.currentIndex,
+        displayIndex: playlistStep.displayIndex,
+        totalSteps: playlistStep.totalSteps,
+        sessionType: game?.settings?.localSettings?.sessionType || 'single',
+    });
+    // Event-Playlist darf nur den Cursor persistieren, nicht still die komplette Runtime-Konfiguration als neue Baseline speichern.
+    const persistedSettings = buildEventPlaylistPersistedSettings(baselineSettingsSnapshot, game.settings);
+    if (persistedSettings) {
+        // The autosave armed by onSettingsChanged above would write the running playlist
+        // configuration over this baseline 400 ms later, dropping the player's own map.
+        cancelPendingSettingsAutoSave?.();
+        game.settingsManager.saveSettings(persistedSettings);
+    }
+    game._showStatusToast(
+        `Event-Playlist: ${presetName} (${playlistStep.displayIndex}/${playlistStep.totalSteps})`,
+        1300,
+        'info'
+    );
 }
 
 export async function handleQuickStartRandomStartAction(ctx) {

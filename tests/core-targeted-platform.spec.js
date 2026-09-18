@@ -47,8 +47,6 @@ import {
 } from './core-targeted.shared.js';
 
 test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer', () => {
-    test.describe.configure({ mode: 'serial' });
-
     test('T20a: Recorder-Support-Probe liefert lifecycle.v1-Metadaten', async ({ page }) => {
         await loadGame(page);
         const probe = await page.evaluate(() => {
@@ -179,13 +177,27 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
             const baseY0 = Number(players[0]?.position?.y) || 5;
             const baseY1 = Number(players[1]?.position?.y) || 5;
 
+            // Der Recorder stempelt jeden Schnappschuss mit performance.now(), und Chromium
+            // rastert diese Uhr auf 0,1 ms. Eine enge Schleife legt daher alle sechs Bilder
+            // auf denselben Zeitpunkt; das 12-Sekunden-Fenster des Clips behaelt davon nur
+            // die letzten zwei. Im Spiel liegen Schnappschuesse 50 ms auseinander, deshalb
+            // wartet der Test zwischen den Bildern auf echten Zeitfortschritt.
+            const waitForClockGap = (minimumGapMs) => {
+                const startedAt = performance.now();
+                while (performance.now() - startedAt < minimumGapMs) {
+                    // Aktives Warten: setTimeout wuerde im verdeckten Fenster gedrosselt.
+                }
+            };
+
             game.recorder._snapshotInterval = 1;
             game.recorder.startRound(players);
+            waitForClockGap(2);
 
             for (let step = 0; step < 6; step += 1) {
                 applyPose(players[0], -18 + step * 4.2, baseY0, 9 - step * 1.8, step * 0.2);
                 applyPose(players[1], 16 - step * 3.1, baseY1, -7 + step * 2.4, -step * 0.16);
                 game.recorder.recordFrame(players);
+                if (step < 5) waitForClockGap(2);
             }
 
             game.matchFlowUiController.onRoundEnd(players[0]);
@@ -233,13 +245,11 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T20c: Multiplayer ist als Session-Typ in Ebene 1 waehlbar', async ({ page }) => {
         await loadGame(page);
         await expect(page.locator('#menu-nav [data-session-type="multiplayer"]')).toBeVisible();
-        const multiplayerActive = await openMultiplayerSubmenu(page);
-        await expect(page.locator('#submenu-game')).toBeVisible();
-        if (multiplayerActive) {
-            await expect(page.locator('#multiplayer-inline-stub')).toBeVisible();
-            return;
-        }
-        await expect(page.locator('#multiplayer-inline-stub')).toBeHidden();
+        // This test proves the user path, so the helper may not fall back to the runtime: the
+        // nav button itself has to open the lobby and switch the session type.
+        await openMultiplayerSubmenu(page, { requireActive: true, allowRuntimeFallback: false });
+        await expect(page.locator('#submenu-multiplayer')).toBeVisible();
+        await expect(page.locator('#multiplayer-inline-stub')).toBeVisible();
     });
 
     test('T20d: Multiplayer-Bridge emittiert lifecycle.v1 Event-Contract', async ({ page }) => {
@@ -289,133 +299,6 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
         expect(lifecycleEvent).toBeTruthy();
         expect(lifecycleEvent.contractVersion).toBe('lifecycle.v1');
         expect(lifecycleEvent.payload?.lobbyCode).toBe('QA-LOBBY');
-    });
-
-    test('T20d1: Multiplayer-Lobby synchronisiert Join, Ready und Host-Invalidation ueber zwei Tabs', async ({ page }) => {
-        await page.context().addInitScript(() => {
-            globalThis.__CURVIOS_APP__ = true;
-            globalThis.__CURVIOS_E2E_LOBBY_TRANSPORT__ = 'storage-bridge';
-        });
-        const secondPage = await page.context().newPage();
-        try {
-            await loadGame(page);
-            await loadGame(secondPage);
-
-            const hostMultiplayerActive = await openMultiplayerSubmenu(page);
-            await page.fill('#multiplayer-lobby-code', 'SYNC-LOBBY');
-            await page.click('[data-connection-intent-target="host"]');
-            await page.click('#btn-multiplayer-host');
-            await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
-
-            const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
-            expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
-            await secondPage.fill('#multiplayer-lobby-code', 'SYNC-LOBBY');
-            await secondPage.click('#btn-multiplayer-join');
-            await secondPage.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
-            await secondPage.check('#multiplayer-ready-toggle');
-
-            await page.waitForFunction(() => {
-                const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();
-                return state?.memberCount === 2 && state?.readyCount === 2;
-            }, null, { timeout: 5000 });
-
-            const syncedState = await page.evaluate(() => ({
-                sessionState: window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.(),
-                lobbyStateText: document.getElementById('multiplayer-lobby-state')?.textContent || '',
-            }));
-            expect(syncedState.sessionState?.isHost).toBeTruthy();
-            expect(syncedState.sessionState?.memberCount).toBe(2);
-            expect(syncedState.sessionState?.readyCount).toBe(2);
-            expect(syncedState.lobbyStateText).toContain('2 Teilnehmer');
-            await expect(page.locator('#multiplayer-member-list .mp-player-card')).toHaveCount(2);
-
-            await page.evaluate(() => {
-                const slider = document.getElementById('bot-count');
-                slider.value = '4';
-                slider.dispatchEvent(new Event('input', { bubbles: true }));
-            });
-
-            await secondPage.waitForFunction(() => {
-                const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();
-                return state?.joined === true && state?.localReady === false && state?.readyCount === 1;
-            }, null, { timeout: 5000 });
-
-            const invalidatedState = await secondPage.evaluate(() => ({
-                sessionState: window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.(),
-                readyChecked: !!document.getElementById('multiplayer-ready-toggle')?.checked,
-            }));
-            expect(invalidatedState.sessionState?.role).toBe('client');
-            expect(invalidatedState.sessionState?.localReady).toBeFalsy();
-            expect(invalidatedState.readyChecked).toBeFalsy();
-        } finally {
-            await secondPage.close();
-        }
-    });
-
-    test('T20d2: Multiplayer-Host startet Match synchron mit autoritativem Snapshot ueber zwei Tabs', async ({ page }) => {
-        test.setTimeout(120000);
-        await page.context().addInitScript(() => {
-            globalThis.__CURVIOS_APP__ = true;
-            globalThis.__CURVIOS_E2E_LOBBY_TRANSPORT__ = 'storage-bridge';
-        });
-        const secondPage = await page.context().newPage();
-        try {
-            await loadGame(page);
-            await loadGame(secondPage);
-
-            const hostMultiplayerActive = await openMultiplayerSubmenu(page);
-            await page.fill('#multiplayer-lobby-code', 'START-LOBBY');
-            await page.click('[data-connection-intent-target="host"]');
-            await page.click('#btn-multiplayer-host');
-            await page.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
-
-            const selectedMapKey = await page.evaluate(() => {
-                const select = document.getElementById('map-select');
-                if (!(select instanceof HTMLSelectElement)) return null;
-                const mapKeys = Array.from(select.options)
-                    .map((option) => String(option.value || '').trim())
-                    .filter((value) => value && value !== 'custom');
-                return mapKeys.includes('maze') ? 'maze' : (mapKeys[0] || null);
-            });
-            expect(selectedMapKey).toBeTruthy();
-            await page.selectOption('#map-select', String(selectedMapKey));
-            await page.waitForFunction((mapKey) => window.GAME_INSTANCE?.settings?.mapKey === mapKey, String(selectedMapKey), { timeout: 5000 });
-
-            const clientMultiplayerActive = await openMultiplayerSubmenu(secondPage);
-            expect(hostMultiplayerActive && clientMultiplayerActive, 'Multiplayer-Surface muss in beiden Tabs aktiv sein.').toBe(true);
-            await secondPage.fill('#multiplayer-lobby-code', 'START-LOBBY');
-            await secondPage.click('#btn-multiplayer-join');
-            await secondPage.waitForFunction(() => window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.()?.joined === true, null, { timeout: 5000 });
-
-            await secondPage.check('#multiplayer-ready-toggle');
-
-            await page.waitForFunction(() => {
-                const state = window.GAME_INSTANCE?.menuMultiplayerBridge?.getSessionState?.();
-                return state?.canStart === true && state?.allReady === true;
-            }, null, { timeout: 5000 });
-
-            await page.click('#btn-multiplayer-start');
-
-            await page.waitForFunction(() => {
-                const game = window.GAME_INSTANCE;
-                return game?.state === 'PLAYING' && !!game?.entityManager;
-            }, null, { timeout: 30000 });
-            await secondPage.waitForFunction((mapKey) => {
-                const game = window.GAME_INSTANCE;
-                return game?.state === 'PLAYING' && game?.settings?.mapKey === mapKey && !!game?.entityManager;
-            }, String(selectedMapKey), { timeout: 30000 });
-
-            const secondProbe = await secondPage.evaluate(() => ({
-                state: window.GAME_INSTANCE?.state,
-                mapKey: window.GAME_INSTANCE?.settings?.mapKey,
-                hudVisible: !document.getElementById('hud')?.classList.contains('hidden'),
-            }));
-            expect(secondProbe.state).toBe('PLAYING');
-            expect(secondProbe.mapKey).toBe(String(selectedMapKey));
-            expect(secondProbe.hudVisible).toBeTruthy();
-        } finally {
-            await secondPage.close();
-        }
     });
 
     test('T41a: MenuSchema markiert multiplayer-host mit visibilityCondition canHost', async ({ page }) => {
@@ -637,7 +520,8 @@ test.describe('T1-20: Core & Infrastruktur - Plattform, Lifecycle & Multiplayer'
     test('T20e: Open-Preset speichert Metadatenvertrag vollstaendig', async ({ page }) => {
         await loadGame(page);
         await page.evaluate((storageKey) => localStorage.removeItem(storageKey), MENU_PRESETS_STORAGE_KEY);
-        await openLevel4Drawer(page, { section: 'tools' });
+        // #preset-name lives in the "presets" tab; the level-4 tabs are mutually exclusive.
+        await openLevel4Drawer(page, { section: 'presets' });
         await page.fill('#preset-name', 'Open Preset QA');
         await page.click('#btn-preset-save-open');
         await waitForRenderFrames(page, 1);

@@ -493,6 +493,7 @@ export class GameRuntimeFacade {
     _resolveStartValidationIssue() { return this.settingsHandler.resolveStartValidationIssue(); }
     onSettingsChanged(event = null) { return this.settingsHandler.onSettingsChanged(event); }
     markSettingsDirty(isDirty) { return this.settingsHandler.markSettingsDirty(isDirty); }
+    cancelPendingSettingsAutoSave() { return this.settingsHandler.cancelPendingSettingsAutoSave(); }
     updateSaveButtonState() { return this.settingsHandler.updateSaveButtonState(); }
     async _initSession(options = undefined) { return this.executeSessionRuntimeCommand(createInitializeSessionCommand(options)); }
     initializeSession(options = undefined) { return this._initSession(options); }

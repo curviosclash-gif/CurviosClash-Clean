@@ -16,6 +16,10 @@ import {
     invalidateMultiplayerReadyIfHostChangedSettings,
 } from './MenuRuntimeMultiplayerService.js';
 import { orchestrateRuntimeSettingsChanged } from './RuntimeSettingsChangeOrchestrator.js';
+import {
+    applySessionSettingsRestorePlan,
+    mergeSessionSettingsRestorePlans,
+} from './SessionSettingsRestorePlan.js';
 import { filterKnownSettingsChangeKeys } from './RuntimeSettingsChangeKeys.js';
 import { resolveMapSinglePlayerScenario } from '../../shared/contracts/MapSinglePlayerScenarioContract.js';
 import { RUNTIME_SESSION_TYPES, resolveRuntimeSessionContract } from '../../shared/contracts/RuntimeSessionContract.js';
@@ -26,6 +30,8 @@ export class GameRuntimeSettingsHandler {
         this._pendingAutoSaveId = null;
         // Bot count a scenario map replaced for its match, handed back on the way to the menu.
         this._scenarioBotCountRestore = null;
+        // Settings a quickstart preset borrowed for its match, handed back the same way.
+        this._sessionSettingsRestore = null;
     }
 
     captureMultiplayerMatchSettings() {
@@ -230,6 +236,40 @@ export class GameRuntimeSettingsHandler {
         return true;
     }
 
+    // An event-playlist preset overwrites the live settings for the match it starts. Without a
+    // hold, its map, bots and gameplay values stay after the match and the next autosave in the
+    // menu stores them as the player's own configuration.
+    holdSessionSettingsRestore(plan) {
+        const merged = mergeSessionSettingsRestorePlans(this._sessionSettingsRestore, plan);
+        this._sessionSettingsRestore = merged.entries.length > 0 ? merged : null;
+        return this._sessionSettingsRestore !== null;
+    }
+
+    // Runs after restoreMapScenarioBotCount, which hands the bot count back to the preset value
+    // this restore compares against. Values the player changed himself keep his change.
+    restoreSessionSettings() {
+        const plan = this._sessionSettingsRestore;
+        this._sessionSettingsRestore = null;
+        const game = this._facade?.game;
+        const settings = game?.settings;
+        if (!plan || !settings) return false;
+        const restoreResult = applySessionSettingsRestorePlan(plan, settings);
+        if (restoreResult.restoredPaths.length === 0) return false;
+        if (restoreResult.restoredPaths.includes('mapKey')) {
+            // The start setup reads its map from the hangar selection, not from settings.mapKey.
+            writeHangarMapSelection(
+                settings,
+                settings.mapKey,
+                settings.mapKey,
+                { modePath: settings?.localSettings?.modePath }
+            );
+        }
+        game.uiManager?.syncAll?.();
+        game.uiManager?.updateContext?.();
+        this._scheduleSettingsAutoSave();
+        return true;
+    }
+
     onSettingsChanged(event = null) {
         const changedKeys = orchestrateRuntimeSettingsChanged({
             game: this._facade?.game,
@@ -247,10 +287,18 @@ export class GameRuntimeSettingsHandler {
         return changedKeys;
     }
 
+    // Callers that deliberately persist a different snapshot than the live settings must
+    // drop the armed autosave first - it would write the live settings over that snapshot
+    // 400 ms later (event playlist start used to lose the player's own map that way).
+    cancelPendingSettingsAutoSave() {
+        if (this._pendingAutoSaveId == null) return false;
+        clearTimeout(this._pendingAutoSaveId);
+        this._pendingAutoSaveId = null;
+        return true;
+    }
+
     _scheduleSettingsAutoSave() {
-        if (this._pendingAutoSaveId != null) {
-            clearTimeout(this._pendingAutoSaveId);
-        }
+        this.cancelPendingSettingsAutoSave();
         this._pendingAutoSaveId = setTimeout(() => {
             this._pendingAutoSaveId = null;
             if (this._facade?._disposed === true) return;
@@ -259,10 +307,8 @@ export class GameRuntimeSettingsHandler {
     }
 
     dispose() {
-        if (this._pendingAutoSaveId != null) {
-            clearTimeout(this._pendingAutoSaveId);
-            this._pendingAutoSaveId = null;
-        }
+        this.cancelPendingSettingsAutoSave();
+        this._sessionSettingsRestore = null;
         this._facade = null;
     }
 

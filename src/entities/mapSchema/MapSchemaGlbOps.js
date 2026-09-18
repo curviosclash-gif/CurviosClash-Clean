@@ -19,6 +19,23 @@ function vector3(value) {
 
 export const MAX_EMBEDDED_GLB_URL_CHARS = 512 * 1024;
 
+/**
+ * The collision mode of a GLB map that states none of its own. Only 'fallbackOnly' and 'dynamic'
+ * build anything different; every other mode takes the collision straight off the drawn scene,
+ * which is the mode the loading overlay already names 'Szenen-Collider'. It lives here so the
+ * menu preview and the running match cannot end up naming the same collision differently.
+ */
+export const DEFAULT_GLB_COLLIDER_MODE = 'scene';
+
+/**
+ * @param {unknown} value collider mode as a map states it, if it states one
+ * @returns {string} the stated mode, or the shared default
+ */
+export function resolveGLBColliderMode(value) {
+    const mode = typeof value === 'string' ? value.trim() : '';
+    return mode || DEFAULT_GLB_COLLIDER_MODE;
+}
+
 export function normalizeAllowedGLBUrl(value) {
     const url = typeof value === 'string' ? value.trim() : '';
     if (!url) return '';

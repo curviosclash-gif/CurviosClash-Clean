@@ -33,7 +33,7 @@ Der Nutzer soll nach jeder Antwort nicht nur wissen, *dass* etwas funktioniert, 
 
 ```bash
 npm run dev                    # Vite-Renderer auf 5173
-npm run quality                # vollständiges Gate: council:check, lint, typecheck, architecture, parcours, contracts
+npm run quality                # vollständiges Gate: council:check, lint, typecheck, architecture, parcours, contracts (unabhängige Prüfungen laufen nebeneinander; `npm run quality -- fail-fast` oder CURVIOS_QUALITY_FAIL_FAST=1 bricht beim ersten Fehler ab)
 npm run lint                   # eslint über src, electron, server, editor, scripts, vehicle-lab, dev/vite (--max-warnings 0)
 ```
 
@@ -57,7 +57,15 @@ node --test tests/audio.contract.test.mjs
 node scripts/run-playwright-targeted.mjs tests/physics-core.spec.js
 ```
 
-Playwright läuft immer über die Wrapper in `scripts/run-playwright-*.mjs`. Desktop-Profile starten das echte Electron-Fenster gegen den gebauten `dist-app`-Renderer; nur `test:browser:compat` verwendet bewusst den Vite-Browserpfad. `--grep "T1:|T2:"` wird an Playwright durchgereicht.
+Playwright läuft immer über die Wrapper in `scripts/run-playwright-*.mjs`. Desktop-Profile starten das echte Electron-Fenster gegen den gebauten `dist-app`-Renderer; nur `test:browser:compat` verwendet bewusst den Vite-Browserpfad. `--grep "T1:|T2:"` wird an Playwright durchgereicht. Vor Desktop-Läufen immer `npm run build:app:test` (nicht `build:app`: dem fehlt die Testbrücke, und `test:contract:dist` überschreibt `dist-app`).
+
+**Testfenster.** Ein verstecktes Electron-Fenster (`show: false`) bekommt von Windows etwa ein Bild pro Sekunde; damit lief die ganze Suite in Zeitlupe. Desktop-Tests starten deshalb im Render-Modus (`electron/test-render-window.cjs`): das Fenster wird weit außerhalb des Bildschirms gezeigt, ohne Fokus und ohne Taskleisteneintrag, und zeichnet mit voller Bildrate. Es darf nie sichtbar werden oder den Fokus nehmen. `PW_TEST_RENDER=0` ist der Notschalter zurück zum versteckten Fenster; `PW_SHOW_WINDOW=1` zeigt es sichtbar (nur zum Nachsehen). Der Tag `@render` in Testtiteln stammt aus der Zeit des versteckten Fensters und erzwingt ein sichtbares Fenster — für neue Tests nicht nötig. Die gepackte App ignoriert den Modus.
+
+**Ein Boot je Test.** Die Desktop-Vorbereitung bootet die App schon vor dem Testkörper; `loadGame(page)` überspringt sein erstes `goto`, solange die Seite unberührt ist. Alles, was erst beim nächsten Laden wirkt (`addInitScript`, `route`, `setViewportSize`, neue Ereignis-Lauscher wie `collectErrors` …), hebt das auf und lädt wie früher neu; `loadGame(page, { forceReload: true })` oder `PW_LOAD_GAME_FORCE_GOTO=1` erzwingen das Neuladen. Ein Contract-Wächter (`tests/load-game-fresh-boot.contract.test.mjs`) meldet jede Berührung der Seite vor dem ersten Laden, die nicht abgedeckt ist. Der Abbau überspringt den Schließ-Handschlag der Shell, wenn im Hauptfenster kein Spiel mehr läuft (Editor-, Labor- und Hangar-Seiten), statt 20 s auf eine Antwort zu warten.
+
+**Keine seriellen Ketten** in den `core-targeted*`-Specs (`tests/spec-serial-mode.contract.test.mjs` wacht darüber): ein roter Test lässt die folgenden weiterlaufen, statt sie als `didNotRun` zu verstecken. Nur `tests/stress.spec.js` bleibt bewusst seriell. Reine Rechen-Tests gehören nicht in Specs, sondern als `*.contract.test.mjs` nach Node.
+
+Laufzeiten je Test und Lücken zwischen Tests liefert `node scripts/summarize-playwright-results.mjs --durations --file=<results.json>`; die vollständige Standard-Suite braucht damit gemessen rund 30 Minuten (Stand 18.09.2026).
 
 **Nur ein Playwright-Lauf pro Rechner.** Die Wrapper nehmen ein maschinenweites Schloss (`scripts/playwright-run-lock.mjs`, Datei im Temp-Ordner) und warten, solange eine andere Sitzung läuft — zwei Electron-Läufe auf derselben GPU verfälschen sich gegenseitig. Ein Cluster-Lauf hält das Schloss für alle seine Specs. Wartende reihen sich über Ticketdateien in eine Warteschlange ein (wer zuerst kam, ist zuerst dran) und bekommen ihre Position gemeldet; der Halter schreibt alle 30 Sekunden einen Herzschlag ins Schloss, sodass ein hängender Lauf es nach 10 stillen Minuten freigibt. `CURVIOS_PLAYWRIGHT_LOCK=0` schaltet das Schloss ab, `CURVIOS_PLAYWRIGHT_LOCK_WAIT_MS` begrenzt die Wartezeit (Standard 120 Minuten); läuft sie ab, endet der Wrapper mit Exit-Code 75 statt 1.
 
@@ -85,10 +93,12 @@ Desktop, Server, Editor, Mobile:
 
 ```bash
 npm run app:start              # build:app + Electron aus dem Quellcode
-npm run app:package            # Windows-Paket nach release/
+npm run app:package            # Windows-Paket nach release/ — nur aus einem Spiel-Export (braucht --arch und .game-export.json)
 npm run server:start           # LAN-/Online-Signaling aus server/
 npm run app:android:build      # Capacitor-Build der Mobile-Classic-App
 ```
+
+Paketprüfung im vollen Repo (weil `app:package` dort nicht läuft): `npm run build:app`, dann `cd electron; npx electron-builder --dir --x64` (entpacktes Paket, ~80 s), dann `npm run app:package:verify`; danach `npm run build:app:test`, damit `dist-app` wieder die Testbrücke hat. Ein Wächter (`tests/electron-packaged-src-closure.contract.test.mjs`) prüft, dass jede vom Paket importierte Datei auch in den Paketlisten steht.
 
 Windows-Einstiege für den Nutzer (`START_CURVIOSCLASH.cmd`, `start_development.bat`, `start_editor.bat`, …) sind in `README.md` beschrieben.
 
@@ -104,7 +114,7 @@ Bots und Performance laufen über `dev/training/scripts/`: `npm run bot:validate
 
 **Exit-Code 75** aus einem Playwright-Wrapper heißt Schloss-Timeout, nicht Testfehler (Zeile `[playwright:lock] LOCK_TIMEOUT holder=… pid=… waited=…s`): eine andere Sitzung hielt die Maschine. Später erneut starten, nicht als rot werten.
 
-Bekannte Alt-Fehler stehen in `scripts/architecture/playwright-known-failures.json` (Spec, Testtitel, Datum, Ursache, Art). `--skip-known` blendet sie aus, damit serielle Ketten nicht am ersten davon abbrechen; die Zählung `count` in derselben Datei ist ein Ratchet und darf nur sinken.
+Bekannte Alt-Fehler stehen in `scripts/architecture/playwright-known-failures.json` (Spec, Testtitel, Datum, Ursache, Art). `--skip-known` blendet sie aus, damit ein Lauf nur Neues meldet; die Zählung `count` in derselben Datei ist ein Ratchet und darf nur sinken. Ein reparierter Test kommt im selben Commit aus der Liste.
 
 `node scripts/run-playwright-targeted-clusters.mjs --print-clusters` listet nur und startet nichts.
 
