@@ -1,3 +1,5 @@
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
+
 const ASSIST_WINDOW_SECONDS = 8;
 const ASSIST_MIN_DAMAGE = 10;
 const ASSIST_MIN_EFFECTIVE_HP_RATIO = 0.1;
@@ -12,7 +14,7 @@ function getNowSeconds() {
 
 function getPlayerLabel(player) {
     if (!player) return 'Unknown';
-    return player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+    return formatPlayerDisplayLabel(player);
 }
 
 export class HuntScoring {

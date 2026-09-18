@@ -197,6 +197,7 @@ export class EntitySetupOps {
                 entityRuntimeConfig: owner.entityRuntimeConfig,
             });
             player.fightLoadout = setupContext.humanConfigs[i]?.fightLoadout || null;
+            player.name = typeof setupContext.humanConfigs[i]?.name === 'string' ? setupContext.humanConfigs[i].name : '';
             player.setControlOptions({
                 invertPitch: !!setupContext.humanConfigs[i]?.invertPitch,
                 cockpitCamera: !!setupContext.humanConfigs[i]?.cockpitCamera,

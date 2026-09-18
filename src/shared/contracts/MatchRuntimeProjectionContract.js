@@ -250,6 +250,7 @@ function createPlayerProjection(value = null) {
     if (!value || typeof value !== 'object') return null;
     return {
         playerIndex: normalizeNonNegativeInt(value.playerIndex, 0),
+        name: normalizeString(value.name, '').trim(),
         isBot: value.isBot === true,
         alive: value.alive !== false,
         score: normalizeInt(value.score, 0),

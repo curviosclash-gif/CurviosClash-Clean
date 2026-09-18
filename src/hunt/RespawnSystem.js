@@ -1,9 +1,10 @@
 import { grantShield } from './HealthSystem.js';
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 
 function getLabel(player) {
     if (!player) return 'Spieler';
-    return player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+    return formatPlayerDisplayLabel(player);
 }
 
 function getRespawnConfig(runtimeContext = null) {

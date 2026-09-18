@@ -16,6 +16,7 @@ import { PlayingStateSystem } from './PlayingStateSystem.js';
 import { RoundStateTickSystem } from '../state/RoundStateTickSystem.js';
 import { GameDebugApi } from './GameDebugApi.js';
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import {
     MATCH_LIFECYCLE_CONTRACT_VERSION,
 } from '../shared/contracts/MatchLifecycleContract.js';
@@ -416,7 +417,7 @@ export class Game {
 
     _showPlayerFeedback(player, message) {
         if (!player) return;
-        const prefix = player.isBot ? `Bot ${player.index + 1}` : `P${player.index + 1}`;
+        const prefix = formatPlayerDisplayLabel(player);
         this._showStatusToast(`${prefix}: ${message}`);
     }
 

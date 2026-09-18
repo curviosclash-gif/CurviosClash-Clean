@@ -1,4 +1,5 @@
 import { MatchHudAnnouncement, rankScoreRows } from './MatchHudAnnouncement.js';
+import { formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 
 export class MatchScoreHudPresenter {
     constructor(hud) {
@@ -21,9 +22,8 @@ export class MatchScoreHudPresenter {
         const firstScore = Number(first?.score) || 0;
         const secondScore = Number(ranked[1]?.score) || 0;
         const leader = first && firstScore > secondScore ? first : null;
-        const leaderIndex = leader?.playerIndex ?? leader?.index ?? 0;
         const nextText = leader
-            ? `${leader.isBot ? `Bot ${leaderIndex + 1}` : `P${leaderIndex + 1}`} führt · +${firstScore - secondScore}`
+            ? `${formatPlayerDisplayLabel(leader)} führt · +${firstScore - secondScore}`
             : 'Gleichstand';
         if (this.classicLabel.textContent !== nextText) this.classicLabel.textContent = nextText;
         this.classicLabel.classList.toggle('hidden', ranked.length < 2);
@@ -76,7 +76,7 @@ export class MatchScoreHudPresenter {
             const player = players[index];
             const row = container.children[index];
             const playerIndex = player.playerIndex ?? player.index ?? index;
-            const name = player.isBot ? `Bot ${playerIndex + 1}` : `P${playerIndex + 1}`;
+            const name = formatPlayerDisplayLabel({ ...player, index: playerIndex });
             const score = String(scoreOf(player));
             const peer = sessionPlayers.find((entry) =>
                 (entry?.playerIndex ?? entry?.index) === playerIndex);

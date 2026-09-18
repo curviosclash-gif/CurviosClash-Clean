@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { GAME_STATE_IDS, normalizeGameStateId } from '../shared/contracts/GameStateIds.js';
 import { normalizeHeatmapCells } from '../shared/contracts/RoundHeatmapContract.js';
+import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 import {
     getLastRoundRecordingMetrics,
     recordMatchEndTelemetry,
@@ -96,7 +97,7 @@ function resolveRoundTelemetryWinnerLabel(players, roundMetrics) {
     if (!winner) {
         return roundMetrics.winnerIsBot ? `Bot ${winnerIndex + 1}` : `Spieler ${winnerIndex + 1}`;
     }
-    return winner.isBot ? `Bot ${winner.index + 1}` : `Spieler ${winner.index + 1}`;
+    return formatPlayerDisplayLabel(winner, { style: PLAYER_LABEL_STYLES.LONG });
 }
 
 export class MatchFlowTelemetryController {

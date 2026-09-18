@@ -3,6 +3,7 @@
 // ============================================
 
 import { GAME_STATE_IDS } from '../shared/contracts/GameStateIds.js';
+import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../shared/contracts/PlayerDisplayLabelContract.js';
 
 function ensureArray(players) {
     return Array.isArray(players) ? players : [];
@@ -31,7 +32,7 @@ function getResultPlayerName(player) {
     if (!player) {
         return '';
     }
-    return player.isBot ? `Bot ${player.index + 1}` : `Spieler ${player.index + 1}`;
+    return formatPlayerDisplayLabel(player, { style: PLAYER_LABEL_STYLES.LONG });
 }
 
 /** Round wins of the strongest player who did not win the match - the right half of "3 : 1 Runden". */

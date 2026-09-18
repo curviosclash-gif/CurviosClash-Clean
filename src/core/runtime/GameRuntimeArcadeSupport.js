@@ -5,6 +5,7 @@ import {
 } from '../../entities/directors/ArcadeEncounterCatalog.js';
 import { resolveMapSequence } from '../../state/arcade/ArcadeMapProgression.js';
 import { getRuntimeMapCatalog } from '../../shared/contracts/RuntimeMapCatalogContract.js';
+import { PLAYER_LABEL_STYLES, formatPlayerDisplayLabel } from '../../shared/contracts/PlayerDisplayLabelContract.js';
 import { ArcadeRunRuntime } from '../arcade/ArcadeRunRuntime.js';
 import { ReplayRecorder } from '../replay/ReplayRecorder.js';
 import { isEndlessParcoursConfig } from '../../shared/contracts/EndlessParcoursContract.js';
@@ -57,7 +58,7 @@ function lockSelectedMapToFirstSector(plan, runtimeConfig, mapCatalog) {
 function buildObjectiveParticipants(entityManager) {
     return (Array.isArray(entityManager?.players) ? entityManager.players : []).map((player) => ({
         playerIndex: Math.max(0, Number(player?.index) || 0),
-        label: String(player?.name || (player?.isBot ? `Bot ${Number(player?.index) + 1}` : `Spieler ${Number(player?.index) + 1}`)),
+        label: formatPlayerDisplayLabel(player, { style: PLAYER_LABEL_STYLES.LONG }),
         isBot: player?.isBot === true,
         alive: player?.alive !== false,
     }));
