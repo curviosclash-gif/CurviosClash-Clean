@@ -222,6 +222,25 @@ test('a threatened player turns the fired rocket into an interceptor', () => {
     assert.equal(fired.lockedPlayerIndex, -1, 'an interceptor threatens nobody');
 });
 
+test('an interceptor leaves towards the chasing rocket and passes through trails', () => {
+    // The shooter looks along +X; the rocket hunting it comes from behind, along -X.
+    const shooter = createPlayer({ index: 0, rocketInventory: ['ROCKET_WEAK'] });
+    const system = createFireSystem({
+        players: [shooter],
+        threat: { ...threatWith({ nearestProjectileId: 'projectile:42' }), direction: { x: -1, y: 0, z: 0 } },
+    });
+
+    const result = shootPlayerItemProjectile(system, shooter, -1, true);
+
+    assert.equal(result.ok, true);
+    const fired = system.projectiles[0];
+    assert.equal(fired.isInterceptor, true);
+    assert.ok(fired.velocity.x < 0, `the defence rocket must leave backwards, got vx=${fired.velocity.x}`);
+    assert.ok(fired.position.x < shooter.position.x, 'and it spawns behind the vehicle, on its way');
+    // Its way back leads straight through the own trail, so trails must not stop it.
+    assert.equal(fired.ignoresTrails, true, 'an interceptor flies through trails');
+});
+
 test('an unthreatened player fires a normal homing rocket', () => {
     const shooter = createPlayer({ index: 0, rocketInventory: ['ROCKET_MEGA', 'ROCKET_WEAK'] });
     const hunter = createPlayer({ index: 1, position: [60, 0, 0] });

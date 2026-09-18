@@ -103,14 +103,21 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         Number(targetingConfig.PROJECTILE_SPAWN_OFFSET) || Number(targetingConfig.MUZZLE_OFFSET) || 2.2
     );
 
+    const intercepting = !!interceptTargetId && canRocketIntercept(type, itemHomingProfile);
     player.getAimDirection(system._tmpDir).normalize();
+    // The defence rocket leaves towards the rocket it hunts, not along the nose: the chaser is
+    // usually behind, and a homing turn from there would come far too late. The threat already
+    // carries that direction (vehicle -> rocket) for the HUD arrow.
+    const threatDirection = intercepting ? system.getRocketThreat?.(player.index)?.direction : null;
+    if (threatDirection && (threatDirection.x || threatDirection.y || threatDirection.z)) {
+        system._tmpDir.set(threatDirection.x, threatDirection.y, threatDirection.z).normalize();
+    }
     const projectileCount = resolveWeaponFanProjectileCount(player.activeEffects, modeType);
     system._tmpFanRight.set(1, 0, 0);
     if (player?.quaternion) system._tmpFanRight.applyQuaternion(player.quaternion);
     system._tmpFanAxis.crossVectors(system._tmpDir, system._tmpFanRight);
     if (system._tmpFanAxis.lengthSq() <= 0.000001) system._tmpFanAxis.set(0, 1, 0);
     else system._tmpFanAxis.normalize();
-    const intercepting = !!interceptTargetId && canRocketIntercept(type, itemHomingProfile);
     const lockOnTarget = intercepting
         ? null
         : system.resolveLockOn(player, itemHomingProfile ? 'item' : 'rocket');
@@ -159,7 +166,8 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         }
         projectile.foamBounces = 0;
         projectile.foamBounceCooldown = 0;
-        projectile.ignoresTrails = itemHomingProfile;
+        // An interceptor's way back leads straight through the own trail wall.
+        projectile.ignoresTrails = itemHomingProfile || intercepting;
         projectile.ignoresTurrets = itemHomingProfile;
         system._rocketTrailSystem.initializeProjectile(projectile);
         system.projectiles.push(projectile);
