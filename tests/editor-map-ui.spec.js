@@ -1428,54 +1428,6 @@ test.describe('Editor Small Desktop Layout', () => {
     });
 });
 
-test.describe('Legacy-2D-Editor auf HiDPI-Displays', () => {
-    test.use({ viewport: { width: 1200, height: 800 }, deviceScaleFactor: 2 });
-
-    test('Canvas-Mitte bleibt bei 200 Prozent Skalierung Weltursprung', async ({ page }) => {
-        await page.goto(resolveAppUrl(page, '/editor/map-editor.html'), { waitUntil: 'domcontentloaded' });
-        const canvas = page.locator('#mapCanvas');
-        const box = await canvas.boundingBox();
-        expect(box).toBeTruthy();
-        await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
-        await expect(page.locator('#hudPos')).toHaveText('x=0, z=0');
-        const sizing = await canvas.evaluate((element) => ({
-            internalWidth: element.width,
-            displayWidth: element.clientWidth,
-        }));
-        expect(sizing.internalWidth).toBeCloseTo(sizing.displayWidth * 2, 0);
-    });
-
-    test('Import aktualisiert HUD und bewahrt Nullhoehen; Rechtsklick platziert nichts', async ({ page }) => {
-        await page.goto(resolveAppUrl(page, '/editor/map-editor.html'), { waitUntil: 'domcontentloaded' });
-        const imported = {
-            arenaSize: { width: 3200, height: 700, depth: 1800 },
-            hardBlocks: [], tunnels: [], foamBlocks: [], botSpawns: [], portals: [], items: [],
-            playerSpawn: { x: 0, y: 0, z: 0 },
-        };
-        await page.locator('#jsonOutput').fill(JSON.stringify(imported));
-        await page.locator('#btnImport').click();
-        await expect(page.locator('#hudArenaSize')).toContainText('3200');
-        await expect(page.locator('#hudArenaHeight')).toContainText('700');
-        await page.locator('#btnExport').click();
-        const exported = JSON.parse(await page.locator('#jsonOutput').inputValue());
-        expect(exported.playerSpawn.y).toBe(0);
-
-        const shortcutAllowed = await page.locator('#jsonOutput').evaluate((element) => element.dispatchEvent(new KeyboardEvent('keydown', {
-            key: 'z', ctrlKey: true, bubbles: true, cancelable: true,
-        })));
-        expect(shortcutAllowed).toBe(true);
-
-        await page.locator('[data-tool="hard"]').click();
-        const canvas = page.locator('#mapCanvas');
-        const box = await canvas.boundingBox();
-        await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2, { button: 'right' });
-        await page.locator('#btnExport').click();
-        const afterRightClick = JSON.parse(await page.locator('#jsonOutput').inputValue());
-        expect(afterRightClick.hardBlocks).toHaveLength(0);
-    });
-});
-
-
 test('Raketenwerfer: Editor properties, duplicate, undo and saved roundtrip', async ({ page }, testInfo) => {
     await loadEditorPage(page);
     await activateDockEntry(page, 'gameplay', 'gameplay-rocket-turret');

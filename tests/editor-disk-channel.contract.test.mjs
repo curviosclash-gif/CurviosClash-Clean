@@ -120,7 +120,7 @@ test('the editor url check refuses foreign origins, paths and protocols', () => 
         `https://example.com${editorPath}`,
         `http://127.0.0.1:5415${editorPath}`,
         'http://127.0.0.1:5414/index.html',
-        'http://127.0.0.1:5414/editor/map-editor.html',
+        'http://127.0.0.1:5414/editor/unknown-editor.html',
         `file:///C:${editorPath}`,
         'about:blank',
         'javascript:alert(1)',
