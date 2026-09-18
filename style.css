@@ -5745,6 +5745,14 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     text-align: right;
 }
 
+.level4-section-panel .menu-section[inert] {
+    opacity: 0.55;
+}
+
+.lobby-guest-lock-hint {
+    margin: 0 0 8px;
+}
+
 .hangar-stat-section-title {
     margin: 10px 0 2px;
     color: #8fc9ff;
