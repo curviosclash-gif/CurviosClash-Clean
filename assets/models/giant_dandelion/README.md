@@ -13,12 +13,19 @@ double-sided runtime material is required.
 
 ## Files
 
-- `giant_dandelion.glb`: hero mesh with the looping 72-frame `WindGust` morph animation.
-- `giant_dandelion_lod1.glb`: middle-distance mesh.
+- `giant_dandelion.glb`: hero mesh with nine individually addressable flying seeds and one
+  120-frame `SeedFlight` clip. The seeds release at staggered times, drift and rotate through
+  a widening plume while the stem, leaves and head sway.
+- `giant_dandelion_lod1.glb`: middle-distance mesh with five synchronized animated seeds.
 - `giant_dandelion_lod2.glb`: far-distance silhouette mesh.
 - `giant_dandelion_collision.glb`: simple stem-and-head collision proxy.
 - `blender/giant_dandelion.blend`: editable Blender 4.2 source with all LODs and presentation.
-- `blender/previews/`: front, three-quarter, side and elevated QA renders.
+- `blender/previews/`: front, three-quarter, side, elevated, release and mid-flight QA renders.
+
+`SeedFlight` is a one-shot four-second animation at 30 fps. Do not loop it: after the final
+frame, keep the pose or hide the airborne seed nodes. Each seed is an independent GLB node
+named `FlyingSeed_XX_HERO` and can be moved or hidden separately at runtime. The middle LOD
+uses corresponding odd-numbered seeds and the same timing. The far LOD omits airborne seeds.
 
 Regenerate deterministically with Blender 4.2 LTS:
 
@@ -27,4 +34,5 @@ blender --background --factory-startup --python-exit-code 1 --python scripts/gen
 ```
 
 The generator validates bounds, decreasing LOD triangle counts, material count, wind morphs,
-collision complexity and a GLB roundtrip import before saving the editable source.
+individual flight actions, collision complexity and a GLB roundtrip import before saving the
+editable source.

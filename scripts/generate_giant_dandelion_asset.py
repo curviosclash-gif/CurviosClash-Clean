@@ -187,13 +187,13 @@ def reset_scene():
     scene.view_settings.look = "AgX - Medium High Contrast"
     scene.render.fps = 30
     scene.frame_start = 1
-    scene.frame_end = 72
+    scene.frame_end = 120
     scene["asset"] = "giant_dandelion"
     scene["species_grammar"] = "Taraxacum rosette, leafless scape, spherical pappus head"
     scene["height_m"] = 17.8
     scene["seed"] = SEED
     scene["generator"] = "scripts/generate_giant_dandelion_asset.py"
-    scene["wind_mechanism"] = "WindGust morph animation"
+    scene["wind_mechanism"] = "WindGust morph and one-shot SeedFlight animation"
     bpy.context.preferences.filepaths.save_version = 0
 
     world = bpy.data.worlds.new("DandelionWorld")
@@ -432,17 +432,87 @@ def build_head(collection, profile, materials, rng):
         append_attached_seed(seeds, rng, direction, profile.bristles_per_seed, shade_index)
         attached_count += 1
 
-    for pappus_center, axis in flight_seed_specs(profile.detached_seed_count, rng):
-        append_detached_seed(seeds, rng, pappus_center, axis, profile.bristles_per_seed)
-    seed_obj = object_from_builder(f"SeedsAndPappus_{profile.label}", seeds, collection,
+    seed_obj = object_from_builder(f"AttachedSeedsAndPappus_{profile.label}", seeds, collection,
                                    [materials["achene"], materials["pappus"],
                                     materials["pappus_shadow"]],
-                                   "seeds_and_pappus", profile.label)
+                                   "attached_seeds_and_pappus", profile.label)
     seed_obj["attached_seed_count"] = attached_count
     seed_obj["missing_seed_sites"] = missing_count
-    seed_obj["detached_seed_count"] = profile.detached_seed_count
     seed_obj["bristles_per_seed"] = profile.bristles_per_seed
-    return core_obj, seed_obj
+    flying_seeds = []
+    all_flight_specs = list(flight_seed_specs(PROFILES[0].detached_seed_count,
+                                             random.Random(SEED + 1024)))
+    flight_indices = (
+        range(PROFILES[0].detached_seed_count) if profile.label == "HERO"
+        else range(0, PROFILES[0].detached_seed_count, 2) if profile.label == "LOD1"
+        else ()
+    )
+    for source_index in flight_indices:
+        pappus_center, axis = all_flight_specs[source_index]
+        detached = MeshBuilder()
+        append_detached_seed(detached, rng, Vector((0, 0, 0)), axis,
+                             profile.bristles_per_seed)
+        obj = object_from_builder(f"FlyingSeed_{source_index + 1:02d}_{profile.label}",
+                                  detached, collection,
+                                  [materials["achene"], materials["pappus"]],
+                                  "flying_seed", profile.label)
+        obj.location = pappus_center
+        obj["seed_index"] = source_index + 1
+        obj["wind_stiffness"] = 0.18
+        flying_seeds.append(obj)
+    return core_obj, seed_obj, flying_seeds
+
+
+def animate_flying_seeds(objects):
+    """Release seeds in waves, then advect them through a widening wind plume."""
+    wind = Vector((0.965, 0.08, 0.25)).normalized()
+    crosswind = Vector((-wind.y, wind.x, 0)).normalized()
+    for obj in objects:
+        index = obj["seed_index"] - 1
+        rng = random.Random(SEED + 9000 + index)
+        destination = obj.location.copy()
+        launch_frame = 4 + 12 * (PROFILES[0].detached_seed_count - 1 - index)
+        launch_frame += rng.randint(-1, 1)
+        launch = (HEAD_CENTER + wind * rng.uniform(2.50, 2.75)
+                  + crosswind * rng.uniform(-0.28, 0.28)
+                  + Vector((0, 0, rng.uniform(-0.16, 0.22))))
+        base_roll = rng.uniform(-0.18, 0.18)
+        sway_phase = rng.uniform(-pi, pi)
+        obj["release_frame"] = launch_frame
+        obj["flight_end_frame"] = 120
+
+        def pose(frame, progress):
+            progress = min(1.0, max(0.0, progress))
+            trajectory = launch.lerp(destination, progress)
+            turbulence = sin(progress * pi * 2.7 + sway_phase) - sin(sway_phase)
+            trajectory += crosswind * turbulence * (0.10 + 0.43 * progress)
+            trajectory.z += 0.23 * sin(progress * pi * 2.0) * (0.25 + progress)
+            obj.location = trajectory
+            obj.rotation_euler = (
+                base_roll + 0.13 * sin(progress * pi * 2.8 + sway_phase),
+                0.12 * sin(progress * pi * 1.7 + index),
+                0.52 * progress + 0.16 * sin(progress * pi * 2.5 + sway_phase),
+            )
+            obj.keyframe_insert(data_path="location", frame=frame)
+            obj.keyframe_insert(data_path="rotation_euler", frame=frame)
+
+        pose(1, 0.0)
+        pose(launch_frame, 0.0)
+        duration = 120 - launch_frame
+        for progress in (0.18, 0.38, 0.62, 0.82, 1.0):
+            pose(round(launch_frame + duration * progress), progress)
+        obj.scale = (0.001, 0.001, 0.001)
+        obj.keyframe_insert(data_path="scale", frame=1)
+        obj.keyframe_insert(data_path="scale", frame=launch_frame)
+        obj.scale = (1.0, 1.0, 1.0)
+        obj.keyframe_insert(data_path="scale", frame=launch_frame + 3)
+        obj.keyframe_insert(data_path="scale", frame=120)
+        action = obj.animation_data.action
+        if action:
+            action.name = f"SeedFlight_{index + 1:02d}"
+            for curve in action.fcurves:
+                for point in curve.keyframe_points:
+                    point.interpolation = "BEZIER"
 
 
 def add_wind_shape(obj, kind, strength):
@@ -454,16 +524,13 @@ def add_wind_shape(obj, kind, strength):
         co = source.co
         if kind == "leaf":
             factor = min(1.0, sqrt(co.x * co.x + co.y * co.y) / 4.6)
-        elif kind == "seed":
-            downwind = max(0.0, co.x - HEAD_CENTER.x)
-            factor = 0.78 + 0.22 * min(1.0, downwind / 8.5)
         else:
             factor = min(1.0, max(0.0, co.z / 14.5)) ** 2
         target.co.x += strength * factor
         target.co.y += 0.11 * strength * factor * sin(co.z * 0.72 + co.x * 0.31)
         if kind == "leaf":
             target.co.z += 0.065 * factor * sin(co.x + co.y)
-    for frame, value in ((1, 0.0), (30, 1.0), (72, 0.0)):
+    for frame, value in ((1, 0.0), (30, 1.0), (72, 0.0), (95, 0.75), (120, 0.0)):
         gust.value = value
         gust.keyframe_insert(data_path="value", frame=frame)
     if obj.data.shape_keys and obj.data.shape_keys.animation_data:
@@ -476,8 +543,18 @@ def add_wind_shape(obj, kind, strength):
         "leaf": 0.28,
         "stem": 0.72,
         "head": 0.44,
-        "seed": 0.18,
     }[kind]
+
+
+def group_action_in_clip(animated_data, clip_name):
+    animation = animated_data.animation_data
+    if animation is None or animation.action is None:
+        raise RuntimeError(f"missing action for {animated_data.name}")
+    action = animation.action
+    track = animation.nla_tracks.new()
+    track.name = clip_name
+    track.strips.new(action.name, 1, action)
+    animation.action = None
 
 
 def build_variant(scene, profile, materials):
@@ -486,12 +563,18 @@ def build_variant(scene, profile, materials):
                                  hide_render=profile.label != "HERO")
     stem = build_stem(collection, profile, materials)
     leaves = build_leaves(collection, profile, materials, rng)
-    core, seeds = build_head(collection, profile, materials, rng)
+    core, seeds, flying_seeds = build_head(collection, profile, materials, rng)
     if profile.label == "HERO":
         add_wind_shape(stem, "stem", 0.42)
         add_wind_shape(leaves, "leaf", 0.36)
         add_wind_shape(core, "head", 0.44)
-        add_wind_shape(seeds, "seed", 0.58)
+        add_wind_shape(seeds, "head", 0.49)
+        for obj in (stem, leaves, core, seeds):
+            group_action_in_clip(obj.data.shape_keys, "SeedFlight")
+    if profile.label in ("HERO", "LOD1"):
+        animate_flying_seeds(flying_seeds)
+        for obj in flying_seeds:
+            group_action_in_clip(obj, "SeedFlight")
     return collection
 
 
@@ -610,13 +693,14 @@ def object_bounds(objects):
 
 
 def validate_scene(scene, collections):
+    scene.frame_set(120)
     triangle_counts = {}
     for profile in PROFILES:
         collection = collections[profile.label]
         objects = list(collection.objects)
         triangle_counts[profile.label] = triangulated_face_count(objects)
-        if len(objects) != 4:
-            raise RuntimeError(f"{profile.label} must contain four runtime mesh objects")
+        if len(objects) != 4 + profile.detached_seed_count:
+            raise RuntimeError(f"{profile.label} has an unexpected number of runtime mesh objects")
     if not (triangle_counts["HERO"] > triangle_counts["LOD1"] > triangle_counts["LOD2"]):
         raise RuntimeError(f"LOD triangle counts do not decrease: {triangle_counts}")
     minimum, maximum = object_bounds(collections["HERO"].objects)
@@ -629,7 +713,13 @@ def validate_scene(scene, collections):
                       for slot in obj.material_slots if slot.material}
     if len(material_names) > 8:
         raise RuntimeError(f"runtime material budget exceeded: {material_names}")
+    for obj in list(collections["HERO"].objects) + list(collections["LOD1"].objects):
+        if obj.get("role") == "flying_seed":
+            if obj.animation_data is None or not obj.animation_data.nla_tracks:
+                raise RuntimeError(f"missing individual flight animation on {obj.name}")
     for obj in collections["HERO"].objects:
+        if obj.get("role") == "flying_seed":
+            continue
         if obj.data.shape_keys is None or "WindGust" not in obj.data.shape_keys.key_blocks:
             raise RuntimeError(f"missing WindGust shape on {obj.name}")
     print("validated scene:", {
@@ -638,15 +728,21 @@ def validate_scene(scene, collections):
         "dimensions_m": tuple(round(value, 3) for value in dimensions),
         "triangles": triangle_counts,
         "materials": len(material_names),
-        "wind": "WindGust morph, 72 frames",
+        "animation": "WindGust morph plus individual SeedFlight paths, 120 frames",
     })
 
 
 def render_previews(scene, cameras):
     PREVIEW_DIR.mkdir(parents=True, exist_ok=True)
-    scene.frame_set(1)
+    scene.frame_set(120)
     for label, camera in cameras.items():
         scene.camera = camera
+        scene.render.filepath = str(PREVIEW_DIR / f"giant_dandelion_{label}.png")
+        bpy.ops.render.render(write_still=True)
+        print(f"rendered {Path(scene.render.filepath).relative_to(ROOT)}")
+    scene.camera = cameras["front"]
+    for label, frame in (("release", 35), ("midflight", 68)):
+        scene.frame_set(frame)
         scene.render.filepath = str(PREVIEW_DIR / f"giant_dandelion_{label}.png")
         bpy.ops.render.render(write_still=True)
         print(f"rendered {Path(scene.render.filepath).relative_to(ROOT)}")
@@ -661,11 +757,13 @@ def export_collection(collection, path, animations):
         obj.hide_viewport = False
         obj.select_set(True)
     bpy.context.view_layer.objects.active = objects[0]
+    bpy.context.scene.frame_set(1)
     bpy.ops.export_scene.gltf(
         filepath=str(path),
         export_format="GLB",
         use_selection=True,
         export_animations=animations,
+        export_animation_mode="NLA_TRACKS" if animations else "ACTIONS",
         export_yup=True,
         export_cameras=False,
         export_lights=False,
@@ -700,7 +798,7 @@ def main():
     validate_scene(scene, collections)
     render_previews(scene, cameras)
     export_collection(collections["HERO"], HERO_PATH, animations=True)
-    export_collection(collections["LOD1"], LOD1_PATH, animations=False)
+    export_collection(collections["LOD1"], LOD1_PATH, animations=True)
     export_collection(collections["LOD2"], LOD2_PATH, animations=False)
     export_collection(collision, COLLISION_PATH, animations=False)
     validate_roundtrip(HERO_PATH)
@@ -708,7 +806,7 @@ def main():
     validate_roundtrip(LOD2_PATH)
     validate_roundtrip(COLLISION_PATH, expected_max_triangles=500)
     scene.camera = cameras["front"]
-    scene.frame_set(1)
+    scene.frame_set(120)
     BLEND_PATH.parent.mkdir(parents=True, exist_ok=True)
     bpy.ops.wm.save_as_mainfile(filepath=str(BLEND_PATH), check_existing=False)
     print(f"saved {BLEND_PATH.relative_to(ROOT)}")
