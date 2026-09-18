@@ -1449,8 +1449,16 @@ test.describe('T1-20: Core & Infrastruktur - Vehicle, Surface & UX', () => {
         await page.evaluate(() => {
             const slider = document.getElementById('speed-slider');
             if (!slider) return;
-            slider.value = '30';
+            slider.value = '33';
             slider.dispatchEvent(new Event('input', { bubbles: true }));
+        });
+        // Reset = defaults plus the style preset of the current game style (fresh profile values).
+        expectedDefaults.level4Speed = await page.evaluate(async () => {
+            const mod = await window.__curviosImport('/src/ui/menu/MenuDefaultsEditorConfig.js');
+            const modePath = window.GAME_INSTANCE.settings.localSettings.modePath;
+            const presetId = { fight: 'fight-standard', arcade: 'arcade', normal: 'normal-standard' }[modePath];
+            const presetSpeed = mod.findFixedMenuPresetSeedById(presetId)?.values?.['gameplay.speed'];
+            return String(presetSpeed ?? mod.createMenuBaseSettingsDefaults().gameplay.speed);
         });
         await page.click('#level4-tab-graphics');
         await page.selectOption('#normal-camera-perspective-select', 'cinematic_action');

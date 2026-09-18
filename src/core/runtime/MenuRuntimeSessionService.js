@@ -347,10 +347,30 @@ export function handleLevel4CloseAction(ctx) {
     game._saveSettings?.();
 }
 
+// A fresh profile plays its style with the style preset on top of the defaults, so the
+// reset hands back the same gameplay values. Map, bots and rules stay outside its scope.
+function resolveStylePresetGameplayValues(game) {
+    const modePath = String(game?.settings?.localSettings?.modePath || 'normal').trim().toLowerCase();
+    const presetId = MODE_PATH_TO_PRESET_ID[modePath];
+    const presets = game?.settingsManager?.listMenuPresets?.();
+    const preset = Array.isArray(presets) ? presets.find((entry) => entry?.id === presetId) : null;
+    const gameplay = {};
+    for (const [path, value] of Object.entries(preset?.values || {})) {
+        if (path.startsWith('gameplay.')) gameplay[path.slice('gameplay.'.length)] = value;
+    }
+    return gameplay;
+}
+
 export function handleLevel4ResetAction(ctx) {
     const { game, onSettingsChanged } = ctx;
     const defaults = game.settingsManager.createDefaultSettings();
-    game.settings.gameplay = { ...defaults.gameplay };
+    game.settings.gameplay = { ...defaults.gameplay, ...resolveStylePresetGameplayValues(game) };
+    game.settings.matchSettings = {
+        ...(game.settings.matchSettings || {}),
+        activePresetId: '',
+        activePresetKind: '',
+        activePresetSourceId: '',
+    };
     if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
         game.settings.localSettings = {};
     }
@@ -366,6 +386,8 @@ export function handleLevel4ResetAction(ctx) {
 
     onSettingsChanged({
         changedKeys: [
+            SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_ID,
+            SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_KIND,
             SETTINGS_CHANGE_KEYS.RULES_AUTO_ROLL,
             SETTINGS_CHANGE_KEYS.RULES_INVERT_P1,
             SETTINGS_CHANGE_KEYS.RULES_INVERT_P2,
