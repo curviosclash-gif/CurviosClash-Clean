@@ -80,13 +80,13 @@ test('endless chase result says Punkte instead of Score', () => {
         reason: 'ENDLESS_TIMEOUT',
         parcours: { endlessSummary: { score: 1240, isNewRecord: false } },
     });
-    assert.equal(finished.messageText, 'Endlosjagd beendet - 1240 Punkte');
+    assert.equal(finished.messageText, 'Endlosjagd beendet – 1.240 Punkte');
 
     const record = deriveRoundEndOutcome([], {
         reason: 'ENDLESS_TIMEOUT',
         parcours: { endlessSummary: { score: 1560, isNewRecord: true } },
     });
-    assert.equal(record.messageText, 'Neuer Rekord - 1560 Punkte');
+    assert.equal(record.messageText, 'Neuer Rekord – 1.560 Punkte');
 });
 
 test('countdown texts use a real umlaut', () => {
