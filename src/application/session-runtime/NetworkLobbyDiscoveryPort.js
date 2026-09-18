@@ -39,15 +39,22 @@ export function createNetworkLobbyDiscoveryPort(options = {}) {
         return !!(startDiscovery && stopDiscovery && onDiscoveredHosts);
     }
 
+    // The join by code and the self-refreshing lobby list share this listener. Stopping it
+    // makes the desktop shell forget every found host, so it only stops for its last user.
+    let activeUsers = 0;
+
     function start() {
         if (!isAvailable()) {
             return undefined;
         }
-        return startDiscovery?.call(discoveryRuntime);
+        activeUsers += 1;
+        return activeUsers === 1 ? startDiscovery?.call(discoveryRuntime) : undefined;
     }
 
     function stop() {
-        return stopDiscovery?.call(discoveryRuntime);
+        if (activeUsers === 0) return undefined;
+        activeUsers -= 1;
+        return activeUsers === 0 ? stopDiscovery?.call(discoveryRuntime) : undefined;
     }
 
     async function getHosts() {
