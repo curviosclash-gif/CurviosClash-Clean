@@ -280,10 +280,11 @@ test('hunt fan pickups keep their 5/4/3 percent base chances after purge left th
     const weightOf = (type) => (Number.isFinite(Number(weights[type])) ? Number(weights[type]) : 1);
     const total = pool.reduce((sum, type) => sum + weightOf(type), 0);
     const nonRocketShare = 1 - CONFIG.HUNT.ROCKET_PICKUP_SPAWN_CHANCE;
-    // The flamethrower joined the pool after the fan percentages were tuned. A new item takes its
-    // share from everyone, so the three targets shrink by the same factor.
+    // The flamethrower and the lightning joined the pool after the fan percentages were tuned. A new
+    // item takes its share from everyone, so the three targets shrink by the same factor.
     assert.equal(pool.includes('FLAMETHROWER'), true);
-    const dilution = (total - weightOf('FLAMETHROWER')) / total;
+    assert.equal(pool.includes('LIGHTNING'), true);
+    const dilution = (total - weightOf('FLAMETHROWER') - weightOf('LIGHTNING')) / total;
     for (const [type, percent] of [['FAN_3', 5], ['FAN_4', 4], ['FAN_5', 3]]) {
         assert.ok(
             Math.abs((weightOf(type) / total) * nonRocketShare * 100 - percent * dilution) < 1e-9,

@@ -21,6 +21,7 @@ import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSys
 import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
 import { TargetableRegistry } from '../systems/TargetableRegistry.js';
 import { MapUnitSystem } from '../systems/MapUnitSystem.js';
+import { LightningStrikeSystem } from '../../hunt/LightningStrikeSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -72,6 +73,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.mapUnitSystem = new MapUnitSystem(owner);
     systems.targetableRegistry.addProvider(() => systems.mapUnitSystem.getTargets());
     if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
+    systems.lightningStrikeSystem = new LightningStrikeSystem(owner);
+    if (owner) owner._lightningStrikeSystem = systems.lightningStrikeSystem;
     systems.flamethrowerSystem = new FlamethrowerSystem(owner);
     if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;

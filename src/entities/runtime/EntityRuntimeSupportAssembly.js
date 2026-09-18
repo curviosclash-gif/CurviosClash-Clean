@@ -225,6 +225,8 @@ export function createEntityRuntimeSupport(owner) {
             globalEffects: {
                 canActivateFog: () => owner._globalFogEffectSystem?.networkReplica !== true,
                 activateFog: () => owner._globalFogEffectSystem?.activate?.() === true,
+                canActivateLightning: () => owner._lightningStrikeSystem?.canActivate?.() === true,
+                activateLightning: (player) => owner._lightningStrikeSystem?.activate?.(player) === true,
             },
             spawn: {
                 getPlanarSpawnLevel: () => owner._getPlanarSpawnLevel(),
