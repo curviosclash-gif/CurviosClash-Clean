@@ -200,6 +200,19 @@ export function igniteBurning(player, sourcePlayer = null) {
 }
 
 /**
+ * Answers whether the vehicle is currently alight. The render loop asks this every frame for
+ * every player, so it walks the array by index instead of allocating a callback or a result.
+ */
+export function isPlayerBurning(player) {
+    const effects = player?.activeEffects;
+    if (!Array.isArray(effects)) return false;
+    for (let i = 0; i < effects.length; i += 1) {
+        if (effects[i]?.type === BURNING_EFFECT_TYPE) return true;
+    }
+    return false;
+}
+
+/**
  * Puts the afterburn out (E16: boost key, SPEED_UP, boost gate, portal). Answers whether
  * anything was burning, so the boost paths can stay silent when there is no fire.
  */

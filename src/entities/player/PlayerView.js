@@ -3,6 +3,7 @@ import { disposeObject3DResources } from '../../shared/rendering/ThreeDisposal.j
 import { resolveGameplayConfig } from '../../shared/contracts/GameplayConfigContract.js';
 import { createVehicleMesh } from '../vehicle-registry.js';
 import { syncPlayerHitboxFromVehicleMesh } from './PlayerMotionOps.js';
+import { spawnBurningFlames } from '../../hunt/FlamethrowerFlameEffect.js';
 
 const SHARED_GEO = {};
 
@@ -397,6 +398,9 @@ export class PlayerView {
 
         if (emitParticles && safeDt > 0 && this.player.alive) {
             this._emitThrusterExhaust(safeDt);
+            // Runs for every drawn vehicle, so the host, the bots and the network replicas all
+            // show their fire: BURNING rides along in the snapshot as a plain effect entry.
+            if (this.group.visible === true) spawnBurningFlames(this.player.particleSystem, this.player);
         }
 
         if (this.shieldMesh) {

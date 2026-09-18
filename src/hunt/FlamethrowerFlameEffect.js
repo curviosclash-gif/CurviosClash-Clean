@@ -6,6 +6,7 @@
 import * as THREE from 'three';
 
 import { resolveEntityRuntimeConfig } from '../shared/contracts/EntityRuntimeConfig.js';
+import { isPlayerBurning } from '../entities/player/PlayerEffectOps.js';
 
 const DEFAULT_RANGE = 18;
 // How long a particle needs to travel the whole range. Short enough that the jet ends where
@@ -65,4 +66,47 @@ export function spawnFlameJet(particles, player) {
         );
     }
     return FLAME_JET_PARTICLE_BUDGET;
+}
+
+// The afterburn on a hit vehicle: the same two warm colours as the jet, one particle each, so a
+// whole field of burning players stays far cheaper than a single held burst.
+const BURNING_FLAME_STAGES = Object.freeze([
+    Object.freeze({ color: 0xff8c1a, size: 0.34 }),
+    Object.freeze({ color: 0xd93a10, size: 0.46 }),
+]);
+const BURNING_FLAME_LIFE_SECONDS = 0.4;
+const BURNING_FLAME_RISE_SPEED = 2.6;
+
+export const BURNING_FLAME_PARTICLE_BUDGET = BURNING_FLAME_STAGES.length;
+
+// Fire rises, so the particles go up with enough spread to look like flames instead of a column.
+const BURNING_UP = Object.freeze(new THREE.Vector3(0, 1, 0));
+const BURNING_OPTIONS = Object.freeze({ gravity: 1.2, spread: 0.5, drift: 0.3, type: 'burning-afterburn' });
+
+/**
+ * Draws one frame of the afterburn and answers how many particles it spawned. The host calls it
+ * from the player view, and so does every replica: BURNING travels in the snapshot as a plain
+ * effect entry, so both sides see the same fire without the client ever computing damage.
+ *
+ * ponytail: the flames start at the vehicle centre, like the jet - there is no published hull
+ * anchor to hang them off yet.
+ */
+export function spawnBurningFlames(particles, player) {
+    if (typeof particles?.spawnDirectional !== 'function') return 0;
+    if (!player?.position || player.alive !== true) return 0;
+    if (!isPlayerBurning(player)) return 0;
+
+    for (const stage of BURNING_FLAME_STAGES) {
+        particles.spawnDirectional(
+            player.position,
+            BURNING_UP,
+            1,
+            stage.color,
+            BURNING_FLAME_RISE_SPEED,
+            stage.size,
+            BURNING_FLAME_LIFE_SECONDS,
+            BURNING_OPTIONS,
+        );
+    }
+    return BURNING_FLAME_PARTICLE_BUDGET;
 }
