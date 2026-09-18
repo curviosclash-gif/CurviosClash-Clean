@@ -1445,6 +1445,8 @@ test('Raketenwerfer: Editor properties, duplicate, undo and saved roundtrip', as
     await page.locator('#propTurretCooldown').press('Tab');
     await page.locator('#propTurretRocketType').selectOption('ROCKET_MEDIUM');
     await page.locator('#propTurretHp').fill('130');
+    // Under load the queued workspace refresh lands between typing and blur; force it here.
+    await page.evaluate(() => window.CURVIOS_EDITOR.ui.refreshLayerState());
     await page.locator('#propTurretHp').press('Tab');
     const result = await page.evaluate(() => {
         const { ui } = window.CURVIOS_EDITOR;

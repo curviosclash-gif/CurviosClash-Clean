@@ -4,6 +4,8 @@ import * as THREE from 'three';
 import { normalizeStaticTurretDefinition } from '../../../src/shared/contracts/MapSinglePlayerScenarioContract.js';
 
 const FIELDS = Object.freeze({ range: 'propTurretRange', cooldown: 'propTurretCooldown', rocketType: 'propTurretRocketType', maxHp: 'propTurretHp' });
+// Input -> id of the turret whose typed value has not been committed by a change event yet.
+const pendingDrafts = new WeakMap();
 
 // Editor distances use the same conversion as geometry; property inputs show gameplay units.
 export function getEditorTurretAuthoringScale(editor) {
@@ -30,8 +32,11 @@ export function showEditorTurretProperties(editor, object) {
     for (const [field, key] of Object.entries(FIELDS)) {
         const input = editor.dom[key];
         if (!input) continue;
-        input.value = String(field === 'range' ? Math.round(object.userData.range / getEditorTurretAuthoringScale(editor) * 100) / 100 : object.userData[field]);
         input.disabled = editor.isObjectLocked?.(object) === true;
+        // Deferred workspace refreshes must not wipe a typed value before its change event commits it.
+        if (pendingDrafts.get(input) === String(object.userData.id)) continue;
+        pendingDrafts.delete(input);
+        input.value = String(field === 'range' ? Math.round(object.userData.range / getEditorTurretAuthoringScale(editor) * 100) / 100 : object.userData[field]);
     }
     if (!editor.turretRangePreview) {
         const points = [];
@@ -59,7 +64,11 @@ export function showEditorTurretProperties(editor, object) {
 
 export function bindEditorTurretProperties(editor) {
     for (const [field, key] of Object.entries(FIELDS)) {
+        editor.dom[key]?.addEventListener('input', () => {
+            pendingDrafts.set(editor.dom[key], String(editor.selectedObject?.userData?.id ?? ''));
+        });
         editor.dom[key]?.addEventListener('change', () => {
+            pendingDrafts.delete(editor.dom[key]);
             const object = editor.selectedObject;
             if (object?.userData?.type !== 'turret' || !editor.isManagedObjectAlive(object) || editor.isObjectLocked(object)) return;
             editor.executeHistoryMutation('Edit turret', () => {
