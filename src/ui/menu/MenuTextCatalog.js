@@ -7,7 +7,6 @@ export const MENU_TEXT_CATALOG = Object.freeze({
     'menu.panels.expert.title': 'Expertenbereich',
     'menu.navigation.back.label': 'Zurück',
     'menu.navigation.open.label': 'Öffnen',
-    'menu.level1.quick_last.summary': 'Mit der letzten Auswahl sofort spielen',
     'menu.utility.tutorial.label': 'Neu hier? Steuerung lernen',
     'menu.level2.arcade.description': 'Fliege durch Sektoren, sammle Punkte und verbessere deinen Arcade-Lauf.',
     'menu.level2.fight.description': 'Kämpfe mit Waffen gegen andere Piloten und erreiche das Abschussziel.',
