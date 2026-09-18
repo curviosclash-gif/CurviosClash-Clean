@@ -120,6 +120,10 @@ export function serializePlayer(player) {
         inventory: Array.isArray(player.inventory) ? [...player.inventory] : [],
         rocketInventory: Array.isArray(player.rocketInventory) ? [...player.rocketInventory] : [],
         effects: serializeEffects(player.activeEffects),
+        // A replica draws the flame jet but never simulates it: only the host knows whether this
+        // tick really burned fuel, so the fact travels as its own field (S4.6). A dead vehicle
+        // skips its action phase, so the flag is gated on alive instead of reset on death.
+        flameActive: player.alive === true && player.flameActive === true,
         hasShield: player.hasShield === true,
         shieldHP: toFiniteNumber(player.shieldHP, 0),
         speed: toFiniteNumber(player.speed, 0),
@@ -163,13 +167,18 @@ function serializeEffects(effects) {
         .map((effect) => {
             const type = String(effect?.type || '').trim();
             if (!type) return null;
-            return {
+            const serialized = {
                 type,
                 remaining: Number(effect?.remaining) || 0,
                 sourcePlayerIndex: Number.isInteger(effect?.sourcePlayerIndex)
                     ? effect.sourcePlayerIndex
                     : null,
             };
+            // Additive: only the flamethrower carries a tank, and only it needs the number on
+            // the client, where the item bar shows fuel instead of the expiry.
+            const fuelSeconds = Number(effect?.fuelSeconds);
+            if (Number.isFinite(fuelSeconds) && fuelSeconds >= 0) serialized.fuelSeconds = fuelSeconds;
+            return serialized;
         })
         .filter(Boolean);
 }

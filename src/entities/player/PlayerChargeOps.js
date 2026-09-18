@@ -5,10 +5,13 @@
 // Contract:
 // - Inputs: player entity, game-time dt, resolved control state
 // - Outputs: boost/slow-motion charge, timers and active flags on the player
-// - Side effects: mutates the player reserve fields only
+// - Side effects: mutates the player reserve fields only, plus putting out the afterburn
 // - Hotpath guardrail: no per-frame object creation, primitive parameters only
 
 import { resolveEntityRuntimeConfig } from '../../shared/contracts/EntityRuntimeConfig.js';
+// Deliberate import cycle with PlayerEffectOps: it reads the clock factor from here, this
+// file puts out the afterburn over there. Both sides only call each other at runtime.
+import { extinguishBurning } from './PlayerEffectOps.js';
 
 const MIN_CAPACITY = 0.001;
 const MIN_CLOCK_SCALE = 0.05;
@@ -317,5 +320,9 @@ export function updatePlayerCharges(player, dt, controlState = null) {
     const boostWasActive = player.manualBoostActive === true;
 
     updateSlowMoState(player, dt, controlState, timeScale, boostWasActive);
-    return updateBoostState(player, dt, controlState, timeScale, slowMoKeyActive, ownSlowMoActive);
+    const boostActive = updateBoostState(player, dt, controlState, timeScale, slowMoKeyActive, ownSlowMoActive);
+    // E16: the moment a boost starts it blows out the flamethrower afterburn. Only the start
+    // counts, so holding the key is no standing protection against the next flame hit.
+    if (boostActive && !boostWasActive) extinguishBurning(player);
+    return boostActive;
 }

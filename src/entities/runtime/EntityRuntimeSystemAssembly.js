@@ -5,6 +5,7 @@ import { ParcoursProgressSystem } from '../systems/ParcoursProgressSystem.js';
 import { RoundOutcomeSystem } from '../systems/RoundOutcomeSystem.js';
 import { isFivePortalsConfig } from '../../shared/contracts/FivePortalsContract.js';
 import { OverheatGunSystem } from '../../hunt/OverheatGunSystem.js';
+import { FlamethrowerSystem } from '../../hunt/FlamethrowerSystem.js';
 import { RespawnSystem } from '../../hunt/RespawnSystem.js';
 import { EntitySetupOps } from './EntitySetupOps.js';
 import { EntitySpawnOps } from './EntitySpawnOps.js';
@@ -62,5 +63,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     // Published here rather than with the other systems in EntityManager: that file sits on the
     // 500 line limit, and this is the module that owns the wiring anyway.
     owner._secretRoomSystem = systems.secretRoomSystem;
+    systems.flamethrowerSystem = new FlamethrowerSystem(owner);
+    if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;
 }

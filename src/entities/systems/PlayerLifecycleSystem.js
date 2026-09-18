@@ -25,7 +25,8 @@ export class PlayerLifecycleSystem {
     updatePlayer(player, dt, input, renderFrameId = 0, simulationNowMs = undefined) {
         const strategy = this.entityManager?.gameModeStrategy || null;
         const runtimeProfiler = this.entityManager?.runtimeProfiler || null;
-        this._actionPhase.run(player, input, strategy);
+        // dt reaches the action phase because held fire - the flamethrower - is paid per second.
+        this._actionPhase.run(player, input, strategy, dt);
 
         const prevPos = this._interactionPhase.capturePreviousPosition(player);
         // Motion and trail of a slow-time owner are stepped back to real time; everyone else

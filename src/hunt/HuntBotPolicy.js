@@ -16,6 +16,7 @@ import {
     applyScenarioRoleMovement,
     resolveScenarioBotTuning,
 } from './HuntScenarioBotRoles.js';
+import { applyBotFlamethrowerInput } from './HuntBotFlamethrowerOps.js';
 import { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 export { applySteeringTowardPosition, clearSteeringInput } from './HuntBotSteeringOps.js';
 
@@ -340,6 +341,8 @@ export class HuntBotPolicy {
         this._tmpGate = new THREE.Vector3();
         this._tmpRoleTarget = new THREE.Vector3();
         this._tmpRoleForward = new THREE.Vector3();
+        this._tmpFlameAim = new THREE.Vector3();
+        this._tmpFlameOffset = new THREE.Vector3();
     }
 
     update(dt, player, runtimeContext = null) {
@@ -449,6 +452,8 @@ export class HuntBotPolicy {
             input.shootItem = true;
             input.shootItemIndex = fallbackItemAction.shootItemIndex;
         }
+
+        applyBotFlamethrowerInput(this, input, player, enemy, distSq);
 
         const shouldRetreat = !!enemy && (
             vitalityRatio <= scenarioTuning.retreatVitality
