@@ -97,6 +97,8 @@ export class HeuristicBotPolicy {
         this._tmpProjectileRelative = new THREE.Vector3();
         this._tmpProjectileVelocity = new THREE.Vector3();
         this._tmpEvade = new THREE.Vector3();
+        this._tmpFlameAim = new THREE.Vector3();
+        this._tmpFlameOffset = new THREE.Vector3();
     }
 
     _syncRuntimeSettings(runtimeContext) {
@@ -271,7 +273,9 @@ export class HeuristicBotPolicy {
         } else {
             decision = applyHeuristicClassicBehavior(this, input, dt, player, runtimeContext, observation);
         }
-        if (mode !== 'HUNT') input.shootMG = false;
+        // E79/E14: outside HUNT the held key can only mean the flamethrower, so a bot with a lit
+        // tank keeps what its tactics decided. Every other bot stays silent.
+        if (mode !== 'HUNT' && player?.hasFlamethrower !== true) input.shootMG = false;
         if (resolveInventoryLength(player) === 0) {
             input.useItem = -1;
         }

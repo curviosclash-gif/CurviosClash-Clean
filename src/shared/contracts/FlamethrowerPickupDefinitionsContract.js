@@ -25,7 +25,9 @@ export const FLAMETHROWER_PICKUP_DEFINITIONS = Object.freeze({
         animationKind: 'pulse',
         aliases: ['ITEM_FLAMETHROWER', 'FLAMMENWERFER'],
         spawnWeights: FLAMETHROWER_TARGET_SPAWN_WEIGHTS,
-        // ponytail: bots pick the item up but never use it; S4.7 gives it real bot weights.
+        // ponytail: the generic item scorer only knows "enemy closer than 22 units", which is
+        // narrower than the two cone lengths the flamethrower wants. The rule therefore stays at
+        // zero on purpose and HuntBotFlamethrowerOps.js arms the item from its own range check.
         botRule: { self: 0, offense: 0, defensiveScale: 0, emergencyScale: 0, combatSelf: 0 },
     },
 });
