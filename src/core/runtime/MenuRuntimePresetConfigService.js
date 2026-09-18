@@ -14,7 +14,7 @@ import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.
 import { PLATFORM_PRODUCT_SURFACE_IDS } from '../../shared/contracts/PlatformCapabilityRegistry.js';
 import { resolveMutationChangedKeys } from './RuntimeSettingsChangeKeys.js';
 
-function resolvePresetFailureMessage(result, fallbackMessage) {
+export function resolvePresetFailureMessage(result, fallbackMessage) {
     switch (result?.reason) {
     case 'invalid_preset_id':
         return 'Preset-ID ist ungueltig.';
@@ -22,6 +22,8 @@ function resolvePresetFailureMessage(result, fallbackMessage) {
         return 'Preset wurde nicht gefunden.';
     case 'owner_required':
         return 'Nur der Host darf dieses Preset veraendern.';
+    case 'catalog_fixed_locked':
+        return 'Eingebaute Vorlagen können nicht gelöscht werden.';
     default:
         return fallbackMessage;
     }

@@ -1,4 +1,5 @@
 import { setupMenuTelemetryControls } from './MenuDeveloperStateSync.js';
+import { syncPresetDeleteButton } from './MenuPresetStateSync.js';
 
 export function setupMenuDevPanelBindings(ctx) {
     const ui = ctx.ui;
@@ -57,6 +58,10 @@ export function setupMenuDevPanelBindings(ctx) {
                 sourcePresetId: String(ui.presetSelect?.value || '').trim(),
             });
         });
+    }
+
+    if (ui.presetSelect && ui.presetDeleteButton) {
+        bind(ui.presetSelect, 'change', () => syncPresetDeleteButton(ui.presetDeleteButton, ui.presetSelect.value));
     }
 
     if (ui.presetDeleteButton) {

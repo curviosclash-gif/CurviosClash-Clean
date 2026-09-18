@@ -1,4 +1,14 @@
 import { createSurfacePolicyPort } from '../../shared/runtime/SurfacePolicyPort.js';
+import { findFixedMenuPresetSeedById } from './MenuDefaultsEditorConfig.js';
+
+// Built-in presets ship with the game; only presets the player saved can be deleted.
+export function syncPresetDeleteButton(button, selectedPresetId) {
+    if (!button) return;
+    const presetId = String(selectedPresetId || '').trim();
+    const builtIn = !!presetId && !!findFixedMenuPresetSeedById(presetId);
+    button.disabled = !presetId || builtIn;
+    button.title = builtIn ? 'Eingebaute Vorlagen können nicht gelöscht werden.' : '';
+}
 
 export function syncMenuPresetState({ ui, settings, settingsManager, surfacePolicy = null }) {
     if (!ui || !settings) return;
@@ -43,11 +53,13 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
             ui.presetSelect.appendChild(option);
         });
 
-        const preferredValue = visibleActivePresetId || previousValue;
+        // The player's own pick wins; the active preset only fills an empty choice.
+        const hasOption = (value) => Array.from(ui.presetSelect.options).some((option) => option.value === value);
+        const preferredValue = hasOption(previousValue) ? previousValue : visibleActivePresetId;
         if (preferredValue) {
-            const hasOption = Array.from(ui.presetSelect.options).some((option) => option.value === preferredValue);
-            ui.presetSelect.value = hasOption ? preferredValue : '';
+            ui.presetSelect.value = hasOption(preferredValue) ? preferredValue : '';
         }
+        syncPresetDeleteButton(ui.presetDeleteButton, ui.presetSelect.value);
     }
 
     if (Array.isArray(ui.quickstartPresetButtons)) {
@@ -68,7 +80,8 @@ export function syncMenuPresetState({ ui, settings, settingsManager, surfacePoli
             ui.presetStatus.textContent = 'Preset: individuell';
         } else {
             const presetKindLabel = activePresetKind === 'fixed' ? 'verbindlich' : 'frei';
-            ui.presetStatus.textContent = `Preset: ${visibleActivePresetId} (${presetKindLabel})`;
+            const activePreset = (settingsManager?.listMenuPresets?.() || []).find((preset) => preset?.id === visibleActivePresetId);
+            ui.presetStatus.textContent = `Preset: ${activePreset?.name || visibleActivePresetId} (${presetKindLabel})`;
         }
     }
 }
