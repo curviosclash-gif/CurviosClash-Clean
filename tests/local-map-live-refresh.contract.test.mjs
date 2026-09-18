@@ -94,18 +94,75 @@ test('a map saved again under the same key replaces the older state', () => {
     assert.deepEqual(catalog.editor_arena.size, [120, 30, 120]);
 });
 
+test('a user map deleted from the folder leaves the catalog, other maps stay', () => {
+    const standard = desktopMap('Standard');
+    const fromSourceTree = desktopMap('Quellbaum');
+    const catalog = {
+        standard,
+        editor_source: fromSourceTree,
+        editor_kept: desktopMap('Bleibt'),
+        editor_gone: desktopMap('Geloescht'),
+    };
+    const knownKeys = new Set(['editor_kept', 'editor_gone']);
+
+    const changed = mergePlayableLocalMaps(catalog, { editor_kept: desktopMap('Bleibt') }, {
+        knownKeys,
+        fallbackMaps: { editor_source: fromSourceTree },
+    });
+
+    assert.deepEqual(changed, ['editor_gone']);
+    assert.deepEqual(Object.keys(catalog), ['standard', 'editor_source', 'editor_kept']);
+    assert.deepEqual([...knownKeys], ['editor_kept']);
+});
+
+test('deleting a user map that shadowed a source-tree map restores the source-tree version', () => {
+    const fromSourceTree = desktopMap('Quellbaum');
+    const catalog = { editor_arena: desktopMap('Nutzerstand') };
+    const knownKeys = new Set(['editor_arena']);
+
+    const changed = mergePlayableLocalMaps(catalog, {}, {
+        knownKeys,
+        fallbackMaps: { editor_arena: fromSourceTree },
+    });
+
+    assert.deepEqual(changed, ['editor_arena']);
+    assert.equal(catalog.editor_arena, fromSourceTree);
+    assert.equal(knownKeys.size, 0);
+});
+
+test('newly merged user maps are remembered so a later deletion is noticed', () => {
+    const catalog = {};
+    const knownKeys = new Set();
+    mergePlayableLocalMaps(catalog, { editor_new: desktopMap('Neu') }, { knownKeys });
+    assert.deepEqual([...knownKeys], ['editor_new']);
+    assert.deepEqual(mergePlayableLocalMaps(catalog, {}, { knownKeys }), ['editor_new']);
+    assert.deepEqual(Object.keys(catalog), []);
+});
+
 function createRefreshHarness({ gameState = 'MENU', localMaps = {} } = {}) {
     const calls = [];
     const catalog = { standard: desktopMap('Standard') };
+    const knownKeys = new Set();
     const run = () => refreshLocalMapCatalog({
         gameState,
         catalog,
+        knownKeys,
+        fallbackMaps: {},
         readLocalMaps: () => { calls.push('read'); return localMaps; },
         refreshRuntimeConfig: () => { calls.push('refresh-config'); },
         applySettings: () => { calls.push('apply-settings'); },
     });
-    return { run, calls, catalog };
+    return { run, calls, catalog, knownKeys };
 }
+
+test('a deleted user map refreshes the runtime config just like a new one', () => {
+    const harness = createRefreshHarness({ localMaps: {} });
+    harness.catalog.editor_gone = desktopMap('Geloescht');
+    harness.knownKeys.add('editor_gone');
+    assert.equal(harness.run(), true);
+    assert.deepEqual(harness.calls, ['read', 'refresh-config', 'apply-settings']);
+    assert.equal(harness.catalog.editor_gone, undefined);
+});
 
 test('a new saved map refreshes the runtime config and re-applies the settings', () => {
     const harness = createRefreshHarness({ localMaps: { editor_live: desktopMap('Live') } });
@@ -132,6 +189,7 @@ test('outside the desktop shell nothing is read or applied', () => {
     const result = refreshLocalMapCatalog({
         gameState: 'MENU',
         catalog: {},
+        knownKeys: new Set(['editor_x']),
         readLocalMaps: () => null,
         refreshRuntimeConfig: () => calls.push('refresh-config'),
         applySettings: () => calls.push('apply-settings'),

@@ -295,6 +295,7 @@ export class UIManager {
     // Start / Validierung
     showStartValidationError(issue, opts)  { return this._startSync.showStartValidationError(issue, opts); }
     clearStartValidationError()            { return this._startSync.clearStartValidationError(); }
+    refreshLocalMapCatalog()               { return this._startSync.refreshLocalMapCatalog(); }
 
     // ------------------------------------------------------------------
     // syncAll / syncByChangeKeys

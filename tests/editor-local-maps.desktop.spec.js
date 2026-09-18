@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from 'node:fs/promises';
+import { mkdir, rm, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 
 import { expect, test } from './helpers.desktop.js';
@@ -106,4 +106,41 @@ test('T65f:a map saved in the desktop editor reaches the running game window wit
         LIVE_MAP_KEY,
         { timeout: 30_000 },
     );
+});
+
+const SPLIT_MAP_KEY = 'editor_split-probe';
+
+// Die Split-Menues oeffnet man aus der Spielstil-Wahl, nicht aus der
+// Kartenauswahl; sie laden deshalb beim Oeffnen selbst nach. Und eine im
+// Ordner geloeschte Karte verschwindet wieder, ohne das Spiel neu zu laden.
+test('T65g:saved maps reach the split setup and deleted maps leave the menus without a restart', async ({ page, electronApp }, testInfo) => {
+    await loadGame(page);
+    const userDataDirectory = testInfo.outputPath('user-data-split');
+    const mapsDirectory = path.join(userDataDirectory, EDITOR_DATA_PATHS.USER_MAPS_DIR);
+    await mkdir(mapsDirectory, { recursive: true });
+    await electronApp.evaluate(({ app }, directory) => app.setPath('userData', directory), userDataDirectory);
+    const mapFile = path.join(mapsDirectory, `${SPLIT_MAP_KEY}.runtime.json`);
+    await writeFile(mapFile, JSON.stringify({ name: 'Split Probe', size: [80, 30, 80], obstacles: [] }), 'utf8');
+
+    await page.locator('#menu-nav [data-session-type="splitscreen"]').click({ force: true });
+    await expect(page.locator('#submenu-custom')).toBeVisible();
+    await page.locator('#btn-four-player-planar').click();
+    await expect(page.locator('#four-player-planar-setup')).toBeVisible();
+    await expect(page.locator(`[data-four-player-planar-map] option[value="${SPLIT_MAP_KEY}"]`)).toHaveCount(1);
+
+    // Die normale Kartenauswahl kennt die Karte jetzt ebenfalls.
+    await page.locator('[data-four-player-planar-back]').click();
+    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    const mainOption = page.locator(`#map-select option[value="${SPLIT_MAP_KEY}"]`);
+    await expect(mainOption).toHaveCount(1);
+
+    // Datei loeschen, Kartenauswahl neu oeffnen: die Karte ist weg.
+    await rm(mapFile);
+    await page.click('#submenu-game:not(.hidden) [data-back]');
+    await openCustomSubmenu(page);
+    await page.click('#submenu-custom:not(.hidden) [data-mode-path="normal"]');
+    await page.waitForSelector('#submenu-game:not(.hidden)', { timeout: 5000 });
+    await expect(mainOption).toHaveCount(0);
+    await expect(page.locator('#map-select')).not.toHaveValue('');
 });
