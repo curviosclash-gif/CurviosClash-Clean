@@ -557,7 +557,7 @@ export class EntityManager {
         } else {
             this._staticTurretSystem?.clear?.();
         }
-        this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); this._mapDestructibleBlastSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
+        this._mapHazardSystem?.clear?.(); this._mapDestructibleSystem?.clear?.(); if (disposeProjectileSystem) this._mapUnitSystem?.dispose?.(); else this._mapUnitSystem?.clear?.(); this._mapDestructibleBlastSystem?.clear?.(); if (disposeProjectileSystem) this._exclusionZoneSystem?.dispose?.(); else this._exclusionZoneSystem?.reset?.();
         this._globalFogEffectSystem?.reset?.();
         if (disposeProjectileSystem) this._objectiveTargetMarkerSystem?.dispose?.(); else this._objectiveTargetMarkerSystem?.reset?.(); this._huntScoring.reset();
         this._simulationClockMs = 0;

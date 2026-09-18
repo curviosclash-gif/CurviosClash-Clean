@@ -39,6 +39,7 @@ export class EntitySpawnOps {
             this.spawnPlayer(player, spawnContext);
         }
         owner._staticTurretSystem?.startRound?.();
+        owner._mapUnitSystem?.startRound?.();
     }
 
     createSpawnContext() {

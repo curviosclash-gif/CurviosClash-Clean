@@ -20,6 +20,7 @@ import { isArenaWavesConfig } from '../../shared/contracts/ArenaWavesContract.js
 import { ObjectiveTargetMarkerSystem } from '../systems/ObjectiveTargetMarkerSystem.js';
 import { SecretRoomSystem } from '../systems/SecretRoomSystem.js';
 import { TargetableRegistry } from '../systems/TargetableRegistry.js';
+import { MapUnitSystem } from '../systems/MapUnitSystem.js';
 
 export function createEntityRuntimeSystems(owner, runtimeContext, support = null) {
     const systems = {
@@ -68,6 +69,8 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.targetableRegistry = new TargetableRegistry();
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
     if (owner) owner._targetableRegistry = systems.targetableRegistry;
+    systems.mapUnitSystem = new MapUnitSystem(owner);
+    if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
     systems.flamethrowerSystem = new FlamethrowerSystem(owner);
     if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
     return systems;
