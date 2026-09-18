@@ -203,11 +203,8 @@ test('real pickup GLB contains every semantic and legacy root within render budg
     const gltf = await parseLibrary();
     // Every registered pickup has its baked root; a new item without one fails here on purpose
     // (the model factory would fall back to a coloured cube).
-    // Items whose authored model is still to be baked. The model factory falls back to a coloured
-    // cube for them, so the game stays playable. S6.11 bakes pickup_LIGHTNING and pickup_RAILGUN.
-    const pendingModelTypes = new Set(['LIGHTNING', 'RAILGUN']);
     const expected = [
-        ...getPickupTypes().filter((type) => !pendingModelTypes.has(type)),
+        ...getPickupTypes(),
         ...LEGACY_PICKUP_MODEL_TYPES,
     ];
     assert.equal(gltf.scene.children.filter((child) => child.name.startsWith('pickup_')).length, expected.length);
