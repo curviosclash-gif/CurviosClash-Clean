@@ -4,7 +4,8 @@
  * weapon reads one combined list instead of asking each source on its own. A new kind of
  * target therefore needs one provider here, not a branch in every weapon.
  *
- * The list is reused between calls, so a caller must not keep it past the current tick.
+ * The list is reused between calls, so a caller must not keep it past the current tick - and must
+ * copy it before dealing damage: a target that dies can explode and call collect() again.
  */
 export class TargetableRegistry {
     constructor() {

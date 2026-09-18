@@ -58,30 +58,32 @@ function normalizePoint(point) {
 
 /**
  * @param {unknown} raw
+ * @param {typeof clampNumber} spatial
  * @returns {Readonly<{ damage: number, cooldown: number, range: number }> | null}
  */
-function normalizeMg(raw) {
+function normalizeMg(raw, spatial) {
     if (raw === false || raw === null) return null;
     const source = raw && typeof raw === 'object' ? /** @type {any} */ (raw) : {};
     return Object.freeze({
         damage: clampNumber(source.damage, TANK_DEFAULTS.mg.damage, 1, 40),
         cooldown: clampNumber(source.cooldown, TANK_DEFAULTS.mg.cooldown, 0.1, 10),
-        range: clampNumber(source.range, TANK_DEFAULTS.mg.range, 8, 180),
+        range: spatial(source.range, TANK_DEFAULTS.mg.range, 8, 180),
     });
 }
 
 /**
  * @param {unknown} raw
+ * @param {typeof clampNumber} spatial
  * @returns {Readonly<{ rocketType: string, cooldown: number, range: number }> | null}
  */
-function normalizeRocket(raw) {
+function normalizeRocket(raw, spatial) {
     if (raw === false || raw === null) return null;
     const source = raw && typeof raw === 'object' ? /** @type {any} */ (raw) : {};
     const rocketType = String(source.rocketType || '').toUpperCase();
     return Object.freeze({
         rocketType: VALID_ROCKETS.has(rocketType) ? rocketType : TANK_DEFAULTS.rocket.rocketType,
         cooldown: clampNumber(source.cooldown, TANK_DEFAULTS.rocket.cooldown, 0.5, 30),
-        range: clampNumber(source.range, TANK_DEFAULTS.rocket.range, 8, 180),
+        range: spatial(source.range, TANK_DEFAULTS.rocket.range, 8, 180),
     });
 }
 
@@ -104,11 +106,26 @@ function normalizeLoot(raw) {
 }
 
 /**
+ * Spatial values of a map already divided by its map scale must not meet the authoring limits a
+ * second time - a slow tank on a map with scale 3 would otherwise come back three times as fast.
+ * The same reason the static turrets pass preserveSpatialRange.
+ * @param {unknown} value
+ * @param {number} fallback
+ * @returns {number}
+ */
+function keepSpatial(value, fallback) {
+    return clampNumber(value, fallback, 0.0001, 1000000);
+}
+
+/**
  * @param {unknown} entry
  * @param {number} index
  * @param {string[] | undefined} warnings
+ * @param {{ preserveSpatial?: boolean }} [options]
  */
-export function normalizeMapUnit(entry, index = 0, warnings = undefined) {
+export function normalizeMapUnit(entry, index = 0, warnings = undefined, options = {}) {
+    /** @type {typeof clampNumber} */
+    const spatial = options?.preserveSpatial === true ? keepSpatial : clampNumber;
     const source = entry && typeof entry === 'object' ? /** @type {any} */ (entry) : null;
     const id = String(source?.id || `unit_${index + 1}`).trim() || `unit_${index + 1}`;
     const kind = String(source?.kind || 'tank').toLowerCase();
@@ -132,11 +149,11 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined) {
         path: Object.freeze(/** @type {readonly number[][]} */ (path)),
         // true drives the path as a closed circuit, false turns around at both ends.
         loop: source?.loop !== false,
-        speed: clampNumber(source?.speed, TANK_DEFAULTS.speed, 1, 60),
+        speed: spatial(source?.speed, TANK_DEFAULTS.speed, 1, 60),
         maxHp: clampNumber(source?.maxHp, TANK_DEFAULTS.maxHp, 1, 2000),
-        hitboxRadius: clampNumber(source?.hitboxRadius, TANK_DEFAULTS.hitboxRadius, 0.5, 12),
+        hitboxRadius: spatial(source?.hitboxRadius, TANK_DEFAULTS.hitboxRadius, 0.5, 12),
         respawnSeconds: clampNumber(source?.respawnSeconds, TANK_DEFAULTS.respawnSeconds, 0, 3600),
-        weapons: Object.freeze({ mg: normalizeMg(weapons.mg), rocket: normalizeRocket(weapons.rocket) }),
+        weapons: Object.freeze({ mg: normalizeMg(weapons.mg, spatial), rocket: normalizeRocket(weapons.rocket, spatial) }),
         loot: normalizeLoot(source?.loot),
         allowedModes: Object.freeze(modes.length > 0 ? modes : ['HUNT', 'ARCADE']),
         // A tank is a neutral hazard: it fires at bots too, unless the map says otherwise.
@@ -147,7 +164,7 @@ export function normalizeMapUnit(entry, index = 0, warnings = undefined) {
 /**
  * Normalizes a whole `mapUnits` block. Duplicate ids keep the first unit.
  * @param {unknown} rawUnits
- * @param {{ warnings?: string[] }} [options]
+ * @param {{ warnings?: string[], preserveSpatial?: boolean }} [options]
  */
 export function normalizeMapUnits(rawUnits, options = {}) {
     const entries = Array.isArray(rawUnits) ? rawUnits.slice(0, MAP_UNIT_LIMITS.maxUnits) : [];
@@ -159,7 +176,7 @@ export function normalizeMapUnits(rawUnits, options = {}) {
     /** @type {ReturnType<typeof normalizeMapUnit>[]} */
     const units = [];
     entries.forEach((entry, index) => {
-        const unit = normalizeMapUnit(entry, index, warnings);
+        const unit = normalizeMapUnit(entry, index, warnings, { preserveSpatial: options?.preserveSpatial === true });
         if (!unit) return;
         if (ids.has(unit.id)) {
             warnings?.push(`Map unit id "${unit.id}" is used twice; the second unit was dropped.`);
@@ -172,10 +189,12 @@ export function normalizeMapUnits(rawUnits, options = {}) {
 }
 
 /**
- * The runtime reads the units of the loaded map definition.
+ * The runtime reads the units of the loaded map definition. A map in map units (scaled anchors)
+ * passes preserveSpatial, because the schema already checked and divided its values.
  * @param {unknown} mapDefinition
+ * @param {{ preserveSpatial?: boolean }} [options]
  */
-export function resolveMapUnitDefinitions(mapDefinition) {
+export function resolveMapUnitDefinitions(mapDefinition, options = {}) {
     const source = mapDefinition && typeof mapDefinition === 'object' ? /** @type {any} */ (mapDefinition).mapUnits : null;
-    return normalizeMapUnits(source);
+    return normalizeMapUnits(source, { preserveSpatial: options?.preserveSpatial === true });
 }

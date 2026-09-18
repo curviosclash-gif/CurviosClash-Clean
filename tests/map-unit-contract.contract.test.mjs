@@ -93,3 +93,15 @@ test('map units survive the schema document and reach the runtime definition sca
     assert.equal('mapUnits' in withoutUnits, false, 'a map without units keeps its old document');
     assert.equal('mapUnits' in toArenaMapDefinition(withoutUnits, { mapScale: 3 }).map, false);
 });
+
+test('a scaled map keeps slow tanks slow: the runtime does not clamp divided values again', () => {
+    const raw = { schemaVersion: 4, mapUnits: [{ id: 'crawler', path: [[0, 0, 0], [90, 0, 0]], speed: 2, hitboxRadius: 1, weapons: { mg: { range: 12 } } }] };
+    const runtime = toArenaMapDefinition(normalizeMapSchemaDocument(raw), { mapScale: 3 });
+    const clamped = resolveMapUnitDefinitions(runtime.map)[0];
+    assert.equal(clamped.speed, 1, 'without the flag the divided speed 0.67 meets the minimum of 1');
+    const kept = resolveMapUnitDefinitions(runtime.map, { preserveSpatial: true })[0];
+    assert.equal(Math.round(kept.speed * 3 * 1000) / 1000, 2, 'speed 2 comes back as 2 after the scale');
+    assert.equal(kept.hitboxRadius, 1, 'the hitbox is in map units and grows with the model, like a turret');
+    assert.equal(Math.round(kept.weapons.mg.range * 3 * 1000) / 1000, 12);
+    assert.equal(kept.weapons.mg.damage, 3, 'non spatial values keep their limits');
+});

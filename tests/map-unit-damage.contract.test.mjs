@@ -145,3 +145,12 @@ test('the runtime assembly lists live tanks for every weapon', () => {
     tank.alive = false;
     assert.equal(owner._targetableRegistry.collect().includes(tank), false);
 });
+
+test('blowing yourself up with the tank is no kill for anyone', () => {
+    const shooter = createPlayer(0, [0, 2.1, 3], 5);
+    const { system, kills } = createWorld({ players: [shooter] });
+    system.units[0].takeDamage(999, { sourcePlayer: shooter, cause: 'FLAMETHROWER' });
+    assert.equal(kills.length, 1);
+    assert.equal(kills[0].player, shooter);
+    assert.equal(kills[0].options.killer, null);
+});

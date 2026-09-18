@@ -16,7 +16,10 @@ function toPlainUnit(unit, invScale) {
         kind: unit.kind,
         path: unit.path.map((/** @type {number[]} */ point) => point.map((value) => value * invScale)),
         loop: unit.loop,
-        speed: unit.speed,
+        // Speed and ranges are world units like turret ranges: divided here, multiplied back by the
+        // runtime, so a tank on a scaled map drives as fast as authored. The hitbox grows with the
+        // model, exactly like a turret's.
+        speed: unit.speed * invScale,
         maxHp: unit.maxHp,
         hitboxRadius: unit.hitboxRadius,
         respawnSeconds: unit.respawnSeconds,

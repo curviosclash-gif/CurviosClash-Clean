@@ -72,7 +72,8 @@ function applyBlast(system, unit, sourcePlayer) {
         });
         if (damageResult?.isDead) {
             owner?._killPlayer?.(player, 'PROJECTILE', {
-                killer: sourcePlayer,
+                // Caught in the blast of your own kill is no kill for anyone.
+                killer: sourcePlayer === player ? null : sourcePlayer,
                 impactPoint: centre,
                 projectileType: MAP_UNIT_BLAST.cause,
             });

@@ -53,7 +53,8 @@ export class MapUnitSystem {
         const scale = mapDefinition?.scaleAuthoredAnchors === true
             ? Math.max(0.001, Number(resolveGameplayConfig(owner).ARENA?.MAP_SCALE) || 1)
             : 1;
-        for (const definition of resolveMapUnitDefinitions(mapDefinition)) {
+        const definitions = resolveMapUnitDefinitions(mapDefinition, { preserveSpatial: mapDefinition?.scaleAuthoredAnchors === true });
+        for (const definition of definitions) {
             if (!isTurretCombatActive(owner.gameModeStrategy, [...definition.allowedModes])) continue;
             this.units.push(this._createUnit(definition, scale));
         }

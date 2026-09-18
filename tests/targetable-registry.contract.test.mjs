@@ -100,3 +100,42 @@ test('the runtime assembly hands static turrets to every weapon through the regi
     assert.equal(owner._targetableRegistry.collect().includes(turret), true, 'the registry lists map turrets');
     assert.equal(support.projectileSystem.getTurrets().includes(turret), true, 'rockets ask the registry');
 });
+
+test('the flamethrower still burns the second tank when the first one explodes in the same tick', () => {
+    const registry = new TargetableRegistry();
+    const first = createTarget('first', [0, 0, -6]);
+    const second = createTarget('second', [1, 0, -7]);
+    first.hp = 1;
+    const originalTakeDamage = first.takeDamage;
+    first.takeDamage = function takeDamage(amount, options) {
+        const result = originalTakeDamage.call(this, amount, options);
+        if (result.isDead) registry.collect(); // an explosion looks for its victims in the same list
+        return result;
+    };
+    let alive = [first, second];
+    registry.addProvider(() => alive.filter((target) => target.hp > 0));
+    const shooter = {
+        index: 0,
+        alive: true,
+        isBot: false,
+        position: new THREE.Vector3(0, 0, 0),
+        entityRuntimeConfig: HUNT_MODE_CONFIG,
+        activeEffects: [],
+        inventory: [],
+        rocketInventory: [],
+        getAimDirection: (out) => out.set(0, 0, -1),
+    };
+    const entityManager = {
+        players: [shooter],
+        arena: null,
+        isFightOutcomeAuthority: true,
+        entityRuntimeConfig: HUNT_MODE_CONFIG,
+        _targetableRegistry: registry,
+    };
+    shooter.entityManager = entityManager;
+    applyPlayerPowerup(shooter, 'FLAMETHROWER');
+    new FlamethrowerSystem(entityManager).fire(shooter, 0.1, true);
+    assert.equal(first.hp, 0);
+    assert.equal(second.damage.length, 1, 'the neighbour was not skipped');
+    alive = [];
+});
