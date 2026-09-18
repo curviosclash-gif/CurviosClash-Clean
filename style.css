@@ -3134,7 +3134,8 @@ input[type="range"]::-webkit-slider-thumb {
     background: rgba(0, 0, 0, 0.65);
     border: 1px solid rgba(255, 255, 255, 0.2);
     pointer-events: none;
-    z-index: 20;
+    /* Above the hunt/player HUD (100/101) and the round board (120) it shares the top edge with. */
+    z-index: 130;
 }
 
 #status-toast.toast-info {
