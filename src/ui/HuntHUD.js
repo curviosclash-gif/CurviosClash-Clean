@@ -10,7 +10,7 @@ import { createRocketWarningCache, hideRocketWarning, updateRocketWarning } from
 import { MatchHudAnnouncement } from './MatchHudAnnouncement.js';
 import { HuntInterceptAnnouncer } from './HuntInterceptAnnouncer.js';
 import { SecretRoomAnnouncer } from './SecretRoomAnnouncer.js';
-import { formatHuntClock, formatHuntScoreboard, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
+import { formatHuntClock, formatHuntScoreboard, resolveHuntObjectiveText, updateHuntTargetProgress } from './HuntMatchStatusHelpers.js';
 import {
     HUD_ARC_SEGMENT_COUNT,
     initializeHudSegmentedArc,
@@ -412,9 +412,7 @@ export class HuntHUD {
             ? ' · Golden Kill'
             : (Number(huntProjection?.timeLimitSeconds) > 0 ? ` · ${formatHuntClock(huntProjection?.timeRemainingSeconds)}` : '');
         const matchPointText = leader && leader.kills === killLimit - 1 ? ' · Matchball' : '';
-        const objectiveText = respawnEnabled
-            ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
-            : 'Elimination · letzter Überlebender gewinnt';
+        const objectiveText = resolveHuntObjectiveText(huntProjection, this.runtime?.runtimeConfig, { killLimit, timeText, matchPointText });
         const scoreboardText = formatHuntScoreboard(rows, localPlayerIndices, huntProjection?.scoreboardSummary);
         const scoreboardDetails = rows.length > 0
             ? rows.map((row) => `${row.label}: ${row.kills}/${killLimit} Abschüsse, ${row.deaths} Tode, ${row.assists} Assists`).join('. ')

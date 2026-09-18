@@ -1,6 +1,7 @@
 import { ARCADE_SCORE_LABELS } from '../../shared/contracts/ArcadeScorePresentationContract.js';
 import { resolveArcadeModifierMeta } from '../../shared/contracts/ArcadeModifierContract.js';
 import { ArcadeEndlessHudSection } from './ArcadeEndlessHudSection.js';
+import { resolveArcadeMapLabel } from './postrun/ArcadePostRunBlocks.js';
 
 const BREAKDOWN_ENTRIES = Object.freeze(Object.entries(ARCADE_SCORE_LABELS)
     .map(([key, label]) => Object.freeze({ key, label, sign: key === 'penalty' ? '-' : '+' })));
@@ -246,7 +247,7 @@ export class ArcadeScoreHUD {
             setNodeText(this._scoreValue, formatTimerMs(hudState.currentTimeMs));
             const mapNumber = Math.min(5, Math.max(1, Number(hudState.mapIndex || 0) + 1));
             const status = hudState.phase === 'portal' ? '\nZiel erreicht · Goldenes Portal durchfliegen' : '';
-            this._arenaWavesSection.textContent = `Map ${mapNumber}/5: ${hudState.currentMapKey || '-'}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
+            this._arenaWavesSection.textContent = `Map ${mapNumber}/5: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nCheckpoints ${hudState.checkpoint || 0}/${hudState.checkpointCount || 0} | Respawns ${hudState.respawnsRemaining ?? 3}\nGesamt bisher ${formatTimerMs(hudState.completedTotalMs)}${status}`;
             return;
         }
         if (isArenaWaves) {
@@ -261,7 +262,7 @@ export class ArcadeScoreHUD {
             const kills = hudState.kills || {};
             const upgrades = hudState.upgrades || {};
             const telegraph = hudState.spawnWarning ? `\nAnkommend: ${hudState.plannedSpawnCount || 0} Gegner in ${Math.max(0, Math.ceil(hudState.spawnWarning.remaining || 0))} s` : (hudState.nextWaveInSeconds == null ? '' : `\nNächste Welle in ${Math.max(0, Math.ceil(hudState.nextWaveInSeconds))} s`);
-            this._arenaWavesSection.textContent = `Karte ${Number(hudState.mapIndex || 0) + 1}/${hudState.mapCount || 5}: ${hudState.currentMapKey || '-'}\nWelle ${hudState.wave || 1} | Gegner ${hudState.alive || 0} | Aggro ${Math.round((Number(hudState.aggression) || 0) * 100)}%\nKills ${kills.regular || 0} + Elite ${kills.elite || 0} | Zeit ${Math.floor(Number(hudState.survivalSeconds) || 0)} s\nMG ${upgrades.machineGunId || '-'} | Speed +${upgrades.speed || 0}% | HP +${upgrades.maxHp || 0}${telegraph}`;
+            this._arenaWavesSection.textContent = `Karte ${Number(hudState.mapIndex || 0) + 1}/${hudState.mapCount || 5}: ${resolveArcadeMapLabel(hudState.currentMapKey, hudState.currentMapLabel)}\nWelle ${hudState.wave || 1} | Gegner ${hudState.alive || 0} | Aggro ${Math.round((Number(hudState.aggression) || 0) * 100)}%\nKills ${kills.regular || 0} + Elite ${kills.elite || 0} | Zeit ${Math.floor(Number(hudState.survivalSeconds) || 0)} s\nMG ${upgrades.machineGunId || '-'} | Speed +${upgrades.speed || 0}% | HP +${upgrades.maxHp || 0}${telegraph}`;
             return;
         }
         if (this._arenaWavesSection) this._arenaWavesSection.style.display = 'none';

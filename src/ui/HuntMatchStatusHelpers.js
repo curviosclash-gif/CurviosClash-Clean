@@ -1,3 +1,6 @@
+import { isArenaWavesConfig } from '../shared/contracts/ArenaWavesContract.js';
+import { isEndlessParcoursConfig } from '../shared/contracts/EndlessParcoursContract.js';
+
 export function formatHuntClock(seconds) {
     const whole = Math.max(0, Math.ceil(Number(seconds) || 0));
     return `${Math.floor(whole / 60)}:${String(whole % 60).padStart(2, '0')}`;
@@ -34,4 +37,13 @@ export function updateHuntTargetProgress(progress, state, target, score) {
         progress.children[index].classList.toggle('filled', index < filled);
     }
     state.filled = filled;
+}
+
+/** Header line: arcade hunt runs are no elimination match, even though they use the fight HUD. */
+export function resolveHuntObjectiveText(huntProjection, runtimeConfig, { killLimit, timeText, matchPointText }) {
+    if (isArenaWavesConfig(runtimeConfig)) return 'Fünf Fronten · halte jede Welle auf';
+    if (isEndlessParcoursConfig(runtimeConfig)) return 'Endlosjagd · überlebe so lange wie möglich';
+    return huntProjection?.respawnEnabled === true
+        ? `Deathmatch · zuerst ${killLimit} Abschüsse${timeText}${matchPointText}`
+        : 'Elimination · letzter Überlebender gewinnt';
 }
