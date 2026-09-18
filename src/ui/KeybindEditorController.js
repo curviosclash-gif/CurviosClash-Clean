@@ -47,10 +47,6 @@ export function createKeybindEditorRuntimeAccess(runtime) {
         actionOnSettingsChanged,
         actionApplyPauseBindings,
         actionShowStatusToast,
-        actionSaveControllerSettings() {
-            game?._saveSettings?.();
-            return game?.settingsDirty === false;
-        },
         // Backward-compatible aliases for transitional call sites.
         ensurePlayerControls: actionEnsurePlayerControls,
         onSettingsChanged: actionOnSettingsChanged,

@@ -159,14 +159,5 @@ export function resolveMatchStartValidationIssue({
         };
     }
 
-    const themeMode = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase();
-    if (themeMode !== 'hell' && themeMode !== 'dunkel') {
-        return {
-            message: 'Start nicht möglich: Farbschema ungültig.',
-            fieldKey: 'theme',
-            fieldMessage: 'Theme auf Hell oder Dunkel setzen.',
-        };
-    }
-
     return null;
 }

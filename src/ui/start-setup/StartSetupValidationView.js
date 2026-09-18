@@ -12,7 +12,6 @@ export function getStartFieldBinding(ui, fieldKey) {
         map: { control: ui?.mapSelect || null, hint: ui?.mapFieldHint || null, sectionId: 'map' },
         vehicleP1: { control: ui?.vehicleSelectP1 || null, hint: ui?.vehicleP1FieldHint || null, sectionId: 'vehicle' },
         vehicleP2: { control: ui?.vehicleSelectP2 || null, hint: ui?.vehicleP2FieldHint || null, sectionId: 'vehicle' },
-        theme: { control: ui?.themeModeSelect || null, hint: ui?.themeFieldHint || null, sectionId: 'match' },
         match: { control: dimensionModeButton || gameModeButton || ui?.huntRespawnToggle || null, hint: ui?.matchFieldHint || null, sectionId: 'match' },
         multiplayer: { control: ui?.multiplayerLobbyCodeInput || null, hint: ui?.matchFieldHint || null, sectionId: 'multiplayer' },
     };

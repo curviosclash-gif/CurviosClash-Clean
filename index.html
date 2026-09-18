@@ -404,15 +404,6 @@
                                     <summary>Weitere Regeln & lokale Ansicht</summary>
                                     <div class="match-settings-grid start-inline-advanced-grid">
                                         <div class="menu-section">
-                                            <h3 class="section-title" data-menu-text-id="menu.level3.theme.title">Hell / Dunkel (lokal)</h3>
-                                            <label for="theme-mode-select" data-menu-text-id="menu.level3.match.theme.label">Theme (nur lokal, nicht match-relevant)</label>
-                                            <select id="theme-mode-select">
-                                                <option value="dunkel">Dunkel</option>
-                                                <option value="hell">Hell</option>
-                                            </select>
-                                            <p id="theme-field-hint" class="menu-field-hint hidden" role="status" aria-live="polite"></p>
-                                        </div>
-                                        <div class="menu-section">
                                             <h3 class="section-title" data-menu-text-id="menu.level3.match.ghost.title">Selbstduell</h3>
                                             <label for="arcade-ghost-duel-mode-select" data-menu-text-id="menu.level3.match.ghost_mode.label">Ghost-Wiedergabe</label>
                                             <select id="arcade-ghost-duel-mode-select">
@@ -724,15 +715,9 @@
                                     <input type="range" id="shadow-quality-slider" min="0" max="3" step="1" value="3">
                                     <label for="bloom-quality-slider"><span data-menu-text-id="menu.level4.graphics.bloom_quality.label">Bloom:</span> <span id="bloom-quality-label">Aus</span></label>
                                     <input type="range" id="bloom-quality-slider" min="0" max="2" step="1" value="0">
-                                    <label for="normal-camera-perspective-select" data-menu-text-id="menu.level4.camera.perspective.label">Video-Perspektive</label>
-                                    <select id="normal-camera-perspective-select">
-                                        <option value="classic" selected>Spielgetreu (aufgezeichnete Kamera)</option>
-                                        <option value="cinematic_soft">Neu inszeniert – Cinematic Soft</option>
-                                        <option value="cinematic_action">Neu inszeniert – Cinematic Action</option>
-                                    </select>
                                     <label class="toggle-row secondary-btn-spaced">
                                         <input type="checkbox" id="normal-camera-reduce-motion-toggle" checked>
-                                        <span>Video-Perspektive beruhigen</span>
+                                        <span>Kamera beruhigen (kein Wackeln, sanfte Blickwinkel)</span>
                                     </label>
                                     <label class="toggle-row secondary-btn-spaced">
                                         <input type="checkbox" id="normal-camera-speed-fov-toggle" checked>
@@ -746,17 +731,6 @@
                                     </label>
                                     <label for="normal-camera-thruster-exhaust-intensity-slider">Triebwerkspartikel: <span id="normal-camera-thruster-exhaust-intensity-label">100%</span></label>
                                     <input type="range" id="normal-camera-thruster-exhaust-intensity-slider" min="0" max="150" step="5" value="100">
-                                    <p id="normal-camera-perspective-hint" class="field-hint">Video-Perspektive: Spielgetreu – beruhigt: an</p>
-                                    <div class="toggle-grid secondary-btn-spaced">
-                                        <label class="toggle-row">
-                                            <input type="checkbox" id="cockpit-cam-p1">
-                                            <span>Cockpit P1 (immer aktiv)</span>
-                                        </label>
-                                        <label class="toggle-row">
-                                            <input type="checkbox" id="cockpit-cam-p2">
-                                            <span>Cockpit P2 (immer aktiv)</span>
-                                        </label>
-                                    </div>
                                 </div>
                             </details>
 </div></section>
@@ -781,6 +755,13 @@
                                         <option value="portrait">Hochformat 1080x1920 (Shorts, TikTok)</option>
                                     </select>
                                     <p id="recording-profile-hint" class="field-hint">Aufnahmeprofil: Standard – ohne HUD</p>
+                                    <label for="normal-camera-perspective-select" data-menu-text-id="menu.level4.camera.perspective.label">Video-Perspektive</label>
+                                    <select id="normal-camera-perspective-select">
+                                        <option value="classic" selected>Spielgetreu (aufgezeichnete Kamera)</option>
+                                        <option value="cinematic_soft">Neu inszeniert – Cinematic Soft</option>
+                                        <option value="cinematic_action">Neu inszeniert – Cinematic Action</option>
+                                    </select>
+                                    <p id="normal-camera-perspective-hint" class="field-hint">Video-Perspektive: Spielgetreu – beruhigt: an</p>
                                     <label for="cinematic-replay-recording-select">Aufnahmen zum Rendern</label>
                                     <select id="cinematic-replay-recording-select" disabled>
                                         <option value="">Keine Aufnahmen vorhanden</option>
@@ -978,9 +959,6 @@
                             <button type="button" id="btn-config-import" class="secondary-btn secondary-btn-spaced"
                                 data-menu-text-id="menu.tools.import.label">Importieren</button>
                             <p id="config-share-status" class="menu-hint">Kein Import/Export ausgeführt.</p>
-                            <button type="button" id="btn-save-keys" class="secondary-btn secondary-btn-spaced" data-menu-action="save-settings">
-                                Einstellungen jetzt speichern
-                            </button>
                         </div>
                         </section>
                             </div>

@@ -1106,53 +1106,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     color: #9ff2c7;
 }
 
-#main-menu[data-menu-local-theme="hell"] .menu-content {
-    background: linear-gradient(170deg, rgba(246, 251, 255, 0.95), rgba(225, 236, 250, 0.92));
-    border-color: rgba(90, 130, 180, 0.35);
-    color: #1f2e45;
-}
-
-#main-menu[data-menu-local-theme="hell"] .subtitle,
-#main-menu[data-menu-local-theme="hell"] .menu-context,
-#main-menu[data-menu-local-theme="hell"] .menu-hint,
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint,
-#main-menu[data-menu-local-theme="hell"] .section-title,
-#main-menu[data-menu-local-theme="hell"] .setup-chip-label {
-    color: #405c84;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint {
-    border-left-color: rgba(69, 109, 159, 0.35);
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint.is-error {
-    border-left-color: rgba(209, 84, 84, 0.7);
-    color: #9f2e2e;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-field-hint.is-lock {
-    border-left-color: rgba(164, 121, 26, 0.7);
-    color: #765618;
-}
-
-#main-menu[data-menu-local-theme="hell"] .nav-btn,
-#main-menu[data-menu-local-theme="hell"] .mode-btn,
-#main-menu[data-menu-local-theme="hell"] .secondary-btn,
-#main-menu[data-menu-local-theme="hell"] select,
-#main-menu[data-menu-local-theme="hell"] input[type="text"],
-#main-menu[data-menu-local-theme="hell"] textarea {
-    background: rgba(255, 255, 255, 0.72);
-    border-color: rgba(114, 145, 188, 0.35);
-    color: #233b5c;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-summary,
-#main-menu[data-menu-local-theme="hell"] .menu-preview {
-    background: rgba(255, 255, 255, 0.78);
-    border-color: rgba(114, 145, 188, 0.35);
-    color: #233b5c;
-}
-
 /* ============================================
    MENU UX FOLLOW-UP OVERRIDES
    ============================================ */
@@ -1531,11 +1484,17 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
 }
 
+/* An inner edge marks the active tab; a sideways shift made the tab column scroll. */
 .level4-section-tab[aria-selected="true"] {
     background: linear-gradient(135deg, rgba(0, 170, 255, 0.2), rgba(0, 120, 255, 0.08));
     border-color: rgba(120, 210, 255, 0.45);
     color: #f4fbff;
-    transform: translateX(2px);
+    box-shadow: inset 3px 0 0 rgba(120, 210, 255, 0.75);
+}
+
+/* Tilt and touch tuning only exists in the Mobile Classic app. */
+body:not(.mobile-classic-app) :is(#level4-tab-mobile-controls, #level4-section-mobile-controls) {
+    display: none !important;
 }
 
 .level4-section-stack {
@@ -1564,34 +1523,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
 .level4-keybind-columns {
     grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-footer,
-#main-menu[data-menu-local-theme="hell"] .build-info,
-#main-menu[data-menu-local-theme="hell"] .menu-accordion,
-#main-menu[data-menu-local-theme="hell"] .level4-section-panel .menu-section,
-#main-menu[data-menu-local-theme="hell"] .start-rail,
-#main-menu[data-menu-local-theme="hell"] .start-summary-block,
-#main-menu[data-menu-local-theme="hell"] .preview-kv,
-#main-menu[data-menu-local-theme="hell"] .level4-section-tab {
-    background: rgba(255, 255, 255, 0.82);
-    color: #1f3454;
-}
-
-#main-menu[data-menu-local-theme="hell"] .nav-btn-meta,
-#main-menu[data-menu-local-theme="hell"] .menu-choice-copy,
-#main-menu[data-menu-local-theme="hell"] .menu-accordion-copy,
-#main-menu[data-menu-local-theme="hell"] .start-summary-label,
-#main-menu[data-menu-local-theme="hell"] .preview-kv-label {
-    color: #4f6f9a;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-summary-value,
-#main-menu[data-menu-local-theme="hell"] .preview-kv-value,
-#main-menu[data-menu-local-theme="hell"] .preview-card-title,
-#main-menu[data-menu-local-theme="hell"] .menu-choice-title,
-#main-menu[data-menu-local-theme="hell"] .menu-context {
-    color: #193252;
 }
 
 @media (max-width: 980px) {
@@ -6060,58 +5991,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     }
 }
 
-#main-menu[data-menu-local-theme="hell"] .arcade-inline-surface {
-    background: linear-gradient(165deg, rgba(255, 245, 225, 0.94), rgba(248, 236, 210, 0.9));
-    border-color: rgba(194, 136, 42, 0.34);
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-surface-card {
-    background: linear-gradient(180deg, rgba(255, 248, 232, 0.96), rgba(252, 241, 216, 0.92));
-    border-color: rgba(194, 136, 42, 0.3);
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-surface-card-title {
-    color: #8a5b12;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-surface-card-value,
-#main-menu[data-menu-local-theme="hell"] .arcade-hud-metric-value {
-    color: #5b4022;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-hud-metric-label {
-    color: #8f6a3d;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-panel {
-    background: rgba(255, 246, 224, 0.65);
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-card {
-    background: rgba(255, 248, 233, 0.92);
-    color: #5f4420;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-card-meta,
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-detail-meta,
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-slot-label,
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-slot-tier {
-    color: #7a5a2f;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-detail-title {
-    color: #6c4814;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-search {
-    background: rgba(255, 253, 246, 0.9);
-    color: #5a4020;
-}
-
-#main-menu[data-menu-local-theme="hell"] .arcade-vehicle-preview-stage {
-    background: radial-gradient(circle at 50% 25%, rgba(236, 226, 197, 0.95), rgba(231, 216, 181, 0.9));
-}
-
 @media (max-width: 560px) {
     .arcade-surface-grid {
         grid-template-columns: 1fr;
@@ -6374,15 +6253,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 .level4-section-stack {
     height: 100%;
     max-height: none;
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-primary-start-summary {
-    color: rgba(255, 255, 255, 0.88);
-}
-
-#main-menu[data-menu-local-theme="hell"] .menu-breadcrumb,
-#main-menu[data-menu-local-theme="hell"] #submenu-custom .menu-choice-copy {
-    color: #4f6f9a;
 }
 
 @media (max-width: 980px) {
@@ -6698,21 +6568,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     color: #f4fbff;
 }
 
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-details {
-    background: rgba(255, 255, 255, 0.84);
-    color: #20344f;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-title,
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-choice.active {
-    color: #183450;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-description,
-#main-menu[data-menu-local-theme="hell"] .start-vehicle-stat {
-    color: #526b85;
-}
-
 @media (max-width: 940px) {
     .start-vehicle-picker {
         grid-template-columns: 1fr;
@@ -6957,19 +6812,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     text-align: left;
 }
 
-#main-menu[data-menu-local-theme="hell"] .start-map-details {
-    background: rgba(255, 255, 255, 0.84);
-    color: #20344f;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-map-choice.active {
-    color: #183450;
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-map-choice-group-label {
-    color: rgba(32, 52, 79, 0.68);
-}
-
 @media (max-width: 940px) {
     .start-map-picker {
         grid-template-columns: 1fr;
@@ -7175,10 +7017,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
     border-color: rgba(255, 105, 125, 0.8);
     background: linear-gradient(135deg, rgba(173, 42, 66, 0.86), rgba(112, 26, 45, 0.92));
     box-shadow: 0 0 0 2px rgba(255, 87, 116, 0.15);
-}
-
-#main-menu[data-menu-local-theme="hell"] .start-inline-advanced {
-    background: rgba(236, 244, 251, 0.8);
 }
 
 @media (max-width: 700px) {
@@ -7485,20 +7323,6 @@ input[type="range"]:focus-visible::-webkit-slider-thumb {
 
     #submenu-game .level3-body > #multiplayer-inline-stub > .menu-accordion-body {
         padding: 0 13px 13px;
-    }
-
-    #main-menu[data-menu-local-theme="hell"] .start-step-rail,
-    #main-menu[data-menu-local-theme="hell"] #submenu-game .level3-body > .start-section-card:not(#multiplayer-inline-stub) {
-        background: rgba(246, 250, 255, 0.9);
-        color: #1f3454;
-    }
-
-    #main-menu[data-menu-local-theme="hell"] .start-step-tab {
-        color: #294764;
-    }
-
-    #main-menu[data-menu-local-theme="hell"] .start-step-tab small {
-        color: #627d99;
     }
 }
 
@@ -8148,9 +7972,6 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     background: #101c2e;
     width: min(900px, 100%);
 }
-#main-menu[data-menu-local-theme="hell"] .level4-drawer {
-    background: #edf3fa;
-}
 .level4-header {
     align-items: flex-start;
     gap: 12px;
@@ -8168,9 +7989,6 @@ html[data-graphics-style="classic"] #arcade-mission-hud .arcade-mission-card {
     font-size: 0.8rem;
     line-height: 1.5;
     color: #b8c8df;
-}
-#main-menu[data-menu-local-theme="hell"] .menu-reset-scope {
-    color: #364862;
 }
 .level4-section-nav {
     overflow-y: auto;

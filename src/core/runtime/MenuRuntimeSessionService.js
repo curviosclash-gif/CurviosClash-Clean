@@ -62,7 +62,6 @@ const SESSION_SWITCH_CHANGED_KEYS = Object.freeze([
     SETTINGS_CHANGE_KEYS.GAMEPLAY_FIGHT_MG_DAMAGE,
     SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANAR_MODE,
     SETTINGS_CHANGE_KEYS.GAMEPLAY_PLANAR_LEVEL_COUNT,
-    SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE,
 ]);
 
 export { SESSION_SWITCH_CHANGED_KEYS, MODE_PATH_TO_PRESET_ID };
@@ -293,17 +292,11 @@ export function handleLevel3ResetAction(ctx) {
             { modePath }
         );
     }
-    if (!game.settings.localSettings || typeof game.settings.localSettings !== 'object') {
-        game.settings.localSettings = {};
-    }
-    game.settings.localSettings.themeMode = defaults.themeMode;
-
     onSettingsChanged({
         changedKeys: [
             SETTINGS_CHANGE_KEYS.MAP_KEY,
             SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_1,
             SETTINGS_CHANGE_KEYS.VEHICLES_PLAYER_2,
-            SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE,
         ],
     });
     game._showStatusToast('Auswahl zurückgesetzt', 1200, 'info');

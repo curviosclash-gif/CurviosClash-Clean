@@ -46,7 +46,8 @@ test('desktop controller editor swaps bindings and persists them across reload',
         await editor.getByLabel('Controller auswählen').selectOption('GAMEPAD_2');
         await editor.locator('[data-gamepad-action="PAUSE"]').selectOption('8');
         await expect(editor.getByLabel('Controller auswählen')).toHaveValue('GAMEPAD_2');
-        await editor.getByRole('button', { name: 'Einstellungen speichern', exact: true }).click();
+        // Changes save on their own after a short delay; the dirty flag clears once they are stored.
+        await page.waitForFunction(() => window.GAME_INSTANCE?.settingsDirty === false);
         await page.reload();
         await page.waitForSelector('#main-menu[data-shell-ready="true"]');
         await page.locator('.menu-utility-shell [data-level4-section=controls]').click();

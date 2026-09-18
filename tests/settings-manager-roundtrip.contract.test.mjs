@@ -136,7 +136,6 @@ const ALTERNATIVE_VALUES = new Map([
     ['localSettings.threePlayerSplit.vehicleId', 'aircraft'],
     ['localSettings.modePath', 'normal'],
     ['localSettings.seededModePaths', ['fight', 'arcade']],
-    ['localSettings.themeMode', 'hell'],
     ['localSettings.graphicsStyle', 'classic'],
     ['localSettings.mapBrightness', 'hell'],
     ['localSettings.hud.colorPreset', 'amber'],

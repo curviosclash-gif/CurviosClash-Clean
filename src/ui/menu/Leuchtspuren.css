@@ -37,7 +37,6 @@
 .session-icon { width: 34px; height: 34px; color: #39d3ff; }
 #main-menu .menu-utility-shell { border-top: 1px solid var(--lobby-line); padding-top: 16px; display: flex; justify-content: center; flex-wrap: wrap; gap: 8px 18px; }
 #main-menu .menu-utility-shell .secondary-btn { width: auto; margin: 0; background: rgba(5, 20, 39, .7); border-color: transparent; padding: 10px 14px; min-height: 44px; }
-#main-menu .menu-utility-shell [data-level4-section="controls"], #main-menu .expert-entry-btn { font-size: 12px; color: var(--lobby-muted); }
 #main-menu button:focus-visible, #main-menu input:focus-visible, #main-menu select:focus-visible { outline: 3px solid #71e2ff; outline-offset: 3px; }
 #main-menu button:disabled { opacity: .5; cursor: not-allowed; }
 #main-menu .nav-btn:hover, #main-menu .secondary-btn:hover:not(:disabled) { border-color: #3acbff; }
@@ -85,11 +84,6 @@
 #submenu-multiplayer #multiplayer-connection-controls { max-width: 850px; margin: 8px auto 22px; padding: 24px; background: var(--lobby-panel); border: 1px solid var(--lobby-line); border-radius: 14px; }
 #submenu-multiplayer .mp-intent-choices .secondary-btn { min-height: 54px; }
 #submenu-multiplayer .mp-host-help, #submenu-multiplayer .mp-join-help { color: var(--lobby-muted); }
-#main-menu[data-menu-local-theme="hell"] { --lobby-panel: rgba(237, 247, 255, .97); --lobby-line: #9fbdd1; --lobby-text: #102d46; --lobby-muted: #41617a; }
-#main-menu[data-menu-local-theme="hell"] .lobby-action-bar #multiplayer-status { color: #874400; }
-#main-menu[data-menu-local-theme="hell"] .lobby-match-card h3 { color: #00678b; }
-#main-menu[data-menu-local-theme="hell"] .mp-ready-indicator { color: #885000; }
-#main-menu[data-menu-local-theme="hell"] .mp-ready-indicator.is-ready { color: #087541; }
 @media (max-height: 800px) and (min-width: 1000px) {
     #main-menu[data-menu-depth="1"] .menu-shell { padding-top: 10px; padding-bottom: 12px; }
     #main-menu[data-menu-depth="1"] .menu-hero-shell { padding-top: 8px; }

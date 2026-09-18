@@ -43,13 +43,13 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
     });
     assignmentLabel.append(assignmentTitle, assignment); section.append(assignmentLabel);
     const assignmentHelp = doc.createElement('p');
-    assignmentHelp.textContent = 'Gilt ab der nächsten Runde im Zwei-Spieler-Splitscreen. Tastaturspieler verwenden die Tasten von Spieler 1 bzw. Spieler 2. Gemischt wird Controller 1 verwendet; mit zwei Controllern steuert Controller 1 Spieler 1 und Controller 2 Spieler 2. Zum Behalten Einstellungen speichern.';
+    assignmentHelp.textContent = 'Gilt ab der nächsten Runde im Zwei-Spieler-Splitscreen. Tastaturspieler verwenden die Tasten von Spieler 1 bzw. Spieler 2. Gemischt wird Controller 1 verwendet; mit zwei Controllern steuert Controller 1 Spieler 1 und Controller 2 Spieler 2.';
     section.append(assignmentHelp);
     const title = doc.createElement('h4');
     title.textContent = 'Controller-Belegung';
     section.append(title);
     const info = doc.createElement('p');
-    info.textContent = 'Änderungen gelten sofort. Zum Behalten „Einstellungen speichern“ wählen. Bereits belegte Tasten tauschen ihre Funktionen. Im Menü bleiben Steuerkreuz, A und B fest belegt. Im Vier-Spieler-2D-Modus gelten Lenken, Rollen und die Item-/Raketentaste als Kontextaktion. Bei automatischer Zuordnung hat aktivierte Maussteuerung Vorrang.';
+    info.textContent = 'Änderungen gelten sofort und werden automatisch gespeichert. Bereits belegte Tasten tauschen ihre Funktionen. Im Menü bleiben Steuerkreuz, A und B fest belegt. Im Vier-Spieler-2D-Modus gelten Lenken, Rollen und die Item-/Raketentaste als Kontextaktion. Bei automatischer Zuordnung hat aktivierte Maussteuerung Vorrang.';
     section.append(info);
     const player = doc.createElement('select');
     player.setAttribute('aria-label', 'Controller auswählen');
@@ -67,7 +67,7 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
         Object.assign(target, mapping);
         runtimeAccess.actionOnSettingsChanged?.();
         runtimeAccess.actionApplyPauseBindings?.();
-        status.textContent = 'Controller-Belegung geändert.';
+        status.textContent = 'Controller-Belegung geändert und gespeichert.';
     };
     /**
      * @param {Record<string, number>} mapping
@@ -105,11 +105,5 @@ export function renderGamepadBindingEditor(container, runtimeAccess) {
     const reset = doc.createElement('button'); reset.type = 'button'; reset.className = 'secondary-btn';
     reset.textContent = 'Controller-Standard wiederherstellen';
     reset.addEventListener('click', () => { save(normalizeGamepadControls()); renderRows(); });
-    const persist = doc.createElement('button'); persist.type = 'button'; persist.className = 'secondary-btn';
-    persist.textContent = 'Einstellungen speichern';
-    persist.addEventListener('click', () => {
-        status.textContent = runtimeAccess.actionSaveControllerSettings?.()
-            ? 'Einstellungen gespeichert.' : 'Speichern fehlgeschlagen. Bitte erneut versuchen.';
-    });
-    section.append(reset, persist); container.append(section); renderRows();
+    section.append(reset); container.append(section); renderRows();
 }

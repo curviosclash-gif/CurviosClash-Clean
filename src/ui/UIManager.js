@@ -363,12 +363,6 @@ export class UIManager {
             menuTextRuntime: this.menuTextRuntime,
             releaseState: menuUiContext.releaseState,
         });
-        const themeMode = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell'
-            ? 'hell'
-            : 'dunkel';
-        if (this.ui.mainMenu) {
-            this.ui.mainMenu.setAttribute('data-menu-local-theme', themeMode);
-        }
         this._syncStartSetupSnapshot(settings, { menuUiContext });
     }
 
@@ -442,10 +436,6 @@ export class UIManager {
         ui.autoRollToggle.checked = !!settings.autoRoll;
         ui.invertP1.checked = !!settings.invertPitch.PLAYER_1;
         ui.invertP2.checked = !!settings.invertPitch.PLAYER_2;
-        ui.cockpitCamP1.checked = true;
-        ui.cockpitCamP1.disabled = true;
-        ui.cockpitCamP2.checked = true;
-        ui.cockpitCamP2.disabled = true;
         ui.portalsToggle.checked = !!settings.portalsEnabled;
     }
 

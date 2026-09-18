@@ -116,7 +116,6 @@ function createSummaryBlocks({
     vehiclePreviewP2,
     ghostDuelState,
 }) {
-    const themeLabel = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell' ? 'Hell' : 'Dunkel';
     const summaryBlocks = [
         { label: 'Session', value: resolveSessionLabel(surfaceEntryCopy, sessionType), secondary: true },
         { label: 'Spielstil', value: resolveModeLabel(modePath) },
@@ -135,7 +134,6 @@ function createSummaryBlocks({
             muted: !ghostDuelState.trailCollisionSelectable,
             secondary: true,
         },
-        { label: 'Ansicht', value: themeLabel, secondary: true },
     ];
     if (sessionType === MENU_SESSION_TYPES.SPLITSCREEN
         || sessionType === MENU_SESSION_TYPES.MULTIPLAYER) {

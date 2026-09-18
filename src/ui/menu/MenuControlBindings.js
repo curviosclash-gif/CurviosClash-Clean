@@ -69,8 +69,4 @@ export function setupMenuControlBindings(ctx) {
     bind(ui.resetKeysButton, 'click', () => {
         emit(eventTypes.RESET_KEYS);
     });
-
-    bind(ui.saveKeysButton, 'click', () => {
-        emit(eventTypes.SAVE_KEYS);
-    });
 }

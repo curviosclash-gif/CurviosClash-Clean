@@ -130,10 +130,6 @@ body {
     align-items: center;
 }
 
-#main-menu[data-menu-local-theme="hell"] .menu-shell {
-    background: linear-gradient(180deg, rgba(239, 247, 255, 0.95), rgba(239, 247, 255, 0.82) 72%, rgba(239, 247, 255, 0));
-}
-
 @media (max-width: 980px) {
     .menu-shell {
         margin-bottom: 12px;

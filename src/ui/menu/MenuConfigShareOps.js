@@ -59,7 +59,6 @@ function createSharePayload(settings) {
     return {
         sessionType: sanitizeString(source?.localSettings?.sessionType, defaults.sessionType),
         modePath: sanitizeString(source?.localSettings?.modePath, defaults.modePath),
-        themeMode: sanitizeString(source?.localSettings?.themeMode, defaults.themeMode),
         shadowQuality: source?.localSettings?.shadowQuality ?? localDefaults.shadowQuality,
         bloomQuality: source?.localSettings?.bloomQuality ?? localDefaults.bloomQuality,
         startSetup: {
@@ -136,7 +135,6 @@ export function applyMenuConfigPayload(settings, payload) {
     }
     settings.localSettings.sessionType = sanitizeString(payload.sessionType, settings.localSettings.sessionType || defaults.sessionType);
     settings.localSettings.modePath = sanitizeString(payload.modePath, settings.localSettings.modePath || defaults.modePath);
-    settings.localSettings.themeMode = sanitizeString(payload.themeMode, settings.localSettings.themeMode || defaults.themeMode);
     const localDefaults = createMenuLocalSettingsDefaults();
     settings.localSettings.shadowQuality = payload.shadowQuality ?? settings.localSettings.shadowQuality ?? localDefaults.shadowQuality;
     settings.localSettings.bloomQuality = payload.bloomQuality ?? settings.localSettings.bloomQuality ?? localDefaults.bloomQuality;

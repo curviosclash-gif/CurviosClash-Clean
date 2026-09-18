@@ -430,11 +430,6 @@ export class UIStartSyncController {
             hasActiveLobbySession,
         });
 
-        if (this.ui.themeModeSelect) {
-            const themeMode = String(settings?.localSettings?.themeMode || 'dunkel').toLowerCase() === 'hell' ? 'hell' : 'dunkel';
-            this.ui.themeModeSelect.value = themeMode;
-        }
-
         // Only the open action opens the options window; a stored flag must not pop it up again.
         if (!settings?.localSettings?.toolsState?.level4Open) this.manager.setLevel4Open(false);
         this._renderStartFieldHints(settings);

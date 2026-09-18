@@ -227,7 +227,6 @@ function normalizeLocalSettingsState(localSettings = null) {
         multiplayerTransport,
         modePath,
         seededModePaths: normalizeSeededModePaths(source.seededModePaths),
-        themeMode: normalizeString(source.themeMode, defaults.themeMode).toLowerCase() === 'hell' ? 'hell' : 'dunkel',
         graphicsStyle: normalizeGraphicsStyle(source.graphicsStyle, defaults.graphicsStyle),
         mapBrightness: normalizeMapBrightness(source.mapBrightness, defaults.mapBrightness),
         viewDistance: normalizeViewDistance(source.viewDistance, defaults.viewDistance),

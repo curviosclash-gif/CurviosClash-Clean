@@ -1,7 +1,6 @@
 import assert from 'node:assert/strict';
 import test from 'node:test';
 
-import { SETTINGS_CHANGE_KEYS } from '../src/shared/settings/SettingsChangeKeys.js';
 import { SettingsManager } from '../src/core/SettingsManager.js';
 import { createSettingsSessionDraftFacade } from '../src/core/settings/SettingsSessionDraftFacade.js';
 import { SettingsStore } from '../src/shared/settings/SettingsStore.js';
@@ -41,11 +40,10 @@ test('V103 Settings session draft facade preserves store failure reasons', () =>
     assert.equal(result.metadata.persistedDraftState, false);
 });
 
-test('Menu session drafts preserve session fields without replacing the local display theme', () => {
+test('Menu session drafts preserve session fields without replacing local display settings', () => {
     const manager = new SettingsManager({ storagePlatform: createMemoryStoragePlatform() });
     const settings = manager.createDefaultSettings();
     settings.localSettings.sessionType = 'single';
-    settings.localSettings.themeMode = 'dunkel';
     settings.localSettings.shadowQuality = 1;
     settings.localSettings.bloomQuality = 2;
     settings.localSettings.startSetup.arcadeGhostDuelMode = 'self_longest_ghost';
@@ -60,7 +58,6 @@ test('Menu session drafts preserve session fields without replacing the local di
     const store = new MenuDraftStore({ storagePlatform: createMemoryStoragePlatform() });
     assert.equal(store.saveDraft('single', settings).success, true);
 
-    settings.localSettings.themeMode = 'hell';
     settings.localSettings.shadowQuality = 3;
     settings.localSettings.bloomQuality = 0;
     settings.localSettings.startSetup.arcadeGhostDuelMode = 'off';
@@ -75,7 +72,6 @@ test('Menu session drafts preserve session fields without replacing the local di
     const applyResult = store.applyDraft(settings, 'single');
 
     assert.equal(applyResult.success, true);
-    assert.equal(settings.localSettings.themeMode, 'hell');
     assert.equal(settings.localSettings.shadowQuality, 1);
     assert.equal(settings.localSettings.bloomQuality, 2);
     assert.equal(settings.localSettings.startSetup.arcadeGhostDuelMode, 'self_longest_ghost');
@@ -88,6 +84,7 @@ test('Menu session drafts preserve session fields without replacing the local di
     assert.equal(settings.cameraPerspective.speedFovIntensity, 0.35);
 });
 
+// The light/dark menu scheme is gone; old drafts and settings still carry the field.
 test('Legacy session draft themes are canonicalized away and never reported as changed', () => {
     const storagePlatform = createMemoryStoragePlatform({
         [STORAGE_KEYS.menuDrafts]: {
@@ -110,7 +107,7 @@ test('Legacy session draft themes are canonicalized away and never reported as c
     const canonicalDraft = storagePlatform.readJson(STORAGE_KEYS.menuDrafts, [], null);
 
     assert.equal(result.success, true);
-    assert.equal(settings.localSettings.themeMode, 'hell');
-    assert.equal(result.changedKeys.includes(SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE), false);
+    assert.equal('themeMode' in settings.localSettings, false);
+    assert.equal(result.changedKeys.some((key) => /theme/i.test(key)), false);
     assert.equal('themeMode' in canonicalDraft.drafts.splitscreen, false);
 });

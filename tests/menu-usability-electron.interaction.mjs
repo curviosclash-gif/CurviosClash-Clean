@@ -108,7 +108,7 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await page.locator('#btn-open-level4').click();
         await capture('settings-rules');
 
-        for (const [section, control] of [['audio', 'audio-master-volume-slider'], ['graphics', 'normal-camera-perspective-select'], ['recording', 'recording-profile-select'], ['hud', 'hud-scale-slider']]) {
+        for (const [section, control] of [['audio', 'audio-master-volume-slider'], ['graphics', 'graphics-style-select'], ['recording', 'normal-camera-perspective-select'], ['hud', 'hud-scale-slider']]) {
             await page.locator(`#level4-tab-${section}`).click();
             await expect(page.locator(`#${control}`)).toBeVisible();
             assert.equal(await page.locator(`#${control}`).count(), 1);
@@ -116,8 +116,10 @@ test('desktop menu supports complete navigation, settings and lobby entry at thr
         await page.locator('#level4-tab-audio').click();
         await page.keyboard.press('ArrowDown');
         await expect(page.locator('#level4-tab-graphics')).toBeFocused();
+        await page.keyboard.press('ArrowDown');
+        await expect(page.locator('#level4-tab-recording')).toBeFocused();
         await page.keyboard.press('Enter');
-        await expect(page.locator('#level4-section-graphics')).toHaveAttribute('aria-hidden', 'false');
+        await expect(page.locator('#level4-section-recording')).toHaveAttribute('aria-hidden', 'false');
         await page.locator('#normal-camera-perspective-select').focus();
         await gamepad(15);
         await expect(page.locator('#normal-camera-perspective-select')).toHaveValue('cinematic_soft');

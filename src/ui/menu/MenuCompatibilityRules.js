@@ -17,7 +17,6 @@ const MENU_COMPATIBILITY_RULES = Object.freeze([
     { id: 'mode_path_game_mode_sync', priority: 8 },
     { id: 'map_key_validity_guard', priority: 9 },
     { id: 'mode_hunt_respawn', priority: 10 },
-    { id: 'theme_mode_local_guard', priority: 15 },
     { id: 'preset_identity_integrity', priority: 20 },
     { id: 'fixed_preset_exists', priority: 30 },
     { id: 'fixed_preset_binding', priority: 40 },
@@ -44,9 +43,6 @@ const MENU_COMPATIBILITY_RULE_TRIGGER_KEYS = Object.freeze({
     mode_hunt_respawn: Object.freeze([
         SETTINGS_CHANGE_KEYS.GAME_MODE,
         SETTINGS_CHANGE_KEYS.HUNT_RESPAWN_ENABLED,
-    ]),
-    theme_mode_local_guard: Object.freeze([
-        SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE,
     ]),
     preset_identity_integrity: Object.freeze([
         SETTINGS_CHANGE_KEYS.PRESET_ACTIVE_ID,
@@ -215,24 +211,6 @@ function applyModeHuntRespawnRule(settings, result) {
         previousValue,
         settings.hunt.respawnEnabled,
         'respawn_requires_hunt_mode'
-    );
-}
-
-function applyThemeModeLocalGuardRule(settings, result) {
-    if (!settings?.localSettings || typeof settings.localSettings !== 'object') return;
-    const currentThemeMode = normalizeString(settings.localSettings.themeMode, 'dunkel').toLowerCase();
-    if (currentThemeMode === 'hell' || currentThemeMode === 'dunkel') return;
-
-    const previousThemeMode = settings.localSettings.themeMode;
-    settings.localSettings.themeMode = 'dunkel';
-    addChangedKey(result, SETTINGS_CHANGE_KEYS.LOCAL_THEME_MODE);
-    trackFix(
-        result,
-        'theme_mode_local_guard',
-        'localSettings.themeMode',
-        previousThemeMode,
-        settings.localSettings.themeMode,
-        'invalid_theme_mode_fallback'
     );
 }
 
@@ -478,7 +456,6 @@ export function applyMenuCompatibilityRules(settings, options = {}) {
     runRule('mode_path_game_mode_sync', () => applyModePathGameModeSyncRule(source, result));
     runRule('map_key_validity_guard', () => applyMapKeyValidityGuardRule(source, result));
     runRule('mode_hunt_respawn', () => applyModeHuntRespawnRule(source, result));
-    runRule('theme_mode_local_guard', () => applyThemeModeLocalGuardRule(source, result));
     runRule('preset_identity_integrity', () => applyPresetIdentityIntegrityRule(source, result));
     runRule('fixed_preset_exists', () => applyFixedPresetExistsRule(source, result));
     runRule('fixed_preset_binding', () => applyFixedPresetBindingRule(source, result));

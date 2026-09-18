@@ -115,7 +115,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
         threePlayerSplit: normalizeThreePlayerSplitSettings(),
         modePath: 'fight',
         seededModePaths: [],
-        themeMode: 'dunkel',
         graphicsStyle: GRAPHICS_STYLES.MODERN,
         mapBrightness: DEFAULT_MAP_BRIGHTNESS,
         viewDistance: DEFAULT_VIEW_DISTANCE,
@@ -155,7 +154,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     },
     level3Reset: {
         mapKey: 'standard',
-        themeMode: 'dunkel',
         vehicles: {
             PLAYER_1: 'ship5',
             PLAYER_2: 'ship5',
@@ -164,7 +162,6 @@ const MENU_DEFAULT_EDITOR_CONFIG_VALUE = {
     configShare: {
         sessionType: 'single',
         modePath: 'normal',
-        themeMode: 'dunkel',
         mode: '1p',
         gameMode: 'CLASSIC',
         mapKey: 'standard',
@@ -414,7 +411,6 @@ export function createMenuDefaultsEditorSnapshotFromSettings(settings = {}) {
         localSettings: {
             sessionType: String(localSettings.sessionType || MENU_DEFAULT_EDITOR_CONFIG.localSettings.sessionType),
             modePath: String(localSettings.modePath || MENU_DEFAULT_EDITOR_CONFIG.localSettings.modePath),
-            themeMode: String(localSettings.themeMode || MENU_DEFAULT_EDITOR_CONFIG.localSettings.themeMode),
             graphicsStyle: String(localSettings.graphicsStyle || MENU_DEFAULT_EDITOR_CONFIG.localSettings.graphicsStyle),
             mapBrightness: String(localSettings.mapBrightness || MENU_DEFAULT_EDITOR_CONFIG.localSettings.mapBrightness),
             viewDistance: Number(localSettings.viewDistance ?? MENU_DEFAULT_EDITOR_CONFIG.localSettings.viewDistance),

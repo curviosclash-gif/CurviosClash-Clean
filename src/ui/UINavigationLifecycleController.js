@@ -138,8 +138,12 @@ export class UINavigationLifecycleController {
     }
 
     _syncLevel4SectionState(sectionId, options = {}) {
-        const resolvedSectionId = this._resolveLevel4Section(sectionId);
+        let resolvedSectionId = this._resolveLevel4Section(sectionId);
         const tabs = Array.isArray(this.ui.level4SectionTabs) ? this.ui.level4SectionTabs : [];
+        // A tab this platform hides (Mobile on the desktop) falls back to the controls tab.
+        const requestedTab = tabs.find((button) => String(button?.dataset?.level4SectionTarget || '').trim() === resolvedSectionId);
+        const drawerShown = this.ui.level4Drawer?.classList?.contains('hidden') === false;
+        if (drawerShown && requestedTab?.getClientRects?.().length === 0) resolvedSectionId = LEVEL4_SECTION_IDS.CONTROLS;
         const panels = Array.isArray(this.ui.level4SectionPanels) ? this.ui.level4SectionPanels : [];
         tabs.forEach((button) => {
             const isActive = this._resolveLevel4Section(button?.dataset?.level4SectionTarget, '') === resolvedSectionId;
