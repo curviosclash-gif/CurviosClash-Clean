@@ -17,6 +17,7 @@ import {
     updateMapUnitVisual,
 } from './map-units/MapUnitVisualOps.js';
 import { createUnitMounts, createUnitSource, updateUnitWeapons } from './map-units/MapUnitWeaponOps.js';
+import { applyMapUnitDamage, tickMapUnitRespawns } from './map-units/MapUnitDamageOps.js';
 
 // How fast the hull swings round at a path corner, in radians per second.
 const HULL_TURN_RATE = 2.5;
@@ -36,6 +37,9 @@ export class MapUnitSystem {
         this._tmpAim = new THREE.Vector3();
         this._tmpPoint = new THREE.Vector3();
         this._trailQueryStamp = 0;
+        this._targets = [];
+        this._dueRespawns = [];
+        this.networkReplica = false;
     }
 
     startRound() {
@@ -78,6 +82,7 @@ export class MapUnitSystem {
             source: null,
             ownerPlayer: null,
             mounts: [],
+            respawnRemaining: Infinity,
         };
         resetUnitOnPath(unit);
         unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? 0;
@@ -88,6 +93,7 @@ export class MapUnitSystem {
         // Its own shots must not hit it: the weapons skip targets owned by the shooter.
         unit.ownerPlayer = unit.source;
         unit.mounts = createUnitMounts(unit);
+        unit.takeDamage = (amount, options = {}) => applyMapUnitDamage(this, unit, amount, options);
         return unit;
     }
 
@@ -102,8 +108,28 @@ export class MapUnitSystem {
         unit.position.y += TANK_TURRET_HEIGHT * unit.scale;
     }
 
+    /** Back at the start of its path with full hit points and cold weapons. */
+    _respawn(unit) {
+        unit.alive = true;
+        unit.hp = unit.maxHp;
+        unit.respawnRemaining = Infinity;
+        resetUnitOnPath(unit);
+        unit.yaw = resolveUnitPathPose(unit, unit.path, unit.groundPosition) ?? unit.yaw;
+        this._placeCentre(unit);
+        for (const mount of unit.mounts) {
+            mount.cooldownRemaining = mount.cooldown * 0.5;
+            mount.target = null;
+            mount.aimDirection.set(Math.sin(unit.yaw), 0, Math.cos(unit.yaw));
+        }
+        if (unit.root) unit.root.visible = true;
+        updateMapUnitVisual(unit);
+    }
+
     update(dt) {
         const safeDt = Math.max(0, Number(dt) || 0);
+        if (!this.networkReplica) {
+            for (const unit of tickMapUnitRespawns(this.units, safeDt, this._dueRespawns)) this._respawn(unit);
+        }
         for (const unit of this.units) {
             if (!unit.alive) continue;
             advanceUnitOnPath(unit, unit.path, unit.speed * safeDt, unit.definition.loop);
@@ -113,6 +139,17 @@ export class MapUnitSystem {
             updateMapUnitVisual(unit);
             updateUnitWeapons(this, unit, safeDt, this.entityManager?.isFightOutcomeAuthority !== false);
         }
+    }
+
+    /** What weapons may hit: the tanks that are still standing. The list is reused per call. */
+    getTargets() {
+        this._targets.length = 0;
+        for (const unit of this.units) if (unit.alive) this._targets.push(unit);
+        return this._targets;
+    }
+
+    setNetworkReplica(enabled) {
+        this.networkReplica = enabled === true;
     }
 
     clear() {

@@ -70,6 +70,7 @@ export function createEntityRuntimeSystems(owner, runtimeContext, support = null
     systems.targetableRegistry.addProvider(() => systems.staticTurretSystem.getDestructibleTargets());
     if (owner) owner._targetableRegistry = systems.targetableRegistry;
     systems.mapUnitSystem = new MapUnitSystem(owner);
+    systems.targetableRegistry.addProvider(() => systems.mapUnitSystem.getTargets());
     if (owner) owner._mapUnitSystem = systems.mapUnitSystem;
     systems.flamethrowerSystem = new FlamethrowerSystem(owner);
     if (owner) owner._flamethrowerSystem = systems.flamethrowerSystem;
