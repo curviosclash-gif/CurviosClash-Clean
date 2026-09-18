@@ -54,41 +54,67 @@ test('LAN multiplayer join button forwards lobbyCode plus optional manual signal
     }]);
 });
 
-test('online lobby browser refreshes and copies the selected lobby code', () => {
-    const emitted = [];
-    const refreshButton = createButton();
-    const lobbySelect = {
-        ...createButton(),
-        value: '',
-        selectedOptions: [{ dataset: { signalingUrl: 'http://192.168.1.8:9090' } }],
+function createFakeElement(doc, tag = 'div') {
+    const listeners = new Map();
+    const element = {
+        tagName: tag.toUpperCase(), ownerDocument: doc, children: [], dataset: {}, attributes: new Map(),
+        className: '', textContent: '', tabIndex: -1, disabled: false,
+        setAttribute(name, value) { this.attributes.set(name, String(value)); },
+        getAttribute(name) { return this.attributes.get(name) ?? null; },
+        appendChild(child) { this.children.push(child); return child; },
+        replaceChildren(...children) { this.children = children; },
+        addEventListener(type, handler) { listeners.set(type, handler); },
+        fire(type, event = {}) { return listeners.get(type)?.({ preventDefault() {}, stopPropagation() {}, target: this, ...event }); },
+        focus() { doc.activeElement = this; },
+        contains(node) { return node === this || this.children.some((child) => child === node || child.contains?.(node)); },
+        querySelectorAll(selector) {
+            const role = /\[role="(\w+)"\]/.exec(selector)?.[1];
+            return this.children.filter((child) => child.getAttribute?.('role') === role);
+        },
     };
+    return element;
+}
+
+test('the open lobby table fills the code on a click and joins on Enter', () => {
+    const emitted = [];
+    const doc = { activeElement: null };
+    doc.createElement = (tag) => createFakeElement(doc, tag);
+    const table = createFakeElement(doc);
+    const refreshButton = createButton();
     const lobbyCodeInput = { ...createButton(), value: '' };
     const hostAddressInput = { ...createButton(), value: '' };
+    const ui = {
+        multiplayerOpenLobbiesRefreshButton: refreshButton,
+        multiplayerOpenLobbiesTable: table,
+        multiplayerLobbySearchInput: { ...createButton(), value: '' },
+        multiplayerLobbyCodeInput: lobbyCodeInput,
+        multiplayerHostAddressInput: hostAddressInput,
+    };
     bindMenuMultiplayerActionButtons({
-        ui: {
-            multiplayerOpenLobbiesRefreshButton: refreshButton,
-            multiplayerOpenLobbiesSelect: lobbySelect,
-            multiplayerLobbyCodeInput: lobbyCodeInput,
-            multiplayerHostAddressInput: hostAddressInput,
-        },
+        ui,
         bind: (el, event, handler) => el.addEventListener(event, handler),
         emit: (eventType, payload) => emitted.push({ eventType, payload }),
         eventTypes: {
             MULTIPLAYER_LOBBY_LIST_REFRESH: 'multiplayer_lobby_list_refresh',
+            MULTIPLAYER_JOIN: 'multiplayer_join',
         },
         featureFlags: {},
     });
-
-    refreshButton.click();
-    lobbySelect.value = 'ABCD1234';
-    lobbySelect.change();
-
-    assert.deepEqual(emitted, [{
-        eventType: 'multiplayer_lobby_list_refresh',
-        payload: undefined,
-    }]);
-    assert.equal(lobbyCodeInput.value, 'ABCD1234');
-    assert.equal(hostAddressInput.value, 'http://192.168.1.8:9090');
+    try {
+        refreshButton.click();
+        ui.openLobbyTable.update([{ lobbyCode: 'ABCD1234', hostName: 'Blitz', memberCount: 1, maxPlayers: 10, signalingUrl: 'http://192.168.1.8:9090' }]);
+        const row = table.children.find((child) => child.getAttribute('role') === 'option');
+        row.fire('click');
+        assert.equal(lobbyCodeInput.value, 'ABCD1234');
+        assert.equal(hostAddressInput.value, 'http://192.168.1.8:9090');
+        table.fire('keydown', { key: 'Enter' });
+        assert.deepEqual(emitted, [
+            { eventType: 'multiplayer_lobby_list_refresh', payload: undefined },
+            { eventType: 'multiplayer_join', payload: { lobbyCode: 'ABCD1234', signalingUrl: 'http://192.168.1.8:9090' } },
+        ]);
+    } finally {
+        ui.stopOpenLobbyAutoRefresh();
+    }
 });
 
 test('lobby share buttons copy code and LAN address with feedback', async () => {

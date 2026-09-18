@@ -177,9 +177,10 @@ export class GameRuntimeMenuActionHandler {
         });
     }
 
-    handleMultiplayerLobbyListRefresh() {
+    handleMultiplayerLobbyListRefresh(event) {
         return handleMultiplayerLobbyListRefreshAction({
             game: this._facade?.game,
+            event,
             menuMultiplayerBridge: this._facade?.menuMultiplayerBridge,
         });
     }

@@ -40,14 +40,8 @@ function clearStaleLobbyListOnConnectionLoss(ui, panel, state) {
     const phase = String(state?.connectionPhase || '');
     const previousPhase = panel?.dataset?.lobbyConnectionPhase || '';
     if (panel?.dataset) panel.dataset.lobbyConnectionPhase = phase;
-    const select = ui.multiplayerOpenLobbiesSelect;
-    if (phase !== 'disconnected' || previousPhase === 'disconnected' || !select?.ownerDocument?.createElement) return;
-    const placeholder = select.ownerDocument.createElement('option');
-    placeholder.value = '';
-    placeholder.textContent = 'Verbindung verloren – bitte neu suchen';
-    select.replaceChildren(placeholder);
-    select.value = '';
-    select.disabled = true;
+    if (phase !== 'disconnected' || previousPhase === 'disconnected') return;
+    ui.openLobbyTable?.reset?.('Verbindung verloren – die Liste sucht gleich neu.');
 }
 
 export function syncLobbyScreen(ui, state, isMultiplayerSession) {

@@ -155,18 +155,12 @@ test('join action exposes a busy state and restores controls after connecting', 
     assert.equal(syncCount, 1);
 });
 
-test('online lobby list action renders joinable lobby options and status', async () => {
-    const select = {
-        ownerDocument: {
-            createElement: () => ({ value: '', textContent: '', dataset: {} }),
-        },
-        options: [],
-        value: '',
-        disabled: false,
-        replaceChildren(...options) {
-            this.options = options;
-        },
-    };
+function fakeLobbyTable() {
+    return { updates: [], update(lobbies) { this.updates.push(lobbies); } };
+}
+
+test('online lobby list action hands the found lobbies to the lobby table and reports the count', async () => {
+    const table = fakeLobbyTable();
     const refreshButton = { disabled: false };
     const game = {
         settings: {
@@ -175,7 +169,7 @@ test('online lobby list action renders joinable lobby options and status', async
             },
         },
         ui: {
-            multiplayerOpenLobbiesSelect: select,
+            openLobbyTable: table,
             multiplayerOpenLobbiesRefreshButton: refreshButton,
             multiplayerStatus: { textContent: '' },
         },
@@ -184,8 +178,6 @@ test('online lobby list action renders joinable lobby options and status', async
         lobbyCode: 'ABCD1234',
         memberCount: 1,
         maxPlayers: 4,
-        createdAt: 1,
-        updatedAt: 2,
         hostName: 'Captain',
         modePath: 'fight',
         mapKey: 'maze',
@@ -200,27 +192,17 @@ test('online lobby list action renders joinable lobby options and status', async
     });
 
     assert.deepEqual(result, { ok: true, lobbies });
-    assert.equal(select.options.length, 2);
-    assert.equal(select.options[1].value, 'ABCD1234');
-    assert.equal(select.options[1].textContent, 'ABCD1234 · 1/4 Spieler · Captain · fight · maze');
-    assert.equal(select.options[1].dataset.signalingUrl, 'ws://lobby.example');
-    assert.equal(select.disabled, false);
+    assert.deepEqual(table.updates, [lobbies]);
     assert.equal(refreshButton.disabled, false);
     assert.equal(game.ui.multiplayerStatus.textContent, '1 offene Online-Lobby gefunden.');
 });
 
-test('LAN lobby list action uses the same discovery UI', async () => {
-    const select = {
-        ownerDocument: { createElement: () => ({ value: '', textContent: '', dataset: {} }) },
-        options: [],
-        value: '',
-        disabled: false,
-        replaceChildren(...options) { this.options = options; },
-    };
+test('LAN lobby list action uses the same discovery UI, and a background refresh stays silent', async () => {
+    const table = fakeLobbyTable();
     const game = {
         settings: { localSettings: { multiplayerTransport: MULTIPLAYER_TRANSPORTS.LAN } },
         ui: {
-            multiplayerOpenLobbiesSelect: select,
+            openLobbyTable: table,
             multiplayerOpenLobbiesRefreshButton: { disabled: false },
             multiplayerStatus: { textContent: '' },
         },
@@ -235,6 +217,17 @@ test('LAN lobby list action uses the same discovery UI', async () => {
     });
 
     assert.equal(result.ok, true);
-    assert.equal(select.options[1].value, 'LAN-QA');
+    assert.equal(table.updates[0][0].lobbyCode, 'LAN-QA');
     assert.equal(game.ui.multiplayerStatus.textContent, '1 offene LAN-Lobby gefunden.');
+
+    game.ui.multiplayerStatus.textContent = 'unverändert';
+    let release = null;
+    const slowBridge = { listOpenLobbies: () => new Promise((resolve) => { release = () => resolve(lobbies); }) };
+    const first = handleMultiplayerLobbyListRefreshAction({ game, event: { auto: true }, menuMultiplayerBridge: slowBridge });
+    const overlapping = await handleMultiplayerLobbyListRefreshAction({ game, event: { auto: true }, menuMultiplayerBridge: slowBridge });
+    assert.equal(overlapping, null, 'a second background search waits for the running one');
+    release();
+    assert.equal((await first).ok, true);
+    assert.equal(table.updates.length, 2);
+    assert.equal(game.ui.multiplayerStatus.textContent, 'unverändert');
 });

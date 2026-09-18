@@ -53,16 +53,14 @@ export async function resolveNetworkLobbyShareAddress({
     return `${host}:${port}`;
 }
 
+// A cold listener hears each host once per broadcast interval (2 s), so the first event
+// may hold only one of several hosts. Listen for the whole window and keep the latest
+// full list; the desktop shell always sends every host it knows.
 async function waitForDiscoveredHosts(discoveryPort, timeoutMs) {
-    let resolveHostEvent = null;
+    let latestEventHosts = [];
     let timeoutId = null;
-    const hostEvent = new Promise((resolve) => {
-        resolveHostEvent = resolve;
-    });
     const unsubscribe = discoveryPort.subscribe?.((hosts) => {
-        if (Array.isArray(hosts) && hosts.length > 0) {
-            resolveHostEvent(hosts);
-        }
+        if (Array.isArray(hosts) && hosts.length > 0) latestEventHosts = hosts;
     });
 
     try {
@@ -71,15 +69,9 @@ async function waitForDiscoveredHosts(discoveryPort, timeoutMs) {
         if (Array.isArray(cachedHosts) && cachedHosts.length > 0) {
             return cachedHosts;
         }
-        const timeout = new Promise((resolve) => {
-            timeoutId = setTimeout(() => {
-                Promise.resolve(discoveryPort.getHosts?.()).then(resolve, () => resolve([]));
-            }, timeoutMs);
-        });
-        return await Promise.race([
-            hostEvent,
-            timeout,
-        ]);
+        await new Promise((resolve) => { timeoutId = setTimeout(resolve, timeoutMs); });
+        const polledHosts = await Promise.resolve(discoveryPort.getHosts?.()).catch(() => []);
+        return Array.isArray(polledHosts) && polledHosts.length >= latestEventHosts.length ? polledHosts : latestEventHosts;
     } finally {
         if (timeoutId !== null) clearTimeout(timeoutId);
         if (typeof unsubscribe === 'function') unsubscribe();
@@ -107,6 +99,8 @@ export async function listDiscoveredNetworkLobbies({
                 gameMode: normalizeString(host?.gameMode, ''),
                 modePath: normalizeString(host?.modePath, ''),
                 winsNeeded: Math.max(1, Math.floor(Number(host?.winsNeeded) || 1)),
+                inMatch: host?.inMatch === true,
+                lastSeen: entry.lastSeen,
                 signalingUrl: `http://${entry.ip}:${entry.port}`,
                 transport,
             }];

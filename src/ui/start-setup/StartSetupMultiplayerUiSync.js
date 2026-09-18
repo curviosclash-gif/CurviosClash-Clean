@@ -325,16 +325,15 @@ export function syncStartSetupMultiplayerUi({
             && multiplayerTransportUiState.isOnlineUnconfigured);
     if (ui.multiplayerOpenLobbiesControls) {
         ui.multiplayerOpenLobbiesControls.classList.toggle('hidden', !showOpenLobbies);
+        // The automatic lobby search only runs while browsing is possible.
+        ui.multiplayerOpenLobbiesControls.dataset.canBrowse = String(canBrowseOpenLobbies);
     }
     if (ui.multiplayerOpenLobbiesLabel) {
         ui.multiplayerOpenLobbiesLabel.textContent = multiplayerTransportUiState.selectedTransport === MULTIPLAYER_TRANSPORTS.ONLINE
             ? 'Offene Online-Lobbys'
             : 'Lobbys im LAN';
     }
-    if (ui.multiplayerOpenLobbiesSelect) {
-        ui.multiplayerOpenLobbiesSelect.disabled = !canBrowseOpenLobbies
-            || Number(ui.multiplayerOpenLobbiesSelect.options?.length || 0) <= 1;
-    }
+    if (ui.multiplayerLobbySearchInput) ui.multiplayerLobbySearchInput.disabled = !canBrowseOpenLobbies;
     if (ui.multiplayerOpenLobbiesRefreshButton) {
         ui.multiplayerOpenLobbiesRefreshButton.disabled = !canBrowseOpenLobbies;
     }

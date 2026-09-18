@@ -1106,14 +1106,17 @@
                                     </div>
                                     <div class="mp-join-fields">
                                     <div id="multiplayer-open-lobbies-controls" class="hidden">
-                                        <label id="multiplayer-open-lobbies-label" for="multiplayer-open-lobbies" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
-                                        <div class="btn-group secondary-btn-spaced">
-                                            <select id="multiplayer-open-lobbies" disabled>
-                                                <option value="">Aktualisieren, um Lobbys zu suchen</option>
-                                            </select>
+                                        <label id="multiplayer-open-lobbies-label" for="multiplayer-lobby-search" data-menu-text-id="menu.level3.multiplayer.open_lobbies.label">Offene Lobbys</label>
+                                        <div class="mp-lobby-search-row">
+                                            <input type="text" id="multiplayer-lobby-search" placeholder="Suchen: Host, Code, Karte, Spielstil"
+                                                autocomplete="off" spellcheck="false">
                                             <button type="button" id="btn-multiplayer-lobbies-refresh" class="secondary-btn">
                                                 Aktualisieren
                                             </button>
+                                        </div>
+                                        <div id="multiplayer-open-lobbies" class="mp-lobby-table" role="listbox"
+                                            aria-labelledby="multiplayer-open-lobbies-label">
+                                            <p class="mp-lobby-empty">Lobbys werden gesucht …</p>
                                         </div>
                                     </div>
                                     </div>

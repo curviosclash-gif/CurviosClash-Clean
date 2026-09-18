@@ -44,34 +44,18 @@ test('a rejoin request to a vanished host gives up within the poll timeout', asy
     assert.ok(Date.now() - started < 6000, `gave up after ${Date.now() - started} ms`);
 });
 
-function fakeSelect(doc) {
-    const options = [
-        { value: '', textContent: 'Offene Lobby auswählen' },
-        { value: 'DEAD1234', textContent: 'DEAD1234 · 2/10 Spieler' },
-    ];
-    return {
-        ownerDocument: doc,
-        value: 'DEAD1234',
-        disabled: false,
-        get options() { return options; },
-        replaceChildren(...next) { options.splice(0, options.length, ...next); },
-    };
-}
-
 test('losing the lobby connection clears the stale lobby list once', () => {
-    const doc = { createElement: () => ({ value: '', textContent: '' }) };
-    const panel = { dataset: {}, ownerDocument: doc };
-    const ui = { multiplayerPanel: panel, multiplayerOpenLobbiesSelect: fakeSelect(doc) };
+    const resets = [];
+    const panel = { dataset: {} };
+    const ui = { multiplayerPanel: panel, openLobbyTable: { reset: (message) => resets.push(message) } };
     syncLobbyScreen(ui, { joined: true, connectionPhase: 'connected', members: [] }, true);
-    assert.equal(ui.multiplayerOpenLobbiesSelect.options.length, 2, 'a working lobby keeps the list');
+    assert.equal(resets.length, 0, 'a working lobby keeps the list');
 
     syncLobbyScreen(ui, { joined: false, connectionPhase: 'disconnected', members: [] }, true);
-    assert.deepEqual(ui.multiplayerOpenLobbiesSelect.options.map((option) => option.value), ['']);
-    assert.equal(ui.multiplayerOpenLobbiesSelect.value, '');
-    assert.match(ui.multiplayerOpenLobbiesSelect.options[0].textContent, /neu suchen/);
+    assert.equal(resets.length, 1);
+    assert.match(resets[0], /Verbindung verloren/);
 
     // A search after the loss must survive the next sync while the phase is still "disconnected".
-    ui.multiplayerOpenLobbiesSelect.replaceChildren({ value: '' , textContent: 'x' }, { value: 'LIVE5678', textContent: 'LIVE5678' });
     syncLobbyScreen(ui, { joined: false, connectionPhase: 'disconnected', members: [] }, true);
-    assert.equal(ui.multiplayerOpenLobbiesSelect.options.length, 2);
+    assert.equal(resets.length, 1);
 });

@@ -299,6 +299,7 @@ function startBroadcast(resolveState) {
                     gameMode: String(metadata.gameMode || 'CLASSIC').trim(),
                     modePath: String(metadata.modePath || 'normal').trim(),
                     winsNeeded: Number(metadata.winsNeeded || 5),
+                    inMatch: state?.inMatch === true,
                 });
                 const buffer = Buffer.from(payload);
                 broadcastSocket.send(buffer, 0, buffer.length, DISCOVERY_PORT, '255.255.255.255');
@@ -431,6 +432,8 @@ async function startSignalingServer() {
             playerCount: runtime.lobby ? 1 + (runtime.lobby.players?.length || 0) : 0,
             maxPlayers: runtime.lobby?.maxPlayers || 10,
             metadata: runtime.lobby?.metadata || null,
+            // The signaling server keeps the start command until the host resets the lobby.
+            inMatch: !!runtime.lobby?.pendingMatchStart,
         }));
         updateTrayTooltip();
         return runtime;
@@ -1035,6 +1038,7 @@ function startDiscoveryListener() {
                 gameMode: String(data.gameMode || '').trim(),
                 modePath: String(data.modePath || '').trim(),
                 winsNeeded: Math.max(1, Math.floor(Number(data.winsNeeded) || 5)),
+                inMatch: data.inMatch === true,
                 lastSeen: Date.now(),
             };
             discoveredHosts.set(buildDiscoveryHostKey(hostRecord), hostRecord);

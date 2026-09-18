@@ -1,4 +1,6 @@
 import { bindLobbyNameField } from '../start-setup/LobbyNameField.js';
+import { createOpenLobbyTable } from './multiplayer/OpenLobbyTable.js';
+import { startOpenLobbyAutoRefresh } from './multiplayer/OpenLobbyAutoRefresh.js';
 
 export function bindMenuMultiplayerActionButtons({
     ui,
@@ -87,17 +89,22 @@ export function bindMenuMultiplayerActionButtons({
         });
     }
 
-    if (ui.multiplayerOpenLobbiesSelect) {
-        bind(ui.multiplayerOpenLobbiesSelect, 'change', () => {
-            const lobbyCode = String(ui.multiplayerOpenLobbiesSelect.value || '').trim();
-            if (lobbyCode && ui.multiplayerLobbyCodeInput) {
-                ui.multiplayerLobbyCodeInput.value = lobbyCode;
-            }
-            const selectedOption = ui.multiplayerOpenLobbiesSelect.selectedOptions?.[0];
-            const signalingUrl = String(selectedOption?.dataset?.signalingUrl || '').trim();
-            if (signalingUrl && ui.multiplayerHostAddressInput) {
-                ui.multiplayerHostAddressInput.value = signalingUrl;
-            }
+    if (ui.multiplayerOpenLobbiesTable) {
+        const fillFields = (row) => {
+            if (ui.multiplayerLobbyCodeInput) ui.multiplayerLobbyCodeInput.value = row.lobbyCode;
+            if (row.signalingUrl && ui.multiplayerHostAddressInput) ui.multiplayerHostAddressInput.value = row.signalingUrl;
+        };
+        // The core refresh hands its results to this table instead of drawing them itself.
+        ui.openLobbyTable = createOpenLobbyTable({
+            container: ui.multiplayerOpenLobbiesTable,
+            searchInput: ui.multiplayerLobbySearchInput,
+            onSelect: fillFields,
+            onJoin: (row) => emit(eventTypes.MULTIPLAYER_JOIN, { lobbyCode: row.lobbyCode, signalingUrl: row.signalingUrl }),
+        });
+        ui.stopOpenLobbyAutoRefresh?.();
+        ui.stopOpenLobbyAutoRefresh = startOpenLobbyAutoRefresh({
+            ui,
+            refresh: () => emit(eventTypes.MULTIPLAYER_LOBBY_LIST_REFRESH, { auto: true }),
         });
     }
 
