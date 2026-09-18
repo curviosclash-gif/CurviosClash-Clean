@@ -279,6 +279,9 @@ test.describe('Desktop Smoke', () => {
         });
         await page.waitForFunction(() => window.GAME_INSTANCE?.state === 'MATCH_END');
         await expect(page.locator('#message-stats')).toContainText('Speicherung');
+        // The result board drops every key for 1.5 s after a match end; continue only once
+        // its button says the lock is over.
+        await expect(page.locator('[data-postmatch-action="continue"]')).not.toHaveAttribute('aria-disabled', 'true');
         await page.keyboard.press('Enter');
         await page.waitForFunction((previousRunId) => {
             const game = window.GAME_INSTANCE;
