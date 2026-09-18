@@ -19,7 +19,7 @@ SEMANTIC_BASELINES = {
     "FAN_3": 2.311, "FAN_4": 2.230, "FAN_5": 2.311, "TRAIL_GAP": 1.603,
     "EMP": 1.860, "MAGNET": 1.350, "DECOY": 1.942, "PURGE": 1.590,
     "SWAP": 1.590, "MINE": 1.739, "ROCKET_WEAK": 1.915, "ROCKET_MEDIUM": 2.176,
-    "ROCKET_HEAVY": 2.480, "ROCKET_MEGA": 3.206,
+    "ROCKET_HEAVY": 2.480, "ROCKET_MEGA": 3.206, "ROCKET_GUIDED": 3.206,
     "FLAMETHROWER": 1.915, "LIGHTNING": 1.860, "RAILGUN": 2.230,
 }
 
@@ -44,7 +44,7 @@ COLORS = {
     "DECOY": (1.0, .18, .68, 1), "PURGE": (.8, .9, 1.0, 1),
     "SWAP": (.55, .12, 1.0, 1), "MINE": (1.0, .08, .02, 1),
     "ROCKET_WEAK": (1.0, .55, .12, 1), "ROCKET_MEDIUM": (1.0, .25, .03, 1),
-    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1),
+    "ROCKET_HEAVY": (1.0, .2, .267, 1), "ROCKET_MEGA": (.55, .0, 1.0, 1), "ROCKET_GUIDED": (.63, .2, 1.0, 1),
     "FLAMETHROWER": (1.0, .48, .10, 1),
     "LIGHTNING": (.72, .84, 1.0, 1), "RAILGUN": (.5, .9, 1.0, 1),
 }
@@ -839,7 +839,7 @@ def build_all():
         "DECOY": build_decoy, "PURGE": build_purge, "SWAP": lambda r: build_crossed_arrows(r, True),
         "MINE": build_mine, "ROCKET_WEAK": lambda r: build_rocket(r,"WEAK"),
         "ROCKET_MEDIUM": lambda r: build_rocket(r,"MEDIUM"),
-        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"),
+        "ROCKET_HEAVY": lambda r: build_pilot_rocket(r,"HEAVY"), "ROCKET_MEGA": lambda r: build_rocket(r,"MEGA"), "ROCKET_GUIDED": lambda r: build_rocket(r,"MEGA"),
         "FLAMETHROWER": build_flamethrower,
         "LIGHTNING": build_lightning, "RAILGUN": build_railgun,
     }

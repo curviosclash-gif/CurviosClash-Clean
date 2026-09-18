@@ -148,6 +148,10 @@ export function shootPlayerItemProjectile(system, player, preferredIndex = -1, r
         projectile.velocity.copy(system._tmpFanDirection).multiplyScalar(config.PROJECTILE.SPEED);
         projectile.radius = config.PROJECTILE.RADIUS * collisionRadiusMultiplier;
         configureProjectileRange(projectile, config.PROJECTILE, huntRocket ? ROCKET_RANGE_MULTIPLIER : 1);
+        if (type === 'ROCKET_GUIDED') {
+            projectile.ttl = 15;
+            projectile.maxDistance = Infinity;
+        }
         projectile.traveled = 0;
         projectile.homingTurnRate = homingTurnRate;
         projectile.homingLockOnAngle = homingLockOnAngle;

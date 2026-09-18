@@ -8,7 +8,7 @@ export const LEGACY_PICKUP_MODEL_TYPES = Object.freeze([
 
 const LEGACY_PICKUP_MODELS = new Set(LEGACY_PICKUP_MODEL_TYPES);
 const ROCKET_PICKUP_TYPES = new Set([
-    'ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA',
+    'ROCKET_WEAK', 'ROCKET_MEDIUM', 'ROCKET_HEAVY', 'ROCKET_MEGA', 'ROCKET_GUIDED',
 ]);
 
 function normalizeLegacyModel(value) {
