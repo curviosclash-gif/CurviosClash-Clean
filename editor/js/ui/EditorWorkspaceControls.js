@@ -8,6 +8,7 @@ import {
     parseEditorAuthoringDocument,
 } from '../EditorAuthoringDocument.js';
 import { EDITOR_PREFABS, getEditorPrefabById } from './EditorPrefabCatalog.js';
+import { EDITOR_BLOCKING_CHECKPOINT_CODE, resolveCheckpointValidationItems } from './EditorCheckpointValidation.js';
 
 const AUTOSAVE_STORAGE_KEY = 'curviosclash.editor.autosave.v1';
 const PLAYTEST_RETURN_STORAGE_KEY = 'curviosclash.editor.playtest-return.v1';
@@ -88,6 +89,7 @@ const BLOCKING_EXPORT_VALIDATION_CODES = new Set([
     'parcours-finish',
     'spawn-trapped',
     'portal-blocked',
+    EDITOR_BLOCKING_CHECKPOINT_CODE,
 ]);
 
 function buildValidationItems(editor) {
@@ -125,14 +127,11 @@ function buildValidationItems(editor) {
     }
     const trappedSpawns = spawns.filter((spawn) => isBlocked(spawn.position));
     const blockedPortals = portals.filter((portal) => isBlocked(portal.position));
-    const blockedCheckpoints = checkpoints.filter((checkpoint) => isBlocked(checkpoint.position));
-    const unreachableCheckpoints = new Set(blockedCheckpoints.map((entry) => entry.userData.id));
-    const maxSegmentDistance = Math.max(arena.width, arena.depth, arena.height * 2) * 0.72;
-    for (let index = 1; index < checkpoints.length; index += 1) {
-        if (checkpoints[index - 1].position.distanceTo(checkpoints[index].position) > maxSegmentDistance) {
-            unreachableCheckpoints.add(checkpoints[index].userData.id);
-        }
-    }
+    const checkpointItems = resolveCheckpointValidationItems({
+        checkpoints,
+        isBlocked,
+        maxSegmentDistance: Math.max(arena.width, arena.depth, arena.height * 2) * 0.72,
+    });
     const unpairedPortals = portals.filter((portal) => {
         const partner = editor.mapManager?.getObjectById?.(String(portal.userData?.portalPartnerId || ''));
         return !partner
@@ -152,7 +151,7 @@ function buildValidationItems(editor) {
         { code: 'spawn-overlap', ok: overlappingSpawns.size === 0, label: overlappingSpawns.size === 0 ? 'Spawn-Abstände sind frei' : `${overlappingSpawns.size} Spawn(s) überlappen`, objectIds: [...overlappingSpawns] },
         { code: 'spawn-trapped', ok: trappedSpawns.length === 0, label: trappedSpawns.length === 0 ? 'Spawn-Freiraum für Standardfahrzeug vorhanden' : `${trappedSpawns.length} Spawn(s) ohne ausreichenden Freiraum`, objectIds: trappedSpawns.map((entry) => entry.userData.id) },
         { code: 'portal-blocked', ok: blockedPortals.length === 0, label: blockedPortals.length === 0 ? 'Portalzentren bieten Fahrzeug-Freiraum' : `${blockedPortals.length} Portal(e) blockiert`, objectIds: blockedPortals.map((entry) => entry.userData.id) },
-        { code: 'checkpoint-reachability', ok: unreachableCheckpoints.size === 0, label: unreachableCheckpoints.size === 0 ? 'Parcours-Segmente wirken erreichbar' : `${unreachableCheckpoints.size} Checkpoint(s) blockiert oder zu weit entfernt`, objectIds: [...unreachableCheckpoints] },
+        ...checkpointItems,
         { code: 'assets', ok: !assetsDegraded, label: assetsDegraded ? 'Assets verwenden Fallbacks' : 'Assets sind bereit', objectIds: [] },
     ].map((item) => ({
         ...item,

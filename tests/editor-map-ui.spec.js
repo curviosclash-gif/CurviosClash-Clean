@@ -171,7 +171,8 @@ test.describe('V65: Editor Build Dock', () => {
         await expect(page.locator('#dockRecentList')).toContainText('Noch nichts benutzt');
         await expect(page.locator('#dockFavoriteList')).toContainText('Keine Favoriten');
         await expect(page.locator('#dirtyStateBadge')).toHaveText('Gespeichert');
-        await expect(page.locator('#validationList li')).toHaveCount(10);
+        // Blocked checkpoint centres got their own (export blocking) item next to the reachability hint.
+        await expect(page.locator('#validationList li')).toHaveCount(11);
         await expect(page.locator('#validationStateBadge')).toHaveText('1 Fehler · 1 Warnung');
         await expect(page.locator('#validationIssueBadge')).toHaveText('2');
         await expect(page.locator('#btnDuplicateSelected')).toBeHidden();
