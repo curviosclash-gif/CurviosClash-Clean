@@ -168,7 +168,8 @@ const ECLIPSE_FOUNDRY_CHECKPOINTS = [
     // The merge ring takes the blue lane from the south and the orange lane from the north, so it
     // faces the one direction both of them share -- east, along the building. Aimed diagonally it
     // stood with its back to the orange lane, which crosses it backwards and never triggers it.
-    { id: 'CP09', type: 'orbit_merge', pos: [110, 87, 0], radius: 6.0, forward: [0.99, -0.08, 0.06] },
+    // Beside the time core orb, which filled the whole ring before.
+            { id: 'CP09', type: 'orbit_merge', pos: [116, 93, -9], radius: 6.0, forward: [0.99, -0.08, 0.06] },
     { id: 'CP10', type: 'eclipse_temple', pos: [147, 94, 60], radius: 5.8, forward: [-0.2, 0.1, 1] },
     { id: 'CP11', type: 'branch_entry', pos: [105, 101, 94], radius: 5.7, forward: [-0.8, 0.2, 0.3], nextIds: ['CP12_PORTAL', 'CP12_TECH'] },
     { id: 'CP12_PORTAL', type: 'void_portal', pos: [61, 116, 108], radius: 5.0, forward: [-1, 0, -0.2], nextIds: ['CP13'] },
@@ -245,7 +246,8 @@ export const ECLIPSE_FOUNDRY_MAP = {
                 showGhost: true,
             },
             checkpoints: ECLIPSE_FOUNDRY_CHECKPOINTS,
-            finish: { id: 'FINISH', type: 'finish', pos: [0, 61, -10], radius: 7.2, forward: [1, 0, 0] },
+            // Out of the orb's sweep: the old centre was blocked for the whole orbit.
+        finish: { id: 'FINISH', type: 'finish', pos: [-3, 64, -28], radius: 7.2, forward: [1, 0, 0] },
         },
     },
 };

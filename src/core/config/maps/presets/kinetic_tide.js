@@ -261,7 +261,8 @@ export const KINETIC_TIDE_MAP = {
                 showGhost: true,
             },
             checkpoints: KINETIC_TIDE_CHECKPOINTS,
-            finish: { id: 'FINISH', type: 'finish', pos: [0, 62, 0], radius: 7.2, forward: [0.2, -0.3, -0.9] },
+            // Above the reactor core: the core is wider than the ring and fully collides.
+        finish: { id: 'FINISH', type: 'finish', pos: [0, 74, 9], radius: 7.2, forward: [0.2, -0.3, -0.9] },
         },
     },
 };
